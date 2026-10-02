@@ -7,9 +7,9 @@
 ### A. 入场/退场动画（现状：几乎没有，全部生硬直现）
 - [x] A1 编辑器：淡入 240ms cubic-out + 内容上浮 14px（Round 49，e5 连拍）
 - [x] A2 悬浮条：首次=淡入190ms+上浮10px，播放条 delay110 错开；再次显示=纯淡入110ms不打扰；隐藏=淡出150ms+下沉5px（a2 连拍实证）
-- [ ] A3 设置/帮助窗：核查现有 FadeIn 质量，统一弹出式入场；关闭先行淡出
-- [ ] A4 选区层：入场遮罩渐显（~150ms）；吸附窗口时的边框收束动画
-- [ ] A5 缓动语言统一：入场 cubic-out / 退场 cubic-in / 循环 ease-in-out，全站同一套曲线常量
+- [x] A3 设置/帮助窗：PopupEnter（淡入+0.96→1 放大 190ms）+ CloseWithFade（150ms cubic-in）；popup2/popup4 连拍实证双向渐变；修掉退场闪没与按键重复重入两 bug（da2cab3）
+- [x] A4 选区层：遮罩 150ms 渐显 + 旧区域虚线滞后 90ms 淡入并 0.98→1 落位（pick/pk2/outline2 三组连拍实证）；吸附 hover 收束需真鼠标交互，留待人工核验（d084923）
+- [x] A5 Fluent.Motion 令牌类（Enter190/EditorEnter240/Exit150/Stagger110/Hover110/Theme260），新动画一律引用（d084923）
 ### B. 主题一致性（现状：浅色模式下悬浮条仍全黑，割裂）
 - [ ] B1 FloatBar 明暗双态（浅色=亚克力浅底+深色图标，同 Fluent 工具条）
 - [x] B2 时间轴令牌化：轨道/拇指描边=Theme.TrackBg/Stroke，HUD 文字=Theme.Text，分隔线=Stroke，白色色块描边（light-bars2 实证，bars5 深色无损）；Editor_OnTheme 即时换色
@@ -19,7 +19,7 @@
 ### C. 状态指示与控件语义
 - [ ] C1 选中工具= accent 实心 pill + 反白图标（现无选中态视觉）
 - [x] C2 ✓确定=accent 实心 pill（bars4.png）；✕保持幽灵（播放条+单帧绘制条两处）
-- [ ] C3 悬停/按下反馈核查：底色渐变 80ms，非瞬变
+- [x] C3 模板核查：hover 进入 110ms cubic-out / 退出 160ms，按下 scale0.92，均为动画非瞬变（Fluent.cs L75-81）
 - [ ] C4 撤销禁用态（灰）核查
 ### D. 逐界面截图档案（改前/改后成对留存 test-out/uiaudit/）
 - [ ] D1 编辑器（明/暗） - 明已有基线，暗待拍
@@ -27,7 +27,7 @@
 - [ ] D3 设置窗（明/暗）+ 主题切换交叉淡入淡出逐帧 — 浅色基线已拍 light-settings.png（观感良好）；暗色待拍
 - [ ] D4 帮助窗（明/暗）— 浅色基线已拍 light-help.png（观感良好）；暗色待拍
 - [ ] D5 选区层（吸附态/拖框态）
-- [ ] D6 轮廓窗 + HUD/编码进度反馈
+- [x] D6 轮廓窗生命周期连拍实证：区域确认后 亮起(482/524)→450ms 衰减→≈1.1s 强调驻留→350ms 柔和淡出；修复 FlashOutline/FadeAway 死代码 + 步进两跳（outline2.*）；HUD/编码进度反馈审查待做
 - [ ] D7 GIF 提交流程连拍（编辑器淡出→剪贴板 toast？）
 ### E. 回归护栏
 - [ ] 每批次改动后：构建 0 error + SelfTest 全过 + e2e 捕获链路完好 + git commit

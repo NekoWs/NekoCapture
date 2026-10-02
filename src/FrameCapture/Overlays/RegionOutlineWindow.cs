@@ -82,7 +82,8 @@ public sealed class RegionOutlineWindow : Window
             _fadeTimer.Tick += (_, _) =>
             {
                 _fadeTimer!.Stop();
-                var a = new System.Windows.Media.Animation.DoubleAnimation(0, TimeSpan.FromMilliseconds(350));
+                var a = new System.Windows.Media.Animation.DoubleAnimation(0, new System.Windows.Duration(TimeSpan.FromMilliseconds(350)))
+                { EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseInOut } };
                 a.Completed += (_, _) => Dispatcher.Invoke(Hide);
                 BeginAnimation(OpacityProperty, a);
             };
@@ -94,10 +95,19 @@ public sealed class RegionOutlineWindow : Window
 
     public void Flash()
     {
-        _border.BorderBrush = new SolidColorBrush(AccentCol(0xFF));
-        _border.BorderThickness = new Thickness(3);
+        // 强调衰减：亮起后 450ms cubic-out 回落常态（不再是 600ms 后的步进两跳）
         _flashTimer.Stop();
-        _flashTimer.Start();
+        var b = new SolidColorBrush(AccentCol(0xFF));
+        _border.BorderBrush = b;
+        _border.BorderThickness = new Thickness(3);
+        var ca = new System.Windows.Media.Animation.ColorAnimation(AccentCol(0x60),
+            new System.Windows.Duration(TimeSpan.FromMilliseconds(450)))
+        { EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut } };
+        b.BeginAnimation(System.Windows.Media.SolidColorBrush.ColorProperty, ca);
+        var ta = new System.Windows.Media.Animation.ThicknessAnimation(new Thickness(2),
+            new System.Windows.Duration(TimeSpan.FromMilliseconds(450)))
+        { EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut } };
+        _border.BeginAnimation(Border.BorderThicknessProperty, ta);
     }
 
     private void Place(RectI region)

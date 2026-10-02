@@ -128,7 +128,13 @@ public sealed class CaptureController : IDisposable
                 s.RegionX = region.Value.X; s.RegionY = region.Value.Y;
                 s.RegionW = region.Value.W; s.RegionH = region.Value.H;
             });
-            ShowOutline(region.Value);
+            if (_settings.Current.AlwaysShowRegionOutline) ShowOutline(region.Value);
+            else
+            {
+                // 选区确认反馈：亮起→强调停顿→柔和退场（FlashOutline/FadeAway 此前是死代码）
+                FlashOutline(region.Value);
+                _outline!.FadeAway(1.1);
+            }
         };
         _picker.Show();
         ForceForeground(_picker);
