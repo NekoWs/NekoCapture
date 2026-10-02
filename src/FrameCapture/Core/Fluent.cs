@@ -201,6 +201,17 @@ public static class Fluent
 
     // ---------------- 窗口淡入 ----------------
 
+    /// <summary>全站动效令牌：入场 cubic-out，退场 cubic-in，节奏统一（对标 Fluent Dependency/Transient）。</summary>
+    public static class Motion
+    {
+        public const int EnterMs = 190;      // 悬浮条/弹出层入场
+        public const int EditorEnterMs = 240; // 编辑器入场（大表面稍慢半拍）
+        public const int ExitMs = 150;       // 退场（比入场快 = 更干脆）
+        public const int StaggerMs = 110;    // 分层错位间隔
+        public const int HoverMs = 110;      // hover 反馈
+        public const int ThemeMs = 260;      // 主题交叉淡入
+    }
+
     public static void FadeIn(Window w, int ms = 160, double risePx = 0)
     {
         w.Opacity = 0;

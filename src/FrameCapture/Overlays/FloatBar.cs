@@ -103,7 +103,7 @@ public sealed class FloatBar : Window
         BeginAnimation(OpacityProperty, null);
         if (IsVisible) { Opacity = 1; return; }
         var dur = new System.Windows.Duration(
-            TimeSpan.FromMilliseconds(_shownOnce ? 110 : 190));
+            TimeSpan.FromMilliseconds(_shownOnce ? 110 : FrameCapture.Core.Fluent.Motion.EnterMs));
         var ease = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut };
         Opacity = 0;
         var tt = TT();

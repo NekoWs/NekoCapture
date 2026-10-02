@@ -124,6 +124,7 @@ class Program
             case "burst": return Burst(args[1], double.Parse(args[2]), int.Parse(args[3]), args[4]);
             case "region": return Region(args[1], args[2]);
             case "burstregion": return BurstRegion(args[1], double.Parse(args[2]), int.Parse(args[3]), args[4]);
+            case "burstdesk": return BurstDesk(double.Parse(args[1]), int.Parse(args[2]), args[3]);
         }
         return 1;
     }
@@ -141,6 +142,20 @@ class Program
         }
         return 0;
     }
+
+static int BurstDesk(double sec, int intervalMs, string prefix)
+{
+    int w = P.GetSystemMetrics(0), h = P.GetSystemMetrics(1);
+    int n = Math.Min(300, (int)(sec * 1000 / intervalMs));
+    for (int i = 0; i < n; i++)
+    {
+        using var bmp = GrabDesk(0, 0, w, h);
+        bmp.Save($"{prefix}.{i:000}.png", ImageFormat.Png);
+        System.Threading.Thread.Sleep(intervalMs);
+    }
+    Console.WriteLine($"burstdesk {n} frames");
+    return 0;
+}
 
     static int Desk(string outPath)
     {

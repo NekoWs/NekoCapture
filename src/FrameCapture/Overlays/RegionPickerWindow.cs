@@ -28,6 +28,13 @@ public sealed class RegionPickerWindow : Window
     /// <summary>mouseDown 时记录（物理坐标，相对监视器原点存 DIP）。</summary>
     readonly System.Windows.Threading.DispatcherTimer _topTimer;
 
+    static System.Windows.Media.Animation.DoubleAnimation MaskAnim(double to, int ms, int delay)
+        => new(to, TimeSpan.FromMilliseconds(ms))
+        {
+            BeginTime = TimeSpan.FromMilliseconds(delay),
+            EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut },
+        };
+
     void ReassertTop()
     {
         var h = new System.Windows.Interop.WindowInteropHelper(this).Handle;
@@ -109,6 +116,19 @@ public sealed class RegionPickerWindow : Window
                 _prev.Stroke = new SolidColorBrush(Color.FromArgb(0x90, 0x4C, 0xC2, 0xFF));
                 _prev.StrokeThickness = 2;
                 _prev.StrokeDashArray = new DoubleCollection { 4, 3 };
+            }
+            // 入场：遮罩 150ms 渐显；旧区域虚线滞后错开并轻微放大落位（ArkPV 式分层，不打扰）
+            _canvas.Opacity = 0;
+            _canvas.BeginAnimation(OpacityProperty, MaskAnim(1, 150, 0));
+            if (_existing != null)
+            {
+                _prev.Opacity = 0;
+                _prev.RenderTransformOrigin = new Point(0.5, 0.5);
+                var st = new ScaleTransform(0.98, 0.98);
+                _prev.RenderTransform = st;
+                _prev.BeginAnimation(OpacityProperty, MaskAnim(1, 190, 90));
+                st.BeginAnimation(ScaleTransform.ScaleXProperty, MaskAnim(1, 190, 90));
+                st.BeginAnimation(ScaleTransform.ScaleYProperty, MaskAnim(1, 190, 90));
             }
             Activate();
             Keyboard.Focus(this);
