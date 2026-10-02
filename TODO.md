@@ -153,3 +153,6 @@
 - 修复：逐键记录改为环境变量 FC_TRACE_KEYS=1 才启用（调试注入链路用）；状态标记（BeginCapture/FinishCapture/open editor/editor key=）保留
 - 清理：删除所有含历史键码的 fc-trace.log
 - 验证：新包运行后 trace 无任何 hook key= 行、功能标记完整；SelfTest 70/70；已重发布+重打包+实例重启
+
+## 工程约定
+- git 仓库已建立（master），**每轮至少提交一次**，重要改动即时提交，防重大回退
