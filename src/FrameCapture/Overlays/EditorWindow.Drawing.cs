@@ -225,17 +225,19 @@ public sealed partial class EditorWindow
     void CommitAnn(Annotation a)
     {
         _anns.Add(a);
+        RefreshUndo();
         RedrawAnns();
     }
 
     void RedoAnn()
     {
-        if (_anns.Redo(out _)) RedrawAnns();
+        if (_anns.Redo(out _)) { RedrawAnns(); RefreshUndo(); }
     }
 
     void UndoAnn()
     {
         _anns.Undo(out _);
+        RefreshUndo();
         RedrawAnns();
     }
 
@@ -342,6 +344,7 @@ public sealed partial class EditorWindow
 
         // 标注：全部丢弃（原全帧坐标已失效，行为可预期）
         _anns.Clear();
+        RefreshUndo();
         _bitmaps = _seq.Frames.Select(FrameCapture.Services.BgraImage.ToSource).ToList();
         _seq.Region = new RectI(_seq.Region.X + x, _seq.Region.Y + y, w, h);
         RedrawAnns();

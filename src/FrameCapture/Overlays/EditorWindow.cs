@@ -166,7 +166,7 @@ public sealed partial class EditorWindow : Window
             var bSaveF = IconBtn("\uE74E", "保存当前帧 (PNG)"); bSaveF.Click += (_, _) => SaveFrame();
             var bCopyF = IconBtn("\uE8C8", "复制当前帧 (位图)"); bCopyF.Click += (_, _) => ClipboardService.SetFrame(_seq.Frames[_index]);
             var bOkF = IconBtn("\uE73E", "确定：写入剪贴板 (Enter)"); bOkF.Click += (_, _) => Commit();
-            var bX = IconBtn("\uE711", "取消 (Esc)"); bX.Click += (_, _) => Close();
+            var bX = IconBtn("\uE711", "取消 (Esc)"); bX.Click += (_, _) => FrameCapture.Core.Fluent.CloseWithFade(this);
             foreach (var b in new[] { bSaveF, bCopyF, bOkF, bX }) tools.Children.Add(b);
             FrameCapture.Core.Fluent.HighlightBtn(bOkF, true); // 主按钮：accent 实心
         }
@@ -205,7 +205,7 @@ public sealed partial class EditorWindow : Window
             var bAfter = IconBtn("\uE955", "保存视觉暂留合成图  Ctrl+H"); bAfter.Click += (_, _) => SaveAfterimage();
             foreach (var b in new[] { bSaveFrame, bCopyFrame, bSaveGif, bAfter }) bar.Children.Add(b);
             bar.Children.Add(Sep());
-            var bCancel = IconBtn("\uE711", "取消 (Esc)"); bCancel.Click += (_, _) => Close();
+            var bCancel = IconBtn("\uE711", "取消 (Esc)"); bCancel.Click += (_, _) => FrameCapture.Core.Fluent.CloseWithFade(this);
             var bOk = IconBtn("\uE73E", "确定：GIF 写入剪贴板 (Enter)"); bOk.Click += (_, _) => Commit();
             bar.Children.Add(bCancel);
             bar.Children.Add(bOk);
@@ -279,7 +279,7 @@ public sealed partial class EditorWindow : Window
             _toolBtns.Add(b);
             bar.Children.Add(b);
         }
-        bar.Children.Add(new System.Windows.Shapes.Rectangle { Width = 1, Fill = new SolidColorBrush(Color.FromArgb(0x44, 0xFF, 0xFF, 0xFF)), Margin = new Thickness(8, 6, 8, 6) });
+        bar.Children.Add(new System.Windows.Shapes.Rectangle { Width = 1, Fill = new SolidColorBrush(Color.FromArgb(Theme.Stroke.A, Theme.Stroke.R, Theme.Stroke.G, Theme.Stroke.B)), Margin = new Thickness(8, 6, 8, 6) });
         for (int i = 0; i < Swatches.Length; i++)
         {
             int idx = i;
@@ -306,7 +306,7 @@ public sealed partial class EditorWindow : Window
             _swatchBtns.Add(bd);
             bar.Children.Add(bd);
         }
-        bar.Children.Add(new System.Windows.Shapes.Rectangle { Width = 1, Fill = new SolidColorBrush(Color.FromArgb(0x44, 0xFF, 0xFF, 0xFF)), Margin = new Thickness(8, 6, 8, 6) });
+        bar.Children.Add(new System.Windows.Shapes.Rectangle { Width = 1, Fill = new SolidColorBrush(Color.FromArgb(Theme.Stroke.A, Theme.Stroke.R, Theme.Stroke.G, Theme.Stroke.B)), Margin = new Thickness(8, 6, 8, 6) });
         foreach (var (w, lbl) in new[] { (0, "细"), (1, "中"), (2, "粗") }.Select((t, i) => (t.Item1, t.Item2)))
         {
             int idx = w;
@@ -316,11 +316,25 @@ public sealed partial class EditorWindow : Window
             _widthBtns.Add(b);
             bar.Children.Add(b);
         }
-        bar.Children.Add(new System.Windows.Shapes.Rectangle { Width = 1, Fill = new SolidColorBrush(Color.FromArgb(0x44, 0xFF, 0xFF, 0xFF)), Margin = new Thickness(8, 6, 8, 6) });
+        bar.Children.Add(new System.Windows.Shapes.Rectangle { Width = 1, Fill = new SolidColorBrush(Color.FromArgb(Theme.Stroke.A, Theme.Stroke.R, Theme.Stroke.G, Theme.Stroke.B)), Margin = new Thickness(8, 6, 8, 6) });
         var undo = IconBtn("", "撤销 (Ctrl+Z)");
         undo.Click += (_, _) => UndoAnn();
+        _undoBtn = undo;
         bar.Children.Add(undo);
+        RefreshUndo();
         return bar;
+    }
+
+    Button? _undoBtn;
+    void RefreshUndo()
+    {
+        if (_undoBtn == null) return;
+        bool can = _anns.CanUndo;
+        if (_undoBtn.IsEnabled == can) return;
+        _undoBtn.IsEnabled = can;
+        _undoBtn.BeginAnimation(OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(can ? 1.0 : 0.35,
+            new System.Windows.Duration(TimeSpan.FromMilliseconds(FrameCapture.Core.Fluent.Motion.HoverMs)))
+        { EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut } });
     }
 
     void RefreshSwatches()

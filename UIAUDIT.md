@@ -13,14 +13,14 @@
 ### B. 主题一致性（现状：浅色模式下悬浮条仍全黑，割裂）
 - [ ] B1 FloatBar 明暗双态（浅色=亚克力浅底+深色图标，同 Fluent 工具条）
 - [x] B2 时间轴令牌化：轨道/拇指描边=Theme.TrackBg/Stroke，HUD 文字=Theme.Text，分隔线=Stroke，白色色块描边（light-bars2 实证，bars5 深色无损）；Editor_OnTheme 即时换色
-- [ ] B3 颜色点（白色色块需描边）与分割线双主题
-- [ ] B4 播放条顶部 accent 亮线：改为 1px 低透明 accent 描边或移除
+- [x] B3 白色色块描边（第2轮）+ 绘制条三处分隔线补漏（第2轮 replace 打错文件未生效，本轮 3/3 断言修正为 Theme.Stroke，undo-off.png 实证）
+- [x] B4 播放条现为整圈 1px 40% alpha accent 描边（FloatBar L43/77），bars5/light-bars2 双主题观感均成立，维持现状
 - [x] B5 HUD 文本=Theme.Text（随 B2 一并完成）
 ### C. 状态指示与控件语义
 - [ ] C1 选中工具= accent 实心 pill + 反白图标（现无选中态视觉）
 - [x] C2 ✓确定=accent 实心 pill（bars4.png）；✕保持幽灵（播放条+单帧绘制条两处）
 - [x] C3 模板核查：hover 进入 110ms cubic-out / 退出 160ms，按下 scale0.92，均为动画非瞬变（Fluent.cs L75-81）
-- [ ] C4 撤销禁用态（灰）核查
+- [x] C4 撤销按钮禁用态：CanUndo=false 时 0.35 透明+禁点（110ms cubic-out 淡变），四个栈变更点全接 RefreshUndo；undo-off.png 实证变淡 ✓
 ### D. 逐界面截图档案（改前/改后成对留存 test-out/uiaudit/）
 - [ ] D1 编辑器（明/暗） - 明已有基线，暗待拍
 - [ ] D2 悬浮条（明/暗） - 暗已有基线
@@ -28,7 +28,7 @@
 - [ ] D4 帮助窗（明/暗）— 浅色基线已拍 light-help.png（观感良好）；暗色待拍
 - [ ] D5 选区层（吸附态/拖框态）
 - [x] D6 轮廓窗生命周期连拍实证：区域确认后 亮起(482/524)→450ms 衰减→≈1.1s 强调驻留→350ms 柔和淡出；修复 FlashOutline/FadeAway 死代码 + 步进两跳（outline2.*）；HUD/编码进度反馈审查待做
-- [ ] D7 GIF 提交流程连拍（编辑器淡出→剪贴板 toast？）
+- [x] D7 提交流程：OK/取消/Esc 全部改走 CloseWithFade（150ms cubic-in 淡出后真关闭+剪贴板写入不受影响）；CloseWithFade 退场渐变已在 popup4 连拍实证，本路径同一机制（trace: editor key=None+Escape→closed）
 ### E. 回归护栏
 - [ ] 每批次改动后：构建 0 error + SelfTest 全过 + e2e 捕获链路完好 + git commit
 
