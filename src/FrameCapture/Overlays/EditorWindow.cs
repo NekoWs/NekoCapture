@@ -168,7 +168,8 @@ public sealed partial class EditorWindow : Window
             var bOkF = IconBtn("\uE73E", "确定：写入剪贴板 (Enter)"); bOkF.Click += (_, _) => Commit();
             var bX = IconBtn("\uE711", "取消 (Esc)"); bX.Click += (_, _) => FrameCapture.Core.Fluent.CloseWithFade(this);
             foreach (var b in new[] { bSaveF, bCopyF, bOkF, bX }) tools.Children.Add(b);
-            FrameCapture.Core.Fluent.HighlightBtn(bOkF, true); // 主按钮：accent 实心
+            FrameCapture.Core.Fluent.HighlightBtn(bOkF, true);
+            _okBtns.Add(bOkF); // 主按钮：accent 实心
         }
         tools.Children.Add(Sep());
         var bSet = IconBtn("\uE713", "设置"); bSet.Click += (_, _) => SettingsWindow.ShowOrFocus();
@@ -209,7 +210,8 @@ public sealed partial class EditorWindow : Window
             var bOk = IconBtn("\uE73E", "确定：GIF 写入剪贴板 (Enter)"); bOk.Click += (_, _) => Commit();
             bar.Children.Add(bCancel);
             bar.Children.Add(bOk);
-            FrameCapture.Core.Fluent.HighlightBtn(bOk, true); // 主按钮：accent 实心
+            FrameCapture.Core.Fluent.HighlightBtn(bOk, true);
+            _okBtns.Add(bOk); // 主按钮：accent 实心
             _barBottom = new FloatBar(this, bar);
             _barBottom.EnterDelayMs = 110; // 错开入场：绘制条先、播放条后
         }
@@ -439,6 +441,7 @@ public sealed partial class EditorWindow : Window
         DrawRange();
     }
 
+    readonly List<Button> _okBtns = new();
     bool _encoding;
     CancellationTokenSource? _commitCts;
 
@@ -457,6 +460,16 @@ public sealed partial class EditorWindow : Window
     }
 
     /// <summary>时间轴范围+标注的后台烘焙与 GIF 编码（HUD 进度，编码中 Esc 取消）；完成后回 UI 线程执行 onDone。</summary>
+    void SetOkBusy(bool busy)
+    {
+        foreach (var b in _okBtns)
+        {
+            b.BeginAnimation(OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(busy ? 0.55 : 1.0,
+                new System.Windows.Duration(TimeSpan.FromMilliseconds(FrameCapture.Core.Fluent.Motion.HoverMs)))
+            { EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut } });
+        }
+    }
+
     void StartEncode(Action<CapturedSequence, byte[]> onDone)
     {
         if (_encoding) return;
@@ -469,6 +482,7 @@ public sealed partial class EditorWindow : Window
             int fps = Math.Clamp(_settings.Current.Fps, 5, 60);
 
             _encoding = true;
+            SetOkBusy(true);
             _commitCts = new CancellationTokenSource();
             var ct = _commitCts.Token;
             _hud.Text = "导出 GIF…";
@@ -488,6 +502,7 @@ public sealed partial class EditorWindow : Window
             }, ct).ContinueWith(t =>
             {
                 _encoding = false;
+                SetOkBusy(false);
                 if (t.IsCanceled || (t.Exception?.InnerException is OperationCanceledException))
                 {
                     Trace.Log("encode cancelled");
