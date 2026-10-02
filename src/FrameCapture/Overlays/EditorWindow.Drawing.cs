@@ -7,6 +7,7 @@ using System.Windows.Media.Imaging;
 using System.Windows.Shapes;
 using FrameCapture.Capture;
 using FrameCapture.Drawing;
+using Theme = FrameCapture.Core.Theme;
 
 namespace FrameCapture.Overlays;
 
@@ -60,7 +61,7 @@ public sealed partial class EditorWindow
         {
             Child = _rangeCanvas,
             CornerRadius = new CornerRadius(6),
-            Background = new SolidColorBrush(Color.FromArgb(0x16, 0xFF, 0xFF, 0xFF)),
+            Background = new SolidColorBrush(Theme.TrackBg),
         };
         _rangeCanvas.MouseLeftButtonDown += Range_Down;
         _rangeCanvas.MouseMove += Range_Move;
@@ -420,7 +421,7 @@ public sealed partial class EditorWindow
         double th = 5, ty = (ch - th) / 2;
 
         // 底轨 + 已走到位置的填充
-        c.Children.Add(TlBar(0, ty, cw, th, 2.5, Color.FromArgb(0x2E, 0xFF, 0xFF, 0xFF)));
+        c.Children.Add(TlBar(0, ty, cw, th, 2.5, Theme.TrackBg));
         double xm = _index / (n - 1.0) * cw;
         if (xm > 2) c.Children.Add(TlBar(0, ty, xm, th, 2.5, FrameCapture.Core.Theme.Accent));
 
@@ -440,7 +441,7 @@ public sealed partial class EditorWindow
         {
             Width = 13, Height = 13,
             Fill = new SolidColorBrush(FrameCapture.Core.Theme.Accent),
-            Stroke = new SolidColorBrush(Color.FromArgb(0x66, 0x10, 0x10, 0x12)),
+            Stroke = new SolidColorBrush(Color.FromArgb((byte)(Theme.Stroke.A * 0x60 / 0xFF), Theme.Stroke.R, Theme.Stroke.G, Theme.Stroke.B)),
             StrokeThickness = 1.5,
             Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 8, ShadowDepth = 0, Opacity = 0.55 },
         };

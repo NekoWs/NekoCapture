@@ -70,7 +70,7 @@ public sealed partial class EditorWindow : Window
 
         _hud = new TextBlock
         {
-            Foreground = new SolidColorBrush(Color.FromArgb(0xCC, 0xFF, 0xFF, 0xFF)),
+            Foreground = new SolidColorBrush(Theme.Text),
             FontSize = 12,
             FontFamily = new FontFamily("Segoe UI"),
             VerticalAlignment = VerticalAlignment.Center,
@@ -150,6 +150,9 @@ public sealed partial class EditorWindow : Window
             holder.BeginAnimation(System.Windows.Media.SolidColorBrush.ColorProperty, anim);
         }
         BorderBrush = new System.Windows.Media.SolidColorBrush(Theme.IsDark ? Color.FromRgb(0x32, 0x32, 0x36) : Color.FromRgb(0xD4, 0xD4, 0xD4));
+        _hud.Foreground = new System.Windows.Media.SolidColorBrush(Theme.Text);
+        if (_rangeHost != null) _rangeHost.Background = new System.Windows.Media.SolidColorBrush(Theme.TrackBg);
+        DrawRange();
     }
 
     bool MultiFrame => _seq.Frames.Count > 1;
@@ -217,7 +220,7 @@ public sealed partial class EditorWindow : Window
     static System.Windows.Shapes.Rectangle Sep() => new()
     {
         Width = 1,
-        Fill = new SolidColorBrush(Color.FromArgb(0x44, 0xFF, 0xFF, 0xFF)),
+        Fill = new SolidColorBrush(Color.FromArgb(Theme.Stroke.A, Theme.Stroke.R, Theme.Stroke.G, Theme.Stroke.B)),
         Margin = new Thickness(6, 7, 6, 7),
     };
 
@@ -280,7 +283,11 @@ public sealed partial class EditorWindow : Window
         for (int i = 0; i < Swatches.Length; i++)
         {
             int idx = i;
-            var inner = new System.Windows.Shapes.Ellipse { Width = 18, Height = 18, Fill = new SolidColorBrush(Swatches[idx]) };
+            var inner = new System.Windows.Shapes.Ellipse
+            {
+                Width = 18, Height = 18, Fill = new SolidColorBrush(Swatches[idx]),
+                Stroke = new SolidColorBrush(Theme.Stroke), StrokeThickness = 1, // 白色色块在浅底也可见
+            };
             var bd = new Border
             {
                 Child = inner,
