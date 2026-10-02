@@ -38,7 +38,7 @@ public sealed class FloatBar : Window
 
         _bd = new Border
         {
-            CornerRadius = new CornerRadius(11),
+            CornerRadius = new CornerRadius(12),
             Background = new SolidColorBrush(Theme.PanelBg),
             BorderBrush = new SolidColorBrush(Color.FromArgb(0x66, Theme.Accent.R, Theme.Accent.G, Theme.Accent.B)),
             BorderThickness = new Thickness(1),
@@ -68,7 +68,7 @@ public sealed class FloatBar : Window
         var bg = _bd.Background as SolidColorBrush;
         if (bg != null && bg.CanFreeze)
         {
-            var anim = new System.Windows.Media.Animation.ColorAnimation(Theme.PanelBg, TimeSpan.FromMilliseconds(260));
+            var anim = new System.Windows.Media.Animation.ColorAnimation(Theme.PanelBg, TimeSpan.FromMilliseconds(FrameCapture.Core.Fluent.Motion.ThemeMs));
             var holder = new SolidColorBrush(bg.Color);
             _bd.Background = holder;
             holder.BeginAnimation(SolidColorBrush.ColorProperty, anim);
@@ -124,12 +124,12 @@ public sealed class FloatBar : Window
     public void HideBar()
     {
         if (!IsVisible) return;
-        var a = new System.Windows.Media.Animation.DoubleAnimation(0, TimeSpan.FromMilliseconds(150))
+        var a = new System.Windows.Media.Animation.DoubleAnimation(0, TimeSpan.FromMilliseconds(FrameCapture.Core.Fluent.Motion.ExitMs))
         { EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseIn } };
         var tt = TT();
         tt.BeginAnimation(System.Windows.Media.TranslateTransform.YProperty, null);
         tt.Y = 0;
-        var ya = new System.Windows.Media.Animation.DoubleAnimation(5, TimeSpan.FromMilliseconds(150))
+        var ya = new System.Windows.Media.Animation.DoubleAnimation(5, TimeSpan.FromMilliseconds(FrameCapture.Core.Fluent.Motion.ExitMs))
         { EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseIn } };
         tt.BeginAnimation(System.Windows.Media.TranslateTransform.YProperty, ya);
         a.Completed += (_, _) => Dispatcher.Invoke(() => { Hide(); tt.BeginAnimation(System.Windows.Media.TranslateTransform.YProperty, null); tt.Y = 0; });

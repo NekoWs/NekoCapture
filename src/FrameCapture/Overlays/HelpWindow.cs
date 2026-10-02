@@ -30,10 +30,10 @@ public sealed class HelpWindow : Window
         nw.Left = oldw.Left; nw.Top = oldw.Top;
         nw.Opacity = 0;
         nw.Show();
-        var fo = new System.Windows.Media.Animation.DoubleAnimation(0, TimeSpan.FromMilliseconds(170));
+        var fo = new System.Windows.Media.Animation.DoubleAnimation(0, TimeSpan.FromMilliseconds(FrameCapture.Core.Fluent.Motion.ExitMs + 20)); // 交叉淡入的非对称节拍
         fo.Completed += (_, _) => oldw.Close();
         oldw.BeginAnimation(OpacityProperty, fo);
-        nw.BeginAnimation(OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(1, TimeSpan.FromMilliseconds(260)));
+        nw.BeginAnimation(OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(1, TimeSpan.FromMilliseconds(FrameCapture.Core.Fluent.Motion.ThemeMs)));
     }
 
     void Build()

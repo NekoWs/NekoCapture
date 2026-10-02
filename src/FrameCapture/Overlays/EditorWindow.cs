@@ -121,7 +121,7 @@ public sealed partial class EditorWindow : Window
         _viewGrid.Children.Add(_canvas);
         var viewHost = new Border
         {
-            CornerRadius = new CornerRadius(8),
+            CornerRadius = new CornerRadius(12),
             Background = new SolidColorBrush(Color.FromRgb(0x14, 0x14, 0x14)),
             Child = _viewGrid,
         };
@@ -144,7 +144,7 @@ public sealed partial class EditorWindow : Window
         var bg = Background as System.Windows.Media.SolidColorBrush;
         if (bg != null)
         {
-            var anim = new System.Windows.Media.Animation.ColorAnimation(Theme.WindowBg, TimeSpan.FromMilliseconds(260));
+            var anim = new System.Windows.Media.Animation.ColorAnimation(Theme.WindowBg, TimeSpan.FromMilliseconds(FrameCapture.Core.Fluent.Motion.ThemeMs));
             var holder = new System.Windows.Media.SolidColorBrush(bg.Color);
             Background = holder;
             holder.BeginAnimation(System.Windows.Media.SolidColorBrush.ColorProperty, anim);

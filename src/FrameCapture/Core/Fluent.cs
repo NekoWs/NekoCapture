@@ -174,7 +174,7 @@ public static class Fluent
         var tt = (TranslateTransform)knob.RenderTransform;
         tt.BeginAnimation(TranslateTransform.XProperty, null);
         tt.X = on ? travel : 0;
-        var anim = new DoubleAnimation(on ? travel : 0.0, new Duration(TimeSpan.FromMilliseconds(150)))
+        var anim = new DoubleAnimation(on ? travel : 0.0, new Duration(TimeSpan.FromMilliseconds(Motion.StateMs)))
         {
             EasingFunction = new BackEase { Amplitude = 0.35, EasingMode = EasingMode.EaseOut },
         };
@@ -183,19 +183,19 @@ public static class Fluent
         {
             var bg = new SolidColorBrush(bgOld.Color);
             track.Background = bg;
-            bg.BeginAnimation(SolidColorBrush.ColorProperty, new ColorAnimation(on ? Theme.Accent : Theme.TrackBg, new Duration(TimeSpan.FromMilliseconds(150))));
+            bg.BeginAnimation(SolidColorBrush.ColorProperty, new ColorAnimation(on ? Theme.Accent : Theme.TrackBg, new Duration(TimeSpan.FromMilliseconds(Motion.StateMs))));
         }
         if (track.BorderBrush is SolidColorBrush bbOld)
         {
             var bb = new SolidColorBrush(bbOld.Color);
             track.BorderBrush = bb;
-            bb.BeginAnimation(SolidColorBrush.ColorProperty, new ColorAnimation(on ? Theme.Accent : Theme.Stroke, new Duration(TimeSpan.FromMilliseconds(150))));
+            bb.BeginAnimation(SolidColorBrush.ColorProperty, new ColorAnimation(on ? Theme.Accent : Theme.Stroke, new Duration(TimeSpan.FromMilliseconds(Motion.StateMs))));
         }
         if (knob is Shape sh && sh.Fill is SolidColorBrush kfOld)
         {
             var kf = new SolidColorBrush(kfOld.Color);
             sh.Fill = kf;
-            kf.BeginAnimation(SolidColorBrush.ColorProperty, new ColorAnimation(on ? Color.FromRgb(0, 0, 0) : Theme.Text, new Duration(TimeSpan.FromMilliseconds(150))));
+            kf.BeginAnimation(SolidColorBrush.ColorProperty, new ColorAnimation(on ? Color.FromRgb(0, 0, 0) : Theme.Text, new Duration(TimeSpan.FromMilliseconds(Motion.StateMs))));
         }
     }
 
@@ -209,6 +209,7 @@ public static class Fluent
         public const int ExitMs = 150;       // 退场（比入场快 = 更干脆）
         public const int StaggerMs = 110;    // 分层错位间隔
         public const int HoverMs = 110;      // hover 反馈
+        public const int StateMs = 150;      // 状态切换（开关/选中），与 Exit 同速
         public const int ThemeMs = 260;      // 主题交叉淡入
     }
 
@@ -273,7 +274,7 @@ public static class Fluent
         Color to = on ? Theme.Accent : Colors.Transparent;
         var holder = b.Background is SolidColorBrush cur ? new SolidColorBrush(cur.Color) : new SolidColorBrush(Colors.Transparent);
         b.Background = holder;
-        holder.BeginAnimation(SolidColorBrush.ColorProperty, new ColorAnimation(to, new Duration(TimeSpan.FromMilliseconds(120))));
+        holder.BeginAnimation(SolidColorBrush.ColorProperty, new ColorAnimation(to, new Duration(TimeSpan.FromMilliseconds(Motion.HoverMs))));
         b.Foreground = new SolidColorBrush(on ? Color.FromRgb(0, 0, 0) : Theme.Text);
     }
 
