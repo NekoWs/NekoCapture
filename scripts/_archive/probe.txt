@@ -1,0 +1,85 @@
+U+25CF | Segoe Fluent Icons:---- | Segoe MDL2 Assets:---- | Segoe UI Symbol:OK 0.86 | Segoe UI:OK 0.60 
+U+E7C2 | Segoe Fluent Icons:OK 1.00 | Segoe MDL2 Assets:OK 1.00 | Segoe UI Symbol:---- | Segoe UI:---- 
+U+EA3F | Segoe Fluent Icons:OK 1.00 | Segoe MDL2 Assets:OK 1.00 | Segoe UI Symbol:---- | Segoe UI:---- 
+U+EA52 | Segoe Fluent Icons:OK 1.00 | Segoe MDL2 Assets:OK 1.00 | Segoe UI Symbol:---- | Segoe UI:---- 
+U+E9A4 | Segoe Fluent Icons:OK 1.00 | Segoe MDL2 Assets:---- | Segoe UI Symbol:---- | Segoe UI:---- 
+U+F495 | Segoe Fluent Icons:---- | Segoe MDL2 Assets:---- | Segoe UI Symbol:---- | Segoe UI:---- 
+----
+U+2500 | Segoe Fluent Icons:---- | Segoe MDL2 Assets:---- | Segoe UI Symbol:OK 0.50 | Segoe UI:---- 
+U+E9E6 | Segoe Fluent Icons:---- | Segoe MDL2 Assets:---- | Segoe UI Symbol:---- | Segoe UI:---- 
+U+E735 | Segoe Fluent Icons:OK 1.00 | Segoe MDL2 Assets:OK 1.00 | Segoe UI Symbol:---- | Segoe UI:---- 
+U+E8A8 | Segoe Fluent Icons:OK 1.00 | Segoe MDL2 Assets:OK 1.00 | Segoe UI Symbol:---- | Segoe UI:---- 
+U+F16C | Segoe Fluent Icons:OK 1.00 | Segoe MDL2 Assets:OK 1.00 | Segoe UI Symbol:---- | Segoe UI:---- 
+U+F528 | Segoe Fluent Icons:---- | Segoe MDL2 Assets:---- | Segoe UI Symbol:---- | Segoe UI:---- 
+----
+U+25CB | Segoe Fluent Icons:---- | Segoe MDL2 Assets:---- | Segoe UI Symbol:OK 0.86 | Segoe UI:OK 0.86 
+U+EA3F | Segoe Fluent Icons:OK 1.00 | Segoe MDL2 Assets:OK 1.00 | Segoe UI Symbol:---- | Segoe UI:---- 
+U+E9A4 | Segoe Fluent Icons:OK 1.00 | Segoe MDL2 Assets:---- | Segoe UI Symbol:---- | Segoe UI:---- 
+U+F508 | Segoe Fluent Icons:---- | Segoe MDL2 Assets:---- | Segoe UI Symbol:---- | Segoe UI:---- 
+U+F509 | Segoe Fluent Icons:---- | Segoe MDL2 Assets:---- | Segoe UI Symbol:---- | Segoe UI:---- 
+U+EAC5 | Segoe Fluent Icons:---- | Segoe MDL2 Assets:---- | Segoe UI Symbol:---- | Segoe UI:---- 
+----
+U+2197 | Segoe Fluent Icons:---- | Segoe MDL2 Assets:---- | Segoe UI Symbol:OK 0.73 | Segoe UI:OK 0.73 
+U+E74A | Segoe Fluent Icons:OK 1.00 | Segoe MDL2 Assets:OK 1.00 | Segoe UI Symbol:---- | Segoe UI:---- 
+U+E724 | Segoe Fluent Icons:OK 1.00 | Segoe MDL2 Assets:OK 1.00 | Segoe UI Symbol:---- | Segoe UI:---- 
+U+E8AB | Segoe Fluent Icons:OK 1.00 | Segoe MDL2 Assets:OK 1.00 | Segoe UI Symbol:---- | Segoe UI:---- 
+U+E974 | Segoe Fluent Icons:OK 1.00 | Segoe MDL2 Assets:OK 1.00 | Segoe UI Symbol:---- | Segoe UI:---- 
+U+F32A | Segoe Fluent Icons:OK 1.00 | Segoe MDL2 Assets:OK 1.00 | Segoe UI Symbol:---- | Segoe UI:---- 
+----
+U+270F | Segoe Fluent Icons:---- | Segoe MDL2 Assets:---- | Segoe UI Symbol:OK 1.00 | Segoe UI:---- 
+U+E70F | Segoe Fluent Icons:OK 1.00 | Segoe MDL2 Assets:OK 1.00 | Segoe UI Symbol:---- | Segoe UI:---- 
+U+EF35 | Segoe Fluent Icons:---- | Segoe MDL2 Assets:---- | Segoe UI Symbol:---- | Segoe UI:---- 
+U+0034 | Segoe Fluent Icons:---- | Segoe MDL2 Assets:---- | Segoe UI Symbol:OK 0.54 | Segoe UI:OK 0.54 
+U+F8AC | Segoe Fluent Icons:OK 1.00 | Segoe MDL2 Assets:OK 1.00 | Segoe UI Symbol:---- | Segoe UI:---- 
+U+F08B | Segoe Fluent Icons:---- | Segoe MDL2 Assets:---- | Segoe UI Symbol:---- | Segoe UI:---- 
+U+E959 | Segoe Fluent Icons:---- | Segoe MDL2 Assets:---- | Segoe UI Symbol:---- | Segoe UI:---- 
+----
+U+2702 | Segoe Fluent Icons:---- | Segoe MDL2 Assets:---- | Segoe UI Symbol:OK 1.00 | Segoe UI:---- 
+U+E8C6 | Segoe Fluent Icons:OK 1.00 | Segoe MDL2 Assets:OK 1.00 | Segoe UI Symbol:---- | Segoe UI:---- 
+U+E7A8 | Segoe Fluent Icons:OK 1.00 | Segoe MDL2 Assets:OK 1.00 | Segoe UI Symbol:---- | Segoe UI:---- 
+U+E7B8 | Segoe Fluent Icons:OK 1.00 | Segoe MDL2 Assets:OK 1.00 | Segoe UI Symbol:---- | Segoe UI:---- 
+U+F16B | Segoe Fluent Icons:OK 1.00 | Segoe MDL2 Assets:OK 1.00 | Segoe UI Symbol:---- | Segoe UI:---- 
+U+F328 | Segoe Fluent Icons:---- | Segoe MDL2 Assets:---- | Segoe UI Symbol:---- | Segoe UI:---- 
+----
+U+E7E8 | Segoe Fluent Icons:OK 1.00 | Segoe MDL2 Assets:OK 1.00 | Segoe UI Symbol:---- | Segoe UI:---- 
+U+25CF | Segoe Fluent Icons:---- | Segoe MDL2 Assets:---- | Segoe UI Symbol:OK 0.86 | Segoe UI:OK 0.60 
+U+E9A9 | Segoe Fluent Icons:OK 1.00 | Segoe MDL2 Assets:OK 1.00 | Segoe UI Symbol:---- | Segoe UI:---- 
+U+E7F4 | Segoe Fluent Icons:OK 1.00 | Segoe MDL2 Assets:OK 1.00 | Segoe UI Symbol:---- | Segoe UI:---- 
+U+EE56 | Segoe Fluent Icons:OK 1.00 | Segoe MDL2 Assets:OK 1.00 | Segoe UI Symbol:---- | Segoe UI:---- 
+U+F061 | Segoe Fluent Icons:---- | Segoe MDL2 Assets:---- | Segoe UI Symbol:---- | Segoe UI:---- 
+----
+U+E713 | Segoe Fluent Icons:OK 1.00 | Segoe MDL2 Assets:OK 1.00 | Segoe UI Symbol:---- | Segoe UI:---- 
+U+E9F9 | Segoe Fluent Icons:OK 1.00 | Segoe MDL2 Assets:OK 1.00 | Segoe UI Symbol:---- | Segoe UI:---- 
+U+E7E8 | Segoe Fluent Icons:OK 1.00 | Segoe MDL2 Assets:OK 1.00 | Segoe UI Symbol:---- | Segoe UI:---- 
+U+E2B1 | Segoe Fluent Icons:OK 1.00 | Segoe MDL2 Assets:OK 1.00 | Segoe UI Symbol:OK 1.23 | Segoe UI:---- 
+U+F378 | Segoe Fluent Icons:---- | Segoe MDL2 Assets:---- | Segoe UI Symbol:---- | Segoe UI:---- 
+U+F7A2 | Segoe Fluent Icons:---- | Segoe MDL2 Assets:---- | Segoe UI Symbol:---- | Segoe UI:---- 
+----
+U+E7F6 | Segoe Fluent Icons:OK 1.00 | Segoe MDL2 Assets:OK 1.00 | Segoe UI Symbol:---- | Segoe UI:---- 
+U+E945 | Segoe Fluent Icons:OK 1.00 | Segoe MDL2 Assets:OK 1.00 | Segoe UI Symbol:---- | Segoe UI:---- 
+U+EC4A | Segoe Fluent Icons:OK 1.00 | Segoe MDL2 Assets:OK 1.00 | Segoe UI Symbol:---- | Segoe UI:---- 
+U+F370 | Segoe Fluent Icons:---- | Segoe MDL2 Assets:---- | Segoe UI Symbol:---- | Segoe UI:---- 
+U+E2B2 | Segoe Fluent Icons:OK 1.00 | Segoe MDL2 Assets:OK 1.00 | Segoe UI Symbol:OK 1.23 | Segoe UI:---- 
+U+EA3E | Segoe Fluent Icons:---- | Segoe MDL2 Assets:---- | Segoe UI Symbol:---- | Segoe UI:---- 
+----
+U+E823 | Segoe Fluent Icons:OK 1.00 | Segoe MDL2 Assets:OK 1.00 | Segoe UI Symbol:---- | Segoe UI:---- 
+U+EE56 | Segoe Fluent Icons:OK 1.00 | Segoe MDL2 Assets:OK 1.00 | Segoe UI Symbol:---- | Segoe UI:---- 
+U+E98E | Segoe Fluent Icons:---- | Segoe MDL2 Assets:---- | Segoe UI Symbol:---- | Segoe UI:---- 
+U+E121 | Segoe Fluent Icons:OK 1.00 | Segoe MDL2 Assets:OK 1.00 | Segoe UI Symbol:OK 1.23 | Segoe UI:---- 
+U+F038 | Segoe Fluent Icons:---- | Segoe MDL2 Assets:---- | Segoe UI Symbol:---- | Segoe UI:---- 
+U+F7ED | Segoe Fluent Icons:OK 1.00 | Segoe MDL2 Assets:OK 1.00 | Segoe UI Symbol:---- | Segoe UI:---- 
+----
+U+E706 | Segoe Fluent Icons:OK 1.00 | Segoe MDL2 Assets:OK 1.00 | Segoe UI Symbol:---- | Segoe UI:---- 
+U+E708 | Segoe Fluent Icons:OK 1.00 | Segoe MDL2 Assets:OK 1.00 | Segoe UI Symbol:---- | Segoe UI:---- 
+U+E977 | Segoe Fluent Icons:OK 1.00 | Segoe MDL2 Assets:OK 1.00 | Segoe UI Symbol:---- | Segoe UI:---- 
+U+E793 | Segoe Fluent Icons:OK 1.00 | Segoe MDL2 Assets:OK 1.00 | Segoe UI Symbol:---- | Segoe UI:---- 
+U+F16E | Segoe Fluent Icons:OK 1.00 | Segoe MDL2 Assets:OK 1.00 | Segoe UI Symbol:---- | Segoe UI:---- 
+U+EF9F | Segoe Fluent Icons:---- | Segoe MDL2 Assets:---- | Segoe UI Symbol:---- | Segoe UI:---- 
+----
+U+E7A7 | Segoe Fluent Icons:OK 1.00 | Segoe MDL2 Assets:OK 1.00 | Segoe UI Symbol:---- | Segoe UI:---- 
+U+E892 | Segoe Fluent Icons:OK 1.00 | Segoe MDL2 Assets:OK 1.00 | Segoe UI Symbol:---- | Segoe UI:---- 
+U+E769 | Segoe Fluent Icons:OK 1.00 | Segoe MDL2 Assets:OK 1.00 | Segoe UI Symbol:---- | Segoe UI:---- 
+U+E711 | Segoe Fluent Icons:OK 1.00 | Segoe MDL2 Assets:OK 1.00 | Segoe UI Symbol:---- | Segoe UI:---- 
+U+E73E | Segoe Fluent Icons:OK 1.00 | Segoe MDL2 Assets:OK 1.00 | Segoe UI Symbol:---- | Segoe UI:---- 
+U+E74E | Segoe Fluent Icons:OK 1.00 | Segoe MDL2 Assets:OK 1.00 | Segoe UI Symbol:---- | Segoe UI:---- 
+----

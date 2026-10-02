@@ -1,0 +1,8 @@
+EXIT=OK
+hotkey done hold=1200
+key 76 sent
+mouse (1600,800)->(2200,1300)
+key 79 sent
+mouse (1700,700)->(2050,1050)
+sent vk=13 hwnd=1050670 setfg=True nowfgpid=22628
+

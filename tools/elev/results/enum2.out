@@ -1,0 +1,6 @@
+EXIT=OK
+total windows seen=0
+sample: 
+foreground= pid=16508
+winsta=System.Diagnostics.ProcessStartInfo
+

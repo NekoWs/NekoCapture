@@ -1,0 +1,18 @@
+# build outputs
+bin/
+obj/
+*.user
+.vs/
+
+# runtime artifacts
+fc-trace.log
+*.log
+
+# audit captures & big packages (rebuildable)
+test-out/
+release/*.zip
+
+# misc
+DomainServer.*
+.DS_Store
+nul

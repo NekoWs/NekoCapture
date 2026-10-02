@@ -1,0 +1,5 @@
+EXIT=OK
+editor=hwnd=0
+key 27 sent
+after=hwnd=0
+

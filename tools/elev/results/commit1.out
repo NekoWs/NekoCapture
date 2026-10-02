@@ -1,0 +1,90 @@
+EXIT=OK
+powershell.exe : Add-Type : c:\Users\16892\AppData\Local\Temp\23sgatko\23sgatko.0.cs(8) : 类、结构或接口成员声明中的标记“using”无效
+所在位置 D:\Backup\Capture\tools\elev\elevator.ps1:16 字符: 16
++ ...      $out = & powershell -NoProfile -ExecutionPolicy Bypass -File $ru ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Add-Type : c:\U...声明中的标记“using”无效:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+c:\Users\16892\AppData\Local\Temp\23sgatko\23sgatko.0.cs(7) :     {
+c:\Users\16892\AppData\Local\Temp\23sgatko\23sgatko.0.cs(8) : >>>     using System;
+c:\Users\16892\AppData\Local\Temp\23sgatko\23sgatko.0.cs(9) : using System.Runtime.InteropServices;
+所在位置 D:\Backup\Capture\tools\elev\running_commit1.ps1:1 字符: 1
++ Add-Type -Namespace W32 -Name U32 -MemberDefinition @'
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidData: (Microsoft.Power...peCompilerError:AddTypeCompilerError) [Add-Type]，Excepti
+    on
+    + FullyQualifiedErrorId : SOURCE_CODE_ERROR,Microsoft.PowerShell.Commands.AddTypeCommand
+ 
+Add-Type : c:\Users\16892\AppData\Local\Temp\23sgatko\23sgatko.0.cs(8) : 类、结构或接口成员声明中的标记“;”无效
+c:\Users\16892\AppData\Local\Temp\23sgatko\23sgatko.0.cs(7) :     {
+c:\Users\16892\AppData\Local\Temp\23sgatko\23sgatko.0.cs(8) : >>>     using System;
+c:\Users\16892\AppData\Local\Temp\23sgatko\23sgatko.0.cs(9) : using System.Runtime.InteropServices;
+所在位置 D:\Backup\Capture\tools\elev\running_commit1.ps1:1 字符: 1
++ Add-Type -Namespace W32 -Name U32 -MemberDefinition @'
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidData: (Microsoft.Power...peCompilerError:AddTypeCompilerError) [Add-Type]，Excepti
+    on
+    + FullyQualifiedErrorId : SOURCE_CODE_ERROR,Microsoft.PowerShell.Commands.AddTypeCommand
+ 
+Add-Type : c:\Users\16892\AppData\Local\Temp\23sgatko\23sgatko.0.cs(9) : 类、结构或接口成员声明中的标记“;”无效
+c:\Users\16892\AppData\Local\Temp\23sgatko\23sgatko.0.cs(8) :     using System;
+c:\Users\16892\AppData\Local\Temp\23sgatko\23sgatko.0.cs(9) : >>> using System.Runtime.InteropServices;
+c:\Users\16892\AppData\Local\Temp\23sgatko\23sgatko.0.cs(10) : public class U32 {
+所在位置 D:\Backup\Capture\tools\elev\running_commit1.ps1:1 字符: 1
++ Add-Type -Namespace W32 -Name U32 -MemberDefinition @'
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidData: (Microsoft.Power...peCompilerError:AddTypeCompilerError) [Add-Type]，Excepti
+    on
+    + FullyQualifiedErrorId : SOURCE_CODE_ERROR,Microsoft.PowerShell.Commands.AddTypeCommand
+ 
+Add-Type : c:\Users\16892\AppData\Local\Temp\23sgatko\23sgatko.0.cs(10) : “U32”: 成员名称不能与它们的封闭类型相同
+c:\Users\16892\AppData\Local\Temp\23sgatko\23sgatko.0.cs(9) : using System.Runtime.InteropServices;
+c:\Users\16892\AppData\Local\Temp\23sgatko\23sgatko.0.cs(10) : >>> public class U32 {
+c:\Users\16892\AppData\Local\Temp\23sgatko\23sgatko.0.cs(11) :  [DllImport("user32.dll")] public static extern void key
+bd_event(byte vk, byte scan, uint flags, UIntPtr extra);
+所在位置 D:\Backup\Capture\tools\elev\running_commit1.ps1:1 字符: 1
++ Add-Type -Namespace W32 -Name U32 -MemberDefinition @'
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidData: (Microsoft.Power...peCompilerError:AddTypeCompilerError) [Add-Type]，Excepti
+    on
+    + FullyQualifiedErrorId : SOURCE_CODE_ERROR,Microsoft.PowerShell.Commands.AddTypeCommand
+ 
+Add-Type : 无法添加类型。出现编译错误。
+所在位置 D:\Backup\Capture\tools\elev\running_commit1.ps1:1 字符: 1
++ Add-Type -Namespace W32 -Name U32 -MemberDefinition @'
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidData: (:) [Add-Type]，InvalidOperationException
+    + FullyQualifiedErrorId : COMPILER_ERRORS,Microsoft.PowerShell.Commands.AddTypeCommand
+ 
+找不到类型 [W32.U32]。
+所在位置 D:\Backup\Capture\tools\elev\running_commit1.ps1:10 字符: 4
++ $h=[W32.U32]::FindWindowW($null,'FrameCapture Editor')
++    ~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (W32.U32:TypeName) []，RuntimeException
+    + FullyQualifiedErrorId : TypeNotFound
+ 
+editor hwnd=
+找不到类型 [W32.U32]。
+所在位置 D:\Backup\Capture\tools\elev\running_commit1.ps1:13 字符: 9
++   [void][W32.U32]::SetForegroundWindow($h)
++         ~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (W32.U32:TypeName) []，RuntimeException
+    + FullyQualifiedErrorId : TypeNotFound
+ 
+找不到类型 [W32.U32]。
+所在位置 D:\Backup\Capture\tools\elev\running_commit1.ps1:15 字符: 3
++   [W32.U32]::keybd_event(0x0D,0,0,[UIntPtr]::Zero)
++   ~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (W32.U32:TypeName) []，RuntimeException
+    + FullyQualifiedErrorId : TypeNotFound
+ 
+找不到类型 [W32.U32]。
+所在位置 D:\Backup\Capture\tools\elev\running_commit1.ps1:17 字符: 3
++   [W32.U32]::keybd_event(0x0D,0,2,[UIntPtr]::Zero)
++   ~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (W32.U32:TypeName) []，RuntimeException
+    + FullyQualifiedErrorId : TypeNotFound
+ 
+enter sent
+

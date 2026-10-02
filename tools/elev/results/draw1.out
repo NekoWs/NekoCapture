@@ -1,0 +1,22 @@
+EXIT=OK
+hotkey done hold=1200
+key 76 sent
+mouse (1600,800)->(2200,1300)
+key 79 sent
+mouse (1700,700)->(2000,1000)
+sent vk=13 hwnd=1312950 setfg=True nowfgpid=20012
+powershell.exe : Get-ChildItem : 找不到路径“C:\Users\16892\AppData\Local\Temp\FrameCapture”，因为该路径不存在。
+所在位置 D:\Backup\Capture\tools\elev\elevator.ps1:16 字符: 16
++ ...      $out = & powershell -NoProfile -ExecutionPolicy Bypass -File $ru ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Get-ChildItem :...ture”，因为该路径不存在。:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+所在位置 D:\Backup\Capture\tools\elev\running_draw1.ps1:16 字符: 1
++ Get-ChildItem "$env:TEMP\FrameCapture" -File | ForEach-Object { $_.Na ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : ObjectNotFound: (C:\Users\16892\...mp\FrameCapture:String) [Get-ChildItem], ItemNotFound 
+   Exception
+    + FullyQualifiedErrorId : PathNotFound,Microsoft.PowerShell.Commands.GetChildItemCommand
+ 
+

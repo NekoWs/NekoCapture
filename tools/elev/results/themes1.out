@@ -1,0 +1,53 @@
+EXIT=OK
+powershell.exe : Get-Content : 找不到路径“C:\Users\16892\AppData\Roaming\FrameCapture\settings.json”，因为该路径不存在。
+所在位置 D:\Backup\Capture\tools\elev\elevator.ps1:16 字符: 16
++ ...      $out = & powershell -NoProfile -ExecutionPolicy Bypass -File $ru ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Get-Content : 找...json”，因为该路径不存在。:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+所在位置 D:\Backup\Capture\tools\elev\running_themes1.ps1:4 字符: 27
++ function SetTheme($t){ $j=Get-Content $cfg -Raw | ConvertFrom-Json; $ ...
++                           ~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : ObjectNotFound: (C:\Users\16892\...e\settings.json:String) [Get-Content], ItemNotFoundEx 
+   ception
+    + FullyQualifiedErrorId : PathNotFound,Microsoft.PowerShell.Commands.GetContentCommand
+ 
+在此对象上找不到属性“Theme”。请确认该属性存在并且可设置。
+所在位置 D:\Backup\Capture\tools\elev\running_themes1.ps1:4 字符: 69
++ ... $t){ $j=Get-Content $cfg -Raw | ConvertFrom-Json; $j.Theme=$t; $j | C ...
++                                                       ~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : PropertyNotFound
+ 
+Get-Content : 找不到路径“C:\Users\16892\AppData\Roaming\FrameCapture\settings.json”，因为该路径不存在。
+所在位置 D:\Backup\Capture\tools\elev\running_themes1.ps1:4 字符: 27
++ function SetTheme($t){ $j=Get-Content $cfg -Raw | ConvertFrom-Json; $ ...
++                           ~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : ObjectNotFound: (C:\Users\16892\...e\settings.json:String) [Get-Content], ItemNotFoundEx 
+   ception
+    + FullyQualifiedErrorId : PathNotFound,Microsoft.PowerShell.Commands.GetContentCommand
+ 
+在此对象上找不到属性“Theme”。请确认该属性存在并且可设置。
+所在位置 D:\Backup\Capture\tools\elev\running_themes1.ps1:4 字符: 69
++ ... $t){ $j=Get-Content $cfg -Raw | ConvertFrom-Json; $j.Theme=$t; $j | C ...
++                                                       ~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : PropertyNotFound
+ 
+Get-Content : 找不到路径“C:\Users\16892\AppData\Roaming\FrameCapture\settings.json”，因为该路径不存在。
+所在位置 D:\Backup\Capture\tools\elev\running_themes1.ps1:4 字符: 27
++ function SetTheme($t){ $j=Get-Content $cfg -Raw | ConvertFrom-Json; $ ...
++                           ~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : ObjectNotFound: (C:\Users\16892\...e\settings.json:String) [Get-Content], ItemNotFoundEx 
+   ception
+    + FullyQualifiedErrorId : PathNotFound,Microsoft.PowerShell.Commands.GetContentCommand
+ 
+在此对象上找不到属性“Theme”。请确认该属性存在并且可设置。
+所在位置 D:\Backup\Capture\tools\elev\running_themes1.ps1:4 字符: 69
++ ... $t){ $j=Get-Content $cfg -Raw | ConvertFrom-Json; $j.Theme=$t; $j | C ...
++                                                       ~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : PropertyNotFound
+ 
+

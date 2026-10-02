@@ -1,0 +1,5 @@
+EXIT=OK
+hotkey done hold=1600
+sent vk=13 hwnd=657552 setfg=True nowfgpid=21904
+capture-140445.gif 14915646
+

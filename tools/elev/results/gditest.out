@@ -1,0 +1,188 @@
+powershell : Add-Type : c:\Users\16892\AppData\Local\Temp\cbyz44bz\cbyz44bz.0.cs(8) : 类、结构或接口成员声明中的标记“using”无效
+所在位置 D:\Backup\Capture\tools\elev\elevator.ps1:11 字符: 12
++       $r = powershell -NoProfile -ExecutionPolicy Bypass -File "$root ...
++            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Add-Type : c:\U...声明中的标记“using”无效:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+c:\Users\16892\AppData\Local\Temp\cbyz44bz\cbyz44bz.0.cs(7) :     {
+c:\Users\16892\AppData\Local\Temp\cbyz44bz\cbyz44bz.0.cs(8) : >>>     using System;
+c:\Users\16892\AppData\Local\Temp\cbyz44bz\cbyz44bz.0.cs(9) : using System.Runtime.InteropServices;
+所在位置 D:\Backup\Capture\tools\elev\queue\running_gditest.ps1:1 字符: 1
++ Add-Type -Namespace GD -Name T -MemberDefinition @'
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidData: (Microsoft.Power...peCompilerError:AddTypeCompilerError) [Add-Type]，Excepti
+    on
+    + FullyQualifiedErrorId : SOURCE_CODE_ERROR,Microsoft.PowerShell.Commands.AddTypeCommand
+ 
+Add-Type : c:\Users\16892\AppData\Local\Temp\cbyz44bz\cbyz44bz.0.cs(8) : 类、结构或接口成员声明中的标记“;”无效
+c:\Users\16892\AppData\Local\Temp\cbyz44bz\cbyz44bz.0.cs(7) :     {
+c:\Users\16892\AppData\Local\Temp\cbyz44bz\cbyz44bz.0.cs(8) : >>>     using System;
+c:\Users\16892\AppData\Local\Temp\cbyz44bz\cbyz44bz.0.cs(9) : using System.Runtime.InteropServices;
+所在位置 D:\Backup\Capture\tools\elev\queue\running_gditest.ps1:1 字符: 1
++ Add-Type -Namespace GD -Name T -MemberDefinition @'
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidData: (Microsoft.Power...peCompilerError:AddTypeCompilerError) [Add-Type]，Excepti
+    on
+    + FullyQualifiedErrorId : SOURCE_CODE_ERROR,Microsoft.PowerShell.Commands.AddTypeCommand
+ 
+Add-Type : c:\Users\16892\AppData\Local\Temp\cbyz44bz\cbyz44bz.0.cs(9) : 类、结构或接口成员声明中的标记“;”无效
+c:\Users\16892\AppData\Local\Temp\cbyz44bz\cbyz44bz.0.cs(8) :     using System;
+c:\Users\16892\AppData\Local\Temp\cbyz44bz\cbyz44bz.0.cs(9) : >>> using System.Runtime.InteropServices;
+c:\Users\16892\AppData\Local\Temp\cbyz44bz\cbyz44bz.0.cs(10) : public class T {
+所在位置 D:\Backup\Capture\tools\elev\queue\running_gditest.ps1:1 字符: 1
++ Add-Type -Namespace GD -Name T -MemberDefinition @'
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidData: (Microsoft.Power...peCompilerError:AddTypeCompilerError) [Add-Type]，Excepti
+    on
+    + FullyQualifiedErrorId : SOURCE_CODE_ERROR,Microsoft.PowerShell.Commands.AddTypeCommand
+ 
+Add-Type : c:\Users\16892\AppData\Local\Temp\cbyz44bz\cbyz44bz.0.cs(10) : “T”: 成员名称不能与它们的封闭类型相同
+c:\Users\16892\AppData\Local\Temp\cbyz44bz\cbyz44bz.0.cs(9) : using System.Runtime.InteropServices;
+c:\Users\16892\AppData\Local\Temp\cbyz44bz\cbyz44bz.0.cs(10) : >>> public class T {
+c:\Users\16892\AppData\Local\Temp\cbyz44bz\cbyz44bz.0.cs(11) :  [DllImport("user32.dll",SetLastError=true)] public stat
+ic extern IntPtr GetDC(IntPtr h);
+所在位置 D:\Backup\Capture\tools\elev\queue\running_gditest.ps1:1 字符: 1
++ Add-Type -Namespace GD -Name T -MemberDefinition @'
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidData: (Microsoft.Power...peCompilerError:AddTypeCompilerError) [Add-Type]，Excepti
+    on
+    + FullyQualifiedErrorId : SOURCE_CODE_ERROR,Microsoft.PowerShell.Commands.AddTypeCommand
+ 
+Add-Type : 无法添加类型。出现编译错误。
+所在位置 D:\Backup\Capture\tools\elev\queue\running_gditest.ps1:1 字符: 1
++ Add-Type -Namespace GD -Name T -MemberDefinition @'
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidData: (:) [Add-Type]，InvalidOperationException
+    + FullyQualifiedErrorId : COMPILER_ERRORS,Microsoft.PowerShell.Commands.AddTypeCommand
+ 
+找不到类型 [GD.T]。
+所在位置 D:\Backup\Capture\tools\elev\queue\running_gditest.ps1:17 字符: 9
++   $hsrc=[GD.T]::GetDC([IntPtr]::Zero)
++         ~~~~~~
+    + CategoryInfo          : InvalidOperation: (GD.T:TypeName) []，RuntimeException
+    + FullyQualifiedErrorId : TypeNotFound
+ 
+找不到类型 [GD.T]。
+所在位置 D:\Backup\Capture\tools\elev\queue\running_gditest.ps1:18 字符: 7
++   $dc=[GD.T]::CreateCompatibleDC($hsrc)
++       ~~~~~~
+    + CategoryInfo          : InvalidOperation: (GD.T:TypeName) []，RuntimeException
+    + FullyQualifiedErrorId : TypeNotFound
+ 
+找不到类型 [GD.T]。
+所在位置 D:\Backup\Capture\tools\elev\queue\running_gditest.ps1:19 字符: 8
++   $bmp=[GD.T]::CreateCompatibleBitmap($hsrc,$w,$h)
++        ~~~~~~
+    + CategoryInfo          : InvalidOperation: (GD.T:TypeName) []，RuntimeException
+    + FullyQualifiedErrorId : TypeNotFound
+ 
+找不到类型 [GD.T]。
+所在位置 D:\Backup\Capture\tools\elev\queue\running_gditest.ps1:20 字符: 9
++   [void][GD.T]::SelectObject($dc,$bmp)
++         ~~~~~~
+    + CategoryInfo          : InvalidOperation: (GD.T:TypeName) []，RuntimeException
+    + FullyQualifiedErrorId : TypeNotFound
+ 
+找不到类型 [GD.T]。
+所在位置 D:\Backup\Capture\tools\elev\queue\running_gditest.ps1:21 字符: 7
++   $ok=[GD.T]::BitBlt($dc,0,0,$w,$h,$hsrc,0,0,0xCC0020)
++       ~~~~~~
+    + CategoryInfo          : InvalidOperation: (GD.T:TypeName) []，RuntimeException
+    + FullyQualifiedErrorId : TypeNotFound
+ 
+找不到类型 [GD.T]。
+所在位置 D:\Backup\Capture\tools\elev\queue\running_gditest.ps1:29 字符: 8
++   $got=[GD.T]::GetDIBits($dc,$bmp,0,[uint32]$h,$bmi,$dst,0)
++        ~~~~~~
+    + CategoryInfo          : InvalidOperation: (GD.T:TypeName) []，RuntimeException
+    + FullyQualifiedErrorId : TypeNotFound
+ 
+cap 800x600: bitblt= getdibits= err=0 sum=0
+找不到类型 [GD.T]。
+所在位置 D:\Backup\Capture\tools\elev\queue\running_gditest.ps1:32 字符: 9
++   [void][GD.T]::DeleteDC($dc); [void][GD.T]::DeleteObject($bmp); [voi ...
++         ~~~~~~
+    + CategoryInfo          : InvalidOperation: (GD.T:TypeName) []，RuntimeException
+    + FullyQualifiedErrorId : TypeNotFound
+ 
+找不到类型 [GD.T]。
+所在位置 D:\Backup\Capture\tools\elev\queue\running_gditest.ps1:32 字符: 38
++   [void][GD.T]::DeleteDC($dc); [void][GD.T]::DeleteObject($bmp); [voi ...
++                                      ~~~~~~
+    + CategoryInfo          : InvalidOperation: (GD.T:TypeName) []，RuntimeException
+    + FullyQualifiedErrorId : TypeNotFound
+ 
+找不到类型 [GD.T]。
+所在位置 D:\Backup\Capture\tools\elev\queue\running_gditest.ps1:32 字符: 72
++ ... DeleteDC($dc); [void][GD.T]::DeleteObject($bmp); [void][GD.T]::Releas ...
++                                                            ~~~~~~
+    + CategoryInfo          : InvalidOperation: (GD.T:TypeName) []，RuntimeException
+    + FullyQualifiedErrorId : TypeNotFound
+ 
+找不到类型 [GD.T]。
+所在位置 D:\Backup\Capture\tools\elev\queue\running_gditest.ps1:17 字符: 9
++   $hsrc=[GD.T]::GetDC([IntPtr]::Zero)
++         ~~~~~~
+    + CategoryInfo          : InvalidOperation: (GD.T:TypeName) []，RuntimeException
+    + FullyQualifiedErrorId : TypeNotFound
+ 
+找不到类型 [GD.T]。
+所在位置 D:\Backup\Capture\tools\elev\queue\running_gditest.ps1:18 字符: 7
++   $dc=[GD.T]::CreateCompatibleDC($hsrc)
++       ~~~~~~
+    + CategoryInfo          : InvalidOperation: (GD.T:TypeName) []，RuntimeException
+    + FullyQualifiedErrorId : TypeNotFound
+ 
+找不到类型 [GD.T]。
+所在位置 D:\Backup\Capture\tools\elev\queue\running_gditest.ps1:19 字符: 8
++   $bmp=[GD.T]::CreateCompatibleBitmap($hsrc,$w,$h)
++        ~~~~~~
+    + CategoryInfo          : InvalidOperation: (GD.T:TypeName) []，RuntimeException
+    + FullyQualifiedErrorId : TypeNotFound
+ 
+找不到类型 [GD.T]。
+所在位置 D:\Backup\Capture\tools\elev\queue\running_gditest.ps1:20 字符: 9
++   [void][GD.T]::SelectObject($dc,$bmp)
++         ~~~~~~
+    + CategoryInfo          : InvalidOperation: (GD.T:TypeName) []，RuntimeException
+    + FullyQualifiedErrorId : TypeNotFound
+ 
+找不到类型 [GD.T]。
+所在位置 D:\Backup\Capture\tools\elev\queue\running_gditest.ps1:21 字符: 7
++   $ok=[GD.T]::BitBlt($dc,0,0,$w,$h,$hsrc,0,0,0xCC0020)
++       ~~~~~~
+    + CategoryInfo          : InvalidOperation: (GD.T:TypeName) []，RuntimeException
+    + FullyQualifiedErrorId : TypeNotFound
+ 
+找不到类型 [GD.T]。
+所在位置 D:\Backup\Capture\tools\elev\queue\running_gditest.ps1:29 字符: 8
++   $got=[GD.T]::GetDIBits($dc,$bmp,0,[uint32]$h,$bmi,$dst,0)
++        ~~~~~~
+    + CategoryInfo          : InvalidOperation: (GD.T:TypeName) []，RuntimeException
+    + FullyQualifiedErrorId : TypeNotFound
+ 
+cap 3840x2160: bitblt= getdibits= err=0 sum=0
+找不到类型 [GD.T]。
+所在位置 D:\Backup\Capture\tools\elev\queue\running_gditest.ps1:32 字符: 9
++   [void][GD.T]::DeleteDC($dc); [void][GD.T]::DeleteObject($bmp); [voi ...
++         ~~~~~~
+    + CategoryInfo          : InvalidOperation: (GD.T:TypeName) []，RuntimeException
+    + FullyQualifiedErrorId : TypeNotFound
+ 
+找不到类型 [GD.T]。
+所在位置 D:\Backup\Capture\tools\elev\queue\running_gditest.ps1:32 字符: 38
++   [void][GD.T]::DeleteDC($dc); [void][GD.T]::DeleteObject($bmp); [voi ...
++                                      ~~~~~~
+    + CategoryInfo          : InvalidOperation: (GD.T:TypeName) []，RuntimeException
+    + FullyQualifiedErrorId : TypeNotFound
+ 
+找不到类型 [GD.T]。
+所在位置 D:\Backup\Capture\tools\elev\queue\running_gditest.ps1:32 字符: 72
++ ... DeleteDC($dc); [void][GD.T]::DeleteObject($bmp); [void][GD.T]::Releas ...
++                                                            ~~~~~~
+    + CategoryInfo          : InvalidOperation: (GD.T:TypeName) []，RuntimeException
+    + FullyQualifiedErrorId : TypeNotFound
+ 
+
+EXIT=OK
