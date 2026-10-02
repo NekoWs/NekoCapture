@@ -37,7 +37,7 @@ public sealed class SettingsWindow : Window
                 try { DragMove(); } catch { }
             }
         };
-        FrameCapture.Core.Fluent.FadeIn(this);
+        FrameCapture.Core.Fluent.PopupEnter(this);
     }
 
     public static void ShowOrFocus()
@@ -92,7 +92,7 @@ public sealed class SettingsWindow : Window
             VerticalAlignment = VerticalAlignment.Center,
         };
         var closeBtn = SmallIcon("\uE711", "关闭 (Esc)");
-        closeBtn.Click += (_, _) => Close();
+        closeBtn.Click += (_, _) => FrameCapture.Core.Fluent.CloseWithFade(this);
         Grid.SetColumn(closeBtn, 1);
         titleRow.Children.Add(title);
         titleRow.Children.Add(closeBtn);
@@ -142,7 +142,7 @@ public sealed class SettingsWindow : Window
             _downX = e.GetPosition(this).X; _downY = e.GetPosition(this).Y;
             DragMove();
         };
-        PreviewKeyDown += (_, e) => { if (e.Key == Key.Escape) Close(); };
+        PreviewKeyDown += (_, e) => { if (e.Key == Key.Escape) FrameCapture.Core.Fluent.CloseWithFade(this); };
         SourceInitialized += (_, _) =>
         {
             Win32.SetRoundedCorners(new System.Windows.Interop.WindowInteropHelper(this).Handle);

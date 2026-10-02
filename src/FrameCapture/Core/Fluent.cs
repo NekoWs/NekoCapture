@@ -212,6 +212,42 @@ public static class Fluent
         public const int ThemeMs = 260;      // 主题交叉淡入
     }
 
+    /// <summary>紧凑弹窗（设置/帮助）入场：淡入 + 0.96→1 内容放大（WinUI Dialog 范式）。</summary>
+    public static void PopupEnter(Window w)
+    {
+        w.Opacity = 0;
+        w.ContentRendered += (_, _) =>
+        {
+            var dur = new Duration(TimeSpan.FromMilliseconds(Motion.EnterMs));
+            var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
+            w.BeginAnimation(System.Windows.UIElement.OpacityProperty, new DoubleAnimation(1, dur) { EasingFunction = ease });
+            if (w.Content is FrameworkElement fe && fe.RenderTransform == null)
+            {
+                fe.RenderTransformOrigin = new Point(0.5, 0.5);
+                var st = new ScaleTransform(0.96, 0.96);
+                fe.RenderTransform = st;
+                st.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(1, dur) { EasingFunction = ease });
+                st.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(1, dur) { EasingFunction = ease });
+            }
+        };
+    }
+
+    static readonly HashSet<Window> _fadingOut = new();
+
+    /// <summary>退场：淡出 150ms cubic-in 后再真正 Close（主题切换的交叉淡入不使用此路径）。</summary>
+    public static void CloseWithFade(Window w)
+    {
+        if (!_fadingOut.Add(w)) return; // 动画已在进行中（含按键重复触发的重入）
+        w.Closing += (_, e) => { if (_fadingOut.Contains(w)) e.Cancel = true; }; // 动画期间任何 Close 一律拦下
+        var cur = w.Opacity; // 先取当前有效值（PopupEnter 把基础值设成了 0，清动画后会闪没）
+        var a = new DoubleAnimation(cur, 0.0, new Duration(TimeSpan.FromMilliseconds(Motion.ExitMs)))
+        { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseIn } };
+        a.Completed += (_, _) => { _fadingOut.Remove(w); w.Close(); };
+        w.BeginAnimation(System.Windows.UIElement.OpacityProperty, null);
+        w.Opacity = cur;
+        w.BeginAnimation(System.Windows.UIElement.OpacityProperty, a);
+    }
+
     public static void FadeIn(Window w, int ms = 160, double risePx = 0)
     {
         w.Opacity = 0;

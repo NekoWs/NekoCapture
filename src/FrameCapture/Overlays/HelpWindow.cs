@@ -115,7 +115,7 @@ public sealed class HelpWindow : Window
         var shell = new Grid();
         shell.Children.Add(scroll);
         var closeBtn = FrameCapture.Core.Fluent.IconButton("", "关闭 (Esc)", 34, 14);
-        closeBtn.Click += (_, _) => Close();
+        closeBtn.Click += (_, _) => FrameCapture.Core.Fluent.CloseWithFade(this);
         closeBtn.HorizontalAlignment = HorizontalAlignment.Right;
         closeBtn.VerticalAlignment = VerticalAlignment.Top;
         closeBtn.Margin = new Thickness(0, 10, 12, 0);
@@ -125,7 +125,8 @@ public sealed class HelpWindow : Window
         Theme.Changed += OnThemeRebuild;
         Closed += (_, _) => Theme.Changed -= OnThemeRebuild;
         MouseLeftButtonDown += (_, e) => { if (e.OriginalSource is not Control) DragMove(); };
-        PreviewKeyDown += (_, e) => { if (e.Key == Key.Escape) Close(); };
+        PreviewKeyDown += (_, e) => { if (e.Key == Key.Escape) FrameCapture.Core.Fluent.CloseWithFade(this); };
+        FrameCapture.Core.Fluent.PopupEnter(this);
         SourceInitialized += (_, _) =>
         {
             var h = new System.Windows.Interop.WindowInteropHelper(this).Handle;
