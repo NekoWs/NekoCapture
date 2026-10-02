@@ -50,7 +50,7 @@ public sealed partial class EditorWindow : Window
         Topmost = true;
         Deactivated += (_, _) => { if (IsLoaded) { Topmost = false; Topmost = true; } };
         Title = "FrameCapture Editor";
-        FrameCapture.Core.Fluent.FadeIn(this);
+        FrameCapture.Core.Fluent.FadeIn(this, 240, 14);
         Background = new SolidColorBrush(DarkBg);
         BorderBrush = new SolidColorBrush(Color.FromRgb(0x32, 0x32, 0x36)); // 消除 WindowStyle=None 的白边
         MouseLeftButtonDown += (_, e) => { if (e.ButtonState == MouseButtonState.Pressed) { try { DragMove(); } catch { } } };
@@ -165,6 +165,7 @@ public sealed partial class EditorWindow : Window
             var bOkF = IconBtn("\uE73E", "确定：写入剪贴板 (Enter)"); bOkF.Click += (_, _) => Commit();
             var bX = IconBtn("\uE711", "取消 (Esc)"); bX.Click += (_, _) => Close();
             foreach (var b in new[] { bSaveF, bCopyF, bOkF, bX }) tools.Children.Add(b);
+            FrameCapture.Core.Fluent.HighlightBtn(bOkF, true); // 主按钮：accent 实心
         }
         tools.Children.Add(Sep());
         var bSet = IconBtn("\uE713", "设置"); bSet.Click += (_, _) => SettingsWindow.ShowOrFocus();
@@ -172,6 +173,7 @@ public sealed partial class EditorWindow : Window
         tools.Children.Add(bSet);
         tools.Children.Add(bHelp);
         _barTop = new FloatBar(this, tools);
+        _barTop.EnterDelayMs = 0;
 
         if (MultiFrame)
         {
@@ -204,7 +206,9 @@ public sealed partial class EditorWindow : Window
             var bOk = IconBtn("\uE73E", "确定：GIF 写入剪贴板 (Enter)"); bOk.Click += (_, _) => Commit();
             bar.Children.Add(bCancel);
             bar.Children.Add(bOk);
+            FrameCapture.Core.Fluent.HighlightBtn(bOk, true); // 主按钮：accent 实心
             _barBottom = new FloatBar(this, bar);
+            _barBottom.EnterDelayMs = 110; // 错开入场：绘制条先、播放条后
         }
 
         if (_barBottom != null) HookBar(_barBottom);

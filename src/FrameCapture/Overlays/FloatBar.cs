@@ -84,18 +84,55 @@ public sealed class FloatBar : Window
         Native.Win32.SetWindowPos(h, Native.Win32.HWND_TOPMOST, 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0010);
     }
 
+    /// <summary>首次入场的错开延迟 ms（编辑器给两条条各设一个，制造层叠入场节奏）。</summary>
+    public int EnterDelayMs { get; set; }
+
+    bool _shownOnce;
+    System.Windows.Media.TranslateTransform TT()
+    {
+        if (_bd.RenderTransform is not System.Windows.Media.TranslateTransform tt)
+        {
+            tt = new System.Windows.Media.TranslateTransform();
+            _bd.RenderTransform = tt;
+        }
+        return tt;
+    }
+
     public void ShowBar()
     {
         BeginAnimation(OpacityProperty, null);
-        Opacity = 1;
-        if (!IsVisible) Show();
+        if (IsVisible) { Opacity = 1; return; }
+        var dur = new System.Windows.Duration(
+            TimeSpan.FromMilliseconds(_shownOnce ? 110 : 190));
+        var ease = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut };
+        Opacity = 0;
+        var tt = TT();
+        tt.Y = _shownOnce ? 0 : 10;
+        Show();
+        var oa = new System.Windows.Media.Animation.DoubleAnimation(1, dur) { EasingFunction = ease };
+        if (EnterDelayMs > 0 && !_shownOnce) oa.BeginTime = TimeSpan.FromMilliseconds(EnterDelayMs);
+        BeginAnimation(OpacityProperty, oa);
+        if (!_shownOnce)
+        {
+            var ya = new System.Windows.Media.Animation.DoubleAnimation(0, dur) { EasingFunction = ease };
+            if (EnterDelayMs > 0) ya.BeginTime = TimeSpan.FromMilliseconds(EnterDelayMs);
+            tt.BeginAnimation(System.Windows.Media.TranslateTransform.YProperty, ya);
+        }
+        _shownOnce = true;
     }
 
     public void HideBar()
     {
         if (!IsVisible) return;
-        var a = new System.Windows.Media.Animation.DoubleAnimation(0, TimeSpan.FromMilliseconds(150));
-        a.Completed += (_, _) => Dispatcher.Invoke(Hide);
+        var a = new System.Windows.Media.Animation.DoubleAnimation(0, TimeSpan.FromMilliseconds(150))
+        { EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseIn } };
+        var tt = TT();
+        tt.BeginAnimation(System.Windows.Media.TranslateTransform.YProperty, null);
+        tt.Y = 0;
+        var ya = new System.Windows.Media.Animation.DoubleAnimation(5, TimeSpan.FromMilliseconds(150))
+        { EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseIn } };
+        tt.BeginAnimation(System.Windows.Media.TranslateTransform.YProperty, ya);
+        a.Completed += (_, _) => Dispatcher.Invoke(() => { Hide(); tt.BeginAnimation(System.Windows.Media.TranslateTransform.YProperty, null); tt.Y = 0; });
         BeginAnimation(OpacityProperty, a);
     }
 }

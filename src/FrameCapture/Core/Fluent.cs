@@ -201,13 +201,21 @@ public static class Fluent
 
     // ---------------- 窗口淡入 ----------------
 
-    public static void FadeIn(Window w, int ms = 160)
+    public static void FadeIn(Window w, int ms = 160, double risePx = 0)
     {
         w.Opacity = 0;
         w.ContentRendered += (_, _) =>
         {
-            var a = new DoubleAnimation(1, new Duration(TimeSpan.FromMilliseconds(ms)));
+            var dur = new Duration(TimeSpan.FromMilliseconds(ms));
+            var a = new DoubleAnimation(1, dur) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } };
             w.BeginAnimation(UIElement.OpacityProperty, a);
+            if (risePx > 0 && w.Content is FrameworkElement fe && fe.RenderTransform is not TransformGroup)
+            {
+                var tt = new TranslateTransform(0, risePx);
+                fe.RenderTransform = tt;
+                tt.BeginAnimation(TranslateTransform.YProperty,
+                    new DoubleAnimation(0, dur) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
+            }
         };
     }
 
