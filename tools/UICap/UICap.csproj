@@ -5,6 +5,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>UICap</AssemblyName>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
     <UseWPF>false</UseWPF>
   </PropertyGroup>
   <ItemGroup>
