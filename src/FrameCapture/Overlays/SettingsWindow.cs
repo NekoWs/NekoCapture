@@ -433,8 +433,20 @@ public sealed class SettingsWindow : Window
     FrameworkElement ThemeRow()
     {
         var g = Row();
+        g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); // 芯片列
         g.Children.Add(Icon("\uE793", "主题（跟随系统 / 浅色 / 深色）"));
+        var lbl = new TextBlock
+        {
+            Text = "外观主题",
+            FontSize = 13,
+            Foreground = new SolidColorBrush(Theme.Text),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 12, 0),
+        };
+        Grid.SetColumn(lbl, 1);
+        g.Children.Add(lbl);
         var chips = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
+        Grid.SetColumn(chips, 2);
         string cur = _settings.Current.Theme;
         foreach (var (id, glyph, tip) in new[]
                  { ("system", "\uE977", "跟随系统"), ("light", "\uE706", "浅色"), ("dark", "\uE708", "深色") })
