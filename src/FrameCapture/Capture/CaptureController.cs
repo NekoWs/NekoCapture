@@ -118,7 +118,7 @@ public sealed class CaptureController : IDisposable
         var monitor = Monitors.Nearest(cursor.X, cursor.Y);
 
         State = Phase.SelectingScope;
-        _picker = new RegionPickerWindow(monitor, existing: StoredRegion()?.Bounds);
+        _picker = new RegionPickerWindow(monitor, existing: StoredRegion()?.Bounds, snapContent: _settings.Current.SnapContentArea);
         _picker.Result += region =>
         {
             _picker = null;
@@ -132,11 +132,24 @@ public sealed class CaptureController : IDisposable
             });
             if (_settings.Current.AutoCaptureOnSelect)
             {
-                // 选区完成即截一帧：按下→600ms 自动松手（同托盘“立即捕获”链路）。
-                // 此路径不走 FlashOutline，避免轮廓像素进入被截帧。
-                BeginCapture();
-                var t = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(600) };
-                t.Tick += (_, _) => { t.Stop(); EndCapture(); };
+                // 选区完成即截一帧**静态图**（PNG + 剪贴板），不进 GIF 管线、不开编辑器。
+                // 延迟一拍让选取窗/遮罩完全退场，避免把选区界面截进画面。
+                HideOutline();
+                var t = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(220) };
+                t.Tick += (_, _) =>
+                {
+                    t.Stop();
+                    var f = LiveCapture.Grab(region.Value);
+                    if (f != null)
+                    {
+                        var pth = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "FrameCapture", $"capture-{DateTime.Now:HHmmss}.png");
+                        try { FrameCapture.Services.BgraImage.SavePng(f, pth); } catch { }
+                        FrameCapture.Encoding.ClipboardService.SetFrame(f);
+                        FrameCapture.Core.Trace.Log($"still saved {pth} {f.W}x{f.H}");
+                    }
+                    if (_settings.Current.AlwaysShowRegionOutline) ShowOutline(region.Value);
+                    else { FlashOutline(region.Value); _outline!.FadeAway(1.1); }
+                };
                 t.Start();
             }
             else if (_settings.Current.AlwaysShowRegionOutline) ShowOutline(region.Value);

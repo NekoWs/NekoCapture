@@ -6,11 +6,10 @@ namespace FrameCapture.Native;
 public static class WindowEnum
 {
     /// <summary>返回按 Z 序排列的可见候选窗口（物理像素边界），跳过桌面/壳层/工具窗口。</summary>
-    public static IEnumerable<(IntPtr Hwnd, Capture.RectI Bounds)> ListTopmostCandidates()
+    public static IEnumerable<(IntPtr Hwnd, Capture.RectI Bounds, Capture.RectI Client)> ListTopmostCandidates(IntPtr excludeHwnd = default)
     {
-        var list = new List<(IntPtr, Capture.RectI)>();
+        var list = new List<(IntPtr, Capture.RectI, Capture.RectI)>();
         IntPtr shell = Win32.GetShellWindow();
-        uint selfPid = (uint)Environment.ProcessId;
 
         bool Callback(IntPtr hwnd, IntPtr _)
         {
@@ -34,8 +33,8 @@ public static class WindowEnum
             if (w < 16 || h < 16) return true;
 
             // 跳过自己的进程
-            Win32.GetWindowThreadProcessId(hwnd, out uint pid);
-            if (pid == selfPid) return true;
+            // allow own content windows (editor/settings/help) to be snapped; only skip the caller's picker itself
+            if (hwnd == excludeHwnd) return true;
 
             // 跳过整个桌面（Progman/WorkerW）与壳层
             var sb = new System.Text.StringBuilder(256);
@@ -47,7 +46,17 @@ public static class WindowEnum
                 if (w >= 1920 && h >= 1080) return true;
             }
 
-            list.Add((hwnd, new Capture.RectI(r.Left, r.Top, w, h)));
+            var frame = new Capture.RectI(r.Left, r.Top, w, h);
+            // client-area rect (physical px): excludes window frame/title bar
+            var client = frame;
+            if (Win32.GetClientRect(hwnd, out var rcC) && rcC.Right > 8 && rcC.Bottom > 8)
+            {
+                var tl = new Win32.POINT { X = rcC.Left, Y = rcC.Top };
+                var br = new Win32.POINT { X = rcC.Right, Y = rcC.Bottom };
+                if (Win32.ClientToScreen(hwnd, ref tl) && Win32.ClientToScreen(hwnd, ref br))
+                    client = new Capture.RectI(tl.X, tl.Y, br.X - tl.X, br.Y - tl.Y);
+            }
+            list.Add((hwnd, frame, client));
             return true;
         }
 

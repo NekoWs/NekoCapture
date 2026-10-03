@@ -25,6 +25,7 @@ public sealed class RegionPickerWindow : Window
     private bool _dragging;
     private bool _finished;
     private RectI? _existing;
+    private readonly bool _snapContent;
 
     /// <summary>mouseDown 时记录（物理坐标，相对监视器原点存 DIP）。</summary>
     readonly System.Windows.Threading.DispatcherTimer _topTimer;
@@ -43,11 +44,12 @@ public sealed class RegionPickerWindow : Window
         Native.Win32.SetWindowPos(h, Native.Win32.HWND_TOPMOST, 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0010); // NOMOVE|NOSIZE|NOACTIVATE
     }
 
-    public RegionPickerWindow(MonitorInfo monitor, RectI? existing)
+    public RegionPickerWindow(MonitorInfo monitor, RectI? existing, bool snapContent = false)
     {
         // 覆盖层不需要文本输入：禁用输入法，避免拼音拦截快捷键
         System.Windows.Input.InputMethod.SetIsInputMethodEnabled(this, false);
         _monitor = monitor;
+        _snapContent = snapContent;
         _monitorPhys = monitor.Bounds;
         _existing = existing;
 
@@ -230,7 +232,10 @@ public sealed class RegionPickerWindow : Window
 
     private RectI? SnapWindowAt((int X, int Y) p)
     {
-        return Core.SnapPick.Pick(WindowEnum.ListTopmostCandidates().Select(t => t.Bounds), p.X, p.Y);
+        var self = new System.Windows.Interop.WindowInteropHelper(this).Handle;
+        // snapContent: prefer client-area rects (exclude window frame / title bar, e.g. game viewport)
+        return Core.SnapPick.Pick(
+            WindowEnum.ListTopmostCandidates(self).Select(t => _snapContent ? t.Client : t.Bounds), p.X, p.Y);
     }
 
     private void ShowSpot(RectI? phys)

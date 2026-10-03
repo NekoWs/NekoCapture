@@ -104,28 +104,30 @@ public sealed class SettingsWindow : Window
         panel.Children.Add(HotkeyRow("\uE7F4", "捕获快捷键（点按=单帧 / 长按=录屏）", "capture"));
         panel.Children.Add(Rule());
 
-        // 滑杆行
-        panel.Children.Add(SliderRow("\uE916", "点按判定阈值：按下到放开小于此值算单帧；0 = 全部长按",
+        // 滑杆行（名称常显，长说明进悬停提示）
+        panel.Children.Add(SliderRow("\uE916", "点按单帧阈值", "按下到放开小于此值算单帧；0 = 全部长按",
             0, 1000, 50, _settings.Current.TapThresholdMs,
             v => $"{v / 1000.0:0.00}s", v => _settings.Mutate(s => s.TapThresholdMs = (int)v)));
-        panel.Children.Add(SliderRow("\uEC4A", "录制帧率 (FPS)",
+        panel.Children.Add(SliderRow("\uEC4A", "录制帧率 (FPS)", "长按录制时每秒捕获的帧数",
             10, 60, 5, _settings.Current.Fps,
             v => $"{v:0} fps", v => _settings.Mutate(s => s.Fps = (int)v)));
-        panel.Children.Add(SliderRow("\uE823", "长按录制最长时间",
+        panel.Children.Add(SliderRow("\uE823", "长按录制最长时间", "长按超过此秒数自动停止录制",
             2, 30, 1, _settings.Current.MaxDurationMs / 1000.0,
             v => $"{v:0}s", v => _settings.Mutate(s => s.MaxDurationMs = (int)(v * 1000))));
-        panel.Children.Add(SliderRow("\uE8FD", "Agent 胶片条抽帧数",
+        panel.Children.Add(SliderRow("\uE8FD", "胶片条抽帧数", "自动生成 Agent 胶片条时从录制帧中抽取的帧数",
             4, 24, 1, _settings.Current.AgentStripFrames,
             v => $"{v:0} 帧", v => _settings.Mutate(s => s.AgentStripFrames = (int)v)));
 
-        // 开关行
-        panel.Children.Add(ToggleRow("\uE8B9", "自动生成 Agent 逐帧胶片条",
+        // 开关行（名称常显）
+        panel.Children.Add(ToggleRow("\uE8B9", "自动生成 Agent 胶片条", "每次捕获后自动生成逐帧胶片条图，便于 AI 理解动作过程",
             _settings.Current.AgentStripEnabled, v => _settings.Mutate(s => s.AgentStripEnabled = v)));
-        panel.Children.Add(ToggleRow("\uE71A", "常显捕获范围轮廓",
+        panel.Children.Add(ToggleRow("\uE71A", "常显捕获范围轮廓", "在屏幕上持续显示当前捕获范围的边框",
             _settings.Current.AlwaysShowRegionOutline, v => _settings.Mutate(s => s.AlwaysShowRegionOutline = v)));
-        panel.Children.Add(ToggleRow("\uE7B5", "选区自动截取",
+        panel.Children.Add(ToggleRow("\uE7B5", "选区自动截取", "完成选区后立即截取一帧静态图（PNG，同时复制到剪贴板）",
             _settings.Current.AutoCaptureOnSelect, v => _settings.Mutate(s => s.AutoCaptureOnSelect = v)));
-        panel.Children.Add(ToggleRow("\uE7E8", "开机自启",
+        panel.Children.Add(ToggleRow("\uE740", "吸附到内容区", "吸附窗口时取客户区（排除窗口边框与标题栏），适合吸附游戏画面等纯内容区域",
+            _settings.Current.SnapContentArea, v => _settings.Mutate(s => s.SnapContentArea = v)));
+        panel.Children.Add(ToggleRow("\uE7E8", "开机自启", "登录 Windows 时自动启动 FrameCapture",
             _settings.Current.RunAtStartup, v =>
             {
                 _settings.Mutate(s => s.RunAtStartup = v);
@@ -289,19 +291,36 @@ public sealed class SettingsWindow : Window
 
     // ---------- 滑杆行 ----------
 
-    FrameworkElement SliderRow(string glyph, string tip, double min, double max, double tick, double val,
+    FrameworkElement SliderRow(string glyph, string label, string tip, double min, double max, double tick, double val,
         Func<double, string> fmt, Action<double> onChange)
     {
-        var g = Row();
-        g.Children.Add(Icon(glyph, tip));
-        var wrap = new StackPanel { Width = 250, HorizontalAlignment = HorizontalAlignment.Right };
+        // 两行式：首行 [图标][名称][当前值]，次行整宽滑杆（名称常显，不依赖悬停）
+        var outer = new StackPanel { Margin = new Thickness(0, 6, 0, 6) };
+        var head = new Grid();
+        head.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        head.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        head.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        head.Children.Add(Icon(glyph, tip));
+        var lbl = new TextBlock
+        {
+            Text = label,
+            FontSize = 13,
+            Foreground = new SolidColorBrush(Theme.Text),
+            VerticalAlignment = VerticalAlignment.Center,
+            TextWrapping = TextWrapping.Wrap,
+        };
+        Grid.SetColumn(lbl, 1);
+        head.Children.Add(lbl);
         var hud = new TextBlock
         {
             Text = fmt(val),
             FontSize = 11,
             Foreground = new SolidColorBrush(Theme.TextDim),
-            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(10, 0, 0, 0),
         };
+        Grid.SetColumn(hud, 2);
+        head.Children.Add(hud);
         var sl = new Slider
         {
             Minimum = min,
@@ -310,6 +329,7 @@ public sealed class SettingsWindow : Window
             IsSnapToTickEnabled = true,
             Value = val,
             Foreground = new SolidColorBrush(Theme.Accent),
+            Margin = new Thickness(4, 4, 0, 0),
         };
         FrameCapture.Core.Fluent.StyleSlider(sl);
         sl.ValueChanged += (_, e) =>
@@ -317,18 +337,28 @@ public sealed class SettingsWindow : Window
             hud.Text = fmt(e.NewValue);
             onChange(e.NewValue);
         };
-        wrap.Children.Add(hud);
-        wrap.Children.Add(sl);
-        g.Children.Add(wrap);
-        return g;
+        outer.Children.Add(head);
+        outer.Children.Add(sl);
+        return outer;
     }
 
     // ---------- 开关行 ----------
 
-    FrameworkElement ToggleRow(string glyph, string tip, bool initial, Action<bool> onChange)
+    FrameworkElement ToggleRow(string glyph, string label, string tip, bool initial, Action<bool> onChange)
     {
         var g = Row();
+        g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); // 开关列
         g.Children.Add(Icon(glyph, tip));
+        var lbl = new TextBlock
+        {
+            Text = label,
+            FontSize = 13,
+            Foreground = new SolidColorBrush(Theme.Text),
+            VerticalAlignment = VerticalAlignment.Center,
+            TextWrapping = TextWrapping.Wrap,
+        };
+        Grid.SetColumn(lbl, 1);
+        g.Children.Add(lbl);
         var track = new Border
         {
             Width = 40,
@@ -338,6 +368,7 @@ public sealed class SettingsWindow : Window
             BorderBrush = new SolidColorBrush(initial ? Theme.Accent : Theme.Stroke),
             BorderThickness = new Thickness(1),
             HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Center,
             Cursor = Cursors.Hand,
             ToolTip = tip,
         };
@@ -350,7 +381,7 @@ public sealed class SettingsWindow : Window
             Margin = new Thickness(4, 0, 4, 0),
             RenderTransform = new System.Windows.Media.TranslateTransform(initial ? 20 : 0, 0),
         };
-        Grid.SetColumn(track, 1);
+        Grid.SetColumn(track, 2);
         track.Child = knob;
         bool on = initial;
         track.MouseLeftButtonDown += (_, e) =>

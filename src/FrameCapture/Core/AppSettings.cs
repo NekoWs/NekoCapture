@@ -31,6 +31,9 @@ public sealed class AppSettings
     /// <summary>完成选区后立即截取一帧（复用托盘同款按下→自动松手链路）。</summary>
     public bool AutoCaptureOnSelect { get; set; } = true;
 
+    /// <summary>选区吸附取客户区（排除窗口边框/标题栏，适合游戏画面）。</summary>
+    public bool SnapContentArea { get; set; } = false;
+
     /// <summary>主题: system | light | dark。</summary>
     public string Theme { get; set; } = "system";
 
