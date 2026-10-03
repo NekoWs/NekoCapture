@@ -3,7 +3,7 @@
 #   · 前提事实：静态桌面上 WGC 实采约 11fps（trace 实证 5s≈50 帧），60 帧编码仅 ~0.4s——短按既打不爆
 #     帧预算（2.5GB）也来不及落在编码窗口里。故：脚本先把 settings.MaxDurationMs 临时抬到 26000
 #     （备份→改→跑→还原，外部改文件由 AppHost 的 FileSystemWatcher 热加载，且实例在改后才启动，无竞态），
-#     并以测试专用开关 FC_TEST_RING_BUDGET_MB=3000 钉住帧预算（FrameRing，与 FC_TEST_NO_FG 同约定）；
+#     并以测试专用开关 FC_TEST_RING_BUDGET_MB=2500 钉住帧预算（FrameRing，与 FC_TEST_NO_FG 同约定）；
 #     长按 25s ≈ 270 帧 ×12.6MB ≈ 3.4GB > 预算 → 真丢帧；烘焙+编码 ≈ 3s → 进度/取消窗口稳定可拍。
 #   · 丢帧警告「⚠内存预算已丢 N 帧」：trace 出现 "ring dropped"。
 #   · 取消恢复：Enter 后 0.35s 投 Esc（编码中 Esc=取消编码而非关窗）→ trace "encode cancelled"，
@@ -54,36 +54,52 @@ namespace FcHud
 public class Pick
 {
     static BitmapData Lock(Bitmap b) { return b.LockBits(new Rectangle(0, 0, b.Width, b.Height), ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb); }
-    // 与首帧比较（隔 2px 采样，包围盒 ~1340x195 量级足够快）；尺寸不一致的帧跳过。
+    // 与首帧比较（隔 2px 采样）。悬浮条 SizeToContent：HUD 文本一变，条宽与整组包围盒都变
+    // （实测编码中每帧尺寸都不同，逐帧"尺寸全等才比"会全军覆没）——故先取全序列最小公共尺寸，
+    // 每帧按中心对齐裁到该尺寸再比，尺寸增长/原点漂移一并消掉。
     public static int MostDiff(string[] files, out int bestCount)
     {
         bestCount = -1;
         int best = -1;
-        using (var b0 = new Bitmap(files[0]))
+        if (files.Length < 2) return best;
+        int cw = int.MaxValue, ch = int.MaxValue;
+        foreach (var f in files)
+            using (var b = new Bitmap(f)) { if (b.Width < cw) cw = b.Width; if (b.Height < ch) ch = b.Height; }
+        if (cw < 8 || ch < 8) return best;
+        using (var c0 = CenterCrop(files[0], cw, ch))
         {
-            var d0 = Lock(b0);
+            var d0 = Lock(c0);
             for (int i = 1; i < files.Length; i++)
             {
-                using (var b = new Bitmap(files[i]))
+                using (var c = CenterCrop(files[i], cw, ch))
                 {
-                    if (b.Width != b0.Width || b.Height != b0.Height) continue;
-                    var d = Lock(b);
+                    var d = Lock(c);
                     int diff = 0;
-                    for (int y = 0; y < b0.Height; y += 2)
+                    for (int y = 0; y < ch; y += 2)
                     {
                         IntPtr p0 = IntPtr.Add(d0.Scan0, y * d0.Stride), p = IntPtr.Add(d.Scan0, y * d.Stride);
-                        for (int x = 0; x < b0.Width; x += 2)
+                        for (int x = 0; x < cw; x += 2)
                         {
                             if (Marshal.ReadInt32(p0, x * 4) != Marshal.ReadInt32(p, x * 4)) diff++;
                         }
                     }
-                    b.UnlockBits(d);
+                    c.UnlockBits(d);
                     if (diff > bestCount) { bestCount = diff; best = i; }
                 }
             }
-            b0.UnlockBits(d0);
         }
         return best;
+    }
+    static Bitmap CenterCrop(string file, int cw, int ch)
+    {
+        using (var b = new Bitmap(file))
+        {
+            var c = new Bitmap(cw, ch, PixelFormat.Format32bppArgb);
+            using (var g = Graphics.FromImage(c))
+                g.DrawImage(b, new Rectangle(0, 0, cw, ch),
+                    new Rectangle((b.Width - cw) / 2, (b.Height - ch) / 2, cw, ch), GraphicsUnit.Pixel);
+            return c;
+        }
     }
 }
 }
