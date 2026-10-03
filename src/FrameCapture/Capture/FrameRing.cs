@@ -7,7 +7,15 @@ public sealed class FrameRing
     private long _bytes;
     private readonly long _budget;
 
-    public FrameRing(long? budgetBytes = null) => _budget = budgetBytes ?? AdaptiveBudget();
+    public FrameRing(long? budgetBytes = null) => _budget = budgetBytes ?? TestBudget();
+
+    /// <summary>测试专用（与 FC_TEST_NO_FG 同约定）：FC_TEST_RING_BUDGET_MB 把帧预算钉到给定 MB，
+    /// 令「⚠内存预算已丢 N 帧」HUD 边界态可确定性触达并做像素取证（UIAUDIT D9）。用户环境永不置位。</summary>
+    private static long TestBudget()
+    {
+        if (long.TryParse(Environment.GetEnvironmentVariable("FC_TEST_RING_BUDGET_MB"), out var mb) && mb > 0) return mb << 20;
+        return AdaptiveBudget();
+    }
 
     /// <summary>按当前可用物理内存自适应：avail×40%，夹在 [512MB, 2.5GB]。</summary>
     public static long AdaptiveBudget()

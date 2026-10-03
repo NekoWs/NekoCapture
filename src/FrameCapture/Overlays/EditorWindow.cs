@@ -494,6 +494,10 @@ public sealed partial class EditorWindow : Window
             _hud.Text = "导出 GIF…";
             System.Threading.Tasks.Task.Run(() =>
             {
+                // 测试专用（与 FC_TEST_NO_FG 同约定）：FC_TEST_ENCODE_FAIL=1 令编码任务必然抛错，
+                // 使"导出失败"HUD 终态可确定性触达并做双主题像素取证（UIAUDIT D9）。正常用户环境永不置位。
+                if (System.Environment.GetEnvironmentVariable("FC_TEST_ENCODE_FAIL") == "1")
+                    throw new System.InvalidOperationException("forced encode failure (FC_TEST_ENCODE_FAIL=1)");
                 var baked = FrameCapture.Drawing.Bake.Apply(subset, anns);
                 var seq = new CapturedSequence
                 {
