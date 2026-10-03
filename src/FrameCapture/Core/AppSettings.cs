@@ -73,6 +73,9 @@ public sealed class AppSettings
 /// <summary>JSON 设置存取，带并发保护与损坏自愈。</summary>
 public sealed class SettingsService
 {
+    /// <summary>进程内唯一实例（帮助窗等无 DI 场景读取当前快捷键用）。</summary>
+    public static SettingsService? Shared { get; private set; }
+
     private static readonly JsonSerializerOptions JsonOpts = new()
     {
         WriteIndented = true,
@@ -94,6 +97,7 @@ public sealed class SettingsService
 
     public SettingsService()
     {
+        Shared = this;
         _current = Load();
         // 首启落盘默认配置：让用户可以直接编辑文件，也便于脚本切换主题
         if (!File.Exists(FilePath)) Save(_current);

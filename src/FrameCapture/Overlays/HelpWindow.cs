@@ -64,19 +64,44 @@ public sealed class HelpWindow : Window
             Text = t, FontSize = 14, FontWeight = FontWeights.SemiBold,
             Foreground = new SolidColorBrush(Theme.Accent), Margin = new Thickness(0, 12, 0, 4),
         });
-        void KV(string k, string v) => panel.Children.Add(new TextBlock
+        void KV(string k, string v)
         {
-            Text = k + "   " + v, FontSize = 13,
-            Foreground = new SolidColorBrush(Theme.Text), Margin = new Thickness(10, 2, 0, 2),
-        });
+            // 两列栅格：键位列定宽，说明列对齐（此前空格拼接导致错位）
+            var g = new Grid { Margin = new Thickness(10, 2, 0, 2) };
+            g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(200) });
+            g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            var kt = new TextBlock
+            {
+                Text = k, FontSize = 13,
+                Foreground = new SolidColorBrush(Theme.Text),
+                VerticalAlignment = VerticalAlignment.Top,
+                Margin = new Thickness(0, 0, 14, 0),
+            };
+            var vt = new TextBlock
+            {
+                Text = v, FontSize = 13,
+                Foreground = new SolidColorBrush(Theme.Text),
+                TextWrapping = TextWrapping.Wrap,
+            };
+            g.Children.Add(kt);
+            Grid.SetColumn(vt, 1);
+            g.Children.Add(vt);
+            panel.Children.Add(g);
+        }
+        string HK(bool scope)
+        {
+            var s = SettingsService.Shared?.Current;
+            var hk = scope ? s?.ScopeHotkey : s?.CaptureHotkey;
+            return string.IsNullOrEmpty(hk) ? (scope ? "Ctrl+Shift+R" : "Ctrl+Shift+G") : hk;
+        }
 
         var title = new TextBlock { Text = "FrameCapture 使用速查", FontSize = 18, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(Theme.Text) };
         panel.Children.Add(title);
 
         H("捕获");
-        KV("Ctrl+Shift+R", "设置捕获范围（拖框 / 悬停吸附窗口，Enter 确认，Esc 取消）——范围沿用");
-        KV("Ctrl+Shift+G 长按", "录制按下到放开期间的画面（可在设置里改上限时长）");
-        KV("Ctrl+Shift+G 点按", "只抓一帧（点按阈值可调，设为 0 = 永远长按）");
+        KV(HK(true), "设置捕获范围（拖框 / 悬停吸附窗口，Enter 确认，Esc 取消）——范围沿用");
+        KV(HK(false) + " 长按", "录制按下到放开期间的画面（可在设置里改上限时长）");
+        KV(HK(false) + " 点按", "只抓一帧（点按阈值可调，设为 0 = 永远长按）");
 
         H("编辑器 · 播放");
         KV("空格", "播放 / 暂停");
