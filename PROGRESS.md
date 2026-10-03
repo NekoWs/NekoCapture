@@ -34,16 +34,16 @@
 下面是 run-round.ps1 自动追加的区域，**不要手改**。
 要纠偏请改上面的 "Standing state"，或放一个 STOP 文件中止长跑。
 
-每段形如：
+每段形如（示例刻意缩进：不缩进的 `## Round n` 会被人和模型误当成"已经跑过的一轮"——这个坑已经踩过一次）：
 
-## Round 1 — 2026-10-03 22:10:04  (status: continue)
+    ## Round 1 — 2026-10-03 22:10:04  (status: continue)
 
-```text
-<该轮完整的最终回复，含它的 ROUND 1 REPORT 块>
-```
+    ```text
+    <该轮完整的最终回复，含它的 ROUND 1 REPORT 块>
+    ```
 
-- repo dirty after round: no
-- HEAD: 1a2b3c4 chore(overnight)[driver]: record round 1 in PROGRESS.md (status: continue)
+    - repo dirty after round: no
+    - HEAD: 1a2b3c4 chore(overnight)[driver]: record round 1 in PROGRESS.md (status: continue)
 -->
 
 ---
