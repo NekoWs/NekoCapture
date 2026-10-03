@@ -62,6 +62,11 @@ public sealed class TrayService : IDisposable
             _host.Settings.Mutate(s => s.RunAtStartup = !s.RunAtStartup);
             StartupService.Apply(_host.Settings.Current.RunAtStartup);
         }, checkable: true, isChecked: _host.Settings.Current.RunAtStartup);
+        // 按需提权：解决被更高权限窗口（管理员终端/游戏）压住、快捷键盲区的问题
+        if (AppHost.IsElevated)
+            Item("管理员权限运行 ✓", () => { }, checkable: true, isChecked: true);
+        else
+            Item("以管理员身份运行（防遮挡）", () => _host.RestartAsAdmin());
         Sep();
         Item("退出", () =>
         {

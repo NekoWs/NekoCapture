@@ -104,6 +104,8 @@ public sealed class CaptureController : IDisposable
     public void BeginScopeSelection()
     {
         if (State == Phase.Capturing) return;
+        // 防状态卡死：选取窗被异常途径关闭（Alt+F4 等）时复位
+        if (State == Phase.SelectingScope && _picker == null) State = Phase.Idle;
         CloseEditor();
         if (State == Phase.SelectingScope)
         {

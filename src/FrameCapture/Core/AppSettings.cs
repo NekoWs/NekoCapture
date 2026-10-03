@@ -119,6 +119,7 @@ public sealed class SettingsService
         lock (_gate)
         {
             _current = settings;
+            _selfWriteUtc = DateTime.UtcNow;
             try
             {
                 Directory.CreateDirectory(Dir);
@@ -128,6 +129,15 @@ public sealed class SettingsService
             }
             catch { /* 保存失败不影响运行 */ }
         }
+    }
+
+    DateTime _selfWriteUtc = DateTime.MinValue;
+    public bool RecentlySelfWritten => (DateTime.UtcNow - _selfWriteUtc).TotalSeconds < 1.5;
+
+    /// <summary>从磁盘重载（外部编辑 settings.json 后热重载）；损坏自愈。</summary>
+    public void Reload()
+    {
+        lock (_gate) _current = Load();
     }
 
     public void Mutate(Action<AppSettings> mutate)

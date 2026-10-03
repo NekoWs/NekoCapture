@@ -38,6 +38,7 @@ public sealed class AppHost
 
         Controller.Initialize();
         Tray.Show();
+        WatchSettingsFile();
         // 设计审查专用：FC_UIPREVIEW=settings|help 启动后自动打开对应窗口（仅调试，不影响正常流）
         var preview = Environment.GetEnvironmentVariable("FC_UIPREVIEW");
         if (preview is "settings" or "help")
@@ -65,6 +66,67 @@ public sealed class AppHost
     {
         var s = Settings.Current;
         Hotkeys.Install(s.ScopeHotkey, s.CaptureHotkey);
+    }
+
+    System.IO.FileSystemWatcher? _settingsWatcher;
+    System.Windows.Threading.DispatcherTimer? _reloadDebounce;
+
+    /// <summary>监听 settings.json 外部改动（用户手动编辑/脚本切换）：热重载设置并重挂热键。</summary>
+    void WatchSettingsFile()
+    {
+        try
+        {
+            _reloadDebounce = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
+            _reloadDebounce.Tick += (_, _) =>
+            {
+                _reloadDebounce!.Stop();
+                if (Settings.RecentlySelfWritten) return; // 忽略本进程自己的落盘
+                Settings.Reload();
+                var s = Settings.Current;
+                Theme.Apply(s.Theme, s.Accent);
+                InstallHotkeys();
+                FrameCapture.Core.Trace.Log($"settings reloaded: scope={s.ScopeHotkey} capture={s.CaptureHotkey}");
+            };
+            _settingsWatcher = new System.IO.FileSystemWatcher(System.IO.Path.GetDirectoryName(SettingsService.FilePath)!, "settings.json")
+            { NotifyFilter = System.IO.NotifyFilters.LastWrite, EnableRaisingEvents = true };
+            _settingsWatcher.Changed += (_, _) =>
+            {
+                try { _reloadDebounce?.Dispatcher.Invoke(() => { _reloadDebounce!.Stop(); _reloadDebounce.Start(); }); }
+                catch { }
+            };
+        }
+        catch { }
+    }
+
+    /// <summary>当前是否以管理员权限运行。</summary>
+    public static bool IsElevated
+    {
+        get
+        {
+            try
+            {
+                using var id = System.Security.Principal.WindowsIdentity.GetCurrent();
+                return new System.Security.Principal.WindowsPrincipal(id)
+                    .IsInRole(System.Security.Principal.WindowsBuiltInRole.Administrator);
+            }
+            catch { return false; }
+        }
+    }
+
+    /// <summary>以管理员权限重启本程序（UAC 确认一次）；取消则维持现状。</summary>
+    public void RestartAsAdmin()
+    {
+        try
+        {
+            var exe = Environment.ProcessPath ?? System.Reflection.Assembly.GetExecutingAssembly().Location;
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(exe)
+            { UseShellExecute = true, Verb = "runas" });
+            FrameCapture.Core.Trace.Log("relaunch requested: elevated");
+            Shutdown();
+            System.Windows.Application.Current?.Shutdown();
+        }
+        catch (System.ComponentModel.Win32Exception) { /* 用户取消了 UAC */ }
+        catch (Exception ex) { FrameCapture.Core.Trace.Log($"elevate failed: {ex.GetType().Name}"); }
     }
 
     static void Dispatch(Action a)
