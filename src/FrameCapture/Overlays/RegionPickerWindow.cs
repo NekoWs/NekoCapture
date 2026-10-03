@@ -187,6 +187,12 @@ public sealed class RegionPickerWindow : Window
         {
             if (e.Key == Key.Escape) Finish(null);
             else if (e.Key == Key.Enter && _existing != null) Finish(_existing);
+            else if (e.Key == Key.Tab && _curElem != null)
+            {
+                // Tab 上钻控件层级：输入框 → 表单容器 → … → 整窗
+                var up = Core.ElementSnap.Parent(_curElem);
+                if (up != null) { _curElem = up; ShowSpot(up.Rect); e.Handled = true; }
+            }
         };
         MouseLeftButtonDown += OnDown;
         MouseMove += OnMove;
@@ -200,6 +206,7 @@ public sealed class RegionPickerWindow : Window
     }
 
     private Rectangle _spotStroke = null!;
+    private Core.ElementHit? _curElem;
     private System.Windows.Controls.Border _hint = null!;
     private System.Windows.Controls.Border _badge = null!;
     private TextBlock _badgeText = null!;
@@ -248,6 +255,19 @@ public sealed class RegionPickerWindow : Window
         }
         else
         {
+            // 控件级吸附（UIA）优先：输入框/文字/图片/容器…；不支持时回退窗口级
+            if (_snapContent)
+            {
+                var selfH = new System.Windows.Interop.WindowInteropHelper(this).Handle;
+                var eh = Core.ElementSnap.At(p.X, p.Y, selfH);
+                if (eh != null && eh.Rect.W >= 8 && eh.Rect.H >= 8)
+                {
+                    _curElem = eh;
+                    ShowSpot(eh.Rect);
+                    return;
+                }
+            }
+            _curElem = null;
             var hit = SnapWindowAt(p);
             if (hit != null) ShowSpot(hit.Value);
             else if (_existing == null) ShowSpot(null);
@@ -263,7 +283,13 @@ public sealed class RegionPickerWindow : Window
         var rect = RectI.FromCorners(_dragX1, _dragY1, p.X, p.Y);
         if (rect.W < 8 || rect.H < 8)
         {
-            // 视为点击：选窗口或沿用 existing
+            // 视为点击：优先当前吸附的控件，其次窗口，再次沿用 existing
+            if (_snapContent)
+            {
+                var selfH = new System.Windows.Interop.WindowInteropHelper(this).Handle;
+                var eh = Core.ElementSnap.At(p.X, p.Y, selfH);
+                if (eh != null && eh.Rect.W >= 8 && eh.Rect.H >= 8) { Finish(eh.Rect); return; }
+            }
             var hit = SnapWindowAt(p);
             Finish(hit ?? _existing ?? _monitorPhys);
             return;

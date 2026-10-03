@@ -590,6 +590,43 @@ static class SelfTest
             Chk("T70-timeline-map", first == 0 && last == 19 && over == 19 && mono, $"first={first} last={last} over={over} mono={mono}");
         }
 
+        // T71 ElementSnap：UIA 控件级吸附——命中的是文本框边界而非整窗
+        try
+        {
+            var win = new System.Windows.Window
+            {
+                Title = "SelfTest ElementSnap",
+                Width = 320, Height = 240,
+                WindowStartupLocation = System.Windows.WindowStartupLocation.Manual,
+                Left = 150, Top = 150,
+                Topmost = true,
+                Content = new System.Windows.Controls.TextBox
+                {
+                    Text = "snap me", Width = 140, Height = 26,
+                    Margin = new System.Windows.Thickness(20),
+                },
+            };
+            win.Show();
+            win.Activate();
+            var pump = new System.Windows.Threading.DispatcherFrame();
+            win.Dispatcher.BeginInvoke(() => { pump.Continue = false; }, System.Windows.Threading.DispatcherPriority.Loaded);
+            System.Windows.Threading.Dispatcher.PushFrame(pump);
+            var tb = (System.Windows.Controls.TextBox)win.Content;
+            var tl = tb.PointToScreen(new System.Windows.Point(0, 0));
+            var br = tb.PointToScreen(new System.Windows.Point(tb.ActualWidth, tb.ActualHeight));
+            int cx = (int)((tl.X + br.X) / 2), cy = (int)((tl.Y + br.Y) / 2);
+            var hit = FrameCapture.Core.ElementSnap.At(cx, cy, IntPtr.Zero);
+            Chk("T71a-uia-hit", hit != null);
+            Chk("T71b-uia-rect", hit != null &&
+                Math.Abs(hit.Rect.X - tl.X) <= 4 && Math.Abs(hit.Rect.Y - tl.Y) <= 4 &&
+                Math.Abs(hit.Rect.W - (br.X - tl.X)) <= 4 && Math.Abs(hit.Rect.H - (br.Y - tl.Y)) <= 4,
+                hit == null ? "null" : $"{hit.Rect} vs tb {tl.X},{tl.Y} {(int)(br.X - tl.X)}x{(int)(br.Y - tl.Y)}");
+            var up = hit != null ? FrameCapture.Core.ElementSnap.Parent(hit) : null;
+            Chk("T71c-uia-parent", up != null && up.Rect.W * up.Rect.H >= hit!.Rect.W * hit.Rect.H);
+            win.Close();
+        }
+        catch (Exception ex) { Chk("T71-uia", false, ex.Message); }
+
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");
         return fail == 0 ? 0 : 1;
     }
