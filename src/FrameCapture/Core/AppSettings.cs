@@ -34,6 +34,9 @@ public sealed class AppSettings
     /// <summary>选区吸附取客户区（排除窗口边框/标题栏，适合游戏画面）。</summary>
     public bool SnapContentArea { get; set; } = false;
 
+    /// <summary>点按捕获快捷键时总是先弹出选区，选完立即截图（QQ 式手感）。</summary>
+    public bool TapAlwaysShowsRegion { get; set; } = false;
+
     /// <summary>主题: system | light | dark。</summary>
     public string Theme { get; set; } = "system";
 

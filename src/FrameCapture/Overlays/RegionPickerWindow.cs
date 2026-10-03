@@ -195,7 +195,7 @@ public sealed class RegionPickerWindow : Window
         {
             var p = WindowPosToPhys(Mouse.GetPosition(this));
             var hit = SnapWindowAt(p);
-            Finish(hit ?? new RectI(_monitorPhys.X, _monitorPhys.Y, _monitorPhys.W, _monitorPhys.H));
+            Finish(hit ?? _existing ?? new RectI(_monitorPhys.X, _monitorPhys.Y, _monitorPhys.W, _monitorPhys.H));
         };
     }
 

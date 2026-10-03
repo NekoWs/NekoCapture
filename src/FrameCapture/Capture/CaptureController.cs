@@ -19,6 +19,8 @@ public sealed class CaptureController : IDisposable
     private EditorWindow? _editor;
     private System.Diagnostics.Stopwatch? _captureClock;
     private ScreenRegion? _pendingRegion;
+    /// <summary>点按总是先显示选区（QQ 式）：本次选区确认后立即截一帧静态图。</summary>
+    private bool _captureAfterSelect;
 
     public Phase State { get; private set; } = Phase.Idle;
 
@@ -123,6 +125,8 @@ public sealed class CaptureController : IDisposable
         {
             _picker = null;
             State = Phase.Idle;
+            bool stillAfterSelect = _settings.Current.AutoCaptureOnSelect || _captureAfterSelect;
+            _captureAfterSelect = false;
             if (region is null) return;
             _settings.Mutate(s =>
             {
@@ -130,7 +134,7 @@ public sealed class CaptureController : IDisposable
                 s.RegionX = region.Value.X; s.RegionY = region.Value.Y;
                 s.RegionW = region.Value.W; s.RegionH = region.Value.H;
             });
-            if (_settings.Current.AutoCaptureOnSelect)
+            if (stillAfterSelect)
             {
                 // 选区完成即截一帧**静态图**（PNG + 剪贴板），不进 GIF 管线、不开编辑器。
                 // 延迟一拍让选取窗/遮罩完全退场，避免把选区界面截进画面。
@@ -295,7 +299,18 @@ public sealed class CaptureController : IDisposable
 
         // 点按 → 单帧
         if (_settings.Current.TapThresholdMs > 0 && durMs < _settings.Current.TapThresholdMs)
+        {
+            // QQ 式手感：点按总是先显示选区，选完立即截图（不开编辑器）
+            if (_settings.Current.TapAlwaysShowsRegion)
+            {
+                FrameCapture.Core.Trace.Log("tap→picker (always-show-region)");
+                State = Phase.Idle;
+                BeginScopeSelection();
+                _captureAfterSelect = true;
+                return;
+            }
             frames = new List<CapturedFrame> { frames[^1] };
+        }
 
         var region = _pendingRegion ?? new ScreenRegion("", frames[0].W > 0 ? new RectI(0, 0, frames[0].W, frames[0].H) : default);
         var monitor = Monitors.ByDevice(region.DeviceName);
