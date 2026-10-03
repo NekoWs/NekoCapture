@@ -20,6 +20,7 @@ public sealed class RegionPickerWindow : Window
     private readonly Canvas _canvas;
     private readonly Rectangle _veil = new(), _spot = new(), _prev = new();
     private System.Windows.Shapes.Path? _spotPath;
+    private System.Windows.Shapes.Path? _holeFill;
     private int _dragX1, _dragY1;
     private bool _dragging;
     private bool _finished;
@@ -97,6 +98,13 @@ public sealed class RegionPickerWindow : Window
                 Fill = new SolidColorBrush(Color.FromArgb(0x60, 0, 0, 0)),
                 Data = BuildMask(new Rect(0, 0, Width, Height), null),
             };
+            // 洞内补一层 alpha=1 的填充：分层窗 alpha=0 的像素鼠标会穿透到下面窗口，
+            // 导致吸附/框选高亮区内目标窗口仍可交互、无法拖选。alpha=1 肉眼不可辨但可命中。
+            _holeFill = new System.Windows.Shapes.Path
+            {
+                Fill = new SolidColorBrush(Color.FromArgb(0x01, 0, 0, 0)),
+                IsHitTestVisible = true,
+            };
             _spotStroke = new Rectangle
             {
                 Stroke = new SolidColorBrush(Color.FromRgb(0x4C, 0xC2, 0xFF)),
@@ -104,6 +112,7 @@ public sealed class RegionPickerWindow : Window
                 Fill = Brushes.Transparent,
                 Visibility = Visibility.Collapsed,
             };
+            _canvas.Children.Add(_holeFill);
             _canvas.Children.Add(_spotPath);
             _canvas.Children.Add(_spotStroke);
             _canvas.Children.Add(_prev);
@@ -230,6 +239,7 @@ public sealed class RegionPickerWindow : Window
         {
             _spotStroke.Visibility = Visibility.Collapsed;
             _spotPath.Data = BuildMask(new Rect(0, 0, Width, Height), null);
+            if (_holeFill != null) _holeFill.Data = null;
             return;
         }
         var r = ToDip(phys.Value);
@@ -237,6 +247,7 @@ public sealed class RegionPickerWindow : Window
         Canvas.SetLeft(_spotStroke, r.X); Canvas.SetTop(_spotStroke, r.Y);
         _spotStroke.Width = r.Width; _spotStroke.Height = r.Height;
         _spotPath.Data = BuildMask(new Rect(0, 0, Width, Height), r);
+        _holeFill.Data = new RectangleGeometry(r);
     }
 
     private void Finish(RectI? region)
