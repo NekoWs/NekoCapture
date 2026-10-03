@@ -74,7 +74,27 @@ public sealed class RegionPickerWindow : Window
         WindowStartupLocation = WindowStartupLocation.Manual;
 
         _canvas = new Canvas();
-        Content = _canvas;
+        _hint = new Border
+        {
+            CornerRadius = new CornerRadius(9),
+            Background = new SolidColorBrush(Color.FromArgb(0xB4, 0x20, 0x20, 0x20)),
+            Padding = new Thickness(14, 8, 14, 8),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Bottom,
+            Margin = new Thickness(0, 0, 0, 46),
+            IsHitTestVisible = false,
+            Opacity = 0,
+            Child = new TextBlock
+            {
+                Text = "拖框选择 · 悬停点击吸附窗口 · Enter 确认上次选区 · Esc 取消",
+                FontSize = 13,
+                Foreground = new SolidColorBrush(Color.FromArgb(0xE6, 0xFF, 0xFF, 0xFF)),
+            },
+        };
+        var rootGrid = new Grid();
+        rootGrid.Children.Add(_canvas);
+        rootGrid.Children.Add(_hint);
+        Content = rootGrid;
 
         Loaded += (_, _) => _topTimer.Start();
         Closed += (_, _) => _topTimer.Stop();
@@ -119,6 +139,23 @@ public sealed class RegionPickerWindow : Window
             _canvas.Children.Add(_spotStroke);
             _canvas.Children.Add(_prev);
 
+            // 尺寸徽标：跟随选区左上角，实时显示物理像素 W×H
+            _badgeText = new TextBlock
+            {
+                FontSize = 12,
+                Foreground = new SolidColorBrush(Color.FromRgb(0x4C, 0xC2, 0xFF)),
+            };
+            _badge = new System.Windows.Controls.Border
+            {
+                CornerRadius = new CornerRadius(6),
+                Background = new SolidColorBrush(Color.FromArgb(0xE6, 0x1B, 0x1B, 0x1B)),
+                Padding = new Thickness(8, 3, 8, 3),
+                Visibility = Visibility.Collapsed,
+                IsHitTestVisible = false,
+                Child = _badgeText,
+            };
+            _canvas.Children.Add(_badge);
+
             if (_existing != null)
             {
                 var r = ToDip(_existing.Value);
@@ -131,6 +168,7 @@ public sealed class RegionPickerWindow : Window
             // 入场：遮罩 150ms 渐显；旧区域虚线滞后错开并轻微放大落位（ArkPV 式分层，不打扰）
             _canvas.Opacity = 0;
             _canvas.BeginAnimation(OpacityProperty, MaskAnim(1, 150, 0));
+            _hint.BeginAnimation(OpacityProperty, MaskAnim(1, 220, 320)); // 提示滞后入场，不打扰
             if (_existing != null)
             {
                 _prev.Opacity = 0;
@@ -162,6 +200,9 @@ public sealed class RegionPickerWindow : Window
     }
 
     private Rectangle _spotStroke = null!;
+    private System.Windows.Controls.Border _hint = null!;
+    private System.Windows.Controls.Border _badge = null!;
+    private TextBlock _badgeText = null!;
 
     private Rect ToDip(RectI phys)
     {
@@ -243,6 +284,7 @@ public sealed class RegionPickerWindow : Window
         if (phys == null)
         {
             _spotStroke.Visibility = Visibility.Collapsed;
+            _badge.Visibility = Visibility.Collapsed;
             _spotPath.Data = BuildMask(new Rect(0, 0, Width, Height), null);
             if (_holeFill != null) _holeFill.Data = null;
             return;
@@ -253,6 +295,14 @@ public sealed class RegionPickerWindow : Window
         _spotStroke.Width = r.Width; _spotStroke.Height = r.Height;
         _spotPath.Data = BuildMask(new Rect(0, 0, Width, Height), r);
         _holeFill.Data = new RectangleGeometry(r);
+        // 尺寸徽标：贴选区左上角外侧；顶部空间不足时贴入内侧
+        _badgeText.Text = $"{phys.Value.W} × {phys.Value.H}";
+        _badge.Visibility = Visibility.Visible;
+        _badge.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        double bw = _badge.DesiredSize.Width, bh = _badge.DesiredSize.Height;
+        double bx = r.X - 2 < 0 ? r.X + r.Width - bw - 2 : Math.Min(r.X - 2, Width - bw - 4);
+        double by = r.Y - bh - 6 < 0 ? Math.Min(r.Y + 4, Height - bh - 4) : r.Y - bh - 6;
+        Canvas.SetLeft(_badge, bx); Canvas.SetTop(_badge, by);
     }
 
     private void Finish(RectI? region)
