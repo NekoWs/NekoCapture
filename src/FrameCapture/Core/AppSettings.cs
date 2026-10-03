@@ -28,6 +28,9 @@ public sealed class AppSettings
     /// <summary>是否在屏幕上常显当前捕获范围轮廓。</summary>
     public bool AlwaysShowRegionOutline { get; set; } = false;
 
+    /// <summary>完成选区后立即截取一帧（复用托盘同款按下→自动松手链路）。</summary>
+    public bool AutoCaptureOnSelect { get; set; } = true;
+
     /// <summary>主题: system | light | dark。</summary>
     public string Theme { get; set; } = "system";
 

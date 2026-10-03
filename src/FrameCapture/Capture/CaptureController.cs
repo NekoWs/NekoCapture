@@ -130,7 +130,16 @@ public sealed class CaptureController : IDisposable
                 s.RegionX = region.Value.X; s.RegionY = region.Value.Y;
                 s.RegionW = region.Value.W; s.RegionH = region.Value.H;
             });
-            if (_settings.Current.AlwaysShowRegionOutline) ShowOutline(region.Value);
+            if (_settings.Current.AutoCaptureOnSelect)
+            {
+                // 选区完成即截一帧：按下→600ms 自动松手（同托盘“立即捕获”链路）。
+                // 此路径不走 FlashOutline，避免轮廓像素进入被截帧。
+                BeginCapture();
+                var t = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(600) };
+                t.Tick += (_, _) => { t.Stop(); EndCapture(); };
+                t.Start();
+            }
+            else if (_settings.Current.AlwaysShowRegionOutline) ShowOutline(region.Value);
             else
             {
                 // 选区确认反馈：亮起→强调停顿→柔和退场（FlashOutline/FadeAway 此前是死代码）

@@ -123,6 +123,8 @@ public sealed class SettingsWindow : Window
             _settings.Current.AgentStripEnabled, v => _settings.Mutate(s => s.AgentStripEnabled = v)));
         panel.Children.Add(ToggleRow("\uE71A", "常显捕获范围轮廓",
             _settings.Current.AlwaysShowRegionOutline, v => _settings.Mutate(s => s.AlwaysShowRegionOutline = v)));
+        panel.Children.Add(ToggleRow("\uE7B5", "选区自动截取",
+            _settings.Current.AutoCaptureOnSelect, v => _settings.Mutate(s => s.AutoCaptureOnSelect = v)));
         panel.Children.Add(ToggleRow("\uE7E8", "开机自启",
             _settings.Current.RunAtStartup, v =>
             {
