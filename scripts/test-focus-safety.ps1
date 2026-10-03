@@ -5,6 +5,15 @@ $root = Split-Path -Parent $PSScriptRoot
 $exe  = Join-Path $root "src/FrameCapture/bin/x64/Debug/net8.0-windows10.0.19041.0/FrameCapture.exe"
 $shot = Join-Path $root "tools/Shot/bin/x64/Debug/net8.0-windows/Shot.exe"
 if (!(Test-Path $exe)) { Write-Host "missing $exe"; exit 1 }
+# Shot 的 swallow 命令内置注入 Ctrl+Shift+G：测试期间把设置钉到默认热键，结束（含各 SKIP 出口）一律还原
+$cfg = Join-Path $env:APPDATA "FrameCapture\settings.json"
+$bak = if (Test-Path $cfg) { Get-Content $cfg -Raw } else { $null }
+function Restore-Cfg { if ($bak) { Set-Content $cfg -Value $bak -Encoding UTF8 } else { Remove-Item $cfg -ErrorAction SilentlyContinue } }
+New-Item -ItemType Directory -Force -Path (Split-Path $cfg) | Out-Null
+$s = if ($bak) { $bak | ConvertFrom-Json } else { [pscustomobject]@{} }
+$s | Add-Member -Force CaptureHotkey "Ctrl+Shift+G"
+$s | Add-Member -Force ScopeHotkey "Ctrl+Shift+R"
+$s | ConvertTo-Json | Set-Content $cfg -Encoding UTF8
 Get-Process FrameCapture -EA SilentlyContinue | Stop-Process -Force
 Start-Sleep 0.5
 $p = Start-Process $exe -PassThru
@@ -13,6 +22,7 @@ $fgline = & $shot fg 2>$null
 if ($fgline -match "UnityWndClass|Chrome_WidgetWin") {
     Write-Host "SKIP: 用户前台窗口在用 ($($fgline -replace 'hwnd=\d+ ',''))，避免抢占焦点"
     if (!$p.HasExited) { $p.Kill() }
+    Restore-Cfg
     exit 0
 }
 $out = & $shot swallow 2>&1 | Out-String
@@ -24,11 +34,12 @@ if (!$p.HasExited) { $p.Kill() }
 $tr = Get-Content (Join-Path $root "src/fc-trace.log") -Tail 40 | Out-String
 if (-not ($tr -match "hook key=71")) {
     Write-Host "SKIP: 注入按键被拦截（游戏/反外挂），hook 无事件；关闭游戏后重跑"
+    Restore-Cfg
     exit 0
 }
 $clean = $out -match "SWALLOW text=\[ABCDEF\]"
 $captured = $ed -match "^rect"
 Write-Host $out.Trim()
 Write-Host "editor=[$ed]"
-if ($clean -and $captured) { Write-Host "FOCUS-SAFETY PASS"; exit 0 }
-Write-Host "FOCUS-SAFETY FAIL"; exit 1
+if ($clean -and $captured) { Write-Host "FOCUS-SAFETY PASS"; Restore-Cfg; exit 0 }
+Write-Host "FOCUS-SAFETY FAIL"; Restore-Cfg; exit 1

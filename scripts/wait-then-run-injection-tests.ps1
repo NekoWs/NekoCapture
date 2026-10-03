@@ -1,6 +1,9 @@
 # 值守：等前台不再是游戏/注入被拦截时，补跑 editor-keys 与 focus-safety，结果写 test-out/
 $ErrorActionPreference = "Continue"
 $root = Split-Path -Parent $PSScriptRoot
+. (Join-Path $PSScriptRoot "lib-hotkey.ps1")
+$capHk = Get-FcCaptureHotkey
+$capVk = (Get-FcHotkeyParts $capHk).vk
 $shot = Join-Path $root "tools/Shot/bin/x64/Debug/net8.0-windows/Shot.exe"
 $out = Join-Path $root "test-out"
 New-Item -ItemType Directory -Force -Path $out | Out-Null
@@ -16,16 +19,16 @@ while ((Get-Date) -lt $deadline) {
             $p = Start-Process $exe -PassThru; Start-Sleep 1.3
         } else {
             # 用户实例在运行：物理/注入事件都会进它的 trace；仅探测，绝不杀用户实例
-            & $shot hk 71 200 | Out-Null; Start-Sleep 0.8
+            Invoke-FcHotkey $shot $capHk 200 | Out-Null; Start-Sleep 0.8
             $tr = (Get-Content (Join-Path $root "src/fc-trace.log") -Tail 8) -join "`n"
-            if ($tr -match "hook key=71") { break }
+            if ($tr -match "hook key=$capVk") { break }
             Start-Sleep 30
             continue
         }
-        & $shot hk 71 200 | Out-Null; Start-Sleep 0.8
+        Invoke-FcHotkey $shot $capHk 200 | Out-Null; Start-Sleep 0.8
         $tr = (Get-Content (Join-Path $root "src/fc-trace.log") -Tail 8) -join "`n"
         if ($p.HasExited -eq $false) { Start-Sleep 0 }
-        if ($tr -match "hook key=71") { if (!$p.HasExited) { $p.Kill() }; break }
+        if ($tr -match "hook key=$capVk") { if (!$p.HasExited) { $p.Kill() }; break }
         if (!$p.HasExited) { $p.Kill() }
     }
     Start-Sleep 30

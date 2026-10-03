@@ -2,6 +2,7 @@
 # 依赖：tools/Shot 的 hk（Ctrl+Shift+vk）与 hkm（自定义修饰键 vk c s a w hold）
 $ErrorActionPreference = "Stop"
 $root = Split-Path $PSScriptRoot
+. (Join-Path $PSScriptRoot "lib-hotkey.ps1")
 $exe = Join-Path $root "src\FrameCapture\bin\x64\Debug\net8.0-windows\FrameCapture.exe"
 $shot = Join-Path $root "tools\Shot\bin\x64\Debug\net8.0-windows\Shot.exe"
 $cfg = Join-Path $env:APPDATA "FrameCapture\settings.json"
@@ -18,6 +19,7 @@ $s | ConvertTo-Json | Set-Content $cfg -Encoding UTF8
 Get-Process FrameCapture -ErrorAction SilentlyContinue | Stop-Process -Force; Start-Sleep 0.6
 Start-Process $exe; Start-Sleep 2
 
+# 注意：这里的 hk 71（Ctrl+Shift+G）是故意的——刚把热键改成 Ctrl+Alt+G，断言"旧默认已失效"，勿改成派生
 & $shot hk 71 700 | Out-Null; Start-Sleep 1.5
 $old = & $shot rect "FrameCapture Editor" 2>$null; "old_hotkey=[$old]"
 
@@ -32,7 +34,11 @@ $reg = & $shot rect "FrameCapture Region" 2>$null; "new_scope_hotkey=[$reg]"
 if ($bak) { Set-Content $cfg -Value $bak -Encoding UTF8 } else { Remove-Item $cfg -ErrorAction SilentlyContinue }
 Get-Process FrameCapture -ErrorAction SilentlyContinue | Stop-Process -Force; Start-Sleep 0.6
 Start-Process $exe; Start-Sleep 2
-& $shot hk 71 700 | Out-Null; Start-Sleep 1.8
+# 恢复的是用户原设置，其捕获键未必是默认 Ctrl+Shift+G——按恢复值派生注入
+$capBack = if ($bak) { ($bak | ConvertFrom-Json).CaptureHotkey } else { $null }
+if ([string]::IsNullOrWhiteSpace($capBack)) { $capBack = 'Ctrl+Shift+G' }
+"restored_capture_hotkey=$capBack"
+Invoke-FcHotkey $shot $capBack 700 | Out-Null; Start-Sleep 1.8
 $def = & $shot rect "FrameCapture Editor" 2>$null; "restored_default=[$def]"
 & $shot keyw "FrameCapture Editor" 27 2>$null | Out-Null
 Get-Process FrameCapture -ErrorAction SilentlyContinue | Stop-Process -Force

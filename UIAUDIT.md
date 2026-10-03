@@ -32,7 +32,7 @@
 - [x] D6b HUD/编码反馈：后台编码 + HUD"导出 GIF… d/n"进度 + Esc 取消（在案）；本轮补 OK 主按钮 busy 0.55 淡变（编码期间，完成/取消/失败三路径复位）——编码期悬浮条自动隐藏致像素取证不确定，以接线审查+编译通过收账
 - [x] D7 提交流程：OK/取消/Esc 全部改走 CloseWithFade（150ms cubic-in 淡出后真关闭+剪贴板写入不受影响）；CloseWithFade 退场渐变已在 popup4 连拍实证，本路径同一机制（trace: editor key=None+Escape→closed）
 ### E. 回归护栏
-- [ ] 每批次改动后：构建 0 error + SelfTest 全过 + e2e 捕获链路完好 + git commit
+- [x] 每批次改动后：构建 0 error + SelfTest 全过 + e2e 捕获链路完好 + git commit。**一条命令收口**：`scripts/guardrail.ps1`（构建 app/Shot/SelfTest 计 error → SelfTest 下限断言 → 注入可达性探针 → 5 项 e2e → 汇总；SKIP≠FAIL；全程转录落 test-out/guardrail-last-run.txt，退出码即闸门）。本轮同时修掉护栏的根因病灶：**回归脚本写死 Ctrl+Shift+G/R（vk 71/82），而当前设置是 F6/F7**——editor-keys 因此一直假 SKIP、tap-semantics/fuzz-keys/fuzz-statemachine/wait-then-run 会假 FAIL。新增 `scripts/lib-hotkey.ps1`（热键串→`hkm` 注入映射，与 HotkeySpec.Parse 同规：裸键仅 F1..F24，非法值直接 throw），上述脚本全部改为按设置派生；test-hotkey-e2e 的"恢复后"阶段改按恢复值注入（其 hk 71 断言"旧默认已失效"处保留并注释勿改）；test-focus-safety 因 Shot 的 `swallow` 内置 Ctrl+Shift+G，改为测试期间钉默认热键+全出口还原；test-tap-semantics 另钉 TapAlwaysShowsRegion=false 保持"阈值唯一变量"。**断言只增强未削弱**：editor-keys 新增 Enter 后真剪贴板三格式取证（CF_HDROP 在 + %TEMP%\FrameCapture 新增非空 capture-*.gif + CF_DIB/CF_BITMAP + FrameCapture.Gif 自定义格式），且 FAIL 改为一律 exit 1（原先打印 FAIL 仍退 0）。本轮实跑证据：GUARDRAIL PASS（FAIL=0 SKIP=1/9）——build×3 errors=0、SelfTest PASS=75 FAIL=0、editor-keys（clipboard hdrop/gifFile/bitmap/gifBytes 全 True，capture_hotkey=F6）、hotkey（旧键失效/新键 Ctrl+Alt+G 生效/恢复 F6 复现）、tap 四场景、fuzz 120 步存活 err_delta=0；唯一 SKIP 是 focus-safety 的前台保护（前台为用户浏览器时绝不抢焦点，by design，空闲时由 wait-then-run 值守补跑）
 
 ## 工作队列（按影响排序）
 B1 主题化悬浮条 → C1/C2 状态语义 → A1/A2 入退场 → A3-A5 → B2-B5 → D 全档案

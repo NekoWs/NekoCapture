@@ -1,8 +1,10 @@
 # 乱按键盘 fuzz：向编辑器窗口 PostMessage 随机按键，验证状态机不崩不卡死
 # 用法: pwsh -NoProfile -File scripts/fuzz-keys.ps1 [-Keys 300]
 $ErrorActionPreference = "Stop"
-$exe = "D:\Backup\Capture\src\FrameCapture\bin\x64\Debug\net8.0-windows\FrameCapture.exe"
-$shot = "D:/Backup/Capture/tools/Shot/bin/x64/Debug/net8.0-windows/Shot.exe"
+$root = Split-Path -Parent $PSScriptRoot
+. (Join-Path $PSScriptRoot "lib-hotkey.ps1")
+$exe = Join-Path $root "src\FrameCapture\bin\x64\Debug\net8.0-windows\FrameCapture.exe"
+$shot = Join-Path $root "tools/Shot/bin/x64/Debug/net8.0-windows/Shot.exe"
 $errlog = "$env:APPDATA\FrameCapture\error.log"
 $N = 300
 
@@ -11,7 +13,7 @@ Get-Process FrameCapture -ErrorAction SilentlyContinue | Stop-Process -Force
 Start-Sleep 0.6
 Start-Process $exe
 Start-Sleep 2.0
-& $shot hk 71 900 | Out-Null   # Ctrl+Shift+G 触发捕获（~1s 后自动结束）
+Invoke-FcHotkey $shot (Get-FcCaptureHotkey) 900 | Out-Null   # 按当前设置的捕获键触发（~1s 后自动结束）
 Start-Sleep 2.5
 
 # 编辑器常用键（VK）：Space X D L O A P C Del ←↑→↓ Home End Tab，刻意排除 Enter/Esc

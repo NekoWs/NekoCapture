@@ -3,10 +3,14 @@
 param([int]$Seed = 98765, [int]$Steps = 120)
 $ErrorActionPreference = "Stop"
 $root = Split-Path $PSScriptRoot
+. (Join-Path $PSScriptRoot "lib-hotkey.ps1")
 $exe = Join-Path $root "src\FrameCapture\bin\x64\Debug\net8.0-windows\FrameCapture.exe"
 $shot = Join-Path $root "tools\Shot\bin\x64\Debug\net8.0-windows\Shot.exe"
 $err = Join-Path $env:APPDATA "FrameCapture\error.log"
 $e0 = if (Test-Path $err) { (Get-Item $err).Length } else { 0 }
+$capHk = Get-FcCaptureHotkey
+$scopeHk = Get-FcScopeHotkey
+"capture_hotkey=$capHk scope_hotkey=$scopeHk"
 
 Get-Process FrameCapture -ErrorAction SilentlyContinue | Stop-Process -Force
 Start-Sleep 0.6
@@ -22,10 +26,10 @@ for ($i = 0; $i -lt $Steps; $i++) {
     $roll = $rnd.Next(100)
     if ($roll -lt 18) {
         # 随机全局动作：捕获（长按随机 0.2–1.5s）或设置范围或开设置窗
-        $hk = @(71, 82, 160) | Select-Object -Index ($rnd.Next(3))
-        if ($hk -eq 71) { & $shot hk 71 $rnd.Next(200, 1500) | Out-Null }
-        elseif ($hk -eq 82) { & $shot hk 82 300 | Out-Null }
-        else { & $shot hk 187 300 | Out-Null }  # Ctrl+Shift+; 未注册，应无副作用
+        $pick = $rnd.Next(3)
+        if ($pick -eq 0) { Invoke-FcHotkey $shot $capHk $rnd.Next(200, 1500) | Out-Null }
+        elseif ($pick -eq 1) { Invoke-FcHotkey $shot $scopeHk 300 | Out-Null }
+        else { & $shot hk 187 300 | Out-Null }  # 未注册组合，应无副作用
         if ($roll -lt 4 -and $rnd.Next(2) -eq 0) { & $shot keyw "FrameCapture Region" 27 | Out-Null }
     }
     elseif ($roll -lt 75) {
@@ -36,8 +40,8 @@ for ($i = 0; $i -lt $Steps; $i++) {
     }
     else {
         # 连发捕获热键轰炸（含编辑器未关时的重入）
-        & $shot hk 71 120 | Out-Null
-        if ($rnd.Next(3) -eq 0) { & $shot hk 71 100 | Out-Null }
+        Invoke-FcHotkey $shot $capHk 120 | Out-Null
+        if ($rnd.Next(3) -eq 0) { Invoke-FcHotkey $shot $capHk 100 | Out-Null }
     }
     Start-Sleep -Milliseconds ($rnd.Next(30, 180))
 }
@@ -57,7 +61,7 @@ $alive = Get-Process FrameCapture -ErrorAction SilentlyContinue
 # 断言 2：error.log 零增量
 $e1 = if (Test-Path $err) { (Get-Item $err).Length } else { 0 }
 # 断言 3：收尾后全局热键仍可用 → 再按一次捕获应出编辑器
-& $shot hk 71 900 | Out-Null
+Invoke-FcHotkey $shot $capHk 900 | Out-Null
 Start-Sleep 2
 $ed = & $shot rect "FrameCapture Editor" 2>$null
 & $shot keyw "FrameCapture Editor" 27 | Out-Null
