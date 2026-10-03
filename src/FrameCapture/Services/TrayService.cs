@@ -33,6 +33,7 @@ public sealed class TrayService : IDisposable
 
     void ShowMenu()
     {
+        Trace.Log("tray menu open");
         var menu = new ContextMenu { Resources = Fluent.MenuResources() };
 
         void Item(string text, Action act, bool checkable = false, bool isChecked = false)

@@ -1,8 +1,11 @@
 # D8 取证：托盘右键菜单双主题像素档案（UIAUDIT.md D8）
 # 依据：托盘菜单不是系统原生渲染——TrayService.ShowMenu 用 WPF ContextMenu + Fluent.MenuResources()
 #       自绘并随主题着色（见 src/FrameCapture/Services/TrayService.cs）。像素取证完全可行。
-# 机制（全部在自动化边界内）：对自家 NotifyIcon 隐藏窗 PostMessage WM_RBUTTONUP → MouseUp 右键 →
-#       ShowMenu 在光标处弹出；随后按弹窗窗口矩形裁切桌面 BitBlt 存 PNG。绝不使用 OS 级鼠标自动化。
+# 机制（全部在自动化边界内）：对自家 NotifyIcon 隐藏窗 PostMessage 托盘回调消息
+#       （.NET(8+) WinForms NotifyIcon.WndProc：msg=WM_USER+1024=0x800，鼠标事件码在 lParam——
+#        见 dotnet/winforms NotifyIcon.cs WM_TRAYMOUSEMESSAGE；旧文档的 WM_USER+102 是 .NET Framework 时代的值）
+#       → MouseUp(Right) → ShowMenu 在光标处弹出 Fluent 菜单；随后按弹窗窗口矩形裁切桌面 BitBlt 存 PNG。
+#       绝不使用 OS 级鼠标自动化。
 # 用法: pwsh -NoProfile -File scripts/cap-tray-menu.ps1 -Theme dark|light [-OutPng test-out/uiaudit/d8-tray-menu-dark.png]
 # 前置：本脚本会杀掉运行中的 FrameCapture 并以 FC_THEME=<Theme> 重启一个（测试态）；结束后实例仍在运行。
 param(
@@ -39,7 +42,8 @@ public class T
     [DllImport("user32.dll")] public static extern int ReleaseDC(IntPtr h, IntPtr dc);
     [DllImport("user32.dll")] public static extern int GetSystemMetrics(int idx);
     [DllImport("gdi32.dll")] public static extern IntPtr BitBlt(IntPtr d, int x, int y, int w, int h, IntPtr s, int sx, int sy, uint op);
-    const uint WM_RBUTTONDOWN = 0x0204, WM_RBUTTONUP = 0x0205, SRCCOPY = 0xCC0020;
+    const uint WM_USER = 0x0400, WM_TRAYMOUSEMESSAGE = WM_USER + 1024 /* 0x0800 */,
+               WM_RBUTTONDOWN = 0x0204, WM_RBUTTONUP = 0x0205, SRCCOPY = 0xCC0020;
     [StructLayout(LayoutKind.Sequential)] public struct RECT { public int Left, Top, Right, Bottom; }
     [StructLayout(LayoutKind.Sequential)] public struct POINT { public int X, Y; }
 
@@ -66,7 +70,7 @@ public class T
     }
 
     // 自家进程可见、无标题、尺寸像菜单的顶层窗（WPF Popup 宿主窗），取面积最大者
-    static long gArea; static RECT gBest;
+    public static long gArea; public static RECT gBest;
     public static bool FindMenuPopup(uint pid)
     {
         gArea = 0;
@@ -90,8 +94,9 @@ public class T
 
     public static void PostRightClick(IntPtr hwnd)
     {
-        PostMessageW(hwnd, WM_RBUTTONDOWN, IntPtr.Zero, IntPtr.Zero);
-        PostMessageW(hwnd, WM_RBUTTONUP, IntPtr.Zero, IntPtr.Zero);
+        // 托盘回调：事件码放 lParam（.NET 8 NotifyIcon 按 LParamInternal 分发）
+        PostMessageW(hwnd, WM_TRAYMOUSEMESSAGE, IntPtr.Zero, (IntPtr)WM_RBUTTONDOWN);
+        PostMessageW(hwnd, WM_TRAYMOUSEMESSAGE, IntPtr.Zero, (IntPtr)WM_RBUTTONUP);
     }
 
     public static void CropScreen(int x, int y, int w, int h, string outPath)
