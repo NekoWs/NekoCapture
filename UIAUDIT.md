@@ -12,7 +12,7 @@
 - [x] A5 Fluent.Motion 令牌类（Enter190/EditorEnter240/Exit150/Stagger110/Hover110/Theme260），新动画一律引用（d084923）
 - [x] A5b 散点清扫：开关/状态 150→Motion.StateMs、主题 260→ThemeMs、悬浮条退场→ExitMs、hover 色 120→HoverMs；交叉淡入 150+20 注明非对称节拍；圆角统一：编辑器 8→12、悬浮条 11→12（与设置/帮助窗 12 同语言，色块 13=正圆刻意保留，控件 10<容器 12 合规嵌套）（radius12.png 无瑕疵）
 ### B. 主题一致性（现状：浅色模式下悬浮条仍全黑，割裂）
-- [ ] B1 FloatBar 明暗双态（浅色=亚克力浅底+深色图标，同 Fluent 工具条）
+- [x] B1 FloatBar 明暗双态（浅色=亚克力浅底+深色图标，同 Fluent 工具条）。**基线注记未勾但早已实现**：FloatBar.cs L42 背景=Theme.PanelBg、L66-78 OnTheme 按 ThemeMs 换肤重动画，图标前景随 Theme.Text——自 cafb068 基线即在（git log -S 实证）。本轮（HEAD）用 FC_THEME=light/dark 各起一实例 → F6 长按开编辑器 → UICap region "FrameCapture Bar" 现场复拍：**b1-bars-light.png**（浅亚克力浅底+深图标/深 HUD 文字/浅轨道，accent 拇指与 ✓ pill 醒目）/ **b1-bars-dark.png**（同构深底浅图标），与 D2 旧档 light-editor-bars.png/bars5.png 逐要素吻合，且含 Round 1 新选中语言（线宽 accent 圆点反白）无一旧主题残留
 - [x] B2 时间轴令牌化：轨道/拇指描边=Theme.TrackBg/Stroke，HUD 文字=Theme.Text，分隔线=Stroke，白色色块描边（light-bars2 实证，bars5 深色无损）；Editor_OnTheme 即时换色
 - [x] B3 白色色块描边（第2轮）+ 绘制条三处分隔线补漏（第2轮 replace 打错文件未生效，本轮 3/3 断言修正为 Theme.Stroke，undo-off.png 实证）
 - [x] B4 播放条现为整圈 1px 40% alpha accent 描边（FloatBar L43/77），bars5/light-bars2 双主题观感均成立，维持现状
