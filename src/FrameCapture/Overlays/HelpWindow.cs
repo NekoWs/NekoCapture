@@ -47,7 +47,7 @@ public sealed class HelpWindow : Window
         ShowInTaskbar = false;
         Topmost = true;
         Title = "FrameCapture Help";
-        Width = 640; Height = 620;
+        Width = 640; Height = 806; // 一屏装完全部条目，避免滚动
 
         var root = new Border
         {
