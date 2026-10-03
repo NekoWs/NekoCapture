@@ -267,15 +267,23 @@ public static class Fluent
         };
     }
 
-    // ---------------- 工具按钮选中态：背景淡入 ----------------
+    // ---------------- 工具按钮选中态：accent 实心 + 反白图标（与 ✓ 主按钮同一语言） ----------------
+
+    /// <summary>accent 底色上的反白色：按亮度取黑/白（浅色 accent 配黑字，深色 accent 配白字）。</summary>
+    public static Color OnAccentColor(Color accent)
+        => (0.299 * accent.R + 0.587 * accent.G + 0.114 * accent.B) > 128 ? Colors.Black : Colors.White;
 
     public static void HighlightBtn(Button b, bool on)
     {
         Color to = on ? Theme.Accent : Colors.Transparent;
         var holder = b.Background is SolidColorBrush cur ? new SolidColorBrush(cur.Color) : new SolidColorBrush(Colors.Transparent);
         b.Background = holder;
-        holder.BeginAnimation(SolidColorBrush.ColorProperty, new ColorAnimation(to, new Duration(TimeSpan.FromMilliseconds(Motion.HoverMs))));
-        b.Foreground = new SolidColorBrush(on ? Color.FromRgb(0, 0, 0) : Theme.Text);
+        holder.BeginAnimation(SolidColorBrush.ColorProperty, new ColorAnimation(to, new Duration(TimeSpan.FromMilliseconds(Motion.StateMs))));
+        // 反白图标与底色同步淡变（StateMs：这是状态切换，不是 hover）
+        var fgFrom = b.Foreground is SolidColorBrush curFg ? curFg.Color : Theme.Text;
+        var fg = new SolidColorBrush(fgFrom);
+        b.Foreground = fg;
+        fg.BeginAnimation(SolidColorBrush.ColorProperty, new ColorAnimation(on ? OnAccentColor(Theme.Accent) : Theme.Text, new Duration(TimeSpan.FromMilliseconds(Motion.StateMs))));
     }
 
     // ---------------- 芯片（颜色选择）：悬停放大 + 按下回缩 ----------------

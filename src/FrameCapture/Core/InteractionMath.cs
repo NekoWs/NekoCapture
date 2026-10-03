@@ -76,6 +76,13 @@ public sealed class RangeDragState
     public int Mode => _mode;
 }
 
+/// <summary>单选切换按钮组的选中语义（纯逻辑）：再点当前项=取消选中（回到 off），点其它=选中该项。</summary>
+public static class ToolToggle
+{
+    public static T Select<T>(T current, T tapped, T off) where T : struct
+        => System.Collections.Generic.EqualityComparer<T>.Default.Equals(current, tapped) ? off : tapped;
+}
+
 /// <summary>范围选择窗口的窗口吸附命中（纯逻辑）。</summary>
 public static class SnapPick
 {

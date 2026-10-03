@@ -627,6 +627,19 @@ static class SelfTest
         }
         catch (Exception ex) { Chk("T71-uia", false, ex.Message); }
 
+        // T72 C1 选中态语义：工具单选切换（再点=取消）+ accent 反白对比色（纯逻辑）
+        {
+            var a = FrameCapture.Core.ToolToggle.Select(System.DayOfWeek.Sunday, System.DayOfWeek.Monday, System.DayOfWeek.Sunday);
+            var b = FrameCapture.Core.ToolToggle.Select(a, System.DayOfWeek.Monday, System.DayOfWeek.Sunday);   // 再点当前 → 取消
+            var c = FrameCapture.Core.ToolToggle.Select(System.DayOfWeek.Saturday, System.DayOfWeek.Sunday, System.DayOfWeek.Sunday); // 直选"浏览"透传
+            Chk("T72a-tool-toggle", a == System.DayOfWeek.Monday && b == System.DayOfWeek.Sunday && c == System.DayOfWeek.Sunday,
+                $"a={a} b={b} c={c}");
+            var onLight = FrameCapture.Core.Fluent.OnAccentColor(System.Windows.Media.Color.FromRgb(0x4C, 0xC2, 0xFF));
+            var onDark = FrameCapture.Core.Fluent.OnAccentColor(System.Windows.Media.Color.FromRgb(0x2B, 0x3A, 0x8F));
+            Chk("T72b-onaccent", onLight == System.Windows.Media.Colors.Black && onDark == System.Windows.Media.Colors.White,
+                $"light={onLight} dark={onDark}");
+        }
+
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");
         return fail == 0 ? 0 : 1;
     }

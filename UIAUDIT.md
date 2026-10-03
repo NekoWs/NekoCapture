@@ -18,7 +18,7 @@
 - [x] B4 播放条现为整圈 1px 40% alpha accent 描边（FloatBar L43/77），bars5/light-bars2 双主题观感均成立，维持现状
 - [x] B5 HUD 文本=Theme.Text（随 B2 一并完成）
 ### C. 状态指示与控件语义
-- [ ] C1 选中工具= accent 实心 pill + 反白图标（现无选中态视觉）
+- [x] C1 选中工具= accent 实心 pill + 反白图标。**基线注记"现无选中态视觉"不成立**：cafb068 起 SetTool→HighlightBtn 已渲染 accent 底+黑图标（改前取证 c1-before-dark.png 实证可见）。本轮收掉截图暴露的语言缺口：①线宽点选器默认选中无任何高亮（RefreshWidths 构建时未调用，点了才亮）且无动画/反白 → 与工具统一走 HighlightBtn；②选中动画时长挂 HoverMs → 改 Motion.StateMs（这是状态切换非 hover）；③反白写死黑 → OnAccentColor 按 accent 亮度取黑/白（T72b 断言）；④编辑器开着换肤后工具/线宽前景残留旧主题色 → Editor_OnTheme 重打选中语言；⑤切换选中语义抽成纯逻辑 ToolToggle（T72a）。取证：c1-tool-dark.png / c1-tool-light.png（工具 pill 反白 + 线宽选中 + 色块环 + ✓ 同框），SelfTest 75/75
 - [x] C2 ✓确定=accent 实心 pill（bars4.png）；✕保持幽灵（播放条+单帧绘制条两处）
 - [x] C3 模板核查：hover 进入 110ms cubic-out / 退出 160ms，按下 scale0.92，均为动画非瞬变（Fluent.cs L75-81）
 - [x] C4 撤销按钮禁用态：CanUndo=false 时 0.35 透明+禁点（110ms cubic-out 淡变），四个栈变更点全接 RefreshUndo；undo-off.png 实证变淡 ✓

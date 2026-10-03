@@ -93,7 +93,8 @@ public sealed partial class EditorWindow
 
     void SetTool(Tool t)
     {
-        _tool = t == _tool ? Tool.Browse : t;
+        // 再点当前工具=回到浏览态（与线宽/颜色的单选切换同一语义，纯逻辑见 ToolToggle，SelfTest T72a）
+        _tool = FrameCapture.Core.ToolToggle.Select(_tool, t, Tool.Browse);
         _canvas.Visibility = _tool == Tool.Browse ? Visibility.Collapsed : Visibility.Visible;
         _canvas.Cursor = _tool == Tool.Browse ? Cursors.Arrow : Cursors.Cross;
         for (int i = 0; i < _toolBtns.Count; i++)

@@ -151,6 +151,10 @@ public sealed partial class EditorWindow : Window
         }
         BorderBrush = new System.Windows.Media.SolidColorBrush(Theme.IsDark ? Color.FromRgb(0x32, 0x32, 0x36) : Color.FromRgb(0xD4, 0xD4, 0xD4));
         _hud.Foreground = new System.Windows.Media.SolidColorBrush(Theme.Text);
+        // 选中语言随行：工具/线宽的前景色随主题（选中项反白、未选中项 Theme.Text），否则换肤后旧色不可读
+        for (int i = 0; i < _toolBtns.Count; i++)
+            Highlight(_toolBtns[i], ToolOrder[i] == _tool);
+        RefreshWidths();
         if (_rangeHost != null) _rangeHost.Background = new System.Windows.Media.SolidColorBrush(Theme.TrackBg);
         DrawRange();
     }
@@ -324,6 +328,7 @@ public sealed partial class EditorWindow : Window
         _undoBtn = undo;
         bar.Children.Add(undo);
         RefreshUndo();
+        RefreshWidths(); // 默认宽度"中"的选中态当场可见（此前要等点击才出现）
         return bar;
     }
 
@@ -347,8 +352,9 @@ public sealed partial class EditorWindow : Window
 
     void RefreshWidths()
     {
+        // 与绘制工具同一选中语言：accent 实心 + 反白图标（初值在 BuildToolsBar 尾部即刷新，默认宽度可见高亮）
         for (int i = 0; i < _widthBtns.Count; i++)
-            _widthBtns[i].Background = i == _widthIdx ? new SolidColorBrush(Acc) : Brushes.Transparent;
+            FrameCapture.Core.Fluent.HighlightBtn(_widthBtns[i], i == _widthIdx);
     }
 
     // ---------------- 行为 ----------------
