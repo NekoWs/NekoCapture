@@ -173,3 +173,17 @@ status: continue
 - session: session-1723fad8-8fd2-4473-af18-ca9325358a8e
 - raw transcript: C:\Users\16892\.dsh\sessions\--D-Backup-Capture--\session-1723fad8-8fd2-4473-af18-ca9325358a8e\session.v3.jsonl.zstd
 - read it with: node "D:\Agent Playground\overnight-kit\rounds.mjs" --repo "D:\Backup\Capture" --show 5
+
+---
+
+## Round 6 — 2026-10-03 18:09:51  (status: timeout)
+
+```text
+
+```
+
+- repo dirty after round: YES
+- HEAD: 7580692 chore(overnight)[driver]: record round 5 in PROGRESS.md (status: continue)
+- session: session-7274f68e-d688-4521-b5c4-f51fba6e387e
+- raw transcript: C:\Users\16892\.dsh\sessions\--D-Backup-Capture--\session-7274f68e-d688-4521-b5c4-f51fba6e387e\session.v3.jsonl.zstd
+- read it with: node "D:\Agent Playground\overnight-kit\rounds.mjs" --repo "D:\Backup\Capture" --show 6
