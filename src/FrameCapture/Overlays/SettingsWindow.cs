@@ -27,6 +27,7 @@ public sealed class SettingsWindow : Window
         AllowsTransparency = true;
         Background = Brushes.Transparent;
         SizeToContent = SizeToContent.WidthAndHeight;
+        MinWidth = 420;
         ShowInTaskbar = false;
         Topmost = true;
         Title = "FrameCapture Settings";
@@ -100,8 +101,8 @@ public sealed class SettingsWindow : Window
         panel.Children.Add(Rule());
 
         // 快捷键 ×2
-        panel.Children.Add(HotkeyRow("\uE71A", "设置范围的快捷键", "scope"));
-        panel.Children.Add(HotkeyRow("\uE7F4", "捕获快捷键（点按=单帧 / 长按=录屏）", "capture"));
+        panel.Children.Add(HotkeyRow("\uE71A", "选区快捷键", "呼出区域选取窗", "scope"));
+        panel.Children.Add(HotkeyRow("\uE7F4", "捕获快捷键", "点按 = 单帧 / 长按 = 录屏", "capture"));
         panel.Children.Add(Rule());
 
         // 滑杆行（名称常显，长说明进悬停提示）
@@ -134,7 +135,8 @@ public sealed class SettingsWindow : Window
                 try { StartupService.Apply(v); } catch { }
             }));
 
-        // 主题芯片
+        // 主题芯片（与开关区隔开）
+        panel.Children.Add(Rule());
         panel.Children.Add(ThemeRow());
 
         root.Child = panel;
@@ -171,22 +173,34 @@ public sealed class SettingsWindow : Window
 
     // ---------- 快捷键捕获框 ----------
 
-    FrameworkElement HotkeyRow(string glyph, string tip, string which)
+    FrameworkElement HotkeyRow(string glyph, string label, string tip, string which)
     {
         var g = Row();
+        g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); // 键位盒列
         g.Children.Add(Icon(glyph, tip));
+        var lbl = new TextBlock
+        {
+            Text = label,
+            FontSize = 13,
+            Foreground = new SolidColorBrush(Theme.Text),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 10, 0),
+        };
+        Grid.SetColumn(lbl, 1);
+        g.Children.Add(lbl);
         var box = new Border
         {
             CornerRadius = new CornerRadius(6),
             Background = new SolidColorBrush(Theme.Hover),
             BorderBrush = new SolidColorBrush(Theme.Stroke),
             BorderThickness = new Thickness(1),
-            Padding = new Thickness(10, 6, 10, 6),
-            MinWidth = 180,
+            Padding = new Thickness(14, 6, 14, 6),
+            MinWidth = 96,
             HorizontalAlignment = HorizontalAlignment.Right,
             Cursor = Cursors.Hand,
             ToolTip = "点击后按下新快捷键（Esc 取消）",
         };
+        Grid.SetColumn(box, 2);
         var tb = new TextBlock
         {
             Text = which == "scope" ? _settings.Current.ScopeHotkey : _settings.Current.CaptureHotkey,
@@ -363,6 +377,7 @@ public sealed class SettingsWindow : Window
         {
             Width = 40,
             Height = 20,
+            Margin = new Thickness(12, 0, 0, 0),
             CornerRadius = new CornerRadius(10),
             Background = new SolidColorBrush(initial ? Theme.Accent : Theme.TrackBg),
             BorderBrush = new SolidColorBrush(initial ? Theme.Accent : Theme.Stroke),
