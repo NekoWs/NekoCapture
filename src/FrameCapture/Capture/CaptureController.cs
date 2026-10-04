@@ -247,7 +247,9 @@ public sealed class CaptureController : IDisposable
         }
 
         State = Phase.Capturing;
-        // 绝不在此刻显示轮廓：WGC/GDI 抓的是整屏，蓝框一旦出现就会被录进画面
+        // 系统 WGC 提示边框已关闭，改用自家按范围绘制的轮廓做"正在录制"提示。
+        // 该窗以 WDA_EXCLUDEFROMCAPTURE 排除，不会进产物；关掉开关即完全不提示。
+        if (_settings.Current.ShowRecordingBorder) ShowCaptureScope(region.Bounds);
 
         int max = _settings.Current.MaxDurationMs;
         _maxTimer = new System.Windows.Threading.DispatcherTimer
@@ -274,6 +276,9 @@ public sealed class CaptureController : IDisposable
         _maxTimer = null;
         _live.Stop();
         if (_wgc != null) { try { _wgc.Stop(); _wgc.Dispose(); } catch { } _wgc = null; }
+
+        // 录制范围提示：立即淡出，不要拖到编辑器上；常显轮廓则由后续分支重新点亮
+        if (_outline != null && _outline.IsVisible) _outline.FadeAway(0.25);
 
         double durMs = _captureClock?.ElapsedMilliseconds ?? 0;
         _captureClock = null;
@@ -372,6 +377,19 @@ public sealed class CaptureController : IDisposable
     void HideOutline()
     {
         _outline?.HideSilently();
+    }
+
+    /// <summary>
+    /// 录制期间按**真实捕获范围**常亮范围边框（系统那条 WGC 全屏黄框已在后端关掉）。
+    /// 轮廓窗走 WDA_EXCLUDEFROMCAPTURE，所以 WGC/GDI 整屏抓也拍不到它。
+    /// </summary>
+    void ShowCaptureScope(RectI region)
+    {
+        _outline ??= new RegionOutlineWindow();
+        _outline.SetRegion(region);
+        _outline.ShowNoActivate();
+        _outline.Flash(); // 起录给一次强调，随后由动画回落常态
+        FrameCapture.Core.Trace.Log("recording scope outline shown req=" + region);
     }
 
     void CloseEditor()

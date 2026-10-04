@@ -87,6 +87,14 @@ public sealed class WgcLiveCapture : IDisposable
             _device, DirectXPixelFormat.B8G8R8A8UIntNormalized, 3, _item.Size);
         _session = _pool.CreateCaptureSession(_item);
         try { _session.IsCursorCaptureEnabled = true; } catch { } // 旧构建无此属性则忽略
+
+        // Windows 11 的系统级捕获提示边框（#FFD11C，绕整个被捕获显示器）：
+        // 它只按"被捕获对象"画，而 WGC 只能整显示器捕获 —— 于是永远全屏，
+        // 与用户选的录制范围无关，且长时间录制期间一直亮着。
+        // 关闭它，改由 RegionOutlineWindow 按真实范围显示轮廓（WDA_EXCLUDEFROMCAPTURE 保证不入镜）。
+        // 需要系统/用户授权（Win10 或未授权会抛），失败即保持系统默认行为。
+        if (!TrySuppressSystemBorder()) { /* 已记录原因 */ }
+
         _session.StartCapture();
 
         _running = true;
@@ -148,6 +156,42 @@ public sealed class WgcLiveCapture : IDisposable
                 FrameCapture.Core.Trace.Log($"wgc frame: {ex.Message.Split('\n')[0]}");
                 _running = false; // 触发回退语义：停止本后端
             }
+        }
+    }
+
+    /// <summary>
+    /// 系统提示边框是否已被关闭。null = 本系统没有 IGraphicsCaptureSession3（Win10 等）从未尝试；
+    /// true = 已关闭（录制中不再出现那条绕整屏的黄色边框）；false = 系统拒绝，保持默认。
+    /// </summary>
+    public bool? SystemBorderSuppressed { get; private set; }
+
+    /// <summary>
+    /// 尝试关闭 Windows.Graphics.Capture 的系统提示边框。
+    /// 这是 Windows 11 的隐私保护特性，关闭需要能力声明 + 用户授权；
+    /// 任一条件不满足（Win10 无该接口、未授权被静默忽略）都只记日志并保持系统默认，绝不影响捕获本身。
+    /// </summary>
+    private bool TrySuppressSystemBorder()
+    {
+        if (_session is null) return false;
+        try
+        {
+            bool actual = WgcNative.SetBorderRequired(_session, false);
+            if (actual)
+            {
+                // 官方文档：未获 Borderless 授权时 put 会"成功"但值被忽略 —— 回读仍为 true。
+                FrameCapture.Core.Trace.Log("wgc system border kept: OS ignored IsBorderRequired=false (no Borderless grant)");
+                return false;
+            }
+            SystemBorderSuppressed = true;
+            FrameCapture.Core.Trace.Log("wgc system border suppressed (IsBorderRequired=false, readback confirms)");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            FrameCapture.Core.Trace.Log(
+                "wgc system border kept: " + ex.GetType().Name + " hr=0x" + (ex.HResult & 0xFFFFFFFF).ToString("X8")
+                + " " + ex.Message.Split('\n')[0]);
+            return false;
         }
     }
 

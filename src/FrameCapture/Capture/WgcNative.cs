@@ -163,4 +163,69 @@ internal static class WgcNative
         }
         finally { Marshal.Release(factoryPtr); }
     }
+
+    // ---------------- 系统捕获提示边框（Windows 11） ----------------
+
+    /// <summary>
+    /// Windows.Graphics.Capture.IGraphicsCaptureSession3（Win11 新增）。
+    ///
+    /// GUID 与槽序取自本机 Windows SDK 10.0.26100.0：
+    ///   MIDL_INTERFACE("f2cdd966-22ae-5ea1-9596-3a289344c3be")
+    ///   → Include\10.0.26100.0\winrt\windows.graphics.capture.h
+    /// 槽序（含 IInspectable 的 6 个）：
+    ///   0-2 QueryInterface/AddRef/Release，3-5 GetIids/GetRuntimeClassName/GetTrustLevel，
+    ///   6 get_IsBorderRequired，7 put_IsBorderRequired。
+    ///
+    /// 因此这里必须**完整声明**前面 6 个方法，才能让 put 落在槽 7；不能只声明本接口自己的两个。
+    /// 钉住的 19041 投影程序集没有 IsBorderRequired 成员，所以只能手写 vtable。
+    /// </summary>
+    [ComImport, Guid("F2CDD966-22AE-5EA1-9596-3A289344C3BE"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    private interface IGraphicsCaptureSession3
+    {
+        // --- IInspectable（槽 0-5，仅为对齐槽位，实际不调用） ---
+        void GetIids(out uint iidCount, out IntPtr iids);
+        void GetRuntimeClassName(out IntPtr className);
+        void GetTrustLevel(out int trustLevel);
+        // --- IGraphicsCaptureSession3 自身（槽 6-7） ---
+        void GetIsBorderRequired(out bool value);
+        void PutIsBorderRequired(bool value);
+    }
+
+    /// <summary>
+    /// 关闭 WGC 的系统提示边框，并**回读**确认真的生效。
+    ///
+    /// 回读是必须的：按官方文档，用户/系统未授予 Borderless 权限时，
+    /// "把属性设为 false 会成功，但值被忽略，后续捕获仍显示边框" —— 也就是静默不生效，
+    /// 不报错。所以只信 put 不抛异常会误报成功。
+    ///
+    /// 找不到该接口（Win10 等）抛 COMException，由调用方降级为"保持系统默认"。
+    /// </summary>
+    /// <returns>回读到的 IsBorderRequired 实际值。</returns>
+    public static bool SetBorderRequired(object session, bool required)
+    {
+        // 必须拿投影对象持有的**原生** IUnknown：Marshal.GetIUnknownForObject 返回的是托管 CCW，
+        // 它只会应答投影程序集里存在的接口，QI IGraphicsCaptureSession3 必然 E_NOINTERFACE。
+        IntPtr punk = IntPtr.Zero;
+        if (session is WinRT.IWinRTObject wrt && wrt.NativeObject.ThisPtr != IntPtr.Zero)
+        {
+            punk = wrt.NativeObject.ThisPtr;
+            Marshal.AddRef(punk);
+        }
+        if (punk == IntPtr.Zero) throw new InvalidOperationException("session 原生 IUnknown 不可用");
+        try
+        {
+            Guid iid = typeof(IGraphicsCaptureSession3).GUID;
+            int hr = Marshal.QueryInterface(punk, ref iid, out IntPtr p3);
+            if (hr != 0) throw new COMException($"QI IGraphicsCaptureSession3 hr=0x{hr:X8}", hr);
+            try
+            {
+                var s3 = (IGraphicsCaptureSession3)Marshal.GetTypedObjectForIUnknown(p3, typeof(IGraphicsCaptureSession3));
+                s3.PutIsBorderRequired(required);
+                s3.GetIsBorderRequired(out bool actual); // 静默忽略时这里仍是 true
+                return actual;
+            }
+            finally { Marshal.Release(p3); }
+        }
+        finally { Marshal.Release(punk); }
+    }
 }

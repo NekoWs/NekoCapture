@@ -13,6 +13,10 @@ using System.Windows;
 static class SelfTest
 {
     static int pass, fail;
+
+    [System.Runtime.InteropServices.DllImport("user32.dll", SetLastError = true)]
+    static extern bool SetWindowDisplayAffinity(IntPtr hWnd, uint dwAffinity);
+
     static void Chk(string name, bool ok, string? detail = null)
     {
         if (ok) { pass++; Console.WriteLine($"PASS {name}"); }
@@ -535,6 +539,38 @@ static class SelfTest
             probeTimer.Stop();
             probeForm.Hide();
             Chk("T20c-wgc-restart", n2 >= 1, $"n2={n2} missed={wgc2.FramesMissed} err={wgc2.LastLoopError?.Split('\n')[0]}");
+
+            // T73 关闭 WGC 系统捕获提示边框（Windows 11 那条绕整屏的黄色 #FFD11C 框）：
+            // 我们的 WGC 只能整显示器捕获，系统边框必然全屏、与所选录制范围无关，于是改为
+            // 自家按范围绘制轮廓。这里断言这个"关边框"的动作在支持的系统上真的成功了
+            // （Win10 没有 IGraphicsCaptureSession3，SystemBorderSuppressed 保持 null→跳过，不算失败）。
+            var canBorderless = System.OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22000);
+            Chk("T73-wgc-borderless", wgc2.SystemBorderSuppressed == true || !canBorderless,
+                $"suppressed={wgc2.SystemBorderSuppressed} canBorderless={canBorderless}");
+
+            // T74 轮廓窗"在屏可见但不进捕获"的机制前提：WDA_EXCLUDEFROMCAPTURE(0x11) 必须真的能被设置成功，
+            // 否则 RegionOutlineWindow 会静默变成"看不见"（那就等于录制期间没有任何范围提示）。
+            {
+                var probeWin = new System.Windows.Window
+                {
+                    Title = "SelfTest DisplayAffinity",
+                    Width = 200, Height = 120, ShowInTaskbar = false, ShowActivated = false,
+                    WindowStartupLocation = System.Windows.WindowStartupLocation.Manual,
+                    Left = -4000, Top = -4000, Topmost = true,
+                    AllowsTransparency = true, Background = System.Windows.Media.Brushes.Transparent,
+                    WindowStyle = System.Windows.WindowStyle.None,
+                    Content = new System.Windows.Controls.Border
+                    {
+                        BorderBrush = System.Windows.Media.Brushes.DodgerBlue,
+                        BorderThickness = new System.Windows.Thickness(2),
+                    },
+                };
+                var h = new System.Windows.Interop.WindowInteropHelper(probeWin).EnsureHandle();
+                bool setOk = SetWindowDisplayAffinity(h, 0x11 /* WDA_EXCLUDEFROMCAPTURE */);
+                Chk("T74-exclude-from-capture", setOk,
+                    $"setOk={setOk} err={System.Runtime.InteropServices.Marshal.GetLastWin32Error()} hwnd=0x{h:X}");
+                probeWin.Close();
+            }
         }
         catch (Exception e) { Chk("T20-wgc-backend", false, e.Message); }
 

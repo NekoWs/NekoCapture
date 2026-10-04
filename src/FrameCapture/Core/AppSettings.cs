@@ -28,6 +28,13 @@ public sealed class AppSettings
     /// <summary>是否在屏幕上常显当前捕获范围轮廓。</summary>
     public bool AlwaysShowRegionOutline { get; set; } = false;
 
+    /// <summary>
+    /// 录制期间显示捕获范围边框。取代 Windows 11 那条由 WGC 绘制的全屏黄色系统边框
+    /// （它只按"被捕获对象"画，而 WGC 只能整显示器捕获，所以永远全屏、与所选范围无关）。
+    /// 本窗用 WDA_EXCLUDEFROMCAPTURE 排除，保证只提示、不入镜。
+    /// </summary>
+    public bool ShowRecordingBorder { get; set; } = true;
+
     /// <summary>完成选区后立即截取一帧（复用托盘同款按下→自动松手链路）。</summary>
     public bool AutoCaptureOnSelect { get; set; } = true;
 

@@ -246,3 +246,31 @@ status: done
 - session: session-e232a28b-35d1-45dc-b21a-7f9686447436
 - raw transcript: C:\Users\16892\.dsh\sessions\--D-Backup-Capture--\session-e232a28b-35d1-45dc-b21a-7f9686447436\session.v3.jsonl.zstd
 - read it with: node "D:\Agent Playground\overnight-kit\rounds.mjs" --repo "D:\Backup\Capture" --show 8
+
+---
+
+## 用户直接指派 — 2026-10-04 录制黄色边框（非夜间长跑轮次）
+
+```text
+did: 修掉"录制后全屏黄色边框持续存在"，并让边框按范围显示。根因不是本项目代码，而是 Windows 11
+  自带的 WGC 捕获提示边框（#FFD11C）：WgcLiveCapture 用 GraphicsCaptureSession 捕获整台显示器，
+  系统边框只按"被捕获对象"绘制，所以必然全屏、与所选范围无关。
+  ① 后端用 IGraphicsCaptureSession3::put_IsBorderRequired(false) 关掉系统边框
+     （IID F2CDD966-22AE-5EA1-9596-3A289344C3BE / 槽 6-7，取自本机 SDK 10.0.26100.0 的
+     winrt\windows.graphics.capture.h；钉住的 19041 投影无此成员→手写 vtable；
+     必须从原生 IUnknown QI，托管 CCW 只会 E_NOINTERFACE；set 后回读确认，
+     因为官方语义是"未授权时 put 成功但被忽略"）。
+  ② 改由自家 RegionOutlineWindow 按真实捕获范围画描边，WDA_EXCLUDEFROMCAPTURE 排除，
+     保证只提示、不入镜；新增设置「录制时显示范围边框」（默认开）。
+  ③ RegionOutlineWindow 改为构造期 EnsureHandle + 打排除，避免首帧漏进捕获；
+     HideSilently/FadeAway/ShowNoActivate 的动画残留互相拽窗的隐患一并收口。
+verified: 录制中桌面边缘像素 yellow=0（改前 (220,195,29)=220px）；轮廓落在 2566,474 258x39
+  即所选范围（v3-region-zoom.png 人眼复核）；ScopeProbe 同区域桌面 BitBlt accentPx=0=排除生效；
+  构建 0 error；SelfTest 77/77（基线 75/75 + 新 T73a/T73b）；pwsh scripts/test-editor-keys.ps1
+  → EDITOR-KEYS PASS（剪贴板 CF_HDROP+gif 文件+DIB/BITMAP+FrameCapture.Gif 三格式俱全）
+next: 无遗留；如需可把「录制时显示范围边框」做成录制中的呼吸动画
+status: done
+```
+
+- repo dirty after round: 见本轮 commit
+- 证据：`test-out/bugcheck/`（`scan_edges.py` 边缘扫描、`verify_fix.py` 范围/排除核对、`ScopeProbe/` 采集探针）

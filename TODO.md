@@ -1,6 +1,17 @@
 # FrameCapture Todo
 
 ## 用户反馈
+- [x] **录制后的全屏黄色边框持续存在（10-04 已修复）**：根因 = **不是我们的代码**，是 Windows 11
+  自带的 WGC 捕获提示边框（`#FFD11C`）。`WgcLiveCapture` 用 `GraphicsCaptureSession` 捕获**整台
+  显示器**，而系统边框只按"被捕获对象"画 —— 于是必然全屏、与用户选的范围无关。
+  取证：录制中桌面边缘像素 = `(220,195,29)`、停止后消失（`test-out/bugcheck/`，`scan_edges.py`/`verify_fix.py`）。
+  修复：①用 `IGraphicsCaptureSession3::put_IsBorderRequired(false)` 关掉系统边框
+  （IID `F2CDD966-22AE-5EA1-9596-3A289344C3BE`，槽 6/7，取自本机 SDK 10.0.26100.0 的
+  `winrt\windows.graphics.capture.h`；钉住的 19041 投影没有这个成员，只能手写 vtable；
+  必须从**原生** IUnknown QI，托管 CCW 会 E_NOINTERFACE）；
+  ②改由自家 `RegionOutlineWindow` 按**真实范围**画描边，并用 `WDA_EXCLUDEFROMCAPTURE` 排除，
+  保证只提示、不入镜（`ScopeProbe` 实测：同区域桌面 BitBlt 抓不到轮廓）。
+  新增设置「录制时显示范围边框」（默认开）。SelfTest +T73（77/77）。
 - [x] **图标豆腐块**（10-02 已修复）：根因 = 工具/设置用了 BMP 符号（● ─ ○ ↗ ✎ ✂ ⌐ ≫ ⊞ ⚡ □ ★），图标字体链里不存在。用 GlyphProbe 逐字体探测 + 渲染矩阵人工选型后全部换成 Segoe Fluent Icons PUA 字形（点 E915 / 线 E949 / 圆 EA3F / 箭头 E74A / 手绘 E70F / 裁剪 E7A8 / 范围 E71A / 捕获 E7F4 / 阈值 E916 / FPS EC4A / 时长 E823 / 抽帧 E8FD / 胶片 E8B9 / 自启 E7E8）。SelfTest T10 字形回归断言已加（34/34 PASS），截图复验明/暗两主题均无方框。
 
 ## 用户反馈（续）
