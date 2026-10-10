@@ -76,3 +76,9 @@ B1 主题化悬浮条 → C1/C2 状态语义 → A1/A2 入退场 → A3-A5 → B
   `HotkeyManager` 只做"查表→置状态→投递"，修饰键状态（IsKeyDown）懒查。
   看门狗：回调内耗时 >50ms 写 trace `hook slow`（旧阻塞指纹），回归脚本断言其永不出现。
   取证：OUTLINE-LIFECYCLE PASS（含 hook slow 断言）；SelfTest 85/85；EDITOR-KEYS PASS。
+
+## 编辑器退场一致性（2026-10-11 长跑 R3）
+- [x] **D7 关闭动效双标**：X 按钮走 `Fluent.CloseWithFade`（Exit150 淡出），Esc 与 Enter/Commit 却直接
+  `Close()`——同一窗口两种退场手感，且与入场动效（EditorEnter240）不对称。三处统一为 CloseWithFade。
+  取证：EDITOR-KEYS PASS（Enter→Commit→淡出后 window-not-found + 剪贴板三格式）；OUTLINE-LIFECYCLE PASS
+  （Esc 淡出路径 + 捕获链路）；SelfTest 85/85。

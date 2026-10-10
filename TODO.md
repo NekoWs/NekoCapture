@@ -178,3 +178,6 @@
 - [x] **钩子回调阻塞等 UI 线程（全系统键盘卡 ~130ms + 静默摘钩风险）**：`Dispatch` 阻塞 `Invoke` →
   改 `BeginInvoke(Send)`（FIFO 保序）；钩子决策抽成 `Core/HookDecision.cs` 纯逻辑（SelfTest T76，85/85）；
   慢回调看门狗 `hook slow` 进 trace，回归脚本断言不出现。
+
+## 编辑器退场一致性（2026-10-11 长跑 R3）
+- [x] **Esc/Enter 绕过 CloseWithFade（与 X 按钮双标）**：三处统一 Exit150 淡出（8deb809）。
