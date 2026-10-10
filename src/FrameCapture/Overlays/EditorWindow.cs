@@ -395,7 +395,7 @@ public sealed partial class EditorWindow : Window
         {
             case Key.Escape:
                 if (_encoding) { _commitCts?.Cancel(); }
-                else Close();
+                else FrameCapture.Core.Fluent.CloseWithFade(this);
                 break;
             case Key.Enter: Commit(); break;
             case Key.Space: TogglePlay(); e.Handled = true; break;
@@ -461,7 +461,7 @@ public sealed partial class EditorWindow : Window
             Trace.Log($"gif encoded bytes={gif.Length} frames={seq.Frames.Count}");
             ClipboardService.SetCapture(seq, gif, idx);
             if (strip) TryGenerateAgentStrip(seq);
-            Close();
+            FrameCapture.Core.Fluent.CloseWithFade(this);
         });
     }
 
@@ -626,6 +626,6 @@ public sealed partial class EditorWindow : Window
         if (_userClosed) return;
         _userClosed = true;
         ClosedByUser?.Invoke();
-        Close();
+        FrameCapture.Core.Fluent.CloseWithFade(this);
     }
 }
