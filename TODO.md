@@ -181,3 +181,12 @@
 
 ## 编辑器退场一致性（2026-10-11 长跑 R3）
 - [x] **Esc/Enter 绕过 CloseWithFade（与 X 按钮双标）**：三处统一 Exit150 淡出（8deb809）。
+
+## 待办（2026-10-11 长跑交接，06:15）
+- [ ] **重新发布 release**：R1-R3 修复只在 Debug 验证过；用户托盘实例仍跑旧 release（win-x64/FrameCapture.exe）。
+  命令参考：dotnet publish src\FrameCapture -c Release -r win-x64 --self-contained -p:Platform=x64
+  （发布前先杀 FrameCapture，发布后重启实例并跑 scripts/guardrail.ps1 全量闸）。
+- [ ] 裁剪销毁标注不可逆（裁剪框内重映射标注）。
+- [ ] 编辑器缺重做按钮（Ctrl+Y 有栈无入口）+ CanRedo 态。
+- [ ] Fps 钳制不一致：settings 10..60 vs 编辑器计时器 5..60。
+- [ ] 编辑器缩放/1:1 视图。
