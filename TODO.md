@@ -167,3 +167,9 @@
 
 ## 工程约定
 - git 仓库已建立（master），**每轮至少提交一次**，重要改动即时提交，防重大回退
+
+## 状态机与轮廓生命周期（2026-10-11 长跑 R1）
+- [x] **常显范围轮廓在"编辑器开着再按捕获键"后永久消失**：根因 = `BeginCapture` 第一行无条件 `HideOutline()`，
+  状态守卫在其后。修复 = 抽出 `Core/CaptureGuards.cs` 决策表，只有 StartCapture 才隐藏轮廓（不变量 `MayHideOutline`）。
+- [x] **常显模式下一次录制把轮廓淡出且不回来**：根因 = `FinishCapture` 无条件 `FadeAway`，注释谎称"由后续分支重新点亮"。
+  修复 = `OnCaptureFinished` 决策（常显+有已存范围 → 带回轮廓，否则淡出）。SelfTest +T75（81/81）；新增 `scripts/test-outline-lifecycle.ps1`。

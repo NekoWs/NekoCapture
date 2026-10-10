@@ -48,3 +48,18 @@ B1 主题化悬浮条 → C1/C2 状态语义 → A1/A2 入退场 → A3-A5 → B
 - 全站令牌：Motion 7 常量 + 圆角 12（窗）/10（控件）/13（正圆色块）+ 主题色板 Theme.*；豁免项均有注释在案
 - 功能零回归：每轮 SelfTest 70/70、e2e gif 链路、发布实例 1 个无异常
 - 已知边界：D5 吸附/拖框态需真鼠标人工核验。（原注"托盘菜单为系统原生渲染"不成立，已收口为 D8：自绘 Fluent 菜单，双主题像素档案在案）
+
+## 状态机与轮廓生命周期收口（2026-10-11 长跑 R1）
+- [x] **S1 捕获入口守卫 + 轮廓生命周期**（新增 `Core/CaptureGuards.cs` 纯逻辑决策表，SelfTest T75a-d）
+  证伪并修掉两处真实缺陷（决策表即回归护栏）：
+  1. `BeginCapture()` 第一行无条件 `HideOutline()`、守卫在其后 —— "编辑器已开时再按捕获键"
+     （RefocusEditor 路径）会把**常显范围轮廓永久弄没**，任何提前 return 的失败分支同样误隐藏。
+     不变量：**只有 StartCapture 允许隐藏轮廓**（`MayHideOutline`）。
+  2. `FinishCapture()` 注释写"常显轮廓由后续分支重新点亮"，但**没有任何分支点亮**：常显模式下一次
+     录制就把轮廓淡出且不回来；且若「录制时显示范围边框」关着，录制期间根本没上屏，旧代码拿
+     `_outline.IsVisible` 当前提更回不来。现由 `OnCaptureFinished` 明确决策（常显+有已存范围=带回，否则淡出）。
+  取证：`scripts/test-outline-lifecycle.ps1`（hkm 热键合成 + 自家窗 keyw + 桌面 BitBlt，无 OS 级鼠标自动化）——
+  桌面截图在"矩形边框带"上差分（`scripts/lib-band-diff.py`，忽略矩形内部）：录制中轮廓不在屏 → 录制结束后
+  带回（band diff>=200）；编辑器开着再按捕获键轮廓不被隐藏（band diff~=0）+ trace 增量无 `outline: hide`。
+  实跑 **OUTLINE-LIFECYCLE PASS**；SelfTest 81/81；EDITOR-KEYS PASS（剪贴板三格式）。
+  产物 `test-out/outline-lifecycle/`（s0 启动/s1 录制中/s2 录制后/s3 再按键 四张桌面截图 + 静态预检）。

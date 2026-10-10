@@ -105,16 +105,18 @@ public sealed class CaptureController : IDisposable
 
     public void BeginScopeSelection()
     {
-        if (State == Phase.Capturing) return;
         // 防状态卡死：选取窗被异常途径关闭（Alt+F4 等）时复位
         if (State == Phase.SelectingScope && _picker == null) State = Phase.Idle;
-        CloseEditor();
-        if (State == Phase.SelectingScope)
+        var scopeIntent = Core.CaptureGuards.OnScopeHotkey(
+            State == Phase.Capturing, State == Phase.SelectingScope, _picker != null);
+        if (scopeIntent == Core.CaptureGuards.ScopeIntent.Ignore) return;
+        if (scopeIntent == Core.CaptureGuards.ScopeIntent.RefocusPicker)
         {
             // 再按一次热键：把选取层重新顶到所有窗口最前（游戏等霸屏窗口会盖住它）
-            if (_picker != null) { _picker.Show(); ForceForeground(_picker); }
+            _picker!.Show(); ForceForeground(_picker);
             return;
         }
+        CloseEditor();
 
         var cursor = Win32Wrap.GetCursorPosition();
         var monitor = Monitors.Nearest(cursor.X, cursor.Y);
@@ -192,14 +194,16 @@ public sealed class CaptureController : IDisposable
     public void BeginCapture()
     {
         FrameCapture.Core.Trace.Log($"BeginCapture state={State}");
-        HideOutline(); // 轮廓绝不能入镜
-        if (State == Phase.Capturing) return;
-        if (State == Phase.SelectingScope) return;
-        if (State == Phase.Editing)
+        var intent = Core.CaptureGuards.OnCaptureHotkey(
+            State == Phase.Capturing, State == Phase.SelectingScope, State == Phase.Editing);
+        if (intent != Core.CaptureGuards.CaptureIntent.StartCapture)
         {
-            _editor?.Activate();
-            return; // 编辑器已打开时不重入
+            // 非起录路径一律不碰轮廓：旧版在此无条件 HideOutline，导致"编辑器开着再按捕获键"
+            // 把常显范围轮廓永久弄没（任何提前 return 的分支同样误隐藏）。
+            if (intent == Core.CaptureGuards.CaptureIntent.RefocusEditor) _editor?.Activate();
+            return;
         }
+        HideOutline(); // 轮廓绝不能入镜：仅真正起录时隐藏
 
         ScreenRegion region = StoredRegion() ?? FullMonitorAtCursor();
         _pendingRegion = region;
@@ -276,9 +280,22 @@ public sealed class CaptureController : IDisposable
         _maxTimer = null;
         _live.Stop();
         if (_wgc != null) { try { _wgc.Stop(); _wgc.Dispose(); } catch { } _wgc = null; }
+        // 录制范围提示的去向（决策见 CaptureGuards.OnCaptureFinished）：
+        //  常显模式且录的就是已存范围 → 把常显轮廓带回来。旧版在这里无条件 FadeAway，
+        //  注释却写「由后续分支重新点亮」——实际没有任何分支点亮，于是常显模式下一次录制
+        //  就把轮廓弄没；且若「录制时显示范围边框」关着，录制期间根本没上屏，
+        //  更不能用「当时可见吗」当前提。其余情况 → 立即淡出，不要拖到编辑器上。
+        if (Core.CaptureGuards.OnCaptureFinished(_settings.Current.AlwaysShowRegionOutline, StoredRegion() != null)
+            == Core.CaptureGuards.AfterCaptureOutline.KeepPersistent)
+        {
+            ShowOutlineIfStored();
+        }
+        else if (_outline != null && _outline.IsVisible)
+        {
+            _outline.FadeAway(0.25);
+        }
 
-        // 录制范围提示：立即淡出，不要拖到编辑器上；常显轮廓则由后续分支重新点亮
-        if (_outline != null && _outline.IsVisible) _outline.FadeAway(0.25);
+
 
         double durMs = _captureClock?.ElapsedMilliseconds ?? 0;
         _captureClock = null;
@@ -364,6 +381,7 @@ public sealed class CaptureController : IDisposable
         _outline ??= new RegionOutlineWindow();
         _outline.SetRegion(region);
         _outline.ShowNoActivate();
+        FrameCapture.Core.Trace.Log($"outline: persistent show {region}");
     }
 
     void FlashOutline(RectI region)
@@ -372,11 +390,13 @@ public sealed class CaptureController : IDisposable
         _outline.SetRegion(region);
         _outline.ShowNoActivate();
         _outline.Flash();
+        FrameCapture.Core.Trace.Log($"outline: flash {region}");
     }
 
     void HideOutline()
     {
         _outline?.HideSilently();
+        FrameCapture.Core.Trace.Log("outline: hide");
     }
 
     /// <summary>

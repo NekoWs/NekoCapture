@@ -676,6 +676,48 @@ static class SelfTest
                 $"light={onLight} dark={onDark}");
         }
 
+        // T75 捕获状态机入口守卫（纯逻辑决策表）：
+        //  回归护栏 = "只有 StartCapture 允许隐藏范围轮廓"。旧版 BeginCapture 第一行无条件
+        //  HideOutline()，守卫在其后 → 编辑器开着再按捕获键会把常显轮廓永久弄没。
+        {
+            var idle = FrameCapture.Core.CaptureGuards.OnCaptureHotkey(false, false, false);
+            var cap = FrameCapture.Core.CaptureGuards.OnCaptureHotkey(true, false, false);
+            var sel = FrameCapture.Core.CaptureGuards.OnCaptureHotkey(false, true, false);
+            var edi = FrameCapture.Core.CaptureGuards.OnCaptureHotkey(false, false, true);
+            Chk("T75a-capture-intent",
+                idle == FrameCapture.Core.CaptureGuards.CaptureIntent.StartCapture &&
+                cap == FrameCapture.Core.CaptureGuards.CaptureIntent.Ignore &&
+                sel == FrameCapture.Core.CaptureGuards.CaptureIntent.Ignore &&
+                edi == FrameCapture.Core.CaptureGuards.CaptureIntent.RefocusEditor,
+                $"idle={idle} cap={cap} sel={sel} edi={edi}");
+            // 不变量：非起录意图一律不得隐藏轮廓
+            bool onlyStartHides =
+                !FrameCapture.Core.CaptureGuards.MayHideOutline(FrameCapture.Core.CaptureGuards.CaptureIntent.Ignore) &&
+                !FrameCapture.Core.CaptureGuards.MayHideOutline(FrameCapture.Core.CaptureGuards.CaptureIntent.RefocusEditor) &&
+                FrameCapture.Core.CaptureGuards.MayHideOutline(FrameCapture.Core.CaptureGuards.CaptureIntent.StartCapture);
+            Chk("T75b-outline-hide-invariant", onlyStartHides);
+            // 选取热键：录制中不打断；选取窗活着=顶前；窗没了(Alt+F4)=复位重开
+            var s1 = FrameCapture.Core.CaptureGuards.OnScopeHotkey(true, false, false);
+            var s2 = FrameCapture.Core.CaptureGuards.OnScopeHotkey(false, true, true);
+            var s3 = FrameCapture.Core.CaptureGuards.OnScopeHotkey(false, true, false);
+            var s4 = FrameCapture.Core.CaptureGuards.OnScopeHotkey(false, false, false);
+            Chk("T75c-scope-intent",
+                s1 == FrameCapture.Core.CaptureGuards.ScopeIntent.Ignore &&
+                s2 == FrameCapture.Core.CaptureGuards.ScopeIntent.RefocusPicker &&
+                s3 == FrameCapture.Core.CaptureGuards.ScopeIntent.StartSelection &&
+                s4 == FrameCapture.Core.CaptureGuards.ScopeIntent.StartSelection,
+                $"s1={s1} s2={s2} s3={s3} s4={s4}");
+            // 录制结束后的轮廓去向：常显+有已存范围=留在屏上；否则淡出
+            var o1 = FrameCapture.Core.CaptureGuards.OnCaptureFinished(true, true);
+            var o2 = FrameCapture.Core.CaptureGuards.OnCaptureFinished(true, false);
+            var o3 = FrameCapture.Core.CaptureGuards.OnCaptureFinished(false, true);
+            Chk("T75d-outline-after-capture",
+                o1 == FrameCapture.Core.CaptureGuards.AfterCaptureOutline.KeepPersistent &&
+                o2 == FrameCapture.Core.CaptureGuards.AfterCaptureOutline.FadeOut &&
+                o3 == FrameCapture.Core.CaptureGuards.AfterCaptureOutline.FadeOut,
+                $"o1={o1} o2={o2} o3={o3}");
+        }
+
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");
         return fail == 0 ? 0 : 1;
     }
