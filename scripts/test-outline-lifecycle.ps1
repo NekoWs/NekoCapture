@@ -67,6 +67,7 @@ try {
     $env:FC_TEST_NO_FG = "1"; $env:FC_TEST_OUTLINE_IN_CAPTURE = "1"
     $p = Start-Process $exe -PassThru
     Start-Sleep 2.0
+    $markRun = TraceLen
 
     # S0：启动后常显轮廓应在屏上（Initialize→ShowOutlineIfStored）
     & $uicap desk (Join-Path $outDir "s0-startup.png") | Out-Null
@@ -100,6 +101,7 @@ try {
     if ($dKeep -gt 120) { $fail += "再按捕获键把轮廓弄没了 (band diff=$dKeep，期望≈0)" }
     if ($inc -match "outline: hide") { $fail += "RefocusEditor 路径仍触发了 HideOutline（trace 增量含 'outline: hide'）" }
     if ($inc -notmatch "BeginCapture state=Editing") { $fail += "trace 增量未见 'BeginCapture state=Editing'（第二键未打到编辑器态）" }
+    if ((TraceTail $markRun) -match 'hook slow') { $fail += 'slow hook callback (trace has hook slow)' }
     $ed2 = & $shot rect "FrameCapture Editor" 2>$null
     if ($ed2 -match "not-found") { $fail += "RefocusEditor 后编辑器不应消失" }
 
@@ -116,3 +118,4 @@ if ($fail.Count -eq 0) { Write-Host "OUTLINE-LIFECYCLE PASS"; exit 0 }
 Write-Host "OUTLINE-LIFECYCLE FAIL"
 $fail | ForEach-Object { Write-Host "  - $_" }
 exit 1
+

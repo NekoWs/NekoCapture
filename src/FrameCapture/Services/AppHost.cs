@@ -91,7 +91,8 @@ public sealed class AppHost
             { NotifyFilter = System.IO.NotifyFilters.LastWrite, EnableRaisingEvents = true };
             _settingsWatcher.Changed += (_, _) =>
             {
-                try { _reloadDebounce?.Dispatcher.Invoke(() => { _reloadDebounce!.Stop(); _reloadDebounce.Start(); }); }
+                // 投递而非阻塞：watcher 线程不该等 UI（同 Dispatch 的理由，只是危害小）
+                try { _reloadDebounce?.Dispatcher.BeginInvoke(() => { _reloadDebounce!.Stop(); _reloadDebounce.Start(); }); }
                 catch { }
             };
         }
@@ -129,10 +130,15 @@ public sealed class AppHost
         catch (Exception ex) { FrameCapture.Core.Trace.Log($"elevate failed: {ex.GetType().Name}"); }
     }
 
+    /// <summary>把钩子动作投递到 UI 线程。绝不阻塞：钩子回调占着全系统输入链，
+    /// 曾经的阻塞 Invoke 让整台机器键盘卡住 ~130ms（等 WGC 初始化），且超过
+    /// LowLevelHooksTimeout 会被系统静默摘钩。Send 优先级排在输入之前，
+    /// 同优先级 FIFO —— Begin/End 的先后顺序因此保持。</summary>
     static void Dispatch(Action a)
     {
         var app = System.Windows.Application.Current;
         if (app == null) { a(); return; }
-        app.Dispatcher.Invoke(a);
+        try { app.Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Send, a); }
+        catch { /* UI 线程已在关闭 */ }
     }
 }

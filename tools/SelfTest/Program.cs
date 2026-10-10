@@ -9,6 +9,7 @@ using FrameCapture.Drawing;
 using FrameCapture.Encoding;
 using FrameCapture.Services;
 using System.Windows;
+using HD = FrameCapture.Core.HookDecision;
 
 static class SelfTest
 {
@@ -718,6 +719,36 @@ static class SelfTest
                 $"o1={o1} o2={o2} o3={o3}");
         }
 
+        // T76 全局钩子决策表（纯逻辑）：捕获期间主键吞掉不重复触发、修饰键松开语义、
+        // 范围键松开只复位、无关键放行。对应 HotkeyManager 重构（行为逐条保持）。
+        {
+            var begin = new HD.Outcome(HD.Act.BeginCapture, true, HD.Key.CapturePrimary);
+            var end = new HD.Outcome(HD.Act.EndCapture, true, HD.Key.None);
+            Chk("T76a-hook-idle-triggers",
+                HD.Decide(HD.Key.None, true, 0x75, true, false, 0x75, 0x76, false, true) .Equals(begin) &&
+                HD.Decide(HD.Key.None, true, 0x76, false, true, 0x75, 0x76, false, true)
+                    .Equals(new HD.Outcome(HD.Act.ScopeSelect, true, HD.Key.Scope)) &&
+                HD.Decide(HD.Key.None, true, 0x41, false, false, 0x75, 0x76, false, true)
+                    .Equals(new HD.Outcome(HD.Act.Pass, false, HD.Key.None)),
+                "空闲：捕获键→Begin、范围键→Scope、无关键→放行");
+            Chk("T76b-hook-capture-primary",
+                HD.Decide(HD.Key.CapturePrimary, false, 0x75, false, false, 0x75, 0x76, false, true).Equals(end) &&
+                HD.Decide(HD.Key.CapturePrimary, true, 0x75, false, false, 0x75, 0x76, false, true)
+                    .Equals(new HD.Outcome(HD.Act.Pass, true, HD.Key.CapturePrimary)),
+                "捕获中：主键松→End；主键重复按→吞掉不重复触发");
+            Chk("T76c-hook-mod-release",
+                HD.Decide(HD.Key.CapturePrimary, false, 0x11, false, false, 0x75, 0x76, true, true)
+                    .Equals(new HD.Outcome(HD.Act.Pass, false, HD.Key.CapturePrimary)) &&
+                HD.Decide(HD.Key.CapturePrimary, false, 0x11, false, false, 0x75, 0x76, true, false).Equals(end),
+                "捕获中：多余修饰键松开→放行；所需修饰键松开→End");
+            Chk("T76d-hook-scope-release-and-passthrough",
+                HD.Decide(HD.Key.Scope, false, 0x76, false, false, 0x75, 0x76, false, true)
+                    .Equals(new HD.Outcome(HD.Act.Pass, true, HD.Key.None)) &&
+                HD.Decide(HD.Key.CapturePrimary, false, 0x41, false, false, 0x75, 0x76, false, true)
+                    .Equals(new HD.Outcome(HD.Act.Pass, false, HD.Key.CapturePrimary)) &&
+                HD.Decide(HD.Key.Scope, true, 0x75, true, false, 0x75, 0x76, false, true).Equals(begin),
+                "范围键松开→吞掉复位；捕获中无关键放行；范围按住时可按捕获键");
+        }
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");
         return fail == 0 ? 0 : 1;
     }

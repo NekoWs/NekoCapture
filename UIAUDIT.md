@@ -63,3 +63,16 @@ B1 主题化悬浮条 → C1/C2 状态语义 → A1/A2 入退场 → A3-A5 → B
   带回（band diff>=200）；编辑器开着再按捕获键轮廓不被隐藏（band diff~=0）+ trace 增量无 `outline: hide`。
   实跑 **OUTLINE-LIFECYCLE PASS**；SelfTest 81/81；EDITOR-KEYS PASS（剪贴板三格式）。
   产物 `test-out/outline-lifecycle/`（s0 启动/s1 录制中/s2 录制后/s3 再按键 四张桌面截图 + 静态预检）。
+
+## 全局钩子零阻塞重构（2026-10-11 长跑 R2）
+- [x] **S2 钩子回调不再占住全系统输入链**（新增 `Core/HookDecision.cs` 纯逻辑决策表，SelfTest T76a-d）
+  `AppHost.Dispatch` 原用阻塞 `Dispatcher.Invoke`：钩子线程要等 UI 线程跑完 `BeginCapture`
+  （WGC/D3D 初始化，trace 实测 ~130ms）才返回 —— 期间**整台机器键盘卡住**，且超过
+  `LowLevelHooksTimeout` 会被系统**静默摘钩**（快捷键无声失效，无任何报错）。类注释写着
+  "不做耗时操作（仅置状态 + 投递到 UI 线程）"，代码却是阻塞 Invoke —— 又一处文档与代码矛盾。
+  修复：`Dispatch` 改 `BeginInvoke(Send)`（同优先级 FIFO，Begin/End 顺序保持）；
+  watcher 的 `Changed` 同样改投递。钩子决策逻辑抽成 `HookDecision.Decide` 纯函数
+  （捕获中主键吞掉不重复触发 / 所需修饰键松开才结束 / 范围键松开只复位 / 无关键放行），
+  `HotkeyManager` 只做"查表→置状态→投递"，修饰键状态（IsKeyDown）懒查。
+  看门狗：回调内耗时 >50ms 写 trace `hook slow`（旧阻塞指纹），回归脚本断言其永不出现。
+  取证：OUTLINE-LIFECYCLE PASS（含 hook slow 断言）；SelfTest 85/85；EDITOR-KEYS PASS。

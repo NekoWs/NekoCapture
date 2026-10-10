@@ -173,3 +173,8 @@
   状态守卫在其后。修复 = 抽出 `Core/CaptureGuards.cs` 决策表，只有 StartCapture 才隐藏轮廓（不变量 `MayHideOutline`）。
 - [x] **常显模式下一次录制把轮廓淡出且不回来**：根因 = `FinishCapture` 无条件 `FadeAway`，注释谎称"由后续分支重新点亮"。
   修复 = `OnCaptureFinished` 决策（常显+有已存范围 → 带回轮廓，否则淡出）。SelfTest +T75（81/81）；新增 `scripts/test-outline-lifecycle.ps1`。
+
+## 全局钩子零阻塞（2026-10-11 长跑 R2）
+- [x] **钩子回调阻塞等 UI 线程（全系统键盘卡 ~130ms + 静默摘钩风险）**：`Dispatch` 阻塞 `Invoke` →
+  改 `BeginInvoke(Send)`（FIFO 保序）；钩子决策抽成 `Core/HookDecision.cs` 纯逻辑（SelfTest T76，85/85）；
+  慢回调看门狗 `hook slow` 进 trace，回归脚本断言不出现。

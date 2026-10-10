@@ -7,22 +7,25 @@ namespace FrameCapture.Services;
 
 /// <summary>
 /// 基于低级键盘钩子的全局快捷键。支持按下/释放事件（长按捕获所需）。
-/// 回调内绝不抛异常、不做耗时操作（仅置状态 + 投递到 UI 线程）。
+/// 回调内绝不抛异常、不做耗时操作：决策表（<see cref="HookDecision"/>）是纯逻辑，
+/// 动作经 AppHost.Dispatch 非阻塞投递到 UI 线程；慢回调看门狗把违反不变量的
+/// 现场写进 trace（"hook slow Nms"），回归脚本据此断言。
 /// </summary>
 public sealed class HotkeyManager : IDisposable
 {
-    public enum Hot { None, Scope, CapturePrimary }
-
     private IntPtr _hook = IntPtr.Zero;
     private Win32.LowLevelKeyboardProc? _proc;
     private HotkeySpec? _scope, _capture;
-    private volatile Hot _pressed = Hot.None;
+    private volatile HookDecision.Key _pressed = HookDecision.Key.None;
 
     public event Action? ScopeRequested;
     public event Action? CaptureBegin;
     public event Action? CaptureEnd;
 
     public bool Installed => _hook != IntPtr.Zero;
+
+    /// <summary>慢回调看门狗阈值（ms）：钩子回调占着全系统输入链，超过即记 trace。</summary>
+    const double HookSlowWarnMs = 50;
 
     public void Install(string scopeText, string captureText)
     {
@@ -53,7 +56,7 @@ public sealed class HotkeyManager : IDisposable
         }
         _proc = null;
         _scope = _capture = null;
-        _pressed = Hot.None;
+        _pressed = HookDecision.Key.None;
     }
 
     private static bool ModifiersMatch(HotkeySpec s)
@@ -78,58 +81,51 @@ public sealed class HotkeyManager : IDisposable
     private IntPtr HookProc(int nCode, IntPtr wParam, IntPtr lParam)
     {
         if (nCode < 0) return Win32.CallNextHookEx(_hook, nCode, wParam, lParam);
-        try
-        {
-            var info = Marshal.PtrToStructure<Win32.KBDLLHOOKSTRUCT>(lParam);
-            uint vk = info.vkCode;
-            bool isDown = (info.flags & Win32.LLKHF_UP) == 0;
-            // 隐私：绝不记录用户按键（全局钩子可见所有键击）。仅调试注入链路时设 FC_TRACE_KEYS=1 才逐键记录。
-            if (Environment.GetEnvironmentVariable("FC_TRACE_KEYS") == "1")
-                FrameCapture.Core.Trace.Log($"hook key={info.vkCode} down={isDown} installed={Installed}");
-
-            // 捕获进行中：主键松开，或任一所需修饰键松开 → 结束
-            if (_pressed == Hot.CapturePrimary && _capture != null)
-            {
-                bool primaryUp = vk == _capture.VirtualKey;
-                bool modUp = vk is Win32.VK_CONTROL or Win32.VK_MENU or Win32.VK_SHIFT
-                    or Win32.VK_LWIN or Win32.VK_RWIN;
-                if (!isDown && (primaryUp || (modUp && !ModifiersStillSatisfied(_capture))))
-                {
-                    _pressed = Hot.None;
-                    CaptureEnd?.Invoke();
-                    return 1; // 吞掉
-                }
-                if (vk == _capture.VirtualKey) return 1; // 捕获期间吞掉主键（防止重复按下干扰）
-                return Win32.CallNextHookEx(_hook, nCode, wParam, lParam);
-            }
-
-            if (isDown)
-            {
-                if (_capture != null && vk == _capture.VirtualKey && ModifiersMatch(_capture))
-                {
-                    _pressed = Hot.CapturePrimary;
-                    CaptureBegin?.Invoke();
-                    return 1;
-                }
-                if (_scope != null && vk == _scope.VirtualKey && ModifiersMatch(_scope))
-                {
-                    _pressed = Hot.Scope;
-                    ScopeRequested?.Invoke();
-                    return 1;
-                }
-            }
-            else if (_pressed == Hot.Scope)
-            {
-                // 范围键在按下时已触发，释放只负责复位并吞掉主键
-                _pressed = Hot.None;
-                if (_scope != null && vk == _scope.VirtualKey) return 1;
-            }
-        }
+        bool swallow = false;
+        long t0 = Stopwatch.GetTimestamp();
+        try { swallow = HandleKey(lParam); }
         catch
         {
             // 钩子回调内绝不抛出
         }
-        return Win32.CallNextHookEx(_hook, nCode, wParam, lParam);
+        double ms = (Stopwatch.GetTimestamp() - t0) * 1000.0 / Stopwatch.Frequency;
+        if (ms > HookSlowWarnMs) FrameCapture.Core.Trace.Log($"hook slow {ms:F0}ms");
+        return swallow ? 1 : Win32.CallNextHookEx(_hook, nCode, wParam, lParam);
+    }
+
+    /// <summary>查决策表 → 置状态 → 投递动作；返回是否吞掉本键。
+    /// 热路径只有几次整数比较：修饰键状态（IsKeyDown）只在可能改变决策时才查。</summary>
+    private bool HandleKey(IntPtr lParam)
+    {
+        var info = Marshal.PtrToStructure<Win32.KBDLLHOOKSTRUCT>(lParam);
+        uint vk = info.vkCode;
+        bool isDown = (info.flags & Win32.LLKHF_UP) == 0;
+        // 隐私：绝不记录用户按键（全局钩子可见所有键击）。仅调试注入链路时设 FC_TRACE_KEYS=1 才逐键记录。
+        if (Environment.GetEnvironmentVariable("FC_TRACE_KEYS") == "1")
+            FrameCapture.Core.Trace.Log($"hook key={info.vkCode} down={isDown} installed={Installed}");
+
+        var cap = _capture;
+        var scp = _scope;
+        bool primary = cap != null && vk == cap.VirtualKey;
+        bool isMod = vk is Win32.VK_CONTROL or Win32.VK_MENU or Win32.VK_SHIFT
+            or Win32.VK_LWIN or Win32.VK_RWIN;
+
+        bool captureMatch = isDown && primary && cap != null && ModifiersMatch(cap);
+        bool scopeMatch = isDown && !primary && scp != null && vk == scp.VirtualKey && ModifiersMatch(scp);
+        bool modsOk = true;
+        if (_pressed == HookDecision.Key.CapturePrimary && !isDown && isMod && cap != null)
+            modsOk = ModifiersStillSatisfied(cap);
+
+        var o = HookDecision.Decide(_pressed, isDown, vk, captureMatch, scopeMatch,
+            cap?.VirtualKey ?? 0, scp?.VirtualKey ?? 0, isMod, modsOk);
+        _pressed = o.Next;
+        switch (o.Action)
+        {
+            case HookDecision.Act.BeginCapture: CaptureBegin?.Invoke(); break;
+            case HookDecision.Act.EndCapture: CaptureEnd?.Invoke(); break;
+            case HookDecision.Act.ScopeSelect: ScopeRequested?.Invoke(); break;
+        }
+        return o.Swallow;
     }
 
     public void Dispose() => Uninstall();
