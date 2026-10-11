@@ -251,6 +251,7 @@ public sealed partial class EditorWindow
             case Tool.Crop:
                 _preview = new Rectangle { Stroke = new SolidColorBrush(Acc), StrokeThickness = 1.5, StrokeDashArray = new DoubleCollection { 4, 3 }, Fill = new SolidColorBrush(Color.FromArgb(0x33, 0x4C, 0xC2, 0xFF)) };
                 _pending = null;
+                StartCropGuide();
                 break;
         }
         if (_preview != null)
@@ -291,6 +292,7 @@ public sealed partial class EditorWindow
                 _preview.Height = Math.Abs(p.Y - _pressPos.Y);
                 Canvas.SetLeft(_preview, Math.Min(_pressPos.X, p.X));
                 Canvas.SetTop(_preview, Math.Min(_pressPos.Y, p.Y));
+                UpdateCropGuide(_preview);
                 break;
         }
         if (_pending is { Points.Count: >= 2 } && _tool is Tool.Line or Tool.Ellipse or Tool.Arrow)
@@ -321,6 +323,7 @@ public sealed partial class EditorWindow
         }
         _pending = null;
         if (_preview != null) { _canvas.Children.Remove(_preview); _preview = null; }
+        EndCropGuide();
         e.Handled = true;
     }
 
@@ -330,6 +333,71 @@ public sealed partial class EditorWindow
         if (_dragging) { _dragging = false; _canvas.ReleaseMouseCapture(); }
         _pending = null;
         if (_preview != null) { _canvas.Children.Remove(_preview); _preview = null; }
+        EndCropGuide();
+    }
+
+    // ---------------- 裁剪引导层（R45）：框外压暗 + 三分网格 + 「松开应用」 ----------------
+
+    System.Windows.Shapes.Path? _cropMask, _cropGrid;
+    Border? _cropHint;
+
+    void StartCropGuide()
+    {
+        _cropMask = new System.Windows.Shapes.Path { Fill = new SolidColorBrush(Color.FromArgb(0x73, 0, 0, 0)), IsHitTestVisible = false };
+        _cropGrid = new System.Windows.Shapes.Path
+        {
+            Stroke = new SolidColorBrush(Color.FromArgb(0x99, 0xFF, 0xFF, 0xFF)),
+            StrokeThickness = 1, IsHitTestVisible = false,
+        };
+        _cropHint = new Border
+        {
+            Background = new SolidColorBrush(Acc),
+            CornerRadius = new CornerRadius(4),
+            Padding = new Thickness(7, 2, 7, 3),
+            IsHitTestVisible = false,
+            Child = new TextBlock { Text = "松开应用裁剪", FontSize = 11, FontWeight = FontWeights.SemiBold, Foreground = Brushes.White },
+        };
+        _canvas.Children.Add(_cropMask);
+        _canvas.Children.Add(_cropGrid);
+        _canvas.Children.Add(_cropHint);
+    }
+
+    void UpdateCropGuide(FrameworkElement box)
+    {
+        if (_cropMask == null || _cropGrid == null || _cropHint == null) return;
+        var (x, y, w, h) = (Canvas.GetLeft(box), Canvas.GetTop(box), box.Width, box.Height);
+        double cw = _canvas.ActualWidth, ch = _canvas.ActualHeight;
+        var geo = new StreamGeometry();
+        using (var g = geo.Open())
+        {
+            g.BeginFigure(new Point(0, 0), true, true);
+            g.LineTo(new Point(cw, 0), true, false); g.LineTo(new Point(cw, ch), true, false); g.LineTo(new Point(0, ch), true, false);
+            g.BeginFigure(new Point(x, y), true, true);
+            g.LineTo(new Point(x + w, y), true, false); g.LineTo(new Point(x + w, y + h), true, false); g.LineTo(new Point(x, y + h), true, false);
+        }
+        geo.FillRule = FillRule.EvenOdd;
+        _cropMask.Data = geo;
+        var grid = new StreamGeometry();
+        using (var g = grid.Open())
+        {
+            for (int i = 1; i <= 2; i++)
+            {
+                g.BeginFigure(new Point(x + w * i / 3, y), true, false); g.LineTo(new Point(x + w * i / 3, y + h), true, true);
+                g.BeginFigure(new Point(x, y + h * i / 3), true, false); g.LineTo(new Point(x + w, y + h * i / 3), true, true);
+            }
+        }
+        _cropGrid.Data = grid;
+        // 气泡尺寸未测量前用估算值（CropGuide 纯逻辑负责翻转/钳边决策）
+        double hw = _cropHint.ActualWidth > 4 ? _cropHint.ActualWidth : 92, hh = _cropHint.ActualHeight > 4 ? _cropHint.ActualHeight : 22;
+        var (hx, hy) = FrameCapture.Core.CropGuide.HintPos(x, y, w, h, hw, hh, cw, ch);
+        Canvas.SetLeft(_cropHint, hx); Canvas.SetTop(_cropHint, hy);
+    }
+
+    void EndCropGuide()
+    {
+        if (_cropMask != null) { _canvas.Children.Remove(_cropMask); _cropMask = null; }
+        if (_cropGrid != null) { _canvas.Children.Remove(_cropGrid); _cropGrid = null; }
+        if (_cropHint != null) { _canvas.Children.Remove(_cropHint); _cropHint = null; }
     }
 
     Annotation MakeAnn(AnnKind k, Color c, float w, IEnumerable<Point> normPts)

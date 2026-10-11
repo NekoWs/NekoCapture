@@ -621,3 +621,15 @@ status: done
 - 取证坑（记入 GOAL.md）：pwsh Add-Type 进程 DPI-unaware，GetWindowRect/SetCursorPos 被 ÷1.5 虚拟化，
   Shot 是 aware——按钮点击坐标 = pwshRect×1.5+窗口内物理偏移；WS_EX_TOPMOST=0x8 非 0x80000。
 - 验证：SelfTest 127/127；门禁 GUARDRAIL PASS（FAIL=0 SKIP=1）；pin-on.png 图钉 ON 态视觉确认。
+
+## 2026-10-11 深夜 交互优化 R45（编辑器易用性第一批：裁剪引导 + 首次上手卡 + 撤销步数）
+- 裁剪拖框引导层：拖框时框外 45% 压暗（EvenOdd Path）+ 三分网格 + accent 气泡「松开应用裁剪」
+  （CropGuide 纯逻辑：任意方向拖框归一 + 气泡下方放不下翻上方/钳边，SelfTest T89a–e）。
+- 首次上手引导卡：编辑器第一次打开弹一次性卡片（标注/裁剪/确定取消/更多 四行 + 「知道了」），
+  EditorGuideShown 持久化；引导打开时吞掉全部按键（Enter/Esc 只关卡，绝不落到确定/放弃上）。
+  修两坑：IconButton 默认图标字体把中文渲染成豆腐块（ClearValue 回继承字体）；size 参数同时定宽高（Height=30 压扁）。
+- 撤销/重做 tooltip 带步数：「撤销上一笔（可撤 N 步）Ctrl+Z」，双流（标注+裁剪）合并计数
+  （UndoRedo.RedoCount / ActionOrder.CropUndoCount/CropRedoCount 新 API）。
+- e2e：引导卡首开出现→点「知道了」关闭→flag=True→重开不再出现；裁剪拖框中途截帧见遮罩+网格+气泡
+  （像素验证框外 25→14 = ×0.55 压暗、框内 accent 着色），松开 HUD「裁剪 719×432」引导层收干净。
+- 验证：SelfTest 132/132（127→132）；门禁 GUARDRAIL PASS（FAIL=0 SKIP=1）；引导标记已复位 False 留给用户首见。

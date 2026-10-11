@@ -95,6 +95,7 @@ public sealed partial class EditorWindow : Window
 
         InitDrawing();
         BuildLayout();
+        if (!_settings.Current.EditorGuideShown) ShowGuide(); // 首次打开：一次性上手引导（R45）
         Theme.Changed += Editor_OnTheme;
         Closed += (_, _) => Theme.Changed -= Editor_OnTheme;
         Show(0);
@@ -137,6 +138,7 @@ public sealed partial class EditorWindow : Window
         Grid.SetRow(viewHost, 0);
         root.Children.Add(viewHost);
         Content = root;
+        _root = root;
 
         BuildPanels(root);
     }
@@ -357,8 +359,13 @@ public sealed partial class EditorWindow : Window
     void RefreshUndo()
     {
         // 双流合并能力：标注或裁剪任一可撤销/重做，按钮即亮（次序由 ActionOrder 裁决）
-        SetGhost(_undoBtn, _anns.CanUndo || _order.CanUndoCrop);
-        SetGhost(_redoBtn, _anns.CanRedo || _order.CanRedoCrop);
+        bool canU = _anns.CanUndo || _order.CanUndoCrop, canR = _anns.CanRedo || _order.CanRedoCrop;
+        SetGhost(_undoBtn, canU);
+        SetGhost(_redoBtn, canR);
+        // 步数进 tooltip（R45）：撤销到哪一步、还能撤几步，悬停即知
+        int u = _anns.Count + _order.CropUndoCount, r = _anns.RedoCount + _order.CropRedoCount;
+        if (_undoBtn != null) _undoBtn.ToolTip = canU ? $"撤销上一笔（可撤 {u} 步）  Ctrl+Z" : "撤销 (Ctrl+Z)";
+        if (_redoBtn != null) _redoBtn.ToolTip = canR ? $"重做上一笔（可重做 {r} 步）  Ctrl+Y" : "重做 (Ctrl+Y)";
     }
     static void SetGhost(Button? b, bool on)
     {
@@ -489,11 +496,104 @@ public sealed partial class EditorWindow : Window
         _widthPop.IsOpen = true;
     }
 
+    // ---------------- 首次上手引导（R45，一次性） ----------------
+
+    Grid? _root;
+    Border? _guide;
+
+    void ShowGuide()
+    {
+        if (_root == null) return;
+        var rows = new (string K, string V)[]
+        {
+            ("标注", "底部工具条选 线/椭圆/箭头/手绘，再点同一工具退出绘制"),
+            ("裁剪", "裁剪工具拖框，松开即应用；Ctrl+Z 可撤销"),
+            ("确定/取消", "Enter 写入剪贴板 · Esc 关闭 · 图钉=总在最前"),
+            ("更多", "F1 完整帮助，任意按钮悬停有说明"),
+        };
+        var sp = new StackPanel();
+        sp.Children.Add(new TextBlock
+        {
+            Text = "欢迎用 FrameCapture 编辑器",
+            FontSize = 16, FontWeight = FontWeights.SemiBold,
+            Foreground = new SolidColorBrush(Theme.Text),
+            Margin = new Thickness(0, 0, 0, 10),
+        });
+        foreach (var (k, v) in rows)
+        {
+            var row = new Grid { Margin = new Thickness(0, 3, 0, 3) };
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(78) });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            var kt = new TextBlock { Text = k, FontSize = 12.5, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(Acc) };
+            var vt = new TextBlock
+            {
+                Text = v, FontSize = 12.5, TextWrapping = TextWrapping.Wrap,
+                Foreground = new SolidColorBrush(Color.FromArgb(0xCC, Theme.Text.R, Theme.Text.G, Theme.Text.B)),
+            };
+            Grid.SetColumn(kt, 0); Grid.SetColumn(vt, 1);
+            row.Children.Add(kt); row.Children.Add(vt);
+            sp.Children.Add(row);
+        }
+        var ok = FrameCapture.Core.Fluent.IconButton("知道了", "开始使用", 84, 12.5);
+        ok.ClearValue(System.Windows.Controls.Control.FontFamilyProperty); // 文字按钮：回到继承的 UI 字体（IconButton 默认是图标字体）
+        ok.Height = 30;
+        FrameCapture.Core.Fluent.HighlightBtn(ok, true);
+        ok.HorizontalAlignment = HorizontalAlignment.Right;
+        ok.Margin = new Thickness(0, 14, 0, 0);
+        ok.Click += (_, _) => CloseGuide();
+        sp.Children.Add(ok);
+
+        var card = new Border
+        {
+            MaxWidth = 520,
+            CornerRadius = new CornerRadius(12),
+            Background = new SolidColorBrush(Theme.PanelBg),
+            BorderBrush = new SolidColorBrush(Color.FromArgb(0x88, Theme.Stroke.R, Theme.Stroke.G, Theme.Stroke.B)),
+            BorderThickness = new Thickness(1),
+            Padding = new Thickness(22, 18, 22, 18),
+            Child = sp,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        _guide = new Border
+        {
+            Background = new SolidColorBrush(Color.FromArgb(0x99, 0x10, 0x10, 0x10)),
+            Child = card,
+        };
+        _guide.MouseLeftButtonUp += (_, _) => CloseGuide(); // 点空白处也可关
+        System.Windows.Controls.Panel.SetZIndex(_guide, 99);
+        _root.Children.Add(_guide);
+        _guide.BeginAnimation(OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(0, 1,
+            new System.Windows.Duration(TimeSpan.FromMilliseconds(220)))
+        { EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut } });
+        FrameCapture.Core.Trace.Log("editor guide shown");
+    }
+
+    void CloseGuide()
+    {
+        if (_guide == null) return;
+        var g = _guide;
+        _guide = null;
+        _settings.Mutate(s => s.EditorGuideShown = true);
+        FrameCapture.Core.Trace.Log("editor guide closed");
+        var fade = new System.Windows.Media.Animation.DoubleAnimation(1, 0,
+            new System.Windows.Duration(TimeSpan.FromMilliseconds(160)));
+        fade.Completed += (_, _) => _root?.Children.Remove(g);
+        g.BeginAnimation(OpacityProperty, fade);
+    }
+
     // ---------------- 行为 ----------------
 
     void OnKeyDown(object sender, KeyEventArgs e)
     {
         Trace.Log($"editor key={e.KeyboardDevice.Modifiers}+{e.Key}");
+        // 首次引导打开时吞掉所有键（Enter/Esc 只关引导，绝不落到"确定/放弃捕获"上）
+        if (_guide != null)
+        {
+            if (e.Key is Key.Escape or Key.Enter or Key.Space) CloseGuide();
+            e.Handled = true;
+            return;
+        }
         int fps = (int)Math.Clamp(_settings.Current.Fps, AppSettings.FpsMin, AppSettings.FpsMax);
         var mods = e.KeyboardDevice.Modifiers;
         if (mods == ModifierKeys.Control && (e.Key == Key.Z || e.Key == Key.U)) { UndoAnn(); return; }

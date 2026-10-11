@@ -7,6 +7,7 @@ public sealed class UndoRedo<T>
 
     public IReadOnlyList<T> Items => _done;
     public int Count => _done.Count;
+    public int RedoCount => _undone.Count;
     public bool CanUndo => _done.Count > 0;
     public bool CanRedo => _undone.Count > 0;
 

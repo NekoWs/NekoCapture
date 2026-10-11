@@ -54,6 +54,9 @@ public sealed class AppSettings
     /// <summary>编辑器窗口总在最前（图钉开关，默认关，R44）。</summary>
     public bool EditorTopmost { get; set; } = false;
 
+    /// <summary>编辑器首次上手引导是否已看过（R45，看过一次不再打扰）。</summary>
+    public bool EditorGuideShown { get; set; } = false;
+
     /// <summary>主题: system | light | dark。</summary>
     public string Theme { get; set; } = "system";
 

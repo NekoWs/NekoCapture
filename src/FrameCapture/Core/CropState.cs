@@ -108,4 +108,6 @@ public sealed class ActionOrder
 
     public bool CanUndoCrop => _crops.Count > 0;
     public bool CanRedoCrop => _cropRedo.Count > 0;
+    public int CropUndoCount => _crops.Count;
+    public int CropRedoCount => _cropRedo.Count;
 }

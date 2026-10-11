@@ -1046,6 +1046,19 @@ static class SelfTest
                 }
                 Chk("T88e-always-in-workarea", inside, "多区域（含负坐标/贴边）浮窗恒在工作区内");
             }
+            {
+                // T89 裁剪拖框引导（R45）
+                var r1 = FrameCapture.Core.CropGuide.Rect(300, 400, 100, 120);
+                Chk("T89a-rect-anydir", r1 == (100.0, 120.0, 200.0, 280.0), $"左上→右下反向拖 → {r1}");
+                var r2 = FrameCapture.Core.CropGuide.Rect(100, 120, 300, 400);
+                Chk("T89b-rect-same", r2 == r1, "两方向拖框同一矩形");
+                var h1 = FrameCapture.Core.CropGuide.HintPos(100, 100, 200, 150, 120, 24, 800, 600);
+                Chk("T89c-hint-below", h1.Y == 258 && h1.X == 140, $"默认框下居中 → {h1}");
+                var h2 = FrameCapture.Core.CropGuide.HintPos(100, 400, 200, 180, 120, 24, 800, 600);
+                Chk("T89d-hint-flip-up", h2.Y == 368, $"下方放不下翻上方 → {h2}");
+                var h3 = FrameCapture.Core.CropGuide.HintPos(700, 100, 90, 50, 120, 24, 800, 600);
+                Chk("T89e-hint-clamp-x", h3.X == 676 && h3.Y == 158, $"贴右缘横向钳边 → {h3}");
+            }
         }
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");
         return fail == 0 ? 0 : 1;
