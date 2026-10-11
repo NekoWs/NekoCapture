@@ -118,37 +118,39 @@ public static class GifEncoder
 
     static (byte[] Indices, byte[] Palette, int EntryBits) Quantize(byte[] bgra, int w, int h)
     {
-        // 1) 收集样本颜色（大步长抽样）
+        // 1) 收集样本颜色（大步长抽样）。6bit 归约键：5bit 会把暗渐变灰与暗杂色并进同桶，
+        //    桶均值被拉离灰轴 → 渐变端头整段同档（R25 T85 抓到）
         int total = w * h;
         int step = Math.Max(1, total / 60_000);
-        var samples = new List<int>(60_000);
         var counts = new Dictionary<int, int>();
         for (int p = 0; p < total; p += step)
         {
             int o = p * 4;
-            // BGR → 5bit 归约键
-            int key = (bgra[o + 2] >> 3 << 10) | (bgra[o + 1] >> 3 << 5) | (bgra[o] >> 3);
+            int key = (bgra[o + 2] >> 2 << 12) | (bgra[o + 1] >> 2 << 6) | (bgra[o] >> 2);
             if (counts.TryGetValue(key, out int c)) counts[key] = c + 1; else counts[key] = 1;
         }
 
-        // 2) median-cut 分桶
+        // 2) median-cut 分桶（R25：按 跨度×像素数 加权选分裂桶——纯 span 优先会让杂色垄断调色板，
+        //    大面积渐变被挤成两三档，抖动也救不回顶部行）
         var boxes = new List<ColorBox>();
         var all = new List<(int Key, int Count)>(counts.Select(kv => (kv.Key, kv.Value)));
         boxes.Add(new ColorBox(all));
         while (boxes.Count < 256)
         {
-            // 找最长通道且桶内颜色最多的 box
-            ColorBox? best = null; int bestRange = -1, bestAxis = 0, bestCount = -1;
+            ColorBox? best = null; long bestScore = -1; int bestAxis = 0;
             foreach (var box in boxes)
             {
                 if (box.Colors.Count < 2) continue;
                 int span = box.Span(out int axis);
-                if (span > bestRange || (span == bestRange && box.Colors.Count > bestCount))
-                { best = box; bestRange = span; bestAxis = axis; bestCount = box.Colors.Count; }
+                long score = (long)span * box.TotalCount;
+                if (score > bestScore) { best = box; bestScore = score; bestAxis = axis; }
             }
-            if (best == null || bestRange <= 0) break;
+            if (best == null || bestScore <= 0) break;
             var sorted = best.Colors.OrderBy(x => AxisKey(x.Key, bestAxis)).ToList();
-            int mid = sorted.Count / 2;
+            // 按像素数取中点（而非颜色条数中点）：分裂后两桶像素量均衡，符合 median-cut 本义
+            long half = best.TotalCount / 2, acc = 0; int mid = 0;
+            for (int i = 0; i < sorted.Count; i++) { acc += sorted[i].Count; if (acc >= half) { mid = i + 1; break; } }
+            mid = Math.Clamp(mid, 1, sorted.Count - 1);
             var a = new ColorBox(sorted.GetRange(0, mid));
             var b = new ColorBox(sorted.GetRange(mid, sorted.Count - mid));
             boxes.Remove(best);
@@ -168,9 +170,9 @@ public static class GifEncoder
             long r = 0, g = 0, b2 = 0, wt = 0;
             foreach (var (key, count) in boxes[i].Colors)
             {
-                r += (long)((key >> 10 & 31) << 3) * count;
-                g += (long)((key >> 5 & 31) << 3) * count;
-                b2 += (long)((key & 31) << 3) * count;
+                r += (long)(((key >> 12 & 63) << 2) + 1) * count;
+                g += (long)(((key >> 6 & 63) << 2) + 1) * count;
+                b2 += (long)(((key & 63) << 2) + 1) * count;
                 wt += count;
             }
             if (wt == 0) wt = 1;
@@ -179,45 +181,91 @@ public static class GifEncoder
             palette[i * 3 + 2] = (byte)(b2 / wt);
         }
 
-        // 4) 像素 → 最近调色板色（带 5bit 键缓存）
-        var cache = new int[32768];
+        // 4) 像素 → 最近调色板色 + Floyd–Steinberg 误差扩散（蛇形扫描）。
+        //    无抖动的中位切割在暗渐变上出明显带状纹（R25 逐帧审查 GIF 产物发现）；
+        //    误差全为 0 的平坦区直接跳过传播，文字边缘不引入噪点。
+        var cache = new int[262144];
         Array.Fill(cache, -1);
         var indices = new byte[total];
-        for (int p = 0; p < total; p++)
+        var errBuf = ErrBuf(total);
+        for (int y = 0; y < h; y++)
         {
-            int o = p * 4;
-            int key = (bgra[o + 2] >> 3 << 10) | (bgra[o + 1] >> 3 << 5) | (bgra[o] >> 3);
-            int idx = cache[key];
-            if (idx < 0)
+            bool ltr = (y & 1) == 0;
+            int sx = ltr ? 1 : -1;
+            int rowBase = y * w;
+            for (int xi = 0; xi < w; xi++)
             {
-                int r = (key >> 10 & 31) << 3, g = (key >> 5 & 31) << 3, b3 = (key & 31) << 3;
-                int bestI = 0, bestD = int.MaxValue;
-                for (int i = 0; i < n; i++)
+                int x = ltr ? xi : w - 1 - xi;
+                int p = rowBase + x, o = p * 4, pe = p * 3;
+                int r = Clamp255(bgra[o + 2] + (int)Math.Round(errBuf[pe]));
+                int g = Clamp255(bgra[o + 1] + (int)Math.Round(errBuf[pe + 1]));
+                int b3 = Clamp255(bgra[o] + (int)Math.Round(errBuf[pe + 2]));
+                int key = (r >> 2 << 12) | (g >> 2 << 6) | (b3 >> 2);
+                int idx = cache[key];
+                if (idx < 0)
                 {
-                    int dr = palette[i * 3] - r, dg = palette[i * 3 + 1] - g, db = palette[i * 3 + 2] - b3;
-                    int d = dr * dr + dg * dg + db * db;
-                    if (d < bestD) { bestD = d; bestI = i; }
+                    int bestI = 0, bestD = int.MaxValue;
+                    for (int i = 0; i < n; i++)
+                    {
+                        int dr = palette[i * 3] - r, dg = palette[i * 3 + 1] - g, db = palette[i * 3 + 2] - b3;
+                        int d = dr * dr + dg * dg + db * db;
+                        if (d < bestD) { bestD = d; bestI = i; }
+                    }
+                    idx = bestI;
+                    cache[key] = idx;
                 }
-                idx = bestI;
-                cache[key] = idx;
+                int er = r - palette[idx * 3], eg = g - palette[idx * 3 + 1], eb = b3 - palette[idx * 3 + 2];
+                indices[p] = (byte)idx;
+                if ((er | eg | eb) == 0) continue;
+                if (x + sx >= 0 && x + sx < w)
+                {
+                    int q = (p + sx) * 3;
+                    errBuf[q] += er * 7f / 16f; errBuf[q + 1] += eg * 7f / 16f; errBuf[q + 2] += eb * 7f / 16f;
+                }
+                if (y + 1 < h)
+                {
+                    int q = (p + w) * 3;
+                    errBuf[q] += er * 5f / 16f; errBuf[q + 1] += eg * 5f / 16f; errBuf[q + 2] += eb * 5f / 16f;
+                    if (x - sx >= 0 && x - sx < w)
+                    {
+                        int q2 = (p + w - sx) * 3;
+                        errBuf[q2] += er * 1f / 16f; errBuf[q2 + 1] += eg * 1f / 16f; errBuf[q2 + 2] += eb * 1f / 16f;
+                    }
+                }
             }
-            indices[p] = (byte)idx;
         }
         return (indices, palette, entryBits);
 
-        static int AxisKey(int key, int axis) => axis == 0 ? (key >> 10) : axis == 1 ? (key >> 5 & 31) : (key & 31);
+        static int AxisKey(int key, int axis) => axis == 0 ? (key >> 12) : axis == 1 ? (key >> 6 & 63) : (key & 63);
+        static int Clamp255(int v) => v < 0 ? 0 : v > 255 ? 255 : v;
+    }
+
+    // 误差缓冲按帧复用（LOH 分配，逐帧 new 会造成 GC 抖动）
+    [ThreadStatic] private static float[] _errBuf;
+    private static float[] ErrBuf(int total)
+    {
+        var b = _errBuf;
+        if (b == null || b.Length < total * 3) { b = new float[total * 3]; _errBuf = b; }
+        else Array.Clear(b, 0, total * 3);
+        return b;
     }
 
     sealed class ColorBox
     {
         public List<(int Key, int Count)> Colors { get; }
-        public ColorBox(List<(int Key, int Count)> colors) => Colors = colors;
+        public long TotalCount { get; }
+        public ColorBox(List<(int Key, int Count)> colors)
+        {
+            Colors = colors;
+            long t = 0; foreach (var (_, c) in colors) t += c;
+            TotalCount = t;
+        }
         public int Span(out int axis)
         {
-            int maxR = 0, minR = 31, maxG = 0, minG = 31, maxB = 0, minB = 31;
+            int maxR = 0, minR = 63, maxG = 0, minG = 63, maxB = 0, minB = 63;
             foreach (var (key, _) in Colors)
             {
-                int r = key >> 10 & 31, g = key >> 5 & 31, b = key & 31;
+                int r = key >> 12 & 63, g = key >> 6 & 63, b = key & 63;
                 if (r > maxR) maxR = r; if (r < minR) minR = r;
                 if (g > maxG) maxG = g; if (g < minG) minG = g;
                 if (b > maxB) maxB = b; if (b < minB) minB = b;

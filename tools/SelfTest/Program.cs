@@ -933,6 +933,48 @@ static class SelfTest
                     && TimelineScale.LabelStepFrames(0.001, 60) == 1800,
                     "退化输入返回 1；极窄时落到最大档 30s（1800帧）");
             }
+            // T85：GIF 误差扩散抖动（R25）——调色板被杂色占满时，暗渐变不得退化成少数几档
+            {
+                int W = 200, H = 40;
+                var buf = new byte[W * H * 4];
+                for (int y = 0; y < H; y++)
+                {
+                    int v = 10 + y * 30 / H; // 左半：10..39 共 30 档暗灰渐变
+                    for (int x = 0; x < W; x++)
+                    {
+                        int o = (y * W + x) * 4;
+                        if (x < W / 2) { buf[o] = (byte)v; buf[o + 1] = (byte)v; buf[o + 2] = (byte)v; }
+                        else
+                        {
+                            // 300 个离散杂色（真实 UI 帧的色种量级）：压调色板但不垄断
+                            int s = ((y * W + x) % 300) * 869;
+                            buf[o] = (byte)(s & 0xFF); buf[o + 1] = (byte)((s >> 8) & 0xFF); buf[o + 2] = (byte)((s >> 16) & 0xFF);
+                        }
+                        buf[o + 3] = 255;
+                    }
+                }
+                var gif = GifEncoder.Encode([new CapturedFrame { Bgra = buf, W = W, H = H, TimeMs = 0 }], [100]);
+                using var msD = new MemoryStream(gif);
+                using var imgD = Image.FromStream(msD, false, true);
+                var dbmp = new Bitmap(imgD);
+                // 抖动的本质是空间混合保均值：逐行均值必须贴合源渐变。
+                // 无抖动时整段行共享同一档（带状纹），逐行均值会偏离源值数档。
+                double worst = 0;
+                var rowMeans = new double[H];
+                for (int y = 0; y < H; y++)
+                {
+                    long rowSum = 0;
+                    for (int x = 0; x < W / 2; x++) rowSum += dbmp.GetPixel(x, y).R;
+                    rowMeans[y] = rowSum / (double)(W / 2);
+                    worst = Math.Max(worst, Math.Abs(rowMeans[y] - (10 + y * 30 / H)));
+                }
+                dbmp.Dispose();
+                Chk("T85a-gradient-dithered", worst <= 2.5,
+                    $"暗渐变逐行均值最大偏离 {worst:F2}（无抖动整段行同档，偏离可达 ±5）" +
+                    (Environment.GetEnvironmentVariable("FC_T85DBG") == "1"
+                        ? " dec=[" + string.Join(" ", rowMeans.Select(m => m.ToString("F0"))) + "]"
+                        + " src=[" + string.Join(" ", Enumerable.Range(0, H).Select(y => (10 + y * 30 / H).ToString())) + "]" : ""));
+            }
         }
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");
         return fail == 0 ? 0 : 1;
