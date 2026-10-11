@@ -551,3 +551,9 @@ status: done
   面板包 ScrollViewer(Auto) + MaxHeight=工作区-48（SizeToContent 受 MaxHeight 封顶）。帮助窗本就有滚动，唯设置窗缺。
   大屏复测：630×1027 与改前一致、无滚动条出现。
 - 验证：GUARDRAIL PASS（FAIL=0 SKIP=1，SelfTest 122/122）。
+
+## 2026-10-11 长跑 R36（DSH goal 轮，20:40 起）
+- **SettingsService.Changed 事件**：Mutate/Reload 锁外触发；处理器可安全回读 Current。
+- **托盘悬停提示动态化**：「捕获 F6 · 选区 F7 / 范围 1726×980 · 60fps」，改键/换范围/fps 即时刷新（Changed→Dispatch）；
+  未设范围提示"双击图标设置"；NotifyIcon.Text 63 字符上限防御回退。
+- 验证：GUARDRAIL PASS（FAIL=0 SKIP=1）；e2e 改键路径实际穿过 Changed→UpdateTip，err_delta=0 无崩溃。

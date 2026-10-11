@@ -165,7 +165,11 @@ public sealed class SettingsService
     public void Reload()
     {
         lock (_gate) _current = Load();
+        Changed?.Invoke();
     }
+
+    /// <summary>设置变化（Mutate/Reload 后触发；锁外调用，处理器可安全回读 Current）。托盘提示等消费。</summary>
+    public event Action? Changed;
 
     public void Mutate(Action<AppSettings> mutate)
     {
@@ -175,5 +179,6 @@ public sealed class SettingsService
             _current.Normalize();
             Save(_current);
         }
+        Changed?.Invoke();
     }
 }

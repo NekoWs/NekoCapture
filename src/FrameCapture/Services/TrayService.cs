@@ -27,6 +27,17 @@ public sealed class TrayService : IDisposable
             if (e.Button == WinForms.MouseButtons.Right) Dispatch(ShowMenu);
         };
         _icon.DoubleClick += (_, _) => Dispatch(() => _host.Controller.BeginScopeSelection());
+        // 悬停提示动态反映当前热键/范围/fps（R36）：改键或换范围后无需打开菜单即可确认状态
+        _host.Settings.Changed += () => Dispatch(UpdateTip);
+        UpdateTip();
+    }
+
+    void UpdateTip()
+    {
+        var s = _host.Settings.Current;
+        string region = s.RegionW >= 16 ? $"范围 {s.RegionW}×{s.RegionH} · {s.Fps}fps" : "未设范围 · 双击图标设置";
+        string tip = $"FrameCapture\n捕获 {s.CaptureHotkey} · 选区 {s.ScopeHotkey}\n{region}";
+        _icon.Text = tip.Length <= 63 ? tip : "FrameCapture"; // NotifyIcon.Text 上限 63 字符
     }
 
     public void Show() => _icon.Visible = true;
