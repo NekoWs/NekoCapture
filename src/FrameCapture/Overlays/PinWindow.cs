@@ -15,7 +15,7 @@ namespace FrameCapture.Overlays;
 /// R65：钉到屏幕——把当前帧（含标注/裁剪，WYSIWYG）作为一张无边框、置顶、可拖动/滚轮缩放的小图，
 /// 钉在桌面原捕获位置。Snipaste/QQ 的招牌手感，此前缺位。
 /// 交互：按住拖动移动；滚轮以中心为锚缩放（10%~600%）；Ctrl+滚轮调不透明度（20%~100%）；
-/// 双击或 Esc 关闭；右键菜单复制/不透明度/关闭/关闭全部贴图。
+/// 双击或 Esc 关闭；R 键顺时针旋转 90°；右键菜单复制/识别文字/旋转/不透明度/关闭/关闭全部贴图。
 /// 不进任务栏（ShowInTaskbar=false），关掉只靠上述手势——与 Snipaste 贴图一致。
 /// </summary>
 public sealed class PinWindow : Window
@@ -23,7 +23,7 @@ public sealed class PinWindow : Window
     // R66：所有在屏贴图的登记表——右键菜单「关闭全部贴图」用；UI 线程访问，无需加锁
     static readonly List<PinWindow> _open = new();
 
-    readonly CapturedFrame _frame;
+    CapturedFrame _frame; // R79：旋转会替换为旋转后的新帧
     readonly Image _img;
     readonly Border _snack;
     readonly TextBlock _snackText;
@@ -123,7 +123,7 @@ public sealed class PinWindow : Window
             Left = cx - Width / 2; Top = cy - Height / 2;
         };
         MouseRightButtonUp += (_, e) => { ShowMenu(); e.Handled = true; };
-        KeyDown += (_, e) => { if (e.Key == Key.Escape) Close(); };
+        KeyDown += (_, e) => { if (e.Key == Key.Escape) Close(); else if (e.Key == Key.R) Rotate(); };
 
         Loaded += (_, _) => _open.Add(this);
         Closed += (_, _) => _open.Remove(this);
@@ -142,6 +142,22 @@ public sealed class PinWindow : Window
         _img.Height = _baseH * _scale;
         Width = _img.Width + 2;
         Height = _img.Height + 2;
+    }
+
+    /// <summary>R79：顺时针旋转 90°（无损像素重排），以中心为锚保持位置不漂移；转 4 次回原图。</summary>
+    void Rotate()
+    {
+        _frame = FrameCapture.Core.PinRotate.Rotate90Cw(_frame);
+        var src = BgraImage.ToSource(_frame);
+        src.Freeze();
+        _img.Source = src;
+        var d = VisualTreeHelper.GetDpi(this);
+        _baseW = _frame.W / d.DpiScaleX;
+        _baseH = _frame.H / d.DpiScaleY;
+        double cx = Left + Width / 2, cy = Top + Height / 2;
+        ApplyScale();
+        Left = cx - Width / 2; Top = cy - Height / 2;
+        FrameCapture.Core.Trace.Log($"pin-rotate → {_frame.W}x{_frame.H}");
     }
 
     /// <summary>R74 磁边：拖动松手后，若贴图某条边贴近所在屏幕工作区边缘（阈值内）则平滑吸附贴合。</summary>
@@ -255,6 +271,8 @@ public sealed class PinWindow : Window
         copy.Click += (_, _) => ClipboardService.SetFrame(_frame);
         var ocr = new MenuItem { Header = "识别文字" };
         ocr.Click += (_, _) => OcrFrame();
+        var rotate = new MenuItem { Header = "旋转 90° (R)" };
+        rotate.Click += (_, _) => Rotate();
         // 不透明度子菜单：预设档位（Ctrl+滚轮可微调）
         var opacity = new MenuItem { Header = "不透明度" };
         foreach (var pct in new[] { 100, 75, 50, 25 })
@@ -270,6 +288,7 @@ public sealed class PinWindow : Window
         closeAll.Click += (_, _) => { foreach (var p in _open.ToArray()) p.Close(); };
         menu.Items.Add(copy);
         menu.Items.Add(ocr);
+        menu.Items.Add(rotate);
         menu.Items.Add(opacity);
         menu.Items.Add(new Separator());
         menu.Items.Add(close);

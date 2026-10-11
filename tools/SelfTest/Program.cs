@@ -1584,6 +1584,32 @@ static class SelfTest
                 ls.Clear();
                 Chk("T114d-clear", ls.Empty && !ls.TryGet(out _, out _, out _), "Clear 后回到空");
             }
+
+            // T115 贴图旋转（R79，PinRotate 纯函数）
+            {
+                static FrameCapture.Capture.CapturedFrame Mk(int w, int h)
+                {
+                    var b = new byte[w * h * 4];
+                    for (int i = 0; i < w * h; i++) b[i * 4] = (byte)(i + 1); // B 通道 = 像素序号+1
+                    return new FrameCapture.Capture.CapturedFrame { Bgra = b, W = w, H = h };
+                }
+                static int B(FrameCapture.Capture.CapturedFrame f, int x, int y) => f.Bgra[(y * f.W + x) * 4];
+                static bool Same(FrameCapture.Capture.CapturedFrame a, FrameCapture.Capture.CapturedFrame b)
+                {
+                    if (a.W != b.W || a.H != b.H || a.Bgra.Length != b.Bgra.Length) return false;
+                    for (int i = 0; i < a.Bgra.Length; i++) if (a.Bgra[i] != b.Bgra[i]) return false;
+                    return true;
+                }
+                var r1 = FrameCapture.Core.PinRotate.Rotate90Cw(Mk(2, 1));
+                Chk("T115a-h2v", r1.W == 1 && r1.H == 2 && B(r1, 0, 0) == 1 && B(r1, 0, 1) == 2, "横 2x1 [A B] → 竖 1x2 A上B下");
+                var r2 = FrameCapture.Core.PinRotate.Rotate90Cw(Mk(2, 2));
+                Chk("T115b-2x2", r2.W == 2 && r2.H == 2 && B(r2, 0, 0) == 3 && B(r2, 1, 0) == 1 && B(r2, 0, 1) == 4 && B(r2, 1, 1) == 2, "2x2 顺时针：上行→右列");
+                var orig = Mk(3, 2);
+                Chk("T115c-identity4", Same(FrameCapture.Core.PinRotate.Rotate(orig, 4), orig), "转 4 次回原图");
+                Chk("T115d-steps", ReferenceEquals(FrameCapture.Core.PinRotate.Rotate(orig, 0), orig)
+                    && Same(FrameCapture.Core.PinRotate.Rotate(orig, 5), FrameCapture.Core.PinRotate.Rotate(orig, 1))
+                    && Same(FrameCapture.Core.PinRotate.Rotate(orig, -1), FrameCapture.Core.PinRotate.Rotate(orig, 3)), "steps=0 同实例；5≡1、-1≡3");
+            }
         }
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");
         return fail == 0 ? 0 : 1;

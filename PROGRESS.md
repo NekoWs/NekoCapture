@@ -1125,3 +1125,17 @@ status: done
 - 构建 0 错误；SelfTest **272/272**（T114a-d：初始空→TryGet false、Set 后帧/区域/设备一致、再次 Set 覆盖为最新、Clear 回空）
 - 完整护栏 GUARDRAIL PASS（FAIL=0 SKIP=7，floor 272；SKIP 为前台非编辑器时注入探针安全跳过，非回归）
 - 实机 e2e（截图亲眼看）：F6→拖框 700x400→`still saved`+toast→等 4s toast 自动消失（编辑器未开）→`--edit-last`→trace `sink→edit last`→`open editor frames=1`→编辑器打开且画面正是刚截内容（非空白）
+
+## 2026-10-12 清晨 交互优化 R79（贴图旋转 90°：横拍/竖拍图就地转正，Snipaste 有 QQ 无）
+
+**动机**：贴一张横过来的截图（手机拍的、旋转过的页面）想转正只能回编辑器或外部工具。Snipaste 贴图可旋转，QQ 无——差异化能力，就地一键转正。
+
+**实现**：
+- `Core/PinRotate` 纯函数：`Rotate90Cw` 无损像素重排（old(x,y)→new(H-1-y,x)，新帧宽=旧高）；`Rotate(f,steps)` 取模 0~3，steps=0 返回同一实例，转 4 次回原图。
+- `PinWindow.Rotate()`：换 `_frame`（改非 readonly）→ 重建 `_img.Source` → 按新帧重算 `_baseW/_baseH` → 以中心为锚 `ApplyScale` 后回中（旋转不漂移）→ trace `pin-rotate → WxH`。
+- 入口：右键菜单「旋转 90° (R)」+ 贴图聚焦时按 R 键。HelpWindow/README 贴图行同步。
+
+**验证**：
+- 构建 0 错误；SelfTest **276/276**（T115a-d：横 2x1→竖 1x2 A上B下、2x2 上行→右列、转 4 次回原图、steps=0 同实例且 5≡1/-1≡3）
+- 完整护栏 GUARDRAIL PASS（FAIL=0 SKIP=7，floor 276）
+- 实机 e2e（EnumWindows 读真实矩形 + trace + 截图亲眼看）：贴图 703x403 @1500,1000 → 发 R → 403x703 @1650,850，中心 (1851.5,1201.5) 保持不变（宽高互换 + 中心不漂移），trace `pin-rotate → 400x700`；截图见贴图内容顺时针转 90°（文字变竖列）
