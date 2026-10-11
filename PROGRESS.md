@@ -437,3 +437,9 @@ status: done
   顺带修设置窗定位：SizeToContent 下 Show 前 ActualWidth=0，手工 CenterOnWorkArea 退化成"左上角落屏幕中心"
   （实测 1920,1044）→ 改 WindowStartupLocation=CenterScreen（实测 1605,531 精确居中），删死方法。
   取证：test-out/framereview/R18/settings.png、help.png。
+
+## 2026-10-11 长跑 R19（DSH goal 轮，15:55 起）
+- **R19 浅色主题逐帧复查**：Theme=light 实测编辑器/选区窗/设置窗。抓到 1 处：播放头白色竖线+三角在浅色面板上
+  完全隐身（R12 定稿时只审了暗色）。改跟 Theme.Text（暗=白、浅=近黑），像素验证 x263 列 26/253 高对比。
+  浅色下其余全部合格：刻度/秒标/滑杆/开关/主题按钮/色板描边/反色主按钮。设置窗浅色截图留档 settings-light.png。
+  教训：双主题 UI 的每次视觉定稿必须两个主题各出一张裁条，单主题审查=半个没审。

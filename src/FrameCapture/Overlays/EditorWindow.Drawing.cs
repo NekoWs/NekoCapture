@@ -607,12 +607,13 @@ public sealed partial class EditorWindow
             c.Children.Add(TlBar(cw - 4.5, 2, 3, ch - 4, 1.5, Color.FromArgb(0x8C, Theme.Stroke.R, Theme.Stroke.G, Theme.Stroke.B)));
         }
 
-        // 播放头：白色竖线 + 顶部三角（PR 指针），与填充端点同坐标不可能分离
-        c.Children.Add(TlBar(xm - 0.75, 4, 1.5, ch - 4, 0.75, Colors.White));
+        // 播放头：主题色竖线 + 顶部三角（PR 指针）——浅色主题下白色会隐身（R19 逐帧审查抓到），跟 Theme.Text 走
+        var ph = Color.FromArgb(0xFF, Theme.Text.R, Theme.Text.G, Theme.Text.B);
+        c.Children.Add(TlBar(xm - 0.75, 4, 1.5, ch - 4, 0.75, ph));
         var tri = new System.Windows.Shapes.Polygon
         {
             Points = new PointCollection { new Point(0, 0), new Point(7, 0), new Point(3.5, 4.5) },
-            Fill = Brushes.White,
+            Fill = new SolidColorBrush(ph),
         };
         Canvas.SetLeft(tri, xm - 3.5);
         Canvas.SetTop(tri, 0);
