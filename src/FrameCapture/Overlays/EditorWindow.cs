@@ -509,6 +509,10 @@ public sealed partial class EditorWindow : Window
                 case Key.Delete: UndoAnn(); return;
                 case Key.K: PickCustomColor(); return;
                 case Key.W: if (_widthMoreBtn != null) ShowWidthPopup(_widthMoreBtn); return;
+                // 时间轴裁剪键盘化（R31）：端点=当前帧，钳位保证至少 2 帧；Backspace 清除
+                case Key.OemOpenBrackets: _rd.Count = _seq.Frames.Count; _rd.SetA(_index); Show(_index); e.Handled = true; return;
+                case Key.OemCloseBrackets: _rd.Count = _seq.Frames.Count; _rd.SetB(_index); Show(_index); e.Handled = true; return;
+                case Key.Back: _rd.A = _rd.B = -1; Show(_index); e.Handled = true; return;
             }
         }
         switch (e.Key)
@@ -586,7 +590,8 @@ public sealed partial class EditorWindow : Window
             cropTxt = $"  裁剪 {cqW:0}×{cqH:0}";
         }
         var (ta, tb2) = TrimRange;
-        string trimTxt = _rd.A >= 0 && tb2 > ta && (ta > 0 || tb2 < _seq.Frames.Count) ? $"  导出 {ta + 1}–{tb2}" : "";
+        // 含两端闭区间 [a,b]：1-based 显示须 tb+1（R31 键盘裁剪实测抓到差一：曾显示"导出 4–7"实导 4–8）
+        string trimTxt = _rd.A >= 0 && tb2 > ta && (ta > 0 || tb2 < _seq.Frames.Count) ? $"  导出 {ta + 1}–{tb2 + 1}" : "";
         _hud.Text = $"{_index + 1}/{_seq.Frames.Count}  {tMs / 1000.0:0.00}s"
             + (_speed != 1.0 ? $"  ×{_speed:0.###}" : "")
             + zoomTxt + cropTxt + trimTxt
