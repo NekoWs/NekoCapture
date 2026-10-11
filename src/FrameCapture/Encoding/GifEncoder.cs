@@ -17,6 +17,15 @@ public static class GifEncoder
         IProgress<int>? progress = null, CancellationToken ct = default)
     {
         if (frames.Count == 0) throw new ArgumentException("no frames");
+        // 厘秒重采样：60fps 直存会整体提速 1.2×；重采样保总时长（Core.GifTiming 纯逻辑，T87 断言）
+        var (keep, qDelays) = FrameCapture.Core.GifTiming.Resample(delaysMs);
+        if (keep.Count < frames.Count)
+        {
+            var kf = new List<CapturedFrame>(keep.Count);
+            foreach (var i in keep) kf.Add(frames[i]);
+            frames = kf;
+        }
+        delaysMs = qDelays; // 即使不丢帧（30fps 的 33→30/40 交替）也要用量化后的延迟
         int w = frames[0].W, h = frames[0].H;
         using var ms = new MemoryStream();
         using var bw = new BinaryWriter(ms);

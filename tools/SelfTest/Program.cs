@@ -998,6 +998,35 @@ static class SelfTest
                 BgraImage.SavePng(comb, Path.Combine(tmp, "afterimage-t86.png"));
                 Chk("T86c-afterimage-png", File.Exists(Path.Combine(tmp, "afterimage-t86.png")));
             }
+            // T87：GIF 厘秒重采样——60fps 不提速、30fps 不丢帧、总时长守恒、延迟全为 ≥2cs 的整十毫秒
+            {
+                var (k60, d60) = FrameCapture.Core.GifTiming.Resample(Enumerable.Repeat(16, 60).ToList());
+                int t60 = d60.Sum();
+                Chk("T87a-60fps-duration", k60.Count >= 45 && k60.Count <= 55 && Math.Abs(t60 - 960) <= 5 * k60.Count
+                    && d60.All(d => d >= 20 && d % 10 == 0) && k60[^1] == 59,
+                    $"60fps: keep={k60.Count} total={t60}ms（目标 960±{5 * k60.Count}）min={d60.Min()}");
+                var (k30, d30) = FrameCapture.Core.GifTiming.Resample(Enumerable.Repeat(33, 30).ToList());
+                Chk("T87b-30fps-kept-all", k30.Count == 30 && Math.Abs(d30.Sum() - 990) <= 150 && d30.All(d => d >= 20),
+                    $"30fps: keep={k30.Count} total={d30.Sum()}ms");
+                var (k1, d1) = FrameCapture.Core.GifTiming.Resample(new List<int> { 16 });
+                Chk("T87c-single-frame", k1.Count == 1 && k1[0] == 0 && d1[0] == 20, $"单帧 keep={k1.Count} d={d1[0]}");
+                // 端到端：60 帧 16ms 编码 → WinForms 解码帧数 = 重采样后帧数（GIF 不再 1.2× 提速）
+                int W = 32, H = 32;
+                var fr = new List<CapturedFrame>();
+                for (int i = 0; i < 60; i++)
+                {
+                    var px = new byte[W * H * 4];
+                    for (int y = 0; y < H; y++) for (int x = 0; x < W; x++)
+                        { int o = (y * W + x) * 4; px[o] = (byte)(x * 8); px[o + 1] = (byte)(i * 4); px[o + 2] = (byte)(y * 8); px[o + 3] = 255; }
+                    fr.Add(new CapturedFrame { Bgra = px, W = W, H = H, TimeMs = i * 16 });
+                }
+                var gif = GifEncoder.Encode(fr, Enumerable.Repeat(16, 60).ToList(), true);
+                using var ms = new MemoryStream(gif);
+                using var img = System.Drawing.Image.FromStream(ms);
+                var fd = img.FrameDimensionsList[0];
+                int n = img.GetFrameCount(FrameDimension.Time);
+                Chk("T87d-gif-framecount", n == k60.Count, $"GIF 解码 {n} 帧 = 重采样 {k60.Count} 帧");
+            }
         }
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");
         return fail == 0 ? 0 : 1;
