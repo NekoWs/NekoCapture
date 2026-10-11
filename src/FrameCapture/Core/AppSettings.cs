@@ -100,6 +100,10 @@ public sealed class AppSettings
     /// 便于像素级精确选区（QQ/Snipaste 招牌手感）。关闭则不抓快照、不显示放大镜。</summary>
     public bool PickerMagnifier { get; set; } = true;
 
+    /// <summary>识别后显示结果窗（默认关，R72）：编辑器「识别文字」成功后，除写剪贴板外再弹出可编辑/可部分复制的
+    /// 结果窗（含字数、复制全部）。关闭则仅写剪贴板 + 轻提示（快速路径）。</summary>
+    public bool OcrShowResult { get; set; } = false;
+
     // ---- 上次捕获范围（物理像素，虚拟桌面绝对坐标；null 表示全屏主屏） ----
     public string? RegionMonitorId { get; set; }
     public int RegionX { get; set; }

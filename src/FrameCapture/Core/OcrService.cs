@@ -41,6 +41,24 @@ public static class OcrService
     public static OcrStatus Classify(string text) =>
         string.IsNullOrWhiteSpace(text) ? OcrStatus.Empty : OcrStatus.Success;
 
+    /// <summary>清理 OCR 文本：统一换行为 \n、每行去行尾空白、连续空行压成一个空行、整体去首尾空白。
+    /// 保留行首缩进（OCR 缩进常有意义）。纯函数，供结果窗/剪贴板与单测。</summary>
+    public static string Normalize(string raw)
+    {
+        if (string.IsNullOrEmpty(raw)) return "";
+        var lines = raw.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
+        var sb = new System.Text.StringBuilder();
+        int blanks = 0;
+        foreach (var ln in lines)
+        {
+            var t = ln.TrimEnd();
+            if (t.Length == 0) { blanks++; if (blanks == 1) sb.Append('\n'); continue; }
+            if (blanks > 0) blanks = 0;
+            sb.Append(t).Append('\n');
+        }
+        return sb.ToString().Trim('\n');
+    }
+
     /// <summary>识别一帧的印刷文字。Bgra8 帧直接拷入 SoftwareBitmap（无 PNG 往返）。</summary>
     public static async Task<OcrOutcome> RecognizeAsync(CapturedFrame frame)
     {

@@ -1010,3 +1010,19 @@ status: done
 - 完整护栏 GUARDRAIL PASS（FAIL=0 SKIP=1）
 - 实机 e2e：F7 → 移光标 → 放大镜显示色块 + 「#272729」；采样放大镜图像中心像素 = #272729（=显示 HEX，内部一致，证明读数即光标下真色）；按 C → 剪贴板 = `#272729`；截图亲眼看色块填充正确 + HEX 清晰
 - 注：放大镜显示快照瞬间的真色，聊天等动态区颜色会随快照时刻变化（正确行为，非 bug）
+
+## R72 · OCR 结果预览窗（可选）——识别文本可看/可编辑/部分复制
+
+**动机**：R69 OCR 只写剪贴板 + 轻提示，用户看不到识别成什么、无法只取一部分。QQ 有 OCR 面板。补一个可选结果窗（默认关，保留快速路径）。
+
+**实现**：
+- `Overlays/OcrResultWindow.cs` 新建：Fluent 标题栏（E8C1 + 「识别文字」+ 关闭）+ 深色可编辑 TextBox（自动换行/竖滚、载入全选便于 Ctrl+C）+ 底部「N 字」计数 + 「复制全部」强调钮（点击复制并变「已复制」）。非模态、Topmost、Esc/关闭淡出。复用 Fluent.TitleBar/InstallCaptionDrag/CloseWithFade/OnAccentColor。
+- `OcrService.Normalize` 纯函数：统一换行、去行尾空白、连续空行压成一个、整体去首尾（保留行首缩进）。剪贴板与结果窗都用它。
+- 设置项 `OcrShowResult`（默认关）：编辑器「编辑器」组 ToggleRow（E8C1）。开→OCR 成功弹结果窗；关→原轻提示路径。
+- HelpWindow/README 补说明。
+
+**验证**：
+- 构建 0 错误；SelfTest **241/241**（T108a-f：Normalize 压空行/去行尾/空/单行/全空/CRLF）
+- 完整护栏 GUARDRAIL PASS（FAIL=0 SKIP=1）
+- 实机 e2e：记事本已知文字 → F6 截图 → Ctrl+O → 结果窗弹出（750×690 物理=500×460 DIP）；截图亲眼看标题栏/深色文本框（已全选高亮）/「122 字」/「复制全部」蓝钮；点「复制全部」→ 剪贴板 122 字 = 显示字数 = 显示内容；Esc 关窗、编辑器仍在（非模态）
+- 注：OCR 引擎本身会并入记事本菜单栏、合并行、个别字误差（AIpha/CharIie），窗口忠实显示/复制其输出，非窗口 bug

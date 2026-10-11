@@ -145,6 +145,8 @@ public sealed class SettingsWindow : Window
         panel.Children.Add(Group("编辑器"));
         panel.Children.Add(ToggleRow("\uEDD7", "记住上次的工具/颜色/粗细", "关闭编辑器时记住你最后用的标注工具、颜色和线宽，下次打开直接是它们，省去每次重选。关闭后每次打开都回到默认（浏览 / 红 / 中）",
             _settings.Current.RememberEditorTools, v => _settings.Mutate(s => s.RememberEditorTools = v)));
+        panel.Children.Add(ToggleRow("\uE8C1", "识别文字后显示结果窗", "「识别文字」成功后，除写剪贴板外再弹出结果窗：可查看/编辑识别文本、部分选中复制、一键复制全部。关闭则仅写剪贴板 + 轻提示（更快）",
+            _settings.Current.OcrShowResult, v => _settings.Mutate(s => s.OcrShowResult = v)));
 
         // ---- 外观 ----
         panel.Children.Add(Group("外观"));

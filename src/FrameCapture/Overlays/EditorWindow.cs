@@ -901,9 +901,13 @@ public sealed partial class EditorWindow : Window
             switch (outcome.Status)
             {
                 case FrameCapture.Core.OcrStatus.Success:
-                    try { System.Windows.Clipboard.SetText(outcome.Text); } catch { }
-                    ShowSnack($"已识别 {outcome.Text.Length} 字 · 已复制");
-                    FrameCapture.Core.Trace.Log($"ocr ok {outcome.Text.Length} chars");
+                    var text = FrameCapture.Core.OcrService.Normalize(outcome.Text);
+                    try { System.Windows.Clipboard.SetText(text); } catch { }
+                    if (_settings.Current.OcrShowResult)
+                        OcrResultWindow.Show(text); // R72：可编辑/部分复制的结果窗
+                    else
+                        ShowSnack($"已识别 {text.Length} 字 · 已复制");
+                    FrameCapture.Core.Trace.Log($"ocr ok {text.Length} chars");
                     break;
                 case FrameCapture.Core.OcrStatus.NoEngine:
                     ShowSnack("未安装 OCR 语言包（设置 › 时间和语言 › 语音）");

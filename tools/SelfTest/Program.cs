@@ -1480,6 +1480,16 @@ static class SelfTest
                 Chk("T107e-hex", FrameCapture.Core.MagnifierMath.Hex(255, 128, 0) == "#FF8000", "RGB→#RRGGBB 大写");
                 Chk("T107f-hex-clamp", FrameCapture.Core.MagnifierMath.Hex(300, -5, 16) == "#FF0010", "越界分量夹到 0–255");
             }
+
+            // T108 OCR 文本清理（R72，OcrService.Normalize 纯决策）
+            {
+                Chk("T108a-collapse-blank", FrameCapture.Core.OcrService.Normalize("a\n\n\n\nb") == "a\n\nb", "连续空行压成一个");
+                Chk("T108b-trim-end", FrameCapture.Core.OcrService.Normalize("  x  \n  y  ") == "  x\n  y", "去行尾空白留缩进");
+                Chk("T108c-empty", FrameCapture.Core.OcrService.Normalize("") == "", "空 → 空");
+                Chk("T108d-single", FrameCapture.Core.OcrService.Normalize("one") == "one", "单行原样");
+                Chk("T108e-allblank", FrameCapture.Core.OcrService.Normalize("\n\n\n") == "", "全空行 → 空");
+                Chk("T108f-crlf", FrameCapture.Core.OcrService.Normalize("a\r\nb\r\nc") == "a\nb\nc", "CRLF→LF");
+            }
         }
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");
         return fail == 0 ? 0 : 1;
