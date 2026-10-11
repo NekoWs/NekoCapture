@@ -183,12 +183,9 @@
 - [x] **Esc/Enter 绕过 CloseWithFade（与 X 按钮双标）**：三处统一 Exit150 淡出（8deb809）。
 
 ## 待办（2026-10-11 长跑交接，06:15）
-- [ ] **重新发布 release**：R1-R3 修复只在 Debug 验证过；用户托盘实例仍跑旧 release（win-x64/FrameCapture.exe）。
-  命令参考：dotnet publish src\FrameCapture -c Release -r win-x64 --self-contained -p:Platform=x64
-  （发布前先杀 FrameCapture，发布后重启实例并跑 scripts/guardrail.ps1 全量闸）。
+- [x] **重新发布 release**（2026-10-11 12:27 完成）：先杀实例 → publish exit=0 → staging 替换 win-x64（exe 时间戳 12:27:10）
+  → 实例 pid 78292 启动 trace "Startup done"；二进制内确认含 R1 字符串 "outline: persistent show"、R2 "hook slow"、R3 CloseWithFade 符号。
 - [ ] 裁剪销毁标注不可逆（裁剪框内重映射标注）。
 - [ ] 编辑器缺重做按钮（Ctrl+Y 有栈无入口）+ CanRedo 态。
 - [ ] Fps 钳制不一致：settings 10..60 vs 编辑器计时器 5..60。
 - [ ] 编辑器缩放/1:1 视图。
-
-- [x] release 重发布完成（staging 验证后替换 win-x64，实例已跑新构建：R1 轮廓生命周期 + R2 钩子零阻塞 + R3 退场一致性）。
