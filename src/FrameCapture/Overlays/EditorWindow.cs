@@ -584,9 +584,11 @@ public sealed partial class EditorWindow : Window
             var (cqW, cqH) = CropPx(_seq.Frames[_index].W, _seq.Frames[_index].H);
             cropTxt = $"  裁剪 {cqW:0}×{cqH:0}";
         }
+        var (ta, tb2) = TrimRange;
+        string trimTxt = _rd.A >= 0 && tb2 > ta && (ta > 0 || tb2 < _seq.Frames.Count) ? $"  导出 {ta + 1}–{tb2}" : "";
         _hud.Text = $"{_index + 1}/{_seq.Frames.Count}  {tMs / 1000.0:0.00}s"
             + (_speed != 1.0 ? $"  ×{_speed:0.###}" : "")
-            + zoomTxt + cropTxt
+            + zoomTxt + cropTxt + trimTxt
             + (_seq.DroppedFrames > 0 ? $"  ⚠内存预算已丢 {_seq.DroppedFrames} 帧" : "");
         DrawRange();
     }
