@@ -1059,6 +1059,18 @@ static class SelfTest
                 var h3 = FrameCapture.Core.CropGuide.HintPos(700, 100, 90, 50, 120, 24, 800, 600);
                 Chk("T89e-hint-clamp-x", h3.X == 676 && h3.Y == 158, $"贴右缘横向钳边 → {h3}");
             }
+            {
+                // T90 文字标注（R46）：字号公式 + 裁剪保文本
+                Chk("T90a-font-frame", FrameCapture.Core.AnnFont.FramePx(3) == 22 && FrameCapture.Core.AnnFont.FramePx(10) == 50, "细=22 粗=50 @1080p");
+                Chk("T90b-font-1080", Math.Abs(FrameCapture.Core.AnnFont.BakePx(3, 1920, 1080) - 22) < 1e-9, "1080p 帧 = 基准");
+                Chk("T90c-font-half", Math.Abs(FrameCapture.Core.AnnFont.BakePx(3, 960, 540) - 11) < 1e-9, "半分辨率等比缩 → 11px");
+                Chk("T90d-font-floor", FrameCapture.Core.AnnFont.BakePx(1, 100, 100) == 10, "小帧下限 10px 防不可读");
+                var ta = new FrameCapture.Drawing.Annotation { Kind = FrameCapture.Drawing.AnnKind.Text, Thickness = 6 };
+                ta.Points.Add((0.5f, 0.5f)); ta.Text = "你好 世界";
+                var keptT = FrameCapture.Core.CropRemap.Remap(new[] { ta }, 0.25, 0.25, 0.5, 0.5);
+                Chk("T90e-remap-keeps-text", keptT.Count == 1 && keptT[0].Text == "你好 世界" && Math.Abs(keptT[0].Points[0].X - 0.5) < 1e-6,
+                    $"裁剪重映射保留文字与坐标 → {keptT.Count}");
+            }
         }
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");
         return fail == 0 ? 0 : 1;

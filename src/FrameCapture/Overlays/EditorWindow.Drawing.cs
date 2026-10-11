@@ -14,12 +14,12 @@ namespace FrameCapture.Overlays;
 // 绘图工具层：线/圆/箭头/手绘/裁剪 + 撤销 + 时间轴范围
 public sealed partial class EditorWindow
 {
-    enum Tool { Browse, Line, Ellipse, Arrow, Freehand, Crop }
+    enum Tool { Browse, Line, Ellipse, Arrow, Freehand, Text, Crop }
 
-    static readonly Tool[] ToolOrder = { Tool.Line, Tool.Ellipse, Tool.Arrow, Tool.Freehand, Tool.Crop };
-    // 面性图标（GlyphProbe 渲染矩阵人工定稿）：线 E949 / 圆 EA3B / 箭头 F0AF / 手绘 E70F / 裁剪 E7A8
-    static readonly string[] ToolGlyph = { "\uE949", "\uEA3B", "\uF0AF", "\uE70F", "\uE7A8" };
-    static readonly string[] ToolTip = { "直线 (L)", "圆圈 (O)", "箭头 (A)", "手绘 (P)", "裁剪 (C)" };
+    static readonly Tool[] ToolOrder = { Tool.Line, Tool.Ellipse, Tool.Arrow, Tool.Freehand, Tool.Text, Tool.Crop };
+    // 面性图标（GlyphProbe 渲染矩阵人工定稿）：线 E949 / 圆 EA3B / 箭头 F0AF / 手绘 E70F / 文字 E8D2 / 裁剪 E7A8
+    static readonly string[] ToolGlyph = { "\uE949", "\uEA3B", "\uF0AF", "\uE70F", "\uE8D2", "\uE7A8" };
+    static readonly string[] ToolTip = { "直线 (L)", "圆圈 (O)", "箭头 (A)", "手绘 (P)", "文字 (T)", "裁剪 (C)" };
     static readonly Color[] Swatches =
     {
         Color.FromRgb(0xE8, 0x11, 0x23), Color.FromRgb(0xFF, 0xB9, 0x00),
@@ -207,7 +207,7 @@ public sealed partial class EditorWindow
         // 再点当前工具=回到浏览态（与线宽/颜色的单选切换同一语义，纯逻辑见 ToolToggle，SelfTest T72a）
         _tool = FrameCapture.Core.ToolToggle.Select(_tool, t, Tool.Browse);
         _canvas.Visibility = _tool == Tool.Browse ? Visibility.Collapsed : Visibility.Visible;
-        _canvas.Cursor = _tool == Tool.Browse ? Cursors.Arrow : Cursors.Cross;
+        _canvas.Cursor = _tool switch { Tool.Browse => Cursors.Arrow, Tool.Text => Cursors.IBeam, _ => Cursors.Cross };
         for (int i = 0; i < _toolBtns.Count; i++)
             Highlight(_toolBtns[i], ToolOrder[i] == _tool);
     }
@@ -222,6 +222,7 @@ public sealed partial class EditorWindow
     {
         if (_tool == Tool.Browse) return;
         e.Handled = true;
+        if (_tool == Tool.Text) { OpenTextInput(e.GetPosition(_canvas)); return; } // 文字：点哪写哪，不拖框
         _canvas.CaptureMouse();
         _pressPos = e.GetPosition(_canvas);
         _dragging = true;
@@ -400,6 +401,65 @@ public sealed partial class EditorWindow
         if (_cropHint != null) { _canvas.Children.Remove(_cropHint); _cropHint = null; }
     }
 
+    // ---------------- 文字标注（R46）：点画布→就地输入→Enter/失焦上屏 ----------------
+
+    TextBox? _textInput;
+    Point _textPos;
+
+    void OpenTextInput(Point pos)
+    {
+        if (_textInput != null) CommitTextInput();
+        var f = _seq.Frames[_index];
+        double disp = FrameCapture.Core.AnnFont.BakePx(CurWidth, f.W, f.H) * Math.Max(0.05, _imgRect.Width / Math.Max(1, f.W));
+        var box = new TextBox
+        {
+            MinWidth = 120, MaxWidth = 640,
+            FontSize = Math.Clamp(disp, 12, 96),
+            FontWeight = FontWeights.Bold,
+            Foreground = new SolidColorBrush(CurColor),
+            Background = new SolidColorBrush(Color.FromArgb(0x40, 0, 0, 0)),
+            BorderBrush = new SolidColorBrush(Acc),
+            BorderThickness = new Thickness(1.5),
+            Padding = new Thickness(5, 2, 5, 2),
+            AcceptsReturn = false,
+        };
+        Canvas.SetLeft(box, pos.X); Canvas.SetTop(box, pos.Y);
+        _textPos = pos;
+        box.PreviewKeyDown += (_, ek) =>
+        {
+            if (ek.Key == Key.Enter) { CommitTextInput(); ek.Handled = true; }
+            else if (ek.Key == Key.Escape) { CancelTextInput(); ek.Handled = true; }
+        };
+        box.LostFocus += (_, _) => CommitTextInput(); // 点别处 = 视为上屏
+        _textInput = box;
+        _canvas.Children.Add(box);
+        box.Focus();
+        System.Windows.Input.Keyboard.Focus(box);
+    }
+
+    void CommitTextInput()
+    {
+        var box = _textInput;
+        if (box == null) return;
+        _textInput = null;
+        string txt = box.Text.Trim();
+        _canvas.Children.Remove(box);
+        if (txt.Length == 0) return;
+        var n = Norm(_textPos);
+        var c0 = CurColor;
+        var a = MakeAnn(AnnKind.Text, Color.FromArgb(255, c0.R, c0.G, c0.B), CurWidth, new[] { n });
+        a.Text = txt;
+        CommitAnn(a);
+        FrameCapture.Core.Trace.Log($"editor text ann len={txt.Length}");
+    }
+
+    void CancelTextInput()
+    {
+        if (_textInput == null) return;
+        _canvas.Children.Remove(_textInput);
+        _textInput = null;
+    }
+
     Annotation MakeAnn(AnnKind k, Color c, float w, IEnumerable<Point> normPts)
     {
         var a = new Annotation { Kind = k, Color = System.Drawing.Color.FromArgb(c.A, c.R, c.G, c.B), Thickness = w };
@@ -519,6 +579,21 @@ public sealed partial class EditorWindow
                 case AnnKind.Freehand when pts.Count >= 2:
                     _canvas.Children.Add(new Polyline { Points = new PointCollection(pts), Stroke = wpfCol, StrokeThickness = stroke, StrokeLineJoin = PenLineJoin.Round });
                     break;
+                case AnnKind.Text when pts.Count > 0 && !string.IsNullOrEmpty(a.Text):
+                {
+                    var f = _seq.Frames[_index];
+                    double fs = FrameCapture.Core.AnnFont.BakePx(a.Thickness, f.W, f.H) * Math.Max(0.05, _imgRect.Width / Math.Max(1, f.W));
+                    var tb = new TextBlock
+                    {
+                        Text = a.Text,
+                        FontSize = Math.Clamp(fs, 8, 400),
+                        FontWeight = FontWeights.Bold,
+                        Foreground = wpfCol,
+                    };
+                    Canvas.SetLeft(tb, pts[0].X); Canvas.SetTop(tb, pts[0].Y);
+                    _canvas.Children.Add(tb);
+                    break;
+                }
             }
         }
         if (_tool != Tool.Browse && _canvas.Visibility != Visibility.Visible)
@@ -555,7 +630,20 @@ public sealed partial class EditorWindow
         return FrameCapture.Core.CropRemap.Remap(anns, (double)x / fw, (double)y / fh, (double)w / fw, (double)h / fh);
     }
     /// <summary>单帧导出（保存帧/复制帧）：与 GIF 同一裁剪收口。</summary>
-    FrameCapture.Capture.CapturedFrame ExportFrame(int index) => CropFramesForExport(new[] { _seq.Frames[index] })[0];
+    /// <summary>导出单帧（复制/存帧用）。R46 修复：所见即所得——裁剪→重映射→烘焙，与 GIF 确定同管线。</summary>
+    FrameCapture.Capture.CapturedFrame ExportFrame(int index)
+    {
+        var f = _seq.Frames[index];
+        var frames = new List<FrameCapture.Capture.CapturedFrame> { f };
+        var anns = _anns.Items.ToList();
+        if (_crop.IsCropped)
+        {
+            var (cx, cy, cw, ch) = _crop.ToPixel(f.W, f.H);
+            frames = FrameCapture.Drawing.Bake.Crop(frames, cx, cy, cw, ch);
+            anns = FrameCapture.Core.CropRemap.Remap(anns, (double)cx / f.W, (double)cy / f.H, (double)cw / f.W, (double)ch / f.H);
+        }
+        return FrameCapture.Drawing.Bake.Apply(frames, anns)[0];
+    }
 
     // ---------------- 时间轴范围 ----------------
 

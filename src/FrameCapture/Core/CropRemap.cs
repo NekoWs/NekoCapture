@@ -25,7 +25,7 @@ public static class CropRemap
             foreach (var p in a.Points)
                 if (p.X < x0 || p.X > x1 || p.Y < y0 || p.Y > y1) { inside = false; break; }
             if (!inside) continue;
-            var na = new Annotation { Kind = a.Kind, Color = a.Color, Thickness = a.Thickness };
+            var na = new Annotation { Kind = a.Kind, Color = a.Color, Thickness = a.Thickness, Text = a.Text };
             foreach (var p in a.Points)
                 na.Points.Add(((float)((p.X - cx0) / cw), (float)((p.Y - cy0) / ch)));
             kept.Add(na);

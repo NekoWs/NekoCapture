@@ -6,7 +6,7 @@ static class Pins
 {
     public static void Run(string outPath)
     {
-        string[] gs = { "\uE718", "\uE77A", "\uE840", "\uE841", "\uE707", "\uE890" };
+        string[] gs = { "\uE718", "\uE77A", "\uE840", "\uE841", "\uE707", "\uE890", "\uE8D2", "\uE8E7", "\uE97B", "\uF2B7" };
         var ft = new Typeface(new FontFamily("Segoe Fluent Icons"), FontStyles.Normal, FontWeights.Normal, FontStretches.Normal);
         int x = 0; var vt = new DrawingVisual();
         using (var dt = vt.RenderOpen())

@@ -4,7 +4,7 @@ using System.Drawing.Imaging;
 
 namespace FrameCapture.Drawing;
 
-public enum AnnKind { Dot, Line, Ellipse, Arrow, Freehand }
+public enum AnnKind { Dot, Line, Ellipse, Arrow, Freehand, Text }
 
 /// <summary>
 /// 一条标注。坐标为帧内归一化 (0..1)，渲染时按目标帧像素缩放，分辨率无关。
@@ -15,8 +15,10 @@ public sealed class Annotation
     public Color Color { get; init; } = Color.FromArgb(255, 0xE7, 0x48, 0x4C);
     /// <summary>粗细（相对 1080p 的像素数）。</summary>
     public float Thickness { get; init; } = 4f;
-    /// <summary>归一化点集：dot=1 点；线/箭头/圆=2 点（圆用包围盒）；手绘=多点。</summary>
+    /// <summary>归一化点集：dot=1 点；线/箭头/圆=2 点（圆用包围盒）；手绘=多点；文字=1 点（左上锚点）。</summary>
     public List<(float X, float Y)> Points { get; } = new();
+    /// <summary>文字内容（仅 Kind=Text）。</summary>
+    public string Text { get; set; } = "";
 
     public void Render(Graphics g, int w, int h)
     {
@@ -59,6 +61,15 @@ public sealed class Annotation
             case AnnKind.Freehand:
                 if (P.Length >= 2) { g.SmoothingMode = SmoothingMode.AntiAlias; g.DrawCurve(p, P); }
                 else if (P.Length == 1) g.FillEllipse(brush, P[0].X - pen, P[0].Y - pen, pen * 2, pen * 2);
+                break;
+            case AnnKind.Text:
+                if (P.Length > 0 && !string.IsNullOrEmpty(Text))
+                {
+                    g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAlias;
+                    float fontPx = (float)FrameCapture.Core.AnnFont.BakePx(Thickness, w, h);
+                    using var fnt = new Font("Microsoft YaHei UI", fontPx, FontStyle.Bold, GraphicsUnit.Pixel);
+                    g.DrawString(Text, fnt, brush, P[0].X, P[0].Y);
+                }
                 break;
         }
     }

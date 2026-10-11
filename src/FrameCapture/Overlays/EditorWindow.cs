@@ -594,6 +594,8 @@ public sealed partial class EditorWindow : Window
             e.Handled = true;
             return;
         }
+        // 文字输入中：编辑快捷键全部让位（Enter 上屏 / Esc 取消由输入框自理，不落到确定/放弃上）
+        if (_textInput != null) return;
         int fps = (int)Math.Clamp(_settings.Current.Fps, AppSettings.FpsMin, AppSettings.FpsMax);
         var mods = e.KeyboardDevice.Modifiers;
         if (mods == ModifierKeys.Control && (e.Key == Key.Z || e.Key == Key.U)) { UndoAnn(); return; }
@@ -623,6 +625,7 @@ public sealed partial class EditorWindow : Window
                 case Key.O: SetTool(Tool.Ellipse); return;
                 case Key.A: SetTool(Tool.Arrow); return;
                 case Key.P: SetTool(Tool.Freehand); return;
+                case Key.T: SetTool(Tool.Text); return;
                 case Key.C: SetTool(Tool.Crop); return;
                 case Key.Delete: UndoAnn(); return;
                 case Key.K: PickCustomColor(); return;
@@ -817,21 +820,6 @@ public sealed partial class EditorWindow : Window
         }
     }
 
-    /// <summary>时间轴范围 + 标注烘焙后的导出帧序列。</summary>
-    CapturedSequence ExportSequence()
-    {
-        var (a, b) = TrimRange;
-        var subset = _seq.Frames.GetRange(a, b - a + 1);
-        var baked = FrameCapture.Drawing.Bake.Apply(subset, _anns.Items);
-        return new CapturedSequence
-        {
-            Frames = baked,
-            Region = _seq.Region,
-            MonitorBounds = _seq.MonitorBounds,
-            MonitorDevice = _seq.MonitorDevice,
-        };
-    }
-
     static List<int> ComputeDelays(IReadOnlyList<CapturedFrame> frames, int fps)
     {
         int defaultDelay = 1000 / fps;
@@ -887,7 +875,16 @@ public sealed partial class EditorWindow : Window
         var dlg = NewSaveDialog("PNG 图片|*.png", "afterimage.png");
         if (dlg.ShowDialog(this) != true) return;
         var combined = BgraImage.Afterimage(CropFramesForExport(_seq.Frames), 5);
-        BgraImage.SavePng(combined, EnsureExt(dlg.FileName, ".png"));
+        // 合成图同样带标注（R46）：裁剪坐标已随 CropFramesForExport 折算，标注做同一重映射后烘焙
+        var anns = _anns.Items.ToList();
+        if (_crop.IsCropped && combined.W > 0)
+        {
+            var f0 = _seq.Frames[0];
+            var (cx, cy, cw, ch) = _crop.ToPixel(f0.W, f0.H);
+            anns = FrameCapture.Core.CropRemap.Remap(anns, (double)cx / f0.W, (double)cy / f0.H, (double)cw / f0.W, (double)ch / f0.H);
+        }
+        var baked = FrameCapture.Drawing.Bake.Apply(new[] { combined }, anns)[0];
+        BgraImage.SavePng(baked, EnsureExt(dlg.FileName, ".png"));
     }
 
     static string EnsureExt(string path, string ext)

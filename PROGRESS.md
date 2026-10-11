@@ -633,3 +633,14 @@ status: done
 - e2e：引导卡首开出现→点「知道了」关闭→flag=True→重开不再出现；裁剪拖框中途截帧见遮罩+网格+气泡
   （像素验证框外 25→14 = ×0.55 压暗、框内 accent 着色），松开 HUD「裁剪 719×432」引导层收干净。
 - 验证：SelfTest 132/132（127→132）；门禁 GUARDRAIL PASS（FAIL=0 SKIP=1）；引导标记已复位 False 留给用户首见。
+
+## 2026-10-11 深夜 交互优化 R46（文字标注 + 导出所见即所得修复）
+- 文字工具 T（QQ 级能力补齐）：点画布就地输入（accent 边框输入框，字号随线宽挡位 AnnFont 公式），
+  Enter/失焦上屏、Esc 取消；输入中编辑器快捷键全部让位（Enter/Esc 不会误触确定/放弃）。
+  模型 AnnKind.Text+Text 字段；烘焙 GDI+ 雅黑加粗，预览 WPF TextBlock 同一 AnnFont.BakePx → 所见即所得。
+- 顺手修 CropRemap：重映射丢 Text 字段（裁剪后文字会变空）→ 复制保留，T90e 锁住。
+- 修长期 bug：复制帧 Ctrl+C / 存帧 Ctrl+S 不带标注（ExportFrame 只裁剪不烘焙）！
+  现与 GIF 确定同管线：裁剪→CropRemap→Bake；视觉暂留 Ctrl+H 合成图同样带标注；删死代码 ExportSequence。
+- 工具条：AA 图标 E8D2（GlyphProbe 验证）插在手绘与裁剪之间；T 快捷键；帮助窗/README 同步。
+- e2e：T→点画布→Ctrl+V 中文→Enter 编辑器红字渲染（像素 bbox 195×41）→Ctrl+C 剪贴板位图含"烘焙验证"红字（修复前 0 个红字像素）。
+- 验证：SelfTest 137/137（132→137，T90a–e）；门禁 GUARDRAIL PASS（FAIL=0 SKIP=1）。
