@@ -4,7 +4,7 @@ using System.Drawing.Imaging;
 
 namespace FrameCapture.Drawing;
 
-public enum AnnKind { Dot, Line, Ellipse, Arrow, Freehand, Text, Mosaic }
+public enum AnnKind { Dot, Line, Ellipse, Arrow, Freehand, Text, Mosaic, Number }
 
 /// <summary>
 /// 一条标注。坐标为帧内归一化 (0..1)，渲染时按目标帧像素缩放，分辨率无关。
@@ -69,6 +69,21 @@ public sealed class Annotation
                     float fontPx = (float)FrameCapture.Core.AnnFont.BakePx(Thickness, w, h);
                     using var fnt = new Font("Microsoft YaHei UI", fontPx, FontStyle.Bold, GraphicsUnit.Pixel);
                     g.DrawString(Text, fnt, brush, P[0].X, P[0].Y);
+                }
+                break;
+            case AnnKind.Number:
+                if (P.Length > 0 && !string.IsNullOrEmpty(Text))
+                {
+                    g.SmoothingMode = SmoothingMode.AntiAlias;
+                    g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAlias;
+                    float fontPx = (float)FrameCapture.Core.AnnFont.BakePx(Thickness, w, h);
+                    float d = (float)FrameCapture.Core.NumberBadge.Diameter(fontPx);
+                    float cx = P[0].X, cy = P[0].Y;
+                    g.FillEllipse(brush, cx - d / 2, cy - d / 2, d, d);
+                    using var fnt = new Font("Microsoft YaHei UI", fontPx, FontStyle.Bold, GraphicsUnit.Pixel);
+                    using var sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
+                    using var white = new SolidBrush(Color.White);
+                    g.DrawString(Text, fnt, white, new RectangleF(cx - d / 2, cy - d / 2, d, d), sf);
                 }
                 break;
         }

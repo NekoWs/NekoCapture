@@ -1026,3 +1026,19 @@ status: done
 - 完整护栏 GUARDRAIL PASS（FAIL=0 SKIP=1）
 - 实机 e2e：记事本已知文字 → F6 截图 → Ctrl+O → 结果窗弹出（750×690 物理=500×460 DIP）；截图亲眼看标题栏/深色文本框（已全选高亮）/「122 字」/「复制全部」蓝钮；点「复制全部」→ 剪贴板 122 字 = 显示字数 = 显示内容；Esc 关窗、编辑器仍在（非模态）
 - 注：OCR 引擎本身会并入记事本菜单栏、合并行、个别字误差（AIpha/CharIie），窗口忠实显示/复制其输出，非窗口 bug
+
+## R73 · 序号标注工具（N）——点一下放递增编号圆标，步骤/教程标注刚需
+
+**动机**：QQ/Snipaste 招牌标注「序号」缺位。做「第 1 步、第 2 步」教程标注时，用文字手打编号 + 手画圆太笨。加一个点击即放递增编号圆标的工具。
+
+**实现**：
+- `Core/NumberBadge.cs` 新建：`Next(existingTexts)` = 现有编号最大值 + 1（无则 1，删除/撤销后自动回退、绝不重号）；`Diameter(fontPx)` = 字号×2。纯函数供单测。
+- `AnnKind.Number` + `Annotation.Render` GDI 烘焙：实心圆（当前色）+ 居中白字（YaHei Bold，随线宽挡位字号）。
+- 编辑器：`Tool.Number` + FromKey("N") + Key.N 分发；`Canvas_Down` 点击即放（同文字工具，无拖拽），编号取 `NumberBadge.Next`；`RedrawAnns` WPF 预览（Grid：Ellipse 实心 + TextBlock 居中白字，与烘焙同径同字）；`AnnBDisp` 序号按元素实测尺寸命中（同文字）。
+- `ToolCatalog` 加条目（Key=N / Sym=① 非 PUA / Glyph=E71D 编号列表图标 GlyphProbe 定稿 / Tip / Help）；工具条、帮助窗自动出现（单一数据源）。T92 同步 8→9 工具、键位串加 N。
+- README 工具行补序号说明。
+
+**验证**：
+- 构建 0 错误；SelfTest **247/247**（T92 更新 + T109a-f：无→1 / 1,2,3→4 / 删中间不补洞 / 删 1 后仍 4 / 非数字忽略 / 直径=字号×2）
+- 完整护栏 GUARDRAIL PASS（FAIL=0 SKIP=1）
+- 实机 e2e（截图亲眼看）：F6 截图进编辑器 → N → 点三处 → 红实心圆白字 **1/2/3** 递增渲染正确、工具条序号图标（E71D）出现且高亮；选工具删 #3 → 再点新处得 **#3**（max[1,2]+1 回退正确）；Ctrl+P 钉图 → 钉的烘焙帧里 **1/2/3 已烙进像素**（GDI 路径与 WPF 预览一致）

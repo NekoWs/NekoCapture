@@ -14,7 +14,7 @@ namespace FrameCapture.Overlays;
 // 绘图工具层：线/圆/箭头/手绘/裁剪 + 撤销 + 时间轴范围
 public sealed partial class EditorWindow
 {
-    enum Tool { Browse, Select, Line, Ellipse, Arrow, Freehand, Text, Mosaic, Crop }
+    enum Tool { Browse, Select, Line, Ellipse, Arrow, Freehand, Text, Mosaic, Crop, Number }
 
     // 工具顺序与 ToolCatalog.Tools 一一对应（T92 锁死）；图标/提示文案的唯一数据源在 Core.ToolCatalog。
     // ToolOrder 由目录键位派生（R52 教训：手写平行数组+断言=断言写错直接 abort 进程，派生让漂移无处可漂）
@@ -22,6 +22,7 @@ public sealed partial class EditorWindow
     {
         "V" => Tool.Select, "L" => Tool.Line, "O" => Tool.Ellipse, "A" => Tool.Arrow,
         "P" => Tool.Freehand, "T" => Tool.Text, "M" => Tool.Mosaic, "C" => Tool.Crop,
+        "N" => Tool.Number,
         _ => throw new InvalidOperationException($"工具目录键 {k} 未接 Tool 枚举"),
     };
     static readonly Tool[] ToolOrder = FrameCapture.Core.ToolCatalog.Tools.Select(t => FromKey(t.Key)).ToArray();
@@ -301,6 +302,18 @@ public sealed partial class EditorWindow
             OpenTextInput(hit != null ? NormToDisp(hit.Points[0]) : tp, hit);
             return;
         }
+        if (_tool == Tool.Number)
+        {
+            // 序号：点哪放哪，编号 = 现有最大 + 1（删除/撤销后自动回退，绝不重号）
+            var np = e.GetPosition(_canvas);
+            var nc = CurColor;
+            var a = MakeAnn(AnnKind.Number, Color.FromArgb(255, nc.R, nc.G, nc.B), CurWidth, new[] { Norm(np) });
+            a.Text = FrameCapture.Core.NumberBadge.Next(
+                _anns.Items.Where(x => x.Kind == AnnKind.Number).Select(x => x.Text)).ToString();
+            CommitAnn(a);
+            FrameCapture.Core.Trace.Log($"editor number #{a.Text}");
+            return;
+        }
         _canvas.CaptureMouse();
         _pressPos = e.GetPosition(_canvas);
         _dragging = true;
@@ -490,7 +503,7 @@ public sealed partial class EditorWindow
     Rect AnnBDisp(Annotation a)
     {
         if (a.Points.Count == 0) return Rect.Empty;
-        if (a.Kind == AnnKind.Text)
+        if (a.Kind == AnnKind.Text || a.Kind == AnnKind.Number)
             for (int i = _annEls.Count - 1; i >= 0; i--)
                 if (ReferenceEquals(_annEls[i].a, a))
                 {
@@ -934,6 +947,23 @@ public sealed partial class EditorWindow
                     Canvas.SetLeft(tb, pts[0].X); Canvas.SetTop(tb, pts[0].Y);
                     _canvas.Children.Add(tb);
                     _annEls.Add((tb, a));
+                    break;
+                }
+                case AnnKind.Number when pts.Count > 0 && !string.IsNullOrEmpty(a.Text):
+                {
+                    var f = _seq.Frames[_index];
+                    double fs = Math.Clamp(FrameCapture.Core.AnnFont.BakePx(a.Thickness, f.W, f.H) * Math.Max(0.05, _imgRect.Width / Math.Max(1, f.W)), 8, 400);
+                    double d = FrameCapture.Core.NumberBadge.Diameter(fs);
+                    var grid = new Grid { Width = d, Height = d };
+                    grid.Children.Add(new Ellipse { Fill = wpfCol });
+                    grid.Children.Add(new TextBlock
+                    {
+                        Text = a.Text, FontSize = fs, FontWeight = FontWeights.Bold, Foreground = Brushes.White,
+                        HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
+                    });
+                    Canvas.SetLeft(grid, pts[0].X - d / 2); Canvas.SetTop(grid, pts[0].Y - d / 2);
+                    _canvas.Children.Add(grid);
+                    _annEls.Add((grid, a));
                     break;
                 }
             }

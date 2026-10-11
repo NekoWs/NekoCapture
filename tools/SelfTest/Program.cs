@@ -1178,10 +1178,10 @@ static class SelfTest
             {
                 // T92 工具目录（R48）：单一数据源防漂移——加新工具漏帮助/漏字形/键位撞车当场红
                 var tools = FrameCapture.Core.ToolCatalog.Tools;
-                Chk("T92a-count", tools.Length == 8, $"八个绘制工具 → {tools.Length}");
+                Chk("T92a-count", tools.Length == 9, $"九个绘制工具 → {tools.Length}");
                 var keys = tools.Select(t => t.Key).ToList();
-                Chk("T92b-keys", keys.Distinct().Count() == 8 && keys.Select(k => k[0]).OrderBy(c => c).SequenceEqual("ACLMOPTV"), "键位 V/L/O/A/P/T/M/C 唯一且齐全");
-                Chk("T92c-glyphs", tools.All(t => t.Glyph.Length == 1 && t.Glyph[0] >= 0xE000 && t.Glyph[0] <= 0xF8FF) && tools.Select(t => t.Glyph).Distinct().Count() == 8,
+                Chk("T92b-keys", keys.Distinct().Count() == 9 && keys.Select(k => k[0]).OrderBy(c => c).SequenceEqual("ACLMNOPTV"), "键位 V/L/O/A/P/T/M/C/N 唯一且齐全");
+                Chk("T92c-glyphs", tools.All(t => t.Glyph.Length == 1 && t.Glyph[0] >= 0xE000 && t.Glyph[0] <= 0xF8FF) && tools.Select(t => t.Glyph).Distinct().Count() == 9,
                     "字形均为私有区码位且互不重复（GlyphProbe 定稿）");
                 Chk("T92d-tips", tools.All(t => t.Tip.Contains(t.Key) && t.Help.Length >= 8), "工具条提示含快捷键、帮助说明非占位");
                 Chk("T92e-heading", FrameCapture.Core.ToolCatalog.HelpHeading.Contains(FrameCapture.Core.ToolCatalog.ExitKey), "退出键 X 写进帮助小节标题");
@@ -1489,6 +1489,16 @@ static class SelfTest
                 Chk("T108d-single", FrameCapture.Core.OcrService.Normalize("one") == "one", "单行原样");
                 Chk("T108e-allblank", FrameCapture.Core.OcrService.Normalize("\n\n\n") == "", "全空行 → 空");
                 Chk("T108f-crlf", FrameCapture.Core.OcrService.Normalize("a\r\nb\r\nc") == "a\nb\nc", "CRLF→LF");
+            }
+
+            // T109 序号编号（R73，NumberBadge 纯决策）
+            {
+                Chk("T109a-first", FrameCapture.Core.NumberBadge.Next(new string[0]) == 1, "无 → 1");
+                Chk("T109b-seq", FrameCapture.Core.NumberBadge.Next(new[] { "1", "2", "3" }) == 4, "1,2,3 → 4");
+                Chk("T109c-gap", FrameCapture.Core.NumberBadge.Next(new[] { "1", "3" }) == 4, "删中间不补洞 → max+1");
+                Chk("T109d-rollback", FrameCapture.Core.NumberBadge.Next(new[] { "2", "3" }) == 4, "删 1 后仍 4（撤销回退靠重算）");
+                Chk("T109e-nonnum", FrameCapture.Core.NumberBadge.Next(new[] { "x", "5" }) == 6, "非数字忽略");
+                Chk("T109f-diam", FrameCapture.Core.NumberBadge.Diameter(20) == 40, "直径=字号×2");
             }
         }
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");

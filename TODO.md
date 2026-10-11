@@ -44,6 +44,8 @@
       构造时保留快照原始 BGRA 直读中心像素；MagnifierMath 加 PixelRgb/Hex 纯函数。SelfTest T107a-f，实机 e2e（色块+HEX 渲染、中心像素=HEX 内部一致、C 复制剪贴板全中）。
 - [x] **OCR 结果预览窗**（R72）：设置「识别文字后显示结果窗」（默认关）开启时，OCR 成功另弹可编辑/可部分复制的结果窗（字数 + 复制全部）。
       OcrResultWindow 新建（复用 Fluent 标题栏/拖窗/淡出）；OcrService.Normalize 纯函数清理文本（剪贴板与结果窗共用）。SelfTest T108a-f，实机 e2e（弹窗、内容/字数/复制全部、Esc 非模态关）。
+- [x] **序号标注工具**（R73）：按 N 点击放递增编号圆标（1、2、3…），步骤/教程标注刚需；删除后编号自动回退不重号。
+      NumberBadge.Next 纯函数（max+1）；AnnKind.Number + GDI 烘焙（实心圆+居中白字）+ WPF 预览；ToolCatalog 加条目（Glyph E71D 定稿）工具条/帮助自动出现；T92 同步 9 工具。SelfTest T109a-f，实机 e2e（1/2/3 递增、删除回退、钉图烘焙进像素）。
 
 ## 用户反馈
 - [x] **录制后的全屏黄色边框持续存在（10-04 已修复）**：根因 = **不是我们的代码**，是 Windows 11

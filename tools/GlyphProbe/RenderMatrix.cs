@@ -47,12 +47,12 @@ static class RenderMatrix
     {
         var cands = new (string Label, string Chars)[]
         {
-            ("TextA    ", "\uE8D2\uE8D3\uE8C1\uE8C2\uE97F\uE98B"),
-            ("TextB    ", "\uE1D8\uE1D9\uE1DA\uE1DB\uE1DC\uE1DD"),
-            ("Doc      ", "\uE8A5\uE7C3\uE130\uE8F1\uE7C0\uE8D7"),
-            ("Scan     ", "\uE774\uE721\uE8FE\uE160\uE9D9\uEB3B"),
-            ("Recog    ", "\uE7C4\uF2B7\uE98B\uF7B3\uE979\uE8A1"),
-            ("FontMisc ", "\uE1C3\uE912\uE9D5\uE9CE\uE9F5\uE8C1"),
+            ("List     ", "\uE292\uE8FD\uEA37\uEB3C\uE200\uE168"),
+            ("Num      ", "\uE8EF\uE9F5\uE9F9\uF20B\uE1CB\uE8C1"),
+            ("Step     ", "\uE8CB\uE7C1\uE7C6\uE8A7\uE71D\uE8AB"),
+            ("Mark     ", "\uE707\uE7C4\uE7B9\uE7B3\uE81F\uE73C"),
+            ("Flag     ", "\uE7C1\uE8AB\uE12A\uE8A7\uE71D\uE73C"),
+            ("Misc     ", "\uE9D5\uE9CE\uE912\uE1C3\uE8C2\uE8D3"),
         };
 int cellW = 130, cellH = 86, labelW = 140;
         int rows = cands.Length, cols = 6;

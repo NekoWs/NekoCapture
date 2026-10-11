@@ -694,6 +694,7 @@ public sealed partial class EditorWindow : Window
                 case Key.T: SetTool(Tool.Text); return;
                 case Key.M: SetTool(Tool.Mosaic); return;
                 case Key.C: SetTool(Tool.Crop); return;
+                case Key.N: SetTool(Tool.Number); return;
                 // 选中工具下 Delete/Backspace=删对象（优先于全局语义：Delete 撤销 / Backspace 清范围）
                 case Key.Delete when _tool == Tool.Select && _sel != null: DeleteSelected(); return;
                 case Key.Back when _tool == Tool.Select && _sel != null: DeleteSelected(); return;
