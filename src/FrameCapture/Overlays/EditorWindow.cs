@@ -273,7 +273,8 @@ public sealed partial class EditorWindow : Window
             var inner = new System.Windows.Shapes.Ellipse
             {
                 Width = 14, Height = 14, Fill = new SolidColorBrush(Swatches[idx]),
-                Stroke = new SolidColorBrush(Theme.Stroke), StrokeThickness = 1, // 白色色块在浅底也可见
+                // 40% 文字色环：Theme.Stroke 在浅色主题太淡，白色色块会融进白工具条（R28 浅色截图抓到）
+                Stroke = new SolidColorBrush(Color.FromArgb(0x66, Theme.Text.R, Theme.Text.G, Theme.Text.B)), StrokeThickness = 1,
             };
             var bd = new Border
             {
@@ -388,7 +389,7 @@ public sealed partial class EditorWindow : Window
             var inner = new System.Windows.Shapes.Ellipse
             {
                 Width = 12, Height = 12, Fill = new SolidColorBrush(col),
-                Stroke = new SolidColorBrush(Theme.Stroke), StrokeThickness = 1,
+                Stroke = new SolidColorBrush(Color.FromArgb(0x66, Theme.Text.R, Theme.Text.G, Theme.Text.B)), StrokeThickness = 1,
             };
             var bd = new Border
             {
