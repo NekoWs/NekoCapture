@@ -456,3 +456,10 @@ status: done
 - 录制边框复查：burstdesk 中边框不可见 = WDA_EXCLUDEFROMCAPTURE 设计使然（对用户可见、对捕获隐身），
   trace 确认 outline shown/hide 节拍正常。Agent 胶片条产物复查合格（12 帧、帧号+时间戳清晰）。
 - 验证：GUARDRAIL PASS（FAIL=0 SKIP=1 共 11 项）。
+
+## 2026-10-11 长跑 R22（DSH goal 轮，16:50 起）
+- **R22 浅色弹层/流程复查（无代码改动）**：宽度弹层浅色合格（白底圆角+蓝滑杆+6px 预览点）；
+  色板行浅色描边清晰；播放头修复在浅色下实测可见（x263 深色列）。
+  单帧流复查：TapAlwaysShowsRegion=true 时点按→选区窗→Enter=静帧 PNG+剪贴板+轮廓闪光反馈（设计如此，trace 吻合）；
+  编辑器开着按 F6=RefocusEditor 不重入捕获（决策表正确，此前"卡死"疑云是颜色对话框吞 Esc 造成的测试环境不干净）。
+  教训：UI 自动化测试前必须枚举并清理残留模态窗（颜色对话框 keyw 打不进模态循环）。
