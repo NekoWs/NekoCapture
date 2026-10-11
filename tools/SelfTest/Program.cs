@@ -273,8 +273,8 @@ static class SelfTest
         {
             var uiGlyphs = new[]
             {
-                // 工具（面性：线/圆/箭头/手绘/裁剪 + 宽度点 + 自定义入口：调色板/更多）
-                '\uE949','\uEA3B','\uF0AF','\uE70F','\uE7A8','\uE915','\uE790','\uE712',
+                // 工具（选中箭头 + 线/圆(线性环)/箭头/手绘/裁剪 + 宽度点 + 自定义入口：调色板/更多）
+                '\uE8B0','\uE949','\uEA3F','\uF0AF','\uE70F','\uE7A8','\uE915','\uE790','\uE712',
                 // 编辑器（面性播放键组 + 动作）
                 '\uF8AC','\uF08D','\uF5B0','\uF8AE','\uF08F','\uF8AD',
                 '\uE105','\uF413','\uE116','\uE955','\uE711','\uF78C','\uE7A7','\uE7A6','\uE713','\uE9CE',
@@ -289,6 +289,16 @@ static class SelfTest
                 if (ok && !(gt!.CharacterToGlyphMap.ContainsKey(ch) && gt.AdvanceWidths[gt.CharacterToGlyphMap[ch]] > 0.08))
                 { all = false; Console.WriteLine($"  missing glyph U+{(int)ch:X4}"); }
             Chk("T10-ui-glyphs-resolve", all && ok, "tofu risk");
+            // T10b 目录字形动态锁：工具目录里每个 Glyph 必须在字体里真实存在且有宽度——
+            // 静态清单会漏新工具（R52 加 V 时就漏了），目录本身才是该锁的对象
+            bool catOk = true;
+            foreach (var t in FrameCapture.Core.ToolCatalog.Tools)
+            {
+                char g = t.Glyph[0];
+                if (!(ok && gt!.CharacterToGlyphMap.ContainsKey(g) && gt.AdvanceWidths[gt.CharacterToGlyphMap[g]] > 0.08))
+                { catOk = false; Console.WriteLine($"  catalog glyph U+{(int)g:X4} ({t.Key}) missing"); }
+            }
+            Chk("T10b-catalog-glyphs-resolve", catOk, "工具目录字形全部可渲染");
         }
         catch (Exception e) { Chk("T10-glyphs", false, e.Message); }
 

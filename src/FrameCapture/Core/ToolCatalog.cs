@@ -14,10 +14,10 @@ public static class ToolCatalog
     /// <summary>绘制工具（顺序 = 工具条从左到右；浏览/退出键 X 单列在 ExitKey）。</summary>
     public static readonly ToolInfo[] Tools =
     {
-        // Glyph 均为 GlyphProbe 渲染矩阵人工定稿：选中 E8B0 / 线 E949 / 圆 EA3B / 箭头 F0AF / 手绘 E70F / 文字 E8D2 / 马赛克 E80A / 裁剪 E7A8
+        // Glyph 均为 GlyphProbe 渲染矩阵人工定稿：选中 E8B0 / 线 E949 / 圆 EA3F（线性环，与画出的描边椭圆同语言；EA3B 是实心盘已弃用）/ 箭头 F0AF / 手绘 E70F / 文字 E8D2 / 马赛克 E80A / 裁剪 E7A8
         new("V", "V", "\uE8B0", "选中 (V)", "点击标注=选中（虚线框）；拖动=移动；Delete=删除；Esc 先取消选中。移动/删除都可 Ctrl+Z 撤销"),
         new("L", "─", "\uE949", "直线 (L)", "拖出直线；再按 L 或点同一图标退出绘制"),
-        new("O", "○", "\uEA3B", "圆圈 (O)", "拖出椭圆/圆（框住目标区域，等比拖出正圆）"),
+        new("O", "○", "\uEA3F", "圆圈 (O)", "拖出椭圆/圆（框住目标区域，等比拖出正圆）"),
         new("A", "↗", "\uF0AF", "箭头 (A)", "拖出箭头，头部自动朝向终点"),
         new("P", "✎", "\uE70F", "手绘 (P)", "按住拖动自由划线，松手成笔"),
         new("T", "T", "\uE8D2", "文字 (T)", "点画布就地输入，Enter 上屏 / Esc 取消；点已有文字可再编辑；字号随线宽挡位"),
