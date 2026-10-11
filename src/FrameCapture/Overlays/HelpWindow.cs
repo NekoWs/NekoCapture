@@ -68,31 +68,39 @@ public sealed class HelpWindow : Window
             Background = new SolidColorBrush(Theme.WindowBg),
             BorderBrush = new SolidColorBrush(Theme.Stroke),
             BorderThickness = new Thickness(1),
-            Padding = new Thickness(22),
             Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 24, ShadowDepth = 2, Opacity = 0.5 },
         };
-        var panel = new StackPanel();
+        var dock = new DockPanel { LastChildFill = true };
+
+        // R62 紧凑化：与设置窗同款自绘标题栏（共享件 Fluent.TitleBar），去掉旧版 18px 大标题 + 悬浮关闭钮；
+        // 分组小标题/行距/内衬全部对齐设置窗同一套密度与视觉语言。
+        var (bar, closeBtn) = FrameCapture.Core.Fluent.TitleBar("\uE9CE", "FrameCapture 使用速查");
+        closeBtn.Click += (_, _) => FrameCapture.Core.Fluent.CloseWithFade(this);
+        DockPanel.SetDock(bar, Dock.Top);
+        dock.Children.Add(bar);
+
+        var panel = new StackPanel { Margin = new Thickness(16, 6, 16, 14) };
         void H(string t) => panel.Children.Add(new TextBlock
         {
-            Text = t, FontSize = 14, FontWeight = FontWeights.SemiBold,
-            Foreground = new SolidColorBrush(Theme.Accent), Margin = new Thickness(0, 12, 0, 4),
+            Text = t, FontSize = 11, FontWeight = FontWeights.SemiBold,
+            Foreground = new SolidColorBrush(Theme.TextDim), Margin = new Thickness(2, 12, 0, 3),
         });
         void KV(string k, string v)
         {
-            // 两列栅格：键位列定宽，说明列对齐（此前空格拼接导致错位）
-            var g = new Grid { Margin = new Thickness(10, 2, 0, 2) };
-            g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(200) });
+            // 两列栅格：键位列定宽（各行同宽才对齐），说明列自适应换行
+            var g = new Grid { Margin = new Thickness(2, 1, 0, 1) };
+            g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(172) });
             g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             var kt = new TextBlock
             {
-                Text = k, FontSize = 13,
+                Text = k, FontSize = 12.5,
                 Foreground = new SolidColorBrush(Theme.Text),
                 VerticalAlignment = VerticalAlignment.Top,
-                Margin = new Thickness(0, 0, 14, 0),
+                Margin = new Thickness(0, 0, 12, 0),
             };
             var vt = new TextBlock
             {
-                Text = v, FontSize = 13,
+                Text = v, FontSize = 12.5,
                 Foreground = new SolidColorBrush(Theme.Text),
                 TextWrapping = TextWrapping.Wrap,
             };
@@ -107,9 +115,6 @@ public sealed class HelpWindow : Window
             var hk = scope ? s?.ScopeHotkey : s?.CaptureHotkey;
             return string.IsNullOrEmpty(hk) ? (scope ? "Ctrl+Shift+R" : "Ctrl+Shift+G") : hk;
         }
-
-        var title = new TextBlock { Text = "FrameCapture 使用速查", FontSize = 18, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(Theme.Text) };
-        panel.Children.Add(title);
 
         H("捕获");
         KV(HK(true), "设置捕获范围（拖框 / 悬停吸附窗口，Enter 确认，Esc 取消）——范围沿用；虚线旧选区可在设置关闭");
@@ -155,26 +160,25 @@ public sealed class HelpWindow : Window
         var tip = new TextBlock
         {
             Text = "小提示：所有按钮悬停都有说明气泡。",
-            FontSize = 12, Foreground = new SolidColorBrush(Theme.TextDim), Margin = new Thickness(0, 14, 0, 0),
+            FontSize = 11.5, Foreground = new SolidColorBrush(Theme.TextDim), Margin = new Thickness(2, 14, 0, 0),
         };
         panel.Children.Add(tip);
 
-        var scroll = new ScrollViewer { Content = panel, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
-        var shell = new Grid();
-        shell.Children.Add(scroll);
-        var closeBtn = FrameCapture.Core.Fluent.IconButton("", "关闭 (Esc)", 34, 14);
-        closeBtn.Click += (_, _) => FrameCapture.Core.Fluent.CloseWithFade(this);
-        closeBtn.HorizontalAlignment = HorizontalAlignment.Right;
-        closeBtn.VerticalAlignment = VerticalAlignment.Top;
-        closeBtn.Margin = new Thickness(0, 10, 12, 0);
-        shell.Children.Add(closeBtn);
-        root.Child = shell;
+        var scroll = new ScrollViewer
+        {
+            Content = panel, VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+        };
+        DockPanel.SetDock(scroll, Dock.Bottom); // LastChildFill 填满剩余
+        dock.Children.Add(scroll);
+        root.Child = dock;
         Content = root;
         Theme.Changed += OnThemeRebuild;
         Closed += (_, _) => Theme.Changed -= OnThemeRebuild;
-        MouseLeftButtonDown += (_, e) => { if (e.OriginalSource is not Control) DragMove(); };
         PreviewKeyDown += (_, e) => { if (e.Key == Key.Escape) FrameCapture.Core.Fluent.CloseWithFade(this); };
         FrameCapture.Core.Fluent.PopupEnter(this);
+        // 标题栏 = 原生 HTCAPTION（共享件，与设置窗同款）；旧版整窗 DragMove 废除（内容区不该拖窗）
+        FrameCapture.Core.Fluent.InstallCaptionDrag(this, closeBtn);
         SourceInitialized += (_, _) =>
         {
             var h = new System.Windows.Interop.WindowInteropHelper(this).Handle;

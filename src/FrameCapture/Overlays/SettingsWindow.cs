@@ -18,7 +18,6 @@ public sealed class SettingsWindow : Window
     readonly SettingsService _settings;
     Action? _hkCancel; // 当前正在捕获新热键的行的取消动作（null=无）
     TextBlock? _hkWarn; // 两热键同键时的内联警示（管理器按"捕获优先"消歧，但用户应知情）
-    Border? _bar;       // 标题栏条带（HTCAPTION 命中区）
     Button? _closeBtn;  // 关闭按钮（从 HTCAPTION 中让位）
 
     public SettingsWindow()
@@ -76,43 +75,10 @@ public sealed class SettingsWindow : Window
         };
         var dock = new DockPanel { LastChildFill = true };
 
-        // ---- 标题栏：取景框图标 + 标题 + 关闭；整条可拖 ----
-        var bar = new Border
-        {
-            Height = 36,
-            Background = new SolidColorBrush(Theme.CardBg),
-            CornerRadius = new CornerRadius(11, 11, 0, 0),
-            Padding = new Thickness(14, 0, 6, 0),
-        };
-        var barGrid = new Grid();
-        barGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        barGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        barGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        barGrid.Children.Add(new TextBlock
-        {
-            Text = "\uE7A8", // 取景框（ToolCatalog 裁剪键已验证字形）
-            FontFamily = new FontFamily(Fluent.IconFontChain),
-            FontSize = 15,
-            Foreground = new SolidColorBrush(Theme.Accent),
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 0, 9, 0),
-        });
-        var title = new TextBlock
-        {
-            Text = "FrameCapture 设置",
-            FontSize = 13,
-            FontWeight = FontWeights.SemiBold,
-            Foreground = new SolidColorBrush(Theme.Text),
-            VerticalAlignment = VerticalAlignment.Center,
-        };
-        Grid.SetColumn(title, 1);
-        barGrid.Children.Add(title);
-        var closeBtn = SmallIcon("\uE711", "关闭 (Esc)");
+        // ---- 标题栏：取景框图标 + 标题 + 关闭；整条可拖（共享件 Fluent.TitleBar，与帮助窗同款） ----
+        var (bar, closeBtn) = FrameCapture.Core.Fluent.TitleBar("\uE7A8", "FrameCapture 设置");
         closeBtn.Click += (_, _) => FrameCapture.Core.Fluent.CloseWithFade(this);
-        Grid.SetColumn(closeBtn, 2);
-        barGrid.Children.Add(closeBtn);
-        bar.Child = barGrid;
-        _bar = bar; _closeBtn = closeBtn;
+        _closeBtn = closeBtn;
         DockPanel.SetDock(bar, Dock.Top);
         dock.Children.Add(bar);
 
@@ -210,28 +176,9 @@ public sealed class SettingsWindow : Window
             var hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
             Win32.SetRoundedCorners(hwnd);
             Win32.SetWindowTextW(hwnd, "FrameCapture Settings");
-            // 标题栏 = 原生 HTCAPTION：OS 模态移动循环，位移 1:1、贴边吸附/多屏语义全免费；
-            // 关闭按钮矩形让位给 WPF 命中（否则点不到）。仅标题栏 36 DIP 条带，内容区不受影响。
-            System.Windows.Interop.HwndSource.FromHwnd(hwnd)?.AddHook((h, msg, w, l, ref handled) =>
-            {
-                const int WM_NCHITTEST = 0x0084, HTCAPTION = 2;
-                if (msg != WM_NCHITTEST) return IntPtr.Zero;
-                int px = (short)((long)l & 0xFFFF), py = (short)((long)l >> 16);
-                if (!Win32.GetWindowRect(h, out var rc)) return IntPtr.Zero;
-                if (px < rc.Left || px >= rc.Right || py < rc.Top || py >= rc.Bottom) return IntPtr.Zero;
-                var src = PresentationSource.FromVisual(this)?.CompositionTarget;
-                double scale = src == null ? 1.0 : src.TransformToDevice.M11;
-                if ((py - rc.Top) >= 36 * scale) return IntPtr.Zero; // 标题栏以下交回 WPF
-                if (_closeBtn != null && _closeBtn.IsVisible)
-                {
-                    var o = _closeBtn.PointToScreen(new Point(0, 0)); // 设备像素
-                    var size = new Size(_closeBtn.ActualWidth * scale, _closeBtn.ActualHeight * scale);
-                    if (px >= o.X && px < o.X + size.Width && py >= o.Y && py < o.Y + size.Height) return IntPtr.Zero;
-                }
-                handled = true;
-                return new IntPtr(HTCAPTION);
-            });
         };
+        // 标题栏 = 原生 HTCAPTION（共享件，与帮助窗同款）：位移 1:1、贴边吸附/多屏语义全免费；关闭按钮让位给 WPF 命中。
+        FrameCapture.Core.Fluent.InstallCaptionDrag(this, _closeBtn);
         Closed += (_, _) => AppHost.Current.InstallHotkeys();
     }
 
@@ -745,7 +692,4 @@ public sealed class SettingsWindow : Window
         Margin = new Thickness(4, 0, 14, 0),
         ToolTip = tip,
     };
-
-    Button SmallIcon(string glyph, string tip) =>
-        FrameCapture.Core.Fluent.IconButton(glyph, tip, 32, 14);
 }

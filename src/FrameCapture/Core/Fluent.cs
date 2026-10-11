@@ -93,6 +93,75 @@ public static class Fluent
         return tpl;
     }
 
+    // ---------------- 自绘标题栏（设置/帮助共用，R62）：CardBg 条带 + 图标 + 标题 + 关闭，整条原生可拖 ----------------
+
+    public const double TitleBarHeight = 36;
+
+    /// <summary>构建自绘标题栏（QQ 式）：返回条带 Border 与关闭按钮。整条经 <see cref="InstallCaptionDrag"/> 变原生拖窗区。
+    /// 设置窗与帮助窗共用同一件——全盘 UI 对齐同一套密度与视觉语言。</summary>
+    public static (Border bar, Button close) TitleBar(string glyph, string title, string closeTip = "关闭 (Esc)")
+    {
+        var bar = new Border
+        {
+            Height = TitleBarHeight,
+            Background = new SolidColorBrush(Theme.CardBg),
+            CornerRadius = new CornerRadius(11, 11, 0, 0),
+            Padding = new Thickness(14, 0, 6, 0),
+        };
+        var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        grid.Children.Add(new TextBlock
+        {
+            Text = glyph, FontFamily = IconFont, FontSize = 15,
+            Foreground = new SolidColorBrush(Theme.Accent),
+            VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 9, 0),
+        });
+        var title1 = new TextBlock
+        {
+            Text = title, FontSize = 13, FontWeight = FontWeights.SemiBold,
+            Foreground = new SolidColorBrush(Theme.Text), VerticalAlignment = VerticalAlignment.Center,
+        };
+        Grid.SetColumn(title1, 1);
+        grid.Children.Add(title1);
+        var close = IconButton("\uE711", closeTip, 32, 14);
+        Grid.SetColumn(close, 2);
+        grid.Children.Add(close);
+        bar.Child = grid;
+        return (bar, close);
+    }
+
+    /// <summary>把窗口顶部 barHeight 条带设为原生 HTCAPTION 拖窗区（OS 模态移动：位移 1:1、贴边吸附/多屏语义免费）；
+    /// 关闭按钮矩形让位给 WPF 命中。内部自挂 SourceInitialized，调用方无需关心时机。</summary>
+    public static void InstallCaptionDrag(Window w, Button closeBtn, double barHeight = TitleBarHeight)
+    {
+        void Hook()
+        {
+            var hwnd = new System.Windows.Interop.WindowInteropHelper(w).Handle;
+            System.Windows.Interop.HwndSource.FromHwnd(hwnd)?.AddHook((h, msg, wp, lp, ref handled) =>
+            {
+                const int WM_NCHITTEST = 0x0084, HTCAPTION = 2;
+                if (msg != WM_NCHITTEST) return IntPtr.Zero;
+                int px = (short)((long)lp & 0xFFFF), py = (short)((long)lp >> 16);
+                if (!Native.Win32.GetWindowRect(h, out var rc)) return IntPtr.Zero;
+                if (px < rc.Left || px >= rc.Right || py < rc.Top || py >= rc.Bottom) return IntPtr.Zero;
+                var src = PresentationSource.FromVisual(w)?.CompositionTarget;
+                double scale = src == null ? 1.0 : src.TransformToDevice.M11;
+                if ((py - rc.Top) >= barHeight * scale) return IntPtr.Zero; // 标题栏以下交回 WPF
+                if (closeBtn.IsVisible)
+                {
+                    var o = closeBtn.PointToScreen(new Point(0, 0)); // 设备像素
+                    var size = new Size(closeBtn.ActualWidth * scale, closeBtn.ActualHeight * scale);
+                    if (px >= o.X && px < o.X + size.Width && py >= o.Y && py < o.Y + size.Height) return IntPtr.Zero;
+                }
+                handled = true;
+                return new IntPtr(HTCAPTION);
+            });
+        }
+        if (w.IsLoaded) Hook(); else w.SourceInitialized += (_, _) => Hook();
+    }
+
     // ---------------- 滑杆：细轨道 + 圆形滑块（悬停放大、光晕） ----------------
 
     public static void StyleSlider(Slider sl) => StyleSlider(sl, Theme.TrackBg, Theme.Accent);
