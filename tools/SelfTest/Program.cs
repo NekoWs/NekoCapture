@@ -809,6 +809,63 @@ static class SelfTest
                 var (dx, dy) = ZoomMath.PanBy(100, 0, -1000, 50, 800, 600, 1600, 1200);
                 Chk("T79d-panby-clamped", dx == -400 && dy == 50, "拖拽增量叠加后仍受钳制");
             }
+            // T80：裁剪=视图状态栈（Core.CropState），帧数据不被破坏
+            {
+                var cs = new CropState();
+                var (px0, py0, pw0, ph0) = cs.ToPixel(1600, 1200);
+                Chk("T80a-identity", !cs.IsCropped && cs.Current.Equals(new CropState.Norm(0, 0, 1, 1))
+                    && px0 == 0 && py0 == 0 && pw0 == 1600 && ph0 == 1200, "无裁剪=全帧，ToPixel 全尺寸");
+                bool p1 = cs.Push(0.25, 0.25, 0.75, 0.75);
+                var (px1, py1, pw1, ph1) = cs.ToPixel(1600, 1200);
+                Chk("T80b-push-topixel", p1 && cs.Depth == 1 && px1 == 400 && py1 == 300 && pw1 == 800 && ph1 == 600,
+                    "拖框(0.25,0.25)-(0.75,0.75) → 像素(400,300,800,600)");
+                bool p2 = cs.Push(0.1, 0.1, 0.5, 0.5); // 二次裁剪=与当前可视区求交
+                var c2 = cs.Current;
+                bool pop1 = cs.Pop(); var c3 = cs.Current;
+                Chk("T80c-intersect-and-pop", p2 && Math.Abs(c2.X - 0.25) < 1e-12 && Math.Abs(c2.W - 0.25) < 1e-12
+                    && pop1 && Math.Abs(c3.W - 0.5) < 1e-12 && cs.Depth == 1,
+                    "二次裁剪与当前区求交(0.25,0.25,0.25,0.25)；Pop 回退一级");
+                int d0 = cs.Depth;
+                bool deg = cs.Push(0.5, 0.5, 0.5, 0.5);
+                bool frac = cs.Push(0.3, 0.3, 0.35, 0.9, 0.1); // 交宽 0.05 ≤ minFrac
+                Chk("T80d-degenerate-rejected", !deg && !frac && cs.Depth == d0, "退化交集/低于最小比例 → 拒绝且栈不变");
+                var cs2 = new CropState();
+                cs2.Push(2, 2, -3, -3); // 越界拖框钳进全帧
+                var cf = cs2.Current;
+                Chk("T80e-clamp-to-unit", Math.Abs(cf.X) < 1e-12 && Math.Abs(cf.W - 1) < 1e-12, "越界拖框钳为全帧");
+            }
+            // T81：标注/裁剪双流撤销次序（Core.ActionOrder）
+            {
+                var ao = new ActionOrder();
+                ao.AnnAdded();       // seq1 画一笔
+                ao.CropPushed();     // seq2 裁剪 → 撤销应弹裁剪
+                bool undoCrop = ao.UndoPopsCrop(hasAnns: true);
+                ao.CropUndone();     // → 裁剪进重做栈
+                ao.AnnStepped();     // seq3 标注流撤销完成（标注此刻可 redo）
+                bool redoAnnFirst = !ao.RedoPopsCrop(annCanRedo: true);   // 标注比裁剪旧 → 先 redo 标注
+                ao.AnnStepped();     // seq4 标注 redo 完成
+                bool redoCropNext = ao.RedoPopsCrop(annCanRedo: false);   // 标注流没了 → 轮到裁剪
+                ao.CropRedone();
+                Chk("T81a-lifo-across-streams",
+                    undoCrop && redoAnnFirst && redoCropNext && ao.CanUndoCrop && !ao.CanRedoCrop,
+                    "Undo 弹更新的裁剪；Redo 按原始顺序先标注后裁剪，双流交错不乱序");
+                var ao2 = new ActionOrder();
+                ao2.CropPushed();    // seq1
+                ao2.AnnAdded();      // seq2 标注
+                ao2.AnnStepped();    // seq3 标注撤销（标注栈变空）
+                bool undoCrop2 = ao2.UndoPopsCrop(hasAnns: false); // 标注已空 → 落到裁剪
+                ao2.CropUndone();
+                bool redoCrop = ao2.RedoPopsCrop(annCanRedo: false);
+                ao2.CropRedone();
+                Chk("T81b-empty-ann-and-redo", undoCrop2 && redoCrop && ao2.CanUndoCrop && !ao2.CanRedoCrop,
+                    "标注流空时撤销落到裁剪；重做对称回裁剪栈");
+                var ao3 = new ActionOrder();
+                ao3.CropPushed();    // seq1
+                ao3.CropUndone();    // 裁剪进 redo
+                ao3.AnnAdded();      // seq2 新动作 → 清空 redo
+                Chk("T81c-new-action-clears-redo", !ao3.CanRedoCrop && !ao3.CanUndoCrop,
+                    "裁剪被撤销后画新笔 → 裁剪 redo 失效（标准撤销语义），两栈皆空");
+            }
         }
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");
         return fail == 0 ? 0 : 1;
