@@ -27,6 +27,11 @@ public sealed partial class EditorWindow
         Color.FromRgb(0xFF, 0xFF, 0xFF),
     };
     static readonly float[] Widths = { 3f, 6f, 10f };
+    // 自定义槽位：_colorIdx == Swatches.Length → 用 _customColor；_widthIdx == Widths.Length → 用 _customWidth
+    float _customWidth = 6f;
+    Color? _customColor;
+    Color CurColor => _colorIdx < Swatches.Length ? Swatches[_colorIdx] : _customColor ?? Swatches[0];
+    float CurWidth => FrameCapture.Core.CustomPick.Width(_widthIdx, Widths, _customWidth);
 
     Canvas _canvas = new();
     Grid _viewGrid = new();
@@ -217,8 +222,9 @@ public sealed partial class EditorWindow
         _pressPos = e.GetPosition(_canvas);
         _dragging = true;
         var n = Norm(_pressPos);
-        var color = Color.FromArgb(255, Swatches[_colorIdx].R, Swatches[_colorIdx].G, Swatches[_colorIdx].B);
-        float thick = Widths[_widthIdx];
+        var c0 = CurColor;
+        var color = Color.FromArgb(255, c0.R, c0.G, c0.B);
+        float thick = CurWidth;
         switch (_tool)
         {
             case Tool.Line:
@@ -270,7 +276,7 @@ public sealed partial class EditorWindow
                 Canvas.SetTop(_preview, Math.Min(_pressPos.Y, p.Y));
                 break;
             case Tool.Arrow:
-                DrawArrowPath((Path)_preview, _pressPos, p, DispStroke(Widths[_widthIdx]));
+                DrawArrowPath((Path)_preview, _pressPos, p, DispStroke(CurWidth));
                 break;
             case Tool.Freehand when _preview is Polyline pl:
                 pl.Points.Add(p);

@@ -1,6 +1,7 @@
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -292,6 +293,15 @@ public sealed partial class EditorWindow : Window
             _swatchBtns.Add(bd);
             bar.Children.Add(bd);
         }
+        // 自定义颜色：调色板入口（ColorDialog）+ 最近自定义色直接点选
+        var pal = IconBtn("\uE790", "自定义颜色… (K)");
+        pal.PreviewMouseLeftButtonDown += (_, e2) => { PickCustomColor(); e2.Handled = true; };
+        pal.PreviewKeyDown += (_, ek) => { if (ek.Key is Key.Enter or Key.Space) { PickCustomColor(); ek.Handled = true; } };
+        _paletteBtn = pal;
+        bar.Children.Add(pal);
+        _recentHost = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+        bar.Children.Add(_recentHost);
+        RebuildRecentSwatches();
         bar.Children.Add(new System.Windows.Shapes.Rectangle { Width = 1, Fill = new SolidColorBrush(Color.FromArgb(Theme.Stroke.A, Theme.Stroke.R, Theme.Stroke.G, Theme.Stroke.B)), Margin = new Thickness(8, 6, 8, 6) });
         foreach (var (w, lbl) in new[] { (0, "细"), (1, "中"), (2, "粗") }.Select((t, i) => (t.Item1, t.Item2)))
         {
@@ -302,6 +312,13 @@ public sealed partial class EditorWindow : Window
             _widthBtns.Add(b);
             bar.Children.Add(b);
         }
+        // 自定义线宽：⋯ 按钮 = 第 4 个宽度槽位，点开滑杆弹层（1..24px）
+        var wMore = IconBtn("\uE712", "自定义线宽… (W)", 24);
+        wMore.PreviewMouseLeftButtonDown += (_, e2) => { ShowWidthPopup(wMore); e2.Handled = true; };
+        wMore.PreviewKeyDown += (_, ek) => { if (ek.Key is Key.Enter or Key.Space) { ShowWidthPopup(wMore); ek.Handled = true; } };
+        _widthMoreBtn = wMore;
+        _widthBtns.Add(wMore);
+        bar.Children.Add(wMore);
         bar.Children.Add(new System.Windows.Shapes.Rectangle { Width = 1, Fill = new SolidColorBrush(Color.FromArgb(Theme.Stroke.A, Theme.Stroke.R, Theme.Stroke.G, Theme.Stroke.B)), Margin = new Thickness(8, 6, 8, 6) });
         var undo = IconBtn("", "撤销 (Ctrl+Z)");
         undo.Click += (_, _) => UndoAnn();
@@ -337,6 +354,8 @@ public sealed partial class EditorWindow : Window
     {
         for (int i = 0; i < _swatchBtns.Count; i++)
             _swatchBtns[i].BorderBrush = i == _colorIdx ? new SolidColorBrush(Acc) : Brushes.Transparent;
+        // 自定义槽位选中 = 调色板反白（与宽度/工具同一选中语言）
+        if (_paletteBtn != null) FrameCapture.Core.Fluent.HighlightBtn(_paletteBtn, _colorIdx == Swatches.Length);
     }
 
     void RefreshWidths()
@@ -344,6 +363,103 @@ public sealed partial class EditorWindow : Window
         // 与绘制工具同一选中语言：accent 实心 + 反白图标（初值在 BuildToolsBar 尾部即刷新，默认宽度可见高亮）
         for (int i = 0; i < _widthBtns.Count; i++)
             FrameCapture.Core.Fluent.HighlightBtn(_widthBtns[i], i == _widthIdx);
+    }
+
+    // ---------------- 自定义颜色 / 线宽 ----------------
+
+    Button? _paletteBtn;
+    Button? _widthMoreBtn;
+    StackPanel? _recentHost;
+    Popup? _widthPop;
+    Slider? _widthSlider;
+    System.Windows.Shapes.Ellipse? _widthPreview;
+    TextBlock? _widthVal;
+
+    List<string> RecentColors => _settings.Current.CustomColors ?? new List<string>();
+
+    void RebuildRecentSwatches()
+    {
+        if (_recentHost == null) return;
+        _recentHost.Children.Clear();
+        foreach (var hex in RecentColors.Take(4))
+        {
+            Color col;
+            try { col = (Color)ColorConverter.ConvertFromString(hex); } catch { continue; }
+            var inner = new System.Windows.Shapes.Ellipse
+            {
+                Width = 12, Height = 12, Fill = new SolidColorBrush(col),
+                Stroke = new SolidColorBrush(Theme.Stroke), StrokeThickness = 1,
+            };
+            var bd = new Border
+            {
+                Child = inner, Width = 20, Height = 20, Margin = new Thickness(2, 0, 0, 0),
+                CornerRadius = new CornerRadius(10), Background = Brushes.Transparent,
+                Cursor = Cursors.Hand, ToolTip = $"最近用色 {hex}",
+            };
+            FrameCapture.Core.Fluent.ChipHover(bd);
+            string h = hex;
+            bd.MouseLeftButtonDown += (sender2, e2) =>
+            {
+                _customColor = col; _colorIdx = Swatches.Length; RefreshSwatches(); e2.Handled = true;
+            };
+            _recentHost.Children.Add(bd);
+        }
+    }
+
+    void PickCustomColor()
+    {
+        var dlg = new System.Windows.Forms.ColorDialog { FullOpen = true };
+        var cur = _customColor ?? CurColor;
+        dlg.Color = System.Drawing.Color.FromArgb(cur.R, cur.G, cur.B);
+        if (dlg.ShowDialog() != System.Windows.Forms.DialogResult.OK) return;
+        var got = dlg.Color;
+        _customColor = Color.FromRgb(got.R, got.G, got.B);
+        _colorIdx = Swatches.Length;
+        _settings.Mutate(s => s.CustomColors = FrameCapture.Core.CustomPick.RememberColor(s.CustomColors, $"#{got.R:X2}{got.G:X2}{got.B:X2}"));
+        RebuildRecentSwatches();
+        RefreshSwatches();
+    }
+
+    void ShowWidthPopup(Button anchor)
+    {
+        if (_widthPop == null)
+        {
+            _widthSlider = new Slider { Minimum = 1, Maximum = 24, IsSnapToTickEnabled = true, TickFrequency = 1, Width = 150 };
+            FrameCapture.Core.Fluent.StyleSlider(_widthSlider);
+            _widthVal = new TextBlock { FontFamily = new FontFamily("Segoe UI"), FontSize = 11, Foreground = new SolidColorBrush(Theme.Text), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 0, 0) };
+            _widthPreview = new System.Windows.Shapes.Ellipse { Fill = new SolidColorBrush(Theme.Text), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0, 0, 0) };
+            _widthSlider.ValueChanged += (_, e) =>
+            {
+                _customWidth = (float)e.NewValue;
+                _widthIdx = Widths.Length; // 自定义槽位
+                if (_widthVal != null) _widthVal.Text = $"{(int)e.NewValue}px";
+                if (_widthPreview != null) { _widthPreview.Width = _widthPreview.Height = Math.Clamp(e.NewValue, 3, 20); }
+                RefreshWidths();
+            };
+            var head = new StackPanel { Orientation = Orientation.Horizontal, Children = { _widthSlider, _widthVal, _widthPreview } };
+            _widthPop = new Popup
+            {
+                Child = new Border
+                {
+                    Background = new SolidColorBrush(Theme.PanelBg),
+                    BorderBrush = new SolidColorBrush(Theme.Stroke),
+                    BorderThickness = new Thickness(1),
+                    CornerRadius = new CornerRadius(8),
+                    Padding = new Thickness(12, 9, 12, 9),
+                    Child = head,
+                    // Popup 从 PlacementTarget（图标按钮）继承 FontFamily=图标字体 → 数字会变豆腐，_widthVal 显式复位
+                },
+                PlacementTarget = anchor,
+                Placement = PlacementMode.Top,
+                StaysOpen = false,
+                AllowsTransparency = true,
+                PopupAnimation = PopupAnimation.Fade,
+            };
+        }
+        _widthSlider.Value = Math.Clamp(_customWidth, 1, 24);
+        if (_widthVal != null) _widthVal.Text = $"{(int)_widthSlider.Value}px";
+        if (_widthPreview != null) _widthPreview.Width = _widthPreview.Height = Math.Clamp(_widthSlider.Value, 3, 20);
+        _widthPop.IsOpen = true;
     }
 
     // ---------------- 行为 ----------------
@@ -355,7 +471,7 @@ public sealed partial class EditorWindow : Window
         var mods = e.KeyboardDevice.Modifiers;
         if (mods == ModifierKeys.Control && (e.Key == Key.Z || e.Key == Key.U)) { UndoAnn(); return; }
         if (mods == ModifierKeys.Control && e.Key == Key.Y) { RedoAnn(); return; }
-        // 右侧竖排工具快捷键
+        // 底部工具快捷键
         if (mods == ModifierKeys.Control)
         {
             switch (e.Key)
@@ -382,11 +498,15 @@ public sealed partial class EditorWindow : Window
                 case Key.P: SetTool(Tool.Freehand); return;
                 case Key.C: SetTool(Tool.Crop); return;
                 case Key.Delete: UndoAnn(); return;
+                case Key.K: PickCustomColor(); return;
+                case Key.W: if (_widthMoreBtn != null) ShowWidthPopup(_widthMoreBtn); return;
             }
         }
         switch (e.Key)
         {
             case Key.Escape:
+                // 宽度弹层打开时：Esc 只收弹层（分层语义的第一层）
+                if (_widthPop is { IsOpen: true }) { _widthPop.IsOpen = false; e.Handled = true; return; }
                 // 分层语义（T82）：导出中=取消；绘制态=先退出工具，误触 Esc 绝不丢整次捕获；浏览态=关闭
                 switch (FrameCapture.Core.EscStep.Select(_encoding, _tool != Tool.Browse))
                 {

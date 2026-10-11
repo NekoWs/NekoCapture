@@ -54,6 +54,9 @@ public sealed class AppSettings
     /// <summary>强调色 hex (如 #4CC2FF)；空 = 跟随系统。</summary>
     public string Accent { get; set; } = "";
 
+    /// <summary>编辑器"自定义颜色"的最近用色（#RRGGBB，新在前，≤6 条，CustomPick.RememberColor 维护）。</summary>
+    public List<string> CustomColors { get; set; } = new();
+
     /// <summary>开机自启。</summary>
     public bool RunAtStartup { get; set; }
 

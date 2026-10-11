@@ -378,3 +378,16 @@ status: done
 - **构建教训**：dotnet build 不带 -p:Platform=x64 会输出到 bin\Debug（AnyCPU），运行实例仍跑旧 dll——
   本轮曾因此"看到旧界面"排查半天；此后一律带 Platform=x64 并以 dll 内符号（BuildPanels/FloatBar）验证新旧。
   验证：SelfTest 104/104；GUARDRAIL PASS（FAIL=0 SKIP=1 共 11 项）。
+
+## 2026-10-11 长跑 R13（DSH goal 轮，14:30 起）
+- **R13 自定义颜色 + 自定义线宽（用户清单第 2 条落地）**：
+  ① 调色板按钮（E790，GlyphProbe 矩阵定稿）→ 原生 ColorDialog（FullOpen：色相板+RGB+自定义色槽）；
+     最近用色 ≤6 条钉在按钮右侧（点击即用），置顶去重、大小写不敏感——纯逻辑 Core.CustomPick.RememberColor，
+     持久化 settings.CustomColors（实测 #E81123 落盘）。快捷键 K。
+  ② ⋯ 按钮（E712）= 第 4 宽度槽位 → 滑杆弹层 1..24px（Fluent 滑杆+实时数值+预览圆点，Popup Fade，StaysOpen=false）。
+     快捷键 W。宽度选择决策表 Core.CustomPick.Width（预设区间/自定义钳位），SelfTest T83a-f 六断言。
+  ③ Esc 分层再进一层：弹层打开时 Esc 只收弹层（实测：第一次 Esc 编辑器存活，第二次才关）。
+  ④ 逐帧审查发现并修复：Popup 从 PlacementTarget（图标按钮）继承图标字体 → "6px" 变豆腐；TextBlock 显式 Segoe UI。
+     （教训：WPF Popup 属性继承自 PlacementTarget，锚在图标按钮上的浮层必须显式复位 FontFamily。）
+  ⑤ 帮助窗口同步：调色板 K / ⋯ 宽度 W 两条；"右侧竖排"→"底部工具条"；时间轴描述改把手语义。
+  验证：SelfTest 110/110（+6）；GUARDRAIL PASS（FAIL=0 SKIP=1 共 11 项）。

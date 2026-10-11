@@ -47,12 +47,12 @@ static class RenderMatrix
     {
         var cands = new (string Label, string Chars)[]
         {
+            ("More     ", "\uE790\uE10C\uE712\uE9E9\uEBB4\uE86A"),
+            ("Palette  ", "\uE790\uE2B1\uEF8C\uF067\uE7F0\uE7EE"),
             ("PrevSec  ", "\uF8AB\uF8AC\uF8AD\uF8AE\uE892\uEB9E"),
             ("PrevFrame", "\uF08B\uF08C\uF08D\uF08E\uF08F\uE100"),
             ("NextFrame", "\uE101\uF090\uF091\uF092\uF093\uF094"),
             ("Pen      ", "\uEDD6\uEDD7\uEDD8\uEDD9\uE70F\uEB60"),
-            ("Gif      ", "\uE786\uE8B9\uE116\uF684\uEA5C\uF4A4"),
-            ("After    ", "\uE955\uE7F8\uEE4B\uF4F0\uE8BA\uE786"),
         };
 int cellW = 130, cellH = 86, labelW = 140;
         int rows = cands.Length, cols = 6;

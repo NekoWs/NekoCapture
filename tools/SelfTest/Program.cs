@@ -251,8 +251,8 @@ static class SelfTest
         {
             var uiGlyphs = new[]
             {
-                // 工具（面性：线/圆/箭头/手绘/裁剪 + 宽度点）
-                '\uE949','\uEA3B','\uF0AF','\uE70F','\uE7A8','\uE915',
+                // 工具（面性：线/圆/箭头/手绘/裁剪 + 宽度点 + 自定义入口：调色板/更多）
+                '\uE949','\uEA3B','\uF0AF','\uE70F','\uE7A8','\uE915','\uE790','\uE712',
                 // 编辑器（面性播放键组 + 动作）
                 '\uF8AC','\uF08D','\uF5B0','\uF8AE','\uF08F','\uF8AD',
                 '\uE105','\uF413','\uE116','\uE955','\uE711','\uF78C','\uE7A7','\uE7A6','\uE713','\uE9CE',
@@ -887,6 +887,35 @@ static class SelfTest
                     && EscStep.Select(encoding: false, inToolMode: true) == EscAction.ExitTool
                     && EscStep.Select(encoding: false, inToolMode: false) == EscAction.Close,
                     "导出中优先取消；绘制态先退工具（误触不丢捕获）；仅浏览态关闭");
+            }
+            // T83：自定义线宽/最近自定义色（Core.CustomPick）
+            {
+                float[] presets = { 3f, 6f, 10f };
+                Chk("T83a-width-presets",
+                    CustomPick.Width(0, presets, 99) == 3f && CustomPick.Width(2, presets, 99) == 10f,
+                    "idx 在预设区间 → 预设值，自定义值不参与");
+                Chk("T83b-width-custom-clamp",
+                    CustomPick.Width(3, presets, 17) == 17f && CustomPick.Width(3, presets, 0.2f) == CustomPick.WidthMin
+                    && CustomPick.Width(3, presets, 500) == CustomPick.WidthMax && CustomPick.Width(-1, presets, 8) == 8f,
+                    "自定义槽位/越界 idx → 自定义值钳 1..24");
+                var mem = CustomPick.RememberColor(new[] { "#FF0000", "#00FF00" }, "#0000FF");
+                Chk("T83c-recent-newest-first-dedupe",
+                    mem.Count == 3 && mem[0] == "#0000FF" && mem[1] == "#FF0000",
+                    "新色置顶，旧色依序保留");
+                var mem2 = CustomPick.RememberColor(new[] { "#ff0000", "#00FF00" }, "#FF0000");
+                Chk("T83d-recent-case-insensitive",
+                    mem2.Count == 2 && mem2[0] == "#FF0000" && mem2[1] == "#00FF00",
+                    "大小写不敏感去重，保留首次出现的大写形态");
+                var mem3 = CustomPick.RememberColor(
+                    new[] { "#111111", "#222222", "#333333", "#444444", "#555555" }, "#666666", cap: 6);
+                var mem4 = CustomPick.RememberColor(mem3, "#777777", cap: 6);
+                Chk("T83e-recent-cap",
+                    mem3.Count == 6 && mem4.Count == 6 && mem4[0] == "#777777" && mem4[1] == "#666666" && !mem4.Contains("#555555"),
+                    "上限 6 条：新色置顶，超限挤掉最旧一条");
+                var mem5 = CustomPick.RememberColor(new[] { "", "#AABBCC" }, null);
+                Chk("T83f-recent-skip-empty",
+                    mem5.Count == 1 && mem5[0] == "#AABBCC",
+                    "空/新色缺失时丢弃，不占位");
             }
         }
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");
