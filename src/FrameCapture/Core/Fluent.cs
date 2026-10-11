@@ -97,6 +97,30 @@ public static class Fluent
 
     public static void StyleSlider(Slider sl) => StyleSlider(sl, Theme.TrackBg, Theme.Accent);
 
+    /// <summary>
+    /// 打开弹层且「本次按压的抬起不关板」（R55，R59 移入 Fluent 供编辑器/设置共用）：
+    /// StaysOpen=false 会把打开后第一次全局抬起当"点了外面"，按下即开板 → 抬手秒关，永远点不进弹层。
+    /// 先 StaysOpen=true 开板，下一次抬起再武装自动关闭。
+    /// 双钩子（handledEventsToo）：开板按压必在宿主窗；抬起落点要么宿主窗（窗钩子命中→解除，
+    /// 之后点外面即关）要么弹层（弹层独立 HWND，其子树钩子命中→解除，抬手进板即常驻可操作）。
+    /// 一次性、谁先命中谁摘双钩。
+    /// </summary>
+    public static void OpenPopSticky(Popup pop, UIElement hostEl)
+    {
+        pop.StaysOpen = true;
+        pop.IsOpen = true;
+        var popEl = (UIElement)pop.Child;
+        System.Windows.Input.MouseButtonEventHandler up = null!;
+        up = (_, _) =>
+        {
+            hostEl.RemoveHandler(System.Windows.Input.Mouse.PreviewMouseUpEvent, up);
+            popEl.RemoveHandler(System.Windows.Input.Mouse.PreviewMouseUpEvent, up);
+            pop.StaysOpen = false;
+        };
+        hostEl.AddHandler(System.Windows.Input.Mouse.PreviewMouseUpEvent, up, true);
+        popEl.AddHandler(System.Windows.Input.Mouse.PreviewMouseUpEvent, up, true);
+    }
+
     public static void StyleSlider(Slider sl, Color trackColor, Color accentColor)
     {
         string track = Hex(trackColor), acc = Hex(accentColor);

@@ -42,7 +42,11 @@ public sealed class ColorPickView : StackPanel
             IsHitTestVisible = false,
         };
         var sv = new Grid { Width = 180, Height = 120, Cursor = Cursors.Cross, ClipToBounds = true };
-        sv.Children.Add(_svHue); sv.Children.Add(_svVal); sv.Children.Add(_svKnob);
+        sv.Children.Add(_svHue); sv.Children.Add(_svVal);
+        // 游标必须活在 Canvas 里：Canvas.SetLeft/Top 对 Grid 子级无效（R54 起游标一直钉死中央）
+        var knobHost = new Canvas { IsHitTestVisible = false };
+        knobHost.Children.Add(_svKnob);
+        sv.Children.Add(knobHost);
         AttachDrag(sv, (x, y) => { _s = x; _v = 1 - y; Sync(); Fire(); });
 
         // ---- 色相竖条：彩虹常驻 ----

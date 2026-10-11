@@ -10,6 +10,9 @@ using System.Drawing.Imaging;
 [DllImport("user32.dll")] static extern bool SetProcessDPIAware();
 [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern nint FindWindowW(string? cls, string title);
 [DllImport("user32.dll")] static extern bool SetForegroundWindow(nint h);
+[DllImport("user32.dll")] static extern bool BringWindowToTop(nint h);
+[DllImport("kernel32.dll")] static extern uint GetCurrentThreadId();
+[DllImport("user32.dll")] static extern bool AttachThreadInput(int a, int b, bool attach);
 [DllImport("user32.dll")] static extern void keybd_event(byte vk, byte scan, uint flags, nint extra);
 [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
 [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(nint h, out int pid);
@@ -42,6 +45,27 @@ switch (mode)
     {
         nint h = FindWindowW(null, args[1]);
         Console.WriteLine($"hwnd={(long)h}");
+        break;
+    }
+    case "activate": // activate <标题> —— 仅置前台（焦点安全库用），不发送任何键
+    {
+        nint h = FindWindowW(null, args[1]);
+        if (h == 0) { Console.WriteLine("window-not-found"); return; }
+        // 前台锁：后台进程 SetForegroundWindow 会被拒。AttachThreadInput 把本线程输入队列
+        // 挂到当前前台窗线程上，借它的"前台权"完成置前台（不发送任何键，不碰用户窗口状态）
+        nint fg = GetForegroundWindow();
+        int curTid = (int)GetCurrentThreadId();
+        int fgTid = (int)GetWindowThreadProcessId(fg, out _);
+        int selfTid = (int)GetWindowThreadProcessId(h, out _);
+        bool a1 = AttachThreadInput(curTid, fgTid, true);
+        bool a2 = AttachThreadInput(curTid, selfTid, true);
+        bool ok = SetForegroundWindow(h);
+        BringWindowToTop(h);
+        if (a1) AttachThreadInput(curTid, fgTid, false);
+        if (a2) AttachThreadInput(curTid, selfTid, false);
+        await Task.Delay(150);
+        int pid; GetWindowThreadProcessId(GetForegroundWindow(), out pid);
+        Console.WriteLine($"activate {(long)h} setfg={ok} nowpid={pid}");
         break;
     }
     case "commit":
@@ -106,18 +130,38 @@ switch (mode)
         Console.WriteLine($"key {vk} sent");
         break;
     }
+    case "rclick": // rclick x y —— 右键单击（绝对物理坐标）
+    {
+        int x = int.Parse(args[1]), y = int.Parse(args[2]);
+        int ax = x * 65535 / (System.Windows.Forms.Screen.PrimaryScreen.Bounds.Width - 1);
+        int ay = y * 65535 / (System.Windows.Forms.Screen.PrimaryScreen.Bounds.Height - 1);
+        mouse_event(0x01 | 0x8000, (uint)ax, (uint)ay, 0, 0);
+        await Task.Delay(60);
+        mouse_event(0x08, 0, 0, 0, 0); // RIGHTDOWN
+        await Task.Delay(60);
+        mouse_event(0x10, 0, 0, 0, 0); // RIGHTUP
+        Console.WriteLine($"rclick ({x},{y})");
+        break;
+    }
     case "mouse": // mouse x1 y1 x2 y2 [holdMs]
     {
         int x1 = int.Parse(args[1]), y1 = int.Parse(args[2]);
         int x2 = int.Parse(args[3]), y2 = int.Parse(args[4]);
         int hold = args.Length > 5 ? int.Parse(args[5]) : 350;
-        SetCursorPos(x1, y1);
+        // 绝对坐标走 mouse_event（与真实鼠标同管线，OS 拖拽循环不吃指针加速失真；SetCursorPos 会让拖窗位移超调）
+        void AbsMove(int x, int y)
+        {
+            int ax = x * 65535 / (System.Windows.Forms.Screen.PrimaryScreen.Bounds.Width - 1);
+            int ay = y * 65535 / (System.Windows.Forms.Screen.PrimaryScreen.Bounds.Height - 1);
+            mouse_event(0x01 | 0x8000, (uint)ax, (uint)ay, 0, 0); // MOVE|ABSOLUTE
+        }
+        AbsMove(x1, y1);
         await Task.Delay(80);
         mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0);
         // 分步移动模拟拖拽
         for (int i = 1; i <= 8; i++)
         {
-            SetCursorPos(x1 + (x2 - x1) * i / 8, y1 + (y2 - y1) * i / 8);
+            AbsMove(x1 + (x2 - x1) * i / 8, y1 + (y2 - y1) * i / 8);
             await Task.Delay(hold / 8);
         }
         mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, 0);
