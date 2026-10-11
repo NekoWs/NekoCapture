@@ -517,3 +517,8 @@ status: done
 - 实测（keyw Tab/Space/Esc）：Tab×2→捕获框焦点环；空格→「按下新键…」捕获态；Esc 取消且窗存活；
   Tab×8→轮廓开关焦点环；空格×2→False→True→False 落盘复原。
 - 验证：GUARDRAIL PASS（FAIL=0 SKIP=1，SelfTest 118/118）。
+
+## 2026-10-11 长跑 R30（DSH goal 轮，19:15 起）
+- **帮助窗双主题逐帧审查**：浅色全绿（章节强调蓝、键列/说明列对比、✓✗ 字形、底部工具条行完整）；暗色 R23 已审。
+- **HUD 倍率显示实测**：PageUp×3 → 时间轴行右侧「1/9 0.10s 181%」清晰；右侧导出图标列（存/复制/GIF/暂留/×/✓）两主题均清晰。
+- GOAL.md 修正：burstdesk 示例补全 3 参数、SelfTest 基线 110→118、UICap 输出目录须先存在的坑写入。

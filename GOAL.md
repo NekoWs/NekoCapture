@@ -67,13 +67,13 @@ dotnet build src/FrameCapture -c Debug -p:Platform=x64 -v q --nologo      # 输�
 #   旧 dll 会静默继续运行（R12 曾因此"看到旧界面"排查半天）。截图前验 dll 新鲜度：
 #   FrameCapture.dll 的 LastWriteTime + 字符串探针（新符号在/旧符号无，如 BuildPanels=True、FloatBar=False）。
 
-# 自测（当前基线 RESULT PASS=110 FAIL=0，只增不减）
+# 自测（当前基线 RESULT PASS=118 FAIL=0，只增不减）
 dotnet build tools/SelfTest -c Debug -p:Platform=x64 -v q --nologo
 tools/SelfTest/bin/x64/Debug/net8.0-windows10.0.19041.0/SelfTest.exe
 
-# 视觉取证（产物放 test-out/）
+# 视觉取证（产物放 test-out/；输出目录必须先存在，否则 UICap 抛 DirectoryNotFoundException）
 tools/UICap/bin/Release/net8.0-windows/UICap.exe region "FrameCapture Settings" test-out/uiaudit/x.png
-tools/UICap/bin/Release/net8.0-windows/UICap.exe burstdesk test-out/burst 90
+tools/UICap/bin/Release/net8.0-windows/UICap.exe burstdesk 3 500 test-out/burst   # <秒> <间隔ms> <前缀>
 tools/Shot/bin/x64/Debug/net8.0-windows/Shot.exe fg                        # 打印当前前台窗标题/类名
 tools/Shot/bin/x64/Debug/net8.0-windows/Shot.exe hkm 118 0 0 0 0 300       # 合成裸 F7（5 个参数！）
 tools/Shot/bin/x64/Debug/net8.0-windows/Shot.exe keyw "FrameCapture Editor" 13
