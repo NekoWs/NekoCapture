@@ -122,6 +122,17 @@ internal static class Win32
     [DllImport("user32.dll")]
     public static extern uint SetWindowLongW(IntPtr hWnd, int nIndex, uint dwNewLong);
 
+    /// <summary>Win32 分层窗口 alpha（0=全透明）。WPF 的 Window.Opacity 要等首帧渲染才应用到 HWND，
+    /// 之前 DWM 显示不透明黑面（入场黑闪）；SourceInitialized 时直接置 alpha 可消除。</summary>
+    [DllImport("user32.dll")]
+    public static extern bool SetLayeredWindowAttributes(IntPtr hWnd, IntPtr crKey, byte bAlpha, uint dwFlags);
+    public const uint LWA_ALPHA = 0x2;
+
+    [DllImport("dwmapi.dll")]
+    public static extern int DwmSetWindowAttribute(IntPtr hWnd, int attr, ref int pvAttribute, int cbAttribute);
+    public const int DWMWA_WINDOW_CORNER_PREFERENCE = 33;
+    public const int DWMWCP_ROUND = 2;
+
     [DllImport("user32.dll")]
     public static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter,
         int X, int Y, int cx, int cy, uint uFlags);

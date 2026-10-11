@@ -57,8 +57,9 @@ public sealed class RegionPickerWindow : Window
         {
             var h = new System.Windows.Interop.WindowInteropHelper(this).Handle;
             Win32.SetWindowTextW(h, "FrameCapture Region");
-            FrameCapture.Core.Fluent.FadeIn(this, 120);
+            FrameCapture.Core.Fluent.FadeIn(this, 120, offscreenFirstFrame: true);
         };
+        FrameCapture.Core.Fluent.BorderlessNative(this, 0); // 全屏覆盖层：消除 DWM 非客户区白条，无需边缘调整
         WindowStyle = WindowStyle.None;
         ResizeMode = ResizeMode.NoResize;
         Title = "FrameCapture Region"; // 与 SourceInitialized 里 SetWindowText 一致，自动化可定位

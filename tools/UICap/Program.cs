@@ -76,11 +76,18 @@ class Program
         return 0;
     }
 
+    static void WriteTimes(string prefix, List<string> times)
+    {
+        // 每帧实际时刻侧车：frame<TAB>elapsedMs<TAB>x y w h —— 逐帧审查时判断动画时序的事实依据
+        File.WriteAllText($"{prefix}.times.txt", string.Join("\n", times));
+    }
+
     static int BurstRegion(string title, double seconds, int intervalMs, string prefix)
     {
         // 每帧重算包围盒：窗口移动/淡出也拍得到
         var sw = Stopwatch.StartNew();
         int i = 0, warm = 0;
+        var times = new List<string>();
         while (sw.Elapsed.TotalSeconds < seconds && i < 300)
         {
             var (x, y, w, h) = TitleRect(title);
@@ -93,11 +100,13 @@ class Program
             warm = 0;
             using var bmp = GrabDesk(x, y, w, h);
             bmp.Save($"{prefix}.{i:D3}.png", ImageFormat.Png);
+            times.Add($"{i}\t{sw.ElapsedMilliseconds}\t{x} {y} {w} {h}");
             i++;
             long target = (i + 1) * (long)intervalMs;
             Thread.Sleep(Math.Max(2, (int)(target - sw.ElapsedMilliseconds)));
         }
-        Console.WriteLine($"burst {i} frames -> {prefix}.NNN.png");
+        WriteTimes(prefix, times);
+        Console.WriteLine($"burst {i} frames -> {prefix}.NNN.png (+times)");
         return 0;
     }
 
@@ -114,6 +123,54 @@ class Program
         return bmp;
     }
 
+    static int Montage(string prefix, string outPath, int cols, int cellW, int from = 0, int to = int.MaxValue)
+    {
+        // 拼帧总览：每格 = 一帧（等比缩进 cellW），左上角标 "#帧号 @时刻ms"，逐帧审查的高效载体
+        var files = Directory.GetFiles(Path.GetDirectoryName(Path.GetFullPath(prefix + ".000.png"))!,
+            Path.GetFileName(prefix) + ".*.png")
+            .Where(f =>
+            {
+                var n = Path.GetFileNameWithoutExtension(f).Split('.')[^1];
+                return int.TryParse(n, out int idx) && idx >= from && idx <= to;
+            })
+            .OrderBy(f => f, StringComparer.Ordinal).ToList();
+        if (files.Count == 0) { Console.WriteLine("not-found"); return 2; }
+        var times = new Dictionary<int, string>();
+        if (File.Exists($"{prefix}.times.txt"))
+            foreach (var line in File.ReadAllLines($"{prefix}.times.txt"))
+            {
+                var parts = line.Split('\t');
+                if (parts.Length >= 2 && int.TryParse(parts[0], out int fi)) times[fi] = parts[1];
+            }
+        using var first = new Bitmap(files[0]);
+        int cellH = Math.Max(60, (int)((double)cellW * first.Height / Math.Max(1, first.Width)) + 16);
+        int rows = (files.Count + cols - 1) / cols;
+        int pad = 2;
+        using var sheet = new Bitmap(cols * (cellW + pad) + pad, rows * (cellH + pad) + pad, PixelFormat.Format32bppArgb);
+        using (var g = Graphics.FromImage(sheet))
+        {
+            g.Clear(Color.FromArgb(24, 24, 28));
+            g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
+            using var font = new Font("Consolas", 8f, FontStyle.Bold);
+            for (int k = 0; k < files.Count; k++)
+            {
+                using var bmp = new Bitmap(files[k]);
+                int cx = pad + (k % cols) * (cellW + pad), cy = pad + (k / cols) * (cellH + pad);
+                double sc = Math.Min((double)cellW / bmp.Width, (double)(cellH - 16) / bmp.Height);
+                int w = Math.Max(1, (int)(bmp.Width * sc)), h = Math.Max(1, (int)(bmp.Height * sc));
+                int fidx = int.Parse(Path.GetFileNameWithoutExtension(files[k]).Split('.')[^1]);
+                string tms = times.TryGetValue(fidx, out var t) ? t + "ms" : "?";
+                string label = $"#{fidx:D3} @{tms} {bmp.Width}x{bmp.Height}";
+                g.DrawString(label, font, Brushes.White, cx + 1, cy + 1);
+                g.DrawImage(bmp, cx, cy + 16, w, h);
+                g.DrawRectangle(Pens.DimGray, cx - 1, cy + 15, w + 1, h + 1);
+            }
+        }
+        sheet.Save(outPath, ImageFormat.Png);
+        Console.WriteLine($"montage {files.Count} frames -> {outPath} {sheet.Width}x{sheet.Height}");
+        return 0;
+    }
+
     static int Main(string[] args)
     {
         if (args.Length < 2) { Console.WriteLine("usage: win <title> out.png | desk out.png | burst <title> sec intervalMs prefix"); return 1; }
@@ -125,6 +182,8 @@ class Program
             case "region": return Region(args[1], args[2]);
             case "burstregion": return BurstRegion(args[1], double.Parse(args[2]), int.Parse(args[3]), args[4]);
             case "burstdesk": return BurstDesk(double.Parse(args[1]), int.Parse(args[2]), args[3]);
+            case "montage": return Montage(args[1], args[2], int.Parse(args[3]), int.Parse(args[4]),
+                args.Length > 5 ? int.Parse(args[5]) : 0, args.Length > 6 ? int.Parse(args[6]) : int.MaxValue);
         }
         return 1;
     }

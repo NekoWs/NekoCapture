@@ -346,3 +346,18 @@ status: done
   释放捕获/删预览/不提交。帮助与 README 同步"误触不丢捕获"语义。
   验证：SelfTest +T82a（104/104）；新增 scripts/test-esc-layers.ps1 挂入全量闸（第 11 项）：
   D 进绘制态 → Esc 编辑器仍在 + trace esc→browse → 再 Esc 关闭，ESC-LAYERS PASS。fuzz 收尾本就多层 Esc，兼容。
+
+## 2026-10-11 长跑 R11（DSH goal 轮，13:30 起）
+- **R11 真无框 + 入场黑闪根治（用户逐帧审查揪出的两个缺陷）**：
+  ① 白条根因 = WindowStyle=None 仍保留 DWM 非客户区顶带；extend-frame(-1) 反而铺白玻璃（像素取证 y=2..8=255）。
+  正解 = System.Windows.Shell.WindowChrome（CaptionHeight=0, ResizeBorderThickness=5, GlassFrame=0）——
+  WPF 内部处理 WM_NCCALCSIZE，硬件加速保留；DWMWA_WINDOW_CORNER_PREFERENCE=ROUND 得原生圆角+阴影（QQ 式）。
+  Fluent.BorderlessNative() 统一应用（编辑器/选区窗；选区窗 resizeBorder=0）。
+  ② 入场黑/白闪根因 = WPF 首帧前 Window.Opacity=0 未落到 HWND，DWM 先亮一帧不透明表面。
+  正解 = PreTransparent：SourceInitialized+LayoutUpdated 反复 SetLayeredWindowAttributes(alpha=0)（WPF 首渲染会抹掉，必须重贴）；
+  编辑器再加 offscreenFirstFrame：首帧停在 -32000，ContentRendered 回正位再强制 alpha=0，下一 CompositionTarget.Rendering 才起淡入。
+  逐帧取证（UICap burstregion + bbox 侧车）：f000 屏外不可见 → f001 回屏=桌面透出(33.9) → 平滑淡入 17.4→35.0，无黑帧无白帧。
+- **逐帧审查工具链**：UICap burstregion 每帧 bbox 写入 .times.txt 侧车（离屏帧可辨）；montage 拼图逐帧读图；
+  像素边缘检查（顶行 y=0..12 + 四角）——亮度均值会掩盖白条这类边缘缺陷，必须显式查边。
+- **zoom e2e 加固**：测试自钉 1726x980 大区域（小区域下 fit 钳到 1.0，End=1:1 变无操作 → zoomLines 4<5 假失败，本轮踩过）；跑完恢复用户配置。
+  验证：SelfTest 104/104；GUARDRAIL PASS（FAIL=0 SKIP=1 共 11 项）。

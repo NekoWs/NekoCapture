@@ -213,10 +213,60 @@ public static class Fluent
         public const int ThemeMs = 260;      // 主题交叉淡入
     }
 
+    /// <summary>QQ 式真无框窗口：WindowStyle=None 的 WPF 窗口仍保留 DWM 非客户区（顶部白条）。
+    /// WindowChrome（WPF 官方方案，内部处理 WM_NCCALCSIZE）让客户区覆盖整窗——白条不再绘制，
+    /// 且保留 WS_THICKFRAME → 原生阴影与 Win11 圆角、原生边缘调整大小，硬件加速不受影响
+    /// （勿用 AllowsTransparency，软件渲染代价大）。CaptionHeight=0：拖拽由 DragMove 自理。</summary>
+    public static void BorderlessNative(Window w, double resizeBorder = 5)
+    {
+        System.Windows.Shell.WindowChrome.SetWindowChrome(w, new System.Windows.Shell.WindowChrome
+        {
+            CaptionHeight = 0,
+            ResizeBorderThickness = new Thickness(resizeBorder),
+            GlassFrameThickness = new Thickness(0),
+            CornerRadius = new CornerRadius(0),
+            UseAeroCaptionButtons = false,
+        });
+        w.SourceInitialized += (_, _) =>
+        {
+            var hwnd = new System.Windows.Interop.WindowInteropHelper(w).Handle;
+            int round = Native.Win32.DWMWCP_ROUND;
+            Native.Win32.DwmSetWindowAttribute(hwnd, Native.Win32.DWMWA_WINDOW_CORNER_PREFERENCE, ref round, 4);
+        };
+    }
+
+    static void SetAlphaZero(IntPtr hwnd)
+    {
+        Native.Win32.SetWindowLongW(hwnd, Native.Win32.GWL_EXSTYLE,
+            Native.Win32.GetWindowLongW(hwnd, Native.Win32.GWL_EXSTYLE) | (uint)Native.Win32.WS_EX_LAYERED);
+        Native.Win32.SetLayeredWindowAttributes(hwnd, IntPtr.Zero, 0, Native.Win32.LWA_ALPHA);
+    }
+
+    /// <summary>消除入场黑闪：WPF 的 Opacity=0 要等首帧渲染才应用到 HWND，之前 DWM 显示不透明黑面（或类背景白闪）。
+    /// SourceInitialized（HWND 已建、未渲染）置 Win32 分层 alpha=0；WPF 首帧准备会冲掉手工样式，
+    /// 故每次布局再补一次。默认 ContentRendered 放行；holdPastRender=true 时由返回的 release 决定放行时机
+    /// （离屏首帧方案需要回屏后继续压住 alpha）。返回的 release 幂等。</summary>
+    public static Action PreTransparent(Window w, bool holdPastRender = false)
+    {
+        bool released = false;
+        void Apply()
+        {
+            if (released) return;
+            var hwnd = new System.Windows.Interop.WindowInteropHelper(w).Handle;
+            if (hwnd == IntPtr.Zero) return;
+            SetAlphaZero(hwnd);
+        }
+        w.SourceInitialized += (_, _) => Apply();
+        w.LayoutUpdated += (_, _) => Apply(); // 首帧前有多次布局，逐次补回 alpha=0
+        if (!holdPastRender) w.ContentRendered += (_, _) => released = true;
+        return () => released = true;
+    }
+
     /// <summary>紧凑弹窗（设置/帮助）入场：淡入 + 0.96→1 内容放大（WinUI Dialog 范式）。</summary>
     public static void PopupEnter(Window w)
     {
         w.Opacity = 0;
+        PreTransparent(w);
         w.ContentRendered += (_, _) =>
         {
             var dur = new Duration(TimeSpan.FromMilliseconds(Motion.EnterMs));
@@ -249,11 +299,13 @@ public static class Fluent
         w.BeginAnimation(System.Windows.UIElement.OpacityProperty, a);
     }
 
-    public static void FadeIn(Window w, int ms = 160, double risePx = 0)
+    public static void FadeIn(Window w, int ms = 160, double risePx = 0, bool offscreenFirstFrame = false)
     {
         w.Opacity = 0;
-        w.ContentRendered += (_, _) =>
+        var releasePre = PreTransparent(w, holdPastRender: offscreenFirstFrame);
+        void Start()
         {
+            releasePre();
             var dur = new Duration(TimeSpan.FromMilliseconds(ms));
             var a = new DoubleAnimation(1, dur) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } };
             w.BeginAnimation(UIElement.OpacityProperty, a);
@@ -264,7 +316,34 @@ public static class Fluent
                 tt.BeginAnimation(TranslateTransform.YProperty,
                     new DoubleAnimation(0, dur) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
             }
-        };
+        }
+        if (offscreenFirstFrame)
+        {
+            // WPF 首帧渲染前窗口是不透明黑面（且会冲掉手工 alpha）：先在屏外渲染首帧，
+            // ContentRendered 后回到真实位置——黑相永远发生在屏幕外，用户只见淡入。
+            void Park()
+            {
+                double homeL = w.Left, homeT = w.Top;
+                w.WindowStartupLocation = WindowStartupLocation.Manual;
+                w.Left = -32000; w.Top = -32000;
+                w.ContentRendered += (_, _) =>
+                {
+                    w.Left = homeL; w.Top = homeT;
+                    // 移回屏内 DWM 可能闪一帧不透明：同步压回 alpha=0，下一渲染帧再放行淡入
+                    var hwnd = new System.Windows.Interop.WindowInteropHelper(w).Handle;
+                    if (hwnd != IntPtr.Zero) SetAlphaZero(hwnd);
+                    EventHandler step = null!;
+                    step = (_, _) =>
+                    {
+                        System.Windows.Media.CompositionTarget.Rendering -= step;
+                        Start();
+                    };
+                    System.Windows.Media.CompositionTarget.Rendering += step;
+                };
+            }
+            if (w.IsInitialized) Park(); else w.SourceInitialized += (_, _) => Park();
+        }
+        else w.ContentRendered += (_, _) => Start();
     }
 
     // ---------------- 工具按钮选中态：accent 实心 + 反白图标（与 ✓ 主按钮同一语言） ----------------

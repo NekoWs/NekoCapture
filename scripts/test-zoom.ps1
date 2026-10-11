@@ -13,6 +13,17 @@ New-Item -ItemType Directory -Force -Path $out | Out-Null
 $trace = Join-Path $root "src/fc-trace.log"
 $mark = (Get-Item $trace -EA SilentlyContinue).Length
 $capHk = Get-FcCaptureHotkey
+# 钉住捕获区域为大区域（适配缩放必 <1.0，End/Home 才各自产生 zoom 决策行；
+# 用户小区域会让 End=1:1 变无操作 → 决策行 4<5 假失败，2026-10 踩过）。
+$cfg = Join-Path $env:APPDATA "FrameCapture\settings.json"
+$bak = if (Test-Path $cfg) { Get-Content $cfg -Raw } else { $null }
+function Restore-Cfg { if ($bak) { $bak | Set-Content $cfg -Encoding UTF8 } }
+if ($bak) {
+    $s = $bak | ConvertFrom-Json
+    $s | Add-Member -Force RegionX 681; $s | Add-Member -Force RegionY 521
+    $s | Add-Member -Force RegionW 1726; $s | Add-Member -Force RegionH 980
+    $s | ConvertTo-Json | Set-Content $cfg -Encoding UTF8
+}
 Get-Process FrameCapture -EA SilentlyContinue | Stop-Process -Force
 Start-Sleep 0.5
 $env:FC_TEST_NO_FG = "1"
@@ -25,6 +36,7 @@ if ($ed -match "not-found") {
     Write-Host "ZOOM SKIP: 编辑器未出现（注入被拦截）"
     if (!$p.HasExited) { $p.Kill() }
     Remove-Item Env:\FC_TEST_NO_FG -EA SilentlyContinue
+    Restore-Cfg
     exit 0
 }
 & $shot keyw "FrameCapture Editor" 35 2>$null | Out-Null; Start-Sleep 0.6   # End → 1:1
@@ -35,6 +47,7 @@ if (Test-Path $uicap) { & $uicap region "FrameCapture Editor" "$out\zoom-in.png"
 & $shot keyw "FrameCapture Editor" 27 2>$null | Out-Null; Start-Sleep 1.0   # Esc
 if (!$p.HasExited) { $p.Kill() }
 Remove-Item Env:\FC_TEST_NO_FG -EA SilentlyContinue
+Restore-Cfg
 $log = ""
 if ((Get-Item $trace).Length -gt $mark) {
     $fs = [System.IO.File]::Open($trace, 'Open', 'Read', 'ReadWrite')

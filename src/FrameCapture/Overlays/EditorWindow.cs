@@ -50,9 +50,9 @@ public sealed partial class EditorWindow : Window
         Topmost = true;
         Deactivated += (_, _) => { if (IsLoaded) { Topmost = false; Topmost = true; } };
         Title = "FrameCapture Editor";
-        FrameCapture.Core.Fluent.FadeIn(this, 240, 14);
+        FrameCapture.Core.Fluent.BorderlessNative(this); // 真无框：消 DWM 非客户区白条，原生圆角+阴影
+        FrameCapture.Core.Fluent.FadeIn(this, FrameCapture.Core.Fluent.Motion.EditorEnterMs, 14, offscreenFirstFrame: true);
         Background = new SolidColorBrush(DarkBg);
-        BorderBrush = new SolidColorBrush(Color.FromRgb(0x32, 0x32, 0x36)); // 消除 WindowStyle=None 的白边
         MouseLeftButtonDown += (_, e) => { if (e.ButtonState == MouseButtonState.Pressed) { try { DragMove(); } catch { } } };
 
         var mon = Monitors.ByDevice(seq.MonitorDevice) ?? Monitors.Nearest(seq.Region.X, seq.Region.Y);
@@ -116,12 +116,12 @@ public sealed partial class EditorWindow : Window
 
     void BuildLayout()
     {
-        var root = new Grid { Margin = new Thickness(6) };
+        var root = new Grid { Margin = new Thickness(0) };
         _viewGrid.Children.Add(_view);
         _viewGrid.Children.Add(_canvas);
         var viewHost = new Border
         {
-            CornerRadius = new CornerRadius(12),
+            CornerRadius = new CornerRadius(8), // 与 Win11 原生窗口圆角贴合；Win10 无原生圆角时保留自绘圆角
             Background = new SolidColorBrush(Color.FromRgb(0x14, 0x14, 0x14)),
             Child = _viewGrid,
         };
@@ -149,7 +149,6 @@ public sealed partial class EditorWindow : Window
             Background = holder;
             holder.BeginAnimation(System.Windows.Media.SolidColorBrush.ColorProperty, anim);
         }
-        BorderBrush = new System.Windows.Media.SolidColorBrush(Theme.IsDark ? Color.FromRgb(0x32, 0x32, 0x36) : Color.FromRgb(0xD4, 0xD4, 0xD4));
         _hud.Foreground = new System.Windows.Media.SolidColorBrush(Theme.Text);
         // 选中语言随行：工具/线宽的前景色随主题（选中项反白、未选中项 Theme.Text），否则换肤后旧色不可读
         for (int i = 0; i < _toolBtns.Count; i++)
