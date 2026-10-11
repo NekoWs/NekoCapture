@@ -1139,3 +1139,18 @@ status: done
 - 构建 0 错误；SelfTest **276/276**（T115a-d：横 2x1→竖 1x2 A上B下、2x2 上行→右列、转 4 次回原图、steps=0 同实例且 5≡1/-1≡3）
 - 完整护栏 GUARDRAIL PASS（FAIL=0 SKIP=7，floor 276）
 - 实机 e2e（EnumWindows 读真实矩形 + trace + 截图亲眼看）：贴图 703x403 @1500,1000 → 发 R → 403x703 @1650,850，中心 (1851.5,1201.5) 保持不变（宽高互换 + 中心不漂移），trace `pin-rotate → 400x700`；截图见贴图内容顺时针转 90°（文字变竖列）
+
+## 2026-10-12 清晨 交互优化 R80（贴图「另存为」：贴图有复制却无保存，明显缺口）
+
+**动机**：贴图右键有「复制」却没有「另存为」——想把钉在屏上的图（尤其旋转/调过的）存成文件只能回编辑器或外部工具。补上标准能力。
+
+**实现**：
+- `PinWindow.SaveAs()`：`Microsoft.Win32.SaveFileDialog`（默认目录「图片\FrameCapture」、默认名 `pin-<时间戳>.png`、PNG 筛选）→ `BgraImage.SavePng(_frame, path)`（复用编辑器同款保存路径）→ 贴图内 Flash「已保存」+ trace `pin-save`。存的是 `_frame`，故旋转后的状态一并存下。
+- 入口：右键菜单「另存为…」（复制下方）+ 贴图聚焦时 Ctrl+S（与编辑器一致）。HelpWindow/README 同步。
+
+**顺带查清一个测试假象**：早前「关编辑器贴图就消失」并非产品 bug——`keyw`/`hkm` 是全局 SendInput 落到前台窗口，Ctrl+P 后贴图 Activate 抢前台，我「发给编辑器的 Esc」实际打在前台贴图上→贴图关自己。真实用户关编辑器时编辑器才聚焦，Esc 不会漏给未聚焦贴图。贴图生命周期正确（R77 亦证）。
+
+**验证**：
+- 构建 0 错误；SelfTest 保持 276（另存为无可抽纯函数，复用已测 SavePng）
+- 完整护栏 GUARDRAIL PASS（FAIL=0 SKIP=1，floor 276）
+- 实机 e2e（截图亲眼看 + 读盘）：贴图聚焦→Ctrl+S→前台「另存为」对话框→回车存默认名→`图片\FrameCapture\pin-20261012-064231.png` 落盘 39KB、尺寸 700x400（正是贴图内容）、trace `pin-save`

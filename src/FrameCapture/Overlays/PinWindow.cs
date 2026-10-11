@@ -15,7 +15,7 @@ namespace FrameCapture.Overlays;
 /// R65：钉到屏幕——把当前帧（含标注/裁剪，WYSIWYG）作为一张无边框、置顶、可拖动/滚轮缩放的小图，
 /// 钉在桌面原捕获位置。Snipaste/QQ 的招牌手感，此前缺位。
 /// 交互：按住拖动移动；滚轮以中心为锚缩放（10%~600%）；Ctrl+滚轮调不透明度（20%~100%）；
-/// 双击或 Esc 关闭；R 键顺时针旋转 90°；右键菜单复制/识别文字/旋转/不透明度/关闭/关闭全部贴图。
+/// 双击或 Esc 关闭；R 键顺时针旋转 90°、Ctrl+S 另存为；右键菜单复制/另存为/识别文字/旋转/不透明度/关闭/关闭全部贴图。
 /// 不进任务栏（ShowInTaskbar=false），关掉只靠上述手势——与 Snipaste 贴图一致。
 /// </summary>
 public sealed class PinWindow : Window
@@ -123,7 +123,12 @@ public sealed class PinWindow : Window
             Left = cx - Width / 2; Top = cy - Height / 2;
         };
         MouseRightButtonUp += (_, e) => { ShowMenu(); e.Handled = true; };
-        KeyDown += (_, e) => { if (e.Key == Key.Escape) Close(); else if (e.Key == Key.R) Rotate(); };
+        KeyDown += (_, e) =>
+        {
+            if (e.Key == Key.Escape) Close();
+            else if (e.Key == Key.R) Rotate();
+            else if (e.Key == Key.S && (Keyboard.Modifiers & ModifierKeys.Control) != 0) SaveAs();
+        };
 
         Loaded += (_, _) => _open.Add(this);
         Closed += (_, _) => _open.Remove(this);
@@ -158,6 +163,25 @@ public sealed class PinWindow : Window
         ApplyScale();
         Left = cx - Width / 2; Top = cy - Height / 2;
         FrameCapture.Core.Trace.Log($"pin-rotate → {_frame.W}x{_frame.H}");
+    }
+
+    /// <summary>R80：把贴图当前帧（含旋转后状态）另存为 PNG，默认目录「图片\FrameCapture」，与编辑器保存一致。</summary>
+    void SaveAs()
+    {
+        string pictures = Environment.GetFolderPath(Environment.SpecialFolder.MyPictures);
+        string dir = System.IO.Path.Combine(pictures, "FrameCapture");
+        try { System.IO.Directory.CreateDirectory(dir); } catch { dir = pictures; }
+        var dlg = new Microsoft.Win32.SaveFileDialog
+        {
+            Filter = "PNG 图片|*.png",
+            FileName = $"pin-{DateTime.Now:yyyyMMdd-HHmmss}.png",
+            InitialDirectory = dir
+        };
+        if (dlg.ShowDialog(this) != true) return;
+        string path = dlg.FileName;
+        if (!path.EndsWith(".png", StringComparison.OrdinalIgnoreCase)) path += ".png";
+        try { BgraImage.SavePng(_frame, path); Flash("已保存"); FrameCapture.Core.Trace.Log($"pin-save {path}"); }
+        catch { Flash("保存失败"); }
     }
 
     /// <summary>R74 磁边：拖动松手后，若贴图某条边贴近所在屏幕工作区边缘（阈值内）则平滑吸附贴合。</summary>
@@ -269,6 +293,8 @@ public sealed class PinWindow : Window
         var menu = new ContextMenu();
         var copy = new MenuItem { Header = "复制" };
         copy.Click += (_, _) => ClipboardService.SetFrame(_frame);
+        var saveAs = new MenuItem { Header = "另存为…" };
+        saveAs.Click += (_, _) => SaveAs();
         var ocr = new MenuItem { Header = "识别文字" };
         ocr.Click += (_, _) => OcrFrame();
         var rotate = new MenuItem { Header = "旋转 90° (R)" };
@@ -287,6 +313,7 @@ public sealed class PinWindow : Window
         var closeAll = new MenuItem { Header = $"关闭全部贴图 ({_open.Count})" };
         closeAll.Click += (_, _) => { foreach (var p in _open.ToArray()) p.Close(); };
         menu.Items.Add(copy);
+        menu.Items.Add(saveAs);
         menu.Items.Add(ocr);
         menu.Items.Add(rotate);
         menu.Items.Add(opacity);
