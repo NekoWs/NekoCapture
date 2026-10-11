@@ -151,7 +151,14 @@ public sealed class SettingsWindow : Window
         panel.Children.Add(Rule());
         panel.Children.Add(ThemeRow());
 
-        root.Child = panel;
+        // 小屏防护：内容 ~685 DIP，工作区更矮时滚动而非裁掉主题行（SizeToContent 受 MaxHeight 封顶）
+        MaxHeight = Math.Max(420, SystemParameters.WorkArea.Height - 48);
+        root.Child = new ScrollViewer
+        {
+            Content = panel,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+        };
         Content = root;
 
         MouseLeftButtonDown += (_, e) =>

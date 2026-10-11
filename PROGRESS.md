@@ -545,3 +545,9 @@ status: done
 - **极小区域(80×60)边界**：GIF 1.4KB 正常；但编辑器最小宽 560 DIP 时底部工具条两端裁切（齿轮/帮助不可见、首键半截）
   → MinWidth=780 DIP（全列实测宽），初始宽同步；复测 780 DIP 下全工具条完整。
 - 验证：GUARDRAIL PASS（FAIL=0 SKIP=1，SelfTest 122/122）。
+
+## 2026-10-11 长跑 R35（DSH goal 轮，20:30 起）
+- **设置窗小屏防护**：内容 ~685 DIP 固定高，矮工作区（笔记本 768/100%）会把主题行裁掉——
+  面板包 ScrollViewer(Auto) + MaxHeight=工作区-48（SizeToContent 受 MaxHeight 封顶）。帮助窗本就有滚动，唯设置窗缺。
+  大屏复测：630×1027 与改前一致、无滚动条出现。
+- 验证：GUARDRAIL PASS（FAIL=0 SKIP=1，SelfTest 122/122）。
