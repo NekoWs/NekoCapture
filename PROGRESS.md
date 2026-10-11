@@ -298,3 +298,11 @@ status: done
   Normalize 钳越界值且合法值原样通过。行为不变（设置恒 10..60），消除的是未来改范围时的静默漂移。
 - **release 重发布补账**（b5f8e6c）：R1-R3 已进 release（exe 12:27:10，pid 78292，二进制含
   "outline: persistent show"/"hook slow"/CloseWithFade 标记）；更正此前 TODO 的过早勾选。
+
+## 2026-10-11 长跑 R5（DSH goal 轮，12:35 起）
+- **R5 编辑器重做按钮**：Ctrl+Y 有栈无入口（UndoRedo.Redo/CanRedo 早已实现且 T19 覆盖，UI 只接了撤销）。
+  绘制条撤销旁新增重做按钮（Segoe Fluent E7A6，GlyphProbe 矩阵取证：E7A6=右弯箭头，与撤销 E7A7 成对）；
+  撤销/重做禁用态统一抽成 SetGhost（IsEnabled + HoverMs 淡入淡出，两钮对称）。
+  取证：编辑器工具栏截图（test-out/redo-evidence/toolbar.png）——撤销全亮、重做 0.35 禁用态（CanRedo=false 初始正确）。
+  EDITOR-KEYS PASS + SelfTest 87/87 + app build 0 error。GlyphProbe 候选表更新为 Redo 行（scratch 工具，入口临时切
+  RenderMatrix 后已还原）。

@@ -327,19 +327,27 @@ public sealed partial class EditorWindow : Window
         undo.Click += (_, _) => UndoAnn();
         _undoBtn = undo;
         bar.Children.Add(undo);
+        var redo = IconBtn("", "重做 (Ctrl+Y)");
+        redo.Click += (_, _) => RedoAnn();
+        _redoBtn = redo;
+        bar.Children.Add(redo);
         RefreshUndo();
         RefreshWidths(); // 默认宽度"中"的选中态当场可见（此前要等点击才出现）
         return bar;
     }
 
     Button? _undoBtn;
+    Button? _redoBtn;
     void RefreshUndo()
     {
-        if (_undoBtn == null) return;
-        bool can = _anns.CanUndo;
-        if (_undoBtn.IsEnabled == can) return;
-        _undoBtn.IsEnabled = can;
-        _undoBtn.BeginAnimation(OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(can ? 1.0 : 0.35,
+        SetGhost(_undoBtn, _anns.CanUndo);
+        SetGhost(_redoBtn, _anns.CanRedo);
+    }
+    static void SetGhost(Button? b, bool on)
+    {
+        if (b == null || b.IsEnabled == on) return;
+        b.IsEnabled = on;
+        b.BeginAnimation(OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(on ? 1.0 : 0.35,
             new System.Windows.Duration(TimeSpan.FromMilliseconds(FrameCapture.Core.Fluent.Motion.HoverMs)))
         { EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut } });
     }

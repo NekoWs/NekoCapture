@@ -16,3 +16,5 @@ release/*.zip
 DomainServer.*
 .DS_Store
 nul
+probe.png
+scripts/glyph-matrix.png

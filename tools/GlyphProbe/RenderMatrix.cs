@@ -10,10 +10,8 @@ static class RenderMatrix
     {
         var cands = new (string Label, string Chars)[]
         {
-            ("GIF-a   ", "\uE786\uE8B9\uEAA9\uE842\uE7F4\uE9A6"),
-            ("GIF-b   ", "\uE116\uE15A\uE800\uEAC2\uE7C6\uE836"),
-            ("After-a ", "\uE945\uE950\uE7E6\uE8B0\uE765\uE8E1"),
-            ("After-b ", "\uE706\uE793\uEBA7\uE97C\uE97D\uE955"),
+            ("Redo-a  ", "\uE7A6\uE7A7\uE72C\uE72D\uE70B\uF0B2"),
+            ("Redo-b  ", "\uE7A6\uE7A6\uE7A6\uE7A7\uE7A7\uE7A7"),
         };
 int cellW = 130, cellH = 86, labelW = 140;
         int rows = cands.Length, cols = 6;
