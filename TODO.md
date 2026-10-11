@@ -28,6 +28,9 @@
 - [x] **编辑器记住工具/颜色/粗细（RememberEditorTools）**（R64）：默认开——关编辑器时记住最后用的标注工具/颜色/线宽，
       下次打开直接是它们（QQ 编辑器不记，差异化手感）。新增「编辑器」分组开关；Core/EditorPrefs 纯决策（颜色 ARGB 全等落槽、
       宽度命中预设、#AARRGGBB 格式），Closed 时写一次。SelfTest T102a-f，实机 e2e（按 A+点绿+点粗→✕→重开预选一致）。
+- [x] **钉到屏幕（PinWindow）**（R65）：编辑器点「钉到屏幕」按钮或 Ctrl+P，把当前帧（含标注/裁剪）作为无边框置顶小图钉在原捕获位置，
+      可拖动/滚轮缩放(10%~600%)/双击或 Esc 关闭/右键复制，多张并存——补齐 Snipaste/QQ 招牌手感。PinWindow+PinZoom 新建，
+      BakeCurrentFrame 复用烘焙。SelfTest T103a-e，实机 e2e（按钮+Ctrl+P 弹图、显示正确、Esc 关闭）。
 
 ## 用户反馈
 - [x] **录制后的全屏黄色边框持续存在（10-04 已修复）**：根因 = **不是我们的代码**，是 Windows 11

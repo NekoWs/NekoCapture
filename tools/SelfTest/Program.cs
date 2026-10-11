@@ -1425,6 +1425,15 @@ static class SelfTest
                 Chk("T102e-width-custom", FrameCapture.Core.EditorPrefs.WidthSlot(7.5f, ws) == -1, "非预设宽 → 自定义 -1");
                 Chk("T102f-hex", FrameCapture.Core.EditorPrefs.ToHex(255, 0xE8, 0x11, 0x23) == "#FFE81123", "颜色 → #AARRGGBB");
             }
+
+            // T103 钉图滚轮缩放（R65，PinZoom 纯决策）
+            {
+                Chk("T103a-zoom-in", System.Math.Abs(FrameCapture.Core.PinZoom.Next(1.0, 1) - 1.1) < 1e-9, "delta>0 → ×1.1 放大");
+                Chk("T103b-zoom-out", System.Math.Abs(FrameCapture.Core.PinZoom.Next(1.0, -1) - 1.0 / 1.1) < 1e-9, "delta<0 → ÷1.1 缩小");
+                Chk("T103c-zoom-max", FrameCapture.Core.PinZoom.Next(6.0, 1) == 6.0, "已到上限再放大 → 锁死 6.0");
+                Chk("T103d-zoom-min", FrameCapture.Core.PinZoom.Next(0.1, -1) == 0.1, "已到下限再缩小 → 锁死 0.1");
+                Chk("T103e-zoom-zero", FrameCapture.Core.PinZoom.Next(2.5, 0) == 2.5, "delta=0 → 不变");
+            }
         }
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");
         return fail == 0 ? 0 : 1;

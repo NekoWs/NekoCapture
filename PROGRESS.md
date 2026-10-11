@@ -892,3 +892,24 @@ status: done
 - 构建 0 错误
 - SelfTest 208/208（新增 T102a-f：颜色命中/自定义/alpha 不误判、宽度命中/自定义、hex 格式）
 - 实机 e2e（焦点安全）：开编辑器→按 A(箭头)+点绿+点粗→截图确认三项选中→✕ 关闭→settings.json 落 `LastTool=Arrow LastColor=#FF10893E LastWidth=10`→重开→工具栏截图确认箭头/绿/粗预选一致
+
+## R65 · 钉到屏幕（PinWindow）— 把截图钉在桌面，Snipaste/QQ 的招牌手感补齐
+
+**动机**：QQ/Snipaste 最受喜爱的功能之一是「把截图钉在屏幕上」——贴一张浮在桌面、可拖动缩放的小图，方便对照/临时记忆。我们此前完全没有，是「超过 QQ」的明显缺口。
+
+**功能**：编辑器里点「钉到屏幕」按钮（E91B 图片图标，与「总在最前」图钉明显区分）或按 **Ctrl+P**，把当前帧（含标注+裁剪，WYSIWYG）作为一张无边框、置顶、不进任务栏的小图，钉在原捕获位置。
+- 按住拖动移动；滚轮以中心为锚缩放（10%~600%）；双击或 Esc 关闭；右键菜单「复制 / 关闭」
+- 可多张并存（Snipaste 式），关掉只靠上述手势
+- 1px 深色描边 + 圆角：任何桌面背景上都看得见边界
+
+**核心**：
+- `Overlays/PinWindow.cs` 新建：`BgraImage.ToSource` 转位图；`VisualTreeHelper.GetDpi` 物理→DIP 1:1 定位（与 RegionOutlineWindow 同款换算）；`PinZoom.Next` 缩放
+- `Core/PinZoom.cs` 新建（纯决策，可测）：滚轮方向 ×1.1 倍率，夹 [0.1,6.0]
+- 编辑器 `BakeCurrentFrame()`：单帧同步烘焙（标注+裁剪折算，复用 Commit 同款 CropRemap/Bake 逻辑），返回帧 + 裁剪后物理矩形；`PinCurrentFrame()` 弹 PinWindow
+- 单帧/多帧工具栏各加一个 PinBtn；Ctrl+P 快捷键
+
+**验证**：
+- 构建 0 错误
+- SelfTest 213/213（新增 T103a-e：放大/缩小/上限锁死/下限锁死/delta0 不变）
+- 实机 e2e（焦点安全）：Ctrl+P 与工具栏按钮各自弹出贴图窗（rect 800,500 1803x1203，trace `pin frame 1800x1200`）；截图确认贴图正确显示捕获内容于原位；Esc 关闭（前台确为 Pin 窗后发键，window-not-found 确认）
+- 滚轮缩放无 Shot 原语，逻辑由 T103 单测覆盖

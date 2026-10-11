@@ -144,6 +144,14 @@ public sealed partial class EditorWindow : Window
     Button IconBtn(string glyph, string tip, double size = 28) =>
         FrameCapture.Core.Fluent.IconButton(glyph, tip, size, 13);
 
+    // R65：钉到屏幕按钮（E91B 图片图标，与「总在最前」图钉明显区分）
+    Button PinBtn()
+    {
+        var b = IconBtn("\uE91B", "钉到屏幕 (Ctrl+P)");
+        b.Click += (_, _) => PinCurrentFrame();
+        return b;
+    }
+
     void BuildLayout()
     {
         // 停靠式布局：预览在上，播放面板（录制时常驻）与工具面板依次停靠其下——控件不再悬浮在画面里
@@ -242,9 +250,10 @@ public sealed partial class EditorWindow : Window
             var actions = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
             var bSaveFrame = IconBtn("\uE105", "保存当前帧 (PNG)  Ctrl+S"); bSaveFrame.Click += (_, _) => SaveFrame();
             var bCopyFrame = IconBtn("\uF413", "复制当前帧 (位图)  Ctrl+C"); bCopyFrame.Click += (_, _) => ClipboardService.SetFrame(ExportFrame(_index));
+            var bPinFrame = PinBtn();
             var bSaveGif = IconBtn("\uE116", "保存为动图 (GIF)  Ctrl+E"); bSaveGif.Click += (_, _) => SaveGif();
             var bAfter = IconBtn("\uE955", "保存视觉暂留合成图  Ctrl+H"); bAfter.Click += (_, _) => SaveAfterimage();
-            foreach (var b in new[] { bSaveFrame, bCopyFrame, bSaveGif, bAfter }) actions.Children.Add(b);
+            foreach (var b in new[] { bSaveFrame, bCopyFrame, bPinFrame, bSaveGif, bAfter }) actions.Children.Add(b);
             actions.Children.Add(Sep());
             var bCancel = IconBtn("\uE711", "取消 (Esc)"); bCancel.Click += (_, _) => FrameCapture.Core.Fluent.CloseWithFade(this);
             var bOk = IconBtn("\uF78C", "确定：GIF 写入剪贴板 (Enter)"); bOk.Click += (_, _) => Commit();
@@ -266,9 +275,10 @@ public sealed partial class EditorWindow : Window
             tools.Children.Add(Sep());
             var bSaveF = IconBtn("\uE105", "保存当前帧 (PNG)"); bSaveF.Click += (_, _) => SaveFrame();
             var bCopyF = IconBtn("\uF413", "复制当前帧 (位图)"); bCopyF.Click += (_, _) => ClipboardService.SetFrame(ExportFrame(_index));
+            var bPinF = PinBtn();
             var bOkF = IconBtn("\uF78C", "确定：写入剪贴板 (Enter)"); bOkF.Click += (_, _) => Commit();
             var bX = IconBtn("\uE711", "取消 (Esc)"); bX.Click += (_, _) => FrameCapture.Core.Fluent.CloseWithFade(this);
-            foreach (var b in new[] { bSaveF, bCopyF, bOkF, bX }) tools.Children.Add(b);
+            foreach (var b in new[] { bSaveF, bCopyF, bPinF, bOkF, bX }) tools.Children.Add(b);
             FrameCapture.Core.Fluent.HighlightBtn(bOkF, true);
             _okBtns.Add(bOkF); // 主按钮：accent 实心
         }
@@ -622,6 +632,7 @@ public sealed partial class EditorWindow : Window
             {
                 case Key.S: SaveFrame(); return;
                 case Key.C: ClipboardService.SetFrame(ExportFrame(_index)); return;
+                case Key.P: PinCurrentFrame(); return; // R65 钉到屏幕
                 case Key.E: SaveGif(); return;
                 case Key.H: SaveAfterimage(); return;
                 // 视图缩放（浏览器惯例）：Ctrl +/− 以中心放大缩小，Ctrl+0 适配，Ctrl+1 逐像素 1:1
@@ -780,6 +791,38 @@ public sealed partial class EditorWindow : Window
             if (strip) TryGenerateAgentStrip(seq);
             FrameCapture.Core.Fluent.CloseWithFade(this);
         });
+    }
+
+    /// <summary>R65：把当前帧（含标注+裁剪，WYSIWYG）烘焙成一张位图帧，用于钉到屏幕。
+    /// 单帧同步烘焙（快，无需后台任务）；返回帧 + 其对应的物理屏幕矩形（裁剪后随之收缩）。</summary>
+    (CapturedFrame? frame, RectI region) BakeCurrentFrame()
+    {
+        int idx = Math.Clamp(_index, 0, _seq.Frames.Count - 1);
+        var frame = _seq.Frames[idx];
+        var anns = new List<FrameCapture.Drawing.Annotation>(_anns.Items);
+        var frames = new List<CapturedFrame> { frame };
+        var outAnns = anns;
+        var region = _seq.Region;
+        if (_crop.IsCropped)
+        {
+            int fw = frame.W, fh = frame.H;
+            var (cx, cy, cw, ch) = FrameCapture.Core.CropState.ToPixelOf(_crop.Current, fw, fh);
+            frames = FrameCapture.Drawing.Bake.Crop(frames, cx, cy, cw, ch);
+            outAnns = FrameCapture.Core.CropRemap.Remap(anns, (double)cx / fw, (double)cy / fh, (double)cw / fw, (double)ch / fh);
+            region = new RectI(region.X + cx, region.Y + cy, cw, ch);
+        }
+        var baked = FrameCapture.Drawing.Bake.Apply(frames, outAnns);
+        return (baked.Count > 0 ? baked[0] : null, region);
+    }
+
+    /// <summary>R65：钉到屏幕——烘焙当前帧并在原捕获位置弹出一张贴图（可多张并存，Snipaste 式）。</summary>
+    void PinCurrentFrame()
+    {
+        var (f, region) = BakeCurrentFrame();
+        if (f == null) return;
+        var w = new PinWindow(f, region);
+        w.Show();
+        FrameCapture.Core.Trace.Log($"pin frame {f.W}x{f.H} at {region.X},{region.Y}");
     }
 
     /// <summary>时间轴范围+标注的后台烘焙与 GIF 编码（HUD 进度，编码中 Esc 取消）；完成后回 UI 线程执行 onDone。</summary>
