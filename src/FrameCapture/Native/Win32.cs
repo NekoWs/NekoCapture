@@ -154,6 +154,11 @@ internal static class Win32
 
     public const uint WDA_NONE = 0x0, WDA_MONITOR = 0x1, WDA_EXCLUDEFROMCAPTURE = 0x11;
 
+    /// <summary>显示器有效 DPI（96 制）：浮窗 Show 前换算物理→DIP，避免首帧位置闪烁。</summary>
+    [DllImport("shcore.dll")]
+    public static extern int GetDpiForMonitor(IntPtr hmonitor, int dpiType, out uint dpiX, out uint dpiY);
+    public const int DPI_EFFECTIVE = 0;
+
     [DllImport("user32.dll")]
     public static extern bool ClientToScreen(IntPtr hWnd, ref POINT lpPoint);
 

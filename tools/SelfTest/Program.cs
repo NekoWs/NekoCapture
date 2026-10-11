@@ -1027,6 +1027,25 @@ static class SelfTest
                 int n = img.GetFrameCount(FrameDimension.Time);
                 Chk("T87d-gif-framecount", n == k60.Count, $"GIF 解码 {n} 帧 = 重采样 {k60.Count} 帧");
             }
+            // T88：截屏浮窗落点（R42）——大区域贴内侧右下；小区域贴外下缘；越界翻转/钳进工作区
+            {
+                var work = new RectI(0, 0, 3840, 2100);
+                var big = FrameCapture.Core.ToastPlace.Place(new RectI(100, 100, 1200, 800), work, 300, 84);
+                Chk("T88a-inside-bottom-right", big.X == 988 && big.Y == 804, $"大区域 → {big}（期望 988,804）");
+                var small = FrameCapture.Core.ToastPlace.Place(new RectI(2000, 300, 100, 60), work, 300, 84);
+                Chk("T88b-below-region", small.X == 1800 && small.Y == 370, $"小区域 → {small}（期望 1800,370）");
+                var lowEdge = FrameCapture.Core.ToastPlace.Place(new RectI(2000, 2000, 100, 60), work, 300, 84);
+                Chk("T88c-flip-above", lowEdge.Y == 1906, $"贴底小区域 → {lowEdge}（期望翻上 y=1906）");
+                var corner = FrameCapture.Core.ToastPlace.Place(new RectI(0, 0, 100, 60), work, 300, 84);
+                Chk("T88d-clamp-workarea", corner.X == 4 && corner.Y == 70, $"左上角小区域 → {corner}（x 钳 4）");
+                bool inside = true;
+                foreach (var r in new[] { new RectI(-1920, -100, 800, 500), new RectI(3700, 2050, 120, 40), new RectI(50, 50, 3740, 2000) })
+                {
+                    var p = FrameCapture.Core.ToastPlace.Place(r, work, 300, 84);
+                    if (p.X < work.X || p.Y < work.Y || p.Right > work.Right || p.Bottom > work.Bottom) inside = false;
+                }
+                Chk("T88e-always-in-workarea", inside, "多区域（含负坐标/贴边）浮窗恒在工作区内");
+            }
         }
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");
         return fail == 0 ? 0 : 1;

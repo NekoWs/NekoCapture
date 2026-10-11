@@ -152,6 +152,9 @@ public sealed class CaptureController : IDisposable
                         try { FrameCapture.Services.BgraImage.SavePng(f, pth); } catch { }
                         FrameCapture.Encoding.ClipboardService.SetFrame(f);
                         FrameCapture.Core.Trace.Log($"still saved {pth} {f.W}x{f.H}");
+                        // 拍完即见（R42）：缩略浮窗确认"已复制"，点击原地进编辑器标注，不抢焦点
+                        var reg = region.Value;
+                        Overlays.CaptureToast.Show(f, reg, monitor.DeviceName, () => OpenEditorForFrame(f, reg, monitor.DeviceName));
                     }
                     if (_settings.Current.AlwaysShowRegionOutline) ShowOutline(region.Value);
                     else { FlashOutline(region.Value); _outline!.FadeAway(1.1); }
@@ -266,14 +269,14 @@ public sealed class CaptureController : IDisposable
         _maxTimer.Start();
     }
 
-    /// <summary>放开捕获快捷键。</summary>
-    public void EndCapture()
+    /// <summary>放开捕获快捷键。holdMs=钩子测得的真实按住时长（-1=无钩子来源，退回本地时钟）。</summary>
+    public void EndCapture(long holdMs = -1)
     {
         if (State != Phase.Capturing) return;
-        FinishCapture();
+        FinishCapture(holdMs);
     }
 
-    private void FinishCapture()
+    private void FinishCapture(long holdMs = -1)
     {
         FrameCapture.Core.Trace.Log("FinishCapture");
         _maxTimer?.Stop();
@@ -298,6 +301,9 @@ public sealed class CaptureController : IDisposable
 
 
         double durMs = _captureClock?.ElapsedMilliseconds ?? 0;
+        // 点按/长按判定用钩子事件时间戳：本地时钟会把首次 WGC 初始化耗时算成"按住"（R42 实测：
+        // 新实例首次点按被误判长按直接进编辑器）。时钟只兜底无钩子来源（托盘/最长时限自动停）。
+        if (holdMs >= 0) durMs = holdMs;
         _captureClock = null;
         var frames = _ring?.Snapshot() ?? new List<CapturedFrame>();
         int dropped = _ring?.Dropped ?? 0;
@@ -345,6 +351,12 @@ public sealed class CaptureController : IDisposable
             DroppedFrames = dropped,
         };
 
+        OpenEditor(seq);
+    }
+
+    /// <summary>打开编辑器并接管生命周期（关闭→Idle→焦点归还）。调用方负责 seq 组装。</summary>
+    void OpenEditor(CapturedSequence seq)
+    {
         State = Phase.Editing;
         FrameCapture.Core.Trace.Log($"open editor frames={seq.Frames.Count}");
         _editor = new EditorWindow(_settings, seq);
@@ -358,6 +370,23 @@ public sealed class CaptureController : IDisposable
         };
         _editor.Show();
         ForceForeground(_editor);
+    }
+
+    /// <summary>截屏浮窗「点击继续标注」：以刚截的帧开单帧编辑器（R42）。焦点归还目标=点击前的前台窗。</summary>
+    void OpenEditorForFrame(CapturedFrame f, RectI region, string device)
+    {
+        if (State != Phase.Idle) return; // 编辑器/录制/选取占用中：浮窗点击不重入
+        var fg = Native.Win32.GetForegroundWindow();
+        _prevFg = fg != System.IntPtr.Zero && Native.Win32.GetWindowThreadProcessId(fg, out uint fgp) != Native.Win32.GetCurrentThreadId()
+            ? fg : System.IntPtr.Zero;
+        var monitor = Monitors.ByDevice(device);
+        OpenEditor(new CapturedSequence
+        {
+            Frames = new List<CapturedFrame> { f },
+            Region = region,
+            MonitorBounds = monitor?.Bounds ?? region,
+            MonitorDevice = device,
+        });
     }
 
     ScreenRegion FullMonitorAtCursor()

@@ -20,7 +20,9 @@ public sealed class HotkeyManager : IDisposable
 
     public event Action? ScopeRequested;
     public event Action? CaptureBegin;
-    public event Action? CaptureEnd;
+    /// <summary>松开捕获键：参数=按住时长 ms（钩子事件时间戳差，不受 UI 线程忙/初始化耗时影响）。</summary>
+    public event Action<long>? CaptureEnd;
+    uint _downTick; // BeginCapture 事件的 GetTickCount 时间戳
 
     public bool Installed => _hook != IntPtr.Zero;
 
@@ -121,8 +123,15 @@ public sealed class HotkeyManager : IDisposable
         _pressed = o.Next;
         switch (o.Action)
         {
-            case HookDecision.Act.BeginCapture: CaptureBegin?.Invoke(); break;
-            case HookDecision.Act.EndCapture: CaptureEnd?.Invoke(); break;
+            case HookDecision.Act.BeginCapture:
+                _downTick = info.time;
+                CaptureBegin?.Invoke();
+                break;
+            case HookDecision.Act.EndCapture:
+                // info.time=系统事件时间戳：即便 UI 线程正忙（首次 WGC 初始化 ~400ms），
+                // 点按/长按判定仍按用户真实按住时长，不会把"点按"误判成"长按"（R42 实测抓到）。
+                CaptureEnd?.Invoke(unchecked((int)(info.time - _downTick)));
+                break;
             case HookDecision.Act.ScopeSelect: ScopeRequested?.Invoke(); break;
         }
         return o.Swallow;

@@ -33,7 +33,7 @@ public sealed class AppHost
 
         Hotkeys.ScopeRequested += () => Dispatch(Controller.BeginScopeSelection);
         Hotkeys.CaptureBegin += () => Dispatch(Controller.BeginCapture);
-        Hotkeys.CaptureEnd += () => Dispatch(Controller.EndCapture);
+        Hotkeys.CaptureEnd += ms => Dispatch(() => Controller.EndCapture(ms));
         InstallHotkeys();
 
         Controller.Initialize();

@@ -587,3 +587,15 @@ status: done
 - 浅色主题下裁剪 HUD 复查：「2/8 0.15s 导出 3–4」清晰；SetB 钳位（idx1 处 ] → 3–4，至少 2 帧）正确。
 - 设置恢复用户基线并删除本轮备份；发布实例（R39 二进制 + R37 README + 0.9.0）重启常驻托盘。
 - 长跑收口：R30–R41 共 12 轮全部提交；门禁 11 项连绿；SelfTest 122/122；用户配置零污染。
+
+## 2026-10-11 夜 交互优化 R42（新目标：超过 QQ 截图）
+- **截屏成功浮窗 CaptureToast**（选区→截图链路补上"拍完即见"）：缩略图+「已复制到剪贴板」+
+  「点击或按 Enter 继续标注 · Esc 关闭」；不抢焦点、WDA 排除不入镜（FC_TOAST_NOEXCLUDE=1 仅供审查截图）、
+  悬停暂停 3.2s 自动消失；落点 Core.ToastPlace 纯逻辑（大区域贴内侧右下/小区域外下缘/越界翻转钳边，T88a-e）。
+- **点击/Enter → 单帧编辑器**：OpenEditor 从 FinishCapture 抽出复用；OpenEditorForFrame 带 Idle 重入守卫+焦点归还。
+- **冷启动点按误判长按（真 bug，e2e 抓到）**：首次 WGC 初始化 ~400ms 被算进按住时长 → 点按直接进编辑器。
+  修复：HotkeyManager 用钩子事件时间戳（KBDLLHOOKSTRUCT.time 差）测真实按住时长传给 EndCapture(holdMs)，
+  本地时钟只兜底托盘/自动停路径。冷启动复测 tap→picker ✓。
+- 浮窗不抢焦点收不到 PostMessage 键 → HwndSource.AddHook 直接处理 WM_KEYDOWN(Enter/Esc)。
+- 验证：SelfTest 127/127（+T88×5）；全链 e2e（点按→选区 Enter→截图→浮窗 Enter→编辑器 frames=1）trace 全绿；
+  门禁 GUARDRAIL PASS（FAIL=0 SKIP=1）；浮窗视觉取证 toast-visual.png。

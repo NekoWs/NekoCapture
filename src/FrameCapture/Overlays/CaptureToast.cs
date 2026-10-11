@@ -1,0 +1,190 @@
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Media;
+using System.Windows.Media.Effects;
+using System.Windows.Media.Imaging;
+using System.Windows.Threading;
+using FrameCapture.Capture;
+using FrameCapture.Core;
+using FrameCapture.Native;
+using FrameCapture.Services;
+
+namespace FrameCapture.Overlays;
+
+/// <summary>
+/// 截屏成功浮窗（R42，对标 QQ 截图的"拍完即见"）：缩略图 + 「已复制」+ 点击继续标注。
+/// 不抢焦点、WDA 排除不入镜、悬停暂停自动消失；落点由 Core.ToastPlace 决策（贴刚截完的区域）。
+/// </summary>
+public sealed class CaptureToast : Window
+{
+    static CaptureToast? _current;
+
+    readonly DispatcherTimer _dismiss;
+    bool _closing;
+
+    const double W = 300;      // DIP 宽
+    const double EstH = 84;    // 估算高（落点用；实际 SizeToContent）
+
+    public static void Show(CapturedFrame frame, RectI region, string monitorDevice, Action onEdit)
+    {
+        _current?.Close();
+        _current = new CaptureToast(frame, region, monitorDevice, onEdit);
+        _current.Show(); // ShowActivated=false：不打断用户当前输入
+    }
+
+    CaptureToast(CapturedFrame frame, RectI region, string monitorDevice, Action onEdit)
+    {
+        Title = "FrameCapture Toast";
+        FrameCapture.Core.Fluent.BorderlessNative(this, resizeBorder: 0);
+        ShowActivated = false;
+        ShowInTaskbar = false;
+        Topmost = true;
+        WindowStyle = WindowStyle.None;
+        ResizeMode = ResizeMode.NoResize;
+        SizeToContent = SizeToContent.WidthAndHeight;
+        Background = Brushes.Transparent;
+
+        // 落点：物理像素决策 → 该显示器 DPI 换算 DIP（Show 前定好，无首帧闪烁）
+        var mon = Monitors.ByDevice(monitorDevice) ?? Monitors.Nearest(region.X, region.Y);
+        double sx = 1.0, sy = 1.0;
+        try
+        {
+            Win32.GetDpiForMonitor(mon.ResolveHMonitor(), Win32.DPI_EFFECTIVE, out uint dx, out uint dy);
+            if (dx > 0 && dy > 0) { sx = dx / 96.0; sy = dy / 96.0; }
+        }
+        catch { }
+        var work = new RectI(mon.Bounds.X, mon.Bounds.Y, mon.Bounds.W, mon.Bounds.H);
+        var pos = ToastPlace.Place(region, work, (int)(W * sx), (int)(EstH * sy));
+        Left = pos.X / sx; Top = pos.Y / sy;
+
+        var card = new Border
+        {
+            Background = new SolidColorBrush(Theme.CardBg),
+            BorderBrush = new SolidColorBrush(Color.FromArgb(0x66, Theme.Stroke.R, Theme.Stroke.G, Theme.Stroke.B)),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(10),
+            Padding = new Thickness(10, 9, 10, 9),
+            Effect = new DropShadowEffect { BlurRadius = 18, ShadowDepth = 2, Opacity = 0.35, Color = Colors.Black },
+            Cursor = System.Windows.Input.Cursors.Hand,
+        };
+
+        var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        var thumb = new Image
+        {
+            Source = Thumbnail(frame, 56, 44),
+            Width = 56, Height = 44,
+            Stretch = Stretch.Uniform,
+        };
+        var thumbBox = new Border
+        {
+            Child = thumb,
+            CornerRadius = new CornerRadius(4),
+            BorderBrush = new SolidColorBrush(Color.FromArgb(0x55, Theme.Stroke.R, Theme.Stroke.G, Theme.Stroke.B)),
+            BorderThickness = new Thickness(1),
+            ClipToBounds = true,
+            Margin = new Thickness(0, 0, 10, 0),
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        Grid.SetColumn(thumbBox, 0);
+        grid.Children.Add(thumbBox);
+
+        var texts = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+        texts.Children.Add(new TextBlock
+        {
+            Text = "已复制到剪贴板",
+            FontSize = 13,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = new SolidColorBrush(Theme.Text),
+            FontFamily = new FontFamily("Segoe UI"),
+        });
+        texts.Children.Add(new TextBlock
+        {
+            Text = "点击或按 Enter 继续标注 · Esc 关闭",
+            FontSize = 11,
+            Foreground = new SolidColorBrush(Theme.TextDim),
+            FontFamily = new FontFamily("Segoe UI"),
+            Margin = new Thickness(0, 2, 0, 0),
+        });
+        Grid.SetColumn(texts, 1);
+        grid.Children.Add(texts);
+
+        var close = FrameCapture.Core.Fluent.IconButton("\uE711", "关闭", 26, 12,
+            new SolidColorBrush(Theme.TextDim));
+        close.Cursor = System.Windows.Input.Cursors.Arrow;
+        close.VerticalAlignment = VerticalAlignment.Top;
+        close.Click += (_, _) => Dismiss();
+        Grid.SetColumn(close, 2);
+        grid.Children.Add(close);
+
+        card.Child = grid;
+        card.MouseLeftButtonUp += (_, e) =>
+        {
+            if (e.Source is DependencyObject d && ReferenceEquals(d, close)) return;
+            FrameCapture.Core.Trace.Log("toast→edit");
+            onEdit();
+            Dismiss();
+        };
+        Content = card;
+
+        // 键盘等价（Enter/Esc）：浮窗不抢焦点，WPF 焦点路由收不到键——直接在 HWND 层处理消息
+        SourceInitialized += (_, _) =>
+        {
+            var h = new System.Windows.Interop.WindowInteropHelper(this).Handle;
+            Win32.SetRoundedCorners(h);
+            // 后续截屏拍不到浮窗；FC_TOAST_NOEXCLUDE=1 仅供视觉审查截图（生产默认排除）
+            if (Environment.GetEnvironmentVariable("FC_TOAST_NOEXCLUDE") != "1")
+                Win32.SetWindowDisplayAffinity(h, Win32.WDA_EXCLUDEFROMCAPTURE);
+            if (PresentationSource.FromVisual(this) is System.Windows.Interop.HwndSource src)
+                src.AddHook((hwnd, msg, w, l, ref handled) =>
+                {
+                    const int WM_KEYDOWN = 0x0100, WM_SYSKEYDOWN = 0x0104;
+                    if (msg == WM_KEYDOWN || msg == WM_SYSKEYDOWN)
+                    {
+                        int vk = w.ToInt32();
+                        if (vk == 0x0D) // Enter → 进编辑器
+                        {
+                            handled = true;
+                            Dispatcher.BeginInvoke(() => { FrameCapture.Core.Trace.Log("toast→edit(key)"); onEdit(); Dismiss(); });
+                        }
+                        else if (vk == 0x1B) // Esc → 关闭
+                        {
+                            handled = true;
+                            Dispatcher.BeginInvoke(Dismiss);
+                        }
+                    }
+                    return IntPtr.Zero;
+                });
+        };
+
+        _dismiss = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(3200) };
+        _dismiss.Tick += (_, _) => Dismiss();
+        _dismiss.Start();
+        MouseEnter += (_, _) => _dismiss.Stop();          // 阅读/移动鼠标时不消失
+        MouseLeave += (_, _) => { _dismiss.Start(); };    // 移开再给 3.2s
+
+        Closed += (_, _) => { _dismiss.Stop(); if (ReferenceEquals(_current, this)) _current = null; };
+
+        FrameCapture.Core.Trace.Log("toast shown");
+        FrameCapture.Core.Fluent.FadeIn(this, FrameCapture.Core.Fluent.Motion.EnterMs, 8, offscreenFirstFrame: true);
+    }
+
+    void Dismiss()
+    {
+        if (_closing) return;
+        _closing = true;
+        _dismiss.Stop();
+        FrameCapture.Core.Fluent.CloseWithFade(this);
+    }
+
+    static BitmapSource Thumbnail(CapturedFrame f, double maxW, double maxH)
+    {
+        var src = BgraImage.ToSource(f);
+        double k = Math.Min(maxW / f.W, maxH / f.H);
+        if (k >= 1) return src;
+        return new TransformedBitmap(src, new ScaleTransform(k, k));
+    }
+}
