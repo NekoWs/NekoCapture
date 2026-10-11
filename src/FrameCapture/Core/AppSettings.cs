@@ -104,6 +104,10 @@ public sealed class AppSettings
     /// 结果窗（含字数、复制全部）。关闭则仅写剪贴板 + 轻提示（快速路径）。</summary>
     public bool OcrShowResult { get; set; } = false;
 
+    /// <summary>贴图磁边（默认开，R74）：拖动贴图松手时，若某条边贴近所在屏幕工作区边缘则自动吸附贴合，
+    /// 便于把贴图整齐停靠到屏幕四边/四角（Snipaste 式手感）。关闭则松手停在原地。</summary>
+    public bool PinSnapEdges { get; set; } = true;
+
     // ---- 上次捕获范围（物理像素，虚拟桌面绝对坐标；null 表示全屏主屏） ----
     public string? RegionMonitorId { get; set; }
     public int RegionX { get; set; }

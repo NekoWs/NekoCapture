@@ -1500,6 +1500,23 @@ static class SelfTest
                 Chk("T109e-nonnum", FrameCapture.Core.NumberBadge.Next(new[] { "x", "5" }) == 6, "非数字忽略");
                 Chk("T109f-diam", FrameCapture.Core.NumberBadge.Diameter(20) == 40, "直径=字号×2");
             }
+
+            // T110 贴图磁边（R74，PinSnap 纯决策）
+            {
+                var s1 = FrameCapture.Core.PinSnap.Snap(5, 500, 200, 100, 0, 0, 1920, 1080, 12);
+                Chk("T110a-left", s1.Left == 0 && s1.Top == 500, "左边距 5<阈值 → 吸左");
+                var s2 = FrameCapture.Core.PinSnap.Snap(1730, 500, 200, 100, 0, 0, 1920, 1080, 12);
+                Chk("T110b-right", s2.Left == 1720 && s2.Top == 500, "右边距 10<阈值 → 吸右");
+                var s3 = FrameCapture.Core.PinSnap.Snap(500, 3, 200, 100, 0, 0, 1920, 1080, 12);
+                Chk("T110c-top", s3.Left == 500 && s3.Top == 0, "上边距 3<阈值 → 吸上");
+                var s4 = FrameCapture.Core.PinSnap.Snap(500, 985, 200, 100, 0, 0, 1920, 1080, 12);
+                Chk("T110d-bottom", s4.Left == 500 && s4.Top == 980, "下边距 5<阈值 → 吸下");
+                var s5 = FrameCapture.Core.PinSnap.Snap(500, 500, 200, 100, 0, 0, 1920, 1080, 12);
+                Chk("T110e-none", s5.Left == 500 && s5.Top == 500, "远离边缘 → 不动");
+                Chk("T110f-thresh", FrameCapture.Core.PinSnap.Threshold(200, 100) == 12
+                    && FrameCapture.Core.PinSnap.Threshold(1000, 800) == 40
+                    && FrameCapture.Core.PinSnap.Threshold(300, 300) == 18, "阈值=短边6%夹12–40");
+            }
         }
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");
         return fail == 0 ? 0 : 1;

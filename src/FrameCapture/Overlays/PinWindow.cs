@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using FrameCapture.Capture;
 using FrameCapture.Encoding;
 using FrameCapture.Native;
@@ -68,7 +69,14 @@ public sealed class PinWindow : Window
         MouseLeftButtonDown += (_, e) =>
         {
             if (e.ClickCount == 2) { Close(); return; } // 双击关闭（先于拖动判定，避免 DragMove 吞掉第二击）
-            if (e.ButtonState == MouseButtonState.Pressed) { try { DragMove(); } catch { } }
+            if (e.ButtonState == MouseButtonState.Pressed)
+            {
+                // 若上一次磁边滑动动画还在飞，先结算到目标值再拖，避免 DragMove 起点与本地值不一致
+                BeginAnimation(LeftProperty, null);
+                BeginAnimation(TopProperty, null);
+                try { DragMove(); } catch { }
+                SnapToEdge(); // R74：松手后磁边（Snipaste 式停靠屏幕边缘）
+            }
         };
         MouseWheel += (_, e) =>
         {
@@ -106,6 +114,35 @@ public sealed class PinWindow : Window
         _img.Height = _baseH * _scale;
         Width = _img.Width + 2;
         Height = _img.Height + 2;
+    }
+
+    /// <summary>R74 磁边：拖动松手后，若贴图某条边贴近所在屏幕工作区边缘（阈值内）则平滑吸附贴合。</summary>
+    void SnapToEdge()
+    {
+        if (FrameCapture.Core.SettingsService.Shared?.Current.PinSnapEdges != true) return;
+        try
+        {
+            var d = VisualTreeHelper.GetDpi(this);
+            // 用贴图中心定位所在屏幕（多屏），工作区物理像素 → DIP 与 Left/Top 同单位
+            double cx = (Left + Width / 2) * d.DpiScaleX, cy = (Top + Height / 2) * d.DpiScaleY;
+            var wa = System.Windows.Forms.Screen.FromPoint(new System.Drawing.Point((int)cx, (int)cy)).WorkingArea;
+            double cl = wa.X / d.DpiScaleX, ct = wa.Y / d.DpiScaleY, cr = wa.Right / d.DpiScaleX, cb = wa.Bottom / d.DpiScaleY;
+            var (l, t) = FrameCapture.Core.PinSnap.Snap(Left, Top, Width, Height, cl, ct, cr, cb,
+                FrameCapture.Core.PinSnap.Threshold(Width, Height));
+            if (Math.Abs(l - Left) < 0.5 && Math.Abs(t - Top) < 0.5) return;
+            SlideTo(l, t);
+        }
+        catch { }
+    }
+
+    void SlideTo(double l, double t)
+    {
+        double oldL = Left, oldT = Top;
+        Left = l; Top = t; // 先落本地值=目标，动画从旧值滑来，结束后回落到本地值即目标（不留动画锁）
+        var dur = new Duration(TimeSpan.FromMilliseconds(FrameCapture.Core.Fluent.Motion.StateMs));
+        var ease = new CircleEase { EasingMode = EasingMode.EaseOut };
+        BeginAnimation(LeftProperty, new DoubleAnimation(oldL, l, dur) { EasingFunction = ease });
+        BeginAnimation(TopProperty, new DoubleAnimation(oldT, t, dur) { EasingFunction = ease });
     }
 
     void ShowMenu()

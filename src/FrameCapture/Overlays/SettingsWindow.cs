@@ -148,6 +148,11 @@ public sealed class SettingsWindow : Window
         panel.Children.Add(ToggleRow("\uE8C1", "识别文字后显示结果窗", "「识别文字」成功后，除写剪贴板外再弹出结果窗：可查看/编辑识别文本、部分选中复制、一键复制全部。关闭则仅写剪贴板 + 轻提示（更快）",
             _settings.Current.OcrShowResult, v => _settings.Mutate(s => s.OcrShowResult = v)));
 
+        // ---- 贴图 ----
+        panel.Children.Add(Group("贴图"));
+        panel.Children.Add(ToggleRow("\uE718", "拖动贴图自动磁边", "拖动贴图松手时，若某条边贴近所在屏幕边缘则自动吸附贴合，便于整齐停靠到屏幕四边/四角（Snipaste 式手感）。关闭则松手停在原地",
+            _settings.Current.PinSnapEdges, v => _settings.Mutate(s => s.PinSnapEdges = v)));
+
         // ---- 外观 ----
         panel.Children.Add(Group("外观"));
         panel.Children.Add(ThemeRow());
