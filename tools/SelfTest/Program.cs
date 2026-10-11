@@ -1272,6 +1272,18 @@ static class SelfTest
                     && FrameCapture.Core.HexColor.Parse(FrameCapture.Core.HexColor.Format(cT)) is { A: 0x80 },
                     "A=255 省略 AA；带透明出 8 位；格式↔解析闭环");
             }
+            {
+                // T98 设置项默认值与 JSON 往返（R55 新增 ShowLastRegion）：老配置缺字段必须回默认 true，不能默默变 false
+                var json = System.Text.Json.JsonSerializer.Serialize(new AppSettings());
+                var bare = System.Text.Json.JsonSerializer.Deserialize<AppSettings>("{}")!;
+                var full = System.Text.Json.JsonSerializer.Deserialize<AppSettings>(json)!;
+                Chk("T98a-showlast-default", new AppSettings().ShowLastRegion, "默认显示上次选区");
+                Chk("T98b-showlast-missing", bare.ShowLastRegion, "老配置无此字段 → 保持默认 true");
+                Chk("T98c-showlast-roundtrip", full.ShowLastRegion
+                    && !System.Text.Json.JsonSerializer.Deserialize<AppSettings>(
+                        System.Text.Json.JsonSerializer.Serialize(new AppSettings { ShowLastRegion = false }))!.ShowLastRegion,
+                    "开/关均能序列化往返");
+            }
         }
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");
         return fail == 0 ? 0 : 1;

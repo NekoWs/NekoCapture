@@ -741,3 +741,10 @@ status: done
 - 尝试链记录：Mouse.AddMouseUpHandler(元素版)/InputManager(无此静态)/Application(非 UIElement) 均不可用，
   最终窗+板双钩是 WPF 弹层独立 HWND 输入路由下的正解。
 - 验证：构建 0 错；SelfTest 170/170。交互手感项按约定留给用户实测（不盲测鼠标）。
+
+## 2026-10-12 午后 交互优化 R56（设置项：按下选区快捷键后是否显示旧选区）
+- 队列第 5 条：新设置 ShowLastRegion（默认开）。关 → CaptureController 传 existing=null：
+  无虚线旧框、无滞后入场动画，提示条同步去掉「Enter 确认上次选区」段（不承诺做不到的事）。
+- 设置页开关行「显示上次选区」（吸附行上方）；帮助 F1 行补注「虚线旧选区可在设置关闭」。
+- T98 三连：默认 true / 老配置缺字段反序列化保持默认（不能默默变 false）/ 开关序列化往返。
+- 验证：构建 0 错；SelfTest 173/173。

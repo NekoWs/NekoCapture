@@ -48,6 +48,9 @@ public sealed class AppSettings
     /// <summary>点按捕获快捷键时总是先弹出选区，选完立即截图（QQ 式手感）。</summary>
     public bool TapAlwaysShowsRegion { get; set; } = false;
 
+    /// <summary>按下选区快捷键后是否显示上次选区的虚线框（R55，关=干净屏，Enter 确认上次选区随之失效）。</summary>
+    public bool ShowLastRegion { get; set; } = true;
+
     /// <summary>「按住 = 录制」教学提示是否已展示过（首次真正起录后不再打扰，R43）。</summary>
     public bool RecHintShown { get; set; } = false;
 

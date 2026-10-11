@@ -136,7 +136,9 @@ public sealed class CaptureController : IDisposable
         // 首次教学（R43）：用户还没录过制时，在选区提示里点破"按住=录制"，起录一次后不再打扰
         string? teachTip = _settings.Current.RecHintShown ? null
             : $"提示：按住 {_settings.Current.CaptureHotkey} 不放 = 录制 GIF（点按 = 截图）";
-        _picker = new RegionPickerWindow(monitor, existing: StoredRegion()?.Bounds, snapContent: _settings.Current.SnapContentArea, teachTip: teachTip);
+        // 旧选区可关（R55 设置项）：关=干净屏选区，Enter 确认上次选区随之无意义
+        _picker = new RegionPickerWindow(monitor, existing: _settings.Current.ShowLastRegion ? StoredRegion()?.Bounds : null,
+            snapContent: _settings.Current.SnapContentArea, teachTip: teachTip);
         _picker.Result += region =>
         {
             _picker = null;

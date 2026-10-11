@@ -112,7 +112,7 @@ public sealed class HelpWindow : Window
         panel.Children.Add(title);
 
         H("捕获");
-        KV(HK(true), "设置捕获范围（拖框 / 悬停吸附窗口，Enter 确认，Esc 取消）——范围沿用");
+        KV(HK(true), "设置捕获范围（拖框 / 悬停吸附窗口，Enter 确认，Esc 取消）——范围沿用；虚线旧选区可在设置关闭");
         KV(HK(false) + " 长按", "录制按下到放开期间的画面，范围角上亮 REC 徽标（可在设置里改上限时长）");
         KV(HK(false) + " 点按", "截一帧进剪贴板（开启「先显示选区」则先弹选区）；浮窗上点一下或 Enter 继续标注");
 

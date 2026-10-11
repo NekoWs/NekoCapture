@@ -92,7 +92,9 @@ public sealed class RegionPickerWindow : Window
             var hintPanel = new StackPanel();
             hintPanel.Children.Add(new TextBlock
             {
-                Text = "拖框选择 · 悬停点击吸附窗口 · Enter 确认上次选区 · Esc 取消",
+                Text = _existing != null
+                    ? "拖框选择 · 悬停点击吸附窗口 · Enter 确认上次选区 · Esc 取消"
+                    : "拖框选择 · 悬停点击吸附窗口 · Esc 取消",
                 FontSize = 13,
                 Foreground = new SolidColorBrush(Color.FromArgb(0xE6, 0xFF, 0xFF, 0xFF)),
             });
