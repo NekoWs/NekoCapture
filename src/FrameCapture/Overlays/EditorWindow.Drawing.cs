@@ -543,6 +543,26 @@ public sealed partial class EditorWindow
         RedrawAnns();
     }
 
+    /// <summary>R76：选中已有标注时改颜色/粗细——原位替换（可撤销），同时该项已是当前默认（后续新标注沿用）。
+    /// 传 null 表示该项不改（改色时不动粗细、改粗细时不动颜色）。文字/序号的粗细即字号。</summary>
+    void RestyleSelected(Color? wpfColor, float? thickness)
+    {
+        if (_sel == null || !_anns.Items.Contains(_sel)) return;
+        var s = _sel;
+        System.Drawing.Color? gdi = wpfColor.HasValue
+            ? System.Drawing.Color.FromArgb(wpfColor.Value.A, wpfColor.Value.R, wpfColor.Value.G, wpfColor.Value.B)
+            : null;
+        bool colorChanged = gdi.HasValue && (gdi.Value.R != s.Color.R || gdi.Value.G != s.Color.G || gdi.Value.B != s.Color.B || gdi.Value.A != s.Color.A);
+        bool widthChanged = thickness.HasValue && Math.Abs(s.Thickness - thickness.Value) > 1e-6;
+        if (!colorChanged && !widthChanged) return; // 无实际变化 → 不产生撤销项
+        var e = s.WithStyle(colorChanged ? gdi : null, widthChanged ? thickness : null);
+        if (_anns.Replace(s, e))
+        {
+            _order.AnnAdded(); RefreshUndo(); _sel = e; RedrawAnns();
+            FrameCapture.Core.Trace.Log($"editor restyle kind={s.Kind} color={colorChanged} w={widthChanged}");
+        }
+    }
+
     // ---------------- 裁剪引导层（R45）：框外压暗 + 三分网格 + 「松开应用」 ----------------
 
     System.Windows.Shapes.Path? _cropMask, _cropGrid;

@@ -50,6 +50,8 @@
       PinSnap 纯函数（阈值=短边6%夹12–40；左右/上下边互斥吸附）；PinWindow 松手后 SnapToEdge（中心定位所在屏、工作区物理÷DpiScale 转 DIP）+ Motion.StateMs 平滑滑入；新增「贴图」设置组。SelfTest T110a-f，实机 e2e（底边精确吸附到工作区底 2088、齐平任务栏）。
 - [x] **贴图 OCR 入口**（R75）：贴图右键菜单加「识别文字」，就地 OCR 贴图里的印刷文字（中英）→ 写剪贴板，开「识别后显示结果窗」则弹结果窗，否则贴图内浮层提示。QQ 无 OCR，差异化能力。
       OcrService.Feedback 纯函数（编辑器/贴图共用措辞）；PinWindow 内容改 Grid + Flash 浮层（淡入停留淡出）；OcrFrame 复用 RecognizeAsync(_frame)/Normalize/OcrResultWindow。SelfTest T111a-c，实机 e2e（右键→识别文字→结果窗中英正确+剪贴板）。
+- [x] **选中已有标注改颜色/粗细**（R76）：V 选中一条标注后点色板/线宽，就地改这条的颜色/粗细（文字/序号粗细即字号），Ctrl+Z 可撤销；未选中时改的是后续新标注默认值。通用工作流修复（改错不用删了重画）。
+      Annotation.WithStyle 纯函数（副本，null 保持原值）；EditorWindow.RestyleSelected 用 UndoRedo.Replace（Edit op）原位替换 + 无变化不刷撤销守卫；挂钩色板/最近用色/取色器关闭/3 挡线宽即时改，自定义滑杆关闭时一次性应用。SelfTest T112a-d，实机 e2e（红箭头→蓝→撤销回红；粗→细→撤销回粗，像素采样+截图）。
 
 ## 用户反馈
 - [x] **录制后的全屏黄色边框持续存在（10-04 已修复）**：根因 = **不是我们的代码**，是 Windows 11

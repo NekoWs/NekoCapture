@@ -1524,6 +1524,21 @@ static class SelfTest
                 Chk("T111b-noengine", FrameCapture.Core.OcrService.Feedback(FrameCapture.Core.OcrStatus.NoEngine, 0).Contains("语言包"), "无引擎→装语言包指引");
                 Chk("T111c-empty", FrameCapture.Core.OcrService.Feedback(FrameCapture.Core.OcrStatus.Empty, 0) == "未识别到文字", "空→未识别");
             }
+
+            // T112 标注改样式副本（R76，WithStyle 纯函数）
+            {
+                var red = System.Drawing.Color.FromArgb(255, 0xE7, 0x48, 0x4C);
+                var blue = System.Drawing.Color.FromArgb(255, 0, 0, 255);
+                var b0 = new FrameCapture.Drawing.Annotation { Kind = FrameCapture.Drawing.AnnKind.Arrow, Color = red, Thickness = 4 };
+                b0.Points.Add((0.1f, 0.2f)); b0.Points.Add((0.5f, 0.6f)); b0.Text = "hi";
+                var c1 = b0.WithStyle(blue, null);
+                Chk("T112a-color", c1.Color.B == 255 && c1.Thickness == 4 && c1.Kind == FrameCapture.Drawing.AnnKind.Arrow && c1.Points.Count == 2, "改色保留粗细/几何");
+                var c2 = b0.WithStyle(null, 10);
+                Chk("T112b-width", c2.Color.R == 0xE7 && c2.Thickness == 10, "改粗细保留色");
+                var c3 = b0.WithStyle(blue, 10);
+                Chk("T112c-both", c3.Color.B == 255 && c3.Thickness == 10, "两者都改");
+                Chk("T112d-keep", c1.Points[0].X == 0.1f && c1.Points[1].Y == 0.6f && c1.Text == "hi" && b0.Points.Count == 2, "点集/文字保留且原对象不变");
+            }
         }
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");
         return fail == 0 ? 0 : 1;

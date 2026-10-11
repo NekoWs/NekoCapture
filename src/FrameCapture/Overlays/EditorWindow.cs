@@ -386,7 +386,7 @@ public sealed partial class EditorWindow : Window
                 ToolTip = "颜色",
             };
             FrameCapture.Core.Fluent.ChipHover(bd);
-            bd.MouseLeftButtonDown += (sender2, e2) => { _colorIdx = idx; RefreshSwatches(); e2.Handled = true; };
+            bd.MouseLeftButtonDown += (sender2, e2) => { _colorIdx = idx; RefreshSwatches(); RestyleSelected(CurColor, null); e2.Handled = true; };
             _swatchBtns.Add(bd);
             bar.Children.Add(bd);
         }
@@ -405,7 +405,7 @@ public sealed partial class EditorWindow : Window
             int idx = w;
             var b = IconBtn("", lbl + "笔画", 24);
             b.FontSize = 8 + idx * 3;
-            b.PreviewMouseLeftButtonDown += (sender2, e2) => { _widthIdx = idx; RefreshWidths(); e2.Handled = true; };
+            b.PreviewMouseLeftButtonDown += (sender2, e2) => { _widthIdx = idx; RefreshWidths(); RestyleSelected(null, CurWidth); e2.Handled = true; };
             _widthBtns.Add(b);
             bar.Children.Add(b);
         }
@@ -502,7 +502,7 @@ public sealed partial class EditorWindow : Window
             string h = hex;
             bd.MouseLeftButtonDown += (sender2, e2) =>
             {
-                _customColor = col; _colorIdx = Swatches.Length; RefreshSwatches(); e2.Handled = true;
+                _customColor = col; _colorIdx = Swatches.Length; RefreshSwatches(); RestyleSelected(CurColor, null); e2.Handled = true;
             };
             _recentHost.Children.Add(bd);
         }
@@ -549,6 +549,8 @@ public sealed partial class EditorWindow : Window
                 AllowsTransparency = true,
                 PopupAnimation = PopupAnimation.Fade,
             };
+            // R76：滑杆拖动只改默认值（实时预览），关闭弹层时一次性把最终粗细应用到选中项（单条撤销）
+            _widthPop.Closed += (_, _) => RestyleSelected(null, CurWidth);
         }
         _widthSlider.Value = Math.Clamp(_customWidth, 1, 24);
         if (_widthVal != null) _widthVal.Text = $"{(int)_widthSlider.Value}px";

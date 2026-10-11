@@ -20,6 +20,15 @@ public sealed class Annotation
     /// <summary>文字内容（仅 Kind=Text）。</summary>
     public string Text { get; set; } = "";
 
+    /// <summary>R76：返回改了颜色/粗细的副本（Kind/几何/文字不变；传 null 表示该项保持原值）。
+    /// 供「选中已有标注→改样式」原位替换（可撤销）用。纯函数，供单测。</summary>
+    public Annotation WithStyle(Color? color, float? thickness)
+    {
+        var e = new Annotation { Kind = Kind, Color = color ?? Color, Thickness = thickness ?? Thickness, Text = Text };
+        foreach (var p in Points) e.Points.Add(p);
+        return e;
+    }
+
     public void Render(Graphics g, int w, int h)
     {
         float scale = Math.Min(w, h) / 1080f;
