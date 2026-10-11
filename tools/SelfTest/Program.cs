@@ -1434,6 +1434,15 @@ static class SelfTest
                 Chk("T103d-zoom-min", FrameCapture.Core.PinZoom.Next(0.1, -1) == 0.1, "已到下限再缩小 → 锁死 0.1");
                 Chk("T103e-zoom-zero", FrameCapture.Core.PinZoom.Next(2.5, 0) == 2.5, "delta=0 → 不变");
             }
+
+            // T104 贴图不透明度滚轮（R66，PinOpacity 纯决策）
+            {
+                Chk("T104a-op-up", System.Math.Abs(FrameCapture.Core.PinOpacity.Next(0.5, 1) - 0.6) < 1e-9, "delta>0 → +0.1 更不透明");
+                Chk("T104b-op-down", System.Math.Abs(FrameCapture.Core.PinOpacity.Next(0.5, -1) - 0.4) < 1e-9, "delta<0 → −0.1 更透明");
+                Chk("T104c-op-max", FrameCapture.Core.PinOpacity.Next(1.0, 1) == 1.0, "已全不透明再增 → 锁死 1.0");
+                Chk("T104d-op-min", FrameCapture.Core.PinOpacity.Next(0.2, -1) == 0.2, "已到最透明再减 → 锁死 0.2");
+                Chk("T104e-op-zero", FrameCapture.Core.PinOpacity.Next(0.7, 0) == 0.7, "delta=0 → 不变");
+            }
         }
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");
         return fail == 0 ? 0 : 1;

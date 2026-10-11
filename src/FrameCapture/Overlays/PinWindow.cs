@@ -12,11 +12,15 @@ namespace FrameCapture.Overlays;
 /// <summary>
 /// R65：钉到屏幕——把当前帧（含标注/裁剪，WYSIWYG）作为一张无边框、置顶、可拖动/滚轮缩放的小图，
 /// 钉在桌面原捕获位置。Snipaste/QQ 的招牌手感，此前缺位。
-/// 交互：按住拖动移动；滚轮以中心为锚缩放（10%~600%）；双击或 Esc 关闭；右键菜单复制/关闭。
+/// 交互：按住拖动移动；滚轮以中心为锚缩放（10%~600%）；Ctrl+滚轮调不透明度（20%~100%）；
+/// 双击或 Esc 关闭；右键菜单复制/不透明度/关闭/关闭全部贴图。
 /// 不进任务栏（ShowInTaskbar=false），关掉只靠上述手势——与 Snipaste 贴图一致。
 /// </summary>
 public sealed class PinWindow : Window
 {
+    // R66：所有在屏贴图的登记表——右键菜单「关闭全部贴图」用；UI 线程访问，无需加锁
+    static readonly List<PinWindow> _open = new();
+
     readonly CapturedFrame _frame;
     readonly Image _img;
     double _scale = 1.0, _baseW, _baseH;
@@ -68,6 +72,13 @@ public sealed class PinWindow : Window
         };
         MouseWheel += (_, e) =>
         {
+            // Ctrl+滚轮=调不透明度（20%~100%）；纯滚轮=以中心为锚缩放（10%~600%）
+            if ((Keyboard.Modifiers & ModifierKeys.Control) != 0)
+            {
+                Opacity = FrameCapture.Core.PinOpacity.Next(Opacity, e.Delta);
+                e.Handled = true;
+                return;
+            }
             double old = _scale;
             _scale = FrameCapture.Core.PinZoom.Next(_scale, e.Delta);
             if (System.Math.Abs(_scale - old) < 1e-9) return;
@@ -77,6 +88,9 @@ public sealed class PinWindow : Window
         };
         MouseRightButtonUp += (_, e) => { ShowMenu(); e.Handled = true; };
         KeyDown += (_, e) => { if (e.Key == Key.Escape) Close(); };
+
+        Loaded += (_, _) => _open.Add(this);
+        Closed += (_, _) => _open.Remove(this);
 
         FrameCapture.Core.Fluent.FadeIn(this, 120, 10);
         SourceInitialized += (_, _) =>
@@ -99,11 +113,24 @@ public sealed class PinWindow : Window
         var menu = new ContextMenu();
         var copy = new MenuItem { Header = "复制" };
         copy.Click += (_, _) => ClipboardService.SetFrame(_frame);
+        // 不透明度子菜单：预设档位（Ctrl+滚轮可微调）
+        var opacity = new MenuItem { Header = "不透明度" };
+        foreach (var pct in new[] { 100, 75, 50, 25 })
+        {
+            double v = pct / 100.0;
+            var mi = new MenuItem { Header = pct + "%" };
+            mi.Click += (_, _) => Opacity = v;
+            opacity.Items.Add(mi);
+        }
         var close = new MenuItem { Header = "关闭 (Esc)" };
         close.Click += (_, _) => Close();
+        var closeAll = new MenuItem { Header = $"关闭全部贴图 ({_open.Count})" };
+        closeAll.Click += (_, _) => { foreach (var p in _open.ToArray()) p.Close(); };
         menu.Items.Add(copy);
+        menu.Items.Add(opacity);
         menu.Items.Add(new Separator());
         menu.Items.Add(close);
+        menu.Items.Add(closeAll);
         menu.PlacementTarget = this;
         menu.IsOpen = true;
     }
