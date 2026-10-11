@@ -56,7 +56,9 @@ public sealed partial class EditorWindow : Window
         MouseLeftButtonDown += (_, e) => { if (e.ButtonState == MouseButtonState.Pressed) { try { DragMove(); } catch { } } };
 
         var mon = Monitors.ByDevice(seq.MonitorDevice) ?? Monitors.Nearest(seq.Region.X, seq.Region.Y);
-        Width = Math.Min(1600, Math.Max(560, seq.Region.W + 120));
+        // 780 DIP = 底部工具条全列（工具/色板/最近用色/宽度/撤销重做/齿轮/帮助）不裁切的最小宽（R34 极小区域抓到裁切）
+        MinWidth = 780;
+        Width = Math.Min(1600, Math.Max(780, seq.Region.W + 120));
         Height = Math.Min(1000, Math.Max(420, seq.Region.H + (seq.Frames.Count > 1 ? 250 : 210))); // 停靠面板占位：播放+工具 / 仅工具
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
         if (mon != null)
