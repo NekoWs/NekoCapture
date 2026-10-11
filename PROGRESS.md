@@ -339,3 +339,10 @@ status: done
   裁剪瞬间不再全量重烘焙（UI 零卡顿）。
   验证：SelfTest 103/103（+T80f Pop→Redo 精确还原）；GUARDRAIL PASS（FAIL=0 SKIP=1 共 10 项，EDITOR-KEYS 覆盖改动的
   StartEncode 路径）。裁剪拖框本身仍是鼠标路径（GOAL 禁注入），像素级等价性由 T78c 锁定。
+
+## 2026-10-11 长跑 R10（DSH goal 轮，14:00 起）
+- **R10 Esc 分层**：原 Esc 在绘制态直接关窗——误触一次丢掉整次捕获。新增 Core/EscStep.cs 纯逻辑决策
+  （导出中=取消导出 → 绘制态=退出工具并丢弃进行中的一笔 → 浏览态=关闭），SetTool(Browse) 前 CancelPendingStroke
+  释放捕获/删预览/不提交。帮助与 README 同步"误触不丢捕获"语义。
+  验证：SelfTest +T82a（104/104）；新增 scripts/test-esc-layers.ps1 挂入全量闸（第 11 项）：
+  D 进绘制态 → Esc 编辑器仍在 + trace esc→browse → 再 Esc 关闭，ESC-LAYERS PASS。fuzz 收尾本就多层 Esc，兼容。

@@ -64,6 +64,7 @@ if (-not $SkipE2e -and $okBuild) {
     $e2e = @(
         @{ n = "e2e:editor-keys(捕获→编辑器→Enter→剪贴板三格式)"; f = "test-editor-keys.ps1";    mark = "EDITOR-KEYS" },
         @{ n = "e2e:zoom(1:1/放大/适配 键路由+zoom决策)";             f = "test-zoom.ps1";           mark = "ZOOM" },
+        @{ n = "e2e:esc-layers(绘制态Esc不丢捕获)";                   f = "test-esc-layers.ps1";     mark = "ESC-LAYERS" },
         @{ n = "e2e:hotkey(改键/旧键失效/恢复)";                    f = "test-hotkey-e2e.ps1";     mark = "HOTKEY-E2E" },
         @{ n = "e2e:tap-semantics(点按/长按阈值)";                   f = "test-tap-semantics.ps1";  mark = "TAP-SEMANTICS" },
         @{ n = "e2e:focus-safety(吞键不漏字符)";                     f = "test-focus-safety.ps1";   mark = "FOCUS-SAFETY" },

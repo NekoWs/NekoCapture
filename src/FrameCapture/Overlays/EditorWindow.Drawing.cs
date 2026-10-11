@@ -322,6 +322,14 @@ public sealed partial class EditorWindow
         e.Handled = true;
     }
 
+    /// <summary>丢弃进行中的一笔（Esc 退出绘制态时用：释放捕获、删预览、不提交）。</summary>
+    void CancelPendingStroke()
+    {
+        if (_dragging) { _dragging = false; _canvas.ReleaseMouseCapture(); }
+        _pending = null;
+        if (_preview != null) { _canvas.Children.Remove(_preview); _preview = null; }
+    }
+
     Annotation MakeAnn(AnnKind k, Color c, float w, IEnumerable<Point> normPts)
     {
         var a = new Annotation { Kind = k, Color = System.Drawing.Color.FromArgb(c.A, c.R, c.G, c.B), Thickness = w };

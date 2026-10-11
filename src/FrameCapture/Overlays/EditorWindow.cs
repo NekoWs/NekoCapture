@@ -408,8 +408,17 @@ public sealed partial class EditorWindow : Window
         switch (e.Key)
         {
             case Key.Escape:
-                if (_encoding) { _commitCts?.Cancel(); }
-                else FrameCapture.Core.Fluent.CloseWithFade(this);
+                // 分层语义（T82）：导出中=取消；绘制态=先退出工具，误触 Esc 绝不丢整次捕获；浏览态=关闭
+                switch (FrameCapture.Core.EscStep.Select(_encoding, _tool != Tool.Browse))
+                {
+                    case FrameCapture.Core.EscAction.CancelEncode: _commitCts?.Cancel(); break;
+                    case FrameCapture.Core.EscAction.ExitTool:
+                        CancelPendingStroke(); SetTool(Tool.Browse);
+                        FrameCapture.Core.Trace.Log("editor esc→browse");
+                        e.Handled = true;
+                        break;
+                    default: FrameCapture.Core.Fluent.CloseWithFade(this); break;
+                }
                 break;
             case Key.Enter: Commit(); break;
             case Key.Space: TogglePlay(); e.Handled = true; break;

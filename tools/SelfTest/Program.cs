@@ -879,6 +879,14 @@ static class SelfTest
                 Chk("T81c-new-action-clears-redo", !ao3.CanRedoCrop && !ao3.CanUndoCrop,
                     "裁剪被撤销后画新笔 → 裁剪 redo 失效（标准撤销语义），两栈皆空");
             }
+            // T82：Esc 分层（导出中=取消；绘制态=退工具；浏览=关闭）
+            {
+                Chk("T82a-esc-layers",
+                    EscStep.Select(encoding: true, inToolMode: true) == EscAction.CancelEncode
+                    && EscStep.Select(encoding: false, inToolMode: true) == EscAction.ExitTool
+                    && EscStep.Select(encoding: false, inToolMode: false) == EscAction.Close,
+                    "导出中优先取消；绘制态先退工具（误触不丢捕获）；仅浏览态关闭");
+            }
         }
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");
         return fail == 0 ? 0 : 1;
