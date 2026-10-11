@@ -47,12 +47,12 @@ static class RenderMatrix
     {
         var cands = new (string Label, string Chars)[]
         {
-            ("More     ", "\uE790\uE10C\uE712\uE9E9\uEBB4\uE86A"),
-            ("Palette  ", "\uE790\uE2B1\uEF8C\uF067\uE7F0\uE7EE"),
-            ("PrevSec  ", "\uF8AB\uF8AC\uF8AD\uF8AE\uE892\uEB9E"),
-            ("PrevFrame", "\uF08B\uF08C\uF08D\uF08E\uF08F\uE100"),
-            ("NextFrame", "\uE101\uF090\uF091\uF092\uF093\uF094"),
-            ("Pen      ", "\uEDD6\uEDD7\uEDD8\uEDD9\uE70F\uEB60"),
+            ("ScopeSel ", "\uE71A\uE7A8\uE7FB\uE8C6\uEB9C\uEF8C"),
+            ("Frame    ", "\uE7C4\uE8A9\uE9F5\uEDB8\uE71D\uE80E"),
+            ("Marquee  ", "\uF108\uF109\uEAC0\uEAC1\uE890\uE762"),
+            ("Crop2    ", "\uE7A7\uE7A9\uF222\uF223\uEC8A\uEC8B"),
+            ("Region3  ", "\uE99B\uE99C\uE99D\uE99E\uE99F\uEA3F"),
+            ("Select4  ", "\uE762\uE8B3\uE8E1\uF0E5\uF0E6\uF2AC"),
         };
 int cellW = 130, cellH = 86, labelW = 140;
         int rows = cands.Length, cols = 6;

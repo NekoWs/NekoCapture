@@ -16,6 +16,7 @@ public sealed class SettingsWindow : Window
 {
     readonly SettingsService _settings;
     Action? _hkCancel; // 当前正在捕获新热键的行的取消动作（null=无）
+    TextBlock? _hkWarn; // 两热键同键时的内联警示（管理器按"捕获优先"消歧，但用户应知情）
     double _downX, _downY;
 
     public SettingsWindow()
@@ -97,8 +98,19 @@ public sealed class SettingsWindow : Window
         panel.Children.Add(Rule());
 
         // 快捷键 ×2
-        panel.Children.Add(HotkeyRow("\uE71A", "选区快捷键", "呼出区域选取窗", "scope"));
+        panel.Children.Add(HotkeyRow("\uE7A8", "选区快捷键", "呼出区域选取窗", "scope")); // 裁剪角标=选取；E71A 留给"轮廓"行避免重复
         panel.Children.Add(HotkeyRow("\uE7F4", "捕获快捷键", "点按 = 单帧 / 长按 = 录屏", "capture"));
+        _hkWarn = new TextBlock
+        {
+            Visibility = Visibility.Collapsed,
+            Foreground = new SolidColorBrush(Color.FromRgb(0xD1, 0x8B, 0x00)),
+            FontSize = 12,
+            Margin = new Thickness(32, 2, 0, 4),
+            TextWrapping = TextWrapping.Wrap,
+            Text = "两个热键相同：按下时按「捕获」处理，选区快捷键不会触发。",
+        };
+        panel.Children.Add(_hkWarn);
+        UpdateHkWarn();
         panel.Children.Add(Rule());
 
         // 滑杆行（名称常显，长说明进悬停提示）
@@ -223,7 +235,7 @@ public sealed class SettingsWindow : Window
 
         bool capturing = false;
         Action cancel = null!;
-        cancel = () => { if (!capturing) return; capturing = false; if (ReferenceEquals(_hkCancel, cancel)) _hkCancel = null; Refresh(); };
+        cancel = () => { if (!capturing) return; capturing = false; if (ReferenceEquals(_hkCancel, cancel)) _hkCancel = null; Refresh(); UpdateHkWarn(); };
         box.MouseLeftButtonDown += (_, e) =>
         {
             _hkCancel?.Invoke();           // 同一时刻只允许一行处于捕获态
@@ -262,6 +274,14 @@ public sealed class SettingsWindow : Window
             box.BorderBrush = new SolidColorBrush(Theme.Stroke);
         }
         return g;
+    }
+
+    void UpdateHkWarn()
+    {
+        if (_hkWarn == null) return;
+        var s = _settings.Current;
+        _hkWarn.Visibility = HotkeySpec.Parse(s.ScopeHotkey) != null && s.ScopeHotkey == s.CaptureHotkey
+            ? Visibility.Visible : Visibility.Collapsed;
     }
 
     static string BuildSpec(Key key, ModifierKeys mods)

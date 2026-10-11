@@ -975,6 +975,29 @@ static class SelfTest
                         ? " dec=[" + string.Join(" ", rowMeans.Select(m => m.ToString("F0"))) + "]"
                         + " src=[" + string.Join(" ", Enumerable.Range(0, H).Select(y => (10 + y * 30 / H).ToString())) + "]" : ""));
             }
+            // T86：视觉暂留合成——末帧全亮、历史帧留衰减尾迹、暗底亮物可见；出图供逐帧目检
+            {
+                int W = 160, H = 40;
+                var frames = new List<CapturedFrame>();
+                for (int k = 0; k < 5; k++)
+                {
+                    var px = new byte[W * H * 4];
+                    for (int i = 0; i < px.Length; i += 4) { px[i] = 20; px[i + 1] = 20; px[i + 2] = 20; px[i + 3] = 255; } // 暗底
+                    int cx = 16 + k * 30;
+                    for (int y = 14; y < 26; y++)
+                        for (int x = cx; x < cx + 12; x++)
+                        { int o = (y * W + x) * 4; px[o] = 0xFF; px[o + 1] = 0xC2; px[o + 2] = 0x4C; } // 亮青方块
+                    frames.Add(new CapturedFrame { Bgra = px, W = W, H = H, TimeMs = k * 100 });
+                }
+                var comb = BgraImage.Afterimage(frames, 5);
+                int At(int x, int y) => comb.Bgra[(y * W + x) * 4]; // B 通道
+                int final = At(16 + 4 * 30 + 6, 20), first = At(16 + 6, 20), mid = At(16 + 2 * 30 + 6, 20);
+                Chk("T86a-afterimage-final-bright", final >= 0xF0, $"末帧位置 B={final}（应全亮）");
+                Chk("T86b-afterimage-trail-decaying", first > 20 && first < mid && mid < final,
+                    $"尾迹单调衰减 first={first} mid={mid} final={final}");
+                BgraImage.SavePng(comb, Path.Combine(tmp, "afterimage-t86.png"));
+                Chk("T86c-afterimage-png", File.Exists(Path.Combine(tmp, "afterimage-t86.png")));
+            }
         }
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");
         return fail == 0 ? 0 : 1;
