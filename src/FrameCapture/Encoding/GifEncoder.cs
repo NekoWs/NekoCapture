@@ -184,7 +184,8 @@ public static class GifEncoder
         // 4) 像素 → 最近调色板色 + Floyd–Steinberg 误差扩散（蛇形扫描）。
         //    无抖动的中位切割在暗渐变上出明显带状纹（R25 逐帧审查 GIF 产物发现）；
         //    误差全为 0 的平坦区直接跳过传播，文字边缘不引入噪点。
-        var cache = new int[262144];
+        // 7bit 键缓存：6bit 的 4 宽桶会把误差反馈量化成 4px 周期竖纹（R26 真实帧 3x 放大抓到）
+        var cache = new int[2097152];
         Array.Fill(cache, -1);
         var indices = new byte[total];
         var errBuf = ErrBuf(total);
@@ -200,7 +201,7 @@ public static class GifEncoder
                 int r = Clamp255(bgra[o + 2] + (int)Math.Round(errBuf[pe]));
                 int g = Clamp255(bgra[o + 1] + (int)Math.Round(errBuf[pe + 1]));
                 int b3 = Clamp255(bgra[o] + (int)Math.Round(errBuf[pe + 2]));
-                int key = (r >> 2 << 12) | (g >> 2 << 6) | (b3 >> 2);
+                int key = (r >> 1 << 14) | (g >> 1 << 7) | (b3 >> 1);
                 int idx = cache[key];
                 if (idx < 0)
                 {
@@ -216,7 +217,10 @@ public static class GifEncoder
                 }
                 int er = r - palette[idx * 3], eg = g - palette[idx * 3 + 1], eb = b3 - palette[idx * 3 + 2];
                 indices[p] = (byte)idx;
-                if ((er | eg | eb) == 0) continue;
+                // 微误差（三通道绝对值和 ≤2）不传播：源噪声/近平坦区保持平坦，不生成可见噪点；
+                // 真渐变的误差会累积到阈值以上继续驱动抖动
+                int aer = er < 0 ? -er : er, aeg = eg < 0 ? -eg : eg, aeb = eb < 0 ? -eb : eb;
+                if (aer + aeg + aeb <= 2) continue;
                 if (x + sx >= 0 && x + sx < w)
                 {
                     int q = (p + sx) * 3;
