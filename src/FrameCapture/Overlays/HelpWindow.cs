@@ -123,8 +123,8 @@ public sealed class HelpWindow : Window
         KV("○ O", "圆圈");
         KV("↗ A", "箭头");
         KV("✎ P", "手绘");
-        KV("✂ C", "裁剪（拖框后松开即裁）");
-        KV("Ctrl+Z / U / Del", "撤销上一笔");
+        KV("✂ C", "裁剪（拖框后松开即裁；只改视图不毁数据，Ctrl+Z 可撤销）");
+        KV("Ctrl+Z / U / Del", "撤销上一笔（标注与裁剪按发生顺序统一撤销）");
         KV("Ctrl+Y / Y", "重做上一笔");
 
         H("完成");

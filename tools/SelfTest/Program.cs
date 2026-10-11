@@ -833,6 +833,19 @@ static class SelfTest
                 cs2.Push(2, 2, -3, -3); // 越界拖框钳进全帧
                 var cf = cs2.Current;
                 Chk("T80e-clamp-to-unit", Math.Abs(cf.X) < 1e-12 && Math.Abs(cf.W - 1) < 1e-12, "越界拖框钳为全帧");
+                var cs3 = new CropState();
+                cs3.Push(0.2, 0.2, 0.6, 0.8);
+                cs3.Pop();
+                bool redo1 = cs3.RedoCrop();
+                var cr = cs3.Current;
+                bool redo2 = cs3.RedoCrop();
+                cs3.Push(0.1, 0.1, 0.3, 0.3);
+                cs3.Pop();
+                cs3.Push(0.3, 0.3, 0.5, 0.5); // 与当前区相交的成功裁剪 → 清空 redo
+                bool redo3 = cs3.RedoCrop();
+                Chk("T80f-pop-redo-roundtrip",
+                    redo1 && Math.Abs(cr.X - 0.2) < 1e-12 && Math.Abs(cr.H - 0.6) < 1e-12 && !redo2 && !redo3 && cs3.Depth == 2,
+                    "Pop→Redo 精确还原矩形；redo 耗尽返回 false；新裁剪清空 redo 栈");
             }
             // T81：标注/裁剪双流撤销次序（Core.ActionOrder）
             {

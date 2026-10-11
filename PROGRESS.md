@@ -326,3 +326,16 @@ status: done
   验证：SelfTest +T79a/b/c/d（90→94，锚点不变量 u0=u1 数学断言）；新增 scripts/test-zoom.ps1 挂入全量闸（第 10 项）：
   End/PageUp×3/Home 键路由 + ≥5 条 editor zoom= 决策 trace；截图取证 HUD "1:1" 与 "195%"（=1.25³，与 ZoomMath 吻合）。
   GUARDRAIL PASS（FAIL=0 SKIP=1 共 10 项，SKIP=focus-safety 环境性）。
+
+## 2026-10-11 长跑 R8-R9（DSH goal 轮，13:30 起）
+- **R8 裁剪=视图状态纯逻辑层**（7c382f4）：Core/CropState.cs——裁剪框以全帧归一化矩形栈记录（Push 与当前可视区
+  求交+钳 [0,1]²+minW/minH 拒绝退化；Pop/RedoCrop 带 redo 栈，新裁剪清 redo）；Core/ActionOrder.cs——标注/裁剪
+  双流共享单调序号，Undo/Redo 弹"最近发生"流（AnnAdded 清 redo、AnnStepped 不清，标准撤销语义）。T80a-f + T81a-c。
+- **R9 编辑器接线（延迟裁剪 + 裁剪可撤销）**：ApplyCrop 不再 Bake.Crop 替换帧/重建位图/改 Region——只 Push 视图矩形；
+  UpdateImgRect 升级为"裁剪子区×适配×缩放+平移"唯一几何事实源（_viewGrid.Clip 裁掉子区外内容，Image 与标注层同容器同裁剪）；
+  缩放/平移/1:1 全部改按裁剪子区计算（CropPx）；撤销/重做双流路由（ActionOrder 裁决，撤销按钮亮灭=两流合并能力）；
+  导出收口：StartEncode 后台一次性 Bake.Crop+CropRemap（T78c 已证与旧路径逐字节等价），单帧保存/复制/视觉暂留同走
+  ExportFrame/CropFramesForExport；HUD 显示"裁剪 W×H"。收益：裁剪可撤销、二次裁剪=缩窗、帧数据永不破坏、
+  裁剪瞬间不再全量重烘焙（UI 零卡顿）。
+  验证：SelfTest 103/103（+T80f Pop→Redo 精确还原）；GUARDRAIL PASS（FAIL=0 SKIP=1 共 10 项，EDITOR-KEYS 覆盖改动的
+  StartEncode 路径）。裁剪拖框本身仍是鼠标路径（GOAL 禁注入），像素级等价性由 T78c 锁定。

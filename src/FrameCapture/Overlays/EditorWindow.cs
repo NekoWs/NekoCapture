@@ -168,7 +168,7 @@ public sealed partial class EditorWindow : Window
         {
             tools.Children.Add(Sep());
             var bSaveF = IconBtn("\uE74E", "保存当前帧 (PNG)"); bSaveF.Click += (_, _) => SaveFrame();
-            var bCopyF = IconBtn("\uE8C8", "复制当前帧 (位图)"); bCopyF.Click += (_, _) => ClipboardService.SetFrame(_seq.Frames[_index]);
+            var bCopyF = IconBtn("\uE8C8", "复制当前帧 (位图)"); bCopyF.Click += (_, _) => ClipboardService.SetFrame(ExportFrame(_index));
             var bOkF = IconBtn("\uE73E", "确定：写入剪贴板 (Enter)"); bOkF.Click += (_, _) => Commit();
             var bX = IconBtn("\uE711", "取消 (Esc)"); bX.Click += (_, _) => FrameCapture.Core.Fluent.CloseWithFade(this);
             foreach (var b in new[] { bSaveF, bCopyF, bOkF, bX }) tools.Children.Add(b);
@@ -205,7 +205,7 @@ public sealed partial class EditorWindow : Window
             bar.Children.Add(_hud);
             bar.Children.Add(Sep());
             var bSaveFrame = IconBtn("\uE74E", "保存当前帧 (PNG)  Ctrl+S"); bSaveFrame.Click += (_, _) => SaveFrame();
-            var bCopyFrame = IconBtn("\uE8C8", "复制当前帧 (位图)  Ctrl+C"); bCopyFrame.Click += (_, _) => ClipboardService.SetFrame(_seq.Frames[_index]);
+            var bCopyFrame = IconBtn("\uE8C8", "复制当前帧 (位图)  Ctrl+C"); bCopyFrame.Click += (_, _) => ClipboardService.SetFrame(ExportFrame(_index));
             var bSaveGif = IconBtn("\uE116", "保存为动图 (GIF)  Ctrl+E"); bSaveGif.Click += (_, _) => SaveGif();
             var bAfter = IconBtn("\uE955", "保存视觉暂留合成图  Ctrl+H"); bAfter.Click += (_, _) => SaveAfterimage();
             foreach (var b in new[] { bSaveFrame, bCopyFrame, bSaveGif, bAfter }) bar.Children.Add(b);
@@ -340,8 +340,9 @@ public sealed partial class EditorWindow : Window
     Button? _redoBtn;
     void RefreshUndo()
     {
-        SetGhost(_undoBtn, _anns.CanUndo);
-        SetGhost(_redoBtn, _anns.CanRedo);
+        // 双流合并能力：标注或裁剪任一可撤销/重做，按钮即亮（次序由 ActionOrder 裁决）
+        SetGhost(_undoBtn, _anns.CanUndo || _order.CanUndoCrop);
+        SetGhost(_redoBtn, _anns.CanRedo || _order.CanRedoCrop);
     }
     static void SetGhost(Button? b, bool on)
     {
@@ -380,7 +381,7 @@ public sealed partial class EditorWindow : Window
             switch (e.Key)
             {
                 case Key.S: SaveFrame(); return;
-                case Key.C: ClipboardService.SetFrame(_seq.Frames[_index]); return;
+                case Key.C: ClipboardService.SetFrame(ExportFrame(_index)); return;
                 case Key.E: SaveGif(); return;
                 case Key.H: SaveAfterimage(); return;
                 // 视图缩放（浏览器惯例）：Ctrl +/− 以中心放大缩小，Ctrl+0 适配，Ctrl+1 逐像素 1:1
@@ -461,9 +462,15 @@ public sealed partial class EditorWindow : Window
         double tMs = _seq.Frames[_index].TimeMs;
         double eff = _imgRect.Width / Math.Max(1, _seq.Frames[_index].W);
         string zoomTxt = _zoom <= 1.001 ? "" : (Math.Abs(eff - 1.0) < 0.02 ? "  1:1" : $"  {eff * 100:0}%");
+        string cropTxt = "";
+        if (_crop.IsCropped)
+        {
+            var (cqW, cqH) = CropPx(_seq.Frames[_index].W, _seq.Frames[_index].H);
+            cropTxt = $"  裁剪 {cqW:0}×{cqH:0}";
+        }
         _hud.Text = $"{_index + 1}/{_seq.Frames.Count}  {tMs / 1000.0:0.00}s"
             + (_speed != 1.0 ? $"  ×{_speed:0.###}" : "")
-            + zoomTxt
+            + zoomTxt + cropTxt
             + (_seq.DroppedFrames > 0 ? $"  ⚠内存预算已丢 {_seq.DroppedFrames} 帧" : "");
         DrawRange();
     }
@@ -507,6 +514,7 @@ public sealed partial class EditorWindow : Window
             var anns = new List<FrameCapture.Drawing.Annotation>(_anns.Items);
             var region = _seq.Region; var monBounds = _seq.MonitorBounds; var monDev = _seq.MonitorDevice;
             int fps = Math.Clamp(_settings.Current.Fps, AppSettings.FpsMin, AppSettings.FpsMax);
+            var cropSnap = _crop.Current; bool cropOn = _crop.IsCropped; // UI 线程快照，后台只读
 
             _encoding = true;
             SetOkBusy(true);
@@ -519,11 +527,21 @@ public sealed partial class EditorWindow : Window
                 // 使"导出失败"HUD 终态可确定性触达并做双主题像素取证（UIAUDIT D9）。正常用户环境永不置位。
                 if (System.Environment.GetEnvironmentVariable("FC_TEST_ENCODE_FAIL") == "1")
                     throw new System.InvalidOperationException("forced encode failure (FC_TEST_ENCODE_FAIL=1)");
-                var baked = FrameCapture.Drawing.Bake.Apply(subset, anns);
+                // 裁剪=视图状态：导出瞬间一次性折算（T78c 像素级等价：先裁剪后烘焙 ≡ 先烘焙后裁剪）
+                var frames = subset; var outAnns = anns; var outRegion = region;
+                if (cropOn && frames.Count > 0)
+                {
+                    int fw = frames[0].W, fh = frames[0].H;
+                    var (cx, cy, cw, ch) = FrameCapture.Core.CropState.ToPixelOf(cropSnap, fw, fh);
+                    frames = FrameCapture.Drawing.Bake.Crop(frames, cx, cy, cw, ch);
+                    outAnns = FrameCapture.Core.CropRemap.Remap(anns, (double)cx / fw, (double)cy / fh, (double)cw / fw, (double)ch / fh);
+                    outRegion = new RectI(region.X + cx, region.Y + cy, cw, ch);
+                }
+                var baked = FrameCapture.Drawing.Bake.Apply(frames, outAnns);
                 var seq = new CapturedSequence
                 {
                     Frames = baked,
-                    Region = region,
+                    Region = outRegion,
                     MonitorBounds = monBounds,
                     MonitorDevice = monDev,
                 };
@@ -604,7 +622,7 @@ public sealed partial class EditorWindow : Window
     {
         var dlg = NewSaveDialog("PNG 图片|*.png", $"frame-{_seq.Frames[_index].TimeMs / 1000.0:0.0}.png");
         if (dlg.ShowDialog() != true) return;
-        BgraImage.SavePng(_seq.Frames[_index], EnsureExt(dlg.FileName, ".png"));
+        BgraImage.SavePng(ExportFrame(_index), EnsureExt(dlg.FileName, ".png"));
     }
 
     void SaveGif()
@@ -625,7 +643,7 @@ public sealed partial class EditorWindow : Window
     {
         var dlg = NewSaveDialog("PNG 图片|*.png", "afterimage.png");
         if (dlg.ShowDialog() != true) return;
-        var combined = BgraImage.Afterimage(_seq.Frames, 5);
+        var combined = BgraImage.Afterimage(CropFramesForExport(_seq.Frames), 5);
         BgraImage.SavePng(combined, EnsureExt(dlg.FileName, ".png"));
     }
 

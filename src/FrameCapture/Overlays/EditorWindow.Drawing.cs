@@ -85,20 +85,32 @@ public sealed partial class EditorWindow
 
     Border? _rangeHost;
 
-    // 帧内容在 canvas 中的显示矩形（适配 × 缩放 + 平移）——标注命中/绘制与 Image 布局共用这一事实源
+    // 帧内容在 canvas 中的显示矩形（裁剪子区 × 适配 × 缩放 + 平移）——标注命中/绘制、Image 布局、导出折算共用这一事实源
     Rect _imgRect;
     double _zoom = 1.0, _panX, _panY;
+    readonly FrameCapture.Core.CropState _crop = new();
+    readonly FrameCapture.Core.ActionOrder _order = new();
     void UpdateImgRect()
     {
         // 用 _viewGrid 尺寸：_canvas 在浏览态 Collapsed（ActualWidth 恒 0），而 Image 任何状态都要跟随
         double cw = _viewGrid.ActualWidth, ch = _viewGrid.ActualHeight;
         var f = _seq.Frames[_index];
-        double sFit = FrameCapture.Core.ZoomMath.FitScale(cw, ch, f.W, f.H);
-        double w = f.W * sFit * _zoom, h = f.H * sFit * _zoom;
-        var (px, py) = FrameCapture.Core.ZoomMath.ClampPan(_panX, _panY, cw, ch, w, h);
+        var (fw, fh) = CropPx(f.W, f.H); // 裁剪子区像素尺寸：适配/钳制都以"可见区"为准
+        double sFit = FrameCapture.Core.ZoomMath.FitScale(cw, ch, fw, fh);
+        double s = sFit * _zoom;
+        var (px, py) = FrameCapture.Core.ZoomMath.ClampPan(_panX, _panY, cw, ch, fw * s, fh * s);
         _panX = px; _panY = py; // 视口变小后自动回钳
-        _imgRect = new Rect(cw / 2 - w / 2 + px, ch / 2 - h / 2 + py, w, h);
+        // 全帧显示矩形：其"裁剪子区"恰落在视口中心 + pan
+        var c = _crop.Current;
+        double w = f.W * s, h = f.H * s;
+        _imgRect = new Rect(cw / 2 - (c.X + c.W / 2) * s + px - w / 2, ch / 2 - (c.Y + c.H / 2) * s + py - h / 2, w, h);
         ApplyImageView();
+    }
+
+    (double W, double H) CropPx(int fw, int fh)
+    {
+        var c = _crop.Current;
+        return (Math.Max(1, c.W * fw), Math.Max(1, c.H * fh));
     }
 
     // Image 跟随 _imgRect：Fill + 显式尺寸/偏移；放大时最近邻（像素硬边，1:1 逐像素），适配时高质量
@@ -110,6 +122,13 @@ public sealed partial class EditorWindow
         _view.Height = _imgRect.Height;
         _view.Margin = new Thickness(_imgRect.X, _imgRect.Y, 0, 0);
         RenderOptions.SetBitmapScalingMode(_view, _zoom > 1.001 ? BitmapScalingMode.NearestNeighbor : BitmapScalingMode.HighQuality);
+        // 裁剪=视图状态：帧数据完整，仅把裁剪子区之外的内容裁掉（Image 与标注层同容器同裁剪）
+        var c = _crop.Current;
+        if (_crop.IsCropped)
+            _viewGrid.Clip = new RectangleGeometry(new Rect(
+                _imgRect.X + c.X * _imgRect.Width, _imgRect.Y + c.Y * _imgRect.Height,
+                c.W * _imgRect.Width, c.H * _imgRect.Height));
+        else _viewGrid.Clip = null;
     }
 
     // ---------------- 缩放 / 平移 ----------------
@@ -117,8 +136,9 @@ public sealed partial class EditorWindow
     void SetZoom(double newZoom, double cx, double cy)
     {
         var f = _seq.Frames[_index];
+        var (fw, fh) = CropPx(f.W, f.H);
         var (z, px, py) = FrameCapture.Core.ZoomMath.ZoomAt(_zoom, _panX, _panY, newZoom, cx, cy,
-            _viewGrid.ActualWidth, _viewGrid.ActualHeight, f.W, f.H);
+            _viewGrid.ActualWidth, _viewGrid.ActualHeight, fw, fh);
         if (Math.Abs(z - _zoom) < 1e-9 && Math.Abs(px - _panX) < 1e-9 && Math.Abs(py - _panY) < 1e-9) return;
         _zoom = z; _panX = px; _panY = py;
         UpdateImgRect(); RedrawAnns(); Show(_index);
@@ -129,7 +149,8 @@ public sealed partial class EditorWindow
     void ZoomOneToOne()
     {
         var f = _seq.Frames[_index];
-        double sFit = FrameCapture.Core.ZoomMath.FitScale(_viewGrid.ActualWidth, _viewGrid.ActualHeight, f.W, f.H);
+        var (fw, fh) = CropPx(f.W, f.H);
+        double sFit = FrameCapture.Core.ZoomMath.FitScale(_viewGrid.ActualWidth, _viewGrid.ActualHeight, fw, fh);
         SetZoom(FrameCapture.Core.ZoomMath.OneToOneZoom(sFit), _viewGrid.ActualWidth / 2, _viewGrid.ActualHeight / 2);
     }
 
@@ -153,9 +174,10 @@ public sealed partial class EditorWindow
         if (!_panning) return;
         var p = e.GetPosition(_viewGrid);
         var f = _seq.Frames[_index];
-        double sFit = FrameCapture.Core.ZoomMath.FitScale(_viewGrid.ActualWidth, _viewGrid.ActualHeight, f.W, f.H);
+        var (fw, fh) = CropPx(f.W, f.H);
+        double sFit = FrameCapture.Core.ZoomMath.FitScale(_viewGrid.ActualWidth, _viewGrid.ActualHeight, fw, fh);
         var (x, y) = FrameCapture.Core.ZoomMath.PanBy(_panPressX, _panPressY, p.X - _panPress.X, p.Y - _panPress.Y,
-            _viewGrid.ActualWidth, _viewGrid.ActualHeight, f.W * sFit * _zoom, f.H * sFit * _zoom);
+            _viewGrid.ActualWidth, _viewGrid.ActualHeight, fw * sFit * _zoom, fh * sFit * _zoom);
         _panX = x; _panY = y;
         UpdateImgRect(); RedrawAnns();
     }
@@ -310,18 +332,35 @@ public sealed partial class EditorWindow
     void CommitAnn(Annotation a)
     {
         _anns.Add(a);
+        _order.AnnAdded(); // 新动作使裁剪 redo 失效（双流统一撤销语义）
         RefreshUndo();
         RedrawAnns();
     }
 
     void RedoAnn()
     {
-        if (_anns.Redo(out _)) { RedrawAnns(); RefreshUndo(); }
+        if (_order.RedoPopsCrop(_anns.CanRedo))
+        {
+            _crop.RedoCrop(); _order.CropRedone();
+            UpdateImgRect(); RedrawAnns(); Show(_index); RefreshUndo();
+            FrameCapture.Core.Trace.Log($"editor crop redo depth={_crop.Depth}");
+            return;
+        }
+        if (_anns.Redo(out _)) { _order.AnnStepped(); RedrawAnns(); RefreshUndo(); }
     }
 
     void UndoAnn()
     {
+        if (_order.UndoPopsCrop(_anns.CanUndo))
+        {
+            _crop.Pop(); _order.CropUndone();
+            UpdateImgRect(); RedrawAnns(); Show(_index); RefreshUndo();
+            FrameCapture.Core.Trace.Log($"editor crop undo depth={_crop.Depth}");
+            return;
+        }
+        if (!_anns.CanUndo) return;
         _anns.Undo(out _);
+        _order.AnnStepped();
         RefreshUndo();
         RedrawAnns();
     }
@@ -415,30 +454,30 @@ public sealed partial class EditorWindow
         UpdateImgRect();
         if (_imgRect.Width < 4 || _imgRect.Height < 4) return;
         var f = _seq.Frames[_index];
-        int x = (int)Math.Round((Math.Min(a.X, b.X) - _imgRect.X) / _imgRect.Width * f.W);
-        int y = (int)Math.Round((Math.Min(a.Y, b.Y) - _imgRect.Y) / _imgRect.Height * f.H);
-        int w = (int)Math.Round(Math.Abs(b.X - a.X) / _imgRect.Width * f.W);
-        int h = (int)Math.Round(Math.Abs(b.Y - a.Y) / _imgRect.Height * f.H);
-        x = Math.Clamp(x, 0, f.W - 1); y = Math.Clamp(y, 0, f.H - 1);
-        w = Math.Min(w, f.W - x); h = Math.Min(h, f.H - y);
-        if (w < 48 || h < 48) return;
-
-        try
-        {
-            _seq.Frames = Bake.Crop(_seq.Frames, x, y, w, h);
-        }
-        catch { return; }
-
-        // 标注：框内整体保留并做坐标重映射（全帧归一化→裁剪框归一化）；跨界/框外丢弃（钳制会抹出贴边残影）
-        var remapped = FrameCapture.Core.CropRemap.Remap(_anns.Items, (double)x / f.W, (double)y / f.H, (double)w / f.W, (double)h / f.H);
-        _anns.Clear();
-        foreach (var ra in remapped) _anns.Add(ra);
-        RefreshUndo();
-        _bitmaps = _seq.Frames.Select(FrameCapture.Services.BgraImage.ToSource).ToList();
-        _seq.Region = new RectI(_seq.Region.X + x, _seq.Region.Y + y, w, h);
-        RedrawAnns();
-        Show(_index);
+        var n0 = Norm(a); var n1 = Norm(b); // 视口→全帧归一化（缩放/平移/已裁剪状态自动卷入）
+        // 最小 48 帧像素折算为归一化比例（宽高各按自身维度）
+        if (!_crop.Push(n0.X, n0.Y, n1.X, n1.Y, 48.0 / f.W, 48.0 / f.H)) return;
+        _order.CropPushed();
+        UpdateImgRect(); RedrawAnns(); Show(_index); RefreshUndo();
+        var (cx, cy, cw, ch) = _crop.ToPixel(f.W, f.H);
+        FrameCapture.Core.Trace.Log($"editor crop depth={_crop.Depth} px={cx},{cy} {cw}x{ch}");
     }
+
+    /// <summary>导出收口：裁剪是视图状态，仅在导出瞬间一次性折算（T78c 已证 Crop→Remap→Bake ≡ Bake→Crop 逐字节）。</summary>
+    List<FrameCapture.Capture.CapturedFrame> CropFramesForExport(IReadOnlyList<FrameCapture.Capture.CapturedFrame> frames)
+    {
+        if (!_crop.IsCropped || frames.Count == 0) return frames.ToList();
+        var (x, y, w, h) = _crop.ToPixel(frames[0].W, frames[0].H);
+        return FrameCapture.Drawing.Bake.Crop(frames, x, y, w, h);
+    }
+    List<Annotation> RemapAnnsForExport(IReadOnlyList<Annotation> anns, int fw, int fh)
+    {
+        if (!_crop.IsCropped) return anns.ToList();
+        var (x, y, w, h) = _crop.ToPixel(fw, fh);
+        return FrameCapture.Core.CropRemap.Remap(anns, (double)x / fw, (double)y / fh, (double)w / fw, (double)h / fh);
+    }
+    /// <summary>单帧导出（保存帧/复制帧）：与 GIF 同一裁剪收口。</summary>
+    FrameCapture.Capture.CapturedFrame ExportFrame(int index) => CropFramesForExport(new[] { _seq.Frames[index] })[0];
 
     // ---------------- 时间轴范围 ----------------
 

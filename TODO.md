@@ -186,6 +186,7 @@
 - [x] **重新发布 release**（2026-10-11 12:27 完成）：先杀实例 → publish exit=0 → staging 替换 win-x64（exe 时间戳 12:27:10）
   → 实例 pid 78292 启动 trace "Startup done"；二进制内确认含 R1 字符串 "outline: persistent show"、R2 "hook slow"、R3 CloseWithFade 符号。
 - [x] 裁剪销毁标注：Core/CropRemap 决策表——框内标注坐标重映射保留、跨界丢弃（T78 含像素级往返，90/90）。
+- [x] 裁剪升级为视图状态（R8/R9）：CropState 求交栈 + ActionOrder 双流撤销——裁剪可撤销/可重做、二次裁剪=缩窗、帧数据永不破坏、导出瞬间一次性折算（T78c 像素等价）；T80a-f/T81a-c，103/103，guardrail PASS。
 - [x] 编辑器重做按钮：E7A6 字形（GlyphProbe 取证）+ SetGhost 统一禁用淡出，初始 0.35 禁用态截图确认。
 - [x] Fps 钳制不一致：已收口为 AppSettings.FpsMin/FpsMax 常量单一事实源（滑条/Normalize/编辑器×5/引擎×2 全引用，T77，87/87）。
 - [x] 编辑器缩放/1:1 视图。（R7：Core/ZoomMath + Ctrl滚轮/PageUp/Down/Home/End + 拖拽平移 + HUD 倍率；T79a-d + e2e:zoom 入闸，94/94）

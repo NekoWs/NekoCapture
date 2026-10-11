@@ -17,35 +17,55 @@ public sealed class CropState
     }
 
     readonly List<Norm> _stack = new();
+    readonly List<Norm> _redo = new();
 
     /// <summary>当前可视区（无裁剪 = 全帧）。</summary>
     public Norm Current => _stack.Count == 0 ? Norm.Full : _stack[^1];
     public bool IsCropped => _stack.Count > 0;
     public int Depth => _stack.Count;
+    public bool CanRedo => _redo.Count > 0;
 
     /// <summary>
     /// 压入一次裁剪：入参为全帧归一化的拖框（任意角点序），与当前可视区求交并钳进 [0,1]²。
-    /// 交集退化（宽或高 ≤ 0）返回 false 且不改栈。minFrac 为最小保留比例（编辑器按 48px 折算传入）。
+    /// 交集退化（宽 ≤ minW 或高 ≤ minH）返回 false 且不改栈；成功则清空 redo 栈（标准撤销语义）。
     /// </summary>
-    public bool Push(double ax, double ay, double bx, double by, double minFrac = 0)
+    public bool Push(double ax, double ay, double bx, double by, double minW = 0, double minH = 0)
     {
         var c = Current;
         double x0 = Math.Clamp(Math.Min(ax, bx), 0, 1), x1 = Math.Clamp(Math.Max(ax, bx), 0, 1);
         double y0 = Math.Clamp(Math.Min(ay, by), 0, 1), y1 = Math.Clamp(Math.Max(ay, by), 0, 1);
         double l = Math.Max(x0, c.X), r = Math.Min(x1, c.Right);
         double t = Math.Max(y0, c.Y), b = Math.Min(y1, c.Bottom);
-        if (r - l <= minFrac || b - t <= minFrac) return false;
+        if (r - l <= minW || b - t <= minH) return false;
         _stack.Add(new Norm(l, t, r - l, b - t));
+        _redo.Clear();
         return true;
     }
 
-    /// <summary>弹出一级裁剪（撤销）。无可弹返回 false。</summary>
-    public bool Pop() { if (_stack.Count == 0) return false; _stack.RemoveAt(_stack.Count - 1); return true; }
+    /// <summary>弹出一级裁剪（撤销），矩形进 redo 栈供重做。无可弹返回 false。</summary>
+    public bool Pop()
+    {
+        if (_stack.Count == 0) return false;
+        _redo.Add(_stack[^1]);
+        _stack.RemoveAt(_stack.Count - 1);
+        return true;
+    }
+
+    /// <summary>重做一级裁剪。无可重做返回 false。</summary>
+    public bool RedoCrop()
+    {
+        if (_redo.Count == 0) return false;
+        _stack.Add(_redo[^1]);
+        _redo.RemoveAt(_redo.Count - 1);
+        return true;
+    }
 
     /// <summary>当前可视区折算为帧像素矩形（四舍五入 + 钳边，至少 1px）。</summary>
-    public (int X, int Y, int W, int H) ToPixel(int fw, int fh)
+    public (int X, int Y, int W, int H) ToPixel(int fw, int fh) => ToPixelOf(Current, fw, fh);
+
+    /// <summary>任意归一化矩形 → 帧像素矩形（导出后台线程用快照调用，纯算术无共享状态）。</summary>
+    public static (int X, int Y, int W, int H) ToPixelOf(Norm c, int fw, int fh)
     {
-        var c = Current;
         int x = Math.Clamp((int)Math.Round(c.X * fw), 0, Math.Max(0, fw - 1));
         int y = Math.Clamp((int)Math.Round(c.Y * fh), 0, Math.Max(0, fh - 1));
         int w = Math.Clamp((int)Math.Round(c.W * fw), 1, fw - x);
