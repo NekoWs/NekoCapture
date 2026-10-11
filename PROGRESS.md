@@ -681,3 +681,13 @@ status: done
   空文/无改动保持原样；撤销栈升级为操作栈（Add/Edit 双操作、时序 LIFO 与列表位置解耦，T93a–g 七连）。
 - README/帮助窗补马赛克 M 与文字再编辑说明。
 - 验证：构建 0 错；SelfTest 157/157（T93 七连 + T94 两连）；帮助窗离屏渲染逐行目检。
+
+## 2026-10-12 上午 交互优化 R51（e2e 旧 UI 根因修复 + 幽灵修饰键护栏 + 用户新需求 6 条入档）
+- 用户看到 e2e 里冒出旧 UI：根因 = 5 个脚本写死过期构建路径 bin\x64\Debug\net8.0-windows（10/2 老构建），
+  非旧 UI 残留。全部改指 net8.0-windows10.0.19041.0，删除老构建目录，全仓复查零残留引用。
+- 护栏 zoom 项 FAIL 根因 = 幽灵修饰键：keyw 是 PostMessage 裸键，WPF 修饰键读真实键盘状态，
+  用户打字（IME 按 Shift）时注入键被记成 Shift+End → 断言假失败。lib-hotkey 加 Wait-FcModifiersUp
+  （注入前等物理修饰键松开，只等不干预），zoom/editor-keys 接入；zoom 复跑 PASS。
+- TODO 入档用户 6 条新需求：选中工具(V)、圆图标改线性、自绘 RGBA 调色板、笔宽弹层保持、旧选区开关、设置页分组改版；
+  另两条成组：双击捕获键开始/结束录制 + 移除录制时长上限（前置=帧磁盘暂存，4K@60fps 纯内存必 OOM）。
+- 验证：SelfTest 157/157；护栏 11 项（zoom 修复后全绿，focus-safety 反外挂 SKIP 惯例）。

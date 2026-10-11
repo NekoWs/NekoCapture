@@ -4,7 +4,7 @@ param([int]$Seed = 98765, [int]$Steps = 120)
 $ErrorActionPreference = "Stop"
 $root = Split-Path $PSScriptRoot
 . (Join-Path $PSScriptRoot "lib-hotkey.ps1")
-$exe = Join-Path $root "src\FrameCapture\bin\x64\Debug\net8.0-windows\FrameCapture.exe"
+$exe = Join-Path $root "src\FrameCapture\bin\x64\Debug\net8.0-windows10.0.19041.0\FrameCapture.exe"
 $shot = Join-Path $root "tools\Shot\bin\x64\Debug\net8.0-windows\Shot.exe"
 $err = Join-Path $env:APPDATA "FrameCapture\error.log"
 $e0 = if (Test-Path $err) { (Get-Item $err).Length } else { 0 }

@@ -79,3 +79,22 @@ function Invoke-FcHotkey {
     Write-Verbose ("hkm {0} {1} {2} {3} {4} {5}  # {6}" -f $p.vk, $p.ctrl, $p.shift, $p.alt, $p.win, $HoldMs, $Spec)
     & $Shot hkm $p.vk $p.ctrl $p.shift $p.alt $p.win $HoldMs
 }
+
+# 幽灵修饰键护栏（R51）：keyw 是 PostMessage 裸键，而 WPF 修饰键读真实键盘状态——
+# 用户正在打字（中文 IME 常按 Shift/Ctrl）时注入的裸键会被记成 Shift+End 之类，断言假失败。
+# 注入裸键前等物理修饰键全部松开；超时仍注入（宁可红一次，不死等；也不主动替用户"松开"按键）。
+if (-not ('FcMods.Kb' -as [type])) {
+    Add-Type -Namespace FcMods -Name Kb -Language CSharp -MemberDefinition @'
+[System.Runtime.InteropServices.DllImport("user32.dll")] public static extern short GetAsyncKeyState(int vk);
+public static bool AnyDown() {
+    foreach (int vk in new[] { 0x10, 0x11, 0x12, 0x5B, 0x5C })
+        if ((GetAsyncKeyState(vk) & 0x8000) != 0) return true;
+    return false;
+}
+'@
+}
+function Wait-FcModifiersUp {
+    param([int]$TimeoutSec = 15)
+    $t0 = Get-Date
+    while ([FcMods.Kb]::AnyDown() -and ((Get-Date) - $t0).TotalSeconds -lt $TimeoutSec) { Start-Sleep -Milliseconds 120 }
+}

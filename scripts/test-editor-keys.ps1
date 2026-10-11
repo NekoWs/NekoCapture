@@ -20,9 +20,9 @@ if ($ed0 -match "not-found") {
     exit 0
 }
 # Space play, Space pause, Right/Left 单帧, Shift+Right 上秒级步进, D/A 工具切换（需无修饰），Enter 提交
-& $shot keyw "FrameCapture Editor" 32 2>$null | Out-Null; Start-Sleep 0.4
-& $shot keyw "FrameCapture Editor" 39 2>$null | Out-Null; Start-Sleep 0.3
-& $shot keyw "FrameCapture Editor" 37 2>$null | Out-Null; Start-Sleep 0.3
+Wait-FcModifiersUp; & $shot keyw "FrameCapture Editor" 32 2>$null | Out-Null; Start-Sleep 0.4
+Wait-FcModifiersUp; & $shot keyw "FrameCapture Editor" 39 2>$null | Out-Null; Start-Sleep 0.3
+Wait-FcModifiersUp; & $shot keyw "FrameCapture Editor" 37 2>$null | Out-Null; Start-Sleep 0.3
 # Enter 前记暂存目录快照：ClipboardService 会把 GIF 落到 %TEMP%\FrameCapture\capture-*.gif
 $stage = Join-Path $env:TEMP "FrameCapture"
 $gifsBefore = @(Get-ChildItem $stage -Filter *.gif -EA SilentlyContinue).Count

@@ -39,12 +39,12 @@ if ($ed -match "not-found") {
     Restore-Cfg
     exit 0
 }
-& $shot keyw "FrameCapture Editor" 35 2>$null | Out-Null; Start-Sleep 0.6   # End → 1:1
+Wait-FcModifiersUp; & $shot keyw "FrameCapture Editor" 35 2>$null | Out-Null; Start-Sleep 0.6   # End → 1:1
 if (Test-Path $uicap) { & $uicap region "FrameCapture Editor" "$out\zoom-1to1.png" | Out-Null }
-1..3 | ForEach-Object { & $shot keyw "FrameCapture Editor" 33 2>$null | Out-Null; Start-Sleep 0.3 }  # PageUp×3
+1..3 | ForEach-Object { Wait-FcModifiersUp; & $shot keyw "FrameCapture Editor" 33 2>$null | Out-Null; Start-Sleep 0.3 }  # PageUp×3
 if (Test-Path $uicap) { & $uicap region "FrameCapture Editor" "$out\zoom-in.png" | Out-Null }
-& $shot keyw "FrameCapture Editor" 36 2>$null | Out-Null; Start-Sleep 0.6   # Home → 适配
-& $shot keyw "FrameCapture Editor" 27 2>$null | Out-Null; Start-Sleep 1.0   # Esc
+Wait-FcModifiersUp; & $shot keyw "FrameCapture Editor" 36 2>$null | Out-Null; Start-Sleep 0.6   # Home → 适配
+Wait-FcModifiersUp; & $shot keyw "FrameCapture Editor" 27 2>$null | Out-Null; Start-Sleep 1.0   # Esc
 if (!$p.HasExited) { $p.Kill() }
 Remove-Item Env:\FC_TEST_NO_FG -EA SilentlyContinue
 Restore-Cfg
