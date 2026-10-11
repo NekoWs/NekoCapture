@@ -31,4 +31,19 @@ public static class MagnifierMath
         if (y < 0) y = 0;
         return (x, y);
     }
+
+    /// <summary>从 BGRA 缓冲取 (x,y) 像素的 RGB（越界/空返回 0,0,0）。纯函数供单测。</summary>
+    public static (int R, int G, int B) PixelRgb(byte[] bgra, int w, int x, int y)
+    {
+        if (bgra == null || w <= 0 || x < 0 || y < 0) return (0, 0, 0);
+        long i = ((long)y * w + x) * 4;
+        if (i + 3 >= bgra.Length) return (0, 0, 0);
+        return (bgra[i + 2], bgra[i + 1], bgra[i]); // BGRA → R,G,B
+    }
+
+    /// <summary>RGB → #RRGGBB（大写，各分量夹到 0–255）。纯函数供单测。</summary>
+    public static string Hex(int r, int g, int b) =>
+        $"#{Clamp255(r):X2}{Clamp255(g):X2}{Clamp255(b):X2}";
+
+    static int Clamp255(int v) => v < 0 ? 0 : v > 255 ? 255 : v;
 }

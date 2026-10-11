@@ -993,3 +993,20 @@ status: done
 - 完整护栏 GUARDRAIL PASS（FAIL=0 SKIP=1）
 - 实机 e2e：F7 开选区 → SetCursorPos 移光标（pwsh DPI-unaware，传 P/1.5 命中物理 P，读数印证坐标精确）→ 截图亲眼看放大镜：圆角蓝框 + 中心标记 + 读数「363,524 3840×2088」，移到聊天侧栏「12天」处放大出清晰像素块「12」；设置窗「选区放大镜」开关渲染正确（图标+默认开）
 - 踩坑：pwsh DPI-unaware，SetCursorPos 坐标被系统 ×1.5 虚拟化；`Border.BorderThickness` 是 Thickness 非 double
+
+## R71 · 放大镜取色器——光标下像素颜色 + 按 C 复制 HEX
+
+**动机**：R70 放大镜已有坐标/尺寸读数；补上「光标下像素颜色」即成取色器，设计师/开发者刚需，广泛受众，纯增量（快照已在手，直接读中心像素）。
+
+**实现**：
+- 构造时保留快照原始 BGRA（`_snapBgra`/`_snapW`，`LiveCapture.Grab` 的帧本就有，之前只转 BitmapSource 丢了）。
+- 放大镜底部加取色行：色块（14×14 圆角，填充光标下像素色）+ `#RRGGBB`（Consolas）。`UpdateLoupe` 每动更新：`MagnifierMath.PixelRgb(_snapBgra,_snapW,sx,sy)` → `Hex` → 设色块背景 + HEX 文本。
+- 选区窗 KeyDown 加 `C` 键：复制 `_loupeHexText` 到剪贴板，HEX 文本闪「已复制 #RRGGBB」（下次移动复原）。C 不与 Esc/Enter/Tab 冲突。
+- `Core/MagnifierMath.cs` 加 `PixelRgb`（BGRA→RGB，越界 0,0,0）+ `Hex`（RGB→#RRGGBB 大写，分量夹 0–255）纯函数。
+- HelpWindow/README/设置开关提示补「颜色 + 按 C 复制」。
+
+**验证**：
+- 构建 0 错误；SelfTest **235/235**（T107a-f：PixelRgb 像素/越界/负坐标 + Hex 大写/夹取）
+- 完整护栏 GUARDRAIL PASS（FAIL=0 SKIP=1）
+- 实机 e2e：F7 → 移光标 → 放大镜显示色块 + 「#272729」；采样放大镜图像中心像素 = #272729（=显示 HEX，内部一致，证明读数即光标下真色）；按 C → 剪贴板 = `#272729`；截图亲眼看色块填充正确 + HEX 清晰
+- 注：放大镜显示快照瞬间的真色，聊天等动态区颜色会随快照时刻变化（正确行为，非 bug）

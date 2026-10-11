@@ -1469,6 +1469,17 @@ static class SelfTest
                 var p3 = FrameCapture.Core.MagnifierMath.Place(100, 950, 150, 180, 1000, 1000, 18);
                 Chk("T106g-place-flipy", p3 == (118, 752), "越下边 → 翻上");
             }
+
+            // T107 放大镜取色（R71，MagnifierMath.PixelRgb/Hex 纯决策）
+            {
+                var buf = new byte[] { 10, 20, 30, 255, 40, 50, 60, 255 }; // 2px BGRA
+                Chk("T107a-rgb-p0", FrameCapture.Core.MagnifierMath.PixelRgb(buf, 2, 0, 0) == (30, 20, 10), "像素0 → R,G,B");
+                Chk("T107b-rgb-p1", FrameCapture.Core.MagnifierMath.PixelRgb(buf, 2, 1, 0) == (60, 50, 40), "像素1 → R,G,B");
+                Chk("T107c-rgb-oob", FrameCapture.Core.MagnifierMath.PixelRgb(buf, 2, 0, 1) == (0, 0, 0), "越界 → 0,0,0");
+                Chk("T107d-rgb-neg", FrameCapture.Core.MagnifierMath.PixelRgb(buf, 2, -1, 0) == (0, 0, 0), "负坐标 → 0,0,0");
+                Chk("T107e-hex", FrameCapture.Core.MagnifierMath.Hex(255, 128, 0) == "#FF8000", "RGB→#RRGGBB 大写");
+                Chk("T107f-hex-clamp", FrameCapture.Core.MagnifierMath.Hex(300, -5, 16) == "#FF0010", "越界分量夹到 0–255");
+            }
         }
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");
         return fail == 0 ? 0 : 1;

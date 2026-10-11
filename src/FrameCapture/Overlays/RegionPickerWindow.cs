@@ -28,10 +28,15 @@ public sealed class RegionPickerWindow : Window
     private readonly bool _snapContent;
     private readonly bool _magnifier;
     private System.Windows.Media.Imaging.BitmapSource? _snap; // 选区放大镜快照（构造时抓，遮罩未渲染→真实颜色）
+    private byte[]? _snapBgra; // 快照原始 BGRA（取光标下像素颜色用）
+    private int _snapW;
     private System.Windows.Controls.Border? _loupe;
     private Image? _loupeImg;
     private Rectangle? _loupeMarker;
+    private System.Windows.Controls.Border? _loupeSwatch;
+    private TextBlock? _loupeHex;
     private TextBlock? _loupeInfo;
+    private string _loupeHexText = ""; // 当前放大镜中心像素 #RRGGBB，供 C 键复制
     private const int LoupeSpan = 15;   // 放大镜取源边长（源像素）
     private const double LoupeSize = 150; // 放大镜显示边长（DIP）
 
@@ -65,7 +70,7 @@ public sealed class RegionPickerWindow : Window
         if (_magnifier)
         {
             var f = LiveCapture.Grab(_monitorPhys);
-            if (f != null) _snap = FrameCapture.Services.BgraImage.ToSource(f);
+            if (f != null) { _snap = FrameCapture.Services.BgraImage.ToSource(f); _snapBgra = f.Bgra; _snapW = f.W; }
             else _magnifier = false;
         }
 
@@ -212,9 +217,34 @@ public sealed class RegionPickerWindow : Window
                     HorizontalAlignment = HorizontalAlignment.Center,
                     Margin = new Thickness(0, 3, 0, 0),
                 };
+                // 取色行：色块 + #RRGGBB（按 C 复制）
+                _loupeSwatch = new System.Windows.Controls.Border
+                {
+                    Width = 14, Height = 14, CornerRadius = new CornerRadius(3),
+                    BorderBrush = new SolidColorBrush(Color.FromArgb(0x80, 0xFF, 0xFF, 0xFF)),
+                    BorderThickness = new Thickness(1),
+                    Margin = new Thickness(0, 0, 5, 0),
+                    VerticalAlignment = VerticalAlignment.Center,
+                };
+                _loupeHex = new TextBlock
+                {
+                    FontSize = 11,
+                    Foreground = Brushes.White,
+                    FontFamily = new FontFamily("Consolas"),
+                    VerticalAlignment = VerticalAlignment.Center,
+                };
+                var colorRow = new StackPanel
+                {
+                    Orientation = Orientation.Horizontal,
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    Margin = new Thickness(0, 3, 0, 0),
+                };
+                colorRow.Children.Add(_loupeSwatch);
+                colorRow.Children.Add(_loupeHex);
                 var loupeStack = new StackPanel();
                 loupeStack.Children.Add(loupeGrid);
                 loupeStack.Children.Add(_loupeInfo);
+                loupeStack.Children.Add(colorRow);
                 _loupe = new System.Windows.Controls.Border
                 {
                     Background = new SolidColorBrush(Color.FromArgb(0xE6, 0x1B, 0x1B, 0x1B)),
@@ -260,6 +290,13 @@ public sealed class RegionPickerWindow : Window
         {
             if (e.Key == Key.Escape) Finish(null);
             else if (e.Key == Key.Enter && _existing != null) Finish(_existing);
+            else if (e.Key == Key.C && _loupeHexText.Length > 0)
+            {
+                // 取色：复制光标下像素的 #RRGGBB 到剪贴板
+                try { System.Windows.Clipboard.SetText(_loupeHexText); } catch { }
+                if (_loupeHex != null) _loupeHex.Text = "已复制 " + _loupeHexText;
+                e.Handled = true;
+            }
             else if (e.Key == Key.Tab && _curElem != null)
             {
                 // Tab 上钻控件层级：输入框 → 表单容器 → … → 整窗
@@ -366,6 +403,13 @@ public sealed class RegionPickerWindow : Window
         var (lx, ly) = Core.MagnifierMath.Place(dip.X, dip.Y, _loupe.DesiredSize.Width, _loupe.DesiredSize.Height, Width, Height, 18);
         Canvas.SetLeft(_loupe, lx); Canvas.SetTop(_loupe, ly);
         _loupeInfo.Text = sel != null ? $"{phys.X}, {phys.Y}   {sel.Value.W}×{sel.Value.H}" : $"{phys.X}, {phys.Y}";
+        if (_snapBgra != null && _loupeSwatch != null && _loupeHex != null)
+        {
+            var (r, g, b) = Core.MagnifierMath.PixelRgb(_snapBgra, _snapW, sx, sy);
+            _loupeHexText = Core.MagnifierMath.Hex(r, g, b);
+            _loupeSwatch.Background = new SolidColorBrush(Color.FromRgb((byte)r, (byte)g, (byte)b));
+            _loupeHex.Text = _loupeHexText;
+        }
         _loupe.Visibility = Visibility.Visible;
     }
 
