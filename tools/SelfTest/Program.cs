@@ -1539,6 +1539,35 @@ static class SelfTest
                 Chk("T112c-both", c3.Color.B == 255 && c3.Thickness == 10, "两者都改");
                 Chk("T112d-keep", c1.Points[0].X == 0.1f && c1.Points[1].Y == 0.6f && c1.Text == "hi" && b0.Points.Count == 2, "点集/文字保留且原对象不变");
             }
+
+            // T113 贴图对齐参考线（R77，SnapToLines 纯决策）
+            {
+                var e = Array.Empty<double>();
+                // 左边贴屏幕边（xEdge 接受 left 锚点）
+                var a1 = FrameCapture.Core.PinSnap.SnapToLines(105, 500, 200, 100, new[] { 100.0 }, e, e, e, 12);
+                Chk("T113a-edge-left", a1.Left == 100 && a1.Top == 500, "left 距屏幕边 5<阈值 → 吸左");
+                // 右边贴屏幕边（xEdge 接受 right 锚点）
+                var a2 = FrameCapture.Core.PinSnap.SnapToLines(105, 500, 200, 100, new[] { 300.0 }, e, e, e, 12);
+                Chk("T113b-edge-right", a2.Left == 100, "right(305) 距屏幕边 300 差 5 → 右对齐到 300");
+                // 中心贴其他贴图线（xAny 接受 center 锚点）
+                var a3 = FrameCapture.Core.PinSnap.SnapToLines(105, 500, 200, 100, e, new[] { 200.0 }, e, e, 12);
+                Chk("T113c-any-center", a3.Left == 100, "center(205) 距贴图线 200 差 5 → 中心对齐");
+                // 关键：屏幕边不接受 center 锚点（否则半张图出屏）
+                var a4 = FrameCapture.Core.PinSnap.SnapToLines(105, 500, 200, 100, new[] { 205.0 }, e, e, e, 12);
+                Chk("T113d-edge-no-center", a4.Left == 105, "center 恰在屏幕边线上也不吸（屏幕边只认左右边）");
+                // 超阈值不动
+                var a5 = FrameCapture.Core.PinSnap.SnapToLines(105, 500, 200, 100, new[] { 50.0 }, e, e, e, 12);
+                Chk("T113e-far", a5.Left == 105 && a5.Top == 500, "参考线超阈值 → 不动");
+                // y 轴中线贴其他贴图
+                var a6 = FrameCapture.Core.PinSnap.SnapToLines(500, 305, 200, 100, e, e, e, new[] { 350.0 }, 12);
+                Chk("T113f-any-middle", a6.Top == 300, "middle(355) 距贴图线 350 差 5 → 垂直中心对齐");
+                // 空参考线 → 原样
+                var a7 = FrameCapture.Core.PinSnap.SnapToLines(123, 456, 200, 100, e, e, e, e, 12);
+                Chk("T113g-empty", a7.Left == 123 && a7.Top == 456, "无参考线 → 原样");
+                // x/y 各轴独立取最近
+                var a8 = FrameCapture.Core.PinSnap.SnapToLines(105, 505, 200, 100, new[] { 100.0 }, new[] { 302.0 }, new[] { 700.0 }, e, 12);
+                Chk("T113h-axes", a8.Left == 102 && a8.Top == 505, "x 取最近(right→302 差3)，y 超阈值不动");
+            }
         }
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");
         return fail == 0 ? 0 : 1;

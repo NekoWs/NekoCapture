@@ -150,7 +150,7 @@ public sealed class SettingsWindow : Window
 
         // ---- 贴图 ----
         panel.Children.Add(Group("贴图"));
-        panel.Children.Add(ToggleRow("\uE718", "拖动贴图自动磁边", "拖动贴图松手时，若某条边贴近所在屏幕边缘则自动吸附贴合，便于整齐停靠到屏幕四边/四角（Snipaste 式手感）。关闭则松手停在原地",
+        panel.Children.Add(ToggleRow("\uE718", "拖动贴图自动磁边", "拖动贴图松手时自动吸附对齐：贴近所在屏幕边缘则贴合停靠到屏幕四边/四角，贴近同屏其他贴图的边或中线则与之对齐（便于整齐排布多张贴图，Snipaste 式手感）。关闭则松手停在原地",
             _settings.Current.PinSnapEdges, v => _settings.Mutate(s => s.PinSnapEdges = v)));
 
         // ---- 外观 ----

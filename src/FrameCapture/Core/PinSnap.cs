@@ -21,4 +21,34 @@ public static class PinSnap
         else if (Math.Abs(t + h - cb) <= threshold) t = cb - h;
         return (l, t);
     }
+
+    /// <summary>
+    /// 贴图对齐（R77）：拖动松手时把本贴图吸附到一组参考线——屏幕边 + 同屏其他贴图的边/中线。
+    /// 本贴图的 left/right 可贴 xEdge（屏幕左右边）与 xAny（其他贴图线）；center 只贴 xAny
+    /// （贴图中心贴屏幕边会把半张图推出屏外，故屏幕边不接受中心锚点）；y 轴同理。
+    /// 每轴取全局最小偏移，超阈值则该轴不动。坐标统一为同一 DPI 空间的 DIP。纯函数，供单测。
+    /// </summary>
+    public static (double Left, double Top) SnapToLines(double left, double top, double w, double h,
+        IReadOnlyList<double> xEdge, IReadOnlyList<double> xAny,
+        IReadOnlyList<double> yEdge, IReadOnlyList<double> yAny, double threshold)
+    {
+        double nl = left, nt = top, bx = double.MaxValue, by = double.MaxValue;
+        void X(double line, double anchor)
+        {
+            double d = Math.Abs(line - anchor);
+            if (d < bx) { bx = d; nl = left + (line - anchor); }
+        }
+        void Y(double line, double anchor)
+        {
+            double d = Math.Abs(line - anchor);
+            if (d < by) { by = d; nt = top + (line - anchor); }
+        }
+        foreach (var ln in xEdge) { X(ln, left); X(ln, left + w); }
+        foreach (var ln in xAny) { X(ln, left); X(ln, left + w); X(ln, left + w / 2); }
+        foreach (var ln in yEdge) { Y(ln, top); Y(ln, top + h); }
+        foreach (var ln in yAny) { Y(ln, top); Y(ln, top + h); Y(ln, top + h / 2); }
+        if (bx > threshold) nl = left;
+        if (by > threshold) nt = top;
+        return (nl, nt);
+    }
 }

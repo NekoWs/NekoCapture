@@ -1092,3 +1092,21 @@ status: done
 - 构建 0 错误；SelfTest **260/260**（T112a-d：改色保留粗细/几何、改粗细保留色、两者都改、点集/文字保留且原对象不变）
 - 完整护栏 GUARDRAIL PASS（FAIL=0 SKIP=1）
 - 实机 e2e（截图+像素采样亲眼看）：画红箭头 → V 选中 → 点蓝色板 → 箭头中点像素 RGB 0,120,212（蓝）+ 虚线选中框；Ctrl+Z → 像素 232,17,35（红）还原。再画粗箭头 → 选中 → 点「小」线宽 → 垂直厚度 7-8px→2px；Ctrl+Z → 回 7-8px。箭头全程存活无删除
+
+## 2026-10-12 清晨 交互优化 R77（贴图对齐到同屏其他贴图：磁边从「只贴屏幕边」升级为「屏幕边 + 其他贴图边/中线」）
+
+**动机**：R74 磁边只贴屏幕四边；用户排布多张贴图（对比两张图、整齐停靠）时，贴图之间无法互相对齐。Snipaste 拖动贴图会吸附到其它贴图的边/中线，这是「人人爱用」的排布手感。
+
+**实现**：
+- `PinSnap.SnapToLines(left,top,w,h, xEdge, xAny, yEdge, yAny, threshold)` 纯函数：本贴图 left/right 可贴 xEdge（屏幕左右边）与 xAny（其他贴图线），**center 只贴 xAny**（贴图中心贴屏幕边会把半张图推出屏外，故屏幕边不接受中心锚点）；y 轴同理。每轴取全局最小偏移，超阈值则该轴不动。坐标统一为同一 DPI 空间 DIP。
+- `PinWindow.SnapToEdge` 升级：用贴图中心定位所在屏幕（DeviceName），收集**同屏**其他贴图的 left/center/right、top/middle/bottom 作候选线（跨屏 DPI 不同，仅同屏参与避免 DIP 混算），连同屏幕四边一起交给 SnapToLines。命中时 trace 记 `pin-snap (旧)→(新) otherPins=N`。
+- 设置项「拖动贴图自动磁边」文案 + HelpWindow 贴图行 + README 贴图行同步说明「也会对齐到同屏其他贴图的边/中线」。
+
+**验证**：
+- 构建 0 错误；SelfTest **268/268**（T113a-h：left 贴屏幕边、right 贴屏幕边、center 贴贴图线、**center 恰在屏幕边线上也不吸**、超阈值不动、middle 贴贴图线、无参考线原样、x/y 各轴独立取最近）
+- 完整护栏 GUARDRAIL PASS（FAIL=0 SKIP=1，floor 268）
+- 实机 e2e（EnumWindows 读两张贴图真实矩形 + trace + 截图亲眼看）：同位置钉两张贴图 →
+  - 对照：把上面那张右拖 +261px（>阈值 24px）松手 → 停在 1761，**未吸附**（另一张留 1500）
+  - 吸附：把它左拖回落到 1494（距 1500 仅 6px < 阈值）松手 → trace `pin-snap (996,667)→(1000,667) otherPins=1`，两张贴图 Left 都=1500 精确对齐
+  - 再把它竖直下拖到下方（左边保持 1500）→ 截图见两张贴图上下并排、左边缘严格对齐
+- 排障记录：自写 EnumWindows 抓不到贴图标题——根因 DllImport 默认 Ansi 字符集把 UTF-16 标题按 ANSI 读成 "F"，加 `CharSet=Unicode` 修复（Shot 一直用 Unicode 故正常）

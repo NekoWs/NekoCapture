@@ -52,6 +52,8 @@
       OcrService.Feedback 纯函数（编辑器/贴图共用措辞）；PinWindow 内容改 Grid + Flash 浮层（淡入停留淡出）；OcrFrame 复用 RecognizeAsync(_frame)/Normalize/OcrResultWindow。SelfTest T111a-c，实机 e2e（右键→识别文字→结果窗中英正确+剪贴板）。
 - [x] **选中已有标注改颜色/粗细**（R76）：V 选中一条标注后点色板/线宽，就地改这条的颜色/粗细（文字/序号粗细即字号），Ctrl+Z 可撤销；未选中时改的是后续新标注默认值。通用工作流修复（改错不用删了重画）。
       Annotation.WithStyle 纯函数（副本，null 保持原值）；EditorWindow.RestyleSelected 用 UndoRedo.Replace（Edit op）原位替换 + 无变化不刷撤销守卫；挂钩色板/最近用色/取色器关闭/3 挡线宽即时改，自定义滑杆关闭时一次性应用。SelfTest T112a-d，实机 e2e（红箭头→蓝→撤销回红；粗→细→撤销回粗，像素采样+截图）。
+- [x] **贴图对齐到同屏其他贴图**（R77）：磁边从「只贴屏幕四边」升级为「屏幕四边 + 同屏其他贴图的边/中线」，拖动贴图松手自动与相邻贴图对齐（Snipaste 式排布手感）。
+      PinSnap.SnapToLines 纯函数（left/right 贴屏幕边+贴图线，center 只贴图线避免半出屏，每轴取最近、超阈值不动）；SnapToEdge 收集同屏其他贴图边/中线（跨屏 DPI 不同仅同屏参与）。SelfTest T113a-h，实机 e2e（两图同位→右拖 261px 不吸、左拖回 6px 内吸附对齐 Left=1500、竖直下拖左缘仍对齐，EnumWindows 读真实矩形 + trace + 截图）。
 
 ## 用户反馈
 - [x] **录制后的全屏黄色边框持续存在（10-04 已修复）**：根因 = **不是我们的代码**，是 Windows 11

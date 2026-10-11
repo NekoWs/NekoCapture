@@ -153,12 +153,27 @@ public sealed class PinWindow : Window
             var d = VisualTreeHelper.GetDpi(this);
             // 用贴图中心定位所在屏幕（多屏），工作区物理像素 → DIP 与 Left/Top 同单位
             double cx = (Left + Width / 2) * d.DpiScaleX, cy = (Top + Height / 2) * d.DpiScaleY;
-            var wa = System.Windows.Forms.Screen.FromPoint(new System.Drawing.Point((int)cx, (int)cy)).WorkingArea;
+            var scr = System.Windows.Forms.Screen.FromPoint(new System.Drawing.Point((int)cx, (int)cy));
+            var wa = scr.WorkingArea;
             double cl = wa.X / d.DpiScaleX, ct = wa.Y / d.DpiScaleY, cr = wa.Right / d.DpiScaleX, cb = wa.Bottom / d.DpiScaleY;
-            var (l, t) = FrameCapture.Core.PinSnap.Snap(Left, Top, Width, Height, cl, ct, cr, cb,
+            // R77：同屏其他贴图的边/中线作为对齐参考线（跨屏 DPI 不同，仅同屏参与，避免 DIP 混算）
+            var xAny = new System.Collections.Generic.List<double>();
+            var yAny = new System.Collections.Generic.List<double>();
+            foreach (var p in _open)
+            {
+                if (ReferenceEquals(p, this)) continue;
+                double pcx = (p.Left + p.Width / 2) * d.DpiScaleX, pcy = (p.Top + p.Height / 2) * d.DpiScaleY;
+                if (System.Windows.Forms.Screen.FromPoint(new System.Drawing.Point((int)pcx, (int)pcy)).DeviceName != scr.DeviceName) continue;
+                xAny.Add(p.Left); xAny.Add(p.Left + p.Width / 2); xAny.Add(p.Left + p.Width);
+                yAny.Add(p.Top); yAny.Add(p.Top + p.Height / 2); yAny.Add(p.Top + p.Height);
+            }
+            var (l, t) = FrameCapture.Core.PinSnap.SnapToLines(Left, Top, Width, Height,
+                new[] { cl, cr }, xAny, new[] { ct, cb }, yAny,
                 FrameCapture.Core.PinSnap.Threshold(Width, Height));
             if (Math.Abs(l - Left) < 0.5 && Math.Abs(t - Top) < 0.5) return;
+            double ol = Left, ot = Top;
             SlideTo(l, t);
+            FrameCapture.Core.Trace.Log($"pin-snap ({ol:F0},{ot:F0})→({l:F0},{t:F0}) otherPins={xAny.Count / 3}");
         }
         catch { }
     }
