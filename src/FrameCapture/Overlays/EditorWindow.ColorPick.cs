@@ -54,6 +54,6 @@ public sealed partial class EditorWindow
         }
         if (_colorView != null) _colorView.Color = _customColor ?? CurColor;
         _colorPop.PlacementTarget = anchor;
-        _colorPop.IsOpen = true;
+        OpenPopSticky(_colorPop, this);
     }
 }

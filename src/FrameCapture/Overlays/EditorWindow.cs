@@ -477,7 +477,30 @@ public sealed partial class EditorWindow : Window
         _widthSlider.Value = Math.Clamp(_customWidth, 1, 24);
         if (_widthVal != null) _widthVal.Text = $"{(int)_widthSlider.Value}px";
         if (_widthPreview != null) _widthPreview.Width = _widthPreview.Height = Math.Clamp(_widthSlider.Value, 3, 20);
-        _widthPop.IsOpen = true;
+        OpenPopSticky(_widthPop, this);
+    }
+
+    /// <summary>
+    /// 打开弹层且「本次按压的抬起不关板」（R55）：StaysOpen=false 会把打开后第一次全局抬起当"点了外面"，
+    /// 按下即开板 → 抬手秒关，永远点不进弹层。先 StaysOpen=true 开板，下一次抬起再武装自动关闭。
+    /// 双钩子（handledEventsToo）：开板按压必在本窗；抬起落点要么本窗（窗钩子命中→解除，
+    /// 之后点外面即关）要么弹层（弹层独立 HWND，其子树钩子命中→解除，抬手进板即常驻可操作）。
+    /// 一次性、谁先命中谁摘双钩。
+    /// </summary>
+    static void OpenPopSticky(Popup pop, UIElement hostEl)
+    {
+        pop.StaysOpen = true;
+        pop.IsOpen = true;
+        var popEl = (UIElement)pop.Child;
+        MouseButtonEventHandler up = null!;
+        up = (_, _) =>
+        {
+            hostEl.RemoveHandler(Mouse.PreviewMouseUpEvent, up);
+            popEl.RemoveHandler(Mouse.PreviewMouseUpEvent, up);
+            pop.StaysOpen = false;
+        };
+        hostEl.AddHandler(Mouse.PreviewMouseUpEvent, up, true);
+        popEl.AddHandler(Mouse.PreviewMouseUpEvent, up, true);
     }
 
     // ---------------- 首次上手引导（R45，一次性） ----------------

@@ -731,3 +731,13 @@ status: done
 - Esc 分层加弹层优先层：调色板 > 宽度 > 取消选中 > 退工具 > 关窗。
 - 离屏取证 SelfTest renderpick：准星/双滑块/棋盘预览/HEX/RGBA 数值逐项目检一致（test-out/R54-pick.png）。
 - 用户测试期间不重发布，攒批。验证：构建 0 错；SelfTest 170/170。
+
+## 2026-10-12 午后 交互优化 R55（弹层秒关修复：本次按压的抬起不关板）
+- 队列第 4 条：⋯ 线宽弹层按下即开、抬手秒关，永远点不进板。根因：StaysOpen=false 的 Popup
+  把打开后第一次全局抬起当"点了外面"。
+- 修复 OpenPopSticky：开板先 StaysOpen=true，双钩 PreviewMouseUp（宿主窗 + 弹层子树，handledEventsToo）——
+  抬起落在窗内→解除武装（此后点外面即关）；落在弹层里→解除且板常驻可操作（正是用户要的"移进弹层不关"）。
+  一次性钩子谁先命中谁摘双钩。调色板弹层同修（同类 bug 一次清）。
+- 尝试链记录：Mouse.AddMouseUpHandler(元素版)/InputManager(无此静态)/Application(非 UIElement) 均不可用，
+  最终窗+板双钩是 WPF 弹层独立 HWND 输入路由下的正解。
+- 验证：构建 0 错；SelfTest 170/170。交互手感项按约定留给用户实测（不盲测鼠标）。
