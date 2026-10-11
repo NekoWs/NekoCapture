@@ -11,14 +11,15 @@ using Theme = FrameCapture.Core.Theme;
 
 namespace FrameCapture.Overlays;
 
-// 绘图工具层：点/线/圆/箭头/手绘/裁剪 + 撤销 + 时间轴范围
+// 绘图工具层：线/圆/箭头/手绘/裁剪 + 撤销 + 时间轴范围
 public sealed partial class EditorWindow
 {
-    enum Tool { Browse, Dot, Line, Ellipse, Arrow, Freehand, Crop }
+    enum Tool { Browse, Line, Ellipse, Arrow, Freehand, Crop }
 
-    static readonly Tool[] ToolOrder = { Tool.Dot, Tool.Line, Tool.Ellipse, Tool.Arrow, Tool.Freehand, Tool.Crop };
-    static readonly string[] ToolGlyph = { "\uE915", "\uE949", "\uEA3F", "\uE74A", "\uE70F", "\uE7A8" };
-    static readonly string[] ToolTip = { "标记点 (D)", "直线 (L)", "圆圈 (O)", "箭头 (A)", "手绘 (P)", "裁剪 (C)" };
+    static readonly Tool[] ToolOrder = { Tool.Line, Tool.Ellipse, Tool.Arrow, Tool.Freehand, Tool.Crop };
+    // 面性图标（GlyphProbe 渲染矩阵人工定稿）：线 E949 / 圆 EA3B / 箭头 F0AF / 手绘 E70F / 裁剪 E7A8
+    static readonly string[] ToolGlyph = { "\uE949", "\uEA3B", "\uF0AF", "\uE70F", "\uE7A8" };
+    static readonly string[] ToolTip = { "直线 (L)", "圆圈 (O)", "箭头 (A)", "手绘 (P)", "裁剪 (C)" };
     static readonly Color[] Swatches =
     {
         Color.FromRgb(0xE8, 0x11, 0x23), Color.FromRgb(0xFF, 0xB9, 0x00),
@@ -45,7 +46,7 @@ public sealed partial class EditorWindow
     // 时间轴范围
     readonly FrameCapture.Core.RangeDragState _rd = new();
     // Background 必须非 null（透明即可）：null 时画布空白区不参与命中测试，轨道点选/拖动会失效
-    Canvas _rangeCanvas = new() { Height = 22, Cursor = Cursors.IBeam, Background = System.Windows.Media.Brushes.Transparent };
+    Canvas _rangeCanvas = new() { Height = 26, Cursor = Cursors.IBeam, Background = System.Windows.Media.Brushes.Transparent };
 
 
     void InitDrawing()
@@ -70,12 +71,7 @@ public sealed partial class EditorWindow
         _viewGrid.MouseMove += Pan_Move;
         _viewGrid.MouseUp += Pan_Up;
 
-        var rangeBorder = new Border
-        {
-            Child = _rangeCanvas,
-            CornerRadius = new CornerRadius(6),
-            Background = new SolidColorBrush(Theme.TrackBg),
-        };
+        var rangeBorder = new Border { Child = _rangeCanvas };
         _rangeCanvas.MouseLeftButtonDown += Range_Down;
         _rangeCanvas.MouseMove += Range_Move;
         _rangeCanvas.MouseLeftButtonUp += Range_Up;
@@ -225,10 +221,6 @@ public sealed partial class EditorWindow
         float thick = Widths[_widthIdx];
         switch (_tool)
         {
-            case Tool.Dot:
-                CommitAnn(MakeAnn(AnnKind.Dot, color, thick, new[] { n }));
-                _dragging = false;
-                break;
             case Tool.Line:
                 _pending = MakeAnn(AnnKind.Line, color, thick, new[] { n, n });
                 _preview = new Line { Stroke = ToWpf(color), StrokeThickness = DispStroke(thick) };
@@ -557,36 +549,60 @@ public sealed partial class EditorWindow
         double cw = c.ActualWidth, ch = c.ActualHeight;
         if (cw < 8) return;
         int n = Math.Max(2, _seq.Frames.Count);
-        double th = 5, ty = (ch - th) / 2;
+        int fps = (int)Math.Clamp(_settings.Current.Fps, Core.AppSettings.FpsMin, Core.AppSettings.FpsMax);
+        double px = cw / (n - 1.0);
+        var tick = Color.FromArgb(0xC8, Theme.Stroke.R, Theme.Stroke.G, Theme.Stroke.B);
+
+        // PR 式刻度尺：逐帧小刻度（太密则抽稀），整秒长刻度 + 秒标
+        int step = px >= 3 ? 1 : Math.Max(1, (int)Math.Ceiling(3.0 / px));
+        for (int i = 0; i < n; i += step)
+        {
+            double x = i * px;
+            bool major = i % fps == 0;
+            c.Children.Add(TlBar(x, major ? 9 : 13, 1, major ? 10 : 6, 0.5, tick));
+            if (major && i > 0)
+            {
+                var tb = new TextBlock
+                {
+                    Text = $"{i / fps}s",
+                    FontSize = 8.5,
+                    FontFamily = new FontFamily("Segoe UI"),
+                    Foreground = new SolidColorBrush(Color.FromArgb(0xB0, Theme.Text.R, Theme.Text.G, Theme.Text.B)),
+                };
+                tb.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+                Canvas.SetLeft(tb, Math.Clamp(x - tb.DesiredSize.Width / 2, 0, Math.Max(0, cw - tb.DesiredSize.Width)));
+                Canvas.SetTop(tb, 0);
+                c.Children.Add(tb);
+            }
+        }
 
         // 底轨 + 已走到位置的填充
-        c.Children.Add(TlBar(0, ty, cw, th, 2.5, Theme.TrackBg));
+        double ty = ch - 5;
+        c.Children.Add(TlBar(0, ty, cw, 4, 2, Theme.TrackBg));
         double xm = _index / (n - 1.0) * cw;
-        if (xm > 2) c.Children.Add(TlBar(0, ty, xm, th, 2.5, FrameCapture.Core.Theme.Accent));
+        if (xm > 1) c.Children.Add(TlBar(0, ty, xm, 4, 2, FrameCapture.Core.Theme.Accent));
 
-        // 裁剪范围：范围外压暗，两端强调色把手
+        // 裁剪范围：范围外整列压暗，两端强调色把手（通高，PR 入/出点感）
         var (a, b) = TrimRange;
         if (_rd.A >= 0 && b > a)
         {
-            double xa = a / (n - 1.0) * cw, xb = b / (n - 1.0) * cw;
-            if (xa > 1) c.Children.Add(TlBar(0, ty, xa, th, 2.5, Color.FromArgb(0xB0, 0x14, 0x14, 0x16)));
-            if (cw - xb > 1) c.Children.Add(TlBar(xb, ty, cw - xb, th, 2.5, Color.FromArgb(0xB0, 0x14, 0x14, 0x16)));
-            c.Children.Add(TlBar(xa - 1.75, ch / 2 - 7, 3.5, 14, 1.75, FrameCapture.Core.Theme.Accent));
-            c.Children.Add(TlBar(xb - 1.75, ch / 2 - 7, 3.5, 14, 1.75, FrameCapture.Core.Theme.Accent));
+            double xa = a * px, xb = b * px;
+            if (xa > 1) c.Children.Add(TlBar(0, 0, xa, ch, 0, Color.FromArgb(0x99, 0x0A, 0x0A, 0x0C)));
+            if (cw - xb > 1) c.Children.Add(TlBar(xb, 0, cw - xb, ch, 0, Color.FromArgb(0x99, 0x0A, 0x0A, 0x0C)));
+            c.Children.Add(TlBar(xa - 1.5, 2, 3, ch - 4, 1.5, FrameCapture.Core.Theme.Accent));
+            c.Children.Add(TlBar(xb - 1.5, 2, 3, ch - 4, 1.5, FrameCapture.Core.Theme.Accent));
         }
 
-        // 拇指（与填充端点同坐标，不可能分离）
-        var dot = new System.Windows.Shapes.Ellipse
+        // 播放头：白色竖线 + 顶部三角（PR 指针），与填充端点同坐标不可能分离
+        c.Children.Add(TlBar(xm - 0.75, 4, 1.5, ch - 4, 0.75, Colors.White));
+        var tri = new System.Windows.Shapes.Polygon
         {
-            Width = 13, Height = 13,
-            Fill = new SolidColorBrush(FrameCapture.Core.Theme.Accent),
-            Stroke = new SolidColorBrush(Color.FromArgb((byte)(Theme.Stroke.A * 0x60 / 0xFF), Theme.Stroke.R, Theme.Stroke.G, Theme.Stroke.B)),
-            StrokeThickness = 1.5,
-            Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 8, ShadowDepth = 0, Opacity = 0.55 },
+            Points = new PointCollection { new Point(0, 0), new Point(7, 0), new Point(3.5, 4.5) },
+            Fill = Brushes.White,
         };
-        Canvas.SetLeft(dot, Math.Clamp(xm, 0, cw) - 6.5);
-        Canvas.SetTop(dot, ch / 2 - 6.5);
-        c.Children.Add(dot);
+        Canvas.SetLeft(tri, xm - 3.5);
+        Canvas.SetTop(tri, 0);
+        c.Children.Add(tri);
     }
 
     (int a, int b) TrimRange { get { _rd.Count = _seq.Frames.Count; return _rd.Effective; } }

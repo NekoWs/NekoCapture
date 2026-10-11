@@ -204,7 +204,7 @@ public static class Fluent
     /// <summary>全站动效令牌：入场 cubic-out，退场 cubic-in，节奏统一（对标 Fluent Dependency/Transient）。</summary>
     public static class Motion
     {
-        public const int EnterMs = 190;      // 悬浮条/弹出层入场
+        public const int EnterMs = 190;      // 弹出层/浮层入场
         public const int EditorEnterMs = 240; // 编辑器入场（大表面稍慢半拍）
         public const int ExitMs = 150;       // 退场（比入场快 = 更干脆）
         public const int StaggerMs = 110;    // 分层错位间隔

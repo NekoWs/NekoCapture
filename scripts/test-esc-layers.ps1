@@ -1,4 +1,5 @@
-# R10 Esc 分层回归：捕获→编辑器→D(进绘制态)→Esc(应只退工具，编辑器仍在 + trace esc→browse)→Esc(关闭)。
+# R10 Esc 分层回归：捕获→编辑器→L(进绘制态)→Esc(应只退工具，编辑器仍在 + trace esc→browse)→Esc(关闭)。
+# R12 起 D=点工具已删除，改用 L=直线（语义不变：任意绘制工具进入绘制态）。
 # 语义与其余 e2e 一致：注入被拦截 → SKIP ≠ FAIL。
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
@@ -22,7 +23,7 @@ if ($ed -match "not-found") {
     Remove-Item Env:\FC_TEST_NO_FG -EA SilentlyContinue
     exit 0
 }
-& $shot keyw "FrameCapture Editor" 68 2>$null | Out-Null; Start-Sleep 0.4   # D → 点工具（绘制态）
+& $shot keyw "FrameCapture Editor" 76 2>$null | Out-Null; Start-Sleep 0.4   # L → 直线工具（绘制态）
 & $shot keyw "FrameCapture Editor" 27 2>$null | Out-Null; Start-Sleep 0.6   # Esc → 应只退工具
 $ed2 = & $shot rect "FrameCapture Editor" 2>$null
 $stillOpen = "$ed2" -notmatch "not-found"

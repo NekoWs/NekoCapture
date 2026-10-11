@@ -138,7 +138,8 @@ function Test-EditorAlive {
 }
 function Capture-Bars {
     param([string]$OutPng)
-    $r = & $uicap region "FrameCapture Bar" $OutPng 2>&1
+    # R12 起控制面板停靠进编辑器窗口本体（FloatBar 已删除），拍编辑器窗即含面板
+    $r = & $uicap region "FrameCapture Editor" $OutPng 2>&1
     if ($r -notmatch "saved") { Write-Host "  bars capture FAIL: $r"; return $false }
     Write-Host "  saved $(Split-Path $OutPng -Leaf) ($($r -replace '^saved\s+\S+\s+', ''))"
     return $true
@@ -196,7 +197,7 @@ try {
     New-Item -ItemType Directory -Force -Path $burstDir | Out-Null
     $mP = Get-TraceLen
     # Start-Process -ArgumentList 不自动为含空格标题加引号，必须自带
-    $bp = Start-Process $uicap -ArgumentList @('burstregion', '"FrameCapture Bar"', '8', '150', ('"' + (Join-Path $burstDir 'p') + '"')) -NoNewWindow -PassThru
+    $bp = Start-Process $uicap -ArgumentList @('burstregion', '"FrameCapture Editor"', '8', '150', ('"' + (Join-Path $burstDir 'p') + '"')) -NoNewWindow -PassThru
     & $shot keyw "FrameCapture Editor" 13 2>$null | Out-Null
     $bp.WaitForExit()
     $frames = @(Get-ChildItem $burstDir -Filter 'p.*.png' | Sort-Object Name)

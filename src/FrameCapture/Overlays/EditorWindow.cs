@@ -35,8 +35,7 @@ public sealed partial class EditorWindow : Window
     private static Color PanelBg => Theme.PanelBg;
     private static readonly FontFamily IconFont = new("Segoe Fluent Icons, Segoe MDL2 Assets, Segoe UI Symbol");
     private Button? _bPlay;
-    private FloatBar? _barTop, _barBottom;
-    private System.Windows.Threading.DispatcherTimer? _hideTimer;
+    private Border? _playPanel, _toolPanel;
 
     public EditorWindow(SettingsService settings, CapturedSequence seq)
     {
@@ -57,7 +56,7 @@ public sealed partial class EditorWindow : Window
 
         var mon = Monitors.ByDevice(seq.MonitorDevice) ?? Monitors.Nearest(seq.Region.X, seq.Region.Y);
         Width = Math.Min(1600, Math.Max(560, seq.Region.W + 120));
-        Height = Math.Min(1000, Math.Max(420, seq.Region.H + 220));
+        Height = Math.Min(1000, Math.Max(420, seq.Region.H + (seq.Frames.Count > 1 ? 250 : 210))); // 停靠面板占位：播放+工具 / 仅工具
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
         if (mon != null)
         {
@@ -111,33 +110,39 @@ public sealed partial class EditorWindow : Window
 
     // ---------------- 布局 ----------------
 
-    Button IconBtn(string glyph, string tip, double size = 36) =>
-        FrameCapture.Core.Fluent.IconButton(glyph, tip, size, 15);
+    Button IconBtn(string glyph, string tip, double size = 28) =>
+        FrameCapture.Core.Fluent.IconButton(glyph, tip, size, 13);
 
     void BuildLayout()
     {
+        // 停靠式布局：预览在上，播放面板（录制时常驻）与工具面板依次停靠其下——控件不再悬浮在画面里
         var root = new Grid { Margin = new Thickness(0) };
+        root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+        root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         _viewGrid.Children.Add(_view);
         _viewGrid.Children.Add(_canvas);
         var viewHost = new Border
         {
-            CornerRadius = new CornerRadius(8), // 与 Win11 原生窗口圆角贴合；Win10 无原生圆角时保留自绘圆角
+            CornerRadius = new CornerRadius(8, 8, 0, 0), // 上角与 Win11 原生窗口圆角贴合；下角由工具面板收口
             Background = new SolidColorBrush(Color.FromRgb(0x14, 0x14, 0x14)),
             Child = _viewGrid,
         };
+        Grid.SetRow(viewHost, 0);
         root.Children.Add(viewHost);
         Content = root;
 
-        BuildHoverBars();
-
-        LocationChanged += (_, _) => PositionBars();
-        SizeChanged += (_, _) => PositionBars();
-        Closed += (_, _) => { _hideTimer?.Stop(); _barTop?.Close(); _barBottom?.Close(); };
-        MouseEnter += (_, _) => ShowBars();
-        MouseLeave += (_, _) => ScheduleAutoHide();
-        if (IsLoaded) ShowBars();
-        else Loaded += (_, _) => ShowBars();
+        BuildPanels(root);
     }
+
+    Border Panel(FrameworkElement child) => new()
+    {
+        Background = new SolidColorBrush(Theme.PanelBg),
+        BorderBrush = new SolidColorBrush(Color.FromArgb(0x66, Theme.Stroke.R, Theme.Stroke.G, Theme.Stroke.B)),
+        BorderThickness = new Thickness(0, 1, 0, 0),
+        Padding = new Thickness(8, 2, 8, 2),
+        Child = child,
+    };
 
     void Editor_OnTheme()
     {
@@ -154,21 +159,78 @@ public sealed partial class EditorWindow : Window
         for (int i = 0; i < _toolBtns.Count; i++)
             Highlight(_toolBtns[i], ToolOrder[i] == _tool);
         RefreshWidths();
-        if (_rangeHost != null) _rangeHost.Background = new System.Windows.Media.SolidColorBrush(Theme.TrackBg);
+        foreach (var p in new[] { _playPanel, _toolPanel })
+            if (p != null)
+            {
+                p.Background = new System.Windows.Media.SolidColorBrush(Theme.PanelBg);
+                p.BorderBrush = new System.Windows.Media.SolidColorBrush(Color.FromArgb(0x66, Theme.Stroke.R, Theme.Stroke.G, Theme.Stroke.B));
+            }
         DrawRange();
     }
 
     bool MultiFrame => _seq.Frames.Count > 1;
 
-    void BuildHoverBars()
+    void BuildPanels(Grid root)
     {
+        if (MultiFrame)
+        {
+            var g = new Grid();
+            g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+            var transport = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+            int fps = (int)Math.Clamp(_settings.Current.Fps, AppSettings.FpsMin, AppSettings.FpsMax);
+            var bPrevSec = IconBtn("\uF8AC", "上一秒 (Shift+←)"); bPrevSec.Click += (_, _) => Step(-fps);
+            var bPrev = IconBtn("\uF08D", "上一帧 (←)"); bPrev.Click += (_, _) => Step(-1);
+            _bPlay = IconBtn("\uF5B0", "播放/暂停 (空格)"); _bPlay.Click += (_, _) => TogglePlay();
+            var bNext = IconBtn("\uF08F", "下一帧 (→)"); bNext.Click += (_, _) => Step(+1);
+            var bNextSec = IconBtn("\uF8AD", "下一秒 (Shift+→)"); bNextSec.Click += (_, _) => Step(+fps);
+            foreach (var b in new FrameworkElement[] { bPrevSec, bPrev, _bPlay, bNext, bNextSec }) transport.Children.Add(b);
+            Grid.SetColumn(transport, 0);
+            g.Children.Add(transport);
+
+            if (_rangeHost != null)
+            {
+                _rangeHost.Background = Brushes.Transparent;
+                _rangeHost.VerticalAlignment = VerticalAlignment.Stretch;
+                _rangeHost.Margin = new Thickness(8, 0, 8, 0);
+                Grid.SetColumn(_rangeHost, 1);
+                g.Children.Add(_rangeHost);
+            }
+            _hud.Margin = new Thickness(6, 0, 8, 0);
+            Grid.SetColumn(_hud, 2);
+            g.Children.Add(_hud);
+
+            var actions = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+            var bSaveFrame = IconBtn("\uE105", "保存当前帧 (PNG)  Ctrl+S"); bSaveFrame.Click += (_, _) => SaveFrame();
+            var bCopyFrame = IconBtn("\uF413", "复制当前帧 (位图)  Ctrl+C"); bCopyFrame.Click += (_, _) => ClipboardService.SetFrame(ExportFrame(_index));
+            var bSaveGif = IconBtn("\uE116", "保存为动图 (GIF)  Ctrl+E"); bSaveGif.Click += (_, _) => SaveGif();
+            var bAfter = IconBtn("\uE955", "保存视觉暂留合成图  Ctrl+H"); bAfter.Click += (_, _) => SaveAfterimage();
+            foreach (var b in new[] { bSaveFrame, bCopyFrame, bSaveGif, bAfter }) actions.Children.Add(b);
+            actions.Children.Add(Sep());
+            var bCancel = IconBtn("\uE711", "取消 (Esc)"); bCancel.Click += (_, _) => FrameCapture.Core.Fluent.CloseWithFade(this);
+            var bOk = IconBtn("\uF78C", "确定：GIF 写入剪贴板 (Enter)"); bOk.Click += (_, _) => Commit();
+            actions.Children.Add(bCancel);
+            actions.Children.Add(bOk);
+            FrameCapture.Core.Fluent.HighlightBtn(bOk, true);
+            _okBtns.Add(bOk); // 主按钮：accent 实心
+            Grid.SetColumn(actions, 3);
+            g.Children.Add(actions);
+
+            _playPanel = Panel(g);
+            Grid.SetRow(_playPanel, 1);
+            root.Children.Add(_playPanel);
+        }
+
         var tools = BuildToolsBar();
         if (!MultiFrame)
         {
             tools.Children.Add(Sep());
-            var bSaveF = IconBtn("\uE74E", "保存当前帧 (PNG)"); bSaveF.Click += (_, _) => SaveFrame();
-            var bCopyF = IconBtn("\uE8C8", "复制当前帧 (位图)"); bCopyF.Click += (_, _) => ClipboardService.SetFrame(ExportFrame(_index));
-            var bOkF = IconBtn("\uE73E", "确定：写入剪贴板 (Enter)"); bOkF.Click += (_, _) => Commit();
+            var bSaveF = IconBtn("\uE105", "保存当前帧 (PNG)"); bSaveF.Click += (_, _) => SaveFrame();
+            var bCopyF = IconBtn("\uF413", "复制当前帧 (位图)"); bCopyF.Click += (_, _) => ClipboardService.SetFrame(ExportFrame(_index));
+            var bOkF = IconBtn("\uF78C", "确定：写入剪贴板 (Enter)"); bOkF.Click += (_, _) => Commit();
             var bX = IconBtn("\uE711", "取消 (Esc)"); bX.Click += (_, _) => FrameCapture.Core.Fluent.CloseWithFade(this);
             foreach (var b in new[] { bSaveF, bCopyF, bOkF, bX }) tools.Children.Add(b);
             FrameCapture.Core.Fluent.HighlightBtn(bOkF, true);
@@ -176,102 +238,21 @@ public sealed partial class EditorWindow : Window
         }
         tools.Children.Add(Sep());
         var bSet = IconBtn("\uE713", "设置"); bSet.Click += (_, _) => SettingsWindow.ShowOrFocus();
-        var bHelp = IconBtn("\uE897", "帮助与快捷键"); bHelp.Click += (_, _) => HelpWindow.ShowOrFocus();
+        var bHelp = IconBtn("\uE9CE", "帮助与快捷键"); bHelp.Click += (_, _) => HelpWindow.ShowOrFocus();
         tools.Children.Add(bSet);
         tools.Children.Add(bHelp);
-        _barTop = new FloatBar(this, tools);
-        _barTop.EnterDelayMs = 0;
-
-        if (MultiFrame)
-        {
-            var bar = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-            int fps = (int)Math.Clamp(_settings.Current.Fps, AppSettings.FpsMin, AppSettings.FpsMax);
-            var bPrevSec = IconBtn("\uE892", "上一秒 (Shift+←)"); bPrevSec.Click += (_, _) => Step(-fps);
-            var bPrev = IconBtn("\uE100", "上一帧 (←)"); bPrev.Click += (_, _) => Step(-1);
-            _bPlay = IconBtn("\uE768", "播放/暂停 (空格)"); _bPlay.Click += (_, _) => TogglePlay();
-            var bNext = IconBtn("\uE101", "下一帧 (→)"); bNext.Click += (_, _) => Step(+1);
-            var bNextSec = IconBtn("\uE893", "下一秒 (Shift+→)"); bNextSec.Click += (_, _) => Step(+fps);
-            foreach (var b in new FrameworkElement[] { bPrevSec, bPrev, _bPlay, bNext, bNextSec }) bar.Children.Add(b);
-            bar.Children.Add(Sep());
-            if (_rangeHost != null)
-            {
-                _rangeHost.Width = 320;
-                _rangeHost.VerticalAlignment = VerticalAlignment.Center;
-                _rangeHost.Margin = new Thickness(4, 0, 2, 0);
-                bar.Children.Add(_rangeHost);
-            }
-            _hud.Margin = new Thickness(8, 0, 4, 0);
-            bar.Children.Add(_hud);
-            bar.Children.Add(Sep());
-            var bSaveFrame = IconBtn("\uE74E", "保存当前帧 (PNG)  Ctrl+S"); bSaveFrame.Click += (_, _) => SaveFrame();
-            var bCopyFrame = IconBtn("\uE8C8", "复制当前帧 (位图)  Ctrl+C"); bCopyFrame.Click += (_, _) => ClipboardService.SetFrame(ExportFrame(_index));
-            var bSaveGif = IconBtn("\uE116", "保存为动图 (GIF)  Ctrl+E"); bSaveGif.Click += (_, _) => SaveGif();
-            var bAfter = IconBtn("\uE955", "保存视觉暂留合成图  Ctrl+H"); bAfter.Click += (_, _) => SaveAfterimage();
-            foreach (var b in new[] { bSaveFrame, bCopyFrame, bSaveGif, bAfter }) bar.Children.Add(b);
-            bar.Children.Add(Sep());
-            var bCancel = IconBtn("\uE711", "取消 (Esc)"); bCancel.Click += (_, _) => FrameCapture.Core.Fluent.CloseWithFade(this);
-            var bOk = IconBtn("\uE73E", "确定：GIF 写入剪贴板 (Enter)"); bOk.Click += (_, _) => Commit();
-            bar.Children.Add(bCancel);
-            bar.Children.Add(bOk);
-            FrameCapture.Core.Fluent.HighlightBtn(bOk, true);
-            _okBtns.Add(bOk); // 主按钮：accent 实心
-            _barBottom = new FloatBar(this, bar);
-            _barBottom.EnterDelayMs = 110; // 错开入场：绘制条先、播放条后
-        }
-
-        if (_barBottom != null) HookBar(_barBottom);
+        _toolPanel = Panel(tools);
+        _toolPanel.CornerRadius = new CornerRadius(0, 0, 8, 8); // 底角收口，与原生窗口圆角贴合
+        Grid.SetRow(_toolPanel, 2);
+        root.Children.Add(_toolPanel);
     }
 
     static System.Windows.Shapes.Rectangle Sep() => new()
     {
         Width = 1,
         Fill = new SolidColorBrush(Color.FromArgb(Theme.Stroke.A, Theme.Stroke.R, Theme.Stroke.G, Theme.Stroke.B)),
-        Margin = new Thickness(6, 7, 6, 7),
+        Margin = new Thickness(5, 5, 5, 5),
     };
-
-    void HookBar(FloatBar b)
-    {
-        b.MouseEnter += (_, _) => { _hideTimer?.Stop(); };
-        b.MouseLeave += (_, _) => ScheduleAutoHide();
-    }
-
-    void ShowBars()
-    {
-        _hideTimer?.Stop();
-        bool any = false;
-        if (_barTop is { IsVisible: false } t) { t.ShowBar(); any = true; }
-        if (_barBottom is { IsVisible: false } b2) { b2.ShowBar(); any = true; }
-        PositionBars();
-        if (any) Dispatcher.BeginInvoke(PositionBars, System.Windows.Threading.DispatcherPriority.Loaded);
-    }
-
-    void ScheduleAutoHide()
-    {
-        if (_barBottom?.IsMouseOver == true) return;
-        if (_hideTimer == null)
-        {
-            _hideTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
-            _hideTimer.Tick += (_, _) => { _hideTimer!.Stop(); _barBottom?.HideBar(); };
-        }
-        _hideTimer.Stop();
-        _hideTimer.Start();
-    }
-
-    void PositionBars()
-    {
-        // 绘制条：预览下方外侧，常驻不自动隐藏；拖过的尊重用户位置
-        if (_barTop is { ManualPos: false } t)
-        {
-            t.Left = Left + (ActualWidth - t.ActualWidth) / 2;
-            t.Top = Top + ActualHeight + 10;
-        }
-        // 播放条：预览画面下缘内侧，随鼠标离开自动隐藏；拖过的尊重用户位置
-        if (_barBottom is { ManualPos: false } b)
-        {
-            b.Left = Left + (ActualWidth - b.ActualWidth) / 2;
-            b.Top = Top + ActualHeight - b.ActualHeight - 16;
-        }
-    }
 
     StackPanel BuildToolsBar()
     {
@@ -290,16 +271,16 @@ public sealed partial class EditorWindow : Window
             int idx = i;
             var inner = new System.Windows.Shapes.Ellipse
             {
-                Width = 18, Height = 18, Fill = new SolidColorBrush(Swatches[idx]),
+                Width = 14, Height = 14, Fill = new SolidColorBrush(Swatches[idx]),
                 Stroke = new SolidColorBrush(Theme.Stroke), StrokeThickness = 1, // 白色色块在浅底也可见
             };
             var bd = new Border
             {
                 Child = inner,
-                Width = 26,
-                Height = 26,
+                Width = 22,
+                Height = 22,
                 Margin = new Thickness(2),
-                CornerRadius = new CornerRadius(13),
+                CornerRadius = new CornerRadius(11),
                 Background = Brushes.Transparent,
                 BorderBrush = i == 0 ? new SolidColorBrush(Acc) : Brushes.Transparent,
                 BorderThickness = new Thickness(2),
@@ -315,8 +296,8 @@ public sealed partial class EditorWindow : Window
         foreach (var (w, lbl) in new[] { (0, "细"), (1, "中"), (2, "粗") }.Select((t, i) => (t.Item1, t.Item2)))
         {
             int idx = w;
-            var b = IconBtn("", lbl + "笔画", 28);
-            b.FontSize = 9 + idx * 4;
+            var b = IconBtn("", lbl + "笔画", 24);
+            b.FontSize = 8 + idx * 3;
             b.PreviewMouseLeftButtonDown += (sender2, e2) => { _widthIdx = idx; RefreshWidths(); e2.Handled = true; };
             _widthBtns.Add(b);
             bar.Children.Add(b);
@@ -395,7 +376,6 @@ public sealed partial class EditorWindow : Window
             switch (e.Key)
             {
                 case Key.X: SetTool(Tool.Browse); return;
-                case Key.D: SetTool(Tool.Dot); return;
                 case Key.L: SetTool(Tool.Line); return;
                 case Key.O: SetTool(Tool.Ellipse); return;
                 case Key.A: SetTool(Tool.Arrow); return;
@@ -446,7 +426,7 @@ public sealed partial class EditorWindow : Window
     void TogglePlay()
     {
         _playing = !_playing;
-        if (_bPlay != null) _bPlay.Content = _playing ? "" : "";
+        if (_bPlay != null) _bPlay.Content = _playing ? "" : "";
         Trace.Log($"play={_playing}");
         if (_playing) _playTimer.Start();
         else _playTimer.Stop();
