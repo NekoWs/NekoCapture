@@ -4,6 +4,8 @@ using Windows.Graphics.Capture;
 using Windows.Graphics.DirectX;
 using Windows.Graphics.DirectX.Direct3D11;
 
+using FrameCapture.Core;
+
 namespace FrameCapture.Capture;
 
 /// <summary>
@@ -53,7 +55,7 @@ public sealed class WgcLiveCapture : IDisposable
         Stop();
         _region = region;
         _monOrigin = monitor.Bounds;
-        _intervalMs = Math.Max(16, 1000 / Math.Clamp(fps, 5, 120));
+        _intervalMs = Math.Max(16, 1000 / Math.Clamp(fps, AppSettings.FpsMin, AppSettings.FpsMax));
 
         Exception? initErr = null;
         using var done = new ManualResetEventSlim();

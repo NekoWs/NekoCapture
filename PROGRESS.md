@@ -289,3 +289,12 @@ status: done
   长命令易被 goal 轮打断 → 验证打包成后台任务写结果文件。
 - **R3 编辑器退场一致性**（8deb809）：X 按钮走 CloseWithFade(Exit150)，Esc 与 Enter/Commit 却直接 Close()——
   同一窗口双退场手感。三处统一。EDITOR-KEYS PASS + OUTLINE-LIFECYCLE PASS + SelfTest 85/85。
+
+## 2026-10-11 长跑 R4（DSH goal 轮，12:40 起）
+- **R4 Fps 钳制单一事实源**：帧率范围此前散落 6 处且互相矛盾——设置滑条/Normalize 10..60、编辑器 5 处 5..60、
+  捕获引擎 2 处 5..120。设置恒被 Normalize，编辑器/引擎的宽钳位是误导性死代码（改一处范围必漂移）。
+  修复 = AppSettings.FpsMin/FpsMax 常量（10/60）为唯一事实源，滑条、Normalize、编辑器×5、引擎×2 全部引用；
+  LiveCapture/WgcLiveCapture 补 using FrameCapture.Core。SelfTest +T77a/b（85→87）：常量=文档范围、
+  Normalize 钳越界值且合法值原样通过。行为不变（设置恒 10..60），消除的是未来改范围时的静默漂移。
+- **release 重发布补账**（b5f8e6c）：R1-R3 已进 release（exe 12:27:10，pid 78292，二进制含
+  "outline: persistent show"/"hook slow"/CloseWithFade 标记）；更正此前 TODO 的过早勾选。

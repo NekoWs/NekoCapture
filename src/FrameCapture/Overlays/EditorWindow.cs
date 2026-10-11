@@ -86,7 +86,7 @@ public sealed partial class EditorWindow : Window
             if (next > b || next >= _seq.Frames.Count) next = a;
             Show(next);
         };
-        _playTimer.Interval = TimeSpan.FromMilliseconds(Math.Max(1000.0 / Math.Clamp(_settings.Current.Fps, 5, 60), 20));
+        _playTimer.Interval = TimeSpan.FromMilliseconds(Math.Max(1000.0 / Math.Clamp(_settings.Current.Fps, AppSettings.FpsMin, AppSettings.FpsMax), 20));
 
         InitDrawing();
         BuildLayout();
@@ -186,7 +186,7 @@ public sealed partial class EditorWindow : Window
         if (MultiFrame)
         {
             var bar = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-            int fps = (int)Math.Clamp(_settings.Current.Fps, 5, 60);
+            int fps = (int)Math.Clamp(_settings.Current.Fps, AppSettings.FpsMin, AppSettings.FpsMax);
             var bPrevSec = IconBtn("\uE892", "上一秒 (Shift+←)"); bPrevSec.Click += (_, _) => Step(-fps);
             var bPrev = IconBtn("\uE100", "上一帧 (←)"); bPrev.Click += (_, _) => Step(-1);
             _bPlay = IconBtn("\uE768", "播放/暂停 (空格)"); _bPlay.Click += (_, _) => TogglePlay();
@@ -362,7 +362,7 @@ public sealed partial class EditorWindow : Window
     void OnKeyDown(object sender, KeyEventArgs e)
     {
         Trace.Log($"editor key={e.KeyboardDevice.Modifiers}+{e.Key}");
-        int fps = (int)Math.Clamp(_settings.Current.Fps, 5, 60);
+        int fps = (int)Math.Clamp(_settings.Current.Fps, AppSettings.FpsMin, AppSettings.FpsMax);
         var mods = e.KeyboardDevice.Modifiers;
         if (mods == ModifierKeys.Control && (e.Key == Key.Z || e.Key == Key.U)) { UndoAnn(); return; }
         if (mods == ModifierKeys.Control && e.Key == Key.Y) { RedoAnn(); return; }
@@ -432,7 +432,7 @@ public sealed partial class EditorWindow : Window
     {
         _speed = Math.Clamp(s, 0.25, 8.0);
         _playTimer.Interval = TimeSpan.FromMilliseconds(
-            Math.Max(1000.0 / Math.Clamp(_settings.Current.Fps, 5, 60), 20) / _speed);
+            Math.Max(1000.0 / Math.Clamp(_settings.Current.Fps, AppSettings.FpsMin, AppSettings.FpsMax), 20) / _speed);
         Show(_index);
     }
 
@@ -485,7 +485,7 @@ public sealed partial class EditorWindow : Window
             var subset = _seq.Frames.GetRange(a, b - a + 1);
             var anns = new List<FrameCapture.Drawing.Annotation>(_anns.Items);
             var region = _seq.Region; var monBounds = _seq.MonitorBounds; var monDev = _seq.MonitorDevice;
-            int fps = Math.Clamp(_settings.Current.Fps, 5, 60);
+            int fps = Math.Clamp(_settings.Current.Fps, AppSettings.FpsMin, AppSettings.FpsMax);
 
             _encoding = true;
             SetOkBusy(true);

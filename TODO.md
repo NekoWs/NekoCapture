@@ -187,5 +187,5 @@
   → 实例 pid 78292 启动 trace "Startup done"；二进制内确认含 R1 字符串 "outline: persistent show"、R2 "hook slow"、R3 CloseWithFade 符号。
 - [ ] 裁剪销毁标注不可逆（裁剪框内重映射标注）。
 - [ ] 编辑器缺重做按钮（Ctrl+Y 有栈无入口）+ CanRedo 态。
-- [ ] Fps 钳制不一致：settings 10..60 vs 编辑器计时器 5..60。
+- [x] Fps 钳制不一致：已收口为 AppSettings.FpsMin/FpsMax 常量单一事实源（滑条/Normalize/编辑器×5/引擎×2 全引用，T77，87/87）。
 - [ ] 编辑器缩放/1:1 视图。

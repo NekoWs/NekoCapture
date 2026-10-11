@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using FrameCapture.Native;
+using FrameCapture.Core;
 
 namespace FrameCapture.Capture;
 
@@ -36,7 +37,7 @@ public sealed class LiveCapture : IDisposable
         Stop();
         TargetMonitor = monitor;
         _region = region;
-        _intervalMs = Math.Max(16, 1000 / Math.Clamp(fps, 5, 120));
+        _intervalMs = Math.Max(16, 1000 / Math.Clamp(fps, AppSettings.FpsMin, AppSettings.FpsMax));
         lock (_gate) _latest = null;
 
         _running = true;

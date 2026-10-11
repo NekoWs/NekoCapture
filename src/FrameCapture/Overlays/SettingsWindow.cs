@@ -110,7 +110,7 @@ public sealed class SettingsWindow : Window
             0, 1000, 50, _settings.Current.TapThresholdMs,
             v => $"{v / 1000.0:0.00}s", v => _settings.Mutate(s => s.TapThresholdMs = (int)v)));
         panel.Children.Add(SliderRow("\uEC4A", "录制帧率 (FPS)", "长按录制时每秒捕获的帧数",
-            10, 60, 5, _settings.Current.Fps,
+            AppSettings.FpsMin, AppSettings.FpsMax, 5, _settings.Current.Fps,
             v => $"{v:0} fps", v => _settings.Mutate(s => s.Fps = (int)v)));
         panel.Children.Add(SliderRow("\uE823", "长按录制最长时间", "长按超过此秒数自动停止录制",
             2, 30, 1, _settings.Current.MaxDurationMs / 1000.0,

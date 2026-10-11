@@ -6,6 +6,10 @@ namespace FrameCapture.Core;
 /// <summary>应用设置。全部字段带默认值；损坏的设置文件会被重置。</summary>
 public sealed class AppSettings
 {
+    /// <summary>捕获帧率范围（单一事实源：设置滑条 / Normalize / 捕获引擎 / 编辑器全部引用）。</summary>
+    public const int FpsMin = 10;
+    public const int FpsMax = 60;
+
     public string ScopeHotkey { get; set; } = "Ctrl+Shift+R";
     public string CaptureHotkey { get; set; } = "Ctrl+Shift+G";
 
@@ -69,7 +73,7 @@ public sealed class AppSettings
     public void Normalize()
     {
         TapThresholdMs = Math.Clamp(TapThresholdMs, 0, 1000);
-        Fps = Math.Clamp(Fps, 10, 60);
+        Fps = Math.Clamp(Fps, FpsMin, FpsMax);
         MaxDurationMs = Math.Clamp(MaxDurationMs, 1000, 30_000);
         AgentStripFrames = Math.Clamp(AgentStripFrames, 4, 24);
         if (Theme is not ("system" or "light" or "dark")) Theme = "system";

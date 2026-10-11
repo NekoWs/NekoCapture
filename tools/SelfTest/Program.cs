@@ -5,6 +5,7 @@ using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
 using FrameCapture.Capture;
+using FrameCapture.Core;
 using FrameCapture.Drawing;
 using FrameCapture.Encoding;
 using FrameCapture.Services;
@@ -748,6 +749,16 @@ static class SelfTest
                     .Equals(new HD.Outcome(HD.Act.Pass, false, HD.Key.CapturePrimary)) &&
                 HD.Decide(HD.Key.Scope, true, 0x75, true, false, 0x75, 0x76, false, true).Equals(begin),
                 "范围键松开→吞掉复位；捕获中无关键放行；范围按住时可按捕获键");
+            // T77：Fps 钳制单一事实源（常量 = 文档范围，Normalize 钳越界值）
+            Chk("T77a-fps-constants",
+                AppSettings.FpsMin == 10 && AppSettings.FpsMax == 60 && AppSettings.FpsMin < AppSettings.FpsMax,
+                "Fps 常量单一事实源：10..60");
+            var fpsLo = new AppSettings { Fps = 5 }; fpsLo.Normalize();
+            var fpsHi = new AppSettings { Fps = 999 }; fpsHi.Normalize();
+            var fpsOk = new AppSettings { Fps = 30 }; fpsOk.Normalize();
+            Chk("T77b-fps-normalize-clamps",
+                fpsLo.Fps == AppSettings.FpsMin && fpsHi.Fps == AppSettings.FpsMax && fpsOk.Fps == 30,
+                "Normalize 把 Fps 钳进 [FpsMin,FpsMax]，合法值原样通过");
         }
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");
         return fail == 0 ? 0 : 1;
