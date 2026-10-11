@@ -563,3 +563,10 @@ status: done
   重做 Y、调色板/最近用色、W 线宽弹层、HUD 倍率/导出范围、GIF 厘秒保时长、托盘动态提示、双击=选范围。
 - **README 随包发布接线**：csproj None+Link+CopyToOutputDirectory（发布包内曾陈旧于 10-03）；Version 0.1.0→0.9.0。
 - 验证：GUARDRAIL PASS（FAIL=0 SKIP=1，SelfTest 122/122）。
+
+## 2026-10-11 长跑 R38（DSH goal 轮，21:00 起）
+- **F1 直达帮助**：编辑器与设置窗 F1 → 帮助窗；设置窗录键中 F1 放行（是新热键候选，与 Esc 同守卫）。帮助窗补 F1 行。
+  实测：设置窗 F1 ✓、编辑器（长按录制）F1 ✓（960×1498）。
+- 测试环境注记：用户基线 TapAlwaysShowsRegion=True（QQ 式点按先出选区，全部备份一致，非测试残留）；
+  点按用例走 tap→picker 属预期，编辑器用例须长按；选区窗残留会让 BeginCapture 正确忽略（R1 状态守卫）。
+- 验证：GUARDRAIL PASS（FAIL=0 SKIP=1，SelfTest 122/122）。

@@ -535,6 +535,7 @@ public sealed partial class EditorWindow : Window
                 }
                 break;
             case Key.Enter: Commit(); break;
+            case Key.F1: HelpWindow.ShowOrFocus(); e.Handled = true; break;
             case Key.Space: TogglePlay(); e.Handled = true; break;
             case Key.Left when e.KeyboardDevice.Modifiers == ModifierKeys.Shift: Step(-fps); break;
             case Key.Right when e.KeyboardDevice.Modifiers == ModifierKeys.Shift: Step(+fps); break;

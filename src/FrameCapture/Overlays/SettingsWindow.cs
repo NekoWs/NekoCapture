@@ -168,8 +168,13 @@ public sealed class SettingsWindow : Window
             DragMove();
         };
         // 窗级 Esc 先于热键行的 PreviewKeyDown（tunnel 自上而下）：捕获新键期间必须放行，
-        // 否则"Esc 取消捕获"会变成"关掉整个设置窗"（R23 修）
-        PreviewKeyDown += (_, e) => { if (e.Key == Key.Escape && _hkCancel == null) FrameCapture.Core.Fluent.CloseWithFade(this); };
+        // 否则"Esc 取消捕获"会变成"关掉整个设置窗"（R23 修）；F1 同理（录键中 F1 是新热键候选）
+        PreviewKeyDown += (_, e) =>
+        {
+            if (_hkCancel != null) return;
+            if (e.Key == Key.Escape) FrameCapture.Core.Fluent.CloseWithFade(this);
+            else if (e.Key == Key.F1) { FrameCapture.Overlays.HelpWindow.ShowOrFocus(); e.Handled = true; }
+        };
         SourceInitialized += (_, _) =>
         {
             Win32.SetRoundedCorners(new System.Windows.Interop.WindowInteropHelper(this).Handle);
