@@ -27,6 +27,9 @@ public sealed class SettingsWindow : Window
         AllowsTransparency = true;
         Background = Brushes.Transparent;
         SizeToContent = SizeToContent.WidthAndHeight;
+        // SizeToContent 下 Show 前 ActualWidth=0，手工居中会退化成"左上角落在屏幕中心"；
+        // 交给 WPF 在首帧测量后居中（R18）
+        WindowStartupLocation = WindowStartupLocation.CenterScreen;
         MinWidth = 420;
         ShowInTaskbar = false;
         Topmost = true;
@@ -48,7 +51,6 @@ public sealed class SettingsWindow : Window
         if (existing != null) { existing.Activate(); return; }
         var w = new SettingsWindow();
         w.Build();
-        w.CenterOnWorkArea();
         w.Show();
         w.Activate();
     }
@@ -58,13 +60,6 @@ public sealed class SettingsWindow : Window
         foreach (Window w in Application.Current.Windows)
             if (w is SettingsWindow s) return s;
         return null;
-    }
-
-    void CenterOnWorkArea()
-    {
-        var wa = SystemParameters.WorkArea;
-        Left = wa.Left + (wa.Width - ActualWidth) / 2;
-        Top = wa.Top + (wa.Height - ActualHeight) / 2;
     }
 
     void Build()

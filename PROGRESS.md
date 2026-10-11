@@ -429,3 +429,11 @@ status: done
   取证：同坐标均值 34.2→21.2（0x60 遮罩数学吻合）；提示 pill 回归、位于任务栏上方完整可见；
   rect 归位 0,0 3840x2160。教训入 GOAL.md：入场动效改动必须截图验证内容可见，行为 e2e 绿不等于看得见。
   验证：GUARDRAIL PASS（FAIL=0 SKIP=1 共 11 项）；SelfTest 114/114。
+
+## 2026-10-11 长跑 R18（DSH goal 轮，15:40 起）
+- **R18 设置/帮助窗同病同治 + 设置窗居中**：R17 的分层窗 LWA_ALPHA 陷阱同样命中 SettingsWindow/HelpWindow
+  （AllowsTransparency + PopupEnter→PreTransparent，自 R11 起整窗隐形；FC_UIPREVIEW 调试入口实测）。
+  PopupEnter 对分层窗走独立淡入路径（同 FadeIn）。修复后实测：设置窗全控件清晰、帮助速查完整（含 R13 新条目）。
+  顺带修设置窗定位：SizeToContent 下 Show 前 ActualWidth=0，手工 CenterOnWorkArea 退化成"左上角落屏幕中心"
+  （实测 1920,1044）→ 改 WindowStartupLocation=CenterScreen（实测 1605,531 精确居中），删死方法。
+  取证：test-out/framereview/R18/settings.png、help.png。

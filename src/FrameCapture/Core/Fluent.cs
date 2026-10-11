@@ -266,6 +266,15 @@ public static class Fluent
     public static void PopupEnter(Window w)
     {
         w.Opacity = 0;
+        // 同 FadeIn：分层窗绝不能上手工 LWA_ALPHA=0（DWM 下无人清除=永久隐形），直接靠 WPF 淡入
+        if (w.AllowsTransparency)
+        {
+            w.ContentRendered += (_, _) =>
+                w.BeginAnimation(UIElement.OpacityProperty,
+                    new DoubleAnimation(1, new Duration(TimeSpan.FromMilliseconds(Motion.EnterMs)))
+                    { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
+            return;
+        }
         PreTransparent(w);
         w.ContentRendered += (_, _) =>
         {
