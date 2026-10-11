@@ -60,6 +60,8 @@
       Core/PinRotate 纯函数（Rotate90Cw 无损重排 old(x,y)→new(H-1-y,x)；Rotate steps 取模、0 同实例）；PinWindow.Rotate 换帧+重建 Source+重算 base+中心锚回中。SelfTest T115a-d，实机 e2e（703x403→R→403x703 中心不变、内容转 90°、trace pin-rotate）。
 - [x] **贴图「另存为」**（R80）：贴图右键有复制却无保存，补标准另存为（存的是当前帧，含旋转后状态）。
       PinWindow.SaveAs：SaveFileDialog（默认「图片\FrameCapture」+ `pin-<时间戳>.png`）→ BgraImage.SavePng（复用编辑器路径）→ Flash「已保存」+ trace pin-save；右键菜单「另存为…」+ Ctrl+S。实机 e2e（Ctrl+S→另存为对话框→回车→落盘 700x400 正确）。附带查清「关编辑器贴图消失」是全局 SendInput 漏键到前台贴图的测试假象，非产品 bug。
+- [x] **编辑器图标语义修正**（R81，实机走查发现）：招牌「钉到屏幕」原用通用图片图标 E91B（看不出是"钉"），改实心图钉 E840；「总在最前」改置顶箭头 E898（开关态靠高亮底色），两按钮名副其实互不混淆。
+      GlyphProbe matrix 肉眼选字形验证；PinBtn 单点定义两工具条同生效。实机 e2e（放大工具条截图：钉到屏幕=图钉、总在最前=置顶箭头）。
 
 ## 用户反馈
 - [x] **录制后的全屏黄色边框持续存在（10-04 已修复）**：根因 = **不是我们的代码**，是 Windows 11

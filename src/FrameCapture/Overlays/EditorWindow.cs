@@ -150,10 +150,10 @@ public sealed partial class EditorWindow : Window
     Button IconBtn(string glyph, string tip, double size = 28) =>
         FrameCapture.Core.Fluent.IconButton(glyph, tip, size, 13);
 
-    // R65：钉到屏幕按钮（E91B 图片图标，与「总在最前」图钉明显区分）
+    // R81：钉到屏幕按钮改用实心图钉 E840（招牌动作配招牌图钉，Snipaste/QQ 惯例）；「总在最前」改置顶箭头 E898 以免两图钉混淆
     Button PinBtn()
     {
-        var b = IconBtn("\uE91B", "钉到屏幕 (Ctrl+P)");
+        var b = IconBtn("\uE840", "钉到屏幕 (Ctrl+P)");
         b.Click += (_, _) => PinCurrentFrame();
         return b;
     }
@@ -321,15 +321,14 @@ public sealed partial class EditorWindow : Window
             _okBtns.Add(bOkF); // 主按钮：accent 实心
         }
         tools.Children.Add(Sep());
-        // 图钉：编辑器总在最前（R44）。空心=E718 未钉 / 实心=E840 已钉（GlyphProbe pins 已验证）
-        var bPin = IconBtn(_settings.Current.EditorTopmost ? "\uE840" : "\uE718", "总在最前");
+        // R81：编辑器总在最前（R44）。改用置顶箭头 E898（向上箭头带顶栏，GlyphProbe 已验证），开关态靠高亮底色区分，不再与「钉到屏幕」图钉混淆
+        var bPin = IconBtn("\uE898", "总在最前");
         FrameCapture.Core.Fluent.HighlightBtn(bPin, _settings.Current.EditorTopmost);
         bPin.Click += (_, _) =>
         {
             bool on = !Topmost;
             Topmost = on;
             _settings.Mutate(s => s.EditorTopmost = on);
-            bPin.Content = on ? "\uE840" : "\uE718";
             FrameCapture.Core.Fluent.HighlightBtn(bPin, on);
             FrameCapture.Core.Trace.Log("editor topmost=" + on);
         };
