@@ -570,3 +570,10 @@ status: done
 - 测试环境注记：用户基线 TapAlwaysShowsRegion=True（QQ 式点按先出选区，全部备份一致，非测试残留）；
   点按用例走 tap→picker 属预期，编辑器用例须长按；选区窗残留会让 BeginCapture 正确忽略（R1 状态守卫）。
 - 验证：GUARDRAIL PASS（FAIL=0 SKIP=1，SelfTest 122/122）。
+
+## 2026-10-11 长跑 R39（DSH goal 轮，21:10 起）
+- **发布实例全流程逐帧复查**（burstdesk 6s×20 帧，并行 长按录制→PageUp→[→]→Enter）：
+  编辑器入场/时间轴刻度/工具条/HUD「116% 导出 1–19」/编码中 HUD「导出 GIF…」/退场 全部逐帧确认。
+- **逐帧抓到 HUD 差一 #2**：全范围裁剪（[ 在首帧）仍显示「导出 1–19」——显示条件 tb2<count 应为 tb2<count-1。
+  修复复测：全范围无文字、idx2 起裁剪显示「导出 3–9」✓。
+- 验证：GUARDRAIL PASS（FAIL=0 SKIP=1，SelfTest 122/122）。

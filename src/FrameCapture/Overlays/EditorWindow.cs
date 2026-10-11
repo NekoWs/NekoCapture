@@ -593,8 +593,8 @@ public sealed partial class EditorWindow : Window
             cropTxt = $"  裁剪 {cqW:0}×{cqH:0}";
         }
         var (ta, tb2) = TrimRange;
-        // 含两端闭区间 [a,b]：1-based 显示须 tb+1（R31 键盘裁剪实测抓到差一：曾显示"导出 4–7"实导 4–8）
-        string trimTxt = _rd.A >= 0 && tb2 > ta && (ta > 0 || tb2 < _seq.Frames.Count) ? $"  导出 {ta + 1}–{tb2 + 1}" : "";
+        // 含两端闭区间 [a,b]：1-based 显示须 tb+1（R31 抓到差一）；全范围=未裁剪不显示（R39 逐帧复查抓到 tb2<count-1 差一）
+        string trimTxt = _rd.A >= 0 && tb2 > ta && (ta > 0 || tb2 < _seq.Frames.Count - 1) ? $"  导出 {ta + 1}–{tb2 + 1}" : "";
         _hud.Text = $"{_index + 1}/{_seq.Frames.Count}  {tMs / 1000.0:0.00}s"
             + (_speed != 1.0 ? $"  ×{_speed:0.###}" : "")
             + zoomTxt + cropTxt + trimTxt
