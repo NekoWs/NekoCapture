@@ -416,3 +416,16 @@ status: done
 ## 2026-10-11 长跑 R16（DSH goal 轮，15:05 起）
 - **R16 HUD 导出段提示**：裁剪激活时 HUD 追加"导出 12–40"（帧号区间），导出内容与提示一致可核对；
   未裁剪不显示（实测 HUD 保持"1/36 0.09s"干净）。HUD 现有信息：帧号/时间/倍速/缩放/画面裁剪/导出段/丢帧警告。
+
+## 2026-10-11 长跑 R17（DSH goal 轮，15:20 起）
+- **R17 选区窗整窗隐形 bug（逐帧审查抓到的 6 轮潜伏回归）**：R11 给选区窗加了 FadeIn(offscreenFirstFrame)，
+  两个叠加缺陷：① Park 在 SourceInitialized 抓 home=NaN（选区窗 Left/Top 在 Loaded 才赋值），
+  ContentRendered 回写 NaN → 系统级联位兜底（实测偏移 266,266，提示被推出屏外）；
+  ② 更致命：AllowsTransparency 分层窗在 DWM 合成下 WPF 不再调 UpdateLayeredWindow，
+  PreTransparent 手工 SetLayeredWindowAttributes(alpha=0) 永远不会被清 → 遮罩+提示自 R11 起整窗隐形，
+  选区窗退化成透明点击捕获层（e2e 全绿也发现不了——它们只断言行为不断言可见性）。
+  修复：Fluent.FadeIn 对分层窗走独立路径（无 PreTransparent、无停放，ContentRendered 直接淡入——
+  分层窗首帧前本就没有黑闪）；选区窗去掉 offscreenFirstFrame；删除从未入树的死代码 _veil/_spot。
+  取证：同坐标均值 34.2→21.2（0x60 遮罩数学吻合）；提示 pill 回归、位于任务栏上方完整可见；
+  rect 归位 0,0 3840x2160。教训入 GOAL.md：入场动效改动必须截图验证内容可见，行为 e2e 绿不等于看得见。
+  验证：GUARDRAIL PASS（FAIL=0 SKIP=1 共 11 项）；SelfTest 114/114。

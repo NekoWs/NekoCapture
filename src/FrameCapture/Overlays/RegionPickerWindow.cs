@@ -18,7 +18,7 @@ public sealed class RegionPickerWindow : Window
     private readonly MonitorInfo _monitor;
     private readonly RectI _monitorPhys;
     private readonly Canvas _canvas;
-    private readonly Rectangle _veil = new(), _spot = new(), _prev = new();
+    private readonly Rectangle _prev = new(); // 旧选区虚线框（_veil/_spot 为历史死代码，已删）
     private System.Windows.Shapes.Path? _spotPath;
     private System.Windows.Shapes.Path? _holeFill;
     private int _dragX1, _dragY1;
@@ -57,7 +57,9 @@ public sealed class RegionPickerWindow : Window
         {
             var h = new System.Windows.Interop.WindowInteropHelper(this).Handle;
             Win32.SetWindowTextW(h, "FrameCapture Region");
-            FrameCapture.Core.Fluent.FadeIn(this, 120, offscreenFirstFrame: true);
+            // 分层窗（AllowsTransparency）没有黑首帧问题，绝不能屏外停放：
+            // 本窗 Left/Top 在 Loaded 才赋值，Park 抓到的 home=NaN，回写 NaN 会让系统级联位兜底（实测偏移 266,266，提示被推出屏外）
+            FrameCapture.Core.Fluent.FadeIn(this, 120);
         };
         FrameCapture.Core.Fluent.BorderlessNative(this, 0); // 全屏覆盖层：消除 DWM 非客户区白条，无需边缘调整
         WindowStyle = WindowStyle.None;
@@ -111,9 +113,6 @@ public sealed class RegionPickerWindow : Window
             Top = _monitorPhys.Y / sy;
             Width = _monitorPhys.W / sx;
             Height = _monitorPhys.H / sy;
-
-            _veil.Width = Width; _veil.Height = Height;
-            _veil.Fill = new SolidColorBrush(Color.FromArgb(0x60, 0, 0, 0));
 
             // 挖洞遮罩：用 Path 奇偶填充
             _spotPath = new System.Windows.Shapes.Path

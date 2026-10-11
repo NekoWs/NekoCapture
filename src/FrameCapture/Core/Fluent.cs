@@ -302,6 +302,16 @@ public static class Fluent
     public static void FadeIn(Window w, int ms = 160, double risePx = 0, bool offscreenFirstFrame = false)
     {
         w.Opacity = 0;
+        // 分层窗（AllowsTransparency）自创建即 per-pixel alpha，首帧前没有黑/白闪；
+        // 且 DWM 合成下 WPF 不再调 UpdateLayeredWindow——手工 SetLayeredWindowAttributes(alpha=0)
+        // 永远不会被 WPF 清掉，用了就是整窗永久隐形（R11 教训：选区窗遮罩+提示全隐形 6 轮无人察觉）。
+        if (w.AllowsTransparency)
+        {
+            w.ContentRendered += (_, _) =>
+                w.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(1, new Duration(TimeSpan.FromMilliseconds(ms)))
+                { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
+            return;
+        }
         var releasePre = PreTransparent(w, holdPastRender: offscreenFirstFrame);
         void Start()
         {
