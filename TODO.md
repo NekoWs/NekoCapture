@@ -33,6 +33,10 @@
       BakeCurrentFrame 复用烘焙。SelfTest T103a-e，实机 e2e（按钮+Ctrl+P 弹图、显示正确、Esc 关闭）。
 - [x] **贴图增强：不透明度 + 右键菜单**（R66）：Ctrl+滚轮调贴图不透明度(20%~100%)，右键菜单 复制/不透明度▸(100·75·50·25)/关闭/关闭全部贴图(N)，
       贴图登记表支撑一键清空。Core/PinOpacity 新建。SelfTest T104a-e，实机 e2e（菜单+子菜单渲染、50% 生效、关闭全部清空）。
+- [x] **识别文字（OCR）**（R69）：编辑器「识别文字」按钮(E8C1)或 Ctrl+O，用 Windows 内置 OCR（离线、中英文）识别当前帧印刷文字，
+      纯文本写剪贴板 + 预览底部 snackbar 反馈「已识别 N 字 · 已复制」；无语言包优雅降级提示安装，绝不抛。
+      Core/OcrService 新建（引擎优先用户语言回退任一已装；帧像素首 await 前同步拷入无 spool 竞态；Classify 纯函数）；
+      新增两模式通用 snackbar 轻提示。tools/OcrProbe 探针确认本机 zh-Hans-CN 可用。SelfTest T105a-d，实机 e2e（记事本已知文字→剪贴板全中）。
 
 ## 用户反馈
 - [x] **录制后的全屏黄色边框持续存在（10-04 已修复）**：根因 = **不是我们的代码**，是 Windows 11

@@ -35,10 +35,15 @@ public sealed partial class EditorWindow : Window
     private readonly Image _view;
     private readonly System.Windows.Threading.DispatcherTimer _playTimer;
     private readonly TextBlock _hud;
+    // R69：预览底部轻提示（snackbar），单帧/多帧通用——OCR/复制等即时反馈用
+    private Border? _snack;
+    private TextBlock? _snackText;
+    private System.Windows.Threading.DispatcherTimer? _snackTimer;
 
     private int _index;
     private bool _playing;
     private bool _userClosed;
+    private bool _ocrBusy; // R69：识别进行中，防重入
 
     private static Color DarkBg => Theme.WindowBg;
     private static Color PanelBg => Theme.PanelBg;
@@ -153,6 +158,14 @@ public sealed partial class EditorWindow : Window
         return b;
     }
 
+    // R69：识别文字按钮（E8C1「A字」= 文字识别，与文本工具/复制明显区分）
+    Button OcrBtn()
+    {
+        var b = IconBtn("\uE8C1", "识别文字（复制到剪贴板）  Ctrl+O");
+        b.Click += (_, _) => OcrCurrentFrame();
+        return b;
+    }
+
     void BuildLayout()
     {
         // 停靠式布局：预览在上，播放面板（录制时常驻）与工具面板依次停靠其下——控件不再悬浮在画面里
@@ -162,6 +175,28 @@ public sealed partial class EditorWindow : Window
         root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         _viewGrid.Children.Add(_view);
         _viewGrid.Children.Add(_canvas);
+        // R69：预览底部居中轻提示浮层（默认隐藏，ShowSnack 淡入淡出）
+        _snackText = new TextBlock
+        {
+            Foreground = Brushes.White,
+            FontSize = 13,
+            FontFamily = new FontFamily("Segoe UI"),
+            TextAlignment = TextAlignment.Center,
+        };
+        _snack = new Border
+        {
+            Background = new SolidColorBrush(Color.FromArgb(0xD8, 0x1F, 0x1F, 0x1F)),
+            CornerRadius = new CornerRadius(6),
+            Padding = new Thickness(14, 8, 14, 8),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Bottom,
+            Margin = new Thickness(0, 0, 0, 22),
+            Opacity = 0,
+            Visibility = Visibility.Collapsed,
+            IsHitTestVisible = false,
+            Child = _snackText,
+        };
+        _viewGrid.Children.Add(_snack);
         var viewHost = new Border
         {
             CornerRadius = new CornerRadius(8, 8, 0, 0), // 上角与 Win11 原生窗口圆角贴合；下角由工具面板收口
@@ -252,9 +287,10 @@ public sealed partial class EditorWindow : Window
             var bSaveFrame = IconBtn("\uE105", "保存当前帧 (PNG)  Ctrl+S"); bSaveFrame.Click += (_, _) => SaveFrame();
             var bCopyFrame = IconBtn("\uF413", "复制当前帧 (位图)  Ctrl+C"); bCopyFrame.Click += (_, _) => ClipboardService.SetFrame(ExportFrame(_index));
             var bPinFrame = PinBtn();
+            var bOcrFrame = OcrBtn();
             var bSaveGif = IconBtn("\uE116", "保存为动图 (GIF)  Ctrl+E"); bSaveGif.Click += (_, _) => SaveGif();
             var bAfter = IconBtn("\uE955", "保存视觉暂留合成图  Ctrl+H"); bAfter.Click += (_, _) => SaveAfterimage();
-            foreach (var b in new[] { bSaveFrame, bCopyFrame, bPinFrame, bSaveGif, bAfter }) actions.Children.Add(b);
+            foreach (var b in new[] { bSaveFrame, bCopyFrame, bPinFrame, bOcrFrame, bSaveGif, bAfter }) actions.Children.Add(b);
             actions.Children.Add(Sep());
             var bCancel = IconBtn("\uE711", "取消 (Esc)"); bCancel.Click += (_, _) => FrameCapture.Core.Fluent.CloseWithFade(this);
             var bOk = IconBtn("\uF78C", "确定：GIF 写入剪贴板 (Enter)"); bOk.Click += (_, _) => Commit();
@@ -277,9 +313,10 @@ public sealed partial class EditorWindow : Window
             var bSaveF = IconBtn("\uE105", "保存当前帧 (PNG)"); bSaveF.Click += (_, _) => SaveFrame();
             var bCopyF = IconBtn("\uF413", "复制当前帧 (位图)"); bCopyF.Click += (_, _) => ClipboardService.SetFrame(ExportFrame(_index));
             var bPinF = PinBtn();
+            var bOcrF = OcrBtn();
             var bOkF = IconBtn("\uF78C", "确定：写入剪贴板 (Enter)"); bOkF.Click += (_, _) => Commit();
             var bX = IconBtn("\uE711", "取消 (Esc)"); bX.Click += (_, _) => FrameCapture.Core.Fluent.CloseWithFade(this);
-            foreach (var b in new[] { bSaveF, bCopyF, bPinF, bOkF, bX }) tools.Children.Add(b);
+            foreach (var b in new[] { bSaveF, bCopyF, bPinF, bOcrF, bOkF, bX }) tools.Children.Add(b);
             FrameCapture.Core.Fluent.HighlightBtn(bOkF, true);
             _okBtns.Add(bOkF); // 主按钮：accent 实心
         }
@@ -634,6 +671,7 @@ public sealed partial class EditorWindow : Window
                 case Key.S: SaveFrame(); return;
                 case Key.C: ClipboardService.SetFrame(ExportFrame(_index)); return;
                 case Key.P: PinCurrentFrame(); return; // R65 钉到屏幕
+                case Key.O: OcrCurrentFrame(); return; // R69 识别文字
                 case Key.E: SaveGif(); return;
                 case Key.H: SaveAfterimage(); return;
                 // 视图缩放（浏览器惯例）：Ctrl +/− 以中心放大缩小，Ctrl+0 适配，Ctrl+1 逐像素 1:1
@@ -824,6 +862,65 @@ public sealed partial class EditorWindow : Window
         var w = new PinWindow(f, region);
         w.Show();
         FrameCapture.Core.Trace.Log($"pin frame {f.W}x{f.H} at {region.X},{region.Y}");
+    }
+
+    /// <summary>预览底部轻提示：淡入显示 msg，约 1.8s 后淡出。OCR/复制等即时反馈用（R69）。</summary>
+    void ShowSnack(string msg)
+    {
+        if (_snack == null || _snackText == null) return;
+        _snackText.Text = msg;
+        _snack.Visibility = Visibility.Visible;
+        _snack.BeginAnimation(OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(
+            1.0, TimeSpan.FromMilliseconds(FrameCapture.Core.Fluent.Motion.HoverMs)));
+        if (_snackTimer == null)
+        {
+            _snackTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1800) };
+            _snackTimer.Tick += (_, _) =>
+            {
+                _snackTimer!.Stop();
+                _snack!.BeginAnimation(OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(
+                    0.0, TimeSpan.FromMilliseconds(320)));
+            };
+        }
+        _snackTimer.Stop();
+        _snackTimer.Start();
+    }
+
+    /// <summary>R69：识别当前帧文字（Windows 内置 OCR）→ 纯文本写剪贴板 → 轻提示。
+    /// 帧像素在首个 await 前同步拷贝，故与关窗/释放 spool 无竞态；无语言包优雅降级不抛。</summary>
+    async void OcrCurrentFrame()
+    {
+        if (_ocrBusy || _seq.Frames.Count == 0) return;
+        _ocrBusy = true;
+        ShowSnack("识别文字…");
+        try
+        {
+            var frame = _seq.Frames[_index];
+            var outcome = await FrameCapture.Core.OcrService.RecognizeAsync(frame);
+            if (_userClosed) return; // 识别期间关窗：不再提示
+            switch (outcome.Status)
+            {
+                case FrameCapture.Core.OcrStatus.Success:
+                    try { System.Windows.Clipboard.SetText(outcome.Text); } catch { }
+                    ShowSnack($"已识别 {outcome.Text.Length} 字 · 已复制");
+                    FrameCapture.Core.Trace.Log($"ocr ok {outcome.Text.Length} chars");
+                    break;
+                case FrameCapture.Core.OcrStatus.NoEngine:
+                    ShowSnack("未安装 OCR 语言包（设置 › 时间和语言 › 语音）");
+                    FrameCapture.Core.Trace.Log("ocr no-engine");
+                    break;
+                default:
+                    ShowSnack("未识别到文字");
+                    FrameCapture.Core.Trace.Log("ocr empty");
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            FrameCapture.Core.Trace.Log($"ocr failed: {ex.Message}");
+            if (!_userClosed) ShowSnack("识别失败");
+        }
+        finally { _ocrBusy = false; }
     }
 
     /// <summary>时间轴范围+标注的后台烘焙与 GIF 编码（HUD 进度，编码中 Esc 取消）；完成后回 UI 线程执行 onDone。</summary>

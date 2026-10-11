@@ -47,12 +47,12 @@ static class RenderMatrix
     {
         var cands = new (string Label, string Chars)[]
         {
-            ("DblTapA  ", "\uE7C4\uE962\uE815\uE760\uEAC1\uEFB7"),
-            ("DblTapB  ", "\uE9D9\uE7F1\uE853\uE9E0\uF22B\uE8B7"),
-            ("DblTapC  ", "\uEC4A\uE7F4\uE945\uE7C3\uE9A5\uE823"),
-            ("DblTapD  ", "\uE768\uF5B0\uE105\uE8A1\uE81C\uE735"),
-            ("DblTapE  ", "\uE8C8\uE8C9\uE8CB\uE8CC\uE8CD\uE8CE"),
-            ("DblTapF  ", "\uE7AD\uE753\uE9F5\uEB51\uE900\uE909"),
+            ("TextA    ", "\uE8D2\uE8D3\uE8C1\uE8C2\uE97F\uE98B"),
+            ("TextB    ", "\uE1D8\uE1D9\uE1DA\uE1DB\uE1DC\uE1DD"),
+            ("Doc      ", "\uE8A5\uE7C3\uE130\uE8F1\uE7C0\uE8D7"),
+            ("Scan     ", "\uE774\uE721\uE8FE\uE160\uE9D9\uEB3B"),
+            ("Recog    ", "\uE7C4\uF2B7\uE98B\uF7B3\uE979\uE8A1"),
+            ("FontMisc ", "\uE1C3\uE912\uE9D5\uE9CE\uE9F5\uE8C1"),
         };
 int cellW = 130, cellH = 86, labelW = 140;
         int rows = cands.Length, cols = 6;

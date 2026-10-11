@@ -960,3 +960,19 @@ status: done
 **结论**：未发现受阻点或手感缺陷，本轮零改动。
 
 **踩坑备忘（供后续轮次）**：F6=捕获（点按截图 / 长按录制），F7=选区（呼出选取窗，配合 AutoCaptureOnSelect 选完即截）——别把 F7 当录制冷键；测录制要长按 F6。并发「鼠标拖拽 + 热键长按」会互相干扰（拖拽被选区窗当成选区），测录制须纯长按、不叠鼠标动作。
+
+## R69 · 识别文字（OCR）——Windows 内置引擎，中英文，离线
+
+**动机**：QQ 招牌功能之一，「超过 QQ」最高杠杆的剩余项。先探针（tools/OcrProbe 新建）确认本机可用：已装 en-US + zh-Hans-CN，用户语言引擎=zh-Hans-CN，渲染已知文字→OCR 完美识别——落地。
+
+**实现**：
+- `Core/OcrService.cs` 新建：`RecognizeAsync(CapturedFrame)` → `OcrOutcome(OcrStatus, Text)`。引擎优先 `TryCreateFromUserProfileLanguages`，回退任一 `AvailableRecognizerLanguages`，都无则 `NoEngine`（绝不抛）。帧像素用 `SoftwareBitmap.CreateCopyFromBuffer`（19041 投影无 `CreateCopyFromPixels`；宽高是 int 非 uint）在首个 await 前同步拷入 → 与关窗/释放 spool 无竞态。纯函数 `Classify(text)`（全空白=Empty 否则 Success）供决策+单测。
+- 编辑器：`OcrBtn()`（E8C1「A字」字形，GlyphProbe matrix 验证非豆腐，与文本工具/复制明显区分）加到单帧工具行 + 多帧动作行；`Ctrl+O`（Ctrl switch，普通 O 仍是椭圆工具）；`OcrCurrentFrame()` async：识别中→成功写剪贴板+提示「已识别 N 字 · 已复制」/无引擎提示装语言包/空提示「未识别到文字」；`_ocrBusy` 防重入；识别期间关窗则不再提示。
+- 新增预览底部轻提示 `_snack`（snackbar，圆角深色胶囊，淡入 1.8s 淡出）——单帧/多帧通用（`_hud` 仅多帧时间轴行有），OCR/复制等即时反馈用。
+- HelpWindow 补 Ctrl+O 说明；README 待补。
+
+**验证**：
+- 构建 0 错误；SelfTest **222/222**（T105a-d Classify 纯决策）
+- 完整护栏 GUARDRAIL PASS（FAIL=0 SKIP=1）
+- 实机 e2e：记事本显示「ZEBRA FRAMECAPTURE OCR / HELLO 4242 WORLD / ABCDEFG 98765」→ 设区域 → F6 截图 → Ctrl+O → 剪贴板=`ZEB RA FRAMECAPTURE OCR HELLO 4242 WORLD ABCDEFG 98765`（关键 token 全中，仅 ZEBRA 多一空格，OCR 常见）；trace `Control+O → ocr ok 54 chars`；截图亲眼看 snackbar「已识别 54 字 · 已复制」渲染正确
+- 踩坑：`ctrlw` 发组合键时 Ctrl 未保持到目标键（trace 见 O 无修饰）；发组合键用 `hkm <vk> 1 0 0 0 <ms>`（按住修饰）

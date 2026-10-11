@@ -1443,6 +1443,14 @@ static class SelfTest
                 Chk("T104d-op-min", FrameCapture.Core.PinOpacity.Next(0.2, -1) == 0.2, "已到最透明再减 → 锁死 0.2");
                 Chk("T104e-op-zero", FrameCapture.Core.PinOpacity.Next(0.7, 0) == 0.7, "delta=0 → 不变");
             }
+
+            // T105 OCR 结果分类（R69，OcrService.Classify 纯决策）
+            {
+                Chk("T105a-ocr-text", FrameCapture.Core.OcrService.Classify("hello 世界") == FrameCapture.Core.OcrStatus.Success, "有文字 → Success");
+                Chk("T105b-ocr-empty", FrameCapture.Core.OcrService.Classify("") == FrameCapture.Core.OcrStatus.Empty, "空串 → Empty");
+                Chk("T105c-ocr-ws", FrameCapture.Core.OcrService.Classify("  \n\t ") == FrameCapture.Core.OcrStatus.Empty, "全空白 → Empty");
+                Chk("T105d-ocr-padded", FrameCapture.Core.OcrService.Classify("  有字  ") == FrameCapture.Core.OcrStatus.Success, "带空白有字 → Success");
+            }
         }
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");
         return fail == 0 ? 0 : 1;
