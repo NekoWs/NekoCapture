@@ -391,3 +391,10 @@ status: done
      （教训：WPF Popup 属性继承自 PlacementTarget，锚在图标按钮上的浮层必须显式复位 FontFamily。）
   ⑤ 帮助窗口同步：调色板 K / ⋯ 宽度 W 两条；"右侧竖排"→"底部工具条"；时间轴描述改把手语义。
   验证：SelfTest 110/110（+6）；GUARDRAIL PASS（FAIL=0 SKIP=1 共 11 项）。
+
+## 2026-10-11 R13 补账（release 重发布 + 工作流文档化）
+- **release 重发布**：R4-R13 全部进 release（publish 14:35:35，dll 探针 BuildPanels=True/FloatBar=False/RememberColor=True）；
+  用户稳态实例已恢复（release pid 67336），长按 F6 出新版停靠面板编辑器，实测通过。
+- **GOAL.md 固化两条硬教训**：① 构建必须 -p:Platform=x64（省略=AnyCPU 进 bin\Debug，运行实例静默用旧 dll）+
+  截图前 dll 新鲜度探针；② 逐帧视觉审查工作流（burstregion→montage→原生分辨率裁条放大→GlyphProbe 带标签矩阵）。
+  SelfTest 基线注释 73→110。

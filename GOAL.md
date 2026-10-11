@@ -63,8 +63,11 @@
 # 构建（⚠ 必须先杀运行中的实例，否则 MSB3027 会静默失败）
 Get-Process FrameCapture -ErrorAction SilentlyContinue | Stop-Process -Force
 dotnet build src/FrameCapture -c Debug -p:Platform=x64 -v q --nologo      # 输出里 " error" 应为 0
+# ⚠ -p:Platform=x64 不可省略：省略会产出 AnyCPU 到 bin\Debug\，而运行实例在 bin\x64\Debug\——
+#   旧 dll 会静默继续运行（R12 曾因此"看到旧界面"排查半天）。截图前验 dll 新鲜度：
+#   FrameCapture.dll 的 LastWriteTime + 字符串探针（新符号在/旧符号无，如 BuildPanels=True、FloatBar=False）。
 
-# 自测（当前基线 RESULT PASS=73 FAIL=0）
+# 自测（当前基线 RESULT PASS=110 FAIL=0，只增不减）
 dotnet build tools/SelfTest -c Debug -p:Platform=x64 -v q --nologo
 tools/SelfTest/bin/x64/Debug/net8.0-windows10.0.19041.0/SelfTest.exe
 
@@ -81,6 +84,17 @@ dotnet publish src/FrameCapture -c Release -p:Platform=x64 -r win-x64 --self-con
 
 **环境注意**：若《明日方舟》等带反外挂的游戏在前台，系统级注入按键会被完全拦截，依赖注入的脚本会
 **自动 SKIP（不等于 FAIL）**——先确认游戏已退出再跑注入类回归，否则会得到假结论。
+
+## 逐帧视觉审查（默认打磨工作流，用户钦定）
+
+UI/交互改动一律"录窗口 → 逐帧亲眼看 → 按看到的改"：
+
+1. `UICap.exe burstregion "<窗口标题>" <秒> <间隔ms> <前缀>`（标题定位，不是坐标；输出目录必须先存在）。
+2. `UICap.exe montage <前缀> <完整输出文件路径.png> <列数> <格宽>` 拼总览，逐格看时序（入场闪帧/错位/残影）。
+3. 细节用 System.Drawing 按原生分辨率裁条 + NearestNeighbor 放大 2–3× 再读图（蒙太奇缩放会吞掉 1px 缺陷）。
+4. 图标选型必须看 `GlyphProbe matrix` 的**带 hex 标签渲染矩阵**，不要按 sweep 网格行号心算（R12 教训：
+   F08C 实为太阳、F08E 实为下三角，心算错位导致传输键图标全错）。
+5. 顶部边缘/圆角/阴影要显式裁出来看——整窗亮度均值会掩盖 chrome 缺陷。
 
 ## 每轮该做多大
 
