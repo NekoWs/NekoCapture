@@ -1336,6 +1336,48 @@ static class SelfTest
                 Chk("T99m-thr0-nodbl", zero.Action == ToggleRecord.Act.FinishHold, "阈值 0 → 无点按窗，直接长按结束");
                 Chk("T99n-setting-default", new AppSettings().DoubleTapRecord, "连按录制默认开");
             }
+            {
+                // T100 磁盘暂存帧仓（R61，FrameSpool/FrameSpoolList）：落盘往返 / 惰性回读 / 切片 / 元数据 / 文件生命周期
+                var dir = Path.Combine(Path.GetTempPath(), "FrameCapture", "selftest");
+                Directory.CreateDirectory(dir);
+                var spoolPath = Path.Combine(dir, $"spool-test-{Guid.NewGuid():N}.fcf");
+                var f0 = new CapturedFrame { W = 4, H = 2, TimeMs = 0, Bgra = Enumerable.Range(0, 32).Select(i => (byte)i).ToArray() };
+                var f1 = new CapturedFrame { W = 4, H = 2, TimeMs = 16.5, Bgra = Enumerable.Range(100, 32).Select(i => (byte)i).ToArray() };
+                var f2 = new CapturedFrame { W = 4, H = 2, TimeMs = 33, Bgra = Enumerable.Repeat((byte)0x7f, 32).ToArray() };
+                int diskLowHits = 0;
+                using (var spool = new FrameSpool(spoolPath))
+                {
+                    spool.DiskLow += _ => diskLowHits++;
+                    spool.Add(f0); spool.Add(f1); spool.Add(f2);
+                    Chk("T100a-count", spool.Count == 3, $"Count={spool.Count}");
+                    Chk("T100b-file-exists", File.Exists(spoolPath), "spool 文件已落盘");
+                    var list = spool.OpenReader();
+                    Chk("T100c-roundtrip",
+                        list.Count == 3
+                        && list[0].Bgra.SequenceEqual(f0.Bgra) && list[0].TimeMs == 0 && list[0].W == 4 && list[0].H == 2
+                        && list[1].Bgra.SequenceEqual(f1.Bgra) && list[1].TimeMs == 16.5
+                        && list[2].Bgra.SequenceEqual(f2.Bgra) && list[2].TimeMs == 33,
+                        "三帧 BGRA/时间戳/尺寸往返一致");
+                    var m1 = list.Meta(1);
+                    Chk("T100d-meta", m1.TimeMs == 16.5 && m1.W == 4 && m1.H == 2 && m1.Len == 32, "Meta 免回读 BGRA");
+                    var slice = list.Slice(1, 2);
+                    Chk("T100e-slice", slice.Count == 2 && slice[0].Bgra.SequenceEqual(f1.Bgra) && slice[1].Bgra.SequenceEqual(f2.Bgra),
+                        "Slice(1,2) 索引映射正确");
+                    var slice2 = list.Slice(2, 99);
+                    Chk("T100f-slice-clamp", slice2.Count == 1 && slice2[0].TimeMs == 33, "Slice 越界钳到末尾");
+                    Chk("T100g-nodisklow", diskLowHits == 0, "正常磁盘 → 护栏不误触发");
+                    slice.Dispose(); slice2.Dispose(); // 先释放所有读句柄，Windows 才允许删文件
+                    Chk("T100h-slice-no-delete", File.Exists(spoolPath), "Slice.Dispose 不删文件（非属主）");
+                    list.Dispose();
+                    Chk("T100i-dispose-delete", !File.Exists(spoolPath), "属主 list.Dispose 删 spool 文件");
+                }
+                var p2 = Path.Combine(dir, $"spool-test-{Guid.NewGuid():N}.fcf");
+                var sp2 = new FrameSpool(p2);
+                sp2.Add(f0);
+                sp2.Abandon();
+                Chk("T100j-abandon", !File.Exists(p2), "Abandon 删半成品文件");
+                Chk("T100k-freebytes", FrameSpool.FreeBytesFor(spoolPath) > 0, "卷剩余空间查询有效");
+            }
         }
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");
         return fail == 0 ? 0 : 1;

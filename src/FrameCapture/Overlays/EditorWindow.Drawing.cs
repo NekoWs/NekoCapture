@@ -923,12 +923,6 @@ public sealed partial class EditorWindow
     }
 
     /// <summary>导出收口：裁剪是视图状态，仅在导出瞬间一次性折算（T78c 已证 Crop→Remap→Bake ≡ Bake→Crop 逐字节）。</summary>
-    List<FrameCapture.Capture.CapturedFrame> CropFramesForExport(IReadOnlyList<FrameCapture.Capture.CapturedFrame> frames)
-    {
-        if (!_crop.IsCropped || frames.Count == 0) return frames.ToList();
-        var (x, y, w, h) = _crop.ToPixel(frames[0].W, frames[0].H);
-        return FrameCapture.Drawing.Bake.Crop(frames, x, y, w, h);
-    }
     List<Annotation> RemapAnnsForExport(IReadOnlyList<Annotation> anns, int fw, int fh)
     {
         if (!_crop.IsCropped) return anns.ToList();

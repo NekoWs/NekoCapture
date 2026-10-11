@@ -11,7 +11,7 @@ public partial class App : System.Windows.Application
 
     private System.Threading.Mutex? _mutex;
     private bool _ownsMutex;
-    private System.Windows.Interop.HwndSource? _msgSink;
+    private MsgSink? _msgSink;
 
     // 二次实例 → 主实例的转发通道：消息专用窗（HWND_MESSAGE），按窗口名互找
     static readonly IntPtr HWND_MESSAGE = new(-3);
@@ -70,19 +70,34 @@ public partial class App : System.Windows.Application
 
     void StartMessageSink()
     {
-        try
-        {
-            var np = new System.Windows.Interop.HwndSourceParameters(SinkName, 0, 0) { ParentWindow = HWND_MESSAGE };
-            _msgSink = new System.Windows.Interop.HwndSource(np);
-            uint mSet = RegisterWindowMessageW(MsgOpenSettings), mHelp = RegisterWindowMessageW(MsgOpenHelp);
-            _msgSink.AddHook((IntPtr _, int msg, IntPtr _, IntPtr _, ref bool _) =>
-            {
-                if (msg == mSet) Dispatcher.BeginInvoke(() => Overlays.SettingsWindow.ShowOrFocus());
-                else if (msg == mHelp) Dispatcher.BeginInvoke(() => Overlays.HelpWindow.ShowOrFocus());
-                return System.IntPtr.Zero;
-            });
-        }
+        try { _msgSink = new MsgSink(
+            () => Dispatcher.BeginInvoke(() => Overlays.SettingsWindow.ShowOrFocus()),
+            () => Dispatcher.BeginInvoke(() => Overlays.HelpWindow.ShowOrFocus())); }
         catch (System.Exception ex) { LogCrash(ex, "MsgSink"); }
+    }
+
+    /// <summary>真正的 message-only 窗（HWND_MESSAGE 父）：不可见、不进任务栏、绝不抢前台。
+    /// 实测教训：WPF 的 HwndSource 不支持 HWND_MESSAGE 父——会建成带 WS_VISIBLE|WS_OVERLAPPEDWINDOW
+    /// 的顶层窗，启动瞬间即抢走前台焦点（GetForegroundWindow 直接变成它）。故用 WinForms NativeWindow
+    /// 直接建消息专用窗，仅用于接收二次实例转发的"打开设置/帮助"。</summary>
+    sealed class MsgSink : System.Windows.Forms.NativeWindow
+    {
+        readonly Action _onSettings, _onHelp;
+        readonly uint _mSet, _mHelp;
+        public MsgSink(Action onSettings, Action onHelp)
+        {
+            _onSettings = onSettings; _onHelp = onHelp;
+            _mSet = RegisterWindowMessageW(MsgOpenSettings);
+            _mHelp = RegisterWindowMessageW(MsgOpenHelp);
+            CreateHandle(new System.Windows.Forms.CreateParams { Caption = SinkName, Parent = HWND_MESSAGE, Style = 0 });
+            Core.Trace.Log($"sink created hwnd={Handle}");
+        }
+        protected override void WndProc(ref System.Windows.Forms.Message m)
+        {
+            if (m.Msg == _mSet) { Core.Trace.Log("sink→open settings"); _onSettings(); }
+            else if (m.Msg == _mHelp) { Core.Trace.Log("sink→open help"); _onHelp(); }
+            base.WndProc(ref m);
+        }
     }
 
     static void ForwardToPrimary(string[] args)
@@ -117,7 +132,7 @@ public partial class App : System.Windows.Application
         // 只有主实例（真正持有者）能释放；二次实例释放会抛"unsynchronized block"炸掉退出路径
         if (_ownsMutex) { try { _mutex?.ReleaseMutex(); } catch { } }
         _mutex?.Dispose();
-        _msgSink?.Dispose();
+        _msgSink?.DestroyHandle(); // NativeWindow 无 Dispose，销毁句柄即可
         base.OnExit(e);
     }
 }

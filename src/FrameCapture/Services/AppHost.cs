@@ -21,6 +21,7 @@ public sealed class AppHost
     public void Startup()
     {
         FrameCapture.Core.Trace.Log("Startup begin");
+        Capture.FrameSpool.CleanupStale(); // 清理上次崩溃/强杀残留的磁盘暂存帧文件（>24h）
         Settings = new SettingsService();
         Theme.Apply(Settings.Current.Theme, Settings.Current.Accent);
         // 设计审查专用：FC_THEME 覆盖主题（不落盘，不影响用户配置）

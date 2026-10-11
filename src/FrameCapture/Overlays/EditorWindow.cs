@@ -23,7 +23,15 @@ public sealed partial class EditorWindow : Window
 
     private readonly SettingsService _settings;
     private readonly CapturedSequence _seq;
-    private List<BitmapSource> _bitmaps;
+    // R61：位图惰性缓存（LRU）——长录制帧数可达数万，全量转 BitmapSource 必 OOM。
+    // 只缓存最近浏览的若干帧；缓存上限按帧字节数自适应（约 600MB 帧数据）。
+    private readonly Dictionary<int, BitmapSource> _bmpCache = new();
+    private readonly Queue<int> _bmpFifo = new();
+    private int _bmpCacheMax = 24;
+    // 帧元数据缓存：spool 惰性列表读一帧=整块 BGRA 回盘，HUD/时间轴只要时间戳与尺寸，
+    // 故构造时一次性把元数据抽进平行数组（spool 走内存索引，零回盘）。
+    private double[] _times = System.Array.Empty<double>();
+    private int _frameW, _frameH;
     private readonly Image _view;
     private readonly System.Windows.Threading.DispatcherTimer _playTimer;
     private readonly TextBlock _hud;
@@ -42,7 +50,21 @@ public sealed partial class EditorWindow : Window
     {
         _settings = settings;
         _seq = seq;
-        _bitmaps = seq.Frames.Select(BgraImage.ToSource).ToList();
+        // 元数据抽入平行数组 + 位图缓存上限按帧字节自适应（见字段注释）
+        int n = seq.Frames.Count;
+        _times = new double[n];
+        if (seq.Frames is FrameSpoolList sl)
+        {
+            for (int i = 0; i < n; i++) _times[i] = sl.Meta(i).TimeMs;
+            if (n > 0) { var e0 = sl.Meta(0); _frameW = e0.W; _frameH = e0.H; }
+        }
+        else
+        {
+            for (int i = 0; i < n; i++) _times[i] = seq.Frames[i].TimeMs;
+            if (n > 0) { _frameW = seq.Frames[0].W; _frameH = seq.Frames[0].H; }
+        }
+        long frameBytes = (long)_frameW * _frameH * 4;
+        _bmpCacheMax = frameBytes > 0 ? (int)Math.Clamp((600L << 20) / frameBytes, 6, 96) : 24;
 
         WindowStyle = WindowStyle.None;
         ResizeMode = ResizeMode.CanResize;
@@ -700,18 +722,33 @@ public sealed partial class EditorWindow : Window
         Show(_index);
     }
 
+    /// <summary>惰性取帧位图：命中缓存直接给，否则从帧源（内存表或 spool 磁盘）转一张，
+    /// 超上限按 FIFO 逐出最久未看的。避免长录制全量驻留 OOM。</summary>
+    BitmapSource Bmp(int i)
+    {
+        if (_bmpCache.TryGetValue(i, out var hit)) return hit;
+        var bmp = BgraImage.ToSource(_seq.Frames[i]);
+        _bmpCache[i] = bmp; _bmpFifo.Enqueue(i);
+        while (_bmpFifo.Count > _bmpCacheMax)
+        {
+            int k = _bmpFifo.Dequeue();
+            if (k != i) _bmpCache.Remove(k);
+        }
+        return bmp;
+    }
+
     void Show(int index)
     {
         _index = Math.Clamp(index, 0, _seq.Frames.Count - 1);
-        _view.Source = _bitmaps[_index];
+        _view.Source = Bmp(_index);
         UpdateMosaicBrushes(); // 马赛克=区域滤镜：内容随帧走，不是静止贴图（R50）
-        double tMs = _seq.Frames[_index].TimeMs;
-        double eff = _imgRect.Width / Math.Max(1, _seq.Frames[_index].W);
+        double tMs = _times[_index];
+        double eff = _imgRect.Width / Math.Max(1, _frameW);
         string zoomTxt = _zoom <= 1.001 ? "" : (Math.Abs(eff - 1.0) < 0.02 ? "  1:1" : $"  {eff * 100:0}%");
         string cropTxt = "";
         if (_crop.IsCropped)
         {
-            var (cqW, cqH) = CropPx(_seq.Frames[_index].W, _seq.Frames[_index].H);
+            var (cqW, cqH) = CropPx(_frameW, _frameH);
             cropTxt = $"  裁剪 {cqW:0}×{cqH:0}";
         }
         var (ta, tb2) = TrimRange;
@@ -759,7 +796,11 @@ public sealed partial class EditorWindow : Window
         try
         {
             var (a, b) = TrimRange;
-            var subset = _seq.Frames.GetRange(a, b - a + 1);
+            // 导出子集：spool 用 Slice（共享文件、只切索引，不整块物化）；内存表用 GetRange。
+            // 后续 Bake 会按需物化裁剪范围——导出体量由时间轴裁剪范围决定，与总录制时长解耦。
+            IReadOnlyList<CapturedFrame> subset = _seq.Frames is FrameSpoolList spl
+                ? spl.Slice(a, b - a + 1)
+                : _seq.Frames.Skip(a).Take(b - a + 1).ToList();
             var anns = new List<FrameCapture.Drawing.Annotation>(_anns.Items);
             var region = _seq.Region; var monBounds = _seq.MonitorBounds; var monDev = _seq.MonitorDevice;
             int fps = Math.Clamp(_settings.Current.Fps, AppSettings.FpsMin, AppSettings.FpsMax);
@@ -854,7 +895,7 @@ public sealed partial class EditorWindow : Window
 
     void SaveFrame()
     {
-        var dlg = NewSaveDialog("PNG 图片|*.png", $"frame-{_seq.Frames[_index].TimeMs / 1000.0:0.0}.png");
+        var dlg = NewSaveDialog("PNG 图片|*.png", $"frame-{_times[_index] / 1000.0:0.0}.png");
         if (dlg.ShowDialog(this) != true) return;
         BgraImage.SavePng(ExportFrame(_index), EnsureExt(dlg.FileName, ".png"));
     }
@@ -877,17 +918,34 @@ public sealed partial class EditorWindow : Window
     {
         var dlg = NewSaveDialog("PNG 图片|*.png", "afterimage.png");
         if (dlg.ShowDialog(this) != true) return;
-        var combined = BgraImage.Afterimage(CropFramesForExport(_seq.Frames), 5);
-        // 合成图同样带标注（R46）：裁剪坐标已随 CropFramesForExport 折算，标注做同一重映射后烘焙
-        var anns = _anns.Items.ToList();
-        if (_crop.IsCropped && combined.W > 0)
+        // 残影只稀疏采样 5 帧：用惰性裁剪投影，绝不全段物化（长录制全量转内存必 OOM）
+        IReadOnlyList<CapturedFrame> src = _seq.Frames;
+        if (_crop.IsCropped && _seq.Frames.Count > 0 && _frameW > 0)
         {
-            var f0 = _seq.Frames[0];
-            var (cx, cy, cw, ch) = _crop.ToPixel(f0.W, f0.H);
-            anns = FrameCapture.Core.CropRemap.Remap(anns, (double)cx / f0.W, (double)cy / f0.H, (double)cw / f0.W, (double)ch / f0.H);
+            var (cx, cy, cw, ch) = _crop.ToPixel(_frameW, _frameH);
+            src = new LazyCropList(_seq.Frames, cx, cy, cw, ch);
+        }
+        var combined = BgraImage.Afterimage(src, 5);
+        // 合成图同样带标注（R46）：裁剪坐标已随裁剪折算，标注做同一重映射后烘焙
+        var anns = _anns.Items.ToList();
+        if (_crop.IsCropped && combined.W > 0 && _frameW > 0)
+        {
+            var (cx, cy, cw, ch) = _crop.ToPixel(_frameW, _frameH);
+            anns = FrameCapture.Core.CropRemap.Remap(anns, (double)cx / _frameW, (double)cy / _frameH, (double)cw / _frameW, (double)ch / _frameH);
         }
         var baked = FrameCapture.Drawing.Bake.Apply(new[] { combined }, anns)[0];
         BgraImage.SavePng(baked, EnsureExt(dlg.FileName, ".png"));
+    }
+
+    /// <summary>惰性裁剪投影：按需裁剪单帧，不整段物化（残影稀疏采样用）。</summary>
+    sealed class LazyCropList : IReadOnlyList<CapturedFrame>
+    {
+        readonly IReadOnlyList<CapturedFrame> _src; readonly int _x, _y, _w, _h;
+        public LazyCropList(IReadOnlyList<CapturedFrame> s, int x, int y, int w, int h) { _src = s; _x = x; _y = y; _w = w; _h = h; }
+        public int Count => _src.Count;
+        public CapturedFrame this[int i] => FrameCapture.Drawing.Bake.CropFrame(_src[i], _x, _y, _w, _h);
+        public IEnumerator<CapturedFrame> GetEnumerator() { for (int i = 0; i < Count; i++) yield return this[i]; }
+        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
     }
 
     static string EnsureExt(string path, string ext)

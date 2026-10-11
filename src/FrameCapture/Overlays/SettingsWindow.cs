@@ -154,12 +154,11 @@ public sealed class SettingsWindow : Window
         panel.Children.Add(Group("录制"));
         panel.Children.Add(ToggleRow("\uE815", "连按两下 = 录制（免按住）", "连按两下捕获快捷键开始录制（REC 徽标常驻），再连按两下结束进编辑器；按住录制照旧。关闭后点按截图零延迟（双击判定会把点按落地延后约 0.3 秒）",
             _settings.Current.DoubleTapRecord, v => _settings.Mutate(s => s.DoubleTapRecord = v)));
-        panel.Children.Add(SliderRow("\uEC4A", "录制帧率 (FPS)", "长按录制时每秒捕获的帧数",
+        panel.Children.Add(SliderRow("\uEC4A", "录制帧率 (FPS)", "录制时每秒捕获的帧数",
             AppSettings.FpsMin, AppSettings.FpsMax, 5, _settings.Current.Fps,
             v => $"{v:0} fps", v => _settings.Mutate(s => s.Fps = (int)v)));
-        panel.Children.Add(SliderRow("\uE823", "长按录制最长时间", "长按超过此秒数自动停止录制",
-            2, 30, 1, _settings.Current.MaxDurationMs / 1000.0,
-            v => $"{v:0}s", v => _settings.Mutate(s => s.MaxDurationMs = (int)(v * 1000))));
+        // R61：长按录制时长上限已移除——录到用户停为止（帧落盘，不再受内存/时长限制）。
+        // 唯一护栏是磁盘剩余空间（<1GB 自动停并保留已录内容），无需再暴露数值。
         panel.Children.Add(ToggleRow("\uE7C4", "录制时显示范围边框", "录制期间按真实捕获范围高亮描边，只提示、不录进产物。取代 Windows 11 那条绕整屏的黄色系统捕获边框（WGC 只能整显示器捕获，系统边框必然全屏、与所选范围无关）",
             _settings.Current.ShowRecordingBorder, v => _settings.Mutate(s => s.ShowRecordingBorder = v)));
 

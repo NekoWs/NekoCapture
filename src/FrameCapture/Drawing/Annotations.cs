@@ -138,14 +138,18 @@ public static class Bake
     {
         var outFrames = new List<Capture.CapturedFrame>(frames.Count);
         foreach (var f in frames)
-        {
-            if (x < 0 || y < 0 || w < 8 || h < 8 || x + w > f.W || y + h > f.H)
-                throw new ArgumentException("crop out of bounds");
-            byte[] dst = new byte[w * h * 4];
-            for (int row = 0; row < h; row++)
-                Buffer.BlockCopy(f.Bgra, ((y + row) * f.W + x) * 4, dst, row * w * 4, w * 4);
-            outFrames.Add(new Capture.CapturedFrame { Bgra = dst, W = w, H = h, TimeMs = f.TimeMs });
-        }
+            outFrames.Add(CropFrame(f, x, y, w, h));
         return outFrames;
+    }
+
+    /// <summary>裁剪单帧（帧内像素坐标）。残影等稀疏采样场景用它做惰性投影，避免整段物化。</summary>
+    public static Capture.CapturedFrame CropFrame(Capture.CapturedFrame f, int x, int y, int w, int h)
+    {
+        if (x < 0 || y < 0 || w < 8 || h < 8 || x + w > f.W || y + h > f.H)
+            throw new ArgumentException("crop out of bounds");
+        byte[] dst = new byte[w * h * 4];
+        for (int row = 0; row < h; row++)
+            Buffer.BlockCopy(f.Bgra, ((y + row) * f.W + x) * 4, dst, row * w * 4, w * 4);
+        return new Capture.CapturedFrame { Bgra = dst, W = w, H = h, TimeMs = f.TimeMs };
     }
 }

@@ -20,7 +20,8 @@ public sealed class AppSettings
     /// <summary>长按捕获帧率。</summary>
     public int Fps { get; set; } = 30;
 
-    /// <summary>长按捕获最长时间(ms)。到时间后即使不松手也会结束捕获并打开编辑器。</summary>
+    /// <summary>已废弃（R61）：长按录制时长上限移除——录到用户停为止，帧落盘不再受内存/时长限制。
+    /// 保留字段仅为兼容旧 settings.json（读写无害），运行期不再有任何消费方。</summary>
     public int MaxDurationMs { get; set; } = 6000;
 
     /// <summary>是否自动生成给 Agent 看的逐帧胶片条。</summary>

@@ -12,8 +12,7 @@ public sealed class CaptureController : IDisposable
     private readonly SettingsService _settings;
     private readonly LiveCapture _live = new();
     private WgcLiveCapture? _wgc;
-    private FrameRing? _ring;
-    private System.Windows.Threading.DispatcherTimer? _maxTimer;
+    private FrameSpool? _spool;
     private RegionPickerWindow? _picker;
     private RegionOutlineWindow? _outline;
     private EditorWindow? _editor;
@@ -32,8 +31,8 @@ public sealed class CaptureController : IDisposable
     public CaptureController(SettingsService settings)
     {
         _settings = settings;
-        // 只订阅一次：避免多次捕获累积 handler，导致同一帧重复入 ring
-        _live.FrameSampled += f => _ring?.Add(f);
+        // 只订阅一次：避免多次捕获累积 handler，导致同一帧重复入仓
+        _live.FrameSampled += f => _spool?.Add(f);
         _recBadgeTimer = new System.Windows.Threading.DispatcherTimer();
         _recBadgeTimer.Tick += (_, _) =>
         {
@@ -266,7 +265,13 @@ public sealed class CaptureController : IDisposable
         if (_prevFg != System.IntPtr.Zero && Native.Win32.GetWindowThreadProcessId(_prevFg, out uint fgp) == Native.Win32.GetCurrentThreadId())
             _prevFg = System.IntPtr.Zero;
 
-        _ring = new FrameRing();  // 预算按可用内存自适应
+        _spool = new FrameSpool();  // R61：帧落盘（时长不再设上限），磁盘护栏触发就地停录
+        _spool.DiskLow += free => System.Windows.Application.Current?.Dispatcher.BeginInvoke(() =>
+        {
+            // 捕获线程触发 → 回 UI 线程停录；已录内容照常进编辑器，绝不静默丢帧
+            FrameCapture.Core.Trace.Log($"disk low {free >> 20}MB → auto-stop");
+            if (State == Phase.Capturing) FinishCapture();
+        });
         var monitor = Monitors.ByDevice(region.DeviceName) ?? Monitors.Nearest(region.Bounds.X, region.Bounds.Y);
 
         _captureClock = System.Diagnostics.Stopwatch.StartNew();
@@ -278,7 +283,7 @@ public sealed class CaptureController : IDisposable
             try
             {
                 _wgc = new WgcLiveCapture();
-                _wgc.FrameSampled += f => _ring?.Add(f);
+                _wgc.FrameSampled += f => _spool?.Add(f);
                 _wgc.Start(monitor, region.Bounds, fps);
                 wgcOk = true;
                 FrameCapture.Core.Trace.Log("capture backend=wgc");
@@ -299,11 +304,13 @@ public sealed class CaptureController : IDisposable
             }
             catch
             {
-                _ring = null;
+                _spool?.Abandon();
+                _spool = null;
                 return;
             }
         }
 
+        // R61：录制时长上限移除——录到用户停为止；护栏是磁盘（FrameSpool.DiskLow 自动停）。
         State = Phase.Capturing;
         _tr = Core.ToggleRecord.St.Hold;
         // 系统 WGC 提示边框已关闭，改用自家按范围绘制的轮廓做"正在录制"提示。
@@ -315,16 +322,6 @@ public sealed class CaptureController : IDisposable
             _recBadgeTimer!.Interval = TimeSpan.FromMilliseconds(_settings.Current.TapThresholdMs + 60);
             _recBadgeTimer.Start();
         }
-
-        int max = _settings.Current.MaxDurationMs;
-        _maxTimer = new System.Windows.Threading.DispatcherTimer
-        { Interval = TimeSpan.FromMilliseconds(max) };
-        _maxTimer.Tick += (_, _) =>
-        {
-            _maxTimer?.Stop();
-            if (State == Phase.Capturing) FinishCapture();
-        };
-        _maxTimer.Start();
     }
 
     /// <summary>放开捕获快捷键。holdMs=钩子测得的真实按住时长（-1=无钩子来源，退回本地时钟）。</summary>
@@ -382,8 +379,6 @@ public sealed class CaptureController : IDisposable
         _recBadgeTimer?.Stop();
         _outline?.StopRecBadge();
         _outline?.SetBorderVisible(true); // 免按住录制的"只徽标"模式复位，别把无边框带给下次
-        _maxTimer?.Stop();
-        _maxTimer = null;
         _live.Stop();
         if (_wgc != null) { try { _wgc.Stop(); _wgc.Dispose(); } catch { } _wgc = null; }
         // 录制范围提示的去向（决策见 CaptureGuards.OnCaptureFinished）：
@@ -405,13 +400,12 @@ public sealed class CaptureController : IDisposable
 
         double durMs = _captureClock?.ElapsedMilliseconds ?? 0;
         // 点按/长按判定用钩子事件时间戳：本地时钟会把首次 WGC 初始化耗时算成"按住"（R42 实测：
-        // 新实例首次点按被误判长按直接进编辑器）。时钟只兜底无钩子来源（托盘/最长时限自动停）。
+        // 新实例首次点按被误判长按直接进编辑器）。时钟只兜底无钩子来源（托盘触发/磁盘护栏自动停）。
         if (holdMs >= 0) durMs = holdMs;
         _captureClock = null;
-        var frames = _ring?.Snapshot() ?? new List<CapturedFrame>();
-        int dropped = _ring?.Dropped ?? 0;
-        _ring = null;
-        if (dropped > 0) FrameCapture.Core.Trace.Log($"ring dropped {dropped} frames (memory budget)");
+        var spoolList = _spool != null && _spool.Count > 0 ? _spool.OpenReader() : null;
+        _spool = null;
+        IReadOnlyList<CapturedFrame> frames = spoolList ?? (IReadOnlyList<CapturedFrame>)new List<CapturedFrame>();
         if (frames.Count == 0)
         {
             // WGC 脏区语义在极短/全静止场景理论可为 0 帧：GDI 补抓一帧兜底，保证“点按必有产物”
@@ -425,7 +419,7 @@ public sealed class CaptureController : IDisposable
                 }
                 catch { }
             }
-            if (frames.Count == 0) { State = Phase.Idle; return; }
+            if (frames.Count == 0) { spoolList?.Dispose(); State = Phase.Idle; return; }
         }
 
         // 点按 → 单帧
@@ -435,12 +429,16 @@ public sealed class CaptureController : IDisposable
             if (_settings.Current.TapAlwaysShowsRegion)
             {
                 FrameCapture.Core.Trace.Log("tap→picker (always-show-region)");
+                spoolList?.Dispose();
                 State = Phase.Idle;
                 BeginScopeSelection();
                 _captureAfterSelect = true;
                 return;
             }
-            frames = new List<CapturedFrame> { frames[^1] };
+            // 只留最后一帧进编辑器：spool 文件随之释放（单帧已读入内存）
+            var last = frames[^1];
+            frames = new List<CapturedFrame> { last };
+            spoolList?.Dispose();
         }
 
         var region = _pendingRegion ?? new ScreenRegion("", frames[0].W > 0 ? new RectI(0, 0, frames[0].W, frames[0].H) : default);
@@ -451,7 +449,7 @@ public sealed class CaptureController : IDisposable
             Region = region.Bounds,
             MonitorBounds = monitor?.Bounds ?? new RectI(0, 0, frames[0].W, frames[0].H),
             MonitorDevice = region.DeviceName,
-            DroppedFrames = dropped,
+            DroppedFrames = 0, // R61：磁盘暂存不再丢帧
         };
 
         OpenEditor(seq);
@@ -467,6 +465,8 @@ public sealed class CaptureController : IDisposable
         {
             _editor = null;
             State = Phase.Idle;
+            // 磁盘暂存帧列表随编辑器释放（删 spool 文件）
+            (seq.Frames as System.IDisposable)?.Dispose();
             // 焦点归还给捕获前正在使用的窗口
             try { if (_prevFg != System.IntPtr.Zero && Native.Win32.IsWindow(_prevFg)) ForegroundNow(_prevFg); } catch { }
             _prevFg = System.IntPtr.Zero;

@@ -9,9 +9,11 @@
 - [x] **设置页改版**（R59）：六分组小标题 + 自绘标题栏 + 强调色就地调色板。
 - [x] **双击捕获键 = 开始/结束录制（免按住）**（R60）：Core.ToggleRecord 纯状态机（点按窗内引擎不停=零间隙）；
       REC 徽标常驻并写明「再连按两下结束」；录制中单按=无操作；关开关=旧语义零漂移（点按零延迟）。
-- [ ] **移除录制时长上限（MaxDurationMs，现默认 6s/滑杆 2–30s）**：录制=一直录到用户停。
-      前置：帧内存驻留改磁盘暂存（4K@60fps BGRA≈2GB/s，纯内存必 OOM）——先 spool 后放开上限（下一轮）。
-      涉及：AppSettings.MaxDurationMs、CaptureController 停止判定、SettingsWindow 滑杆、HelpWindow 文案。
+- [x] **移除录制时长上限（MaxDurationMs）**（R61）：帧改磁盘 spool（FrameSpool 逐帧追加写 + FrameSpoolList
+      惰性回读/Slice 零拷贝），编辑器位图改自适应 LRU，GIF 导出走 Slice——4K@60fps 纯内存 OOM 根除。
+      删 `_maxTimer` 停止判定：长按录到松手、连按录到再连按，唯一停止=用户动作或磁盘护栏（剩余<1GB 自动收尾）。
+      设置页删「最长时长」滑杆行；HelpWindow 文案改「不设时长上限」；MaxDurationMs 仅留 JSON 兼容。
+      e2e：录 9.36s/186 帧（spool 383MB）秒开、拖时间轴惰性回读、GIF 4.43MB、关窗删 spool。SelfTest 197/197。
 - [x] **设置窗口自定义标题栏**（R59）：QQ 式自绘标题栏+关闭钮；拖动改 WM_NCHITTEST→HTCAPTION 原生拖窗（根治拖不动+超调）。
 - [ ] **设置滑杆控件修缝+美化**：缝隙已修（R57）；整体样式重做按用户「之后再美化」留后。
 - [x] **托盘右键菜单两修**（R58）：失焦即关（锚窗激活+Deactivated 收菜单）+ 紧凑化对齐编辑器密度。

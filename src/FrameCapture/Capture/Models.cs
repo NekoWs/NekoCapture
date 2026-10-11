@@ -37,10 +37,11 @@ public sealed class CapturedFrame
     public double TimeMs { get; set; }
 }
 
-/// <summary>一次捕获的完整序列。</summary>
+/// <summary>一次捕获的完整序列。Frames 可能是内存表（单帧/兜底），也可能是磁盘暂存的
+/// 惰性列表（FrameSpoolList，R61）——消费方只按索引/顺序访问，勿假设可写或可全量驻留。</summary>
 public sealed class CapturedSequence
 {
-    public required List<CapturedFrame> Frames { get; set; }
+    public required IReadOnlyList<CapturedFrame> Frames { get; set; }
     /// <summary>捕获区域（虚拟桌面物理坐标）。</summary>
     public required RectI Region { get; set; }
     /// <summary>区域所在显示器原点，用于编辑器定位。</summary>

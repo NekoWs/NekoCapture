@@ -804,3 +804,31 @@ status: done
   取证 night-12~17（徽标/编辑器/设置页新行 E815 图标目检）。
 - 插曲：cap-tray-menu.ps1 自带 Stop-Process+重启（取证脚本语义），误跑一次导致实例被换——非应用 bug，
   但顺藤摸出了上面两个真 bug，值。
+
+## R61（10-12 凌晨）：移除录制时长上限——磁盘 spool 帧仓，录制=想录多久录多久
+- **磁盘暂存（用户排队 #8 前置）**：新增 `Capture/FrameSpool.cs`。录制帧不再进内存环形缓冲，
+  逐帧追加写 `%TEMP%\FrameCapture\spool-*.fcf`（20B 帧头 w/h/timeMs/len + BGRA），内存只留
+  帧索引表（每帧 40B：偏移/时间/尺寸/长度）。4K@60fps BGRA≈2GB/s 纯内存必 OOM 的问题根除；
+  写完立刻读的场景由 OS 文件缓存兜住。`FrameSpoolList : IReadOnlyList<CapturedFrame>` 惰性回读：
+  索引器按需 seek 只读单帧，`Meta(i)` 免读 BGRA 拿时间戳，`Slice(a,b)` 共享文件做导出子集，
+  属主 Dispose 删文件（Slice 非属主不删）。启动 `CleanupStale()` 清 24h 前的孤儿 spool（崩溃残留）。
+- **磁盘护栏**：每 30 帧查一次卷剩余空间，<1GB 触发 DiskLow → 自动收尾停录
+  （已录内容照常进编辑器，绝不静默丢帧）；正常盘不误触发（T100g）。
+- **上限移除**：CaptureController 删 `_maxTimer`/MaxDurationMs 停止判定——长按录到松手、
+  连按录到再连按，唯一停止条件是用户动作或磁盘护栏。设置页删「最长时长」滑杆行（少一个数值，
+  多一个自由）；HelpWindow 文案改「录到松手为止，不设时长上限」；MaxDurationMs 字段保留仅为
+  老配置 JSON 兼容（不再参与逻辑）。
+- **编辑器惰性化**（186 帧×900×600 全解码≈1.6GB，必须改）：`_bitmaps` 全量表改 LRU 缓存
+  `_bmpCache`（容量按帧字节自适应 6–96 张，FIFO 逐出）；时间戳预取进 `double[] _times`；
+  GIF 导出子集走 `FrameSpoolList.Slice` 零拷贝；单帧 PNG/视觉暂留走逐帧投影（LazyCropList），
+  全程不再有一次性物化全部位图。
+- **e2e 顺手挖出并修掉 R60 转发通道的抢焦点真 bug**：WPF `HwndSource` 不支持 HWND_MESSAGE 父
+  （实测建成 `WS_VISIBLE|WS_OVERLAPPEDWINDOW` 顶层窗，**应用启动瞬间 GetForegroundWindow 就变成它**
+  ——用户每开一次软件焦点就被偷）。改 WinForms `NativeWindow` 直建 message-only 窗（style 无
+  WS_VISIBLE、IsWindowVisible=False、永不可激活），转发链路 trace 实锤（sink→open settings）、
+  前台保持真实窗口、进程数=1。
+- 验证：构建 0 错；SelfTest **197/197**（T100a-k spool 往返/元数据/切片/文件生命周期 11 条）；
+  实机 e2e（临时 900×600@20fps 轻载）：双击起录 **9.36s**（旧 6s 上限时代早已到点，现无 auto-stop）
+  → 编辑器 **186 帧**秒开（spool 383MB，惰性位图无 OOM）→ 点时间轴 85% 跳 **184/186 帧 9.36s**
+  （磁盘惰性回读实锤）→ ✓ 提交 GIF **4.43MB/186 帧**（全量 spool→切片→烘焙→编码）→ 关编辑器
+  spool 文件自动删除；点按截图路径零 .fcf 残留。取证 night-18/19/20（编辑器/时间轴/底栏目检）。
