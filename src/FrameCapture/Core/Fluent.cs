@@ -512,12 +512,12 @@ public static class Fluent
               <Style TargetType="ContextMenu">
                 <Setter Property="OverridesDefaultStyle" Value="True"/>
                 <Setter Property="TextElement.Foreground" Value="{Hex(Theme.Text)}"/>
-                <Setter Property="MinWidth" Value="190"/>
+                <Setter Property="MinWidth" Value="176"/>
                 <Setter Property="Template">
                   <Setter.Value>
                     <ControlTemplate TargetType="ContextMenu">
                       <Border CornerRadius="8" Background="{Hex(Theme.CardBg)}"
-                              BorderBrush="{Hex(Theme.Stroke)}" BorderThickness="1" Padding="1,5,1,5">
+                              BorderBrush="{Hex(Theme.Stroke)}" BorderThickness="1" Padding="3,4,3,4">
                         <Border.Effect><DropShadowEffect BlurRadius="16" ShadowDepth="4" Opacity="0.4"/></Border.Effect>
                         <ItemsPresenter/>
                       </Border>
@@ -529,28 +529,28 @@ public static class Fluent
                 <Setter Property="Template">
                   <Setter.Value>
                     <ControlTemplate TargetType="Separator">
-                      <Border Height="1" Background="{Hex(Theme.Stroke)}" Margin="10,5,10,5"/>
+                      <Border Height="1" Background="{Hex(Theme.Stroke)}" Margin="8,3,8,3"/>
                     </ControlTemplate>
                   </Setter.Value>
                 </Setter>
               </Style>
               <Style TargetType="MenuItem">
                 <Setter Property="OverridesDefaultStyle" Value="True"/>
-                <Setter Property="FontSize" Value="13"/>
+                <Setter Property="FontSize" Value="12"/>
                 <Setter Property="Template">
                   <Setter.Value>
                     <ControlTemplate TargetType="MenuItem">
-                      <Border x:Name="bd" CornerRadius="6" Background="Transparent">
-                        <Grid Height="34">
+                      <Border x:Name="bd" CornerRadius="5" Background="Transparent">
+                        <Grid Height="27">
                           <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="34"/>
+                            <ColumnDefinition Width="24"/>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
                           </Grid.ColumnDefinitions>
                           <TextBlock x:Name="chk" Grid.Column="0" Text="" FontFamily="Segoe Fluent Icons"
-                                     FontSize="12" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                     FontSize="11" HorizontalAlignment="Center" VerticalAlignment="Center"
                                      Foreground="{Hex(Theme.Accent)}"/>
-                          <ContentPresenter Grid.Column="1" ContentSource="Header" VerticalAlignment="Center"/>
+                          <ContentPresenter Grid.Column="1" ContentSource="Header" VerticalAlignment="Center" Margin="0,0,14,0"/>
                         </Grid>
                       </Border>
                       <ControlTemplate.Triggers>

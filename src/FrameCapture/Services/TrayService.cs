@@ -11,6 +11,7 @@ public sealed class TrayService : IDisposable
     private readonly AppHost _host;
     private readonly WinForms.NotifyIcon _icon;
     private System.Windows.Window? _menuAnchor;
+    private System.Windows.Controls.ContextMenu? _menu;
 
     public TrayService(AppHost host)
     {
@@ -45,7 +46,9 @@ public sealed class TrayService : IDisposable
     void ShowMenu()
     {
         Trace.Log("tray menu open");
+        if (_menu != null) _menu.IsOpen = false; // 再次右键：先收旧菜单（连带回收旧锚窗）
         var menu = new ContextMenu { Resources = Fluent.MenuResources() };
+        _menu = menu;
 
         void Item(string text, Action act, bool checkable = false, bool isChecked = false)
         {
@@ -86,9 +89,10 @@ public sealed class TrayService : IDisposable
             System.Windows.Application.Current?.Shutdown();
         });
 
-        // 透明锚点窗：保证菜单在鼠标处弹出、并能在关闭时回收
+        // 透明锚点窗：保证菜单在鼠标处弹出、并能在关闭时回收。
+        // 必须激活（R58）：应用此前无任何激活窗口时，ContextMenu 收不到"失焦"，点别处菜单也不消失。
         _menuAnchor?.Close();
-        _menuAnchor = new System.Windows.Window
+        var anchor = new System.Windows.Window
         {
             Width = 1,
             Height = 1,
@@ -96,18 +100,23 @@ public sealed class TrayService : IDisposable
             AllowsTransparency = true,
             Background = System.Windows.Media.Brushes.Transparent,
             ShowInTaskbar = false,
-            ShowActivated = false,
+            ShowActivated = true,
             Topmost = true,
             Left = WinForms.Cursor.Position.X,
             Top = WinForms.Cursor.Position.Y,
         };
-        _menuAnchor.Show();
-        menu.PlacementTarget = _menuAnchor;
-        menu.Placement = System.Windows.Controls.Primitives.PlacementMode.MousePoint;
+        _menuAnchor = anchor;
+        anchor.Show();
+        anchor.Activate();
+        anchor.Deactivated += (_, _) => { menu.IsOpen = false; }; // 点其他应用/切窗 → 菜单即收
         menu.Closed += (_, _) =>
         {
-            if (_menuAnchor != null) { _menuAnchor.Close(); _menuAnchor = null; }
+            if (ReferenceEquals(_menu, menu)) _menu = null;
+            if (ReferenceEquals(_menuAnchor, anchor)) _menuAnchor = null;
+            anchor.Close();
         };
+        menu.PlacementTarget = anchor;
+        menu.Placement = System.Windows.Controls.Primitives.PlacementMode.MousePoint;
         menu.IsOpen = true;
     }
 

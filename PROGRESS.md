@@ -758,3 +758,11 @@ status: done
   ③ 滑条蓝线与圆钮露 4.5px 底色缝：格宽 22 由光晕决定、圆钮只占 13 → 填充线负右边距 -11 延到格中心，
      圆钮坐在线上（0/35/100 三档离屏取证 renderslider 目检无缝）。「之后再美化」按用户顺序留后续。
 - 验证：构建 0 错；SelfTest 173/173；test-out/R57-slider.png。
+
+## 2026-10-12 凌晨 交互优化 R58（托盘菜单：失焦即关 + 紧凑化）
+- 失焦不关根因：锚点窗 ShowActivated=false → 应用从未激活，ContextMenu 收不到"失焦"，点别处也不消失。
+  修复：锚窗 ShowActivated=true + Activate()，Deactivated→menu.IsOpen=false；再右键先收旧菜单；
+  Closed 回收用 ReferenceEquals 防旧菜单回调误清新锚窗。附带收益：菜单现在有键盘焦点，Esc 可关。
+- 紧凑化（对齐编辑器紧凑布局）：行高 34→27、字号 13→12、勾选列 34→24、MinWidth 190→176、
+  内衬 1,5→3,4、分隔线 margin 10,5→8,3。
+- 验证：构建 0 错；SelfTest 173/173（T11 模板锁绿）。托盘交互留手感阶段焦点安全实测。
