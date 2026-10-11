@@ -58,6 +58,13 @@ public sealed class AppSettings
     /// <summary>连按两下捕获键 = 开始录制（免按住），再连按两下结束（R60，ToggleRecord 状态机）。</summary>
     public bool DoubleTapRecord { get; set; } = true;
 
+    /// <summary>捕获完成后除写剪贴板外，再存一份文件副本到本地目录（R63）：截图存 PNG、录制存 GIF。
+    /// 默认关（不意外落盘）；开启后写盘失败只记日志，绝不影响剪贴板主流程。</summary>
+    public bool AutoSaveCopy { get; set; } = false;
+
+    /// <summary>自动保存目录；空 = 图片\FrameCapture（R63）。</summary>
+    public string AutoSavePath { get; set; } = "";
+
     /// <summary>编辑器窗口总在最前（图钉开关，默认关，R44）。</summary>
     public bool EditorTopmost { get; set; } = false;
 

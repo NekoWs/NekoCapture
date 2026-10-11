@@ -189,6 +189,7 @@ public sealed class CaptureController : IDisposable
                         var pth = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "FrameCapture", $"capture-{DateTime.Now:HHmmss}.png");
                         try { FrameCapture.Services.BgraImage.SavePng(f, pth); } catch { }
                         FrameCapture.Encoding.ClipboardService.SetFrame(f);
+                        FrameCapture.Services.SaveService.MaybeSavePng(f); // R63 自动保存副本（关=零副作用）
                         FrameCapture.Core.Trace.Log($"still saved {pth} {f.W}x{f.H}");
                         // 拍完即见（R42）：缩略浮窗确认"已复制"，点击原地进编辑器标注，不抢焦点
                         var reg = region.Value;

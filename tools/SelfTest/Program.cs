@@ -1377,6 +1377,37 @@ static class SelfTest
                 sp2.Abandon();
                 Chk("T100j-abandon", !File.Exists(p2), "Abandon 删半成品文件");
                 Chk("T100k-freebytes", FrameSpool.FreeBytesFor(spoolPath) > 0, "卷剩余空间查询有效");
+
+                // T101 自动保存副本（R63，SaveService）：唯一命名 / 目录回退 / 关闭零副作用
+                var svDir = Path.Combine(dir, "autosave-" + Guid.NewGuid().ToString("N"));
+                Directory.CreateDirectory(svDir);
+                Chk("T101a-unique-free",
+                    FrameCapture.Services.SaveService.UniqueName(svDir, "FrameCapture x", "png") == "FrameCapture x.png",
+                    "无冲突 → 原名");
+                File.WriteAllBytes(Path.Combine(svDir, "FrameCapture x.png"), new byte[] { 1 });
+                Chk("T101b-unique-2",
+                    FrameCapture.Services.SaveService.UniqueName(svDir, "FrameCapture x", "png") == "FrameCapture x (2).png",
+                    "同名占用 → (2)");
+                File.WriteAllBytes(Path.Combine(svDir, "FrameCapture x.gif"), new byte[] { 1 });
+                File.WriteAllBytes(Path.Combine(svDir, "FrameCapture x (2).gif"), new byte[] { 1 });
+                Chk("T101c-unique-3",
+                    FrameCapture.Services.SaveService.UniqueName(svDir, "FrameCapture x", "gif") == "FrameCapture x (3).gif",
+                    "同名+（2）占用 → (3)");
+                // SelfTest 不建 SettingsService（Shared=null）→ 自动保存视为关闭：目录回退默认、写盘零副作用
+                var resolved = FrameCapture.Services.SaveService.ResolveFolder();
+                Chk("T101d-folder-fallback",
+                    resolved == Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), "FrameCapture")
+                    && Directory.Exists(resolved),
+                    "空路径 → 回退 图片\\FrameCapture 且已建");
+                int before = Directory.GetFiles(resolved).Length;
+                var oneSeq = new CapturedSequence { Frames = new List<CapturedFrame> { f0 }, Region = default, MonitorBounds = default };
+                var twoSeq = new CapturedSequence { Frames = new List<CapturedFrame> { f0, f1 }, Region = default, MonitorBounds = default };
+                FrameCapture.Services.SaveService.MaybeSaveArtifact(oneSeq, new byte[] { 1, 2, 3 });
+                FrameCapture.Services.SaveService.MaybeSaveArtifact(twoSeq, new byte[] { 1, 2, 3 });
+                FrameCapture.Services.SaveService.MaybeSavePng(f0);
+                Chk("T101e-off-noop", Directory.GetFiles(resolved).Length == before,
+                    "关闭状态（Shared=null）→ 零落盘，绝不影响捕获");
+                try { Directory.Delete(svDir, true); } catch { }
             }
         }
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");

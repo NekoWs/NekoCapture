@@ -283,4 +283,11 @@ internal static class Win32
     }
 
     public static readonly uint SIZEOF_BITMAPINFOHEADER = (uint)Marshal.SizeOf<BITMAPINFO>();
+
+    /// <summary>把 WPF 窗口句柄包成 WinForms IWin32Window，供 FolderBrowserDialog 等模态框挂 owner（R63）。</summary>
+    internal sealed class WndOwner : System.Windows.Forms.IWin32Window
+    {
+        public WndOwner(IntPtr handle) => Handle = handle;
+        public IntPtr Handle { get; }
+    }
 }

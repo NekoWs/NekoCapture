@@ -846,3 +846,29 @@ status: done
   高度 1143→1029。至此帮助/设置/托盘三窗共享同一套密度与视觉语言（编辑器为基准，R58 托盘、R59 设置、R62 帮助）。
 - 验证：构建 0 错（9 警告全既有）；SelfTest 197/197；离屏 renderhelp（night-21）+ 实机截图（night-22/23）
   目检：标题栏 E9CE/E7A8 图标无豆腐块、✕ 可点关闭、帮助窗正确显示用户真实键位（F7 选区 / F6 捕获）。
+
+## R63 · 自动保存副本（AutoSaveCopy）— 截图存 PNG / 录制存 GIF，opt-in 零副作用
+
+**动机**：要"超过 QQ 截图"——QQ 截完得手动 Ctrl+S 才落盘。加一个可选的"自动保存副本"：捕获后除剪贴板外再往文件夹写一份文件，省去手动保存。默认关闭（opt-in），关闭时零副作用。
+
+**设置项（产物组，2 行）**：
+- `自动保存副本` 开关（E74E 软盘图标，默认关）
+- `保存位置` 路径行（E838 文件夹图标）：显示当前目录（空=图片\FrameCapture（默认）），点整行或"更改"弹 FolderBrowserDialog 选文件夹
+
+**核心（SaveService.cs 新建）**：
+- `ResolveFolder()`：自定义路径（自动建目录）→ 空则回退 `图片\FrameCapture`；永不抛
+- `UniqueName(dir, stem, ext)`：stem.ext → stem (2).ext … stem (999).ext → GUID，绝不覆盖
+- `Stamp()`：`FrameCapture yyyy-MM-dd HHmmss`
+- `MaybeSaveArtifact(seq, gif)`：编辑器提交时按帧数分流——单帧截图存 PNG、多帧录制存 GIF（均为已烘焙标注/裁剪的最终产物）
+- `MaybeSavePng(frame)`：选区后直接截图路径存 PNG
+- 守卫：`AutoSaveCopy != true` 立即 return；写盘失败只 Trace.Log，绝不影响剪贴板/捕获
+
+**接线**：CaptureController tap-still 路径 + EditorWindow.Commit onDone（UI 线程，seq.Frames 已烘焙）
+
+**验证**：
+- 构建 0 错误
+- SelfTest 202/202（新增 T101a-e：唯一命名 free/(2)/(3)、目录回退、关闭零落盘）
+- 实机 e2e（焦点安全）：F6 点按→编辑器→✓ → 落盘 `FrameCapture 2026-10-12 030546.png` 1800×1200 真截图；按住 F6 1.2s→47 帧→✓ → 落盘 `...031119.gif` 1800×1200 47 帧有效 GIF
+- 目检设置窗「产物」组两行渲染（E74E/E838 无豆腐块，"更改"强调色）
+
+**踩坑**：多帧编辑器 ✓ 在时间轴行最右（非工具栏），单帧编辑器 ✓ 在工具栏——两种布局不同，e2e 点击坐标需分别定位。

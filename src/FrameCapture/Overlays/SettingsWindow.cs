@@ -135,6 +135,9 @@ public sealed class SettingsWindow : Window
         panel.Children.Add(SliderRow("\uE8FD", "胶片条抽帧数", "自动生成 Agent 胶片条时从录制帧中抽取的帧数",
             4, 24, 1, _settings.Current.AgentStripFrames,
             v => $"{v:0} 帧", v => _settings.Mutate(s => s.AgentStripFrames = (int)v)));
+        panel.Children.Add(ToggleRow("\uE74E", "自动保存副本", "捕获完成后，除复制到剪贴板外，再存一份文件到本地目录（截图存 PNG、录制存 GIF）。写盘失败不影响剪贴板，捕获永远成功",
+            _settings.Current.AutoSaveCopy, v => _settings.Mutate(s => s.AutoSaveCopy = v)));
+        panel.Children.Add(PathRow());
 
         // ---- 外观 ----
         panel.Children.Add(Group("外观"));
@@ -580,6 +583,59 @@ public sealed class SettingsWindow : Window
             }
         };
         g.Children.Add(track);
+        return g;
+    }
+
+    /// <summary>自动保存位置行（R63）：整行可点，弹系统文件夹选择器；空路径显示默认「图片\FrameCapture」。</summary>
+    FrameworkElement PathRow()
+    {
+        var g = Row();
+        g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); // 更改列
+        g.Children.Add(Icon("\uE838", "选择自动保存副本的文件夹"));
+        var stack = new StackPanel
+        {
+            Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center,
+            Cursor = Cursors.Hand, Background = Brushes.Transparent,
+            ToolTip = "点击选择保存文件夹",
+        };
+        var lbl = new TextBlock { Text = "保存位置", FontSize = 13, Foreground = new SolidColorBrush(Theme.Text), VerticalAlignment = VerticalAlignment.Center };
+        var path = new TextBlock
+        {
+            FontSize = 12, Foreground = new SolidColorBrush(Theme.TextDim),
+            VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0, 0, 0),
+            TextTrimming = TextTrimming.CharacterEllipsis, MaxWidth = 250,
+        };
+        void Refresh()
+        {
+            var p = _settings.Current.AutoSavePath;
+            path.Text = string.IsNullOrWhiteSpace(p) ? @"图片\FrameCapture（默认）" : p;
+        }
+        Refresh();
+        stack.Children.Add(lbl);
+        stack.Children.Add(path);
+        Grid.SetColumn(stack, 1);
+        g.Children.Add(stack);
+        var browse = new TextBlock
+        {
+            Text = "更改", FontSize = 12, Foreground = new SolidColorBrush(Theme.Accent),
+            VerticalAlignment = VerticalAlignment.Center, Cursor = Cursors.Hand, Margin = new Thickness(12, 0, 6, 0),
+        };
+        Grid.SetColumn(browse, 2);
+        g.Children.Add(browse);
+        void Open()
+        {
+            using var dlg = new System.Windows.Forms.FolderBrowserDialog
+            { Description = "选择自动保存副本的文件夹", UseDescriptionForTitle = true };
+            var cur = _settings.Current.AutoSavePath;
+            if (!string.IsNullOrWhiteSpace(cur) && System.IO.Directory.Exists(cur)) dlg.SelectedPath = cur;
+            // 设置窗 Topmost：对话框须挂到本窗句柄，否则可能盖在设置窗之下
+            var owner = new Win32.WndOwner(new System.Windows.Interop.WindowInteropHelper(this).Handle);
+            if (dlg.ShowDialog(owner) == System.Windows.Forms.DialogResult.OK)
+                _settings.Mutate(s => s.AutoSavePath = dlg.SelectedPath);
+            Refresh();
+        }
+        stack.MouseLeftButtonDown += (_, e) => { Open(); e.Handled = true; };
+        browse.MouseLeftButtonDown += (_, e) => { Open(); e.Handled = true; };
         return g;
     }
 
