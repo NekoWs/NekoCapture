@@ -398,3 +398,9 @@ status: done
 - **GOAL.md 固化两条硬教训**：① 构建必须 -p:Platform=x64（省略=AnyCPU 进 bin\Debug，运行实例静默用旧 dll）+
   截图前 dll 新鲜度探针；② 逐帧视觉审查工作流（burstregion→montage→原生分辨率裁条放大→GlyphProbe 带标签矩阵）。
   SelfTest 基线注释 73→110。
+
+## 2026-10-11 长跑 R14（DSH goal 轮，14:45 起）
+- **R14 时间轴秒标自适应（逐帧审查发现）**：49 帧短片段时间轴拉满宽度却只有整秒刻度可标（i%fps==0 只有 0）——
+  实际一枚秒标都没有。改为 Core.TimelineScale.LabelStepFrames 决策表：候选 {0.05..30}s 选像素间距 ≥90px 的最小档。
+  实测 51 帧短片现显示 0.1s..0.8s 秒标 + 逐帧小刻度 + 整步长刻度线，PR 观感达成。
+  SelfTest +T84a-d（110→114）：短/长/中密度 + 退化输入（0宽/0fps→1，极窄→最大档 30s）。

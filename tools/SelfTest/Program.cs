@@ -917,6 +917,22 @@ static class SelfTest
                     mem5.Count == 1 && mem5[0] == "#AABBCC",
                     "空/新色缺失时丢弃，不占位");
             }
+            // T84：时间轴秒标步长（Core.TimelineScale）
+            {
+                Chk("T84a-short-clip-fine-labels",
+                    TimelineScale.LabelStepFrames(39, 60) == 3,
+                    "短片段时间轴拉宽（39px/帧@60fps）→ 0.05s 步长（3帧=117px），不再只有一枚 0s");
+                Chk("T84b-long-clip-coarse-labels",
+                    TimelineScale.LabelStepFrames(1, 60) == 120,
+                    "长片段时间轴压扁（1px/帧@60fps）→ 2s 步长（120帧），不糊成一片");
+                Chk("T84c-mid-clip",
+                    TimelineScale.LabelStepFrames(10, 30) == 15,
+                    "中密度（10px/帧@30fps）→ 0.5s 步长（15帧）");
+                Chk("T84d-degenerate-inputs",
+                    TimelineScale.LabelStepFrames(0, 60) == 1 && TimelineScale.LabelStepFrames(10, 0) == 1
+                    && TimelineScale.LabelStepFrames(0.001, 60) == 1800,
+                    "退化输入返回 1；极窄时落到最大档 30s（1800帧）");
+            }
         }
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");
         return fail == 0 ? 0 : 1;

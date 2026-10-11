@@ -559,27 +559,26 @@ public sealed partial class EditorWindow
         double px = cw / (n - 1.0);
         var tick = Color.FromArgb(0xC8, Theme.Stroke.R, Theme.Stroke.G, Theme.Stroke.B);
 
-        // PR 式刻度尺：逐帧小刻度（太密则抽稀），整秒长刻度 + 秒标
+        // PR 式刻度尺：逐帧小刻度（太密则抽稀）；长刻度+秒标步长走 Core.TimelineScale 决策表
         int step = px >= 3 ? 1 : Math.Max(1, (int)Math.Ceiling(3.0 / px));
+        int fStep = Core.TimelineScale.LabelStepFrames(px, fps);
         for (int i = 0; i < n; i += step)
+            c.Children.Add(TlBar(i * px, 13, 1, 6, 0.5, tick));
+        for (int i = fStep; i < n; i += fStep)
         {
             double x = i * px;
-            bool major = i % fps == 0;
-            c.Children.Add(TlBar(x, major ? 9 : 13, 1, major ? 10 : 6, 0.5, tick));
-            if (major && i > 0)
+            c.Children.Add(TlBar(x, 9, 1, 10, 0.5, tick));
+            var tb = new TextBlock
             {
-                var tb = new TextBlock
-                {
-                    Text = $"{i / fps}s",
-                    FontSize = 8.5,
-                    FontFamily = new FontFamily("Segoe UI"),
-                    Foreground = new SolidColorBrush(Color.FromArgb(0xB0, Theme.Text.R, Theme.Text.G, Theme.Text.B)),
-                };
-                tb.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-                Canvas.SetLeft(tb, Math.Clamp(x - tb.DesiredSize.Width / 2, 0, Math.Max(0, cw - tb.DesiredSize.Width)));
-                Canvas.SetTop(tb, 0);
-                c.Children.Add(tb);
-            }
+                Text = (i / (double)fps).ToString("0.##") + "s",
+                FontSize = 8.5,
+                FontFamily = new FontFamily("Segoe UI"),
+                Foreground = new SolidColorBrush(Color.FromArgb(0xB0, Theme.Text.R, Theme.Text.G, Theme.Text.B)),
+            };
+            tb.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            Canvas.SetLeft(tb, Math.Clamp(x - tb.DesiredSize.Width / 2, 0, Math.Max(0, cw - tb.DesiredSize.Width)));
+            Canvas.SetTop(tb, 0);
+            c.Children.Add(tb);
         }
 
         // 底轨 + 已走到位置的填充
