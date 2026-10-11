@@ -26,6 +26,14 @@ public sealed class RegionPickerWindow : Window
     private bool _finished;
     private RectI? _existing;
     private readonly bool _snapContent;
+    private readonly bool _magnifier;
+    private System.Windows.Media.Imaging.BitmapSource? _snap; // 选区放大镜快照（构造时抓，遮罩未渲染→真实颜色）
+    private System.Windows.Controls.Border? _loupe;
+    private Image? _loupeImg;
+    private Rectangle? _loupeMarker;
+    private TextBlock? _loupeInfo;
+    private const int LoupeSpan = 15;   // 放大镜取源边长（源像素）
+    private const double LoupeSize = 150; // 放大镜显示边长（DIP）
 
     /// <summary>mouseDown 时记录（物理坐标，相对监视器原点存 DIP）。</summary>
     readonly System.Windows.Threading.DispatcherTimer _topTimer;
@@ -44,14 +52,22 @@ public sealed class RegionPickerWindow : Window
         Native.Win32.SetWindowPos(h, Native.Win32.HWND_TOPMOST, 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0010); // NOMOVE|NOSIZE|NOACTIVATE
     }
 
-    public RegionPickerWindow(MonitorInfo monitor, RectI? existing, bool snapContent = false, string? teachTip = null)
+    public RegionPickerWindow(MonitorInfo monitor, RectI? existing, bool snapContent = false, string? teachTip = null, bool magnifier = false)
     {
         // 覆盖层不需要文本输入：禁用输入法，避免拼音拦截快捷键
         System.Windows.Input.InputMethod.SetIsInputMethodEnabled(this, false);
         _monitor = monitor;
         _snapContent = snapContent;
+        _magnifier = magnifier;
         _monitorPhys = monitor.Bounds;
         _existing = existing;
+        // 放大镜快照：此刻本窗尚未 Show、遮罩未渲染，BitBlt 拿到干净桌面（旧选区虚线窗已 WDA 排除，不入镜）
+        if (_magnifier)
+        {
+            var f = LiveCapture.Grab(_monitorPhys);
+            if (f != null) _snap = FrameCapture.Services.BgraImage.ToSource(f);
+            else _magnifier = false;
+        }
 
         SourceInitialized += (_, _) =>
         {
@@ -172,6 +188,47 @@ public sealed class RegionPickerWindow : Window
             };
             _canvas.Children.Add(_badge);
 
+            // 放大镜：光标旁高倍像素窗 + 坐标/尺寸读数（R70）
+            if (_magnifier && _snap != null)
+            {
+                double cell = LoupeSize / LoupeSpan;
+                _loupeImg = new Image { Width = LoupeSize, Height = LoupeSize, Stretch = Stretch.Fill };
+                RenderOptions.SetBitmapScalingMode(_loupeImg, BitmapScalingMode.NearestNeighbor);
+                _loupeMarker = new Rectangle
+                {
+                    Width = cell, Height = cell,
+                    Stroke = new SolidColorBrush(Color.FromRgb(0x4C, 0xC2, 0xFF)),
+                    StrokeThickness = 1, SnapsToDevicePixels = true,
+                };
+                var markerCanvas = new Canvas { Width = LoupeSize, Height = LoupeSize, IsHitTestVisible = false };
+                markerCanvas.Children.Add(_loupeMarker);
+                var loupeGrid = new Grid();
+                loupeGrid.Children.Add(_loupeImg);
+                loupeGrid.Children.Add(markerCanvas);
+                _loupeInfo = new TextBlock
+                {
+                    FontSize = 11,
+                    Foreground = new SolidColorBrush(Color.FromRgb(0x4C, 0xC2, 0xFF)),
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    Margin = new Thickness(0, 3, 0, 0),
+                };
+                var loupeStack = new StackPanel();
+                loupeStack.Children.Add(loupeGrid);
+                loupeStack.Children.Add(_loupeInfo);
+                _loupe = new System.Windows.Controls.Border
+                {
+                    Background = new SolidColorBrush(Color.FromArgb(0xE6, 0x1B, 0x1B, 0x1B)),
+                    BorderBrush = new SolidColorBrush(Color.FromArgb(0x80, 0x4C, 0xC2, 0xFF)),
+                    BorderThickness = new Thickness(1),
+                    CornerRadius = new CornerRadius(6),
+                    Padding = new Thickness(4),
+                    IsHitTestVisible = false,
+                    Visibility = Visibility.Collapsed,
+                    Child = loupeStack,
+                };
+                _canvas.Children.Add(_loupe);
+            }
+
             if (_existing != null)
             {
                 var r = ToDip(_existing.Value);
@@ -263,11 +320,13 @@ public sealed class RegionPickerWindow : Window
 
     private void OnMove(object sender, MouseEventArgs e)
     {
-        var p = WindowPosToPhys(e.GetPosition(this));
+        var dip = e.GetPosition(this);
+        var p = WindowPosToPhys(dip);
         if (_dragging)
         {
             var rect = RectI.FromCorners(_dragX1, _dragY1, p.X, p.Y);
             ShowSpot(rect);
+            UpdateLoupe(dip, p, rect);
         }
         else
         {
@@ -280,14 +339,34 @@ public sealed class RegionPickerWindow : Window
                 {
                     _curElem = eh;
                     ShowSpot(eh.Rect);
+                    UpdateLoupe(dip, p, eh.Rect);
                     return;
                 }
             }
             _curElem = null;
             var hit = SnapWindowAt(p);
-            if (hit != null) ShowSpot(hit.Value);
-            else if (_existing == null) ShowSpot(null);
+            if (hit != null) { ShowSpot(hit.Value); UpdateLoupe(dip, p, hit); }
+            else if (_existing == null) { ShowSpot(null); UpdateLoupe(dip, p, null); }
+            else UpdateLoupe(dip, p, _existing);
         }
+    }
+
+    /// <summary>更新放大镜：从快照取光标周围像素高倍显示，标记光标正下方像素，读数显示坐标(+选区尺寸)。</summary>
+    private void UpdateLoupe(Point dip, (int X, int Y) phys, RectI? sel)
+    {
+        if (!_magnifier || _loupe == null || _loupeImg == null || _loupeMarker == null || _loupeInfo == null || _snap == null) return;
+        int sx = phys.X - _monitorPhys.X, sy = phys.Y - _monitorPhys.Y;
+        var (cx, cy, size) = Core.MagnifierMath.Crop(sx, sy, _snap.PixelWidth, _snap.PixelHeight, LoupeSpan);
+        _loupeImg.Source = new System.Windows.Media.Imaging.CroppedBitmap(_snap, new Int32Rect(cx, cy, size, size));
+        double cell = LoupeSize / size;
+        _loupeMarker.Width = _loupeMarker.Height = cell;
+        Canvas.SetLeft(_loupeMarker, (sx - cx) * cell);
+        Canvas.SetTop(_loupeMarker, (sy - cy) * cell);
+        _loupe.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        var (lx, ly) = Core.MagnifierMath.Place(dip.X, dip.Y, _loupe.DesiredSize.Width, _loupe.DesiredSize.Height, Width, Height, 18);
+        Canvas.SetLeft(_loupe, lx); Canvas.SetTop(_loupe, ly);
+        _loupeInfo.Text = sel != null ? $"{phys.X}, {phys.Y}   {sel.Value.W}×{sel.Value.H}" : $"{phys.X}, {phys.Y}";
+        _loupe.Visibility = Visibility.Visible;
     }
 
     private void OnUp(object sender, MouseButtonEventArgs e)

@@ -1451,6 +1451,24 @@ static class SelfTest
                 Chk("T105c-ocr-ws", FrameCapture.Core.OcrService.Classify("  \n\t ") == FrameCapture.Core.OcrStatus.Empty, "全空白 → Empty");
                 Chk("T105d-ocr-padded", FrameCapture.Core.OcrService.Classify("  有字  ") == FrameCapture.Core.OcrStatus.Success, "带空白有字 → Success");
             }
+
+            // T106 选区放大镜几何（R70，MagnifierMath 纯决策）
+            {
+                var c1 = FrameCapture.Core.MagnifierMath.Crop(100, 100, 1000, 1000, 15);
+                Chk("T106a-crop-center", c1 == (93, 93, 15), "中心 → 居中 15×15");
+                var c2 = FrameCapture.Core.MagnifierMath.Crop(2, 2, 1000, 1000, 15);
+                Chk("T106b-crop-left", c2 == (0, 0, 15), "近左上 → 夹到 0,0");
+                var c3 = FrameCapture.Core.MagnifierMath.Crop(998, 998, 1000, 1000, 15);
+                Chk("T106c-crop-right", c3 == (985, 985, 15), "近右下 → 夹到 snap-span");
+                var c4 = FrameCapture.Core.MagnifierMath.Crop(5, 5, 10, 10, 15);
+                Chk("T106d-crop-small", c4 == (0, 0, 10), "快照小于 span → 退化整幅");
+                var p1 = FrameCapture.Core.MagnifierMath.Place(100, 100, 150, 180, 1000, 1000, 18);
+                Chk("T106e-place-br", p1 == (118, 118), "默认贴右下");
+                var p2 = FrameCapture.Core.MagnifierMath.Place(950, 100, 150, 180, 1000, 1000, 18);
+                Chk("T106f-place-flipx", p2 == (782, 118), "越右边 → 翻左");
+                var p3 = FrameCapture.Core.MagnifierMath.Place(100, 950, 150, 180, 1000, 1000, 18);
+                Chk("T106g-place-flipy", p3 == (118, 752), "越下边 → 翻上");
+            }
         }
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");
         return fail == 0 ? 0 : 1;

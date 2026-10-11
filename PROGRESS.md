@@ -976,3 +976,20 @@ status: done
 - 完整护栏 GUARDRAIL PASS（FAIL=0 SKIP=1）
 - 实机 e2e：记事本显示「ZEBRA FRAMECAPTURE OCR / HELLO 4242 WORLD / ABCDEFG 98765」→ 设区域 → F6 截图 → Ctrl+O → 剪贴板=`ZEB RA FRAMECAPTURE OCR HELLO 4242 WORLD ABCDEFG 98765`（关键 token 全中，仅 ZEBRA 多一空格，OCR 常见）；trace `Control+O → ocr ok 54 chars`；截图亲眼看 snackbar「已识别 54 字 · 已复制」渲染正确
 - 踩坑：`ctrlw` 发组合键时 Ctrl 未保持到目标键（trace 见 O 无修饰）；发组合键用 `hkm <vk> 1 0 0 0 <ms>`（按住修饰）
+
+## R70 · 选区放大镜（loupe）——像素级精确选区，QQ/Snipaste 招牌
+
+**动机**：精确选区是截图工具核心手感，QQ/Snipaste 都有光标旁放大镜。选区窗是实时挖洞遮罩（无快照），放大镜需真实像素 → 先取快照。
+
+**实现**：
+- 快照时机：选区窗**构造时**（本窗未 Show、遮罩未渲染）`LiveCapture.Grab(_monitorPhys)` 抓干净桌面（旧选区虚线窗已 WDA 排除，不入镜）→ `BgraImage.ToSource` 冻结 BitmapSource。抓失败则自动降级不显示放大镜。
+- 放大镜 UI（加到 `_canvas` 最上层，IsHitTestVisible=false）：`Image` 显示 `CroppedBitmap`（光标周围 15×15 源像素 → 150 DIP，NearestNeighbor 像素化）+ 中心像素标记（蓝方框，随夹取动态定位到光标正下方那个像素）+ 底部读数「X, Y  W×H」（坐标 + 当前吸附/拖框尺寸）。
+- `OnMove` 每动更新：拖框态传拖框矩形，悬停态传吸附矩形/控件矩形；`MagnifierMath.Place` 贴光标右下、越界翻边。
+- `Core/MagnifierMath.cs` 新建：`Crop`（源矩形夹进快照，快照小于 span 退化整幅）+ `Place`（翻边摆放）纯函数。
+- 设置项 `PickerMagnifier`（默认开）：SettingsWindow「截图」段 ToggleRow（E721 放大镜字形，GlyphProbe matrix 验证非豆腐）；HelpWindow/README 补说明。
+
+**验证**：
+- 构建 0 错误；SelfTest **229/229**（T106a-g：Crop 中心/夹左/夹右/小快照 + Place 默认/翻X/翻Y）
+- 完整护栏 GUARDRAIL PASS（FAIL=0 SKIP=1）
+- 实机 e2e：F7 开选区 → SetCursorPos 移光标（pwsh DPI-unaware，传 P/1.5 命中物理 P，读数印证坐标精确）→ 截图亲眼看放大镜：圆角蓝框 + 中心标记 + 读数「363,524 3840×2088」，移到聊天侧栏「12天」处放大出清晰像素块「12」；设置窗「选区放大镜」开关渲染正确（图标+默认开）
+- 踩坑：pwsh DPI-unaware，SetCursorPos 坐标被系统 ×1.5 虚拟化；`Border.BorderThickness` 是 Thickness 非 double

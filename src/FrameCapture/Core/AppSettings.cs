@@ -96,6 +96,10 @@ public sealed class AppSettings
     /// <summary>开机自启。</summary>
     public bool RunAtStartup { get; set; }
 
+    /// <summary>选区放大镜（默认开，R70）：拖框/悬停选区时，光标旁显示高倍像素放大镜 + 坐标/尺寸读数，
+    /// 便于像素级精确选区（QQ/Snipaste 招牌手感）。关闭则不抓快照、不显示放大镜。</summary>
+    public bool PickerMagnifier { get; set; } = true;
+
     // ---- 上次捕获范围（物理像素，虚拟桌面绝对坐标；null 表示全屏主屏） ----
     public string? RegionMonitorId { get; set; }
     public int RegionX { get; set; }

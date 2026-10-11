@@ -113,6 +113,8 @@ public sealed class SettingsWindow : Window
             _settings.Current.SnapContentArea, v => _settings.Mutate(s => s.SnapContentArea = v)));
         panel.Children.Add(ToggleRow("\uE7C4", "显示上次选区", "按下选区快捷键后，用虚线框显示上次的选区位置（Enter 可直接确认重选同区域）；关闭后每次都是干净屏",
             _settings.Current.ShowLastRegion, v => _settings.Mutate(s => s.ShowLastRegion = v)));
+        panel.Children.Add(ToggleRow("\uE721", "选区放大镜", "拖框或悬停选区时，光标旁显示高倍像素放大镜与坐标/尺寸读数，便于像素级精确选区（QQ/Snipaste 式）；关闭可省一点开销",
+            _settings.Current.PickerMagnifier, v => _settings.Mutate(s => s.PickerMagnifier = v)));
         panel.Children.Add(ToggleRow("\uE71A", "常显捕获范围轮廓", "在屏幕上持续显示当前捕获范围的边框",
             _settings.Current.AlwaysShowRegionOutline, v => _settings.Mutate(s => s.AlwaysShowRegionOutline = v)));
 

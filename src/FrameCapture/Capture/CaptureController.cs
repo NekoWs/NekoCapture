@@ -160,7 +160,7 @@ public sealed class CaptureController : IDisposable
             : $"提示：按住或连按两下 {_settings.Current.CaptureHotkey} = 录制 GIF（点按 = 截图）";
         // 旧选区可关（R55 设置项）：关=干净屏选区，Enter 确认上次选区随之无意义
         _picker = new RegionPickerWindow(monitor, existing: _settings.Current.ShowLastRegion ? StoredRegion()?.Bounds : null,
-            snapContent: _settings.Current.SnapContentArea, teachTip: teachTip);
+            snapContent: _settings.Current.SnapContentArea, teachTip: teachTip, magnifier: _settings.Current.PickerMagnifier);
         _picker.Result += region =>
         {
             _picker = null;
