@@ -220,7 +220,14 @@ public sealed partial class EditorWindow
     {
         if (_tool == Tool.Browse) return;
         e.Handled = true;
-        if (_tool == Tool.Text) { OpenTextInput(e.GetPosition(_canvas)); return; } // 文字：点哪写哪，不拖框
+        if (_tool == Tool.Text)
+        {
+            // 文字：点哪写哪；点到已有文字 = 重新编辑（R50）
+            var tp = e.GetPosition(_canvas);
+            var hit = HitText(tp);
+            OpenTextInput(hit != null ? NormToDisp(hit.Points[0]) : tp, hit);
+            return;
+        }
         _canvas.CaptureMouse();
         _pressPos = e.GetPosition(_canvas);
         _dragging = true;
@@ -257,7 +264,7 @@ public sealed partial class EditorWindow
                 _preview = new Rectangle
                 {
                     Stroke = new SolidColorBrush(Acc), StrokeThickness = 1.5, StrokeDashArray = new DoubleCollection { 4, 3 },
-                    Fill = MosaicBrush(GetMosaic(_index, CurWidth), new Rect(0, 0, 0.001, 0.001), new Rect(0, 0, 1, 1)),
+                    Fill = MosaicBrush(GetMosaicRect(_index, CurWidth, (int)_pressPos.X, (int)_pressPos.Y, 2, 2, cache: false), new Rect(0, 0, 1, 1), new Rect(0, 0, 1, 1)),
                 };
                 break;
         }
@@ -305,9 +312,12 @@ public sealed partial class EditorWindow
             {
                 double w = Math.Abs(p.X - _pressPos.X), h = Math.Abs(p.Y - _pressPos.Y);
                 double x = Math.Min(_pressPos.X, p.X), y = Math.Min(_pressPos.Y, p.Y);
-                var m0 = Norm(_pressPos); var m1 = Norm(p);
-                mb.Viewbox = new Rect(Math.Min(m0.X, m1.X), Math.Min(m0.Y, m1.Y), Math.Max(0.001, Math.Abs(m1.X - m0.X)), Math.Max(0.001, Math.Abs(m1.Y - m0.Y)));
-                mb.Viewport = new Rect(0, 0, Math.Max(1, w), Math.Max(1, h)); // 元素本地坐标系
+                // 预览位图 = 当前拖框在帧像素上的区域马赛克（块对齐框原点，与烘焙一致）；拖框中不进缓存
+                var m0 = Norm(new Point(x, y)); var m1 = Norm(new Point(x + w, y + h));
+                var mf = _seq.Frames[_index];
+                int rx = (int)Math.Round(m0.X * mf.W), ry = (int)Math.Round(m0.Y * mf.H);
+                int rw = Math.Max(1, (int)Math.Round((m1.X - m0.X) * mf.W)), rh = Math.Max(1, (int)Math.Round((m1.Y - m0.Y) * mf.H));
+                mr.Fill = MosaicBrush(GetMosaicRect(_index, CurWidth, rx, ry, rw, rh, cache: false), new Rect(0, 0, 1, 1), new Rect(0, 0, Math.Max(1, w), Math.Max(1, h))); // 元素本地坐标系
                 _preview.Width = w; _preview.Height = h;
                 Canvas.SetLeft(_preview, x); Canvas.SetTop(_preview, y);
                 break;
@@ -422,29 +432,55 @@ public sealed partial class EditorWindow
         if (_cropHint != null) { _canvas.Children.Remove(_cropHint); _cropHint = null; }
     }
 
-    // ---------------- 文字标注（R46）：点画布→就地输入→Enter/失焦上屏 ----------------
+    // ---------------- 文字标注（R46）：点画布→就地输入→Enter/失焦上屏；R50 点已有文字=再编辑 ----------------
 
     TextBox? _textInput;
     Point _textPos;
+    Annotation? _textEditing;
+    readonly List<(System.Windows.Controls.TextBlock el, Annotation a)> _textEls = new();
 
-    void OpenTextInput(Point pos)
+    /// <summary>命中标注元素矩形（后画在上 → 倒序取顶）。</summary>
+    Annotation? HitText(Point p)
+    {
+        for (int i = _textEls.Count - 1; i >= 0; i--)
+        {
+            var (el, a) = _textEls[i];
+            var r = new Rect(Canvas.GetLeft(el), Canvas.GetTop(el), Math.Max(8, el.ActualWidth), Math.Max(8, el.ActualHeight));
+            if (r.Contains(p)) return a;
+        }
+        return null;
+    }
+
+    Point NormToDisp((float X, float Y) n) => new(_imgRect.X + n.X * _imgRect.Width, _imgRect.Y + n.Y * _imgRect.Height);
+
+    void OpenTextInput(Point pos, Annotation? editing = null)
     {
         if (_textInput != null) CommitTextInput();
         var f = _seq.Frames[_index];
-        double disp = FrameCapture.Core.AnnFont.BakePx(CurWidth, f.W, f.H) * Math.Max(0.05, _imgRect.Width / Math.Max(1, f.W));
+        // 与上屏 TextBlock 完全同式的字号（R50：此前 clamp 下限不同导致预览/上屏字号错位）
+        double disp = FrameCapture.Core.AnnFont.BakePx(editing?.Thickness ?? CurWidth, f.W, f.H) * Math.Max(0.05, _imgRect.Width / Math.Max(1, f.W));
         var box = new TextBox
         {
             MinWidth = 120, MaxWidth = 640,
-            FontSize = Math.Clamp(disp, 12, 96),
+            FontSize = Math.Clamp(disp, 8, 400),
             FontWeight = FontWeights.Bold,
-            Foreground = new SolidColorBrush(CurColor),
+            Foreground = new SolidColorBrush(editing != null
+                ? System.Windows.Media.Color.FromArgb(editing.Color.A, editing.Color.R, editing.Color.G, editing.Color.B)
+                : CurColor),
             Background = new SolidColorBrush(Color.FromArgb(0x40, 0, 0, 0)),
             BorderBrush = new SolidColorBrush(Acc),
             BorderThickness = new Thickness(1.5),
             Padding = new Thickness(5, 2, 5, 2),
             AcceptsReturn = false,
         };
-        Canvas.SetLeft(box, pos.X); Canvas.SetTop(box, pos.Y);
+        if (editing != null && editing.Points.Count > 0)
+        {
+            box.Text = editing.Text;
+            box.SelectAll();
+            _textEditing = editing;
+        }
+        // 文字起点 = pos：把边框+内边距反向挪掉，输入框里的字与上屏后的字同位（R50 修预览错位）
+        Canvas.SetLeft(box, pos.X - 6.5); Canvas.SetTop(box, pos.Y - 3.5);
         _textPos = pos;
         box.PreviewKeyDown += (_, ek) =>
         {
@@ -465,6 +501,22 @@ public sealed partial class EditorWindow
         _textInput = null;
         string txt = box.Text.Trim();
         _canvas.Children.Remove(box);
+        var editing = _textEditing;
+        _textEditing = null;
+        if (editing != null)
+        {
+            // 再编辑：空文或无改动 = 保持原样（删除对象随对象编辑子系统一起上）；有改动 = 原位替换，可撤销
+            if (txt.Length > 0 && txt != editing.Text)
+            {
+                var e = new Annotation { Kind = AnnKind.Text, Color = editing.Color, Thickness = editing.Thickness };
+                foreach (var p in editing.Points) e.Points.Add(p);
+                e.Text = txt;
+                if (_anns.Replace(editing, e)) { _order.AnnAdded(); RefreshUndo(); }
+                FrameCapture.Core.Trace.Log($"editor text edit len={txt.Length}");
+            }
+            RedrawAnns();
+            return;
+        }
         if (txt.Length == 0) return;
         var n = Norm(_textPos);
         var c0 = CurColor;
@@ -479,25 +531,64 @@ public sealed partial class EditorWindow
         if (_textInput == null) return;
         _canvas.Children.Remove(_textInput);
         _textInput = null;
+        _textEditing = null;
     }
 
     // ---------------- 马赛克（R47）：拖框实时块均值预览，与烘焙共用 MosaicInPlace ----------------
 
-    readonly Dictionary<(int, float), BitmapSource> _mosaicCache = new();
+    readonly Dictionary<(int, float, int, int, int, int), BitmapSource> _mosaicCache = new();
+    readonly List<(System.Windows.Shapes.Rectangle el, Annotation a)> _mosaicEls = new();
 
-    BitmapSource GetMosaic(int frameIndex, float thickness)
+    /// <summary>标注矩形的帧像素矩形（钳进画布）。</summary>
+    (bool Ok, int Rx, int Ry, int Rw, int Rh) MosaicPx(Annotation a)
     {
-        var key = (frameIndex, thickness);
-        if (_mosaicCache.TryGetValue(key, out var hit)) return hit;
+        if (a.Points.Count < 2) return (false, 0, 0, 0, 0);
+        var f = _seq.Frames[_index];
+        int rx = (int)Math.Round(Math.Clamp(Math.Min(a.Points[0].X, a.Points[1].X), 0f, 1f) * f.W);
+        int ry = (int)Math.Round(Math.Clamp(Math.Min(a.Points[0].Y, a.Points[1].Y), 0f, 1f) * f.H);
+        int rw = (int)Math.Round(Math.Clamp(Math.Abs(a.Points[1].X - a.Points[0].X), 0f, 1f) * f.W);
+        int rh = (int)Math.Round(Math.Clamp(Math.Abs(a.Points[1].Y - a.Points[0].Y), 0f, 1f) * f.H);
+        rw = Math.Min(rw, f.W - rx); rh = Math.Min(rh, f.H - ry);
+        return (rw > 0 && rh > 0, rx, ry, rw, rh);
+    }
+
+    /// <summary>
+    /// 帧的指定区域马赛克位图（R50）：只算区域不算整帧 → 翻帧/播放时逐帧重算也便宜，
+    /// 马赛克从「静止贴图」变成「区域滤镜」。块从区域原点起算，与 Bake 完全一致（WYSIWYG，T94 锁）。
+    /// </summary>
+    BitmapSource GetMosaicRect(int frameIndex, float thickness, int rx, int ry, int rw, int rh, bool cache = true)
+    {
         var f = _seq.Frames[frameIndex];
-        var copy = (byte[])f.Bgra.Clone();
-        FrameCapture.Services.BgraImage.MosaicInPlace(copy, f.W, f.H, 0, 0, f.W, f.H,
+        rx = Math.Clamp(rx, 0, Math.Max(0, f.W - 1)); ry = Math.Clamp(ry, 0, Math.Max(0, f.H - 1));
+        rw = Math.Max(1, Math.Min(rw, f.W - rx)); rh = Math.Max(1, Math.Min(rh, f.H - ry));
+        var key = (frameIndex, thickness, rx, ry, rw, rh);
+        if (cache && _mosaicCache.TryGetValue(key, out var hit)) return hit;
+        var buf = new byte[rw * rh * 4];
+        for (int row = 0; row < rh; row++)
+            Buffer.BlockCopy(f.Bgra, ((ry + row) * f.W + rx) * 4, buf, row * rw * 4, rw * 4);
+        FrameCapture.Services.BgraImage.MosaicInPlace(buf, rw, rh, 0, 0, rw, rh,
             FrameCapture.Core.MosaicBlock.Px(thickness, f.W, f.H));
-        var src = BitmapSource.Create(f.W, f.H, 96, 96, PixelFormats.Bgra32, null, copy, f.W * 4);
+        var src = BitmapSource.Create(rw, rh, 96, 96, PixelFormats.Bgra32, null, buf, rw * 4);
         src.Freeze();
-        if (_mosaicCache.Count > 12) _mosaicCache.Clear(); // 换宽度挡位/翻帧的旧条目整体让位
-        _mosaicCache[key] = src;
+        if (cache)
+        {
+            if (_mosaicCache.Count > 24) _mosaicCache.Clear(); // 区域小，24 帧也才几十 MB 上限内
+            _mosaicCache[key] = src;
+        }
         return src;
+    }
+
+    /// <summary>翻帧/播放时刷新所有马赛克元素的内容（R50：马赛克是区域滤镜，不是静止贴图）。</summary>
+    void UpdateMosaicBrushes()
+    {
+        if (_mosaicEls.Count == 0) return;
+        foreach (var (el, a) in _mosaicEls)
+        {
+            var (ok, rx, ry, rw, rh) = MosaicPx(a);
+            if (!ok) continue;
+            el.Fill = MosaicBrush(GetMosaicRect(_index, a.Thickness, rx, ry, rw, rh), new Rect(0, 0, 1, 1),
+                new Rect(0, 0, Math.Max(1, el.Width), Math.Max(1, el.Height)));
+        }
     }
 
     static ImageBrush MosaicBrush(BitmapSource src, Rect viewbox, Rect viewport) => new(src)
@@ -587,6 +678,8 @@ public sealed partial class EditorWindow
     void RedrawAnns()
     {
         _canvas.Children.Clear();
+        _mosaicEls.Clear();
+        _textEls.Clear();
         foreach (var a in _anns.Items)
         {
             double s = Math.Max(1, Math.Min(_imgRect.Width, _imgRect.Height));
@@ -637,14 +730,15 @@ public sealed partial class EditorWindow
                     break;
                 case AnnKind.Mosaic when pts.Count >= 2:
                 {
-                    var vb = new Rect(Math.Min(a.Points[0].X, a.Points[1].X), Math.Min(a.Points[0].Y, a.Points[1].Y),
-                        Math.Max(0.001, Math.Abs(a.Points[1].X - a.Points[0].X)), Math.Max(0.001, Math.Abs(a.Points[1].Y - a.Points[0].Y)));
                     var vp = new Rect(Math.Min(pts[0].X, pts[1].X), Math.Min(pts[0].Y, pts[1].Y),
                         Math.Max(1, Math.Abs(pts[1].X - pts[0].X)), Math.Max(1, Math.Abs(pts[1].Y - pts[0].Y)));
-                    // Viewport 是元素本地坐标系：必须 (0,0,w,h)，画布定位交给 Canvas.SetLeft/Top
-                    var el = new Rectangle { Fill = MosaicBrush(GetMosaic(_index, a.Thickness), vb, new Rect(0, 0, vp.Width, vp.Height)), Width = vp.Width, Height = vp.Height };
+                    var (ok, rx, ry, rw, rh) = MosaicPx(a);
+                    if (!ok) break;
+                    // 区域位图铺满元素：Viewbox 全幅，Viewport 是元素本地坐标 (0,0,w,h)，画布定位交给 Canvas.SetLeft/Top
+                    var el = new Rectangle { Fill = MosaicBrush(GetMosaicRect(_index, a.Thickness, rx, ry, rw, rh), new Rect(0, 0, 1, 1), new Rect(0, 0, vp.Width, vp.Height)), Width = vp.Width, Height = vp.Height };
                     Canvas.SetLeft(el, vp.X); Canvas.SetTop(el, vp.Y);
                     _canvas.Children.Add(el);
+                    _mosaicEls.Add((el, a));
                     break;
                 }
                 case AnnKind.Text when pts.Count > 0 && !string.IsNullOrEmpty(a.Text):
@@ -660,6 +754,7 @@ public sealed partial class EditorWindow
                     };
                     Canvas.SetLeft(tb, pts[0].X); Canvas.SetTop(tb, pts[0].Y);
                     _canvas.Children.Add(tb);
+                    _textEls.Add((tb, a));
                     break;
                 }
             }

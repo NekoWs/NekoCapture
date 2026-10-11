@@ -703,6 +703,7 @@ public sealed partial class EditorWindow : Window
     {
         _index = Math.Clamp(index, 0, _seq.Frames.Count - 1);
         _view.Source = _bitmaps[_index];
+        UpdateMosaicBrushes(); // 马赛克=区域滤镜：内容随帧走，不是静止贴图（R50）
         double tMs = _seq.Frames[_index].TimeMs;
         double eff = _imgRect.Width / Math.Max(1, _seq.Frames[_index].W);
         string zoomTxt = _zoom <= 1.001 ? "" : (Math.Abs(eff - 1.0) < 0.02 ? "  1:1" : $"  {eff * 100:0}%");

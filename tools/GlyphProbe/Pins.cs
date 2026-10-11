@@ -6,7 +6,8 @@ static class Pins
 {
     public static void Run(string outPath)
     {
-        string[] gs = { "\uE80A", "\uE909", "\uE7C4", "\uE82A", "\uEB9F", "\uF0E2", "\uE9F6", "\uECA5", "\uE7B7", "\uEA45" };
+        // R50 序号标注候选：E2A6 NumberSymbol / E9F9 Calculator / E8EF CheckboxComposite / EA3C / F215 NumberField / E825 CalculatorMultiply / E9D5 / EC3C / E958 / E8A1
+        string[] gs = { "\uE2A6", "\uE9F9", "\uE8EF", "\uEA3C", "\uF215", "\uE825", "\uE9D5", "\uEC3C", "\uE958", "\uE8A1" };
         var ft = new Typeface(new FontFamily("Segoe Fluent Icons"), FontStyles.Normal, FontWeights.Normal, FontStretches.Normal);
         int x = 0; var vt = new DrawingVisual();
         using (var dt = vt.RenderOpen())

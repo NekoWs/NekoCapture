@@ -1122,6 +1122,56 @@ static class SelfTest
                 Chk("T92f-sym", tools.All(t => t.Sym.Length == 1 && !(t.Sym[0] >= 0xE000 && t.Sym[0] <= 0xF8FF)),
                     "帮助符号是普通 Unicode（默认字体可渲染，图标字形进帮助窗=豆腐块）");
             }
+            {
+                // T93 操作栈（R50）：编辑可撤销/重做、顺序保持、操作时序 LIFO——文字再编辑与对象化编辑的地基
+                var h = new FrameCapture.Core.UndoRedo<string>();
+                var a = "A"; var b = "B"; var b2 = "B'";
+                h.Add(a); h.Add(b);
+                Chk("T93a-replace", h.Replace(b, b2) && h.Items.SequenceEqual(new[] { a, b2 }) && h.Count == 2, "Replace 原位换新对象");
+                Chk("T93b-undo-edit", h.Undo(out var it, out var res) && ReferenceEquals(it, b2) && ReferenceEquals(res, b) && h.Items.SequenceEqual(new[] { a, b }),
+                    "撤销编辑=原位还原旧对象");
+                Chk("T93c-redo-edit", h.Redo(out var it2) && ReferenceEquals(it2, b2) && h.Items.SequenceEqual(new[] { a, b2 }), "重做编辑=原位再换");
+                // 时序：Add A → Add B → Edit A→A'；撤销次序必须是 Edit、B、A（不是列表尾序）
+                var h2 = new FrameCapture.Core.UndoRedo<string>();
+                var a0 = "A"; var b0 = "B"; var a1 = "A'";
+                h2.Add(a0); h2.Add(b0); h2.Replace(a0, a1);
+                h2.Undo(out _, out var r1);
+                Chk("T93d-lifo-edit", ReferenceEquals(r1, a0) && h2.Items.SequenceEqual(new[] { a0, b0 }), "先撤编辑（即使它不在列表尾）");
+                h2.Undo(out var r2, out _);
+                Chk("T93e-lifo-add", ReferenceEquals(r2, b0) && h2.Items.SequenceEqual(new[] { a0 }), "再撤 Add B");
+                h2.Undo(out var r3, out _);
+                Chk("T93f-empty", ReferenceEquals(r3, a0) && h2.Count == 0 && !h2.CanUndo, "最后撤 Add A，栈空");
+                Chk("T93g-replace-missing", !h2.Replace("nope", "x"), "替换不存在的对象返回 false");
+            }
+            {
+                // T94 马赛克 WYSIWYG（R50）：编辑器预览=区域提取后 MosaicInPlace(0,0)，烘焙=整帧内 rect 起块
+                // 两者必须逐字节一致，否则预览与输出块相位错位
+                int w = 64, h = 64, rx = 10, ry = 8, rw = 30, rh = 20, blk = 6;
+                var full = new byte[w * h * 4];
+                var rnd = new Random(7);
+                rnd.NextBytes(full);
+                var fullCopy = (byte[])full.Clone();
+                FrameCapture.Services.BgraImage.MosaicInPlace(fullCopy, w, h, rx, ry, rw, rh, blk);
+                var region = new byte[rw * rh * 4];
+                for (int row = 0; row < rh; row++)
+                    Buffer.BlockCopy(fullCopy, ((ry + row) * w + rx) * 4, region, row * rw * 4, rw * 4);
+                var regCopy = new byte[rw * rh * 4];
+                for (int row = 0; row < rh; row++)
+                    Buffer.BlockCopy(full, ((ry + row) * w + rx) * 4, regCopy, row * rw * 4, rw * 4);
+                FrameCapture.Services.BgraImage.MosaicInPlace(regCopy, rw, rh, 0, 0, rw, rh, blk);
+                Chk("T94a-region-eq-bake", region.SequenceEqual(regCopy), "区域提取马赛克 ≡ 整帧 rect 马赛克（逐字节）");
+                var ann = new Annotation { Kind = AnnKind.Mosaic, Thickness = 6 };
+                ann.Points.Add((0.1f, 0.2f)); ann.Points.Add((0.5f, 0.6f));
+                // 100×50 帧：归一化 (0.1,0.2)-(0.5,0.6) → 像素矩形 (10,10,40,20)；框内变块均值、框外原样
+                var src = Solid(100, 50, 10, 20, 30);
+                for (int i = 0; i < src.Bgra.Length; i++) src.Bgra[i] = (byte)(i % 251);
+                var srcSnap = (byte[])src.Bgra.Clone();
+                var baked = Bake.Apply(new[] { src }, new[] { ann })[0];
+                int iIn = (15 * 100 + 15) * 4, iOut = (15 * 100 + 5) * 4;
+                bool inChanged = baked.Bgra[iIn] != srcSnap[iIn] || baked.Bgra[iIn + 1] != srcSnap[iIn + 1] || baked.Bgra[iIn + 2] != srcSnap[iIn + 2];
+                Chk("T94b-bake-rect-map", inChanged && baked.Bgra[iOut] == srcSnap[iOut] && baked.Bgra[iOut + 1] == srcSnap[iOut + 1] && baked.Bgra[iOut + 2] == srcSnap[iOut + 2],
+                    "归一化→像素矩形映射正确：框内马赛克、框外原样");
+            }
         }
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");
         return fail == 0 ? 0 : 1;
