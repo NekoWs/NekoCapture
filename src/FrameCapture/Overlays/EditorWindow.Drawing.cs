@@ -16,8 +16,15 @@ public sealed partial class EditorWindow
 {
     enum Tool { Browse, Select, Line, Ellipse, Arrow, Freehand, Text, Mosaic, Crop }
 
-    // 工具顺序与 ToolCatalog.Tools 一一对应（T92 锁死）；图标/提示文案的唯一数据源在 Core.ToolCatalog
-    static readonly Tool[] ToolOrder = { Tool.Select, Tool.Line, Tool.Ellipse, Tool.Arrow, Tool.Freehand, Tool.Text, Tool.Mosaic, Tool.Crop };
+    // 工具顺序与 ToolCatalog.Tools 一一对应（T92 锁死）；图标/提示文案的唯一数据源在 Core.ToolCatalog。
+    // ToolOrder 由目录键位派生（R52 教训：手写平行数组+断言=断言写错直接 abort 进程，派生让漂移无处可漂）
+    static Tool FromKey(string k) => k switch
+    {
+        "V" => Tool.Select, "L" => Tool.Line, "O" => Tool.Ellipse, "A" => Tool.Arrow,
+        "P" => Tool.Freehand, "T" => Tool.Text, "M" => Tool.Mosaic, "C" => Tool.Crop,
+        _ => throw new InvalidOperationException($"工具目录键 {k} 未接 Tool 枚举"),
+    };
+    static readonly Tool[] ToolOrder = FrameCapture.Core.ToolCatalog.Tools.Select(t => FromKey(t.Key)).ToArray();
     static readonly Color[] Swatches =
     {
         Color.FromRgb(0xE8, 0x11, 0x23), Color.FromRgb(0xFF, 0xB9, 0x00),

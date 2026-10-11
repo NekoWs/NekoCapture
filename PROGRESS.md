@@ -702,3 +702,13 @@ status: done
 - 目录防漂移再加一道：BuildToolsBar 断言 ToolOrder[i] 与 ToolCatalog.Tools[i] 键位一致（Debug.Assert）。
 - 用户又加 3 条待办入档：设置窗自绘标题栏（可拖动+自绘关闭）、滑杆修缝隙+美化、托盘右键菜单失焦自动关+样式对齐紧凑布局。
 - 验证：构建 0 错；SelfTest 165/165（T92 升 8 工具、T95 删除六连、T96 Esc 选中层两连）；帮助窗离屏渲染 V 行目检。
+
+## 2026-10-12 午间 交互优化 R52b（护栏自杀根因：Debug.Assert 断言写错 abort 进程）
+- 护栏连续两次在杀探针实例时「拒绝访问」：根因是 R52 加的 BuildToolsBar Debug.Assert 用枚举名 Select
+  去匹配提示里的 (V) → 断言必假 → .NET Debug 构建 FailFast 直接 abort → 护栏撞濒死句柄。
+- 修复方向不是改断言而是消灭平行数组：ToolOrder 由 ToolCatalog.Tools 键位派生（FromKey 映射，
+  未接枚举的目录键启动即抛），顺序唯一数据源=目录，漂移无处可漂。
+- 教训入规：Debug.Assert 断言必须与数据源同构（键对键，不是键对枚举名）；能用派生就别用断言。
+- 用户又加 3 条入档：帮助窗紧凑化+全盘 UI 布局整理（编辑器为基准）；时间轴悬停竖线改常驻+修首尾对齐；
+  时间轴数值文本固定占位防布局挤动。
+- 验证：SelfTest 165/165；护栏 11 项全绿（focus-safety SKIP=反作弊环境惯例）；发布 R52 重启用户实例。

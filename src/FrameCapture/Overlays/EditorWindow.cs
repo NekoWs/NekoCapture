@@ -281,8 +281,6 @@ public sealed partial class EditorWindow : Window
         for (int i = 0; i < ToolOrder.Length; i++)
         {
             var tool = ToolOrder[i];
-            // 目录为准防漂移：ToolOrder 与 ToolCatalog.Tools 顺序错位=图标配错工具（T92 锁目录，这里锁接线）
-            System.Diagnostics.Debug.Assert(FrameCapture.Core.ToolCatalog.Tools[i].Tip.Contains($"({tool})"), $"ToolOrder[{i}]={tool} 与目录错位");
             var b = IconBtn(FrameCapture.Core.ToolCatalog.Tools[i].Glyph, FrameCapture.Core.ToolCatalog.Tools[i].Tip);
             b.PreviewMouseLeftButtonDown += (sender2, e2) => { e2.Handled = true; SetTool(tool); };
             _toolBtns.Add(b);
