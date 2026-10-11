@@ -1199,3 +1199,17 @@ status: done
 - 完整护栏 GUARDRAIL PASS（FAIL=0 SKIP=1，floor 280）
 - 实机 e2e（EnumWindows 判定，注意 toast 标题实为「FrameCapture Toast」）：editor 模式捕获→编辑器开、无浮窗；copy 模式→无编辑器无浮窗但剪贴板有图；toast 模式→浮窗现、编辑器不开
 - 设置窗 PrintWindow 亲眼看：「截图后」三芯片渲染正确、选中态高亮、与主题行同风格
+
+## 2026-10-12 上午 贴图增强 R84（「更新内容」原地重抓源区域，Snipaste F3 式）
+
+**动机**（补 Snipaste 招牌、QQ 缺位）：贴图常用来「盯梢」会变的画面——进度条、下载百分比、直播/会议画面、跑分数字。此前贴图是静态快照，源画面变了只能重新截图再钉，很笨。Snipaste 的 F3「重新抓取」正是解决这个：原地按贴图当初的来源区域重抓一次，内容即时更新，位置/缩放/旋转都保持。
+
+**实现**（`PinWindow`）：
+- 构造时记住源区域 `_srcRegion`（物理 RectI，即 physPos）；`Rotate()` 累计 `_rotSteps`。
+- `Refresh()`：先 `Hide()` 让置顶贴图离场（否则会把贴图自己截进新帧，反馈循环），200ms 后 `LiveCapture.Grab(_srcRegion)`，按 `_rotSteps` 重放旋转，换 `_img.Source`，中心锚定重算尺寸（不漂移），Flash「已更新」；抓失败 Flash「更新失败」并保留旧图。
+- 入口：贴图聚焦时 **F3** 键 + 右键菜单「更新内容 (F3)」。类文档注释、HelpWindow 贴图条目同步。
+
+**验证**：
+- 构建 0 错误；完整护栏 GUARDRAIL PASS（FAIL=0 SKIP=1 floor280，err_delta=0）
+- 实机 e2e（PrintWindow 前后像素对比 + trace 取证）：钉住纯桌面区→开设置窗盖住该区→聚焦贴图→F3→贴图内容从桌面变为设置 UI（diff 20.5%，trace `pin-refresh 500x400`，「已更新」浮层现）；另一场景关设置→F3→贴图从设置 UI 变回桌面（diff 15.7%）
+- 关键坑：Ctrl+P 不关编辑器，编辑器仍持应用级键盘焦点，PostMessage 的 F3 会被 WPF 路由到编辑器（trace 见 `editor key=F3` 无 `pin-refresh`）；`activate` 抢焦点到贴图后 F3 正常。真实用法里贴图创建即 Activate、或点一下即聚焦，F3 天然可用；右键菜单项不依赖焦点亦可触发

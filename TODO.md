@@ -66,6 +66,8 @@
       查清 CopyFromScreen 抓「无边框+Topmost+透明背景」WPF 窗恒黑是 GDI/DWM 怪癖（CaptureToast 同款骨架同黑，PrintWindow+WindowFromPoint 双证用户可见），视觉审查改 PrintWindow。实机 e2e：首启渲染正确、重启不再弹、关闭 X 收卡、查看帮助开帮助窗。
 - [x] **「截图后」工作流三选项**（R83）：截图完成后干什么是根本工作流分叉（QQ 强制进编辑器 / Snipaste 只复制），做成显式三选一兼容三类人群——弹提示（默认，浮窗点一下/Enter 进编辑器）· 进编辑器（复制后直接开标注，QQ 式）· 只复制（不弹窗不开编辑器，最快，轮廓闪一下作反馈）。三态都仍写剪贴板+托盘可找回编辑器。
       `AfterCapture` 设置 + `Core/AfterCapture.Resolve` 纯决策（脏值回落 toast，T116a-d，SelfTest 276→280）；设置页文字芯片三选行就地更新选中态。实机 e2e 三态各验（editor 开编辑器无浮窗 / copy 无窗但剪贴板有图 / toast 浮窗现）。
+- [x] **贴图「更新内容」原地重抓**（R84）：Snipaste F3 招牌、QQ 缺位——贴图常用来盯梢会变的画面（进度/数值/直播），此前是静态快照，源画面变了只能重截再钉。做成按贴图来源区域原地重抓，位置/缩放/旋转全保持。
+      `PinWindow` 记源区域 + 旋转步数；`Refresh()` 先 Hide 避免自捕获→200ms 后 Grab→按角度重放→中心锚定换图→Flash「已更新」。F3 键 + 右键菜单双入口。实机 e2e PrintWindow 前后像素对比（桌面↔设置 UI 双向，diff 15~20%，trace `pin-refresh`）。坑：Ctrl+P 不关编辑器抢焦点，F3 需贴图聚焦（创建即 Activate/点一下即聚焦，真实用法天然满足）。
 
 ## 用户反馈
 - [x] **录制后的全屏黄色边框持续存在（10-04 已修复）**：根因 = **不是我们的代码**，是 Windows 11

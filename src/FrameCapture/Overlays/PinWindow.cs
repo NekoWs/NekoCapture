@@ -15,7 +15,7 @@ namespace FrameCapture.Overlays;
 /// R65：钉到屏幕——把当前帧（含标注/裁剪，WYSIWYG）作为一张无边框、置顶、可拖动/滚轮缩放的小图，
 /// 钉在桌面原捕获位置。Snipaste/QQ 的招牌手感，此前缺位。
 /// 交互：按住拖动移动；滚轮以中心为锚缩放（10%~600%）；Ctrl+滚轮调不透明度（20%~100%）；
-/// 双击或 Esc 关闭；R 键顺时针旋转 90°、Ctrl+S 另存为；右键菜单复制/另存为/识别文字/旋转/不透明度/关闭/关闭全部贴图。
+/// 双击或 Esc 关闭；R 键顺时针旋转 90°、F3 原地重抓源区域刷新内容、Ctrl+S 另存为；右键菜单复制/另存为/识别文字/旋转/更新内容/不透明度/关闭/关闭全部贴图。
 /// 不进任务栏（ShowInTaskbar=false），关掉只靠上述手势——与 Snipaste 贴图一致。
 /// </summary>
 public sealed class PinWindow : Window
@@ -24,6 +24,8 @@ public sealed class PinWindow : Window
     static readonly List<PinWindow> _open = new();
 
     CapturedFrame _frame; // R79：旋转会替换为旋转后的新帧
+    readonly RectI _srcRegion; // R84：源捕获区域（物理像素），「更新内容」按此重抓
+    int _rotSteps;             // R84：累计顺时针 90° 次数，刷新后按同角度重放
     readonly Image _img;
     readonly Border _snack;
     readonly TextBlock _snackText;
@@ -33,6 +35,7 @@ public sealed class PinWindow : Window
     public PinWindow(CapturedFrame frame, RectI physPos)
     {
         _frame = frame;
+        _srcRegion = physPos; // R84：记住源区域，供「更新内容」原地重抓
         WindowStyle = WindowStyle.None;
         ResizeMode = ResizeMode.NoResize;
         ShowInTaskbar = false;
@@ -127,6 +130,7 @@ public sealed class PinWindow : Window
         {
             if (e.Key == Key.Escape) Close();
             else if (e.Key == Key.R) Rotate();
+            else if (e.Key == Key.F3) Refresh();
             else if (e.Key == Key.S && (Keyboard.Modifiers & ModifierKeys.Control) != 0) SaveAs();
         };
 
@@ -152,6 +156,7 @@ public sealed class PinWindow : Window
     /// <summary>R79：顺时针旋转 90°（无损像素重排），以中心为锚保持位置不漂移；转 4 次回原图。</summary>
     void Rotate()
     {
+        _rotSteps = (_rotSteps + 1) % 4; // R84：记录角度，刷新后重放
         _frame = FrameCapture.Core.PinRotate.Rotate90Cw(_frame);
         var src = BgraImage.ToSource(_frame);
         src.Freeze();
@@ -163,6 +168,37 @@ public sealed class PinWindow : Window
         ApplyScale();
         Left = cx - Width / 2; Top = cy - Height / 2;
         FrameCapture.Core.Trace.Log($"pin-rotate → {_frame.W}x{_frame.H}");
+    }
+
+    /// <summary>R84：原地重抓源区域刷新贴图内容（Snipaste F3 式）——盯梢会变的区域（进度条、数值、直播画面）
+    /// 不必重新截图。先隐藏本贴图避免把自己截进新帧（反馈循环），短暂延迟让隐藏生效，再按当前旋转角度重放。</summary>
+    void Refresh()
+    {
+        if (_srcRegion.W < 1 || _srcRegion.H < 1) { Flash("无法更新"); return; }
+        Hide(); // 先离场，否则置顶贴图会被自己截进新帧
+        var t = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) };
+        t.Tick += (_, _) =>
+        {
+            t.Stop();
+            var f = LiveCapture.Grab(_srcRegion);
+            if (f != null && f.W > 0 && f.H > 0)
+            {
+                if (_rotSteps != 0) f = FrameCapture.Core.PinRotate.Rotate(f, _rotSteps);
+                _frame = f;
+                var src = BgraImage.ToSource(f); src.Freeze();
+                _img.Source = src;
+                var d = VisualTreeHelper.GetDpi(this);
+                _baseW = f.W / d.DpiScaleX; _baseH = f.H / d.DpiScaleY;
+                double cx = Left + Width / 2, cy = Top + Height / 2; // 中心锚定，尺寸变化不漂移
+                ApplyScale();
+                Left = cx - Width / 2; Top = cy - Height / 2;
+                Flash("已更新");
+                FrameCapture.Core.Trace.Log($"pin-refresh {f.W}x{f.H}");
+            }
+            else Flash("更新失败");
+            Show();
+        };
+        t.Start();
     }
 
     /// <summary>R80：把贴图当前帧（含旋转后状态）另存为 PNG，默认目录「图片\FrameCapture」，与编辑器保存一致。</summary>
@@ -299,6 +335,8 @@ public sealed class PinWindow : Window
         ocr.Click += (_, _) => OcrFrame();
         var rotate = new MenuItem { Header = "旋转 90° (R)" };
         rotate.Click += (_, _) => Rotate();
+        var refresh = new MenuItem { Header = "更新内容 (F3)" };
+        refresh.Click += (_, _) => Refresh();
         // 不透明度子菜单：预设档位（Ctrl+滚轮可微调）
         var opacity = new MenuItem { Header = "不透明度" };
         foreach (var pct in new[] { 100, 75, 50, 25 })
@@ -316,6 +354,7 @@ public sealed class PinWindow : Window
         menu.Items.Add(saveAs);
         menu.Items.Add(ocr);
         menu.Items.Add(rotate);
+        menu.Items.Add(refresh);
         menu.Items.Add(opacity);
         menu.Items.Add(new Separator());
         menu.Items.Add(close);
