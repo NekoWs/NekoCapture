@@ -449,3 +449,10 @@ status: done
   改 SizeToContent=Height + MaxHeight=1040（超高才滚动）+ CenterScreen。实测 640×941 DIP 全条目完整，
   底部"其他/小提示"区可见。release 重发布补账：R14-R19 已进 release（IL 探针 LabelStepFrames/Win32Owner=True、
   CenterOnWorkArea 已消失），用户实例已恢复（pid 68944）。
+
+## 2026-10-11 长跑 R21（DSH goal 轮，16:30 起）
+- **R21 保存对话框补 owner**：保存帧/保存 GIF/保存残像三个 SaveFileDialog 无 owner——编辑器 Topmost 时
+  对话框可能被压到编辑器之下（与 R15 颜色对话框同病）。改 ShowDialog(this)。全项目 ShowDialog 复查：仅此三处裸调用。
+- 录制边框复查：burstdesk 中边框不可见 = WDA_EXCLUDEFROMCAPTURE 设计使然（对用户可见、对捕获隐身），
+  trace 确认 outline shown/hide 节拍正常。Agent 胶片条产物复查合格（12 帧、帧号+时间戳清晰）。
+- 验证：GUARDRAIL PASS（FAIL=0 SKIP=1 共 11 项）。

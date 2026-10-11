@@ -739,7 +739,7 @@ public sealed partial class EditorWindow : Window
     void SaveFrame()
     {
         var dlg = NewSaveDialog("PNG 图片|*.png", $"frame-{_seq.Frames[_index].TimeMs / 1000.0:0.0}.png");
-        if (dlg.ShowDialog() != true) return;
+        if (dlg.ShowDialog(this) != true) return;
         BgraImage.SavePng(ExportFrame(_index), EnsureExt(dlg.FileName, ".png"));
     }
 
@@ -747,7 +747,7 @@ public sealed partial class EditorWindow : Window
     {
         if (_encoding) return;
         var dlg = NewSaveDialog("GIF 动图|*.gif", "capture.gif");
-        if (dlg.ShowDialog() != true) return;
+        if (dlg.ShowDialog(this) != true) return;
         string path = EnsureExt(dlg.FileName, ".gif");
         StartEncode((_, gif) =>
         {
@@ -760,7 +760,7 @@ public sealed partial class EditorWindow : Window
     void SaveAfterimage()
     {
         var dlg = NewSaveDialog("PNG 图片|*.png", "afterimage.png");
-        if (dlg.ShowDialog() != true) return;
+        if (dlg.ShowDialog(this) != true) return;
         var combined = BgraImage.Afterimage(CropFramesForExport(_seq.Frames), 5);
         BgraImage.SavePng(combined, EnsureExt(dlg.FileName, ".png"));
     }
