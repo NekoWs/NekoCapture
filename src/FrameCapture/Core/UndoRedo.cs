@@ -7,7 +7,7 @@ namespace FrameCapture.Core;
 /// </summary>
 public sealed class UndoRedo<T> where T : class
 {
-    enum OpKind { Add, Edit }
+    enum OpKind { Add, Edit, Remove }
 
     sealed record Op(OpKind Kind, int Index, T Item, T? Prev);
 
@@ -38,16 +38,31 @@ public sealed class UndoRedo<T> where T : class
         return true;
     }
 
+    /// <summary>删除：从列表移除并记住原位（撤销=原位放回）。找不到返回 false。</summary>
+    public bool Remove(T item)
+    {
+        int i = _items.LastIndexOf(item);
+        if (i < 0) return false;
+        _items.RemoveAt(i);
+        _ops.Add(new Op(OpKind.Remove, i, item, null));
+        _undone.Clear();
+        return true;
+    }
+
     public bool Undo(out T? item) => Undo(out item, out _);
 
-    /// <summary>撤销一步。Add 撤销=移除；Edit 撤销=原位还原旧对象（restored 非 null）。</summary>
+    /// <summary>撤销一步。Add 撤销=移除；Edit 撤销=原位还原旧对象（restored 非 null）；Remove 撤销=原位放回。</summary>
     public bool Undo(out T? item, out T? restored)
     {
         if (_ops.Count == 0) { item = null; restored = null; return false; }
         var op = _ops[^1];
         _ops.RemoveAt(_ops.Count - 1);
-        if (op.Kind == OpKind.Add) { _items.Remove(op.Item); item = op.Item; restored = null; }
-        else { _items[op.Index] = op.Prev!; item = op.Item; restored = op.Prev; }
+        switch (op.Kind)
+        {
+            case OpKind.Add: _items.Remove(op.Item); item = op.Item; restored = null; break;
+            case OpKind.Edit: _items[op.Index] = op.Prev!; item = op.Item; restored = op.Prev; break;
+            default: _items.Insert(Math.Min(op.Index, _items.Count), op.Item); item = op.Item; restored = null; break;
+        }
         _undone.Add(op);
         return true;
     }
@@ -57,8 +72,12 @@ public sealed class UndoRedo<T> where T : class
         if (_undone.Count == 0) { item = null; return false; }
         var op = _undone[^1];
         _undone.RemoveAt(_undone.Count - 1);
-        if (op.Kind == OpKind.Add) _items.Add(op.Item);
-        else _items[op.Index] = op.Item;
+        switch (op.Kind)
+        {
+            case OpKind.Add: _items.Add(op.Item); break;
+            case OpKind.Edit: _items[op.Index] = op.Item; break;
+            default: if (op.Index < _items.Count) _items.RemoveAt(op.Index); break;
+        }
         _ops.Add(op);
         item = op.Item;
         return true;

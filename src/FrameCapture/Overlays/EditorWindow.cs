@@ -281,6 +281,8 @@ public sealed partial class EditorWindow : Window
         for (int i = 0; i < ToolOrder.Length; i++)
         {
             var tool = ToolOrder[i];
+            // 目录为准防漂移：ToolOrder 与 ToolCatalog.Tools 顺序错位=图标配错工具（T92 锁目录，这里锁接线）
+            System.Diagnostics.Debug.Assert(FrameCapture.Core.ToolCatalog.Tools[i].Tip.Contains($"({tool})"), $"ToolOrder[{i}]={tool} 与目录错位");
             var b = IconBtn(FrameCapture.Core.ToolCatalog.Tools[i].Glyph, FrameCapture.Core.ToolCatalog.Tools[i].Tip);
             b.PreviewMouseLeftButtonDown += (sender2, e2) => { e2.Handled = true; SetTool(tool); };
             _toolBtns.Add(b);
@@ -506,7 +508,7 @@ public sealed partial class EditorWindow : Window
         if (_root == null) return;
         var rows = new (string K, string V)[]
         {
-            ("标注", "底部工具条选 线/圆/箭头/手绘/文字 T/马赛克 M，再点同一工具退出绘制"),
+            ("标注", "底部工具条选 线/圆/箭头/手绘/文字 T/马赛克 M，再点同一工具退出绘制；选中 V 可点选已画标注拖动/删除"),
             ("裁剪", "裁剪工具拖框（框外压暗+网格提示），松开即应用；Ctrl+Z 可撤销"),
             ("确定/取消", "Enter 写入剪贴板 · Esc 关闭 · 图钉=总在最前"),
             ("更多", "F1 完整帮助，任意按钮悬停有说明"),
@@ -621,6 +623,7 @@ public sealed partial class EditorWindow : Window
             switch (e.Key)
             {
                 case Key.X: SetTool(Tool.Browse); return;
+                case Key.V: SetTool(Tool.Select); return;
                 case Key.L: SetTool(Tool.Line); return;
                 case Key.O: SetTool(Tool.Ellipse); return;
                 case Key.A: SetTool(Tool.Arrow); return;
@@ -628,6 +631,9 @@ public sealed partial class EditorWindow : Window
                 case Key.T: SetTool(Tool.Text); return;
                 case Key.M: SetTool(Tool.Mosaic); return;
                 case Key.C: SetTool(Tool.Crop); return;
+                // 选中工具下 Delete/Backspace=删对象（优先于全局语义：Delete 撤销 / Backspace 清范围）
+                case Key.Delete when _tool == Tool.Select && _sel != null: DeleteSelected(); return;
+                case Key.Back when _tool == Tool.Select && _sel != null: DeleteSelected(); return;
                 case Key.Delete: UndoAnn(); return;
                 case Key.K: PickCustomColor(); return;
                 case Key.W: if (_widthMoreBtn != null) ShowWidthPopup(_widthMoreBtn); return;
@@ -642,10 +648,15 @@ public sealed partial class EditorWindow : Window
             case Key.Escape:
                 // 宽度弹层打开时：Esc 只收弹层（分层语义的第一层）
                 if (_widthPop is { IsOpen: true }) { _widthPop.IsOpen = false; e.Handled = true; return; }
-                // 分层语义（T82）：导出中=取消；绘制态=先退出工具，误触 Esc 绝不丢整次捕获；浏览态=关闭
-                switch (FrameCapture.Core.EscStep.Select(_encoding, _tool != Tool.Browse))
+                // 分层语义（T82/T96）：导出中=取消；有选中=先取消选中；绘制态=先退出工具，误触 Esc 绝不丢整次捕获；浏览态=关闭
+                switch (FrameCapture.Core.EscStep.Select(_encoding, _tool != Tool.Browse, _sel != null))
                 {
                     case FrameCapture.Core.EscAction.CancelEncode: _commitCts?.Cancel(); break;
+                    case FrameCapture.Core.EscAction.ClearSelection:
+                        SetSelection(null);
+                        FrameCapture.Core.Trace.Log("editor esc→deselect");
+                        e.Handled = true;
+                        break;
                     case FrameCapture.Core.EscAction.ExitTool:
                         CancelPendingStroke(); SetTool(Tool.Browse);
                         FrameCapture.Core.Trace.Log("editor esc→browse");

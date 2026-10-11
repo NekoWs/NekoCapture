@@ -1112,10 +1112,10 @@ static class SelfTest
             {
                 // T92 工具目录（R48）：单一数据源防漂移——加新工具漏帮助/漏字形/键位撞车当场红
                 var tools = FrameCapture.Core.ToolCatalog.Tools;
-                Chk("T92a-count", tools.Length == 7, $"七个绘制工具 → {tools.Length}");
+                Chk("T92a-count", tools.Length == 8, $"八个绘制工具 → {tools.Length}");
                 var keys = tools.Select(t => t.Key).ToList();
-                Chk("T92b-keys", keys.Distinct().Count() == 7 && keys.Select(k => k[0]).OrderBy(c => c).SequenceEqual("ACLMOPT"), "键位 L/O/A/P/T/M/C 唯一且齐全");
-                Chk("T92c-glyphs", tools.All(t => t.Glyph.Length == 1 && t.Glyph[0] >= 0xE000 && t.Glyph[0] <= 0xF8FF) && tools.Select(t => t.Glyph).Distinct().Count() == 7,
+                Chk("T92b-keys", keys.Distinct().Count() == 8 && keys.Select(k => k[0]).OrderBy(c => c).SequenceEqual("ACLMOPTV"), "键位 V/L/O/A/P/T/M/C 唯一且齐全");
+                Chk("T92c-glyphs", tools.All(t => t.Glyph.Length == 1 && t.Glyph[0] >= 0xE000 && t.Glyph[0] <= 0xF8FF) && tools.Select(t => t.Glyph).Distinct().Count() == 8,
                     "字形均为私有区码位且互不重复（GlyphProbe 定稿）");
                 Chk("T92d-tips", tools.All(t => t.Tip.Contains(t.Key) && t.Help.Length >= 8), "工具条提示含快捷键、帮助说明非占位");
                 Chk("T92e-heading", FrameCapture.Core.ToolCatalog.HelpHeading.Contains(FrameCapture.Core.ToolCatalog.ExitKey), "退出键 X 写进帮助小节标题");
@@ -1171,6 +1171,34 @@ static class SelfTest
                 bool inChanged = baked.Bgra[iIn] != srcSnap[iIn] || baked.Bgra[iIn + 1] != srcSnap[iIn + 1] || baked.Bgra[iIn + 2] != srcSnap[iIn + 2];
                 Chk("T94b-bake-rect-map", inChanged && baked.Bgra[iOut] == srcSnap[iOut] && baked.Bgra[iOut + 1] == srcSnap[iOut + 1] && baked.Bgra[iOut + 2] == srcSnap[iOut + 2],
                     "归一化→像素矩形映射正确：框内马赛克、框外原样");
+            }
+            {
+                // T95 删除操作（R52 选中工具）：原位删除、原位放回、与 Add/Edit 混排 LIFO
+                var h = new FrameCapture.Core.UndoRedo<string>();
+                var a = "A"; var b = "B"; var c = "C";
+                h.Add(a); h.Add(b); h.Add(c);
+                Chk("T95a-remove", h.Remove(b) && h.Items.SequenceEqual(new[] { a, c }), "删除后剩 A,C");
+                Chk("T95b-undo-remove", h.Undo(out var it, out _) && ReferenceEquals(it, b) && h.Items.SequenceEqual(new[] { a, b, c }), "撤销删除=原位放回");
+                Chk("T95c-redo-remove", h.Redo(out _) && h.Items.SequenceEqual(new[] { a, c }), "重做删除=再移除");
+                h.Add("D");
+                h.Remove(a);
+                h.Undo(out _, out _);
+                Chk("T95d-lifo-mixed", h.Items.SequenceEqual(new[] { a, c, "D" }), "Add D → Remove A → 撤 Remove：A 回原位 0");
+                h.Undo(out var r2, out _);
+                Chk("T95e-undo-add-after", ReferenceEquals(r2, "D") && h.Items.SequenceEqual(new[] { a, c }), "再撤 Add D");
+                Chk("T95f-remove-missing", !h.Remove("nope"), "删除不存在的对象返回 false");
+            }
+            {
+                // T96 Esc 分层加选中层（R52）：取消导出 > 取消选中 > 退工具 > 关窗
+                Chk("T96a-esc-sel",
+                    EscStep.Select(encoding: false, inToolMode: true, hasSelection: true) == EscAction.ClearSelection
+                    && EscStep.Select(encoding: true, inToolMode: true, hasSelection: true) == EscAction.CancelEncode
+                    && EscStep.Select(encoding: false, inToolMode: false, hasSelection: true) == EscAction.ClearSelection,
+                    "有选中时 Esc 先取消选中（导出中仍优先取消导出）");
+                Chk("T96b-esc-compat",
+                    EscStep.Select(encoding: false, inToolMode: true) == EscAction.ExitTool
+                    && EscStep.Select(encoding: false, inToolMode: false) == EscAction.Close,
+                    "无选中时旧语义不变（默认参数向后兼容）");
             }
         }
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");

@@ -14,10 +14,10 @@ namespace FrameCapture.Overlays;
 // 绘图工具层：线/圆/箭头/手绘/裁剪 + 撤销 + 时间轴范围
 public sealed partial class EditorWindow
 {
-    enum Tool { Browse, Line, Ellipse, Arrow, Freehand, Text, Mosaic, Crop }
+    enum Tool { Browse, Select, Line, Ellipse, Arrow, Freehand, Text, Mosaic, Crop }
 
     // 工具顺序与 ToolCatalog.Tools 一一对应（T92 锁死）；图标/提示文案的唯一数据源在 Core.ToolCatalog
-    static readonly Tool[] ToolOrder = { Tool.Line, Tool.Ellipse, Tool.Arrow, Tool.Freehand, Tool.Text, Tool.Mosaic, Tool.Crop };
+    static readonly Tool[] ToolOrder = { Tool.Select, Tool.Line, Tool.Ellipse, Tool.Arrow, Tool.Freehand, Tool.Text, Tool.Mosaic, Tool.Crop };
     static readonly Color[] Swatches =
     {
         Color.FromRgb(0xE8, 0x11, 0x23), Color.FromRgb(0xFF, 0xB9, 0x00),
@@ -204,8 +204,9 @@ public sealed partial class EditorWindow
     {
         // 再点当前工具=回到浏览态（与线宽/颜色的单选切换同一语义，纯逻辑见 ToolToggle，SelfTest T72a）
         _tool = FrameCapture.Core.ToolToggle.Select(_tool, t, Tool.Browse);
+        _sel = null; // 换工具即丢选中（选中只属于选中工具，R52）
         _canvas.Visibility = _tool == Tool.Browse ? Visibility.Collapsed : Visibility.Visible;
-        _canvas.Cursor = _tool switch { Tool.Browse => Cursors.Arrow, Tool.Text => Cursors.IBeam, _ => Cursors.Cross };
+        _canvas.Cursor = _tool switch { Tool.Browse or Tool.Select => Cursors.Arrow, Tool.Text => Cursors.IBeam, _ => Cursors.Cross };
         for (int i = 0; i < _toolBtns.Count; i++)
             Highlight(_toolBtns[i], ToolOrder[i] == _tool);
     }
@@ -220,6 +221,19 @@ public sealed partial class EditorWindow
     {
         if (_tool == Tool.Browse) return;
         e.Handled = true;
+        if (_tool == Tool.Select)
+        {
+            // 选中工具（R52）：点标注=选中并可拖移；点空白=取消选中
+            var sp = e.GetPosition(_canvas);
+            var hit = HitAnn(sp);
+            SetSelection(hit);
+            if (hit != null)
+            {
+                _moveDrag = true; _moveAnn = hit; _moveStart = _movePress = sp;
+                _canvas.CaptureMouse();
+            }
+            return;
+        }
         if (_tool == Tool.Text)
         {
             // 文字：点哪写哪；点到已有文字 = 重新编辑（R50）
@@ -279,6 +293,17 @@ public sealed partial class EditorWindow
 
     void Canvas_Move(object sender, MouseEventArgs e)
     {
+        if (_moveDrag && _sel != null)
+        {
+            // 拖移=整体平移元素与选择框（提交前不动数据；松手才 Replace，一次拖=一步撤销）
+            var mp = e.GetPosition(_canvas);
+            double dx = mp.X - _movePress.X, dy = mp.Y - _movePress.Y;
+            _movePress = mp;
+            foreach (var (el, a) in _annEls)
+                if (ReferenceEquals(a, _sel)) { Canvas.SetLeft(el, Canvas.GetLeft(el) + dx); Canvas.SetTop(el, Canvas.GetTop(el) + dy); }
+            if (_selBox != null) { Canvas.SetLeft(_selBox, Canvas.GetLeft(_selBox) + dx); Canvas.SetTop(_selBox, Canvas.GetTop(_selBox) + dy); }
+            return;
+        }
         if (!_dragging || _preview == null) return;
         var p = e.GetPosition(_canvas);
         var n = Norm(p);
@@ -329,6 +354,27 @@ public sealed partial class EditorWindow
 
     void Canvas_Up(object sender, MouseButtonEventArgs e)
     {
+        if (_moveDrag)
+        {
+            _moveDrag = false;
+            _canvas.ReleaseMouseCapture();
+            var mp = e.GetPosition(_canvas);
+            double dx = mp.X - _moveStart.X, dy = mp.Y - _moveStart.Y;
+            var moved = _moveAnn; _moveAnn = null;
+            if (moved != null && Math.Abs(dx) + Math.Abs(dy) >= 3)
+            {
+                var m = new Annotation { Kind = moved.Kind, Color = moved.Color, Thickness = moved.Thickness, Text = moved.Text };
+                foreach (var pt in moved.Points)
+                    m.Points.Add(((float)Math.Clamp(pt.X + dx / Math.Max(1, _imgRect.Width), 0f, 1f),
+                                  (float)Math.Clamp(pt.Y + dy / Math.Max(1, _imgRect.Height), 0f, 1f)));
+                if (_anns.Replace(moved, m)) { _order.AnnAdded(); RefreshUndo(); }
+                _sel = m;
+                FrameCapture.Core.Trace.Log($"editor ann move kind={moved.Kind} d=({dx:F0},{dy:F0})");
+            }
+            RedrawAnns();
+            e.Handled = true;
+            return;
+        }
         if (!_dragging) return;
         _dragging = false;
         _canvas.ReleaseMouseCapture();
@@ -363,9 +409,66 @@ public sealed partial class EditorWindow
     void CancelPendingStroke()
     {
         if (_dragging) { _dragging = false; _canvas.ReleaseMouseCapture(); }
+        if (_moveDrag) { _moveDrag = false; _moveAnn = null; _canvas.ReleaseMouseCapture(); }
         _pending = null;
         if (_preview != null) { _canvas.Children.Remove(_preview); _preview = null; }
         EndCropGuide();
+    }
+
+    // ---------------- 选中工具（R52）：点选→虚线框；拖移/删除都走操作栈可撤销 ----------------
+
+    Annotation? _sel;
+    Rectangle? _selBox;
+    bool _moveDrag;
+    Annotation? _moveAnn;
+    Point _moveStart, _movePress;
+
+    readonly List<(UIElement el, Annotation a)> _annEls = new();
+
+    void SetSelection(Annotation? a) { _sel = a; RedrawAnns(); }
+
+    /// <summary>标注的画布坐标包围盒：文字用元素实测；其余由归一化点折算（Line/Path 几何在元素内部，GetLeft 不可靠）。</summary>
+    Rect AnnBDisp(Annotation a)
+    {
+        if (a.Points.Count == 0) return Rect.Empty;
+        if (a.Kind == AnnKind.Text)
+            for (int i = _annEls.Count - 1; i >= 0; i--)
+                if (ReferenceEquals(_annEls[i].a, a))
+                {
+                    var el = _annEls[i].el;
+                    return new Rect(Canvas.GetLeft(el), Canvas.GetTop(el), Math.Max(6, el.RenderSize.Width), Math.Max(6, el.RenderSize.Height));
+                }
+        double x0 = double.MaxValue, y0 = double.MaxValue, x1 = double.MinValue, y1 = double.MinValue;
+        foreach (var pt in a.Points)
+        {
+            var d = NormToDisp((pt.X, pt.Y));
+            x0 = Math.Min(x0, d.X); y0 = Math.Min(y0, d.Y); x1 = Math.Max(x1, d.X); y1 = Math.Max(y1, d.Y);
+        }
+        double infl = a.Kind == AnnKind.Arrow ? Math.Max(10, DispStroke(a.Thickness) * 4) : 6;
+        return new Rect(x0 - infl, y0 - infl, Math.Max(8, x1 - x0) + infl * 2, Math.Max(8, y1 - y0) + infl * 2);
+    }
+
+    /// <summary>命中测试：后画在上 → 倒序取顶，包围盒外扩 4px 便于点选。</summary>
+    Annotation? HitAnn(Point p)
+    {
+        var items = _anns.Items;
+        for (int i = items.Count - 1; i >= 0; i--)
+        {
+            var b = AnnBDisp(items[i]);
+            if (b.IsEmpty) continue;
+            b.Inflate(4, 4);
+            if (b.Contains(p)) return items[i];
+        }
+        return null;
+    }
+
+    void DeleteSelected()
+    {
+        if (_sel == null) return;
+        if (_anns.Remove(_sel)) { _order.AnnAdded(); RefreshUndo(); }
+        FrameCapture.Core.Trace.Log($"editor ann delete kind={_sel.Kind}");
+        _sel = null;
+        RedrawAnns();
     }
 
     // ---------------- 裁剪引导层（R45）：框外压暗 + 三分网格 + 「松开应用」 ----------------
@@ -437,15 +540,15 @@ public sealed partial class EditorWindow
     TextBox? _textInput;
     Point _textPos;
     Annotation? _textEditing;
-    readonly List<(System.Windows.Controls.TextBlock el, Annotation a)> _textEls = new();
 
     /// <summary>命中标注元素矩形（后画在上 → 倒序取顶）。</summary>
     Annotation? HitText(Point p)
     {
-        for (int i = _textEls.Count - 1; i >= 0; i--)
+        for (int i = _annEls.Count - 1; i >= 0; i--)
         {
-            var (el, a) = _textEls[i];
-            var r = new Rect(Canvas.GetLeft(el), Canvas.GetTop(el), Math.Max(8, el.ActualWidth), Math.Max(8, el.ActualHeight));
+            var (el, a) = _annEls[i];
+            if (a.Kind != AnnKind.Text) continue;
+            var r = new Rect(Canvas.GetLeft(el), Canvas.GetTop(el), Math.Max(8, el.RenderSize.Width), Math.Max(8, el.RenderSize.Height));
             if (r.Contains(p)) return a;
         }
         return null;
@@ -631,7 +734,7 @@ public sealed partial class EditorWindow
             FrameCapture.Core.Trace.Log($"editor crop redo depth={_crop.Depth}");
             return;
         }
-        if (_anns.Redo(out _)) { _order.AnnStepped(); RedrawAnns(); RefreshUndo(); }
+        if (_anns.Redo(out _)) { _order.AnnStepped(); DropSelIfGone(); RedrawAnns(); RefreshUndo(); }
     }
 
     void UndoAnn()
@@ -646,9 +749,12 @@ public sealed partial class EditorWindow
         if (!_anns.CanUndo) return;
         _anns.Undo(out _);
         _order.AnnStepped();
+        DropSelIfGone();
         RefreshUndo();
         RedrawAnns();
     }
+
+    void DropSelIfGone() { if (_sel != null && !_anns.Items.Contains(_sel)) _sel = null; }
 
     double DispStroke(float thickness)
     {
@@ -679,7 +785,8 @@ public sealed partial class EditorWindow
     {
         _canvas.Children.Clear();
         _mosaicEls.Clear();
-        _textEls.Clear();
+        _annEls.Clear();
+        _selBox = null;
         foreach (var a in _anns.Items)
         {
             double s = Math.Max(1, Math.Min(_imgRect.Width, _imgRect.Height));
@@ -695,11 +802,16 @@ public sealed partial class EditorWindow
                     var el = new Ellipse { Width = r * 2, Height = r * 2, Fill = wpfCol };
                     Canvas.SetLeft(el, pts[0].X - r); Canvas.SetTop(el, pts[0].Y - r);
                     _canvas.Children.Add(el);
+                    _annEls.Add((el, a));
                     break;
                 }
                 case AnnKind.Line when pts.Count >= 2:
-                    _canvas.Children.Add(new Line { X1 = pts[0].X, Y1 = pts[0].Y, X2 = pts[1].X, Y2 = pts[1].Y, Stroke = wpfCol, StrokeThickness = stroke, StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round });
+                {
+                    var el = new Line { X1 = pts[0].X, Y1 = pts[0].Y, X2 = pts[1].X, Y2 = pts[1].Y, Stroke = wpfCol, StrokeThickness = stroke, StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round };
+                    _canvas.Children.Add(el);
+                    _annEls.Add((el, a));
                     break;
+                }
                 case AnnKind.Ellipse when pts.Count >= 2:
                 {
                     var el = new Ellipse { Stroke = wpfCol, StrokeThickness = stroke };
@@ -707,6 +819,7 @@ public sealed partial class EditorWindow
                     el.Width = Math.Max(2, w); el.Height = Math.Max(2, h2);
                     Canvas.SetLeft(el, Math.Min(pts[0].X, pts[1].X)); Canvas.SetTop(el, Math.Min(pts[0].Y, pts[1].Y));
                     _canvas.Children.Add(el);
+                    _annEls.Add((el, a));
                     break;
                 }
                 case AnnKind.Arrow when pts.Count >= 2:
@@ -714,6 +827,7 @@ public sealed partial class EditorWindow
                     var path = new Path { Stroke = wpfCol, StrokeThickness = stroke, StrokeStartLineCap = PenLineCap.Round };
                     DrawArrowPath(path, pts[0], pts[1], stroke);
                     _canvas.Children.Add(path);
+                    _annEls.Add((path, a));
                     var head = new Polygon { Fill = wpfCol };
                     double len = Math.Max(8, stroke * 6), ang = Math.Atan2(pts[1].Y - pts[0].Y, pts[1].X - pts[0].X), sp = Math.PI / 7;
                     head.Points = new PointCollection
@@ -723,11 +837,16 @@ public sealed partial class EditorWindow
                         new Point(pts[1].X - len * Math.Cos(ang + sp), pts[1].Y - len * Math.Sin(ang + sp)),
                     };
                     _canvas.Children.Add(head);
+                    _annEls.Add((head, a));
                     break;
                 }
                 case AnnKind.Freehand when pts.Count >= 2:
-                    _canvas.Children.Add(new Polyline { Points = new PointCollection(pts), Stroke = wpfCol, StrokeThickness = stroke, StrokeLineJoin = PenLineJoin.Round });
+                {
+                    var el = new Polyline { Points = new PointCollection(pts), Stroke = wpfCol, StrokeThickness = stroke, StrokeLineJoin = PenLineJoin.Round };
+                    _canvas.Children.Add(el);
+                    _annEls.Add((el, a));
                     break;
+                }
                 case AnnKind.Mosaic when pts.Count >= 2:
                 {
                     var vp = new Rect(Math.Min(pts[0].X, pts[1].X), Math.Min(pts[0].Y, pts[1].Y),
@@ -739,6 +858,7 @@ public sealed partial class EditorWindow
                     Canvas.SetLeft(el, vp.X); Canvas.SetTop(el, vp.Y);
                     _canvas.Children.Add(el);
                     _mosaicEls.Add((el, a));
+                    _annEls.Add((el, a));
                     break;
                 }
                 case AnnKind.Text when pts.Count > 0 && !string.IsNullOrEmpty(a.Text):
@@ -754,9 +874,25 @@ public sealed partial class EditorWindow
                     };
                     Canvas.SetLeft(tb, pts[0].X); Canvas.SetTop(tb, pts[0].Y);
                     _canvas.Children.Add(tb);
-                    _textEls.Add((tb, a));
+                    _annEls.Add((tb, a));
                     break;
                 }
+            }
+        }
+        // 选中框（R52）：虚线强调色，纯装饰不吃命中
+        if (_sel != null && _anns.Items.Contains(_sel))
+        {
+            var b = AnnBDisp(_sel);
+            if (!b.IsEmpty)
+            {
+                _selBox = new Rectangle
+                {
+                    Stroke = new SolidColorBrush(Acc), StrokeThickness = 1.5,
+                    StrokeDashArray = new DoubleCollection { 3, 2 }, IsHitTestVisible = false,
+                    Width = Math.Max(10, b.Width), Height = Math.Max(10, b.Height),
+                };
+                Canvas.SetLeft(_selBox, b.X); Canvas.SetTop(_selBox, b.Y);
+                _canvas.Children.Add(_selBox);
             }
         }
         if (_tool != Tool.Browse && _canvas.Visibility != Visibility.Visible)
