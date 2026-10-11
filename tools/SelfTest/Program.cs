@@ -25,8 +25,28 @@ static class SelfTest
         else { fail++; Console.WriteLine($"FAIL {name}{(detail != null ? " :: " + detail : "")}"); }
     }
 
-    static CapturedFrame Solid(int w, int h, byte r, byte g, byte b)
+    static int RenderHelp(string outPath)
     {
+        var app = new Application();
+        var w = FrameCapture.Overlays.HelpWindow.CreateForCapture();
+        // 未 Show 的 Window 不参与布局（ActualHeight 恒 0）：把内容根单独 measure/arrange 后直接渲染视觉树
+        var root = (System.Windows.UIElement)w.Content;
+        root.Measure(new System.Windows.Size(640, 4000));
+        double h = Math.Min(4000, Math.Max(1, root.DesiredSize.Height));
+        root.Arrange(new Rect(0, 0, 640, h));
+        root.UpdateLayout();
+        int hh = (int)Math.Ceiling(h);
+        var rtb = new System.Windows.Media.Imaging.RenderTargetBitmap(640, hh, 96, 96, System.Windows.Media.PixelFormats.Pbgra32);
+        rtb.Render(root);
+        var enc = new System.Windows.Media.Imaging.PngBitmapEncoder();
+        enc.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(rtb));
+        Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(outPath))!);
+        using (var f = File.Create(outPath)) enc.Save(f);
+        Console.WriteLine($"saved {outPath} 640x{hh}");
+        return 0;
+    }
+
+    static CapturedFrame Solid(int w, int h, byte r, byte g, byte b)    {
         var buf = new byte[w * h * 4];
         for (int i = 0; i < buf.Length; i += 4) { buf[i] = b; buf[i + 1] = g; buf[i + 2] = r; buf[i + 3] = 255; }
         return new CapturedFrame { Bgra = buf, W = w, H = h };
@@ -63,9 +83,11 @@ static class SelfTest
     }
 
     [STAThread]
-    static int Main()
+    static int Main(string[] args)
     {
         Console.OutputEncoding = System.Text.Encoding.UTF8;
+        // 离屏渲染帮助窗取证（R49）：独立进程、不 Show、不注册热键，不打断正在运行的实例
+        if (args.Length == 2 && args[0] == "renderhelp") return RenderHelp(args[1]);
         string tmp = Path.Combine(Path.GetTempPath(), "FrameCapture", "selftest");
         Directory.CreateDirectory(tmp);
 
@@ -1097,6 +1119,8 @@ static class SelfTest
                     "字形均为私有区码位且互不重复（GlyphProbe 定稿）");
                 Chk("T92d-tips", tools.All(t => t.Tip.Contains(t.Key) && t.Help.Length >= 8), "工具条提示含快捷键、帮助说明非占位");
                 Chk("T92e-heading", FrameCapture.Core.ToolCatalog.HelpHeading.Contains(FrameCapture.Core.ToolCatalog.ExitKey), "退出键 X 写进帮助小节标题");
+                Chk("T92f-sym", tools.All(t => t.Sym.Length == 1 && !(t.Sym[0] >= 0xE000 && t.Sym[0] <= 0xF8FF)),
+                    "帮助符号是普通 Unicode（默认字体可渲染，图标字形进帮助窗=豆腐块）");
             }
         }
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");

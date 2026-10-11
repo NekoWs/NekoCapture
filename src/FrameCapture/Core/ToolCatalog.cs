@@ -1,25 +1,27 @@
 namespace FrameCapture.Core;
 
 /// <summary>
-/// 绘图工具目录（R48）：工具 → 快捷键 / 字形 / 工具条提示 / 帮助说明 的**唯一数据源**。
+/// 绘图工具目录（R48）：工具 → 快捷键 / 帮助符号 / 图标字形 / 工具条提示 / 帮助说明 的**唯一数据源**。
 /// 工具条、帮助窗、快捷键分发都从这里取，加新工具只改一处——
 /// 此前工具定义散在工具条数组、帮助窗、引导卡三处，加马赛克时就漏了帮助窗（SelfTest T92 锁死防漂移）。
-/// 字形只用 GlyphProbe 渲染矩阵人工验证过的码位。
+/// Glyph 是图标字体字形（仅工具条用，PUA 码位，GlyphProbe 人工验证）；Sym 是帮助窗键位列的普通 Unicode 符号。
+/// 两者不可混用：帮助窗用默认字体，塞 PUA 码位会出豆腐块（R49 离屏渲染抓到，T92f 锁死 Sym 非 PUA）。
 /// </summary>
-public readonly record struct ToolInfo(string Key, string Glyph, string Tip, string Help);
+public readonly record struct ToolInfo(string Key, string Sym, string Glyph, string Tip, string Help);
 
 public static class ToolCatalog
 {
     /// <summary>绘制工具（顺序 = 工具条从左到右；浏览/退出键 X 单列在 ExitKey）。</summary>
     public static readonly ToolInfo[] Tools =
     {
-        new("L", "", "直线 (L)", "拖出直线；再按 L 或点同一图标退出绘制"),
-        new("O", "", "圆圈 (O)", "拖出椭圆/圆（按住拖成正圆靠比例接近即可）"),
-        new("A", "", "箭头 (A)", "拖出箭头，箭头头部自动朝向终点"),
-        new("P", "", "手绘 (P)", "按住拖动自由划线，松手成笔"),
-        new("T", "", "文字 (T)", "点画布就地输入，Enter 上屏 / Esc 取消；字号随线宽挡位"),
-        new("M", "", "马赛克 (M)", "拖框实时块状化，松手应用；线宽挡位 = 块粒度（细 6 / 中 12 / 粗 20 px @1080p）"),
-        new("C", "", "裁剪 (C)", "拖框时框外压暗 + 三分网格，松开即裁；只改视图不毁数据，Ctrl+Z 可撤销"),
+        // Glyph 均为 GlyphProbe 渲染矩阵人工定稿：线 E949 / 圆 EA3B / 箭头 F0AF / 手绘 E70F / 文字 E8D2 / 马赛克 E80A / 裁剪 E7A8
+        new("L", "─", "\uE949", "直线 (L)", "拖出直线；再按 L 或点同一图标退出绘制"),
+        new("O", "○", "\uEA3B", "圆圈 (O)", "拖出椭圆/圆（框住目标区域，等比拖出正圆）"),
+        new("A", "↗", "\uF0AF", "箭头 (A)", "拖出箭头，头部自动朝向终点"),
+        new("P", "✎", "\uE70F", "手绘 (P)", "按住拖动自由划线，松手成笔"),
+        new("T", "T", "\uE8D2", "文字 (T)", "点画布就地输入，Enter 上屏 / Esc 取消；字号随线宽挡位"),
+        new("M", "▦", "\uE80A", "马赛克 (M)", "拖框实时块状化，松手应用；线宽挡位 = 块粒度（细 6 / 中 12 / 粗 20 px @1080p）"),
+        new("C", "✂", "\uE7A8", "裁剪 (C)", "拖框时框外压暗 + 三分网格，松开即裁；只改视图不毁数据，Ctrl+Z 可撤销"),
     };
 
     /// <summary>退出绘制态的快捷键。</summary>

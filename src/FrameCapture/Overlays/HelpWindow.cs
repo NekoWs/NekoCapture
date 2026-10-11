@@ -22,6 +22,14 @@ public sealed class HelpWindow : Window
         w2.Activate();
     }
 
+    /// <summary>SelfTest renderhelp 离屏取证用：构建但不 Show——不占任务栏、不抢焦点、不碰热键，与运行实例互不干扰。</summary>
+    public static HelpWindow CreateForCapture()
+    {
+        var w = new HelpWindow();
+        w.Build();
+        return w;
+    }
+
     void OnThemeRebuild()
     {
         var oldw = this;
@@ -50,7 +58,8 @@ public sealed class HelpWindow : Window
         Width = 640;
         // 条目随功能增长（R13 起 806 装不下，末条被裁一半）：高度自适应内容，超高封顶后滚动
         SizeToContent = SizeToContent.Height;
-        MaxHeight = 1040;
+        // R49：封顶值跟随工作区（固定 1040 在 2K 屏白白滚动藏底，1080p 屏又可能超屏）
+        MaxHeight = Math.Max(600, SystemParameters.WorkArea.Height - 80);
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
 
         var root = new Border
@@ -125,7 +134,7 @@ public sealed class HelpWindow : Window
         H(FrameCapture.Core.ToolCatalog.HelpHeading);
         // 工具条目从目录生成：加工具不会再漏帮助（R48，T92 配套）
         foreach (var t in FrameCapture.Core.ToolCatalog.Tools)
-            KV($"{t.Glyph} {t.Key}", t.Help);
+            KV(t.Sym == t.Key ? t.Key : $"{t.Sym} {t.Key}", t.Help); // Sym 是普通 Unicode：帮助窗默认字体渲染，图标字形(Glyph)会出豆腐块
         KV("调色板 K", "自定义颜色：打开系统选色器；最近用色钉在旁侧，点一下即用");
         KV("⋯ 宽度 W", "自定义线宽：滑杆 1–24px，实时预览");
         KV("Ctrl+Z / U / Del", "撤销上一笔（标注与裁剪按发生顺序统一撤销）");
