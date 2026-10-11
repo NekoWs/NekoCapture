@@ -236,15 +236,24 @@ public sealed class SettingsWindow : Window
         bool capturing = false;
         Action cancel = null!;
         cancel = () => { if (!capturing) return; capturing = false; if (ReferenceEquals(_hkCancel, cancel)) _hkCancel = null; Refresh(); UpdateHkWarn(); };
-        box.MouseLeftButtonDown += (_, e) =>
+        box.MouseLeftButtonDown += (_, e) => { Begin(); e.Handled = true; };
+        void Begin()
         {
             _hkCancel?.Invoke();           // 同一时刻只允许一行处于捕获态
             capturing = true; _hkCancel = cancel;
             tb.Text = "按下新键…";
             tb.Foreground = new SolidColorBrush(Theme.TextDim);
             box.BorderBrush = new SolidColorBrush(Theme.Accent);
-            e.Handled = true;
+            box.Focus();                   // 键盘焦点留在本行，捕获键直达窗级处理器
+        }
+        // R29：键盘可达——Tab 聚焦、空格/Enter 进入捕获（与点击同一路径）
+        box.Focusable = true;
+        box.KeyDown += (_, e) =>
+        {
+            if (!capturing && e.Key is Key.Space or Key.Enter) { Begin(); e.Handled = true; }
         };
+        box.GotKeyboardFocus += (_, _) => { if (!capturing) box.BorderBrush = new SolidColorBrush(Theme.Accent); };
+        box.LostKeyboardFocus += (_, _) => { if (!capturing) box.BorderBrush = new SolidColorBrush(Theme.Stroke); };
         PreviewKeyDown += (_, e) =>
         {
             if (!capturing) return;
@@ -368,6 +377,9 @@ public sealed class SettingsWindow : Window
             Value = val,
             Foreground = new SolidColorBrush(Theme.Accent),
             Margin = new Thickness(4, 4, 0, 0),
+            // 吸附开启时步长必须=档位：默认 SmallChange=1 会被吸回原档，方向键看似失灵（R29）
+            SmallChange = tick,
+            LargeChange = tick * 2,
         };
         FrameCapture.Core.Fluent.StyleSlider(sl);
         sl.ValueChanged += (_, e) =>
@@ -410,6 +422,7 @@ public sealed class SettingsWindow : Window
             VerticalAlignment = VerticalAlignment.Center,
             Cursor = Cursors.Hand,
             ToolTip = tip,
+            Focusable = true, // R29：键盘可达——Tab 聚焦、空格/Enter 切换
         };
         var knob = new Ellipse
         {
@@ -423,13 +436,19 @@ public sealed class SettingsWindow : Window
         Grid.SetColumn(track, 2);
         track.Child = knob;
         bool on = initial;
-        track.MouseLeftButtonDown += (_, e) =>
+        void Flip()
         {
             on = !on;
             FrameCapture.Core.Fluent.SlideToggle(knob, track, on, 20);
             onChange(on);
-            e.Handled = true;
+        }
+        track.MouseLeftButtonDown += (_, e) => { Flip(); e.Handled = true; };
+        track.KeyDown += (_, e) =>
+        {
+            if (e.Key is Key.Space or Key.Enter) { Flip(); e.Handled = true; }
         };
+        track.GotKeyboardFocus += (_, _) => { track.BorderBrush = new SolidColorBrush(Theme.Accent); };
+        track.LostKeyboardFocus += (_, _) => { track.BorderBrush = new SolidColorBrush(on ? Theme.Accent : Theme.Stroke); };
         track.MouseEnter += (_, _) =>
         {
             if (track.BorderBrush is System.Windows.Media.SolidColorBrush bb && bb.CanFreeze)
@@ -518,7 +537,7 @@ public sealed class SettingsWindow : Window
                     holder.BeginAnimation(System.Windows.Media.SolidColorBrush.ColorProperty, anim);
                 }
             };
-            chip.MouseLeftButtonDown += (_, e) =>
+            void ApplyTheme()
             {
                 _settings.Mutate(s => s.Theme = captured);
                 Theme.Apply(captured, _settings.Current.Accent);
@@ -534,8 +553,16 @@ public sealed class SettingsWindow : Window
                 fo.Completed += (_, _) => oldw.Close();
                 oldw.BeginAnimation(OpacityProperty, fo);
                 nw.BeginAnimation(OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(1, TimeSpan.FromMilliseconds(FrameCapture.Core.Fluent.Motion.ThemeMs)));
-                e.Handled = true;
+            }
+            chip.MouseLeftButtonDown += (_, e) => { ApplyTheme(); e.Handled = true; };
+            // R29：键盘可达——Tab 聚焦、空格/Enter 切换主题（与点击同一路径）
+            chip.Focusable = true;
+            chip.KeyDown += (_, e) =>
+            {
+                if (e.Key is Key.Space or Key.Enter) { ApplyTheme(); e.Handled = true; }
             };
+            chip.GotKeyboardFocus += (_, _) => { chip.BorderBrush = new SolidColorBrush(Theme.Accent); chip.BorderThickness = new Thickness(1); };
+            chip.LostKeyboardFocus += (_, _) => { chip.BorderThickness = new Thickness(0); };
             chips.Children.Add(chip);
         }
         g.Children.Add(chips);
