@@ -107,7 +107,7 @@ public sealed partial class EditorWindow : Window
         _playTimer = new System.Windows.Threading.DispatcherTimer();
         _playTimer.Tick += (_, _) =>
         {
-            if (_seq.Frames.Count == 0) return;
+            if (_userClosed || _seq.Frames.Count == 0) return; // 关闭中：spool 已释放，绝不再读帧（R61 磁盘 spool 后读已关文件会抛）
             var (a, b) = TrimRange;
             int next = _index + 1;
             if (next > b || next >= _seq.Frames.Count) next = a;
@@ -129,6 +129,7 @@ public sealed partial class EditorWindow : Window
         {
             if (_userClosed) return;
             _userClosed = true;
+            _playTimer.Stop(); // 停播放表，避免释放 spool 后定时器再读已关文件
             ClosedByUser?.Invoke();
         };
         SourceInitialized += (_, _) =>
@@ -1011,6 +1012,7 @@ public sealed partial class EditorWindow : Window
     {
         if (_userClosed) return;
         _userClosed = true;
+        _playTimer.Stop(); // 停播放表，避免释放 spool 后定时器再读已关文件
         ClosedByUser?.Invoke();
         FrameCapture.Core.Fluent.CloseWithFade(this);
     }

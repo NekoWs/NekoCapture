@@ -932,3 +932,18 @@ status: done
 - SelfTest 218/218（新增 T104a-e：增/减/上限锁死/下限锁死/delta0 不变）
 - 实机 e2e（焦点安全，弹层前台归属 FrameCapture Pin 后操作）：右键菜单渲染正确（复制/不透明度▸/关闭/关闭全部贴图(1)，无豆腐块、计数对）；不透明度子菜单 100/75/50/25 渲染正确；点 50% 生效（贴图仍在、无异常）；「关闭全部贴图」一键清空（window-not-found 确认）
 - Ctrl+滚轮无 Shot 原语，逻辑由 T104 单测覆盖
+
+## R67 · 修复：播放定时器读已释放 spool（护栏 fuzz 抓到 R61 潜伏竞态）
+
+**发现**：批次末跑完整护栏，`e2e:fuzz-statemachine` FAIL，`err_delta=1023`——乱键注入期间 error.log 新增异常。栈：`_playTimer.Tick → Show → Bmp → FrameSpoolList.get_Item → FileStream.Seek` 抛 `ObjectDisposedException: Cannot access a closed file`。
+
+**根因**：`_playTimer`（DispatcherTimer，App 级，不随窗口关闭而停）只在 TogglePlay 里停。编辑器关闭时 `ClosedByUser` 释放磁盘 spool（删 spool 文件），但播放表没停 → 关窗后定时器仍 `Show→Bmp` 读已关闭文件。R61 之前帧在内存表，读「已释放」的 List 无害；R61 改磁盘 spool 后同一竞态变成抛异常——潜伏数轮，fuzz 随机命中「播放中关窗」才暴露。
+
+**修复**（EditorWindow.cs）：
+- `_playTimer.Tick` 顶部加 `if (_userClosed) return;` 守卫（UI 线程单线程，tick 与 Closed 不交错，置位后 tick 必早退）
+- 两条关闭路径（`Closed` 处理器 / `CloseByController`）在 `ClosedByUser?.Invoke()` 释放 spool 之前 `_playTimer.Stop()`
+
+**验证**：
+- 构建 0 错误
+- 单跑 fuzz：`err_delta=0`，FUZZ PASS（120 步）
+- 完整护栏 GUARDRAIL PASS（FAIL=0 SKIP=1，SKIP=focus-safety 反外挂拦截注入惯例）；SelfTest 218/218
