@@ -180,6 +180,7 @@
 ## 待办
 - [ ] 时间轴拖范围 / 窗口吸附的实机确认（手动清单）
 - [ ] 保存对话框（保存单帧/动图/视觉暂留）流程确认——默认目录已改为「图片\FrameCapture」
+- [ ] 待查：error.log 偶发 `(Dispatcher) ObjectDisposedException: Cannot access a closed file`（10-12 03:45 单次，已被 e.Handled 兜住未崩）——疑某处对已关闭流写盘（设置保存/trace/临时图？），若复现再定位
 
 ## Round 40 — 用户 9 条 bug 清单 + 悬浮工具条重构（已修，待用户复测）
 1. 选取层不总在最前 → Deactivated 自动 re-topmost + 重复按 Ctrl+Shift+R 重新顶前
