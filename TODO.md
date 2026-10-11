@@ -62,6 +62,8 @@
       PinWindow.SaveAs：SaveFileDialog（默认「图片\FrameCapture」+ `pin-<时间戳>.png`）→ BgraImage.SavePng（复用编辑器路径）→ Flash「已保存」+ trace pin-save；右键菜单「另存为…」+ Ctrl+S。实机 e2e（Ctrl+S→另存为对话框→回车→落盘 700x400 正确）。附带查清「关编辑器贴图消失」是全局 SendInput 漏键到前台贴图的测试假象，非产品 bug。
 - [x] **编辑器图标语义修正**（R81，实机走查发现）：招牌「钉到屏幕」原用通用图片图标 E91B（看不出是"钉"），改实心图钉 E840；「总在最前」改置顶箭头 E898（开关态靠高亮底色），两按钮名副其实互不混淆。
       GlyphProbe matrix 肉眼选字形验证；PinBtn 单点定义两工具条同生效。实机 e2e（放大工具条截图：钉到屏幕=图钉、总在最前=置顶箭头）。
+- [x] **首次启动欢迎卡**（R82）：新用户装完只见托盘图标、不知按什么键——首启弹不抢焦点卡片点破两热键+关键手感+「查看帮助」入口，`FirstRunHintShown` 看过一次永不再打扰。复用 CaptureToast 骨架（WDA 排除/悬停暂停/12s 自动消失/Esc/关闭 X）。
+      查清 CopyFromScreen 抓「无边框+Topmost+透明背景」WPF 窗恒黑是 GDI/DWM 怪癖（CaptureToast 同款骨架同黑，PrintWindow+WindowFromPoint 双证用户可见），视觉审查改 PrintWindow。实机 e2e：首启渲染正确、重启不再弹、关闭 X 收卡、查看帮助开帮助窗。
 
 ## 用户反馈
 - [x] **录制后的全屏黄色边框持续存在（10-04 已修复）**：根因 = **不是我们的代码**，是 Windows 11

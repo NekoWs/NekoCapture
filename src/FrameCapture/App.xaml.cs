@@ -60,6 +60,17 @@ public partial class App : System.Windows.Application
         Services.AppHost.Current.Startup();
         StartMessageSink();
 
+        // R82：首次启动弹一张欢迎卡，点破两个热键 + 关键手感（新用户装完只见托盘图标、不知按什么键是头号上手摩擦）。
+        // 看过一次（FirstRunHintShown）永不再打扰；非激活浮窗不打断输入，ApplicationIdle 时再弹避免和启动抢焦点。
+        if (!Services.AppHost.Current.Settings.Current.FirstRunHintShown)
+            Dispatcher.BeginInvoke(() =>
+            {
+                var st = Services.AppHost.Current.Settings;
+                if (st.Current.FirstRunHintShown) return;
+                st.Mutate(s => s.FirstRunHintShown = true);
+                Overlays.WelcomeToast.Show(st.Current.CaptureHotkey, st.Current.ScopeHotkey);
+            }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+
         // 调试/常驻入口：FrameCapture.exe --settings | --help | --edit-last
         if (e.Args.Any(a => string.Equals(a, "--settings", StringComparison.OrdinalIgnoreCase)))
             Dispatcher.BeginInvoke(() => Overlays.SettingsWindow.ShowOrFocus(),

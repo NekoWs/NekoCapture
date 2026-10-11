@@ -1168,3 +1168,19 @@ status: done
 - 构建 0 错误；SelfTest 保持 276（纯图标语义修正，无可抽纯函数；无测试锁这些字形）
 - 完整护栏 GUARDRAIL PASS（FAIL=0 SKIP=7，floor 276）
 - 实机 e2e（截图放大工具条亲眼看）：导出组「钉到屏幕」现为清晰图钉 📌、右侧「总在最前」现为置顶箭头 ↑̄，二者语义清晰互不混淆
+
+## 2026-10-12 清晨 上手优化 R82（首次启动欢迎卡：新用户不再对着托盘图标发呆）
+
+**动机**（「人人都爱用」头号摩擦）：新用户装完 FrameCapture，只看到托盘多一个图标、任务栏没痕迹，完全不知道按什么键开始——上手第一步就卡住。QQ/Snipaste 首启都会点破热键，我们此前只有托盘气泡一闪而过。做一张首启欢迎卡：直接列出两个热键 + 关键手感 + 一个「查看帮助」入口，看过一次永不再打扰。
+
+**实现**（`Overlays/WelcomeToast.cs` 新建，复用 CaptureToast 浮窗骨架）：
+- 落点主屏工作区右下角（贴托盘图标，把「图标在这」和「怎么开始」空间关联）；`SystemParameters.WorkArea` 已是 DIP 且排除任务栏，直接作 Left/Top。
+- 内容：标题「FrameCapture 已就绪」+ 关闭 X；两行热键「截图 / 选区」（标签暗色 + 键位强调色加粗，一眼看清按什么）；一行手感提示（长按截图键=录屏 · 双击贴图关闭 · 右键贴图/托盘查看更多）；强调色「查看帮助与全部快捷键」按钮（自绘圆角模板，点击开帮助窗并收卡）。
+- 不打扰：`ShowActivated=false` 不抢焦点、`WDA_EXCLUDEFROMCAPTURE` 不入任何截图、12s 自动消失（悬停暂停）、Esc/点 X 关。`FirstRunHintShown`（AppSettings 新增，默认 false）首启后置 true，`App.OnStartup` 用 `ApplicationIdle` 优先级弹卡——**只弹一次**。
+
+**踩坑查清（重要，非产品 bug）**：欢迎卡用 `CopyFromScreen`（Shot 工具）截图恒为纯黑，一度以为整窗隐形。逐层排查——`IsWindowVisible=true`、非 `WS_EX_LAYERED`、非 cloaked、非 WDA 排除、`WindowFromPoint` 打在卡心返回本卡 HWND、`PrintWindow(PW_RENDERFULLCONTENT)` 渲染完美——最终对照发现**已上线的 CaptureToast 用同款骨架在 CopyFromScreen 下同样全黑**：这是 GDI BitBlt 抓不到「无边框+Topmost+透明背景」WPF 窗口的 DWM 重定向怪癖，用户实际可见（PrintWindow + WindowFromPoint 双证）。视觉审查改用 `PrintWindow` 直取窗口内容。
+
+**验证**：
+- 构建 0 错误；SelfTest 保持 276（浮窗无可抽纯函数）
+- 完整护栏 GUARDRAIL PASS（FAIL=0 SKIP=1，floor 276）
+- 实机 e2e（PrintWindow 亲眼看 + EnumWindows/WindowFromPoint 判定）：首启卡片渲染正确（标题/两热键强调色/手感行/蓝按钮）；重启不再弹（count 1→0）；点关闭 X→卡片消失；点「查看帮助」→帮助窗弹出且卡片收起（WindowFromPoint 守卫确保点击落到本卡）

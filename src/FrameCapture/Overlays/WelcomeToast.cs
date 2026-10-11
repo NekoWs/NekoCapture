@@ -1,0 +1,206 @@
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Media;
+using System.Windows.Media.Effects;
+using System.Windows.Threading;
+using FrameCapture.Core;
+using FrameCapture.Native;
+
+namespace FrameCapture.Overlays;
+
+/// <summary>
+/// 首次启动欢迎卡（R82）：新用户装完只看到托盘图标、不知按什么键——这是「人人都爱用」的头号上手摩擦。
+/// 首启弹一张不抢焦点的卡片，直接点破两个热键 + 关键手感，给一个「查看帮助」入口；看过一次（FirstRunHintShown）永不再打扰。
+/// 复用 CaptureToast 的浮窗骨架：ShowActivated=false 不打断输入、WDA 排除不入镜、悬停暂停自动消失、Esc/点关闭。
+/// </summary>
+public sealed class WelcomeToast : Window
+{
+    static WelcomeToast? _current;
+
+    readonly DispatcherTimer _dismiss;
+    bool _closing;
+
+    const double W = 372;      // DIP 宽
+    const double EstH = 168;   // 估算高（落点用；实际 SizeToContent）
+
+    public static void Show(string captureHotkey, string scopeHotkey)
+    {
+        _current?.Close();
+        _current = new WelcomeToast(captureHotkey, scopeHotkey);
+        _current.Show(); // ShowActivated=false：不打断用户当前输入
+    }
+
+    WelcomeToast(string captureHotkey, string scopeHotkey)
+    {
+        Title = "FrameCapture Welcome";
+        FrameCapture.Core.Fluent.BorderlessNative(this, resizeBorder: 0);
+        ShowActivated = false;
+        ShowInTaskbar = false;
+        Topmost = true;
+        WindowStyle = WindowStyle.None;
+        ResizeMode = ResizeMode.NoResize;
+        SizeToContent = SizeToContent.WidthAndHeight;
+        Background = Brushes.Transparent;
+
+        // 落点：主屏工作区右下角（靠托盘图标，让用户把「图标在这」和「怎么开始」联系起来）。
+        // SystemParameters.WorkArea 已是 DIP 且排除任务栏，直接用作 Left/Top，无需 DPI 换算。
+        var wa = SystemParameters.WorkArea;
+        Left = Math.Max(wa.Left, wa.Right - W - 16);
+        Top = Math.Max(wa.Top, wa.Bottom - EstH - 16);
+
+        var card = new Border
+        {
+            Width = W,
+            Background = new SolidColorBrush(Theme.CardBg),
+            BorderBrush = new SolidColorBrush(Color.FromArgb(0x66, Theme.Stroke.R, Theme.Stroke.G, Theme.Stroke.B)),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(12),
+            Padding = new Thickness(16, 14, 12, 14),
+            Effect = new DropShadowEffect { BlurRadius = 22, ShadowDepth = 3, Opacity = 0.4, Color = Colors.Black },
+        };
+
+        var root = new StackPanel();
+
+        // 标题行：标题 + 关闭 X
+        var head = new Grid();
+        head.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        head.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        head.Children.Add(new TextBlock
+        {
+            Text = "FrameCapture 已就绪",
+            FontSize = 15,
+            FontWeight = FontWeights.Bold,
+            Foreground = new SolidColorBrush(Theme.Text),
+            FontFamily = new FontFamily("Segoe UI"),
+            VerticalAlignment = VerticalAlignment.Center,
+        });
+        var close = FrameCapture.Core.Fluent.IconButton("\uE711", "关闭 (Esc)", 26, 12,
+            new SolidColorBrush(Theme.TextDim));
+        close.Click += (_, _) => Dismiss();
+        Grid.SetColumn(close, 1);
+        head.Children.Add(close);
+        root.Children.Add(head);
+
+        // 两个热键：标签（暗）+ 键位（强调色加粗），一眼看清「按什么」
+        root.Children.Add(HotkeyLine("截图", captureHotkey));
+        root.Children.Add(HotkeyLine("选区", scopeHotkey));
+
+        root.Children.Add(new TextBlock
+        {
+            Text = "长按截图键 = 录屏 · 双击贴图关闭 · 右键贴图 / 托盘查看更多",
+            FontSize = 11.5,
+            Foreground = new SolidColorBrush(Theme.TextDim),
+            FontFamily = new FontFamily("Segoe UI"),
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 8, 4, 0),
+        });
+
+        // 查看帮助入口（打开帮助窗并收起本卡）
+        var help = new Button
+        {
+            Content = "查看帮助与全部快捷键",
+            FontSize = 12.5,
+            Foreground = new SolidColorBrush(Colors.White),
+            Background = new SolidColorBrush(Theme.Accent),
+            BorderThickness = new Thickness(0),
+            Padding = new Thickness(12, 6, 12, 6),
+            HorizontalAlignment = HorizontalAlignment.Left,
+            Cursor = System.Windows.Input.Cursors.Hand,
+            Margin = new Thickness(0, 12, 0, 0),
+            Template = RoundedBtnTemplate(),
+        };
+        help.Click += (_, _) => { FrameCapture.Core.Trace.Log("welcome→help"); HelpWindow.ShowOrFocus(); Dismiss(); };
+        root.Children.Add(help);
+
+        card.Child = root;
+        Content = card;
+
+        // 键盘等价：浮窗不抢焦点，WPF 焦点路由收不到键——直接在 HWND 层处理 Esc
+        SourceInitialized += (_, _) =>
+        {
+            var h = new System.Windows.Interop.WindowInteropHelper(this).Handle;
+            Win32.SetRoundedCorners(h);
+            // 欢迎卡默认不出现在任何截图里；FC_TOAST_NOEXCLUDE=1 仅供视觉审查截图（与 CaptureToast 同一开关）
+            if (Environment.GetEnvironmentVariable("FC_TOAST_NOEXCLUDE") != "1")
+                Win32.SetWindowDisplayAffinity(h, Win32.WDA_EXCLUDEFROMCAPTURE);
+            if (PresentationSource.FromVisual(this) is System.Windows.Interop.HwndSource src)
+                src.AddHook((hwnd, msg, w, l, ref handled) =>
+                {
+                    const int WM_KEYDOWN = 0x0100, WM_SYSKEYDOWN = 0x0104;
+                    if ((msg == WM_KEYDOWN || msg == WM_SYSKEYDOWN) && w.ToInt32() == 0x1B) // Esc
+                    {
+                        handled = true;
+                        Dispatcher.BeginInvoke(Dismiss);
+                    }
+                    return IntPtr.Zero;
+                });
+        };
+
+        // 上手信息给足阅读时间：12s，悬停暂停，移开再给 12s
+        _dismiss = new DispatcherTimer { Interval = TimeSpan.FromSeconds(12) };
+        _dismiss.Tick += (_, _) => Dismiss();
+        _dismiss.Start();
+        MouseEnter += (_, _) => _dismiss.Stop();
+        MouseLeave += (_, _) => _dismiss.Start();
+
+        Closed += (_, _) => { _dismiss.Stop(); if (ReferenceEquals(_current, this)) _current = null; };
+
+        FrameCapture.Core.Trace.Log("welcome shown");
+        FrameCapture.Core.Fluent.FadeIn(this, FrameCapture.Core.Fluent.Motion.EnterMs, 8, offscreenFirstFrame: true);
+    }
+
+    static FrameworkElement HotkeyLine(string label, string key)
+    {
+        var sp = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Margin = new Thickness(0, 10, 0, 0),
+        };
+        sp.Children.Add(new TextBlock
+        {
+            Text = label,
+            FontSize = 13,
+            Foreground = new SolidColorBrush(Theme.TextDim),
+            FontFamily = new FontFamily("Segoe UI"),
+            Width = 40,
+            VerticalAlignment = VerticalAlignment.Center,
+        });
+        sp.Children.Add(new TextBlock
+        {
+            Text = key,
+            FontSize = 13.5,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = new SolidColorBrush(Theme.Accent),
+            FontFamily = new FontFamily("Segoe UI"),
+            VerticalAlignment = VerticalAlignment.Center,
+        });
+        return sp;
+    }
+
+    // 圆角实心按钮模板（强调色底，悬停/按下略透明），与 Fluent 观感一致
+    static ControlTemplate RoundedBtnTemplate()
+    {
+        var t = new ControlTemplate(typeof(Button));
+        var border = new FrameworkElementFactory(typeof(Border));
+        border.SetValue(Border.BackgroundProperty, new TemplateBindingExtension(Control.BackgroundProperty));
+        border.SetValue(Border.CornerRadiusProperty, new CornerRadius(6));
+        border.SetValue(Border.PaddingProperty, new TemplateBindingExtension(Control.PaddingProperty));
+        var cp = new FrameworkElementFactory(typeof(ContentPresenter));
+        cp.SetValue(ContentPresenter.HorizontalAlignmentProperty, HorizontalAlignment.Center);
+        cp.SetValue(ContentPresenter.VerticalAlignmentProperty, VerticalAlignment.Center);
+        border.AppendChild(cp);
+        t.VisualTree = border;
+        var hover = new Trigger { Property = UIElement.IsMouseOverProperty, Value = true };
+        hover.Setters.Add(new Setter(UIElement.OpacityProperty, 0.88));
+        t.Triggers.Add(hover);
+        return t;
+    }
+
+    void Dismiss()
+    {
+        if (_closing) return;
+        _closing = true;
+        _dismiss.Stop();
+        FrameCapture.Core.Fluent.CloseWithFade(this);
+    }
+}

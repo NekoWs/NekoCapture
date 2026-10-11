@@ -84,6 +84,9 @@ public sealed class AppSettings
     /// <summary>编辑器首次上手引导是否已看过（R45，看过一次不再打扰）。</summary>
     public bool EditorGuideShown { get; set; } = false;
 
+    /// <summary>首次启动欢迎卡是否已弹过（R82，弹过一次永不再打扰）。</summary>
+    public bool FirstRunHintShown { get; set; } = false;
+
     /// <summary>主题: system | light | dark。</summary>
     public string Theme { get; set; } = "system";
 
