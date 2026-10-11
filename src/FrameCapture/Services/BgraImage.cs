@@ -24,6 +24,36 @@ public static class BgraImage
         enc.Save(fs);
     }
 
+    /// <summary>
+    /// 马赛克（R47）：区域内逐 block 均值填充，就地修改。坐标越界自动钳进画布；纯字节运算，
+    /// 编辑器预览与烘焙共用同一函数 → 所见即所得（SelfTest T91）。
+    /// </summary>
+    public static void MosaicInPlace(byte[] bgra, int w, int h, int x, int y, int rw, int rh, int block)
+    {
+        if (block < 1) block = 1;
+        x = Math.Clamp(x, 0, Math.Max(0, w)); y = Math.Clamp(y, 0, Math.Max(0, h));
+        rw = Math.Clamp(rw, 0, w - x); rh = Math.Clamp(rh, 0, h - y);
+        for (int by = y; by < y + rh; by += block)
+        for (int bx = x; bx < x + rw; bx += block)
+        {
+            int bw2 = Math.Min(block, x + rw - bx), bh2 = Math.Min(block, y + rh - by);
+            long sr = 0, sg = 0, sb = 0, sa = 0; int n = 0;
+            for (int py = by; py < by + bh2; py++)
+            for (int px = bx; px < bx + bw2; px++)
+            {
+                int i = (py * w + px) * 4;
+                sb += bgra[i]; sg += bgra[i + 1]; sr += bgra[i + 2]; sa += bgra[i + 3]; n++;
+            }
+            byte b = (byte)(sb / n), g = (byte)(sg / n), r = (byte)(sr / n), a = (byte)(sa / n);
+            for (int py = by; py < by + bh2; py++)
+            for (int px = bx; px < bx + bw2; px++)
+            {
+                int i = (py * w + px) * 4;
+                bgra[i] = b; bgra[i + 1] = g; bgra[i + 2] = r; bgra[i + 3] = a;
+            }
+        }
+    }
+
     /// <summary>视觉暂留合成：多帧加权叠加（后帧更亮）。</summary>
     public static CapturedFrame Afterimage(IReadOnlyList<CapturedFrame> frames, int outputFrames = 5)
     {

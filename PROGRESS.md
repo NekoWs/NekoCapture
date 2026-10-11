@@ -644,3 +644,12 @@ status: done
 - 工具条：AA 图标 E8D2（GlyphProbe 验证）插在手绘与裁剪之间；T 快捷键；帮助窗/README 同步。
 - e2e：T→点画布→Ctrl+V 中文→Enter 编辑器红字渲染（像素 bbox 195×41）→Ctrl+C 剪贴板位图含"烘焙验证"红字（修复前 0 个红字像素）。
 - 验证：SelfTest 137/137（132→137，T90a–e）；门禁 GUARDRAIL PASS（FAIL=0 SKIP=1）。
+
+## 2026-10-12 凌晨 交互优化 R47（马赛克工具）
+- 马赛克 M（QQ 级能力）：工具条网格图标 E80A（GlyphProbe 验证）/ M 键，拖框实时块均值预览 + accent 虚线框，
+  线宽挡位=块粒度（AnnFont 同思路：MosaicBlock.Px 细6/中12/粗20 @1080p 随帧缩放，下限 4）。
+- 预览与烘焙共用 BgraImage.MosaicInPlace（纯字节块均值，越界钳制）→ 所见即所得；Bake.Apply 先铺马赛克再叠矢量标注。
+- 修 ImageBrush.Viewport 坐标系 bug：ViewportUnits.Absolute 是元素本地坐标，必须 (0,0,w,h)，
+  传画布坐标会把内容渲染到元素外（预览全透明）。提交后预览已截图确认块状化生效。
+- 拖框中实时预览一项转人工实测（模拟脚本 key 序列失误：裸 Z 不撤销、M 连按 toggle 掉工具，后续截图不作数）。
+- 验证：SelfTest 142/142（T91a–e）；烘焙 e2e：剪贴板位图文字清晰块状化（对照行锐利）。

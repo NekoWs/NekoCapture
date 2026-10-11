@@ -1071,6 +1071,22 @@ static class SelfTest
                 Chk("T90e-remap-keeps-text", keptT.Count == 1 && keptT[0].Text == "你好 世界" && Math.Abs(keptT[0].Points[0].X - 0.5) < 1e-6,
                     $"裁剪重映射保留文字与坐标 → {keptT.Count}");
             }
+            {
+                // T91 马赛克（R47）：块粒度公式 + 块均值正确性 + 越界钳制
+                Chk("T91a-block-1080", FrameCapture.Core.MosaicBlock.Px(3, 1920, 1080) == 6 && FrameCapture.Core.MosaicBlock.Px(10, 1920, 1080) == 20, "细=6 粗=20 @1080p");
+                Chk("T91b-block-floor", FrameCapture.Core.MosaicBlock.Px(1, 200, 200) == 4, "小帧下限 4px");
+                // 4x4 图，块 2：左上块 (10,10,10)×2 + (30,30,30)×2 → 均值 20
+                var buf = new byte[4 * 4 * 4];
+                void Put(int px, int py, byte v) { int i = (py * 4 + px) * 4; buf[i] = v; buf[i + 1] = v; buf[i + 2] = v; buf[i + 3] = 255; }
+                for (int py = 0; py < 2; py++) for (int px = 0; px < 2; px++) Put(px, py, (px + py) % 2 == 0 ? (byte)10 : (byte)30);
+                FrameCapture.Services.BgraImage.MosaicInPlace(buf, 4, 4, 0, 0, 2, 2, 2);
+                Chk("T91c-mean", buf[0] == 20 && buf[4] == 20 && buf[16] == 20 && buf[20] == 20, $"块内全等于均值 20 → {buf[0]},{buf[4]},{buf[16]},{buf[20]}");
+                Chk("T91d-untouched", buf[(3 * 4 + 3) * 4] == 0, "区域外像素不动");
+                void Put2(int px, int py, byte v) { int i = (py * 4 + px) * 4; buf[i] = v; buf[i + 1] = v; buf[i + 2] = v; buf[i + 3] = 255; }
+                Put2(2, 2, 100); // 其余 (2,3)(3,2)(3,3) 为 0 → 右下块均值 25
+                FrameCapture.Services.BgraImage.MosaicInPlace(buf, 4, 4, 2, 2, 99, 99, 2); // 越界钳到 2x2
+                Chk("T91e-clamp", buf[(2 * 4 + 2) * 4] == 25 && buf[(3 * 4 + 3) * 4] == 25, $"越界矩形钳进画布 → 右下块均值 25,{buf[(2 * 4 + 2) * 4]},{buf[(3 * 4 + 3) * 4]}");
+            }
         }
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");
         return fail == 0 ? 0 : 1;

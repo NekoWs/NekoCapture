@@ -4,7 +4,7 @@ using System.Drawing.Imaging;
 
 namespace FrameCapture.Drawing;
 
-public enum AnnKind { Dot, Line, Ellipse, Arrow, Freehand, Text }
+public enum AnnKind { Dot, Line, Ellipse, Arrow, Freehand, Text, Mosaic }
 
 /// <summary>
 /// 一条标注。坐标为帧内归一化 (0..1)，渲染时按目标帧像素缩放，分辨率无关。
@@ -15,7 +15,7 @@ public sealed class Annotation
     public Color Color { get; init; } = Color.FromArgb(255, 0xE7, 0x48, 0x4C);
     /// <summary>粗细（相对 1080p 的像素数）。</summary>
     public float Thickness { get; init; } = 4f;
-    /// <summary>归一化点集：dot=1 点；线/箭头/圆=2 点（圆用包围盒）；手绘=多点；文字=1 点（左上锚点）。</summary>
+    /// <summary>归一化点集：dot=1 点；线/箭头/圆=2 点（圆用包围盒）；手绘=多点；文字=1 点（左上锚点）；马赛克=2 点（对角）。</summary>
     public List<(float X, float Y)> Points { get; } = new();
     /// <summary>文字内容（仅 Kind=Text）。</summary>
     public string Text { get; set; } = "";
@@ -108,12 +108,24 @@ public static class Bake
         foreach (var f in frames)
         {
             byte[] copy = (byte[])f.Bgra.Clone();
+            // 马赛克是字节级运算（与编辑器预览同一 MosaicInPlace），先铺底；矢量标注叠在其上
+            foreach (var a in anns)
+                if (a.Kind == AnnKind.Mosaic && a.Points.Count >= 2)
+                {
+                    int mx = (int)Math.Round(Math.Min(a.Points[0].X, a.Points[1].X) * f.W);
+                    int my = (int)Math.Round(Math.Min(a.Points[0].Y, a.Points[1].Y) * f.H);
+                    int mw = (int)Math.Round(Math.Abs(a.Points[1].X - a.Points[0].X) * f.W);
+                    int mh = (int)Math.Round(Math.Abs(a.Points[1].Y - a.Points[0].Y) * f.H);
+                    Services.BgraImage.MosaicInPlace(copy, f.W, f.H, mx, my, mw, mh,
+                        FrameCapture.Core.MosaicBlock.Px(a.Thickness, f.W, f.H));
+                }
             var gch = System.Runtime.InteropServices.GCHandle.Alloc(copy, System.Runtime.InteropServices.GCHandleType.Pinned);
             try
             {
                 using var bmp = new Bitmap(f.W, f.H, 4 * f.W, PixelFormat.Format32bppArgb, gch.AddrOfPinnedObject());
                 using var g = Graphics.FromImage(bmp);
-                foreach (var a in anns) a.Render(g, f.W, f.H);
+                foreach (var a in anns)
+                    if (a.Kind != AnnKind.Mosaic) a.Render(g, f.W, f.H);
             }
             finally { gch.Free(); }
             outFrames.Add(new Capture.CapturedFrame { Bgra = copy, W = f.W, H = f.H, TimeMs = f.TimeMs });

@@ -14,12 +14,12 @@ namespace FrameCapture.Overlays;
 // 绘图工具层：线/圆/箭头/手绘/裁剪 + 撤销 + 时间轴范围
 public sealed partial class EditorWindow
 {
-    enum Tool { Browse, Line, Ellipse, Arrow, Freehand, Text, Crop }
+    enum Tool { Browse, Line, Ellipse, Arrow, Freehand, Text, Mosaic, Crop }
 
-    static readonly Tool[] ToolOrder = { Tool.Line, Tool.Ellipse, Tool.Arrow, Tool.Freehand, Tool.Text, Tool.Crop };
-    // 面性图标（GlyphProbe 渲染矩阵人工定稿）：线 E949 / 圆 EA3B / 箭头 F0AF / 手绘 E70F / 文字 E8D2 / 裁剪 E7A8
-    static readonly string[] ToolGlyph = { "\uE949", "\uEA3B", "\uF0AF", "\uE70F", "\uE8D2", "\uE7A8" };
-    static readonly string[] ToolTip = { "直线 (L)", "圆圈 (O)", "箭头 (A)", "手绘 (P)", "文字 (T)", "裁剪 (C)" };
+    static readonly Tool[] ToolOrder = { Tool.Line, Tool.Ellipse, Tool.Arrow, Tool.Freehand, Tool.Text, Tool.Mosaic, Tool.Crop };
+    // 面性图标（GlyphProbe 渲染矩阵人工定稿）：线 E949 / 圆 EA3B / 箭头 F0AF / 手绘 E70F / 文字 E8D2 / 马赛克 E80A / 裁剪 E7A8
+    static readonly string[] ToolGlyph = { "\uE949", "\uEA3B", "\uF0AF", "\uE70F", "\uE8D2", "\uE80A", "\uE7A8" };
+    static readonly string[] ToolTip = { "直线 (L)", "圆圈 (O)", "箭头 (A)", "手绘 (P)", "文字 (T)", "马赛克 (M)", "裁剪 (C)" };
     static readonly Color[] Swatches =
     {
         Color.FromRgb(0xE8, 0x11, 0x23), Color.FromRgb(0xFF, 0xB9, 0x00),
@@ -254,6 +254,14 @@ public sealed partial class EditorWindow
                 _pending = null;
                 StartCropGuide();
                 break;
+            case Tool.Mosaic:
+                _pending = null;
+                _preview = new Rectangle
+                {
+                    Stroke = new SolidColorBrush(Acc), StrokeThickness = 1.5, StrokeDashArray = new DoubleCollection { 4, 3 },
+                    Fill = MosaicBrush(GetMosaic(_index, CurWidth), new Rect(0, 0, 0.001, 0.001), new Rect(0, 0, 1, 1)),
+                };
+                break;
         }
         if (_preview != null)
         {
@@ -295,6 +303,17 @@ public sealed partial class EditorWindow
                 Canvas.SetTop(_preview, Math.Min(_pressPos.Y, p.Y));
                 UpdateCropGuide(_preview);
                 break;
+            case Tool.Mosaic when _preview is Rectangle mr && mr.Fill is ImageBrush mb:
+            {
+                double w = Math.Abs(p.X - _pressPos.X), h = Math.Abs(p.Y - _pressPos.Y);
+                double x = Math.Min(_pressPos.X, p.X), y = Math.Min(_pressPos.Y, p.Y);
+                var m0 = Norm(_pressPos); var m1 = Norm(p);
+                mb.Viewbox = new Rect(Math.Min(m0.X, m1.X), Math.Min(m0.Y, m1.Y), Math.Max(0.001, Math.Abs(m1.X - m0.X)), Math.Max(0.001, Math.Abs(m1.Y - m0.Y)));
+                mb.Viewport = new Rect(0, 0, Math.Max(1, w), Math.Max(1, h)); // 元素本地坐标系
+                _preview.Width = w; _preview.Height = h;
+                Canvas.SetLeft(_preview, x); Canvas.SetTop(_preview, y);
+                break;
+            }
         }
         if (_pending is { Points.Count: >= 2 } && _tool is Tool.Line or Tool.Ellipse or Tool.Arrow)
             { var nn2 = Norm(p); _pending.Points[1] = ((float)nn2.X, (float)nn2.Y); }
@@ -309,6 +328,10 @@ public sealed partial class EditorWindow
         if (_tool == Tool.Crop)
         {
             ApplyCrop(_pressPos, p);
+        }
+        else if (_tool == Tool.Mosaic)
+        {
+            ApplyMosaic(_pressPos, p);
         }
         else if (_pending != null)
         {
@@ -460,6 +483,41 @@ public sealed partial class EditorWindow
         _textInput = null;
     }
 
+    // ---------------- 马赛克（R47）：拖框实时块均值预览，与烘焙共用 MosaicInPlace ----------------
+
+    readonly Dictionary<(int, float), BitmapSource> _mosaicCache = new();
+
+    BitmapSource GetMosaic(int frameIndex, float thickness)
+    {
+        var key = (frameIndex, thickness);
+        if (_mosaicCache.TryGetValue(key, out var hit)) return hit;
+        var f = _seq.Frames[frameIndex];
+        var copy = (byte[])f.Bgra.Clone();
+        FrameCapture.Services.BgraImage.MosaicInPlace(copy, f.W, f.H, 0, 0, f.W, f.H,
+            FrameCapture.Core.MosaicBlock.Px(thickness, f.W, f.H));
+        var src = BitmapSource.Create(f.W, f.H, 96, 96, PixelFormats.Bgra32, null, copy, f.W * 4);
+        src.Freeze();
+        if (_mosaicCache.Count > 12) _mosaicCache.Clear(); // 换宽度挡位/翻帧的旧条目整体让位
+        _mosaicCache[key] = src;
+        return src;
+    }
+
+    static ImageBrush MosaicBrush(BitmapSource src, Rect viewbox, Rect viewport) => new(src)
+    {
+        Viewbox = viewbox, ViewboxUnits = BrushMappingMode.RelativeToBoundingBox,
+        Viewport = viewport, ViewportUnits = BrushMappingMode.Absolute,
+        Stretch = Stretch.Fill, TileMode = TileMode.None,
+    };
+
+    void ApplyMosaic(Point a, Point b)
+    {
+        if (Math.Abs(b.X - a.X) < 8 && Math.Abs(b.Y - a.Y) < 8) return; // 误点不成一笔
+        var n0 = Norm(a); var n1 = Norm(b);
+        var ann = MakeAnn(AnnKind.Mosaic, Color.FromArgb(255, 0, 0, 0), CurWidth, new[] { n0, n1 });
+        CommitAnn(ann);
+        FrameCapture.Core.Trace.Log("editor mosaic ann");
+    }
+
     Annotation MakeAnn(AnnKind k, Color c, float w, IEnumerable<Point> normPts)
     {
         var a = new Annotation { Kind = k, Color = System.Drawing.Color.FromArgb(c.A, c.R, c.G, c.B), Thickness = w };
@@ -579,6 +637,18 @@ public sealed partial class EditorWindow
                 case AnnKind.Freehand when pts.Count >= 2:
                     _canvas.Children.Add(new Polyline { Points = new PointCollection(pts), Stroke = wpfCol, StrokeThickness = stroke, StrokeLineJoin = PenLineJoin.Round });
                     break;
+                case AnnKind.Mosaic when pts.Count >= 2:
+                {
+                    var vb = new Rect(Math.Min(a.Points[0].X, a.Points[1].X), Math.Min(a.Points[0].Y, a.Points[1].Y),
+                        Math.Max(0.001, Math.Abs(a.Points[1].X - a.Points[0].X)), Math.Max(0.001, Math.Abs(a.Points[1].Y - a.Points[0].Y)));
+                    var vp = new Rect(Math.Min(pts[0].X, pts[1].X), Math.Min(pts[0].Y, pts[1].Y),
+                        Math.Max(1, Math.Abs(pts[1].X - pts[0].X)), Math.Max(1, Math.Abs(pts[1].Y - pts[0].Y)));
+                    // Viewport 是元素本地坐标系：必须 (0,0,w,h)，画布定位交给 Canvas.SetLeft/Top
+                    var el = new Rectangle { Fill = MosaicBrush(GetMosaic(_index, a.Thickness), vb, new Rect(0, 0, vp.Width, vp.Height)), Width = vp.Width, Height = vp.Height };
+                    Canvas.SetLeft(el, vp.X); Canvas.SetTop(el, vp.Y);
+                    _canvas.Children.Add(el);
+                    break;
+                }
                 case AnnKind.Text when pts.Count > 0 && !string.IsNullOrEmpty(a.Text):
                 {
                     var f = _seq.Frames[_index];
