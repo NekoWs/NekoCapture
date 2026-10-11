@@ -48,6 +48,9 @@ public sealed class AppSettings
     /// <summary>点按捕获快捷键时总是先弹出选区，选完立即截图（QQ 式手感）。</summary>
     public bool TapAlwaysShowsRegion { get; set; } = false;
 
+    /// <summary>「按住 = 录制」教学提示是否已展示过（首次真正起录后不再打扰，R43）。</summary>
+    public bool RecHintShown { get; set; } = false;
+
     /// <summary>主题: system | light | dark。</summary>
     public string Theme { get; set; } = "system";
 

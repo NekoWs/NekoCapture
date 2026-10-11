@@ -25,6 +25,13 @@ public sealed class RegionOutlineWindow : Window
     private readonly System.Windows.Threading.DispatcherTimer _flashTimer;
     private bool _captureExcluded;
 
+    // REC 徽标（R43）：按住超过点按阈值才出现——"还在按 = 正在录"一眼看懂，附实时时长
+    private readonly Border _recBadge;
+    private readonly System.Windows.Shapes.Ellipse _recDot;
+    private readonly TextBlock _recText;
+    private readonly System.Windows.Threading.DispatcherTimer _recTimer;
+    private System.Diagnostics.Stopwatch? _recClock;
+
     public RegionOutlineWindow()
     {
         // 覆盖层不需要文本输入：禁用输入法，避免拼音拦截快捷键
@@ -45,7 +52,45 @@ public sealed class RegionOutlineWindow : Window
             BorderThickness = new Thickness(2),
             Background = Brushes.Transparent,
         };
-        Content = _border;
+
+        _recDot = new System.Windows.Shapes.Ellipse
+        {
+            Width = 9, Height = 9,
+            Fill = Brushes.White, // 红底上红点会糊掉，白点才是经典录制符号
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 6, 0),
+        };
+        _recText = new TextBlock
+        {
+            Text = "REC 0:00.0",
+            FontFamily = new FontFamily("Segoe UI"),
+            FontSize = 12,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = Brushes.White,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        _recBadge = new Border
+        {
+            Background = new SolidColorBrush(Color.FromArgb(0xD9, 0xC8, 0x1A, 0x1A)),
+            CornerRadius = new CornerRadius(6),
+            Padding = new Thickness(8, 3, 10, 4),
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Top,
+            Margin = new Thickness(0, 8, 8, 0),
+            Visibility = Visibility.Collapsed,
+            Child = new StackPanel { Orientation = Orientation.Horizontal },
+        };
+        ((StackPanel)_recBadge.Child).Children.Add(_recDot);
+        ((StackPanel)_recBadge.Child).Children.Add(_recText);
+
+        var root = new Grid();
+        root.Children.Add(_border);
+        root.Children.Add(_recBadge);
+        Content = root;
+
+        _recTimer = new System.Windows.Threading.DispatcherTimer
+        { Interval = TimeSpan.FromMilliseconds(100) };
+        _recTimer.Tick += (_, _) => UpdateRecText();
 
         _flashTimer = new System.Windows.Threading.DispatcherTimer
         { Interval = TimeSpan.FromMilliseconds(600) };
@@ -59,10 +104,24 @@ public sealed class RegionOutlineWindow : Window
         // 先把 HWND 建好（此刻还未上屏），再打上"不进捕获"，避免第一帧被录进去
         new System.Windows.Interop.WindowInteropHelper(this).EnsureHandle();
         EnsureExcludedFromCapture();
+
+        // WPF 布局会用 DIP 覆写 SetWindowPos 的物理定位（R43 实测 681→454）：位置一变就钉回去，
+        // guard 防自激，最终稳定在物理坐标。
+        LocationChanged += (_, _) =>
+        {
+            if (_placeGuard || _region.W <= 0) return;
+            _placeGuard = true;
+            try { Place(_region); } finally { _placeGuard = false; }
+        };
     }
+
+    bool _placeGuard;
+
+    private RectI _region; // 最近一次目标区域（物理像素）
 
     public void SetRegion(RectI region)
     {
+        _region = region;
         // 物理像素窗口：直接用 SetWindowPos 精确定位
         Place(region);
         if (IsLoaded) Place(region);
@@ -77,6 +136,10 @@ public sealed class RegionOutlineWindow : Window
         Opacity = 1;
         ResetBorder();
         if (!IsVisible) Show();
+        // WPF 的 Show/布局会用 Left/Top(DIP) 覆写我们 SetWindowPos 的物理定位（实测 681→454=÷1.5，
+        // R43 逐帧抓到：录制轮廓整体偏左上）。Show 之后重新按物理像素钉死，再兜一拍防布局回写。
+        Place(_region);
+        Dispatcher.BeginInvoke(() => Place(_region));
         EnsureExcludedFromCapture();
     }
 
@@ -122,10 +185,46 @@ public sealed class RegionOutlineWindow : Window
 
     public void HideSilently()
     {
+        StopRecBadge();
         // 停掉在途的淡出动画，否则下次 Show 会被它的 Completed→Hide 拽掉
         _fadeTimer?.Stop();
         BeginAnimation(OpacityProperty, null);
         Hide();
+    }
+
+    /// <summary>录制指示徽标：按住超过点按阈值后由控制器点亮，红点脉冲 + 实时时长。</summary>
+    public void StartRecBadge()
+    {
+        if (_recBadge.Visibility == Visibility.Visible) return;
+        _recClock = System.Diagnostics.Stopwatch.StartNew();
+        UpdateRecText();
+        _recTimer.Start();
+        _recBadge.Visibility = Visibility.Visible;
+        _recBadge.BeginAnimation(OpacityProperty, null);
+        _recBadge.Opacity = 0;
+        _recBadge.BeginAnimation(OpacityProperty,
+            new System.Windows.Media.Animation.DoubleAnimation(1,
+                new System.Windows.Duration(TimeSpan.FromMilliseconds(FrameCapture.Core.Fluent.Motion.EnterMs))));
+        // 红点 1s 呼吸脉冲（录制进行感）
+        var pulse = new System.Windows.Media.Animation.DoubleAnimation(1, 0.35,
+            new System.Windows.Duration(TimeSpan.FromSeconds(1)))
+        { AutoReverse = true, RepeatBehavior = System.Windows.Media.Animation.RepeatBehavior.Forever };
+        _recDot.BeginAnimation(OpacityProperty, pulse);
+    }
+
+    public void StopRecBadge()
+    {
+        _recTimer?.Stop();
+        _recClock = null;
+        _recDot.BeginAnimation(OpacityProperty, null);
+        if (_recBadge != null) _recBadge.Visibility = Visibility.Collapsed;
+    }
+
+    void UpdateRecText()
+    {
+        if (_recClock == null) return;
+        double t = _recClock.Elapsed.TotalSeconds;
+        _recText.Text = $"REC {(int)(t / 60)}:{t % 60:00.0}";
     }
 
     System.Windows.Threading.DispatcherTimer? _fadeTimer;
@@ -172,7 +271,22 @@ public sealed class RegionOutlineWindow : Window
         if (hwnd == IntPtr.Zero) return;
         Win32.SetWindowPos(hwnd, Win32.HWND_TOPMOST, region.X, region.Y, region.W, region.H,
             Win32.SWP_NOACTIVATE | Win32.SWP_SHOWWINDOW);
+        // 上屏后 WPF 布局会用 Left/Top/Width/Height(DIP) 回写窗口位置（R43 实测把 681 覆写成 454=÷1.5）。
+        // 把同一物理矩形换算成 DIP 同步给 WPF，令它的回写变成幂等，两边不再打架。
+        if (IsLoaded && !_syncing)
+        {
+            _syncing = true;
+            try
+            {
+                var d = VisualTreeHelper.GetDpi(this);
+                Left = region.X / d.DpiScaleX; Top = region.Y / d.DpiScaleY;
+                Width = region.W / d.DpiScaleX; Height = region.H / d.DpiScaleY;
+            }
+            catch { }
+            _syncing = false;
+        }
     }
+    bool _syncing;
 
     protected override void OnSourceInitialized(EventArgs e)
     {

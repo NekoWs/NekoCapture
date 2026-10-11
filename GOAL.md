@@ -67,7 +67,7 @@ dotnet build src/FrameCapture -c Debug -p:Platform=x64 -v q --nologo      # 输�
 #   旧 dll 会静默继续运行（R12 曾因此"看到旧界面"排查半天）。截图前验 dll 新鲜度：
 #   FrameCapture.dll 的 LastWriteTime + 字符串探针（新符号在/旧符号无，如 BuildPanels=True、FloatBar=False）。
 
-# 自测（当前基线 RESULT PASS=122 FAIL=0，只增不减）
+# 自测（当前基线 RESULT PASS=127 FAIL=0，只增不减）
 dotnet build tools/SelfTest -c Debug -p:Platform=x64 -v q --nologo
 tools/SelfTest/bin/x64/Debug/net8.0-windows10.0.19041.0/SelfTest.exe
 

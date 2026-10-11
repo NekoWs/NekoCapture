@@ -148,6 +148,9 @@ internal static class Win32
     [DllImport("user32.dll")]
     public static extern bool GetClientRect(IntPtr hWnd, out RECT lpRect);
 
+    [DllImport("user32.dll")]
+    public static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
+
     /// <summary>WDA_EXCLUDEFROMCAPTURE=0x11：窗口不出现在任何屏幕捕获（BitBlt/WGC）中。</summary>
     [DllImport("user32.dll", SetLastError = true)]
     public static extern bool SetWindowDisplayAffinity(IntPtr hWnd, uint dwAffinity);

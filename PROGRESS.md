@@ -599,3 +599,15 @@ status: done
 - 浮窗不抢焦点收不到 PostMessage 键 → HwndSource.AddHook 直接处理 WM_KEYDOWN(Enter/Esc)。
 - 验证：SelfTest 127/127（+T88×5）；全链 e2e（点按→选区 Enter→截图→浮窗 Enter→编辑器 frames=1）trace 全绿；
   门禁 GUARDRAIL PASS（FAIL=0 SKIP=1）；浮窗视觉取证 toast-visual.png。
+
+## 2026-10-11 夜 交互优化 R43（长按=录制「看得懂」）
+- **REC 徽标**：按住超过点按阈值（TapThresholdMs+60ms）才点亮——红底白点呼吸脉冲 + 实时时长「REC 0:00.5」，
+  钉在范围轮廓内侧右上角；松手即灭（FinishCapture 统一 Stop）。"还在按 = 正在录"从隐性约定变成看得见的状态。
+- **首次教学提示**：没录过制时，选区提示第二行强调色「提示：按住 F6 不放 = 录制 GIF（点按 = 截图）」；
+  首次真正起录（徽标点亮）即持久化 RecHintShown=true，之后不再打扰。
+- **逐帧抓到轮廓定位老 bug（R43 修复）**：WPF 布局会用 DIP 覆写 SetWindowPos 的物理定位，
+  150% 屏上录制轮廓整体偏左上（681→454=÷1.5）。修复：Place() 上屏后把同一物理矩形换算成 DIP 同步给
+  WPF（Left/Top/Width/Height），令回写幂等；LocationChanged 兜底钉回。长按中全屏扫描 y=521 边框 127 蓝点 ✓。
+- 徽标红点改白（红底上红点糊掉，白点=经典录制符号）。
+- 验证：SelfTest 127/127；门禁 GUARDRAIL PASS（FAIL=0 SKIP=1）；
+  取证 R43/teach-hint-crop2.png（两行提示）/ teach-gone-crop2.png（一行）/ R43c/badge-final.png（REC 徽标+轮廓在位）。

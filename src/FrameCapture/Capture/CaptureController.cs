@@ -21,6 +21,7 @@ public sealed class CaptureController : IDisposable
     private ScreenRegion? _pendingRegion;
     /// <summary>点按总是先显示选区（QQ 式）：本次选区确认后立即截一帧静态图。</summary>
     private bool _captureAfterSelect;
+    private System.Windows.Threading.DispatcherTimer? _recBadgeTimer; // R43：按住过阈值→REC 徽标
 
     public Phase State { get; private set; } = Phase.Idle;
 
@@ -29,6 +30,16 @@ public sealed class CaptureController : IDisposable
         _settings = settings;
         // 只订阅一次：避免多次捕获累积 handler，导致同一帧重复入 ring
         _live.FrameSampled += f => _ring?.Add(f);
+        _recBadgeTimer = new System.Windows.Threading.DispatcherTimer();
+        _recBadgeTimer.Tick += (_, _) =>
+        {
+            _recBadgeTimer!.Stop();
+            if (State == Phase.Capturing)
+            {
+                _outline?.StartRecBadge();
+                if (!_settings.Current.RecHintShown) _settings.Mutate(s => s.RecHintShown = true); // 教过一次就收
+            }
+        };
     }
 
     public void Initialize()
@@ -122,7 +133,10 @@ public sealed class CaptureController : IDisposable
         var monitor = Monitors.Nearest(cursor.X, cursor.Y);
 
         State = Phase.SelectingScope;
-        _picker = new RegionPickerWindow(monitor, existing: StoredRegion()?.Bounds, snapContent: _settings.Current.SnapContentArea);
+        // 首次教学（R43）：用户还没录过制时，在选区提示里点破"按住=录制"，起录一次后不再打扰
+        string? teachTip = _settings.Current.RecHintShown ? null
+            : $"提示：按住 {_settings.Current.CaptureHotkey} 不放 = 录制 GIF（点按 = 截图）";
+        _picker = new RegionPickerWindow(monitor, existing: StoredRegion()?.Bounds, snapContent: _settings.Current.SnapContentArea, teachTip: teachTip);
         _picker.Result += region =>
         {
             _picker = null;
@@ -256,7 +270,13 @@ public sealed class CaptureController : IDisposable
         State = Phase.Capturing;
         // 系统 WGC 提示边框已关闭，改用自家按范围绘制的轮廓做"正在录制"提示。
         // 该窗以 WDA_EXCLUDEFROMCAPTURE 排除，不会进产物；关掉开关即完全不提示。
-        if (_settings.Current.ShowRecordingBorder) ShowCaptureScope(region.Bounds);
+        if (_settings.Current.ShowRecordingBorder)
+        {
+            ShowCaptureScope(region.Bounds);
+            // R43：按住超过点按阈值才点亮 REC 徽标——"还在按=正在录"从隐性约定变成看得见的状态
+            _recBadgeTimer!.Interval = TimeSpan.FromMilliseconds(_settings.Current.TapThresholdMs + 60);
+            _recBadgeTimer.Start();
+        }
 
         int max = _settings.Current.MaxDurationMs;
         _maxTimer = new System.Windows.Threading.DispatcherTimer
@@ -279,6 +299,8 @@ public sealed class CaptureController : IDisposable
     private void FinishCapture(long holdMs = -1)
     {
         FrameCapture.Core.Trace.Log("FinishCapture");
+        _recBadgeTimer?.Stop();
+        _outline?.StopRecBadge();
         _maxTimer?.Stop();
         _maxTimer = null;
         _live.Stop();

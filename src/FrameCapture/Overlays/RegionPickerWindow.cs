@@ -44,7 +44,7 @@ public sealed class RegionPickerWindow : Window
         Native.Win32.SetWindowPos(h, Native.Win32.HWND_TOPMOST, 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0010); // NOMOVE|NOSIZE|NOACTIVATE
     }
 
-    public RegionPickerWindow(MonitorInfo monitor, RectI? existing, bool snapContent = false)
+    public RegionPickerWindow(MonitorInfo monitor, RectI? existing, bool snapContent = false, string? teachTip = null)
     {
         // 覆盖层不需要文本输入：禁用输入法，避免拼音拦截快捷键
         System.Windows.Input.InputMethod.SetIsInputMethodEnabled(this, false);
@@ -87,13 +87,27 @@ public sealed class RegionPickerWindow : Window
             Margin = new Thickness(0, 0, 0, 46),
             IsHitTestVisible = false,
             Opacity = 0,
-            Child = new TextBlock
+        };
+        {
+            var hintPanel = new StackPanel();
+            hintPanel.Children.Add(new TextBlock
             {
                 Text = "拖框选择 · 悬停点击吸附窗口 · Enter 确认上次选区 · Esc 取消",
                 FontSize = 13,
                 Foreground = new SolidColorBrush(Color.FromArgb(0xE6, 0xFF, 0xFF, 0xFF)),
-            },
-        };
+            });
+            if (teachTip != null)
+                hintPanel.Children.Add(new TextBlock
+                {
+                    Text = teachTip,
+                    FontSize = 13,
+                    FontWeight = FontWeights.SemiBold,
+                    Foreground = new SolidColorBrush(FrameCapture.Core.Theme.Accent),
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    Margin = new Thickness(0, 3, 0, 0),
+                });
+            _hint.Child = hintPanel;
+        }
         var rootGrid = new Grid();
         rootGrid.Children.Add(_canvas);
         rootGrid.Children.Add(_hint);
