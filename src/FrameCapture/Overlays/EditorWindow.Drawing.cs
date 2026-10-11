@@ -52,6 +52,7 @@ public sealed partial class EditorWindow
     readonly FrameCapture.Core.RangeDragState _rd = new();
     // Background 必须非 null（透明即可）：null 时画布空白区不参与命中测试，轨道点选/拖动会失效
     Canvas _rangeCanvas = new() { Height = 26, Cursor = Cursors.IBeam, Background = System.Windows.Media.Brushes.Transparent };
+    bool _tlHover;
 
 
     void InitDrawing()
@@ -78,6 +79,9 @@ public sealed partial class EditorWindow
 
         var rangeBorder = new Border { Child = _rangeCanvas };
         _rangeCanvas.MouseLeftButtonDown += Range_Down;
+        // 悬停提示可裁剪：未裁剪时两端也画出淡把手（PR 式 affordance，不悬停不打扰）
+        _rangeCanvas.MouseEnter += (_, _) => { _tlHover = true; DrawRange(); };
+        _rangeCanvas.MouseLeave += (_, _) => { _tlHover = false; DrawRange(); };
         _rangeCanvas.MouseMove += Range_Move;
         _rangeCanvas.MouseLeftButtonUp += Range_Up;
         _rangeCanvas.SizeChanged += (_, _) => DrawRange();
@@ -596,6 +600,11 @@ public sealed partial class EditorWindow
             if (cw - xb > 1) c.Children.Add(TlBar(xb, 0, cw - xb, ch, 0, Color.FromArgb(0x99, 0x0A, 0x0A, 0x0C)));
             c.Children.Add(TlBar(xa - 1.5, 2, 3, ch - 4, 1.5, FrameCapture.Core.Theme.Accent));
             c.Children.Add(TlBar(xb - 1.5, 2, 3, ch - 4, 1.5, FrameCapture.Core.Theme.Accent));
+        }
+        else if (_tlHover)
+        {
+            c.Children.Add(TlBar(1.5, 2, 3, ch - 4, 1.5, Color.FromArgb(0x8C, Theme.Stroke.R, Theme.Stroke.G, Theme.Stroke.B)));
+            c.Children.Add(TlBar(cw - 4.5, 2, 3, ch - 4, 1.5, Color.FromArgb(0x8C, Theme.Stroke.R, Theme.Stroke.G, Theme.Stroke.B)));
         }
 
         // 播放头：白色竖线 + 顶部三角（PR 指针），与填充端点同坐标不可能分离

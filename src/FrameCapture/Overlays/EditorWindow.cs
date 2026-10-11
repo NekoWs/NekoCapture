@@ -406,12 +406,20 @@ public sealed partial class EditorWindow : Window
         }
     }
 
-    void PickCustomColor()
+    /// <summary>把 WPF 窗口句柄递给 WinForms 对话框做 owner。</summary>
+    sealed class Win32Owner : System.Windows.Forms.IWin32Window
     {
-        var dlg = new System.Windows.Forms.ColorDialog { FullOpen = true };
+        public IntPtr Handle { get; }
+        public Win32Owner(IntPtr h) => Handle = h;
+    }
+
+    void PickCustomColor()
+    {        var dlg = new System.Windows.Forms.ColorDialog { FullOpen = true };
         var cur = _customColor ?? CurColor;
         dlg.Color = System.Drawing.Color.FromArgb(cur.R, cur.G, cur.B);
-        if (dlg.ShowDialog() != System.Windows.Forms.DialogResult.OK) return;
+        // owner=编辑器：模态、居中于编辑器、始终在其之上（否则可能弹到别的屏幕/窗后）
+        var got0 = dlg.ShowDialog(new Win32Owner(new System.Windows.Interop.WindowInteropHelper(this).Handle));
+        if (got0 != System.Windows.Forms.DialogResult.OK) return;
         var got = dlg.Color;
         _customColor = Color.FromRgb(got.R, got.G, got.B);
         _colorIdx = Swatches.Length;
