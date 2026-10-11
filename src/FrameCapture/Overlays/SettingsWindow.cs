@@ -15,6 +15,7 @@ namespace FrameCapture.Overlays;
 public sealed class SettingsWindow : Window
 {
     readonly SettingsService _settings;
+    Action? _hkCancel; // 当前正在捕获新热键的行的取消动作（null=无）
     double _downX, _downY;
 
     public SettingsWindow()
@@ -147,7 +148,9 @@ public sealed class SettingsWindow : Window
             _downX = e.GetPosition(this).X; _downY = e.GetPosition(this).Y;
             DragMove();
         };
-        PreviewKeyDown += (_, e) => { if (e.Key == Key.Escape) FrameCapture.Core.Fluent.CloseWithFade(this); };
+        // 窗级 Esc 先于热键行的 PreviewKeyDown（tunnel 自上而下）：捕获新键期间必须放行，
+        // 否则"Esc 取消捕获"会变成"关掉整个设置窗"（R23 修）
+        PreviewKeyDown += (_, e) => { if (e.Key == Key.Escape && _hkCancel == null) FrameCapture.Core.Fluent.CloseWithFade(this); };
         SourceInitialized += (_, _) =>
         {
             Win32.SetRoundedCorners(new System.Windows.Interop.WindowInteropHelper(this).Handle);
@@ -219,9 +222,12 @@ public sealed class SettingsWindow : Window
         g.Children.Add(box);
 
         bool capturing = false;
+        Action cancel = null!;
+        cancel = () => { if (!capturing) return; capturing = false; if (ReferenceEquals(_hkCancel, cancel)) _hkCancel = null; Refresh(); };
         box.MouseLeftButtonDown += (_, e) =>
         {
-            capturing = true;
+            _hkCancel?.Invoke();           // 同一时刻只允许一行处于捕获态
+            capturing = true; _hkCancel = cancel;
             tb.Text = "按下新键…";
             tb.Foreground = new SolidColorBrush(Theme.TextDim);
             box.BorderBrush = new SolidColorBrush(Theme.Accent);
@@ -231,7 +237,7 @@ public sealed class SettingsWindow : Window
         {
             if (!capturing) return;
             e.Handled = true;
-            if (e.Key == Key.Escape) { capturing = false; Refresh(); return; }
+            if (e.Key == Key.Escape) { cancel(); return; }
             if (e.Key is Key.LeftCtrl or Key.RightCtrl or Key.LeftShift or Key.RightShift
                 or Key.LeftAlt or Key.RightAlt or Key.LWin or Key.RWin) return; // 等主键
             var mods = e.KeyboardDevice.Modifiers;
@@ -246,8 +252,7 @@ public sealed class SettingsWindow : Window
             if (HotkeySpec.Parse(text) == null) return;
             if (which == "scope") _settings.Mutate(s => s.ScopeHotkey = text);
             else _settings.Mutate(s => s.CaptureHotkey = text);
-            capturing = false;
-            Refresh();
+            cancel();
         };
 
         void Refresh()
