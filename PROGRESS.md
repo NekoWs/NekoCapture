@@ -557,3 +557,9 @@ status: done
 - **托盘悬停提示动态化**：「捕获 F6 · 选区 F7 / 范围 1726×980 · 60fps」，改键/换范围/fps 即时刷新（Changed→Dispatch）；
   未设范围提示"双击图标设置"；NotifyIcon.Text 63 字符上限防御回退。
 - 验证：GUARDRAIL PASS（FAIL=0 SKIP=1）；e2e 改键路径实际穿过 Changed→UpdateTip，err_delta=0 无崩溃。
+
+## 2026-10-11 长跑 R37（DSH goal 轮，20:50 起）
+- **README.txt 全面对齐现状**：删 FloatBar/自动隐藏旧描述与已删"点"工具；补 [ / ]+Backspace 裁剪、倍速、
+  重做 Y、调色板/最近用色、W 线宽弹层、HUD 倍率/导出范围、GIF 厘秒保时长、托盘动态提示、双击=选范围。
+- **README 随包发布接线**：csproj None+Link+CopyToOutputDirectory（发布包内曾陈旧于 10-03）；Version 0.1.0→0.9.0。
+- 验证：GUARDRAIL PASS（FAIL=0 SKIP=1，SelfTest 122/122）。

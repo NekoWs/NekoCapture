@@ -13,10 +13,15 @@
     <PlatformTarget>x64</PlatformTarget>
     <AssemblyName>FrameCapture</AssemblyName>
     <RootNamespace>FrameCapture</RootNamespace>
-    <Version>0.1.0</Version>
+    <Version>0.9.0</Version>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!-- 使用说明随包发布（R37：曾长期陈旧于 10-03 版） -->
+    <None Include="..\..\README.txt" Link="README.txt" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 
   <ItemGroup>
     <!-- WinRT（C#/WinRT）投影：本机离线，直接钉 NuGet 缓存里的投影程序集 -->
