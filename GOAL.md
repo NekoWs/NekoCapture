@@ -72,6 +72,9 @@ dotnet build tools/SelfTest -c Debug -p:Platform=x64 -v q --nologo
 tools/SelfTest/bin/x64/Debug/net8.0-windows10.0.19041.0/SelfTest.exe
 
 # 视觉取证（产物放 test-out/；输出目录必须先存在，否则 UICap 抛 DirectoryNotFoundException）
+# ⚠ DPI 坐标坑（R44）：pwsh 的 Add-Type P/Invoke 进程是 DPI-unaware——GetWindowRect/SetCursorPos 都被
+#   虚拟化（150% 屏 ÷1.5）；Shot.exe 是 aware（mouse 用物理坐标）。点按钮：物理 = pwshRect×1.5 + 窗口内物理偏移。
+#   WS_EX_TOPMOST=0x8（不是 0x80000，那是 LAYERED）。
 tools/UICap/bin/Release/net8.0-windows/UICap.exe region "FrameCapture Settings" test-out/uiaudit/x.png
 tools/UICap/bin/Release/net8.0-windows/UICap.exe burstdesk 3 500 test-out/burst   # <秒> <间隔ms> <前缀>
 tools/Shot/bin/x64/Debug/net8.0-windows/Shot.exe fg                        # 打印当前前台窗标题/类名

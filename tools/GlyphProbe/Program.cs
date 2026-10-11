@@ -3,6 +3,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 var app = new Application();
 if (args.Length > 0 && args[0] == "matrix") { RenderMatrix.Run(); return; }
+if (args.Length > 1 && args[0] == "pins") { Pins.Run(args[1]); return; }
 if (args.Length > 1 && args[0] == "sweep") { RenderMatrix.Sweep(args[1]); return; }
 string[] gs = { "\uE768", "\uE769", "\uE76A", "\uE76B", "\uE76C" };
 var ft = new Typeface(new FontFamily("Segoe Fluent Icons"), FontStyles.Normal, FontWeights.Normal, FontStretches.Normal);

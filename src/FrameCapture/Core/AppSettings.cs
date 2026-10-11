@@ -51,6 +51,9 @@ public sealed class AppSettings
     /// <summary>「按住 = 录制」教学提示是否已展示过（首次真正起录后不再打扰，R43）。</summary>
     public bool RecHintShown { get; set; } = false;
 
+    /// <summary>编辑器窗口总在最前（图钉开关，默认关，R44）。</summary>
+    public bool EditorTopmost { get; set; } = false;
+
     /// <summary>主题: system | light | dark。</summary>
     public string Theme { get; set; } = "system";
 

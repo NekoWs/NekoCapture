@@ -47,8 +47,10 @@ public sealed partial class EditorWindow : Window
         WindowStyle = WindowStyle.None;
         ResizeMode = ResizeMode.CanResize;
         ShowInTaskbar = true;
-        Topmost = true;
-        Deactivated += (_, _) => { if (IsLoaded) { Topmost = false; Topmost = true; } };
+        // 总在最前=图钉开关（R44，默认关）。开启时失活即重插置顶带（与旧行为一致），
+        // 关闭时是普通窗口，绝不能被 Deactivated 兜底重新钉上去。
+        Topmost = _settings.Current.EditorTopmost;
+        Deactivated += (_, _) => { if (IsLoaded && Topmost) { Topmost = false; Topmost = true; } };
         Title = "FrameCapture Editor";
         FrameCapture.Core.Fluent.BorderlessNative(this); // 真无框：消 DWM 非客户区白条，原生圆角+阴影
         FrameCapture.Core.Fluent.FadeIn(this, FrameCapture.Core.Fluent.Motion.EditorEnterMs, 14, offscreenFirstFrame: true);
@@ -57,8 +59,9 @@ public sealed partial class EditorWindow : Window
 
         var mon = Monitors.ByDevice(seq.MonitorDevice) ?? Monitors.Nearest(seq.Region.X, seq.Region.Y);
         // 780 DIP = 底部工具条全列（工具/色板/最近用色/宽度/撤销重做/齿轮/帮助）不裁切的最小宽（R34 极小区域抓到裁切）
-        MinWidth = 780;
-        Width = Math.Min(1600, Math.Max(780, seq.Region.W + 120));
+        // +32 = R44 图钉按钮
+        MinWidth = 812;
+        Width = Math.Min(1600, Math.Max(812, seq.Region.W + 120));
         Height = Math.Min(1000, Math.Max(420, seq.Region.H + (seq.Frames.Count > 1 ? 250 : 210))); // 停靠面板占位：播放+工具 / 仅工具
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
         if (mon != null)
@@ -240,6 +243,19 @@ public sealed partial class EditorWindow : Window
             _okBtns.Add(bOkF); // 主按钮：accent 实心
         }
         tools.Children.Add(Sep());
+        // 图钉：编辑器总在最前（R44）。空心=E718 未钉 / 实心=E840 已钉（GlyphProbe pins 已验证）
+        var bPin = IconBtn(_settings.Current.EditorTopmost ? "\uE840" : "\uE718", "总在最前");
+        FrameCapture.Core.Fluent.HighlightBtn(bPin, _settings.Current.EditorTopmost);
+        bPin.Click += (_, _) =>
+        {
+            bool on = !Topmost;
+            Topmost = on;
+            _settings.Mutate(s => s.EditorTopmost = on);
+            bPin.Content = on ? "\uE840" : "\uE718";
+            FrameCapture.Core.Fluent.HighlightBtn(bPin, on);
+            FrameCapture.Core.Trace.Log("editor topmost=" + on);
+        };
+        tools.Children.Add(bPin);
         var bSet = IconBtn("\uE713", "设置"); bSet.Click += (_, _) => SettingsWindow.ShowOrFocus();
         var bHelp = IconBtn("\uE9CE", "帮助与快捷键"); bHelp.Click += (_, _) => HelpWindow.ShowOrFocus();
         tools.Children.Add(bSet);

@@ -611,3 +611,13 @@ status: done
 - 徽标红点改白（红底上红点糊掉，白点=经典录制符号）。
 - 验证：SelfTest 127/127；门禁 GUARDRAIL PASS（FAIL=0 SKIP=1）；
   取证 R43/teach-hint-crop2.png（两行提示）/ teach-gone-crop2.png（一行）/ R43c/badge-final.png（REC 徽标+轮廓在位）。
+
+## 2026-10-11 夜 交互优化 R44（编辑器「总在最前」图钉，用户点单）
+- 工具条右侧新增图钉按钮：空心 E718=未钉 / 实心 E840=已钉 + accent 高亮（GlyphProbe pins 已验证字形）。
+  EditorTopmost 持久化，默认关；开启时保留旧「失活重插置顶带」行为，关闭时绝不被 Deactivated 兜底钉回。
+- MinWidth 780→812（+图钉按钮宽，防裁切）；帮助窗 + README 同步（点按新链路/REC 徽标/图钉）。
+- e2e（Shot mouse 真点击）：默认非置顶(ex 0x100) → 点击置顶(ex 0x108=WS_EX_TOPMOST) → 再点关 →
+  再点开 → Esc 关编辑器重录制重开=仍置顶（持久化生效）→ 复位默认关。trace editor topmost=True/False 全对。
+- 取证坑（记入 GOAL.md）：pwsh Add-Type 进程 DPI-unaware，GetWindowRect/SetCursorPos 被 ÷1.5 虚拟化，
+  Shot 是 aware——按钮点击坐标 = pwshRect×1.5+窗口内物理偏移；WS_EX_TOPMOST=0x8 非 0x80000。
+- 验证：SelfTest 127/127；门禁 GUARDRAIL PASS（FAIL=0 SKIP=1）；pin-on.png 图钉 ON 态视觉确认。
