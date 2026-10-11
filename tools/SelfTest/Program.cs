@@ -75,6 +75,31 @@ static class SelfTest
         return 0;
     }
 
+    static int RenderSlider(string outPath)
+    {
+        var app = new Application();
+        // 滑条取证（R57）：放大 3 倍看填充线与圆钮接缝是否露底色缝
+        var panel = new System.Windows.Controls.StackPanel { Background = new System.Windows.Media.SolidColorBrush(FrameCapture.Core.Theme.PanelBg) };
+        foreach (double v in new double[] { 0, 35, 100 })
+        {
+            var sl = new System.Windows.Controls.Slider { Minimum = 0, Maximum = 100, Value = v, Width = 300, Margin = new Thickness(10) };
+            FrameCapture.Core.Fluent.StyleSlider(sl);
+            panel.Children.Add(sl);
+        }
+        panel.Measure(new System.Windows.Size(340, 200));
+        panel.Arrange(new Rect(0, 0, 340, Math.Max(1, panel.DesiredSize.Height)));
+        panel.UpdateLayout();
+        int hh = (int)Math.Ceiling(Math.Max(1, panel.DesiredSize.Height));
+        var rtb = new System.Windows.Media.Imaging.RenderTargetBitmap(340, hh, 96, 96, System.Windows.Media.PixelFormats.Pbgra32);
+        rtb.Render(panel);
+        var enc = new System.Windows.Media.Imaging.PngBitmapEncoder();
+        enc.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(rtb));
+        Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(outPath))!);
+        using (var f = File.Create(outPath)) enc.Save(f);
+        Console.WriteLine($"saved {outPath} 340x{hh}");
+        return 0;
+    }
+
     static CapturedFrame Solid(int w, int h, byte r, byte g, byte b)    {
         var buf = new byte[w * h * 4];
         for (int i = 0; i < buf.Length; i += 4) { buf[i] = b; buf[i + 1] = g; buf[i + 2] = r; buf[i + 3] = 255; }
@@ -118,6 +143,7 @@ static class SelfTest
         // 离屏渲染帮助窗取证（R49）：独立进程、不 Show、不注册热键，不打断正在运行的实例
         if (args.Length == 2 && args[0] == "renderhelp") return RenderHelp(args[1]);
         if (args.Length == 2 && args[0] == "renderpick") return RenderPick(args[1]);
+        if (args.Length == 2 && args[0] == "renderslider") return RenderSlider(args[1]);
         string tmp = Path.Combine(Path.GetTempPath(), "FrameCapture", "selftest");
         Directory.CreateDirectory(tmp);
 

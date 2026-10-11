@@ -111,7 +111,9 @@ public static class Fluent
                     <RepeatButton Focusable="False">
                       <RepeatButton.Template>
                         <ControlTemplate TargetType="RepeatButton">
-                          <Border Height="3" CornerRadius="2" Background="{acc}" Opacity="0.9"/>
+                          <!-- 负右边距把填充线延到滑块格中心（格宽 22 由光晕决定，圆钮只占 13：
+                               不延伸则线与圆之间露 4.5px 底色缝，用户实测抓到） -->
+                          <Border Height="3" CornerRadius="2" Background="{acc}" Opacity="0.9" Margin="0,0,-11,0"/>
                         </ControlTemplate>
                       </RepeatButton.Template>
                     </RepeatButton>

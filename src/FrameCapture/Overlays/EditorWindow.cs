@@ -207,6 +207,10 @@ public sealed partial class EditorWindow : Window
                 Grid.SetColumn(_rangeHost, 1);
                 g.Children.Add(_rangeHost);
             }
+            // HUD 定底宽右对齐（R57）：帧数/时间/裁剪段文本变宽不再挤压时间轴列（用户实测：布局整体抖动）。
+            // MinWidth 而非 Width：罕见的「⚠丢帧」长警告仍完整可读，只是那种情况下才允许变宽。
+            _hud.MinWidth = 210;
+            _hud.TextAlignment = TextAlignment.Right;
             _hud.Margin = new Thickness(6, 0, 8, 0);
             Grid.SetColumn(_hud, 2);
             g.Children.Add(_hud);

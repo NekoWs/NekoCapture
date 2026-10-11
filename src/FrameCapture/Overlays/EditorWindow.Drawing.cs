@@ -1063,10 +1063,13 @@ public sealed partial class EditorWindow
             c.Children.Add(TlBar(xa - 1.5, 2, 3, ch - 4, 1.5, FrameCapture.Core.Theme.Accent));
             c.Children.Add(TlBar(xb - 1.5, 2, 3, ch - 4, 1.5, FrameCapture.Core.Theme.Accent));
         }
-        else if (_tlHover)
+        // 首尾端线常驻（R57）：提示"两端可拖出全范围"的把手位。对齐修复：线内缘精确贴 x=0 / x=cw
+        // （旧版悬停才现且线心偏离端点 3px，看着没对上首尾）。设了裁剪范围时由强调色把手接管，不叠加。
+        if (_rd.A < 0)
         {
-            c.Children.Add(TlBar(1.5, 2, 3, ch - 4, 1.5, Color.FromArgb(0x8C, Theme.Stroke.R, Theme.Stroke.G, Theme.Stroke.B)));
-            c.Children.Add(TlBar(cw - 4.5, 2, 3, ch - 4, 1.5, Color.FromArgb(0x8C, Theme.Stroke.R, Theme.Stroke.G, Theme.Stroke.B)));
+            var edge = Color.FromArgb((byte)(_tlHover ? 0xD0 : 0x76), Theme.Stroke.R, Theme.Stroke.G, Theme.Stroke.B);
+            c.Children.Add(TlBar(0, 2, 3, ch - 4, 1.5, edge));
+            c.Children.Add(TlBar(cw - 3, 2, 3, ch - 4, 1.5, edge));
         }
 
         // 播放头：主题色竖线 + 顶部三角（PR 指针）——浅色主题下白色会隐身（R19 逐帧审查抓到），跟 Theme.Text 走
