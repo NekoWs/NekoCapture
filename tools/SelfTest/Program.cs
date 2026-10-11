@@ -1087,6 +1087,17 @@ static class SelfTest
                 FrameCapture.Services.BgraImage.MosaicInPlace(buf, 4, 4, 2, 2, 99, 99, 2); // 越界钳到 2x2
                 Chk("T91e-clamp", buf[(2 * 4 + 2) * 4] == 25 && buf[(3 * 4 + 3) * 4] == 25, $"越界矩形钳进画布 → 右下块均值 25,{buf[(2 * 4 + 2) * 4]},{buf[(3 * 4 + 3) * 4]}");
             }
+            {
+                // T92 工具目录（R48）：单一数据源防漂移——加新工具漏帮助/漏字形/键位撞车当场红
+                var tools = FrameCapture.Core.ToolCatalog.Tools;
+                Chk("T92a-count", tools.Length == 7, $"七个绘制工具 → {tools.Length}");
+                var keys = tools.Select(t => t.Key).ToList();
+                Chk("T92b-keys", keys.Distinct().Count() == 7 && keys.Select(k => k[0]).OrderBy(c => c).SequenceEqual("ACLMOPT"), "键位 L/O/A/P/T/M/C 唯一且齐全");
+                Chk("T92c-glyphs", tools.All(t => t.Glyph.Length == 1 && t.Glyph[0] >= 0xE000 && t.Glyph[0] <= 0xF8FF) && tools.Select(t => t.Glyph).Distinct().Count() == 7,
+                    "字形均为私有区码位且互不重复（GlyphProbe 定稿）");
+                Chk("T92d-tips", tools.All(t => t.Tip.Contains(t.Key) && t.Help.Length >= 8), "工具条提示含快捷键、帮助说明非占位");
+                Chk("T92e-heading", FrameCapture.Core.ToolCatalog.HelpHeading.Contains(FrameCapture.Core.ToolCatalog.ExitKey), "退出键 X 写进帮助小节标题");
+            }
         }
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");
         return fail == 0 ? 0 : 1;

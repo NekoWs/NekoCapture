@@ -281,7 +281,7 @@ public sealed partial class EditorWindow : Window
         for (int i = 0; i < ToolOrder.Length; i++)
         {
             var tool = ToolOrder[i];
-            var b = IconBtn(ToolGlyph[i], ToolTip[i]);
+            var b = IconBtn(FrameCapture.Core.ToolCatalog.Tools[i].Glyph, FrameCapture.Core.ToolCatalog.Tools[i].Tip);
             b.PreviewMouseLeftButtonDown += (sender2, e2) => { e2.Handled = true; SetTool(tool); };
             _toolBtns.Add(b);
             bar.Children.Add(b);
@@ -506,8 +506,8 @@ public sealed partial class EditorWindow : Window
         if (_root == null) return;
         var rows = new (string K, string V)[]
         {
-            ("标注", "底部工具条选 线/椭圆/箭头/手绘，再点同一工具退出绘制"),
-            ("裁剪", "裁剪工具拖框，松开即应用；Ctrl+Z 可撤销"),
+            ("标注", "底部工具条选 线/圆/箭头/手绘/文字 T/马赛克 M，再点同一工具退出绘制"),
+            ("裁剪", "裁剪工具拖框（框外压暗+网格提示），松开即应用；Ctrl+Z 可撤销"),
             ("确定/取消", "Enter 写入剪贴板 · Esc 关闭 · 图钉=总在最前"),
             ("更多", "F1 完整帮助，任意按钮悬停有说明"),
         };

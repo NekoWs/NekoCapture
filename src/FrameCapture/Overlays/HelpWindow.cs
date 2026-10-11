@@ -122,13 +122,10 @@ public sealed class HelpWindow : Window
         KV("End 或 Ctrl+1", "逐像素 1:1（HUD 显示当前倍率）");
         KV("拖 拽", "放大后：浏览态左键拖，或任意工具下按住中键平移");
 
-        H("编辑器 · 绘图（再点当前工具 = 退出绘制）");
-        KV("─ L", "直线");
-        KV("○ O", "圆圈");
-        KV("↗ A", "箭头");
-        KV("✎ P", "手绘");
-        KV("T", "文字标注：点画布就地输入，Enter 上屏 / Esc 取消；字号随线宽挡位");
-        KV("✂ C", "裁剪（拖框时框外压暗+三分网格，松开即裁；只改视图不毁数据，Ctrl+Z 可撤销）");
+        H(FrameCapture.Core.ToolCatalog.HelpHeading);
+        // 工具条目从目录生成：加工具不会再漏帮助（R48，T92 配套）
+        foreach (var t in FrameCapture.Core.ToolCatalog.Tools)
+            KV($"{t.Glyph} {t.Key}", t.Help);
         KV("调色板 K", "自定义颜色：打开系统选色器；最近用色钉在旁侧，点一下即用");
         KV("⋯ 宽度 W", "自定义线宽：滑杆 1–24px，实时预览");
         KV("Ctrl+Z / U / Del", "撤销上一笔（标注与裁剪按发生顺序统一撤销）");

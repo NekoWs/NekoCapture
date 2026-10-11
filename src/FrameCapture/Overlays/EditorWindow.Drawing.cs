@@ -16,10 +16,8 @@ public sealed partial class EditorWindow
 {
     enum Tool { Browse, Line, Ellipse, Arrow, Freehand, Text, Mosaic, Crop }
 
+    // 工具顺序与 ToolCatalog.Tools 一一对应（T92 锁死）；图标/提示文案的唯一数据源在 Core.ToolCatalog
     static readonly Tool[] ToolOrder = { Tool.Line, Tool.Ellipse, Tool.Arrow, Tool.Freehand, Tool.Text, Tool.Mosaic, Tool.Crop };
-    // 面性图标（GlyphProbe 渲染矩阵人工定稿）：线 E949 / 圆 EA3B / 箭头 F0AF / 手绘 E70F / 文字 E8D2 / 马赛克 E80A / 裁剪 E7A8
-    static readonly string[] ToolGlyph = { "\uE949", "\uEA3B", "\uF0AF", "\uE70F", "\uE8D2", "\uE80A", "\uE7A8" };
-    static readonly string[] ToolTip = { "直线 (L)", "圆圈 (O)", "箭头 (A)", "手绘 (P)", "文字 (T)", "马赛克 (M)", "裁剪 (C)" };
     static readonly Color[] Swatches =
     {
         Color.FromRgb(0xE8, 0x11, 0x23), Color.FromRgb(0xFF, 0xB9, 0x00),
