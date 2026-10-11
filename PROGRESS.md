@@ -577,3 +577,8 @@ status: done
 - **逐帧抓到 HUD 差一 #2**：全范围裁剪（[ 在首帧）仍显示「导出 1–19」——显示条件 tb2<count 应为 tb2<count-1。
   修复复测：全范围无文字、idx2 起裁剪显示「导出 3–9」✓。
 - 验证：GUARDRAIL PASS（FAIL=0 SKIP=1，SelfTest 122/122）。
+
+## 2026-10-11 长跑 R40（DSH goal 轮，21:25 起）
+- 清理会话期 settings.json.* 备份 10 份（当前配置已逐项核对=用户基线：system/F6/F7/1726×980/QQ式点按）。
+- GOAL.md SelfTest 基线 118→122。
+- 发布实例（R39 二进制）冒烟：F6 长按→编辑器→Esc 正常。
