@@ -139,6 +139,11 @@ public sealed class SettingsWindow : Window
             _settings.Current.AutoSaveCopy, v => _settings.Mutate(s => s.AutoSaveCopy = v)));
         panel.Children.Add(PathRow());
 
+        // ---- 编辑器 ----
+        panel.Children.Add(Group("编辑器"));
+        panel.Children.Add(ToggleRow("\uEDD7", "记住上次的工具/颜色/粗细", "关闭编辑器时记住你最后用的标注工具、颜色和线宽，下次打开直接是它们，省去每次重选。关闭后每次打开都回到默认（浏览 / 红 / 中）",
+            _settings.Current.RememberEditorTools, v => _settings.Mutate(s => s.RememberEditorTools = v)));
+
         // ---- 外观 ----
         panel.Children.Add(Group("外观"));
         panel.Children.Add(ThemeRow());

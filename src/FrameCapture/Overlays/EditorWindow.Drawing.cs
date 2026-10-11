@@ -220,6 +220,58 @@ public sealed partial class EditorWindow
 
     void Highlight(Button b, bool on) => FrameCapture.Core.Fluent.HighlightBtn(b, on);
 
+    // ---------------- R64：记住上次的工具/颜色/粗细 ----------------
+
+    /// <summary>打开编辑器时恢复上次的标注设置（RememberEditorTools 关则不动，保持默认浏览/红/中）。
+    /// 在 BuildLayout 之后调用——此时工具/色板/宽度按钮已建好，SetTool/Refresh* 的高亮才生效。</summary>
+    void RestoreEditorPrefs()
+    {
+        if (!_settings.Current.RememberEditorTools) return;
+        var s = _settings.Current;
+        if (!string.IsNullOrEmpty(s.LastTool) && Enum.TryParse<Tool>(s.LastTool, out var t) && t != Tool.Browse)
+            SetTool(t); // 当前是 Browse，SetTool 切到 t（toggle 语义此时等价"选中 t"）
+        if (!string.IsNullOrEmpty(s.LastColor) && TryParseHex(s.LastColor, out var col))
+            ApplyColor(col);
+        if (s.LastWidth > 0)
+            ApplyWidth((float)s.LastWidth);
+    }
+
+    /// <summary>关闭编辑器时落盘当前工具/颜色/粗细——只在关闭写一次，避免每次点选都写盘。</summary>
+    void SaveEditorPrefs()
+    {
+        if (!_settings.Current.RememberEditorTools) return;
+        string tool = _tool == Tool.Browse ? "" : _tool.ToString();
+        var c = CurColor;
+        string color = $"#{c.A:X2}{c.R:X2}{c.G:X2}{c.B:X2}";
+        double width = CurWidth;
+        _settings.Mutate(st => { st.LastTool = tool; st.LastColor = color; st.LastWidth = width; });
+    }
+
+    /// <summary>把任意颜色落到色板：命中预设槽位则选中它，否则进自定义槽位（保留 alpha）。</summary>
+    void ApplyColor(Color col)
+    {
+        int idx = FrameCapture.Core.EditorPrefs.ColorSlot(col.A, col.R, col.G, col.B,
+            Swatches.Select(c => (c.A, c.R, c.G, c.B)).ToArray());
+        if (idx >= 0) _colorIdx = idx;
+        else { _customColor = col; _colorIdx = Swatches.Length; }
+        RefreshSwatches();
+    }
+
+    /// <summary>把任意线宽落到宽度槽位：命中预设（细/中/粗）则选中它，否则进自定义槽位。</summary>
+    void ApplyWidth(float w)
+    {
+        int idx = FrameCapture.Core.EditorPrefs.WidthSlot(w, Widths);
+        if (idx >= 0) _widthIdx = idx;
+        else { _customWidth = w; _widthIdx = Widths.Length; }
+        RefreshWidths();
+    }
+
+    static bool TryParseHex(string hex, out Color col)
+    {
+        col = default;
+        try { col = (Color)ColorConverter.ConvertFromString(hex); return true; } catch { return false; }
+    }
+
     static Color Acc => FrameCapture.Core.Theme.Accent;
 
     // ---------------- 画布交互 ----------------

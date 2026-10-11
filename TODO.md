@@ -25,6 +25,9 @@
 - [x] **自动保存副本（AutoSaveCopy）**（R63）：opt-in 开关（默认关，关=零副作用）——捕获后除剪贴板外再往文件夹写一份文件，
       单帧截图存 PNG、多帧录制存 GIF（已烘焙标注/裁剪的最终产物）；「保存位置」路径行可弹 FolderBrowserDialog 选目录
       （空=图片\FrameCapture），时间戳命名 + 唯一去重绝不覆盖。SaveService 新建，SelfTest T101a-e，实机 e2e 双路径复验。
+- [x] **编辑器记住工具/颜色/粗细（RememberEditorTools）**（R64）：默认开——关编辑器时记住最后用的标注工具/颜色/线宽，
+      下次打开直接是它们（QQ 编辑器不记，差异化手感）。新增「编辑器」分组开关；Core/EditorPrefs 纯决策（颜色 ARGB 全等落槽、
+      宽度命中预设、#AARRGGBB 格式），Closed 时写一次。SelfTest T102a-f，实机 e2e（按 A+点绿+点粗→✕→重开预选一致）。
 
 ## 用户反馈
 - [x] **录制后的全屏黄色边框持续存在（10-04 已修复）**：根因 = **不是我们的代码**，是 Windows 11

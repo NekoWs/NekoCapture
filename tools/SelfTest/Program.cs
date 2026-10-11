@@ -1409,6 +1409,22 @@ static class SelfTest
                     "关闭状态（Shared=null）→ 零落盘，绝不影响捕获");
                 try { Directory.Delete(svDir, true); } catch { }
             }
+
+            // T102 编辑器记住工具/颜色/粗细（R64，EditorPrefs 纯决策）
+            {
+                var sw = new (byte A, byte R, byte G, byte B)[]
+                {
+                    (255, 0xE8, 0x11, 0x23), (255, 0xFF, 0xB9, 0x00),
+                    (255, 0x10, 0x89, 0x3E), (255, 0x00, 0x78, 0xD4), (255, 0xFF, 0xFF, 0xFF),
+                };
+                var ws = new float[] { 3f, 6f, 10f };
+                Chk("T102a-color-hit", FrameCapture.Core.EditorPrefs.ColorSlot(255, 0x10, 0x89, 0x3E, sw) == 2, "颜色命中预设 → 下标 2");
+                Chk("T102b-color-custom", FrameCapture.Core.EditorPrefs.ColorSlot(255, 0x12, 0x34, 0x56, sw) == -1, "非预设色 → 自定义 -1");
+                Chk("T102c-color-alpha", FrameCapture.Core.EditorPrefs.ColorSlot(128, 0xE8, 0x11, 0x23, sw) == -1, "同 RGB 不同 alpha → 不误判成不透明预设");
+                Chk("T102d-width-hit", FrameCapture.Core.EditorPrefs.WidthSlot(6f, ws) == 1, "线宽命中预设 → 下标 1");
+                Chk("T102e-width-custom", FrameCapture.Core.EditorPrefs.WidthSlot(7.5f, ws) == -1, "非预设宽 → 自定义 -1");
+                Chk("T102f-hex", FrameCapture.Core.EditorPrefs.ToHex(255, 0xE8, 0x11, 0x23) == "#FFE81123", "颜色 → #AARRGGBB");
+            }
         }
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");
         return fail == 0 ? 0 : 1;

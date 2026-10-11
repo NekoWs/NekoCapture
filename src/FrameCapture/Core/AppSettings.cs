@@ -65,6 +65,19 @@ public sealed class AppSettings
     /// <summary>自动保存目录；空 = 图片\FrameCapture（R63）。</summary>
     public string AutoSavePath { get; set; } = "";
 
+    /// <summary>编辑器记住上次的工具/颜色/粗细（默认开，R64）：下次打开直接是上次用的标注设置，
+    /// 省去每次重选。关闭则每次打开回到默认（浏览 / 红 / 中）。关闭时不读写下面三项。</summary>
+    public bool RememberEditorTools { get; set; } = true;
+
+    /// <summary>上次编辑器选中的工具（Tool 枚举名）；空 = 默认浏览（R64）。</summary>
+    public string LastTool { get; set; } = "";
+
+    /// <summary>上次编辑器用的颜色（#AARRGGBB）；空 = 默认红（R64）。</summary>
+    public string LastColor { get; set; } = "";
+
+    /// <summary>上次编辑器用的线宽（px）；0 = 默认"中"（R64）。</summary>
+    public double LastWidth { get; set; } = 0;
+
     /// <summary>编辑器窗口总在最前（图钉开关，默认关，R44）。</summary>
     public bool EditorTopmost { get; set; } = false;
 

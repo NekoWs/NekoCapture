@@ -117,9 +117,11 @@ public sealed partial class EditorWindow : Window
 
         InitDrawing();
         BuildLayout();
+        RestoreEditorPrefs(); // R64：恢复上次的工具/颜色/粗细（关=保持默认）
         if (!_settings.Current.EditorGuideShown) ShowGuide(); // 首次打开：一次性上手引导（R45）
         Theme.Changed += Editor_OnTheme;
         Closed += (_, _) => Theme.Changed -= Editor_OnTheme;
+        Closed += (_, _) => SaveEditorPrefs(); // R64：关闭时记住标注设置（✓/✕/Esc 三条路径都经此）
         Show(0);
         System.Windows.Input.InputMethod.SetIsInputMethodEnabled(this, false);
         PreviewKeyDown += OnKeyDown;
