@@ -1568,6 +1568,22 @@ static class SelfTest
                 var a8 = FrameCapture.Core.PinSnap.SnapToLines(105, 505, 200, 100, new[] { 100.0 }, new[] { 302.0 }, new[] { 700.0 }, e, 12);
                 Chk("T113h-axes", a8.Left == 102 && a8.Top == 505, "x 取最近(right→302 差3)，y 超阈值不动");
             }
+
+            // T114 最近静态截图保留（R78，LastStill 状态持有）
+            {
+                var ls = new FrameCapture.Capture.LastStill();
+                Chk("T114a-empty", ls.Empty && !ls.TryGet(out _, out _, out _), "初始为空 → TryGet false");
+                var f1 = new FrameCapture.Capture.CapturedFrame { Bgra = new byte[4], W = 1, H = 1 };
+                var f2 = new FrameCapture.Capture.CapturedFrame { Bgra = new byte[8], W = 2, H = 1 };
+                ls.Set(f1, new FrameCapture.Capture.RectI(10, 20, 30, 40), "DEV1");
+                var ok1 = ls.TryGet(out var gf, out var gr, out var gd);
+                Chk("T114b-set", ok1 && !ls.Empty && ReferenceEquals(gf, f1) && gr.X == 10 && gr.W == 30 && gd == "DEV1", "Set 后取出帧/区域/设备一致");
+                ls.Set(f2, new FrameCapture.Capture.RectI(1, 2, 3, 4), "DEV2");
+                var ok2 = ls.TryGet(out var gf2, out var gr2, out var gd2);
+                Chk("T114c-overwrite", ok2 && ReferenceEquals(gf2, f2) && gr2.X == 1 && gd2 == "DEV2", "再次 Set 覆盖为最新一帧");
+                ls.Clear();
+                Chk("T114d-clear", ls.Empty && !ls.TryGet(out _, out _, out _), "Clear 后回到空");
+            }
         }
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");
         return fail == 0 ? 0 : 1;

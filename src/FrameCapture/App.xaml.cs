@@ -18,6 +18,7 @@ public partial class App : System.Windows.Application
     const string SinkName = "FrameCapture.MessageSink";
     const string MsgOpenSettings = "FrameCapture_OpenSettings";
     const string MsgOpenHelp = "FrameCapture_OpenHelp";
+    const string MsgEditLast = "FrameCapture_EditLast";
 
     [System.Runtime.InteropServices.DllImport("user32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
     static extern uint RegisterWindowMessageW(string lpString);
@@ -59,12 +60,16 @@ public partial class App : System.Windows.Application
         Services.AppHost.Current.Startup();
         StartMessageSink();
 
-        // 调试/常驻入口：FrameCapture.exe --settings | --help
+        // 调试/常驻入口：FrameCapture.exe --settings | --help | --edit-last
         if (e.Args.Any(a => string.Equals(a, "--settings", StringComparison.OrdinalIgnoreCase)))
             Dispatcher.BeginInvoke(() => Overlays.SettingsWindow.ShowOrFocus(),
                 System.Windows.Threading.DispatcherPriority.ApplicationIdle);
         if (e.Args.Any(a => string.Equals(a, "--help", StringComparison.OrdinalIgnoreCase)))
             Dispatcher.BeginInvoke(() => Overlays.HelpWindow.ShowOrFocus(),
+                System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+        // R78：把最近一次静态截图重新拉回编辑器（与托盘「编辑上次截图」同一入口，也便于脚本调用）
+        if (e.Args.Any(a => string.Equals(a, "--edit-last", StringComparison.OrdinalIgnoreCase)))
+            Dispatcher.BeginInvoke(() => Services.AppHost.Current.Controller.EditLastStill(),
                 System.Windows.Threading.DispatcherPriority.ApplicationIdle);
     }
 
@@ -72,7 +77,8 @@ public partial class App : System.Windows.Application
     {
         try { _msgSink = new MsgSink(
             () => Dispatcher.BeginInvoke(() => Overlays.SettingsWindow.ShowOrFocus()),
-            () => Dispatcher.BeginInvoke(() => Overlays.HelpWindow.ShowOrFocus())); }
+            () => Dispatcher.BeginInvoke(() => Overlays.HelpWindow.ShowOrFocus()),
+            () => Dispatcher.BeginInvoke(() => Services.AppHost.Current.Controller.EditLastStill())); }
         catch (System.Exception ex) { LogCrash(ex, "MsgSink"); }
     }
 
@@ -82,13 +88,14 @@ public partial class App : System.Windows.Application
     /// 直接建消息专用窗，仅用于接收二次实例转发的"打开设置/帮助"。</summary>
     sealed class MsgSink : System.Windows.Forms.NativeWindow
     {
-        readonly Action _onSettings, _onHelp;
-        readonly uint _mSet, _mHelp;
-        public MsgSink(Action onSettings, Action onHelp)
+        readonly Action _onSettings, _onHelp, _onEditLast;
+        readonly uint _mSet, _mHelp, _mEditLast;
+        public MsgSink(Action onSettings, Action onHelp, Action onEditLast)
         {
-            _onSettings = onSettings; _onHelp = onHelp;
+            _onSettings = onSettings; _onHelp = onHelp; _onEditLast = onEditLast;
             _mSet = RegisterWindowMessageW(MsgOpenSettings);
             _mHelp = RegisterWindowMessageW(MsgOpenHelp);
+            _mEditLast = RegisterWindowMessageW(MsgEditLast);
             CreateHandle(new System.Windows.Forms.CreateParams { Caption = SinkName, Parent = HWND_MESSAGE, Style = 0 });
             Core.Trace.Log($"sink created hwnd={Handle}");
         }
@@ -96,6 +103,7 @@ public partial class App : System.Windows.Application
         {
             if (m.Msg == _mSet) { Core.Trace.Log("sink→open settings"); _onSettings(); }
             else if (m.Msg == _mHelp) { Core.Trace.Log("sink→open help"); _onHelp(); }
+            else if (m.Msg == _mEditLast) { Core.Trace.Log("sink→edit last"); _onEditLast(); }
             base.WndProc(ref m);
         }
     }
@@ -104,7 +112,8 @@ public partial class App : System.Windows.Application
     {
         string? name =
             args.Any(a => string.Equals(a, "--settings", StringComparison.OrdinalIgnoreCase)) ? MsgOpenSettings :
-            args.Any(a => string.Equals(a, "--help", StringComparison.OrdinalIgnoreCase)) ? MsgOpenHelp : null;
+            args.Any(a => string.Equals(a, "--help", StringComparison.OrdinalIgnoreCase)) ? MsgOpenHelp :
+            args.Any(a => string.Equals(a, "--edit-last", StringComparison.OrdinalIgnoreCase)) ? MsgEditLast : null;
         if (name == null) return;
         try
         {

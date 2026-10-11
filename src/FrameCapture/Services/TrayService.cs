@@ -69,6 +69,9 @@ public sealed class TrayService : IDisposable
             t.Elapsed += (_, _) => { t.Stop(); t.Dispose(); Dispatch(() => _host.Controller.EndCapture()); };
             t.Start();
         });
+        // R78：静态截图的确认浮窗会自动消失，留一个入口把最近那张重新拉回编辑器标注
+        if (_host.Controller.HasLastStill)
+            Item("编辑上次截图", () => _host.Controller.EditLastStill());
         Sep();
         Item("快捷键设置…", OpenSettings);
         Item("帮助", OpenHelp);

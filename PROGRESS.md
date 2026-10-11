@@ -1110,3 +1110,18 @@ status: done
   - 吸附：把它左拖回落到 1494（距 1500 仅 6px < 阈值）松手 → trace `pin-snap (996,667)→(1000,667) otherPins=1`，两张贴图 Left 都=1500 精确对齐
   - 再把它竖直下拖到下方（左边保持 1500）→ 截图见两张贴图上下并排、左边缘严格对齐
 - 排障记录：自写 EnumWindows 抓不到贴图标题——根因 DllImport 默认 Ansi 字符集把 UTF-16 标题按 ANSI 读成 "F"，加 `CharSet=Unicode` 修复（Shot 一直用 Unicode 故正常）
+
+## 2026-10-12 清晨 交互优化 R78（托盘「编辑上次截图」：静态截图浮窗消失后仍可找回编辑器）
+
+**动机（手感实测）**：静态截图走「复制 + 确认浮窗」，浮窗 3.2s 自动消失；若用户当时没点「点击继续标注」，图就只剩剪贴板，想标注只能重截一遍。这是高频摩擦（截完先回了个消息/发个呆，回来想加个箭头就没了）。
+
+**实现**：
+- `Capture/LastStill` 纯状态持有类：只留最近一帧（Set 覆盖旧的，旧帧随之可 GC），TryGet/Clear/Empty。控制器持一个，静态截图路径 Set，Dispose 时 Clear（一帧全屏可达数十 MB）。
+- `CaptureController`：`HasLastStill`（决定托盘项是否出现）+ `EditLastStill()`（复用 OpenEditorForFrame，Idle 态才开，编辑器关闭不释放该帧 → 可反复找回）。
+- 托盘菜单：`if (Controller.HasLastStill) Item("编辑上次截图", …)`，放在「立即捕获」下方。
+- 顺带加 CLI 动词 `FrameCapture.exe --edit-last`（与托盘同一 EditLastStill 入口，二次实例经消息专用窗转发）：既便于脚本调用，也让该功能可被自动化验证（Win11 托盘图标在沙箱内 UIA 不可达）。
+
+**验证**：
+- 构建 0 错误；SelfTest **272/272**（T114a-d：初始空→TryGet false、Set 后帧/区域/设备一致、再次 Set 覆盖为最新、Clear 回空）
+- 完整护栏 GUARDRAIL PASS（FAIL=0 SKIP=7，floor 272；SKIP 为前台非编辑器时注入探针安全跳过，非回归）
+- 实机 e2e（截图亲眼看）：F6→拖框 700x400→`still saved`+toast→等 4s toast 自动消失（编辑器未开）→`--edit-last`→trace `sink→edit last`→`open editor frames=1`→编辑器打开且画面正是刚截内容（非空白）

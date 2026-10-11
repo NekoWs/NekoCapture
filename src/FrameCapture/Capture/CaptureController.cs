@@ -25,6 +25,8 @@ public sealed class CaptureController : IDisposable
     private Core.ToggleRecord.St _tr = Core.ToggleRecord.St.Idle;
     private System.Windows.Threading.DispatcherTimer? _tapWindowTimer;
     private System.Windows.Threading.DispatcherTimer? _stopWindowTimer;
+    // R78：保留最近一次静态截图帧，供托盘「编辑上次截图」在浮窗消失后找回编辑器
+    private readonly LastStill _lastStill = new();
 
     public Phase State { get; private set; } = Phase.Idle;
 
@@ -194,6 +196,7 @@ public sealed class CaptureController : IDisposable
                         // 拍完即见（R42）：缩略浮窗确认"已复制"，点击原地进编辑器标注，不抢焦点
                         var reg = region.Value;
                         Overlays.CaptureToast.Show(f, reg, monitor.DeviceName, () => OpenEditorForFrame(f, reg, monitor.DeviceName));
+                        _lastStill.Set(f, reg, monitor.DeviceName); // R78：浮窗消失后仍可经托盘找回编辑器
                     }
                     if (_settings.Current.AlwaysShowRegionOutline) ShowOutline(region.Value);
                     else { FlashOutline(region.Value); _outline!.FadeAway(1.1); }
@@ -493,6 +496,16 @@ public sealed class CaptureController : IDisposable
         });
     }
 
+    /// <summary>是否有可重新编辑的最近静态截图（R78，决定托盘项是否出现）。</summary>
+    public bool HasLastStill => !_lastStill.Empty;
+
+    /// <summary>托盘「编辑上次截图」：确认浮窗已消失时，用最近一次静态截图重开编辑器（R78）。</summary>
+    public void EditLastStill()
+    {
+        if (!_lastStill.TryGet(out var f, out var reg, out var dev)) return;
+        OpenEditorForFrame(f, reg, dev);
+    }
+
     ScreenRegion FullMonitorAtCursor()
     {
         var cursor = Win32Wrap.GetCursorPosition();
@@ -558,6 +571,7 @@ public sealed class CaptureController : IDisposable
 
     public void Dispose()
     {
+        _lastStill.Clear(); // R78：释放保留帧（最大可达数十 MB）
         _live.Dispose();
     }
 }
