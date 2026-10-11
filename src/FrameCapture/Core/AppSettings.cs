@@ -49,6 +49,11 @@ public sealed class AppSettings
     /// <summary>点按捕获快捷键时总是先弹出选区，选完立即截图（QQ 式手感）。</summary>
     public bool TapAlwaysShowsRegion { get; set; } = false;
 
+    /// <summary>截图完成后的行为（R83）：toast=弹缩略浮窗可一键进编辑器（默认，兼顾确认与标注）；
+    /// editor=复制后直接打开标注编辑器（QQ 式）；copy=只复制不弹窗不开编辑器（最快，轮廓闪一下作反馈）。
+    /// 三态覆盖「要确认」「要标注」「只要剪贴板」三类人群，非法值回落 toast。</summary>
+    public string AfterCapture { get; set; } = "toast";
+
     /// <summary>按下选区快捷键后是否显示上次选区的虚线框（R55，关=干净屏，Enter 确认上次选区随之失效）。</summary>
     public bool ShowLastRegion { get; set; } = true;
 
@@ -131,6 +136,7 @@ public sealed class AppSettings
         MaxDurationMs = Math.Clamp(MaxDurationMs, 1000, 30_000);
         AgentStripFrames = Math.Clamp(AgentStripFrames, 4, 24);
         if (Theme is not ("system" or "light" or "dark")) Theme = "system";
+        if (AfterCapture is not ("toast" or "editor" or "copy")) AfterCapture = "toast";
         if (RegionW < 16 || RegionH < 16)
         {
             RegionMonitorId = null; RegionX = RegionY = RegionW = RegionH = 0;

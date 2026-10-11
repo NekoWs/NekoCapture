@@ -1184,3 +1184,18 @@ status: done
 - 构建 0 错误；SelfTest 保持 276（浮窗无可抽纯函数）
 - 完整护栏 GUARDRAIL PASS（FAIL=0 SKIP=1，floor 276）
 - 实机 e2e（PrintWindow 亲眼看 + EnumWindows/WindowFromPoint 判定）：首启卡片渲染正确（标题/两热键强调色/手感行/蓝按钮）；重启不再弹（count 1→0）；点关闭 X→卡片消失；点「查看帮助」→帮助窗弹出且卡片收起（WindowFromPoint 守卫确保点击落到本卡）
+
+## 2026-10-12 上午 工作流可选项 R83（「截图后」三态：弹提示 / 进编辑器 / 只复制）
+
+**动机**（兼容所有受众）：截图完成后干什么，是截图工具最根本的工作流分叉——QQ 每次强制弹标注编辑器（想批量复制的人嫌烦），Snipaste 默认只进剪贴板（想马上标注的人多一步）。我们此前固定「复制→弹浮窗→点一下进编辑器」，对三类人都不够顺手。做成显式三选一，各取所需。
+
+**实现**：
+- `AppSettings.AfterCapture`（"toast" 默认 / "editor" / "copy"，Normalize 非法回落 toast）；`Core/AfterCapture.cs` 纯决策 `Resolve(string)→{Toast,Editor,Copy}`（脏值/大小写/空一律 Toast）。
+- `CaptureController` 静态图捕获完成处按三态分支：editor=复制后直接 `OpenEditorForFrame`（QQ 式，省一步）；copy=只复制不弹窗不开编辑器（范围轮廓闪一下作反馈，最快）；toast=现状浮窗。三态都仍写剪贴板 + `_lastStill.Set`（托盘「编辑上次」始终可用）。
+- 设置页「截图」组新增「截图后」行：三枚**文字芯片**（弹提示/进编辑器/只复制，语义比图标清楚），选中态强调色底，点击就地更新不整窗重建；键盘可达（Tab+空格/Enter）。HelpWindow「捕获」区补一行说明。
+
+**验证**：
+- 构建 0 错误；SelfTest 276→**280**（T116a-d：三态映射 + null/空/大小写/脏值回落）
+- 完整护栏 GUARDRAIL PASS（FAIL=0 SKIP=1，floor 280）
+- 实机 e2e（EnumWindows 判定，注意 toast 标题实为「FrameCapture Toast」）：editor 模式捕获→编辑器开、无浮窗；copy 模式→无编辑器无浮窗但剪贴板有图；toast 模式→浮窗现、编辑器不开
+- 设置窗 PrintWindow 亲眼看：「截图后」三芯片渲染正确、选中态高亮、与主题行同风格

@@ -117,6 +117,7 @@ public sealed class SettingsWindow : Window
             _settings.Current.PickerMagnifier, v => _settings.Mutate(s => s.PickerMagnifier = v)));
         panel.Children.Add(ToggleRow("\uE71A", "常显捕获范围轮廓", "在屏幕上持续显示当前捕获范围的边框",
             _settings.Current.AlwaysShowRegionOutline, v => _settings.Mutate(s => s.AlwaysShowRegionOutline = v)));
+        panel.Children.Add(AfterCaptureRow());
 
         // ---- 录制 ----
         panel.Children.Add(Group("录制"));
@@ -734,6 +735,72 @@ public sealed class SettingsWindow : Window
             {
                 if (e.Key is Key.Space or Key.Enter) { ApplyTheme(); e.Handled = true; }
             };
+            chip.GotKeyboardFocus += (_, _) => { chip.BorderBrush = new SolidColorBrush(Theme.Accent); chip.BorderThickness = new Thickness(1); };
+            chip.LostKeyboardFocus += (_, _) => { chip.BorderThickness = new Thickness(0); };
+            chips.Children.Add(chip);
+        }
+        g.Children.Add(chips);
+        return g;
+    }
+
+    // 截图后行为三选项（R83）：文字芯片比图标语义更清楚；点击就地更新选中态，不整窗重建
+    FrameworkElement AfterCaptureRow()
+    {
+        var g = Row();
+        g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); // 芯片列
+        g.Children.Add(Icon("\uE7B5", "截图完成后做什么：弹提示 / 直接进编辑器 / 只复制"));
+        var lbl = new TextBlock
+        {
+            Text = "截图后",
+            FontSize = 13,
+            Foreground = new SolidColorBrush(Theme.Text),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 12, 0),
+        };
+        Grid.SetColumn(lbl, 1);
+        g.Children.Add(lbl);
+        var chips = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
+        Grid.SetColumn(chips, 2);
+        string cur = _settings.Current.AfterCapture;
+        var opts = new[]
+        {
+            ("toast", "弹提示", "复制后弹缩略浮窗，点一下或按 Enter 进编辑器标注（默认，兼顾确认与标注）"),
+            ("editor", "进编辑器", "复制后直接打开标注编辑器（QQ 式，省一步点击）"),
+            ("copy", "只复制", "只复制到剪贴板，不弹窗、不开编辑器（最快，范围轮廓闪一下作反馈）"),
+        };
+        var chipList = new System.Collections.Generic.List<(Border chip, string id)>();
+        foreach (var (id, text, tip) in opts)
+        {
+            string captured = id;
+            var chip = new Border
+            {
+                CornerRadius = new CornerRadius(6),
+                Padding = new Thickness(10, 5, 10, 5),
+                Margin = new Thickness(2, 0, 2, 0),
+                Background = new SolidColorBrush(captured == cur ? Theme.Accent : Theme.Hover),
+                Child = new TextBlock
+                {
+                    Text = text,
+                    FontSize = 12.5,
+                    Foreground = new SolidColorBrush(captured == cur ? Color.FromRgb(0, 0, 0) : Theme.Text),
+                },
+                Cursor = Cursors.Hand,
+                ToolTip = tip,
+            };
+            chipList.Add((chip, id));
+            void Apply()
+            {
+                _settings.Mutate(s => s.AfterCapture = captured);
+                foreach (var (c, cid) in chipList)
+                {
+                    bool sel = cid == captured;
+                    c.Background = new SolidColorBrush(sel ? Theme.Accent : Theme.Hover);
+                    if (c.Child is TextBlock tb) tb.Foreground = new SolidColorBrush(sel ? Color.FromRgb(0, 0, 0) : Theme.Text);
+                }
+            }
+            chip.MouseLeftButtonDown += (_, e) => { Apply(); e.Handled = true; };
+            chip.Focusable = true;
+            chip.KeyDown += (_, e) => { if (e.Key is Key.Space or Key.Enter) { Apply(); e.Handled = true; } };
             chip.GotKeyboardFocus += (_, _) => { chip.BorderBrush = new SolidColorBrush(Theme.Accent); chip.BorderThickness = new Thickness(1); };
             chip.LostKeyboardFocus += (_, _) => { chip.BorderThickness = new Thickness(0); };
             chips.Children.Add(chip);

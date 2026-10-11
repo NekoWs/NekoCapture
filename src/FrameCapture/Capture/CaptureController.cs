@@ -193,9 +193,20 @@ public sealed class CaptureController : IDisposable
                         FrameCapture.Encoding.ClipboardService.SetFrame(f);
                         FrameCapture.Services.SaveService.MaybeSavePng(f); // R63 自动保存副本（关=零副作用）
                         FrameCapture.Core.Trace.Log($"still saved {pth} {f.W}x{f.H}");
-                        // 拍完即见（R42）：缩略浮窗确认"已复制"，点击原地进编辑器标注，不抢焦点
+                        // 截图后行为（R83）：弹提示浮窗 / 直接进编辑器 / 只复制——三态覆盖不同人群
                         var reg = region.Value;
-                        Overlays.CaptureToast.Show(f, reg, monitor.DeviceName, () => OpenEditorForFrame(f, reg, monitor.DeviceName));
+                        switch (FrameCapture.Core.AfterCapture.Resolve(_settings.Current.AfterCapture))
+                        {
+                            case FrameCapture.Core.AfterCaptureAction.Editor:
+                                OpenEditorForFrame(f, reg, monitor.DeviceName);
+                                break;
+                            case FrameCapture.Core.AfterCaptureAction.Copy:
+                                break; // 只复制（上面已 SetFrame），下方轮廓闪一下作反馈
+                            default:
+                                // 拍完即见（R42）：缩略浮窗确认"已复制"，点击原地进编辑器标注，不抢焦点
+                                Overlays.CaptureToast.Show(f, reg, monitor.DeviceName, () => OpenEditorForFrame(f, reg, monitor.DeviceName));
+                                break;
+                        }
                         _lastStill.Set(f, reg, monitor.DeviceName); // R78：浮窗消失后仍可经托盘找回编辑器
                     }
                     if (_settings.Current.AlwaysShowRegionOutline) ShowOutline(region.Value);

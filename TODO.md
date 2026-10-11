@@ -64,6 +64,8 @@
       GlyphProbe matrix 肉眼选字形验证；PinBtn 单点定义两工具条同生效。实机 e2e（放大工具条截图：钉到屏幕=图钉、总在最前=置顶箭头）。
 - [x] **首次启动欢迎卡**（R82）：新用户装完只见托盘图标、不知按什么键——首启弹不抢焦点卡片点破两热键+关键手感+「查看帮助」入口，`FirstRunHintShown` 看过一次永不再打扰。复用 CaptureToast 骨架（WDA 排除/悬停暂停/12s 自动消失/Esc/关闭 X）。
       查清 CopyFromScreen 抓「无边框+Topmost+透明背景」WPF 窗恒黑是 GDI/DWM 怪癖（CaptureToast 同款骨架同黑，PrintWindow+WindowFromPoint 双证用户可见），视觉审查改 PrintWindow。实机 e2e：首启渲染正确、重启不再弹、关闭 X 收卡、查看帮助开帮助窗。
+- [x] **「截图后」工作流三选项**（R83）：截图完成后干什么是根本工作流分叉（QQ 强制进编辑器 / Snipaste 只复制），做成显式三选一兼容三类人群——弹提示（默认，浮窗点一下/Enter 进编辑器）· 进编辑器（复制后直接开标注，QQ 式）· 只复制（不弹窗不开编辑器，最快，轮廓闪一下作反馈）。三态都仍写剪贴板+托盘可找回编辑器。
+      `AfterCapture` 设置 + `Core/AfterCapture.Resolve` 纯决策（脏值回落 toast，T116a-d，SelfTest 276→280）；设置页文字芯片三选行就地更新选中态。实机 e2e 三态各验（editor 开编辑器无浮窗 / copy 无窗但剪贴板有图 / toast 浮窗现）。
 
 ## 用户反馈
 - [x] **录制后的全屏黄色边框持续存在（10-04 已修复）**：根因 = **不是我们的代码**，是 Windows 11

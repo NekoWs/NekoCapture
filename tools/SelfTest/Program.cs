@@ -1610,6 +1610,16 @@ static class SelfTest
                     && Same(FrameCapture.Core.PinRotate.Rotate(orig, 5), FrameCapture.Core.PinRotate.Rotate(orig, 1))
                     && Same(FrameCapture.Core.PinRotate.Rotate(orig, -1), FrameCapture.Core.PinRotate.Rotate(orig, 3)), "steps=0 同实例；5≡1、-1≡3");
             }
+            // T116 截图后行为解析（R83，AfterCapture 纯函数）
+            {
+                Chk("T116a-editor", FrameCapture.Core.AfterCapture.Resolve("editor") == FrameCapture.Core.AfterCaptureAction.Editor, "editor→Editor");
+                Chk("T116b-copy", FrameCapture.Core.AfterCapture.Resolve("copy") == FrameCapture.Core.AfterCaptureAction.Copy, "copy→Copy");
+                Chk("T116c-toast", FrameCapture.Core.AfterCapture.Resolve("toast") == FrameCapture.Core.AfterCaptureAction.Toast, "toast→Toast");
+                Chk("T116d-dirty", FrameCapture.Core.AfterCapture.Resolve(null) == FrameCapture.Core.AfterCaptureAction.Toast
+                    && FrameCapture.Core.AfterCapture.Resolve("") == FrameCapture.Core.AfterCaptureAction.Toast
+                    && FrameCapture.Core.AfterCapture.Resolve("Editor") == FrameCapture.Core.AfterCaptureAction.Toast
+                    && FrameCapture.Core.AfterCapture.Resolve("garbage") == FrameCapture.Core.AfterCaptureAction.Toast, "null/空/大小写/脏值→回落 Toast");
+            }
         }
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");
         return fail == 0 ? 0 : 1;
