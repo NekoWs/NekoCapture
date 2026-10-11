@@ -46,6 +46,35 @@ static class SelfTest
         return 0;
     }
 
+    static int RenderPick(string outPath)
+    {
+        var app = new Application();
+        // 弹层同款外观（PanelBg/Stroke/圆角），内容=ColorPickView，半透明色展示棋盘底
+        var view = new FrameCapture.Overlays.ColorPickView { Color = System.Windows.Media.Color.FromArgb(0x80, 0xE8, 0x4C, 0x3D) };
+        var root = new System.Windows.Controls.Border
+        {
+            Background = new System.Windows.Media.SolidColorBrush(FrameCapture.Core.Theme.PanelBg),
+            BorderBrush = new System.Windows.Media.SolidColorBrush(FrameCapture.Core.Theme.Stroke),
+            BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(8),
+            Padding = new Thickness(12, 10, 12, 10), Child = view,
+        };
+        root.Measure(new System.Windows.Size(420, 400));
+        double h = Math.Max(1, root.DesiredSize.Height);
+        root.Arrange(new Rect(0, 0, 420, h));
+        root.UpdateLayout();
+        view.Color = System.Windows.Media.Color.FromArgb(0x80, 0xE8, 0x4C, 0x3D); // 布局后重设一次：准星/滑块按 ActualWidth 落位
+        root.UpdateLayout();
+        int ww = (int)Math.Ceiling(Math.Max(1, root.DesiredSize.Width)), hh = (int)Math.Ceiling(h);
+        var rtb = new System.Windows.Media.Imaging.RenderTargetBitmap(ww, hh, 96, 96, System.Windows.Media.PixelFormats.Pbgra32);
+        rtb.Render(root);
+        var enc = new System.Windows.Media.Imaging.PngBitmapEncoder();
+        enc.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(rtb));
+        Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(outPath))!);
+        using (var f = File.Create(outPath)) enc.Save(f);
+        Console.WriteLine($"saved {outPath} {ww}x{hh}");
+        return 0;
+    }
+
     static CapturedFrame Solid(int w, int h, byte r, byte g, byte b)    {
         var buf = new byte[w * h * 4];
         for (int i = 0; i < buf.Length; i += 4) { buf[i] = b; buf[i + 1] = g; buf[i + 2] = r; buf[i + 3] = 255; }
@@ -88,6 +117,7 @@ static class SelfTest
         Console.OutputEncoding = System.Text.Encoding.UTF8;
         // 离屏渲染帮助窗取证（R49）：独立进程、不 Show、不注册热键，不打断正在运行的实例
         if (args.Length == 2 && args[0] == "renderhelp") return RenderHelp(args[1]);
+        if (args.Length == 2 && args[0] == "renderpick") return RenderPick(args[1]);
         string tmp = Path.Combine(Path.GetTempPath(), "FrameCapture", "selftest");
         Directory.CreateDirectory(tmp);
 
@@ -1209,6 +1239,38 @@ static class SelfTest
                     EscStep.Select(encoding: false, inToolMode: true) == EscAction.ExitTool
                     && EscStep.Select(encoding: false, inToolMode: false) == EscAction.Close,
                     "无选中时旧语义不变（默认参数向后兼容）");
+            }
+            {
+                // T97 调色板数学（R54）：HSV 双向 + HEX 解析/格式化——自绘 RGBA 调色板的正确性地基
+                static (byte, byte, byte) Rgb(double h, double s, double v) => FrameCapture.Core.Hsv.ToRgb(h, s, v);
+                Chk("T97a-hsv-known",
+                    Rgb(0, 1, 1) == (255, 0, 0) && Rgb(120, 1, 1) == (0, 255, 0) && Rgb(240, 1, 1) == (0, 0, 255)
+                    && Rgb(0, 0, 1) == (255, 255, 255) && Rgb(0, 1, 0) == (0, 0, 0) && Rgb(60, 1, 1) == (255, 255, 0),
+                    "红/绿/蓝/白/黑/黄 已知值");
+                bool rt = true;
+                var rnd = new Random(97);
+                for (int i = 0; i < 400; i++)
+                {
+                    byte r0 = (byte)rnd.Next(256), g0 = (byte)rnd.Next(256), b0 = (byte)rnd.Next(256);
+                    var (h, s, v) = FrameCapture.Core.Hsv.FromRgb(r0, g0, b0);
+                    var (r1, g1, b1) = FrameCapture.Core.Hsv.ToRgb(h, s, v);
+                    if (Math.Abs(r0 - r1) > 1 || Math.Abs(g0 - g1) > 1 || Math.Abs(b0 - b1) > 1) { rt = false; break; }
+                }
+                Chk("T97b-hsv-roundtrip", rt, "400 随机色 HSV→RGB 往返误差 ≤1");
+                Chk("T97c-hex-parse",
+                    FrameCapture.Core.HexColor.Parse("#f0a") is { R: 255, G: 0, B: 170, A: 255 }
+                    && FrameCapture.Core.HexColor.Parse("#112233") is { R: 0x11, G: 0x22, B: 0x33, A: 255 }
+                    && FrameCapture.Core.HexColor.Parse("#11223380") is { R: 0x11, G: 0x22, B: 0x33, A: 0x80 }
+                    && FrameCapture.Core.HexColor.Parse("112233") is { R: 0x11 }
+                    && FrameCapture.Core.HexColor.Parse("#12345") == null && FrameCapture.Core.HexColor.Parse("#gggggg") == null
+                    && FrameCapture.Core.HexColor.Parse(null) == null,
+                    "#RGB/#RRGGBB/#RRGGBBAA/无# 可解析，坏输入返回 null");
+                var cA = System.Windows.Media.Color.FromRgb(0x11, 0x22, 0x33);
+                var cT = System.Windows.Media.Color.FromArgb(0x80, 0x11, 0x22, 0x33);
+                Chk("T97d-hex-format",
+                    FrameCapture.Core.HexColor.Format(cA) == "#112233" && FrameCapture.Core.HexColor.Format(cT) == "#11223380"
+                    && FrameCapture.Core.HexColor.Parse(FrameCapture.Core.HexColor.Format(cT)) is { A: 0x80 },
+                    "A=255 省略 AA；带透明出 8 位；格式↔解析闭环");
             }
         }
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");

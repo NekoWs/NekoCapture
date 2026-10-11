@@ -135,7 +135,7 @@ public sealed class HelpWindow : Window
         // 工具条目从目录生成：加工具不会再漏帮助（R48，T92 配套）
         foreach (var t in FrameCapture.Core.ToolCatalog.Tools)
             KV(t.Sym == t.Key ? t.Key : $"{t.Sym} {t.Key}", t.Help); // Sym 是普通 Unicode：帮助窗默认字体渲染，图标字形(Glyph)会出豆腐块
-        KV("调色板 K", "自定义颜色：打开系统选色器；最近用色钉在旁侧，点一下即用");
+        KV("调色板 K", "自绘 RGBA 调色板：色相/饱和/明度/透明度拖动即时生效，HEX 与 R/G/B/A 可直填；最近用色钉在旁侧，点一下即用");
         KV("⋯ 宽度 W", "自定义线宽：滑杆 1–24px，实时预览");
         KV("Ctrl+Z / U / Del", "撤销上一笔（标注与裁剪按发生顺序统一撤销）");
         KV("Ctrl+Y / Y", "重做上一笔");

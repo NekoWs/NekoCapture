@@ -315,7 +315,7 @@ public sealed partial class EditorWindow : Window
             bar.Children.Add(bd);
         }
         // 自定义颜色：调色板入口（ColorDialog）+ 最近自定义色直接点选
-        var pal = IconBtn("\uE790", "自定义颜色… (K)");
+        var pal = IconBtn("\uE790", "RGBA 调色板 (K)");
         pal.PreviewMouseLeftButtonDown += (_, e2) => { PickCustomColor(); e2.Handled = true; };
         pal.PreviewKeyDown += (_, ek) => { if (ek.Key is Key.Enter or Key.Space) { PickCustomColor(); ek.Handled = true; } };
         _paletteBtn = pal;
@@ -432,26 +432,10 @@ public sealed partial class EditorWindow : Window
         }
     }
 
-    /// <summary>把 WPF 窗口句柄递给 WinForms 对话框做 owner。</summary>
-    sealed class Win32Owner : System.Windows.Forms.IWin32Window
-    {
-        public IntPtr Handle { get; }
-        public Win32Owner(IntPtr h) => Handle = h;
-    }
-
     void PickCustomColor()
-    {        var dlg = new System.Windows.Forms.ColorDialog { FullOpen = true };
-        var cur = _customColor ?? CurColor;
-        dlg.Color = System.Drawing.Color.FromArgb(cur.R, cur.G, cur.B);
-        // owner=编辑器：模态、居中于编辑器、始终在其之上（否则可能弹到别的屏幕/窗后）
-        var got0 = dlg.ShowDialog(new Win32Owner(new System.Windows.Interop.WindowInteropHelper(this).Handle));
-        if (got0 != System.Windows.Forms.DialogResult.OK) return;
-        var got = dlg.Color;
-        _customColor = Color.FromRgb(got.R, got.G, got.B);
-        _colorIdx = Swatches.Length;
-        _settings.Mutate(s => s.CustomColors = FrameCapture.Core.CustomPick.RememberColor(s.CustomColors, $"#{got.R:X2}{got.G:X2}{got.B:X2}"));
-        RebuildRecentSwatches();
-        RefreshSwatches();
+    {
+        // R54：系统 ColorDialog 退役 → 自绘 RGBA 调色板弹层（EditorWindow.ColorPick.cs，主题一致+就地+即时生效）
+        if (_paletteBtn != null) ShowColorPicker(_paletteBtn);
     }
 
     void ShowWidthPopup(Button anchor)
@@ -644,7 +628,8 @@ public sealed partial class EditorWindow : Window
         switch (e.Key)
         {
             case Key.Escape:
-                // 宽度弹层打开时：Esc 只收弹层（分层语义的第一层）
+                // 弹层打开时：Esc 只收弹层（分层语义的第一层）
+                if (_colorPop is { IsOpen: true }) { _colorPop.IsOpen = false; e.Handled = true; return; }
                 if (_widthPop is { IsOpen: true }) { _widthPop.IsOpen = false; e.Handled = true; return; }
                 // 分层语义（T82/T96）：导出中=取消；有选中=先取消选中；绘制态=先退出工具，误触 Esc 绝不丢整次捕获；浏览态=关闭
                 switch (FrameCapture.Core.EscStep.Select(_encoding, _tool != Tool.Browse, _sel != null))
