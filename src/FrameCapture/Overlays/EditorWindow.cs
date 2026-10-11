@@ -65,7 +65,7 @@ public sealed partial class EditorWindow : Window
             Top = mon.Bounds.Y + mon.Bounds.H / 2.0 - Height / 2;
         }
 
-        _view = new Image { Stretch = Stretch.Uniform };
+        _view = new Image { Stretch = Stretch.Fill }; // 尺寸/偏移由 ApplyImageView 按 _imgRect 驱动（缩放/平移）
         RenderOptions.SetBitmapScalingMode(_view, BitmapScalingMode.HighQuality);
 
         _hud = new TextBlock
@@ -383,6 +383,11 @@ public sealed partial class EditorWindow : Window
                 case Key.C: ClipboardService.SetFrame(_seq.Frames[_index]); return;
                 case Key.E: SaveGif(); return;
                 case Key.H: SaveAfterimage(); return;
+                // 视图缩放（浏览器惯例）：Ctrl +/− 以中心放大缩小，Ctrl+0 适配，Ctrl+1 逐像素 1:1
+                case Key.OemPlus or Key.Add: ZoomStep(1.25); return;
+                case Key.OemMinus or Key.Subtract: ZoomStep(1 / 1.25); return;
+                case Key.D0 or Key.NumPad0: ZoomFit(); return;
+                case Key.D1 or Key.NumPad1: ZoomOneToOne(); return;
             }
         }
         if (mods == ModifierKeys.None)
@@ -412,6 +417,11 @@ public sealed partial class EditorWindow : Window
             case Key.Left: Step(-1); break;
             case Key.Right: Step(+1); break;
             case Key.Y: RedoAnn(); e.Handled = true; break;
+            // 缩放裸键（与 Ctrl 惯例并存）：PageUp/Down 放大缩小，Home 适配，End 逐像素 1:1
+            case Key.PageUp: ZoomStep(1.25); e.Handled = true; break;
+            case Key.PageDown: ZoomStep(1 / 1.25); e.Handled = true; break;
+            case Key.Home: ZoomFit(); e.Handled = true; break;
+            case Key.End: ZoomOneToOne(); e.Handled = true; break;
             case Key.OemPlus or Key.Add: SetSpeed(_speed * 2); e.Handled = true; break;
             case Key.OemMinus or Key.Subtract: SetSpeed(_speed / 2); e.Handled = true; break;
             case Key.D0 or Key.Multiply: SetSpeed(1.0); e.Handled = true; break;
@@ -449,8 +459,11 @@ public sealed partial class EditorWindow : Window
         _index = Math.Clamp(index, 0, _seq.Frames.Count - 1);
         _view.Source = _bitmaps[_index];
         double tMs = _seq.Frames[_index].TimeMs;
+        double eff = _imgRect.Width / Math.Max(1, _seq.Frames[_index].W);
+        string zoomTxt = _zoom <= 1.001 ? "" : (Math.Abs(eff - 1.0) < 0.02 ? "  1:1" : $"  {eff * 100:0}%");
         _hud.Text = $"{_index + 1}/{_seq.Frames.Count}  {tMs / 1000.0:0.00}s"
             + (_speed != 1.0 ? $"  ×{_speed:0.###}" : "")
+            + zoomTxt
             + (_seq.DroppedFrames > 0 ? $"  ⚠内存预算已丢 {_seq.DroppedFrames} 帧" : "");
         DrawRange();
     }

@@ -313,3 +313,16 @@ status: done
   （全帧归一化→裁剪框归一化）；跨界/框外丢弃——钳制会把自由笔/箭头沿边抹成贴边残影，丢弃更可预期。
   SelfTest +T78a/b/c（87→90）：坐标变换、跨界丢弃+输入纯函数性、**像素级往返**
   Bake(Crop(Bake(f,a),r)) ≡ Crop→Remap→Bake 逐字节相等。跨界丢弃语义有测试锁定，无鼠标注入约束下即有效取证。
+
+## 2026-10-11 长跑 R7（DSH goal 轮，13:05 起）
+- **R7 编辑器缩放 / 1:1 视图**：新增 Core/ZoomMath.cs 纯逻辑（适配倍率、zoom∈[1,16] 钳制、1:1=1/sFit、
+  平移钳制"图像小于视口方向强制居中/放大后边缘不内缩"、锚点缩放不变量、拖拽增量钳制）。
+  编辑器 _imgRect 升级为"适配×缩放+平移"唯一几何事实源：Image 改 Fill+显式尺寸/偏移跟随（ApplyImageView），
+  标注命中/绘制/裁剪自动随缩放；DispStroke 改与烘焙严格同式（thickness×min(帧W,H)/1080×显示倍率）——任何缩放下所见即所烘焙。
+  放大时位图最近邻（像素硬边），适配时高质量。交互：Ctrl+滚轮以光标为锚；PageUp/PageDown 或 Ctrl+加/减 放大缩小；
+  Home 或 Ctrl+0 适配；End 或 Ctrl+1 逐像素 1:1；放大后浏览态左键拖/任意工具中键拖平移；HUD 显示 1:1 / 百分比。
+  发现并记录：PostMessage 的 Ctrl 不更新 WPF Keyboard.Modifiers（ctrlw 从未被脚本用过的根因）→ 缩放键走裸键路由，
+  Shot 的 vk 参数 uint.Parse 不认 0x 前缀（踩坑修正）。
+  验证：SelfTest +T79a/b/c/d（90→94，锚点不变量 u0=u1 数学断言）；新增 scripts/test-zoom.ps1 挂入全量闸（第 10 项）：
+  End/PageUp×3/Home 键路由 + ≥5 条 editor zoom= 决策 trace；截图取证 HUD "1:1" 与 "195%"（=1.25³，与 ZoomMath 吻合）。
+  GUARDRAIL PASS（FAIL=0 SKIP=1 共 10 项，SKIP=focus-safety 环境性）。

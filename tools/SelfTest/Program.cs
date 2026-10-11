@@ -787,6 +787,28 @@ static class SelfTest
                 Chk("T78c-crop-remap-pixel-roundtrip", pxSame && centerRed,
                     $"Bake(Crop(Bake)) ≡ Crop→Remap→Bake 逐字节相等={pxSame} 中心红点={centerRed}");
             }
+            // T79：视图缩放/平移数学（Core.ZoomMath）
+            {
+                // 视口 800x600，帧 1600x1200 → sFit=0.5；1:1 → zoom=2
+                double sFit = ZoomMath.FitScale(800, 600, 1600, 1200);
+                Chk("T79a-fit-and-onetoone",
+                    Math.Abs(sFit - 0.5) < 1e-9 && Math.Abs(ZoomMath.OneToOneZoom(sFit) - 2.0) < 1e-9
+                    && ZoomMath.ClampZoom(0.2) == ZoomMath.MinZoom && ZoomMath.ClampZoom(99) == ZoomMath.MaxZoom,
+                    "sFit=0.5 → 1:1 即 zoom=2；zoom 钳进 [1,16]");
+                var (px1, py1) = ZoomMath.ClampPan(500, -900, 800, 600, 400, 300);   // 图像小于视口
+                var (px2, py2) = ZoomMath.ClampPan(500, -900, 800, 600, 1600, 1200); // 图像大于视口 → ±400/±300
+                Chk("T79b-pan-clamp",
+                    px1 == 0 && py1 == 0 && px2 == 400 && py2 == -300,
+                    "适配尺寸强制居中；放大后边缘不内缩（无黑边）");
+                // 锚点不变量：锚下图像点缩放前后不动。锚 (250,150)（中心偏移 -150,-150），zoom 1→2
+                var (z, ax, ay) = ZoomMath.ZoomAt(1.0, 0, 0, 2.0, 250, 150, 800, 600, 1600, 1200);
+                double u0 = (250 - 400 - 0) / (sFit * 1.0), u1 = (250 - 400 - ax) / (sFit * z);
+                Chk("T79c-zoom-at-anchor-invariant",
+                    Math.Abs(z - 2.0) < 1e-9 && Math.Abs(u1 - u0) < 1e-6 && Math.Abs(ax - 150) < 1e-6 && Math.Abs(ay - 150) < 1e-6,
+                    "锚点下图像点保持不动（u0=u1=-300 帧像素）");
+                var (dx, dy) = ZoomMath.PanBy(100, 0, -1000, 50, 800, 600, 1600, 1200);
+                Chk("T79d-panby-clamped", dx == -400 && dy == 50, "拖拽增量叠加后仍受钳制");
+            }
         }
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");
         return fail == 0 ? 0 : 1;

@@ -55,7 +55,20 @@ public sealed partial class EditorWindow
         _canvas.MouseLeftButtonDown += Canvas_Down;
         _canvas.MouseMove += Canvas_Move;
         _canvas.MouseLeftButtonUp += Canvas_Up;
-        _canvas.SizeChanged += (_, _) => { UpdateImgRect(); RedrawAnns(); };
+        // 视图几何唯一驱动：_viewGrid（浏览态 canvas 是 Collapsed，不能靠它）
+        _viewGrid.SizeChanged += (_, _) => { UpdateImgRect(); RedrawAnns(); };
+
+        // 缩放：Ctrl+滚轮以光标为锚（真实用户路径）；平移：中键拖（任意工具）/ 浏览态放大后左键拖
+        _viewGrid.PreviewMouseWheel += (_, e) =>
+        {
+            if (Keyboard.Modifiers != ModifierKeys.Control) return;
+            var p = e.GetPosition(_viewGrid);
+            SetZoom(_zoom * (e.Delta > 0 ? 1.15 : 1 / 1.15), p.X, p.Y);
+            e.Handled = true;
+        };
+        _viewGrid.MouseDown += Pan_Down;
+        _viewGrid.MouseMove += Pan_Move;
+        _viewGrid.MouseUp += Pan_Up;
 
         var rangeBorder = new Border
         {
@@ -72,15 +85,86 @@ public sealed partial class EditorWindow
 
     Border? _rangeHost;
 
-    // 帧内容在 canvas 中的显示矩形（Uniform）
+    // 帧内容在 canvas 中的显示矩形（适配 × 缩放 + 平移）——标注命中/绘制与 Image 布局共用这一事实源
     Rect _imgRect;
+    double _zoom = 1.0, _panX, _panY;
     void UpdateImgRect()
     {
-        double cw = _canvas.ActualWidth, ch = _canvas.ActualHeight;
+        // 用 _viewGrid 尺寸：_canvas 在浏览态 Collapsed（ActualWidth 恒 0），而 Image 任何状态都要跟随
+        double cw = _viewGrid.ActualWidth, ch = _viewGrid.ActualHeight;
         var f = _seq.Frames[_index];
-        double s = Math.Min(cw / f.W, ch / f.H);
-        double w = f.W * s, h = f.H * s;
-        _imgRect = new Rect((cw - w) / 2, (ch - h) / 2, w, h);
+        double sFit = FrameCapture.Core.ZoomMath.FitScale(cw, ch, f.W, f.H);
+        double w = f.W * sFit * _zoom, h = f.H * sFit * _zoom;
+        var (px, py) = FrameCapture.Core.ZoomMath.ClampPan(_panX, _panY, cw, ch, w, h);
+        _panX = px; _panY = py; // 视口变小后自动回钳
+        _imgRect = new Rect(cw / 2 - w / 2 + px, ch / 2 - h / 2 + py, w, h);
+        ApplyImageView();
+    }
+
+    // Image 跟随 _imgRect：Fill + 显式尺寸/偏移；放大时最近邻（像素硬边，1:1 逐像素），适配时高质量
+    void ApplyImageView()
+    {
+        _view.HorizontalAlignment = HorizontalAlignment.Left;
+        _view.VerticalAlignment = VerticalAlignment.Top;
+        _view.Width = _imgRect.Width;
+        _view.Height = _imgRect.Height;
+        _view.Margin = new Thickness(_imgRect.X, _imgRect.Y, 0, 0);
+        RenderOptions.SetBitmapScalingMode(_view, _zoom > 1.001 ? BitmapScalingMode.NearestNeighbor : BitmapScalingMode.HighQuality);
+    }
+
+    // ---------------- 缩放 / 平移 ----------------
+
+    void SetZoom(double newZoom, double cx, double cy)
+    {
+        var f = _seq.Frames[_index];
+        var (z, px, py) = FrameCapture.Core.ZoomMath.ZoomAt(_zoom, _panX, _panY, newZoom, cx, cy,
+            _viewGrid.ActualWidth, _viewGrid.ActualHeight, f.W, f.H);
+        if (Math.Abs(z - _zoom) < 1e-9 && Math.Abs(px - _panX) < 1e-9 && Math.Abs(py - _panY) < 1e-9) return;
+        _zoom = z; _panX = px; _panY = py;
+        UpdateImgRect(); RedrawAnns(); Show(_index);
+        FrameCapture.Core.Trace.Log($"editor zoom={_zoom:F2} pan={_panX:F0},{_panY:F0}");
+    }
+    void ZoomStep(double factor) => SetZoom(_zoom * factor, _viewGrid.ActualWidth / 2, _viewGrid.ActualHeight / 2);
+    void ZoomFit() => SetZoom(FrameCapture.Core.ZoomMath.MinZoom, _viewGrid.ActualWidth / 2, _viewGrid.ActualHeight / 2);
+    void ZoomOneToOne()
+    {
+        var f = _seq.Frames[_index];
+        double sFit = FrameCapture.Core.ZoomMath.FitScale(_viewGrid.ActualWidth, _viewGrid.ActualHeight, f.W, f.H);
+        SetZoom(FrameCapture.Core.ZoomMath.OneToOneZoom(sFit), _viewGrid.ActualWidth / 2, _viewGrid.ActualHeight / 2);
+    }
+
+    bool _panning;
+    Point _panPress;
+    double _panPressX, _panPressY;
+    void Pan_Down(object sender, MouseButtonEventArgs e)
+    {
+        bool mid = e.ChangedButton == MouseButton.Middle;
+        bool browseLeft = _tool == Tool.Browse && e.ChangedButton == MouseButton.Left && _zoom > 1.001;
+        if (!mid && !browseLeft) return;
+        _panning = true;
+        _panPress = e.GetPosition(_viewGrid);
+        _panPressX = _panX; _panPressY = _panY;
+        _viewGrid.CaptureMouse();
+        Cursor = System.Windows.Input.Cursors.SizeAll;
+        e.Handled = true;
+    }
+    void Pan_Move(object sender, MouseEventArgs e)
+    {
+        if (!_panning) return;
+        var p = e.GetPosition(_viewGrid);
+        var f = _seq.Frames[_index];
+        double sFit = FrameCapture.Core.ZoomMath.FitScale(_viewGrid.ActualWidth, _viewGrid.ActualHeight, f.W, f.H);
+        var (x, y) = FrameCapture.Core.ZoomMath.PanBy(_panPressX, _panPressY, p.X - _panPress.X, p.Y - _panPress.Y,
+            _viewGrid.ActualWidth, _viewGrid.ActualHeight, f.W * sFit * _zoom, f.H * sFit * _zoom);
+        _panX = x; _panY = y;
+        UpdateImgRect(); RedrawAnns();
+    }
+    void Pan_Up(object sender, MouseButtonEventArgs e)
+    {
+        if (!_panning) return;
+        _panning = false;
+        _viewGrid.ReleaseMouseCapture();
+        Cursor = null;
     }
 
     Point Norm(Point p)
@@ -244,8 +328,10 @@ public sealed partial class EditorWindow
 
     double DispStroke(float thickness)
     {
-        double m = Math.Max(1, Math.Min(_canvas.ActualWidth, _canvas.ActualHeight));
-        return Math.Max(1.2, thickness * m / 1080.0);
+        // 与烘焙严格同式：thickness × min(帧W,帧H)/1080（帧像素）× 当前显示倍率 → 任何缩放下所见即所烘焙
+        var f = _seq.Frames[_index];
+        double eff = _imgRect.Width / Math.Max(1, f.W);
+        return Math.Max(1.2, thickness * Math.Min(f.W, f.H) / 1080.0 * eff);
     }
 
     static SolidColorBrush ToWpf(Color c) => new(Color.FromArgb(c.A, c.R, c.G, c.B));

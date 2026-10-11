@@ -188,4 +188,4 @@
 - [x] 裁剪销毁标注：Core/CropRemap 决策表——框内标注坐标重映射保留、跨界丢弃（T78 含像素级往返，90/90）。
 - [x] 编辑器重做按钮：E7A6 字形（GlyphProbe 取证）+ SetGhost 统一禁用淡出，初始 0.35 禁用态截图确认。
 - [x] Fps 钳制不一致：已收口为 AppSettings.FpsMin/FpsMax 常量单一事实源（滑条/Normalize/编辑器×5/引擎×2 全引用，T77，87/87）。
-- [ ] 编辑器缩放/1:1 视图。
+- [x] 编辑器缩放/1:1 视图。（R7：Core/ZoomMath + Ctrl滚轮/PageUp/Down/Home/End + 拖拽平移 + HUD 倍率；T79a-d + e2e:zoom 入闸，94/94）
