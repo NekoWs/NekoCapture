@@ -41,6 +41,15 @@ public static class OcrService
     public static OcrStatus Classify(string text) =>
         string.IsNullOrWhiteSpace(text) ? OcrStatus.Empty : OcrStatus.Success;
 
+    /// <summary>OCR 结果的用户可读反馈文案（纯函数，供单测）。编辑器轻提示与贴图浮层共用，保证两处措辞一致：
+    /// Success=复制提示（带字数），NoEngine=装语言包指引，Empty=未识别到文字。</summary>
+    public static string Feedback(OcrStatus status, int textLen) => status switch
+    {
+        OcrStatus.Success => $"已识别 {textLen} 字 · 已复制",
+        OcrStatus.NoEngine => "未安装 OCR 语言包（设置 › 时间和语言 › 语音）",
+        _ => "未识别到文字",
+    };
+
     /// <summary>清理 OCR 文本：统一换行为 \n、每行去行尾空白、连续空行压成一个空行、整体去首尾空白。
     /// 保留行首缩进（OCR 缩进常有意义）。纯函数，供结果窗/剪贴板与单测。</summary>
     public static string Normalize(string raw)

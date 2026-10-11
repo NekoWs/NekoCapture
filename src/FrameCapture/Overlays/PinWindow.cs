@@ -3,6 +3,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
+using System.Windows.Threading;
 using FrameCapture.Capture;
 using FrameCapture.Encoding;
 using FrameCapture.Native;
@@ -24,6 +25,9 @@ public sealed class PinWindow : Window
 
     readonly CapturedFrame _frame;
     readonly Image _img;
+    readonly Border _snack;
+    readonly TextBlock _snackText;
+    DispatcherTimer? _snackTimer;
     double _scale = 1.0, _baseW, _baseH;
 
     public PinWindow(CapturedFrame frame, RectI physPos)
@@ -45,7 +49,7 @@ public sealed class PinWindow : Window
         RenderOptions.SetBitmapScalingMode(_img, BitmapScalingMode.HighQuality);
 
         // 1px 深色描边：任何桌面背景上都看得见边界；圆角与截图工具贴图观感一致
-        Content = new Border
+        var border = new Border
         {
             CornerRadius = new CornerRadius(4),
             BorderBrush = new SolidColorBrush(Color.FromArgb(150, 0, 0, 0)),
@@ -53,6 +57,30 @@ public sealed class PinWindow : Window
             Child = _img,
             ClipToBounds = true,
         };
+        // R75：贴图内轻提示浮层（识别文字等反馈用；贴图无独立 snackbar），默认隐藏，Flash 淡入淡出
+        _snackText = new TextBlock
+        {
+            Foreground = Brushes.White,
+            FontSize = 13,
+            TextAlignment = TextAlignment.Center,
+            TextWrapping = TextWrapping.Wrap,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            MaxWidth = 260,
+        };
+        _snack = new Border
+        {
+            Visibility = Visibility.Collapsed,
+            Opacity = 0,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+            CornerRadius = new CornerRadius(6),
+            Background = new SolidColorBrush(Color.FromArgb(210, 20, 20, 20)),
+            Padding = new Thickness(12, 7, 12, 7),
+            Child = _snackText,
+        };
+        Content = new Grid();
+        ((Grid)Content).Children.Add(border);
+        ((Grid)Content).Children.Add(_snack);
 
         Loaded += (_, _) =>
         {
@@ -145,11 +173,73 @@ public sealed class PinWindow : Window
         BeginAnimation(TopProperty, new DoubleAnimation(oldT, t, dur) { EasingFunction = ease });
     }
 
+    /// <summary>R75：识别贴图里的印刷文字（Windows 内置 OCR）→ 写剪贴板；开「识别后显示结果窗」则弹结果窗，
+    /// 否则贴图内浮层提示。无语言包/无文字等优雅降级，浮层给出原因。</summary>
+    async void OcrFrame()
+    {
+        Flash("识别文字…");
+        try
+        {
+            var outcome = await FrameCapture.Core.OcrService.RecognizeAsync(_frame);
+            if (outcome.Status == FrameCapture.Core.OcrStatus.Success)
+            {
+                var text = FrameCapture.Core.OcrService.Normalize(outcome.Text);
+                try { Clipboard.SetText(text); } catch { }
+                if (FrameCapture.Core.SettingsService.Shared?.Current.OcrShowResult == true)
+                {
+                    HideSnack();
+                    OcrResultWindow.Show(text);
+                }
+                else
+                    Flash(FrameCapture.Core.OcrService.Feedback(FrameCapture.Core.OcrStatus.Success, text.Length));
+                FrameCapture.Core.Trace.Log($"pin ocr ok {text.Length} chars");
+            }
+            else
+            {
+                Flash(FrameCapture.Core.OcrService.Feedback(outcome.Status, 0));
+                FrameCapture.Core.Trace.Log($"pin ocr {outcome.Status}");
+            }
+        }
+        catch (Exception ex)
+        {
+            FrameCapture.Core.Trace.Log($"pin ocr failed: {ex.Message}");
+            Flash("识别失败");
+        }
+    }
+
+    /// <summary>贴图内浮层提示：淡入、停留 ~1.6s、淡出。重复调用会重置计时与文案。</summary>
+    void Flash(string msg)
+    {
+        _snackTimer?.Stop();
+        _snackText.Text = msg;
+        _snack.BeginAnimation(OpacityProperty, null);
+        _snack.Opacity = 1;
+        _snack.Visibility = Visibility.Visible;
+        _snackTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1600) };
+        _snackTimer.Tick += (_, _) =>
+        {
+            _snackTimer!.Stop();
+            var fade = new DoubleAnimation(0, new Duration(TimeSpan.FromMilliseconds(FrameCapture.Core.Fluent.Motion.ExitMs)));
+            fade.Completed += (_, _) => _snack.Visibility = Visibility.Collapsed;
+            _snack.BeginAnimation(OpacityProperty, fade);
+        };
+        _snackTimer.Start();
+    }
+
+    void HideSnack()
+    {
+        _snackTimer?.Stop();
+        _snack.BeginAnimation(OpacityProperty, null);
+        _snack.Visibility = Visibility.Collapsed;
+    }
+
     void ShowMenu()
     {
         var menu = new ContextMenu();
         var copy = new MenuItem { Header = "复制" };
         copy.Click += (_, _) => ClipboardService.SetFrame(_frame);
+        var ocr = new MenuItem { Header = "识别文字" };
+        ocr.Click += (_, _) => OcrFrame();
         // 不透明度子菜单：预设档位（Ctrl+滚轮可微调）
         var opacity = new MenuItem { Header = "不透明度" };
         foreach (var pct in new[] { 100, 75, 50, 25 })
@@ -164,6 +254,7 @@ public sealed class PinWindow : Window
         var closeAll = new MenuItem { Header = $"关闭全部贴图 ({_open.Count})" };
         closeAll.Click += (_, _) => { foreach (var p in _open.ToArray()) p.Close(); };
         menu.Items.Add(copy);
+        menu.Items.Add(ocr);
         menu.Items.Add(opacity);
         menu.Items.Add(new Separator());
         menu.Items.Add(close);

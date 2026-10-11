@@ -48,6 +48,8 @@
       NumberBadge.Next 纯函数（max+1）；AnnKind.Number + GDI 烘焙（实心圆+居中白字）+ WPF 预览；ToolCatalog 加条目（Glyph E71D 定稿）工具条/帮助自动出现；T92 同步 9 工具。SelfTest T109a-f，实机 e2e（1/2/3 递增、删除回退、钉图烘焙进像素）。
 - [x] **贴图磁边**（R74）：拖动贴图松手自动吸附所在屏幕工作区边缘（Snipaste 式停靠四边/四角）；设置「拖动贴图自动磁边」（默认开）。
       PinSnap 纯函数（阈值=短边6%夹12–40；左右/上下边互斥吸附）；PinWindow 松手后 SnapToEdge（中心定位所在屏、工作区物理÷DpiScale 转 DIP）+ Motion.StateMs 平滑滑入；新增「贴图」设置组。SelfTest T110a-f，实机 e2e（底边精确吸附到工作区底 2088、齐平任务栏）。
+- [x] **贴图 OCR 入口**（R75）：贴图右键菜单加「识别文字」，就地 OCR 贴图里的印刷文字（中英）→ 写剪贴板，开「识别后显示结果窗」则弹结果窗，否则贴图内浮层提示。QQ 无 OCR，差异化能力。
+      OcrService.Feedback 纯函数（编辑器/贴图共用措辞）；PinWindow 内容改 Grid + Flash 浮层（淡入停留淡出）；OcrFrame 复用 RecognizeAsync(_frame)/Normalize/OcrResultWindow。SelfTest T111a-c，实机 e2e（右键→识别文字→结果窗中英正确+剪贴板）。
 
 ## 用户反馈
 - [x] **录制后的全屏黄色边框持续存在（10-04 已修复）**：根因 = **不是我们的代码**，是 Windows 11

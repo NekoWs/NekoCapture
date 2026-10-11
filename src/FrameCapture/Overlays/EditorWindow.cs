@@ -907,15 +907,15 @@ public sealed partial class EditorWindow : Window
                     if (_settings.Current.OcrShowResult)
                         OcrResultWindow.Show(text); // R72：可编辑/部分复制的结果窗
                     else
-                        ShowSnack($"已识别 {text.Length} 字 · 已复制");
+                        ShowSnack(FrameCapture.Core.OcrService.Feedback(FrameCapture.Core.OcrStatus.Success, text.Length));
                     FrameCapture.Core.Trace.Log($"ocr ok {text.Length} chars");
                     break;
                 case FrameCapture.Core.OcrStatus.NoEngine:
-                    ShowSnack("未安装 OCR 语言包（设置 › 时间和语言 › 语音）");
+                    ShowSnack(FrameCapture.Core.OcrService.Feedback(FrameCapture.Core.OcrStatus.NoEngine, 0));
                     FrameCapture.Core.Trace.Log("ocr no-engine");
                     break;
                 default:
-                    ShowSnack("未识别到文字");
+                    ShowSnack(FrameCapture.Core.OcrService.Feedback(FrameCapture.Core.OcrStatus.Empty, 0));
                     FrameCapture.Core.Trace.Log("ocr empty");
                     break;
             }

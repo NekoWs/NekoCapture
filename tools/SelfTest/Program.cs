@@ -1517,6 +1517,13 @@ static class SelfTest
                     && FrameCapture.Core.PinSnap.Threshold(1000, 800) == 40
                     && FrameCapture.Core.PinSnap.Threshold(300, 300) == 18, "阈值=短边6%夹12–40");
             }
+
+            // T111 OCR 反馈文案（R75，编辑器/贴图共用措辞）
+            {
+                Chk("T111a-success", FrameCapture.Core.OcrService.Feedback(FrameCapture.Core.OcrStatus.Success, 42) == "已识别 42 字 · 已复制", "成功带字数");
+                Chk("T111b-noengine", FrameCapture.Core.OcrService.Feedback(FrameCapture.Core.OcrStatus.NoEngine, 0).Contains("语言包"), "无引擎→装语言包指引");
+                Chk("T111c-empty", FrameCapture.Core.OcrService.Feedback(FrameCapture.Core.OcrStatus.Empty, 0) == "未识别到文字", "空→未识别");
+            }
         }
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");
         return fail == 0 ? 0 : 1;
