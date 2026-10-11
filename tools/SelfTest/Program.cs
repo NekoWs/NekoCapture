@@ -1310,6 +1310,32 @@ static class SelfTest
                         System.Text.Json.JsonSerializer.Serialize(new AppSettings { ShowLastRegion = false }))!.ShowLastRegion,
                     "开/关均能序列化往返");
             }
+            {
+                // T99 连按两下=免按住录制状态机（R60，Core.ToggleRecord 纯逻辑）
+                // 简化断言：直接逐步核对 Action 与 Next
+                void Step(string name, ToggleRecord.St s, ToggleRecord.Ev e, long hold, bool en,
+                          ToggleRecord.St wantS, ToggleRecord.Act wantA)
+                {
+                    var st = ToggleRecord.Next(s, e, hold, 250, en);
+                    Chk(name, st.Next == wantS && st.Action == wantA,
+                        $"{s}+{e}({hold})→{st.Next}/{st.Action} 期望 {wantS}/{wantA}");
+                }
+                Step("T99a-dbl-off", ToggleRecord.St.Hold, ToggleRecord.Ev.Up, 100, false, ToggleRecord.St.Idle, ToggleRecord.Act.FinishHold);
+                Step("T99b-tap-pending", ToggleRecord.St.Hold, ToggleRecord.Ev.Up, 100, true, ToggleRecord.St.PendingTap, ToggleRecord.Act.None);
+                Step("T99c-dbl-start", ToggleRecord.St.PendingTap, ToggleRecord.Ev.Down, 0, true, ToggleRecord.St.Toggle, ToggleRecord.Act.EnterToggle);
+                Step("T99d-toggle-up-ign", ToggleRecord.St.Toggle, ToggleRecord.Ev.Up, 80, true, ToggleRecord.St.Toggle, ToggleRecord.Act.None);
+                Step("T99e-toggle-dbl-stop", ToggleRecord.St.Toggle, ToggleRecord.Ev.Down, 0, true, ToggleRecord.St.StopArmed, ToggleRecord.Act.ArmStop);
+                Step("T99f-stoparm-up", ToggleRecord.St.StopArmed, ToggleRecord.Ev.Up, 60, true, ToggleRecord.St.StopArmed, ToggleRecord.Act.None);
+                Step("T99g-stoparm-2nd", ToggleRecord.St.StopArmed, ToggleRecord.Ev.Down, 0, true, ToggleRecord.St.Idle, ToggleRecord.Act.FinishToggleStop);
+                Step("T99h-stoparm-expire", ToggleRecord.St.StopArmed, ToggleRecord.Ev.StopWindowElapsed, 0, true, ToggleRecord.St.Toggle, ToggleRecord.Act.None);
+                Step("T99i-tap-expire", ToggleRecord.St.PendingTap, ToggleRecord.Ev.TapWindowElapsed, 0, true, ToggleRecord.St.Idle, ToggleRecord.Act.FinishTap);
+                Step("T99j-toggle-hold-stop", ToggleRecord.St.Toggle, ToggleRecord.Ev.Up, 500, true, ToggleRecord.St.Idle, ToggleRecord.Act.FinishHold);
+                Step("T99k-hold-stop", ToggleRecord.St.Hold, ToggleRecord.Ev.Up, 600, true, ToggleRecord.St.Idle, ToggleRecord.Act.FinishHold);
+                // tapMs=0（全部长按）时不产生 PendingTap：用 0 阈值再验一条
+                var zero = ToggleRecord.Next(ToggleRecord.St.Hold, ToggleRecord.Ev.Up, 100, 0, true);
+                Chk("T99m-thr0-nodbl", zero.Action == ToggleRecord.Act.FinishHold, "阈值 0 → 无点按窗，直接长按结束");
+                Chk("T99n-setting-default", new AppSettings().DoubleTapRecord, "连按录制默认开");
+            }
         }
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");
         return fail == 0 ? 0 : 1;

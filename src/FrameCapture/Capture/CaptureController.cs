@@ -22,6 +22,10 @@ public sealed class CaptureController : IDisposable
     /// <summary>点按总是先显示选区（QQ 式）：本次选区确认后立即截一帧静态图。</summary>
     private bool _captureAfterSelect;
     private System.Windows.Threading.DispatcherTimer? _recBadgeTimer; // R43：按住过阈值→REC 徽标
+    // R60：连按两下=免按住录制（纯逻辑在 Core.ToggleRecord，这里只做引擎/徽标接线）
+    private Core.ToggleRecord.St _tr = Core.ToggleRecord.St.Idle;
+    private System.Windows.Threading.DispatcherTimer? _tapWindowTimer;
+    private System.Windows.Threading.DispatcherTimer? _stopWindowTimer;
 
     public Phase State { get; private set; } = Phase.Idle;
 
@@ -39,6 +43,25 @@ public sealed class CaptureController : IDisposable
                 _outline?.StartRecBadge();
                 if (!_settings.Current.RecHintShown) _settings.Mutate(s => s.RecHintShown = true); // 教过一次就收
             }
+        };
+        // 点按窗到期：没等到第二下 → 走原「点按=截图」分支（用 tapMs-1 作合成按住时长）
+        _tapWindowTimer = new System.Windows.Threading.DispatcherTimer
+        { Interval = TimeSpan.FromMilliseconds(Core.ToggleRecord.WindowMs) };
+        _tapWindowTimer.Tick += (_, _) =>
+        {
+            _tapWindowTimer!.Stop();
+            if (_tr != Core.ToggleRecord.St.PendingTap) return;
+            _tr = Core.ToggleRecord.St.Idle;
+            FrameCapture.Core.Trace.Log("tap window elapsed → tap");
+            FinishCapture(Math.Max(0, _settings.Current.TapThresholdMs - 1));
+        };
+        // 结束窗到期：录制中只按了一下 → 无操作，回到录制态
+        _stopWindowTimer = new System.Windows.Threading.DispatcherTimer
+        { Interval = TimeSpan.FromMilliseconds(Core.ToggleRecord.WindowMs) };
+        _stopWindowTimer.Tick += (_, _) =>
+        {
+            _stopWindowTimer!.Stop();
+            if (_tr == Core.ToggleRecord.St.StopArmed) _tr = Core.ToggleRecord.St.Toggle;
         };
     }
 
@@ -135,7 +158,7 @@ public sealed class CaptureController : IDisposable
         State = Phase.SelectingScope;
         // 首次教学（R43）：用户还没录过制时，在选区提示里点破"按住=录制"，起录一次后不再打扰
         string? teachTip = _settings.Current.RecHintShown ? null
-            : $"提示：按住 {_settings.Current.CaptureHotkey} 不放 = 录制 GIF（点按 = 截图）";
+            : $"提示：按住或连按两下 {_settings.Current.CaptureHotkey} = 录制 GIF（点按 = 截图）";
         // 旧选区可关（R55 设置项）：关=干净屏选区，Enter 确认上次选区随之无意义
         _picker = new RegionPickerWindow(monitor, existing: _settings.Current.ShowLastRegion ? StoredRegion()?.Bounds : null,
             snapContent: _settings.Current.SnapContentArea, teachTip: teachTip);
@@ -212,7 +235,19 @@ public sealed class CaptureController : IDisposable
     /// <summary>按下捕获快捷键。region = 已存范围或光标所在显示器全屏。</summary>
     public void BeginCapture()
     {
-        FrameCapture.Core.Trace.Log($"BeginCapture state={State}");
+        FrameCapture.Core.Trace.Log($"BeginCapture state={State} tr={_tr}");
+        // R60 状态机优先：点按窗内的第二下 → 免按住录制；录制中的第一下 → 装填结束窗；结束窗内的第二下 → 结束
+        var step = Core.ToggleRecord.Next(_tr, Core.ToggleRecord.Ev.Down, 0,
+            _settings.Current.TapThresholdMs, _settings.Current.DoubleTapRecord);
+        switch (step.Action)
+        {
+            case Core.ToggleRecord.Act.EnterToggle:
+                _tr = step.Next; EnterToggleRecording(); return;
+            case Core.ToggleRecord.Act.ArmStop:
+                _tr = step.Next; _stopWindowTimer!.Start(); return;
+            case Core.ToggleRecord.Act.FinishToggleStop:
+                _tr = step.Next; FrameCapture.Core.Trace.Log("toggle record stop"); FinishCapture(-1); return;
+        }
         var intent = Core.CaptureGuards.OnCaptureHotkey(
             State == Phase.Capturing, State == Phase.SelectingScope, State == Phase.Editing);
         if (intent != Core.CaptureGuards.CaptureIntent.StartCapture)
@@ -270,6 +305,7 @@ public sealed class CaptureController : IDisposable
         }
 
         State = Phase.Capturing;
+        _tr = Core.ToggleRecord.St.Hold;
         // 系统 WGC 提示边框已关闭，改用自家按范围绘制的轮廓做"正在录制"提示。
         // 该窗以 WDA_EXCLUDEFROMCAPTURE 排除，不会进产物；关掉开关即完全不提示。
         if (_settings.Current.ShowRecordingBorder)
@@ -295,14 +331,57 @@ public sealed class CaptureController : IDisposable
     public void EndCapture(long holdMs = -1)
     {
         if (State != Phase.Capturing) return;
-        FinishCapture(holdMs);
+        var step = Core.ToggleRecord.Next(_tr, Core.ToggleRecord.Ev.Up, holdMs,
+            _settings.Current.TapThresholdMs, _settings.Current.DoubleTapRecord);
+        _tr = step.Next;
+        switch (step.Action)
+        {
+            case Core.ToggleRecord.Act.None:
+                if (_tr == Core.ToggleRecord.St.PendingTap)
+                {
+                    // 短按松手：引擎继续跑（零间隙等第二下），徽标计时收起来——还没确定在录
+                    _recBadgeTimer?.Stop();
+                    _tapWindowTimer!.Start();
+                }
+                // 免按住录制中松手 / 结束窗内松手：都不停（结束只认"再连按两下"）
+                return;
+            case Core.ToggleRecord.Act.FinishHold:
+                FinishCapture(holdMs);
+                return;
+        }
+    }
+
+    /// <summary>R60：点按窗内等来第二下 → 免按住录制。引擎本来就在跑（零间隙），这里只把状态"说清楚"：
+    /// REC 徽标立即常驻并写明结束方式；用户关了录制边框时挂"只徽标不画框"的提示窗。</summary>
+    private void EnterToggleRecording()
+    {
+        FrameCapture.Core.Trace.Log("toggle record start");
+        _recBadgeTimer?.Stop();
+        var bounds = _pendingRegion?.Bounds ?? default;
+        if (_settings.Current.ShowRecordingBorder)
+        {
+            ShowCaptureScope(bounds);
+            _outline?.SetBorderVisible(true);
+        }
+        else if (_outline != null && bounds.W > 0)
+        {
+            _outline.SetRegion(bounds);
+            _outline.SetBorderVisible(false);
+            _outline.ShowNoActivate();
+        }
+        _outline?.StartRecBadge(toggle: true);
+        if (!_settings.Current.RecHintShown) _settings.Mutate(s => s.RecHintShown = true);
     }
 
     private void FinishCapture(long holdMs = -1)
     {
         FrameCapture.Core.Trace.Log("FinishCapture");
+        _tapWindowTimer?.Stop();
+        _stopWindowTimer?.Stop();
+        _tr = Core.ToggleRecord.St.Idle;
         _recBadgeTimer?.Stop();
         _outline?.StopRecBadge();
+        _outline?.SetBorderVisible(true); // 免按住录制的"只徽标"模式复位，别把无边框带给下次
         _maxTimer?.Stop();
         _maxTimer = null;
         _live.Stop();

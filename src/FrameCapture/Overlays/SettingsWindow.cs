@@ -152,6 +152,8 @@ public sealed class SettingsWindow : Window
 
         // ---- 录制 ----
         panel.Children.Add(Group("录制"));
+        panel.Children.Add(ToggleRow("\uE815", "连按两下 = 录制（免按住）", "连按两下捕获快捷键开始录制（REC 徽标常驻），再连按两下结束进编辑器；按住录制照旧。关闭后点按截图零延迟（双击判定会把点按落地延后约 0.3 秒）",
+            _settings.Current.DoubleTapRecord, v => _settings.Mutate(s => s.DoubleTapRecord = v)));
         panel.Children.Add(SliderRow("\uEC4A", "录制帧率 (FPS)", "长按录制时每秒捕获的帧数",
             AppSettings.FpsMin, AppSettings.FpsMax, 5, _settings.Current.Fps,
             v => $"{v:0} fps", v => _settings.Mutate(s => s.Fps = (int)v)));

@@ -27,6 +27,7 @@ using System.Drawing.Imaging;
 const uint MOUSEEVENTF_LEFTDOWN = 0x02, MOUSEEVENTF_LEFTUP = 0x04;
 
 SetProcessDPIAware();
+uint Vk(string s) => s.StartsWith("0x") ? Convert.ToUInt32(s, 16) : uint.Parse(s);
 string mode = args.Length > 0 ? args[0] : "shot";
 switch (mode)
 {
@@ -70,7 +71,7 @@ switch (mode)
     }
     case "commit":
     {
-        byte vk = args.Length > 2 ? byte.Parse(args[2]) : (byte)13;
+        byte vk = args.Length > 2 ? (byte)Vk(args[2]) : (byte)13;
         for (int i = 0; i < 10; i++)
         {
             nint h = FindWindowW(null, args[1]);
@@ -94,7 +95,7 @@ switch (mode)
     {
         nint h = FindWindowW(null, args[1]);
         if (h == 0) { Console.WriteLine("window-not-found"); return; }
-        uint vk = uint.Parse(args[2]);
+        uint vk = Vk(args[2]);
         uint scan = MapVirtualKeyW(vk, 0);
         const uint WM_KEYDOWN = 0x0100, WM_KEYUP = 0x0101;
         PostMessageW(h, WM_KEYDOWN, vk, scan | 1 << 24);
@@ -107,7 +108,7 @@ switch (mode)
     {
         nint h = FindWindowW(null, args[1]);
         if (h == 0) { Console.WriteLine("window-not-found"); return; }
-        uint vk = uint.Parse(args[2]);
+        uint vk = Vk(args[2]);
         uint scan = MapVirtualKeyW(vk, 0);
         uint cscan = MapVirtualKeyW(0x11, 0); // VK_CONTROL
         const uint WM_KEYDOWN = 0x0100, WM_KEYUP = 0x0101, WM_MOD = 0x0020; // lParam bit5=上下文码占位
@@ -123,11 +124,27 @@ switch (mode)
     }
     case "key": // key <vk> → 发给当前前台
     {
-        byte vk = byte.Parse(args[1]);
+        byte vk = (byte)Vk(args[1]);
         keybd_event(vk, 0, 0, 0);
         await Task.Delay(60);
         keybd_event(vk, 0, 2, 0);
         Console.WriteLine($"key {vk} sent");
+        break;
+    }
+    case "dbl": // dbl <vk> [holdMs=60] [gapMs=120] —— 单进程内连按两下（跨进程启动间隔会超出双击窗，必须进程内）
+    {
+        byte vk = args[1].StartsWith("0x") ? Convert.ToByte(args[1], 16) : byte.Parse(args[1]);
+        int hold = args.Length > 2 ? int.Parse(args[2]) : 60;
+        int gap = args.Length > 3 ? int.Parse(args[3]) : 120;
+        uint scan = MapVirtualKeyW(vk, 0);
+        for (int i = 0; i < 2; i++)
+        {
+            keybd_event(vk, (byte)scan, 0, 0);
+            await Task.Delay(hold);
+            keybd_event(vk, (byte)scan, 2, 0);
+            if (i == 0) await Task.Delay(gap);
+        }
+        Console.WriteLine($"dbl vk={vk} hold={hold} gap={gap}");
         break;
     }
     case "rclick": // rclick x y —— 右键单击（绝对物理坐标）
@@ -264,7 +281,7 @@ switch (mode)
     }
     case "hk": // hk <vk> <holdMs> —— Ctrl+Shift+<vk> 组合按住
     {
-        int vk = int.Parse(args[1]);
+        int vk = (int)Vk(args[1]);
         int hold = args.Length > 2 ? int.Parse(args[2]) : 1200;
         keybd_event(0x11, 0, 0, 0);
         keybd_event(0x10, 0, 0, 0);
@@ -278,7 +295,7 @@ switch (mode)
     }
     case "hkm": // hkm <vk> <ctrl> <shift> <alt> <win> <holdMs> —— 自定义修饰键组合按住（标志 0/1）
     {
-        int vk = int.Parse(args[1]);
+        int vk = (int)Vk(args[1]);
         bool ctrl = args[2] == "1", shift = args[3] == "1", alt = args[4] == "1", win = args[5] == "1";
         int hold = args.Length > 6 ? int.Parse(args[6]) : 1200;
         var seq = new List<(byte vk2, uint up)>();

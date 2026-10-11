@@ -780,3 +780,27 @@ status: done
 - 夜跑基建 lib-focussafe.ps1 首航：前台+矩形双闸多次正确拦截（前台是 GUI 时拒点/越界拒点）；
   新增 Shot activate（AttachThreadInput 破前台锁）/rclick、库 -ExtraRect（弹层合法扩展区）。
 - 验证：构建 0 错；SelfTest 173/173；实机取证 night-05~11（标题栏/分组/调色板/提交/恢复全链路截图目检）。
+
+## R60（10-12 凌晨）：连按两下=免按住录制 + 单实例两修
+- **双击捕获键开始/结束录制**（用户排队 #7）：纯逻辑状态机 `Core/ToggleRecord.cs`
+  （Idle→Hold→PendingTap→Toggle→StopArmed，点按/结束窗各 300ms）。关键设计：**点按松手后引擎不停**，
+  PendingTap 期间继续采帧——第二下窗内到达即进 Toggle，零丢帧零间隙；窗到期才走原「点按=截图」分支
+  （FinishCapture(tapMs-1) 复用旧 tap 路径，语义零漂移）。代价=点按落地延后一窗（300ms），换来免按住录制。
+  录制中单按=装填结束窗（到期无操作）；录制中按住松手=停（符合按住直觉）；REC 徽标常驻且文案写明
+  「再连按两下结束」（免按住模式没有"松手"动作，结束方式必须写在脸上）；用户关录制边框时挂"只徽标不画框"
+  提示窗（SetBorderVisible）。设置项 DoubleTapRecord 默认开，关闭=旧语义（点按零延迟，实测 150ms 内编辑器已开）。
+- **挖出并修复两个单实例真 bug**（e2e 排查时误撞）：
+  ① 二次实例退出路径 `ReleaseMutex` 未持有 → ApplicationException → **WER 崩溃弹窗**（用户双击快捷方式
+     再开一次就会见到）；改 `_ownsMutex` 守卫 + Dispose。
+  ② `--settings/--help` 在已有实例时**静默失效**（OnStartup 直接 Shutdown，无转发）；
+     新增 HWND_MESSAGE 消息专用窗（RegisterWindowMessage + FindWindowExW 转发），二次实例现在能把
+     "打开设置/帮助"递给主实例。实机验证：转发后设置窗出现、进程数=1、零崩溃。
+- 取证基建：Shot 新增 `dbl <vk> [hold] [gap]`（单进程连按两下，跨进程启动间隔会掉出双击窗）；
+  Shot 全部 vk 参数支持 0x 十六进制。
+- 验证：构建 0 错；SelfTest **186/186**（T99a-n 状态机 13 条）；实机 e2e 全链路：
+  双击起录（trace PendingTap→toggle record start）→ REC 徽标截图（"REC 0:02.1 · 再连按两下结束"）→
+  双击停（Toggle→StopArmed→stop，编辑器 97 帧，时间轴 2.3s 与实际吻合）→
+  录制中单按无操作 → 点按截图 300ms 窗到期落地 → 按住 1.2s 录制回归 → 关开关旧语义。
+  取证 night-12~17（徽标/编辑器/设置页新行 E815 图标目检）。
+- 插曲：cap-tray-menu.ps1 自带 Stop-Process+重启（取证脚本语义），误跑一次导致实例被换——非应用 bug，
+  但顺藤摸出了上面两个真 bug，值。

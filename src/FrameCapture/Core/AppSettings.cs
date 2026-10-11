@@ -54,6 +54,9 @@ public sealed class AppSettings
     /// <summary>「按住 = 录制」教学提示是否已展示过（首次真正起录后不再打扰，R43）。</summary>
     public bool RecHintShown { get; set; } = false;
 
+    /// <summary>连按两下捕获键 = 开始录制（免按住），再连按两下结束（R60，ToggleRecord 状态机）。</summary>
+    public bool DoubleTapRecord { get; set; } = true;
+
     /// <summary>编辑器窗口总在最前（图钉开关，默认关，R44）。</summary>
     public bool EditorTopmost { get; set; } = false;
 
