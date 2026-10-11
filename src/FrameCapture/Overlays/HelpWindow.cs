@@ -47,7 +47,11 @@ public sealed class HelpWindow : Window
         ShowInTaskbar = false;
         Topmost = true;
         Title = "FrameCapture Help";
-        Width = 640; Height = 806; // 一屏装完全部条目，避免滚动
+        Width = 640;
+        // 条目随功能增长（R13 起 806 装不下，末条被裁一半）：高度自适应内容，超高封顶后滚动
+        SizeToContent = SizeToContent.Height;
+        MaxHeight = 1040;
+        WindowStartupLocation = WindowStartupLocation.CenterScreen;
 
         var root = new Border
         {

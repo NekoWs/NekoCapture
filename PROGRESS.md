@@ -443,3 +443,9 @@ status: done
   完全隐身（R12 定稿时只审了暗色）。改跟 Theme.Text（暗=白、浅=近黑），像素验证 x263 列 26/253 高对比。
   浅色下其余全部合格：刻度/秒标/滑杆/开关/主题按钮/色板描边/反色主按钮。设置窗浅色截图留档 settings-light.png。
   教训：双主题 UI 的每次视觉定稿必须两个主题各出一张裁条，单主题审查=半个没审。
+
+## 2026-10-11 长跑 R20（DSH goal 轮，16:15 起）
+- **R20 帮助窗高度自适应**：R13 加了 2 条后 806 固定高装不下，末条"底部工具条"被裁一半（浅色截图抓到）。
+  改 SizeToContent=Height + MaxHeight=1040（超高才滚动）+ CenterScreen。实测 640×941 DIP 全条目完整，
+  底部"其他/小提示"区可见。release 重发布补账：R14-R19 已进 release（IL 探针 LabelStepFrames/Win32Owner=True、
+  CenterOnWorkArea 已消失），用户实例已恢复（pid 68944）。
