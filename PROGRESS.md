@@ -306,3 +306,10 @@ status: done
   取证：编辑器工具栏截图（test-out/redo-evidence/toolbar.png）——撤销全亮、重做 0.35 禁用态（CanRedo=false 初始正确）。
   EDITOR-KEYS PASS + SelfTest 87/87 + app build 0 error。GlyphProbe 候选表更新为 Redo 行（scratch 工具，入口临时切
   RenderMatrix 后已还原）。
+
+## 2026-10-11 长跑 R6（DSH goal 轮，12:50 起）
+- **R6 裁剪不再销毁标注**：ApplyCrop 原实现 `_anns.Clear()` 一刀切（注释自称"行为可预期"，实为不可逆丢用户作品）。
+  新增 Core/CropRemap.cs 纯逻辑决策表：完整位于裁剪框内（Eps 容差）的标注保留并做坐标重映射
+  （全帧归一化→裁剪框归一化）；跨界/框外丢弃——钳制会把自由笔/箭头沿边抹成贴边残影，丢弃更可预期。
+  SelfTest +T78a/b/c（87→90）：坐标变换、跨界丢弃+输入纯函数性、**像素级往返**
+  Bake(Crop(Bake(f,a),r)) ≡ Crop→Remap→Bake 逐字节相等。跨界丢弃语义有测试锁定，无鼠标注入约束下即有效取证。

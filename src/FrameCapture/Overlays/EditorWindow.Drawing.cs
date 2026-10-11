@@ -343,8 +343,10 @@ public sealed partial class EditorWindow
         }
         catch { return; }
 
-        // 标注：全部丢弃（原全帧坐标已失效，行为可预期）
+        // 标注：框内整体保留并做坐标重映射（全帧归一化→裁剪框归一化）；跨界/框外丢弃（钳制会抹出贴边残影）
+        var remapped = FrameCapture.Core.CropRemap.Remap(_anns.Items, (double)x / f.W, (double)y / f.H, (double)w / f.W, (double)h / f.H);
         _anns.Clear();
+        foreach (var ra in remapped) _anns.Add(ra);
         RefreshUndo();
         _bitmaps = _seq.Frames.Select(FrameCapture.Services.BgraImage.ToSource).ToList();
         _seq.Region = new RectI(_seq.Region.X + x, _seq.Region.Y + y, w, h);

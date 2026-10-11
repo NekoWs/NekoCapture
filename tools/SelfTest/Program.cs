@@ -759,6 +759,34 @@ static class SelfTest
             Chk("T77b-fps-normalize-clamps",
                 fpsLo.Fps == AppSettings.FpsMin && fpsHi.Fps == AppSettings.FpsMax && fpsOk.Fps == 30,
                 "Normalize 把 Fps 钳进 [FpsMin,FpsMax]，合法值原样通过");
+            // T78：裁剪→标注重映射（Core.CropRemap）——坐标变换、跨界丢弃、像素级往返
+            {
+                var dotIn = new Annotation { Kind = AnnKind.Dot, Color = Color.FromArgb(255, 0xE7, 0x48, 0x4C), Thickness = 8 };
+                dotIn.Points.Add((0.5f, 0.5f));
+                var lineCross = new Annotation { Kind = AnnKind.Line, Color = Color.Red, Thickness = 4 };
+                lineCross.Points.Add((0.1f, 0.5f)); lineCross.Points.Add((0.3f, 0.5f)); // 跨左裁剪边
+                var dotOut = new Annotation { Kind = AnnKind.Dot, Color = Color.Lime, Thickness = 4 };
+                dotOut.Points.Add((0.9f, 0.9f)); // 框外
+                var input = new[] { dotIn, lineCross, dotOut };
+                var kept = FrameCapture.Core.CropRemap.Remap(input, 0.25, 0.25, 0.5, 0.5);
+                bool mapOk = kept.Count == 1 && kept[0].Kind == AnnKind.Dot
+                    && Math.Abs(kept[0].Points[0].X - 0.5f) < 1e-5 && Math.Abs(kept[0].Points[0].Y - 0.5f) < 1e-5;
+                Chk("T78a-crop-remap-coords", mapOk, "框内标注保留且坐标 (0.5,0.5)→裁剪框 (0.5,0.5)");
+                Chk("T78b-crop-remap-drops-and-purity",
+                    kept.Count == 1 && kept[0] != dotIn
+                    && dotIn.Points[0].X == 0.5f && dotIn.Points[0].Y == 0.5f
+                    && lineCross.Points.Count == 2 && dotOut.Points.Count == 1,
+                    "跨界/框外丢弃；输入不被修改（返回新列表）");
+                // 像素级往返：先烘焙再裁剪 ≡ 先裁剪再按重映射烘焙
+                var f0 = Solid(200, 100, 0, 0, 0);
+                var baked = Bake.Apply([f0], [dotIn])[0];
+                var pathA = Bake.Crop([baked], 50, 25, 100, 50)[0];              // 烘焙→裁剪
+                var pathB = Bake.Apply(Bake.Crop([f0], 50, 25, 100, 50), kept)[0]; // 裁剪→重映射→烘焙
+                bool pxSame = pathA.W == pathB.W && pathA.H == pathB.H && pathA.Bgra.AsSpan().SequenceEqual(pathB.Bgra);
+                bool centerRed = pathB.Bgra[(25 * 100 + 50) * 4 + 2] > 0x80; // 红点在裁剪框中心
+                Chk("T78c-crop-remap-pixel-roundtrip", pxSame && centerRed,
+                    $"Bake(Crop(Bake)) ≡ Crop→Remap→Bake 逐字节相等={pxSame} 中心红点={centerRed}");
+            }
         }
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");
         return fail == 0 ? 0 : 1;
