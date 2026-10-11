@@ -65,7 +65,7 @@ public sealed class TrayService : IDisposable
         }, checkable: true, isChecked: _host.Settings.Current.RunAtStartup);
         // 按需提权：解决被更高权限窗口（管理员终端/游戏）压住、快捷键盲区的问题
         if (AppHost.IsElevated)
-            Item("管理员权限运行 ✓", () => { }, checkable: true, isChecked: true);
+            Item("管理员权限运行", () => { }, checkable: true, isChecked: true); // 勾选标记由 checkable 呈现，文本不再带 ✓（R24 去双勾）
         else
             Item("以管理员身份运行（防遮挡）", () => _host.RestartAsAdmin());
         Sep();
@@ -113,12 +113,18 @@ public sealed class TrayService : IDisposable
 
     static Icon MakeIcon()
     {
-        // 程序化生成一个取景框图标
+        // 取景框图标：四角实心括号 + 中心点。虚线在托盘 16px 缩略下会糊成一团（R24 改实角）
         using var bmp = new Bitmap(32, 32);
         using var g = Graphics.FromImage(bmp);
         g.Clear(Color.Transparent);
-        using var pen = new Pen(Color.FromArgb(255, 0x4C, 0xC2, 0xFF), 3) { DashStyle = System.Drawing.Drawing2D.DashStyle.Custom, DashPattern = new float[] { 5, 3 } };
-        g.DrawRectangle(pen, 4, 4, 23, 23);
+        g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+        using var pen = new Pen(Color.FromArgb(255, 0x4C, 0xC2, 0xFF), 3)
+        { StartCap = System.Drawing.Drawing2D.LineCap.Round, EndCap = System.Drawing.Drawing2D.LineCap.Round };
+        int m = 5, e = 11, r = 31 - m; // 边距/臂长/右边界
+        g.DrawLines(pen, new[] { new Point(m, m + e), new Point(m, m), new Point(m + e, m) });           // 左上
+        g.DrawLines(pen, new[] { new Point(r - e, m), new Point(r, m), new Point(r, m + e) });           // 右上
+        g.DrawLines(pen, new[] { new Point(m, r - e), new Point(m, r), new Point(m + e, r) });           // 左下
+        g.DrawLines(pen, new[] { new Point(r - e, r), new Point(r, r), new Point(r, r - e) });           // 右下
         using var dot = new SolidBrush(Color.FromArgb(255, 0x4C, 0xC2, 0xFF));
         g.FillEllipse(dot, 13, 13, 6, 6);
         IntPtr hicon = bmp.GetHicon();
