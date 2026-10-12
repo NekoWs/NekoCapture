@@ -2008,3 +2008,10 @@ status: done
 - **zip 时效确认**：`git diff --stat 9f85a15(R132)..HEAD -- src` **输出为空** = R133–R140 仅改 PROGRESS.md，**src 零改动** → **zip 反映最终源码，无需重发布**。
 - **判据纠错**（防后续轮误判）：`if(git diff --quiet A B -- src){...}` 是**错误惯用法**——PowerShell 的 `if` 取命令 **stdout** 而非退出码，`--quiet` 无输出恒为假 → 永远误报「有改动」。正确判据：`git diff --stat A B -- src` 输出为空，或 `git diff --quiet A B -- src; if($LASTEXITCODE -eq 0){无改动}`。
 - **结论**：交付物 zip 与最终 HEAD 源码一致。本轮无源码改动。
+
+**R142 · 动效一致性审计（所有窗口入场/退场动效齐备，无硬弹入漏网）**
+- grep 全仓 `PopupEnter|SetupMotion|CloseWithFade|PlayDrop|FadeIn|ContentRendered` 逐窗核对：
+  - **入场**：Settings/OCR/Help = `Fluent.PopupEnter`；GestureEditor = 自包含 `SetupMotion`（库不引用宿主 Fluent，手感同款）；Pin = `PlayDrop`（落图缩放）；**Editor = `Fluent.FadeIn(EditorEnterMs, 14px 位移, offscreenFirstFrame:true)`**（EditorWindow.cs:87）。
+  - **退场**：Settings/Editor/OCR/Help/Pin/Toast/Countdown/ScrollHint/WelcomeToast 全 `Fluent.CloseWithFade`。
+- **非不一致说明**（防后续轮误改）：主编辑器用 `FadeIn`（淡入+位移+**离屏首帧**）而非 `PopupEnter`（淡入+缩放）是**有意为之**——编辑器首帧渲染大图可能黑闪，`offscreenFirstFrame` 把黑相挪到屏幕外，用户只见淡入；改成缩放会丢掉这层保护。故二者差异是设计，非缺陷。
+- **结论**：动效覆盖完整、无遗漏窗口。本轮无源码改动。
