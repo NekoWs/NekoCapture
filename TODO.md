@@ -378,4 +378,5 @@
 ## 「截图后」新增「贴图」R117（2026-10-12 下午，Snipaste 式工作流）
 - [x] **截图即贴图**：AfterCapture 加第 4 态 `pin`——静图/滚动/延时（单帧）捕获后直接把图钉在原捕获位置（`PinFrameAt`→`new PinWindow(f,reg).Show()`，UI 线程）。设置「截图后」加「贴图」芯片；HelpWindow/README 同步。SelfTest T116e；护栏 PASS；e2e 取证原地钉屏 + 4 芯片无溢出。
 - [ ] **后续**：贴图后是否弹一句「已贴图 · Esc 关闭」的轻提示（当前贴图静默出现，Snipaste 也静默，够用，暂缓）；「贴图」态下是否也支持「贴图 + 同时进编辑器」的组合（当前互斥，暂缓）。
+- [ ] **贴图抢焦点考量（交产品决策，未擅改）**：`PinWindow.Loaded` 里 `Activate()` 让贴图显示即取焦点，以保证 Esc/R/Ctrl+S 等 WPF `KeyDown` 快捷键即时可用；代价是「截图即贴图」后焦点从原应用跳到贴图，与 toast（`ShowActivated=false` 不抢焦点）不一致，略打断「贴图后继续原应用操作」。Snipaste 做法是贴图不抢焦点 + 用**全局钩子**兜底 Esc。若要照做：给 PinWindow 加 `activateOnShow` 开关（AfterCapture=pin 传 false）+ 一个贴图会话级全局 Esc 钩子（仿 CaptureToast 的 HwndSource.AddHook）。属共享组件焦点行为改动、有回归风险，离线会话未动。
 
