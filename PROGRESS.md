@@ -2024,3 +2024,15 @@ status: done
 - **修复**：前景改用现成助手 `Fluent.OnAccentColor(Theme.Accent)`（亮度>128→黑，否则白），与 `OcrResultWindow.cs:75` 同款。两文件均已有 `using FrameCapture.Core;`。
 - **对当前 `#7F75FF` 的影响**：亮度 0.299·127+0.587·117+0.114·255≈135.7>128 → 选**黑字**，与已视觉核验的 OCR 窗一致；且中亮度紫底上黑字 WCAG 对比度高于白字，属可读性提升而非退化。
 - **验证**：构建 **0 错**（9 警告全既有，无新增）；**SelfTest 387 绿**（只增不减）。改动纯 UI 前景色，不触 e2e 流程；完整护栏留批次末在最终 HEAD 上统一跑一次。
+
+---
+
+## ⚑ 批次末清单（仅最后一轮执行，约 09:30+ 临近 10:00 截止时）
+
+> 触发条件：距截止 < ~30 分钟，或判断这是本批次最后一轮。**顺序不可乱**——重启实例必须最后做。
+
+1. **完整护栏**：`pwsh -NoProfile -File scripts/guardrail.ps1 -MinSelfTestPass 387`（后台跑至完成）→ 期望 `GUARDRAIL PASS FAIL=0 SKIP=1`；跑后核验用户 4 条自定义手势被 try/finally 还原（兜底 `settings.json.testbak`）。
+2. **release 重发布**（R143 改了源码，zip 现过期，**必须做**）：`pwsh -NoProfile -File test-out/publish.ps1` → 再 `Compress-Archive -Path test-out/publish-staging/* -DestinationPath release/FrameCapture.zip -Force -CompressionLevel Optimal`。
+3. **重启 release 实例**（**必须最后一步**）：解压或直接用 publish-staging 启 `FrameCapture.exe`。⚠️ 单实例 Mutex——若提前启动，用户双击自己的构建会被 `ForwardToPrimary` 转发后退出，自己的实例起不来。
+4. **更新 TODO.md line 3** 过期收尾头（现写「SelfTest 337/全出厂默认/Release 运行」，应改为 SelfTest 387、用户自定义手势、Release 运行）。
+5. **不要**从 `settings.json.bak` 恢复（那是 B2 前的旧配置，会回退手势功能；用户当前配置正确）。
