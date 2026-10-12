@@ -1285,3 +1285,21 @@ status: done
   - 滚轮滚动记事本→trace 连续 `scroll append ov=… new=… h=…`（ov 840/888/328… 均有效），进度实时增长
   - 点「完成」→`scroll done 1340x2840 segs=7`、编辑器打开；点「取消」→`scroll cancel`
   - **肉眼核对 2840px 长图**：行号 009→250 全程逐行连续、无跳号无重复、7 段接缝完全不可见；控制条不在图内
+
+
+## 2026-10-12 上午 取色复制格式 R89（HEX/RGB/HSL，QQ 只给 HEX 的补强）
+
+**动机**（自定义能力，服务开发者/设计师）：选区放大镜按 C 复制光标下像素颜色，此前只会复制 `#RRGGBB`（QQ 同款）。但前端/设计取色常要 `rgb()`/`hsl()` 直接贴进 CSS，每次手转很烦。做成可选项——不是堆数值，是多一个真正省事的「功能可选项」。
+
+**实现**（纯格式化、零钩子、可单测）：
+- `Core/ColorFormat.cs`（新）：`enum ColorCopyFormat { Hex, Rgb, Hsl }`；`Format(r,g,b,fmt)` 纯函数（分量夹 0–255；Hex=`#RRGGBB`、Rgb=`rgb(r, g, b)`、Hsl=`hsl(h, s%, l%)` 标准 RGB→HSL 四舍五入）；`Parse`（设置串→枚举，大小写不敏感、未知回退 Hex 向后兼容）；`ToSetting`（往返）。屏幕像素恒不透明，故不提供带 alpha 的形式（避免误导）。
+- 设置项 `ColorCopyFormat`（默认 "hex"，与旧配置兼容）；`RegionPickerWindow` 构造参数 `colorFormat`，放大镜读数与按 C 复制都走 `ColorFormat.Format`；`CaptureController` 构造选区窗时 `ColorFormat.Parse(设置)` 传入。
+- 设置窗「截图」组放大镜开关下新增 `ColorFormatRow()`：调色板图标（**E790**，与强调色行同款、已验证非豆腐）+ HEX/RGB/HSL 三 chip（复用 AfterCaptureRow 的分段样式，选中蓝底、键盘可达）；帮助窗「选区放大镜」行文案改为「格式 HEX/RGB/HSL 可在设置选，默认 HEX」。
+
+**验证**：
+- 构建 0 错误；SelfTest 290→**298**（T120a-h：HEX/RGB/HSL 文本正确、灰/白/橙 HSL 边界、分量夹取 300/-5→FF/00、Parse 大小写+未知回退、枚举↔设置串往返）
+- 完整护栏 GUARDRAIL PASS（FAIL=0 SKIP=1 floor280，err_delta=0）
+- 实机 e2e（改 settings.json→watcher 热重载→F7 选区→移光标→按 C→读剪贴板 + PrintWindow 读数）：
+  - 设 rgb：剪贴板 `rgb(39, 39, 39)`；PrintWindow 放大镜读数「已复制 rgb(39, 39, 39)」
+  - 设 hsl：剪贴板 `hsl(0, 0%, 15%)`（39 灰阶→15% 亮度，正确）
+  - 设置窗「取色格式」行渲染正常：调色板图标清晰、HEX/RGB/HSL 三 chip、当前项蓝底选中、位置在放大镜开关后、与「截图后」行同款右对齐

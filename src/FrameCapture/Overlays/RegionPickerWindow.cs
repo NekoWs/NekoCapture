@@ -27,6 +27,7 @@ public sealed class RegionPickerWindow : Window
     private RectI? _existing;
     private readonly bool _snapContent;
     private readonly bool _magnifier;
+    private readonly Core.ColorCopyFormat _colorFormat; // R89：按 C 复制颜色时的文本形式
     private System.Windows.Media.Imaging.BitmapSource? _snap; // 选区放大镜快照（构造时抓，遮罩未渲染→真实颜色）
     private byte[]? _snapBgra; // 快照原始 BGRA（取光标下像素颜色用）
     private int _snapW;
@@ -57,13 +58,14 @@ public sealed class RegionPickerWindow : Window
         Native.Win32.SetWindowPos(h, Native.Win32.HWND_TOPMOST, 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0010); // NOMOVE|NOSIZE|NOACTIVATE
     }
 
-    public RegionPickerWindow(MonitorInfo monitor, RectI? existing, bool snapContent = false, string? teachTip = null, bool magnifier = false)
+    public RegionPickerWindow(MonitorInfo monitor, RectI? existing, bool snapContent = false, string? teachTip = null, bool magnifier = false, Core.ColorCopyFormat colorFormat = Core.ColorCopyFormat.Hex)
     {
         // 覆盖层不需要文本输入：禁用输入法，避免拼音拦截快捷键
         System.Windows.Input.InputMethod.SetIsInputMethodEnabled(this, false);
         _monitor = monitor;
         _snapContent = snapContent;
         _magnifier = magnifier;
+        _colorFormat = colorFormat;
         _monitorPhys = monitor.Bounds;
         _existing = existing;
         // 放大镜快照：此刻本窗尚未 Show、遮罩未渲染，BitBlt 拿到干净桌面（旧选区虚线窗已 WDA 排除，不入镜）
@@ -406,7 +408,7 @@ public sealed class RegionPickerWindow : Window
         if (_snapBgra != null && _loupeSwatch != null && _loupeHex != null)
         {
             var (r, g, b) = Core.MagnifierMath.PixelRgb(_snapBgra, _snapW, sx, sy);
-            _loupeHexText = Core.MagnifierMath.Hex(r, g, b);
+            _loupeHexText = Core.ColorFormat.Format(r, g, b, _colorFormat);
             _loupeSwatch.Background = new SolidColorBrush(Color.FromRgb((byte)r, (byte)g, (byte)b));
             _loupeHex.Text = _loupeHexText;
         }

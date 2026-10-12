@@ -120,6 +120,11 @@ public sealed class AppSettings
     /// 默认关——后台工具每次截图都响会吵；设置里带「试听」可先听再决定。开启后 toast/进编辑器/只复制三态都响。</summary>
     public bool CaptureSound { get; set; } = false;
 
+    /// <summary>取色复制格式（默认 hex，R89）：选区放大镜按 C 复制光标下像素颜色时的文本形式。
+    /// "hex"=#RRGGBB（QQ 同款）/ "rgb"=rgb(r, g, b) / "hsl"=hsl(h, s%, l%)——后两者便于直接贴进 CSS。
+    /// 无法识别的值回退 hex（向后兼容旧配置）。</summary>
+    public string ColorCopyFormat { get; set; } = "hex";
+
     // ---- 上次捕获范围（物理像素，虚拟桌面绝对坐标；null 表示全屏主屏） ----
     public string? RegionMonitorId { get; set; }
     public int RegionX { get; set; }

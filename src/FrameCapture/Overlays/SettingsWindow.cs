@@ -113,8 +113,9 @@ public sealed class SettingsWindow : Window
             _settings.Current.SnapContentArea, v => _settings.Mutate(s => s.SnapContentArea = v)));
         panel.Children.Add(ToggleRow("\uE7C4", "显示上次选区", "按下选区快捷键后，用虚线框显示上次的选区位置（Enter 可直接确认重选同区域）；关闭后每次都是干净屏",
             _settings.Current.ShowLastRegion, v => _settings.Mutate(s => s.ShowLastRegion = v)));
-        panel.Children.Add(ToggleRow("\uE721", "选区放大镜", "拖框或悬停选区时，光标旁显示高倍像素放大镜、坐标/尺寸读数与光标下像素颜色（按 C 复制颜色 HEX），便于像素级精确选区/取色（QQ/Snipaste 式）；关闭可省一点开销",
+        panel.Children.Add(ToggleRow("\uE721", "选区放大镜", "拖框或悬停选区时，光标旁显示高倍像素放大镜、坐标/尺寸读数与光标下像素颜色（按 C 复制颜色，格式见下），便于像素级精确选区/取色（QQ/Snipaste 式）；关闭可省一点开销",
             _settings.Current.PickerMagnifier, v => _settings.Mutate(s => s.PickerMagnifier = v)));
+        panel.Children.Add(ColorFormatRow());
         panel.Children.Add(ToggleRow("\uE71A", "常显捕获范围轮廓", "在屏幕上持续显示当前捕获范围的边框",
             _settings.Current.AlwaysShowRegionOutline, v => _settings.Mutate(s => s.AlwaysShowRegionOutline = v)));
         panel.Children.Add(AfterCaptureRow());
@@ -810,7 +811,71 @@ public sealed class SettingsWindow : Window
         return g;
     }
 
-    // 截图提示音（R86）：开关 + 「试听」chip（先听再决定开不开，避免开了才发现吵）
+    // 取色复制格式（R89）：选区放大镜按 C 复制颜色时的文本形式，HEX/RGB/HSL 三选（QQ 只有 HEX）
+    FrameworkElement ColorFormatRow()
+    {
+        var g = Row();
+        g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); // 芯片列
+        g.Children.Add(Icon("\uE790", "选区放大镜按 C 复制颜色时的文本形式：#RRGGBB / rgb(r, g, b) / hsl(h, s%, l%)"));
+        var lbl = new TextBlock
+        {
+            Text = "取色格式",
+            FontSize = 13,
+            Foreground = new SolidColorBrush(Theme.Text),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 12, 0),
+        };
+        Grid.SetColumn(lbl, 1);
+        g.Children.Add(lbl);
+        var chips = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
+        Grid.SetColumn(chips, 2);
+        string cur = _settings.Current.ColorCopyFormat;
+        var opts = new[]
+        {
+            ("hex", "HEX", "#RRGGBB（QQ 同款，通用）"),
+            ("rgb", "RGB", "rgb(r, g, b)（直接贴进 CSS）"),
+            ("hsl", "HSL", "hsl(h, s%, l%)（调色/设计常用）"),
+        };
+        var chipList = new System.Collections.Generic.List<(Border chip, string id)>();
+        foreach (var (id, text, tip) in opts)
+        {
+            string captured = id;
+            var chip = new Border
+            {
+                CornerRadius = new CornerRadius(6),
+                Padding = new Thickness(10, 5, 10, 5),
+                Margin = new Thickness(2, 0, 2, 0),
+                Background = new SolidColorBrush(captured == cur ? Theme.Accent : Theme.Hover),
+                Child = new TextBlock
+                {
+                    Text = text,
+                    FontSize = 12.5,
+                    Foreground = new SolidColorBrush(captured == cur ? Color.FromRgb(0, 0, 0) : Theme.Text),
+                },
+                Cursor = Cursors.Hand,
+                ToolTip = tip,
+            };
+            chipList.Add((chip, id));
+            void Apply()
+            {
+                _settings.Mutate(s => s.ColorCopyFormat = captured);
+                foreach (var (c, cid) in chipList)
+                {
+                    bool sel = cid == captured;
+                    c.Background = new SolidColorBrush(sel ? Theme.Accent : Theme.Hover);
+                    if (c.Child is TextBlock tb) tb.Foreground = new SolidColorBrush(sel ? Color.FromRgb(0, 0, 0) : Theme.Text);
+                }
+            }
+            chip.MouseLeftButtonDown += (_, e) => { Apply(); e.Handled = true; };
+            chip.Focusable = true;
+            chip.KeyDown += (_, e) => { if (e.Key is Key.Space or Key.Enter) { Apply(); e.Handled = true; } };
+            chip.GotKeyboardFocus += (_, _) => { chip.BorderBrush = new SolidColorBrush(Theme.Accent); chip.BorderThickness = new Thickness(1); };
+            chip.LostKeyboardFocus += (_, _) => { chip.BorderThickness = new Thickness(0); };
+            chips.Children.Add(chip);
+        }
+        g.Children.Add(chips);
+        return g;
+    }
     FrameworkElement CaptureSoundRow()
     {
         var g = Row();

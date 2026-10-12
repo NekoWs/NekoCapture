@@ -1744,6 +1744,23 @@ static class SelfTest
                 int ovN = FrameCapture.Core.ScrollStitch.FindOverlap(acc, W, 100, bNoise, 100);
                 Chk("T119d-noise-tolerant", ovN == 40, $"抗噪重叠应 40，实得 {ovN}");
             }
+
+            // T120 取色复制格式（R89，ColorFormat 纯函数）：HEX/RGB/HSL 文本 + 分量夹取 + 设置串解析往返
+            {
+                var Hex = FrameCapture.Core.ColorCopyFormat.Hex;
+                var Rgb = FrameCapture.Core.ColorCopyFormat.Rgb;
+                var Hsl = FrameCapture.Core.ColorCopyFormat.Hsl;
+                string Fmt(int r, int g, int b, FrameCapture.Core.ColorCopyFormat f) => FrameCapture.Core.ColorFormat.Format(r, g, b, f);
+                Chk("T120a-hex", Fmt(255, 128, 0, Hex) == "#FF8000", Fmt(255, 128, 0, Hex));
+                Chk("T120b-rgb", Fmt(255, 128, 0, Rgb) == "rgb(255, 128, 0)", Fmt(255, 128, 0, Rgb));
+                Chk("T120c-hsl-orange", Fmt(255, 128, 0, Hsl) == "hsl(30, 100%, 50%)", Fmt(255, 128, 0, Hsl));
+                Chk("T120d-hsl-gray", Fmt(128, 128, 128, Hsl) == "hsl(0, 0%, 50%)", Fmt(128, 128, 128, Hsl));
+                Chk("T120e-hsl-white", Fmt(255, 255, 255, Hsl) == "hsl(0, 0%, 100%)", Fmt(255, 255, 255, Hsl));
+                Chk("T120f-clamp", Fmt(300, -5, 128, Hex) == "#FF0080", Fmt(300, -5, 128, Hex));
+                Chk("T120g-parse", FrameCapture.Core.ColorFormat.Parse("RGB") == Rgb && FrameCapture.Core.ColorFormat.Parse("hsl") == Hsl
+                    && FrameCapture.Core.ColorFormat.Parse("garbage") == Hex && FrameCapture.Core.ColorFormat.Parse(null) == Hex, "解析含大小写/未知回退 Hex");
+                Chk("T120h-tosetting", FrameCapture.Core.ColorFormat.ToSetting(Hsl) == "hsl" && FrameCapture.Core.ColorFormat.ToSetting(Hex) == "hex", "枚举↔设置串往返");
+            }
         }
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");
         return fail == 0 ? 0 : 1;
