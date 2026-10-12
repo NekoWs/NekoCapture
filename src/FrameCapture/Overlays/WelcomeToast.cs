@@ -100,7 +100,7 @@ public sealed class WelcomeToast : Window
         {
             Content = "查看帮助与全部快捷键",
             FontSize = 12.5,
-            Foreground = new SolidColorBrush(Colors.White),
+            Foreground = new SolidColorBrush(Fluent.OnAccentColor(Theme.Accent)), // 前景随强调色明暗自适应，浅强调色下不致白字不可读
             Background = new SolidColorBrush(Theme.Accent),
             BorderThickness = new Thickness(0),
             Padding = new Thickness(12, 6, 12, 6),

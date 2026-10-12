@@ -2015,3 +2015,12 @@ status: done
   - **退场**：Settings/Editor/OCR/Help/Pin/Toast/Countdown/ScrollHint/WelcomeToast 全 `Fluent.CloseWithFade`。
 - **非不一致说明**（防后续轮误改）：主编辑器用 `FadeIn`（淡入+位移+**离屏首帧**）而非 `PopupEnter`（淡入+缩放）是**有意为之**——编辑器首帧渲染大图可能黑闪，`offscreenFirstFrame` 把黑相挪到屏幕外，用户只见淡入；改成缩放会丢掉这层保护。故二者差异是设计，非缺陷。
 - **结论**：动效覆盖完整、无遗漏窗口。本轮无源码改动。
+
+**R143 · 强调色一致性审计 → 修「白字压强调色」硬编码（2 处，真实可读性缺陷）**
+- **审计**：强调色经 `Theme.Accent` 单一来源统一应用（82 处引用，无硬编码色值），但发现 2 处**前景硬编码 `Colors.White` 压在强调色底上**：
+  - `ScrollHintWindow.cs:112` 滚动拼接「完成」按钮 `MakeBtn("完成", Theme.Accent, Colors.White)`；
+  - `WelcomeToast.cs:103` 首启欢迎「查看帮助与全部快捷键」按钮 `Foreground=Colors.White` + `Background=Theme.Accent`。
+  - 缺陷：用户可自定义强调色，选**浅色**（如黄/浅青）时白字与浅底对比不足→不可读。
+- **修复**：前景改用现成助手 `Fluent.OnAccentColor(Theme.Accent)`（亮度>128→黑，否则白），与 `OcrResultWindow.cs:75` 同款。两文件均已有 `using FrameCapture.Core;`。
+- **对当前 `#7F75FF` 的影响**：亮度 0.299·127+0.587·117+0.114·255≈135.7>128 → 选**黑字**，与已视觉核验的 OCR 窗一致；且中亮度紫底上黑字 WCAG 对比度高于白字，属可读性提升而非退化。
+- **验证**：构建 **0 错**（9 警告全既有，无新增）；**SelfTest 387 绿**（只增不减）。改动纯 UI 前景色，不触 e2e 流程；完整护栏留批次末在最终 HEAD 上统一跑一次。
