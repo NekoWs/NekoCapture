@@ -1,5 +1,8 @@
 # FrameCapture Todo
 
+> **收尾状态（10-12 下午）**：Release 运行、settings.json 全出厂默认、git clean、SelfTest 337 PASS、护栏 PASS。
+> **热键已重置回出厂默认 Ctrl+Shift+G（截图）/ Ctrl+Shift+R（选区）**——测试需要临时改（如 F6/F7）时，批次末务必还原，勿把测试约定留在交付态。详见 PROGRESS.md「收尾审计与决策」。
+
 ## 用户反馈（10-12 排队，按用户给定顺序做）
 - [x] **新增「选中」工具（V）**（R52）：对象编辑（移动/改大小/删除）从选中工具进入。
 - [x] **「圆」图标改线性**（R53）：图标与产物形状一致（GlyphProbe 验证线性环字形）。

@@ -1683,3 +1683,18 @@ status: done
 - `PinFrameAt`（AfterCapture=pin 专用）传 `activateOnShow: false`：贴图静默出现不抢焦点；WPF 客户区点击仍发 WM_MOUSEACTIVATE 激活（未设 WS_EX_NOACTIVATE），故点击贴图后 Esc/R/Ctrl+S 等 `KeyDown` 快捷键照常可用。
 
 **验证**：构建 0 错误；完整护栏 GUARDRAIL PASS（FAIL=0 SKIP=1 floor280，err_delta=0）。焦点安全 e2e 双段取证：AfterCapture=pin + 区域 (1200,700,900×650) → `--delay` 出贴图后，前台 = DSH GUI（**未抢焦点**）；核验贴图矩形后点其中心（Topmost 保证输入落到贴图），前台变 `FrameCapture Pin`（**点击激活成功**），再按 Esc 贴图关闭（快捷键确可用）。默认贴图路径未动，行为不变。
+
+
+## 2026-10-12 下午 收尾审计与决策（R118 后，无代码改动）
+
+临近 15:00 用户返回，不再塞新代码轮（回归风险 > 收益）。做只读审计 + 状态固化，全部**确认无 bug**：
+
+- **光标行为**：静图走 `LiveCapture.Grab` 的 GDI BitBlt，抓帧缓冲不含硬件光标（与 QQ/Snipaste 静图一致）；录制走 WGC 按 `RecordIncludeCursor` 含光标。分工正确。
+- **导出反馈**：编辑器导出（Ctrl+E）有 HUD 进度「导出 MP4… n/N」+ 完成「已导出 xxx」+ Esc 取消（T82/T96）。仅「自动保存视频」后台编码无进度——默认 `AutoSaveCopy=false` 不影响普通用户，已在 TODO 记为候选。
+- **设置持久化健壮性**：`AppSettings.Load` try/catch——损坏 JSON 直接删文件回退默认（不崩）；`Normalize()` 加载时清洗非法值（如脏 AfterCapture 回落 toast）；`Save` 用临时文件 + `File.Move` 原子写 + 失败静默。三重健壮，无隐患。
+- **浅色主题**：设置窗 PrintWindow 取证，浅底深字对比清晰、开关/芯片/滑块可读、图标可见，无对比度问题。
+- **首启欢迎卡**：读 `WelcomeToast` 代码确认设计到位（点破两热键 + 手感提示 + 帮助入口、不抢焦点、ApplicationIdle 弹、看过一次不打扰）。
+
+**关键决策——热键重置回出厂默认**：settings.json 里热键此前是测试约定 F6/F7，收尾时重置为 `Ctrl+Shift+G`（截图）/ `Ctrl+Shift+R`（选区）。理由：F6/F7 非用户选择、与 README 写的 Ctrl+Shift+G 矛盾、且撞浏览器地址栏(F6)/光标浏览(F7)；其余字段全默认说明用户未自定义过，默认值最可能是原值。已实测 Ctrl+Shift+G 正常唤起选区。**下一轮勿再把热键改回 F6/F7**（测试需要时临时改、批次末务必还原）。
+
+**最终交付态**：Release 运行（托盘态、0 可见窗）、settings.json 全出厂默认、git clean（HEAD=e950219）、SelfTest 337 PASS、护栏 PASS。
