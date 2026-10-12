@@ -1962,3 +1962,10 @@ status: done
 - **单实例确认**：`App.xaml.cs:40` `Mutex("Local\FrameCapture.SingleInstance")`；第二实例 `ForwardToPrimary(args)` 转发 `--settings/--help` 后 `Shutdown()` 退出。**含义**：若提前把 Release 实例跑起来，用户醒来双击自己的构建（Debug/Release 同名 Mutex）会被转发到我这个实例后退出——用户自己的构建起不来，易懵。
 - **故「恢复 release 实例」（objective 批尾项）必须是批次最后一轮的动作**，临近截止再做，**不可提前**。提前重启 = 挡用户自启 + 被后续轮次打断的双重风险。
 - **时间**：02:46，距截止 7.2h，未到收尾窗口。本轮无源码改动；后续轮次轻量确认净态，临近截止（约 09:30+）再执行重启实例 + 更新 TODO.md 收尾状态头。
+
+**R135 · error.log 稳健性审计（无当前异常，应用稳定）**
+- **审计 `AppData\Roaming\FrameCapture\error.log`（34KB / 354 行）**：全部为**历史异常**——① 10/02 早期 `XamlParseException 'x' is an undeclared prefix`（`Fluent.IconButtonTemplate` 早期 XAML 前缀 bug，早已修）；② 10/12 22:01:55 `XamlParseException 无法从文本"SelectionBoxItem"创建"DependencyProperty"`（R122 版 `EditorStyles.ApplyCombo` 的 ComboBox 嵌套模板坑）。
+- **②已修 + 防回归**：EditorStyles.cs 于 R125（10-13 00:24）改为正确绑定式；**SelfTest T139a**（`Program.cs:2154-2176`）对当前 `ApplyCombo` 模板做**真实 `Measure`+`Arrange`**（正是 22:01 崩溃的触发路径——注释点明「Parse 不报、Measure 才报」），SelfTest **387 绿**即证明当前模板解析无异常。
+- **稳定性证据**：error.log 最后一条 22:01:55 **早于** R127–R134 全部测试（00:00–02:46）——近期整轮测试**零新异常/零崩溃**，应用稳定。appdata 内仅此一个 .log，无独立崩溃转储。
+- **未删 error.log**：属应用运行时诊断日志（非用户创作数据），保留历史；条目均带旧时间戳，用户醒读时知是开发期噪声、非当前故障。
+- 结论：无当前 bug；本轮无源码改动。
