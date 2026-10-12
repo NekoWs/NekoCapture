@@ -6,7 +6,7 @@ using FrameCapture.Encoding;
 namespace FrameCapture.Services;
 
 /// <summary>
-/// 捕获产物自动保存副本（R63）：截图存 PNG、录制存 GIF 到本地目录，剪贴板照常写入。
+/// 捕获产物自动保存副本（R63）：截图存 PNG、录制按「录制格式」存 MP4/WebM（未装 ffmpeg 回退 GIF）到本地目录，剪贴板照常写入。
 /// 关闭时零副作用；开启后任何写盘失败只记 trace，绝不影响剪贴板主流程（捕获永远成功）。
 /// </summary>
 public static class SaveService

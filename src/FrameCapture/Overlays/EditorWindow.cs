@@ -859,7 +859,7 @@ public sealed partial class EditorWindow : Window
         {
             Trace.Log($"gif encoded bytes={gif!.Length} frames={seq.Frames.Count}");
             ClipboardService.SetCapture(seq, gif, idx);
-            FrameCapture.Services.SaveService.MaybeSaveArtifact(seq, gif); // R63 自动保存副本：单帧 PNG / 多帧 GIF（关=零副作用）
+            FrameCapture.Services.SaveService.MaybeSaveArtifact(seq, gif); // R63 自动保存副本：单帧 PNG / 多帧按 RecordFormat（R103，视频后台编码；关=零副作用）
             if (strip) TryGenerateAgentStrip(seq);
             FrameCapture.Core.Fluent.CloseWithFade(this);
         });
