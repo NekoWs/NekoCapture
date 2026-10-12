@@ -1723,3 +1723,12 @@ status: done
 - **GestureConfig**：`Enabled`(默认 false，附加式零回归) + Bindings；`DefaultBindings`/`PresetQQ`/`PresetHoldToRecord` 预设(由旧 CaptureHotkey/ScopeHotkey 迁移生成)。挂到 `AppSettings.Gestures`(Normalize 兜 null)。
 - **GestureCore 引用**：FrameCapture.csproj + SelfTest.csproj 各加 ProjectReference。
 - **单测** T131a–g（SelfTest 351→358）：DTO→引擎转换、裸键拒绝、默认/预设、按住即录 JSON 往返、未知动作过滤、引擎→组合键串回推。
+
+### B2-2 GestureService 运行时接入（附加式，默认关零回归）
+- **共用键盘钩子**：HotkeyManager 加 `KeySink`，HandleKey 顶部（早于旧判定/吞键）把每个键事件喂给手势引擎——不额外挂键盘钩子、不重复处理；Paused 时不喂（用户要求不拦截键）。手势关闭时 KeySink=null，旧路径零开销零改变。
+- **鼠标钩子**：GestureService 自装 WH_MOUSE_LL（仅当存在鼠标触发绑定时），只观察不吞鼠标事件；DispatcherTimer 40ms 泵 `Tick(TickCount64)` 做点击消歧/长按判定。Win32 补 WH_MOUSE_LL/MSLLHOOKSTRUCT/鼠标消息/委托/SetWindowsHookExW 重载。
+- **GestureInvoker**：动作名→AppHost/CaptureController 真实操作，一律 BeginInvoke 投递（钩子回调不跑重活）。录制类做同步前置检查（开始录制须空闲、结束录制须在录）返回成败→让「失败自动下一个」运行期真正生效。单帧走托盘同款 BeginCapture+600ms→EndCapture 可靠路径。
+- **CaptureController**：从 BeginCapture 抽出 `BeginCaptureCore()`，加公开 `StartRecording()`/`StopRecording()`（跳过点按/双击状态机，供手势录制）。
+- **AppHost.InstallHotkeys**：先 Apply 手势（填绑定表+挂钩子），再据 `ClaimsKey`（键触发占用）让被占用的旧热键让位（避免同键重复触发）；未占用/关闭时旧热键原样装。
+- **默认态**：Enabled=false → 不装鼠标钩子、KeySink 空、不泵 Tick、旧热键原样——对现有行为零影响。开启经 settings.json（编辑器 UI 下轮）。
+- 待实机 e2e：开启手势→按绑定键→验证动作触发 + 被占用热键让位（留待确认用户离开后做，含 settings.json 还原）。

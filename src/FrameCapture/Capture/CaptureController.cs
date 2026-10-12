@@ -488,6 +488,12 @@ public sealed class CaptureController : IDisposable
             if (intent == Core.CaptureGuards.CaptureIntent.RefocusEditor) _editor?.Activate();
             return;
         }
+        BeginCaptureCore();
+    }
+
+    /// <summary>R120 B2：真正起录的核心（从 BeginCapture 抽出，供手势「开始录制」直接复用、跳过点按/双击状态机）。</summary>
+    void BeginCaptureCore()
+    {
         HideOutline(); // 轮廓绝不能入镜：仅真正起录时隐藏
 
         ScreenRegion region = StoredRegion() ?? FullMonitorAtCursor();
@@ -561,6 +567,22 @@ public sealed class CaptureController : IDisposable
             _recBadgeTimer!.Interval = TimeSpan.FromMilliseconds(_settings.Current.TapThresholdMs + 60);
             _recBadgeTimer.Start();
         }
+    }
+
+    /// <summary>R120 B2：手势「开始录制」——直接起录（不走点按/双击状态机）。非空闲态不动并返回 false（供失败顺延）。</summary>
+    public bool StartRecording()
+    {
+        if (State != Phase.Idle) return false;
+        BeginCaptureCore();
+        return State == Phase.Capturing;
+    }
+
+    /// <summary>R120 B2：手势「结束录制」——停止录制并进编辑器（未在录返回 false）。</summary>
+    public bool StopRecording()
+    {
+        if (State != Phase.Capturing) return false;
+        FinishCapture(-1);
+        return true;
     }
 
     /// <summary>放开捕获快捷键。holdMs=钩子测得的真实按住时长（-1=无钩子来源，退回本地时钟）。</summary>

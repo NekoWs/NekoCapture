@@ -60,6 +60,27 @@ internal static class Win32
 
     public static bool IsKeyDown(int vk) => (GetAsyncKeyState(vk) & 0x8000) != 0;
 
+    // ---------- 鼠标钩子（R120 B2：手势引擎的鼠标触发源） ----------
+    public const int WH_MOUSE_LL = 14;
+    public const int WM_LBUTTONDOWN = 0x0201, WM_LBUTTONUP = 0x0202;
+    public const int WM_RBUTTONDOWN = 0x0204, WM_RBUTTONUP = 0x0205;
+    public const int WM_MBUTTONDOWN = 0x0207, WM_MBUTTONUP = 0x0208;
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct MSLLHOOKSTRUCT
+    {
+        public POINT pt;
+        public uint mouseData;
+        public uint flags;
+        public uint time;
+        public IntPtr dwExtraInfo;
+    }
+
+    public delegate IntPtr LowLevelMouseProc(int nCode, IntPtr wParam, IntPtr lParam);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern IntPtr SetWindowsHookExW(int idHook, LowLevelMouseProc lpfn, IntPtr hMod, uint dwThreadId);
+
     // ---------- 光标 / 显示器 ----------
     [StructLayout(LayoutKind.Sequential)]
     public struct POINT { public int X, Y; }

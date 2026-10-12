@@ -40,6 +40,21 @@ public sealed class HotkeyManager : IDisposable
 
     public bool Installed => _hook != IntPtr.Zero;
 
+    /// <summary>R120 B2：手势引擎键事件汇。非 null 时，<see cref="HandleKey"/> 顶部（早于旧热键判定与吞键）
+    /// 把每个键事件喂给它，使手势层与旧热键<b>共用同一个低级键盘钩子</b>（不额外挂钩、不重复处理）。
+    /// 参数=(vk, 是否按下, 事件时刻修饰键态, 事件时间戳ms)。null=手势层关闭，零开销。Paused 时不喂（用户要求不拦截键）。</summary>
+    public Action<uint, bool, GestureCore.ModifierKeys, long>? KeySink;
+
+    static GestureCore.ModifierKeys CurrentMods()
+    {
+        GestureCore.ModifierKeys m = 0;
+        if (Win32.IsKeyDown(Win32.VK_CONTROL)) m |= GestureCore.ModifierKeys.Control;
+        if (Win32.IsKeyDown(Win32.VK_MENU)) m |= GestureCore.ModifierKeys.Alt;
+        if (Win32.IsKeyDown(Win32.VK_SHIFT)) m |= GestureCore.ModifierKeys.Shift;
+        if (Win32.IsKeyDown(Win32.VK_LWIN) || Win32.IsKeyDown(Win32.VK_RWIN)) m |= GestureCore.ModifierKeys.Win;
+        return m;
+    }
+
     /// <summary>慢回调看门狗阈值（ms）：钩子回调占着全系统输入链，超过即记 trace。</summary>
     const double HookSlowWarnMs = 50;
 
@@ -119,6 +134,10 @@ public sealed class HotkeyManager : IDisposable
         // 隐私：绝不记录用户按键（全局钩子可见所有键击）。仅调试注入链路时设 FC_TRACE_KEYS=1 才逐键记录。
         if (Environment.GetEnvironmentVariable("FC_TRACE_KEYS") == "1")
             FrameCapture.Core.Trace.Log($"hook key={info.vkCode} down={isDown} installed={Installed}");
+
+        // R120 B2：先把手势引擎喂饱（早于旧热键判定/吞键，保证引擎看到所有键）。手势层关闭时 KeySink=null，零开销。
+        // Paused 时不喂：用户暂停全局热键=要求不拦截任何键，手势层同样避让。
+        if (!Paused) KeySink?.Invoke(vk, isDown, CurrentMods(), info.time);
 
         // 滚动截图会话中：Esc 全局取消并吞掉（控制条不抢焦点，否则 Esc 会漏给目标窗）。
         // 热路径仅一次 volatile 读 + 一次整数比较；ScrollActive 绑定控制条生命周期，绝不泄漏成"全局 Esc 失灵"。

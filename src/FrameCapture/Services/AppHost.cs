@@ -13,6 +13,7 @@ public sealed class AppHost
 
     public SettingsService Settings { get; private set; } = null!;
     public HotkeyManager Hotkeys { get; private set; } = null!;
+    public GestureService Gestures { get; private set; } = null!;
     public TrayService Tray { get; private set; } = null!;
     public CaptureController Controller { get; private set; } = null!;
 
@@ -30,6 +31,7 @@ public sealed class AppHost
         Core.Fluent.ApplyGlobalStyles();
         Controller = new CaptureController(Settings);
         Hotkeys = new HotkeyManager();
+        Gestures = new GestureService(this);
         Tray = new TrayService(this);
 
         Hotkeys.ScopeRequested += () => Dispatch(Controller.BeginScopeSelection);
@@ -60,6 +62,7 @@ public sealed class AppHost
     public void Shutdown()
     {
         try { Hotkeys?.Uninstall(); } catch { }
+        try { Gestures?.Dispose(); } catch { }
         try { Tray?.Dispose(); } catch { }
         try { Controller?.Dispose(); } catch { }
     }
@@ -67,7 +70,15 @@ public sealed class AppHost
     public void InstallHotkeys()
     {
         var s = Settings.Current;
-        Hotkeys.Install(s.ScopeHotkey, s.CaptureHotkey);
+        // R120 B2：先应用手势（填引擎绑定表 + 挂键事件汇/鼠标钩子），再据「键触发占用」决定旧热键是否让位。
+        Gestures.Apply(s.Gestures);
+        string scope = s.ScopeHotkey, capture = s.CaptureHotkey;
+        if (s.Gestures.Enabled)
+        {
+            if (Gestures.ClaimsKey(capture)) capture = "";
+            if (Gestures.ClaimsKey(scope)) scope = "";
+        }
+        Hotkeys.Install(scope, capture);
     }
 
     System.IO.FileSystemWatcher? _settingsWatcher;
