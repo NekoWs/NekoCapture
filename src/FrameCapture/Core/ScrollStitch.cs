@@ -31,31 +31,59 @@ public static class ScrollStitch
     /// <summary>
     /// 找 b 顶部与 acc 底部的纵向重叠行数（0..min(accH,bH)）。找不到可靠重叠返回 0。
     /// thresh = 单行平均灰度差阈值（同内容行≈0，错位行≫此值）。
+    /// 判据：对每个候选重叠，从最大往下扫，均匀抽样至多 32 行（含首尾），逐行独立比对，
+    /// ≥80% 抽样行匹配才算重叠——容忍个别因闪烁光标/抗锯齿而略变的行（旧版「运行均值」早退会误杀，R119 修）。
+    /// 两趟匹配（R120 修「裁切/重叠」）：
+    ///  ① 严格趟——只比对应行，命中即返回，保证整像素滚动的重叠精确（不多不少一行）。
+    ///  ② 容差趟——严格趟全军覆没时才启用，每行允许在 acc 里 ±1 行窗口内找匹配，吸收平滑/分数滚动
+    ///     的 ±1px 取整抖动（旧版此时会把整段重叠误判为 0 或过小 → 拼接出现重复内容带「重叠」）。
+    ///     容差趟仍从最大往下、≥80% 才收，且 ±1 窗口把高估上界锁在 1 行（肉眼不可见），不会 gross 裁切。
     /// </summary>
-    public static int FindOverlap(byte[] acc, int w, int accH, byte[] b, int bH, int cols = 64, double thresh = 14.0)
+    public static int FindOverlap(byte[] acc, int w, int accH, byte[] b, int bH, int cols = 64, double thresh = 16.0)
     {
         if (w <= 0 || accH <= 0 || bH <= 0) return 0;
         int win = Math.Min(accH, bH);                 // 重叠不可能超过任一帧高，也界定搜索窗口
         var sigA = RowSignatures(acc, w, accH, cols);
         var sigB = RowSignatures(b, w, bH, cols);
-        int maxCheck = Math.Min(win, 2500);           // 无匹配时最多检查这么多候选，防长图卡顿
-        for (int ov = win; ov >= 1; ov--)
+        int maxCheck = Math.Min(win, 3000);           // 无匹配时最多检查这么多候选，防长图卡顿
+
+        // 单行匹配：tol=0 只比对应行；tol=1 允许 acc 行号 ±1 窗口内任一行达标（吸收 ±1px 抖动）。
+        bool RowMatch(int aRow, int bRow, int tol)
         {
-            if (win - ov >= maxCheck) break;          // 只检查最接近 win 的 maxCheck 个候选
-            int aBase = accH - ov;
-            double sum = 0;
-            bool bad = false;
-            for (int r = 0; r < ov; r++)
+            int bi = bRow * cols;
+            for (int d = -tol; d <= tol; d++)
             {
-                int ai = (aBase + r) * cols, bi = r * cols;
+                int ar = aRow + d;
+                if (ar < 0 || ar >= accH) continue;
+                int ai = ar * cols;
                 double rd = 0;
                 for (int c = 0; c < cols; c++) rd += Math.Abs(sigA[ai + c] - sigB[bi + c]);
-                sum += rd / cols;
-                if (sum / (r + 1) > thresh * 2) { bad = true; break; } // 部分均值已明显超阈值→此候选不合格，早退
+                if (rd / cols <= thresh) return true;
             }
-            if (!bad && sum / ov < thresh) return ov; // 命中最大可靠重叠
+            return false;
         }
-        return 0;
+
+        // 一趟：从最大候选往下，返回首个 ≥80% 抽样行匹配的重叠；找不到返回 0。
+        int Scan(int tol)
+        {
+            for (int ov = win; ov >= 1; ov--)
+            {
+                if (win - ov >= maxCheck) break;      // 只检查最接近 win 的 maxCheck 个候选
+                int aBase = accH - ov;
+                int samples = Math.Min(ov, 32);       // 抽样行数（含首尾），容忍个别离群行
+                int good = 0;
+                for (int s = 0; s < samples; s++)
+                {
+                    int r = samples == 1 ? 0 : (int)((long)s * (ov - 1) / (samples - 1)); // 0..ov-1 均匀取点
+                    if (RowMatch(aBase + r, r, tol)) good++;
+                }
+                if (good * 5 >= samples * 4) return ov; // ≥80% 匹配 → 命中最大可靠重叠
+            }
+            return 0;
+        }
+
+        int strict = Scan(0);
+        return strict != 0 ? strict : Scan(1);
     }
 
     /// <summary>把 b 去掉顶部 ov 行后拼到 acc 下方，返回新 BGRA 缓冲（高 accH + bH − ov）。无新内容原样返回。</summary>

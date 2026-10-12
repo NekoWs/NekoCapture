@@ -23,6 +23,7 @@ public sealed partial class EditorWindow : Window
 
     private readonly SettingsService _settings;
     private readonly CapturedSequence _seq;
+    private readonly int _fps;   // 本序列实际帧率：优先 seq.Fps（跟随刷新率录的实际值），回退设置手动值——时间轴/时长/播放都用它（R119）
     // R61：位图惰性缓存（LRU）——长录制帧数可达数万，全量转 BitmapSource 必 OOM。
     // 只缓存最近浏览的若干帧；缓存上限按帧字节数自适应（约 600MB 帧数据）。
     private readonly Dictionary<int, BitmapSource> _bmpCache = new();
@@ -56,6 +57,8 @@ public sealed partial class EditorWindow : Window
     {
         _settings = settings;
         _seq = seq;
+        _fps = _seq.Fps > 0 ? Math.Clamp(_seq.Fps, AppSettings.FpsMin, AppSettings.FpsMax)
+                            : Math.Clamp(_settings.Current.Fps, AppSettings.FpsMin, AppSettings.FpsMax);
         // 元数据抽入平行数组 + 位图缓存上限按帧字节自适应（见字段注释）
         int n = seq.Frames.Count;
         _times = new double[n];
@@ -120,7 +123,7 @@ public sealed partial class EditorWindow : Window
             if (next > b || next >= _seq.Frames.Count) next = a;
             Show(next);
         };
-        _playTimer.Interval = TimeSpan.FromMilliseconds(Math.Max(1000.0 / Math.Clamp(_settings.Current.Fps, AppSettings.FpsMin, AppSettings.FpsMax), 20));
+        _playTimer.Interval = TimeSpan.FromMilliseconds(Math.Max(1000.0 / _fps, 20));
 
         InitDrawing();
         BuildLayout();
@@ -261,7 +264,7 @@ public sealed partial class EditorWindow : Window
             g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
             var transport = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-            int fps = (int)Math.Clamp(_settings.Current.Fps, AppSettings.FpsMin, AppSettings.FpsMax);
+            int fps = _fps;
             var bPrevSec = IconBtn("\uF8AC", "上一秒 (Shift+←)"); bPrevSec.Click += (_, _) => Step(-fps);
             var bPrev = IconBtn("\uF08D", "上一帧 (←)"); bPrev.Click += (_, _) => Step(-1);
             _bPlay = IconBtn("\uF5B0", "播放/暂停 (空格)"); _bPlay.Click += (_, _) => TogglePlay();
@@ -689,7 +692,7 @@ public sealed partial class EditorWindow : Window
         }
         // 文字输入中：编辑快捷键全部让位（Enter 上屏 / Esc 取消由输入框自理，不落到确定/放弃上）
         if (_textInput != null) return;
-        int fps = (int)Math.Clamp(_settings.Current.Fps, AppSettings.FpsMin, AppSettings.FpsMax);
+        int fps = _fps;
         var mods = e.KeyboardDevice.Modifiers;
         if (mods == ModifierKeys.Control && (e.Key == Key.Z || e.Key == Key.U)) { UndoAnn(); return; }
         if (mods == ModifierKeys.Control && e.Key == Key.Y) { RedoAnn(); return; }
@@ -803,7 +806,7 @@ public sealed partial class EditorWindow : Window
     {
         _speed = Math.Clamp(s, 0.25, 8.0);
         _playTimer.Interval = TimeSpan.FromMilliseconds(
-            Math.Max(1000.0 / Math.Clamp(_settings.Current.Fps, AppSettings.FpsMin, AppSettings.FpsMax), 20) / _speed);
+            Math.Max(1000.0 / _fps, 20) / _speed);
         Show(_index);
     }
 
@@ -829,7 +832,7 @@ public sealed partial class EditorWindow : Window
         UpdateMosaicBrushes(); // 马赛克=区域滤镜：内容随帧走，不是静止贴图（R50）
         // 计数区时间用「帧号/帧率」= 播放基准，与时间轴刻度(DrawRange 同用 i/fps)一致；
         // 不用 _times 实际捕获时间戳（首帧非 0、且与刻度基准两套，R111 看截图抓到不一致）
-        int fps = (int)Math.Clamp(_settings.Current.Fps, AppSettings.FpsMin, AppSettings.FpsMax);
+        int fps = _fps;
         double eff = _imgRect.Width / Math.Max(1, _frameW);
         string zoomTxt = _zoom <= 1.001 ? "" : (Math.Abs(eff - 1.0) < 0.02 ? "  1:1" : $"  {eff * 100:0}%");
         string cropTxt = "";
@@ -991,7 +994,7 @@ public sealed partial class EditorWindow : Window
                 : _seq.Frames.Skip(a).Take(b - a + 1).ToList();
             var anns = new List<FrameCapture.Drawing.Annotation>(_anns.Items);
             var region = _seq.Region; var monBounds = _seq.MonitorBounds; var monDev = _seq.MonitorDevice;
-            int fps = Math.Clamp(_settings.Current.Fps, AppSettings.FpsMin, AppSettings.FpsMax);
+            int fps = _fps;
             var cropSnap = _crop.Current; bool cropOn = _crop.IsCropped; // UI 线程快照，后台只读
             string verb = videoFmt == null ? "GIF" : videoFmt == FrameCapture.Encoding.VideoFormat.Mp4 ? "MP4" : "WebM";
 

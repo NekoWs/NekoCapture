@@ -34,6 +34,10 @@ public sealed class PinWindow : Window
     // 「截图后=贴图」传 false——贴图静默出现不抢焦点，符合"钉住参考后继续原应用操作"意图，点击时才激活（Snipaste 式）。
     readonly bool _activateOnShow;
     double _scale = 1.0, _baseW, _baseH;
+    // R120 A3：手动拖拽 + 实时磁吸状态（替代 DragMove——旧版只在松手瞬间吸附、过程零反馈，用户感知"磁边无效"）
+    bool _dragging;
+    double _grabDX, _grabDY;   // 光标相对贴图左上角的抓取偏移（DIP），拖动时贴图不"跳"到光标下
+    double _rawLeft, _rawTop;  // 未吸附的逻辑位置（磁吸作为显示偏移叠加其上，避免与光标互相拉扯）
 
     public PinWindow(CapturedFrame frame, RectI physPos, bool activateOnShow = true)
     {
@@ -104,21 +108,55 @@ public sealed class PinWindow : Window
 
         MouseLeftButtonDown += (_, e) =>
         {
-            if (e.ClickCount == 2) { Close(); return; } // 双击关闭（先于拖动判定，避免 DragMove 吞掉第二击）
+            if (e.ClickCount == 2) { Close(); return; } // 双击关闭（先于拖动判定）
             if (e.ButtonState == MouseButtonState.Pressed)
             {
-                // 若上一次磁边滑动动画还在飞，先结算到目标值再拖，避免 DragMove 起点与本地值不一致
+                // 若上一次磁边滑动动画还在飞，先结算到目标值再拖，避免起点与本地值不一致
                 BeginAnimation(LeftProperty, null);
                 BeginAnimation(TopProperty, null);
-                try { DragMove(); } catch { }
-                SnapToEdge(); // R74：松手后磁边（Snipaste 式停靠屏幕边缘）
+                // R120 A3：按住即捕获鼠标，改手动拖拽（见 MouseMove 实时磁吸）。用光标物理坐标换算 DIP，
+                // 记录抓取偏移，使贴图跟随光标且不跳到光标正下方。
+                if (Win32.GetCursorPos(out var pt))
+                {
+                    var d = VisualTreeHelper.GetDpi(this);
+                    _grabDX = pt.X / d.DpiScaleX - Left;
+                    _grabDY = pt.Y / d.DpiScaleY - Top;
+                }
+                _rawLeft = Left; _rawTop = Top;
+                _dragging = true;
+                CaptureMouse();
+                e.Handled = true;
             }
+        };
+        MouseMove += (_, e) =>
+        {
+            if (!_dragging) return;
+            if (!Win32.GetCursorPos(out var pt)) return;
+            var d = VisualTreeHelper.GetDpi(this);
+            _rawLeft = pt.X / d.DpiScaleX - _grabDX;
+            _rawTop = pt.Y / d.DpiScaleY - _grabDY;
+            if (FrameCapture.Core.SettingsService.Shared?.Current.PinSnapEdges == true)
+            {
+                // 实时磁吸：靠近屏幕边/同屏其他贴图边·中线时，贴图当场"吸附上去"——拖动过程即可感（Snipaste 手感）
+                var (sl, st) = SnapTarget(_rawLeft, _rawTop);
+                Left = sl; Top = st;
+            }
+            else { Left = _rawLeft; Top = _rawTop; }
+        };
+        MouseLeftButtonUp += (_, e) =>
+        {
+            if (!_dragging) return;
+            _dragging = false;
+            ReleaseMouseCapture();
+            SnapToEdge(); // 收尾兜底（实时已吸附，这里确保最终贴合 + 记 trace）
         };
         MouseWheel += (_, e) =>
         {
             // Ctrl+滚轮=调不透明度（20%~100%）；纯滚轮=以中心为锚缩放（10%~600%）
             if ((Keyboard.Modifiers & ModifierKeys.Control) != 0)
             {
+                // 先清 FadeIn 的 HoldEnd 动画：否则 Opacity 读到的恒是动画值 1.0、写入也被动画值压制（R119 修不透明度失效）
+                BeginAnimation(OpacityProperty, null);
                 Opacity = FrameCapture.Core.PinOpacity.Next(Opacity, e.Delta);
                 e.Handled = true;
                 return;
@@ -234,15 +272,15 @@ public sealed class PinWindow : Window
         catch { Flash("保存失败"); }
     }
 
-    /// <summary>R74 磁边：拖动松手后，若贴图某条边贴近所在屏幕工作区边缘（阈值内）则平滑吸附贴合。</summary>
-    void SnapToEdge()
+    /// <summary>R120 A3：算出把贴图放到 (left,top) 时磁吸后的目标位置——屏幕工作区四边 + 同屏其他贴图的边/中线。
+    /// 用贴图中心定位所在屏（多屏），工作区物理像素 ÷ DpiScale 转 DIP 与 Left/Top 同单位。纯几何，
+    /// 拖拽实时（MouseMove）与松手收尾（SnapToEdge）共用同一套参考线，保证手感一致。</summary>
+    (double Left, double Top) SnapTarget(double left, double top)
     {
-        if (FrameCapture.Core.SettingsService.Shared?.Current.PinSnapEdges != true) return;
         try
         {
             var d = VisualTreeHelper.GetDpi(this);
-            // 用贴图中心定位所在屏幕（多屏），工作区物理像素 → DIP 与 Left/Top 同单位
-            double cx = (Left + Width / 2) * d.DpiScaleX, cy = (Top + Height / 2) * d.DpiScaleY;
+            double cx = (left + Width / 2) * d.DpiScaleX, cy = (top + Height / 2) * d.DpiScaleY;
             var scr = System.Windows.Forms.Screen.FromPoint(new System.Drawing.Point((int)cx, (int)cy));
             var wa = scr.WorkingArea;
             double cl = wa.X / d.DpiScaleX, ct = wa.Y / d.DpiScaleY, cr = wa.Right / d.DpiScaleX, cb = wa.Bottom / d.DpiScaleY;
@@ -257,15 +295,22 @@ public sealed class PinWindow : Window
                 xAny.Add(p.Left); xAny.Add(p.Left + p.Width / 2); xAny.Add(p.Left + p.Width);
                 yAny.Add(p.Top); yAny.Add(p.Top + p.Height / 2); yAny.Add(p.Top + p.Height);
             }
-            var (l, t) = FrameCapture.Core.PinSnap.SnapToLines(Left, Top, Width, Height,
+            return FrameCapture.Core.PinSnap.SnapToLines(left, top, Width, Height,
                 new[] { cl, cr }, xAny, new[] { ct, cb }, yAny,
                 FrameCapture.Core.PinSnap.Threshold(Width, Height));
-            if (Math.Abs(l - Left) < 0.5 && Math.Abs(t - Top) < 0.5) return;
-            double ol = Left, ot = Top;
-            SlideTo(l, t);
-            FrameCapture.Core.Trace.Log($"pin-snap ({ol:F0},{ot:F0})→({l:F0},{t:F0}) otherPins={xAny.Count / 3}");
         }
-        catch { }
+        catch { return (left, top); }
+    }
+
+    /// <summary>R74 磁边收尾：拖动松手后确保贴图吸附到参考线（实时拖拽已吸附，这里兜底 + 记 trace）。</summary>
+    void SnapToEdge()
+    {
+        if (FrameCapture.Core.SettingsService.Shared?.Current.PinSnapEdges != true) return;
+        var (l, t) = SnapTarget(Left, Top);
+        if (Math.Abs(l - Left) < 0.5 && Math.Abs(t - Top) < 0.5) return;
+        double ol = Left, ot = Top;
+        SlideTo(l, t);
+        FrameCapture.Core.Trace.Log($"pin-snap ({ol:F0},{ot:F0})→({l:F0},{t:F0})");
     }
 
     void SlideTo(double l, double t)
@@ -357,7 +402,7 @@ public sealed class PinWindow : Window
         {
             double v = pct / 100.0;
             var mi = new MenuItem { Header = pct + "%" };
-            mi.Click += (_, _) => Opacity = v;
+            mi.Click += (_, _) => { BeginAnimation(OpacityProperty, null); Opacity = v; }; // 清 FadeIn HoldEnd，否则改了没效果
             opacity.Items.Add(mi);
         }
         var close = new MenuItem { Header = "关闭 (Esc)" };

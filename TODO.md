@@ -387,3 +387,29 @@
 ## 内存工作集观察（2026-10-12 下午，收尾体检）
 - [ ] **工作集随使用增长——已排除静态引用硬泄漏，剩 GC 惰性待确认**：整晚大量捕获+贴图+编辑器+放大镜快照后，托盘常驻实例工作集约 **632MB**；重启后干净基线仅 **工作集 65MB / 私有内存 16MB**（私有内存才是真实占用，很精简）。**已只读审查静态持窗集合，均正确清理**：`PinWindow._open` 在 `Closed` 时 `Remove`；`Fluent._fadingOut` 在淡出动画 `Completed` 时 `Remove`+`Close`（正常路径必达，仅动画被打断的罕见边缘会滞留）。→ 判定**非静态引用硬泄漏**，最可能是 **GC 惰性**（无内存压力不触发 gen2，死位图/快照留在工作集但可回收）。**下轮若要进一步确认/优化**：Debug 实例连续 N 次全屏截图+开关编辑器+钉关贴图后看工作集是否单调不回落（是→查编辑器 LRU/放大镜快照/WGC 会话/LastStill 关闭时是否释放；否→纯 GC 惰性，可选在大捕获后 `SetProcessWorkingSetSize(-1)` 主动瘦身，属观感优化非必需）。
 
+
+## 用户全量测试轮修复 R119（2026-10-12 傍晚，用户实测 17 项）
+- [x] 托盘左键单击即捕获；截图浮窗 Enter 确认；截图提示音；截后四选一（不再总进编辑器）。
+- [x] 选区 Tab 上钻不被 hover 抢回；REC 连按两下结束显示「处理中…」；关「录制范围边框」不再显蓝框。
+- [x] 跟随刷新率录制编辑器时间改用 seq.Fps（不再按手动 fps 算错）+ 开启时禁用帧率滑杆。
+- [x] 编辑器多数工具预览不再错位到屏幕外；荧光笔单击提交（行程短不丢弃）；V 选中加四角手柄改大小。
+- [x] 时间轴改拖拽选段；贴图 Ctrl+滚轮不透明度生效；滚动截图「太快」阈值重写。
+- [x] 延时截图期间高亮当前范围；改主题/强调色窗口不再跑中心 + 强调色实时。
+- [x] 设置窗：取消总在最前 + 分页标签 + WindowChrome 可拖边缩放（原生 caption 拖窗）。
+- [x] 贴图磁边阈值放宽（短边12%夹24–56）。SelfTest 338，护栏 PASS。
+
+## 夜间批次 R120（2026-10-13 通宵，用户离线至 10:00）
+### A 修 bug
+- [ ] **A1 录制后内存不释放**：录制视频后工作集暴涨、MemReduct 清理才回落。承接「内存工作集观察」——先查编辑器关闭时是否释放 FrameSpoolList/位图缓存/ffmpeg/LastStill，再在大操作收尾（编辑器关闭、编码完成）主动 GC.Collect×2 + SetProcessWorkingSetSize(-1) 回收工作集。
+- [ ] **A2 滚动截图裁切/重叠**：改进 ScrollStitch 重叠检测，消除拼接处裁切与重复带。
+- [ ] **A3 贴图磁边依然无效**：不止阈值——查是否真触发/坐标，必要时加拖拽实时吸附反馈（Snipaste 式引导线）。
+### B 手势引擎（可复用大功能）
+- [ ] **B1 GestureCore 独立类库**（netstandard2.0，零 UI 依赖）：模型（KeyChord / TriggerKind{Click,DoubleClick(可配间隔),KeyDown,KeyUp,LongPress,TripleClick,Chord} / GestureBinding{触发→动作序列, 每条显式失败策略 NextBinding|Stop|SkipStep}）+ 引擎（喂原始按键事件+时间戳→消歧→回调动作序列）+ 单测。
+- [ ] **B2 FrameCapture 接入**：WH_KEYBOARD_LL→GestureCore→动作实现；JSON 持久化；默认复刻现有两热键语义 + 「QQ 手感」预设一键切换；迁移旧 CaptureHotkey/ScopeHotkey/TapThreshold/DoubleTapRecord/TapAlwaysShowsRegion。完整编辑器 UI 下一轮。
+### C
+- [ ] **C 截图后悬浮窗存在时间**可自定义（设置项，替换硬编码 3.2s）。
+### D UI 打磨
+- [ ] **D1 取色器 UI 美化**（L52）。
+- [ ] **D2 OCR 悬停预览选文本**、不直接复制（L63）。
+- [ ] **D3 Pin 贴图动画**（L68）。
+- [ ] **D4 贴图右键菜单样式**（L72）。

@@ -27,6 +27,11 @@ public sealed class HotkeyManager : IDisposable
     /// <summary>滚动截图会话是否活跃（由控制条生命周期置位：Show=true、Closed=false）。
     /// volatile：钩子线程读、UI 线程写。为 true 时全局吞掉 Esc 并触发 ScrollCancel（QQ 式取消）。</summary>
     public static volatile bool ScrollActive;
+    /// <summary>截图浮窗（CaptureToast）活跃时置位：全局吞 Enter/Esc 并回调（浮窗不抢焦点，键不会进它自己的
+    /// HWND，只能靠全局钩子代劳——R119 修「浮窗 Enter 无效」）。Enter→进编辑器，Esc→关闭。生命周期绑定浮窗 Show/Closed。</summary>
+    public static volatile bool ToastActive;
+    public static Action? ToastEnter;
+    public static Action? ToastEsc;
     /// <summary>R94 暂停全局热键：为 true 时钩子对所有自有热键放行（不触发、不吞键），
     /// 让键完整落到前台应用——游戏/演示/与其他软件热键冲突时临时避让。托盘「暂停全局热键」切换，
     /// 运行时状态（不持久化，重启自动恢复工作）。滚动会话的 Esc 取消仍优先于本判断。</summary>
@@ -118,6 +123,13 @@ public sealed class HotkeyManager : IDisposable
         // 滚动截图会话中：Esc 全局取消并吞掉（控制条不抢焦点，否则 Esc 会漏给目标窗）。
         // 热路径仅一次 volatile 读 + 一次整数比较；ScrollActive 绑定控制条生命周期，绝不泄漏成"全局 Esc 失灵"。
         if (isDown && vk == 0x1B && ScrollActive) { ScrollCancel?.Invoke(); return true; }
+
+        // 截图浮窗活跃：Enter=进编辑器、Esc=关闭，全局吞掉（浮窗不抢焦点，键不会进它自己的 HWND，R119）。
+        if (isDown && ToastActive && (vk == 0x0D || vk == 0x1B))
+        {
+            if (vk == 0x0D) ToastEnter?.Invoke(); else ToastEsc?.Invoke();
+            return true;
+        }
 
         var cap = _capture;
         var scp = _scope;

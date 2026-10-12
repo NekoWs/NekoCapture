@@ -25,7 +25,10 @@ public sealed class TrayService : IDisposable
         };
         _icon.MouseUp += (_, e) =>
         {
-            if (e.Button == WinForms.MouseButtons.Right) Dispatch(ShowMenu);
+            // 左键单击=选区截图（R119：此前左键单击无动作、只有双击才捕获，反直觉）；右键=菜单。
+            // 双击会连发两次 MouseUp，但 BeginScopeSelection 有重入保护（已在选区只顶前不重开），不会截两次。
+            if (e.Button == WinForms.MouseButtons.Left) Dispatch(() => _host.Controller.BeginScopeSelection());
+            else if (e.Button == WinForms.MouseButtons.Right) Dispatch(ShowMenu);
         };
         _icon.DoubleClick += (_, _) => Dispatch(() => _host.Controller.BeginScopeSelection());
         // 悬停提示动态反映当前热键/范围/fps（R36）：改键或换范围后无需打开菜单即可确认状态

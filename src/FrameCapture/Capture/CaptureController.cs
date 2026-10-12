@@ -17,6 +17,7 @@ public sealed class CaptureController : IDisposable
     private RegionOutlineWindow? _outline;
     private EditorWindow? _editor;
     private System.Diagnostics.Stopwatch? _captureClock;
+    private int _captureFps;   // 本次捕获实际帧率（跟随刷新率时=刷新率），随 seq 交给编辑器算时间轴（R119）
     private ScreenRegion? _pendingRegion;
     /// <summary>点按总是先显示选区（QQ 式）：本次选区确认后立即截一帧静态图。</summary>
     private bool _captureAfterSelect;
@@ -41,6 +42,7 @@ public sealed class CaptureController : IDisposable
     private Overlays.CountdownWindow? _delayWindow;
     private System.Windows.Threading.DispatcherTimer? _delayTimer;
     private int _delayLeft;
+    private bool _delayOutlineShown;   // 倒计时期间是否显示了范围高亮（R119），收尾时只收自己显示的
 
     public Phase State { get; private set; } = Phase.Idle;
 
@@ -212,33 +214,7 @@ public sealed class CaptureController : IDisposable
                 {
                     t.Stop();
                     var f = LiveCapture.Grab(region.Value);
-                    if (f != null)
-                    {
-                        var pth = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "FrameCapture", $"capture-{DateTime.Now:HHmmss}.png");
-                        try { FrameCapture.Services.BgraImage.SavePng(f, pth); } catch { }
-                        FrameCapture.Encoding.ClipboardService.SetFrame(f);
-                        FrameCapture.Services.SaveService.MaybeSavePng(f); // R63 自动保存副本（关=零副作用）
-                        FrameCapture.Core.Trace.Log($"still saved {pth} {f.W}x{f.H}");
-                        if (_settings.Current.CaptureSound) FrameCapture.Core.CaptureSound.Play(); // R86 提示音（关=零副作用）
-                        // 截图后行为（R83）：弹提示浮窗 / 直接进编辑器 / 只复制——三态覆盖不同人群
-                        var reg = region.Value;
-                        switch (FrameCapture.Core.AfterCapture.Resolve(_settings.Current.AfterCapture))
-                        {
-                            case FrameCapture.Core.AfterCaptureAction.Editor:
-                                OpenEditorForFrame(f, reg, monitor.DeviceName);
-                                break;
-                            case FrameCapture.Core.AfterCaptureAction.Copy:
-                                break; // 只复制（上面已 SetFrame），下方轮廓闪一下作反馈
-                            case FrameCapture.Core.AfterCaptureAction.Pin:
-                                PinFrameAt(f, reg); // 截图后直接原地钉屏（Snipaste 式）
-                                break;
-                            default:
-                                // 拍完即见（R42）：缩略浮窗确认"已复制"，点击原地进编辑器标注，不抢焦点
-                                Overlays.CaptureToast.Show(f, reg, monitor.DeviceName, () => OpenEditorForFrame(f, reg, monitor.DeviceName));
-                                break;
-                        }
-                        _lastStill.Set(f, reg, monitor.DeviceName); // R78：浮窗消失后仍可经托盘找回编辑器
-                    }
+                    if (f != null) DispatchStill(f, region.Value, monitor.DeviceName);
                     if (_settings.Current.AlwaysShowRegionOutline) ShowOutline(region.Value);
                     else { FlashOutline(region.Value); _outline!.FadeAway(1.1); }
                 };
@@ -367,6 +343,24 @@ public sealed class CaptureController : IDisposable
         _delayTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         _delayTimer.Tick += (_, _) => DelayTick(region);
         _delayTimer.Start();
+        // 倒计时期间高亮将要截取的范围（轮廓窗 WDA_EXCLUDEFROMCAPTURE，绝不入镜），让用户看清"截的是这块"（R119）。
+        // 全屏范围无需高亮（整屏即范围，描边贴屏幕外缘看不见）；仅对已存选区显示。
+        if (StoredRegion() != null)
+        {
+            _outline ??= new RegionOutlineWindow();
+            _outline.SetRegion(region.Bounds);
+            _outline.ShowNoActivate();
+            _outline.Flash();
+            _delayOutlineShown = true;
+        }
+    }
+
+    /// <summary>收起倒计时范围高亮（仅当本次延时显示过，避免误关常驻轮廓）。</summary>
+    void HideDelayOutline()
+    {
+        if (!_delayOutlineShown) return;
+        _delayOutlineShown = false;
+        _outline?.HideSilently();
     }
 
     void DelayTick(ScreenRegion region)
@@ -382,6 +376,7 @@ public sealed class CaptureController : IDisposable
 
     void DelayCancel()
     {
+        HideDelayOutline();
         _delayTimer?.Stop(); _delayTimer = null;
         var win = _delayWindow; _delayWindow = null;
         win?.CloseSelf();
@@ -390,6 +385,7 @@ public sealed class CaptureController : IDisposable
 
     void DelayFire(ScreenRegion region)
     {
+        HideDelayOutline();   // 收起倒计时范围高亮（轮廓本就不入镜，这里只是收尾）
         var reg = region.Bounds; var dev = region.DeviceName;
         var f = LiveCapture.Grab(reg);
         if (f == null) { FrameCapture.Core.Trace.Log("delay: grab null"); return; }
@@ -519,6 +515,7 @@ public sealed class CaptureController : IDisposable
             int hz = Core.DisplayRefresh.RateOf(monitor.DeviceName);
             if (hz > 0) fps = Math.Clamp(hz, Core.AppSettings.FpsMin, Core.AppSettings.FpsMax);
         }
+        _captureFps = fps;   // 随 seq 交给编辑器，时间轴按实际帧率而非手动值（R119）
         bool wgcOk = false;
         if (_settings.Current.UseWgc)
         {
@@ -605,8 +602,8 @@ public sealed class CaptureController : IDisposable
         else if (_outline != null && bounds.W > 0)
         {
             _outline.SetRegion(bounds);
-            _outline.SetBorderVisible(false);
-            _outline.ShowNoActivate();
+            _outline.ShowNoActivate();          // 先显示（内部 ResetBorder 会画 2px 框）
+            _outline.SetBorderVisible(false);   // 再关框——顺序反了会被 ShowNoActivate 的 ResetBorder 重新画出来（R119 修「关了仍显示蓝框」）
         }
         _outline?.StartRecBadge(toggle: true);
         if (!_settings.Current.RecHintShown) _settings.Mutate(s => s.RecHintShown = true);
@@ -619,27 +616,11 @@ public sealed class CaptureController : IDisposable
         _stopWindowTimer?.Stop();
         _tr = Core.ToggleRecord.St.Idle;
         _recBadgeTimer?.Stop();
-        _outline?.StopRecBadge();
-        _outline?.SetBorderVisible(true); // 免按住录制的"只徽标"模式复位，别把无边框带给下次
+        // 徽标与轮廓的退场延后到产物就绪（见 RetireCaptureOutline）：录制路径期间先挂「处理中…」，
+        // 免得连按两下结束后、编辑器构造那段 UI 冻结期界面空着像没反应（R119）。
         _live.Stop();
         long wgcMissed = 0, wgcDelivered = 0, wgcKept = 0;
         if (_wgc != null) { wgcMissed = _wgc.FramesMissed; wgcDelivered = _wgc.Delivered; wgcKept = _wgc.KeptThrottle; try { _wgc.Stop(); _wgc.Dispose(); } catch { } _wgc = null; }
-        // 录制范围提示的去向（决策见 CaptureGuards.OnCaptureFinished）：
-        //  常显模式且录的就是已存范围 → 把常显轮廓带回来。旧版在这里无条件 FadeAway，
-        //  注释却写「由后续分支重新点亮」——实际没有任何分支点亮，于是常显模式下一次录制
-        //  就把轮廓弄没；且若「录制时显示范围边框」关着，录制期间根本没上屏，
-        //  更不能用「当时可见吗」当前提。其余情况 → 立即淡出，不要拖到编辑器上。
-        if (Core.CaptureGuards.OnCaptureFinished(_settings.Current.AlwaysShowRegionOutline, StoredRegion() != null)
-            == Core.CaptureGuards.AfterCaptureOutline.KeepPersistent)
-        {
-            ShowOutlineIfStored();
-        }
-        else if (_outline != null && _outline.IsVisible)
-        {
-            _outline.FadeAway(0.25);
-        }
-
-
 
         double durMs = _captureClock?.ElapsedMilliseconds ?? 0;
         // 点按/长按判定用钩子事件时间戳：本地时钟会把首次 WGC 初始化耗时算成"按住"（R42 实测：
@@ -664,7 +645,7 @@ public sealed class CaptureController : IDisposable
                 }
                 catch { }
             }
-            if (frames.Count == 0) { spoolList?.Dispose(); State = Phase.Idle; return; }
+            if (frames.Count == 0) { RetireCaptureOutline(); spoolList?.Dispose(); State = Phase.Idle; return; }
         }
 
         // 点按 → 单帧
@@ -674,16 +655,23 @@ public sealed class CaptureController : IDisposable
             if (_settings.Current.TapAlwaysShowsRegion)
             {
                 FrameCapture.Core.Trace.Log("tap→picker (always-show-region)");
+                RetireCaptureOutline();
                 spoolList?.Dispose();
                 State = Phase.Idle;
                 BeginScopeSelection();
                 _captureAfterSelect = true;
                 return;
             }
-            // 只留最后一帧进编辑器：spool 文件随之释放（单帧已读入内存）
-            var last = frames[^1];
-            frames = new List<CapturedFrame> { last };
+            // 点按直出（未开「点按总是先显示选区」）：走与选区路径一致的「截图后」分派
+            // （复制/提示/贴图/编辑器 + 提示音），不再无脑进编辑器（R119 修复：此前直出绕过 AfterCapture 与提示音）。
+            RetireCaptureOutline();
             spoolList?.Dispose();
+            State = Phase.Idle;
+            var sreg = _pendingRegion?.Bounds ?? new RectI(0, 0, frames[^1].W, frames[^1].H);
+            var sdev = _pendingRegion?.DeviceName ?? "";
+            var still = LiveCapture.Grab(sreg) ?? frames[^1]; // 干净 GDI 帧（不含光标），与选区路径一致；抓不到退回已录帧
+            DispatchStill(still, sreg, sdev);
+            return;
         }
 
         var region = _pendingRegion ?? new ScreenRegion("", frames[0].W > 0 ? new RectI(0, 0, frames[0].W, frames[0].H) : default);
@@ -695,9 +683,29 @@ public sealed class CaptureController : IDisposable
             MonitorBounds = monitor?.Bounds ?? new RectI(0, 0, frames[0].W, frames[0].H),
             MonitorDevice = region.DeviceName,
             DroppedFrames = 0, // R61：磁盘暂存不再丢帧
+            Fps = _captureFps, // 实际帧率（跟随刷新率时=刷新率），编辑器时间轴/时长据此而非手动值（R119）
         };
 
+        // 录制路径：编辑器构造 + 首帧解码是 UI 线程同步重活，会冻结界面。先把 REC 徽标转「处理中…」
+        // 并强制刷新一帧，让用户在冻结期看到反馈，而不是以为没反应（R119）。
+        _outline?.SetRecProcessing();
+        try { System.Windows.Application.Current?.Dispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.Render); } catch { }
         OpenEditor(seq);
+        RetireCaptureOutline();
+    }
+
+    /// <summary>录制/截图收尾时退场范围提示：停徽标、复位边框，再按「常显轮廓」设置决定保留常显还是淡出。
+    /// 从 FinishCapture 开头移到各产物就绪的出口，使录制路径能在编辑器构造前挂住「处理中…」（R119）。
+    /// 决策见 CaptureGuards.OnCaptureFinished：常显模式且录的是已存范围 → 带回常显轮廓；否则淡出。</summary>
+    void RetireCaptureOutline()
+    {
+        _outline?.StopRecBadge();
+        _outline?.SetBorderVisible(true); // 免按住录制的"只徽标"模式复位，别把无边框带给下次
+        if (Core.CaptureGuards.OnCaptureFinished(_settings.Current.AlwaysShowRegionOutline, StoredRegion() != null)
+            == Core.CaptureGuards.AfterCaptureOutline.KeepPersistent)
+            ShowOutlineIfStored();
+        else if (_outline != null && _outline.IsVisible)
+            _outline.FadeAway(0.25);
     }
 
     /// <summary>打开编辑器并接管生命周期（关闭→Idle→焦点归还）。调用方负责 seq 组装。</summary>
@@ -715,6 +723,11 @@ public sealed class CaptureController : IDisposable
             // 焦点归还给捕获前正在使用的窗口
             try { if (_prevFg != System.IntPtr.Zero && Native.Win32.IsWindow(_prevFg)) ForegroundNow(_prevFg); } catch { }
             _prevFg = System.IntPtr.Zero;
+            // R120 A1：编辑器位图 LRU（封顶约 600MB）此刻已成垃圾，但 .NET 不把页交还 OS、工作集虚高。
+            // 等窗口拆完（ApplicationIdle）再主动全代 GC + 裁工作集，等价用户手动 MemReduct，回到干净基线。
+            System.Windows.Application.Current?.Dispatcher.BeginInvoke(
+                () => FrameCapture.Core.Memory.Reclaim(),
+                System.Windows.Threading.DispatcherPriority.ApplicationIdle);
         };
         _editor.Show();
         ForceForeground(_editor);
@@ -735,6 +748,36 @@ public sealed class CaptureController : IDisposable
             MonitorBounds = monitor?.Bounds ?? region,
             MonitorDevice = device,
         });
+    }
+
+    /// <summary>单帧静图完成后的统一处理：复制 + 自动保存副本 + 提示音 + 「截图后」四选一 + 记录上次截图。
+    /// 选区拖框路径与点按直出路径共用，保证两条路径行为一致（R119 修复：此前点按直出绕过本分派，
+    /// 导致「截图后」设置与提示音对直出截图全部失效，永远进编辑器）。</summary>
+    void DispatchStill(CapturedFrame f, RectI reg, string device)
+    {
+        var pth = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "FrameCapture", $"capture-{DateTime.Now:HHmmss}.png");
+        try { FrameCapture.Services.BgraImage.SavePng(f, pth); } catch { }
+        FrameCapture.Encoding.ClipboardService.SetFrame(f);
+        FrameCapture.Services.SaveService.MaybeSavePng(f); // R63 自动保存副本（关=零副作用）
+        FrameCapture.Core.Trace.Log($"still saved {pth} {f.W}x{f.H}");
+        if (_settings.Current.CaptureSound) FrameCapture.Core.CaptureSound.Play(); // R86 提示音（关=零副作用）
+        // 截图后行为（R83）：弹提示浮窗 / 直接进编辑器 / 只复制 / 贴图——四态覆盖不同人群
+        switch (FrameCapture.Core.AfterCapture.Resolve(_settings.Current.AfterCapture))
+        {
+            case FrameCapture.Core.AfterCaptureAction.Editor:
+                OpenEditorForFrame(f, reg, device);
+                break;
+            case FrameCapture.Core.AfterCaptureAction.Copy:
+                break; // 只复制（上面已 SetFrame），下方轮廓闪一下作反馈
+            case FrameCapture.Core.AfterCaptureAction.Pin:
+                PinFrameAt(f, reg); // 截图后直接原地钉屏（Snipaste 式）
+                break;
+            default:
+                // 拍完即见（R42）：缩略浮窗确认"已复制"，点击原地进编辑器标注，不抢焦点
+                Overlays.CaptureToast.Show(f, reg, device, () => OpenEditorForFrame(f, reg, device));
+                break;
+        }
+        _lastStill.Set(f, reg, device); // R78：浮窗消失后仍可经托盘找回编辑器
     }
 
     /// <summary>是否有可重新编辑的最近静态截图（R78，决定托盘项是否出现）。</summary>

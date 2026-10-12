@@ -6,8 +6,9 @@ namespace FrameCapture.Core;
 /// </summary>
 public static class PinSnap
 {
-    /// <summary>吸附阈值：短边的 6%，夹在 12–40（小图更灵敏、大图别误吸）。</summary>
-    public static double Threshold(double w, double h) => Math.Clamp(Math.Min(w, h) * 0.06, 12, 40);
+    /// <summary>吸附阈值：短边的 12%，夹在 24–56（R119 放宽：旧版 6%/12–40 太紧，小图仅 12DIP≈18px，
+    /// 用户松手稍离边就不触发，被误判为"磁边无效"。放宽后靠近屏幕边/其他贴图更容易吸上）。</summary>
+    public static double Threshold(double w, double h) => Math.Clamp(Math.Min(w, h) * 0.12, 24, 56);
 
     /// <summary>把窗口 (left,top,w,h) 的左右边吸附到容器 [cl,cr]、上下边吸附到 [ct,cb]：
     /// 某条边距对应容器边在阈值内则贴合（左右互斥、上下互斥，先左后右、先上后下）。返回新位置。纯函数。</summary>

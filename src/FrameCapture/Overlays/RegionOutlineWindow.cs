@@ -223,6 +223,20 @@ public sealed class RegionOutlineWindow : Window
         if (_recBadge != null) _recBadge.Visibility = Visibility.Collapsed;
     }
 
+    /// <summary>录制结束→编辑器构造这段 UI 冻结期，把 REC 徽标转成「处理中…」并停掉计时刷新
+    /// （否则 _recTimer 每 100ms 会把文案覆盖回 REC 计时）。调用方随后强制刷新一帧再进编辑器（R119）。</summary>
+    public void SetRecProcessing()
+    {
+        _recTimer?.Stop();
+        _recClock = null;
+        _recDot.BeginAnimation(OpacityProperty, null);
+        _recDot.Opacity = 1;
+        _recBadge.BeginAnimation(OpacityProperty, null);
+        _recBadge.Opacity = 1;
+        _recBadge.Visibility = Visibility.Visible;
+        _recText.Text = "处理中…";
+    }
+
     /// <summary>边框显隐（R60）：免按住录制且用户关了「录制边框」时，窗口只挂 REC 徽标不画框。</summary>
     public void SetBorderVisible(bool visible)
     {

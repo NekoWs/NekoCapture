@@ -90,7 +90,12 @@ public static class SaveService
                     catch (Exception ex2) { Trace.Log($"autosave failed: {ex2.Message}"); }
                 }
                 finally { try { if (File.Exists(tmp)) File.Delete(tmp); } catch { } }
-            });
+            }).ContinueWith(_ =>
+            {
+                // R120 A1：后台编码闭包持有的整段烘焙帧（长录制可达 GB）此刻已随任务委托释放，
+                // 主动全代 GC + 裁工作集，避免"录完视频内存一直虚高、要手动 MemReduct 才回落"。
+                FrameCapture.Core.Memory.Reclaim();
+            }, System.Threading.Tasks.TaskScheduler.Default);
         }
         catch (Exception ex) { Trace.Log($"autosave failed: {ex.Message}"); }
     }

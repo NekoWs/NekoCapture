@@ -1553,9 +1553,9 @@ static class SelfTest
                 Chk("T110d-bottom", s4.Left == 500 && s4.Top == 980, "下边距 5<阈值 → 吸下");
                 var s5 = FrameCapture.Core.PinSnap.Snap(500, 500, 200, 100, 0, 0, 1920, 1080, 12);
                 Chk("T110e-none", s5.Left == 500 && s5.Top == 500, "远离边缘 → 不动");
-                Chk("T110f-thresh", FrameCapture.Core.PinSnap.Threshold(200, 100) == 12
-                    && FrameCapture.Core.PinSnap.Threshold(1000, 800) == 40
-                    && FrameCapture.Core.PinSnap.Threshold(300, 300) == 18, "阈值=短边6%夹12–40");
+                Chk("T110f-thresh", FrameCapture.Core.PinSnap.Threshold(200, 100) == 24
+                    && FrameCapture.Core.PinSnap.Threshold(1000, 800) == 56
+                    && FrameCapture.Core.PinSnap.Threshold(300, 300) == 36, "阈值=短边12%夹24–56（R119 放宽）");
             }
 
             // T111 OCR 反馈文案（R75，编辑器/贴图共用措辞）
@@ -1745,6 +1745,26 @@ static class SelfTest
                 }
                 int ovN = FrameCapture.Core.ScrollStitch.FindOverlap(acc, W, 100, bNoise, 100);
                 Chk("T119d-noise-tolerant", ovN == 40, $"抗噪重叠应 40，实得 {ovN}");
+                // T119e：重叠区含个别离群行（平滑滚动重采样/闪烁光标行），旧「运行均值」早退会误杀返回 0，
+                // 新版抽样多数匹配应仍判 40（R119 修「滚动太快」误报的回归护栏）
+                var bOutlier = (byte[])bOv.Clone();
+                for (int rr = 0; rr < 2; rr++)   // 把 b 顶部两行（重叠区首两行）改成完全不同的灰度
+                {
+                    byte g = (byte)(Gray(9000 + rr) ^ 0xFF);
+                    for (int x = 0; x < W; x++) { int p = (rr * W + x) * 4; bOutlier[p] = g; bOutlier[p + 1] = g; bOutlier[p + 2] = g; }
+                }
+                int ovO = FrameCapture.Core.ScrollStitch.FindOverlap(acc, W, 100, bOutlier, 100);
+                Chk("T119e-outlier-tolerant", ovO == 40, $"含离群行的重叠应仍判 40，实得 {ovO}");
+                // T119f：±1px 垂直抖动（平滑/分数滚动取整，奇数行整体下移 1px）。旧「只比对应行」→ 半数行差超阈
+                // → 误判 0 → 拼接出现重复内容带「重叠」；新版容差趟应仍判 40（R120 修「重叠」回归护栏）
+                var bJit = new byte[100 * W * 4];
+                for (int r = 0; r < 100; r++)
+                {
+                    byte g = Gray(60 + r + (r % 2));
+                    for (int x = 0; x < W; x++) { int p = (r * W + x) * 4; bJit[p] = g; bJit[p + 1] = g; bJit[p + 2] = g; bJit[p + 3] = 255; }
+                }
+                int ovJ = FrameCapture.Core.ScrollStitch.FindOverlap(acc, W, 100, bJit, 100);
+                Chk("T119f-jitter-tolerant", ovJ == 40, $"±1px 抖动的重叠应判 40，实得 {ovJ}");
             }
 
             // T120 取色复制格式（R89，ColorFormat 纯函数）：HEX/RGB/HSL 文本 + 分量夹取 + 设置串解析往返
@@ -1915,6 +1935,19 @@ static class SelfTest
                     Chk("T127i-encode-odd", true, "无 ffmpeg，跳过实编码");
                 }
             }
+        }
+        // T129 内存回收助手（R120 A1）：录制/编辑大位图关闭后主动全代 GC + 裁工作集，等价用户手动 MemReduct
+        {
+            bool ok = true;
+            try
+            {
+                var big = new byte[64 << 20]; // 64MB：制造一次 LOH 分配，Reclaim 应能回收并裁工作集
+                big[0] = 1;
+                FrameCapture.Core.Memory.Reclaim();
+                GC.KeepAlive(big);
+            }
+            catch { ok = false; }
+            Chk("T129a-reclaim-no-throw", ok, "Memory.Reclaim() 全代 GC + 裁工作集不抛");
         }
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");
         return fail == 0 ? 0 : 1;

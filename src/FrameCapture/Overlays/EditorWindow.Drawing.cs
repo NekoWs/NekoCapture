@@ -57,7 +57,13 @@ public sealed partial class EditorWindow
     // 时间轴范围
     readonly FrameCapture.Core.RangeDragState _rd = new();
     // Background 必须非 null（透明即可）：null 时画布空白区不参与命中测试，轨道点选/拖动会失效
-    Canvas _rangeCanvas = new() { Height = 26, Cursor = Cursors.IBeam, Background = System.Windows.Media.Brushes.Transparent };
+    Canvas _rangeCanvas = new()
+    {
+        Height = 26,
+        Cursor = Cursors.IBeam,
+        Background = System.Windows.Media.Brushes.Transparent,
+        ToolTip = "拖拽选择要导出的片段 · 单击跳转 · 拖两端把手微调 · [ / ] 设入/出点 · Backspace 清除",
+    };
     bool _tlHover;
 
 
@@ -285,6 +291,8 @@ public sealed partial class EditorWindow
         {
             // 选中工具（R52）：点标注=选中并可拖移；点空白=取消选中
             var sp = e.GetPosition(_canvas);
+            // 先试选中框四角缩放手柄：命中即进入缩放拖拽，优先于移动/重选（R119）
+            if (_sel != null && _anns.Items.Contains(_sel) && TryBeginResize(sp)) return;
             var hit = HitAnn(sp);
             SetSelection(hit);
             if (hit != null)
@@ -374,8 +382,14 @@ public sealed partial class EditorWindow
         }
         if (_preview != null)
         {
-            Canvas.SetLeft(_preview, _pressPos.X);
-            Canvas.SetTop(_preview, _pressPos.Y);
+            // Line/Arrow/Freehand/Highlight 的形状内部用绝对画布坐标（X1/Y1、Points、Path 几何），
+            // 元素须留在画布原点(0,0)——与提交态渲染一致；若按 _pressPos 落点会被二次偏移→预览跑到屏幕外（R119 修）。
+            // Rect/Ellipse/Crop/Mosaic 用相对 Width/Height，位置在 Canvas_Move 里按包围盒重设，这里先落 _pressPos 无妨。
+            if (_tool is not (Tool.Line or Tool.Arrow or Tool.Freehand or Tool.Highlight))
+            {
+                Canvas.SetLeft(_preview, _pressPos.X);
+                Canvas.SetTop(_preview, _pressPos.Y);
+            }
             _canvas.Children.Add(_preview);
         }
         e.Handled = true;
@@ -383,17 +397,27 @@ public sealed partial class EditorWindow
 
     void Canvas_Move(object sender, MouseEventArgs e)
     {
+        if (_resizeDrag && _resizeAnn != null && _resizeOrigPts != null)
+        {
+            ResizeTo(e.GetPosition(_canvas));   // 实时缩放预览（标注 + 选中框一起跟手）
+            return;
+        }
         if (_moveDrag && _sel != null)
         {
             // 拖移=整体平移元素与选择框（提交前不动数据；松手才 Replace，一次拖=一步撤销）
             var mp = e.GetPosition(_canvas);
             double dx = mp.X - _movePress.X, dy = mp.Y - _movePress.Y;
             _movePress = mp;
+            // Line/Arrow/Freehand/Highlight 元素用绝对内部坐标、未设 Canvas.Left/Top → GetLeft 返回 NaN，
+            // 直接 +dx 会把元素甩到 NaN（屏幕外）。NaN 视作 0（元素本就在原点），整体平移才正确（R119 修）。
+            static double CL(UIElement el) => double.IsNaN(Canvas.GetLeft(el)) ? 0 : Canvas.GetLeft(el);
+            static double CT(UIElement el) => double.IsNaN(Canvas.GetTop(el)) ? 0 : Canvas.GetTop(el);
             foreach (var (el, a) in _annEls)
-                if (ReferenceEquals(a, _sel)) { Canvas.SetLeft(el, Canvas.GetLeft(el) + dx); Canvas.SetTop(el, Canvas.GetTop(el) + dy); }
-            if (_selBox != null) { Canvas.SetLeft(_selBox, Canvas.GetLeft(_selBox) + dx); Canvas.SetTop(_selBox, Canvas.GetTop(_selBox) + dy); }
+                if (ReferenceEquals(a, _sel)) { Canvas.SetLeft(el, CL(el) + dx); Canvas.SetTop(el, CT(el) + dy); }
+            if (_selBox != null) { Canvas.SetLeft(_selBox, CL(_selBox) + dx); Canvas.SetTop(_selBox, CT(_selBox) + dy); }
             return;
         }
+        if (_tool == Tool.Select) { UpdateResizeCursor(e.GetPosition(_canvas)); return; }   // 悬停角手柄→缩放光标（R119）
         if (!_dragging || _preview == null) return;
         var p = Constrain(e.GetPosition(_canvas));
         var n = Norm(p);
@@ -456,6 +480,33 @@ public sealed partial class EditorWindow
 
     void Canvas_Up(object sender, MouseButtonEventArgs e)
     {
+        if (_resizeDrag)
+        {
+            _resizeDrag = false;
+            _canvas.ReleaseMouseCapture();
+            var ann = _resizeAnn; var orig = _resizeOrigPts;
+            _resizeAnn = null; _resizeOrigPts = null;
+            if (ann != null && orig != null)
+            {
+                var scaled = new List<(float X, float Y)>(ann.Points);   // 拖拽后的当前几何
+                bool changed = false;
+                for (int i = 0; i < scaled.Count && i < orig.Count; i++)
+                    if (Math.Abs(scaled[i].X - orig[i].X) > 1e-3 || Math.Abs(scaled[i].Y - orig[i].Y) > 1e-3) { changed = true; break; }
+                // 还原原标注几何（Replace 按引用换，原对象须保持原样），再换成缩放副本，记一步撤销
+                ann.Points.Clear(); foreach (var pt0 in orig) ann.Points.Add(pt0);
+                if (changed)
+                {
+                    var m = new Annotation { Kind = ann.Kind, Color = ann.Color, Thickness = ann.Thickness, Text = ann.Text };
+                    foreach (var pt1 in scaled) m.Points.Add(pt1);
+                    if (_anns.Replace(ann, m)) { _order.AnnAdded(); RefreshUndo(); }
+                    _sel = m;
+                    FrameCapture.Core.Trace.Log($"editor ann resize kind={ann.Kind}");
+                }
+            }
+            RedrawAnns();
+            e.Handled = true;
+            return;
+        }
         if (_moveDrag)
         {
             _moveDrag = false;
@@ -499,7 +550,7 @@ public sealed partial class EditorWindow
                 if (dist < 6) { /* 太短：丢弃 */ }
                 else CommitAnn(_pending);
             }
-            else CommitAnn(_pending);
+            else CommitAnn(_pending); // 手绘/荧光笔：单击也提交（预览已修，点下去实时可见，不静默丢弃）
         }
         _pending = null;
         if (_preview != null) { _canvas.Children.Remove(_preview); _preview = null; }
@@ -524,10 +575,90 @@ public sealed partial class EditorWindow
     bool _moveDrag;
     Annotation? _moveAnn;
     Point _moveStart, _movePress;
+    // 缩放手柄（R119）：选中框四角拖拽改大小。归一化点集对所有标注类型通用缩放。
+    bool _resizeDrag;
+    int _resizeCorner;                              // 0=TL 1=TR 2=BR 3=BL
+    Annotation? _resizeAnn;
+    List<(float X, float Y)>? _resizeOrigPts;
+    Rect _resizeOrigBox;                            // 原始点集归一化包围盒
 
     readonly List<(UIElement el, Annotation a)> _annEls = new();
 
     void SetSelection(Annotation? a) { _sel = a; RedrawAnns(); }
+
+    // ---- 缩放手柄（R119）：选中框四角拖拽，按对角锚点等比缩放归一化点集（对所有标注类型通用）----
+
+    /// <summary>点集归一化包围盒（不含 AnnBDisp 的描边外扩，缩放以真实几何为准）。</summary>
+    static Rect NormBox(List<(float X, float Y)> pts)
+    {
+        double x0 = double.MaxValue, y0 = double.MaxValue, x1 = double.MinValue, y1 = double.MinValue;
+        foreach (var p in pts) { x0 = Math.Min(x0, p.X); y0 = Math.Min(y0, p.Y); x1 = Math.Max(x1, p.X); y1 = Math.Max(y1, p.Y); }
+        return new Rect(x0, y0, Math.Max(1e-4, x1 - x0), Math.Max(1e-4, y1 - y0));
+    }
+
+    /// <summary>选中框四角（画布坐标），顺序 TL/TR/BR/BL。供绘制与命中测试共用。</summary>
+    List<Point> SelCornersDisp(Annotation a)
+    {
+        var nb = NormBox(a.Points);
+        var tl = NormToDisp(((float)nb.X, (float)nb.Y)); var br = NormToDisp(((float)nb.Right, (float)nb.Bottom));
+        return new List<Point> { new(tl.X, tl.Y), new(br.X, tl.Y), new(br.X, br.Y), new(tl.X, br.Y) };
+    }
+
+    /// <summary>命中四角手柄（容差 9 DIP）→ 进入缩放拖拽。返回是否命中。</summary>
+    bool TryBeginResize(Point sp)
+    {
+        if (_sel == null || _sel.Points.Count == 0) return false;
+        var corners = SelCornersDisp(_sel);
+        int hitC = -1; double best = 9 * 9;
+        for (int i = 0; i < 4; i++)
+        {
+            double dx = sp.X - corners[i].X, dy = sp.Y - corners[i].Y, d2 = dx * dx + dy * dy;
+            if (d2 <= best) { best = d2; hitC = i; }
+        }
+        if (hitC < 0) return false;
+        _resizeCorner = hitC;
+        _resizeAnn = _sel;
+        _resizeOrigPts = new List<(float, float)>(_sel.Points);
+        _resizeOrigBox = NormBox(_sel.Points);
+        _canvas.CaptureMouse();
+        FrameCapture.Core.Trace.Log($"editor resize start corner={hitC}");
+        return true;
+    }
+
+    /// <summary>拖拽中：以对角为锚点，把原始点集线性映射到「锚点→当前光标」的新框，实时改写 _resizeAnn 几何并重绘。</summary>
+    void ResizeTo(Point sp)
+    {
+        if (_resizeAnn == null || _resizeOrigPts == null) return;
+        var cur = Norm(sp);
+        var ob = _resizeOrigBox;
+        double ax = (_resizeCorner == 0 || _resizeCorner == 3) ? ob.Right : ob.X;   // 锚点=对角
+        double ay = (_resizeCorner == 0 || _resizeCorner == 1) ? ob.Bottom : ob.Y;
+        double nx0 = Math.Min(ax, cur.X), ny0 = Math.Min(ay, cur.Y);
+        double nw = Math.Max(0.01, Math.Abs(cur.X - ax)), nh = Math.Max(0.01, Math.Abs(cur.Y - ay));
+        _resizeAnn.Points.Clear();
+        foreach (var p in _resizeOrigPts)
+        {
+            double fx = (p.X - ob.X) / ob.Width, fy = (p.Y - ob.Y) / ob.Height;
+            _resizeAnn.Points.Add(((float)Math.Clamp(nx0 + fx * nw, 0, 1), (float)Math.Clamp(ny0 + fy * nh, 0, 1)));
+        }
+        RedrawAnns();
+    }
+
+    /// <summary>悬停在四角附近时切换对角缩放光标，让手柄「看得见、找得到」（R119 直接回应「看不到角手柄」）。</summary>
+    void UpdateResizeCursor(Point sp)
+    {
+        if (_tool != Tool.Select || _sel == null || _sel.Points.Count == 0) { _canvas.Cursor = null; return; }
+        var corners = SelCornersDisp(_sel);
+        int hitC = -1; double best = 9 * 9;
+        for (int i = 0; i < 4; i++)
+        {
+            double dx = sp.X - corners[i].X, dy = sp.Y - corners[i].Y, d2 = dx * dx + dy * dy;
+            if (d2 <= best) { best = d2; hitC = i; }
+        }
+        // TL/BR 对角 → ↖↘；TR/BL → ↗↙
+        _canvas.Cursor = hitC == 0 || hitC == 2 ? System.Windows.Input.Cursors.SizeNWSE
+                       : hitC == 1 || hitC == 3 ? System.Windows.Input.Cursors.SizeNESW : null;
+    }
 
     /// <summary>标注的画布坐标包围盒：文字用元素实测；其余由归一化点折算（Line/Path 几何在元素内部，GetLeft 不可靠）。</summary>
     Rect AnnBDisp(Annotation a)
@@ -1050,6 +1181,18 @@ public sealed partial class EditorWindow
                 };
                 Canvas.SetLeft(_selBox, b.X); Canvas.SetTop(_selBox, b.Y);
                 _canvas.Children.Add(_selBox);
+                // 四角缩放手柄（R119）：实心小方块标出可拖角，命中按位置测（TryBeginResize），故元素本身不吃命中
+                foreach (var c in SelCornersDisp(_sel))
+                {
+                    var h = new Rectangle
+                    {
+                        Width = 9, Height = 9, Fill = new SolidColorBrush(Acc),
+                        Stroke = Brushes.White, StrokeThickness = 1.2, IsHitTestVisible = false,
+                        RadiusX = 1.5, RadiusY = 1.5,
+                    };
+                    Canvas.SetLeft(h, c.X - 4.5); Canvas.SetTop(h, c.Y - 4.5);
+                    _canvas.Children.Add(h);
+                }
             }
         }
         if (_tool != Tool.Browse && _canvas.Visibility != Visibility.Visible)
@@ -1097,26 +1240,25 @@ public sealed partial class EditorWindow
 
     // ---------------- 时间轴范围 ----------------
 
-    int _tlMode; // 0 空闲 1 拖动跳转 2 拖范围左端 3 拖范围右端
+    int _tlMode; // 0 空闲 1 拖动跳转/待拉选段 2 拖范围左端 3 拖范围右端 4 拉选段中
+    double _tlPressX; int _tlPressIdx;   // 时间轴按下点（拖过阈值从此点拉选段，R119）
 
     void Range_Down(object sender, MouseButtonEventArgs e)
     {
         _rd.Count = _seq.Frames.Count;
         _rd.Width = _rangeCanvas.ActualWidth;
         double x = e.GetPosition(_rangeCanvas).X;
-        var (a, b) = TrimRange;
-        _tlMode = 1;
+        _tlPressX = x;
+        _tlPressIdx = Core.RangeDragState.XToIdx(x, _rangeCanvas.ActualWidth, _seq.Frames.Count);
+        _tlMode = 1;   // 暂定 scrub；Move 中若拖过阈值转为「拉选段」
         if (_rd.A >= 0 && _seq.Frames.Count > 1)
         {
+            var (a, b) = TrimRange;
             double xa = _rd.FrameX(a), xb = _rd.FrameX(b);
             if (Math.Abs(x - xb) <= 10) _tlMode = 3;
             else if (Math.Abs(x - xa) <= 10) _tlMode = 2;
         }
-        if (_tlMode == 1)
-        {
-            if (_playing) TogglePlay();
-            Show(Core.RangeDragState.XToIdx(x, _rangeCanvas.ActualWidth, _seq.Frames.Count));
-        }
+        if (_tlMode == 1) { if (_playing) TogglePlay(); Show(_tlPressIdx); }
         _rangeCanvas.CaptureMouse();
         e.Handled = true;
     }
@@ -1134,17 +1276,23 @@ public sealed partial class EditorWindow
             return;
         }
         int idx = Core.RangeDragState.XToIdx(x, _rangeCanvas.ActualWidth, _seq.Frames.Count);
-        if (_tlMode == 1) Show(idx);
-        else
+        if (_tlMode == 1 && Math.Abs(x - _tlPressX) > 4)
+            _tlMode = 4;   // 拖过阈值：从按下点开始拉选段（原来鼠标拖不出，只能靠 [ ] 键，R119 修）
+        switch (_tlMode)
         {
-            if (_tlMode == 2) _rd.SetA(idx); else _rd.SetB(idx);
-            DrawRange();
+            case 1: Show(idx); break;   // 未过阈值=scrub 跳帧
+            case 4:
+                _rd.A = Math.Min(_tlPressIdx, idx); _rd.B = Math.Max(_tlPressIdx, idx);
+                Show(idx); DrawRange(); break;
+            case 2: _rd.SetA(idx); DrawRange(); break;
+            case 3: _rd.SetB(idx); DrawRange(); break;
         }
         e.Handled = true;
     }
 
     void Range_Up(object sender, MouseButtonEventArgs e)
     {
+        if (_tlMode == 4 && _rd.B - _rd.A < 1) { _rd.A = _rd.B = -1; }   // 退化拖（几乎没动）=清除，不留 1 帧选段
         _tlMode = 0;
         _rangeCanvas.ReleaseMouseCapture();
         DrawRange();
@@ -1165,7 +1313,7 @@ public sealed partial class EditorWindow
         double cw = c.ActualWidth, ch = c.ActualHeight;
         if (cw < 8) return;
         int n = Math.Max(2, _seq.Frames.Count);
-        int fps = (int)Math.Clamp(_settings.Current.Fps, Core.AppSettings.FpsMin, Core.AppSettings.FpsMax);
+        int fps = _fps;   // 实际帧率（跟随刷新率时=刷新率），时间轴刻度间距按它算（R119）
         double px = cw / (n - 1.0);
         var tick = Color.FromArgb(0xC8, Theme.Stroke.R, Theme.Stroke.G, Theme.Stroke.B);
 
@@ -1214,6 +1362,21 @@ public sealed partial class EditorWindow
             var edge = Color.FromArgb((byte)(_tlHover ? 0xD0 : 0x76), Theme.Stroke.R, Theme.Stroke.G, Theme.Stroke.B);
             c.Children.Add(TlBar(0, 2, 3, ch - 4, 1.5, edge));
             c.Children.Add(TlBar(cw - 3, 2, 3, ch - 4, 1.5, edge));
+            // 悬停且未选段时提示可拖拽选段（R119：直接回应「不知如何触发」）
+            if (_tlHover)
+            {
+                var hint = new TextBlock
+                {
+                    Text = "拖拽选择片段",
+                    FontSize = 9,
+                    FontFamily = new FontFamily("Segoe UI"),
+                    Foreground = new SolidColorBrush(Color.FromArgb(0xB0, Theme.TextDim.R, Theme.TextDim.G, Theme.TextDim.B)),
+                };
+                hint.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+                Canvas.SetLeft(hint, Math.Max(6, cw - hint.DesiredSize.Width - 8));
+                Canvas.SetTop(hint, ch / 2 - 6);
+                c.Children.Add(hint);
+            }
         }
 
         // 播放头：主题色竖线 + 顶部三角（PR 指针）——浅色主题下白色会隐身（R19 逐帧审查抓到），跟 Theme.Text 走

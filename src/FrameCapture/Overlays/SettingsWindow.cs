@@ -18,7 +18,8 @@ public sealed class SettingsWindow : Window
     readonly SettingsService _settings;
     Action? _hkCancel; // 当前正在捕获新热键的行的取消动作（null=无）
     TextBlock? _hkWarn; // 两热键同键时的内联警示（管理器按"捕获优先"消歧，但用户应知情）
-    Button? _closeBtn;  // 关闭按钮（从 HTCAPTION 中让位）
+    int _cat;           // 当前分页索引（R119）
+    int _restoreCat;    // 重建（改主题/强调色）时要恢复的分页索引
 
     public SettingsWindow()
     {
@@ -26,16 +27,20 @@ public sealed class SettingsWindow : Window
         System.Windows.Input.InputMethod.SetIsInputMethodEnabled(this, false);
         _settings = AppHost.Current.Settings;
         WindowStyle = WindowStyle.None;
-        ResizeMode = ResizeMode.NoResize;
-        AllowsTransparency = true;
-        Background = Brushes.Transparent;
-        SizeToContent = SizeToContent.WidthAndHeight;
-        // SizeToContent 下 Show 前 ActualWidth=0，手工居中会退化成"左上角落在屏幕中心"；
-        // 交给 WPF 在首帧测量后居中（R18）
+        ResizeMode = ResizeMode.CanResize;   // 可拖边缩放（R119「允许更改窗口尺寸」）
+        // WindowChrome 原生缩放边框 + 原生圆角/阴影（与编辑器同款）；不再用 AllowsTransparency（软渲染代价大）。
+        FrameCapture.Core.Fluent.BorderlessNative(this, resizeBorder: 6);
+        // 标题条 = WindowChrome 原生 CaptionHeight 拖窗区（比 WM_NCHITTEST 钩子更稳，避免与 WindowChrome 命中测试抢序）；
+        // 关闭按钮在 Build 里标 IsHitTestVisibleInChrome 让位给 WPF 命中。
+        var chrome = System.Windows.Shell.WindowChrome.GetWindowChrome(this);
+        if (chrome != null) chrome.CaptionHeight = FrameCapture.Core.Fluent.TitleBarHeight;
+        Background = new SolidColorBrush(Theme.WindowBg);
+        SizeToContent = SizeToContent.Manual;   // 分页后每页很短，固定舒适尺寸起步，可拖边缩放
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
-        MinWidth = 420;
+        Width = 480; Height = Math.Min(640, SystemParameters.WorkArea.Height - 120);
+        MinWidth = 420; MinHeight = 420;
         ShowInTaskbar = false;
-        Topmost = true;
+        Topmost = false;   // 不再总在最前（R119）：设置窗是普通工具窗，不该压住用户正在截/录的画面
         Title = "FrameCapture Settings";
         // 拖动改由 WM_NCHITTEST→HTCAPTION 原生处理（见 Build 的标题栏钩子）：
         // 旧「整窗背景可拖」既被 ScrollContentPresenter 吞掉命中（用户实测拖不动），
@@ -67,25 +72,33 @@ public sealed class SettingsWindow : Window
         // 旧版整窗"背景可拖"实际被 ScrollViewer 吞掉 → 用户实测"无法拖动"，标题栏是显式、可发现的拖拽区。
         var root = new Border
         {
-            CornerRadius = new CornerRadius(12),
+            CornerRadius = new CornerRadius(8),
             Background = new SolidColorBrush(Theme.WindowBg),
             BorderBrush = new SolidColorBrush(Theme.Stroke),
             BorderThickness = new Thickness(1),
-            Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 24, ShadowDepth = 2, Opacity = 0.5 },
+            // 阴影交给 WindowChrome 的原生 DWM 阴影（自绘 DropShadow 与原生缩放窗叠加会重影/发虚，R119）
         };
         var dock = new DockPanel { LastChildFill = true };
 
         // ---- 标题栏：取景框图标 + 标题 + 关闭；整条可拖（共享件 Fluent.TitleBar，与帮助窗同款） ----
         var (bar, closeBtn) = FrameCapture.Core.Fluent.TitleBar("\uE7A8", "FrameCapture 设置");
         closeBtn.Click += (_, _) => FrameCapture.Core.Fluent.CloseWithFade(this);
-        _closeBtn = closeBtn;
+        // 关闭按钮落在原生 CaptionHeight 拖窗区内，须显式让位给 WPF 命中，否则点它会拖窗而非关闭（R119）
+        System.Windows.Shell.WindowChrome.SetIsHitTestVisibleInChrome(closeBtn, true);
         DockPanel.SetDock(bar, Dock.Top);
         dock.Children.Add(bar);
 
-        var panel = new StackPanel { Margin = new Thickness(16, 8, 16, 14) };
+        // ---- 分页（R119「内容分页」）：每个类别一个 StackPanel，标签条一次只显示一个，治「布局太长」----
+        var cats = new List<(string Name, StackPanel Body)>();
+        StackPanel Cat(string name)
+        {
+            var p = new StackPanel { Margin = new Thickness(16, 8, 16, 14), Visibility = Visibility.Collapsed };
+            cats.Add((name, p));
+            return p;
+        }
+        StackPanel panel = Cat("快捷键");
 
         // ---- 快捷键 ----
-        panel.Children.Add(Group("快捷键"));
         panel.Children.Add(HotkeyRow("\uE7A8", "选区快捷键", "呼出区域选取窗", "scope")); // 裁剪角标=选取；E71A 留给"轮廓"行避免重复
         panel.Children.Add(HotkeyRow("\uE7F4", "捕获快捷键", "点按 = 单帧 / 长按 = 录屏", "capture"));
         _hkWarn = new TextBlock
@@ -101,7 +114,7 @@ public sealed class SettingsWindow : Window
         UpdateHkWarn();
 
         // ---- 截图 ----
-        panel.Children.Add(Group("截图"));
+        panel = Cat("截图");
         panel.Children.Add(SliderRow("\uE916", "点按单帧阈值", "按下到放开小于此值算单帧；0 = 全部长按",
             0, 1000, 50, _settings.Current.TapThresholdMs,
             v => $"{v / 1000.0:0.00}s", v => _settings.Mutate(s => s.TapThresholdMs = (int)v)));
@@ -123,18 +136,21 @@ public sealed class SettingsWindow : Window
         panel.Children.Add(DelayRow());
 
         // ---- 录制 ----
-        panel.Children.Add(Group("录制"));
+        panel = Cat("录制");
         panel.Children.Add(ToggleRow("\uE815", "连按两下 = 录制（免按住）", "连按两下捕获快捷键开始录制（REC 徽标常驻），再连按两下结束进编辑器；按住录制照旧。关闭后点按截图零延迟（双击判定会把点按落地延后约 0.3 秒）",
             _settings.Current.DoubleTapRecord, v => _settings.Mutate(s => s.DoubleTapRecord = v)));
-        panel.Children.Add(SliderRow("\uEC4A", "录制帧率 (FPS)", "录制时每秒捕获的帧数",
+        var fpsRow = SliderRow("\uEC4A", "录制帧率 (FPS)", "录制时每秒捕获的帧数；开启下方「跟随显示器刷新率」时本项被忽略",
             AppSettings.FpsMin, AppSettings.FpsMax, 5, _settings.Current.Fps,
-            v => $"{v:0} fps", v => _settings.Mutate(s => s.Fps = (int)v)));
+            v => $"{v:0} fps", v => _settings.Mutate(s => s.Fps = (int)v));
+        fpsRow.IsEnabled = !_settings.Current.FollowMonitorRefresh; // 跟随刷新率开启→手动帧率失效，禁用整行避免误调（R119）
+        panel.Children.Add(fpsRow);
         int hz = Core.DisplayRefresh.RateOf(FrameCapture.Capture.Monitors.All().FirstOrDefault(m => m.IsPrimary)?.DeviceName);
         panel.Children.Add(ToggleRow("\uE7F4", "跟随显示器刷新率录满",
             (hz > 0 ? $"开启后录制帧率自动取当前录制显示器的刷新率（本机主屏检测到 {hz}Hz → 录满 {hz}fps），忽略上面的手动帧率。"
                     : "开启后录制帧率自动取当前录制显示器的刷新率（本机暂未检测到主屏刷新率，录制时按实际显示器实时检测）。")
             + "高刷屏（144/165/240Hz）录满才丝滑；MP4/WebM 可录满，GIF 受格式封顶约 50fps",
-            _settings.Current.FollowMonitorRefresh, v => _settings.Mutate(s => s.FollowMonitorRefresh = v)));
+            _settings.Current.FollowMonitorRefresh,
+            v => { _settings.Mutate(s => s.FollowMonitorRefresh = v); fpsRow.IsEnabled = !v; })); // 实时联动禁用上面的帧率滑杆（R119）
         panel.Children.Add(RecordFormatRow());
         // R61：长按录制时长上限已移除——录到用户停为止（帧落盘，不再受内存/时长限制）。
         // 唯一护栏是磁盘剩余空间（<1GB 自动停并保留已录内容），无需再暴露数值。
@@ -144,7 +160,7 @@ public sealed class SettingsWindow : Window
             _settings.Current.RecordIncludeCursor, v => _settings.Mutate(s => s.RecordIncludeCursor = v)));
 
         // ---- 产物 ----
-        panel.Children.Add(Group("产物"));
+        panel = Cat("产物");
         panel.Children.Add(ToggleRow("\uE8B9", "自动生成 Agent 胶片条", "每次捕获后自动生成逐帧胶片条图，便于 AI 理解动作过程",
             _settings.Current.AgentStripEnabled, v => _settings.Mutate(s => s.AgentStripEnabled = v)));
         panel.Children.Add(SliderRow("\uE8FD", "胶片条抽帧数", "自动生成 Agent 胶片条时从录制帧中抽取的帧数",
@@ -155,24 +171,24 @@ public sealed class SettingsWindow : Window
         panel.Children.Add(PathRow());
 
         // ---- 编辑器 ----
-        panel.Children.Add(Group("编辑器"));
+        panel = Cat("编辑器");
         panel.Children.Add(ToggleRow("\uEDD7", "记住上次的工具/颜色/粗细", "关闭编辑器时记住你最后用的标注工具、颜色和线宽，下次打开直接是它们，省去每次重选。关闭后每次打开都回到默认（浏览 / 红 / 中）",
             _settings.Current.RememberEditorTools, v => _settings.Mutate(s => s.RememberEditorTools = v)));
         panel.Children.Add(ToggleRow("\uE8C1", "识别文字后显示结果窗", "「识别文字」成功后，除写剪贴板外再弹出结果窗：可查看/编辑识别文本、部分选中复制、一键复制全部。关闭则仅写剪贴板 + 轻提示（更快）",
             _settings.Current.OcrShowResult, v => _settings.Mutate(s => s.OcrShowResult = v)));
 
         // ---- 贴图 ----
-        panel.Children.Add(Group("贴图"));
+        panel = Cat("贴图");
         panel.Children.Add(ToggleRow("\uE718", "拖动贴图自动磁边", "拖动贴图松手时自动吸附对齐：贴近所在屏幕边缘则贴合停靠到屏幕四边/四角，贴近同屏其他贴图的边或中线则与之对齐（便于整齐排布多张贴图，Snipaste 式手感）。关闭则松手停在原地",
             _settings.Current.PinSnapEdges, v => _settings.Mutate(s => s.PinSnapEdges = v)));
 
         // ---- 外观 ----
-        panel.Children.Add(Group("外观"));
+        panel = Cat("外观");
         panel.Children.Add(ThemeRow());
         panel.Children.Add(AccentRow());
 
         // ---- 系统 ----
-        panel.Children.Add(Group("系统"));
+        panel = Cat("系统");
         panel.Children.Add(ToggleRow("\uE7E8", "开机自启", "登录 Windows 时自动启动 FrameCapture",
             _settings.Current.RunAtStartup, v =>
             {
@@ -180,16 +196,57 @@ public sealed class SettingsWindow : Window
                 try { StartupService.Apply(v); } catch { }
             }));
 
-        // 小屏防护：工作区更矮时滚动而非裁掉底部（SizeToContent 受 MaxHeight 封顶）
-        MaxHeight = Math.Max(420, SystemParameters.WorkArea.Height - 48);
+        // ---- 标签条 + 内容宿主（分页装配，R119「内容分页」）----
+        var tabStrip = new WrapPanel { Margin = new Thickness(12, 6, 12, 2) };
+        var host = new Grid();
+        var pills = new List<(Border el, TextBlock txt)>();
+        void PaintPill(int idx)
+        {
+            for (int i = 0; i < pills.Count; i++)
+            {
+                bool on = i == idx;
+                pills[i].el.Background = new SolidColorBrush(on ? Theme.Accent : Theme.Hover);
+                pills[i].txt.Foreground = new SolidColorBrush(on ? Color.FromRgb(0, 0, 0) : Theme.Text);
+            }
+        }
+        void ShowCat(int idx)
+        {
+            _cat = idx;
+            for (int i = 0; i < cats.Count; i++)
+                cats[i].Body.Visibility = i == idx ? Visibility.Visible : Visibility.Collapsed;
+            PaintPill(idx);
+        }
+        for (int i = 0; i < cats.Count; i++)
+        {
+            int captured = i;
+            var txt = new TextBlock { Text = cats[i].Name, FontSize = 12.5, Foreground = new SolidColorBrush(Theme.Text) };
+            var pill = new Border
+            {
+                CornerRadius = new CornerRadius(7),
+                Padding = new Thickness(11, 5, 11, 5),
+                Margin = new Thickness(0, 2, 6, 2),
+                Background = new SolidColorBrush(Theme.Hover),
+                Child = txt,
+                Cursor = Cursors.Hand,
+                Focusable = true,
+            };
+            pill.MouseLeftButtonDown += (_, e) => { ShowCat(captured); e.Handled = true; };
+            pill.KeyDown += (_, e) => { if (e.Key is Key.Space or Key.Enter) { ShowCat(captured); e.Handled = true; } };
+            pills.Add((pill, txt));
+            tabStrip.Children.Add(pill);
+            host.Children.Add(cats[i].Body);
+        }
+        ShowCat(Math.Clamp(_restoreCat, 0, cats.Count - 1));   // 重建时停在原分页（R119）
+
         var scroller = new ScrollViewer
         {
-            Content = panel,
+            Content = host,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
         };
-        DockPanel.SetDock(scroller, Dock.Bottom); // LastChildFill 仍填满剩余
-        dock.Children.Add(scroller);
+        DockPanel.SetDock(tabStrip, Dock.Top);
+        dock.Children.Add(tabStrip);
+        dock.Children.Add(scroller);   // LastChildFill 填满剩余
         root.Child = dock;
         Content = root;
 
@@ -207,27 +264,20 @@ public sealed class SettingsWindow : Window
             Win32.SetRoundedCorners(hwnd);
             Win32.SetWindowTextW(hwnd, "FrameCapture Settings");
         };
-        // 标题栏 = 原生 HTCAPTION（共享件，与帮助窗同款）：位移 1:1、贴边吸附/多屏语义全免费；关闭按钮让位给 WPF 命中。
-        FrameCapture.Core.Fluent.InstallCaptionDrag(this, _closeBtn);
+        // 拖窗改由 WindowChrome 原生 CaptionHeight 处理（见 ctor）；不再挂 WM_NCHITTEST 钩子，避免与 WindowChrome 命中测试抢序。
         Closed += (_, _) => AppHost.Current.InstallHotkeys();
     }
-
-    /// <summary>分组标题：小字暗色，替代旧版一整屏 Rule() 平铺（R59 按类别分组）。</summary>
-    static FrameworkElement Group(string name) => new TextBlock
-    {
-        Text = name,
-        FontSize = 11,
-        FontWeight = FontWeights.SemiBold,
-        Foreground = new SolidColorBrush(Theme.TextDim),
-        Margin = new Thickness(2, 10, 0, 2),
-    };
 
     /// <summary>主题/强调色变更后原地重建：同位交叉淡入新窗（旧淡出与新淡入非对称节拍）。</summary>
     void RebuildInPlace()
     {
         var oldw = this;
         var nw = new SettingsWindow();
+        nw._restoreCat = oldw._cat;   // 改主题/强调色重建后停在原分页，不跳回首页（R119）
         nw.Build();
+        // 构造里是 CenterScreen，Show 时会覆盖下面手设的 Left/Top → 每次改主题/强调色都弹回屏幕中心。
+        // 重建必须走 Manual，才尊重原位置（R119 修「改主题/强调色窗口跑到中心」）。
+        nw.WindowStartupLocation = WindowStartupLocation.Manual;
         nw.Left = oldw.Left; nw.Top = oldw.Top;
         nw.Opacity = 0;
         nw.Show();
@@ -283,6 +333,7 @@ public sealed class SettingsWindow : Window
                     // 拖动中只预览（改静态色+全局样式），松板才落盘重建——避免每像素重建窗口
                     previewed = c;
                     Theme.Accent = Color.FromRgb(c.R, c.G, c.B);
+                    chip.Background = new SolidColorBrush(Theme.Accent); // 色片实时跟色，所见即所得（R119 缓解「强调色不实时」）
                     FrameCapture.Core.Fluent.ApplyGlobalStyles();
                 };
                 _accentPop = new Popup

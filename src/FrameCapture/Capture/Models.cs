@@ -49,6 +49,9 @@ public sealed class CapturedSequence
     public string MonitorDevice { get; init; } = "";
     /// <summary>因内存预算被丢弃的帧数（0 = 完整捕获）。</summary>
     public int DroppedFrames { get; init; }
+    /// <summary>本次捕获的实际帧率：跟随刷新率时=显示器刷新率，否则=手动值。0=未知，消费方回退设置值。
+    /// 编辑器时间轴/时长必须用它——否则「跟随刷新率」录制（如 160fps）时按手动 30fps 算时间会全错（R119）。</summary>
+    public int Fps { get; init; }
     public Stopwatch StartedAt { get; init; } = Stopwatch.StartNew();
 
     public double TotalMs => Frames.Count > 0 ? Frames[^1].TimeMs : 0;

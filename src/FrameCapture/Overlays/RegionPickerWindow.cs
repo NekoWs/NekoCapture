@@ -314,9 +314,16 @@ public sealed class RegionPickerWindow : Window
             }
             else if (e.Key == Key.Tab && _curElem != null)
             {
-                // Tab 上钻控件层级：输入框 → 表单容器 → … → 整窗
+                // Tab 上钻控件层级：输入框 → 表单容器 → … → 整窗。锁定结果，鼠标微动不再被 hover 抢回子控件（R119）。
                 var up = Core.ElementSnap.Parent(_curElem);
-                if (up != null) { _curElem = up; ShowSpot(up.Rect); e.Handled = true; }
+                if (up != null)
+                {
+                    _curElem = up;
+                    _drillLock = true;
+                    _drillAnchor = Mouse.GetPosition(this);
+                    ShowSpot(up.Rect);
+                    e.Handled = true;
+                }
             }
         };
         MouseLeftButtonDown += OnDown;
@@ -332,6 +339,8 @@ public sealed class RegionPickerWindow : Window
 
     private Rectangle _spotStroke = null!;
     private Core.ElementHit? _curElem;
+    private bool _drillLock;      // Tab 上钻后锁定选中的父容器：鼠标微动不再被 hover 吸附抢回子控件（R119）
+    private Point _drillAnchor;   // 锁定时的光标 DIP 位置，移动超过阈值才解锁恢复常规吸附
     private System.Windows.Controls.Border _hint = null!;
     private System.Windows.Controls.Border _badge = null!;
     private TextBlock _badgeText = null!;
@@ -367,6 +376,7 @@ public sealed class RegionPickerWindow : Window
         var p = WindowPosToPhys(e.GetPosition(this));
         _dragX1 = p.X; _dragY1 = p.Y;
         _dragging = true;
+        _drillLock = false;   // 起手拖拽即解除 Tab 钻取锁定
         CaptureMouse();
     }
 
@@ -382,6 +392,16 @@ public sealed class RegionPickerWindow : Window
         }
         else
         {
+            // Tab 上钻锁定：光标未明显移动就保持锁定的父容器，否则鼠标一抖就被 hover 吸附回子控件（R119）。
+            if (_drillLock)
+            {
+                if ((dip - _drillAnchor).Length <= 6)
+                {
+                    if (_curElem != null) { ShowSpot(_curElem.Rect); UpdateLoupe(dip, p, _curElem.Rect); }
+                    return;
+                }
+                _drillLock = false;   // 明显移动→解锁，恢复常规吸附
+            }
             // 控件级吸附（UIA）优先：输入框/文字/图片/容器…；不支持时回退窗口级
             if (_snapContent)
             {

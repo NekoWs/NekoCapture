@@ -138,27 +138,14 @@ public sealed class CaptureToast : Window
             // 后续截屏拍不到浮窗；FC_TOAST_NOEXCLUDE=1 仅供视觉审查截图（生产默认排除）
             if (Environment.GetEnvironmentVariable("FC_TOAST_NOEXCLUDE") != "1")
                 Win32.SetWindowDisplayAffinity(h, Win32.WDA_EXCLUDEFROMCAPTURE);
-            if (PresentationSource.FromVisual(this) is System.Windows.Interop.HwndSource src)
-                src.AddHook((hwnd, msg, w, l, ref handled) =>
-                {
-                    const int WM_KEYDOWN = 0x0100, WM_SYSKEYDOWN = 0x0104;
-                    if (msg == WM_KEYDOWN || msg == WM_SYSKEYDOWN)
-                    {
-                        int vk = w.ToInt32();
-                        if (vk == 0x0D) // Enter → 进编辑器
-                        {
-                            handled = true;
-                            Dispatcher.BeginInvoke(() => { FrameCapture.Core.Trace.Log("toast→edit(key)"); onEdit(); Dismiss(); });
-                        }
-                        else if (vk == 0x1B) // Esc → 关闭
-                        {
-                            handled = true;
-                            Dispatcher.BeginInvoke(Dismiss);
-                        }
-                    }
-                    return IntPtr.Zero;
-                });
+            // Enter/Esc 不在此 HWND 钩子里处理：浮窗 ShowActivated=false 不抢焦点，键根本不会发到本 HWND，
+            // 旧钩子是死代码（R119 修「Enter 无效」）。改由 HotkeyManager 全局钩子在 ToastActive 时代收。
         };
+
+        // 全局钩子代收 Enter/Esc（浮窗不抢焦点，只能这样）；生命周期绑定本浮窗，Closed 清零，绝不泄漏成"全局 Enter 失灵"。
+        Services.HotkeyManager.ToastActive = true;
+        Services.HotkeyManager.ToastEnter = () => Dispatcher.BeginInvoke(() => { FrameCapture.Core.Trace.Log("toast→edit(key)"); onEdit(); Dismiss(); });
+        Services.HotkeyManager.ToastEsc = () => Dispatcher.BeginInvoke(Dismiss);
 
         _dismiss = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(3200) };
         _dismiss.Tick += (_, _) => Dismiss();
@@ -166,7 +153,17 @@ public sealed class CaptureToast : Window
         MouseEnter += (_, _) => _dismiss.Stop();          // 阅读/移动鼠标时不消失
         MouseLeave += (_, _) => { _dismiss.Start(); };    // 移开再给 3.2s
 
-        Closed += (_, _) => { _dismiss.Stop(); if (ReferenceEquals(_current, this)) _current = null; };
+        Closed += (_, _) =>
+        {
+            _dismiss.Stop();
+            if (ReferenceEquals(_current, this))
+            {
+                _current = null;
+                Services.HotkeyManager.ToastActive = false;
+                Services.HotkeyManager.ToastEnter = null;
+                Services.HotkeyManager.ToastEsc = null;
+            }
+        };
 
         FrameCapture.Core.Trace.Log("toast shown");
         FrameCapture.Core.Fluent.FadeIn(this, FrameCapture.Core.Fluent.Motion.EnterMs, 8, offscreenFirstFrame: true);

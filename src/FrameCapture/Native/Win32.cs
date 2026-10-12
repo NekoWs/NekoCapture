@@ -284,6 +284,20 @@ internal static class Win32
 
     public static readonly uint SIZEOF_BITMAPINFOHEADER = (uint)Marshal.SizeOf<BITMAPINFO>();
 
+    // ---- 工作集回收（R120 A1）：录制/编辑大位图关闭后，.NET 只标垃圾不把页交还 OS，工作集虚高；
+    // 用户手动 MemReduct 就是调 SetProcessWorkingSetSize(-1,-1) 把空闲页踢回系统。我们在大操作收尾主动做同样的事。 ----
+    [DllImport("kernel32.dll")]
+    public static extern IntPtr GetCurrentProcess();
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern bool SetProcessWorkingSetSize(IntPtr hProcess, IntPtr dwMinimumWorkingSetSize, IntPtr dwMaximumWorkingSetSize);
+
+    /// <summary>把当前进程工作集裁到最小（空闲页交还 OS）。-1/-1 = 系统按需重设上下限。</summary>
+    public static void TrimWorkingSet()
+    {
+        try { SetProcessWorkingSetSize(GetCurrentProcess(), new IntPtr(-1), new IntPtr(-1)); } catch { }
+    }
+
     /// <summary>把 WPF 窗口句柄包成 WinForms IWin32Window，供 FolderBrowserDialog 等模态框挂 owner（R63）。</summary>
     internal sealed class WndOwner : System.Windows.Forms.IWin32Window
     {
