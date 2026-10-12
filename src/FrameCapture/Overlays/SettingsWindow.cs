@@ -614,7 +614,7 @@ public sealed class SettingsWindow : Window
         {
             Width = 12,
             Height = 12,
-            Fill = new SolidColorBrush(initial ? Color.FromRgb(0, 0, 0) : Theme.Text),
+            Fill = new SolidColorBrush(initial ? Fluent.OnAccentColor(Theme.Accent) : Theme.Text),
             HorizontalAlignment = HorizontalAlignment.Left,
             Margin = new Thickness(4, 0, 4, 0),
             RenderTransform = new System.Windows.Media.TranslateTransform(initial ? 20 : 0, 0),
@@ -745,7 +745,7 @@ public sealed class SettingsWindow : Window
                     Text = glyph,
                     FontFamily = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets, Segoe UI Symbol"),
                     FontSize = 14,
-                    Foreground = new SolidColorBrush(captured == cur ? Color.FromRgb(0, 0, 0) : Theme.Text),
+                    Foreground = new SolidColorBrush(captured == cur ? Fluent.OnAccentColor(Theme.Accent) : Theme.Text),
                 },
                 Cursor = Cursors.Hand,
                 ToolTip = tip,
@@ -839,7 +839,7 @@ public sealed class SettingsWindow : Window
                 {
                     Text = text,
                     FontSize = 12.5,
-                    Foreground = new SolidColorBrush(captured == cur ? Color.FromRgb(0, 0, 0) : Theme.Text),
+                    Foreground = new SolidColorBrush(captured == cur ? Fluent.OnAccentColor(Theme.Accent) : Theme.Text),
                 },
                 Cursor = Cursors.Hand,
                 ToolTip = tip,
@@ -852,7 +852,7 @@ public sealed class SettingsWindow : Window
                 {
                     bool sel = cid == captured;
                     c.Background = new SolidColorBrush(sel ? Theme.Accent : Theme.Hover);
-                    if (c.Child is TextBlock tb) tb.Foreground = new SolidColorBrush(sel ? Color.FromRgb(0, 0, 0) : Theme.Text);
+                    if (c.Child is TextBlock tb) tb.Foreground = new SolidColorBrush(sel ? Fluent.OnAccentColor(Theme.Accent) : Theme.Text);
                 }
             }
             chip.MouseLeftButtonDown += (_, e) => { Apply(); e.Handled = true; };
@@ -907,7 +907,7 @@ public sealed class SettingsWindow : Window
                 {
                     Text = text,
                     FontSize = 12.5,
-                    Foreground = new SolidColorBrush(captured == cur ? Color.FromRgb(0, 0, 0) : Theme.Text),
+                    Foreground = new SolidColorBrush(captured == cur ? Fluent.OnAccentColor(Theme.Accent) : Theme.Text),
                 },
                 Cursor = Cursors.Hand,
                 ToolTip = tip,
@@ -920,7 +920,7 @@ public sealed class SettingsWindow : Window
                 {
                     bool sel = cid == captured;
                     c.Background = new SolidColorBrush(sel ? Theme.Accent : Theme.Hover);
-                    if (c.Child is TextBlock tb) tb.Foreground = new SolidColorBrush(sel ? Color.FromRgb(0, 0, 0) : Theme.Text);
+                    if (c.Child is TextBlock tb) tb.Foreground = new SolidColorBrush(sel ? Fluent.OnAccentColor(Theme.Accent) : Theme.Text);
                 }
             }
             chip.MouseLeftButtonDown += (_, e) => { Apply(); e.Handled = true; };
@@ -996,7 +996,7 @@ public sealed class SettingsWindow : Window
                 {
                     Text = text,
                     FontSize = 12.5,
-                    Foreground = new SolidColorBrush(captured == cur ? Color.FromRgb(0, 0, 0) : Theme.Text),
+                    Foreground = new SolidColorBrush(captured == cur ? Fluent.OnAccentColor(Theme.Accent) : Theme.Text),
                 },
                 Cursor = Cursors.Hand,
                 ToolTip = tip,
@@ -1009,7 +1009,7 @@ public sealed class SettingsWindow : Window
                 {
                     bool sel = cid == captured;
                     c.Background = new SolidColorBrush(sel ? Theme.Accent : Theme.Hover);
-                    if (c.Child is TextBlock tb) tb.Foreground = new SolidColorBrush(sel ? Color.FromRgb(0, 0, 0) : Theme.Text);
+                    if (c.Child is TextBlock tb) tb.Foreground = new SolidColorBrush(sel ? Fluent.OnAccentColor(Theme.Accent) : Theme.Text);
                 }
             }
             chip.MouseLeftButtonDown += (_, e) => { Apply(); e.Handled = true; };
@@ -1062,7 +1062,7 @@ public sealed class SettingsWindow : Window
                 {
                     Text = text,
                     FontSize = 12.5,
-                    Foreground = new SolidColorBrush(captured == cur ? Color.FromRgb(0, 0, 0) : Theme.Text),
+                    Foreground = new SolidColorBrush(captured == cur ? Fluent.OnAccentColor(Theme.Accent) : Theme.Text),
                 },
                 Cursor = Cursors.Hand,
                 ToolTip = tip,
@@ -1075,7 +1075,7 @@ public sealed class SettingsWindow : Window
                 {
                     bool sel = cs == captured;
                     c.Background = new SolidColorBrush(sel ? Theme.Accent : Theme.Hover);
-                    if (c.Child is TextBlock tb) tb.Foreground = new SolidColorBrush(sel ? Color.FromRgb(0, 0, 0) : Theme.Text);
+                    if (c.Child is TextBlock tb) tb.Foreground = new SolidColorBrush(sel ? Fluent.OnAccentColor(Theme.Accent) : Theme.Text);
                 }
             }
             chip.MouseLeftButtonDown += (_, e) => { Apply(); e.Handled = true; };
@@ -1130,7 +1130,7 @@ public sealed class SettingsWindow : Window
                 {
                     Text = text,
                     FontSize = 12.5,
-                    Foreground = new SolidColorBrush(sel0 ? Color.FromRgb(0, 0, 0) : Theme.Text),
+                    Foreground = new SolidColorBrush(sel0 ? Fluent.OnAccentColor(Theme.Accent) : Theme.Text),
                 },
                 Cursor = Cursors.Hand,
                 ToolTip = tip,
@@ -1143,7 +1143,7 @@ public sealed class SettingsWindow : Window
                 {
                     bool sel = Math.Abs(cs - captured) < 0.01;
                     c.Background = new SolidColorBrush(sel ? Theme.Accent : Theme.Hover);
-                    if (c.Child is TextBlock tb) tb.Foreground = new SolidColorBrush(sel ? Color.FromRgb(0, 0, 0) : Theme.Text);
+                    if (c.Child is TextBlock tb) tb.Foreground = new SolidColorBrush(sel ? Fluent.OnAccentColor(Theme.Accent) : Theme.Text);
                 }
             }
             chip.MouseLeftButtonDown += (_, e) => { Apply(); e.Handled = true; };
@@ -1207,7 +1207,7 @@ public sealed class SettingsWindow : Window
         };
         var knob = new Ellipse
         {
-            Width = 12, Height = 12, Fill = new SolidColorBrush(on ? Color.FromRgb(0, 0, 0) : Theme.Text),
+            Width = 12, Height = 12, Fill = new SolidColorBrush(on ? Fluent.OnAccentColor(Theme.Accent) : Theme.Text),
             HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(4, 0, 4, 0),
             RenderTransform = new System.Windows.Media.TranslateTransform(on ? 20 : 0, 0),
         };

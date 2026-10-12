@@ -2036,3 +2036,10 @@ status: done
 3. **重启 release 实例**（**必须最后一步**）：解压或直接用 publish-staging 启 `FrameCapture.exe`。⚠️ 单实例 Mutex——若提前启动，用户双击自己的构建会被 `ForwardToPrimary` 转发后退出，自己的实例起不来。
 4. **更新 TODO.md line 3** 过期收尾头（现写「SelfTest 337/全出厂默认/Release 运行」，应改为 SelfTest 387、用户自定义手势、Release 运行）。
 5. **不要**从 `settings.json.bak` 恢复（那是 B2 前的旧配置，会回退手势功能；用户当前配置正确）。
+
+**R144 · 硬编码色审计（续 R143）→ 修 SettingsWindow 13 处「黑压强调色」**
+- **审计**：Overlays 里 `Colors.Gray/Black/White` 7 处**全合法**（4 处 `DropShadowEffect` 阴影恒黑 + 3 处取色器 SV 渐变白→色相→黑，设计如此）。但 `Color.FromRgb(0,0,0)` 在 SettingsWindow 有 **13 处，全压在强调色底上**：11 处选中态 chip 前景（`captured==cur ? 黑 : Theme.Text`，选中底=`Theme.Accent`）+ 2 处开关 knob（on 时轨道=`Theme.Accent`、knob=黑）。
+- **缺陷**：深色强调色下黑字/黑 knob 与深底同色→隐形。用户 `CustomColors` 就含 `#232EF6`（字面亮度≈65），若选它当强调色，选中 chip 与开关 knob 会看不见。
+- **修复**：13 处 `replace_all` → `Fluent.OnAccentColor(Theme.Accent)`（亮度>128→黑，否则白）。对默认 `#4CC2FF`(165) 与当前 `#7F75FF`(136) 均→黑，**外观不变**；对深色强调色→白，可读。向后兼容。
+- **保留非缺陷**：RegionPicker 的 `#4CC2FF`（尺寸徽标/放大镜读数/像素标记）是**深色半透明浮层与任意像素之上**的固定浅蓝，改 `Theme.Accent` 反致深色强调色不可读——故意保留。
+- **验证**：构建 **0 错**；**SelfTest 387 绿**。改动纯 UI 前景/knob 色，不触 e2e；完整护栏留批次末统一跑。
