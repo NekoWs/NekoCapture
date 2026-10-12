@@ -25,8 +25,17 @@ public sealed class CaptureController : IDisposable
     private Core.ToggleRecord.St _tr = Core.ToggleRecord.St.Idle;
     private System.Windows.Threading.DispatcherTimer? _tapWindowTimer;
     private System.Windows.Threading.DispatcherTimer? _stopWindowTimer;
-    // R78：保留最近一次静态截图帧，供托盘「编辑上次截图」在浮窗消失后找回编辑器
+    // R78：保留最近一次静态截图帧，供托盘「编辑上次截图」在托盘找回编辑器
     private readonly LastStill _lastStill = new();
+    // R88：滚动截图——选区后自动检测滚动并拼接（目标窗保持焦点，用户只管滚）
+    private bool _scrollAfterSelect;
+    private Overlays.ScrollHintWindow? _scrollBar;
+    private byte[]? _scrollAcc;
+    private int _scrollW, _scrollH, _scrollSegs;
+    private RectI _scrollRegion;
+    private string _scrollDevice = "";
+    private System.Windows.Threading.DispatcherTimer? _scrollTimer;
+    private byte[]? _scrollPrevB;   // 上一 tick 抓帧，用于「滚动已停稳」判定（避免拼接滚动中途的过渡帧）
 
     public Phase State { get; private set; } = Phase.Idle;
 
@@ -176,6 +185,17 @@ public sealed class CaptureController : IDisposable
                 s.RegionX = region.Value.X; s.RegionY = region.Value.Y;
                 s.RegionW = region.Value.W; s.RegionH = region.Value.H;
             });
+            if (_scrollAfterSelect)
+            {
+                // 滚动截图：选区即进入步进拼接循环（延迟一拍让选取层退场，别把选区界面截进首帧）
+                _scrollAfterSelect = false;
+                HideOutline();
+                var sreg = region.Value; var sdev = monitor.DeviceName;
+                var st = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(220) };
+                st.Tick += (_, _) => { st.Stop(); StartScrollLoop(sreg, sdev); };
+                st.Start();
+                return;
+            }
             if (stillAfterSelect)
             {
                 // 选区完成即截一帧**静态图**（PNG + 剪贴板），不进 GIF 管线、不开编辑器。
@@ -225,6 +245,90 @@ public sealed class CaptureController : IDisposable
         };
         _picker.Show();
         ForceForeground(_picker);
+    }
+
+    // ---------- R88 滚动截图 ----------
+    /// <summary>托盘/入口调用：复用选区流程选一块要滚的区域，选完进入步进拼接循环。</summary>
+    public void BeginScrollCapture()
+    {
+        FrameCapture.Core.Trace.Log("scroll capture→picker");
+        BeginScopeSelection();
+        _scrollAfterSelect = true;
+    }
+
+    void StartScrollLoop(RectI region, string device)
+    {
+        var f = LiveCapture.Grab(region);
+        if (f == null) { FrameCapture.Core.Trace.Log("scroll: first grab null"); return; }
+        _scrollAcc = f.Bgra; _scrollW = f.W; _scrollH = f.H; _scrollRegion = region; _scrollDevice = device; _scrollSegs = 1;
+        _scrollPrevB = null;
+        _scrollBar = new Overlays.ScrollHintWindow(region, device) { OnDone = ScrollDone, OnCancel = ScrollCancel };
+        _scrollBar.SetProgress(1, _scrollH);
+        _scrollBar.Show();   // ShowActivated=false：不抢焦点，目标窗继续接收滚动
+        Overlays.ScrollHintWindow.Current = _scrollBar;
+        _scrollTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(280) };
+        _scrollTimer.Tick += (_, _) => ScrollTick();
+        _scrollTimer.Start();
+        FrameCapture.Core.Trace.Log($"scroll loop start {region.W}x{region.H}");
+    }
+
+    void ScrollTick()
+    {
+        if (_scrollAcc == null || _scrollBar == null) return;
+        var b = LiveCapture.Grab(_scrollRegion);
+        if (b == null) return;
+        // 稳定判定：本帧与上一帧一致（上一帧底部完全包含本帧）才算滚动停稳，避免拼接滚动中途的过渡帧
+        bool stable = _scrollPrevB != null &&
+            FrameCapture.Core.ScrollStitch.FindOverlap(_scrollPrevB, _scrollW, _scrollPrevB.Length / (_scrollW * 4), b.Bgra, b.H) >= b.H;
+        _scrollPrevB = b.Bgra;
+        if (!stable) return;
+        int ov = FrameCapture.Core.ScrollStitch.FindOverlap(_scrollAcc, _scrollW, _scrollH, b.Bgra, b.H);
+        if (ov >= b.H) return;   // 画面没再滚（本帧已含于累积底部）
+        if (ov <= 0) { _scrollBar.FlashHint("滚动太快、找不到重叠——请少滚一点"); return; }   // 滚过头
+        int newRows = b.H - ov;
+        if (newRows < 3) return; // 抖动级微滚，忽略
+        _scrollAcc = FrameCapture.Core.ScrollStitch.Append(_scrollAcc, _scrollW, _scrollH, b.Bgra, b.H, ov);
+        _scrollH = _scrollAcc.Length / (_scrollW * 4);
+        _scrollSegs++;
+        _scrollBar.SetProgress(_scrollSegs, _scrollH);
+        FrameCapture.Core.Trace.Log($"scroll append ov={ov} new={newRows} h={_scrollH}");
+    }
+
+    void ScrollDone()
+    {
+        _scrollTimer?.Stop(); _scrollTimer = null;
+        var acc = _scrollAcc; var bar = _scrollBar;
+        _scrollAcc = null; _scrollBar = null; _scrollPrevB = null;
+        if (acc == null) { bar?.CloseSelf(); return; }
+        var frame = new CapturedFrame { Bgra = acc, W = _scrollW, H = _scrollH, TimeMs = 0 };
+        var reg = _scrollRegion; var dev = _scrollDevice; int segs = _scrollSegs; _scrollSegs = 0;
+        bar?.CloseSelf();
+        var pth = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "FrameCapture", $"scroll-{DateTime.Now:HHmmss}.png");
+        try { FrameCapture.Services.BgraImage.SavePng(frame, pth); } catch { }
+        FrameCapture.Encoding.ClipboardService.SetFrame(frame);
+        FrameCapture.Services.SaveService.MaybeSavePng(frame);
+        if (_settings.Current.CaptureSound) FrameCapture.Core.CaptureSound.Play();
+        FrameCapture.Core.Trace.Log($"scroll done {frame.W}x{frame.H} segs={segs} {pth}");
+        switch (FrameCapture.Core.AfterCapture.Resolve(_settings.Current.AfterCapture))
+        {
+            case FrameCapture.Core.AfterCaptureAction.Editor:
+                OpenEditorForFrame(frame, reg, dev);
+                break;
+            case FrameCapture.Core.AfterCaptureAction.Copy:
+                break;
+            default:
+                Overlays.CaptureToast.Show(frame, reg, dev, () => OpenEditorForFrame(frame, reg, dev));
+                break;
+        }
+        _lastStill.Set(frame, reg, dev);
+    }
+
+    void ScrollCancel()
+    {
+        _scrollTimer?.Stop(); _scrollTimer = null;
+        var bar = _scrollBar; _scrollBar = null; _scrollAcc = null; _scrollPrevB = null; _scrollSegs = 0;
+        bar?.CloseSelf();
+        FrameCapture.Core.Trace.Log("scroll cancel");
     }
 
     public ScreenRegion? StoredRegion()

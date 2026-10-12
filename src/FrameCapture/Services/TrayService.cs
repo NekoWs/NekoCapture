@@ -72,6 +72,7 @@ public sealed class TrayService : IDisposable
         // R78：静态截图的确认浮窗会自动消失，留一个入口把最近那张重新拉回编辑器标注
         if (_host.Controller.HasLastStill)
             Item("编辑上次截图", () => _host.Controller.EditLastStill());
+        Item("滚动截图（长图）", () => _host.Controller.BeginScrollCapture());
         Sep();
         Item("快捷键设置…", OpenSettings);
         Item("帮助", OpenHelp);

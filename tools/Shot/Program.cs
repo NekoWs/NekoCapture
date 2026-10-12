@@ -185,6 +185,19 @@ switch (mode)
         Console.WriteLine($"mouse ({x1},{y1})->({x2},{y2})");
         break;
     }
+    case "wheel": // wheel x y [clicks] —— 移光标到 (x,y) 后滚 clicks 格（正=下 负=上，每格 120，模拟用户滚轮）
+    {
+        int x = int.Parse(args[1]), y = int.Parse(args[2]);
+        int clicks = args.Length > 3 ? int.Parse(args[3]) : 3;
+        int ax = x * 65535 / (System.Windows.Forms.Screen.PrimaryScreen.Bounds.Width - 1);
+        int ay = y * 65535 / (System.Windows.Forms.Screen.PrimaryScreen.Bounds.Height - 1);
+        mouse_event(0x01 | 0x8000, (uint)ax, (uint)ay, 0, 0); // MOVE|ABSOLUTE
+        await Task.Delay(80);
+        int step = clicks >= 0 ? -120 : 120;   // 负 delta=向下滚，正=向上
+        for (int i = 0; i < Math.Abs(clicks); i++) { mouse_event(0x0800, 0, 0, unchecked((uint)step), 0); await Task.Delay(60); } // MOUSEEVENTF_WHEEL
+        Console.WriteLine($"wheel ({x},{y}) x{clicks}");
+        break;
+    }
     case "postkey": // postkey <标题> <vk> —— PostMessage 直达窗口，绕过输入法
     {
         var hwnd = FindWindowW(null, args[2]);
