@@ -43,6 +43,10 @@ public sealed class GestureEngine
         public long LastClickTime;
         public bool ClickPending;
         public int DoubleClickMs = 400;
+        // 键盘点按/按住（Tap/Hold/HoldRelease）：本次按下的时序状态
+        public long KeyDownTime;
+        public bool KeyPending;
+        public bool HoldFired;
     }
 
     sealed class ChordEq : IEqualityComparer<KeyChord>
@@ -90,24 +94,40 @@ public sealed class GestureEngine
 
     /// <summary>重算所有已知组合键的激活态，触发新激活(KeyDown/Chord)/新失活(KeyUp)绑定。mods=事件时刻修饰键状态。
     /// triggerKey=本次按键事件的键，用于独占吞键判定（仅当激活的组合键带具体键且等于 triggerKey 才算候选）。</summary>
-    void RefreshActivation(ModifierKeys mods, int triggerKey = 0)
+    void RefreshActivation(ModifierKeys mods, int triggerKey = 0, long nowMs = 0)
     {
         foreach (var kv in _triggers)
         {
             var st = State(kv.Key);
-            bool now = ChordSatisfied(kv.Key, mods, _keyDown);
-            if (now && !st.Active)
+            bool active = ChordSatisfied(kv.Key, mods, _keyDown);
+            if (active && !st.Active)
             {
                 st.Active = true;
                 bool f1 = FireTrigger(kv.Key, TriggerKind.KeyDown);
                 bool f2 = FireTrigger(kv.Key, TriggerKind.Chord);
-                // 独占吞键候选：组合键带具体键(非纯修饰键)、正是本次事件键、且确有动作成功触发。
-                if ((f1 || f2) && kv.Key.Key != 0 && kv.Key.Key == triggerKey) _swallowThisEvent = true;
+                // 独占吞键候选：组合键带具体键(非纯修饰键)、正是本次事件键。
+                bool claim = kv.Key.Key != 0 && kv.Key.Key == triggerKey;
+                // 确有 KeyDown/Chord 动作成功触发 → 吞。
+                if ((f1 || f2) && claim) _swallowThisEvent = true;
+                // 键盘点按/按住：按下即认领（吞键，前台收不到），tap/hold 待抬起或阈值判定。
+                if (HasTapHold(kv.Key))
+                {
+                    st.KeyDownTime = nowMs; st.KeyPending = true; st.HoldFired = false;
+                    if (claim) _swallowThisEvent = true;
+                }
             }
-            else if (!now && st.Active)
+            else if (!active && st.Active)
             {
                 st.Active = false;
                 FireTrigger(kv.Key, TriggerKind.KeyUp);
+                // 点按/按住消歧：抬起时按本次按住时长判定（≥阈值=HoldRelease，否则=Tap）。
+                if (st.KeyPending)
+                {
+                    st.KeyPending = false;
+                    bool isHold = nowMs - st.KeyDownTime >= BindingHoldMs(kv.Key);
+                    FireTrigger(kv.Key, isHold ? TriggerKind.HoldRelease : TriggerKind.Tap);
+                    st.HoldFired = false;
+                }
                 // 失活即清空该组合键的鼠标/点击累积
                 st.PressDown = false; st.ClickCount = 0; st.ClickPending = false; st.LongPressFired = false;
             }
@@ -118,9 +138,13 @@ public sealed class GestureEngine
     public bool OnKeyDown(int key, ModifierKeys mods, long now)
     {
         _swallowThisEvent = false;
+        bool repeat = _keyDown.Contains(key);   // 已在按下集合=系统自动重复（按住不放连发）
         _keyDown.Add(key);
-        RefreshActivation(mods, key);
+        RefreshActivation(mods, key, now);
         if (_swallowThisEvent) { _swallowKeyUp.Add(key); return true; }
+        // 自动重复：该键首次按下已被认领（在 _swallowKeyUp 里）→ 重复也吞，
+        // 免得按住录制期间重复键漏给前台（旧 HookDecision 在捕获期吞主键的等价行为）。
+        if (repeat && _swallowKeyUp.Contains(key)) return true;
         return false;
     }
 
@@ -129,14 +153,14 @@ public sealed class GestureEngine
     {
         _swallowThisEvent = false;
         _keyDown.Remove(key);
-        RefreshActivation(mods, key);
+        RefreshActivation(mods, key, now);
         if (_swallowKeyUp.Remove(key)) return true;
         return false;
     }
 
     public void OnMouseDown(int button, ModifierKeys mods, long now)
     {
-        RefreshActivation(mods);   // 鼠标事件也刷新（修饰键可能在鼠标事件间隙变化）
+        RefreshActivation(mods, 0, now);   // 鼠标事件也刷新（修饰键可能在鼠标事件间隙变化）
         _pressCandidates.Clear();
         foreach (var kv in _triggers)
         {
@@ -217,6 +241,15 @@ public sealed class GestureEngine
                     FireTrigger(st.Chord, TriggerKind.LongPress);
                 }
             }
+            // 键盘按住：保持 ≥ 阈值即触发 Hold（确认按住才开始；抬起时再触发 HoldRelease）。
+            if (st.KeyPending && !st.HoldFired && _triggers.TryGetValue(st.Chord, out var tk) && tk.Contains(TriggerKind.Hold))
+            {
+                if (now - st.KeyDownTime >= BindingHoldMs(st.Chord))
+                {
+                    st.HoldFired = true;
+                    FireTrigger(st.Chord, TriggerKind.Hold);
+                }
+            }
             if (st.ClickPending && now - st.LastClickTime >= st.DoubleClickMs)
             {
                 st.ClickPending = false;
@@ -234,6 +267,22 @@ public sealed class GestureEngine
         foreach (var b in _bindings)
             if (b.Chord.Equals(c) && b.Trigger == TriggerKind.LongPress) return b.LongPressMs;
         return 500;
+    }
+
+    static bool IsTapHold(TriggerKind t) =>
+        t == TriggerKind.Tap || t == TriggerKind.Hold || t == TriggerKind.HoldRelease;
+
+    /// <summary>该组合键是否绑了键盘点按/按住类触发（按下即认领吞键、抬起/阈值判定 tap 或 hold）。</summary>
+    bool HasTapHold(KeyChord c) =>
+        _triggers.TryGetValue(c, out var s) &&
+        (s.Contains(TriggerKind.Tap) || s.Contains(TriggerKind.Hold) || s.Contains(TriggerKind.HoldRelease));
+
+    /// <summary>键盘按住阈值(ms)：取该组合键 Tap/Hold/HoldRelease 绑定的 LongPressMs；无则 250。</summary>
+    int BindingHoldMs(KeyChord c)
+    {
+        foreach (var b in _bindings)
+            if (b.Chord.Equals(c) && IsTapHold(b.Trigger)) return b.LongPressMs;
+        return 250;
     }
 
     /// <summary>触发某组合键的某类触发：按优先级依次尝试绑定，成功即止；失败按该条 Fallback 决定是否顺延下一条。

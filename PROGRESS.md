@@ -1864,3 +1864,11 @@ status: done
 - 根因：`UpdateImgRect` 定位「裁剪子区中心」用了缩放系数 `s` 而非整帧显示宽 `w`；居中裁剪两者近似（截图未暴露），非居中裁剪偏移数百 px → 画面甩出视口且与 `ClampPan` 不一致、中键拖不回。
 - 抽纯函数 `ZoomMath.CropViewRect`（不变量：裁剪中心 = 视口中心 + pan），`ApplyCrop` 后 `_zoom=MinZoom; pan=0`（裁剪即适配+居中）。
 - SelfTest T145a-d（非居中/带 pan/未裁剪 裁剪中心=视口中心+pan + 整帧尺寸=帧×s）。
+
+## R126 B2 旧快捷键退役·改由手势替代（① GestureCore 键盘点按/按住时序）
+- 目标：删旧捕获/选区热键与状态机，捕获键「轻点截图 + 按住录制」全交给手势引擎（完整旧手感）。本轮先落地引擎侧键盘时序（纯增量、零删除、零行为变化）。
+- `TriggerKind` 新增 `Tap`（快速抬起<阈值）/`Hold`（按住到阈值即触发，需宿主 Tick）/`HoldRelease`（长按抬起≥阈值触发）。阈值复用绑定的 `LongPressMs`（`BindingHoldMs`，无则 250ms）。
+- 引擎：组合键激活时若绑了 tap/hold 类→记按下时刻+置 pending+**按下即认领吞键**（前台收不到，tap/hold 稍后判定）；失活时按本次按住时长判定 `Tap`/`HoldRelease`；`Tick` 到阈值触发 `Hold`。`OnKeyDown` 自动重复也吞（按住录制期间不泄漏重复键，等价旧 HookDecision 捕获期吞主键）。
+- 两种手感皆可声明式表达：**零丢帧**（`KeyDown`→起录 + `Tap`→丢弃截图 + `HoldRelease`→停止，按下即录不丢首帧）；**确认按住**（`Hold`→起录 + `HoldRelease`→停止 + `Tap`→截图，避免轻点误起录）。
+- SelfTest T146a-f（轻点/长按抬起/零丢帧轻点/零丢帧长按/阈值起录/认领吞键含自动重复），地板 397→**403**。
+- 待办（B2 后续轮）：默认手势集 + AppHost 全走手势；删 AppSettings 旧字段/HookDecision/ToggleRecord/HotkeyManager 旧路径；TrayService/HelpWindow/WelcomeToast/App.xaml.cs 去旧引用；设置窗删旧热键行。

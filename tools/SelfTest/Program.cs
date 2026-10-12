@@ -2314,6 +2314,65 @@ static class SelfTest
             var (_, _, ww, hh) = ZoomMath.CropViewRect(1000, 800, 1920, 1080, 0.2, 0.3, 0.4, 0.5, 0.5, 0, 0);
             Chk("T145d-fullframe-size", Math.Abs(ww - 960) < 1e-6 && Math.Abs(hh - 540) < 1e-6, $"整帧显示尺寸=帧×s：实得 {ww}x{hh}");
         }
+        // T146 键盘点按/按住时序（R126 B2）：同一捕获键 轻点→截图、按住→录制。
+        // Tap=快速抬起(<阈值)，HoldRelease=长按抬起(≥阈值)，Hold=按住到阈值即触发（确认按住才开始）。
+        {
+            var M = new GestureProbe();
+            var eng = new GE.GestureEngine(M);
+            GE.GestureBinding B(string id, GE.ModifierKeys mods, int key, GE.TriggerKind trig, string[] acts, int lp = 250)
+                => new GE.GestureBinding { Id = id, Chord = new GE.KeyChord(mods, key), Trigger = trig,
+                     Actions = new List<string>(acts), LongPressMs = lp };
+            const int F6 = 0x75;
+
+            // T146a 轻点（100ms<250）→ 只触发 Tap
+            eng.SetBindings(new[] { B("tap", GE.ModifierKeys.None, F6, GE.TriggerKind.Tap, new[] { "Shot" }) });
+            eng.OnKeyDown(F6, GE.ModifierKeys.None, 0);
+            eng.OnKeyUp(F6, GE.ModifierKeys.None, 100);
+            Chk("T146a-tap-quick", M.Log.SequenceEqual(new[] { "Shot" }), "轻点 F6(100ms)→Tap→Shot，实得 " + string.Join(",", M.Log));
+
+            // T146b 长按抬起（400ms≥250）→ 只触发 HoldRelease
+            M.Log.Clear();
+            eng.SetBindings(new[] { B("hr", GE.ModifierKeys.None, F6, GE.TriggerKind.HoldRelease, new[] { "Stop" }) });
+            eng.OnKeyDown(F6, GE.ModifierKeys.None, 0);
+            eng.OnKeyUp(F6, GE.ModifierKeys.None, 400);
+            Chk("T146b-holdrelease-long", M.Log.SequenceEqual(new[] { "Stop" }), "长按 F6(400ms)抬起→HoldRelease→Stop，实得 " + string.Join(",", M.Log));
+
+            // T146c 零丢帧：KeyDown 起录 + Tap 丢弃 + HoldRelease 停止；轻点 → Start,Discard
+            M.Log.Clear();
+            eng.SetBindings(new[] {
+                B("kd", GE.ModifierKeys.None, F6, GE.TriggerKind.KeyDown, new[] { "Start" }),
+                B("tp", GE.ModifierKeys.None, F6, GE.TriggerKind.Tap, new[] { "Discard" }),
+                B("hr", GE.ModifierKeys.None, F6, GE.TriggerKind.HoldRelease, new[] { "Stop" }) });
+            eng.OnKeyDown(F6, GE.ModifierKeys.None, 0);
+            eng.OnKeyUp(F6, GE.ModifierKeys.None, 100);
+            Chk("T146c-zeroloss-tap", M.Log.SequenceEqual(new[] { "Start", "Discard" }), "零丢帧轻点→按下起录+抬起丢弃截图，实得 " + string.Join(",", M.Log));
+
+            // T146d 零丢帧：长按 → Start,Stop（保留录制）
+            M.Log.Clear();
+            eng.OnKeyDown(F6, GE.ModifierKeys.None, 0);
+            eng.OnKeyUp(F6, GE.ModifierKeys.None, 400);
+            Chk("T146d-zeroloss-hold", M.Log.SequenceEqual(new[] { "Start", "Stop" }), "零丢帧长按→按下起录+抬起停止保留，实得 " + string.Join(",", M.Log));
+
+            // T146e 非零丢帧：Hold 到阈值才起录，抬起停止；249ms 未起录
+            M.Log.Clear();
+            eng.SetBindings(new[] {
+                B("h", GE.ModifierKeys.None, F6, GE.TriggerKind.Hold, new[] { "Start" }),
+                B("hr", GE.ModifierKeys.None, F6, GE.TriggerKind.HoldRelease, new[] { "Stop" }),
+                B("tp", GE.ModifierKeys.None, F6, GE.TriggerKind.Tap, new[] { "Shot" }) });
+            eng.OnKeyDown(F6, GE.ModifierKeys.None, 0);
+            eng.Tick(249); bool early = M.Log.Count == 0;
+            eng.Tick(250);
+            eng.OnKeyUp(F6, GE.ModifierKeys.None, 400);
+            Chk("T146e-hold-at-threshold", early && M.Log.SequenceEqual(new[] { "Start", "Stop" }), "按住满 250ms 才起录→Stop，249ms 未起录，实得 " + string.Join(",", M.Log));
+
+            // T146f 认领吞键：tap/hold 组合键按下即吞（即便没绑 KeyDown/Chord），自动重复与抬起也吞
+            M.Log.Clear();
+            eng.SetBindings(new[] { B("tap", GE.ModifierKeys.None, F6, GE.TriggerKind.Tap, new[] { "Shot" }) });
+            bool swDown = eng.OnKeyDown(F6, GE.ModifierKeys.None, 0);
+            bool swRepeat = eng.OnKeyDown(F6, GE.ModifierKeys.None, 50);   // 自动重复
+            bool swUp = eng.OnKeyUp(F6, GE.ModifierKeys.None, 100);
+            Chk("T146f-claim-swallow", swDown && swRepeat && swUp, $"tap/hold 键按下+重复+抬起全吞（前台收不到），实得 down={swDown} rep={swRepeat} up={swUp}");
+        }
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");
         return fail == 0 ? 0 : 1;
     }

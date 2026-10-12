@@ -31,6 +31,16 @@ public enum TriggerKind
     LongPress,
     /// <summary>整个组合键（修饰键 + 主键）同时按下即触发（经典热键语义，等价于「组合键激活」）。</summary>
     Chord,
+    /// <summary>组合键（含主键）按下后<b>快速抬起</b>（按住时长 &lt; 阈值）触发——「轻点」。
+    /// 与 <see cref="Hold"/>/<see cref="HoldRelease"/> 配合实现「同一键：轻点做 A、按住做 B」。
+    /// 阈值取该组合键 Tap/Hold/HoldRelease 绑定的 <see cref="GestureBinding.LongPressMs"/>。</summary>
+    Tap,
+    /// <summary>组合键按下并<b>保持 ≥ 阈值</b>时触发（仍在按住的那一刻，需宿主周期调用 <c>Tick</c>）。
+    /// 用于「确认按住后才开始」（如按住才起录，避免轻点误触发）；与 <see cref="Tap"/> 互斥于同一次按下。</summary>
+    Hold,
+    /// <summary>组合键抬起、且本次按住时长 ≥ 阈值时触发（与 <see cref="Hold"/> 配对：按住做 A、松手做 B）。
+    /// 若绑了 <see cref="TriggerKind.KeyDown"/>（按下即开始，零丢帧），本触发负责「松手结束」。</summary>
+    HoldRelease,
 }
 
 /// <summary>动作序列中某步失败（invoker 返回 false / 抛异常）后的处理策略。<b>逐条绑定显式指定</b>，
