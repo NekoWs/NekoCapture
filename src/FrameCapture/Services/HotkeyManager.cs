@@ -27,6 +27,10 @@ public sealed class HotkeyManager : IDisposable
     /// <summary>滚动截图会话是否活跃（由控制条生命周期置位：Show=true、Closed=false）。
     /// volatile：钩子线程读、UI 线程写。为 true 时全局吞掉 Esc 并触发 ScrollCancel（QQ 式取消）。</summary>
     public static volatile bool ScrollActive;
+    /// <summary>R94 暂停全局热键：为 true 时钩子对所有自有热键放行（不触发、不吞键），
+    /// 让键完整落到前台应用——游戏/演示/与其他软件热键冲突时临时避让。托盘「暂停全局热键」切换，
+    /// 运行时状态（不持久化，重启自动恢复工作）。滚动会话的 Esc 取消仍优先于本判断。</summary>
+    public static volatile bool Paused;
     uint _downTick; // BeginCapture 事件的 GetTickCount 时间戳
 
     public bool Installed => _hook != IntPtr.Zero;
@@ -128,7 +132,7 @@ public sealed class HotkeyManager : IDisposable
             modsOk = ModifiersStillSatisfied(cap);
 
         var o = HookDecision.Decide(_pressed, isDown, vk, captureMatch, scopeMatch,
-            cap?.VirtualKey ?? 0, scp?.VirtualKey ?? 0, isMod, modsOk);
+            cap?.VirtualKey ?? 0, scp?.VirtualKey ?? 0, isMod, modsOk, Paused);
         _pressed = o.Next;
         switch (o.Action)
         {

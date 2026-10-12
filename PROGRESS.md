@@ -1382,3 +1382,20 @@ status: done
 - 构建 0 错误；SelfTest 仍 **301**（本轮为 WPF 布局 + 测试脚本，非纯逻辑，无新增单测）
 - 完整护栏 GUARDRAIL PASS（FAIL=0 SKIP=1 floor280，err_delta=0；探针修复后 e2e:editor-keys/zoom/esc-layers/hotkey/tap-semantics/fuzz 全过）
 - 实机 e2e：320×220 小图编辑器窗口从 812→1039 DIP，PrintWindow 工具栏**两端工具全部可见**（选择/直线/椭圆…上传/设置/帮助），左右留白正常；宽图编辑器不受影响
+
+
+## 2026-10-12 上午 暂停全局热键 R94（兼容游戏/演示/热键冲突受众）
+
+**动机**：全局热键工具最大的「与别人打架」痛点——打游戏、投屏演示、或别的软件也用了 F6/F7 时，用户需要一键让本工具「闭嘴」。Snipaste 等也有类似「暂停」。属「功能可选项、兼容所有受众」，非堆数值。
+
+**实现**：
+- `HotkeyManager.Paused`（static volatile，运行时状态、**不持久化**，重启自动恢复工作，避免用户重启后困惑「热键怎么没了」）。
+- 决策并入纯函数 `HookDecision.Decide(..., bool paused = false)`：暂停时任何按下键 → `Pass`（不启动捕获/选区、**不吞键**，键完整落到前台应用）；已在进行中的捕获（`pressed==CapturePrimary`）不受影响仍正常收尾。默认参数 → 旧调用零改动。`HandleKey` 把 `Paused` 传入（滚动会话的 Esc 取消仍在其之前，先开会话再暂停也能 Esc 取消）。
+- 托盘「暂停全局热键（游戏/演示时）」可勾选项 → `TrayService.TogglePause()`；暂停时托盘 tooltip 变「FrameCapture · 已暂停（热键让位其他软件）」，气泡确认。暂停只让位**热键**，托盘菜单里的「立即捕获」等仍可用。
+- `--pause-toggle` IPC（复用 MsgSink 转发链）：既给 e2e 用，也让用户用 Windows 快捷方式/脚本绑一个「暂停热键」而不必新增全局键（避免堆键）。
+- 帮助窗新增「暂停全局热键」条目。
+
+**验证**：
+- 构建 0 错误；SelfTest **305**（新增 T122a-d：暂停时捕获键/范围键放行不吞、进行中捕获仍收尾、未暂停默认参数行为不变）
+- 完整护栏 GUARDRAIL PASS（FAIL=0 SKIP=1 floor280，err_delta=0；e2e:hotkey/tap-semantics/fuzz 覆盖改动的决策路径，无回归）
+- 实机 e2e：基线 F6→选区窗出现；`--pause-toggle`→trace `sink→pause toggle`、F6→选区窗**不出现**（放行给前台）；再 `--pause-toggle`→F6 重新开选区窗。三段全对

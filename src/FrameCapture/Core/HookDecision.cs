@@ -27,9 +27,11 @@ public static class HookDecision
     /// <param name="scopeVk">范围主键键码（无热键时传 0）。</param>
     /// <param name="isModifierKey">本键是修饰键（Ctrl/Alt/Shift/Win）。</param>
     /// <param name="modsStillSatisfied">松开修饰键后，捕获组合所需的修饰键是否仍全部按住。</param>
+    /// <param name="paused">R94 暂停全局热键：为 true 时任何按下键都不启动捕获/选区、不吞键（完整放行给前台应用）。
+    /// 已在进行中的捕获（pressed==CapturePrimary）不受影响，仍会正常收尾。</param>
     public static Outcome Decide(Key pressed, bool isDown, uint vk,
         bool captureMatch, bool scopeMatch, uint captureVk, uint scopeVk,
-        bool isModifierKey, bool modsStillSatisfied)
+        bool isModifierKey, bool modsStillSatisfied, bool paused = false)
     {
         if (pressed == Key.CapturePrimary)
         {
@@ -42,6 +44,7 @@ public static class HookDecision
         }
         if (isDown)
         {
+            if (paused) return new Outcome(Act.Pass, false, pressed); // R94 暂停：让位前台，不启动、不吞
             if (captureMatch) return new Outcome(Act.BeginCapture, true, Key.CapturePrimary);
             if (scopeMatch) return new Outcome(Act.ScopeSelect, true, Key.Scope);
         }

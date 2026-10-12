@@ -36,6 +36,11 @@ public sealed class TrayService : IDisposable
     void UpdateTip()
     {
         var s = _host.Settings.Current;
+        if (Services.HotkeyManager.Paused) // R94：暂停态一眼可见，避免用户以为热键失灵
+        {
+            _icon.Text = "FrameCapture · 已暂停（热键让位其他软件）";
+            return;
+        }
         string region = s.RegionW >= 16 ? $"范围 {s.RegionW}×{s.RegionH} · {s.Fps}fps" : "未设范围 · 双击图标设置";
         string tip = $"FrameCapture\n捕获 {s.CaptureHotkey} · 选区 {s.ScopeHotkey}\n{region}";
         _icon.Text = tip.Length <= 63 ? tip : "FrameCapture"; // NotifyIcon.Text 上限 63 字符
@@ -48,6 +53,16 @@ public sealed class TrayService : IDisposable
     {
         try { _icon.ShowBalloonTip(2500, "FrameCapture", msg, WinForms.ToolTipIcon.Info); }
         catch { }
+    }
+
+    /// <summary>R94 切换「暂停全局热键」。托盘菜单项与 `--pause-toggle` IPC 共用；返回切换后的状态。</summary>
+    public bool TogglePause()
+    {
+        bool on = !Services.HotkeyManager.Paused;
+        Services.HotkeyManager.Paused = on;
+        UpdateTip();
+        Notify(on ? "已暂停：截图热键暂时让位给其他软件，回到这里可恢复" : "已恢复：截图热键重新生效");
+        return on;
     }
 
     void ShowMenu()
@@ -94,6 +109,10 @@ public sealed class TrayService : IDisposable
             _host.Settings.Mutate(s => s.RunAtStartup = !s.RunAtStartup);
             StartupService.Apply(_host.Settings.Current.RunAtStartup);
         }, checkable: true, isChecked: _host.Settings.Current.RunAtStartup);
+        // R94：暂停全局热键——游戏/演示/与其他软件热键冲突时临时让位，键完整落到前台应用。
+        // 运行时状态（不持久化），重启自动恢复工作。
+        Item("暂停全局热键（游戏/演示时）", () => TogglePause(),
+            checkable: true, isChecked: Services.HotkeyManager.Paused);
         // 按需提权：解决被更高权限窗口（管理员终端/游戏）压住、快捷键盲区的问题
         if (AppHost.IsElevated)
             Item("管理员权限运行", () => { }, checkable: true, isChecked: true); // 勾选标记由 checkable 呈现，文本不再带 ✓（R24 去双勾）

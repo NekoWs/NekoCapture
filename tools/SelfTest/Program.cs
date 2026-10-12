@@ -1780,6 +1780,25 @@ static class SelfTest
                     conv == null ? "null" : $"BGR→BGRA {conv.Bgra[0]},{conv.Bgra[1]},{conv.Bgra[2]},{conv.Bgra[3]}");
                 Chk("T121c-null", FrameCapture.Services.BgraImage.FromSource(null) == null, "null → null");
             }
+            // T122 暂停全局热键决策（R94，HookDecision.Decide paused 参数）：暂停时任何按下键都不启动、不吞；
+            // 进行中的捕获仍能收尾；未暂停行为不变（默认参数）。
+            {
+                var pass = new HD.Outcome(HD.Act.Pass, false, HD.Key.None);
+                Chk("T122a-paused-capture",
+                    HD.Decide(HD.Key.None, true, 0x75, true, false, 0x75, 0x76, false, true, paused: true).Equals(pass),
+                    "暂停：捕获键按下→放行不启动不吞");
+                Chk("T122b-paused-scope",
+                    HD.Decide(HD.Key.None, true, 0x76, false, true, 0x75, 0x76, false, true, paused: true).Equals(pass),
+                    "暂停：范围键按下→放行不启动");
+                Chk("T122c-paused-inprogress-end",
+                    HD.Decide(HD.Key.CapturePrimary, false, 0x75, false, false, 0x75, 0x76, false, true, paused: true)
+                        .Equals(new HD.Outcome(HD.Act.EndCapture, true, HD.Key.None)),
+                    "暂停：进行中的捕获松开仍正常收尾 End");
+                Chk("T122d-unpaused-default-unchanged",
+                    HD.Decide(HD.Key.None, true, 0x75, true, false, 0x75, 0x76, false, true)
+                        .Equals(new HD.Outcome(HD.Act.BeginCapture, true, HD.Key.CapturePrimary)),
+                    "未暂停（默认参数）：捕获键仍触发 Begin，旧调用零改动");
+            }
         }
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");
         return fail == 0 ? 0 : 1;
