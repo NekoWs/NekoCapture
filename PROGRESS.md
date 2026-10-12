@@ -1926,3 +1926,9 @@ status: done
 - 全 app 动效审计（逐面 grep）：设置/帮助/编辑器/两 toast/选区窗/贴图窗均已 `FadeIn`/`PopupEnter`+`CloseWithFade`+主题交叉淡入，唯 **`OcrResultWindow` 有退场 `CloseWithFade` 却无入场**——硬弹入、淡出，不对称。
 - 改法：构造末尾加 `Fluent.PopupEnter(this)`。OCR 窗与 `HelpWindow` **同为分层窗**（`AllowsTransparency=true`）→ `PopupEnter` 走分层淡入路径（与帮助窗逐字同调用、同窗型，HelpWindow 已上线验证），入场淡入与退场 `CloseWithFade` 对称。
 - 验证：构建 0 错；护栏 FAIL=0 SKIP=1，SelfTest 387。入场淡入按构造成立（同 HelpWindow 同窗型同调用）；完整 OCR 流程（截图→点开 toast 进编辑器→Ctrl+O）需 5+ 步脆弱注入，且用户明令「绝不盲操落到其他软件」，故不为其做脆弱多步输入，以代码对称性 + 护栏定案。
+
+**R129 · 动效审计收尾 + 编辑器走查 + Release 构建验证 + 修自引入可空警告**
+- 动效审计**收尾**：补查最后两窗 `CountdownWindow`/`ScrollHintWindow`，均 `FadeIn`+`CloseWithFade`。至此全部 11 窗（设置/帮助/编辑器/截图 toast/欢迎 toast/选区窗/贴图/OCR/倒计时/滚动提示 + 配置器库窗）入场/退场/主题动效齐备，**零缺口**。
+- 编辑器走查：用**用户真实配置**（F2 按住录制→松手 `edit.lastvideo`，`Shot hkm 113 0 0 0 0 600` 走全局钩子，不改配置/不抢前台）可靠打开编辑器并 `UICap win` 截图。两行工具条（播放/时间轴 + 绘图工具/色板/宽度/撤销重做/置顶/设置/帮助）图标全渲染无豆腐块、对齐一致、确认钮醒目、色板选中态有环、时间轴刻度清晰——**无缺陷**。（选区窗合成拖拽捕获不稳定，故改走录制路径。）
+- Release 构建验证（批尾前置）：`dotnet build -c Release -p:Platform=x64` 成功、0 error，R127/R128 改动在 Release 下干净。
+- **修自引入警告**：R127③ 的 `ScrollViewer scroller = null;` 触发新警告 CS8600（null 赋非空）→ 改 `ScrollViewer? scroller = null;`。纯可空注解（编译期擦除、零运行时影响），重建后 CS8600 全消、0 错、无新增警告；护栏不触及该 UI 路径故无增益，跳过。

@@ -271,7 +271,7 @@ public sealed class SettingsWindow : Window
             if (!animate) { el.Opacity = to; return; }
             el.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(to, TimeSpan.FromMilliseconds(200)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
         }
-        ScrollViewer scroller = null;   // 前向声明：ShowCat 切类别时需复位滚动（实际构造在下方右栏装配处）
+        ScrollViewer? scroller = null;   // 前向声明：ShowCat 切类别时需复位滚动（实际构造在下方右栏装配处）
         void ShowCat(int idx, bool animate)
         {
             int prev = _cat;
