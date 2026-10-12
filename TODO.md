@@ -350,3 +350,7 @@
 - [x] **文档追平功能**：HelpWindow「底部工具条」Ctrl+E 改「导出录制（MP4/WebM/GIF）」+ 新增「录制帧率/高刷」（含诚实投递限制说明）+「录制格式 MP4/WebM/GIF」（ffmpeg 探测/回退/Enter 始终 GIF）。护栏 PASS，PrintWindow 视觉核对渲染正常。
 - [ ] **文档后续**：① 设置窗各新项 tooltip 已同步，可考虑帮助窗「录制格式」条目旁给一个「检测 ffmpeg」的即时状态（当前只在格式行 tooltip）；② 若未来加 WebM 码率档位，帮助同步。
 
+## 托盘「打开保存文件夹」R107（2026-10-12 中午，手感审计）
+- [x] **QQ 式打开保存目录**：托盘新增「打开保存文件夹」（仅自动保存开启时出现），`Process.Start explorer.exe ResolveFolder()`，try/catch 兜底。护栏 PASS。
+- [ ] **后续**：① 若用户把托盘图标固定到可见通知区，可补一条像素级取证确认菜单项文案；② 可考虑「打开保存文件夹」也列出最近 N 个文件（与 recent-captures history 合并做）。
+

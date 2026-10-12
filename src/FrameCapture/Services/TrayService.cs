@@ -101,6 +101,17 @@ public sealed class TrayService : IDisposable
             if (!_host.Controller.PinFromClipboard())
                 Notify("剪贴板里没有图片——先复制一张图片（截图/图片文件/网页图）再试");
         });
+        // 开了自动保存后，用户常想知道文件落到哪——直接打开保存目录（QQ 式「打开文件夹」）
+        if (_host.Settings.Current.AutoSaveCopy)
+            Item("打开保存文件夹", () =>
+            {
+                try
+                {
+                    var dir = SaveService.ResolveFolder();
+                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("explorer.exe", $"\"{dir}\"") { UseShellExecute = true });
+                }
+                catch (Exception ex) { Trace.Log($"open folder failed: {ex.Message}"); Notify("打开保存文件夹失败"); }
+            });
         Sep();
         Item("快捷键设置…", OpenSettings);
         Item("帮助", OpenHelp);
