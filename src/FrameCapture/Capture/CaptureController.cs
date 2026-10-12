@@ -193,6 +193,7 @@ public sealed class CaptureController : IDisposable
                         FrameCapture.Encoding.ClipboardService.SetFrame(f);
                         FrameCapture.Services.SaveService.MaybeSavePng(f); // R63 自动保存副本（关=零副作用）
                         FrameCapture.Core.Trace.Log($"still saved {pth} {f.W}x{f.H}");
+                        if (_settings.Current.CaptureSound) FrameCapture.Core.CaptureSound.Play(); // R86 提示音（关=零副作用）
                         // 截图后行为（R83）：弹提示浮窗 / 直接进编辑器 / 只复制——三态覆盖不同人群
                         var reg = region.Value;
                         switch (FrameCapture.Core.AfterCapture.Resolve(_settings.Current.AfterCapture))

@@ -1636,6 +1636,26 @@ static class SelfTest
                 Chk("T117b-pen-opaque-contrast", penF.Bgra[pon] < 60 && penF.Bgra[pon + 1] < 60,
                     $"对照不透明手绘 B/G 应低 rgba={penF.Bgra[pon]},{penF.Bgra[pon + 1]},{penF.Bgra[pon + 2]}");
             }
+            // T118 截图提示音合成（R86，CaptureSound 纯函数）：WAV 头合法 + 时长 + 峰值安全 + 有声音且衰减
+            {
+                var s = FrameCapture.Core.CaptureSound.Samples();
+                var wav = FrameCapture.Core.CaptureSound.MakeWav(s);
+                bool riff = wav.Length > 44 && wav[0] == 'R' && wav[1] == 'I' && wav[2] == 'F' && wav[3] == 'F'
+                    && wav[8] == 'W' && wav[9] == 'A' && wav[10] == 'V' && wav[11] == 'E'
+                    && wav[12] == 'f' && wav[13] == 'm' && wav[14] == 't' && wav[15] == ' '
+                    && wav[36] == 'd' && wav[37] == 'a' && wav[38] == 't' && wav[39] == 'a';
+                int dataBytes = wav.Length - 44;
+                int declared = BitConverter.ToInt32(wav, 4);
+                Chk("T118a-wav-header", riff && declared == 36 + dataBytes, $"len={wav.Length} riffSize={declared} expect={36 + dataBytes}");
+                double msDur = dataBytes / 2.0 / 44100.0 * 1000.0;
+                Chk("T118b-duration", msDur > 30 && msDur < 60, $"时长 {msDur:F1}ms");
+                short peak = 0;
+                for (int i = 44; i + 1 < wav.Length; i += 2) { short v = BitConverter.ToInt16(wav, i); if (Math.Abs((int)v) > Math.Abs((int)peak)) peak = v; }
+                double pf = Math.Abs((int)peak) / 32767.0;
+                Chk("T118c-peak-safe", pf > 0.1 && pf < 0.5, $"峰值 {pf:F3} 满量程（不静音/不削顶）");
+                short last = BitConverter.ToInt16(wav, wav.Length - 2);
+                Chk("T118d-decays", Math.Abs((int)last) / 32767.0 < 0.02 && peak != 0, $"末样本 {Math.Abs((int)last) / 32767.0:F4} 峰值 {pf:F3}");
+            }
         }
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");
         return fail == 0 ? 0 : 1;

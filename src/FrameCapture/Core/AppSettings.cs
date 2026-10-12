@@ -116,6 +116,10 @@ public sealed class AppSettings
     /// 便于把贴图整齐停靠到屏幕四边/四角（Snipaste 式手感）。关闭则松手停在原地。</summary>
     public bool PinSnapEdges { get; set; } = true;
 
+    /// <summary>截图提示音（默认关，R86）：静态截图完成时放一声柔和短促的「嘀」作听觉确认（QQ 招牌反馈）。
+    /// 默认关——后台工具每次截图都响会吵；设置里带「试听」可先听再决定。开启后 toast/进编辑器/只复制三态都响。</summary>
+    public bool CaptureSound { get; set; } = false;
+
     // ---- 上次捕获范围（物理像素，虚拟桌面绝对坐标；null 表示全屏主屏） ----
     public string? RegionMonitorId { get; set; }
     public int RegionX { get; set; }

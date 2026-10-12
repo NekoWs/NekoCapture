@@ -1226,3 +1226,18 @@ status: done
 - 构建 0 错误；SelfTest 280→**282**（T117a 荧光笔红 over 白→R 高 G/B 中=透出白=半透明；T117b 对照不透明手绘 G/B≈0）；T92 工具目录计数 9→10、键位串加 H
 - 完整护栏 GUARDRAIL PASS（FAIL=0 SKIP=1 floor280，err_delta=0）
 - 实机 e2e（PrintWindow 亲眼看 + 像素采样）：工具条第 6 位出现马克笔图标；按 H→trace `editor key=None+H`、工具条图标蓝底选中；画布拖一笔→半透明红横条、**两端平头**；笔画像素 (96,20,27) vs 背景 (21,21,23) 证实背景透出（半透明）；帮助窗「绘图」小节荧光笔行 ▨ 符号正常渲染（非豆腐块）
+
+
+## 2026-10-12 上午 截图提示音 R86（QQ 招牌听觉反馈，做成开关兼容所有受众）
+
+**动机**（补 QQ 招牌、我们缺位）：QQ 截图完成会「咔嚓」一声，给用户「截好了」的即时听觉确认——尤其全屏/无编辑器（只复制）模式下，画面没变化，没声音就不知道有没有截成。但我们不能像 QQ 那样默认响：后台工具每次截图都出声会吵到所有人。所以做成**默认关的开关 + 「试听」按钮**，想听的人开、嫌吵的人关，先听再决定。
+
+**实现**（不引外部音频文件，运行时合成，纯函数可单测）：
+- `Core/CaptureSound.cs`：`Samples()` 合成一段柔和短促的「嘀」（44.1kHz/16bit 单声道，42ms，1000Hz 正弦，指数衰减短尾，2ms 线性起音防爆音，峰值仅 0.18 满量程——宁可轻不可噪）；`MakeWav()` 封标准 44 字节头 PCM WAV（纯函数）；`Play()` 用 Win32 `PlaySound(SND_MEMORY|SND_ASYNC|SND_NODEFAULT)` 异步播放、Windows 自持缓冲（避开 SoundPlayer 立即 Dispose 截断异步播放的坑），首次合成后缓存字节，异常静默忽略（无音频设备也不炸）。
+- 设置项 `CaptureSound`（默认 false）；`CaptureController` 静态图捕获成功、trace 之后接线：三态（弹提示/进编辑器/只复制）都响，关=零副作用。
+- 设置窗「截图」组新增 `CaptureSoundRow()`：扬声器图标（**E767**，GlyphProbe 定稿，非豆腐）+「试听」chip（关着也能先听）+ 同款开关；帮助窗「截图后」下补一行说明。
+
+**验证**：
+- 构建 0 错误；SelfTest 282→**286**（T118a WAV 头 RIFF/WAVE/fmt/data + RIFF size 字段自洽；T118b 时长 30–60ms；T118c 峰值 0.1–0.5 满量程=不静音不削顶；T118d 末样本衰减到 <0.02 且峰值非零）
+- 完整护栏 GUARDRAIL PASS（FAIL=0 SKIP=1 floor280，err_delta=0）
+- 实机 e2e（PrintWindow 亲眼看 + trace）：开 CaptureSound 后 F6 截图→trace `capture sound played=True bytes=3748`；设置窗「截图提示音」行渲染正常（扬声器图标清晰、试听 chip、开关蓝=开）；点「试听」→trace 再出一条 `played=True`（前台校验=Settings 通过）；点开关→settings.json `CaptureSound=False` 持久化、复抓该行确认 OFF 视觉（knob 左、灰轨、试听 chip 仍在）

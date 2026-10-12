@@ -71,6 +71,9 @@
 - [x] **荧光笔 / 马克笔高亮**（R85）：QQ 招牌标注工具、我们缺位——在截图上划半透明高亮圈重点又不遮字。此前只能画不透明框/手绘，都盖字。
       复用 Freehand 的 Polyline 预览 + DrawCurve 烘焙双路径（只改半透明/加粗/平头帽三参数，WYSIWYG 风险最低）；`AnnKind.Highlight` + `Annotation.HighlightAlpha=90`（alpha 是「类型」属性统一施加，标注颜色仍存不透明色→改色/调色板照常，预览与烘焙同取常量保证所见即所得）；编辑器 `Tool.Highlight`（H 键，线宽挡位×2.5，平头帽）；`ToolCatalog` 加 "H"（图标 E7E6 马克笔 GlyphProbe 定稿，帮助符号非 PUA ▨）。SelfTest 280→**282**（T117a 半透明红 over 白透出白 / T117b 对照不透明 G/B≈0），T92 计数 9→10。实机 e2e（PrintWindow+像素采样）：工具条马克笔图标现、H 选中蓝底、拖出平头半透明红条、笔画 (96,20,27) vs 背景 (21,21,23) 证实透出、帮助窗 ▨ 正常渲染。
 
+- [x] **截图提示音**（R86）：QQ 招牌听觉反馈、我们缺位——截图完成「嘀」一声确认「截好了」（尤其只复制模式画面无变化时）。但后台工具默认响会吵，故做成**默认关的开关 + 「试听」按钮**，兼容所有受众。
+       `Core/CaptureSound.cs` 运行时合成（不引外部音频文件）：`Samples()` 柔和短促「嘀」（44.1kHz/16bit/42ms/1000Hz 正弦/指数衰减短尾/2ms 起音防爆音/峰值仅 0.18 满量程）→ `MakeWav()` 封 PCM WAV（纯函数）→ `Play()` 用 Win32 `PlaySound(SND_MEMORY|SND_ASYNC)` 异步播放（避开 SoundPlayer 立即 Dispose 截断坑），异常静默忽略。设置项 `CaptureSound`（默认 false），`CaptureController` 静态图捕获成功后接线（三态都响，关=零副作用）；设置窗「截图」组 `CaptureSoundRow()`（扬声器图标 E767 + 试听 chip + 开关），帮助窗补说明。SelfTest 282→**286**（T118a WAV 头/RIFF size 自洽 · T118b 时长 30–60ms · T118c 峰值 0.1–0.5 满量程 · T118d 末样本衰减<0.02）。实机 e2e（PrintWindow+trace）：F6 截图 trace `capture sound played=True bytes=3748`、设置行渲染正常、点试听再响一条、开关持久化 False + OFF 视觉确认。
+
 ## 用户反馈
 - [x] **录制后的全屏黄色边框持续存在（10-04 已修复）**：根因 = **不是我们的代码**，是 Windows 11
   自带的 WGC 捕获提示边框（`#FFD11C`）。`WgcLiveCapture` 用 `GraphicsCaptureSession` 捕获**整台

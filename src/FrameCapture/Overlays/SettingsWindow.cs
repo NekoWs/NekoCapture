@@ -118,6 +118,7 @@ public sealed class SettingsWindow : Window
         panel.Children.Add(ToggleRow("\uE71A", "常显捕获范围轮廓", "在屏幕上持续显示当前捕获范围的边框",
             _settings.Current.AlwaysShowRegionOutline, v => _settings.Mutate(s => s.AlwaysShowRegionOutline = v)));
         panel.Children.Add(AfterCaptureRow());
+        panel.Children.Add(CaptureSoundRow());
 
         // ---- 录制 ----
         panel.Children.Add(Group("录制"));
@@ -806,6 +807,75 @@ public sealed class SettingsWindow : Window
             chips.Children.Add(chip);
         }
         g.Children.Add(chips);
+        return g;
+    }
+
+    // 截图提示音（R86）：开关 + 「试听」chip（先听再决定开不开，避免开了才发现吵）
+    FrameworkElement CaptureSoundRow()
+    {
+        var g = Row();
+        g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); // 控件列
+        g.Children.Add(Icon("\uE767", "静态截图完成时放一声柔和短促的「嘀」作听觉确认（QQ 招牌反馈）；默认关，可点「试听」先听"));
+        var lbl = new TextBlock
+        {
+            Text = "截图提示音",
+            FontSize = 13,
+            Foreground = new SolidColorBrush(Theme.Text),
+            VerticalAlignment = VerticalAlignment.Center,
+            TextWrapping = TextWrapping.Wrap,
+        };
+        Grid.SetColumn(lbl, 1);
+        g.Children.Add(lbl);
+        var right = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center };
+        Grid.SetColumn(right, 2);
+
+        // 试听：点一下立刻放一声，让用户判断这个音量/音色能否接受
+        var preview = new Border
+        {
+            CornerRadius = new CornerRadius(6),
+            Padding = new Thickness(10, 4, 10, 4),
+            Margin = new Thickness(0, 0, 12, 0),
+            Background = new SolidColorBrush(Theme.Hover),
+            Child = new TextBlock { Text = "试听", FontSize = 12.5, Foreground = new SolidColorBrush(Theme.Text) },
+            Cursor = Cursors.Hand,
+            ToolTip = "点一下试听这声提示音（无论开关是否开启都可试听）",
+            Focusable = true,
+        };
+        void DoPreview() => FrameCapture.Core.CaptureSound.Play();
+        preview.MouseLeftButtonDown += (_, e) => { DoPreview(); e.Handled = true; };
+        preview.KeyDown += (_, e) => { if (e.Key is Key.Space or Key.Enter) { DoPreview(); e.Handled = true; } };
+        preview.MouseEnter += (_, _) => preview.Background = new SolidColorBrush(Theme.Press);
+        preview.MouseLeave += (_, _) => preview.Background = new SolidColorBrush(Theme.Hover);
+        preview.GotKeyboardFocus += (_, _) => { preview.BorderBrush = new SolidColorBrush(Theme.Accent); preview.BorderThickness = new Thickness(1); };
+        preview.LostKeyboardFocus += (_, _) => preview.BorderThickness = new Thickness(0);
+        right.Children.Add(preview);
+
+        // 开关（与 ToggleRow 同款 track/knob）
+        bool on = _settings.Current.CaptureSound;
+        var track = new Border
+        {
+            Width = 40, Height = 20, CornerRadius = new CornerRadius(10),
+            Background = new SolidColorBrush(on ? Theme.Accent : Theme.TrackBg),
+            BorderBrush = new SolidColorBrush(on ? Theme.Accent : Theme.Stroke),
+            BorderThickness = new Thickness(1),
+            VerticalAlignment = VerticalAlignment.Center, Cursor = Cursors.Hand,
+            ToolTip = "开启后每次静态截图完成放一声柔和提示音", Focusable = true,
+        };
+        var knob = new Ellipse
+        {
+            Width = 12, Height = 12, Fill = new SolidColorBrush(on ? Color.FromRgb(0, 0, 0) : Theme.Text),
+            HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(4, 0, 4, 0),
+            RenderTransform = new System.Windows.Media.TranslateTransform(on ? 20 : 0, 0),
+        };
+        track.Child = knob;
+        void Flip() { on = !on; FrameCapture.Core.Fluent.SlideToggle(knob, track, on, 20); _settings.Mutate(s => s.CaptureSound = on); }
+        track.MouseLeftButtonDown += (_, e) => { Flip(); e.Handled = true; };
+        track.KeyDown += (_, e) => { if (e.Key is Key.Space or Key.Enter) { Flip(); e.Handled = true; } };
+        track.GotKeyboardFocus += (_, _) => track.BorderBrush = new SolidColorBrush(Theme.Accent);
+        track.LostKeyboardFocus += (_, _) => track.BorderBrush = new SolidColorBrush(on ? Theme.Accent : Theme.Stroke);
+        right.Children.Add(track);
+
+        g.Children.Add(right);
         return g;
     }
 
