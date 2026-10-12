@@ -15,7 +15,7 @@ namespace FrameCapture.Overlays;
 /// R65：钉到屏幕——把当前帧（含标注/裁剪，WYSIWYG）作为一张无边框、置顶、可拖动/滚轮缩放的小图，
 /// 钉在桌面原捕获位置。Snipaste/QQ 的招牌手感，此前缺位。
 /// 交互：按住拖动移动；滚轮以中心为锚缩放（10%~600%）；Ctrl+滚轮调不透明度（20%~100%）；
-/// 双击或 Esc 关闭；R 键顺时针旋转 90°、F3 原地重抓源区域刷新内容、Ctrl+S 另存为；右键菜单复制/另存为/识别文字/旋转/更新内容/不透明度/关闭/关闭全部贴图。
+/// 双击或 Esc 关闭；R 键顺时针旋转 90°、F3 原地重抓源区域刷新内容、Ctrl+S 另存为、Ctrl+C 复制回剪贴板、Ctrl+O 识别文字；右键菜单复制/另存为/识别文字/旋转/更新内容/不透明度/关闭/关闭全部贴图。
 /// 不进任务栏（ShowInTaskbar=false），关掉只靠上述手势——与 Snipaste 贴图一致。
 /// </summary>
 public sealed class PinWindow : Window
@@ -132,6 +132,8 @@ public sealed class PinWindow : Window
             else if (e.Key == Key.R) Rotate();
             else if (e.Key == Key.F3) Refresh();
             else if (e.Key == Key.S && (Keyboard.Modifiers & ModifierKeys.Control) != 0) SaveAs();
+            else if (e.Key == Key.C && (Keyboard.Modifiers & ModifierKeys.Control) != 0) Copy(); // R95 复制回剪贴板
+            else if (e.Key == Key.O && (Keyboard.Modifiers & ModifierKeys.Control) != 0) OcrFrame(); // R95 识别文字（与编辑器一致）
         };
 
         Loaded += (_, _) => _open.Add(this);
@@ -202,6 +204,14 @@ public sealed class PinWindow : Window
     }
 
     /// <summary>R80：把贴图当前帧（含旋转后状态）另存为 PNG，默认目录「图片\FrameCapture」，与编辑器保存一致。</summary>
+    /// <summary>R95 把贴图当前画面（含旋转后）复制回剪贴板，Ctrl+C / 右键「复制」共用。</summary>
+    void Copy()
+    {
+        ClipboardService.SetFrame(_frame);
+        Flash("已复制");
+        FrameCapture.Core.Trace.Log("pin-copy");
+    }
+
     void SaveAs()
     {
         string pictures = Environment.GetFolderPath(Environment.SpecialFolder.MyPictures);
@@ -327,8 +337,8 @@ public sealed class PinWindow : Window
     void ShowMenu()
     {
         var menu = new ContextMenu();
-        var copy = new MenuItem { Header = "复制" };
-        copy.Click += (_, _) => ClipboardService.SetFrame(_frame);
+        var copy = new MenuItem { Header = "复制 (Ctrl+C)" };
+        copy.Click += (_, _) => Copy();
         var saveAs = new MenuItem { Header = "另存为…" };
         saveAs.Click += (_, _) => SaveAs();
         var ocr = new MenuItem { Header = "识别文字" };

@@ -1399,3 +1399,18 @@ status: done
 - 构建 0 错误；SelfTest **305**（新增 T122a-d：暂停时捕获键/范围键放行不吞、进行中捕获仍收尾、未暂停默认参数行为不变）
 - 完整护栏 GUARDRAIL PASS（FAIL=0 SKIP=1 floor280，err_delta=0；e2e:hotkey/tap-semantics/fuzz 覆盖改动的决策路径，无回归）
 - 实机 e2e：基线 F6→选区窗出现；`--pause-toggle`→trace `sink→pause toggle`、F6→选区窗**不出现**（放行给前台）；再 `--pause-toggle`→F6 重新开选区窗。三段全对
+
+
+## 2026-10-12 上午 贴图窗快捷键补全 R95（贴图是高频招牌，键盘闭环）
+
+**动机**：贴图（Snipaste 式钉图）是最常用功能之一，但键盘快捷键此前只有 Esc/R/F3/Ctrl+S。右键菜单里的「复制」「识别文字」没有快捷键，用户复制贴图回剪贴板必须右键点菜单，慢。补齐与编辑器一致的 Ctrl+C / Ctrl+O。
+
+**实现**（`Overlays/PinWindow.cs`）：
+- 新增 `Copy()`：`ClipboardService.SetFrame(_frame)` + `Flash("已复制")` + trace；右键「复制 (Ctrl+C)」与快捷键共用同一方法（不再各写一份）。
+- `OnKeyDown` 加 `Ctrl+C → Copy()`、`Ctrl+O → OcrFrame()`（与编辑器 Ctrl+O 同一识别入口）。
+- 文档注释 + 帮助窗贴图条目同步补 Ctrl+C/Ctrl+O。
+
+**验证**：
+- 构建 0 错误；SelfTest 仍 **305**（本轮为 WPF 按键路由，非纯逻辑，无新增单测）
+- 完整护栏 GUARDRAIL PASS（FAIL=0 SKIP=1 floor280，err_delta=0）
+- 实机 e2e：设 220×150 特征图（红底+蓝块）→ `--pin-clip` 贴图并自动前台 → 焦点安全确认前台是 `FrameCapture Pin` → 先把剪贴板清成纯文本 → `hkm Ctrl+C` → trace `pin-copy`、剪贴板 `ContainsImage=True` 且文本被替换；取回图片逐像素核对：220×150、中心 (100,70)=蓝(0,0,255)、左上 (5,5)=红(220,40,40)，与贴图内容完全一致
