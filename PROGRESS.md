@@ -1809,3 +1809,13 @@ status: done
 - 选区窗现已 `WDA_EXCLUDEFROMCAPTURE`，抓取本就拍不到它 → 220ms 的理由（怕把选区界面截进画面）不再成立。
 - 统一改为命名常量 `PickerExitMs = 40`：只留极短一拍让选区窗 `Close()` 走完（防 WDA 万一失效时把选区界面截进去）。
 - 实测「选区完成→存图」220ms+ → **113ms**（40ms 留白 + 1441×886 抓取/PNG/剪贴板 ~73ms）。用户确认「手感不错」。
+
+## R121 独占吞键（用户拍板「后续肯定要做」→ 现做）
+- 问题：手势层此前只"观察"按键（`CallNextHookEx` 放行），Ctrl+Alt+A/R 会漏给前台程序（输入框打字符 / 触发别的软件快捷键）。
+- 方案（QQ 式全局独占）：
+  - `GestureEngine.OnKeyDown/OnKeyUp` 改为返回 bool——命中「带具体键的组合键并成功触发」才回报吞键；`FireTrigger` 返回是否触发。
+  - 按下被吞的键，其**抬起也吞**（`_swallowKeyUp`），避免前台看到"只抬未按"的畸形键态。
+  - **只吞带具体键的组合键**（Ctrl+Alt+**A**）；纯修饰键组合（Key==0，如 Ctrl+Alt 本身）永不吞，防劫持 Ctrl+C。未绑定的键不吞。
+  - 新设置 `GestureConfig.Exclusive`（默认 true）；`GestureService.FeedKey` 返回 `Exclusive && 引擎候选`。`HotkeyManager.KeySink` 由 `Action` 改 `Func<...,bool>`，命中即 `return true` 吞键。
+  - 吞键判定放在滚动 Esc / 浮窗 Enter/Esc 之后（会话级优先），且手势只绑具体键不会误吞 Esc/Enter。
+- SelfTest T137a-d（地板 369→373）：A 命中才吞 / 抬起也吞 / 纯修饰键不吞 / 未绑定键不吞。

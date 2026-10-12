@@ -26,6 +26,10 @@ public sealed class GestureEngine
     // 每个组合键已绑定的触发集合（决定消歧的最高阶 + 是否需等待）
     readonly Dictionary<KeyChord, HashSet<TriggerKind>> _triggers = new Dictionary<KeyChord, HashSet<TriggerKind>>(ChordEq.Instance);
     readonly HashSet<int> _keyDown = new HashSet<int>();
+    // 独占吞键：本次按键事件是否命中「带具体键的组合键并成功触发」→ 宿主据此吞该键。
+    bool _swallowThisEvent;
+    // 按下时被吞的键：其抬起也要吞，避免前台程序看到「只抬起、没按下」的畸形键态。
+    readonly HashSet<int> _swallowKeyUp = new HashSet<int>();
     List<ChordState> _pressCandidates = new List<ChordState>();   // 本次鼠标按下时处于激活态、且有鼠标触发的组合键
 
     sealed class ChordState
@@ -63,6 +67,8 @@ public sealed class GestureEngine
         _state.Clear();
         _triggers.Clear();
         _keyDown.Clear();
+        _swallowKeyUp.Clear();
+        _swallowThisEvent = false;
         _pressCandidates.Clear();
         foreach (var b in _bindings)
         {
@@ -82,8 +88,9 @@ public sealed class GestureEngine
         return s;
     }
 
-    /// <summary>重算所有已知组合键的激活态，触发新激活(KeyDown/Chord)/新失活(KeyUp)绑定。mods=事件时刻修饰键状态。</summary>
-    void RefreshActivation(ModifierKeys mods)
+    /// <summary>重算所有已知组合键的激活态，触发新激活(KeyDown/Chord)/新失活(KeyUp)绑定。mods=事件时刻修饰键状态。
+    /// triggerKey=本次按键事件的键，用于独占吞键判定（仅当激活的组合键带具体键且等于 triggerKey 才算候选）。</summary>
+    void RefreshActivation(ModifierKeys mods, int triggerKey = 0)
     {
         foreach (var kv in _triggers)
         {
@@ -92,8 +99,10 @@ public sealed class GestureEngine
             if (now && !st.Active)
             {
                 st.Active = true;
-                FireTrigger(kv.Key, TriggerKind.KeyDown);
-                FireTrigger(kv.Key, TriggerKind.Chord);
+                bool f1 = FireTrigger(kv.Key, TriggerKind.KeyDown);
+                bool f2 = FireTrigger(kv.Key, TriggerKind.Chord);
+                // 独占吞键候选：组合键带具体键(非纯修饰键)、正是本次事件键、且确有动作成功触发。
+                if ((f1 || f2) && kv.Key.Key != 0 && kv.Key.Key == triggerKey) _swallowThisEvent = true;
             }
             else if (!now && st.Active)
             {
@@ -105,16 +114,24 @@ public sealed class GestureEngine
         }
     }
 
-    public void OnKeyDown(int key, ModifierKeys mods, long now)
+    /// <summary>喂入按键按下。返回是否应吞掉本键（命中带具体键的组合键并成功触发）——宿主结合 Exclusive 开关决定是否吞。</summary>
+    public bool OnKeyDown(int key, ModifierKeys mods, long now)
     {
+        _swallowThisEvent = false;
         _keyDown.Add(key);
-        RefreshActivation(mods);
+        RefreshActivation(mods, key);
+        if (_swallowThisEvent) { _swallowKeyUp.Add(key); return true; }
+        return false;
     }
 
-    public void OnKeyUp(int key, ModifierKeys mods, long now)
+    /// <summary>喂入按键抬起。返回是否应吞掉本键（其按下曾被吞 → 抬起也吞，保持前台键态一致）。</summary>
+    public bool OnKeyUp(int key, ModifierKeys mods, long now)
     {
+        _swallowThisEvent = false;
         _keyDown.Remove(key);
-        RefreshActivation(mods);
+        RefreshActivation(mods, key);
+        if (_swallowKeyUp.Remove(key)) return true;
+        return false;
     }
 
     public void OnMouseDown(int button, ModifierKeys mods, long now)
@@ -219,18 +236,20 @@ public sealed class GestureEngine
         return 500;
     }
 
-    /// <summary>触发某组合键的某类触发：按优先级依次尝试绑定，成功即止；失败按该条 Fallback 决定是否顺延下一条。</summary>
-    void FireTrigger(KeyChord chord, TriggerKind trigger)
+    /// <summary>触发某组合键的某类触发：按优先级依次尝试绑定，成功即止；失败按该条 Fallback 决定是否顺延下一条。
+    /// 返回是否确有动作成功触发（供宿主判断独占吞键）。</summary>
+    bool FireTrigger(KeyChord chord, TriggerKind trigger)
     {
         for (int i = 0; i < _bindings.Count; i++)
         {
             var b = _bindings[i];
             if (!b.Chord.Equals(chord) || b.Trigger != trigger) continue;
             bool ok = RunActions(b);
-            if (ok) return;
+            if (ok) return true;
             if (b.Fallback == FallbackPolicy.NextBinding) continue;   // 失败自动下一个
-            return;                                                    // Stop / SkipStep 已在本条内消化
+            return false;                                              // Stop / SkipStep 已在本条内消化
         }
+        return false;   // 该触发无绑定
     }
 
     /// <summary>顺序执行一条绑定的动作序列。SkipStep 跳过失败步继续；Stop/NextBinding 遇失败即中止返回 false。</summary>

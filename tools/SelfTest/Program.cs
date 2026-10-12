@@ -2118,7 +2118,7 @@ static class SelfTest
         {
             bool sinkInstalled;
             var hk = new FrameCapture.Services.HotkeyManager();
-            try { hk.KeySink = (vk, down, mods, time) => { }; hk.Install("", ""); sinkInstalled = hk.Installed; }
+            try { hk.KeySink = (vk, down, mods, time) => false; hk.Install("", ""); sinkInstalled = hk.Installed; }
             finally { hk.Dispose(); }
             bool idleNotInstalled;
             var hk2 = new FrameCapture.Services.HotkeyManager();
@@ -2154,6 +2154,37 @@ static class SelfTest
             Chk("T136c-toggle-parse",
                 b != null && b.Chord.Key == 0x52 && b.Trigger == GE.TriggerKind.Chord && b.Actions[0] == "record.toggle",
                 "Ctrl+Alt+R → record.toggle 解析正确（同键起停）");
+        }
+        // T137 独占吞键（R120 B2）：引擎回报「带具体键的组合键命中」→ 宿主吞键；纯修饰键组合/未命中键不吞
+        {
+            var M = new GestureProbe();
+            var eng = new GE.GestureEngine(M);
+            GE.GestureBinding B(string id, GE.ModifierKeys mods, int key, GE.TriggerKind trig, string[] acts)
+                => new GE.GestureBinding { Id = id, Chord = new GE.KeyChord(mods, key), Trigger = trig,
+                     Actions = new List<string>(acts), Fallback = GE.FallbackPolicy.Stop };
+            const int A = 0x41, CTRL = 0x11, ALT = 0x12, F6 = 0x75;
+
+            // Ctrl+Alt+A 绑 Chord：Ctrl/Alt 按下不吞，A 命中才吞，A 抬起也吞（键态一致）
+            eng.SetBindings(new[] { B("pick", GE.ModifierKeys.Control | GE.ModifierKeys.Alt, A, GE.TriggerKind.Chord, new[] { "Pick" }) });
+            bool swCtrl = eng.OnKeyDown(CTRL, GE.ModifierKeys.Control, 0);
+            bool swAlt = eng.OnKeyDown(ALT, GE.ModifierKeys.Control | GE.ModifierKeys.Alt, 0);
+            bool swA = eng.OnKeyDown(A, GE.ModifierKeys.Control | GE.ModifierKeys.Alt, 0);
+            bool swAUp = eng.OnKeyUp(A, GE.ModifierKeys.Control | GE.ModifierKeys.Alt, 50);
+            Chk("T137a-swallow-on-trigger-key", !swCtrl && !swAlt && swA, "Ctrl/Alt 不吞、A 命中组合键才吞（按下）");
+            Chk("T137b-swallow-keyup-too", swAUp, "A 抬起也吞（按下被吞→抬起一起吞，前台键态一致）");
+
+            // 纯修饰键组合（Key==0）：触发但不吞，避免劫持 Ctrl+C 等
+            M.Log.Clear();
+            eng.SetBindings(new[] { B("mod", GE.ModifierKeys.Control | GE.ModifierKeys.Alt, 0, GE.TriggerKind.Chord, new[] { "Mod" }) });
+            eng.OnKeyDown(CTRL, GE.ModifierKeys.Control, 0);
+            bool swModAlt = eng.OnKeyDown(ALT, GE.ModifierKeys.Control | GE.ModifierKeys.Alt, 0);
+            Chk("T137c-modifier-only-no-swallow", !swModAlt && M.Log.SequenceEqual(new[] { "Mod" }), "纯修饰键组合触发但不吞键");
+
+            // 未绑定任何组合键的键：不吞
+            M.Log.Clear();
+            eng.SetBindings(new[] { B("pick", GE.ModifierKeys.Control | GE.ModifierKeys.Alt, A, GE.TriggerKind.Chord, new[] { "Pick" }) });
+            bool swF6 = eng.OnKeyDown(F6, GE.ModifierKeys.None, 0);
+            Chk("T137d-unbound-key-no-swallow", !swF6, "未绑定的键（F6）不吞");
         }
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");
         return fail == 0 ? 0 : 1;

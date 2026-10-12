@@ -74,6 +74,11 @@ public sealed class GestureConfig
     /// <summary>手势层总开关。默认 false：旧热键路径原样工作，手势层不介入（避免动核心捕获路径的回归风险）。</summary>
     public bool Enabled { get; set; } = false;
 
+    /// <summary>独占吞键（R120 B2）：手势命中「带具体键的组合键」（如 Ctrl+Alt+A）时，把该键的按下与抬起一起吞掉，
+    /// 前台程序收不到——QQ 式全局独占，避免快捷键漏进输入框打出字符或触发别的软件。默认 true。
+    /// 纯修饰键组合（无具体键，如 Ctrl+Alt 本身）永不吞，防止 Ctrl+C 等被劫持。关掉=手势层只观察、键照常放行。</summary>
+    public bool Exclusive { get; set; } = true;
+
     public List<GestureBindingDto> Bindings { get; set; } = new();
 
     /// <summary>转引擎绑定表（跳过非法项）。</summary>

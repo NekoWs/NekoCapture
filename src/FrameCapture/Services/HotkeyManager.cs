@@ -43,7 +43,7 @@ public sealed class HotkeyManager : IDisposable
     /// <summary>R120 B2：手势引擎键事件汇。非 null 时，<see cref="HandleKey"/> 顶部（早于旧热键判定与吞键）
     /// 把每个键事件喂给它，使手势层与旧热键<b>共用同一个低级键盘钩子</b>（不额外挂钩、不重复处理）。
     /// 参数=(vk, 是否按下, 事件时刻修饰键态, 事件时间戳ms)。null=手势层关闭，零开销。Paused 时不喂（用户要求不拦截键）。</summary>
-    public Action<uint, bool, GestureCore.ModifierKeys, long>? KeySink;
+    public Func<uint, bool, GestureCore.ModifierKeys, long, bool>? KeySink;
 
     static GestureCore.ModifierKeys CurrentMods()
     {
@@ -139,7 +139,9 @@ public sealed class HotkeyManager : IDisposable
 
         // R120 B2：先把手势引擎喂饱（早于旧热键判定/吞键，保证引擎看到所有键）。手势层关闭时 KeySink=null，零开销。
         // Paused 时不喂：用户暂停全局热键=要求不拦截任何键，手势层同样避让。
-        if (!Paused) KeySink?.Invoke(vk, isDown, CurrentMods(), info.time);
+        // 返回值=是否独占吞键（命中带具体键的组合键且开启 Exclusive）。
+        bool gestureSwallow = false;
+        if (!Paused && KeySink != null) gestureSwallow = KeySink(vk, isDown, CurrentMods(), info.time);
 
         // 滚动截图会话中：Esc 全局取消并吞掉（控制条不抢焦点，否则 Esc 会漏给目标窗）。
         // 热路径仅一次 volatile 读 + 一次整数比较；ScrollActive 绑定控制条生命周期，绝不泄漏成"全局 Esc 失灵"。
@@ -151,6 +153,10 @@ public sealed class HotkeyManager : IDisposable
             if (vk == 0x0D) ToastEnter?.Invoke(); else ToastEsc?.Invoke();
             return true;
         }
+
+        // 独占吞键（R120 B2）：手势命中「带具体键的组合键」→ 吞掉本键，前台程序收不到（QQ 式全局独占）。
+        // 放在滚动/浮窗判定之后：那两类是会话级优先；且手势只绑具体键(A/R)，不会误吞 Esc/Enter。
+        if (gestureSwallow) return true;
 
         var cap = _capture;
         var scp = _scope;

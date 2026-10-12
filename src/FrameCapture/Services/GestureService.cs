@@ -27,6 +27,7 @@ public sealed class GestureService : IDisposable
     Win32.LowLevelMouseProc? _mouseProc;
     System.Windows.Threading.DispatcherTimer? _tick;
     bool _mouseInstalled;
+    bool _exclusive;   // 独占吞键开关（来自 GestureConfig.Exclusive，Apply 时刷新）
     List<GC.GestureBinding> _engineBound = new();
 
     public GestureService(AppHost host)
@@ -40,6 +41,7 @@ public sealed class GestureService : IDisposable
     public void Apply(GestureConfig cfg)
     {
         bool on = cfg != null && cfg.Enabled;
+        _exclusive = on && cfg!.Exclusive;
         var bindings = on ? cfg!.ToBindings() : new List<GC.GestureBinding>();
         _engineBound = bindings;
         _engine.SetBindings(bindings);
@@ -58,10 +60,12 @@ public sealed class GestureService : IDisposable
     static bool IsMouse(GC.TriggerKind t) =>
         t is GC.TriggerKind.Click or GC.TriggerKind.DoubleClick or GC.TriggerKind.TripleClick or GC.TriggerKind.LongPress;
 
-    void FeedKey(uint vk, bool down, GC.ModifierKeys mods, long time)
+    /// <summary>喂键给引擎；返回是否吞掉本键（独占吞键开启 且 引擎判定命中带具体键的组合键）。
+    /// 关闭独占时恒返回 false（只观察、键照常放行给前台）。</summary>
+    bool FeedKey(uint vk, bool down, GC.ModifierKeys mods, long time)
     {
-        if (down) _engine.OnKeyDown((int)vk, mods, time);
-        else _engine.OnKeyUp((int)vk, mods, time);
+        bool candidate = down ? _engine.OnKeyDown((int)vk, mods, time) : _engine.OnKeyUp((int)vk, mods, time);
+        return _exclusive && candidate;
     }
 
     // ---------- 鼠标钩子（仅当存在鼠标触发绑定时才装） ----------
