@@ -1843,3 +1843,24 @@ status: done
 - **A3 完成后序列 OnComplete**：`GestureBinding.OnComplete`/`BindingEdit.OnComplete`/`GestureBindingDto.OnComplete`；引擎 `RunActions` 主序列全部成功后再按序跑 OnComplete（尽力而为，失败不改本条结果）。宿主动作一律 `Post` 到 UI 线程 FIFO，静图抓取+after-capture 在同一 posted 动作内同步完成 → OnComplete 天然排在主动作之后（无需额外完成事件）。编辑器详情复用同一列表构建器渲染「完成后序列」段；校验含 OnComplete 动作名；Summary 显示「⟶ 完成后: …」。
 - SelfTest T141a/b（禁用不校验/不进引擎）、T142a/b（拆分动作齐全 + 全屏语义）、T143a/b（OnComplete 主成功后跑/主失败不跑），护栏 383→**389**。
 - 待办：**B1** 设置窗 master-detail 改版（用户手绘布局：左竖排导航 + 右内容区）；**B2** 旧快捷键全删、改由手势替代（含 GestureCore 键盘点按/按住时序 + 默认「按住录制」手势集 + 删 DoubleTapRecord/TapAlwaysShowsRegion/旧热键行 + 旧 HotkeyManager F6/F7 路径）。
+
+## R125 设置窗 master-detail 改版 + 录制去默认编辑器 + 裁剪居中（B1 + R124 续）
+**录制产物去默认编辑器（R124 续，T144，地板 389→393）**
+- 停止录制/同键起停不再自动开编辑器：`FinishCapture(holdMs, openEditor)`，录制路径 `openEditor:false` → 产物留内存 `_lastSequence`（不进编辑器、不自动落盘）。
+- 新动作 `edit.lastvideo`『打开编辑器（上次录制）』，常配在「完成后序列」；`CaptureController.EditLastVideo/HasLastVideo`；所有权移交编辑器，新录制释放上一条（含 spool 文件），Dispose 兜底。
+- **F2 按住录制停不掉修复**：`GestureInvoker` 把「是否空闲/在录」的状态判定从钩子回调内移到 `Post` 的动作里运行——回调就在 UI 线程，回调内同步查 State 会读到过期值（KeyDown 投的 Start 还没跑，KeyUp 时仍 Idle → stop 误判失败）。投递后 FIFO 保证 Start 先于 Stop。
+- spool `Flush(true)`→`Flush()`：临时文件回读走同一 OS 缓存，无需 FSync；实测省 ~1.8s UI 冻结。
+- 手势配置器保存后 `InstallHotkeys()` 立即热重载（Mutate 自写盘被 watcher 跳过，否则新绑定等重启）。
+- GestureEditor ComboBox 模板 `TemplatedParent`→`AncestorType ComboBox` + `TextElement.Foreground`：修深色主题下拉选中项文字发白/不可见。
+- SelfTest T144a-d（edit.lastvideo 存在 / 停止·起停文案「不进编辑器」/ 动作文案引导配完成后序列）。
+
+**B1 设置窗 master-detail 改版**
+- 顶部胶囊标签条 → 左竖排导航（8 类：快捷键/截图/录制/产物/编辑器/贴图/外观/系统，图标经 GlyphProbe 验证）+ 右内容区（标题 + 滚动宿主）。窗口默认 760×min(660, 工作区-120)，可缩放。
+- 选中态 = **Win11 设置风**：左侧强调色竖条（胶囊）随选中项**滑动 + 轻微回弹**（`ElasticEase` Springiness=1.0 / 400ms，幅度调小不夸张）；每项自带强调色卡片**淡入淡出**（`AnimOpacity` 200ms）；图标/文字颜色同步渐变（`AnimColor` 220ms）。
+- hover 改 `IsMouseOver` 触发器（WPF 自维护，杜绝手写 MouseEnter/Leave 漏触发导致的「打开后满屏 hover 卡住」）；卡片在 hover 之上互不干扰。
+- `RebuildInPlace`（换肤/换强调色）经 `_restoreCat` 保留当前类别。
+
+**裁剪后画面飞出视口修复（T145，地板 393→397）**
+- 根因：`UpdateImgRect` 定位「裁剪子区中心」用了缩放系数 `s` 而非整帧显示宽 `w`；居中裁剪两者近似（截图未暴露），非居中裁剪偏移数百 px → 画面甩出视口且与 `ClampPan` 不一致、中键拖不回。
+- 抽纯函数 `ZoomMath.CropViewRect`（不变量：裁剪中心 = 视口中心 + pan），`ApplyCrop` 后 `_zoom=MinZoom; pan=0`（裁剪即适配+居中）。
+- SelfTest T145a-d（非居中/带 pan/未裁剪 裁剪中心=视口中心+pan + 整帧尺寸=帧×s）。

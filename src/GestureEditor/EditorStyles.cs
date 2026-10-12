@@ -25,15 +25,16 @@ public static class EditorStyles
             $@"<ControlTemplate TargetType=""ComboBox"" xmlns=""{Pres}"" xmlns:x=""{X}"">
   <Grid>
     <ToggleButton Focusable=""False"" ClickMode=""Press""
-        IsChecked=""{{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={{RelativeSource TemplatedParent}}}}"">
+        IsChecked=""{{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={{RelativeSource AncestorType={{x:Type ComboBox}}}}}}"">
       <ToggleButton.Template>
         <ControlTemplate TargetType=""ToggleButton"">
-          <Border Background=""{Hex(p.CardBg)}"" BorderBrush=""{Hex(p.Stroke)}"" BorderThickness=""1"" CornerRadius=""6"" Padding=""10,7,10,7"">
+          <Border Background=""{Hex(p.CardBg)}"" BorderBrush=""{Hex(p.Stroke)}"" BorderThickness=""1"" CornerRadius=""6"" Padding=""10,7,10,7""
+              TextElement.Foreground=""{Hex(p.Text)}"">
             <Grid>
               <Grid.ColumnDefinitions><ColumnDefinition Width=""*""/><ColumnDefinition Width=""Auto""/></Grid.ColumnDefinitions>
               <ContentPresenter Grid.Column=""0"" VerticalAlignment=""Center""
-                  Content=""{{TemplateBinding SelectionBoxItem}}""
-                  ContentTemplate=""{{TemplateBinding SelectionBoxItemTemplate}}""/>
+                  Content=""{{Binding SelectionBoxItem, RelativeSource={{RelativeSource AncestorType={{x:Type ComboBox}}}}}}""
+                  ContentTemplate=""{{Binding SelectionBoxItemTemplate, RelativeSource={{RelativeSource AncestorType={{x:Type ComboBox}}}}}}""/>
               <TextBlock Grid.Column=""1"" Text=""&#xE70D;"" FontFamily=""Segoe Fluent Icons, Segoe MDL2 Assets""
                   FontSize=""10"" Foreground=""{Hex(p.TextDim)}"" VerticalAlignment=""Center"" Margin=""6,0,0,0""/>
             </Grid>

@@ -4,6 +4,7 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using System.Windows.Shapes;
 using FrameCapture.Core;
 using FrameCapture.Native;
@@ -37,8 +38,8 @@ public sealed class SettingsWindow : Window
         Background = new SolidColorBrush(Theme.WindowBg);
         SizeToContent = SizeToContent.Manual;   // 分页后每页很短，固定舒适尺寸起步，可拖边缩放
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
-        Width = 480; Height = Math.Min(640, SystemParameters.WorkArea.Height - 120);
-        MinWidth = 420; MinHeight = 420;
+        Width = 760; Height = Math.Min(660, SystemParameters.WorkArea.Height - 120);
+        MinWidth = 680; MinHeight = 460;
         ShowInTaskbar = false;
         Topmost = false;   // 不再总在最前（R119）：设置窗是普通工具窗，不该压住用户正在截/录的画面
         Title = "FrameCapture Settings";
@@ -88,15 +89,15 @@ public sealed class SettingsWindow : Window
         DockPanel.SetDock(bar, Dock.Top);
         dock.Children.Add(bar);
 
-        // ---- 分页（R119「内容分页」）：每个类别一个 StackPanel，标签条一次只显示一个，治「布局太长」----
-        var cats = new List<(string Name, StackPanel Body)>();
-        StackPanel Cat(string name)
+        // ---- 主从式（B1）：每个类别一个 StackPanel，左栏竖向导航一次只显示一个，治「布局太长」----
+        var cats = new List<(string Name, string Glyph, StackPanel Body)>();
+        StackPanel Cat(string name, string glyph)
         {
-            var p = new StackPanel { Margin = new Thickness(16, 8, 16, 14), Visibility = Visibility.Collapsed };
-            cats.Add((name, p));
+            var p = new StackPanel { Margin = new Thickness(20, 10, 20, 16), Visibility = Visibility.Collapsed };
+            cats.Add((name, glyph, p));
             return p;
         }
-        StackPanel panel = Cat("快捷键");
+        StackPanel panel = Cat("快捷键", "\uE765");
 
         // ---- 快捷键 ----
         panel.Children.Add(HotkeyRow("\uE7A8", "选区快捷键", "呼出区域选取窗", "scope")); // 裁剪角标=选取；E71A 留给"轮廓"行避免重复
@@ -133,7 +134,7 @@ public sealed class SettingsWindow : Window
         panel.Children.Add(geBtn);
 
         // ---- 截图 ----
-        panel = Cat("截图");
+        panel = Cat("截图", "\uE7A8");
         panel.Children.Add(SliderRow("\uE916", "点按单帧阈值", "按下到放开小于此值算单帧；0 = 全部长按",
             0, 1000, 50, _settings.Current.TapThresholdMs,
             v => $"{v / 1000.0:0.00}s", v => _settings.Mutate(s => s.TapThresholdMs = (int)v)));
@@ -156,7 +157,7 @@ public sealed class SettingsWindow : Window
         panel.Children.Add(DelayRow());
 
         // ---- 录制 ----
-        panel = Cat("录制");
+        panel = Cat("录制", "\uE714");
         panel.Children.Add(ToggleRow("\uE815", "连按两下 = 录制（免按住）", "连按两下捕获快捷键开始录制（REC 徽标常驻），再连按两下结束进编辑器；按住录制照旧。关闭后点按截图零延迟（双击判定会把点按落地延后约 0.3 秒）",
             _settings.Current.DoubleTapRecord, v => _settings.Mutate(s => s.DoubleTapRecord = v)));
         var fpsRow = SliderRow("\uEC4A", "录制帧率 (FPS)", "录制时每秒捕获的帧数；开启下方「跟随显示器刷新率」时本项被忽略",
@@ -180,7 +181,7 @@ public sealed class SettingsWindow : Window
             _settings.Current.RecordIncludeCursor, v => _settings.Mutate(s => s.RecordIncludeCursor = v)));
 
         // ---- 产物 ----
-        panel = Cat("产物");
+        panel = Cat("产物", "\uE74E");
         panel.Children.Add(ToggleRow("\uE8B9", "自动生成 Agent 胶片条", "每次捕获后自动生成逐帧胶片条图，便于 AI 理解动作过程",
             _settings.Current.AgentStripEnabled, v => _settings.Mutate(s => s.AgentStripEnabled = v)));
         panel.Children.Add(SliderRow("\uE8FD", "胶片条抽帧数", "自动生成 Agent 胶片条时从录制帧中抽取的帧数",
@@ -191,24 +192,24 @@ public sealed class SettingsWindow : Window
         panel.Children.Add(PathRow());
 
         // ---- 编辑器 ----
-        panel = Cat("编辑器");
+        panel = Cat("编辑器", "\uE70F");
         panel.Children.Add(ToggleRow("\uEDD7", "记住上次的工具/颜色/粗细", "关闭编辑器时记住你最后用的标注工具、颜色和线宽，下次打开直接是它们，省去每次重选。关闭后每次打开都回到默认（浏览 / 红 / 中）",
             _settings.Current.RememberEditorTools, v => _settings.Mutate(s => s.RememberEditorTools = v)));
         panel.Children.Add(ToggleRow("\uE8C1", "识别文字后显示结果窗", "「识别文字」成功后弹出结果窗预览：可查看/编辑识别文本、鼠标悬停部分选中复制、一键复制全部——预览即选取入口，此时不再自动写剪贴板（要哪段选哪段）。关闭则退回快速路径：直接写剪贴板 + 轻提示，不弹窗",
             _settings.Current.OcrShowResult, v => _settings.Mutate(s => s.OcrShowResult = v)));
 
         // ---- 贴图 ----
-        panel = Cat("贴图");
+        panel = Cat("贴图", "\uE718");
         panel.Children.Add(ToggleRow("\uE718", "拖动贴图自动磁边", "拖动贴图松手时自动吸附对齐：贴近所在屏幕边缘则贴合停靠到屏幕四边/四角，贴近同屏其他贴图的边或中线则与之对齐（便于整齐排布多张贴图，Snipaste 式手感）。关闭则松手停在原地",
             _settings.Current.PinSnapEdges, v => _settings.Mutate(s => s.PinSnapEdges = v)));
 
         // ---- 外观 ----
-        panel = Cat("外观");
+        panel = Cat("外观", "\uE790");
         panel.Children.Add(ThemeRow());
         panel.Children.Add(AccentRow());
 
         // ---- 系统 ----
-        panel = Cat("系统");
+        panel = Cat("系统", "\uE713");
         panel.Children.Add(ToggleRow("\uE7E8", "开机自启", "登录 Windows 时自动启动 FrameCapture",
             _settings.Current.RunAtStartup, v =>
             {
@@ -216,57 +217,127 @@ public sealed class SettingsWindow : Window
                 try { StartupService.Apply(v); } catch { }
             }));
 
-        // ---- 标签条 + 内容宿主（分页装配，R119「内容分页」）----
-        var tabStrip = new WrapPanel { Margin = new Thickness(12, 6, 12, 2) };
-        var host = new Grid();
-        var pills = new List<(Border el, TextBlock txt)>();
-        void PaintPill(int idx)
+        // ---- 主从式装配（B1）：左栏竖向导航「设置项」+ 右栏「设置内容」，中间细分隔线 ----
+        var iconFont = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets, Segoe UI Symbol");
+        var contentHeader = new TextBlock
         {
-            for (int i = 0; i < pills.Count; i++)
-            {
-                bool on = i == idx;
-                pills[i].el.Background = new SolidColorBrush(on ? Theme.Accent : Theme.Hover);
-                pills[i].txt.Foreground = new SolidColorBrush(on ? Color.FromRgb(0, 0, 0) : Theme.Text);
-            }
+            FontSize = 17,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = new SolidColorBrush(Theme.Text),
+            Margin = new Thickness(22, 16, 22, 4),
+        };
+        var navItems = new List<(Border el, TextBlock icon, TextBlock label, Border accent)>();
+
+        // 滑动竖条（胶囊）：唯一平移的元素，切换时滑过去 + 轻微回弹；强调色卡片改为每项自带、淡入淡出
+        var selBar = new Border { Width = 3, Height = 18, CornerRadius = new CornerRadius(2), Background = new SolidColorBrush(Theme.Accent) };
+        Canvas.SetLeft(selBar, 4);
+        var navCanvas = new Canvas { IsHitTestVisible = false };
+        navCanvas.Children.Add(selBar);
+
+        const double RowPitch = 40, RowTop = 1, RowH = 38, BarH = 18;   // 每项高 38 + 上下边距各 1 = 40
+        void MoveIndicator(int idx, bool animate)
+        {
+            double barTop = idx * RowPitch + RowTop + (RowH - BarH) / 2;
+            if (!animate) { Canvas.SetTop(selBar, barTop); return; }
+            // 幅度调小：低弹性、单次、更短时长（原 Springiness=3 / 520ms 偏夸张）
+            var ease = new ElasticEase { EasingMode = EasingMode.EaseOut, Oscillations = 1, Springiness = 1.0 };
+            selBar.BeginAnimation(Canvas.TopProperty, new DoubleAnimation(barTop, TimeSpan.FromMilliseconds(400)) { EasingFunction = ease });
         }
-        void ShowCat(int idx)
+        void AnimColor(TextBlock tb, Color to, bool animate)
+        {
+            if (tb.Foreground is SolidColorBrush b)
+            {
+                if (!animate) { b.Color = to; return; }
+                b.BeginAnimation(SolidColorBrush.ColorProperty, new ColorAnimation(to, TimeSpan.FromMilliseconds(220)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
+            }
+            else tb.Foreground = new SolidColorBrush(to);
+        }
+        void AnimOpacity(UIElement el, double to, bool animate)
+        {
+            if (!animate) { el.Opacity = to; return; }
+            el.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(to, TimeSpan.FromMilliseconds(200)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
+        }
+        void ShowCat(int idx, bool animate)
         {
             _cat = idx;
             for (int i = 0; i < cats.Count; i++)
                 cats[i].Body.Visibility = i == idx ? Visibility.Visible : Visibility.Collapsed;
-            PaintPill(idx);
+            contentHeader.Text = cats[idx].Name;
+            var acc = Theme.Accent;
+            for (int i = 0; i < navItems.Count; i++)
+            {
+                bool on = i == idx;
+                AnimOpacity(navItems[i].accent, on ? 1 : 0, animate);   // 强调色卡片淡入淡出
+                AnimColor(navItems[i].icon, on ? acc : Theme.TextDim, animate);
+                AnimColor(navItems[i].label, on ? acc : Theme.Text, animate);
+            }
+            MoveIndicator(idx, animate);
         }
+
+        // 左栏：竖向导航项（图标 + 名称；选中态 = 每项自带强调色卡片淡入淡出 + 共享竖条滑动）
+        // hover 用 IsMouseOver 触发器（WPF 自维护，绝不卡住）；选中项的强调色卡片在 hover 之上，故不会互相盖
+        var hoverStyle = new Style(typeof(Border));
+        var hovTrig = new Trigger { Property = UIElement.IsMouseOverProperty, Value = true };
+        hovTrig.Setters.Add(new Setter(Border.BackgroundProperty, new SolidColorBrush(Theme.Hover)));
+        hoverStyle.Triggers.Add(hovTrig);
+
+        var navPanel = new StackPanel { Width = 184, VerticalAlignment = VerticalAlignment.Top };
         for (int i = 0; i < cats.Count; i++)
         {
             int captured = i;
-            var txt = new TextBlock { Text = cats[i].Name, FontSize = 12.5, Foreground = new SolidColorBrush(Theme.Text) };
-            var pill = new Border
+            var icon = new TextBlock { Text = cats[i].Glyph, FontFamily = iconFont, FontSize = 15, Foreground = new SolidColorBrush(Theme.TextDim), VerticalAlignment = VerticalAlignment.Center, Width = 22, TextAlignment = TextAlignment.Center };
+            var label = new TextBlock { Text = cats[i].Name, FontSize = 13, Foreground = new SolidColorBrush(Theme.Text), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0, 0, 0) };
+            var row = new StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal, Margin = new Thickness(13, 0, 10, 0) };
+            row.Children.Add(icon); row.Children.Add(label);
+            var accent = new Border { CornerRadius = new CornerRadius(6), Background = new SolidColorBrush(Color.FromArgb(0x26, Theme.Accent.R, Theme.Accent.G, Theme.Accent.B)), Opacity = 0 };
+            var cell = new Grid();
+            cell.Children.Add(accent);   // 强调色卡片：淡入淡出，铺满整项
+            cell.Children.Add(row);      // 内容在上
+            var el = new Border
             {
-                CornerRadius = new CornerRadius(7),
-                Padding = new Thickness(11, 5, 11, 5),
-                Margin = new Thickness(0, 2, 6, 2),
-                Background = new SolidColorBrush(Theme.Hover),
-                Child = txt,
+                CornerRadius = new CornerRadius(6),
+                Height = 38,
+                Margin = new Thickness(0, 1, 0, 1),
+                Style = hoverStyle,
+                Child = cell,
                 Cursor = Cursors.Hand,
                 Focusable = true,
             };
-            pill.MouseLeftButtonDown += (_, e) => { ShowCat(captured); e.Handled = true; };
-            pill.KeyDown += (_, e) => { if (e.Key is Key.Space or Key.Enter) { ShowCat(captured); e.Handled = true; } };
-            pills.Add((pill, txt));
-            tabStrip.Children.Add(pill);
-            host.Children.Add(cats[i].Body);
+            el.MouseLeftButtonDown += (_, e) => { ShowCat(captured, true); e.Handled = true; };
+            el.KeyDown += (_, e) => { if (e.Key is Key.Space or Key.Enter) { ShowCat(captured, true); e.Handled = true; } };
+            navItems.Add((el, icon, label, accent));
+            navPanel.Children.Add(el);
         }
-        ShowCat(Math.Clamp(_restoreCat, 0, cats.Count - 1));   // 重建时停在原分页（R119）
+        var navHost = new Grid { Width = 184, Margin = new Thickness(10, 10, 6, 12), VerticalAlignment = VerticalAlignment.Top };
+        navHost.Children.Add(navPanel);    // 项在下层（含淡入淡出强调色卡片）
+        navHost.Children.Add(navCanvas);   // 竖条在上层，落在左侧留白区、压在卡片上、不压文字
 
+        // 右栏：内容标题 + 可滚动内容宿主
+        var host = new Grid();
+        foreach (var c in cats) host.Children.Add(c.Body);
         var scroller = new ScrollViewer
         {
             Content = host,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
         };
-        DockPanel.SetDock(tabStrip, Dock.Top);
-        dock.Children.Add(tabStrip);
-        dock.Children.Add(scroller);   // LastChildFill 填满剩余
+        var rightPanel = new DockPanel { LastChildFill = true };
+        DockPanel.SetDock(contentHeader, Dock.Top);
+        rightPanel.Children.Add(contentHeader);
+        rightPanel.Children.Add(scroller);
+
+        var divider = new Border { Width = 1, Background = new SolidColorBrush(Theme.Stroke) };
+
+        var body = new Grid();
+        body.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        body.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        body.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        Grid.SetColumn(navHost, 0); Grid.SetColumn(divider, 1); Grid.SetColumn(rightPanel, 2);
+        body.Children.Add(navHost); body.Children.Add(divider); body.Children.Add(rightPanel);
+
+        ShowCat(Math.Clamp(_restoreCat, 0, cats.Count - 1), false);   // 重建时停在原类别（R119），首帧不播动画
+
+        dock.Children.Add(body);   // LastChildFill 填满标题栏以下区域
         root.Child = dock;
         Content = root;
 

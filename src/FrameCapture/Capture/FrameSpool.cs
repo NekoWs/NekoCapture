@@ -70,7 +70,9 @@ public sealed class FrameSpool : IDisposable
     {
         lock (_gate)
         {
-            _fs?.Flush(true);
+            // Flush() 而非 Flush(true)：spool 是临时文件，回读走同一 OS 文件缓存（新 FileStream 读同路径），
+            // 无需 FSync 强制落盘。Flush(true) 会把整段（可达 GB 级）脏页压到物理盘，实测卡 UI 线程 ~1.8s（R124）。
+            _fs?.Flush();
             _fs?.Dispose();
             _fs = null;
             return new FrameSpoolList(Path, _index.ToArray());

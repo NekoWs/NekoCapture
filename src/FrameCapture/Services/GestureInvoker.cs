@@ -8,9 +8,10 @@ namespace FrameCapture.Services;
 /// 手势动作执行器（R120 B2）：把 <see cref="GestureActions"/> 里的动作名映射到 AppHost/CaptureController 的真实操作。
 /// 钩子回调占着全系统输入链，故动作一律 <b>BeginInvoke 投递</b>到 UI 线程、绝不在回调内跑重活。
 ///
-/// 返回值语义（供引擎失败策略）：对「有前置条件」的动作（开始/结束录制）先做<b>同步状态检查</b>——
-/// 不满足即返回 false（不投递），从而让「失败自动下一个」(NextBinding) 在运行期真正生效；
-/// 其余动作乐观返回 true 并投递。检查读 Controller.State 在 UI 线程（钩子回调线程），无并发问题。
+/// 返回值语义（供引擎失败策略）：多数动作乐观返回 true 并投递，真正的状态判定（是否空闲/是否在录）
+/// 放到投递的动作里于 UI 线程运行时做——因为钩子回调本身就在 UI 线程，若在回调里同步查 State，
+/// 同一次按键的 KeyDown/KeyUp 之间投递的动作还没跑，状态会读到过期值（R124 修 F2 按住录制停不掉）。
+/// 仅「即时定格」这类需要即时让位的动作保留回调内同步 State 检查。
 /// </summary>
 sealed class GestureInvoker : GC.IActionInvoker
 {
@@ -28,6 +29,13 @@ sealed class GestureInvoker : GC.IActionInvoker
     public bool Invoke(string actionName)
     {
         var c = _host.Controller;
+        bool result = InvokeCore(actionName, c);
+        FrameCapture.Core.Trace.Log($"gesture act {actionName} ok={result} state={c.State}");
+        return result;
+    }
+
+    bool InvokeCore(string actionName, CaptureController c)
+    {
         switch (actionName)
         {
             case GestureActions.CaptureFrame:
@@ -42,18 +50,20 @@ sealed class GestureInvoker : GC.IActionInvoker
             case GestureActions.RecordToggle: Post(() => c.ToggleRecordSelection()); return true;
 
             case GestureActions.RecordStart:
-                if (c.State != CaptureController.Phase.Idle) return false;   // 非空闲→失败（可顺延下一条）
+                // 状态判定放到投递的动作里运行时做（R124 修 F2 按住录制）：钩子回调就在 UI 线程，若在回调里同步查 State，
+                // 则 KeyDown 投的 StartRecording 还没跑、KeyUp 时 State 仍 Idle → stop 误判失败、录制停不掉。
+                // 投递后 FIFO 保证 StartRecording 先于 StopRecording 执行，按住录制/放开停止才成立。
                 Post(() => c.StartRecording());
                 return true;
 
             case GestureActions.RecordStop:
-                if (c.State != CaptureController.Phase.Capturing) return false; // 未在录→失败（可顺延下一条）
                 Post(() => c.StopRecording());
                 return true;
 
             case GestureActions.ScrollCapture: Post(() => c.BeginScrollCapture()); return true;
             case GestureActions.DelayedCapture: Post(() => c.BeginDelayedCapture()); return true;
             case GestureActions.EditLastStill: Post(() => c.EditLastStill()); return true;
+            case GestureActions.EditLastVideo: Post(() => c.EditLastVideo()); return true;
             case GestureActions.PinSelection: Post(() => c.PinFromClipboard()); return true;
 
             case GestureActions.OcrSelection:

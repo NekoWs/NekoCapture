@@ -26,6 +26,7 @@ public static class GestureActions
     public const string ScrollCapture = "scroll.capture";
     public const string DelayedCapture = "capture.delayed";
     public const string EditLastStill = "edit.last";
+    public const string EditLastVideo = "edit.lastvideo";
     public const string OcrSelection = "ocr.selection";
     public const string PinSelection = "pin.selection";
     public const string SettingsOpen = "settings.open";
@@ -39,12 +40,13 @@ public static class GestureActions
         new(ScopeSelect, "选区", "进入交互式选区（选一块区域）"),
         new(CaptureSelection, "选区截图", "先选一块区域，选完立即截静态图（QQ 式 Ctrl+Alt+A）"),
         new(RecordStart, "开始录制", "对当前范围开始录制（录到停止为止）"),
-        new(RecordStop, "停止录制", "停止录制并进入编辑器"),
-        new(RecordToggle, "开始/停止录制（同键起停）", "空闲→选区起录；录制中→停止进编辑器（同一个键起停，QQ 式）"),
+        new(RecordStop, "停止录制", "停止录制（产物留在内存，不进编辑器；要进编辑器请在「完成后序列」加『打开编辑器（上次录制）』）"),
+        new(RecordToggle, "开始/停止录制（同键起停）", "空闲→选区起录；录制中→停止（不进编辑器，进编辑器请在完成后序列加『打开编辑器（上次录制）』）"),
         new(RecordSelection, "选区录制", "先选一块区域，选完立即录制该区域（只起录，不含停止）"),
         new(ScrollCapture, "滚动截图", "对当前范围做滚动长截图"),
         new(DelayedCapture, "延时截图", "倒数数秒后截当前范围（抓一动就没的菜单/悬停）"),
         new(EditLastStill, "编辑上次截图", "打开标注编辑器编辑上一次静图"),
+        new(EditLastVideo, "打开编辑器（上次录制）", "打开视频编辑器编辑上一次录制（常配在『完成后序列』，让停止录制后再进编辑器）"),
         new(OcrSelection, "识别文字", "对当前范围做 OCR 并复制文本"),
         new(PinSelection, "贴图当前选区", "把当前范围钉成贴图（Snipaste 式）"),
         new(SettingsOpen, "打开设置", "打开设置窗口"),

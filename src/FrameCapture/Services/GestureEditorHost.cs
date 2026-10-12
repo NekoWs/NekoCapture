@@ -111,6 +111,9 @@ public static class GestureEditorHost
                 });
             }
             AppHost.Current.Settings.Mutate(s => s.Gestures = cfg);
+            // 立即热重载引擎：Mutate 是本进程自写盘，文件 watcher 会因 RecentlySelfWritten 跳过，
+            // 不主动 Apply 的话引擎还拿着旧绑定（新增的完成后序列/启用状态要等下次重启才生效）。
+            AppHost.Current.InstallHotkeys();
         }
 
         static GC.ModifierKeys ModsOf(HotkeySpec s) =>

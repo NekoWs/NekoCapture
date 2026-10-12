@@ -33,6 +33,9 @@ public sealed class CaptureController : IDisposable
     private System.Windows.Threading.DispatcherTimer? _stopWindowTimer;
     // R78：保留最近一次静态截图帧，供托盘「编辑上次截图」在托盘找回编辑器
     private readonly LastStill _lastStill = new();
+    // R124：录制产物留在内存（不落盘、不自动开编辑器）。停止录制只暂存，进编辑器由 edit.lastvideo 动作显式触发。
+    // 新录制完成会释放上一条（含 spool 文件）；从未进编辑器就再次录制/清空 → 上一条丢弃（用户明确要的"关掉就丢"）。
+    private CapturedSequence? _lastSequence;
     // R88：滚动截图——选区后自动检测滚动并拼接（目标窗保持焦点，用户只管滚）
     private bool _scrollAfterSelect;
     private Overlays.ScrollHintWindow? _scrollBar;
@@ -278,14 +281,14 @@ public sealed class CaptureController : IDisposable
         _recordAfterSelect = true;
     }
 
-    /// <summary>R120 B2：录制中→停止并进编辑器；否则→选区起录。QQ 式「同键开始/结束」，
-    /// 解决「选区录制起来后没有停止入口、停不掉」。</summary>
+    /// <summary>R120 B2 / R124：录制中→停止（产物留内存，不进编辑器）；否则→选区起录。QQ 式「同键开始/结束」。
+    /// 进编辑器请在「完成后序列」加『打开编辑器（上次录制）』——动作本身不再默认开编辑器。</summary>
     public void ToggleRecordSelection()
     {
         if (State == Phase.Capturing)
         {
             FrameCapture.Core.Trace.Log("record-toggle→stop");
-            FinishCapture(-1);
+            FinishCapture(-1, openEditor: false);
             return;
         }
         BeginRecordSelection();
@@ -640,11 +643,11 @@ public sealed class CaptureController : IDisposable
         return State == Phase.Capturing;
     }
 
-    /// <summary>R120 B2：手势「结束录制」——停止录制并进编辑器（未在录返回 false）。</summary>
+    /// <summary>R120 B2 / R124：手势「停止录制」——停止录制、产物留内存（不进编辑器；未在录返回 false）。</summary>
     public bool StopRecording()
     {
         if (State != Phase.Capturing) return false;
-        FinishCapture(-1);
+        FinishCapture(-1, openEditor: false);
         return true;
     }
 
@@ -694,7 +697,7 @@ public sealed class CaptureController : IDisposable
         if (!_settings.Current.RecHintShown) _settings.Mutate(s => s.RecHintShown = true);
     }
 
-    private void FinishCapture(long holdMs = -1)
+    private void FinishCapture(long holdMs = -1, bool openEditor = true)
     {
         FrameCapture.Core.Trace.Log("FinishCapture");
         _tapWindowTimer?.Stop();
@@ -771,11 +774,20 @@ public sealed class CaptureController : IDisposable
             Fps = _captureFps, // 实际帧率（跟随刷新率时=刷新率），编辑器时间轴/时长据此而非手动值（R119）
         };
 
-        // 录制路径：编辑器构造 + 首帧解码是 UI 线程同步重活，会冻结界面。先把 REC 徽标转「处理中…」
-        // 并强制刷新一帧，让用户在冻结期看到反馈，而不是以为没反应（R119）。
-        _outline?.SetRecProcessing();
-        try { System.Windows.Application.Current?.Dispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.Render); } catch { }
-        OpenEditor(seq);
+        // R124：产物先暂存内存。开编辑器时所有权归编辑器（_lastSequence 置空，免下次误回收）；
+        // 不开编辑器时记为「上次录制」供 edit.lastvideo 取用，并释放上一条从未进编辑器的产物（含 spool 文件）。
+        if (!ReferenceEquals(_lastSequence, seq)) (_lastSequence?.Frames as System.IDisposable)?.Dispose();
+        if (openEditor)
+        {
+            // 编辑器构造 + 首帧解码是 UI 线程同步重活会冻结界面：先把 REC 徽标转「处理中…」并强制刷一帧，
+            // 让用户在冻结期看到反馈（R119）。⚠ 这句 Dispatcher.Invoke 会泵动消息队列——只在开编辑器分支做：
+            // 否则会把「完成后序列」投递的 edit.lastvideo 提前跑（此刻 State 还没置 Idle、_lastSequence 还没存）。
+            _outline?.SetRecProcessing();
+            try { System.Windows.Application.Current?.Dispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.Render); } catch { }
+            _lastSequence = null;
+            OpenEditor(seq);
+        }
+        else { _lastSequence = seq; State = Phase.Idle; }
         RetireCaptureOutline();
     }
 
@@ -875,6 +887,20 @@ public sealed class CaptureController : IDisposable
         OpenEditorForFrame(f, reg, dev);
     }
 
+    /// <summary>是否有留在内存、可进编辑器的上次录制（R124）。</summary>
+    public bool HasLastVideo => _lastSequence != null;
+
+    /// <summary>R124：手势『打开编辑器（上次录制）』——用留在内存的上次录制打开视频编辑器。
+    /// 所有权移交编辑器（_lastSequence 置空，编辑器关闭时自行释放 spool）。空闲且确有产物才开。</summary>
+    public bool EditLastVideo()
+    {
+        if (State != Phase.Idle || _lastSequence == null) return false;
+        var s = _lastSequence;
+        _lastSequence = null;
+        OpenEditor(s);
+        return true;
+    }
+
     ScreenRegion FullMonitorAtCursor()
     {
         var cursor = Win32Wrap.GetCursorPosition();
@@ -941,6 +967,8 @@ public sealed class CaptureController : IDisposable
     public void Dispose()
     {
         _lastStill.Clear(); // R78：释放保留帧（最大可达数十 MB）
+        (_lastSequence?.Frames as System.IDisposable)?.Dispose(); // R124：留在内存、从未进编辑器的录制产物
+        _lastSequence = null;
         _live.Dispose();
     }
 }

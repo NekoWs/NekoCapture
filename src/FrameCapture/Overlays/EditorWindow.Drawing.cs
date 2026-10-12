@@ -117,10 +117,10 @@ public sealed partial class EditorWindow
         double s = sFit * _zoom;
         var (px, py) = FrameCapture.Core.ZoomMath.ClampPan(_panX, _panY, cw, ch, fw * s, fh * s);
         _panX = px; _panY = py; // 视口变小后自动回钳
-        // 全帧显示矩形：其"裁剪子区"恰落在视口中心 + pan
+        // 全帧显示矩形：其"裁剪子区"中心恰落在视口中心 + pan（pan=裁剪内容中心相对视口中心偏移，与 ZoomMath 约定一致）
         var c = _crop.Current;
-        double w = f.W * s, h = f.H * s;
-        _imgRect = new Rect(cw / 2 - (c.X + c.W / 2) * s + px - w / 2, ch / 2 - (c.Y + c.H / 2) * s + py - h / 2, w, h);
+        var (rx, ry, rw, rh) = FrameCapture.Core.ZoomMath.CropViewRect(cw, ch, f.W, f.H, c.X, c.Y, c.W, c.H, s, px, py);
+        _imgRect = new Rect(rx, ry, rw, rh);
         ApplyImageView();
     }
 
@@ -1240,6 +1240,7 @@ public sealed partial class EditorWindow
         // 最小 48 帧像素折算为归一化比例（宽高各按自身维度）
         if (!_crop.Push(n0.X, n0.Y, n1.X, n1.Y, 48.0 / f.W, 48.0 / f.H)) return;
         _order.CropPushed();
+        _zoom = FrameCapture.Core.ZoomMath.MinZoom; _panX = 0; _panY = 0;   // 裁剪后回到「适配 + 居中」：小裁剪不再被留在放大/偏移态而飞出视口、中键也拖不回
         UpdateImgRect(); RedrawAnns(); Show(_index); RefreshUndo();
         var (cx, cy, cw, ch) = _crop.ToPixel(f.W, f.H);
         FrameCapture.Core.Trace.Log($"editor crop depth={_crop.Depth} px={cx},{cy} {cw}x{ch}");

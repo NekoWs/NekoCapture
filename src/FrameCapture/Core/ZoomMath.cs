@@ -52,4 +52,19 @@ public static class ZoomMath
     public static (double X, double Y) PanBy(double panX0, double panY0, double dx, double dy,
         double vw, double vh, double iw, double ih)
         => ClampPan(panX0 + dx, panY0 + dy, vw, vh, iw, ih);
+
+    /// <summary>
+    /// 裁剪视图矩形（T145）：整帧（frameW×frameH 像素）按缩放 s 绘制后的显示矩形，
+    /// 使「裁剪子区（归一化 crop*）的中心」恰落在视口中心 + pan。
+    /// 不变量：X + (cropX+cropW/2)*W == vw/2 + panX（Y 同理）——非居中裁剪也不会把画面甩出视口。
+    /// </summary>
+    public static (double X, double Y, double W, double H) CropViewRect(
+        double vw, double vh, double frameW, double frameH,
+        double cropX, double cropY, double cropW, double cropH, double s, double panX, double panY)
+    {
+        double w = frameW * s, h = frameH * s;
+        return (vw / 2 + panX - (cropX + cropW / 2) * w,
+                vh / 2 + panY - (cropY + cropH / 2) * h,
+                w, h);
+    }
 }

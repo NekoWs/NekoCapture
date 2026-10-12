@@ -45,6 +45,8 @@ public sealed class GestureService : IDisposable
         var bindings = on ? cfg!.ToBindings() : new List<GC.GestureBinding>();
         _engineBound = bindings;
         _engine.SetBindings(bindings);
+        FrameCapture.Core.Trace.Log($"gesture apply on={on} excl={_exclusive} n={bindings.Count} [" +
+            string.Join(", ", bindings.Select(b => $"mods={b.Chord.Mods} key={b.Chord.Key}/{b.Trigger}")) + "]");
         bool hasMouse = bindings.Any(b => IsMouse(b.Trigger));
 
         // 键盘：手势开启才挂 sink（关闭时置空，旧热键路径零开销、零改变）

@@ -2216,14 +2216,30 @@ static class SelfTest
             var p5 = GEdit.GestureValidation.Validate(badTime, cat, nm);
             Chk("T138f-timing-warn-not-error", p5.Count > 0 && !GEdit.GestureValidation.HasErrors(p5), "时间越界仅提示、非 error");
         }
-        // T139 编辑器控件配色模板可解析（R122）：XamlReader 现拼的 ComboBox/ListBox 模板运行时才解析，编译不报——这里兜底
+        // T139 编辑器控件配色模板可套可 measure（R122/R124）：XamlReader 现拼的 ComboBox/ListBox 模板在 measure 套模板时才解析，
+        // 编译与 XamlReader.Parse 都不报（SelectionBoxItem 嵌套模板坑）——这里真正 Measure 兜底。
         {
             var pal = new GEdit.EditorPalette();
-            bool okCombo = false, okList = false;
-            try { var cb = new System.Windows.Controls.ComboBox(); GEdit.EditorStyles.ApplyCombo(cb, pal); okCombo = cb.Template != null; } catch { }
-            try { var lb = new System.Windows.Controls.ListBox(); GEdit.EditorStyles.ApplyList(lb, pal); okList = lb.Resources.Contains(typeof(System.Windows.Controls.ListBoxItem)); } catch { }
-            Chk("T139a-combo-template-parses", okCombo, "ComboBox 配色模板可解析（深色下拉可读）");
-            Chk("T139b-list-item-style-parses", okList, "ListBox 条目样式可解析");
+            string comboErr = null, listErr = null;
+            try {
+                var cb = new System.Windows.Controls.ComboBox();
+                GEdit.EditorStyles.ApplyCombo(cb, pal);
+                cb.Items.Add(new System.Windows.Controls.ComboBoxItem { Content = "A" });
+                cb.Items.Add(new System.Windows.Controls.ComboBoxItem { Content = "B" });
+                cb.SelectedIndex = 0;
+                cb.Measure(new System.Windows.Size(200, 30));
+                cb.Arrange(new System.Windows.Rect(0, 0, 200, 30));
+            } catch (Exception ex) { comboErr = ex.Message; }
+            try {
+                var lb = new System.Windows.Controls.ListBox();
+                GEdit.EditorStyles.ApplyList(lb, pal);
+                lb.Items.Add(new System.Windows.Controls.ListBoxItem { Content = "A" });
+                lb.SelectedIndex = 0;
+                lb.Measure(new System.Windows.Size(200, 60));
+                lb.Arrange(new System.Windows.Rect(0, 0, 200, 60));
+            } catch (Exception ex) { listErr = ex.Message; }
+            Chk("T139a-combo-template-measures", comboErr == null, "ComboBox 配色模板可套可 measure（深色下拉可读）" + (comboErr != null ? " 异常:" + comboErr : ""));
+            Chk("T139b-list-item-style-measures", listErr == null, "ListBox 条目样式可套可 measure" + (listErr != null ? " 异常:" + listErr : ""));
         }
         // T140 文字字号映射（C3）：线宽挡位→帧像素字号，单调递增，锚定 细3/中6/粗10 = 22/34/50px @1080p
         {
@@ -2267,6 +2283,36 @@ static class SelfTest
             eng.OnKeyDown(F6, GE.ModifierKeys.None, 0);
             eng.OnMouseDown(0, GE.ModifierKeys.None, 10); eng.OnMouseUp(0, GE.ModifierKeys.None, 20);
             Chk("T143b-oncomplete-skipped-on-fail", !M.Log.Contains("Pin"), "主动作失败则完成后序列不跑，实得 " + string.Join(",", M.Log));
+        }
+        // T144 录制动作去默认行为（R124）：停止/同键起停不再自动开编辑器；开编辑器是独立动作、配在完成后序列
+        {
+            Chk("T144a-edit-lastvideo-exists", FrameCapture.Core.GestureActions.IsValid("edit.lastvideo"),
+                "新增『打开编辑器（上次录制）』动作");
+            var rs = FrameCapture.Core.GestureActions.All.First(a => a.Name == "record.stop");
+            Chk("T144b-record-stop-no-default-editor", rs.Description.Contains("不进编辑器"),
+                $"停止录制文案明确不进编辑器：{rs.Description}");
+            var rt = FrameCapture.Core.GestureActions.All.First(a => a.Name == "record.toggle");
+            Chk("T144c-record-toggle-no-default-editor", rt.Description.Contains("不进编辑器"),
+                $"同键起停文案明确不进编辑器：{rt.Description}");
+            var lv = FrameCapture.Core.GestureActions.All.First(a => a.Name == "edit.lastvideo");
+            Chk("T144d-edit-lastvideo-guides-oncomplete", lv.Description.Contains("完成后序列"),
+                $"打开编辑器动作文案引导配到完成后序列：{lv.Description}");
+        }
+        // T145 裁剪视图居中（R125）：非居中裁剪后，裁剪子区中心必落在视口中心+pan。
+        // 旧公式用 s 而非整帧显示宽 w 定位裁剪中心，非居中裁剪会把画面甩出视口、中键拖不回。
+        {
+            void CropCenter(double vw, double vh, double fw, double fh, double cx0, double cy0, double cw0, double ch0, double s, double panX, double panY, string tag)
+            {
+                var (x, y, w, h) = ZoomMath.CropViewRect(vw, vh, fw, fh, cx0, cy0, cw0, ch0, s, panX, panY);
+                double ccx = x + (cx0 + cw0 / 2) * w, ccy = y + (cy0 + ch0 / 2) * h;
+                Chk($"T145{tag}-center", Math.Abs(ccx - (vw / 2 + panX)) < 1e-6 && Math.Abs(ccy - (vh / 2 + panY)) < 1e-6,
+                    $"裁剪中心=视口中心+pan：实得 ({ccx:F2},{ccy:F2}) 期望 ({vw / 2 + panX},{vh / 2 + panY})");
+            }
+            CropCenter(1000, 800, 1920, 1080, 0.2, 0.3, 0.4, 0.5, 0.5, 0, 0, "a");    // 非居中裁剪
+            CropCenter(1000, 800, 1920, 1080, 0.2, 0.3, 0.4, 0.5, 0.5, 30, -20, "b"); // 带 pan
+            CropCenter(1000, 800, 1920, 1080, 0, 0, 1, 1, 0.5, 0, 0, "c");            // 未裁剪=整帧居中
+            var (_, _, ww, hh) = ZoomMath.CropViewRect(1000, 800, 1920, 1080, 0.2, 0.3, 0.4, 0.5, 0.5, 0, 0);
+            Chk("T145d-fullframe-size", Math.Abs(ww - 960) < 1e-6 && Math.Abs(hh - 540) < 1e-6, $"整帧显示尺寸=帧×s：实得 {ww}x{hh}");
         }
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");
         return fail == 0 ? 0 : 1;
