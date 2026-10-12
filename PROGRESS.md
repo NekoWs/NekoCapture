@@ -1768,3 +1768,9 @@ status: done
 - 用 `--pin-clip` 单实例转发钩子成功建贴图（落点=光标，rect 精确）；`SendInput` 注入返回 2（成功）。
 - 但 **DSH GUI 浏览器窗口 rect=(-11,-11)-(3851,2099) 全屏覆盖且 topmost 在我 Topmost 贴图之上**：`WindowFromPoint` 任意屏幕点均命中 DSH GUI；`SetWindowPos(HWND_TOPMOST)` 亦无法把贴图提到其上。→ 注入点击无处落到被测窗口，贴图拖拽/右键菜单/全局手势的实机验证在本会话不可行。
 - 结论：A3 拖拽实时磁吸、D4 子菜单展开、B2 手势运行时的**实机确认**留待用户 10:00 亲自试用（其本就计划自测）；代码侧已尽数离屏验证 + 单测 + 代码审查。
+
+## R120 B2 真 bug 修复（用户回来实测时发现）
+**现象**：给 settings.json 写入手势配置（F6 按住即录 / F7 选区，占用全部热键）后，手势不触发。
+**根因**：`HotkeyManager.Install` 第 66 行 `if (scope==null && capture==null) return;`——手势占用全部热键→旧热键被清空→`Install("","")` 早退→**WH_KEYBOARD_LL 钩子根本没装**。而手势 KeySink 正是从该钩子喂数据（HandleKey 第 140 行），故手势全哑。附带：滚动截图 Esc 全局取消、浮窗 Enter/Esc 也依赖此钩子，同样会失效。
+**修复**：`if (scope==null && capture==null && KeySink==null) return;`——只要任一消费者（旧热键 / 手势 KeySink）存在就装钩子。AppHost 里 `Gestures.Apply` 已先于 `Install`，KeySink 先设好，顺序正确。
+**验证**：SelfTest T134a（有 KeySink 无热键→装钩子）/ T134b（无 KeySink 无热键→不装，零开销），护栏 361→**363**。实机：新实例 `Install scope= capture= hook=<非0>` 证实钩子已装。

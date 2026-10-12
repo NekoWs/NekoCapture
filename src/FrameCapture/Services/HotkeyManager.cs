@@ -63,7 +63,9 @@ public sealed class HotkeyManager : IDisposable
         Uninstall();
         var scope = HotkeySpec.Parse(scopeText);
         var capture = HotkeySpec.Parse(captureText);
-        if (scope == null && capture == null) return;
+        // 钩子还承载：手势层喂键（KeySink）、滚动截图 Esc 全局取消、浮窗 Enter/Esc——
+        // 只要任一消费者存在就必须装，哪怕两个旧热键都空（手势占用全部热键时正是这种情形）。
+        if (scope == null && capture == null && KeySink == null) return;
 
         _scope = scope;
         _capture = capture;

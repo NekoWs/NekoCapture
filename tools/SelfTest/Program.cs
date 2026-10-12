@@ -2112,6 +2112,21 @@ static class SelfTest
         }
         // T133 OCR 预览优先默认（R120 D2）：结果窗默认开（预览即选取入口，不自动复制）
         Chk("T133-ocr-preview-default", new AppSettings().OcrShowResult, "识别结果窗默认开（预览优先）");
+        // T134 键盘钩子在「无旧热键但有手势 KeySink」时仍安装（R120 B2 修复）：
+        // 手势占用全部热键→旧热键清空→若此时不装钩子，手势 KeySink 永不收到键、手势全哑；
+        // 且滚动截图 Esc 取消、浮窗 Enter/Esc 也依赖此钩子。
+        {
+            bool sinkInstalled;
+            var hk = new FrameCapture.Services.HotkeyManager();
+            try { hk.KeySink = (vk, down, mods, time) => { }; hk.Install("", ""); sinkInstalled = hk.Installed; }
+            finally { hk.Dispose(); }
+            bool idleNotInstalled;
+            var hk2 = new FrameCapture.Services.HotkeyManager();
+            try { hk2.Install("", ""); idleNotInstalled = hk2.Installed; }
+            finally { hk2.Dispose(); }
+            Chk("T134a-hook-for-keysink", sinkInstalled, "有手势 KeySink 时即使无旧热键也装钩子（否则手势永不触发）");
+            Chk("T134b-no-hook-when-idle", !idleNotInstalled, "无 KeySink 且无热键时不装钩子（零开销）");
+        }
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");
         return fail == 0 ? 0 : 1;
     }
