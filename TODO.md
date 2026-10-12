@@ -400,16 +400,16 @@
 
 ## 夜间批次 R120（2026-10-13 通宵，用户离线至 10:00）
 ### A 修 bug
-- [ ] **A1 录制后内存不释放**：录制视频后工作集暴涨、MemReduct 清理才回落。承接「内存工作集观察」——先查编辑器关闭时是否释放 FrameSpoolList/位图缓存/ffmpeg/LastStill，再在大操作收尾（编辑器关闭、编码完成）主动 GC.Collect×2 + SetProcessWorkingSetSize(-1) 回收工作集。
-- [ ] **A2 滚动截图裁切/重叠**：改进 ScrollStitch 重叠检测，消除拼接处裁切与重复带。
-- [ ] **A3 贴图磁边依然无效**：不止阈值——查是否真触发/坐标，必要时加拖拽实时吸附反馈（Snipaste 式引导线）。
+- [x] **A1 录制后内存不释放**：录制视频后工作集暴涨、MemReduct 清理才回落。承接「内存工作集观察」——先查编辑器关闭时是否释放 FrameSpoolList/位图缓存/ffmpeg/LastStill，再在大操作收尾（编辑器关闭、编码完成）主动 GC.Collect×2 + SetProcessWorkingSetSize(-1) 回收工作集。→ `Core/Memory.cs` `Memory.Reclaim()`（GC×2 + TrimWorkingSet），编辑器 ClosedByUser + 编码 ContinueWith 收尾调用；T129。
+- [x] **A2 滚动截图裁切/重叠**：改进 ScrollStitch 重叠检测，消除拼接处裁切与重复带。→ `FindOverlap` 两趟（严格趟保整像素精确 + ±1 容差趟吸收分数滚动抖动，≥80% 抽样匹配）；T119f + `stitch` 离屏取证（重叠 50 精确、350 行全对、接缝无痕）。
+- [x] **A3 贴图磁边依然无效**：不止阈值——查是否真触发/坐标，必要时加拖拽实时吸附反馈（Snipaste 式引导线）。→ 根因是旧版仅松手瞬间吸附；改手动拖拽（CaptureMouse）+ MouseMove 实时 `SnapTarget` 磁吸（`_rawLeft` 未吸附位避免与光标互拉）+ 松手 `SnapToEdge` 兜底；阈值放宽 12%/24–56；数学 T110/T113。
 ### B 手势引擎（可复用大功能）
-- [ ] **B1 GestureCore 独立类库**（netstandard2.0，零 UI 依赖）：模型（KeyChord / TriggerKind{Click,DoubleClick(可配间隔),KeyDown,KeyUp,LongPress,TripleClick,Chord} / GestureBinding{触发→动作序列, 每条显式失败策略 NextBinding|Stop|SkipStep}）+ 引擎（喂原始按键事件+时间戳→消歧→回调动作序列）+ 单测。
-- [ ] **B2 FrameCapture 接入**：WH_KEYBOARD_LL→GestureCore→动作实现；JSON 持久化；默认复刻现有两热键语义 + 「QQ 手感」预设一键切换；迁移旧 CaptureHotkey/ScopeHotkey/TapThreshold/DoubleTapRecord/TapAlwaysShowsRegion。完整编辑器 UI 下一轮。
+- [x] **B1 GestureCore 独立类库**（netstandard2.0，零 UI 依赖）：模型（KeyChord / TriggerKind{Click,DoubleClick(可配间隔),KeyDown,KeyUp,LongPress,TripleClick,Chord} / GestureBinding{触发→动作序列, 每条显式失败策略 NextBinding|Stop|SkipStep}）+ 引擎（喂原始按键事件+时间戳→消歧→回调动作序列）+ 单测。→ `src/GestureCore/`（Models/GestureEngine，键为不透明 int VK、修饰键随事件传入、`Tick(now)` 推进消歧，宿主无关）；T130/T131。
+- [x] **B2 FrameCapture 接入**：WH_KEYBOARD_LL→GestureCore→动作实现；JSON 持久化；默认复刻现有两热键语义 + 「QQ 手感」预设一键切换；迁移旧 CaptureHotkey/ScopeHotkey/TapThreshold/DoubleTapRecord/TapAlwaysShowsRegion。完整编辑器 UI 下一轮。→ `GestureConfig`/`GestureActions`（11 动作）+ `GestureService`（共用键盘钩子 KeySink 喂引擎 + WH_MOUSE_LL + Tick 泵 + 被占热键让位）+ `GestureInvoker`（录制前置检查使失败顺延生效）。**附加式、默认关（Enabled=false）零回归**；tap/hold 语义无法用键触发干净复刻，故提供 KeyDown=start/KeyUp=stop 显式模型。**完整编辑器 UI 待用户回来共同设计**（主观 UI，宜有输入）。
 ### C
-- [ ] **C 截图后悬浮窗存在时间**可自定义（设置项，替换硬编码 3.2s）。
+- [x] **C 截图后悬浮窗存在时间**可自定义（设置项，替换硬编码 3.2s）。→ `AppSettings.ToastSeconds`（默认 3.2/0=常驻/Normalize 夹 0.5–60）+ `CaptureToast` 读值设时 + 设置窗 `ToastRow` 芯片（常驻/2/3.2/5/8）；T132。
 ### D UI 打磨
-- [ ] **D1 取色器 UI 美化**（L52）。
-- [ ] **D2 OCR 悬停预览选文本**、不直接复制（L63）。
-- [ ] **D3 Pin 贴图动画**（L68）。
-- [ ] **D4 贴图右键菜单样式**（L72）。
+- [x] **D1 取色器 UI 美化**（L52）。→ 输入字段主题化（`Field` 深色圆角+聚焦强调色，TextBox 透明无边框）+ SV/色相/透明条 `Round` 圆角描边 + 标签 TextDim；`renderpick` 离屏渲染目检通过。
+- [x] **D2 OCR 悬停预览选文本**、不直接复制（L63）。→ `OcrShowResult` 默认翻 true（预览优先）+ 开结果窗时不再自动写剪贴板（预览即选取入口），关才走快速复制；编辑器/贴图两处同步 + 设置/帮助文案；T133。
+- [x] **D3 Pin 贴图动画**（L68）。→ `ContentRendered` 触发 `PlayDrop`（ScaleTransform 0.82→1.0 BackEase 220ms）+ 淡入。
+- [x] **D4 贴图右键菜单样式**（L72）。→ 套 `Fluent.MenuResources()` + MenuItem 模板补 `PART_Popup` 子菜单（修不透明度子菜单展不开）+ SubmenuHeader 箭头；不透明度真 bug `CommitOpacity`（提交淡入可见值再清动画，修 Next(0) 夹 0.2 首滚跳/再滚无反应）。
