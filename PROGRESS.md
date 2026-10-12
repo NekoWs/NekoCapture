@@ -2056,3 +2056,10 @@ status: done
 - **修复**：`NumberBadge` 加纯函数 `NumberOnLightCircle(r,g,b)`（与 Fluent 同款亮度判定），画布 + 导出**共用同一判定保证 WYSIWYG**；加 **T109g/T109h**（逻辑：琥珀/白→黑编号，红/黑→白编号）+ **T2c/T2d**（烘焙渲染端到端：绿底白圈现黑像素、绿底红圈现白像素）双重锁定。
 - **合法保留**：其余 4 处 `Brushes.White` 全在深色浮层——编辑器 snack `#1F1F1F`、贴图 snack `#141414`、REC 徽标 `#C81A1A`（亮度78）、放大镜读数 `#1B1B1B`。
 - **验证**：构建 **0 错**；**SelfTest 391 绿**（387 + T109g/T109h + T2c/T2d）。
+
+**R147 · 三项系统性审计（动效/Help/暂停）均无缺陷 + 批次中护栏检查点**
+- **动效时长审计**：Overlays 41 处 `FromMilliseconds/FromSeconds`——DispatcherTimer 间隔（fps 播放、snack 消隐、REC 计时、toast 消隐）是**功能计时非动画**；动画类多数已引用 `Fluent.Motion.*` 令牌；剩余写死值（选区指示条 400ms、snack 淡出 320ms、贴图落图/编辑入场 220ms、chip hover 120/160ms）是**刻意专属节拍**——改令牌会改手感（用户要「丝滑」观感非令牌本身），且「该归哪个令牌」含糊，故不动。无安全可改项。
+- **Help 文案审计**：`HK(bool)` 动态读 `SettingsService.Shared.Current.Gestures` 的 `ScopeKeyText()/CaptureKeyText()`，null 才回落 `DefaultScopeKey/DefaultCaptureKey`；无 F6/F7 残留；「QQ 式 Ctrl+Alt+A 手感」是描述文案非绑定。**Help 手势感知，B2 后无陈旧快捷键说明**。
+- **暂停全局热键审计**：`HotkeyManager.cs:111` `if(!Paused && KeySink!=null)`——暂停时不喂手势层，手势同样避让（不拦截任何键）；`GestureEditorHost` 捕获和弦时临时 `Paused=true` 防自拦截、结束/关窗还原。**暂停对手势生效，B2 未断裂此功能**。
+- **批次中护栏检查点**：R143-146 连改 4 轮源码后跑完整 `guardrail.ps1 -MinSelfTestPass 387`（后台跑避免超时中断 try/finally 还原）→ **GUARDRAIL PASS**（FAIL=0 SKIP=1，focus-safety 属预期跳过非失败；SelfTest 391、e2e editor-keys/zoom/esc-layers/tap-semantics/fuzz-statemachine 全绿）。try/finally 已还原用户 4 手势（Ctrl+Alt+R→record.toggle、Ctrl+Alt+A→capture.selection、F2 点按/松开→record.start/stop，onComplete=edit.lastvideo 均在）+ Accent=#7F75FF 完好。
+- **净态**：git 干净 HEAD=`932ad55`、SelfTest 391、0 实例、zip 落后 4 src 提交（批次末重发布）。
