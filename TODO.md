@@ -354,3 +354,7 @@
 - [x] **QQ 式打开保存目录**：托盘新增「打开保存文件夹」（仅自动保存开启时出现），`Process.Start explorer.exe ResolveFolder()`，try/catch 兜底。护栏 PASS。
 - [ ] **后续**：① 若用户把托盘图标固定到可见通知区，可补一条像素级取证确认菜单项文案；② 可考虑「打开保存文件夹」也列出最近 N 个文件（与 recent-captures history 合并做）。
 
+## 录制包含鼠标指针开关 R108（2026-10-12 下午，功能性自定义）
+- [x] **光标可关**：`RecordIncludeCursor`（默认开）→ `WgcLiveCapture.Start(...,includeCursor)` → `IsCursorCaptureEnabled`；设置窗 ToggleRow（E8B0 光标字形，GlyphProbe 验证）+ 帮助条目。SelfTest 336（T128a），护栏 PASS，设置窗视觉核对正常。
+- [ ] **后续**：① 静态截图是否也提供「不含光标」选项（当前仅录制路径可控，静态截图光标在选区边缘影响小）；② 若未来支持区域外光标高亮/点击特效，与此开关联动。
+

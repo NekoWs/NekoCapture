@@ -28,6 +28,10 @@ public sealed class AppSettings
     /// <summary>录制产物格式（R100）：Gif 通用轻量（封顶 ~50fps）；Mp4/WebM 真视频，可录满高刷（需系统装有 ffmpeg）。</summary>
     public RecordFormat RecordFormat { get; set; } = RecordFormat.Gif;
 
+    /// <summary>录制是否包含鼠标指针（R108）：默认开（保持既有手感）。关掉后录出的画面干净无光标，
+    /// 适合做教程/演示时后期自己加高亮，或不想让光标乱入成片。</summary>
+    public bool RecordIncludeCursor { get; set; } = true;
+
     /// <summary>已废弃（R61）：长按录制时长上限移除——录到用户停为止，帧落盘不再受内存/时长限制。
     /// 保留字段仅为兼容旧 settings.json（读写无害），运行期不再有任何消费方。</summary>
     public int MaxDurationMs { get; set; } = 6000;

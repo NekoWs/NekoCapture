@@ -42,6 +42,7 @@ public sealed class WgcLiveCapture : IDisposable
     private Windows.Graphics.DirectX.Direct3D11.IDirect3DDevice? _device;
     private double _intervalMs = 33;
     private int _targetFps = 30;
+    private bool _includeCursor = true;
     private bool _keepAll;
     private long _lastKeptMs = -1;
     private readonly object _frameGate = new();
@@ -57,12 +58,13 @@ public sealed class WgcLiveCapture : IDisposable
 
     /// <summary>启动捕获。region 为虚拟桌面物理像素区域（必须位于 monitor 内）。
     /// WinRT 初始化放在独立 MTA 线程：WPF UI(STA) 线程上直接激活会死锁。</summary>
-    public void Start(MonitorInfo monitor, RectI region, int fps)
+    public void Start(MonitorInfo monitor, RectI region, int fps, bool includeCursor = true)
     {
         Stop();
         _region = region;
         _monOrigin = monitor.Bounds;
         _targetFps = Math.Clamp(fps, AppSettings.FpsMin, AppSettings.FpsMax);
+        _includeCursor = includeCursor;
         _intervalMs = FpsThrottle.IntervalMs(_targetFps);
         _lastKeptMs = -1;
 
@@ -97,7 +99,7 @@ public sealed class WgcLiveCapture : IDisposable
         _pool = Direct3D11CaptureFramePool.CreateFreeThreaded(
             _device, DirectXPixelFormat.B8G8R8A8UIntNormalized, 3, _item.Size);
         _session = _pool.CreateCaptureSession(_item);
-        try { _session.IsCursorCaptureEnabled = true; } catch { } // 旧构建无此属性则忽略
+        try { _session.IsCursorCaptureEnabled = _includeCursor; } catch { } // 旧构建无此属性则忽略
 
         // Windows 11 的系统级捕获提示边框（#FFD11C，绕整个被捕获显示器）：
         // 它只按"被捕获对象"画，而 WGC 只能整显示器捕获 —— 于是永远全屏，

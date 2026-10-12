@@ -140,6 +140,8 @@ public sealed class SettingsWindow : Window
         // 唯一护栏是磁盘剩余空间（<1GB 自动停并保留已录内容），无需再暴露数值。
         panel.Children.Add(ToggleRow("\uE7C4", "录制时显示范围边框", "录制期间按真实捕获范围高亮描边，只提示、不录进产物。取代 Windows 11 那条绕整屏的黄色系统捕获边框（WGC 只能整显示器捕获，系统边框必然全屏、与所选范围无关）",
             _settings.Current.ShowRecordingBorder, v => _settings.Mutate(s => s.ShowRecordingBorder = v)));
+        panel.Children.Add(ToggleRow("\uE8B0", "录制包含鼠标指针", "录出的画面里带上鼠标光标（默认开）。关掉后成片干净无光标，适合做教程/演示时后期自己加高亮，或不想让光标乱入",
+            _settings.Current.RecordIncludeCursor, v => _settings.Mutate(s => s.RecordIncludeCursor = v)));
 
         // ---- 产物 ----
         panel.Children.Add(Group("产物"));

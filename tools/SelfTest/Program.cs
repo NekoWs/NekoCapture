@@ -1374,6 +1374,7 @@ static class SelfTest
                 var zero = ToggleRecord.Next(ToggleRecord.St.Hold, ToggleRecord.Ev.Up, 100, 0, true);
                 Chk("T99m-thr0-nodbl", zero.Action == ToggleRecord.Act.FinishHold, "阈值 0 → 无点按窗，直接长按结束");
                 Chk("T99n-setting-default", new AppSettings().DoubleTapRecord, "连按录制默认开");
+                Chk("T128a-cursor-default", new AppSettings().RecordIncludeCursor, "录制包含鼠标指针默认开（无回归）");
             }
             {
                 // T100 磁盘暂存帧仓（R61，FrameSpool/FrameSpoolList）：落盘往返 / 惰性回读 / 切片 / 元数据 / 文件生命周期

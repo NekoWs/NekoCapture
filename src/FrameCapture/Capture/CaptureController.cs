@@ -508,7 +508,7 @@ public sealed class CaptureController : IDisposable
             {
                 _wgc = new WgcLiveCapture();
                 _wgc.FrameSampled += f => _spool?.Add(f);
-                _wgc.Start(monitor, region.Bounds, fps);
+                _wgc.Start(monitor, region.Bounds, fps, _settings.Current.RecordIncludeCursor);
                 wgcOk = true;
                 FrameCapture.Core.Trace.Log("capture backend=wgc");
             }

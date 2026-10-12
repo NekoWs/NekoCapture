@@ -1570,3 +1570,20 @@ status: done
 - 构建 0 错误；完整护栏 GUARDRAIL PASS（FAIL=0 SKIP=1 floor280，err_delta=0）
 - 逻辑核对：菜单构建路径只读一个 bool + 加一项（无执行、无崩溃面）；Process.Start 在点击回调内且被 try/catch 包裹，运行时异常也只弹气泡
 - 说明：托盘图标在本机被收纳进通知溢出区，UIA 按名定位 + 打开「显示隐藏的图标」浮窗后仍取不到该图标（浮窗内命名不稳定），继续盲点系统通知区有误触他应用风险，故此项以编译 + 护栏 + 代码审查为准，未做像素级取证（低风险纯增量项）
+
+
+## 2026-10-12 下午 录制包含鼠标指针开关 R108
+
+**动机**：`WgcLiveCapture` 里 `IsCursorCaptureEnabled` 硬编码 `true`——录出的画面永远带光标。做教程/演示的人常想要干净无光标的成片（后期自己加高亮），也有人希望保留光标。这是 OBS/Loom/Snagit 都有的**功能性开关**（非数值），契合「多加功能可选项、兼容所有受众」。
+
+**实现**：
+- `AppSettings.RecordIncludeCursor`（默认 `true`，保持既有手感、零回归）。
+- `WgcLiveCapture.Start(monitor, region, fps, includeCursor = true)` 新增可选参数（默认值使 SelfTest 旧调用不破），`Init` 里 `_session.IsCursorCaptureEnabled = _includeCursor`（旧构建无此属性仍 try/catch 忽略）。
+- `CaptureController` 起录时传 `_settings.Current.RecordIncludeCursor`。
+- 设置窗「录制」组新增 ToggleRow「录制包含鼠标指针」，字形 `\uE8B0`（用 GlyphProbe sweep 渲染 E700–F8FF 全 PUA 网格、放大核对确认 E8B0 是清晰的鼠标指针箭头，符合「图标只用验证过的字形」）。
+- 帮助窗新增「录制包含鼠标指针」条目。
+
+**验证**：
+- 构建 0 错误；SelfTest **336 PASS**（新增 T128a-cursor-default 锁死默认开=无回归）；完整护栏 GUARDRAIL PASS（FAIL=0 SKIP=1 floor280，err_delta=0）
+- 视觉取证：PrintWindow 设置窗裁「录制」组 → 新行「录制包含鼠标指针」+ E8B0 光标字形渲染正常、开关默认开、位置在「录制时显示范围边框」后、「产物」组前，与既有 ToggleRow 风格一致
+- 说明：默认 true 保证老用户无感知；关掉后 WGC 会话不合成光标，成片干净——一个低成本、广受众的自定义维度
