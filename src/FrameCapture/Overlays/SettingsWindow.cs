@@ -135,6 +135,7 @@ public sealed class SettingsWindow : Window
                     : "开启后录制帧率自动取当前录制显示器的刷新率（本机暂未检测到主屏刷新率，录制时按实际显示器实时检测）。")
             + "高刷屏（144/165/240Hz）录满才丝滑；MP4/WebM 可录满，GIF 受格式封顶约 50fps",
             _settings.Current.FollowMonitorRefresh, v => _settings.Mutate(s => s.FollowMonitorRefresh = v)));
+        panel.Children.Add(RecordFormatRow());
         // R61：长按录制时长上限已移除——录到用户停为止（帧落盘，不再受内存/时长限制）。
         // 唯一护栏是磁盘剩余空间（<1GB 自动停并保留已录内容），无需再暴露数值。
         panel.Children.Add(ToggleRow("\uE7C4", "录制时显示范围边框", "录制期间按真实捕获范围高亮描边，只提示、不录进产物。取代 Windows 11 那条绕整屏的黄色系统捕获边框（WGC 只能整显示器捕获，系统边框必然全屏、与所选范围无关）",
@@ -819,6 +820,73 @@ public sealed class SettingsWindow : Window
     }
 
     // 取色复制格式（R89）：选区放大镜按 C 复制颜色时的文本形式，HEX/RGB/HSL 三选（QQ 只有 HEX）
+    FrameworkElement RecordFormatRow()
+    {
+        var g = Row();
+        g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); // 芯片列
+        g.Children.Add(Icon("\uE786", "录制完成后编辑器「导出录制」默认用的格式。MP4/WebM 需本机装有 ffmpeg（自动探测 PATH 与常见安装目录）；未装则视频项会提示安装，GIF 始终可用"));
+        var lbl = new TextBlock
+        {
+            Text = "录制格式",
+            FontSize = 13,
+            Foreground = new SolidColorBrush(Theme.Text),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 12, 0),
+        };
+        Grid.SetColumn(lbl, 1);
+        g.Children.Add(lbl);
+        var chips = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
+        Grid.SetColumn(chips, 2);
+        var cur = _settings.Current.RecordFormat;
+        bool hasFf = FrameCapture.Encoding.FfmpegLocator.Find() != null;
+        string ffNote = hasFf ? "（已检测到 ffmpeg）" : "（未检测到 ffmpeg，装 FFmpeg 后可选）";
+        var opts = new (RecordFormat id, string text, string tip)[]
+        {
+            (RecordFormat.Gif, "GIF", "通用动图，任何地方都能放；受格式封顶约 50fps、体积大"),
+            (RecordFormat.Mp4, "MP4", "兼容性最好的视频格式（libx264），微信/浏览器/剪辑软件通吃 " + ffNote),
+            (RecordFormat.WebM, "WebM", "开源视频格式（VP9），同画质体积更小，网页/上传首选 " + ffNote),
+        };
+        var chipList = new System.Collections.Generic.List<(Border chip, RecordFormat id)>();
+        foreach (var (id, text, tip) in opts)
+        {
+            RecordFormat captured = id;
+            var chip = new Border
+            {
+                CornerRadius = new CornerRadius(6),
+                Padding = new Thickness(10, 5, 10, 5),
+                Margin = new Thickness(2, 0, 2, 0),
+                Background = new SolidColorBrush(captured == cur ? Theme.Accent : Theme.Hover),
+                Child = new TextBlock
+                {
+                    Text = text,
+                    FontSize = 12.5,
+                    Foreground = new SolidColorBrush(captured == cur ? Color.FromRgb(0, 0, 0) : Theme.Text),
+                },
+                Cursor = Cursors.Hand,
+                ToolTip = tip,
+            };
+            chipList.Add((chip, id));
+            void Apply()
+            {
+                _settings.Mutate(s => s.RecordFormat = captured);
+                foreach (var (c, cid) in chipList)
+                {
+                    bool sel = cid == captured;
+                    c.Background = new SolidColorBrush(sel ? Theme.Accent : Theme.Hover);
+                    if (c.Child is TextBlock tb) tb.Foreground = new SolidColorBrush(sel ? Color.FromRgb(0, 0, 0) : Theme.Text);
+                }
+            }
+            chip.MouseLeftButtonDown += (_, e) => { Apply(); e.Handled = true; };
+            chip.Focusable = true;
+            chip.KeyDown += (_, e) => { if (e.Key is Key.Space or Key.Enter) { Apply(); e.Handled = true; } };
+            chip.GotKeyboardFocus += (_, _) => { chip.BorderBrush = new SolidColorBrush(Theme.Accent); chip.BorderThickness = new Thickness(1); };
+            chip.LostKeyboardFocus += (_, _) => { chip.BorderThickness = new Thickness(0); };
+            chips.Children.Add(chip);
+        }
+        g.Children.Add(chips);
+        return g;
+    }
+
     FrameworkElement ColorFormatRow()
     {
         var g = Row();

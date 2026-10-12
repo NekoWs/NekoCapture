@@ -292,7 +292,7 @@ public sealed partial class EditorWindow : Window
             var bCopyFrame = IconBtn("\uF413", "复制当前帧 (位图)  Ctrl+C"); bCopyFrame.Click += (_, _) => ClipboardService.SetFrame(ExportFrame(_index));
             var bPinFrame = PinBtn();
             var bOcrFrame = OcrBtn();
-            var bSaveGif = IconBtn("\uE116", "保存为动图 (GIF)  Ctrl+E"); bSaveGif.Click += (_, _) => SaveGif();
+            var bSaveGif = IconBtn("\uE116", "导出录制 (MP4 / WebM / GIF)  Ctrl+E"); bSaveGif.Click += (_, _) => SaveRecording();
             var bAfter = IconBtn("\uE955", "保存视觉暂留合成图  Ctrl+H"); bAfter.Click += (_, _) => SaveAfterimage();
             foreach (var b in new[] { bSaveFrame, bCopyFrame, bPinFrame, bOcrFrame, bSaveGif, bAfter }) actions.Children.Add(b);
             actions.Children.Add(Sep());
@@ -702,7 +702,7 @@ public sealed partial class EditorWindow : Window
                 case Key.C: ClipboardService.SetFrame(ExportFrame(_index)); return;
                 case Key.P: PinCurrentFrame(); return; // R65 钉到屏幕
                 case Key.O: OcrCurrentFrame(); return; // R69 识别文字
-                case Key.E: SaveGif(); return;
+                case Key.E: SaveRecording(); return;
                 case Key.H: SaveAfterimage(); return;
                 // 视图缩放（浏览器惯例）：Ctrl +/− 以中心放大缩小，Ctrl+0 适配，Ctrl+1 逐像素 1:1
                 case Key.OemPlus or Key.Add: ZoomStep(1.25); return;
@@ -855,9 +855,9 @@ public sealed partial class EditorWindow : Window
     {
         int idx = Math.Clamp(_index, 0, _seq.Frames.Count - 1);
         bool strip = _settings.Current.AgentStripEnabled;
-        StartEncode((seq, gif) =>
+        StartEncode(null, null, (seq, gif) =>
         {
-            Trace.Log($"gif encoded bytes={gif.Length} frames={seq.Frames.Count}");
+            Trace.Log($"gif encoded bytes={gif!.Length} frames={seq.Frames.Count}");
             ClipboardService.SetCapture(seq, gif, idx);
             FrameCapture.Services.SaveService.MaybeSaveArtifact(seq, gif); // R63 自动保存副本：单帧 PNG / 多帧 GIF（关=零副作用）
             if (strip) TryGenerateAgentStrip(seq);
@@ -971,7 +971,11 @@ public sealed partial class EditorWindow : Window
         }
     }
 
-    void StartEncode(Action<CapturedSequence, byte[]> onDone)
+    /// <summary>
+    /// 导出录制。videoFmt==null → GIF（onDone 收字节）；否则 ffmpeg 编码到 outPath（onDone 收 null）。
+    /// 子集/裁剪/烘焙两路共用，只在末步分派编码器。
+    /// </summary>
+    void StartEncode(FrameCapture.Encoding.VideoFormat? videoFmt, string? outPath, Action<CapturedSequence, byte[]?> onDone)
     {
         if (_encoding) return;
         try
@@ -986,12 +990,13 @@ public sealed partial class EditorWindow : Window
             var region = _seq.Region; var monBounds = _seq.MonitorBounds; var monDev = _seq.MonitorDevice;
             int fps = Math.Clamp(_settings.Current.Fps, AppSettings.FpsMin, AppSettings.FpsMax);
             var cropSnap = _crop.Current; bool cropOn = _crop.IsCropped; // UI 线程快照，后台只读
+            string verb = videoFmt == null ? "GIF" : videoFmt == FrameCapture.Encoding.VideoFormat.Mp4 ? "MP4" : "WebM";
 
             _encoding = true;
             SetOkBusy(true);
             _commitCts = new CancellationTokenSource();
             var ct = _commitCts.Token;
-            _hud.Text = "导出 GIF…";
+            _hud.Text = $"导出 {verb}…";
             System.Threading.Tasks.Task.Run(() =>
             {
                 // 测试专用（与 FC_TEST_NO_FG 同约定）：FC_TEST_ENCODE_FAIL=1 令编码任务必然抛错，
@@ -1016,9 +1021,18 @@ public sealed partial class EditorWindow : Window
                     MonitorBounds = monBounds,
                     MonitorDevice = monDev,
                 };
-                var prog = new Progress<int>(d => Dispatcher.BeginInvoke(() => _hud.Text = $"导出 GIF… {d}/{baked.Count}"));
-                byte[] gif = GifEncoder.Encode(baked, ComputeDelays(baked, fps), true, prog, ct);
-                return (seq, gif);
+                var prog = new Progress<int>(d => Dispatcher.BeginInvoke(() => _hud.Text = $"导出 {verb}… {d}/{baked.Count}"));
+                if (videoFmt == null)
+                {
+                    byte[] gif = GifEncoder.Encode(baked, ComputeDelays(baked, fps), true, prog, ct);
+                    return (seq, gif: (byte[]?)gif);
+                }
+                string ff = FrameCapture.Encoding.FfmpegLocator.Find()
+                    ?? throw new System.InvalidOperationException("未找到 ffmpeg，无法导出视频");
+                // 用帧时间戳推实际帧率：静态段少帧 → 低 fps，但总时长与录制一致（播放速度正确）
+                double vfps = FrameCapture.Encoding.VideoEncoder.FpsFromFrames(baked);
+                FrameCapture.Encoding.VideoEncoder.Encode(baked, ff, outPath!, videoFmt.Value, vfps, prog, ct);
+                return (seq, gif: (byte[]?)null);
             }, ct).ContinueWith(t =>
             {
                 _encoding = false;
@@ -1032,7 +1046,7 @@ public sealed partial class EditorWindow : Window
                 if (t.IsFaulted)
                 {
                     Trace.Log($"encode failed: {t.Exception}");
-                    _hud.Text = "导出失败";
+                    _hud.Text = t.Exception?.InnerException is System.InvalidOperationException ? "未找到 ffmpeg" : "导出失败";
                     return;
                 }
                 onDone(t.Result.seq, t.Result.gif);
@@ -1081,18 +1095,54 @@ public sealed partial class EditorWindow : Window
         BgraImage.SavePng(ExportFrame(_index), EnsureExt(dlg.FileName, ".png"));
     }
 
-    void SaveGif()
+    void SaveRecording()
     {
         if (_encoding) return;
-        var dlg = NewSaveDialog("GIF 动图|*.gif", "capture.gif");
-        if (dlg.ShowDialog(this) != true) return;
-        string path = EnsureExt(dlg.FileName, ".gif");
-        StartEncode((_, gif) =>
+        // 测试专用（与 FC_TEST_ENCODE_FAIL 同约定）：置 FC_TEST_EXPORT=<路径> 则跳过存盘对话框，
+        // 直接按扩展名导出，使「录制→编辑器→ffmpeg 落盘」全链路可确定性 e2e + ffprobe 核对。正常用户环境永不置位。
+        string? testExport = System.Environment.GetEnvironmentVariable("FC_TEST_EXPORT");
+        if (!string.IsNullOrEmpty(testExport)) { DispatchSave(testExport); return; }
+        var def = _settings.Current.RecordFormat;
+        string defName = def switch
         {
-            try { File.WriteAllBytes(path, gif); Trace.Log($"gif saved {path} {gif.Length}B"); }
-            catch (Exception ex) { Trace.Log($"gif save failed: {ex.Message}"); _hud.Text = "保存失败"; }
-            Show(_index);
-        });
+            RecordFormat.Mp4 => "capture.mp4",
+            RecordFormat.WebM => "capture.webm",
+            _ => "capture.gif",
+        };
+        var dlg = NewSaveDialog("MP4 视频|*.mp4|WebM 视频|*.webm|GIF 动图|*.gif", defName);
+        if (dlg.ShowDialog(this) != true) return;
+        DispatchSave(dlg.FileName);
+    }
+
+    /// <summary>按扩展名分派导出：.mp4/.webm 走 ffmpeg，其余走 GIF。</summary>
+    void DispatchSave(string path)
+    {
+        string ext = System.IO.Path.GetExtension(path).ToLowerInvariant();
+        if (ext is ".mp4" or ".webm")
+        {
+            if (FrameCapture.Encoding.FfmpegLocator.Find() == null)
+            {
+                _hud.Text = "未找到 ffmpeg（装 FFmpeg 后可导视频）";
+                return;
+            }
+            var fmt = ext == ".mp4" ? FrameCapture.Encoding.VideoFormat.Mp4 : FrameCapture.Encoding.VideoFormat.WebM;
+            path = EnsureExt(path, ext);
+            StartEncode(fmt, path, (_, _) =>
+            {
+                _hud.Text = $"已导出 {System.IO.Path.GetFileName(path)}";
+                Trace.Log($"video saved {path}");
+            });
+        }
+        else
+        {
+            path = EnsureExt(path, ".gif");
+            StartEncode(null, null, (_, gif) =>
+            {
+                try { File.WriteAllBytes(path, gif!); Trace.Log($"gif saved {path} {gif!.Length}B"); }
+                catch (Exception ex) { Trace.Log($"gif save failed: {ex.Message}"); _hud.Text = "保存失败"; }
+                Show(_index);
+            });
+        }
     }
 
     void SaveAfterimage()

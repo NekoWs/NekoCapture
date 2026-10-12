@@ -333,3 +333,8 @@
 - [x] **实测否决 staging**：`FC_NO_COPY` 隔离证明拷贝非瓶颈（无拷贝仍 ~47fps），D3D11 staging 优化无收益且本机投影取不到底层纹理 → 干净回退，不留死代码。
 - [ ] **高刷后续（R101+）**：① `Encoding/VideoEncoder.cs` 定位 ffmpeg（PATH + `C:\Program Files\FFmpeg\bin`）→ 管道 BGRA 帧 → MP4(libx264)/WebM(libvpx-vp9)，异步 + 进度 + 取消；② `RecordFormat` 接进编辑器导出（MP4/WebM/GIF 三选）+ 托盘 + 设置；③ e2e 录短片 → 导 MP4 → ffprobe 核对可播 + 帧率。GIF 受格式限制封顶 ~50fps，MP4/WebM 才是高刷落盘的正解。
 
+## ffmpeg 视频编码 MP4/WebM R101+R102（2026-10-12 中午）
+- [x] **编码器**：`Encoding/VideoEncoder.cs`（`FfmpegLocator` PATH+常见目录探测 / `BuildArgs` 纯函数 / `Encode` stdin 管道 + stderr 异步排空防死锁 + 取消杀进程删半成品 / `FpsFromFrames` 实际帧率保播放速度）。T127a-g（332，含真实 MP4 编码）。
+- [x] **编辑器接线**：`StartEncode` 泛化三格式（共享 bake，末步分派）+ `SaveRecording` 三格式对话框（默认跟随 `RecordFormat`，按扩展名分派）+ `SettingsWindow` `RecordFormatRow` 芯片（带 ffmpeg 探测提示）。全链路 e2e：录 48 帧→焦点安全 Ctrl+E→ffmpeg→ffprobe h264/640×400/48帧/0.99s/48.26fps/解码 exit=0；WebM vp9 独立验。
+- [ ] **视频后续候选**：① 自动保存副本（`MaybeSaveArtifact`）当前多帧仍存 GIF，可跟随 `RecordFormat` 存 MP4/WebM（需 ffmpeg，未装回退 GIF）；② 导出进度百分比（当前按帧数，vp9 慢时可加时间估计）；③ 码率/质量档位（当前固定 ultrafast/crf40，避免堆数值暂缓）；④ 托盘「打开最近录制」直达产物。
+

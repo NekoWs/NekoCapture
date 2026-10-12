@@ -1851,8 +1851,66 @@ static class SelfTest
                 int hz = DisplayRefresh.RateOf(FrameCapture.Capture.Monitors.All().FirstOrDefault(m => m.IsPrimary)?.DeviceName);
                 Chk("T126h-refresh-real", hz > 0, $"本机主屏刷新率检测 → {hz}Hz");
             }
+
+            // T127 视频编码（R101，VideoEncoder/FfmpegLocator）：定位 + 命令行拼装 + 帧率推算 + 真实 ffmpeg 编码
+            {
+                string? ff = FfmpegLocator.Find();
+                Chk("T127a-ffmpeg-find", ff == null || File.Exists(ff), ff ?? "未找到 ffmpeg（PATH/常见目录，将回退 GIF）");
+
+                string mp4Args = VideoEncoder.BuildArgs(640, 400, 59.94, VideoFormat.Mp4, @"C:\t\o.mp4");
+                Chk("T127b-args-mp4",
+                    mp4Args.Contains("-f rawvideo") && mp4Args.Contains("-pix_fmt bgra") && mp4Args.Contains("-s 640x400")
+                    && mp4Args.Contains("libx264") && mp4Args.Contains("yuv420p") && mp4Args.Contains("+faststart")
+                    && mp4Args.Contains("-framerate 59.94"),
+                    "MP4：rawvideo/bgra/尺寸/libx264/yuv420p/faststart/invariant fps");
+
+                string webmArgs = VideoEncoder.BuildArgs(320, 240, 30, VideoFormat.WebM, @"C:\t\o.webm");
+                Chk("T127c-args-webm",
+                    webmArgs.Contains("libvpx-vp9") && webmArgs.Contains("-crf 40") && webmArgs.Contains("-b:v 0")
+                    && webmArgs.Contains("-s 320x240"),
+                    "WebM：libvpx-vp9/crf40/bitrate0/尺寸");
+
+                var tf = MakeVidFrames(11, 32, 24); // 11 帧跨 1000ms → 10fps
+                double fps = VideoEncoder.FpsFromFrames(tf);
+                Chk("T127d-fps-from-frames", Math.Abs(fps - 10.0) < 0.01, $"11 帧跨 1s → {fps:F2}fps");
+                Chk("T127e-fps-single", Math.Abs(VideoEncoder.FpsFromFrames([tf[0]]) - 30) < 1e-9, "单帧回退默认 30fps");
+
+                if (ff != null)
+                {
+                    string outMp4 = Path.Combine(Path.GetTempPath(), $"fc_enc_{Guid.NewGuid():N}.mp4");
+                    try
+                    {
+                        VideoEncoder.Encode(MakeVidFrames(12, 64, 48), ff, outMp4, VideoFormat.Mp4, 24);
+                        long len = new FileInfo(outMp4).Length;
+                        Chk("T127f-encode-mp4", len > 500, $"真实 ffmpeg 编码 MP4 → {len} 字节");
+                    }
+                    catch (Exception ex) { Chk("T127f-encode-mp4", false, "编码异常：" + ex.Message.Split('\n')[0]); }
+                    finally { try { if (File.Exists(outMp4)) File.Delete(outMp4); } catch { } }
+                }
+                else Chk("T127f-encode-mp4", true, "无 ffmpeg，跳过实编码");
+            }
         }
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");
         return fail == 0 ? 0 : 1;
+    }
+
+    static List<CapturedFrame> MakeVidFrames(int n, int w, int h)
+    {
+        var list = new List<CapturedFrame>(n);
+        for (int i = 0; i < n; i++)
+        {
+            var buf = new byte[w * h * 4];
+            for (int y = 0; y < h; y++)
+                for (int x = 0; x < w; x++)
+                {
+                    int o = (y * w + x) * 4;
+                    buf[o] = (byte)((x * 4 + i * 17) & 0xFF);
+                    buf[o + 1] = (byte)((y * 6) & 0xFF);
+                    buf[o + 2] = (byte)(i * 20 & 0xFF); // 逐帧变 → 有运动，编码器不空
+                    buf[o + 3] = 255;
+                }
+            list.Add(new CapturedFrame { Bgra = buf, W = w, H = h, TimeMs = n > 1 ? i * (1000.0 / (n - 1)) : 0 });
+        }
+        return list;
     }
 }

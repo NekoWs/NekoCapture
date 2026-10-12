@@ -1495,3 +1495,20 @@ status: done
 - 完整护栏 GUARDRAIL PASS（FAIL=0 SKIP=1 floor280，err_delta=0）
 - 实机：`FollowMonitorRefresh=true` + Fps=160 → trace `wgc fps=160 refresh=160 keepAll=True interval=6.25ms`（60fps 天花板消失、跟随刷新率识别 160Hz）；录制 kept=47/delivered=47/missed=0，编辑器正常出帧
 - 说明：本轮交付的是「天花板移除 + 跟随刷新率 + 事件驱动」，让 160fps 在内容够快时成为可能；输出格式（MP4/WebM）与真高刷落盘在后续编码轮（R101+）接线
+
+
+## 2026-10-12 中午 ffmpeg 视频编码：MP4 / WebM 导出 R101+R102
+
+**动机**：用户明确「webm 和 mp4 都要，gif 也要保留」。GIF 受格式限制封顶 ~50fps 且体积巨大，是录制的差劲容器；MP4/WebM 才是高刷落盘的正解。项目离线不捆绑 ffmpeg（体积 + GPL 许可），改运行时探测。
+
+**实现**：
+- `Encoding/VideoEncoder.cs`（新）：`FfmpegLocator.Find()` 扫 PATH + 常见安装目录（Program Files\FFmpeg\bin、winget Links、choco）；`BuildArgs` 纯函数（MP4=libx264/yuv420p/ultrafast/faststart，WebM=libvpx-vp9/yuv420p/-b:v 0/-crf 40，均 `-f rawvideo -pix_fmt bgra` 从 stdin 进）；`Encode` 起 ffmpeg 进程、BGRA 帧写 stdin、**stderr 异步排空防管道写满死锁**、非零退出码/超时/空产物均抛错并杀进程删半成品；`FpsFromFrames` 由帧时间戳推实际帧率（静态段少帧→低 fps 但总时长不变，播放速度正确）。
+- `EditorWindow`：`StartEncode` 泛化为 `(VideoFormat?, outPath, onDone)`——子集/裁剪/烘焙两路共用，只在末步分派 GIF 或 ffmpeg；`SaveRecording`（原 SaveGif）对话框三格式（MP4/WebM/GIF），默认跟随设置 `RecordFormat`，按扩展名分派；`DispatchSave` 抽出；工具栏按钮 tooltip 改「导出录制 (MP4/WebM/GIF)」，Ctrl+E 不变。
+- `SettingsWindow`：新增 `RecordFormatRow` 芯片选择器（GIF/MP4/WebM，镜像取色格式行），tooltip 带 ffmpeg 探测结果（已检测到 / 未检测到提示安装）。
+
+**验证**：
+- 构建 0 错误；SelfTest **332**（新增 T127a-g：ffmpeg 定位契约 / MP4 命令行含 libx264+faststart+invariant fps / WebM 含 libvpx-vp9+crf40 / FpsFromFrames 11 帧跨 1s→10fps / 单帧回退 30 / **真实 ffmpeg 编码 MP4 产物 >500B**）
+- 完整护栏 GUARDRAIL PASS（FAIL=0 SKIP=1 floor280，err_delta=0）
+- 全链路 e2e（`FC_TEST_EXPORT` 钩子，对齐 `FC_TEST_ENCODE_FAIL` 约定）：录 48 帧 → 焦点安全核前台=「FrameCapture Editor」→ 发 Ctrl+E → ffmpeg 落盘 → **ffprobe 核对 h264 / 640×400 / 48 帧 / 时长 0.99s / r_frame_rate=48.26（=实际捕获率，播放速度正确）/ 解码 exit=0 可播**
+- WebM 独立真实编码：libvpx-vp9 exit=0、codec=vp9、尺寸正确
+- 说明：ffmpeg 未捆绑，未装用户的视频项点击时提示安装、GIF 始终可用；MP4/WebM 帧率取实际捕获率保证播放速度正确（非按设置的目标帧率）
