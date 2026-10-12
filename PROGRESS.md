@@ -1303,3 +1303,22 @@ status: done
   - 设 rgb：剪贴板 `rgb(39, 39, 39)`；PrintWindow 放大镜读数「已复制 rgb(39, 39, 39)」
   - 设 hsl：剪贴板 `hsl(0, 0%, 15%)`（39 灰阶→15% 亮度，正确）
   - 设置窗「取色格式」行渲染正常：调色板图标清晰、HEX/RGB/HSL 三 chip、当前项蓝底选中、位置在放大镜开关后、与「截图后」行同款右对齐
+
+
+## 2026-10-12 上午 滚动截图·全局 Esc 取消 R90（补 R88 留下的手感缺口）
+
+**动机**（手感审计发现的摩擦）：R88 的控制条 `ShowActivated=false` 不抢焦点（这是自动拼接能工作的前提），副作用是**控制条收不到键盘**——用户按 Esc 想取消（QQ 肌肉记忆），Esc 却漏给了目标窗口，取消不了，只能去找「取消」按钮。这是刚上线功能里最扎眼的摩擦。QQ 滚动截图里 Esc 就是取消，必须补上。
+
+**实现**（全局钩子拦截，标志绑定控制条生命周期防泄漏）：
+- `HotkeyManager`：新增 `static volatile bool ScrollActive` + `event Action? ScrollCancel`；`HandleKey` 在决策表前加一句 `if (isDown && vk==Esc && ScrollActive) { ScrollCancel?.Invoke(); return true; }`——会话中全局吞 Esc 并触发取消。热路径仅一次 volatile 读 + 一次整数比较，不阻塞（沿用 R2 零阻塞纪律）。
+- `AppHost`：`Hotkeys.ScrollCancel += () => Dispatch(Controller.ScrollCancel)`（与 CaptureBegin/End 同款 marshal 到 UI 线程）。
+- `CaptureController`：`ScrollActive=true` 在控制条 `Show()` 后置位；**`_scrollBar.Closed` 兜底清零** + `ScrollDone`/`ScrollCancel` 顶部即时清零——三重保证会话一结束标志必落，绝不泄漏成"全局 Esc 失灵"。`ScrollCancel` 提为 public 供 AppHost 调用。
+- 控制条自身 HwndSource 的 Esc 处理保留（被点聚焦时仍可用）；全局钩子先吞，二者不冲突、不双触发。
+- 帮助窗补「滚动截图（长图）」条目（含"按 Esc 随时取消"）。
+
+**取舍**：只做 Esc 取消、不做 Enter 完成——Enter 是目标窗高频键（发消息/确认/换行），会话中吞掉太伤；完成走「完成」按钮已足够。会话短暂且用户主动发起，期间吞 Esc 与 QQ 行为一致、无陷阱（Esc/完成/取消任一即结束）。
+
+**验证**：
+- 构建 0 错误；SelfTest 仍 **298**（本轮为钩子接线 + 生命周期标志，非纯逻辑，无新增单测；护栏 floor 280 不变）
+- 完整护栏 GUARDRAIL PASS（FAIL=0 SKIP=1 floor280，err_delta=0；**钩子改动后 e2e:hotkey / esc-layers / fuzz-statemachine 全过**，证明未回归既有热键行为）
+- 实机 e2e（最大化记事本 + --scroll + 选区 + 全局 Esc）：会话中按 Esc → trace `scroll cancel`、控制条窗口数归 0；**再按一次 Esc 无新 cancel**（标志已清零、Esc 不再被全局吞，无泄漏）

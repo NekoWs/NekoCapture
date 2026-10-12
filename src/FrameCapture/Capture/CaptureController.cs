@@ -266,6 +266,9 @@ public sealed class CaptureController : IDisposable
         _scrollBar = new Overlays.ScrollHintWindow(region, device) { OnDone = ScrollDone, OnCancel = ScrollCancel };
         _scrollBar.SetProgress(1, _scrollH);
         _scrollBar.Show();   // ShowActivated=false：不抢焦点，目标窗继续接收滚动
+        // R90：会话期间全局吞 Esc 取消；标志绑定控制条生命周期，Closed 兜底清零，绝不泄漏成"全局 Esc 失灵"
+        Services.HotkeyManager.ScrollActive = true;
+        _scrollBar.Closed += (_, _) => Services.HotkeyManager.ScrollActive = false;
         Overlays.ScrollHintWindow.Current = _scrollBar;
         _scrollTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(280) };
         _scrollTimer.Tick += (_, _) => ScrollTick();
@@ -297,6 +300,7 @@ public sealed class CaptureController : IDisposable
 
     void ScrollDone()
     {
+        Services.HotkeyManager.ScrollActive = false;
         _scrollTimer?.Stop(); _scrollTimer = null;
         var acc = _scrollAcc; var bar = _scrollBar;
         _scrollAcc = null; _scrollBar = null; _scrollPrevB = null;
@@ -324,8 +328,9 @@ public sealed class CaptureController : IDisposable
         _lastStill.Set(frame, reg, dev);
     }
 
-    void ScrollCancel()
+    public void ScrollCancel()
     {
+        Services.HotkeyManager.ScrollActive = false;
         _scrollTimer?.Stop(); _scrollTimer = null;
         var bar = _scrollBar; _scrollBar = null; _scrollAcc = null; _scrollPrevB = null; _scrollSegs = 0;
         bar?.CloseSelf();

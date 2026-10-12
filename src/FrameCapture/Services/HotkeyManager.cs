@@ -22,6 +22,11 @@ public sealed class HotkeyManager : IDisposable
     public event Action? CaptureBegin;
     /// <summary>松开捕获键：参数=按住时长 ms（钩子事件时间戳差，不受 UI 线程忙/初始化耗时影响）。</summary>
     public event Action<long>? CaptureEnd;
+    /// <summary>滚动截图进行中按 Esc → 取消（R90）。控制条不抢焦点，Esc 本会落到目标窗，故全局钩子拦截。</summary>
+    public event Action? ScrollCancel;
+    /// <summary>滚动截图会话是否活跃（由控制条生命周期置位：Show=true、Closed=false）。
+    /// volatile：钩子线程读、UI 线程写。为 true 时全局吞掉 Esc 并触发 ScrollCancel（QQ 式取消）。</summary>
+    public static volatile bool ScrollActive;
     uint _downTick; // BeginCapture 事件的 GetTickCount 时间戳
 
     public bool Installed => _hook != IntPtr.Zero;
@@ -105,6 +110,10 @@ public sealed class HotkeyManager : IDisposable
         // 隐私：绝不记录用户按键（全局钩子可见所有键击）。仅调试注入链路时设 FC_TRACE_KEYS=1 才逐键记录。
         if (Environment.GetEnvironmentVariable("FC_TRACE_KEYS") == "1")
             FrameCapture.Core.Trace.Log($"hook key={info.vkCode} down={isDown} installed={Installed}");
+
+        // 滚动截图会话中：Esc 全局取消并吞掉（控制条不抢焦点，否则 Esc 会漏给目标窗）。
+        // 热路径仅一次 volatile 读 + 一次整数比较；ScrollActive 绑定控制条生命周期，绝不泄漏成"全局 Esc 失灵"。
+        if (isDown && vk == 0x1B && ScrollActive) { ScrollCancel?.Invoke(); return true; }
 
         var cap = _capture;
         var scp = _scope;

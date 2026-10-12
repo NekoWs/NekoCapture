@@ -35,6 +35,7 @@ public sealed class AppHost
         Hotkeys.ScopeRequested += () => Dispatch(Controller.BeginScopeSelection);
         Hotkeys.CaptureBegin += () => Dispatch(Controller.BeginCapture);
         Hotkeys.CaptureEnd += ms => Dispatch(() => Controller.EndCapture(ms));
+        Hotkeys.ScrollCancel += () => Dispatch(Controller.ScrollCancel); // R90：滚动截图中 Esc 全局取消
         InstallHotkeys();
 
         Controller.Initialize();
