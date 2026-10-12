@@ -2061,6 +2061,45 @@ static class SelfTest
             eng.OnMouseDown(0, GE.ModifierKeys.None, 10); eng.OnMouseUp(0, GE.ModifierKeys.None, 20);
             Chk("T130j-priority", M.Log.SequenceEqual(new[] { "A" }), "优先级 0 的绑定先跑且成功即止→A");
         }
+        // T131 GestureConfig 配置层（R120 B2）：DTO 转换 / 非法跳过 / 默认与预设 / JSON 往返 / 动作过滤
+        {
+            var d = new GestureBindingDto { Id = "x", Chord = "Ctrl+Shift+G", Trigger = "Chord", Actions = new[] { GestureActions.CaptureFrame } };
+            var b = d.ToBinding();
+            Chk("T131a-dto-to-binding", b != null && b.Chord.Mods == (GE.ModifierKeys.Control | GE.ModifierKeys.Shift)
+                && b.Chord.Key == 0x47 && b.Trigger == GE.TriggerKind.Chord,
+                "Ctrl+Shift+G→Chord(Control|Shift, VK G=0x47)，实得 " + (b == null ? "null" : $"{b.Chord.Mods}/{b.Chord.Key:X}/{b.Trigger}"));
+
+            Chk("T131b-bare-key-rejected", new GestureBindingDto { Chord = "G", Trigger = "Chord", Actions = new[] { GestureActions.CaptureFrame } }.ToBinding() == null,
+                "裸键 G（不安全）解析失败→ToBinding null（复用 HotkeySpec 安全规则）");
+
+            var def = GestureConfig.DefaultBindings("Ctrl+Shift+G", "Ctrl+Shift+R");
+            Chk("T131c-default", def.Count == 2 && def[0].Actions[0] == GestureActions.CaptureFrame && def[1].Actions[0] == GestureActions.ScopeSelect,
+                "默认绑定：捕获键→捕获单帧、选区键→选取范围");
+
+            var qq = GestureConfig.PresetQQ("Ctrl+Shift+G", "Ctrl+Shift+R");
+            Chk("T131d-qq-preset", qq.Count == 2 && qq.All(x => x.Actions[0] == GestureActions.ScopeSelect),
+                "QQ 预设：两键均→选取范围（配合选完自动截图）");
+
+            var cfg = new GestureConfig { Enabled = true, Bindings = GestureConfig.PresetHoldToRecord("F6", "F7") };
+            var json = System.Text.Json.JsonSerializer.Serialize(cfg);
+            var back = System.Text.Json.JsonSerializer.Deserialize<GestureConfig>(json)!;
+            var eb = back.ToBindings();
+            Chk("T131e-json-roundtrip", back.Enabled && eb.Count == 3
+                && eb.Any(x => x.Trigger == GE.TriggerKind.KeyDown && x.Actions[0] == GestureActions.RecordStart)
+                && eb.Any(x => x.Trigger == GE.TriggerKind.KeyUp && x.Actions[0] == GestureActions.RecordStop),
+                "按住即录预设 JSON 往返：Enabled + KeyDown→开始录制 + KeyUp→结束录制，实得 " + eb.Count + " 条");
+
+            var bad = new GestureBindingDto { Chord = "F6", Trigger = "Click", Actions = new[] { GestureActions.CaptureFrame, "no.such.action" } };
+            var bb = bad.ToBinding();
+            Chk("T131f-action-filter", bb != null && bb.Actions.Count == 1 && bb.Actions[0] == GestureActions.CaptureFrame,
+                "未知动作名被过滤，仅保留合法动作");
+
+            var rt = GestureBindingDto.FromBinding(new GE.GestureBinding {
+                Chord = new GE.KeyChord(GE.ModifierKeys.Control | GE.ModifierKeys.Alt, 0x41),
+                Trigger = GE.TriggerKind.Click, Actions = new List<string> { GestureActions.ScopeSelect } });
+            Chk("T131g-from-binding-chord", rt.Chord == "Ctrl+Alt+A" && rt.Trigger == "Click",
+                "引擎绑定回推组合键串 Ctrl+Alt+A，实得 " + rt.Chord);
+        }
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");
         return fail == 0 ? 0 : 1;
     }

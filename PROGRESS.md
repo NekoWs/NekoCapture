@@ -1716,3 +1716,10 @@ status: done
 - **模型**：`ModifierKeys`(自持 Flags)、`KeyChord`(修饰键+不透明 int 主键，Key==0 为纯修饰键)、`TriggerKind`(KeyDown/KeyUp/Click/DoubleClick/TripleClick/LongPress/Chord)、`FallbackPolicy`(Stop/SkipStep/**NextBinding**——逐条绑定显式指定，引擎不内置宿主语义)、`GestureBinding`(组合键+触发+动作序列+失败策略+优先级+可配 DoubleClickMs/LongPressMs)、`IActionInvoker`(宿主按名执行、返回成败)、`IKeyNamer`(键名映射，保持库中立)。
 - **引擎** `GestureEngine`：喂原始键/鼠事件(带毫秒时间戳)+绑定表→消歧→回调动作序列。键用不透明 int、修饰键态随事件传入(贴合 WH_KEYBOARD_LL 取数)、时间由宿主 `Tick(now)` 推进→**确定性可单测、跨宿主复用**。消歧：组合键激活瞬间触发 KeyDown/Chord、失活触发 KeyUp(配对=按住做A松手做B)；激活期鼠标按已绑最高阶触发分类，连击达最高阶立即触发否则等 DoubleClickMs；只绑 Click 则零延迟；长按满阈值触发并吞掉抬起。同触发多绑定按优先级顺延，某步失败按该条 Fallback 决定顺延/跳过/中止。
 - **单测** T130a–j（SelfTest 340→351）：按住配对、单击零延迟、单击等待 vs 双击立即、长按吞抬起、NextBinding 顺延、SkipStep 跳步、Stop 中止、Ctrl+Alt+A 修饰键组合、三击、优先级。
+
+### B2-1 GestureConfig 配置层（FrameCapture 侧，headless 可测）
+- **动作词汇表** `GestureActions`：11 个稳定动作名(capture.frame/scope.select/record.start/record.stop/scroll.capture/capture.delayed/edit.last/ocr.selection/pin.selection/settings.open/help.open) + 中文文案，名与文案分离(改名会破坏已存 JSON)。
+- **DTO** `GestureBindingDto`：组合键用 "Ctrl+Shift+G" 串(复用 HotkeySpec 解析含键名映射，不重造键表)、触发/失败策略用字符串枚举名；`ToBinding()` 非法组合键/触发名→null(加载跳过不整体失败)、未知动作名过滤、双击/长按阈值 clamp；`FromBinding()` 回推组合键串。
+- **GestureConfig**：`Enabled`(默认 false，附加式零回归) + Bindings；`DefaultBindings`/`PresetQQ`/`PresetHoldToRecord` 预设(由旧 CaptureHotkey/ScopeHotkey 迁移生成)。挂到 `AppSettings.Gestures`(Normalize 兜 null)。
+- **GestureCore 引用**：FrameCapture.csproj + SelfTest.csproj 各加 ProjectReference。
+- **单测** T131a–g（SelfTest 351→358）：DTO→引擎转换、裸键拒绝、默认/预设、按住即录 JSON 往返、未知动作过滤、引擎→组合键串回推。

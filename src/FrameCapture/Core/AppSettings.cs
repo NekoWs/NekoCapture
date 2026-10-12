@@ -142,6 +142,10 @@ public sealed class AppSettings
     /// 设置里给 关/1/3/5/10 秒预设 chip，是功能可选项而非任意数值。</summary>
     public int DelayCaptureSeconds { get; set; } = 3;
 
+    /// <summary>自定义手势配置（R120 B2）：把功能触发方式拆成「组合键 + 触发方式 → 动作序列」，可分离/组合键绑定。
+    /// 默认关闭——附加式，旧热键路径原样工作、零回归；开启后手势层与旧热键并存。引擎在独立的 GestureCore 库里。</summary>
+    public GestureConfig Gestures { get; set; } = new();
+
     // ---- 上次捕获范围（物理像素，虚拟桌面绝对坐标；null 表示全屏主屏） ----
     public string? RegionMonitorId { get; set; }
     public int RegionX { get; set; }
@@ -163,6 +167,7 @@ public sealed class AppSettings
         AgentStripFrames = Math.Clamp(AgentStripFrames, 4, 24);
         if (Theme is not ("system" or "light" or "dark")) Theme = "system";
         if (AfterCapture is not ("toast" or "editor" or "copy" or "pin")) AfterCapture = "toast";
+        Gestures ??= new GestureConfig();
         if (RegionW < 16 || RegionH < 16)
         {
             RegionMonitorId = null; RegionX = RegionY = RegionW = RegionH = 0;

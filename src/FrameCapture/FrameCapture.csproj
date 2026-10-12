@@ -34,6 +34,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- 可复用「自定义手势/键位」引擎（netstandard2.0 零 UI 依赖，见 src/GestureCore） -->
+    <ProjectReference Include="..\GestureCore\GestureCore.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- WPF/WinForms 同名类型多：去掉全局隐式 using，各文件显式导入 -->
     <Using Remove="System.Windows.Forms" />
     <Using Remove="System.Drawing" />
