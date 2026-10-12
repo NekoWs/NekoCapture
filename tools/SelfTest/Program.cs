@@ -1491,6 +1491,8 @@ static class SelfTest
                 Chk("T109d-rollback", FrameCapture.Core.NumberBadge.Next(new[] { "2", "3" }) == 4, "删 1 后仍 4（撤销回退靠重算）");
                 Chk("T109e-nonnum", FrameCapture.Core.NumberBadge.Next(new[] { "x", "5" }) == 6, "非数字忽略");
                 Chk("T109f-diam", FrameCapture.Core.NumberBadge.Diameter(20) == 40, "直径=字号×2");
+                Chk("T109g-lightcircle", FrameCapture.Core.NumberBadge.NumberOnLightCircle(0xFF, 0xB9, 0x00) && FrameCapture.Core.NumberBadge.NumberOnLightCircle(0xFF, 0xFF, 0xFF), "琥珀#FFB900/白圆圈→黑编号");
+                Chk("T109h-darkcircle", !FrameCapture.Core.NumberBadge.NumberOnLightCircle(0xE8, 0x11, 0x23) && !FrameCapture.Core.NumberBadge.NumberOnLightCircle(0, 0, 0), "红#E81123/黑圆圈→白编号");
             }
 
             // T110 贴图磁边（R74，PinSnap 纯决策）

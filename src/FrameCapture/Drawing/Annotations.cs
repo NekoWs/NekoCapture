@@ -118,8 +118,8 @@ public sealed class Annotation
                     g.FillEllipse(brush, cx - d / 2, cy - d / 2, d, d);
                     using var fnt = new Font("Microsoft YaHei UI", fontPx, FontStyle.Bold, GraphicsUnit.Pixel);
                     using var sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
-                    using var white = new SolidBrush(Color.White);
-                    g.DrawString(Text, fnt, white, new RectangleF(cx - d / 2, cy - d / 2, d, d), sf);
+                    using var numFg = new SolidBrush(FrameCapture.Core.NumberBadge.NumberOnLightCircle(Color.R, Color.G, Color.B) ? Color.Black : Color.White);
+                    g.DrawString(Text, fnt, numFg, new RectangleF(cx - d / 2, cy - d / 2, d, d), sf);
                 }
                 break;
         }

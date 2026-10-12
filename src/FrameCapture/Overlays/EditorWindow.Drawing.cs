@@ -771,7 +771,7 @@ public sealed partial class EditorWindow
             CornerRadius = new CornerRadius(4),
             Padding = new Thickness(7, 2, 7, 3),
             IsHitTestVisible = false,
-            Child = new TextBlock { Text = "松开应用裁剪", FontSize = 11, FontWeight = FontWeights.SemiBold, Foreground = Brushes.White },
+            Child = new TextBlock { Text = "松开应用裁剪", FontSize = 11, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(FrameCapture.Core.Fluent.OnAccentColor(Acc)) }, // 前景随强调色明暗自适应,浅色强调色下转黑可读
         };
         _canvas.Children.Add(_cropMask);
         _canvas.Children.Add(_cropGrid);
@@ -1187,7 +1187,7 @@ public sealed partial class EditorWindow
                     grid.Children.Add(new Ellipse { Fill = wpfCol });
                     grid.Children.Add(new TextBlock
                     {
-                        Text = a.Text, FontSize = fs, FontWeight = FontWeights.Bold, Foreground = Brushes.White,
+                        Text = a.Text, FontSize = fs, FontWeight = FontWeights.Bold, Foreground = new SolidColorBrush(FrameCapture.Core.NumberBadge.NumberOnLightCircle(a.Color.R, a.Color.G, a.Color.B) ? System.Windows.Media.Colors.Black : System.Windows.Media.Colors.White),
                         HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
                     });
                     Canvas.SetLeft(grid, pts[0].X - d / 2); Canvas.SetTop(grid, pts[0].Y - d / 2);
