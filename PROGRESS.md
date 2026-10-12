@@ -2043,3 +2043,9 @@ status: done
 - **修复**：13 处 `replace_all` → `Fluent.OnAccentColor(Theme.Accent)`（亮度>128→黑，否则白）。对默认 `#4CC2FF`(165) 与当前 `#7F75FF`(136) 均→黑，**外观不变**；对深色强调色→白，可读。向后兼容。
 - **保留非缺陷**：RegionPicker 的 `#4CC2FF`（尺寸徽标/放大镜读数/像素标记）是**深色半透明浮层与任意像素之上**的固定浅蓝，改 `Theme.Accent` 反致深色强调色不可读——故意保留。
 - **验证**：构建 **0 错**；**SelfTest 387 绿**。改动纯 UI 前景/knob 色，不触 e2e；完整护栏留批次末统一跑。
+
+**R145 · GestureEditor 库同族缺陷修复 → 强调色审计收官**
+- **缺陷**：`GestureEditorWindow.cs:467` accent 按钮 `fg=Color.FromRgb(0,0,0)` 压 `_pal.Accent` 底，深色强调色下不可读（同 R143/R144 族）。
+- **约束**：GestureEditor 库**不得引用宿主 Fluent**（架构边界）。故在 `EditorPalette`（GestureModel.cs）加**库内自包含** `OnAccent()` 助手（同款亮度>128→黑判定，仅用 `System.Windows.Media.Colors`），467 行改用 `_pal.OnAccent()`。
+- **验证**：构建 **0 错**（含 GestureEditor 库编译）；**SelfTest 387 绿**；库边界未破（OnAccent 不引用宿主）。
+- **强调色审计收官**：FrameCapture 15 处（R143 白字 2 + R144 黑字 13）+ GestureEditor 1 处 = **16 处「硬编码色压强调色」全改自适应**；RegionPicker 深色浮层上的固定浅蓝属故意保留。用户自定义深/浅强调色下所有选中态/开关/按钮前景均可读。

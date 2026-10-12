@@ -78,4 +78,8 @@ public sealed class EditorPalette
     public bool IsDark = true;
 
     public SolidColorBrush B(Color c) { var b = new SolidColorBrush(c); b.Freeze(); return b; }
+
+    /// <summary>压在 Accent 底上的可读前景：强调色偏亮→黑字，偏暗→白字。与宿主 Fluent.OnAccentColor 同款判定，库内自包含不引用宿主 Fluent。</summary>
+    public Color OnAccent()
+        => (0.299 * Accent.R + 0.587 * Accent.G + 0.114 * Accent.B) > 128 ? Colors.Black : Colors.White;
 }

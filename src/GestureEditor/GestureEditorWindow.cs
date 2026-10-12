@@ -464,7 +464,7 @@ public sealed class GestureEditorWindow : Window
     {
         var b = new Button { Content = text, Margin = new Thickness(0, 0, 8, 0), Padding = new Thickness(14, 7, 14, 7), Cursor = Cursors.Hand, BorderThickness = new Thickness(1), FontSize = 13 };
         b.Background = _pal.B(accent ? _pal.Accent : _pal.CardBg);
-        b.Foreground = _pal.B(accent ? Color.FromRgb(0, 0, 0) : _pal.Text);
+        b.Foreground = _pal.B(accent ? _pal.OnAccent() : _pal.Text);
         b.BorderBrush = _pal.B(ghost ? _pal.Stroke : (accent ? _pal.Accent : _pal.Stroke));
         b.Template = SimpleButtonTemplate();
         return b;
