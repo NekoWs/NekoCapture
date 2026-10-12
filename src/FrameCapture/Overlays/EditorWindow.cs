@@ -157,6 +157,20 @@ public sealed partial class EditorWindow : Window
     Button IconBtn(string glyph, string tip, double size = 28) =>
         FrameCapture.Core.Fluent.IconButton(glyph, tip, size, 13);
 
+    // 文字按钮（非图标字体）：字号步进器 A−/A+ 用，走同一 IconButton 模板保持悬停/按压手感一致
+    Button TextSizeBtn(string text, string tip)
+    {
+        var b = new Button
+        {
+            Content = text, ToolTip = tip, Width = 26, Height = 26, Margin = new Thickness(1),
+            FontFamily = new FontFamily("Segoe UI"), FontSize = 12, FontWeight = FontWeights.Bold,
+            Foreground = new SolidColorBrush(Theme.Text), Background = Brushes.Transparent,
+            BorderBrush = Brushes.Transparent, Template = FrameCapture.Core.Fluent.IconButtonTemplate(),
+            Focusable = false,
+        };
+        return b;
+    }
+
     // R81：钉到屏幕按钮改用实心图钉 E840（招牌动作配招牌图钉，Snipaste/QQ 惯例）；「总在最前」改置顶箭头 E898 以免两图钉混淆
     Button PinBtn()
     {
@@ -447,6 +461,16 @@ public sealed partial class EditorWindow : Window
         _widthMoreBtn = wMore;
         _widthBtns.Add(wMore);
         bar.Children.Add(wMore);
+        // 字号步进器（C3）：仅文字工具/选中文字时可见。A−/A+ 调字号——选中文字=改该文字（可撤销），文字工具下=定下次文字字号。
+        _fontGroup = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Visibility = Visibility.Collapsed };
+        _fontGroup.Children.Add(new System.Windows.Shapes.Rectangle { Width = 1, Fill = new SolidColorBrush(Color.FromArgb(Theme.Stroke.A, Theme.Stroke.R, Theme.Stroke.G, Theme.Stroke.B)), Margin = new Thickness(8, 6, 8, 6) });
+        var fMinus = TextSizeBtn("A\u2212", "字号减小"); fMinus.Click += (_, _) => StepFontSize(-1);
+        var fPlus = TextSizeBtn("A+", "字号增大"); fPlus.Click += (_, _) => StepFontSize(+1);
+        _fontLabel = new TextBlock { FontFamily = new FontFamily("Segoe UI"), FontSize = 11, Foreground = new SolidColorBrush(Theme.Text), VerticalAlignment = VerticalAlignment.Center, MinWidth = 36, TextAlignment = TextAlignment.Center };
+        _fontGroup.Children.Add(fMinus);
+        _fontGroup.Children.Add(_fontLabel);
+        _fontGroup.Children.Add(fPlus);
+        bar.Children.Add(_fontGroup);
         bar.Children.Add(new System.Windows.Shapes.Rectangle { Width = 1, Fill = new SolidColorBrush(Color.FromArgb(Theme.Stroke.A, Theme.Stroke.R, Theme.Stroke.G, Theme.Stroke.B)), Margin = new Thickness(8, 6, 8, 6) });
         var undo = IconBtn("", "撤销 (Ctrl+Z)");
         undo.Click += (_, _) => UndoAnn();
@@ -496,6 +520,7 @@ public sealed partial class EditorWindow : Window
         // 与绘制工具同一选中语言：accent 实心 + 反白图标（初值在 BuildToolsBar 尾部即刷新，默认宽度可见高亮）
         for (int i = 0; i < _widthBtns.Count; i++)
             FrameCapture.Core.Fluent.HighlightBtn(_widthBtns[i], i == _widthIdx);
+        UpdateFontStepper();
     }
 
     // ---------------- 自定义颜色 / 线宽 ----------------
@@ -503,6 +528,8 @@ public sealed partial class EditorWindow : Window
     Button? _paletteBtn;
     Button? _widthMoreBtn;
     StackPanel? _recentHost;
+    StackPanel? _fontGroup;   // 字号步进器（C3）：文字工具/选中文字时可见
+    TextBlock? _fontLabel;
     Popup? _widthPop;
     Slider? _widthSlider;
     System.Windows.Shapes.Ellipse? _widthPreview;

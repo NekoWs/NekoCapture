@@ -2225,6 +2225,12 @@ static class SelfTest
             Chk("T139a-combo-template-parses", okCombo, "ComboBox 配色模板可解析（深色下拉可读）");
             Chk("T139b-list-item-style-parses", okList, "ListBox 条目样式可解析");
         }
+        // T140 文字字号映射（C3）：线宽挡位→帧像素字号，单调递增，锚定 细3/中6/粗10 = 22/34/50px @1080p
+        {
+            double f3 = FrameCapture.Core.AnnFont.FramePx(3), f6 = FrameCapture.Core.AnnFont.FramePx(6), f10 = FrameCapture.Core.AnnFont.FramePx(10);
+            Chk("T140a-font-anchor-values", Math.Abs(f3 - 22) < 1e-3 && Math.Abs(f6 - 34) < 1e-3 && Math.Abs(f10 - 50) < 1e-3, $"字号锚定 细{f3}/中{f6}/粗{f10} = 22/34/50");
+            Chk("T140b-font-monotonic", f3 < f6 && f6 < f10 && FrameCapture.Core.AnnFont.FramePx(24) > f10, "字号随线宽单调递增（A+ 变大）");
+        }
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");
         return fail == 0 ? 0 : 1;
     }

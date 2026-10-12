@@ -223,6 +223,7 @@ public sealed partial class EditorWindow
         _canvas.Cursor = _tool switch { Tool.Browse or Tool.Select => Cursors.Arrow, Tool.Text => Cursors.IBeam, _ => Cursors.Cross };
         for (int i = 0; i < _toolBtns.Count; i++)
             Highlight(_toolBtns[i], ToolOrder[i] == _tool);
+        UpdateFontStepper();
     }
 
     void Highlight(Button b, bool on) => FrameCapture.Core.Fluent.HighlightBtn(b, on);
@@ -584,7 +585,33 @@ public sealed partial class EditorWindow
 
     readonly List<(UIElement el, Annotation a)> _annEls = new();
 
-    void SetSelection(Annotation? a) { _sel = a; RedrawAnns(); }
+    void SetSelection(Annotation? a) { _sel = a; RedrawAnns(); UpdateFontStepper(); }
+
+    // ---- 字号步进器（C3）：文字工具/选中文字时可见，A−/A+ 调字号 ----
+    bool TextRelevant => _tool == Tool.Text || _sel is { Kind: AnnKind.Text or AnnKind.Number };
+    bool SelIsText => _sel is { Kind: AnnKind.Text or AnnKind.Number };
+
+    void StepFontSize(int dir)
+    {
+        float cur = SelIsText ? _sel!.Thickness : CurWidth;
+        float nw = Math.Clamp(cur + dir, 1f, 24f);
+        if (Math.Abs(nw - cur) < 1e-6) return;   // 已到上下限
+        ApplyWidth(nw);                            // 落到宽度槽位（下次文字/绘制沿用）
+        if (SelIsText) RestyleSelected(null, nw);  // 选中文字：原位改字号（可撤销）
+        UpdateFontStepper();
+    }
+
+    void UpdateFontStepper()
+    {
+        if (_fontGroup == null || _fontLabel == null) return;
+        bool show = TextRelevant;
+        _fontGroup.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+        if (show)
+        {
+            float t = SelIsText ? _sel!.Thickness : CurWidth;
+            _fontLabel.Text = $"{(int)FrameCapture.Core.AnnFont.FramePx(t)}px";
+        }
+    }
 
     // ---- 缩放手柄（R119）：选中框四角拖拽，按对角锚点等比缩放归一化点集（对所有标注类型通用）----
 
@@ -620,6 +647,7 @@ public sealed partial class EditorWindow
         _resizeAnn = _sel;
         _resizeOrigPts = new List<(float, float)>(_sel.Points);
         _resizeOrigBox = NormBox(_sel.Points);
+        _resizeDrag = true;   // 关键：Canvas_Move 的缩放分支以 _resizeDrag 为门，漏设则拖角无反应（C1 修）
         _canvas.CaptureMouse();
         FrameCapture.Core.Trace.Log($"editor resize start corner={hitC}");
         return true;
@@ -845,6 +873,7 @@ public sealed partial class EditorWindow
         };
         box.LostFocus += (_, _) => CommitTextInput(); // 点别处 = 视为上屏
         _textInput = box;
+        RedrawAnns();          // 先重绘（此时 _textEditing 已置，原字被跳过）再把输入框叠上去
         _canvas.Children.Add(box);
         box.Focus();
         System.Windows.Input.Keyboard.Focus(box);
@@ -1042,6 +1071,7 @@ public sealed partial class EditorWindow
         _selBox = null;
         foreach (var a in _anns.Items)
         {
+            if (ReferenceEquals(a, _textEditing)) continue;   // 正在编辑的文字：只留输入框，隐藏原字（C2 修重叠）
             double s = Math.Max(1, Math.Min(_imgRect.Width, _imgRect.Height));
             double stroke = Math.Max(1.2, a.Thickness * s / 1080.0);
             var wpfCol = new SolidColorBrush(System.Windows.Media.Color.FromArgb(a.Color.A, a.Color.R, a.Color.G, a.Color.B));
