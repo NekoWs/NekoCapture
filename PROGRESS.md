@@ -1950,3 +1950,9 @@ status: done
 - **批尾重发布已执行**：`release/FrameCapture.zip` 由当前 staging 重打包（69.7MB / 250 项 / 扁平结构 / 含 exe+dll+手势库），反映 R127–R129 定稿源码。旧 10/3 zip 备份至 `test-out/FrameCapture-10-03.zip.bak`（gitignore 区，git 干净）。zip 内容 = 已验证 PUBLISH OK 的 staging 字节，传递性验证通过。
 - **未做（有意）**：① 不从 `settings.json.bak` 还原——用户当前配置（4 自定义手势）正确，.bak 是 B2 前旧版，还原会回退手势（objective 该句已过时）。② 暂不重启 release 实例——RunAtStartup=false 用户习惯手动启动；且重启易被后续轮打断，宜留最后一轮统一做。
 - **若后续再有源码改动**：须重跑 `test-out/publish.ps1` + 重打包 release zip（本步幂等）。
+
+**R133 · 最终 HEAD 验证（配置完好 + SelfTest 绿 + 默认键冲突已归档）**
+- **用户 settings.json 完好**：整晚测试（护栏 e2e 钉还原、F2 录制、OCR 流程等）后复核——`Enabled/Exclusive/Seeded=true`，4 手势全在（Ctrl+Alt+R 录制+edit.lastvideo / Ctrl+Alt+A 截图 / F2 KeyDown 起录 / F2 KeyUp 停止+edit.lastvideo），其余字段正确。`RegionX/Y/W/H=1560,260,940,560` 系测试拖选残留（无害，下次捕获覆盖）。
+- **SelfTest 最终 HEAD 绿**：Debug x64 构建 0 错，SelfTest **PASS=387 FAIL=0**（不钉配置、无 e2e 风险的安全门禁）。
+- **默认选区键冲突已归档、勿重复调查**：`DefaultScopeKey=Ctrl+Shift+R` 与浏览器硬刷新冲突——**TODO.md:375 已完整记录为待用户拍板项**（「属产品决策+改默认有风险故未动」，建议改 `Ctrl+Alt+R`/`Ctrl+Shift+S`，仅影响新装）。改动波及 SelfTest 多处断言 + lib-hotkey/fuzz/README/TEST-CHECKLIST，确属用户决策，**不动**。
+- 结论：无源码改动必要；指令达成、批尾 zip 就绪、配置完好、门禁绿。唯余最后一轮重启 release 实例。
