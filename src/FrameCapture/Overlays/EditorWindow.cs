@@ -692,6 +692,7 @@ public sealed partial class EditorWindow : Window
                 case Key.O: SetTool(Tool.Ellipse); return;
                 case Key.A: SetTool(Tool.Arrow); return;
                 case Key.P: SetTool(Tool.Freehand); return;
+                case Key.H: SetTool(Tool.Highlight); return;
                 case Key.T: SetTool(Tool.Text); return;
                 case Key.M: SetTool(Tool.Mosaic); return;
                 case Key.C: SetTool(Tool.Crop); return;

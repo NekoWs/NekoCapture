@@ -1178,10 +1178,10 @@ static class SelfTest
             {
                 // T92 工具目录（R48）：单一数据源防漂移——加新工具漏帮助/漏字形/键位撞车当场红
                 var tools = FrameCapture.Core.ToolCatalog.Tools;
-                Chk("T92a-count", tools.Length == 9, $"九个绘制工具 → {tools.Length}");
+                Chk("T92a-count", tools.Length == 10, $"十个绘制工具 → {tools.Length}");
                 var keys = tools.Select(t => t.Key).ToList();
-                Chk("T92b-keys", keys.Distinct().Count() == 9 && keys.Select(k => k[0]).OrderBy(c => c).SequenceEqual("ACLMNOPTV"), "键位 V/L/O/A/P/T/M/C/N 唯一且齐全");
-                Chk("T92c-glyphs", tools.All(t => t.Glyph.Length == 1 && t.Glyph[0] >= 0xE000 && t.Glyph[0] <= 0xF8FF) && tools.Select(t => t.Glyph).Distinct().Count() == 9,
+                Chk("T92b-keys", keys.Distinct().Count() == 10 && keys.Select(k => k[0]).OrderBy(c => c).SequenceEqual("ACHLMNOPTV"), "键位 V/L/O/A/P/H/T/M/C/N 唯一且齐全");
+                Chk("T92c-glyphs", tools.All(t => t.Glyph.Length == 1 && t.Glyph[0] >= 0xE000 && t.Glyph[0] <= 0xF8FF) && tools.Select(t => t.Glyph).Distinct().Count() == 10,
                     "字形均为私有区码位且互不重复（GlyphProbe 定稿）");
                 Chk("T92d-tips", tools.All(t => t.Tip.Contains(t.Key) && t.Help.Length >= 8), "工具条提示含快捷键、帮助说明非占位");
                 Chk("T92e-heading", FrameCapture.Core.ToolCatalog.HelpHeading.Contains(FrameCapture.Core.ToolCatalog.ExitKey), "退出键 X 写进帮助小节标题");
@@ -1619,6 +1619,22 @@ static class SelfTest
                     && FrameCapture.Core.AfterCapture.Resolve("") == FrameCapture.Core.AfterCaptureAction.Toast
                     && FrameCapture.Core.AfterCapture.Resolve("Editor") == FrameCapture.Core.AfterCaptureAction.Toast
                     && FrameCapture.Core.AfterCapture.Resolve("garbage") == FrameCapture.Core.AfterCaptureAction.Toast, "null/空/大小写/脏值→回落 Toast");
+            }
+            // T117 荧光笔半透明烘焙（R85）：盖在白底上应透出白（半透明），而非不透明纯色
+            {
+                var hl = new Annotation { Kind = AnnKind.Highlight, Color = Color.FromArgb(255, 255, 0, 0), Thickness = 300 };
+                hl.Points.Add((0.2f, 0.5f)); hl.Points.Add((0.5f, 0.5f)); hl.Points.Add((0.8f, 0.5f));
+                var outF = Bake.Apply([Solid(100, 100, 255, 255, 255)], [hl])[0];
+                int on = (50 * 100 + 50) * 4;
+                byte b0 = outF.Bgra[on], g0 = outF.Bgra[on + 1], r0 = outF.Bgra[on + 2];
+                Chk("T117a-highlight-translucent", r0 > 200 && g0 > 90 && g0 < 235 && b0 > 90 && b0 < 235,
+                    $"rgba={b0},{g0},{r0} 期望 R高 G/B中(透出白，半透明)");
+                var pen = new Annotation { Kind = AnnKind.Freehand, Color = Color.FromArgb(255, 255, 0, 0), Thickness = 300 };
+                pen.Points.Add((0.2f, 0.5f)); pen.Points.Add((0.5f, 0.5f)); pen.Points.Add((0.8f, 0.5f));
+                var penF = Bake.Apply([Solid(100, 100, 255, 255, 255)], [pen])[0];
+                int pon = (50 * 100 + 50) * 4;
+                Chk("T117b-pen-opaque-contrast", penF.Bgra[pon] < 60 && penF.Bgra[pon + 1] < 60,
+                    $"对照不透明手绘 B/G 应低 rgba={penF.Bgra[pon]},{penF.Bgra[pon + 1]},{penF.Bgra[pon + 2]}");
             }
         }
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");

@@ -68,6 +68,8 @@
       `AfterCapture` 设置 + `Core/AfterCapture.Resolve` 纯决策（脏值回落 toast，T116a-d，SelfTest 276→280）；设置页文字芯片三选行就地更新选中态。实机 e2e 三态各验（editor 开编辑器无浮窗 / copy 无窗但剪贴板有图 / toast 浮窗现）。
 - [x] **贴图「更新内容」原地重抓**（R84）：Snipaste F3 招牌、QQ 缺位——贴图常用来盯梢会变的画面（进度/数值/直播），此前是静态快照，源画面变了只能重截再钉。做成按贴图来源区域原地重抓，位置/缩放/旋转全保持。
       `PinWindow` 记源区域 + 旋转步数；`Refresh()` 先 Hide 避免自捕获→200ms 后 Grab→按角度重放→中心锚定换图→Flash「已更新」。F3 键 + 右键菜单双入口。实机 e2e PrintWindow 前后像素对比（桌面↔设置 UI 双向，diff 15~20%，trace `pin-refresh`）。坑：Ctrl+P 不关编辑器抢焦点，F3 需贴图聚焦（创建即 Activate/点一下即聚焦，真实用法天然满足）。
+- [x] **荧光笔 / 马克笔高亮**（R85）：QQ 招牌标注工具、我们缺位——在截图上划半透明高亮圈重点又不遮字。此前只能画不透明框/手绘，都盖字。
+      复用 Freehand 的 Polyline 预览 + DrawCurve 烘焙双路径（只改半透明/加粗/平头帽三参数，WYSIWYG 风险最低）；`AnnKind.Highlight` + `Annotation.HighlightAlpha=90`（alpha 是「类型」属性统一施加，标注颜色仍存不透明色→改色/调色板照常，预览与烘焙同取常量保证所见即所得）；编辑器 `Tool.Highlight`（H 键，线宽挡位×2.5，平头帽）；`ToolCatalog` 加 "H"（图标 E7E6 马克笔 GlyphProbe 定稿，帮助符号非 PUA ▨）。SelfTest 280→**282**（T117a 半透明红 over 白透出白 / T117b 对照不透明 G/B≈0），T92 计数 9→10。实机 e2e（PrintWindow+像素采样）：工具条马克笔图标现、H 选中蓝底、拖出平头半透明红条、笔画 (96,20,27) vs 背景 (21,21,23) 证实透出、帮助窗 ▨ 正常渲染。
 
 ## 用户反馈
 - [x] **录制后的全屏黄色边框持续存在（10-04 已修复）**：根因 = **不是我们的代码**，是 Windows 11

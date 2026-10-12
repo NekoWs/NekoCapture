@@ -4,7 +4,7 @@ using System.Drawing.Imaging;
 
 namespace FrameCapture.Drawing;
 
-public enum AnnKind { Dot, Line, Ellipse, Arrow, Freehand, Text, Mosaic, Number }
+public enum AnnKind { Dot, Line, Ellipse, Arrow, Freehand, Highlight, Text, Mosaic, Number }
 
 /// <summary>
 /// 一条标注。坐标为帧内归一化 (0..1)，渲染时按目标帧像素缩放，分辨率无关。
@@ -19,6 +19,10 @@ public sealed class Annotation
     public List<(float X, float Y)> Points { get; } = new();
     /// <summary>文字内容（仅 Kind=Text）。</summary>
     public string Text { get; set; } = "";
+
+    /// <summary>R85：荧光笔的不透明度（0-255）。alpha 是 Highlight 这一「类型」的属性而非颜色的一部分——
+    /// 标注颜色仍存不透明色（改色/调色板/最近用色都正常），只在预览与烘焙时统一套此 alpha，两条路径同值保证 WYSIWYG。</summary>
+    public const byte HighlightAlpha = 90;
 
     /// <summary>R76：返回改了颜色/粗细的副本（Kind/几何/文字不变；传 null 表示该项保持原值）。
     /// 供「选中已有标注→改样式」原位替换（可撤销）用。纯函数，供单测。</summary>
@@ -70,6 +74,19 @@ public sealed class Annotation
             case AnnKind.Freehand:
                 if (P.Length >= 2) { g.SmoothingMode = SmoothingMode.AntiAlias; g.DrawCurve(p, P); }
                 else if (P.Length == 1) g.FillEllipse(brush, P[0].X - pen, P[0].Y - pen, pen * 2, pen * 2);
+                break;
+            case AnnKind.Highlight:
+                // 马克笔：半透明 + 平头帽（斜头笔触感），曲线同手绘；alpha 由类型统一施加
+                if (P.Length >= 2)
+                {
+                    using var hp = new Pen(Color.FromArgb(HighlightAlpha, Color.R, Color.G, Color.B), pen)
+                    { StartCap = LineCap.Flat, EndCap = LineCap.Flat, LineJoin = LineJoin.Round };
+                    g.SmoothingMode = SmoothingMode.AntiAlias;
+                    g.DrawCurve(hp, P);
+                }
+                else if (P.Length == 1)
+                    using (var hb = new SolidBrush(Color.FromArgb(HighlightAlpha, Color.R, Color.G, Color.B)))
+                        g.FillEllipse(hb, P[0].X - pen, P[0].Y - pen, pen * 2, pen * 2);
                 break;
             case AnnKind.Text:
                 if (P.Length > 0 && !string.IsNullOrEmpty(Text))

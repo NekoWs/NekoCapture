@@ -14,14 +14,14 @@ namespace FrameCapture.Overlays;
 // 绘图工具层：线/圆/箭头/手绘/裁剪 + 撤销 + 时间轴范围
 public sealed partial class EditorWindow
 {
-    enum Tool { Browse, Select, Line, Ellipse, Arrow, Freehand, Text, Mosaic, Crop, Number }
+    enum Tool { Browse, Select, Line, Ellipse, Arrow, Freehand, Highlight, Text, Mosaic, Crop, Number }
 
     // 工具顺序与 ToolCatalog.Tools 一一对应（T92 锁死）；图标/提示文案的唯一数据源在 Core.ToolCatalog。
     // ToolOrder 由目录键位派生（R52 教训：手写平行数组+断言=断言写错直接 abort 进程，派生让漂移无处可漂）
     static Tool FromKey(string k) => k switch
     {
         "V" => Tool.Select, "L" => Tool.Line, "O" => Tool.Ellipse, "A" => Tool.Arrow,
-        "P" => Tool.Freehand, "T" => Tool.Text, "M" => Tool.Mosaic, "C" => Tool.Crop,
+        "P" => Tool.Freehand, "H" => Tool.Highlight, "T" => Tool.Text, "M" => Tool.Mosaic, "C" => Tool.Crop,
         "N" => Tool.Number,
         _ => throw new InvalidOperationException($"工具目录键 {k} 未接 Tool 枚举"),
     };
@@ -340,6 +340,20 @@ public sealed partial class EditorWindow
                 _preview = new Polyline { Stroke = ToWpf(color), StrokeThickness = DispStroke(thick), StrokeLineJoin = PenLineJoin.Round };
                 ((Polyline)_preview).Points.Add(_pressPos);
                 break;
+            case Tool.Highlight:
+                // 荧光笔：马克笔宽度（线宽挡位 ×2.5）+ 半透明预览 + 平头帽；标注色仍存不透明，alpha 由类型统一施加
+                float ht = thick * 2.5f;
+                _pending = MakeAnn(AnnKind.Highlight, color, ht, new[] { n });
+                _preview = new Polyline
+                {
+                    Stroke = ToWpf(Color.FromArgb(FrameCapture.Drawing.Annotation.HighlightAlpha, c0.R, c0.G, c0.B)),
+                    StrokeThickness = DispStroke(ht),
+                    StrokeLineJoin = PenLineJoin.Round,
+                    StrokeStartLineCap = PenLineCap.Flat,
+                    StrokeEndLineCap = PenLineCap.Flat,
+                };
+                ((Polyline)_preview).Points.Add(_pressPos);
+                break;
             case Tool.Crop:
                 _preview = new Rectangle { Stroke = new SolidColorBrush(Acc), StrokeThickness = 1.5, StrokeDashArray = new DoubleCollection { 4, 3 }, Fill = new SolidColorBrush(Color.FromArgb(0x33, 0x4C, 0xC2, 0xFF)) };
                 _pending = null;
@@ -394,7 +408,7 @@ public sealed partial class EditorWindow
             case Tool.Arrow:
                 DrawArrowPath((Path)_preview, _pressPos, p, DispStroke(CurWidth));
                 break;
-            case Tool.Freehand when _preview is Polyline pl:
+            case Tool.Freehand or Tool.Highlight when _preview is Polyline pl:
                 pl.Points.Add(p);
                 if (_pending != null) { var nn = Norm(p); _pending.Points.Add(((float)nn.X, (float)nn.Y)); }
                 break;
@@ -935,6 +949,14 @@ public sealed partial class EditorWindow
                 case AnnKind.Freehand when pts.Count >= 2:
                 {
                     var el = new Polyline { Points = new PointCollection(pts), Stroke = wpfCol, StrokeThickness = stroke, StrokeLineJoin = PenLineJoin.Round };
+                    _canvas.Children.Add(el);
+                    _annEls.Add((el, a));
+                    break;
+                }
+                case AnnKind.Highlight when pts.Count >= 2:
+                {
+                    var hlCol = System.Windows.Media.Color.FromArgb(FrameCapture.Drawing.Annotation.HighlightAlpha, a.Color.R, a.Color.G, a.Color.B);
+                    var el = new Polyline { Points = new PointCollection(pts), Stroke = new SolidColorBrush(hlCol), StrokeThickness = stroke, StrokeLineJoin = PenLineJoin.Round, StrokeStartLineCap = PenLineCap.Flat, StrokeEndLineCap = PenLineCap.Flat };
                     _canvas.Children.Add(el);
                     _annEls.Add((el, a));
                     break;

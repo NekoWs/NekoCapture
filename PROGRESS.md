@@ -1213,3 +1213,16 @@ status: done
 - 构建 0 错误；完整护栏 GUARDRAIL PASS（FAIL=0 SKIP=1 floor280，err_delta=0）
 - 实机 e2e（PrintWindow 前后像素对比 + trace 取证）：钉住纯桌面区→开设置窗盖住该区→聚焦贴图→F3→贴图内容从桌面变为设置 UI（diff 20.5%，trace `pin-refresh 500x400`，「已更新」浮层现）；另一场景关设置→F3→贴图从设置 UI 变回桌面（diff 15.7%）
 - 关键坑：Ctrl+P 不关编辑器，编辑器仍持应用级键盘焦点，PostMessage 的 F3 会被 WPF 路由到编辑器（trace 见 `editor key=F3` 无 `pin-refresh`）；`activate` 抢焦点到贴图后 F3 正常。真实用法里贴图创建即 Activate、或点一下即聚焦，F3 天然可用；右键菜单项不依赖焦点亦可触发
+
+## 2026-10-12 上午 编辑器标注 R85（荧光笔 / 马克笔高亮，QQ 招牌补齐）
+
+**动机**（补 QQ 招牌、我们缺位）：QQ 截图标注里「荧光笔」是高频工具——在截图上划一道半透明高亮，圈重点又不遮住底下的文字。我们此前标注有直线/圆/箭头/手绘/文字/马赛克/序号，唯独缺高亮：想强调只能画不透明框或手绘，都盖字。补上这个 QQ 有我们没有的工具。
+
+**实现**（复用 Freehand 的 Polyline 预览 + DrawCurve 烘焙双路径，只改三个参数，WYSIWYG 风险最低）：
+- `AnnKind.Highlight` + `Annotation.Render` 新分支：半透明 + **平头帽**（斜头马克笔触感）+ 曲线同手绘。alpha 作为「Highlight 这一类型」的属性（`Annotation.HighlightAlpha=90`）统一施加，**标注颜色仍存不透明色**——改色/调色板/最近用色都照常，预览与烘焙两处同取此常量保证所见即所得。
+- 编辑器 `Tool.Highlight`：`Canvas_Down` 建半透明加粗（线宽挡位 ×2.5）Polyline 预览（平头帽），`Canvas_Move` 与 Freehand 共用加点，`RedrawAnns` 提交元素同 alpha/平头。`FromKey("H")`、`Key.H` 绑定、`ToolCatalog` 加 "H" 条目（图标 **E7E6** 马克笔，GlyphProbe 大尺寸人工定稿；帮助符号用非 PUA 的 ▨）。裁剪重映射 `CropRemap` 本就按点集通用处理，无需改。
+
+**验证**：
+- 构建 0 错误；SelfTest 280→**282**（T117a 荧光笔红 over 白→R 高 G/B 中=透出白=半透明；T117b 对照不透明手绘 G/B≈0）；T92 工具目录计数 9→10、键位串加 H
+- 完整护栏 GUARDRAIL PASS（FAIL=0 SKIP=1 floor280，err_delta=0）
+- 实机 e2e（PrintWindow 亲眼看 + 像素采样）：工具条第 6 位出现马克笔图标；按 H→trace `editor key=None+H`、工具条图标蓝底选中；画布拖一笔→半透明红横条、**两端平头**；笔画像素 (96,20,27) vs 背景 (21,21,23) 证实背景透出（半透明）；帮助窗「绘图」小节荧光笔行 ▨ 符号正常渲染（非豆腐块）
