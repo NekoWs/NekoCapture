@@ -20,6 +20,7 @@ public partial class App : System.Windows.Application
     const string MsgOpenHelp = "FrameCapture_OpenHelp";
     const string MsgEditLast = "FrameCapture_EditLast";
     const string MsgScroll = "FrameCapture_Scroll";
+    const string MsgDelay = "FrameCapture_Delay";
 
     [System.Runtime.InteropServices.DllImport("user32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
     static extern uint RegisterWindowMessageW(string lpString);
@@ -87,6 +88,10 @@ public partial class App : System.Windows.Application
         if (e.Args.Any(a => string.Equals(a, "--scroll", StringComparison.OrdinalIgnoreCase)))
             Dispatcher.BeginInvoke(() => Services.AppHost.Current.Controller.BeginScrollCapture(),
                 System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+        // R91：延时截图入口（托盘「延时截图」同一入口，也便于脚本/e2e 调用）
+        if (e.Args.Any(a => string.Equals(a, "--delay", StringComparison.OrdinalIgnoreCase)))
+            Dispatcher.BeginInvoke(() => Services.AppHost.Current.Controller.BeginDelayedCapture(),
+                System.Windows.Threading.DispatcherPriority.ApplicationIdle);
     }
 
     void StartMessageSink()
@@ -95,7 +100,8 @@ public partial class App : System.Windows.Application
             () => Dispatcher.BeginInvoke(() => Overlays.SettingsWindow.ShowOrFocus()),
             () => Dispatcher.BeginInvoke(() => Overlays.HelpWindow.ShowOrFocus()),
             () => Dispatcher.BeginInvoke(() => Services.AppHost.Current.Controller.EditLastStill()),
-            () => Dispatcher.BeginInvoke(() => Services.AppHost.Current.Controller.BeginScrollCapture())); }
+            () => Dispatcher.BeginInvoke(() => Services.AppHost.Current.Controller.BeginScrollCapture()),
+            () => Dispatcher.BeginInvoke(() => Services.AppHost.Current.Controller.BeginDelayedCapture())); }
         catch (System.Exception ex) { LogCrash(ex, "MsgSink"); }
     }
 
@@ -105,15 +111,16 @@ public partial class App : System.Windows.Application
     /// 直接建消息专用窗，仅用于接收二次实例转发的"打开设置/帮助"。</summary>
     sealed class MsgSink : System.Windows.Forms.NativeWindow
     {
-        readonly Action _onSettings, _onHelp, _onEditLast, _onScroll;
-        readonly uint _mSet, _mHelp, _mEditLast, _mScroll;
-        public MsgSink(Action onSettings, Action onHelp, Action onEditLast, Action onScroll)
+        readonly Action _onSettings, _onHelp, _onEditLast, _onScroll, _onDelay;
+        readonly uint _mSet, _mHelp, _mEditLast, _mScroll, _mDelay;
+        public MsgSink(Action onSettings, Action onHelp, Action onEditLast, Action onScroll, Action onDelay)
         {
-            _onSettings = onSettings; _onHelp = onHelp; _onEditLast = onEditLast; _onScroll = onScroll;
+            _onSettings = onSettings; _onHelp = onHelp; _onEditLast = onEditLast; _onScroll = onScroll; _onDelay = onDelay;
             _mSet = RegisterWindowMessageW(MsgOpenSettings);
             _mHelp = RegisterWindowMessageW(MsgOpenHelp);
             _mEditLast = RegisterWindowMessageW(MsgEditLast);
             _mScroll = RegisterWindowMessageW(MsgScroll);
+            _mDelay = RegisterWindowMessageW(MsgDelay);
             CreateHandle(new System.Windows.Forms.CreateParams { Caption = SinkName, Parent = HWND_MESSAGE, Style = 0 });
             Core.Trace.Log($"sink created hwnd={Handle}");
         }
@@ -123,6 +130,7 @@ public partial class App : System.Windows.Application
             else if (m.Msg == _mHelp) { Core.Trace.Log("sink→open help"); _onHelp(); }
             else if (m.Msg == _mEditLast) { Core.Trace.Log("sink→edit last"); _onEditLast(); }
             else if (m.Msg == _mScroll) { Core.Trace.Log("sink→scroll capture"); _onScroll(); }
+            else if (m.Msg == _mDelay) { Core.Trace.Log("sink→delay capture"); _onDelay(); }
             base.WndProc(ref m);
         }
     }
@@ -133,7 +141,8 @@ public partial class App : System.Windows.Application
             args.Any(a => string.Equals(a, "--settings", StringComparison.OrdinalIgnoreCase)) ? MsgOpenSettings :
             args.Any(a => string.Equals(a, "--help", StringComparison.OrdinalIgnoreCase)) ? MsgOpenHelp :
             args.Any(a => string.Equals(a, "--edit-last", StringComparison.OrdinalIgnoreCase)) ? MsgEditLast :
-            args.Any(a => string.Equals(a, "--scroll", StringComparison.OrdinalIgnoreCase)) ? MsgScroll : null;
+            args.Any(a => string.Equals(a, "--scroll", StringComparison.OrdinalIgnoreCase)) ? MsgScroll :
+            args.Any(a => string.Equals(a, "--delay", StringComparison.OrdinalIgnoreCase)) ? MsgDelay : null;
         if (name == null) return;
         try
         {

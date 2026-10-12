@@ -73,6 +73,7 @@ public sealed class TrayService : IDisposable
         if (_host.Controller.HasLastStill)
             Item("编辑上次截图", () => _host.Controller.EditLastStill());
         Item("滚动截图（长图）", () => _host.Controller.BeginScrollCapture());
+        Item($"延时截图（{_host.Settings.Current.DelayCaptureSeconds} 秒）", () => _host.Controller.BeginDelayedCapture());
         Sep();
         Item("快捷键设置…", OpenSettings);
         Item("帮助", OpenHelp);

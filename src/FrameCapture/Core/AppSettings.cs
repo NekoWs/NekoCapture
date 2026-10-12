@@ -125,6 +125,11 @@ public sealed class AppSettings
     /// 无法识别的值回退 hex（向后兼容旧配置）。</summary>
     public string ColorCopyFormat { get; set; } = "hex";
 
+    /// <summary>延时截图秒数（默认 3，R91）：托盘「延时截图」触发后倒数这么久再截当前范围，
+    /// 留时间打开右键菜单/悬停提示/下拉框这类一动就消失的界面。0=立即（无延时）。
+    /// 设置里给 关/1/3/5/10 秒预设 chip，是功能可选项而非任意数值。</summary>
+    public int DelayCaptureSeconds { get; set; } = 3;
+
     // ---- 上次捕获范围（物理像素，虚拟桌面绝对坐标；null 表示全屏主屏） ----
     public string? RegionMonitorId { get; set; }
     public int RegionX { get; set; }

@@ -120,6 +120,7 @@ public sealed class SettingsWindow : Window
             _settings.Current.AlwaysShowRegionOutline, v => _settings.Mutate(s => s.AlwaysShowRegionOutline = v)));
         panel.Children.Add(AfterCaptureRow());
         panel.Children.Add(CaptureSoundRow());
+        panel.Children.Add(DelayRow());
 
         // ---- 录制 ----
         panel.Children.Add(Group("录制"));
@@ -862,6 +863,72 @@ public sealed class SettingsWindow : Window
                 foreach (var (c, cid) in chipList)
                 {
                     bool sel = cid == captured;
+                    c.Background = new SolidColorBrush(sel ? Theme.Accent : Theme.Hover);
+                    if (c.Child is TextBlock tb) tb.Foreground = new SolidColorBrush(sel ? Color.FromRgb(0, 0, 0) : Theme.Text);
+                }
+            }
+            chip.MouseLeftButtonDown += (_, e) => { Apply(); e.Handled = true; };
+            chip.Focusable = true;
+            chip.KeyDown += (_, e) => { if (e.Key is Key.Space or Key.Enter) { Apply(); e.Handled = true; } };
+            chip.GotKeyboardFocus += (_, _) => { chip.BorderBrush = new SolidColorBrush(Theme.Accent); chip.BorderThickness = new Thickness(1); };
+            chip.LostKeyboardFocus += (_, _) => { chip.BorderThickness = new Thickness(0); };
+            chips.Children.Add(chip);
+        }
+        g.Children.Add(chips);
+        return g;
+    }
+    FrameworkElement DelayRow()
+    {
+        var g = Row();
+        g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); // 芯片列
+        g.Children.Add(Icon("\uE916", "托盘「延时截图」触发后倒数这么久再截当前范围，留时间打开右键菜单/悬停提示/下拉框这类一动就消失的界面"));
+        var lbl = new TextBlock
+        {
+            Text = "延时截图",
+            FontSize = 13,
+            Foreground = new SolidColorBrush(Theme.Text),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 12, 0),
+        };
+        Grid.SetColumn(lbl, 1);
+        g.Children.Add(lbl);
+        var chips = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
+        Grid.SetColumn(chips, 2);
+        int cur = _settings.Current.DelayCaptureSeconds;
+        var opts = new (int secs, string text, string tip)[]
+        {
+            (0, "关", "不延时，触发即截"),
+            (1, "1秒", "快速：够移一下鼠标"),
+            (3, "3秒", "常用：够打开一个菜单"),
+            (5, "5秒", "从容：够展开下拉/悬停"),
+            (10, "10秒", "充裕：够摆好几个界面元素"),
+        };
+        var chipList = new System.Collections.Generic.List<(Border chip, int secs)>();
+        foreach (var (secs, text, tip) in opts)
+        {
+            int captured = secs;
+            var chip = new Border
+            {
+                CornerRadius = new CornerRadius(6),
+                Padding = new Thickness(10, 5, 10, 5),
+                Margin = new Thickness(2, 0, 2, 0),
+                Background = new SolidColorBrush(captured == cur ? Theme.Accent : Theme.Hover),
+                Child = new TextBlock
+                {
+                    Text = text,
+                    FontSize = 12.5,
+                    Foreground = new SolidColorBrush(captured == cur ? Color.FromRgb(0, 0, 0) : Theme.Text),
+                },
+                Cursor = Cursors.Hand,
+                ToolTip = tip,
+            };
+            chipList.Add((chip, secs));
+            void Apply()
+            {
+                _settings.Mutate(s => s.DelayCaptureSeconds = captured);
+                foreach (var (c, cs) in chipList)
+                {
+                    bool sel = cs == captured;
                     c.Background = new SolidColorBrush(sel ? Theme.Accent : Theme.Hover);
                     if (c.Child is TextBlock tb) tb.Foreground = new SolidColorBrush(sel ? Color.FromRgb(0, 0, 0) : Theme.Text);
                 }

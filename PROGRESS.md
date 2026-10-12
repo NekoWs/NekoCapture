@@ -1322,3 +1322,24 @@ status: done
 - 构建 0 错误；SelfTest 仍 **298**（本轮为钩子接线 + 生命周期标志，非纯逻辑，无新增单测；护栏 floor 280 不变）
 - 完整护栏 GUARDRAIL PASS（FAIL=0 SKIP=1 floor280，err_delta=0；**钩子改动后 e2e:hotkey / esc-layers / fuzz-statemachine 全过**，证明未回归既有热键行为）
 - 实机 e2e（最大化记事本 + --scroll + 选区 + 全局 Esc）：会话中按 Esc → trace `scroll cancel`、控制条窗口数归 0；**再按一次 Esc 无新 cancel**（标志已清零、Esc 不再被全局吞，无泄漏）
+
+
+## 2026-10-12 上午 延时截图 R91（QQ 招牌、全受众刚需：截「一动就没了」的界面）
+
+**动机**：右键菜单 / 悬停提示 / 下拉框这类界面，鼠标一动或一点就消失，普通截图根本截不到。QQ 有「延时截图」，这是高频刚需却此前缺失。做成独立托盘动作 + 倒计时浮窗，**刻意不碰点按/录制状态机**（早前评估把延时塞进热键点按路径会有模式交互复杂度，这里绕开）。
+
+**实现**（独立动作，只借完成路径，不碰 Phase）：
+- `Overlays/CountdownWindow.cs`（新）：顶部居中大号倒计时数字卡（标题「延时截图」+ 将截范围 + 大号数字 + 提示 + 取消按钮）。`ShowActivated=false` **不抢焦点**（否则目标窗失焦、正要截的菜单反而被关掉）；WDA 排除不入镜；`SetNumber(n)` 刷数字。
+- 设置项 `DelayCaptureSeconds`（默认 3）；设置窗「截图」组新增 `DelayRow()`：时钟图标（**E916**，与点按阈值行同款已验证字形）+ 关/1/3/5/10 秒预设 chip（功能可选项，非任意数值）。
+- `CaptureController.BeginDelayedCapture()`：取「已存范围 ?? 光标屏全屏」→ 0 秒直接截、否则弹倒计时 + 1s DispatcherTimer 递减 → 到点 `DelayFire`（抓帧→剪贴板→按 AfterCapture 走 toast/编辑器/只复制 + 声音 + lastStill + 范围闪一下作反馈，与 ScrollDone 同款完成路径）。`DelayCancel` 中止。重复触发忽略（`_delayWindow!=null` 守卫）。
+- 托盘「延时截图（N 秒）」项（标签带当前秒数）+ `--delay` IPC（MsgSink 第 5 路）+ 帮助条目。
+
+**验证**：
+- 构建 0 错误；SelfTest 仍 **298**（本轮为浮窗 + 定时器 + 抓帧编排，无新增纯逻辑单测；护栏 floor 280 不变）
+- 完整护栏 GUARDRAIL PASS（FAIL=0 SKIP=1 floor280，err_delta=0；延时动作未回归既有捕获流）
+- 实机 e2e（`FC_TOAST_NOEXCLUDE=1` 让 PrintWindow 能渲染倒计时窗）：
+  - PrintWindow 倒计时窗：「延时截图」+「范围 1340×1000」+ 大号蓝色「3」+ 提示 + 「取消」，布局干净
+  - 1.6s 后再 PrintWindow：数字已变「2」（递减正确）
+  - 到点：trace `delay fire 1340x1000` → `open editor frames=1`（AfterCapture=editor）→ 范围闪反馈
+  - 点「取消」（先 WindowFromPoint 确认落点属倒计时窗，焦点安全）：trace `delay cancel`、窗口关闭、未触发截图
+  - 设置窗「延时截图」行渲染正常：时钟图标 + 关/1/3/5/10 秒 chip、3 秒蓝底选中、位置在截图提示音后

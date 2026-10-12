@@ -37,6 +37,11 @@ public sealed class CaptureController : IDisposable
     private System.Windows.Threading.DispatcherTimer? _scrollTimer;
     private byte[]? _scrollPrevB;   // 上一 tick 抓帧，用于「滚动已停稳」判定（避免拼接滚动中途的过渡帧）
 
+    // R91：延时截图——独立托盘动作，倒计时后截当前范围（不碰点按/录制状态机）
+    private Overlays.CountdownWindow? _delayWindow;
+    private System.Windows.Threading.DispatcherTimer? _delayTimer;
+    private int _delayLeft;
+
     public Phase State { get; private set; } = Phase.Idle;
 
     public CaptureController(SettingsService settings)
@@ -335,6 +340,72 @@ public sealed class CaptureController : IDisposable
         var bar = _scrollBar; _scrollBar = null; _scrollAcc = null; _scrollPrevB = null; _scrollSegs = 0;
         bar?.CloseSelf();
         FrameCapture.Core.Trace.Log("scroll cancel");
+    }
+
+    // ---------- R91 延时截图 ----------
+    /// <summary>托盘/入口调用：倒计时 N 秒后截「当前范围」（已存范围，否则光标所在屏全屏）。
+    /// 独立于点按/录制状态机——只借完成路径，不碰 Phase，避免与按住录制的模式交互。</summary>
+    public void BeginDelayedCapture()
+    {
+        if (_delayWindow != null) { FrameCapture.Core.Trace.Log("delay: already running, ignore"); return; }
+        int secs = Math.Clamp(_settings.Current.DelayCaptureSeconds, 0, 60);
+        var region = StoredRegion() ?? FullMonitorAtCursor();
+        string label = StoredRegion() != null ? $"范围 {region.Bounds.W}×{region.Bounds.H}" : "全屏";
+        FrameCapture.Core.Trace.Log($"delay capture start {secs}s {region.Bounds.W}x{region.Bounds.H}");
+        if (secs <= 0) { DelayFire(region); return; }   // 0 秒＝立即截，不弹倒计时
+        _delayLeft = secs;
+        _delayWindow = new Overlays.CountdownWindow(label, region.DeviceName) { OnCancel = DelayCancel };
+        _delayWindow.SetNumber(_delayLeft);
+        _delayWindow.Show();   // ShowActivated=false：不抢焦点，用户才能打开要截的菜单
+        Overlays.CountdownWindow.Current = _delayWindow;
+        _delayTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+        _delayTimer.Tick += (_, _) => DelayTick(region);
+        _delayTimer.Start();
+    }
+
+    void DelayTick(ScreenRegion region)
+    {
+        _delayLeft--;
+        if (_delayLeft > 0) { _delayWindow?.SetNumber(_delayLeft); return; }
+        var win = _delayWindow;
+        _delayTimer?.Stop(); _delayTimer = null;
+        _delayWindow = null;
+        win?.CloseSelf();
+        DelayFire(region);
+    }
+
+    void DelayCancel()
+    {
+        _delayTimer?.Stop(); _delayTimer = null;
+        var win = _delayWindow; _delayWindow = null;
+        win?.CloseSelf();
+        FrameCapture.Core.Trace.Log("delay cancel");
+    }
+
+    void DelayFire(ScreenRegion region)
+    {
+        var reg = region.Bounds; var dev = region.DeviceName;
+        var f = LiveCapture.Grab(reg);
+        if (f == null) { FrameCapture.Core.Trace.Log("delay: grab null"); return; }
+        FrameCapture.Encoding.ClipboardService.SetFrame(f);
+        FrameCapture.Services.SaveService.MaybeSavePng(f);
+        if (_settings.Current.CaptureSound) FrameCapture.Core.CaptureSound.Play();
+        FrameCapture.Core.Trace.Log($"delay fire {f.W}x{f.H}");
+        switch (FrameCapture.Core.AfterCapture.Resolve(_settings.Current.AfterCapture))
+        {
+            case FrameCapture.Core.AfterCaptureAction.Editor:
+                OpenEditorForFrame(f, reg, dev);
+                break;
+            case FrameCapture.Core.AfterCaptureAction.Copy:
+                break;
+            default:
+                Overlays.CaptureToast.Show(f, reg, dev, () => OpenEditorForFrame(f, reg, dev));
+                break;
+        }
+        _lastStill.Set(f, reg, dev);
+        // 范围闪一下作"截好了"的反馈（只复制模式没有浮窗，这一下尤其重要）
+        if (_settings.Current.AlwaysShowRegionOutline) ShowOutline(reg);
+        else { FlashOutline(reg); _outline!.FadeAway(1.1); }
     }
 
     public ScreenRegion? StoredRegion()
