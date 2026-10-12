@@ -1921,3 +1921,8 @@ status: done
 **③ 设置窗切类别复位滚动到顶部**
 - `ShowCat` 切类别时 `scroller?.ScrollToTop()`（仅 `prev!=idx` 真导航时复位；主题重建 `prev==idx` 不动，保留滚动位置）。`scroller` 原在 `ShowCat` 之后声明（局部函数无法前向引用 CS0841）→ 前向声明 `ScrollViewer scroller=null;` 于 ShowCat 前、构造处去 `var` 改赋值。当前各页内容均未超视口（截图页最满也不滚），复位为防御性/未来向（小窗或更高 DPI 溢出时生效），现状 no-op 零风险。
 - 冒烟：快速连切全部 8 类（含快切竞态）→ 进程存活、终态单面板全不透明无叠影。构建 0 错。
+
+**R128 · OCR 结果窗补入场淡入（消除「硬弹入、淡出」不一致）**
+- 全 app 动效审计（逐面 grep）：设置/帮助/编辑器/两 toast/选区窗/贴图窗均已 `FadeIn`/`PopupEnter`+`CloseWithFade`+主题交叉淡入，唯 **`OcrResultWindow` 有退场 `CloseWithFade` 却无入场**——硬弹入、淡出，不对称。
+- 改法：构造末尾加 `Fluent.PopupEnter(this)`。OCR 窗与 `HelpWindow` **同为分层窗**（`AllowsTransparency=true`）→ `PopupEnter` 走分层淡入路径（与帮助窗逐字同调用、同窗型，HelpWindow 已上线验证），入场淡入与退场 `CloseWithFade` 对称。
+- 验证：构建 0 错；护栏 FAIL=0 SKIP=1，SelfTest 387。入场淡入按构造成立（同 HelpWindow 同窗型同调用）；完整 OCR 流程（截图→点开 toast 进编辑器→Ctrl+O）需 5+ 步脆弱注入，且用户明令「绝不盲操落到其他软件」，故不为其做脆弱多步输入，以代码对称性 + 护栏定案。

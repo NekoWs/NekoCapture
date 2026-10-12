@@ -110,5 +110,6 @@ public sealed class OcrResultWindow : Window
             copyLabel.Text = "已复制";
         };
         Loaded += (_, _) => { box.Focus(); box.SelectAll(); box.ScrollToHome(); };
+        Fluent.PopupEnter(this);   // 入场淡入（与退场 CloseWithFade 对称；分层窗=淡入，同 HelpWindow）
     }
 }
