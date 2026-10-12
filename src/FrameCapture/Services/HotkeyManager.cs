@@ -156,7 +156,7 @@ public sealed class HotkeyManager : IDisposable
 
         // 独占吞键（R120 B2）：手势命中「带具体键的组合键」→ 吞掉本键，前台程序收不到（QQ 式全局独占）。
         // 放在滚动/浮窗判定之后：那两类是会话级优先；且手势只绑具体键(A/R)，不会误吞 Esc/Enter。
-        if (gestureSwallow) return true;
+        if (gestureSwallow) { FrameCapture.Core.Trace.Log("gesture swallow"); return true; }
 
         var cap = _capture;
         var scp = _scope;
