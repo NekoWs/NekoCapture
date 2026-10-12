@@ -1975,3 +1975,8 @@ status: done
 - **387 的 21 条减少是删退役死测试**：T76 决策表(4) + T99 连按状态机(13) + T122 暂停决策(4)——这三者测的 `HookDecision`/`ToggleRecord`/旧暂停逻辑**已在 B2③ 整体删除**，其语义由新增的 GestureEngine **T146/T147** 完整覆盖（见 line 1884）。
 - **净效果**：手势引擎净增 11 条测试、删 21 条已无对应代码的死测试 → **有效覆盖不减反增**；387 是 B2 后正确基线，护栏 `-MinSelfTestPass 387` 已锁。非回归、非漏测。
 - 结论：计数合规；本轮无源码改动。
+
+**R137 · release zip 交付物完整性验证**
+- **CRC 全量校验**：.NET `ZipFile` 逐条读流解压全部 **250 条目**（解压后 169.1MB），**0 CRC 失败**——zip 无损坏、非截断（`Test-Archive` cmdlet 本机未加载，改 .NET 读流校验，读流即触发 CRC 校验）。
+- **关键程序集齐全**：`FrameCapture.exe` 148KB / `FrameCapture.dll` 388KB / `GestureCore.dll` 14KB / `GestureEditor.dll` 42KB / `FrameCapture.runtimeconfig.json` 均在（扁平结构，自包含发布）。
+- **结论**：`release/FrameCapture.zip`（69.7MB）是有效、完整、无损坏的自包含发布包，可直接解压运行。交付物就绪。本轮无源码改动。
