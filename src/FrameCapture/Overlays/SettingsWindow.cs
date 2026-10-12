@@ -132,6 +132,7 @@ public sealed class SettingsWindow : Window
         panel.Children.Add(ToggleRow("\uE71A", "常显捕获范围轮廓", "在屏幕上持续显示当前捕获范围的边框",
             _settings.Current.AlwaysShowRegionOutline, v => _settings.Mutate(s => s.AlwaysShowRegionOutline = v)));
         panel.Children.Add(AfterCaptureRow());
+        panel.Children.Add(ToastRow());
         panel.Children.Add(CaptureSoundRow());
         panel.Children.Add(DelayRow());
 
@@ -1095,9 +1096,76 @@ public sealed class SettingsWindow : Window
         g.Children.Add(chips);
         return g;
     }
-    FrameworkElement CaptureSoundRow()
+    // R120 C：截图后悬浮窗存在时间——文字芯片（常驻/秒数），点击就地更新选中态
+    FrameworkElement ToastRow()
     {
         var g = Row();
+        g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); // 芯片列
+        g.Children.Add(Icon("\uE916", "截完弹出的「已复制」缩略浮窗停留多久自动消失。悬停其上会暂停计时、移开再给满时长。想拍完即走调小、想留着慢慢点进编辑器调大或常驻。"));
+        var lbl = new TextBlock
+        {
+            Text = "悬浮窗存在时间",
+            FontSize = 13,
+            Foreground = new SolidColorBrush(Theme.Text),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 12, 0),
+        };
+        Grid.SetColumn(lbl, 1);
+        g.Children.Add(lbl);
+        var chips = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
+        Grid.SetColumn(chips, 2);
+        double cur = _settings.Current.ToastSeconds;
+        var opts = new (double secs, string text, string tip)[]
+        {
+            (0, "常驻", "不自动消失，点一下或 Esc 才关"),
+            (2, "2秒", "快闪：确认一下就走"),
+            (3.2, "3.2秒", "默认：够看清并决定点不点"),
+            (5, "5秒", "从容：够移动鼠标去点"),
+            (8, "8秒", "宽裕：边看边想"),
+        };
+        var chipList = new System.Collections.Generic.List<(Border chip, double secs)>();
+        foreach (var (secs, text, tip) in opts)
+        {
+            double captured = secs;
+            bool sel0 = Math.Abs(captured - cur) < 0.01;
+            var chip = new Border
+            {
+                CornerRadius = new CornerRadius(6),
+                Padding = new Thickness(10, 5, 10, 5),
+                Margin = new Thickness(2, 0, 2, 0),
+                Background = new SolidColorBrush(sel0 ? Theme.Accent : Theme.Hover),
+                Child = new TextBlock
+                {
+                    Text = text,
+                    FontSize = 12.5,
+                    Foreground = new SolidColorBrush(sel0 ? Color.FromRgb(0, 0, 0) : Theme.Text),
+                },
+                Cursor = Cursors.Hand,
+                ToolTip = tip,
+            };
+            chipList.Add((chip, secs));
+            void Apply()
+            {
+                _settings.Mutate(s => s.ToastSeconds = captured);
+                foreach (var (c, cs) in chipList)
+                {
+                    bool sel = Math.Abs(cs - captured) < 0.01;
+                    c.Background = new SolidColorBrush(sel ? Theme.Accent : Theme.Hover);
+                    if (c.Child is TextBlock tb) tb.Foreground = new SolidColorBrush(sel ? Color.FromRgb(0, 0, 0) : Theme.Text);
+                }
+            }
+            chip.MouseLeftButtonDown += (_, e) => { Apply(); e.Handled = true; };
+            chip.Focusable = true;
+            chip.KeyDown += (_, e) => { if (e.Key is Key.Space or Key.Enter) { Apply(); e.Handled = true; } };
+            chip.GotKeyboardFocus += (_, _) => { chip.BorderBrush = new SolidColorBrush(Theme.Accent); chip.BorderThickness = new Thickness(1); };
+            chip.LostKeyboardFocus += (_, _) => { chip.BorderThickness = new Thickness(0); };
+            chips.Children.Add(chip);
+        }
+        g.Children.Add(chips);
+        return g;
+    }
+    FrameworkElement CaptureSoundRow()
+    {        var g = Row();
         g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); // 控件列
         g.Children.Add(Icon("\uE767", "静态截图完成时放一声柔和短促的「嘀」作听觉确认（QQ 招牌反馈）；默认关，可点「试听」先听"));
         var lbl = new TextBlock

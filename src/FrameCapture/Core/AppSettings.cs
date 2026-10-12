@@ -146,6 +146,11 @@ public sealed class AppSettings
     /// 默认关闭——附加式，旧热键路径原样工作、零回归；开启后手势层与旧热键并存。引擎在独立的 GestureCore 库里。</summary>
     public GestureConfig Gestures { get; set; } = new();
 
+    /// <summary>截图后悬浮窗（CaptureToast）存在时间（秒，默认 3.2，R120 C）：截完弹出的「已复制」缩略浮窗停留多久自动消失。
+    /// 悬停其上会暂停计时、移开再给满时长（不受本值影响地重数）。0 = 常驻（不自动消失，点一下或 Esc 才关）。
+    /// 想「拍完即走」调小、想「留着慢慢点进编辑器」调大或常驻。</summary>
+    public double ToastSeconds { get; set; } = 3.2;
+
     // ---- 上次捕获范围（物理像素，虚拟桌面绝对坐标；null 表示全屏主屏） ----
     public string? RegionMonitorId { get; set; }
     public int RegionX { get; set; }
@@ -168,6 +173,7 @@ public sealed class AppSettings
         if (Theme is not ("system" or "light" or "dark")) Theme = "system";
         if (AfterCapture is not ("toast" or "editor" or "copy" or "pin")) AfterCapture = "toast";
         Gestures ??= new GestureConfig();
+        ToastSeconds = ToastSeconds <= 0 ? 0 : Math.Clamp(ToastSeconds, 0.5, 60);
         if (RegionW < 16 || RegionH < 16)
         {
             RegionMonitorId = null; RegionX = RegionY = RegionW = RegionH = 0;

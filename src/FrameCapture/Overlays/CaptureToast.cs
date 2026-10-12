@@ -21,6 +21,7 @@ public sealed class CaptureToast : Window
 
     readonly DispatcherTimer _dismiss;
     bool _closing;
+    bool _persistent;   // R120 C：ToastSeconds=0 → 常驻，不自动消失
 
     const double W = 300;      // DIP 宽
     const double EstH = 84;    // 估算高（落点用；实际 SizeToContent）
@@ -147,11 +148,14 @@ public sealed class CaptureToast : Window
         Services.HotkeyManager.ToastEnter = () => Dispatcher.BeginInvoke(() => { FrameCapture.Core.Trace.Log("toast→edit(key)"); onEdit(); Dismiss(); });
         Services.HotkeyManager.ToastEsc = () => Dispatcher.BeginInvoke(Dismiss);
 
-        _dismiss = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(3200) };
+        // R120 C：存在时间可自定义（ToastSeconds，0=常驻不自动消失）。悬停暂停计时、移开重数满时长。
+        double secs = SettingsService.Shared?.Current.ToastSeconds ?? 3.2;
+        _persistent = secs <= 0;
+        _dismiss = new DispatcherTimer { Interval = TimeSpan.FromSeconds(_persistent ? 3.2 : secs) };
         _dismiss.Tick += (_, _) => Dismiss();
-        _dismiss.Start();
-        MouseEnter += (_, _) => _dismiss.Stop();          // 阅读/移动鼠标时不消失
-        MouseLeave += (_, _) => { _dismiss.Start(); };    // 移开再给 3.2s
+        if (!_persistent) _dismiss.Start();
+        MouseEnter += (_, _) => _dismiss.Stop();                              // 阅读/移动鼠标时不消失
+        MouseLeave += (_, _) => { if (!_persistent) _dismiss.Start(); };      // 移开再给满时长
 
         Closed += (_, _) =>
         {

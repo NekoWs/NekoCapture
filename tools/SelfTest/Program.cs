@@ -2100,6 +2100,16 @@ static class SelfTest
             Chk("T131g-from-binding-chord", rt.Chord == "Ctrl+Alt+A" && rt.Trigger == "Click",
                 "引擎绑定回推组合键串 Ctrl+Alt+A，实得 " + rt.Chord);
         }
+        // T132 ToastSeconds 归一化（R120 C）：默认 3.2、0=常驻保留、负→0、超界夹取、过小→0.5
+        {
+            Chk("T132a-toast-default", new AppSettings().ToastSeconds == 3.2, "默认 3.2 秒");
+            var s0 = new AppSettings { ToastSeconds = 0 }; s0.Normalize();
+            var sneg = new AppSettings { ToastSeconds = -5 }; sneg.Normalize();
+            var sbig = new AppSettings { ToastSeconds = 100 }; sbig.Normalize();
+            var stiny = new AppSettings { ToastSeconds = 0.3 }; stiny.Normalize();
+            Chk("T132b-toast-normalize", s0.ToastSeconds == 0 && sneg.ToastSeconds == 0 && sbig.ToastSeconds == 60 && Math.Abs(stiny.ToastSeconds - 0.5) < 1e-9,
+                $"0 保留(常驻)、负→0、100→60、0.3→0.5，实得 {s0.ToastSeconds}/{sneg.ToastSeconds}/{sbig.ToastSeconds}/{stiny.ToastSeconds}");
+        }
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");
         return fail == 0 ? 0 : 1;
     }

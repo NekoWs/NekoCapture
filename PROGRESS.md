@@ -1732,3 +1732,9 @@ status: done
 - **AppHost.InstallHotkeys**：先 Apply 手势（填绑定表+挂钩子），再据 `ClaimsKey`（键触发占用）让被占用的旧热键让位（避免同键重复触发）；未占用/关闭时旧热键原样装。
 - **默认态**：Enabled=false → 不装鼠标钩子、KeySink 空、不泵 Tick、旧热键原样——对现有行为零影响。开启经 settings.json（编辑器 UI 下轮）。
 - 待实机 e2e：开启手势→按绑定键→验证动作触发 + 被占用热键让位（留待确认用户离开后做，含 settings.json 还原）。
+
+## 夜间批次 R120 · C 自定义截图后悬浮窗存在时间（2026-10-13）
+- 新增 `AppSettings.ToastSeconds`（默认 3.2，0=常驻不自动消失，Normalize：0 保留/负→0/超界夹 0.5..60）。
+- CaptureToast 读该值设 `_dismiss` 间隔；0→不启计时器（常驻，点一下或 Esc 才关）；悬停暂停、移开重数满时长逻辑保留。
+- 设置窗新增 `ToastRow()`（芯片：常驻/2/3.2/5/8 秒，就地更新选中态，风格同 DelayRow），置于「截图后」行下方。
+- 单测 T132a–b（SelfTest 358→360）：默认值 + 归一化边界。
