@@ -1986,3 +1986,9 @@ status: done
 - **启动**：`FrameCapture.exe --settings` → 进程存活（pid 68844）→ **前台窗 = `FrameCapture Settings`**（设置窗正常打开并置前）→ **error.log 零新增**（34733→34733，无崩溃/无异常）。
 - **清理**：`Stop-Process` 杀掉 → 确认 0 残留实例（Mutex 释放，不挡用户自启）→ 删 `test-out/ziptest` → 用户 settings.json 未动（Seeded=true 不触发播种）。
 - **结论**：交付物**端到端可运行**——zip 解压即得可双击启动、UI 正常、零崩溃的自包含应用。八维验证（功能/动效/UI/稳健性/配置/构建/测试计数/交付物）全部通过。本轮无源码改动。
+
+**R139 · B2③ 删除彻底性验证（无死代码/残留引用）**
+- **grep `src/` 已删字段/文件**：`ScopeHotkey`/`CaptureHotkey`/`TapThresholdMs`/`TapAlwaysShowsRegion`/`DoubleTapRecord` 五字段——**仅剩注释提及**（`AppSettings.cs:14`、`CaptureController.cs:30`、`GestureEngine.cs:146` 说明退役缘由），无任何代码引用。
+- **文件删除确认**：`glob src/**/{HookDecision,ToggleRecord}.cs` → **无文件**（旧决策表/连按状态机文件已物理删除，无 class 残留）。
+- **残留同名符号辨析（非被删项）**：`CaptureGuards.OnCaptureHotkey/OnScopeHotkey` 是**当前手势路径**的意图守卫（`CaptureController.cs:147` 调用），`CaptureController.ToggleRecordSelection` 是录制切换方法（`GestureInvoker.cs:50` 的 `RecordToggle` 动作调用）——手势触发即键位组合，"Hotkey" 命名仍贴切，非旧路径遗留。
+- **结论**：B2③ 完整落地，无死代码、无残留引用、无误删当前逻辑。本轮无源码改动。
