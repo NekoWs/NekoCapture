@@ -173,6 +173,7 @@ public sealed class AppSettings
         if (Theme is not ("system" or "light" or "dark")) Theme = "system";
         if (AfterCapture is not ("toast" or "editor" or "copy" or "pin")) AfterCapture = "toast";
         Gestures ??= new GestureConfig();
+        Gestures.SeedIfNeeded(CaptureHotkey, ScopeHotkey);   // R126 一次性：空配置播种「轻点截图+按住录制」默认集
         ToastSeconds = ToastSeconds <= 0 ? 0 : Math.Clamp(ToastSeconds, 0.5, 60);
         if (RegionW < 16 || RegionH < 16)
         {

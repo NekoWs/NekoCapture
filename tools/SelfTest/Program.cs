@@ -2373,6 +2373,34 @@ static class SelfTest
             bool swUp = eng.OnKeyUp(F6, GE.ModifierKeys.None, 100);
             Chk("T146f-claim-swallow", swDown && swRepeat && swUp, $"tap/hold 键按下+重复+抬起全吞（前台收不到），实得 down={swDown} rep={swRepeat} up={swUp}");
         }
+        // T147 默认手势集播种（R126 B2）：捕获键 轻点截图+按住录制，选区键 组合键选区；一次性、尊重已有绑定。
+        {
+            var set = FrameCapture.Core.GestureConfig.DefaultTapHoldSet("Ctrl+Shift+G", "Ctrl+Shift+R");
+            Chk("T147a-default-set-shape",
+                set.Count == 4
+                && set.Any(b => b.Trigger == "Tap" && b.Actions.Contains("capture.selection"))
+                && set.Any(b => b.Trigger == "Hold" && b.Actions.Contains("record.start"))
+                && set.Any(b => b.Trigger == "HoldRelease" && b.Actions.Contains("record.stop"))
+                && set.Any(b => b.Trigger == "Chord" && b.Actions.Contains("scope.select")),
+                $"默认集=捕获键 Tap/Hold/HoldRelease + 选区键 Chord，实得 {set.Count} 条");
+            Chk("T147b-default-hold-threshold",
+                set.Where(b => b.Trigger is "Tap" or "Hold" or "HoldRelease").All(b => b.LongPressMs == 250),
+                "tap/hold 三条按住阈值=250ms");
+
+            var cfg = new FrameCapture.Core.GestureConfig();
+            cfg.SeedIfNeeded("Ctrl+Shift+G", "Ctrl+Shift+R");
+            Chk("T147c-seed-empty", cfg.Bindings.Count == 4 && cfg.Enabled && cfg.Seeded, "空配置播种默认集并启用、置 Seeded");
+
+            var cfg2 = new FrameCapture.Core.GestureConfig();
+            cfg2.Bindings.Add(new FrameCapture.Core.GestureBindingDto { Id = "mine", Chord = "F6", Trigger = "Chord", Actions = new[] { "capture.frame" } });
+            cfg2.SeedIfNeeded("Ctrl+Shift+G", "Ctrl+Shift+R");
+            Chk("T147d-seed-respects-existing", cfg2.Bindings.Count == 1 && cfg2.Bindings[0].Id == "mine" && cfg2.Seeded,
+                "已有绑定不被覆盖，仅补置 Seeded");
+
+            var cfg3 = new FrameCapture.Core.GestureConfig { Seeded = true };   // 已播种（用户曾清空绑定）
+            cfg3.SeedIfNeeded("Ctrl+Shift+G", "Ctrl+Shift+R");
+            Chk("T147e-seed-idempotent", cfg3.Bindings.Count == 0, "已播种后清空绑定不再重新塞回");
+        }
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");
         return fail == 0 ? 0 : 1;
     }

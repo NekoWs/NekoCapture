@@ -74,11 +74,12 @@ public sealed class GestureBindingDto
     }
 }
 
-/// <summary>手势配置（存于 settings.json 的 gestures 段）。默认关闭——附加式，零回归；开启后手势层与旧热键并存。</summary>
+/// <summary>手势配置（存于 settings.json 的 gestures 段）。R126 B2 起为默认触发路径：
+/// 首次加载自动播种「捕获键 轻点截图 + 按住录制」默认集（<see cref="SeedIfNeeded"/>），旧热键退役。</summary>
 public sealed class GestureConfig
 {
-    /// <summary>手势层总开关。默认 false：旧热键路径原样工作，手势层不介入（避免动核心捕获路径的回归风险）。</summary>
-    public bool Enabled { get; set; } = false;
+    /// <summary>手势层总开关。R126 起默认 true（手势替代旧热键）。关掉则退回纯观察（不吞键、不触发）。</summary>
+    public bool Enabled { get; set; } = true;
 
     /// <summary>独占吞键（R120 B2）：手势命中「带具体键的组合键」（如 Ctrl+Alt+A）时，把该键的按下与抬起一起吞掉，
     /// 前台程序收不到——QQ 式全局独占，避免快捷键漏进输入框打出字符或触发别的软件。默认 true。
@@ -86,6 +87,10 @@ public sealed class GestureConfig
     public bool Exclusive { get; set; } = true;
 
     public List<GestureBindingDto> Bindings { get; set; } = new();
+
+    /// <summary>默认集是否已播种过（R126 一次性迁移）。首启/升级时若为空则播种并置真；
+    /// 之后用户清空绑定不会被重新塞回（尊重「我就是不要任何绑定」）。</summary>
+    public bool Seeded { get; set; } = false;
 
     /// <summary>转引擎绑定表（跳过非法项）。</summary>
     public List<GC.GestureBinding> ToBindings()
@@ -140,5 +145,39 @@ public sealed class GestureConfig
         if (HotkeySpec.Parse(scopeHotkey) != null)
             list.Add(B("rec.scope", scopeHotkey, "Chord", new[] { GestureActions.ScopeSelect }));
         return list;
+    }
+
+    /// <summary>默认捕获键/选区键（旧热键退役后的单一事实源；迁移播种与全新配置都用它）。</summary>
+    public const string DefaultCaptureKey = "Ctrl+Shift+G";
+    public const string DefaultScopeKey = "Ctrl+Shift+R";
+
+    /// <summary>默认「轻点截图 + 按住录制」集（R126 B2，完整旧手感）：
+    /// 捕获键 轻点→选区截图(QQ 式)、按住→起录、松手→停止；选区键 组合键→选区。
+    /// 按住阈值 250ms（复用 LongPressMs 字段）。</summary>
+    public static List<GestureBindingDto> DefaultTapHoldSet(string captureKey, string scopeKey)
+    {
+        var list = new List<GestureBindingDto>();
+        if (HotkeySpec.Parse(captureKey) != null)
+        {
+            list.Add(B("cap.tap", captureKey, "Tap", new[] { GestureActions.CaptureSelection }, lp: 250));
+            list.Add(B("cap.hold", captureKey, "Hold", new[] { GestureActions.RecordStart }, lp: 250));
+            list.Add(B("cap.holdrelease", captureKey, "HoldRelease", new[] { GestureActions.RecordStop }, lp: 250));
+        }
+        if (HotkeySpec.Parse(scopeKey) != null)
+            list.Add(B("scope.chord", scopeKey, "Chord", new[] { GestureActions.ScopeSelect }));
+        return list;
+    }
+
+    /// <summary>一次性播种（R126）：未播种且当前无任何绑定 → 灌入默认 tap/hold 集并启用；随后置 Seeded。
+    /// 已有绑定的用户（含自定义）不受影响，只补置 Seeded。</summary>
+    public void SeedIfNeeded(string captureKey, string scopeKey)
+    {
+        if (Seeded) return;
+        if (Bindings.Count == 0)
+        {
+            Bindings = DefaultTapHoldSet(captureKey, scopeKey);
+            Enabled = true;
+        }
+        Seeded = true;
     }
 }

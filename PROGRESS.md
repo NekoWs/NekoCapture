@@ -1871,4 +1871,5 @@ status: done
 - 引擎：组合键激活时若绑了 tap/hold 类→记按下时刻+置 pending+**按下即认领吞键**（前台收不到，tap/hold 稍后判定）；失活时按本次按住时长判定 `Tap`/`HoldRelease`；`Tick` 到阈值触发 `Hold`。`OnKeyDown` 自动重复也吞（按住录制期间不泄漏重复键，等价旧 HookDecision 捕获期吞主键）。
 - 两种手感皆可声明式表达：**零丢帧**（`KeyDown`→起录 + `Tap`→丢弃截图 + `HoldRelease`→停止，按下即录不丢首帧）；**确认按住**（`Hold`→起录 + `HoldRelease`→停止 + `Tap`→截图，避免轻点误起录）。
 - SelfTest T146a-f（轻点/长按抬起/零丢帧轻点/零丢帧长按/阈值起录/认领吞键含自动重复），地板 397→**403**。
-- 待办（B2 后续轮）：默认手势集 + AppHost 全走手势；删 AppSettings 旧字段/HookDecision/ToggleRecord/HotkeyManager 旧路径；TrayService/HelpWindow/WelcomeToast/App.xaml.cs 去旧引用；设置窗删旧热键行。
+- **② 默认手势集 + 手势成默认路径**：`GestureConfig.Enabled` 默认改 true；新增 `DefaultTapHoldSet`（捕获键 Tap→选区截图 / Hold→起录 / HoldRelease→停止，选区键 Chord→选区，按住阈值 250ms）+ `Seeded` 一次性迁移（`SeedIfNeeded`：空配置才播种、尊重已有绑定、幂等）；`GestureService` Tick 泵扩展到键盘 Hold（原来只给鼠标触发泵，否则 Hold 永不触发）。对用户当前设置零影响（已启用、绑定非空→不播种）。SelfTest T147a-e，地板 403→**408**。
+- 待办（B2 后续轮）：删 AppSettings 旧字段/HookDecision/ToggleRecord/HotkeyManager 旧路径；AppHost 全走手势；TrayService/HelpWindow/WelcomeToast/App.xaml.cs 去旧引用；设置窗删旧热键行。

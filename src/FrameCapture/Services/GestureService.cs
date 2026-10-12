@@ -48,6 +48,8 @@ public sealed class GestureService : IDisposable
         FrameCapture.Core.Trace.Log($"gesture apply on={on} excl={_exclusive} n={bindings.Count} [" +
             string.Join(", ", bindings.Select(b => $"mods={b.Chord.Mods} key={b.Chord.Key}/{b.Trigger}")) + "]");
         bool hasMouse = bindings.Any(b => IsMouse(b.Trigger));
+        // Tick 泵：鼠标连击/长按消歧需要，键盘「按住到阈值触发 Hold」也需要（R126）。
+        bool needsTick = bindings.Any(b => IsMouse(b.Trigger) || b.Trigger == GC.TriggerKind.Hold);
 
         // 键盘：手势开启才挂 sink（关闭时置空，旧热键路径零开销、零改变）
         _host.Hotkeys.KeySink = on ? FeedKey : null;
@@ -55,8 +57,7 @@ public sealed class GestureService : IDisposable
         if (on && hasMouse && !_mouseInstalled) InstallMouseHook();
         if ((!on || !hasMouse) && _mouseInstalled) UninstallMouseHook();
 
-        // Tick 泵只在需要消歧（鼠标触发）时跑
-        if (on && hasMouse) StartTick(); else StopTick();
+        if (on && needsTick) StartTick(); else StopTick();
     }
 
     static bool IsMouse(GC.TriggerKind t) =>
