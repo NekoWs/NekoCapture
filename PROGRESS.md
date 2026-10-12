@@ -1756,3 +1756,15 @@ status: done
 - 改为**预览优先**：`OcrShowResult` 默认翻为 true；开结果窗时**不再自动写剪贴板**（预览即选取入口，要哪段选哪段 / 点复制全部），关结果窗才走快速路径（直接复制 + 轻提示）。编辑器 OcrCurrentFrame 与贴图 OcrFrame 两处同步。
 - 同步更新设置项描述 + 帮助文案（预览优先语义）。Feedback 措辞不变（快速路径仍「已识别 N 字 · 已复制」）。
 - 单测 T133（SelfTest 360→361）：锁定结果窗默认开。
+
+## 夜间批次 R120 · 实机 e2e 批次（2026-10-13）
+### 已完成的离屏取证（零打扰、可复现）
+- **A2 滚动拼接**：`SelfTest stitch` 喂「已知重叠=50」的合成帧（逐行去相关灰度基，避免等差回绕假匹配）→ `overlap=50` 精确命中、merged=350、逐行比对 350/350 全对、接缝无痕（无裁切无重叠）。±1 抖动趟由 T119f 覆盖。
+- **D4 菜单 XAML**：T12 运行时 `XamlReader.Parse(MenuResources())` 通过（畸形 XAML 会抛→T12 挂），护栏 361 绿=菜单模板结构有效。
+- **B2/C 启动集成**：`fc-trace.log` 显示最新 Debug 实例 `Startup done`+`sink created` 无异常；无 gesture 行=默认关零足迹（正确）。
+- **A3 磁吸数学**：T110/T113 覆盖 PinSnap.Snap/SnapToLines/Threshold；A3 修复是接线（MouseMove 实时调 SnapTarget），已代码审查。
+
+### 实机输入模拟：本环境硬性阻断（非代码问题）
+- 用 `--pin-clip` 单实例转发钩子成功建贴图（落点=光标，rect 精确）；`SendInput` 注入返回 2（成功）。
+- 但 **DSH GUI 浏览器窗口 rect=(-11,-11)-(3851,2099) 全屏覆盖且 topmost 在我 Topmost 贴图之上**：`WindowFromPoint` 任意屏幕点均命中 DSH GUI；`SetWindowPos(HWND_TOPMOST)` 亦无法把贴图提到其上。→ 注入点击无处落到被测窗口，贴图拖拽/右键菜单/全局手势的实机验证在本会话不可行。
+- 结论：A3 拖拽实时磁吸、D4 子菜单展开、B2 手势运行时的**实机确认**留待用户 10:00 亲自试用（其本就计划自测）；代码侧已尽数离屏验证 + 单测 + 代码审查。
