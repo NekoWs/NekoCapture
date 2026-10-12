@@ -245,6 +245,21 @@ static class SelfTest
                     if (outF.Bgra[i] < 40 && outF.Bgra[i + 1] > 150 && outF.Bgra[i + 2] > 150) { yellow = true; break; }
                 Chk($"T2-{kind}-baked", yellow);
             }
+            // T2c/T2d 序号编号自适应（R146）：圆圈色决定编号黑白；绿底隔离背景色后查前景像素
+            var numLight = new Annotation { Kind = AnnKind.Number, Color = Color.White, Thickness = 50, Text = "8" };
+            numLight.Points.Add((0.5f, 0.5f));
+            var bakedL = Bake.Apply([Solid(200, 200, 0, 200, 0)], [numLight])[0]; // 绿底白圈(亮)
+            bool hasBlack = false;
+            for (int i = 0; i < bakedL.Bgra.Length; i += 4)
+                if (bakedL.Bgra[i] < 40 && bakedL.Bgra[i + 1] < 40 && bakedL.Bgra[i + 2] < 40) { hasBlack = true; break; }
+            Chk("T2c-number-lightcircle-blackfg", hasBlack, "白圆圈(亮)上编号为黑→绿底中现黑像素");
+            var numDark = new Annotation { Kind = AnnKind.Number, Color = Color.FromArgb(255, 0xE8, 0x11, 0x23), Thickness = 50, Text = "8" };
+            numDark.Points.Add((0.5f, 0.5f));
+            var bakedD = Bake.Apply([Solid(200, 200, 0, 200, 0)], [numDark])[0]; // 绿底红圈(暗)
+            bool hasWhite = false;
+            for (int i = 0; i < bakedD.Bgra.Length; i += 4)
+                if (bakedD.Bgra[i] > 240 && bakedD.Bgra[i + 1] > 240 && bakedD.Bgra[i + 2] > 240) { hasWhite = true; break; }
+            Chk("T2d-number-darkcircle-whitefg", hasWhite, "红圆圈(暗)上编号为白→绿底中现白像素");
         }
         catch (Exception e) { Chk("T2-bake", false, e.Message); }
 

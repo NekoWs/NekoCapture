@@ -2053,6 +2053,6 @@ status: done
 **R146 · 编辑器硬编码白前景审计 → 修裁剪提示 + 序号编号**
 - **裁剪提示**：`_cropHint`「松开应用裁剪」`Background=Acc` + `Foreground=Brushes.White`（同 R143 族，浅色强调色下白字不可读）→ `OnAccentColor(Acc)`。
 - **序号标注编号**（真缺陷）：编号圆圈填用户标注色，编号写死白字。色板含**琥珀 `#FFB900`（亮度185）、白 `#FFFFFF`**——白编号压这两个浅色圆圈不可读。**画布预览（EditorWindow.Drawing.cs:1190）与导出烘焙（Annotations.cs:121）两处都写死白**（保存的图片也受影响）。
-- **修复**：`NumberBadge` 加纯函数 `NumberOnLightCircle(r,g,b)`（与 Fluent 同款亮度判定），画布 + 导出**共用同一判定保证 WYSIWYG**；加 **T109g/T109h** 锁定（琥珀/白→黑编号，红/黑→白编号）。
+- **修复**：`NumberBadge` 加纯函数 `NumberOnLightCircle(r,g,b)`（与 Fluent 同款亮度判定），画布 + 导出**共用同一判定保证 WYSIWYG**；加 **T109g/T109h**（逻辑：琥珀/白→黑编号，红/黑→白编号）+ **T2c/T2d**（烘焙渲染端到端：绿底白圈现黑像素、绿底红圈现白像素）双重锁定。
 - **合法保留**：其余 4 处 `Brushes.White` 全在深色浮层——编辑器 snack `#1F1F1F`、贴图 snack `#141414`、REC 徽标 `#C81A1A`（亮度78）、放大镜读数 `#1B1B1B`。
-- **验证**：构建 **0 错**；**SelfTest 389 绿**（387 + T109g/T109h）。
+- **验证**：构建 **0 错**；**SelfTest 391 绿**（387 + T109g/T109h + T2c/T2d）。
