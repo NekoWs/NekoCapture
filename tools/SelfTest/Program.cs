@@ -1217,10 +1217,10 @@ static class SelfTest
             {
                 // T92 工具目录（R48）：单一数据源防漂移——加新工具漏帮助/漏字形/键位撞车当场红
                 var tools = FrameCapture.Core.ToolCatalog.Tools;
-                Chk("T92a-count", tools.Length == 10, $"十个绘制工具 → {tools.Length}");
+                Chk("T92a-count", tools.Length == 11, $"十一个绘制工具 → {tools.Length}");
                 var keys = tools.Select(t => t.Key).ToList();
-                Chk("T92b-keys", keys.Distinct().Count() == 10 && keys.Select(k => k[0]).OrderBy(c => c).SequenceEqual("ACHLMNOPTV"), "键位 V/L/O/A/P/H/T/M/C/N 唯一且齐全");
-                Chk("T92c-glyphs", tools.All(t => t.Glyph.Length == 1 && t.Glyph[0] >= 0xE000 && t.Glyph[0] <= 0xF8FF) && tools.Select(t => t.Glyph).Distinct().Count() == 10,
+                Chk("T92b-keys", keys.Distinct().Count() == 11 && keys.Select(k => k[0]).OrderBy(c => c).SequenceEqual("ACHLMNOPRTV"), "键位 V/L/R/O/A/P/H/T/M/C/N 唯一且齐全");
+                Chk("T92c-glyphs", tools.All(t => t.Glyph.Length == 1 && t.Glyph[0] >= 0xE000 && t.Glyph[0] <= 0xF8FF) && tools.Select(t => t.Glyph).Distinct().Count() == 11,
                     "字形均为私有区码位且互不重复（GlyphProbe 定稿）");
                 Chk("T92d-tips", tools.All(t => t.Tip.Contains(t.Key) && t.Help.Length >= 8), "工具条提示含快捷键、帮助说明非占位");
                 Chk("T92e-heading", FrameCapture.Core.ToolCatalog.HelpHeading.Contains(FrameCapture.Core.ToolCatalog.ExitKey), "退出键 X 写进帮助小节标题");
@@ -1809,6 +1809,18 @@ static class SelfTest
                     "图恰等视口 → 1.0");
                 Chk("T123d-onetoone-small", Math.Abs(ZoomMath.OneToOneZoom(ZoomMath.FitScale(900, 700, 320, 220)) - 1.0) < 1e-9,
                     "小图 1:1 键 → _zoom=1.0（默认即 1:1）");
+            }
+            // T124 矩形标注烘焙（R98）：空心框——边着色、内部与外部保持原色（区别于填充矩形）
+            {
+                var rf = Solid(100, 100, 0, 0, 0);
+                var ra = new Annotation { Kind = AnnKind.Rect, Color = Color.FromArgb(255, 255, 255, 0), Thickness = 150 };
+                ra.Points.Add((0.2f, 0.2f)); ra.Points.Add((0.8f, 0.8f));
+                var rb = Bake.Apply([rf], [ra])[0];
+                bool Yellow(int x, int y) { int i = (y * 100 + x) * 4; return rb.Bgra[i] < 60 && rb.Bgra[i + 1] > 150 && rb.Bgra[i + 2] > 150; }
+                bool Black(int x, int y) { int i = (y * 100 + x) * 4; return rb.Bgra[i] < 40 && rb.Bgra[i + 1] < 40 && rb.Bgra[i + 2] < 40; }
+                Chk("T124a-rect-edge", Yellow(50, 20), "上边中点为框色（黄）");
+                Chk("T124b-rect-hollow", Black(50, 50), "内部保持原色（空心不填充）");
+                Chk("T124c-rect-outside", Black(5, 5), "框外保持原色");
             }
         }
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");

@@ -4,7 +4,7 @@ using System.Drawing.Imaging;
 
 namespace FrameCapture.Drawing;
 
-public enum AnnKind { Dot, Line, Ellipse, Arrow, Freehand, Highlight, Text, Mosaic, Number }
+public enum AnnKind { Dot, Line, Rect, Ellipse, Arrow, Freehand, Highlight, Text, Mosaic, Number }
 
 /// <summary>
 /// 一条标注。坐标为帧内归一化 (0..1)，渲染时按目标帧像素缩放，分辨率无关。
@@ -57,6 +57,16 @@ public sealed class Annotation
                 break;
             case AnnKind.Line:
                 if (P.Length >= 2) { g.SmoothingMode = SmoothingMode.AntiAlias; g.DrawLine(p, P[0], P[1]); }
+                break;
+            case AnnKind.Rect:
+                if (P.Length >= 2)
+                {
+                    var r = RectangleF.FromLTRB(
+                        Math.Min(P[0].X, P[1].X), Math.Min(P[0].Y, P[1].Y),
+                        Math.Max(P[0].X, P[1].X), Math.Max(P[0].Y, P[1].Y));
+                    g.SmoothingMode = SmoothingMode.AntiAlias;
+                    g.DrawRectangle(p, r.X, r.Y, r.Width, r.Height);
+                }
                 break;
             case AnnKind.Ellipse:
                 if (P.Length >= 2)

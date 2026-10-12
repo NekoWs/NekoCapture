@@ -1443,3 +1443,19 @@ status: done
 - 构建 0 错误；SelfTest **309**（新增 T123a-d：小图→1.0 不放大 / 大图→0.5 不变 / 恰等→1.0 / 小图 1:1 键=1.0；旧 T79 缩放用例全过）
 - 完整护栏 GUARDRAIL PASS（FAIL=0 SKIP=1 floor280，err_delta=0）
 - 实机：截 ~200×150 小区域 → 编辑器 PrintWindow 核对，图像以 ~300 物理 px（=200 DIP×1.5，1:1）清晰居中显示、四周留白，不再铺满视口放大
+
+
+## 2026-10-12 上午 编辑器矩形框工具 R98（最常用标注，此前缺位）
+
+**动机**：对比 QQ/Snipaste/ShareX，编辑器有直线/圆/箭头/手绘/文字/马赛克/序号，却**没有矩形框**——而矩形框是圈选/强调目标区域的第一常用工具。缺口明显。
+
+**实现**（单一数据源 `Core/ToolCatalog.cs` 加一条，其余镜像 Ellipse）：
+- `ToolCatalog` 加 `("R","□","\uE739","矩形 (R)",…)`，排在直线后、圆前（形状成组）。Glyph `E739` 经 GlyphProbe sweep 人工定稿为空心方块（与圆的线性环 EA3F 同风格）。
+- `Tool` 枚举 + `FromKey("R")` + `AnnKind.Rect` + `Render` 用 2 点包围盒 `DrawRectangle`（空心描边）。
+- 创建/预览/拖拽（并入 Line/Ellipse/Arrow 的 2 点组）/实时渲染（WPF `Rectangle`）各加 `Rect` 分支；命中测试 `AnnBDisp` 走通用点集包围盒，零改动即适用。
+- 键 `R`、引导卡工具列表、帮助窗（遍历目录自动含）同步。
+
+**验证**：
+- 构建 0 错误；SelfTest **312**（T92 目录锁改 11 项/键串含 R；T10b 动态校验 E739 在 Segoe Fluent Icons 可渲染；新增 T124a-c 烘焙核对空心矩形：上边中点着色、内部与框外保持原色）
+- 完整护栏 GUARDRAIL PASS（FAIL=0 SKIP=1 floor280，err_delta=0）
+- 实机：截 ~900×650 → 编辑器按 R → 拖框，PrintWindow 核对红色空心矩形正确画出、工具栏第 3 枚方块按钮（直线与圆之间）accent 高亮、字形为干净方块

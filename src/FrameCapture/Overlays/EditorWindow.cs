@@ -599,7 +599,7 @@ public sealed partial class EditorWindow : Window
         if (_root == null) return;
         var rows = new (string K, string V)[]
         {
-            ("标注", "底部工具条选 线/圆/箭头/手绘/文字 T/马赛克 M，再点同一工具退出绘制；选中 V 可点选已画标注拖动/删除"),
+            ("标注", "底部工具条选 线/矩形 R/圆 O/箭头/手绘/文字 T/马赛克 M，再点同一工具退出绘制；选中 V 可点选已画标注拖动/删除"),
             ("裁剪", "裁剪工具拖框（框外压暗+网格提示），松开即应用；Ctrl+Z 可撤销"),
             ("确定/取消", "Enter 写入剪贴板 · Esc 关闭 · 图钉=总在最前"),
             ("更多", "F1 完整帮助，任意按钮悬停有说明"),
@@ -718,6 +718,7 @@ public sealed partial class EditorWindow : Window
                 case Key.X: SetTool(Tool.Browse); return;
                 case Key.V: SetTool(Tool.Select); return;
                 case Key.L: SetTool(Tool.Line); return;
+                case Key.R: SetTool(Tool.Rect); return;
                 case Key.O: SetTool(Tool.Ellipse); return;
                 case Key.A: SetTool(Tool.Arrow); return;
                 case Key.P: SetTool(Tool.Freehand); return;

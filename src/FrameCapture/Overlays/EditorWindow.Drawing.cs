@@ -14,13 +14,13 @@ namespace FrameCapture.Overlays;
 // 绘图工具层：线/圆/箭头/手绘/裁剪 + 撤销 + 时间轴范围
 public sealed partial class EditorWindow
 {
-    enum Tool { Browse, Select, Line, Ellipse, Arrow, Freehand, Highlight, Text, Mosaic, Crop, Number }
+    enum Tool { Browse, Select, Line, Rect, Ellipse, Arrow, Freehand, Highlight, Text, Mosaic, Crop, Number }
 
     // 工具顺序与 ToolCatalog.Tools 一一对应（T92 锁死）；图标/提示文案的唯一数据源在 Core.ToolCatalog。
     // ToolOrder 由目录键位派生（R52 教训：手写平行数组+断言=断言写错直接 abort 进程，派生让漂移无处可漂）
     static Tool FromKey(string k) => k switch
     {
-        "V" => Tool.Select, "L" => Tool.Line, "O" => Tool.Ellipse, "A" => Tool.Arrow,
+        "V" => Tool.Select, "L" => Tool.Line, "R" => Tool.Rect, "O" => Tool.Ellipse, "A" => Tool.Arrow,
         "P" => Tool.Freehand, "H" => Tool.Highlight, "T" => Tool.Text, "M" => Tool.Mosaic, "C" => Tool.Crop,
         "N" => Tool.Number,
         _ => throw new InvalidOperationException($"工具目录键 {k} 未接 Tool 枚举"),
@@ -327,6 +327,10 @@ public sealed partial class EditorWindow
                 _pending = MakeAnn(AnnKind.Line, color, thick, new[] { n, n });
                 _preview = new Line { Stroke = ToWpf(color), StrokeThickness = DispStroke(thick) };
                 break;
+            case Tool.Rect:
+                _pending = MakeAnn(AnnKind.Rect, color, thick, new[] { n, n });
+                _preview = new Rectangle { Stroke = ToWpf(color), StrokeThickness = DispStroke(thick), Fill = Brushes.Transparent };
+                break;
             case Tool.Ellipse:
                 _pending = MakeAnn(AnnKind.Ellipse, color, thick, new[] { n, n });
                 _preview = new Ellipse { Stroke = ToWpf(color), StrokeThickness = DispStroke(thick), Fill = Brushes.Transparent };
@@ -399,6 +403,7 @@ public sealed partial class EditorWindow
             case Tool.Line when _preview is Line ln:
                 ln.X1 = _pressPos.X; ln.Y1 = _pressPos.Y; ln.X2 = p.X; ln.Y2 = p.Y;
                 break;
+            case Tool.Rect:
             case Tool.Ellipse:
                 _preview.Width = Math.Abs(p.X - _pressPos.X);
                 _preview.Height = Math.Abs(p.Y - _pressPos.Y);
@@ -434,7 +439,7 @@ public sealed partial class EditorWindow
                 break;
             }
         }
-        if (_pending is { Points.Count: >= 2 } && _tool is Tool.Line or Tool.Ellipse or Tool.Arrow)
+        if (_pending is { Points.Count: >= 2 } && _tool is Tool.Line or Tool.Rect or Tool.Ellipse or Tool.Arrow)
             { var nn2 = Norm(p); _pending.Points[1] = ((float)nn2.X, (float)nn2.Y); }
     }
 
@@ -475,7 +480,7 @@ public sealed partial class EditorWindow
         }
         else if (_pending != null)
         {
-            if (_tool is Tool.Line or Tool.Ellipse or Tool.Arrow)
+            if (_tool is Tool.Line or Tool.Rect or Tool.Ellipse or Tool.Arrow)
             {
                 var n = Norm(p);
                 if (_pending.Points.Count >= 2) _pending.Points[1] = ((float)n.X, (float)n.Y);
@@ -914,6 +919,16 @@ public sealed partial class EditorWindow
                 case AnnKind.Line when pts.Count >= 2:
                 {
                     var el = new Line { X1 = pts[0].X, Y1 = pts[0].Y, X2 = pts[1].X, Y2 = pts[1].Y, Stroke = wpfCol, StrokeThickness = stroke, StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round };
+                    _canvas.Children.Add(el);
+                    _annEls.Add((el, a));
+                    break;
+                }
+                case AnnKind.Rect when pts.Count >= 2:
+                {
+                    var el = new Rectangle { Stroke = wpfCol, StrokeThickness = stroke };
+                    double w = Math.Abs(pts[1].X - pts[0].X), h2 = Math.Abs(pts[1].Y - pts[0].Y);
+                    el.Width = Math.Max(2, w); el.Height = Math.Max(2, h2);
+                    Canvas.SetLeft(el, Math.Min(pts[0].X, pts[1].X)); Canvas.SetTop(el, Math.Min(pts[0].Y, pts[1].Y));
                     _canvas.Children.Add(el);
                     _annEls.Add((el, a));
                     break;
