@@ -1798,3 +1798,8 @@ status: done
 - **延迟优化**：选区窗设 `WDA_EXCLUDEFROMCAPTURE`（本就不该入镜），放大镜 4K 快照改 Show 之后**异步抓**（遮罩已渲染也拍不到本窗，颜色仍真）→ 把 74ms 挪出打开关键路径 + 去掉 Show 前的 33MB 分配压力。放大镜 UI 先建好，`_snap` 到位后 UpdateLoupe 自动显示。
 - Ctrl+Alt+A 改回 `capture.selection`（用户要选区截图）。埋点日志保留（picker ctor/Show/first frame/snapshot ready）。
 - 待议：剩余 ~300ms 是 WPF 4K 全屏分层窗渲染地板；要近零延迟需改「冻结屏」不透明窗设计（抓一次屏当背景，非分层），较大改动，待用户拍板。
+
+## R120 B2 选区窗「边框闪几下」根因：几何在 Loaded 才赋值
+- 选区窗 `Left/Top/Width/Height` 原本在 **Loaded** 才设 → `Show()` 时窗口还是 WPF 默认尺寸/位置，Loaded 才跳到全屏 → 那一跳（叠加 Loaded DPI 校正 / ReassertTop）就是「窗口边框闪几下」。
+- 修法：构造里用 `GetDpiForMonitor(DPI_EFFECTIVE)` 在 **Show 之前**就把几何定成全屏（不依赖可视树）；Loaded 仍按可视树 DPI 兜底校正（正常两者一致 → 无二次跳）。选区窗 FadeIn 未用 offscreenFirstFrame，历史「Park 读 NaN」坑不适用。
+- 复测延迟：构造 81ms（放大镜 74ms 已异步挪走）、Show 331ms、首帧 344ms。剩余 ~250ms 是 WPF 4K 全屏分层窗 Show/渲染地板——要再快需「冻结屏」不透明窗重设计（待用户拍板）。

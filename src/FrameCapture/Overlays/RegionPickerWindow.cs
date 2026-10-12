@@ -125,6 +125,19 @@ public sealed class RegionPickerWindow : Window
         Background = Brushes.Transparent;
         AllowsTransparency = true;
         WindowStartupLocation = WindowStartupLocation.Manual;
+        // 打开即全屏：Show 之前就用显示器 DPI 定好几何，消除"默认尺寸→Loaded 跳全屏"那一跳的边框闪烁。
+        // （选区窗 FadeIn 未用 offscreenFirstFrame，不受"Park 读 NaN"历史坑影响；Loaded 仍会按可视树 DPI 兜底校正。）
+        {
+            double gx = 1, gy = 1;
+            try
+            {
+                Win32.GetDpiForMonitor(_monitor.ResolveHMonitor(), Win32.DPI_EFFECTIVE, out uint dx, out uint dy);
+                if (dx > 0 && dy > 0) { gx = dx / 96.0; gy = dy / 96.0; }
+            }
+            catch { }
+            Left = _monitorPhys.X / gx; Top = _monitorPhys.Y / gy;
+            Width = _monitorPhys.W / gx; Height = _monitorPhys.H / gy;
+        }
 
         _canvas = new Canvas();
         _hint = new Border
