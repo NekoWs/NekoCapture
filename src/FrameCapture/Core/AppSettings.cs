@@ -120,9 +120,10 @@ public sealed class AppSettings
     /// 便于像素级精确选区（QQ/Snipaste 招牌手感）。关闭则不抓快照、不显示放大镜。</summary>
     public bool PickerMagnifier { get; set; } = true;
 
-    /// <summary>识别后显示结果窗（默认关，R72）：编辑器「识别文字」成功后，除写剪贴板外再弹出可编辑/可部分复制的
-    /// 结果窗（含字数、复制全部）。关闭则仅写剪贴板 + 轻提示（快速路径）。</summary>
-    public bool OcrShowResult { get; set; } = false;
+    /// <summary>识别后显示结果窗（默认开，R120 D2 改为预览优先）：编辑器/贴图「识别文字」成功后弹出可编辑、
+    /// 可部分选中复制的结果窗（含字数、复制全部钮）——预览即选取入口，此时<b>不再自动写剪贴板</b>（要哪段选哪段，
+    /// 或点「复制全部」）。关闭则退回快速路径：直接写剪贴板 + 轻提示，不弹窗。</summary>
+    public bool OcrShowResult { get; set; } = true;
 
     /// <summary>贴图磁边（默认开，R74）：拖动贴图松手时，若某条边贴近所在屏幕工作区边缘则自动吸附贴合，
     /// 便于把贴图整齐停靠到屏幕四边/四角（Snipaste 式手感）。关闭则松手停在原地。</summary>

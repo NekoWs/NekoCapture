@@ -941,11 +941,15 @@ public sealed partial class EditorWindow : Window
             {
                 case FrameCapture.Core.OcrStatus.Success:
                     var text = FrameCapture.Core.OcrService.Normalize(outcome.Text);
-                    try { System.Windows.Clipboard.SetText(text); } catch { }
+                    // R120 D2 预览优先：开结果窗时以「预览选取」为主，不自动写剪贴板（要哪段选哪段 / 点复制全部）；
+                    // 关结果窗才走快速路径——直接复制 + 轻提示。
                     if (_settings.Current.OcrShowResult)
-                        OcrResultWindow.Show(text); // R72：可编辑/部分复制的结果窗
+                        OcrResultWindow.Show(text);
                     else
+                    {
+                        try { System.Windows.Clipboard.SetText(text); } catch { }
                         ShowSnack(FrameCapture.Core.OcrService.Feedback(FrameCapture.Core.OcrStatus.Success, text.Length));
+                    }
                     FrameCapture.Core.Trace.Log($"ocr ok {text.Length} chars");
                     break;
                 case FrameCapture.Core.OcrStatus.NoEngine:

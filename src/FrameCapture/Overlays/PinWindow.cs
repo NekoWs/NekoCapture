@@ -367,14 +367,17 @@ public sealed class PinWindow : Window
             if (outcome.Status == FrameCapture.Core.OcrStatus.Success)
             {
                 var text = FrameCapture.Core.OcrService.Normalize(outcome.Text);
-                try { Clipboard.SetText(text); } catch { }
+                // R120 D2 预览优先：开结果窗时以「预览选取」为主，不自动写剪贴板；关结果窗才走快速复制路径。
                 if (FrameCapture.Core.SettingsService.Shared?.Current.OcrShowResult == true)
                 {
                     HideSnack();
                     OcrResultWindow.Show(text);
                 }
                 else
+                {
+                    try { Clipboard.SetText(text); } catch { }
                     Flash(FrameCapture.Core.OcrService.Feedback(FrameCapture.Core.OcrStatus.Success, text.Length));
+                }
                 FrameCapture.Core.Trace.Log($"pin ocr ok {text.Length} chars");
             }
             else
