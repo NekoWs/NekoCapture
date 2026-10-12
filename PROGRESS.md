@@ -1932,3 +1932,9 @@ status: done
 - 编辑器走查：用**用户真实配置**（F2 按住录制→松手 `edit.lastvideo`，`Shot hkm 113 0 0 0 0 600` 走全局钩子，不改配置/不抢前台）可靠打开编辑器并 `UICap win` 截图。两行工具条（播放/时间轴 + 绘图工具/色板/宽度/撤销重做/置顶/设置/帮助）图标全渲染无豆腐块、对齐一致、确认钮醒目、色板选中态有环、时间轴刻度清晰——**无缺陷**。（选区窗合成拖拽捕获不稳定，故改走录制路径。）
 - Release 构建验证（批尾前置）：`dotnet build -c Release -p:Platform=x64` 成功、0 error，R127/R128 改动在 Release 下干净。
 - **修自引入警告**：R127③ 的 `ScrollViewer scroller = null;` 触发新警告 CS8600（null 赋非空）→ 改 `ScrollViewer? scroller = null;`。纯可空注解（编译期擦除、零运行时影响），重建后 CS8600 全消、0 错、无新增警告；护栏不触及该 UI 路径故无增益，跳过。
+
+**R130 · 批尾就绪状态（发布 de-risk，无源码改动）**
+- 完整自包含发布 `test-out/publish.ps1` 实跑 **PUBLISH OK**（errors=0，产出 `test-out/publish-staging/FrameCapture.exe`）——批尾发布端到端可用已验证（Release 构建 + 自包含打包均通）。
+- 分发产物形态：`release/FrameCapture.zip`（72MB，gitignore `release/*.zip`，现 10/3 旧版）。批尾 = 由新 staging 重打包该 zip（含 R127–R129 全部改动）+ 恢复 release 实例。
+- 用户 settings.json 完好（4 手势自定义配置，护栏 e2e 临时钉配置已正确还原）；`RunAtStartup=false`、无 HKCU Run 启动项。
+- 结论：PCL2 丝滑指令已达成（全 11 窗动效齐备、零缺口），批尾发布已 de-risk；zip 重打包 + deploy + 重启实例留临近截止（2026-10-13 10:00）执行，避免后续测试打断。
