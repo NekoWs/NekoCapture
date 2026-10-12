@@ -55,8 +55,16 @@ if (-not $SkipE2e -and $okBuild) {
     $blocked = $false
     $probe = Start-Process $exe -PassThru; Start-Sleep 1.5
     Invoke-FcHotkey $shot $capHk 200 | Out-Null; Start-Sleep 1.2
+    # 注入可达性：捕获键命中 FC 即会弹窗——TapAlwaysShowsRegion 开时点按走选区窗、关时走编辑器，
+    # 长按则进录制→编辑器。任一 FC 窗出现即证明注入可达；两者都没有才判为被反外挂拦截。
     $edProbe = & $shot rect "FrameCapture Editor" 2>$null
-    if ($edProbe -match "not-found") { $blocked = $true } else { & $shot keyw "FrameCapture Editor" 27 2>$null | Out-Null; Start-Sleep 0.4 }
+    $pkProbe = & $shot rect "FrameCapture Region" 2>$null
+    if ($edProbe -match "not-found" -and $pkProbe -match "not-found") { $blocked = $true }
+    else {
+        if ($edProbe -notmatch "not-found") { & $shot keyw "FrameCapture Editor" 27 2>$null | Out-Null }
+        if ($pkProbe -notmatch "not-found") { & $shot keyw "FrameCapture Region" 27 2>$null | Out-Null }
+        Start-Sleep 0.4
+    }
     Get-Process FrameCapture -EA SilentlyContinue | Stop-Process -Force
     if ($blocked) {
         Say "  !! 注入探针未命中编辑器——前台疑似反外挂游戏，e2e 全部 SKIP（≠FAIL）"

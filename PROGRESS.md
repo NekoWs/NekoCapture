@@ -1363,3 +1363,22 @@ status: done
   - PrintWindow 贴图：红底 + 蓝方块 + 黄字清晰，内容与剪贴板图一致
   - 剪贴板改纯文本 → `--pin-clip` → trace `pin-clip: no image`、贴图数不变（不误建空贴图）
   - 附带发现：更早一次 `--pin-clip` 把 R91 延时截图残留的 1340×1000 剪贴板图也正确钉出，二次印证读剪贴板链路可靠
+
+
+## 2026-10-12 上午 编辑器窄图工具栏裁切修复 R93（手感审计抓到的真 bug）
+
+**发现方式**（按用户要求「多跑真实执行、细看截图找摩擦」）：实机走一遍 捕获→选区→编辑器，PrintWindow 小尺寸截图（320×220）的编辑器，放大工具栏发现**两端被裁切**——左侧「选择/直线/椭圆」和右侧「上传/设置/帮助」都看不见，用户够不到这些工具。
+
+**根因**：底部工具条是居中 StackPanel，窗口比它窄时两端溢出被裁。`MinWidth=812` 是 R34/R44 时按当时工具条列宽定的地板值，但此后陆续加了马赛克/裁剪/编号/OCR/翻译/置顶/上传…工具条早已超过 812，地板值却没跟上。凡宽度 < ~1039 DIP 的截图（绝大多数区域截图）都会裁切。
+
+**修复**（让 MinWidth 跟随工具条实测宽度，不再写死）：
+- `EditorWindow` 存 `_toolsBar` 引用；新增 `FitMinWidthToToolbar()`：`Measure(∞)` 取 `DesiredSize.Width`（StackPanel 内容宽，不受容器约束，窗口窄时也量得到真实需要）+ 面板内边距 20，夹到 `[812, 工作区宽]`（不超过屏幕）。构造里 `RestoreEditorPrefs` 后调用一次（此时最近用色已载入，宽度为最终值）；`_toolsBar.SizeChanged` 再挂一次（最近用色增减时跟随）。
+- 窄图时最小宽会超过当前宽：撑到最小宽并**仅在未显示时**重新居中（`!IsLoaded`），避免编辑中窗口跳动。
+- 收敛保护：`Math.Abs(MinWidth-target)<=0.5` 直接返回，杜绝 MinWidth↔重排 循环。
+
+**顺带修测试探针**（`scripts/guardrail.ps1`）：注入可达性探针用 200ms 点按后只认「编辑器」窗，但 `TapAlwaysShowsRegion=true` 时点按弹的是**选区窗**，探针据此误判「被反外挂拦截」→ 整套 e2e 全 SKIP（本轮连撞两次）。改为「编辑器或选区窗任一出现即证明注入可达」，e2e 恢复稳定运行（SKIP 回到正常的 1）。
+
+**验证**：
+- 构建 0 错误；SelfTest 仍 **301**（本轮为 WPF 布局 + 测试脚本，非纯逻辑，无新增单测）
+- 完整护栏 GUARDRAIL PASS（FAIL=0 SKIP=1 floor280，err_delta=0；探针修复后 e2e:editor-keys/zoom/esc-layers/hotkey/tap-semantics/fuzz 全过）
+- 实机 e2e：320×220 小图编辑器窗口从 812→1039 DIP，PrintWindow 工具栏**两端工具全部可见**（选择/直线/椭圆…上传/设置/帮助），左右留白正常；宽图编辑器不受影响

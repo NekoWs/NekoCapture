@@ -50,6 +50,7 @@ public sealed partial class EditorWindow : Window
     private static readonly FontFamily IconFont = new("Segoe Fluent Icons, Segoe MDL2 Assets, Segoe UI Symbol");
     private Button? _bPlay;
     private Border? _playPanel, _toolPanel;
+    private StackPanel? _toolsBar; // R93：底部工具条，用于让 MinWidth 跟随其实际宽度（防窄图裁切两端工具）
 
     public EditorWindow(SettingsService settings, CapturedSequence seq)
     {
@@ -85,8 +86,9 @@ public sealed partial class EditorWindow : Window
         MouseLeftButtonDown += (_, e) => { if (e.ButtonState == MouseButtonState.Pressed) { try { DragMove(); } catch { } } };
 
         var mon = Monitors.ByDevice(seq.MonitorDevice) ?? Monitors.Nearest(seq.Region.X, seq.Region.Y);
-        // 780 DIP = 底部工具条全列（工具/色板/最近用色/宽度/撤销重做/齿轮/帮助）不裁切的最小宽（R34 极小区域抓到裁切）
-        // +32 = R44 图钉按钮
+        // 812 DIP 是工具条早期列宽的下限（R34/R44）。R93 起 FitMinWidthToToolbar 会按工具条
+        // 实测宽度动态抬高 MinWidth（工具/色板/最近用色/宽度/撤销重做/保存·复制·图钉·OCR·确定·取消/置顶·设置·帮助），
+        // 这里只留一个不会更小的地板值。
         MinWidth = 812;
         Width = Math.Min(1600, Math.Max(812, seq.Region.W + 120));
         Height = Math.Min(1000, Math.Max(420, seq.Region.H + (seq.Frames.Count > 1 ? 250 : 210))); // 停靠面板占位：播放+工具 / 仅工具
@@ -123,6 +125,8 @@ public sealed partial class EditorWindow : Window
         InitDrawing();
         BuildLayout();
         RestoreEditorPrefs(); // R64：恢复上次的工具/颜色/粗细（关=保持默认）
+        FitMinWidthToToolbar(); // R93：工具条列（含最近用色）实测宽 → MinWidth，窄图不再裁切两端工具
+        if (_toolsBar != null) _toolsBar.SizeChanged += (_, _) => FitMinWidthToToolbar(); // 最近用色增减时跟随
         if (!_settings.Current.EditorGuideShown) ShowGuide(); // 首次打开：一次性上手引导（R45）
         Theme.Changed += Editor_OnTheme;
         Closed += (_, _) => Theme.Changed -= Editor_OnTheme;
@@ -307,6 +311,7 @@ public sealed partial class EditorWindow : Window
         }
 
         var tools = BuildToolsBar();
+        _toolsBar = tools; // R93：留引用，供 FitMinWidthToToolbar 量宽
         if (!MultiFrame)
         {
             tools.Children.Add(Sep());
@@ -341,6 +346,30 @@ public sealed partial class EditorWindow : Window
         _toolPanel.CornerRadius = new CornerRadius(0, 0, 8, 8); // 底角收口，与原生窗口圆角贴合
         Grid.SetRow(_toolPanel, 2);
         root.Children.Add(_toolPanel);
+    }
+
+    /// <summary>
+    /// R93：让窗口 MinWidth 跟随底部工具条的实际宽度。工具条是居中 StackPanel，窗口比它窄时
+    /// 两端工具会被裁掉（历史上 MinWidth 是写死的 812，但工具条随功能增长早已超过它）。
+    /// 量工具条 DesiredSize（含最近用色，最多 4 枚）+ 面板内边距，夹到 [812, 工作区宽]。
+    /// DesiredSize 是内容宽（StackPanel 不受容器约束），故窗口窄时也能量到真实需要。
+    /// </summary>
+    void FitMinWidthToToolbar()
+    {
+        if (_toolsBar == null) return;
+        _toolsBar.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        double need = Math.Ceiling(_toolsBar.DesiredSize.Width) + 20; // 面板左右内边距 8+8 + 余量
+        double cap = SystemParameters.WorkArea.Width;                 // 不超过工作区，避免窗口比屏还宽
+        double target = Math.Max(812, Math.Min(need, cap));
+        if (Math.Abs(MinWidth - target) <= 0.5) return;               // 收敛：值没变就不再触发重排
+        MinWidth = target;
+        // 窄图时最小宽会超过当前宽：撑到最小宽并（仅未显示时）重新居中，避免窗口偏右或编辑中跳动
+        if (Width < target)
+        {
+            double grow = target - Width;
+            Width = target;
+            if (!IsLoaded) Left -= grow / 2;
+        }
     }
 
     static System.Windows.Shapes.Rectangle Sep() => new()
