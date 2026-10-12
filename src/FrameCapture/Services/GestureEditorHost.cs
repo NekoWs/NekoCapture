@@ -68,10 +68,12 @@ public static class GestureEditorHost
                 doc.Bindings.Add(new GE.BindingEdit
                 {
                     Id = d.Id,
+                    Enabled = d.Enabled,
                     Mods = spec == null ? GC.ModifierKeys.None : ModsOf(spec),
                     Key = (int)(spec?.VirtualKey ?? 0),
                     Trigger = Enum.TryParse<GC.TriggerKind>(d.Trigger, true, out var t) ? t : GC.TriggerKind.Chord,
                     Actions = d.Actions.ToList(),
+                    OnComplete = d.OnComplete.ToList(),
                     Fallback = Enum.TryParse<GC.FallbackPolicy>(d.Fallback, true, out var f) ? f : GC.FallbackPolicy.Stop,
                     Priority = d.Priority,
                     DoubleClickMs = d.DoubleClickMs,
@@ -97,9 +99,11 @@ public static class GestureEditorHost
                 cfg.Bindings.Add(new GestureBindingDto
                 {
                     Id = b.Id,
+                    Enabled = b.Enabled,
                     Chord = spec.ToString(),
                     Trigger = b.Trigger.ToString(),
                     Actions = b.Actions.ToArray(),
+                    OnComplete = b.OnComplete.ToArray(),
                     Fallback = b.Fallback.ToString(),
                     Priority = b.Priority,
                     DoubleClickMs = b.DoubleClickMs,

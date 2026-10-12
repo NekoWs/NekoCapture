@@ -252,7 +252,8 @@ public sealed class GestureEngine
         return false;   // 该触发无绑定
     }
 
-    /// <summary>顺序执行一条绑定的动作序列。SkipStep 跳过失败步继续；Stop/NextBinding 遇失败即中止返回 false。</summary>
+    /// <summary>顺序执行一条绑定的动作序列。SkipStep 跳过失败步继续；Stop/NextBinding 遇失败即中止返回 false。
+    /// 主序列成功后再跑「完成后序列」OnComplete（A3）——尽力而为，其失败不改变本条结果。</summary>
     bool RunActions(GestureBinding b)
     {
         foreach (var action in b.Actions)
@@ -264,6 +265,9 @@ public sealed class GestureEngine
             if (b.Fallback == FallbackPolicy.SkipStep) continue;   // 跳过这步，继续后续
             return false;                                          // Stop / NextBinding：中止本条
         }
+        if (b.OnComplete != null)                                  // 完成后序列：主序列成功后才跑
+            foreach (var action in b.OnComplete)
+                try { _invoker.Invoke(action); } catch { }
         return true;
     }
 }

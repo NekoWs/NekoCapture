@@ -291,12 +291,13 @@ public sealed class CaptureController : IDisposable
         BeginRecordSelection();
     }
 
-    /// <summary>R120 B2：干净利落的即时单帧截图——直接抓当前区域当下这一帧，无点按窗、无录制管线、无延时、
-    /// 抓取前不弹任何窗（不抢焦点）。专治游戏「一丢焦点就暂停」：按下即定格此刻画面。</summary>
+    /// <summary>R120 B2 / R123 A2：干净利落的全屏即时截图——直接抓光标所在屏幕全屏当下这一帧，无选区、无点按窗、
+    /// 无录制管线、无延时、抓取前不弹任何窗（不抢焦点）。专治游戏「一丢焦点就暂停」：按下即定格此刻画面。
+    /// （此前会优先抓"上次存的范围"，导致明明要全屏却截到残留选区——A2 改为永远全屏，语义清晰。）</summary>
     public void CaptureInstantStill()
     {
         if (State != Phase.Idle) return;
-        var region = StoredRegion() ?? FullMonitorAtCursor();
+        var region = FullMonitorAtCursor();
         var f = LiveCapture.Grab(region.Bounds);
         if (f == null) { FrameCapture.Core.Trace.Log("instant still: grab null"); return; }
         FrameCapture.Core.Trace.Log($"instant still grab {f.W}x{f.H}");

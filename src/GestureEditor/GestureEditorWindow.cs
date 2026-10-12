@@ -175,7 +175,9 @@ public sealed class GestureEditorWindow : Window
     {
         var chord = b.Chord.Format(_namer);
         var acts = b.Actions.Count == 0 ? "（无动作）" : string.Join(" → ", b.Actions.Select(ActionLabel));
-        return $"{(string.IsNullOrEmpty(chord) ? "（未设键）" : chord)}  ·  {TriggerLabel(b.Trigger)}\n{acts}";
+        if (b.OnComplete.Count > 0) acts += "  ⟶ 完成后: " + string.Join(" → ", b.OnComplete.Select(ActionLabel));
+        var head = (b.Enabled ? "" : "已禁用 · ") + (string.IsNullOrEmpty(chord) ? "（未设键）" : chord);
+        return $"{head}  ·  {TriggerLabel(b.Trigger)}\n{acts}";
     }
 
     string ActionLabel(string actionName) => _catalog.Actions().FirstOrDefault(a => a.Name == actionName)?.Label ?? actionName;
@@ -206,6 +208,9 @@ public sealed class GestureEditorWindow : Window
         }
         var b = _doc.Bindings[_selected];
 
+        // 启用/禁用此绑定（A1）：禁用=保留配置但不触发，无需删除
+        _detail.Children.Add(MakeToggle("启用此绑定", v => { b.Enabled = v; RefreshList(); RefreshValidation(); }, out _, b.Enabled));
+
         // 组合键捕获
         _detail.Children.Add(Label("组合键（点击后按下新组合）"));
         _chordBox = new Border { CornerRadius = new CornerRadius(6), BorderThickness = new Thickness(1), BorderBrush = _pal.B(_pal.Stroke), Background = _pal.B(_pal.CardBg), Padding = new Thickness(12, 9, 12, 9), Cursor = Cursors.Hand, Focusable = true };
@@ -221,40 +226,47 @@ public sealed class GestureEditorWindow : Window
         var trig = MakeCombo(Enum.GetValues<TriggerKind>().Cast<object>(), TriggerLabel, b.Trigger, v => { b.Trigger = (TriggerKind)v; RefreshList(); RefreshValidation(); });
         _detail.Children.Add(trig);
 
-        // 动作序列
-        _detail.Children.Add(Label("动作序列（按顺序执行）"));
-        var actsPanel = new StackPanel();
-        void RebuildActs()
+        // 动作序列 + 完成后序列（A3）：同一套列表编辑器，复用于两处
+        StackPanel BuildActionList(List<string> list, string title, string addLabel)
         {
-            actsPanel.Children.Clear();
-            for (int i = 0; i < b.Actions.Count; i++)
+            var root = new StackPanel();
+            root.Children.Add(Label(title));
+            var panel = new StackPanel();
+            void Rebuild()
             {
-                int idx = i;
-                var row = new Grid { Margin = new Thickness(0, 2, 0, 2) };
-                row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-                row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-                var txt = new TextBlock { Text = (i + 1) + ". " + ActionLabel(b.Actions[i]), Foreground = _pal.B(_pal.Text), VerticalAlignment = VerticalAlignment.Center };
-                var ctl = new StackPanel { Orientation = Orientation.Horizontal };
-                var up = MiniBtn("\uE70E", () => { if (idx > 0) { (b.Actions[idx - 1], b.Actions[idx]) = (b.Actions[idx], b.Actions[idx - 1]); RebuildActs(); RefreshList(); } });
-                var dn = MiniBtn("\uE70D", () => { if (idx < b.Actions.Count - 1) { (b.Actions[idx + 1], b.Actions[idx]) = (b.Actions[idx], b.Actions[idx + 1]); RebuildActs(); RefreshList(); } });
-                var rm = MiniBtn("\uE74D", () => { b.Actions.RemoveAt(idx); RebuildActs(); RefreshList(); RefreshValidation(); });
-                ctl.Children.Add(up); ctl.Children.Add(dn); ctl.Children.Add(rm);
-                Grid.SetColumn(txt, 0); Grid.SetColumn(ctl, 1);
-                row.Children.Add(txt); row.Children.Add(ctl);
-                actsPanel.Children.Add(row);
+                panel.Children.Clear();
+                for (int i = 0; i < list.Count; i++)
+                {
+                    int idx = i;
+                    var row = new Grid { Margin = new Thickness(0, 2, 0, 2) };
+                    row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                    row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                    var txt = new TextBlock { Text = (i + 1) + ". " + ActionLabel(list[i]), Foreground = _pal.B(_pal.Text), VerticalAlignment = VerticalAlignment.Center };
+                    var ctl = new StackPanel { Orientation = Orientation.Horizontal };
+                    var up = MiniBtn("\uE70E", () => { if (idx > 0) { (list[idx - 1], list[idx]) = (list[idx], list[idx - 1]); Rebuild(); RefreshList(); } });
+                    var dn = MiniBtn("\uE70D", () => { if (idx < list.Count - 1) { (list[idx + 1], list[idx]) = (list[idx], list[idx + 1]); Rebuild(); RefreshList(); } });
+                    var rm = MiniBtn("\uE74D", () => { list.RemoveAt(idx); Rebuild(); RefreshList(); RefreshValidation(); });
+                    ctl.Children.Add(up); ctl.Children.Add(dn); ctl.Children.Add(rm);
+                    Grid.SetColumn(txt, 0); Grid.SetColumn(ctl, 1);
+                    row.Children.Add(txt); row.Children.Add(ctl);
+                    panel.Children.Add(row);
+                }
             }
+            Rebuild();
+            root.Children.Add(panel);
+            var addRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 0) };
+            var actCombo = new ComboBox { Width = 200 };
+            EditorStyles.ApplyCombo(actCombo, _pal);
+            foreach (var a in _catalog.Actions()) actCombo.Items.Add(new ComboBoxItem { Content = a.Label, Tag = a.Name, ToolTip = a.Description });
+            if (actCombo.Items.Count > 0) actCombo.SelectedIndex = 0;
+            var addAct = MakeButton(addLabel, ghost: true);
+            addAct.Click += (_, _) => { if (actCombo.SelectedItem is ComboBoxItem it && it.Tag is string n) { list.Add(n); Rebuild(); RefreshList(); RefreshValidation(); } };
+            addRow.Children.Add(actCombo); addRow.Children.Add(addAct);
+            root.Children.Add(addRow);
+            return root;
         }
-        RebuildActs();
-        _detail.Children.Add(actsPanel);
-        var addRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 0) };
-        var actCombo = new ComboBox { Width = 200 };
-        EditorStyles.ApplyCombo(actCombo, _pal);
-        foreach (var a in _catalog.Actions()) actCombo.Items.Add(new ComboBoxItem { Content = a.Label, Tag = a.Name, ToolTip = a.Description });
-        if (actCombo.Items.Count > 0) actCombo.SelectedIndex = 0;
-        var addAct = MakeButton("添加动作", ghost: true);
-        addAct.Click += (_, _) => { if (actCombo.SelectedItem is ComboBoxItem it && it.Tag is string n) { b.Actions.Add(n); RebuildActs(); RefreshList(); RefreshValidation(); } };
-        addRow.Children.Add(actCombo); addRow.Children.Add(addAct);
-        _detail.Children.Add(addRow);
+        _detail.Children.Add(BuildActionList(b.Actions, "动作序列（按顺序执行）", "添加动作"));
+        _detail.Children.Add(BuildActionList(b.OnComplete, "完成后序列（主动作成功后再跑，可留空）", "添加完成动作"));
 
         // 失败策略 + 优先级
         var two = new Grid { Margin = new Thickness(0, 4, 0, 0) };

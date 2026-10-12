@@ -18,6 +18,7 @@ public static class GestureValidation
         var seen = new HashSet<(int mods, int key, TriggerKind trig)>();
         foreach (var b in doc.Bindings)
         {
+            if (!b.Enabled) continue;   // 禁用的绑定不参与触发 → 不校验、不挡保存（A1）
             if (b.Key == 0 && b.Mods == ModifierKeys.None)
                 list.Add(new BindingProblem(b.Id, "组合键为空：请设置一个组合键", true));
 
@@ -26,6 +27,9 @@ public static class GestureValidation
             foreach (var a in b.Actions)
                 if (!catalog.IsValid(a))
                     list.Add(new BindingProblem(b.Id, $"未知动作「{a}」", true));
+            foreach (var a in b.OnComplete)
+                if (!catalog.IsValid(a))
+                    list.Add(new BindingProblem(b.Id, $"完成后序列含未知动作「{a}」", true));
 
             if (b.DoubleClickMs < 50 || b.DoubleClickMs > 2000)
                 list.Add(new BindingProblem(b.Id, "双击间隔应在 50–2000ms", false));

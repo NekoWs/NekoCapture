@@ -2231,6 +2231,43 @@ static class SelfTest
             Chk("T140a-font-anchor-values", Math.Abs(f3 - 22) < 1e-3 && Math.Abs(f6 - 34) < 1e-3 && Math.Abs(f10 - 50) < 1e-3, $"字号锚定 细{f3}/中{f6}/粗{f10} = 22/34/50");
             Chk("T140b-font-monotonic", f3 < f6 && f6 < f10 && FrameCapture.Core.AnnFont.FramePx(24) > f10, "字号随线宽单调递增（A+ 变大）");
         }
+        // T141 启用/禁用（A1）：禁用绑定不校验、不进引擎
+        {
+            var cat = new TestCatalog(); var nm = new TestNamer();
+            var offDoc = new GEdit.GestureDoc { Bindings = { new GEdit.BindingEdit { Id = "off", Enabled = false, Mods = GE.ModifierKeys.None, Key = 0, Actions = new List<string>() } } };
+            Chk("T141a-disabled-not-validated", GEdit.GestureValidation.Validate(offDoc, cat, nm).Count == 0, "禁用绑定不产生校验问题（不挡保存）");
+            var cfg = new FrameCapture.Core.GestureConfig();
+            cfg.Bindings.Add(new FrameCapture.Core.GestureBindingDto { Id = "off", Enabled = false, Chord = "F6", Actions = new[] { "capture.frame" } });
+            cfg.Bindings.Add(new FrameCapture.Core.GestureBindingDto { Id = "on", Enabled = true, Chord = "F7", Actions = new[] { "scope.select" } });
+            var bs = cfg.ToBindings();
+            Chk("T141b-disabled-excluded-from-engine", bs.Count == 1 && bs[0].Id == "on", "禁用绑定不进引擎、启用保留");
+        }
+        // T142 动作目录拆分/改名（A2）：选区/开始/停止/同键起停 齐全 + 即时截图语义=全屏
+        {
+            bool split = FrameCapture.Core.GestureActions.IsValid("scope.select")
+                && FrameCapture.Core.GestureActions.IsValid("record.start")
+                && FrameCapture.Core.GestureActions.IsValid("record.stop")
+                && FrameCapture.Core.GestureActions.IsValid("record.toggle");
+            Chk("T142a-record-actions-split", split, "选区/开始录制/停止录制/开始停止(同键) 四动作齐全");
+            var cf = FrameCapture.Core.GestureActions.All.First(a => a.Name == "capture.frame");
+            Chk("T142b-instant-is-fullscreen", cf.Label.Contains("全屏"), $"即时截图改名含「全屏」：{cf.Label}");
+        }
+        // T143 完成后序列（A3）：主序列成功后跑 OnComplete；主序列失败则不跑
+        {
+            var M = new GestureProbe();
+            var eng = new GE.GestureEngine(M);
+            const int F6 = 0x75;
+            var b = new GE.GestureBinding { Id = "x", Chord = new GE.KeyChord(GE.ModifierKeys.None, F6), Trigger = GE.TriggerKind.Click,
+                Actions = new List<string> { "Cap" }, OnComplete = new List<string> { "Pin", "Copy" } };
+            eng.SetBindings(new[] { b });
+            eng.OnKeyDown(F6, GE.ModifierKeys.None, 0);
+            eng.OnMouseDown(0, GE.ModifierKeys.None, 10); eng.OnMouseUp(0, GE.ModifierKeys.None, 20);
+            Chk("T143a-oncomplete-after-main", M.Log.SequenceEqual(new[] { "Cap", "Pin", "Copy" }), "主→完成 顺序执行，实得 " + string.Join(",", M.Log));
+            M.Log.Clear(); M.Fail.Add("Cap");
+            eng.OnKeyDown(F6, GE.ModifierKeys.None, 0);
+            eng.OnMouseDown(0, GE.ModifierKeys.None, 10); eng.OnMouseUp(0, GE.ModifierKeys.None, 20);
+            Chk("T143b-oncomplete-skipped-on-fail", !M.Log.Contains("Pin"), "主动作失败则完成后序列不跑，实得 " + string.Join(",", M.Log));
+        }
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");
         return fail == 0 ? 0 : 1;
     }

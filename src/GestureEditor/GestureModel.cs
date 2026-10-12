@@ -22,10 +22,14 @@ public interface IActionCatalog
 public sealed class BindingEdit
 {
     public string Id { get; set; } = "";
+    /// <summary>启用/禁用（禁用=保留配置但不参与触发，不必删除）。语义由宿主解释，编辑器只呈现开关。</summary>
+    public bool Enabled { get; set; } = true;
     public ModifierKeys Mods { get; set; } = ModifierKeys.None;
     public int Key { get; set; }
     public TriggerKind Trigger { get; set; } = TriggerKind.Chord;
     public List<string> Actions { get; set; } = new();
+    /// <summary>完成后序列（A3）：主 <see cref="Actions"/> 成功后再跑（如"截图后→贴图"）。可空。</summary>
+    public List<string> OnComplete { get; set; } = new();
     public FallbackPolicy Fallback { get; set; } = FallbackPolicy.Stop;
     public int Priority { get; set; }
     public int DoubleClickMs { get; set; } = 400;
@@ -35,8 +39,8 @@ public sealed class BindingEdit
 
     public BindingEdit Clone() => new BindingEdit
     {
-        Id = Id, Mods = Mods, Key = Key, Trigger = Trigger,
-        Actions = new List<string>(Actions), Fallback = Fallback, Priority = Priority,
+        Id = Id, Enabled = Enabled, Mods = Mods, Key = Key, Trigger = Trigger,
+        Actions = new List<string>(Actions), OnComplete = new List<string>(OnComplete), Fallback = Fallback, Priority = Priority,
         DoubleClickMs = DoubleClickMs, LongPressMs = LongPressMs,
     };
 }

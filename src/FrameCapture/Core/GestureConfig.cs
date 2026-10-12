@@ -13,12 +13,16 @@ namespace FrameCapture.Core;
 public sealed class GestureBindingDto
 {
     public string Id { get; set; } = "";
+    /// <summary>启用/禁用（R123 A1）：禁用=保留配置但不进引擎、不触发，无需删除。默认启用。</summary>
+    public bool Enabled { get; set; } = true;
     /// <summary>组合键串，如 "F6" / "Ctrl+Shift+G" / "Ctrl+Alt+A"（须含主键，纯修饰键组合暂不支持）。</summary>
     public string Chord { get; set; } = "";
     /// <summary>GestureCore.TriggerKind 名：KeyDown/KeyUp/Click/DoubleClick/TripleClick/LongPress/Chord。</summary>
     public string Trigger { get; set; } = "Chord";
     /// <summary>动作名序列（见 <see cref="GestureActions"/>）。</summary>
     public string[] Actions { get; set; } = Array.Empty<string>();
+    /// <summary>完成后序列（A3）：主动作全部成功后再跑（如"截图后→贴图"）。可空。</summary>
+    public string[] OnComplete { get; set; } = Array.Empty<string>();
     /// <summary>GestureCore.FallbackPolicy 名：Stop/SkipStep/NextBinding（逐条显式，非引擎硬编码）。</summary>
     public string Fallback { get; set; } = "Stop";
     public int Priority { get; set; }
@@ -42,6 +46,7 @@ public sealed class GestureBindingDto
             Chord = new GC.KeyChord(mods, (int)spec.VirtualKey),
             Trigger = trig,
             Actions = Actions.Where(GestureActions.IsValid).ToList(),
+            OnComplete = (OnComplete ?? Array.Empty<string>()).Where(GestureActions.IsValid).ToList(),
             Fallback = fb,
             Priority = Priority,
             DoubleClickMs = Math.Clamp(DoubleClickMs, 50, 2000),
@@ -62,6 +67,7 @@ public sealed class GestureBindingDto
         return new GestureBindingDto
         {
             Id = b.Id, Chord = chord, Trigger = b.Trigger.ToString(), Actions = b.Actions.ToArray(),
+            OnComplete = b.OnComplete.ToArray(),
             Fallback = b.Fallback.ToString(), Priority = b.Priority,
             DoubleClickMs = b.DoubleClickMs, LongPressMs = b.LongPressMs,
         };
@@ -87,6 +93,7 @@ public sealed class GestureConfig
         var list = new List<GC.GestureBinding>();
         foreach (var d in Bindings)
         {
+            if (!d.Enabled) continue;   // 禁用的绑定不进引擎（保留配置、不触发）
             var b = d.ToBinding();
             if (b != null && b.Actions.Count > 0) list.Add(b);
         }

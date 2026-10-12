@@ -96,6 +96,10 @@ public sealed class GestureBinding
     /// <summary>动作名序列（宿主经 <see cref="IActionInvoker"/> 按名执行）。</summary>
     public List<string> Actions { get; set; } = new List<string>();
 
+    /// <summary>完成后序列（A3）：主 <see cref="Actions"/> 全部成功后再按序执行（如"截图后→贴图/复制"）。
+    /// 尽力而为：其失败不改变本条结果。宿主若把动作投递到串行队列，则天然排在主动作之后执行。</summary>
+    public List<string> OnComplete { get; set; } = new List<string>();
+
     /// <summary>本条绑定内某步失败时的处理策略（显式数据，非引擎硬编码）。</summary>
     public FallbackPolicy Fallback { get; set; } = FallbackPolicy.Stop;
 
@@ -110,6 +114,7 @@ public sealed class GestureBinding
         DoubleClickMs = DoubleClickMs,
         LongPressMs = LongPressMs,
         Actions = new List<string>(Actions),
+        OnComplete = new List<string>(OnComplete),
         Fallback = Fallback,
         Priority = Priority,
     };
