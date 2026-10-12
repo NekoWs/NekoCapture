@@ -61,16 +61,63 @@ function Get-FcSettings {
     return [pscustomobject]@{}
 }
 
+# R126 B2：旧 CaptureHotkey/ScopeHotkey 字段退役，键位改由手势绑定决定。
+# 从 gestures.bindings 推导主键文本，与 C# 侧 GestureConfig.CaptureKeyText/ScopeKeyText 同规。
 function Get-FcCaptureHotkey {
-    $v = (Get-FcSettings).CaptureHotkey
-    if ([string]::IsNullOrWhiteSpace($v)) { return 'Ctrl+Shift+G' }  # 与 AppSettings 默认一致
-    return $v
+    $g = (Get-FcSettings).gestures
+    if ($g -and $g.Bindings) {
+        foreach ($b in $g.Bindings) {
+            if ($b.Enabled -and $b.Trigger -in 'Tap','Hold','HoldRelease') { return $b.Chord }
+        }
+        foreach ($b in $g.Bindings) {
+            if ($b.Enabled -and $b.Actions -contains 'capture.selection') { return $b.Chord }
+        }
+    }
+    return 'Ctrl+Shift+G'   # 与 GestureConfig.DefaultCaptureKey 一致
 }
 
 function Get-FcScopeHotkey {
-    $v = (Get-FcSettings).ScopeHotkey
-    if ([string]::IsNullOrWhiteSpace($v)) { return 'Ctrl+Shift+R' }
-    return $v
+    $g = (Get-FcSettings).gestures
+    if ($g -and $g.Bindings) {
+        foreach ($b in $g.Bindings) {
+            if ($b.Enabled -and $b.Actions -contains 'scope.select') { return $b.Chord }
+        }
+    }
+    return 'Ctrl+Shift+R'   # 与 GestureConfig.DefaultScopeKey 一致
+}
+
+# R126 B2：e2e 统一测试手势集——把 settings.json 的 gestures 段钉成一套已知绑定，
+# 让注入键位与断言与用户自定义解耦。一套喂饱全部 e2e：
+#   Ctrl+Shift+G 轻点→选区截图（弹选区窗）；按住→起录，松手→停止并进编辑器（OnComplete edit.lastvideo）
+#   Ctrl+Shift+R 组合键→选区
+# 返回原 settings.json 原文（调用方负责结束还原）。
+function Set-FcTestGestureConfig {
+    param([int]$RegionX = -1, [int]$RegionY = -1, [int]$RegionW = -1, [int]$RegionH = -1)
+    $cfg = Join-Path $env:APPDATA 'FrameCapture\settings.json'
+    New-Item -ItemType Directory -Force -Path (Split-Path $cfg) | Out-Null
+    $bak = if (Test-Path $cfg) { Get-Content $cfg -Raw } else { $null }
+    $s = if ($bak) { $bak | ConvertFrom-Json } else { [pscustomobject]@{} }
+    $bindings = @(
+        [pscustomobject]@{ Id='t.cap.tap'; Enabled=$true; Chord='Ctrl+Shift+G'; Trigger='Tap';
+            Actions=@('capture.selection'); OnComplete=@(); Fallback='Stop'; Priority=0; DoubleClickMs=400; LongPressMs=250 },
+        [pscustomobject]@{ Id='t.cap.hold'; Enabled=$true; Chord='Ctrl+Shift+G'; Trigger='Hold';
+            Actions=@('record.start'); OnComplete=@(); Fallback='Stop'; Priority=0; DoubleClickMs=400; LongPressMs=250 },
+        [pscustomobject]@{ Id='t.cap.holdrelease'; Enabled=$true; Chord='Ctrl+Shift+G'; Trigger='HoldRelease';
+            Actions=@('record.stop'); OnComplete=@('edit.lastvideo'); Fallback='Stop'; Priority=0; DoubleClickMs=400; LongPressMs=250 },
+        [pscustomobject]@{ Id='t.scope'; Enabled=$true; Chord='Ctrl+Shift+R'; Trigger='Chord';
+            Actions=@('scope.select'); OnComplete=@(); Fallback='Stop'; Priority=0; DoubleClickMs=400; LongPressMs=500 }
+    )
+    $gestures = [pscustomobject]@{ Enabled=$true; Exclusive=$true; Bindings=$bindings; Seeded=$true }
+    # 注意：app 的 JsonSerializer 大小写敏感，属性名须 PascalCase（"Gestures"），否则整段被忽略→回退默认播种集。
+    $s | Add-Member -Force Gestures $gestures
+    if ($RegionW -gt 0) {   # 固定捕获区域（缩放/编辑器类测试需大区域，避免 End=1:1 变无操作）
+        $s | Add-Member -Force RegionX $RegionX
+        $s | Add-Member -Force RegionY $RegionY
+        $s | Add-Member -Force RegionW $RegionW
+        $s | Add-Member -Force RegionH $RegionH
+    }
+    $s | ConvertTo-Json -Depth 8 | Set-Content $cfg -Encoding UTF8
+    return $bak
 }
 
 function Invoke-FcHotkey {

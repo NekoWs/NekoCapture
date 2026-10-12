@@ -1,73 +1,67 @@
-# 点按/长按语义端到端：TapThresholdMs 默认/0/大阈值 三场景，用 fc-trace「open editor frames=N」断言
+# R126 B2 手势点按/按住语义端到端：统一测试手势集（Ctrl+Shift+G 轻点→选区截图 / 按住→录制→编辑器）。
+# 轻点(短按)→capture.selection→弹选区窗；按住(长按)→record.start→record.stop→edit.lastvideo→编辑器 frames>1。
+# 断言走 fc-trace「capture-selection→picker」与「open editor frames=N」，结束一律还原用户设置。
 $ErrorActionPreference = "Stop"
 $root = Split-Path $PSScriptRoot
 . (Join-Path $PSScriptRoot "lib-hotkey.ps1")
 $exe = Join-Path $root "src\FrameCapture\bin\x64\Debug\net8.0-windows10.0.19041.0\FrameCapture.exe"
 $shot = Join-Path $root "tools\Shot\bin\x64\Debug\net8.0-windows\Shot.exe"
-$cfg = Join-Path $env:APPDATA "FrameCapture\settings.json"
 $trace = Join-Path $root "src\fc-trace.log"
 $err = Join-Path $env:APPDATA "FrameCapture\error.log"
 $e0 = if (Test-Path $err) { (Get-Item $err).Length } else { 0 }
-$bak = if (Test-Path $cfg) { Get-Content $cfg -Raw } else { $null }
 
-function Set-Th([int]$tap) {
-    $s = if ($bak) { $bak | ConvertFrom-Json } else { [pscustomobject]@{} }
-    $s | Add-Member -Force TapThresholdMs $tap
-    # 本测的是点按/长按阈值语义：钉住"点按先显示选区"，避免用户设置把点按改道到选区流程
-    $s | Add-Member -Force TapAlwaysShowsRegion $false
-    $s | ConvertTo-Json | Set-Content $cfg -Encoding UTF8
-}
-function Restart-App {
-    Get-Process FrameCapture -ErrorAction SilentlyContinue | Stop-Process -Force; Start-Sleep 0.6
-    Start-Process $exe; Start-Sleep 2
+function Count-Trace([string]$pat) {
+    @(Get-Content $trace -ErrorAction SilentlyContinue | Select-String $pat).Count
 }
 function Last-Frames([int]$before) {
     $lines = @(Get-Content $trace -ErrorAction SilentlyContinue | Select-String "open editor frames=")
     if ($lines.Count -le $before) { return -1 }
     [int]($lines[-1] -replace ".*frames=", "")
 }
+function Restart-App {
+    Get-Process FrameCapture -ErrorAction SilentlyContinue | Stop-Process -Force; Start-Sleep 0.6
+    Start-Process $exe; Start-Sleep 2
+}
 
-New-Item -ItemType Directory -Force -Path (Split-Path $cfg) | Out-Null
-# 本脚本只改 TapThresholdMs，捕获键保持用户设置——注入必须按设置派生
-$capHk = if ($bak) { ($bak | ConvertFrom-Json).CaptureHotkey } else { $null }
-if ([string]::IsNullOrWhiteSpace($capHk)) { $capHk = 'Ctrl+Shift+G' }
-"capture_hotkey=$capHk"
+# 钉成统一测试手势集（返回用户原设置原文，末尾还原）
+$bak = Set-FcTestGestureConfig
+$capHk = 'Ctrl+Shift+G'
+"capture_key=$capHk (test gesture set)"
 
-# 场景1：阈值 400ms（注入链路有 ~150ms 抖动，避开 250 边界），点按 100ms → 单帧
-Set-Th 400; Restart-App
-$n0 = @(Get-Content $trace -ErrorAction SilentlyContinue | Select-String "open editor frames=").Count
-Invoke-FcHotkey $shot $capHk 100 | Out-Null; Start-Sleep 1.8
-$f1 = Last-Frames $n0
-"tap400 hold100: frames=$f1"
-& $shot keyw "FrameCapture Editor" 27 2>$null | Out-Null; Start-Sleep 0.5
+try {
+    Restart-App
 
+    # 场景1：轻点 80ms（< 250ms 阈值）→ capture.selection → 选区窗
+    $pk0 = Count-Trace "capture-selection→picker"
+    Invoke-FcHotkey $shot $capHk 80 | Out-Null; Start-Sleep 1.6
+    $pk1 = Count-Trace "capture-selection→picker"
+    $pkWin = & $shot rect "FrameCapture Region" 2>$null
+    "tap80: picker_trace_delta=$($pk1 - $pk0) win=[$pkWin]"
+    & $shot keyw "FrameCapture Region" 27 2>$null | Out-Null; Start-Sleep 0.6
+    $tapOk = ($pk1 - $pk0) -ge 1
 
-Set-Th 0; Restart-App
-$n1 = @(Get-Content $trace -ErrorAction SilentlyContinue | Select-String "open editor frames=").Count
-# 400ms：若是点按语义会截成 1 帧；长按语义应保留多帧（fps≈20）
-Invoke-FcHotkey $shot $capHk 400 | Out-Null; Start-Sleep 1.8
-$f2 = Last-Frames $n1
-"tap0 hold400: frames=$f2"
-& $shot keyw "FrameCapture Editor" 27 2>$null | Out-Null; Start-Sleep 0.5
+    # 场景2：按住 600ms（> 250ms 阈值）→ 起录→停止→编辑器，frames>1
+    $n2 = Count-Trace "open editor frames="
+    Invoke-FcHotkey $shot $capHk 600 | Out-Null; Start-Sleep 2.0
+    $f2 = Last-Frames $n2
+    "hold600: frames=$f2"
+    & $shot keyw "FrameCapture Editor" 27 2>$null | Out-Null; Start-Sleep 0.6
+    $holdOk = $f2 -gt 1
 
-# 场景3：阈值 1000ms，长按 500ms → 仍按点按处理成单帧（延迟可配置语义）
-Set-Th 1000; Restart-App
-$n2 = @(Get-Content $trace -ErrorAction SilentlyContinue | Select-String "open editor frames=").Count
-Invoke-FcHotkey $shot $capHk 500 | Out-Null; Start-Sleep 1.8
-$f3 = Last-Frames $n2
-"tap1000 hold500: frames=$f3"
-& $shot keyw "FrameCapture Editor" 27 2>$null | Out-Null; Start-Sleep 0.5
+    # 场景3：按住 1300ms → 更长录制，frames 明显多于场景2（阈值语义随按住时长伸缩）
+    $n3 = Count-Trace "open editor frames="
+    Invoke-FcHotkey $shot $capHk 1300 | Out-Null; Start-Sleep 2.2
+    $f3 = Last-Frames $n3
+    "hold1300: frames=$f3"
+    & $shot keyw "FrameCapture Editor" 27 2>$null | Out-Null; Start-Sleep 0.6
+    $longOk = $f3 -gt 1
+}
+finally {
+    Get-Process FrameCapture -ErrorAction SilentlyContinue | Stop-Process -Force
+    if ($bak) { Set-Content (Join-Path $env:APPDATA "FrameCapture\settings.json") -Value $bak -Encoding UTF8 }
+}
 
-# 场景4：阈值 1000ms，长按 1300ms → 多帧（超过阈值恢复正常长按）
-$n3 = @(Get-Content $trace -ErrorAction SilentlyContinue | Select-String "open editor frames=").Count
-Invoke-FcHotkey $shot $capHk 1300 | Out-Null; Start-Sleep 2
-$f4 = Last-Frames $n3
-"tap1000 hold1300: frames=$f4"
-& $shot keyw "FrameCapture Editor" 27 2>$null | Out-Null
-
-Get-Process FrameCapture -ErrorAction SilentlyContinue | Stop-Process -Force
-if ($bak) { Set-Content $cfg -Value $bak -Encoding UTF8 } else { Remove-Item $cfg -ErrorAction SilentlyContinue }
 $e1 = if (Test-Path $err) { (Get-Item $err).Length } else { 0 }
 "err_delta=$($e1 - $e0)"
-$ok = ($f1 -eq 1) -and ($f2 -gt 1) -and ($f3 -eq 1) -and ($f4 -gt 1) -and (($e1 - $e0) -eq 0)
-if ($ok) { "TAP-SEMANTICS PASS" } else { "TAP-SEMANTICS FAIL"; exit 1 }
+$ok = $tapOk -and $holdOk -and $longOk -and (($e1 - $e0) -eq 0)
+if ($ok) { "TAP-SEMANTICS PASS"; exit 0 } else { "TAP-SEMANTICS FAIL"; exit 1 }

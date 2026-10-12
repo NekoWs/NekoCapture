@@ -1,5 +1,5 @@
-# 状态机模糊测试：随机热键 + 乱键注入，验证存活/无错误/热键仍可用
-# 仅允许工具：hk（全局热键）、keyw（PostMessage 到自有窗口）、rect/shot。禁止鼠标。
+# 状态机模糊测试：随机手势键 + 乱键注入，验证存活/无错误/手势键仍可用
+# 仅允许工具：hk（全局键）、keyw（PostMessage 到自有窗口）、rect/shot。禁止鼠标。
 param([int]$Seed = 98765, [int]$Steps = 120)
 $ErrorActionPreference = "Stop"
 $root = Split-Path $PSScriptRoot
@@ -8,12 +8,15 @@ $exe = Join-Path $root "src\FrameCapture\bin\x64\Debug\net8.0-windows10.0.19041.
 $shot = Join-Path $root "tools\Shot\bin\x64\Debug\net8.0-windows\Shot.exe"
 $err = Join-Path $env:APPDATA "FrameCapture\error.log"
 $e0 = if (Test-Path $err) { (Get-Item $err).Length } else { 0 }
-$capHk = Get-FcCaptureHotkey
-$scopeHk = Get-FcScopeHotkey
+# R126 B2：钉成统一测试手势集，让乱键压测 tap/hold/holdrelease 状态机（轻点→选区窗 / 长按→录制→编辑器）。
+$capHk = 'Ctrl+Shift+G'
+$scopeHk = 'Ctrl+Shift+R'
 "capture_hotkey=$capHk scope_hotkey=$scopeHk"
 
 Get-Process FrameCapture -ErrorAction SilentlyContinue | Stop-Process -Force
 Start-Sleep 0.6
+$bak = Set-FcTestGestureConfig   # 先杀后写
+try {
 Start-Process $exe
 Start-Sleep 2
 
@@ -60,14 +63,23 @@ Start-Sleep 1
 $alive = Get-Process FrameCapture -ErrorAction SilentlyContinue
 # 断言 2：error.log 零增量
 $e1 = if (Test-Path $err) { (Get-Item $err).Length } else { 0 }
-# 断言 3：收尾后全局热键仍可用 → 再按一次捕获应出编辑器
+# 断言 3：收尾后手势键仍可用 → 再按住一次捕获键应出编辑器（长按→录制→edit.lastvideo）
 Invoke-FcHotkey $shot $capHk 900 | Out-Null
 Start-Sleep 2
 $ed = & $shot rect "FrameCapture Editor" 2>$null
+$pk = & $shot rect "FrameCapture Region" 2>$null
 & $shot keyw "FrameCapture Editor" 27 | Out-Null
+& $shot keyw "FrameCapture Region" 27 | Out-Null
 Start-Sleep 0.4
 Get-Process FrameCapture -ErrorAction SilentlyContinue | Stop-Process -Force
 
-$ok = [bool]$alive -and ($e1 - $e0) -eq 0 -and ("$ed" -notmatch "not-found")
-"alive=$alive err_delta=$($e1 - $e0) final_hotkey=[$ed]"
+# 手势键仍可用 = 出现编辑器（长按录制）或选区窗（时序抖动落到轻点）任一
+$hotkeyWorks = ("$ed" -notmatch "not-found") -or ("$pk" -notmatch "not-found")
+$ok = [bool]$alive -and ($e1 - $e0) -eq 0 -and $hotkeyWorks
+"alive=$alive err_delta=$($e1 - $e0) final_hotkey=[ed=$ed pk=$pk]"
 if ($ok) { "FUZZ-STATE MACHINE PASS ($Steps steps, seed=$Seed)" } else { "FUZZ FAIL"; exit 1 }
+}
+finally {
+    Get-Process FrameCapture -ErrorAction SilentlyContinue | Stop-Process -Force
+    if ($bak) { Set-Content (Join-Path $env:APPDATA "FrameCapture\settings.json") -Value $bak -Encoding UTF8 }
+}

@@ -46,7 +46,7 @@ public sealed class GestureService : IDisposable
         _engineBound = bindings;
         _engine.SetBindings(bindings);
         FrameCapture.Core.Trace.Log($"gesture apply on={on} excl={_exclusive} n={bindings.Count} [" +
-            string.Join(", ", bindings.Select(b => $"mods={b.Chord.Mods} key={b.Chord.Key}/{b.Trigger}")) + "]");
+            string.Join(", ", bindings.Select(b => $"mods={b.Chord.Mods} key={b.Chord.Key}/{b.Trigger}/oc={b.OnComplete.Count}")) + "]");
         bool hasMouse = bindings.Any(b => IsMouse(b.Trigger));
         // Tick 泵：鼠标连击/长按消歧需要，键盘「按住到阈值触发 Hold」也需要（R126）。
         bool needsTick = bindings.Any(b => IsMouse(b.Trigger) || b.Trigger == GC.TriggerKind.Hold);

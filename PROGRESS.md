@@ -1882,3 +1882,13 @@ status: done
 - **CaptureController**：删 `BeginCapture/EndCapture/EnterToggleRecording` + `_tr/_tapWindowTimer/_stopWindowTimer`；`FinishCapture` 去「点按→单帧」分支（点按判定上移引擎），只处理真录制收尾；REC 徽标延迟用固定 `RecBadgeDelayMs=250`；新增 `CaptureStoredStill()`（托盘「立即捕获·按当前范围」的干净静态截图，替代旧 BeginCapture+600ms+EndCapture 绕路）。
 - **接线去旧引用**：TrayService（tooltip 报手势数、立即捕获走 CaptureStoredStill）、HelpWindow（HK() 从手势绑定推导键名、删「连按两下」行、按住/轻点文案更新）、WelcomeToast+App.xaml.cs（`Gestures.CaptureKeyText()/ScopeKeyText()`）、SettingsWindow（删「选区/捕获快捷键」两行 + 同键警示 + HotkeyRow/UpdateHkWarn/BuildSpec/KeyNameOf，改「用手势配置器管理」提示）。`GestureConfig` 加 `CaptureKeyText/ScopeKeyText` 助手（从绑定推导主键文本供展示）。
 - **SelfTest 覆盖迁移**：删 T76 决策表(4)/T99 连按状态机(13)/T122 暂停决策(4) 共 21 条——其语义已由 GestureEngine T146（tap/hold/holdrelease/认领吞键）+ T147（默认集/播种）覆盖；T134 改无参 `Install()`。地板 408→**387**（合法下降：删的是退役路径的死测试，净覆盖不减反增）。护栏 `-MinSelfTestPass 387` PASS。
+
+**④ e2e 套件迁移到手势模型（B2 收尾，护栏 FAIL=0 SKIP=1）**
+- 旧 e2e 全假设「固定 `CaptureHotkey` 字段 + 捕获→编辑器」，两者随 B2 退役 → 全套失效。统一迁移：
+  - `lib-hotkey.ps1`：`Get-FcCaptureHotkey/Get-FcScopeHotkey` 改从 `gestures.bindings` 推导（Tap/Hold/HoldRelease 或 capture.selection 的 Chord，否则默认 `Ctrl+Shift+G`；scope.select 否则 `Ctrl+Shift+R`），与 C# `GestureConfig.CaptureKeyText/ScopeKeyText` 同规。新增 **`Set-FcTestGestureConfig`**：把 settings.json 的 gestures 段钉成一套已知绑定（`Ctrl+Shift+G` 轻点→选区截图 / 按住→起录 / 松手→停止+`edit.lastvideo`；`Ctrl+Shift+R` Chord→选区），返回原文供还原；可选 `-RegionX/Y/W/H` 固定大区域（缩放测试用）。**一套喂饱全部 e2e**：轻点→选区窗（tap-semantics 场景1）、长按→录制→编辑器（编辑器类测试入口 + tap-semantics 场景2/3）。
+  - **踩坑（重要）**：app 的 `JsonSerializer` 默认**大小写敏感**，属性名是 PascalCase `"Gestures"`。PowerShell `Add-Member -Force gestures`（小写）会把原 `"Gestures"` 改成小写 → app 整段忽略 → 回退默认播种集（其 `cap.holdrelease` 本就 `OnComplete=[]`，故 `edit.lastvideo` 不触发、`oc=0`）。且 Load 解析失败会**删文件重写默认**，一度把用户配置冲掉（已从 `settings.json.testbak` 恢复）。修：助手一律写 PascalCase `"Gestures"` + `-Depth 8`（默认 depth 2 会截断嵌套 gestures）。
+  - `test-tap-semantics.ps1` 重写：轻点 80ms→选区窗（trace `capture-selection→picker`）、按住 600/1300ms→录制（trace `open editor frames=N`，N>1 且随时长增长）。
+  - `test-editor-keys/zoom/esc-layers/focus-safety/fuzz-statemachine`：入口改「先杀进程→`Set-FcTestGestureConfig`→起 app→按住 `Ctrl+Shift+G`→编辑器」，try/finally 还原用户配置；focus-safety 保留前台守卫 + 不漏字符断言（`Shot swallow` 按住 900ms→编辑器）；fuzz 收尾接受编辑器或选区窗任一。
+  - **退役** `test-hotkey-e2e.ps1`（旧改键/旧键失效/恢复，字段已删）+ 从 guardrail 列表移除。
+  - `GestureService` apply 日志加 `oc=<OnComplete 数>`（本 bug 若有此字段可秒查；留作手势可观测性）。
+- 全量护栏 `-MinSelfTestPass 387`：**FAIL=0 SKIP=1**（focus-safety 因前台窗口守卫 SKIP≠FAIL）。用户 settings.json 完好（qq.rec/bfd68f4/bc235bc/b3c320e）。

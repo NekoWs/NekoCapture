@@ -55,8 +55,8 @@ if (-not $SkipE2e -and $okBuild) {
     $blocked = $false
     $probe = Start-Process $exe -PassThru; Start-Sleep 1.5
     Invoke-FcHotkey $shot $capHk 200 | Out-Null; Start-Sleep 1.2
-    # 注入可达性：捕获键命中 FC 即会弹窗——TapAlwaysShowsRegion 开时点按走选区窗、关时走编辑器，
-    # 长按则进录制→编辑器。任一 FC 窗出现即证明注入可达；两者都没有才判为被反外挂拦截。
+    # 注入可达性：捕获键命中 FC 即会弹窗——轻点走选区窗、长按走录制→编辑器。
+    # 任一 FC 窗出现即证明注入可达；两者都没有才判为被反外挂拦截。
     $edProbe = & $shot rect "FrameCapture Editor" 2>$null
     $pkProbe = & $shot rect "FrameCapture Region" 2>$null
     if ($edProbe -match "not-found" -and $pkProbe -match "not-found") { $blocked = $true }
@@ -73,8 +73,7 @@ if (-not $SkipE2e -and $okBuild) {
         @{ n = "e2e:editor-keys(捕获→编辑器→Enter→剪贴板三格式)"; f = "test-editor-keys.ps1";    mark = "EDITOR-KEYS" },
         @{ n = "e2e:zoom(1:1/放大/适配 键路由+zoom决策)";             f = "test-zoom.ps1";           mark = "ZOOM" },
         @{ n = "e2e:esc-layers(绘制态Esc不丢捕获)";                   f = "test-esc-layers.ps1";     mark = "ESC-LAYERS" },
-        @{ n = "e2e:hotkey(改键/旧键失效/恢复)";                    f = "test-hotkey-e2e.ps1";     mark = "HOTKEY-E2E" },
-        @{ n = "e2e:tap-semantics(点按/长按阈值)";                   f = "test-tap-semantics.ps1";  mark = "TAP-SEMANTICS" },
+        @{ n = "e2e:tap-semantics(手势轻点截图/长按录制)";             f = "test-tap-semantics.ps1";  mark = "TAP-SEMANTICS" },
         @{ n = "e2e:focus-safety(吞键不漏字符)";                     f = "test-focus-safety.ps1";   mark = "FOCUS-SAFETY" },
         @{ n = "e2e:fuzz-statemachine(乱键存活)";                    f = "fuzz-statemachine.ps1";   mark = "FUZZ" }
     )
