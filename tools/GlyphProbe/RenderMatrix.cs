@@ -43,10 +43,39 @@ static class RenderMatrix
         System.Console.WriteLine($"sweep {start:X4}-{end:X4} -> {outPath}");
     }
 
-    public static void Run()
+    /// <summary>glyphs 模式：渲染指定码点集合（十六进制串，如 E70E E70D E74D），缺字形（宽度 0）标 MISSING，用于验证图标可用性。</summary>
+    public static void Glyphs(string outPath, string[] hexes)
     {
-        var cands = new (string Label, string Chars)[]
+        int cell = 96, labelH = 22;
+        var dv = new DrawingVisual();
+        using (var dc = dv.RenderOpen())
         {
+            dc.DrawRectangle(Brushes.White, null, new Rect(0, 0, cell * hexes.Length, cell));
+            var tf = new Typeface(new FontFamily("Segoe Fluent Icons"), FontStyles.Normal, FontWeights.Normal, FontStretches.Normal);
+            var mono = new Typeface("Consolas");
+            for (int i = 0; i < hexes.Length; i++)
+            {
+                int cp = System.Convert.ToInt32(hexes[i], 16);
+                var ch = ((char)cp).ToString();
+                var g = new FormattedText(ch, System.Globalization.CultureInfo.InvariantCulture, FlowDirection.LeftToRight, tf, 40, Brushes.Black, 1.0);
+                bool missing = g.Width <= 0.5;
+                if (!missing) dc.DrawText(g, new Point(i * cell + (cell - g.Width) / 2, 12));
+                var lbl = new FormattedText(missing ? hexes[i] + " MISS" : hexes[i], System.Globalization.CultureInfo.InvariantCulture, FlowDirection.LeftToRight, mono, 11, missing ? Brushes.Red : Brushes.Gray, 1.0);
+                dc.DrawText(lbl, new Point(i * cell + 6, cell - labelH));
+            }
+        }
+        var rtb = new RenderTargetBitmap(cell * hexes.Length, cell, 96, 96, PixelFormats.Pbgra32);
+        rtb.Render(dv);
+        var enc = new PngBitmapEncoder(); enc.Frames.Add(BitmapFrame.Create(rtb));
+        using var fs = System.IO.File.Create(outPath);
+        enc.Save(fs);
+        System.Console.WriteLine($"glyphs -> {outPath}");
+    }
+
+    public static void Run()
+        {
+            var cands = new (string Label, string Chars)[]
+            {
             ("List     ", "\uE292\uE8FD\uEA37\uEB3C\uE200\uE168"),
             ("Num      ", "\uE8EF\uE9F5\uE9F9\uF20B\uE1CB\uE8C1"),
             ("Step     ", "\uE8CB\uE7C1\uE7C6\uE8A7\uE71D\uE8AB"),

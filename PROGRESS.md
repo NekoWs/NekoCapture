@@ -1819,3 +1819,14 @@ status: done
   - 新设置 `GestureConfig.Exclusive`（默认 true）；`GestureService.FeedKey` 返回 `Exclusive && 引擎候选`。`HotkeyManager.KeySink` 由 `Action` 改 `Func<...,bool>`，命中即 `return true` 吞键。
   - 吞键判定放在滚动 Esc / 浮窗 Enter/Esc 之后（会话级优先），且手势只绑具体键不会误吞 Esc/Enter。
 - SelfTest T137a-d（地板 369→373）：A 命中才吞 / 抬起也吞 / 纯修饰键不吞 / 未绑定键不吞。
+
+## R122 手势配置器（方案 C：独立可复用 UI 库 + 内嵌宿主）
+- 用户拍板方案 C：编辑器做成**独立库**（只依赖 GestureCore + WPF，不引用 FrameCapture），宿主经四个注入点接入；将来别的软件换一套注入即可复用，或套独立壳成配置器软件。
+- 新工程 `src/GestureEditor/`（net8.0-windows WPF，仅引用 GestureCore）：
+  - `GestureModel.cs`：宿主无关可编辑模型 `GestureDoc`/`BindingEdit` + 四接口 `IActionCatalog`/`IGestureConfigStore`/`IKeyNamer`(GestureCore)/`EditorPalette`（配色由宿主注入，保证与宿主视觉一致）。
+  - `GestureValidation.cs`：纯逻辑校验（组合键非空、动作非空且合法、时间范围；同「组合键+触发」重复仅 warn）。
+  - `GestureEditorWindow.cs`：主从布局（左列表 / 右详情：组合键捕获、触发方式、动作序列增删排序、失败策略、优先级、双击/长按阈值）+ 实时校验 + 保存。组合键捕获期间触发 `ChordCaptureBegan/Ended` 事件让宿主**暂停/恢复全局钩子**（否则要捕获的组合键被自家钩子吞掉、编辑器收不到）。图标字体链与 Fluent 同款；字形经 GlyphProbe `glyphs` 模式验证（E70E/E70D/E74D/E711/E713 等）。
+- FrameCapture 侧 `Services/GestureEditorHost.cs`：四个适配器（`FrameActionCatalog` 包 GestureActions、`FrameGestureConfigStore` 走 settings.json gestures 段↔GestureDoc、`FrameKeyNamer` VK→WinFormsKeys 名、`BuildPalette` 从 Theme 取色）+ `ShowOrFocus`（捕获时 `HotkeyManager.Paused` 置位/还原）。所有 FrameCapture 耦合都收在这一个文件。
+- 接线：新动作 `gesture.edit`（GestureActions + GestureInvoker）；设置窗「快捷键」页加「打开手势配置器…」入口按钮。
+- GlyphProbe 加 `glyphs` 模式（传十六进制码点渲染小图、缺字形标 MISSING），便于日后验图标。
+- SelfTest T138a-f（编辑器模型/校验，宿主无关可脱 UI 单测），护栏地板 373→**379**。

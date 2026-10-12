@@ -30,6 +30,7 @@ public static class GestureActions
     public const string PinSelection = "pin.selection";
     public const string SettingsOpen = "settings.open";
     public const string HelpOpen = "help.open";
+    public const string GestureEdit = "gesture.edit";
 
     /// <summary>全部可用动作（顺序即建议展示顺序）。GestureInvoker 必须覆盖每一个，否则该动作视为未实现（执行失败）。</summary>
     public static readonly GestureAction[] All =
@@ -48,6 +49,7 @@ public static class GestureActions
         new(PinSelection, "贴图当前选区", "把当前范围钉成贴图（Snipaste 式）"),
         new(SettingsOpen, "打开设置", "打开设置窗口"),
         new(HelpOpen, "打开帮助", "打开使用说明窗口"),
+        new(GestureEdit, "手势配置器", "打开可视化手势/键位配置器（增删改绑定、实时校验、保存即生效）"),
     };
 
     static readonly System.Collections.Generic.HashSet<string> Names =

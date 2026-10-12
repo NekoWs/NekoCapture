@@ -12,6 +12,7 @@ using FrameCapture.Services;
 using System.Windows;
 using HD = FrameCapture.Core.HookDecision;
 using GE = GestureCore;
+using GEdit = GestureEditor;
 
 static class SelfTest
 {
@@ -2186,6 +2187,35 @@ static class SelfTest
             bool swF6 = eng.OnKeyDown(F6, GE.ModifierKeys.None, 0);
             Chk("T137d-unbound-key-no-swallow", !swF6, "未绑定的键（F6）不吞");
         }
+        // T138 手势配置器模型/校验（R122 方案 C）：GestureEditor 库的纯逻辑，宿主无关，可脱离 UI 单测
+        {
+            var cat = new TestCatalog();
+            var nm = new TestNamer();
+            GEdit.BindingEdit BE(string id, GE.ModifierKeys mods, int key, string[] acts)
+                => new GEdit.BindingEdit { Id = id, Mods = mods, Key = key, Actions = new List<string>(acts) };
+
+            var ok = new GEdit.GestureDoc { Enabled = true, Bindings = { BE("a", GE.ModifierKeys.Control | GE.ModifierKeys.Alt, 0x41, new[] { "capture.frame" }) } };
+            Chk("T138a-valid-no-problem", GEdit.GestureValidation.Validate(ok, cat, nm).Count == 0, "合法绑定无校验问题");
+
+            var emptyChord = new GEdit.GestureDoc { Bindings = { BE("a", GE.ModifierKeys.None, 0, new[] { "capture.frame" }) } };
+            Chk("T138b-empty-chord-error", GEdit.GestureValidation.HasErrors(GEdit.GestureValidation.Validate(emptyChord, cat, nm)), "空组合键判为 error");
+
+            var noAct = new GEdit.GestureDoc { Bindings = { BE("a", GE.ModifierKeys.Control, 0x41, new string[0]) } };
+            Chk("T138c-no-action-error", GEdit.GestureValidation.HasErrors(GEdit.GestureValidation.Validate(noAct, cat, nm)), "无动作判为 error");
+
+            var badAct = new GEdit.GestureDoc { Bindings = { BE("a", GE.ModifierKeys.Control, 0x41, new[] { "no.such" }) } };
+            Chk("T138d-unknown-action-error", GEdit.GestureValidation.HasErrors(GEdit.GestureValidation.Validate(badAct, cat, nm)), "未知动作判为 error");
+
+            var dup = new GEdit.GestureDoc { Bindings = {
+                BE("a", GE.ModifierKeys.Control, 0x41, new[] { "capture.frame" }),
+                BE("b", GE.ModifierKeys.Control, 0x41, new[] { "record.toggle" }) } };
+            var p4 = GEdit.GestureValidation.Validate(dup, cat, nm);
+            Chk("T138e-duplicate-warn-not-error", p4.Count > 0 && !GEdit.GestureValidation.HasErrors(p4), "组合键+触发重复仅提示、非 error");
+
+            var badTime = new GEdit.GestureDoc { Bindings = { new GEdit.BindingEdit { Id = "a", Mods = GE.ModifierKeys.Control, Key = 0x41, Actions = new List<string> { "capture.frame" }, DoubleClickMs = 9999 } } };
+            var p5 = GEdit.GestureValidation.Validate(badTime, cat, nm);
+            Chk("T138f-timing-warn-not-error", p5.Count > 0 && !GEdit.GestureValidation.HasErrors(p5), "时间越界仅提示、非 error");
+        }
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");
         return fail == 0 ? 0 : 1;
     }
@@ -2217,4 +2247,22 @@ sealed class GestureProbe : GestureCore.IActionInvoker
     public List<string> Log = new();
     public HashSet<string> Fail = new();
     public bool Invoke(string actionName) { Log.Add(actionName); return !Fail.Contains(actionName); }
+}
+
+/// <summary>GestureEditor 校验测试用的最小动作清单（宿主无关，只认两个合法动作名）。</summary>
+sealed class TestCatalog : GestureEditor.IActionCatalog
+{
+    static readonly GestureEditor.ActionInfo[] All =
+    {
+        new("capture.frame", "即时截图", ""),
+        new("record.toggle", "选区录制·同键停", ""),
+    };
+    public IReadOnlyList<GestureEditor.ActionInfo> Actions() => All;
+    public bool IsValid(string name) => name == "capture.frame" || name == "record.toggle";
+}
+
+/// <summary>测试键名器：VK → 可读名（仅覆盖测试用到的键）。</summary>
+sealed class TestNamer : GestureCore.IKeyNamer
+{
+    public string Name(int key) => key switch { 0x41 => "A", 0x52 => "R", 0x75 => "F6", _ => "#" + key };
 }

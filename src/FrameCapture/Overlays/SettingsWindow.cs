@@ -113,6 +113,25 @@ public sealed class SettingsWindow : Window
         panel.Children.Add(_hkWarn);
         UpdateHkWarn();
 
+        // ---- 手势配置器入口（R122）：可视化增删改键位绑定，保存即热重载生效 ----
+        var geBtn = new Border
+        {
+            Margin = new Thickness(0, 8, 0, 2),
+            CornerRadius = new CornerRadius(6),
+            BorderThickness = new Thickness(1),
+            BorderBrush = new SolidColorBrush(Theme.Stroke),
+            Background = new SolidColorBrush(Theme.CardBg),
+            Padding = new Thickness(12, 9, 12, 9),
+            Cursor = System.Windows.Input.Cursors.Hand,
+        };
+        var geIcon = new TextBlock { Text = "\uE713", FontFamily = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets, Segoe UI Symbol"), FontSize = 15, Foreground = new SolidColorBrush(Theme.Accent), VerticalAlignment = VerticalAlignment.Center };
+        var geRow = new StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal };
+        geRow.Children.Add(geIcon);
+        geRow.Children.Add(new TextBlock { Text = "   打开手势配置器…（可视化增删改键位绑定，保存即生效）", Foreground = new SolidColorBrush(Theme.Text), FontSize = 13, VerticalAlignment = VerticalAlignment.Center });
+        geBtn.Child = geRow;
+        geBtn.MouseLeftButtonUp += (_, _) => FrameCapture.Services.GestureEditorHost.ShowOrFocus();
+        panel.Children.Add(geBtn);
+
         // ---- 截图 ----
         panel = Cat("截图");
         panel.Children.Add(SliderRow("\uE916", "点按单帧阈值", "按下到放开小于此值算单帧；0 = 全部长按",

@@ -62,6 +62,7 @@ sealed class GestureInvoker : GC.IActionInvoker
 
             case GestureActions.SettingsOpen: Post(() => Overlays.SettingsWindow.ShowOrFocus()); return true;
             case GestureActions.HelpOpen: Post(() => Overlays.HelpWindow.ShowOrFocus()); return true;
+            case GestureActions.GestureEdit: Post(() => GestureEditorHost.ShowOrFocus()); return true;
 
             default: return false; // 未知动作=失败
         }

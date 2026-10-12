@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- 可复用「手势/键位配置器」UI 库（R122 方案 C）：只依赖 GestureCore + WPF，不引用任何宿主（FrameCapture 等）。
+       宿主通过 IActionCatalog（动作清单）+ IGestureConfigStore（配置读写）+ IKeyNamer（键名）+ EditorPalette（配色）
+       四个注入点接入。现在内嵌在 FrameCapture 里用；将来别的软件换一套注入即可复用，或套个独立壳成配置器软件。 -->
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <WindowsSdkPackageVersion>10.0.19041.57</WindowsSdkPackageVersion>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <Platforms>x64</Platforms>
+    <PlatformTarget>x64</PlatformTarget>
+    <AssemblyName>GestureEditor</AssemblyName>
+    <RootNamespace>GestureEditor</RootNamespace>
+    <Version>0.1.0</Version>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\GestureCore\GestureCore.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- WPF/WinForms 同名类型多：库虽不用 WinForms，仍去掉隐式 using 以防万一 -->
+    <Using Remove="System.Windows.Forms" />
+    <Using Remove="System.Drawing" />
+  </ItemGroup>
+
+</Project>
