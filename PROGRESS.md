@@ -1980,3 +1980,9 @@ status: done
 - **CRC 全量校验**：.NET `ZipFile` 逐条读流解压全部 **250 条目**（解压后 169.1MB），**0 CRC 失败**——zip 无损坏、非截断（`Test-Archive` cmdlet 本机未加载，改 .NET 读流校验，读流即触发 CRC 校验）。
 - **关键程序集齐全**：`FrameCapture.exe` 148KB / `FrameCapture.dll` 388KB / `GestureCore.dll` 14KB / `GestureEditor.dll` 42KB / `FrameCapture.runtimeconfig.json` 均在（扁平结构，自包含发布）。
 - **结论**：`release/FrameCapture.zip`（69.7MB）是有效、完整、无损坏的自包含发布包，可直接解压运行。交付物就绪。本轮无源码改动。
+
+**R138 · release zip 端到端可运行验证（解压→启动→UI→无崩溃）**
+- **解压**：`Expand-Archive` 出 250 文件（0.8s），`FrameCapture.exe` 在位。
+- **启动**：`FrameCapture.exe --settings` → 进程存活（pid 68844）→ **前台窗 = `FrameCapture Settings`**（设置窗正常打开并置前）→ **error.log 零新增**（34733→34733，无崩溃/无异常）。
+- **清理**：`Stop-Process` 杀掉 → 确认 0 残留实例（Mutex 释放，不挡用户自启）→ 删 `test-out/ziptest` → 用户 settings.json 未动（Seeded=true 不触发播种）。
+- **结论**：交付物**端到端可运行**——zip 解压即得可双击启动、UI 正常、零崩溃的自包含应用。八维验证（功能/动效/UI/稳健性/配置/构建/测试计数/交付物）全部通过。本轮无源码改动。
