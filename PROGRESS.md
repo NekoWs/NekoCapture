@@ -1611,3 +1611,12 @@ status: done
 - `SaveRecording` 补 `dlg.FilterIndex = def switch { Mp4=>1, WebM=>2, _=>3 }`，类型下拉默认跟随「录制格式」，与默认文件名扩展一致。
 
 **验证**：构建 0 错误；完整护栏 GUARDRAIL PASS（FAIL=0 SKIP=1 floor280，err_delta=0）。焦点安全 e2e 取证：设 `AutoSavePath=C:\Users\16892\FCExportTest` → 录制→编辑器→Ctrl+E → PrintWindow 存盘对话框 → 面包屑显示 `NekoW › FCExportTest`（自定义目录生效）；RecordFormat=Gif 时底部裁图显示「保存类型：GIF 动图 (*.gif)」与文件名 `capture.gif` 一致（修复前是 MP4）。测试目录已删、AutoSavePath 已重置。
+
+
+## 2026-10-12 下午 编辑器计数区时间与时间轴刻度基准统一 R111
+
+**发现**（放大编辑器底部计数区截图抓到）：录制载入后计数区显示「1/12 **0.09s**」，而时间轴刻度首格是 0.00s、刻度按 `帧号/帧率` 走。两套时间基准——计数区用 `_times[_index]`（帧的实际捕获时间戳，首帧因 WGC 起录后延迟约 90ms 交付而 =0.09s），刻度用 `i/fps`（播放基准，首帧=0）。用户看到刻度从 0 起、计数却从 0.09s 起且对不上任何刻度，误以为帧 1 前有内容。
+
+**修复**：编辑器本就按设置帧率播放（`_playTimer=1000/fps`），计数区应与刻度/播放一致。`Show()` 里计数区时间改用 `_index / fps`（fps 同刻度做 Clamp），删去不再使用的 `tMs`。`_times` 字段仍保留（PNG 另存默认名 `frame-{…}.png` 仍用实际时间戳，语义正确）。
+
+**验证**：构建 0 错误；完整护栏 GUARDRAIL PASS（FAIL=0 SKIP=1 floor280，err_delta=0）。焦点安全 e2e 取证：录制→编辑器→PrintWindow 裁计数区放大 → 帧 1 现显示「1/11 **0.00s**」（修复前 0.09s），与刻度起点一致。说明：纯显示层改动，不改 `_times`/导出时序；GIF/视频导出仍按实际帧间隔（`frames[i].TimeMs` 差值），不受影响。
