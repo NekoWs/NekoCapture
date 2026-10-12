@@ -10,7 +10,7 @@ using FrameCapture.Drawing;
 using FrameCapture.Encoding;
 using FrameCapture.Services;
 using System.Windows;
-using HD = FrameCapture.Core.HookDecision;
+
 using GE = GestureCore;
 using GEdit = GestureEditor;
 
@@ -850,35 +850,8 @@ static class SelfTest
                 $"o1={o1} o2={o2} o3={o3}");
         }
 
-        // T76 全局钩子决策表（纯逻辑）：捕获期间主键吞掉不重复触发、修饰键松开语义、
-        // 范围键松开只复位、无关键放行。对应 HotkeyManager 重构（行为逐条保持）。
+        // T77/T78 作用域（原 T76 全局钩子决策表随旧 F6/F7 热键路径退役，R126 B2）
         {
-            var begin = new HD.Outcome(HD.Act.BeginCapture, true, HD.Key.CapturePrimary);
-            var end = new HD.Outcome(HD.Act.EndCapture, true, HD.Key.None);
-            Chk("T76a-hook-idle-triggers",
-                HD.Decide(HD.Key.None, true, 0x75, true, false, 0x75, 0x76, false, true) .Equals(begin) &&
-                HD.Decide(HD.Key.None, true, 0x76, false, true, 0x75, 0x76, false, true)
-                    .Equals(new HD.Outcome(HD.Act.ScopeSelect, true, HD.Key.Scope)) &&
-                HD.Decide(HD.Key.None, true, 0x41, false, false, 0x75, 0x76, false, true)
-                    .Equals(new HD.Outcome(HD.Act.Pass, false, HD.Key.None)),
-                "空闲：捕获键→Begin、范围键→Scope、无关键→放行");
-            Chk("T76b-hook-capture-primary",
-                HD.Decide(HD.Key.CapturePrimary, false, 0x75, false, false, 0x75, 0x76, false, true).Equals(end) &&
-                HD.Decide(HD.Key.CapturePrimary, true, 0x75, false, false, 0x75, 0x76, false, true)
-                    .Equals(new HD.Outcome(HD.Act.Pass, true, HD.Key.CapturePrimary)),
-                "捕获中：主键松→End；主键重复按→吞掉不重复触发");
-            Chk("T76c-hook-mod-release",
-                HD.Decide(HD.Key.CapturePrimary, false, 0x11, false, false, 0x75, 0x76, true, true)
-                    .Equals(new HD.Outcome(HD.Act.Pass, false, HD.Key.CapturePrimary)) &&
-                HD.Decide(HD.Key.CapturePrimary, false, 0x11, false, false, 0x75, 0x76, true, false).Equals(end),
-                "捕获中：多余修饰键松开→放行；所需修饰键松开→End");
-            Chk("T76d-hook-scope-release-and-passthrough",
-                HD.Decide(HD.Key.Scope, false, 0x76, false, false, 0x75, 0x76, false, true)
-                    .Equals(new HD.Outcome(HD.Act.Pass, true, HD.Key.None)) &&
-                HD.Decide(HD.Key.CapturePrimary, false, 0x41, false, false, 0x75, 0x76, false, true)
-                    .Equals(new HD.Outcome(HD.Act.Pass, false, HD.Key.CapturePrimary)) &&
-                HD.Decide(HD.Key.Scope, true, 0x75, true, false, 0x75, 0x76, false, true).Equals(begin),
-                "范围键松开→吞掉复位；捕获中无关键放行；范围按住时可按捕获键");
             // T77：Fps 钳制单一事实源（常量 = 文档范围，Normalize 钳越界值）
             Chk("T77a-fps-constants",
                 AppSettings.FpsMin == 10 && AppSettings.FpsMax == 240 && AppSettings.FpsMin < AppSettings.FpsMax,
@@ -1352,30 +1325,7 @@ static class SelfTest
                     "开/关均能序列化往返");
             }
             {
-                // T99 连按两下=免按住录制状态机（R60，Core.ToggleRecord 纯逻辑）
-                // 简化断言：直接逐步核对 Action 与 Next
-                void Step(string name, ToggleRecord.St s, ToggleRecord.Ev e, long hold, bool en,
-                          ToggleRecord.St wantS, ToggleRecord.Act wantA)
-                {
-                    var st = ToggleRecord.Next(s, e, hold, 250, en);
-                    Chk(name, st.Next == wantS && st.Action == wantA,
-                        $"{s}+{e}({hold})→{st.Next}/{st.Action} 期望 {wantS}/{wantA}");
-                }
-                Step("T99a-dbl-off", ToggleRecord.St.Hold, ToggleRecord.Ev.Up, 100, false, ToggleRecord.St.Idle, ToggleRecord.Act.FinishHold);
-                Step("T99b-tap-pending", ToggleRecord.St.Hold, ToggleRecord.Ev.Up, 100, true, ToggleRecord.St.PendingTap, ToggleRecord.Act.None);
-                Step("T99c-dbl-start", ToggleRecord.St.PendingTap, ToggleRecord.Ev.Down, 0, true, ToggleRecord.St.Toggle, ToggleRecord.Act.EnterToggle);
-                Step("T99d-toggle-up-ign", ToggleRecord.St.Toggle, ToggleRecord.Ev.Up, 80, true, ToggleRecord.St.Toggle, ToggleRecord.Act.None);
-                Step("T99e-toggle-dbl-stop", ToggleRecord.St.Toggle, ToggleRecord.Ev.Down, 0, true, ToggleRecord.St.StopArmed, ToggleRecord.Act.ArmStop);
-                Step("T99f-stoparm-up", ToggleRecord.St.StopArmed, ToggleRecord.Ev.Up, 60, true, ToggleRecord.St.StopArmed, ToggleRecord.Act.None);
-                Step("T99g-stoparm-2nd", ToggleRecord.St.StopArmed, ToggleRecord.Ev.Down, 0, true, ToggleRecord.St.Idle, ToggleRecord.Act.FinishToggleStop);
-                Step("T99h-stoparm-expire", ToggleRecord.St.StopArmed, ToggleRecord.Ev.StopWindowElapsed, 0, true, ToggleRecord.St.Toggle, ToggleRecord.Act.None);
-                Step("T99i-tap-expire", ToggleRecord.St.PendingTap, ToggleRecord.Ev.TapWindowElapsed, 0, true, ToggleRecord.St.Idle, ToggleRecord.Act.FinishTap);
-                Step("T99j-toggle-hold-stop", ToggleRecord.St.Toggle, ToggleRecord.Ev.Up, 500, true, ToggleRecord.St.Idle, ToggleRecord.Act.FinishHold);
-                Step("T99k-hold-stop", ToggleRecord.St.Hold, ToggleRecord.Ev.Up, 600, true, ToggleRecord.St.Idle, ToggleRecord.Act.FinishHold);
-                // tapMs=0（全部长按）时不产生 PendingTap：用 0 阈值再验一条
-                var zero = ToggleRecord.Next(ToggleRecord.St.Hold, ToggleRecord.Ev.Up, 100, 0, true);
-                Chk("T99m-thr0-nodbl", zero.Action == ToggleRecord.Act.FinishHold, "阈值 0 → 无点按窗，直接长按结束");
-                Chk("T99n-setting-default", new AppSettings().DoubleTapRecord, "连按录制默认开");
+                // T99 连按两下=免按住录制状态机随旧 F6/F7 热键路径退役（R126 B2）；保留 T128a 光标默认断言
                 Chk("T128a-cursor-default", new AppSettings().RecordIncludeCursor, "录制包含鼠标指针默认开（无回归）");
             }
             {
@@ -1804,25 +1754,8 @@ static class SelfTest
                     conv == null ? "null" : $"BGR→BGRA {conv.Bgra[0]},{conv.Bgra[1]},{conv.Bgra[2]},{conv.Bgra[3]}");
                 Chk("T121c-null", FrameCapture.Services.BgraImage.FromSource(null) == null, "null → null");
             }
-            // T122 暂停全局热键决策（R94，HookDecision.Decide paused 参数）：暂停时任何按下键都不启动、不吞；
-            // 进行中的捕获仍能收尾；未暂停行为不变（默认参数）。
-            {
-                var pass = new HD.Outcome(HD.Act.Pass, false, HD.Key.None);
-                Chk("T122a-paused-capture",
-                    HD.Decide(HD.Key.None, true, 0x75, true, false, 0x75, 0x76, false, true, paused: true).Equals(pass),
-                    "暂停：捕获键按下→放行不启动不吞");
-                Chk("T122b-paused-scope",
-                    HD.Decide(HD.Key.None, true, 0x76, false, true, 0x75, 0x76, false, true, paused: true).Equals(pass),
-                    "暂停：范围键按下→放行不启动");
-                Chk("T122c-paused-inprogress-end",
-                    HD.Decide(HD.Key.CapturePrimary, false, 0x75, false, false, 0x75, 0x76, false, true, paused: true)
-                        .Equals(new HD.Outcome(HD.Act.EndCapture, true, HD.Key.None)),
-                    "暂停：进行中的捕获松开仍正常收尾 End");
-                Chk("T122d-unpaused-default-unchanged",
-                    HD.Decide(HD.Key.None, true, 0x75, true, false, 0x75, 0x76, false, true)
-                        .Equals(new HD.Outcome(HD.Act.BeginCapture, true, HD.Key.CapturePrimary)),
-                    "未暂停（默认参数）：捕获键仍触发 Begin，旧调用零改动");
-            }
+            // T122 暂停全局热键决策随旧 HookDecision 决策表退役（R126 B2）：暂停语义现由 HotkeyManager
+            // 「Paused 时不喂 KeySink」实现（见 HotkeyManager.HandleKey），属宿主接线，无独立纯逻辑可测。
             // T123 适配倍率封顶（R97，ZoomMath.FitScale）：小图不放大（默认 1:1 清晰），大图仍缩小适配
             {
                 Chk("T123a-small-no-upscale", Math.Abs(ZoomMath.FitScale(900, 700, 320, 220) - 1.0) < 1e-9,
@@ -2113,20 +2046,20 @@ static class SelfTest
         }
         // T133 OCR 预览优先默认（R120 D2）：结果窗默认开（预览即选取入口，不自动复制）
         Chk("T133-ocr-preview-default", new AppSettings().OcrShowResult, "识别结果窗默认开（预览优先）");
-        // T134 键盘钩子在「无旧热键但有手势 KeySink」时仍安装（R120 B2 修复）：
-        // 手势占用全部热键→旧热键清空→若此时不装钩子，手势 KeySink 永不收到键、手势全哑；
-        // 且滚动截图 Esc 取消、浮窗 Enter/Esc 也依赖此钩子。
+        // T134 键盘钩子仅在「有手势 KeySink」时安装（R120 B2 修复，R126 B2 改无参 Install）：
+        // 手势层是默认触发路径，钩子把键喂给 KeySink；滚动截图 Esc 取消、浮窗 Enter/Esc 也依赖此钩子。
+        // 无 KeySink（手势关闭）时不装钩子，零开销。
         {
             bool sinkInstalled;
             var hk = new FrameCapture.Services.HotkeyManager();
-            try { hk.KeySink = (vk, down, mods, time) => false; hk.Install("", ""); sinkInstalled = hk.Installed; }
+            try { hk.KeySink = (vk, down, mods, time) => false; hk.Install(); sinkInstalled = hk.Installed; }
             finally { hk.Dispose(); }
             bool idleNotInstalled;
             var hk2 = new FrameCapture.Services.HotkeyManager();
-            try { hk2.Install("", ""); idleNotInstalled = hk2.Installed; }
+            try { hk2.Install(); idleNotInstalled = hk2.Installed; }
             finally { hk2.Dispose(); }
-            Chk("T134a-hook-for-keysink", sinkInstalled, "有手势 KeySink 时即使无旧热键也装钩子（否则手势永不触发）");
-            Chk("T134b-no-hook-when-idle", !idleNotInstalled, "无 KeySink 且无热键时不装钩子（零开销）");
+            Chk("T134a-hook-for-keysink", sinkInstalled, "有手势 KeySink 时装钩子（否则手势永不触发）");
+            Chk("T134b-no-hook-when-idle", !idleNotInstalled, "无 KeySink 时不装钩子（零开销）");
         }
         // T135 QQ 风味选区动作（R120 B2）：capture.selection / record.selection 注册 + Ctrl+Alt+A/R 解析成 Chord
         {

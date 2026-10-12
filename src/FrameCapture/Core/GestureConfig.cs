@@ -180,4 +180,26 @@ public sealed class GestureConfig
         }
         Seeded = true;
     }
+
+    /// <summary>主捕获键文本（供欢迎卡/帮助展示）：取首个启用的 tap/hold 绑定的组合键；
+    /// 退化取首个含截图动作的启用绑定；都没有则默认键。</summary>
+    public string CaptureKeyText()
+    {
+        foreach (var b in Bindings)
+            if (b.Enabled && (b.Trigger is "Tap" or "Hold" or "HoldRelease") && HotkeySpec.Parse(b.Chord) != null)
+                return b.Chord;
+        foreach (var b in Bindings)
+            if (b.Enabled && b.Actions.Contains(GestureActions.CaptureSelection) && HotkeySpec.Parse(b.Chord) != null)
+                return b.Chord;
+        return DefaultCaptureKey;
+    }
+
+    /// <summary>主选区键文本：取首个含选区动作的启用绑定；无则默认键。</summary>
+    public string ScopeKeyText()
+    {
+        foreach (var b in Bindings)
+            if (b.Enabled && b.Actions.Contains(GestureActions.ScopeSelect) && HotkeySpec.Parse(b.Chord) != null)
+                return b.Chord;
+        return DefaultScopeKey;
+    }
 }

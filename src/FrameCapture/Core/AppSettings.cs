@@ -11,11 +11,8 @@ public sealed class AppSettings
     public const int FpsMin = 10;
     public const int FpsMax = 240;
 
-    public string ScopeHotkey { get; set; } = "Ctrl+Shift+R";
-    public string CaptureHotkey { get; set; } = "Ctrl+Shift+G";
-
-    /// <summary>点按判定阈值(ms)。按下到放开小于该值视为点按(单帧)。0 = 全部按长按处理。</summary>
-    public int TapThresholdMs { get; set; } = 250;
+    // R126 B2：旧 ScopeHotkey/CaptureHotkey/TapThresholdMs 退役——捕获/选区改由手势引擎的 tap/hold 触发，
+    // 点按阈值即每条绑定的 LongPressMs（默认 250ms）。旧 settings.json 里残留的这些键反序列化时被忽略，无害。
     public bool UseWgc { get; set; } = true;
 
     /// <summary>长按捕获帧率。</summary>
@@ -58,9 +55,6 @@ public sealed class AppSettings
     /// <summary>选区吸附取客户区（排除窗口边框/标题栏，适合游戏画面）。</summary>
     public bool SnapContentArea { get; set; } = false;
 
-    /// <summary>点按捕获快捷键时总是先弹出选区，选完立即截图（QQ 式手感）。</summary>
-    public bool TapAlwaysShowsRegion { get; set; } = false;
-
     /// <summary>截图完成后的行为（R83）：toast=弹缩略浮窗可一键进编辑器（默认，兼顾确认与标注）；
     /// editor=复制后直接打开标注编辑器（QQ 式）；copy=只复制不弹窗不开编辑器（最快，轮廓闪一下作反馈）。
     /// 三态覆盖「要确认」「要标注」「只要剪贴板」三类人群，非法值回落 toast。</summary>
@@ -71,9 +65,6 @@ public sealed class AppSettings
 
     /// <summary>「按住 = 录制」教学提示是否已展示过（首次真正起录后不再打扰，R43）。</summary>
     public bool RecHintShown { get; set; } = false;
-
-    /// <summary>连按两下捕获键 = 开始录制（免按住），再连按两下结束（R60，ToggleRecord 状态机）。</summary>
-    public bool DoubleTapRecord { get; set; } = true;
 
     /// <summary>捕获完成后除写剪贴板外，再存一份文件副本到本地目录（R63）：截图存 PNG、录制按 RecordFormat 存 MP4/WebM（未装 ffmpeg 回退 GIF）。
     /// 默认关（不意外落盘）；开启后写盘失败只记日志，绝不影响剪贴板主流程。</summary>
@@ -167,13 +158,12 @@ public sealed class AppSettings
 
     public void Normalize()
     {
-        TapThresholdMs = Math.Clamp(TapThresholdMs, 0, 1000);
         Fps = Math.Clamp(Fps, FpsMin, FpsMax);
         AgentStripFrames = Math.Clamp(AgentStripFrames, 4, 24);
         if (Theme is not ("system" or "light" or "dark")) Theme = "system";
         if (AfterCapture is not ("toast" or "editor" or "copy" or "pin")) AfterCapture = "toast";
         Gestures ??= new GestureConfig();
-        Gestures.SeedIfNeeded(CaptureHotkey, ScopeHotkey);   // R126 一次性：空配置播种「轻点截图+按住录制」默认集
+        Gestures.SeedIfNeeded(GestureConfig.DefaultCaptureKey, GestureConfig.DefaultScopeKey);   // R126 一次性：空配置播种「轻点截图+按住录制」默认集
         ToastSeconds = ToastSeconds <= 0 ? 0 : Math.Clamp(ToastSeconds, 0.5, 60);
         if (RegionW < 16 || RegionH < 16)
         {

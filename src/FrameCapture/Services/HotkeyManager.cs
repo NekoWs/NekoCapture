@@ -6,22 +6,15 @@ using FrameCapture.Native;
 namespace FrameCapture.Services;
 
 /// <summary>
-/// 基于低级键盘钩子的全局快捷键。支持按下/释放事件（长按捕获所需）。
-/// 回调内绝不抛异常、不做耗时操作：决策表（<see cref="HookDecision"/>）是纯逻辑，
-/// 动作经 AppHost.Dispatch 非阻塞投递到 UI 线程；慢回调看门狗把违反不变量的
-/// 现场写进 trace（"hook slow Nms"），回归脚本据此断言。
+/// 基于低级键盘钩子的全局键事件源。R126 B2：旧 F6/F7 捕获/选区热键退役后，本类不再自带热键决策，
+/// 钩子只承载三件事——手势层喂键（<see cref="KeySink"/>，唯一的全局触发路径）、滚动截图 Esc 全局取消、
+/// 截图浮窗 Enter/Esc。回调内绝不抛异常、不做耗时操作：动作经 AppHost.Dispatch 非阻塞投递到 UI 线程；
+/// 慢回调看门狗把违反不变量的现场写进 trace（"hook slow Nms"），回归脚本据此断言。
 /// </summary>
 public sealed class HotkeyManager : IDisposable
 {
     private IntPtr _hook = IntPtr.Zero;
     private Win32.LowLevelKeyboardProc? _proc;
-    private HotkeySpec? _scope, _capture;
-    private volatile HookDecision.Key _pressed = HookDecision.Key.None;
-
-    public event Action? ScopeRequested;
-    public event Action? CaptureBegin;
-    /// <summary>松开捕获键：参数=按住时长 ms（钩子事件时间戳差，不受 UI 线程忙/初始化耗时影响）。</summary>
-    public event Action<long>? CaptureEnd;
     /// <summary>滚动截图进行中按 Esc → 取消（R90）。控制条不抢焦点，Esc 本会落到目标窗，故全局钩子拦截。</summary>
     public event Action? ScrollCancel;
     /// <summary>滚动截图会话是否活跃（由控制条生命周期置位：Show=true、Closed=false）。
@@ -36,7 +29,6 @@ public sealed class HotkeyManager : IDisposable
     /// 让键完整落到前台应用——游戏/演示/与其他软件热键冲突时临时避让。托盘「暂停全局热键」切换，
     /// 运行时状态（不持久化，重启自动恢复工作）。滚动会话的 Esc 取消仍优先于本判断。</summary>
     public static volatile bool Paused;
-    uint _downTick; // BeginCapture 事件的 GetTickCount 时间戳
 
     public bool Installed => _hook != IntPtr.Zero;
 
@@ -58,21 +50,17 @@ public sealed class HotkeyManager : IDisposable
     /// <summary>慢回调看门狗阈值（ms）：钩子回调占着全系统输入链，超过即记 trace。</summary>
     const double HookSlowWarnMs = 50;
 
-    public void Install(string scopeText, string captureText)
+    /// <summary>装全局低级键盘钩子。R126 B2：旧 F6/F7 热键退役后，钩子只承载手势喂键（KeySink）、
+    /// 滚动截图 Esc 全局取消、截图浮窗 Enter/Esc。手势层关闭（KeySink=null）时不装——
+    /// 滚动/浮窗会话只在手势触发时才活跃，故无 KeySink 即无会话需求。</summary>
+    public void Install()
     {
         Uninstall();
-        var scope = HotkeySpec.Parse(scopeText);
-        var capture = HotkeySpec.Parse(captureText);
-        // 钩子还承载：手势层喂键（KeySink）、滚动截图 Esc 全局取消、浮窗 Enter/Esc——
-        // 只要任一消费者存在就必须装，哪怕两个旧热键都空（手势占用全部热键时正是这种情形）。
-        if (scope == null && capture == null && KeySink == null) return;
-
-        _scope = scope;
-        _capture = capture;
+        if (KeySink == null) return;
         _proc = HookProc;
         _hook = Win32.SetWindowsHookExW(Win32.WH_KEYBOARD_LL, _proc,
             Win32.GetModuleHandleW(null), 0);
-        FrameCapture.Core.Trace.Log($"Install scope={scopeText} capture={captureText} hook={_hook}");
+        FrameCapture.Core.Trace.Log($"Install hook={_hook}");
         if (_hook == IntPtr.Zero)
         {
             _proc = null;
@@ -88,27 +76,6 @@ public sealed class HotkeyManager : IDisposable
             _hook = IntPtr.Zero;
         }
         _proc = null;
-        _scope = _capture = null;
-        _pressed = HookDecision.Key.None;
-    }
-
-    private static bool ModifiersMatch(HotkeySpec s)
-    {
-        bool ctrl = Win32.IsKeyDown(Win32.VK_CONTROL);
-        bool alt = Win32.IsKeyDown(Win32.VK_MENU);
-        bool shift = Win32.IsKeyDown(Win32.VK_SHIFT);
-        bool win = Win32.IsKeyDown(Win32.VK_LWIN) || Win32.IsKeyDown(Win32.VK_RWIN);
-        return ctrl == s.Ctrl && alt == s.Alt && shift == s.Shift && win == s.Win;
-    }
-
-    /// <summary>当前按下状态是否仍满足捕获组合（允许多余修饰键已松开）。</summary>
-    private static bool ModifiersStillSatisfied(HotkeySpec s)
-    {
-        bool ctrl = Win32.IsKeyDown(Win32.VK_CONTROL);
-        bool alt = Win32.IsKeyDown(Win32.VK_MENU);
-        bool shift = Win32.IsKeyDown(Win32.VK_SHIFT);
-        bool win = Win32.IsKeyDown(Win32.VK_LWIN) || Win32.IsKeyDown(Win32.VK_RWIN);
-        return (!s.Ctrl || ctrl) && (!s.Alt || alt) && (!s.Shift || shift) && (!s.Win || win);
     }
 
     private IntPtr HookProc(int nCode, IntPtr wParam, IntPtr lParam)
@@ -126,8 +93,8 @@ public sealed class HotkeyManager : IDisposable
         return swallow ? 1 : Win32.CallNextHookEx(_hook, nCode, wParam, lParam);
     }
 
-    /// <summary>查决策表 → 置状态 → 投递动作；返回是否吞掉本键。
-    /// 热路径只有几次整数比较：修饰键状态（IsKeyDown）只在可能改变决策时才查。</summary>
+    /// <summary>喂手势引擎 → 处理滚动/浮窗会话键 → 决定是否吞键。返回是否吞掉本键。
+    /// 热路径只有几次整数比较：修饰键状态（IsKeyDown）只在手势层需要时查。</summary>
     private bool HandleKey(IntPtr lParam)
     {
         var info = Marshal.PtrToStructure<Win32.KBDLLHOOKSTRUCT>(lParam);
@@ -137,7 +104,7 @@ public sealed class HotkeyManager : IDisposable
         if (Environment.GetEnvironmentVariable("FC_TRACE_KEYS") == "1")
             FrameCapture.Core.Trace.Log($"hook key={info.vkCode} down={isDown} installed={Installed}");
 
-        // R120 B2：先把手势引擎喂饱（早于旧热键判定/吞键，保证引擎看到所有键）。手势层关闭时 KeySink=null，零开销。
+        // 手势引擎喂键（唯一的全局触发路径，R126 B2）。手势层关闭时 KeySink=null，零开销。
         // Paused 时不喂：用户暂停全局热键=要求不拦截任何键，手势层同样避让。
         // 返回值=是否独占吞键（命中带具体键的组合键且开启 Exclusive）。
         bool gestureSwallow = false;
@@ -157,36 +124,7 @@ public sealed class HotkeyManager : IDisposable
         // 独占吞键（R120 B2）：手势命中「带具体键的组合键」→ 吞掉本键，前台程序收不到（QQ 式全局独占）。
         // 放在滚动/浮窗判定之后：那两类是会话级优先；且手势只绑具体键(A/R)，不会误吞 Esc/Enter。
         if (gestureSwallow) { FrameCapture.Core.Trace.Log("gesture swallow"); return true; }
-
-        var cap = _capture;
-        var scp = _scope;
-        bool primary = cap != null && vk == cap.VirtualKey;
-        bool isMod = vk is Win32.VK_CONTROL or Win32.VK_MENU or Win32.VK_SHIFT
-            or Win32.VK_LWIN or Win32.VK_RWIN;
-
-        bool captureMatch = isDown && primary && cap != null && ModifiersMatch(cap);
-        bool scopeMatch = isDown && !primary && scp != null && vk == scp.VirtualKey && ModifiersMatch(scp);
-        bool modsOk = true;
-        if (_pressed == HookDecision.Key.CapturePrimary && !isDown && isMod && cap != null)
-            modsOk = ModifiersStillSatisfied(cap);
-
-        var o = HookDecision.Decide(_pressed, isDown, vk, captureMatch, scopeMatch,
-            cap?.VirtualKey ?? 0, scp?.VirtualKey ?? 0, isMod, modsOk, Paused);
-        _pressed = o.Next;
-        switch (o.Action)
-        {
-            case HookDecision.Act.BeginCapture:
-                _downTick = info.time;
-                CaptureBegin?.Invoke();
-                break;
-            case HookDecision.Act.EndCapture:
-                // info.time=系统事件时间戳：即便 UI 线程正忙（首次 WGC 初始化 ~400ms），
-                // 点按/长按判定仍按用户真实按住时长，不会把"点按"误判成"长按"（R42 实测抓到）。
-                CaptureEnd?.Invoke(unchecked((int)(info.time - _downTick)));
-                break;
-            case HookDecision.Act.ScopeSelect: ScopeRequested?.Invoke(); break;
-        }
-        return o.Swallow;
+        return false;
     }
 
     public void Dispose() => Uninstall();

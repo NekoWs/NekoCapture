@@ -1873,3 +1873,12 @@ status: done
 - SelfTest T146a-f（轻点/长按抬起/零丢帧轻点/零丢帧长按/阈值起录/认领吞键含自动重复），地板 397→**403**。
 - **② 默认手势集 + 手势成默认路径**：`GestureConfig.Enabled` 默认改 true；新增 `DefaultTapHoldSet`（捕获键 Tap→选区截图 / Hold→起录 / HoldRelease→停止，选区键 Chord→选区，按住阈值 250ms）+ `Seeded` 一次性迁移（`SeedIfNeeded`：空配置才播种、尊重已有绑定、幂等）；`GestureService` Tick 泵扩展到键盘 Hold（原来只给鼠标触发泵，否则 Hold 永不触发）。对用户当前设置零影响（已启用、绑定非空→不播种）。SelfTest T147a-e，地板 403→**408**。
 - 待办（B2 后续轮）：删 AppSettings 旧字段/HookDecision/ToggleRecord/HotkeyManager 旧路径；AppHost 全走手势；TrayService/HelpWindow/WelcomeToast/App.xaml.cs 去旧引用；设置窗删旧热键行。
+
+**③ 删旧路径·手势成唯一触发（B2 收尾，地板 408→387）**
+- **删旧字段**：`AppSettings` 去 `ScopeHotkey`/`CaptureHotkey`/`TapThresholdMs`/`TapAlwaysShowsRegion`/`DoubleTapRecord`（旧 settings.json 残留键反序列化忽略，无害）；`Normalize` 去 TapThresholdMs 钳制，`SeedIfNeeded` 改用 `GestureConfig.DefaultCaptureKey/DefaultScopeKey` 常量。
+- **删文件**：`Core/HookDecision.cs`（旧 F6/F7 决策表）、`Core/ToggleRecord.cs`（连按两下状态机）——点按/按住时序已折进 GestureCore。
+- **HotkeyManager**：删 `_scope/_capture/_pressed` + `ScopeRequested/CaptureBegin/CaptureEnd` 事件 + `ModifiersMatch/StillSatisfied`；`Install()` 改无参（仅 `KeySink!=null` 时装钩子）；`HandleKey` 精简为「喂 KeySink（非暂停）→ 滚动 Esc → 浮窗 Enter/Esc → 手势吞键」。保留 KeySink/CurrentMods/HookProc/ScrollActive/ToastActive/Paused。
+- **AppHost**：去旧事件接线；`InstallHotkeys()` = `Gestures.Apply(...); Hotkeys.Install();`；重载日志改报手势数。
+- **CaptureController**：删 `BeginCapture/EndCapture/EnterToggleRecording` + `_tr/_tapWindowTimer/_stopWindowTimer`；`FinishCapture` 去「点按→单帧」分支（点按判定上移引擎），只处理真录制收尾；REC 徽标延迟用固定 `RecBadgeDelayMs=250`；新增 `CaptureStoredStill()`（托盘「立即捕获·按当前范围」的干净静态截图，替代旧 BeginCapture+600ms+EndCapture 绕路）。
+- **接线去旧引用**：TrayService（tooltip 报手势数、立即捕获走 CaptureStoredStill）、HelpWindow（HK() 从手势绑定推导键名、删「连按两下」行、按住/轻点文案更新）、WelcomeToast+App.xaml.cs（`Gestures.CaptureKeyText()/ScopeKeyText()`）、SettingsWindow（删「选区/捕获快捷键」两行 + 同键警示 + HotkeyRow/UpdateHkWarn/BuildSpec/KeyNameOf，改「用手势配置器管理」提示）。`GestureConfig` 加 `CaptureKeyText/ScopeKeyText` 助手（从绑定推导主键文本供展示）。
+- **SelfTest 覆盖迁移**：删 T76 决策表(4)/T99 连按状态机(13)/T122 暂停决策(4) 共 21 条——其语义已由 GestureEngine T146（tap/hold/holdrelease/认领吞键）+ T147（默认集/播种）覆盖；T134 改无参 `Install()`。地板 408→**387**（合法下降：删的是退役路径的死测试，净覆盖不减反增）。护栏 `-MinSelfTestPass 387` PASS。

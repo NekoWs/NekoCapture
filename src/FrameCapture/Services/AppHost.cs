@@ -34,9 +34,6 @@ public sealed class AppHost
         Gestures = new GestureService(this);
         Tray = new TrayService(this);
 
-        Hotkeys.ScopeRequested += () => Dispatch(Controller.BeginScopeSelection);
-        Hotkeys.CaptureBegin += () => Dispatch(Controller.BeginCapture);
-        Hotkeys.CaptureEnd += ms => Dispatch(() => Controller.EndCapture(ms));
         Hotkeys.ScrollCancel += () => Dispatch(Controller.ScrollCancel); // R90：滚动截图中 Esc 全局取消
         InstallHotkeys();
 
@@ -70,15 +67,10 @@ public sealed class AppHost
     public void InstallHotkeys()
     {
         var s = Settings.Current;
-        // R120 B2：先应用手势（填引擎绑定表 + 挂键事件汇/鼠标钩子），再据「键触发占用」决定旧热键是否让位。
+        // R126 B2：手势是唯一的全局触发路径。先应用手势（填引擎绑定表 + 挂键事件汇/鼠标钩子，置 KeySink），
+        // 再装键盘钩子（Install 据 KeySink 决定装不装）。旧 F6/F7 捕获/选区热键已退役。
         Gestures.Apply(s.Gestures);
-        string scope = s.ScopeHotkey, capture = s.CaptureHotkey;
-        if (s.Gestures.Enabled)
-        {
-            if (Gestures.ClaimsKey(capture)) capture = "";
-            if (Gestures.ClaimsKey(scope)) scope = "";
-        }
-        Hotkeys.Install(scope, capture);
+        Hotkeys.Install();
     }
 
     System.IO.FileSystemWatcher? _settingsWatcher;
@@ -98,7 +90,7 @@ public sealed class AppHost
                 var s = Settings.Current;
                 Theme.Apply(s.Theme, s.Accent);
                 InstallHotkeys();
-                FrameCapture.Core.Trace.Log($"settings reloaded: scope={s.ScopeHotkey} capture={s.CaptureHotkey}");
+                FrameCapture.Core.Trace.Log($"settings reloaded: gestures={s.Gestures.Enabled}/{s.Gestures.Bindings.Count}");
             };
             _settingsWatcher = new System.IO.FileSystemWatcher(System.IO.Path.GetDirectoryName(SettingsService.FilePath)!, "settings.json")
             { NotifyFilter = System.IO.NotifyFilters.LastWrite, EnableRaisingEvents = true };

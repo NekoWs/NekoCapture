@@ -17,8 +17,6 @@ namespace FrameCapture.Overlays;
 public sealed class SettingsWindow : Window
 {
     readonly SettingsService _settings;
-    Action? _hkCancel; // 当前正在捕获新热键的行的取消动作（null=无）
-    TextBlock? _hkWarn; // 两热键同键时的内联警示（管理器按"捕获优先"消歧，但用户应知情）
     int _cat;           // 当前分页索引（R119）
     int _restoreCat;    // 重建（改主题/强调色）时要恢复的分页索引
 
@@ -99,20 +97,15 @@ public sealed class SettingsWindow : Window
         }
         StackPanel panel = Cat("快捷键", "\uE765");
 
-        // ---- 快捷键 ----
-        panel.Children.Add(HotkeyRow("\uE7A8", "选区快捷键", "呼出区域选取窗", "scope")); // 裁剪角标=选取；E71A 留给"轮廓"行避免重复
-        panel.Children.Add(HotkeyRow("\uE7F4", "捕获快捷键", "点按 = 单帧 / 长按 = 录屏", "capture"));
-        _hkWarn = new TextBlock
+        // ---- 快捷键（R126 B2：旧「选区/捕获快捷键」两行退役，键位统一由手势配置器管理）----
+        panel.Children.Add(new TextBlock
         {
-            Visibility = Visibility.Collapsed,
-            Foreground = new SolidColorBrush(Color.FromRgb(0xD1, 0x8B, 0x00)),
-            FontSize = 12,
-            Margin = new Thickness(32, 2, 0, 4),
+            Foreground = new SolidColorBrush(Theme.TextDim),
+            FontSize = 12.5,
+            Margin = new Thickness(2, 2, 0, 6),
             TextWrapping = TextWrapping.Wrap,
-            Text = "两个热键相同：按下时按「捕获」处理，选区快捷键不会触发。",
-        };
-        panel.Children.Add(_hkWarn);
-        UpdateHkWarn();
+            Text = "捕获键「轻点 = 截图、按住 = 录制」，选区键「组合键 = 选区」——全部键位与触发方式在下方手势配置器里增删改，保存即生效。",
+        });
 
         // ---- 手势配置器入口（R122）：可视化增删改键位绑定，保存即热重载生效 ----
         var geBtn = new Border
@@ -135,11 +128,6 @@ public sealed class SettingsWindow : Window
 
         // ---- 截图 ----
         panel = Cat("截图", "\uE7A8");
-        panel.Children.Add(SliderRow("\uE916", "点按单帧阈值", "按下到放开小于此值算单帧；0 = 全部长按",
-            0, 1000, 50, _settings.Current.TapThresholdMs,
-            v => $"{v / 1000.0:0.00}s", v => _settings.Mutate(s => s.TapThresholdMs = (int)v)));
-        panel.Children.Add(ToggleRow("\uE722", "点按总是先显示选区", "每次点按捕获快捷键会先弹出选区，选完立即截图写入剪贴板（QQ 式手感）；长按录制不受影响",
-            _settings.Current.TapAlwaysShowsRegion, v => _settings.Mutate(s => s.TapAlwaysShowsRegion = v)));
         panel.Children.Add(ToggleRow("\uE7B5", "选区自动截取", "完成选区后立即截取一帧静态图（PNG，同时复制到剪贴板）",
             _settings.Current.AutoCaptureOnSelect, v => _settings.Mutate(s => s.AutoCaptureOnSelect = v)));
         panel.Children.Add(ToggleRow("\uE740", "吸附到控件", "悬停自动吸附窗口内的具体控件：输入框、文字、图片、分组容器等（Snipaste 式，Tab 可上钻到父容器）。依赖应用无障碍接口，不支持时自动回退整窗吸附",
@@ -158,8 +146,6 @@ public sealed class SettingsWindow : Window
 
         // ---- 录制 ----
         panel = Cat("录制", "\uE714");
-        panel.Children.Add(ToggleRow("\uE815", "连按两下 = 录制（免按住）", "连按两下捕获快捷键开始录制（REC 徽标常驻），再连按两下结束进编辑器；按住录制照旧。关闭后点按截图零延迟（双击判定会把点按落地延后约 0.3 秒）",
-            _settings.Current.DoubleTapRecord, v => _settings.Mutate(s => s.DoubleTapRecord = v)));
         var fpsRow = SliderRow("\uEC4A", "录制帧率 (FPS)", "录制时每秒捕获的帧数；开启下方「跟随显示器刷新率」时本项被忽略",
             AppSettings.FpsMin, AppSettings.FpsMax, 5, _settings.Current.Fps,
             v => $"{v:0} fps", v => _settings.Mutate(s => s.Fps = (int)v));
@@ -341,11 +327,9 @@ public sealed class SettingsWindow : Window
         root.Child = dock;
         Content = root;
 
-        // 窗级 Esc 先于热键行的 PreviewKeyDown（tunnel 自上而下）：捕获新键期间必须放行，
-        // 否则"Esc 取消捕获"会变成"关掉整个设置窗"（R23 修）；F1 同理（录键中 F1 是新热键候选）
+        // 窗级 Esc 关窗、F1 打开帮助。
         PreviewKeyDown += (_, e) =>
         {
-            if (_hkCancel != null) return;
             if (e.Key == Key.Escape) FrameCapture.Core.Fluent.CloseWithFade(this);
             else if (e.Key == Key.F1) { FrameCapture.Overlays.HelpWindow.ShowOrFocus(); e.Handled = true; }
         };
@@ -467,157 +451,6 @@ public sealed class SettingsWindow : Window
         chip.KeyDown += (_, e) => { if (e.Key is Key.Space or Key.Enter) { Open(); e.Handled = true; } };
         g.Children.Add(chip);
         return g;
-    }
-
-    // ---------- 快捷键捕获框 ----------
-
-    FrameworkElement HotkeyRow(string glyph, string label, string tip, string which)
-    {
-        var g = Row();
-        g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); // 键位盒列
-        g.Children.Add(Icon(glyph, tip));
-        var lbl = new TextBlock
-        {
-            Text = label,
-            FontSize = 13,
-            Foreground = new SolidColorBrush(Theme.Text),
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 0, 10, 0),
-        };
-        Grid.SetColumn(lbl, 1);
-        g.Children.Add(lbl);
-        var box = new Border
-        {
-            CornerRadius = new CornerRadius(6),
-            Background = new SolidColorBrush(Theme.Hover),
-            BorderBrush = new SolidColorBrush(Theme.Stroke),
-            BorderThickness = new Thickness(1),
-            Padding = new Thickness(14, 6, 14, 6),
-            MinWidth = 96,
-            HorizontalAlignment = HorizontalAlignment.Right,
-            Cursor = Cursors.Hand,
-            ToolTip = "点击后按下新快捷键（Esc 取消）",
-        };
-        Grid.SetColumn(box, 2);
-        var tb = new TextBlock
-        {
-            Text = which == "scope" ? _settings.Current.ScopeHotkey : _settings.Current.CaptureHotkey,
-            Foreground = new SolidColorBrush(Theme.Text),
-            FontSize = 13,
-            HorizontalAlignment = HorizontalAlignment.Center,
-        };
-        box.Child = tb;
-        var hbBase = (SolidColorBrush)box.Background;
-        box.MouseEnter += (_, _) =>
-        {
-            var bgh = new SolidColorBrush(hbBase.Color); box.Background = bgh;
-            bgh.BeginAnimation(System.Windows.Media.SolidColorBrush.ColorProperty,
-                new System.Windows.Media.Animation.ColorAnimation(Theme.Press, new System.Windows.Duration(TimeSpan.FromMilliseconds(120))));
-        };
-        box.MouseLeave += (_, _) => { box.Background = new SolidColorBrush(hbBase.Color); };
-        g.Children.Add(box);
-
-        bool capturing = false;
-        Action cancel = null!;
-        cancel = () => { if (!capturing) return; capturing = false; if (ReferenceEquals(_hkCancel, cancel)) _hkCancel = null; Refresh(); UpdateHkWarn(); };
-        box.MouseLeftButtonDown += (_, e) => { Begin(); e.Handled = true; };
-        void Begin()
-        {
-            _hkCancel?.Invoke();           // 同一时刻只允许一行处于捕获态
-            capturing = true; _hkCancel = cancel;
-            tb.Text = "按下新键…";
-            tb.Foreground = new SolidColorBrush(Theme.TextDim);
-            box.BorderBrush = new SolidColorBrush(Theme.Accent);
-            box.Focus();                   // 键盘焦点留在本行，捕获键直达窗级处理器
-        }
-        // R29：键盘可达——Tab 聚焦、空格/Enter 进入捕获（与点击同一路径）
-        box.Focusable = true;
-        box.KeyDown += (_, e) =>
-        {
-            if (!capturing && e.Key is Key.Space or Key.Enter) { Begin(); e.Handled = true; }
-        };
-        box.GotKeyboardFocus += (_, _) => { if (!capturing) box.BorderBrush = new SolidColorBrush(Theme.Accent); };
-        box.LostKeyboardFocus += (_, _) => { if (!capturing) box.BorderBrush = new SolidColorBrush(Theme.Stroke); };
-        PreviewKeyDown += (_, e) =>
-        {
-            if (!capturing) return;
-            e.Handled = true;
-            if (e.Key == Key.Escape) { cancel(); return; }
-            if (e.Key is Key.LeftCtrl or Key.RightCtrl or Key.LeftShift or Key.RightShift
-                or Key.LeftAlt or Key.RightAlt or Key.LWin or Key.RWin) return; // 等主键
-            var mods = e.KeyboardDevice.Modifiers;
-            if (e.Key is Key.F1 or Key.F2 or Key.F3 or Key.F4 or Key.F5 or Key.F6
-                or Key.F7 or Key.F8 or Key.F9 or Key.F10 or Key.F11 or Key.F12)
-            {
-                mods = ModifierKeys.None; // F 键允许裸按
-            }
-            else if (mods == ModifierKeys.None) return; // 必须带修饰键
-
-            string text = BuildSpec(e.Key, mods);
-            if (HotkeySpec.Parse(text) == null) return;
-            if (which == "scope") _settings.Mutate(s => s.ScopeHotkey = text);
-            else _settings.Mutate(s => s.CaptureHotkey = text);
-            cancel();
-        };
-
-        void Refresh()
-        {
-            tb.Foreground = new SolidColorBrush(Theme.Text);
-            tb.Text = which == "scope" ? _settings.Current.ScopeHotkey : _settings.Current.CaptureHotkey;
-            box.BorderBrush = new SolidColorBrush(Theme.Stroke);
-        }
-        return g;
-    }
-
-    void UpdateHkWarn()
-    {
-        if (_hkWarn == null) return;
-        var s = _settings.Current;
-        _hkWarn.Visibility = HotkeySpec.Parse(s.ScopeHotkey) != null && s.ScopeHotkey == s.CaptureHotkey
-            ? Visibility.Visible : Visibility.Collapsed;
-    }
-
-    static string BuildSpec(Key key, ModifierKeys mods)
-    {
-        var parts = new List<string>();
-        if (mods.HasFlag(ModifierKeys.Control)) parts.Add("Ctrl");
-        if (mods.HasFlag(ModifierKeys.Alt)) parts.Add("Alt");
-        if (mods.HasFlag(ModifierKeys.Shift)) parts.Add("Shift");
-        if (mods.HasFlag(ModifierKeys.Windows)) parts.Add("Win");
-        parts.Add(KeyNameOf(key));
-        return string.Join("+", parts);
-    }
-
-    static string KeyNameOf(Key key)
-    {
-        if (key >= Key.D0 && key <= Key.D9) return ((char)('0' + (key - Key.D0))).ToString();
-        if (key >= Key.A && key <= Key.Z) return key.ToString();
-        if (key >= Key.F1 && key <= Key.F24) return key.ToString();
-        if (key >= Key.NumPad0 && key <= Key.NumPad9) return "NumPad" + (key - Key.NumPad0);
-        return key switch
-        {
-            Key.Space => "Space",
-            Key.Enter => "Return",
-            Key.Escape => "Escape",
-            Key.Tab => "Tab",
-            Key.Up => "Up",
-            Key.Down => "Down",
-            Key.Left => "Left",
-            Key.Right => "Right",
-            Key.PageUp => "Prior",
-            Key.PageDown => "Next",
-            Key.Home => "Home",
-            Key.End => "End",
-            Key.Insert => "Insert",
-            Key.Delete => "Delete",
-            Key.Back => "Back",
-            Key.OemPlus => "Oemplus",
-            Key.OemMinus => "OemMinus",
-            Key.OemQuestion => "Oemquestion",
-            Key.OemPeriod => "OemPeriod",
-            Key.OemComma => "Oemcomma",
-            _ => key.ToString(),
-        };
     }
 
     // ---------- 滑杆行 ----------

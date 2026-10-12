@@ -72,7 +72,7 @@ public partial class App : System.Windows.Application
                 var st = Services.AppHost.Current.Settings;
                 if (st.Current.FirstRunHintShown) return;
                 st.Mutate(s => s.FirstRunHintShown = true);
-                Overlays.WelcomeToast.Show(st.Current.CaptureHotkey, st.Current.ScopeHotkey);
+                Overlays.WelcomeToast.Show(st.Current.Gestures.CaptureKeyText(), st.Current.Gestures.ScopeKeyText());
             }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
 
         // 调试/常驻入口：FrameCapture.exe --settings | --help | --edit-last

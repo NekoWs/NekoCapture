@@ -26,11 +26,8 @@ public sealed class CaptureController : IDisposable
     /// <summary>选区完成后到真正抓取/起录之间的留白(ms)。选区窗已 WDA_EXCLUDEFROMCAPTURE，抓取本就拍不到它；
     /// 这里只留极短一拍让选区窗 Close() 走完（防 WDA 万一失效时把选区界面截进画面）。旧值 220ms 明显拖慢截图。</summary>
     private const int PickerExitMs = 40;
-    private System.Windows.Threading.DispatcherTimer? _recBadgeTimer; // R43：按住过阈值→REC 徽标
-    // R60：连按两下=免按住录制（纯逻辑在 Core.ToggleRecord，这里只做引擎/徽标接线）
-    private Core.ToggleRecord.St _tr = Core.ToggleRecord.St.Idle;
-    private System.Windows.Threading.DispatcherTimer? _tapWindowTimer;
-    private System.Windows.Threading.DispatcherTimer? _stopWindowTimer;
+    private System.Windows.Threading.DispatcherTimer? _recBadgeTimer; // R43：起录后延迟点亮 REC 徽标（避免快速点按闪徽标）
+    private const int RecBadgeDelayMs = 250; // R126 B2：旧 TapThresholdMs 退役，徽标延迟用固定值（录制已是确认动作）
     // R78：保留最近一次静态截图帧，供托盘「编辑上次截图」在托盘找回编辑器
     private readonly LastStill _lastStill = new();
     // R124：录制产物留在内存（不落盘、不自动开编辑器）。停止录制只暂存，进编辑器由 edit.lastvideo 动作显式触发。
@@ -68,25 +65,6 @@ public sealed class CaptureController : IDisposable
                 _outline?.StartRecBadge();
                 if (!_settings.Current.RecHintShown) _settings.Mutate(s => s.RecHintShown = true); // 教过一次就收
             }
-        };
-        // 点按窗到期：没等到第二下 → 走原「点按=截图」分支（用 tapMs-1 作合成按住时长）
-        _tapWindowTimer = new System.Windows.Threading.DispatcherTimer
-        { Interval = TimeSpan.FromMilliseconds(Core.ToggleRecord.WindowMs) };
-        _tapWindowTimer.Tick += (_, _) =>
-        {
-            _tapWindowTimer!.Stop();
-            if (_tr != Core.ToggleRecord.St.PendingTap) return;
-            _tr = Core.ToggleRecord.St.Idle;
-            FrameCapture.Core.Trace.Log("tap window elapsed → tap");
-            FinishCapture(Math.Max(0, _settings.Current.TapThresholdMs - 1));
-        };
-        // 结束窗到期：录制中只按了一下 → 无操作，回到录制态
-        _stopWindowTimer = new System.Windows.Threading.DispatcherTimer
-        { Interval = TimeSpan.FromMilliseconds(Core.ToggleRecord.WindowMs) };
-        _stopWindowTimer.Tick += (_, _) =>
-        {
-            _stopWindowTimer!.Stop();
-            if (_tr == Core.ToggleRecord.St.StopArmed) _tr = Core.ToggleRecord.St.Toggle;
         };
     }
 
@@ -187,7 +165,7 @@ public sealed class CaptureController : IDisposable
         var swOpen = System.Diagnostics.Stopwatch.StartNew();
         // 首次教学（R43）：用户还没录过制时，在选区提示里点破"按住=录制"，起录一次后不再打扰
         string? teachTip = _settings.Current.RecHintShown ? null
-            : $"提示：按住或连按两下 {_settings.Current.CaptureHotkey} = 录制 GIF（点按 = 截图）";
+            : "提示：按住 = 录制 GIF（点按 = 截图）";
         // 旧选区可关（R55 设置项）：关=干净屏选区，Enter 确认上次选区随之无意义
         _picker = new RegionPickerWindow(monitor, existing: _settings.Current.ShowLastRegion ? StoredRegion()?.Bounds : null,
             snapContent: _settings.Current.SnapContentArea, teachTip: teachTip, magnifier: _settings.Current.PickerMagnifier,
@@ -304,6 +282,18 @@ public sealed class CaptureController : IDisposable
         var f = LiveCapture.Grab(region.Bounds);
         if (f == null) { FrameCapture.Core.Trace.Log("instant still: grab null"); return; }
         FrameCapture.Core.Trace.Log($"instant still grab {f.W}x{f.H}");
+        DispatchStill(f, region.Bounds, region.DeviceName);
+    }
+
+    /// <summary>R126 B2：托盘「立即捕获（按当前范围）」——对已存范围（无则光标屏全屏）截一帧静态图，
+    /// 走统一「截图后」分派。替代旧 BeginCapture+600ms+EndCapture 的绕路（那会产出一段 600ms GIF，名不副实）。</summary>
+    public void CaptureStoredStill()
+    {
+        if (State != Phase.Idle) return;
+        var region = StoredRegion() ?? FullMonitorAtCursor();
+        var f = LiveCapture.Grab(region.Bounds);
+        if (f == null) { FrameCapture.Core.Trace.Log("stored still: grab null"); return; }
+        FrameCapture.Core.Trace.Log($"stored still grab {f.W}x{f.H}");
         DispatchStill(f, region.Bounds, region.DeviceName);
     }
 
@@ -529,35 +519,8 @@ public sealed class CaptureController : IDisposable
 
     // ---------------- 捕获 ----------------
 
-    /// <summary>按下捕获快捷键。region = 已存范围或光标所在显示器全屏。</summary>
-    public void BeginCapture()
-    {
-        FrameCapture.Core.Trace.Log($"BeginCapture state={State} tr={_tr}");
-        // R60 状态机优先：点按窗内的第二下 → 免按住录制；录制中的第一下 → 装填结束窗；结束窗内的第二下 → 结束
-        var step = Core.ToggleRecord.Next(_tr, Core.ToggleRecord.Ev.Down, 0,
-            _settings.Current.TapThresholdMs, _settings.Current.DoubleTapRecord);
-        switch (step.Action)
-        {
-            case Core.ToggleRecord.Act.EnterToggle:
-                _tr = step.Next; EnterToggleRecording(); return;
-            case Core.ToggleRecord.Act.ArmStop:
-                _tr = step.Next; _stopWindowTimer!.Start(); return;
-            case Core.ToggleRecord.Act.FinishToggleStop:
-                _tr = step.Next; FrameCapture.Core.Trace.Log("toggle record stop"); FinishCapture(-1); return;
-        }
-        var intent = Core.CaptureGuards.OnCaptureHotkey(
-            State == Phase.Capturing, State == Phase.SelectingScope, State == Phase.Editing);
-        if (intent != Core.CaptureGuards.CaptureIntent.StartCapture)
-        {
-            // 非起录路径一律不碰轮廓：旧版在此无条件 HideOutline，导致"编辑器开着再按捕获键"
-            // 把常显范围轮廓永久弄没（任何提前 return 的分支同样误隐藏）。
-            if (intent == Core.CaptureGuards.CaptureIntent.RefocusEditor) _editor?.Activate();
-            return;
-        }
-        BeginCaptureCore();
-    }
-
-    /// <summary>R120 B2：真正起录的核心（从 BeginCapture 抽出，供手势「开始录制」直接复用、跳过点按/双击状态机）。</summary>
+    /// <summary>R120 B2：真正起录的核心（region = 已存范围或光标所在显示器全屏）。
+    /// 由手势「开始录制」（<see cref="StartRecording"/>）与选区录制复用。R126 B2：旧 BeginCapture 点按/双击状态机已退役。</summary>
     void BeginCaptureCore()
     {
         HideOutline(); // 轮廓绝不能入镜：仅真正起录时隐藏
@@ -623,14 +586,13 @@ public sealed class CaptureController : IDisposable
 
         // R61：录制时长上限移除——录到用户停为止；护栏是磁盘（FrameSpool.DiskLow 自动停）。
         State = Phase.Capturing;
-        _tr = Core.ToggleRecord.St.Hold;
         // 系统 WGC 提示边框已关闭，改用自家按范围绘制的轮廓做"正在录制"提示。
         // 该窗以 WDA_EXCLUDEFROMCAPTURE 排除，不会进产物；关掉开关即完全不提示。
         if (_settings.Current.ShowRecordingBorder)
         {
             ShowCaptureScope(region.Bounds);
-            // R43：按住超过点按阈值才点亮 REC 徽标——"还在按=正在录"从隐性约定变成看得见的状态
-            _recBadgeTimer!.Interval = TimeSpan.FromMilliseconds(_settings.Current.TapThresholdMs + 60);
+            // R43：起录后延迟点亮 REC 徽标——"正在录"从隐性约定变成看得见的状态
+            _recBadgeTimer!.Interval = TimeSpan.FromMilliseconds(RecBadgeDelayMs);
             _recBadgeTimer.Start();
         }
     }
@@ -651,58 +613,9 @@ public sealed class CaptureController : IDisposable
         return true;
     }
 
-    /// <summary>放开捕获快捷键。holdMs=钩子测得的真实按住时长（-1=无钩子来源，退回本地时钟）。</summary>
-    public void EndCapture(long holdMs = -1)
-    {
-        if (State != Phase.Capturing) return;
-        var step = Core.ToggleRecord.Next(_tr, Core.ToggleRecord.Ev.Up, holdMs,
-            _settings.Current.TapThresholdMs, _settings.Current.DoubleTapRecord);
-        _tr = step.Next;
-        switch (step.Action)
-        {
-            case Core.ToggleRecord.Act.None:
-                if (_tr == Core.ToggleRecord.St.PendingTap)
-                {
-                    // 短按松手：引擎继续跑（零间隙等第二下），徽标计时收起来——还没确定在录
-                    _recBadgeTimer?.Stop();
-                    _tapWindowTimer!.Start();
-                }
-                // 免按住录制中松手 / 结束窗内松手：都不停（结束只认"再连按两下"）
-                return;
-            case Core.ToggleRecord.Act.FinishHold:
-                FinishCapture(holdMs);
-                return;
-        }
-    }
-
-    /// <summary>R60：点按窗内等来第二下 → 免按住录制。引擎本来就在跑（零间隙），这里只把状态"说清楚"：
-    /// REC 徽标立即常驻并写明结束方式；用户关了录制边框时挂"只徽标不画框"的提示窗。</summary>
-    private void EnterToggleRecording()
-    {
-        FrameCapture.Core.Trace.Log("toggle record start");
-        _recBadgeTimer?.Stop();
-        var bounds = _pendingRegion?.Bounds ?? default;
-        if (_settings.Current.ShowRecordingBorder)
-        {
-            ShowCaptureScope(bounds);
-            _outline?.SetBorderVisible(true);
-        }
-        else if (_outline != null && bounds.W > 0)
-        {
-            _outline.SetRegion(bounds);
-            _outline.ShowNoActivate();          // 先显示（内部 ResetBorder 会画 2px 框）
-            _outline.SetBorderVisible(false);   // 再关框——顺序反了会被 ShowNoActivate 的 ResetBorder 重新画出来（R119 修「关了仍显示蓝框」）
-        }
-        _outline?.StartRecBadge(toggle: true);
-        if (!_settings.Current.RecHintShown) _settings.Mutate(s => s.RecHintShown = true);
-    }
-
     private void FinishCapture(long holdMs = -1, bool openEditor = true)
     {
         FrameCapture.Core.Trace.Log("FinishCapture");
-        _tapWindowTimer?.Stop();
-        _stopWindowTimer?.Stop();
-        _tr = Core.ToggleRecord.St.Idle;
         _recBadgeTimer?.Stop();
         // 徽标与轮廓的退场延后到产物就绪（见 RetireCaptureOutline）：录制路径期间先挂「处理中…」，
         // 免得连按两下结束后、编辑器构造那段 UI 冻结期界面空着像没反应（R119）。
@@ -736,32 +649,8 @@ public sealed class CaptureController : IDisposable
             if (frames.Count == 0) { RetireCaptureOutline(); spoolList?.Dispose(); State = Phase.Idle; return; }
         }
 
-        // 点按 → 单帧
-        if (_settings.Current.TapThresholdMs > 0 && durMs < _settings.Current.TapThresholdMs)
-        {
-            // QQ 式手感：点按总是先显示选区，选完立即截图（不开编辑器）
-            if (_settings.Current.TapAlwaysShowsRegion)
-            {
-                FrameCapture.Core.Trace.Log("tap→picker (always-show-region)");
-                RetireCaptureOutline();
-                spoolList?.Dispose();
-                State = Phase.Idle;
-                BeginScopeSelection();
-                _captureAfterSelect = true;
-                return;
-            }
-            // 点按直出（未开「点按总是先显示选区」）：走与选区路径一致的「截图后」分派
-            // （复制/提示/贴图/编辑器 + 提示音），不再无脑进编辑器（R119 修复：此前直出绕过 AfterCapture 与提示音）。
-            RetireCaptureOutline();
-            spoolList?.Dispose();
-            State = Phase.Idle;
-            var sreg = _pendingRegion?.Bounds ?? new RectI(0, 0, frames[^1].W, frames[^1].H);
-            var sdev = _pendingRegion?.DeviceName ?? "";
-            var still = LiveCapture.Grab(sreg) ?? frames[^1]; // 干净 GDI 帧（不含光标），与选区路径一致；抓不到退回已录帧
-            DispatchStill(still, sreg, sdev);
-            return;
-        }
-
+        // R126 B2：点按/长按判定已上移到手势引擎（Tap→截图动作、Hold/HoldRelease→录制）。
+        // FinishCapture 现在只处理「真录制」收尾：产物一律按录制走，不再有「点按→单帧」分支。
         var region = _pendingRegion ?? new ScreenRegion("", frames[0].W > 0 ? new RectI(0, 0, frames[0].W, frames[0].H) : default);
         var monitor = Monitors.ByDevice(region.DeviceName);
         var seq = new CapturedSequence

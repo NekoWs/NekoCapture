@@ -45,7 +45,7 @@ public sealed class TrayService : IDisposable
             return;
         }
         string region = s.RegionW >= 16 ? $"范围 {s.RegionW}×{s.RegionH} · {s.Fps}fps" : "未设范围 · 双击图标设置";
-        string tip = $"FrameCapture\n捕获 {s.CaptureHotkey} · 选区 {s.ScopeHotkey}\n{region}";
+        string tip = $"FrameCapture\n手势 {s.Gestures.Bindings.Count} 条 · {region}";
         _icon.Text = tip.Length <= 63 ? tip : "FrameCapture"; // NotifyIcon.Text 上限 63 字符
     }
 
@@ -86,14 +86,7 @@ public sealed class TrayService : IDisposable
         Item("设置捕获范围", () => _host.Controller.BeginScopeSelection());
         Item("清除捕获范围", () => _host.Controller.ClearStoredRegion());
         Sep();
-        Item("立即捕获（按当前范围）", () =>
-        {
-            _host.Controller.BeginCapture();
-            // 托盘触发没有“松手”：600ms 后自动结束
-            var t = new System.Timers.Timer(600);
-            t.Elapsed += (_, _) => { t.Stop(); t.Dispose(); Dispatch(() => _host.Controller.EndCapture()); };
-            t.Start();
-        });
+        Item("立即捕获（按当前范围）", () => _host.Controller.CaptureStoredStill());
         // R78：静态截图的确认浮窗会自动消失，留一个入口把最近那张重新拉回编辑器标注
         if (_host.Controller.HasLastStill)
             Item("编辑上次截图", () => _host.Controller.EditLastStill());
