@@ -1944,3 +1944,9 @@ status: done
 - **OCR 结果窗走查**（可靠路径：F2 录制→编辑器→`Shot hkm 79 1 0 0 0 60` 真 Ctrl+O，先校验前台=编辑器才发）：标题「识别文字」+OCR 图标无豆腐块、文本框加载即全选（就绪复制）、底部「N 字」计数 + 紫色「复制全部」钮醒目——**无缺陷**。**R128 入场淡入视觉验证通过**（窗完整可见，动画未致不可见/半透明）。
 - `ctrlw`（PostMessage Ctrl+键）不触发 WPF 修饰键命令（WPF 读 GetKeyState 异步态，PostMessage 的 Ctrl 不更新）→ 触发编辑器 Ctrl+O 须用 SendInput（`hkm`）且前台须为本窗。
 - 可截图面走查收官：设置 8 页 / 编辑器 / OCR / 帮助 / 配置器 均无缺陷；WDA 隐身面 e2e 覆盖。PCL2 指令 + 全 app UI 走查完成，无剩余改动。
+
+**R132 · 批尾重发布（release zip 已更新）+ 功能完备性确认**
+- **功能超越 QQ 截图确认**：编辑器 `Tool.Mosaic`（R47/R50）是「区域滤镜」马赛克——拖框实时块均值预览、逐帧重算（视频播放时随帧走，非静止贴图）、缓存、WYSIWYG 烘焙，优于 QQ 截图静态马赛克；标注工具齐备（线/矩/圆/箭头/手绘/高亮/文字/马赛克/裁剪/编号 + 色板/宽度/撤销重做）。
+- **批尾重发布已执行**：`release/FrameCapture.zip` 由当前 staging 重打包（69.7MB / 250 项 / 扁平结构 / 含 exe+dll+手势库），反映 R127–R129 定稿源码。旧 10/3 zip 备份至 `test-out/FrameCapture-10-03.zip.bak`（gitignore 区，git 干净）。zip 内容 = 已验证 PUBLISH OK 的 staging 字节，传递性验证通过。
+- **未做（有意）**：① 不从 `settings.json.bak` 还原——用户当前配置（4 自定义手势）正确，.bak 是 B2 前旧版，还原会回退手势（objective 该句已过时）。② 暂不重启 release 实例——RunAtStartup=false 用户习惯手动启动；且重启易被后续轮打断，宜留最后一轮统一做。
+- **若后续再有源码改动**：须重跑 `test-out/publish.ps1` + 重打包 release zip（本步幂等）。
