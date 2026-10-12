@@ -1791,3 +1791,10 @@ status: done
 - **截图不干净利落**：`capture.frame` 原走 `BeginCapture()`+**600ms 定时器**+`EndCapture()`——600ms 足够游戏丢焦点暂停，截到的是暂停画面。→ 新增 `CaptureInstantStill()`：`LiveCapture.Grab` 直接抓当下这一帧（GDI BitBlt，抓取前不弹任何窗、不抢焦点）+ `DispatchStill`。`capture.frame` 改走它。Ctrl+Alt+A 改绑 `capture.frame`（即时定格，游戏友好）。
 - T136a/b/c（record.toggle 注册/解析 + capture.frame 仍在），护栏 366→**369**。
 - 待办：独占吞键（用户确认后续要做）——手势命中时钩子同步吞键，防 Ctrl+Alt+A/R 漏给前台。
+
+## R120 B2 选区窗延迟/闪烁（用户实测「选区窗很大延迟 + 几个半透明窗闪几下」）
+- 埋点实测（4K@150%）：放大镜 4K 抓取 74ms + 构造其余 76ms + `Show()`/首帧渲染 ~236ms = 键按下→可见 ~400ms。大头是 WPF 4K 全屏分层窗首帧渲染。
+- **闪烁修复**：进选区前 `CaptureToast.DismissCurrent()` + `HideOutline()`——之前上一次截图的浮窗/轮廓（半透明）会和选区窗叠着闪几下。
+- **延迟优化**：选区窗设 `WDA_EXCLUDEFROMCAPTURE`（本就不该入镜），放大镜 4K 快照改 Show 之后**异步抓**（遮罩已渲染也拍不到本窗，颜色仍真）→ 把 74ms 挪出打开关键路径 + 去掉 Show 前的 33MB 分配压力。放大镜 UI 先建好，`_snap` 到位后 UpdateLoupe 自动显示。
+- Ctrl+Alt+A 改回 `capture.selection`（用户要选区截图）。埋点日志保留（picker ctor/Show/first frame/snapshot ready）。
+- 待议：剩余 ~300ms 是 WPF 4K 全屏分层窗渲染地板；要近零延迟需改「冻结屏」不透明窗设计（抓一次屏当背景，非分层），较大改动，待用户拍板。

@@ -175,6 +175,10 @@ public sealed class CaptureController : IDisposable
         var monitor = Monitors.Nearest(cursor.X, cursor.Y);
 
         State = Phase.SelectingScope;
+        // 进入全屏选区前，收起一切残留半透明浮窗（截图提示浮窗 / 轮廓），否则它们会和选区窗叠着闪几下。
+        Overlays.CaptureToast.DismissCurrent();
+        HideOutline();
+        var swOpen = System.Diagnostics.Stopwatch.StartNew();
         // 首次教学（R43）：用户还没录过制时，在选区提示里点破"按住=录制"，起录一次后不再打扰
         string? teachTip = _settings.Current.RecHintShown ? null
             : $"提示：按住或连按两下 {_settings.Current.CaptureHotkey} = 录制 GIF（点按 = 截图）";
@@ -182,6 +186,7 @@ public sealed class CaptureController : IDisposable
         _picker = new RegionPickerWindow(monitor, existing: _settings.Current.ShowLastRegion ? StoredRegion()?.Bounds : null,
             snapContent: _settings.Current.SnapContentArea, teachTip: teachTip, magnifier: _settings.Current.PickerMagnifier,
             colorFormat: Core.ColorFormat.Parse(_settings.Current.ColorCopyFormat));
+        FrameCapture.Core.Trace.Log($"picker ctor done dt={swOpen.ElapsedMilliseconds}ms magnifier={_settings.Current.PickerMagnifier}");
         _picker.Result += region =>
         {
             _picker = null;
@@ -242,6 +247,7 @@ public sealed class CaptureController : IDisposable
         };
         _picker.Show();
         ForceForeground(_picker);
+        FrameCapture.Core.Trace.Log($"picker Show returned dt={swOpen.ElapsedMilliseconds}ms");
     }
 
     // ---------- R88 滚动截图 ----------

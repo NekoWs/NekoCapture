@@ -59,6 +59,28 @@ public sealed class RegionPickerWindow : Window
         Native.Win32.SetWindowPos(h, Native.Win32.HWND_TOPMOST, 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0010); // NOMOVE|NOSIZE|NOACTIVATE
     }
 
+    /// <summary>Show 之后在后台线程抓全屏快照喂放大镜：本窗已 WDA 排除，遮罩已渲染也拍不到，颜色真实。
+    /// 抓完回 UI 线程填 _snap；放大镜在光标下次移动时自然出现（UpdateLoupe 见 _snap 非空即显示）。</summary>
+    void StartMagnifierSnapshot()
+    {
+        var mon = _monitorPhys;
+        _ = System.Threading.Tasks.Task.Run(() =>
+        {
+            var f = LiveCapture.Grab(mon);
+            if (f == null) return;
+            var src = FrameCapture.Services.BgraImage.ToSource(f);
+            try
+            {
+                Dispatcher.BeginInvoke(() =>
+                {
+                    _snap = src; _snapBgra = f.Bgra; _snapW = f.W;
+                    Core.Trace.Log($"picker magnifier snapshot ready ({mon.W}x{mon.H})");
+                });
+            }
+            catch { }
+        });
+    }
+
     public RegionPickerWindow(MonitorInfo monitor, RectI? existing, bool snapContent = false, string? teachTip = null, bool magnifier = false, Core.ColorCopyFormat colorFormat = Core.ColorCopyFormat.Hex)
     {
         // 覆盖层不需要文本输入：禁用输入法，避免拼音拦截快捷键
@@ -69,22 +91,26 @@ public sealed class RegionPickerWindow : Window
         _colorFormat = colorFormat;
         _monitorPhys = monitor.Bounds;
         _existing = existing;
-        // 放大镜快照：此刻本窗尚未 Show、遮罩未渲染，BitBlt 拿到干净桌面（旧选区虚线窗已 WDA 排除，不入镜）
-        if (_magnifier)
-        {
-            var f = LiveCapture.Grab(_monitorPhys);
-            if (f != null) { _snap = FrameCapture.Services.BgraImage.ToSource(f); _snapBgra = f.Bgra; _snapW = f.W; }
-            else _magnifier = false;
-        }
+        // 放大镜快照改到 Show 之后异步抓（见 SourceInitialized → StartMagnifierSnapshot）：
+        // 不再把 4K BitBlt 挡在打开关键路径上。本窗设了 WDA_EXCLUDEFROMCAPTURE，
+        // 抓取时即便遮罩已渲染也拍不到本窗，像素颜色仍真实。
 
         SourceInitialized += (_, _) =>
         {
             var h = new System.Windows.Interop.WindowInteropHelper(this).Handle;
             Win32.SetWindowTextW(h, "FrameCapture Region");
+            // 选区窗本身绝不入镜（BitBlt/WGC 都拍不到）：放大镜快照因此可在 Show 之后异步抓，
+            // 把 4K 抓取挪出打开关键路径 → 选区窗更快出现，且遮罩已渲染也不影响取色。
+            try { Win32.SetWindowDisplayAffinity(h, Win32.WDA_EXCLUDEFROMCAPTURE); } catch { }
+            if (_magnifier) StartMagnifierSnapshot();
             // 分层窗（AllowsTransparency）没有黑首帧问题，绝不能屏外停放：
             // 本窗 Left/Top 在 Loaded 才赋值，Park 抓到的 home=NaN，回写 NaN 会让系统级联位兜底（实测偏移 266,266，提示被推出屏外）
             FrameCapture.Core.Fluent.FadeIn(this, 120);
         };
+        {
+            var swOpen = System.Diagnostics.Stopwatch.StartNew();
+            ContentRendered += (_, _) => Core.Trace.Log($"picker first frame rendered dt={swOpen.ElapsedMilliseconds}ms");
+        }
         FrameCapture.Core.Fluent.BorderlessNative(this, 0); // 全屏覆盖层：消除 DWM 非客户区白条，无需边缘调整
         WindowStyle = WindowStyle.None;
         ResizeMode = ResizeMode.NoResize;
@@ -196,8 +222,8 @@ public sealed class RegionPickerWindow : Window
             };
             _canvas.Children.Add(_badge);
 
-            // 放大镜：光标旁高倍像素窗 + 坐标/尺寸读数（R70）
-            if (_magnifier && _snap != null)
+            // 放大镜：光标旁高倍像素窗 + 坐标/尺寸读数（R70）。UI 先建好，_snap 异步到位后 UpdateLoupe 自动显示。
+            if (_magnifier)
             {
                 double cell = LoupeSize / LoupeSpan;
                 _loupeImg = new Image { Width = LoupeSize, Height = LoupeSize, Stretch = Stretch.Fill };

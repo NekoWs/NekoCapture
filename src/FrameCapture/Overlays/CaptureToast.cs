@@ -33,6 +33,9 @@ public sealed class CaptureToast : Window
         _current.Show(); // ShowActivated=false：不打断用户当前输入
     }
 
+    /// <summary>立即收起当前浮窗（进入选区等全屏交互前调用，避免残留半透明浮窗与选区窗叠在一起闪）。</summary>
+    public static void DismissCurrent() => _current?.Dismiss();
+
     CaptureToast(CapturedFrame frame, RectI region, string monitorDevice, Action onEdit)
     {
         Title = "FrameCapture Toast";
