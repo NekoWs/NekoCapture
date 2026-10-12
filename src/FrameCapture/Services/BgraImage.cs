@@ -15,6 +15,22 @@ public static class BgraImage
         return src;
     }
 
+    /// <summary>
+    /// BitmapSource → BGRA 帧（R92）：从剪贴板图片等外部源建帧。统一转 Bgra32 再 CopyPixels，
+    /// 与 ToSource 同格式 → 往返无损（SelfTest T121）。空/零尺寸返回 null。
+    /// </summary>
+    public static CapturedFrame? FromSource(BitmapSource? src)
+    {
+        if (src == null || src.PixelWidth <= 0 || src.PixelHeight <= 0) return null;
+        var conv = src.Format == PixelFormats.Bgra32
+            ? src
+            : new FormatConvertedBitmap(src, PixelFormats.Bgra32, null, 0);
+        int w = conv.PixelWidth, h = conv.PixelHeight, stride = w * 4;
+        var bgra = new byte[stride * h];
+        conv.CopyPixels(bgra, stride, 0);
+        return new CapturedFrame { Bgra = bgra, W = w, H = h, TimeMs = 0 };
+    }
+
     public static void SavePng(CapturedFrame f, string path)
     {
         var enc = new PngBitmapEncoder();

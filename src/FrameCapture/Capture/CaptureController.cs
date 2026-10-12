@@ -408,6 +408,27 @@ public sealed class CaptureController : IDisposable
         else { FlashOutline(reg); _outline!.FadeAway(1.1); }
     }
 
+    // ---------- R92 从剪贴板贴图 ----------
+    /// <summary>托盘/入口调用：把剪贴板里的图片钉成贴图（Snipaste 式"粘贴即贴图"）——
+    /// 复制任意图片（截图/图片文件/网页图）后一键钉屏参考。剪贴板无图片返回 false（调用方给反馈）。
+    /// 落点：光标所在屏、以光标为中心，越界钳进屏内。须在 UI 线程调用（托盘菜单点击即 UI 线程）。</summary>
+    public bool PinFromClipboard()
+    {
+        System.Windows.Media.Imaging.BitmapSource? img = null;
+        try { if (System.Windows.Clipboard.ContainsImage()) img = System.Windows.Clipboard.GetImage(); }
+        catch (Exception ex) { FrameCapture.Core.Trace.Log($"pin-clip: clipboard err {ex.GetType().Name}"); }
+        var f = FrameCapture.Services.BgraImage.FromSource(img);
+        if (f == null) { FrameCapture.Core.Trace.Log("pin-clip: no image"); return false; }
+        Native.Win32.GetCursorPos(out var pt);
+        var mon = Capture.Monitors.Nearest(pt.X, pt.Y);
+        int x = Math.Max(mon.Bounds.X, Math.Min(pt.X - f.W / 2, mon.Bounds.X + mon.Bounds.W - f.W));
+        int y = Math.Max(mon.Bounds.Y, Math.Min(pt.Y - f.H / 2, mon.Bounds.Y + mon.Bounds.H - f.H));
+        var w = new Overlays.PinWindow(f, new Capture.RectI(x, y, f.W, f.H));
+        w.Show();
+        FrameCapture.Core.Trace.Log($"pin-clip {f.W}x{f.H} at {x},{y}");
+        return true;
+    }
+
     public ScreenRegion? StoredRegion()
     {
         var s = _settings.Current;

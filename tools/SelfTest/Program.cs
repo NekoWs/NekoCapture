@@ -1761,6 +1761,25 @@ static class SelfTest
                     && FrameCapture.Core.ColorFormat.Parse("garbage") == Hex && FrameCapture.Core.ColorFormat.Parse(null) == Hex, "解析含大小写/未知回退 Hex");
                 Chk("T120h-tosetting", FrameCapture.Core.ColorFormat.ToSetting(Hsl) == "hsl" && FrameCapture.Core.ColorFormat.ToSetting(Hex) == "hex", "枚举↔设置串往返");
             }
+            // T121 剪贴板图片建帧（R92，BgraImage.FromSource）：ToSource↔FromSource 往返无损 + 非 Bgra32 转换 + 空值
+            {
+                var f0 = new FrameCapture.Capture.CapturedFrame
+                {
+                    Bgra = new byte[] { 10, 20, 30, 255, 40, 50, 60, 128, 70, 80, 90, 0, 100, 110, 120, 255 },
+                    W = 2, H = 2, TimeMs = 0,
+                };
+                var src = FrameCapture.Services.BgraImage.ToSource(f0);
+                var back = FrameCapture.Services.BgraImage.FromSource(src);
+                Chk("T121a-roundtrip", back != null && back.W == 2 && back.H == 2 && back.Bgra.SequenceEqual(f0.Bgra),
+                    "ToSource→FromSource BGRA 逐字节往返");
+                // 非 Bgra32 源（Bgr32，alpha 位被忽略）→ 转 Bgra32 后 alpha=255、BGR 分量不变
+                var bgr = System.Windows.Media.Imaging.BitmapSource.Create(1, 1, 96, 96,
+                    System.Windows.Media.PixelFormats.Bgr32, null, new byte[] { 10, 20, 30, 0 }, 4);
+                var conv = FrameCapture.Services.BgraImage.FromSource(bgr);
+                Chk("T121b-bgr32", conv != null && conv.Bgra[0] == 10 && conv.Bgra[1] == 20 && conv.Bgra[2] == 30 && conv.Bgra[3] == 255,
+                    conv == null ? "null" : $"BGR→BGRA {conv.Bgra[0]},{conv.Bgra[1]},{conv.Bgra[2]},{conv.Bgra[3]}");
+                Chk("T121c-null", FrameCapture.Services.BgraImage.FromSource(null) == null, "null → null");
+            }
         }
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");
         return fail == 0 ? 0 : 1;

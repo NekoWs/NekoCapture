@@ -43,6 +43,13 @@ public sealed class TrayService : IDisposable
 
     public void Show() => _icon.Visible = true;
 
+    /// <summary>托盘气泡提示：tray 动作的轻量反馈（如「剪贴板里没有图片」）。失败静默。</summary>
+    public void Notify(string msg)
+    {
+        try { _icon.ShowBalloonTip(2500, "FrameCapture", msg, WinForms.ToolTipIcon.Info); }
+        catch { }
+    }
+
     void ShowMenu()
     {
         Trace.Log("tray menu open");
@@ -74,6 +81,11 @@ public sealed class TrayService : IDisposable
             Item("编辑上次截图", () => _host.Controller.EditLastStill());
         Item("滚动截图（长图）", () => _host.Controller.BeginScrollCapture());
         Item($"延时截图（{_host.Settings.Current.DelayCaptureSeconds} 秒）", () => _host.Controller.BeginDelayedCapture());
+        Item("从剪贴板贴图", () =>
+        {
+            if (!_host.Controller.PinFromClipboard())
+                Notify("剪贴板里没有图片——先复制一张图片（截图/图片文件/网页图）再试");
+        });
         Sep();
         Item("快捷键设置…", OpenSettings);
         Item("帮助", OpenHelp);

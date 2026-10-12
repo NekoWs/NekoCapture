@@ -1343,3 +1343,23 @@ status: done
   - 到点：trace `delay fire 1340x1000` → `open editor frames=1`（AfterCapture=editor）→ 范围闪反馈
   - 点「取消」（先 WindowFromPoint 确认落点属倒计时窗，焦点安全）：trace `delay cancel`、窗口关闭、未触发截图
   - 设置窗「延时截图」行渲染正常：时钟图标 + 关/1/3/5/10 秒 chip、3 秒蓝底选中、位置在截图提示音后
+
+
+## 2026-10-12 上午 从剪贴板贴图 R92（Snipaste 招牌「粘贴即贴图」，此前只能贴自己截的图）
+
+**动机**：贴图（Pin）功能已很完整（缩放/不透明度/旋转/磁边/对齐/重抓/右键菜单），但入口只有两个——编辑器 Ctrl+P 钉当前帧、贴图 F3 原地重抓。**从别处复制的图片钉不了**：网页图、图片文件、别人发来的截图、IM 里的图……想钉屏作参考只能先存盘再想办法。Snipaste 最受好评的「粘贴即贴图」是这块的缺口，全受众刚需。
+
+**实现**（读剪贴板建帧，复用现成 PinWindow，零新窗）：
+- `BgraImage.FromSource(BitmapSource)`（新，纯转换、可单测）：统一转 Bgra32 再 CopyPixels 建 `CapturedFrame`；与 `ToSource` 同格式 → 往返无损；空/零尺寸返回 null。剪贴板图常带 alpha（透明 PNG），Bgra32 保留 alpha，贴图透明区照常透出桌面。
+- `CaptureController.PinFromClipboard()`：`Clipboard.ContainsImage/GetImage` → `FromSource` → 落点「光标所在屏、以光标为中心、越界钳进屏内」→ `new PinWindow(frame, physPos).Show()`。无图片返回 false。须在 UI 线程调用（托盘菜单点击 / IPC 回调均在 UI 线程）。
+- 托盘「从剪贴板贴图」项：失败（剪贴板没图片）走 `TrayService.Notify()` 原生气泡提示「先复制一张图片再试」——tray 动作的原生反馈，不新造 toast 窗。
+- `--pin-clip` IPC（MsgSink 第 6 路）+ 帮助条目，便于脚本/e2e。
+
+**验证**：
+- 构建 0 错误；SelfTest 298→**301**（T121a ToSource↔FromSource 逐字节往返、T121b Bgr32→Bgra32 分量不变 alpha 补 255、T121c null→null）
+- 完整护栏 GUARDRAIL PASS（FAIL=0 SKIP=1 floor280，err_delta=0）
+- 实机 e2e：
+  - 造 240×140 测试图（红底/蓝块/黄字）设入剪贴板 → `--pin-clip` → trace `pin-clip 240x140 at 1800,188`、贴图窗出现
+  - PrintWindow 贴图：红底 + 蓝方块 + 黄字清晰，内容与剪贴板图一致
+  - 剪贴板改纯文本 → `--pin-clip` → trace `pin-clip: no image`、贴图数不变（不误建空贴图）
+  - 附带发现：更早一次 `--pin-clip` 把 R91 延时截图残留的 1340×1000 剪贴板图也正确钉出，二次印证读剪贴板链路可靠
