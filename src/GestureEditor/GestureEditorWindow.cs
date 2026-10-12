@@ -33,6 +33,7 @@ public sealed class GestureEditorWindow : Window
     GestureDoc _doc;
     int _selected = -1;
     bool _capturing;
+    bool _suppress;   // 重建列表时抑制 SelectionChanged，避免编辑后丢选中（用户实测反馈）
 
     ListBox _list = null!;
     StackPanel _detail = null!;
@@ -134,8 +135,9 @@ public sealed class GestureEditorWindow : Window
         listBtns.Children.Add(addBtn); listBtns.Children.Add(delBtn);
         DockPanel.SetDock(listBtns, Dock.Bottom);
         left.Children.Add(listBtns);
-        _list = new ListBox { Background = _pal.B(_pal.CardBg), BorderBrush = _pal.B(_pal.Stroke), BorderThickness = new Thickness(1), Foreground = _pal.B(_pal.Text) };
-        _list.SelectionChanged += (_, _) => { _selected = _list.SelectedIndex; ShowDetail(); };
+        _list = new ListBox { BorderThickness = new Thickness(1) };
+        EditorStyles.ApplyList(_list, _pal);
+        _list.SelectionChanged += (_, _) => { if (_suppress) return; _selected = _list.SelectedIndex; ShowDetail(); };
         left.Children.Add(_list);
         Grid.SetColumn(left, 0);
         split.Children.Add(left);
@@ -160,11 +162,13 @@ public sealed class GestureEditorWindow : Window
     // ---------- 列表 ----------
     void RefreshList()
     {
+        _suppress = true;
         _list.Items.Clear();
         foreach (var b in _doc.Bindings)
-            _list.Items.Add(new ListBoxItem { Content = Summary(b), Foreground = _pal.B(_pal.Text), Padding = new Thickness(8, 6, 8, 6) });
+            _list.Items.Add(new ListBoxItem { Content = Summary(b), Padding = new Thickness(8, 6, 8, 6) });
         if (_selected >= _doc.Bindings.Count) _selected = _doc.Bindings.Count - 1;
         _list.SelectedIndex = _selected;
+        _suppress = false;
     }
 
     string Summary(BindingEdit b)
@@ -243,7 +247,8 @@ public sealed class GestureEditorWindow : Window
         RebuildActs();
         _detail.Children.Add(actsPanel);
         var addRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 0) };
-        var actCombo = new ComboBox { Width = 200, Background = _pal.B(_pal.CardBg), Foreground = _pal.B(_pal.Text) };
+        var actCombo = new ComboBox { Width = 200 };
+        EditorStyles.ApplyCombo(actCombo, _pal);
         foreach (var a in _catalog.Actions()) actCombo.Items.Add(new ComboBoxItem { Content = a.Label, Tag = a.Name, ToolTip = a.Description });
         if (actCombo.Items.Count > 0) actCombo.SelectedIndex = 0;
         var addAct = MakeButton("添加动作", ghost: true);
@@ -390,7 +395,8 @@ public sealed class GestureEditorWindow : Window
 
     ComboBox MakeCombo(IEnumerable<object> items, Func<object, string> disp, object sel, Action<object> onSel)
     {
-        var c = new ComboBox { Background = _pal.B(_pal.CardBg), Foreground = _pal.B(_pal.Text) };
+        var c = new ComboBox();
+        EditorStyles.ApplyCombo(c, _pal);
         foreach (var it in items) c.Items.Add(new ComboBoxItem { Content = disp(it), Tag = it });
         c.SelectedIndex = items.ToList().IndexOf(sel);
         c.SelectionChanged += (_, _) => { if (c.SelectedItem is ComboBoxItem it && it.Tag != null) onSel(it.Tag); };

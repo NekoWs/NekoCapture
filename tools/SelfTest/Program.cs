@@ -2216,6 +2216,15 @@ static class SelfTest
             var p5 = GEdit.GestureValidation.Validate(badTime, cat, nm);
             Chk("T138f-timing-warn-not-error", p5.Count > 0 && !GEdit.GestureValidation.HasErrors(p5), "时间越界仅提示、非 error");
         }
+        // T139 编辑器控件配色模板可解析（R122）：XamlReader 现拼的 ComboBox/ListBox 模板运行时才解析，编译不报——这里兜底
+        {
+            var pal = new GEdit.EditorPalette();
+            bool okCombo = false, okList = false;
+            try { var cb = new System.Windows.Controls.ComboBox(); GEdit.EditorStyles.ApplyCombo(cb, pal); okCombo = cb.Template != null; } catch { }
+            try { var lb = new System.Windows.Controls.ListBox(); GEdit.EditorStyles.ApplyList(lb, pal); okList = lb.Resources.Contains(typeof(System.Windows.Controls.ListBoxItem)); } catch { }
+            Chk("T139a-combo-template-parses", okCombo, "ComboBox 配色模板可解析（深色下拉可读）");
+            Chk("T139b-list-item-style-parses", okList, "ListBox 条目样式可解析");
+        }
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");
         return fail == 0 ? 0 : 1;
     }
