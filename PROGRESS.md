@@ -1830,3 +1830,16 @@ status: done
 - 接线：新动作 `gesture.edit`（GestureActions + GestureInvoker）；设置窗「快捷键」页加「打开手势配置器…」入口按钮。
 - GlyphProbe 加 `glyphs` 模式（传十六进制码点渲染小图、缺字形标 MISSING），便于日后验图标。
 - SelfTest T138a-f（编辑器模型/校验，宿主无关可脱 UI 单测），护栏地板 373→**379**。
+
+## R123 标注编辑器三修（用户实测编辑器反馈）
+- **C1 四角拖动改大小无效**：`TryBeginResize` 设了所有 resize 字段 + `CaptureMouse`，唯独漏 `_resizeDrag=true`；`Canvas_Move` 的 resize 分支以 `_resizeDrag` 为门控 → `ResizeTo` 从不被调。补 `_resizeDrag=true`。
+- **C2 编辑文字时与原字重叠（偏移）**：原已提交的文字仍被渲染，压在编辑框下（偏移 -6.5,-3.5）。渲染循环 `RedrawAnns` 跳过 `ReferenceEquals(a,_textEditing)` + `OpenTextInput` 里加框前先 `RedrawAnns()`（立即隐原字）。
+- **C3 文字对象无法设字号**：字号本就随线宽（`AnnFont.FramePx(t)=10+t*4`），但无直接入口。工具栏加 **A− / 字号px / A+** 步进器（`_fontGroup`，仅 Text 工具激活或选中文字/编号时可见）；`StepFontSize(±1)` 改线宽→改字号，选中即改该字、未选即定下次输入。
+- SelfTest T140a/b（字号锚定 细3/中6/粗10=22/34/50px + 单调），护栏 381→**383**。（T139 深色下拉样式在 R122 后补，地板曾 379→381。）
+
+## R124 手势 A 批（用户实测编辑器后一批需求）
+- **A1 每条绑定可启用/禁用**（不必删除）：`GestureBindingDto.Enabled`/`BindingEdit.Enabled`（默认 true）；`GestureConfig.ToBindings` 跳过禁用项（不进引擎）；`GestureValidation` 跳过禁用项（不挡保存）；编辑器详情顶部「启用此绑定」开关 + 列表项前缀「已禁用 ·」；宿主 Load/Save 映射。
+- **A2 动作目录拆分/改名 + 即时截图语义**：`capture.frame` 标签「即时截图」→**「全屏即时截图」**，`CaptureInstantStill` 由「优先抓上次存范围」改为**永远抓光标屏全屏**（消除"明明是截图却有选区"）；动作目录重排为 选区 / 开始录制 / 停止录制 / **开始停止(同键起停)**（原「选区录制·同键停」改名，语义更直白）/ 选区录制。
+- **A3 完成后序列 OnComplete**：`GestureBinding.OnComplete`/`BindingEdit.OnComplete`/`GestureBindingDto.OnComplete`；引擎 `RunActions` 主序列全部成功后再按序跑 OnComplete（尽力而为，失败不改本条结果）。宿主动作一律 `Post` 到 UI 线程 FIFO，静图抓取+after-capture 在同一 posted 动作内同步完成 → OnComplete 天然排在主动作之后（无需额外完成事件）。编辑器详情复用同一列表构建器渲染「完成后序列」段；校验含 OnComplete 动作名；Summary 显示「⟶ 完成后: …」。
+- SelfTest T141a/b（禁用不校验/不进引擎）、T142a/b（拆分动作齐全 + 全屏语义）、T143a/b（OnComplete 主成功后跑/主失败不跑），护栏 383→**389**。
+- 待办：**B1** 设置窗 master-detail 改版（用户手绘布局：左竖排导航 + 右内容区）；**B2** 旧快捷键全删、改由手势替代（含 GestureCore 键盘点按/按住时序 + 默认「按住录制」手势集 + 删 DoubleTapRecord/TapAlwaysShowsRegion/旧热键行 + 旧 HotkeyManager F6/F7 路径）。
