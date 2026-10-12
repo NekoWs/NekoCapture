@@ -2002,3 +2002,9 @@ status: done
   - focus-safety **SKIP**（前台为 DSH GUI 非本软件窗，注入探针安全跳过，SKIP≠FAIL）。
 - **护栏后用户配置核验**：try/finally 还原成功——4 条自定义手势逐字段完好（qq.rec `Ctrl+Alt+R`→record.toggle→edit.lastvideo；bfd68f4 `Ctrl+Alt+A`→capture.selection；bc235bc `F2 KeyDown`→record.start；b3c320e `F2 KeyUp`→record.stop→edit.lastvideo），`Enabled/Exclusive/Seeded=true`，其余设置未动。
 - **结论**：objective 验证标准「构建 0 错 + SelfTest 只增不减 + GUARDRAIL PASS」在**最终 HEAD（R127–R139 全部改动后）直接达成**，非假设。本轮无源码改动。
+
+**R141 · 净态快照 + zip 时效确认（03:04，距截止 6.9h）**
+- **净态**：git HEAD `5bcee53` 干净 · 0 FrameCapture 实例 · release zip 69.7MB（mtime 02:36）· 用户配置完好 · error.log 34733 无新增。
+- **zip 时效确认**：`git diff --stat 9f85a15(R132)..HEAD -- src` **输出为空** = R133–R140 仅改 PROGRESS.md，**src 零改动** → **zip 反映最终源码，无需重发布**。
+- **判据纠错**（防后续轮误判）：`if(git diff --quiet A B -- src){...}` 是**错误惯用法**——PowerShell 的 `if` 取命令 **stdout** 而非退出码，`--quiet` 无输出恒为假 → 永远误报「有改动」。正确判据：`git diff --stat A B -- src` 输出为空，或 `git diff --quiet A B -- src; if($LASTEXITCODE -eq 0){无改动}`。
+- **结论**：交付物 zip 与最终 HEAD 源码一致。本轮无源码改动。
