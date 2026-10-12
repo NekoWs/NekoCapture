@@ -23,6 +23,9 @@ public sealed class CaptureController : IDisposable
     private bool _captureAfterSelect;
     /// <summary>R120 B2：QQ 式「选区录制」——本次选区确认后立即对该区域起录。</summary>
     private bool _recordAfterSelect;
+    /// <summary>选区完成后到真正抓取/起录之间的留白(ms)。选区窗已 WDA_EXCLUDEFROMCAPTURE，抓取本就拍不到它；
+    /// 这里只留极短一拍让选区窗 Close() 走完（防 WDA 万一失效时把选区界面截进画面）。旧值 220ms 明显拖慢截图。</summary>
+    private const int PickerExitMs = 40;
     private System.Windows.Threading.DispatcherTimer? _recBadgeTimer; // R43：按住过阈值→REC 徽标
     // R60：连按两下=免按住录制（纯逻辑在 Core.ToggleRecord，这里只做引擎/徽标接线）
     private Core.ToggleRecord.St _tr = Core.ToggleRecord.St.Idle;
@@ -202,21 +205,21 @@ public sealed class CaptureController : IDisposable
             });
             if (_scrollAfterSelect)
             {
-                // 滚动截图：选区即进入步进拼接循环（延迟一拍让选取层退场，别把选区界面截进首帧）
+                // 滚动截图：选区即进入步进拼接循环（选区窗已 WDA 排除，只留一拍让 Close() 走完，别把选区界面截进首帧）
                 _scrollAfterSelect = false;
                 HideOutline();
                 var sreg = region.Value; var sdev = monitor.DeviceName;
-                var st = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(220) };
+                var st = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(PickerExitMs) };
                 st.Tick += (_, _) => { st.Stop(); StartScrollLoop(sreg, sdev); };
                 st.Start();
                 return;
             }
             if (_recordAfterSelect)
             {
-                // QQ 式选区录制：区域已由上方 Mutate 存好（RegionX/Y/W/H），延迟一拍让选取层退场后对该区域起录。
+                // QQ 式选区录制：区域已由上方 Mutate 存好（RegionX/Y/W/H），选区窗已 WDA 排除，只留一拍让 Close() 走完即对该区域起录。
                 _recordAfterSelect = false;
                 HideOutline();
-                var rt = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(220) };
+                var rt = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(PickerExitMs) };
                 rt.Tick += (_, _) => { rt.Stop(); BeginCaptureCore(); };
                 rt.Start();
                 return;
@@ -224,9 +227,9 @@ public sealed class CaptureController : IDisposable
             if (stillAfterSelect)
             {
                 // 选区完成即截一帧**静态图**（PNG + 剪贴板），不进 GIF 管线、不开编辑器。
-                // 延迟一拍让选取窗/遮罩完全退场，避免把选区界面截进画面。
+                // 选区窗已 WDA_EXCLUDEFROMCAPTURE，抓取拍不到它；只留一拍让 Close() 走完（防 WDA 万一失效）。
                 HideOutline();
-                var t = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(220) };
+                var t = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(PickerExitMs) };
                 t.Tick += (_, _) =>
                 {
                     t.Stop();

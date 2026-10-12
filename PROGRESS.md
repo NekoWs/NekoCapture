@@ -1803,3 +1803,9 @@ status: done
 - 选区窗 `Left/Top/Width/Height` 原本在 **Loaded** 才设 → `Show()` 时窗口还是 WPF 默认尺寸/位置，Loaded 才跳到全屏 → 那一跳（叠加 Loaded DPI 校正 / ReassertTop）就是「窗口边框闪几下」。
 - 修法：构造里用 `GetDpiForMonitor(DPI_EFFECTIVE)` 在 **Show 之前**就把几何定成全屏（不依赖可视树）；Loaded 仍按可视树 DPI 兜底校正（正常两者一致 → 无二次跳）。选区窗 FadeIn 未用 offscreenFirstFrame，历史「Park 读 NaN」坑不适用。
 - 复测延迟：构造 81ms（放大镜 74ms 已异步挪走）、Show 331ms、首帧 344ms。剩余 ~250ms 是 WPF 4K 全屏分层窗 Show/渲染地板——要再快需「冻结屏」不透明窗重设计（待用户拍板）。
+
+## R120 B2 截图延迟：选区完成后 220ms 定时器 → 40ms
+- 选区截图/录制/滚动三处「等选区窗退场」的 DispatcherTimer 原为 220ms，明显拖慢截图手感。
+- 选区窗现已 `WDA_EXCLUDEFROMCAPTURE`，抓取本就拍不到它 → 220ms 的理由（怕把选区界面截进画面）不再成立。
+- 统一改为命名常量 `PickerExitMs = 40`：只留极短一拍让选区窗 `Close()` 走完（防 WDA 万一失效时把选区界面截进去）。
+- 实测「选区完成→存图」220ms+ → **113ms**（40ms 留白 + 1441×886 抓取/PNG/剪贴板 ~73ms）。用户确认「手感不错」。
