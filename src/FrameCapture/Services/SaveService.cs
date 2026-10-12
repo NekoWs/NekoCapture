@@ -42,7 +42,8 @@ public static class SaveService
     static string Stamp() => $"FrameCapture {DateTime.Now:yyyy-MM-dd HHmmss}";
 
     /// <summary>
-    /// 编辑器提交：按帧数选自然格式存副本——单帧截图存 PNG、多帧录制存 GIF（均为已烘焙标注/裁剪的最终产物）。
+    /// 编辑器提交：按帧数选自然格式存副本——单帧截图存 PNG、多帧录制按「录制格式」设置
+    /// （MP4/WebM 且装了 ffmpeg → 后台编码，不阻塞编辑器关闭；否则 GIF）。均为已烘焙标注/裁剪的最终产物。
     /// </summary>
     public static void MaybeSaveArtifact(CapturedSequence seq, byte[] gif)
     {
@@ -55,13 +56,41 @@ public static class SaveService
                 var path = Path.Combine(dir, UniqueName(dir, Stamp(), "png"));
                 BgraImage.SavePng(seq.Frames[0], path);
                 Trace.Log($"autosave png {path} {seq.Frames[0].W}x{seq.Frames[0].H}");
+                return;
             }
-            else
+
+            var fmt = SettingsService.Shared.Current.RecordFormat;
+            string? ff = fmt == RecordFormat.Gif ? null : FfmpegLocator.Find();
+            if (ff == null)
             {
-                var path = Path.Combine(dir, UniqueName(dir, Stamp(), "gif"));
-                File.WriteAllBytes(path, gif);
-                Trace.Log($"autosave gif {path} {gif.Length}B {seq.Frames.Count}f");
+                var gpath = Path.Combine(dir, UniqueName(dir, Stamp(), "gif"));
+                File.WriteAllBytes(gpath, gif);
+                Trace.Log($"autosave gif {gpath} {gif.Length}B {seq.Frames.Count}f");
+                return;
             }
+
+            // 视频：后台编码（编辑器已可关闭，文件稍后出现）。先写临时文件成功再拷进目标名，
+            // 保证目录里只出现完整可播产物（应用中途退出不会留下半截文件）。失败 → GIF 兜底不丢产物。
+            var vfmt = fmt == RecordFormat.Mp4 ? VideoFormat.Mp4 : VideoFormat.WebM;
+            string ext = vfmt == VideoFormat.Mp4 ? "mp4" : "webm";
+            var vpath = Path.Combine(dir, UniqueName(dir, Stamp(), ext));
+            var frames = seq.Frames; // 已烘焙、内存态，闭包持有，独立于 spool
+            System.Threading.Tasks.Task.Run(() =>
+            {
+                string tmp = Path.Combine(Path.GetTempPath(), $"fc_autosave_{Guid.NewGuid():N}.{ext}");
+                try
+                {
+                    VideoEncoder.Encode(frames, ff, tmp, vfmt, VideoEncoder.FpsFromFrames(frames));
+                    File.Copy(tmp, vpath, overwrite: true);
+                    Trace.Log($"autosave {ext} {vpath} {new FileInfo(vpath).Length}B {frames.Count}f");
+                }
+                catch (Exception ex)
+                {
+                    try { File.WriteAllBytes(Path.ChangeExtension(vpath, ".gif"), gif); Trace.Log($"autosave gif fallback ({ext} 失败): {ex.Message}"); }
+                    catch (Exception ex2) { Trace.Log($"autosave failed: {ex2.Message}"); }
+                }
+                finally { try { if (File.Exists(tmp)) File.Delete(tmp); } catch { } }
+            });
         }
         catch (Exception ex) { Trace.Log($"autosave failed: {ex.Message}"); }
     }

@@ -338,3 +338,7 @@
 - [x] **编辑器接线**：`StartEncode` 泛化三格式（共享 bake，末步分派）+ `SaveRecording` 三格式对话框（默认跟随 `RecordFormat`，按扩展名分派）+ `SettingsWindow` `RecordFormatRow` 芯片（带 ffmpeg 探测提示）。全链路 e2e：录 48 帧→焦点安全 Ctrl+E→ffmpeg→ffprobe h264/640×400/48帧/0.99s/48.26fps/解码 exit=0；WebM vp9 独立验。
 - [ ] **视频后续候选**：① 自动保存副本（`MaybeSaveArtifact`）当前多帧仍存 GIF，可跟随 `RecordFormat` 存 MP4/WebM（需 ffmpeg，未装回退 GIF）；② 导出进度百分比（当前按帧数，vp9 慢时可加时间估计）；③ 码率/质量档位（当前固定 ultrafast/crf40，避免堆数值暂缓）；④ 托盘「打开最近录制」直达产物。
 
+## 自动保存副本跟随录制格式 R103（2026-10-12 中午，手感审计）
+- [x] **格式语义全链一致**：`MaybeSaveArtifact` 多帧按 `RecordFormat`（MP4/WebM+ffmpeg → 后台 `Task.Run` 编码不冻 UI，临时文件原子落盘，失败 GIF 兜底；GIF/未装 ffmpeg 仍 GIF）+ tooltip 同步。护栏 PASS，全链路 e2e：录 43 帧→Enter→`autosave mp4 56782B 43f`→ffprobe h264/43帧/可播。
+- [ ] **自动保存候选**（后续）：① 后台编码期间托盘/编辑器给个「正在保存视频…」轻提示（当前静默，文件稍后出现）；② 长录制 vp9 编码可加进度或完成后气泡；③ 自动保存目录里视频/图片混排，可按类型分子目录（重度需求暂缓）。
+

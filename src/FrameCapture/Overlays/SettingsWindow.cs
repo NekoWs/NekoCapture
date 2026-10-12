@@ -148,7 +148,7 @@ public sealed class SettingsWindow : Window
         panel.Children.Add(SliderRow("\uE8FD", "胶片条抽帧数", "自动生成 Agent 胶片条时从录制帧中抽取的帧数",
             4, 24, 1, _settings.Current.AgentStripFrames,
             v => $"{v:0} 帧", v => _settings.Mutate(s => s.AgentStripFrames = (int)v)));
-        panel.Children.Add(ToggleRow("\uE74E", "自动保存副本", "捕获完成后，除复制到剪贴板外，再存一份文件到本地目录（截图存 PNG、录制存 GIF）。写盘失败不影响剪贴板，捕获永远成功",
+        panel.Children.Add(ToggleRow("\uE74E", "自动保存副本", "捕获完成后，除复制到剪贴板外，再存一份文件到本地目录（截图存 PNG；录制按上面的「录制格式」存 MP4/WebM，未装 ffmpeg 则回退 GIF）。视频在后台编码、文件稍后出现。写盘失败不影响剪贴板，捕获永远成功",
             _settings.Current.AutoSaveCopy, v => _settings.Mutate(s => s.AutoSaveCopy = v)));
         panel.Children.Add(PathRow());
 

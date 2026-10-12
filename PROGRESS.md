@@ -1512,3 +1512,21 @@ status: done
 - 全链路 e2e（`FC_TEST_EXPORT` 钩子，对齐 `FC_TEST_ENCODE_FAIL` 约定）：录 48 帧 → 焦点安全核前台=「FrameCapture Editor」→ 发 Ctrl+E → ffmpeg 落盘 → **ffprobe 核对 h264 / 640×400 / 48 帧 / 时长 0.99s / r_frame_rate=48.26（=实际捕获率，播放速度正确）/ 解码 exit=0 可播**
 - WebM 独立真实编码：libvpx-vp9 exit=0、codec=vp9、尺寸正确
 - 说明：ffmpeg 未捆绑，未装用户的视频项点击时提示安装、GIF 始终可用；MP4/WebM 帧率取实际捕获率保证播放速度正确（非按设置的目标帧率）
+
+
+## 2026-10-12 中午 自动保存副本跟随录制格式（手感审计发现的一致性缺口）R103
+
+**动机**：手感审计里模拟「设 `录制格式=MP4` + 开 `自动保存副本` → 录制 → 按 Enter」，发现自动保存仍写 GIF——用户刚选了 MP4 却在文件夹里拿到 GIF，与「录制格式」设置自相矛盾。这是新格式特性引入的真实摩擦。
+
+**实现**（`Services/SaveService.cs` `MaybeSaveArtifact`）：多帧分支不再写死 GIF——
+- 读 `RecordFormat`：GIF 或未装 ffmpeg → 仍存 GIF（原行为，永远可用）；MP4/WebM 且装了 ffmpeg → **后台 `Task.Run` 编码**（编辑器立即可关，不被 vp9 慢编码冻住 UI），文件稍后出现。
+- 原子落盘：先编到 `%TEMP%` 临时文件，成功再 `File.Copy` 进目标唯一名，`finally` 删临时——目录里只出现完整可播产物，应用中途退出不会留半截文件。
+- 失败兜底：视频编码异常 → 回退写 GIF（用已生成的剪贴板 GIF 字节），自动保存绝不丢产物。
+- 单帧 PNG 分支不变；`AutoSaveCopy` 关时仍早返回零副作用（SelfTest T101e 契约不破）。
+- `自动保存副本` tooltip 同步：「录制按上面的『录制格式』存 MP4/WebM，未装 ffmpeg 则回退 GIF；视频后台编码、文件稍后出现」。
+
+**验证**：
+- 构建 0 错误；SelfTest 仍 **332**（`Shared=null` 早返回路径覆盖，视频分支受 `AutoSaveCopy` 保护不触发，无需新增单测）
+- 完整护栏 GUARDRAIL PASS（FAIL=0 SKIP=1 floor280，err_delta=0）
+- 全链路 e2e：`AutoSaveCopy=true` + `RecordFormat=MP4` → 录 43 帧 → 焦点安全核前台=编辑器 → Enter(Commit) → trace `autosave mp4 …56782B 43f` → **ffprobe h264 / 640×400 / 43 帧 / 0.91s / 解码 exit=0 可播**
+- 说明：显式「导出录制」(Ctrl+E) 与自动保存现在都跟随 `RecordFormat`，格式设置语义全链一致
