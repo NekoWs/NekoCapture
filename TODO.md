@@ -358,3 +358,9 @@
 - [x] **光标可关**：`RecordIncludeCursor`（默认开）→ `WgcLiveCapture.Start(...,includeCursor)` → `IsCursorCaptureEnabled`；设置窗 ToggleRow（E8B0 光标字形，GlyphProbe 验证）+ 帮助条目。SelfTest 336（T128a），护栏 PASS，设置窗视觉核对正常。
 - [ ] **后续**：① 静态截图是否也提供「不含光标」选项（当前仅录制路径可控，静态截图光标在选区边缘影响小）；② 若未来支持区域外光标高亮/点击特效，与此开关联动。
 
+## 导出/另存对话框目录与格式一致性 R110（2026-10-12 下午，看截图抓到的不一致）
+- [x] **目录统一**：编辑器 `NewSaveDialog` + 贴图 `SaveAs` 默认目录改用 `SaveService.ResolveFolder()`，尊重自定义 `AutoSavePath`（回退默认），手动导出与自动保存同目录。
+- [x] **类型跟随格式**：`SaveRecording` 补 `FilterIndex` 跟随 RecordFormat，导出对话框「保存类型」不再总停 MP4，与默认文件名扩展一致。
+- [x] 焦点安全 e2e 取证：自定义目录面包屑 `NekoW › FCExportTest` 生效；Gif 时类型下拉显示 GIF 动图。护栏 PASS。
+- [ ] **后续**：① 可考虑记住「上次手动导出目录」（与 AutoSavePath 分离，若用户常导出到不同处）；② 贴图右键「另存为」也可加 WebM/PNG 之外的格式（当前仅 PNG，贴图是静帧，PNG 合理）。
+

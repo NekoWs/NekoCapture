@@ -214,9 +214,8 @@ public sealed class PinWindow : Window
 
     void SaveAs()
     {
-        string pictures = Environment.GetFolderPath(Environment.SpecialFolder.MyPictures);
-        string dir = System.IO.Path.Combine(pictures, "FrameCapture");
-        try { System.IO.Directory.CreateDirectory(dir); } catch { dir = pictures; }
+        // 默认目录与「自动保存副本」一致：尊重自定义 AutoSavePath，回退 Pictures\FrameCapture
+        string dir = FrameCapture.Services.SaveService.ResolveFolder();
         var dlg = new Microsoft.Win32.SaveFileDialog
         {
             Filter = "PNG 图片|*.png",

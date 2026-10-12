@@ -1110,6 +1110,8 @@ public sealed partial class EditorWindow : Window
             _ => "capture.gif",
         };
         var dlg = NewSaveDialog("MP4 视频|*.mp4|WebM 视频|*.webm|GIF 动图|*.gif", defName);
+        // 类型下拉默认选中当前「录制格式」，与默认文件名扩展一致（否则总停在首项 MP4，与 capture.gif 打架）
+        dlg.FilterIndex = def switch { RecordFormat.Mp4 => 1, RecordFormat.WebM => 2, _ => 3 };
         if (dlg.ShowDialog(this) != true) return;
         DispatchSave(dlg.FileName);
     }
@@ -1184,10 +1186,8 @@ public sealed partial class EditorWindow : Window
 
     static Microsoft.Win32.SaveFileDialog NewSaveDialog(string filter, string defaultName)
     {
-        // 提权启动时当前目录可能是 System32：永远默认到用户目录
-        string pictures = Environment.GetFolderPath(Environment.SpecialFolder.MyPictures);
-        string dir = System.IO.Path.Combine(pictures, "FrameCapture");
-        try { Directory.CreateDirectory(dir); } catch { dir = pictures; }
+        // 默认目录与「自动保存副本」保持一致：尊重用户自定义 AutoSavePath，非法/未设则回退 Pictures\FrameCapture
+        string dir = FrameCapture.Services.SaveService.ResolveFolder();
         return new() { Filter = filter, FileName = defaultName, InitialDirectory = dir };
     }
 

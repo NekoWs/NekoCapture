@@ -1598,3 +1598,16 @@ status: done
 - `HelpWindow` 新增「导出视频需要 FFmpeg」条目：说明软件不内置、运行时自动探测；给三条安装路径（`winget install Gyan.FFmpeg` / ffmpeg.org 下载加 PATH / 已装未进 PATH 补 PATH），并点明装好无需重启设置、下次导出即生效。
 
 **验证**：构建 0 错误；完整护栏 GUARDRAIL PASS（FAIL=0 SKIP=1 floor280，err_delta=0）。说明：ffmpeg 缺失路径需隐藏本机 ffmpeg 才能 e2e，风险高（可能弄坏用户环境），故以编译 + 护栏 + 文案审查为准；文案是字符串字面量，编译期即锁。
+
+
+## 2026-10-12 下午 导出/另存对话框目录与格式一致性 R110
+
+**发现**（看导出对话框截图抓到的两处不一致）：
+1. `EditorWindow.NewSaveDialog` 与 `PinWindow.SaveAs` 都硬编码默认目录 `Pictures\FrameCapture`，**不尊重用户自定义 `AutoSavePath`**——自动保存存到用户自定义目录，手动「导出/另存」却总开在默认目录，两者割裂。
+2. 导出对话框筛选器列表首项是 MP4 且未设 `FilterIndex`，导致「保存类型」下拉总停在 MP4，而默认文件名却按 RecordFormat 生成（Gif→capture.gif）——文件名 `.gif` 与类型 `MP4` 打架，误导用户（实际按扩展名存 GIF 结果没错，但下拉显示骗人）。
+
+**修复**：
+- 两处保存对话框默认目录统一改用 `SaveService.ResolveFolder()`（尊重自定义 AutoSavePath，非法/未设回退 `Pictures\FrameCapture`，静态且绝不抛异常）——手动导出与自动保存落在同一目录，自定义目录到处生效。
+- `SaveRecording` 补 `dlg.FilterIndex = def switch { Mp4=>1, WebM=>2, _=>3 }`，类型下拉默认跟随「录制格式」，与默认文件名扩展一致。
+
+**验证**：构建 0 错误；完整护栏 GUARDRAIL PASS（FAIL=0 SKIP=1 floor280，err_delta=0）。焦点安全 e2e 取证：设 `AutoSavePath=C:\Users\16892\FCExportTest` → 录制→编辑器→Ctrl+E → PrintWindow 存盘对话框 → 面包屑显示 `NekoW › FCExportTest`（自定义目录生效）；RecordFormat=Gif 时底部裁图显示「保存类型：GIF 动图 (*.gif)」与文件名 `capture.gif` 一致（修复前是 MP4）。测试目录已删、AutoSavePath 已重置。
