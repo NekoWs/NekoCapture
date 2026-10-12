@@ -1912,3 +1912,8 @@ status: done
 - 改法：内容面板同处一个 `Grid`（重叠），`ShowCat` 改交叉淡入——旧面板 110ms CubicEase-In 淡出后 `Collapsed`（`Completed` 里带 `_cat!=capturedPrev` 守卫防快速连切误收），新面板 `Visible` 后 190ms(`Motion.EnterMs`) CubicEase-Out 淡入 + `TranslateTransform.Y` 12→0 轻微上浮（复用编辑器 A1「内容上浮」语言）。快速连切先把无关面板 `BeginAnimation(null)` 清零并收起，杜绝竞态残留/双面板叠影。首帧/换肤重建 `animate=false` 走原直切路径。
 - 取证：`Shot mouse` 注入点击导航项 + `UICap burstregion` 连拍（绝对前缀 + 标题加引号，避开 `Start-Process -ArgumentList` 拆参坑）→ `tr4.013.png` 实证「录制」内容半透明淡入 + 上浮、旧「快捷键」已淡出、竖条平滑跟随；终态 `after-click.png` 单面板全不透明无叠影。护栏 FAIL=0 SKIP=1，SelfTest 387。
 - 待办（后续轮，PCL2 化）：① 内容标题 `contentHeader` 现瞬切，可随面板一起淡入；② 切页滚动位置未复位（可 `ScrollToTop`，但 `scroller` 在 `ShowCat` 之后声明，需调整声明序或在调用点补）；③ 帮助窗/手势配置器切页同款处理；④ 悬浮条/编辑器 hover 与按压反馈统一复核。
+
+**② 手势配置器窗：硬弹硬关 → 自包含淡入(0.96→1 缩放)+淡出；设置窗标题随正文淡入**
+- 手势配置器 `GestureEditorWindow`（可复用库，不引用宿主 Fluent）此前**无任何入场/退场动效**（硬弹硬关）。加自包含动效（库不引宿主件，但用 WPF 自带 `System.Windows.Media.Animation`，与宿主 `PopupEnter/CloseWithFade` 同款手感）：构造末尾 `SetupMotion()`——`Opacity=0` + `ContentRendered` 淡入 190ms + 根 Border `ScaleTransform` 0.96→1（WinUI Dialog 范式）；`Closing` 拦截任何关闭路径（X/取消/保存/宿主 Close）先淡出 150ms cubic-in 再真 `Close()`，`_closing` 守卫防重入（淡出中再点 X 直接放行关闭）。库窗非分层，未上手工 `LWA_ALPHA`（避 R11 永久隐形坑），靠 WPF 自管分层。
+- 取证：`burstdesk`（真实屏幕，能反映 per-window alpha；`burstregion` 用 PrintWindow 抓窗口 DC **无视 alpha** 故看不到淡变——重要教训）连拍开启动画：第 2 帧无窗→第 3 帧配置器约半透明（透出后面设置窗内容）→第 4 帧全不透明，淡入生效且**无闪白帧**。退场淡出与入场同一 `DoubleAnimation(Opacity)`+`Closing` 代码路径、窗确能关闭（`window-not-found`），机制对称；150ms 淡出跨进程连拍对齐困难未抓到中间帧（采样问题非功能问题），以入场实证 + 代码对称定案。
+- 设置窗切页补 `contentHeader` 随正文一起淡入（改文本时置 0 再淡入，消除「跳字」）。构建 0 错，护栏 FAIL=0 SKIP=1，SelfTest 387。

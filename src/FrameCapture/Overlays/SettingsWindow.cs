@@ -311,6 +311,11 @@ public sealed class SettingsWindow : Window
             }
             else incoming.Opacity = 1;
             contentHeader.Text = cats[idx].Name;
+            // 标题随正文一起淡入（改文本时置 0 再淡入，避免文字瞬切的「跳字」）
+            if (animate)
+                contentHeader.BeginAnimation(UIElement.OpacityProperty,
+                    new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(FrameCapture.Core.Fluent.Motion.EnterMs)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
+            else contentHeader.Opacity = 1;
             var acc = Theme.Accent;
             for (int i = 0; i < navItems.Count; i++)
             {

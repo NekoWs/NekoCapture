@@ -6,6 +6,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using System.Windows.Shapes;
 using GestureCore;
 using GcMods = GestureCore.ModifierKeys;
@@ -69,6 +70,42 @@ public sealed class GestureEditorWindow : Window
         RefreshList();
         if (_doc.Bindings.Count > 0) { _selected = 0; _list.SelectedIndex = 0; ShowDetail(); }
         RefreshValidation();
+        SetupMotion();
+    }
+
+    // ---------- 入场/退场动效（自包含：库不引用宿主 Fluent，但手感与其 PopupEnter/CloseWithFade 同款）----------
+    const int EnterMs = 190, ExitMs = 150;   // 对齐宿主 Fluent.Motion.EnterMs/ExitMs
+    bool _closing;
+    void SetupMotion()
+    {
+        Opacity = 0;
+        ContentRendered += (_, _) =>
+        {
+            var dur = new Duration(TimeSpan.FromMilliseconds(EnterMs));
+            var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
+            BeginAnimation(OpacityProperty, new DoubleAnimation(1, dur) { EasingFunction = ease });
+            if (Content is FrameworkElement fe && fe.RenderTransform == null)
+            {
+                fe.RenderTransformOrigin = new Point(0.5, 0.5);
+                var st = new ScaleTransform(0.96, 0.96);
+                fe.RenderTransform = st;
+                st.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(1, dur) { EasingFunction = ease });
+                st.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(1, dur) { EasingFunction = ease });
+            }
+        };
+        // 退场：任何关闭路径（关闭钮/Esc/宿主 Close）先淡出再真关；淡出中再来的 Closing 一律放行。
+        Closing += (_, e) =>
+        {
+            if (_closing) return;
+            e.Cancel = true;
+            _closing = true;
+            var cur = Opacity;
+            var a = new DoubleAnimation(cur, 0.0, new Duration(TimeSpan.FromMilliseconds(ExitMs))) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseIn } };
+            a.Completed += (_, _) => Close();
+            BeginAnimation(OpacityProperty, null);
+            Opacity = cur;
+            BeginAnimation(OpacityProperty, a);
+        };
     }
 
     // ---------- 布局 ----------
