@@ -1917,3 +1917,7 @@ status: done
 - 手势配置器 `GestureEditorWindow`（可复用库，不引用宿主 Fluent）此前**无任何入场/退场动效**（硬弹硬关）。加自包含动效（库不引宿主件，但用 WPF 自带 `System.Windows.Media.Animation`，与宿主 `PopupEnter/CloseWithFade` 同款手感）：构造末尾 `SetupMotion()`——`Opacity=0` + `ContentRendered` 淡入 190ms + 根 Border `ScaleTransform` 0.96→1（WinUI Dialog 范式）；`Closing` 拦截任何关闭路径（X/取消/保存/宿主 Close）先淡出 150ms cubic-in 再真 `Close()`，`_closing` 守卫防重入（淡出中再点 X 直接放行关闭）。库窗非分层，未上手工 `LWA_ALPHA`（避 R11 永久隐形坑），靠 WPF 自管分层。
 - 取证：`burstdesk`（真实屏幕，能反映 per-window alpha；`burstregion` 用 PrintWindow 抓窗口 DC **无视 alpha** 故看不到淡变——重要教训）连拍开启动画：第 2 帧无窗→第 3 帧配置器约半透明（透出后面设置窗内容）→第 4 帧全不透明，淡入生效且**无闪白帧**。退场淡出与入场同一 `DoubleAnimation(Opacity)`+`Closing` 代码路径、窗确能关闭（`window-not-found`），机制对称；150ms 淡出跨进程连拍对齐困难未抓到中间帧（采样问题非功能问题），以入场实证 + 代码对称定案。
 - 设置窗切页补 `contentHeader` 随正文一起淡入（改文本时置 0 再淡入，消除「跳字」）。构建 0 错，护栏 FAIL=0 SKIP=1，SelfTest 387。
+
+**③ 设置窗切类别复位滚动到顶部**
+- `ShowCat` 切类别时 `scroller?.ScrollToTop()`（仅 `prev!=idx` 真导航时复位；主题重建 `prev==idx` 不动，保留滚动位置）。`scroller` 原在 `ShowCat` 之后声明（局部函数无法前向引用 CS0841）→ 前向声明 `ScrollViewer scroller=null;` 于 ShowCat 前、构造处去 `var` 改赋值。当前各页内容均未超视口（截图页最满也不滚），复位为防御性/未来向（小窗或更高 DPI 溢出时生效），现状 no-op 零风险。
+- 冒烟：快速连切全部 8 类（含快切竞态）→ 进程存活、终态单面板全不透明无叠影。构建 0 错。

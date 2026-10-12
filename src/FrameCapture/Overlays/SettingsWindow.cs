@@ -271,6 +271,7 @@ public sealed class SettingsWindow : Window
             if (!animate) { el.Opacity = to; return; }
             el.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(to, TimeSpan.FromMilliseconds(200)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
         }
+        ScrollViewer scroller = null;   // 前向声明：ShowCat 切类别时需复位滚动（实际构造在下方右栏装配处）
         void ShowCat(int idx, bool animate)
         {
             int prev = _cat;
@@ -296,6 +297,7 @@ public sealed class SettingsWindow : Window
             }
             var incoming = cats[idx].Body;
             incoming.Visibility = Visibility.Visible;
+            if (prev != idx) scroller?.ScrollToTop();   // 切类别回到顶部（主题重建 prev==idx 不复位，保留滚动位置）
             incoming.BeginAnimation(UIElement.OpacityProperty, null);
             incoming.RenderTransform = null;
             if (animate)
@@ -368,7 +370,7 @@ public sealed class SettingsWindow : Window
         // 右栏：内容标题 + 可滚动内容宿主
         var host = new Grid();
         foreach (var c in cats) host.Children.Add(c.Body);
-        var scroller = new ScrollViewer
+        scroller = new ScrollViewer
         {
             Content = host,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
