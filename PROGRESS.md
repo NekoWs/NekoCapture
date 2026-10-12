@@ -1629,3 +1629,12 @@ status: done
 **改动**：`SettingsWindow.RecordFormatRow()` 末尾把单行 Grid 包进 StackPanel，下方加一行状态：绘制的小圆点（`System.Windows.Shapes.Ellipse`，非字形，规避未验证字形规则）+ 文案。绿点 `已检测到 ffmpeg · 可导出 MP4 / WebM`；琥珀点 `未检测到 ffmpeg · 导出 MP4/WebM 需先安装（见帮助 F1），GIF 不受影响`。`hasFf` 复用行内已算好的 `FfmpegLocator.Find()`，只读、开设置时算一次，无行为改动。
 
 **验证**：构建 0 错误；完整护栏 GUARDRAIL PASS（FAIL=0 SKIP=1 floor280，err_delta=0）。焦点安全 e2e 取证：开设置→PrintWindow 裁录制格式区 → 本机装有 ffmpeg，格式行下方正确显示绿点 +「已检测到 ffmpeg · 可导出 MP4 / WebM」，缩进对齐标签。未检测到分支为对称逻辑（仅文案+琥珀色不同），本机无法在不破坏 ffmpeg 安装的前提下触发，按对称代码审查确认。
+
+
+## 2026-10-12 下午 Shift 约束可发现性：工具 tooltip 补提示 R113
+
+**发现**（查 TODO line 321① 陈旧项时顺带审出）：Shift 约束绘制（矩形→正方、圆→正圆、线/箭头→45°）R99 已实现，且 `ToolCatalog.Help`（帮助窗）每条都写了「按住 Shift 拖=…」——但工具按钮的 **tooltip 用的是短 `Tip` 字段**（「矩形 (R)」），不含 Shift。tooltip 是用户悬停时最常看到的提示面，比翻帮助窗高频得多；结果这个防手抖的实用约束在工具条上完全隐身。
+
+**改动**：`ToolCatalog` 四个形状工具的 `Tip` 补上约束提示——`直线 (L) · Shift 锁 45°` / `矩形 (R) · Shift 正方` / `圆圈 (O) · Shift 正圆` / `箭头 (A) · Shift 锁 45°`。单一数据源，工具条 tooltip 与帮助窗同源不漂移。顺带校正 TODO line 321①（实现+帮助早已完成，标 done）。
+
+**验证**：构建 0 错误；SelfTest **336 PASS / 0 FAIL**（T92d-tips 校验 `Tip.Contains(Key)` 仍通过，加后缀不破坏）；完整护栏 GUARDRAIL PASS（FAIL=0 SKIP=1 floor280，err_delta=0）。tooltip 文本经 `IconBtn(Glyph, Tip)` 直接数据绑定（EditorWindow.cs:388），无布局逻辑，内容确定，故未做 tooltip 截图取证（截图纪律主要抓布局/视觉 bug，纯文本绑定无此风险）。
