@@ -1822,6 +1822,21 @@ static class SelfTest
                 Chk("T124b-rect-hollow", Black(50, 50), "内部保持原色（空心不填充）");
                 Chk("T124c-rect-outside", Black(5, 5), "框外保持原色");
             }
+            // T125 Shift 约束几何（R99，ShapeConstraint）：正方/正圆 与 45° 吸附
+            {
+                var sq = ShapeConstraint.Square(0, 0, 100, 60);
+                Chk("T125a-square-min", Math.Abs(sq.X - 60) < 1e-9 && Math.Abs(sq.Y - 60) < 1e-9, "取较小边作正方边长");
+                var sq2 = ShapeConstraint.Square(0, 0, -100, 60);
+                Chk("T125b-square-sign", Math.Abs(sq2.X + 60) < 1e-9 && Math.Abs(sq2.Y - 60) < 1e-9, "保留拖拽方向符号（左上象限）");
+                var a1 = ShapeConstraint.Angle45(0, 0, 100, 10);   // ~5.7° → 0°
+                Chk("T125c-angle0", Math.Abs(a1.Y) < 1e-6 && a1.X > 100, "近水平吸附到 0°（y=0）");
+                var a2 = ShapeConstraint.Angle45(0, 0, 100, 90);   // ~42° → 45°
+                Chk("T125d-angle45", Math.Abs(a2.X - a2.Y) < 1e-6 && a2.X > 0, "近 45° 吸附（x=y）");
+                var a3 = ShapeConstraint.Angle45(0, 0, 10, 100);   // ~84° → 90°
+                Chk("T125e-angle90", Math.Abs(a3.X) < 1e-6 && a3.Y > 100, "近垂直吸附到 90°（x=0）");
+                var a0 = ShapeConstraint.Angle45(0, 0, 0, 0);
+                Chk("T125f-angle-zero", a0.X == 0 && a0.Y == 0, "零长度不崩（原样返回）");
+            }
         }
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");
         return fail == 0 ? 0 : 1;

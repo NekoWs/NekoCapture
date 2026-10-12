@@ -395,7 +395,7 @@ public sealed partial class EditorWindow
             return;
         }
         if (!_dragging || _preview == null) return;
-        var p = e.GetPosition(_canvas);
+        var p = Constrain(e.GetPosition(_canvas));
         var n = Norm(p);
         // 统一：预览形状存绝对坐标（Canvas 左=0）
         switch (_tool)
@@ -443,6 +443,17 @@ public sealed partial class EditorWindow
             { var nn2 = Norm(p); _pending.Points[1] = ((float)nn2.X, (float)nn2.Y); }
     }
 
+    /// <summary>Shift 约束绘制：矩形/圆→正方/正圆，线/箭头→45° 吸附；其余原样。预览与提交两处共用，保证所见即所得。</summary>
+    Point Constrain(Point p)
+    {
+        if ((Keyboard.Modifiers & ModifierKeys.Shift) == 0) return p;
+        if (_tool is Tool.Rect or Tool.Ellipse)
+        { var (x, y) = FrameCapture.Core.ShapeConstraint.Square(_pressPos.X, _pressPos.Y, p.X, p.Y); return new Point(x, y); }
+        if (_tool is Tool.Line or Tool.Arrow)
+        { var (x, y) = FrameCapture.Core.ShapeConstraint.Angle45(_pressPos.X, _pressPos.Y, p.X, p.Y); return new Point(x, y); }
+        return p;
+    }
+
     void Canvas_Up(object sender, MouseButtonEventArgs e)
     {
         if (_moveDrag)
@@ -469,7 +480,7 @@ public sealed partial class EditorWindow
         if (!_dragging) return;
         _dragging = false;
         _canvas.ReleaseMouseCapture();
-        var p = e.GetPosition(_canvas);
+        var p = Constrain(e.GetPosition(_canvas));
         if (_tool == Tool.Crop)
         {
             ApplyCrop(_pressPos, p);
