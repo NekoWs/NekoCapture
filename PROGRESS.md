@@ -1992,3 +1992,13 @@ status: done
 - **文件删除确认**：`glob src/**/{HookDecision,ToggleRecord}.cs` → **无文件**（旧决策表/连按状态机文件已物理删除，无 class 残留）。
 - **残留同名符号辨析（非被删项）**：`CaptureGuards.OnCaptureHotkey/OnScopeHotkey` 是**当前手势路径**的意图守卫（`CaptureController.cs:147` 调用），`CaptureController.ToggleRecordSelection` 是录制切换方法（`GestureInvoker.cs:50` 的 `RecordToggle` 动作调用）——手势触发即键位组合，"Hotkey" 命名仍贴切，非旧路径遗留。
 - **结论**：B2③ 完整落地，无死代码、无残留引用、无误删当前逻辑。本轮无源码改动。
+
+**R140 · 最终完整护栏（最终 HEAD 上 objective 验证标准直接达成）**
+- **GUARDRAIL PASS（FAIL=0 SKIP=1，共 10 项）**，后台运行至完成（exit 0）：
+  - build:app / build:Shot / build:SelfTest 全 **errors=0 exe=ok**；
+  - **SelfTest PASS=387 FAIL=0**（floor 387）；
+  - e2e **editor-keys / zoom / esc-layers / tap-semantics / fuzz-statemachine 全 PASS**——其中 **tap-semantics（手势轻点截图 / 长按录制）正是 B2 核心语义**；
+  - **err_delta=0**（error.log 34733→34733，无新崩溃）；
+  - focus-safety **SKIP**（前台为 DSH GUI 非本软件窗，注入探针安全跳过，SKIP≠FAIL）。
+- **护栏后用户配置核验**：try/finally 还原成功——4 条自定义手势逐字段完好（qq.rec `Ctrl+Alt+R`→record.toggle→edit.lastvideo；bfd68f4 `Ctrl+Alt+A`→capture.selection；bc235bc `F2 KeyDown`→record.start；b3c320e `F2 KeyUp`→record.stop→edit.lastvideo），`Enabled/Exclusive/Seeded=true`，其余设置未动。
+- **结论**：objective 验证标准「构建 0 错 + SelfTest 只增不减 + GUARDRAIL PASS」在**最终 HEAD（R127–R139 全部改动后）直接达成**，非假设。本轮无源码改动。
