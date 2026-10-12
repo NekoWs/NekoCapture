@@ -32,9 +32,9 @@ public sealed class AppSettings
     /// 适合做教程/演示时后期自己加高亮，或不想让光标乱入成片。</summary>
     public bool RecordIncludeCursor { get; set; } = true;
 
-    /// <summary>已废弃（R61）：长按录制时长上限移除——录到用户停为止，帧落盘不再受内存/时长限制。
-    /// 保留字段仅为兼容旧 settings.json（读写无害），运行期不再有任何消费方。</summary>
-    public int MaxDurationMs { get; set; } = 6000;
+    // R61 已移除长按录制时长上限（录到用户停为止，帧落盘，护栏是磁盘）。
+    // 原 MaxDurationMs 死设置（R120 清理）：运行期从无消费方，留着只会让人误以为有上限，故删除；
+    // 旧 settings.json 里残留的该键反序列化时被忽略，无害。
 
     /// <summary>是否自动生成给 Agent 看的逐帧胶片条。</summary>
     public bool AgentStripEnabled { get; set; } = true;
@@ -169,7 +169,6 @@ public sealed class AppSettings
     {
         TapThresholdMs = Math.Clamp(TapThresholdMs, 0, 1000);
         Fps = Math.Clamp(Fps, FpsMin, FpsMax);
-        MaxDurationMs = Math.Clamp(MaxDurationMs, 1000, 30_000);
         AgentStripFrames = Math.Clamp(AgentStripFrames, 4, 24);
         if (Theme is not ("system" or "light" or "dark")) Theme = "system";
         if (AfterCapture is not ("toast" or "editor" or "copy" or "pin")) AfterCapture = "toast";

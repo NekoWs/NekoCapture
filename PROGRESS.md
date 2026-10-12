@@ -1774,3 +1774,8 @@ status: done
 **根因**：`HotkeyManager.Install` 第 66 行 `if (scope==null && capture==null) return;`——手势占用全部热键→旧热键被清空→`Install("","")` 早退→**WH_KEYBOARD_LL 钩子根本没装**。而手势 KeySink 正是从该钩子喂数据（HandleKey 第 140 行），故手势全哑。附带：滚动截图 Esc 全局取消、浮窗 Enter/Esc 也依赖此钩子，同样会失效。
 **修复**：`if (scope==null && capture==null && KeySink==null) return;`——只要任一消费者（旧热键 / 手势 KeySink）存在就装钩子。AppHost 里 `Gestures.Apply` 已先于 `Install`，KeySink 先设好，顺序正确。
 **验证**：SelfTest T134a（有 KeySink 无热键→装钩子）/ T134b（无 KeySink 无热键→不装，零开销），护栏 361→**363**。实机：新实例 `Install scope= capture= hook=<非0>` 证实钩子已装。
+
+## R120 清理：删除死设置 MaxDurationMs（用户实测「不要录制上限」引出）
+- 我上一条消息误报「录制上限 6 秒」——其实 **R61 早已移除录制时长上限**（CaptureController:558 / FrameSpool:7 / SettingsWindow:156 / HelpWindow:122 均写明「录到松手为止，不设时长上限」，护栏是磁盘 DiskLow 自动停）。`MaxDurationMs` 是 R61 后遗留的死设置（AppSettings 注释「已废弃」，运行期从无消费方）。
+- 用户要「不要录制上限」→ 行为本已满足；把死设置**彻底删除**（属性 + Normalize 行），并清掉 settings.json 残留键，杜绝再误导。旧 settings.json 残留该键反序列化被忽略，无害。
+- 护栏 363 绿、新实例启动正常、手势钩子仍装。
