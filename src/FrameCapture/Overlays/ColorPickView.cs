@@ -82,7 +82,7 @@ public sealed class ColorPickView : StackPanel
         var top = new StackPanel
         {
             Orientation = Orientation.Horizontal,
-            Children = { sv, Spacing(6), hueHost, Spacing(6), alphaHost, preview },
+            Children = { Round(sv, 6), Spacing(6), Round(hueHost, 4), Spacing(6), Round(alphaHost, 4), preview },
         };
 
         // ---- HEX + RGBA 直填（宿主 Popup 继承图标字体，文本框显式复位）----
@@ -97,7 +97,7 @@ public sealed class ColorPickView : StackPanel
         var bottom = new StackPanel
         {
             Orientation = Orientation.Horizontal, Margin = new Thickness(0, 8, 0, 0),
-            Children = { _hexBox, Spacing(6), Labeled("R", _rBox), Spacing(4), Labeled("G", _gBox), Spacing(4), Labeled("B", _bBox), Spacing(4), Labeled("A", _aBox) },
+            Children = { Field(_hexBox, 104), Spacing(8), Labeled("R", _rBox), Spacing(6), Labeled("G", _gBox), Spacing(6), Labeled("B", _bBox), Spacing(6), Labeled("A", _aBox) },
         };
         Orientation = Orientation.Vertical;
         Children.Add(top); Children.Add(bottom);
@@ -171,6 +171,12 @@ public sealed class ColorPickView : StackPanel
     }
 
     static UIElement Spacing(double w) => new Rectangle { Width = w };
+    // R120 D1：圆角包裹（Border 按 CornerRadius 裁剪子内容）+ 细描边，让 SV/色相/透明条不再是生硬方块
+    static Border Round(UIElement e, double r) => new()
+    {
+        CornerRadius = new CornerRadius(r), ClipToBounds = true, Child = e,
+        BorderBrush = new SolidColorBrush(Theme.Stroke), BorderThickness = new Thickness(1),
+    };
     static Rectangle ThumbLine() => new()
     {
         Height = 3, RadiusX = 1.5, RadiusY = 1.5, Fill = Brushes.White,
@@ -184,20 +190,39 @@ public sealed class ColorPickView : StackPanel
             Orientation = Orientation.Horizontal,
             Children =
             {
-                new TextBlock { Text = t, FontFamily = new FontFamily("Segoe UI"), FontSize = 11, Foreground = new SolidColorBrush(Theme.Text), VerticalAlignment = VerticalAlignment.Center },
-                box,
+                new TextBlock { Text = t, FontFamily = new FontFamily("Segoe UI"), FontSize = 11, Foreground = new SolidColorBrush(Theme.TextDim), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 4, 0) },
+                Field(box, 40),
             },
         },
     };
+    // R120 D1：主题化输入字段——深色圆角底 + 描边，聚焦转强调色（原默认白底系统边框在深色弹层里很突兀）
+    static Border Field(UIElement inner, double w)
+    {
+        var b = new Border
+        {
+            Width = w, Height = 24,
+            Background = new SolidColorBrush(Theme.TrackBg),
+            BorderBrush = new SolidColorBrush(Theme.Stroke),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(5),
+            Padding = new Thickness(6, 0, 6, 0),
+            Child = inner,
+        };
+        inner.GotKeyboardFocus += (_, _) => b.BorderBrush = new SolidColorBrush(Theme.Accent);
+        inner.LostKeyboardFocus += (_, _) => b.BorderBrush = new SolidColorBrush(Theme.Stroke);
+        return b;
+    }
     static TextBox TextBoxAt(double w) => new()
     {
-        Width = w, FontFamily = new FontFamily("Consolas"), FontSize = 12,
-        VerticalContentAlignment = VerticalAlignment.Center, Height = 24,
+        FontFamily = new FontFamily("Consolas"), FontSize = 12, Foreground = new SolidColorBrush(Theme.Text),
+        Background = Brushes.Transparent, BorderThickness = new Thickness(0), CaretBrush = new SolidColorBrush(Theme.Text),
+        VerticalContentAlignment = VerticalAlignment.Center,
     };
     static TextBox NumBox() => new()
     {
-        Width = 34, FontFamily = new FontFamily("Consolas"), FontSize = 12,
-        VerticalContentAlignment = VerticalAlignment.Center, Height = 24, Margin = new Thickness(3, 0, 0, 0),
+        FontFamily = new FontFamily("Consolas"), FontSize = 12, Foreground = new SolidColorBrush(Theme.Text),
+        Background = Brushes.Transparent, BorderThickness = new Thickness(0), CaretBrush = new SolidColorBrush(Theme.Text),
+        VerticalContentAlignment = VerticalAlignment.Center,
     };
     static void NumCommit(TextBox box, Action<int> apply)
     {

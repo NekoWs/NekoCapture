@@ -1745,3 +1745,8 @@ status: done
 - **D4 子菜单 Popup 修复**：`Fluent.MenuResources()` 的 MenuItem 模板**缺 PART_Popup**（托盘菜单无子菜单故从未暴露）→ Pin「不透明度」子菜单根本展不开。模板改为 Grid 包裹 Border+`Popup x:Name=PART_Popup`（MenuItem 自动接管其 IsOpen，无需绑定；内插原始字符串里字面 `{` 需更多 `$`，故不用 Binding）+ 加 `Role=SubmenuHeader` 触发器显示右侧箭头（E76C）。
 - **D3 Pin 入场动画（L68）**：淡入 + 卡片 0.82→1.0 BackEase 轻微过冲「落图」（220ms），构造期即 Opacity=0 防首帧闪缩，ContentRendered 后 FadeIn+PlayDrop 同步。
 - 待实机 e2e：菜单外观/子菜单展开/不透明度滚轮/入场动画（留待确认用户离开后做）。
+
+## 夜间批次 R120 · D1 取色器 UI 打磨（2026-10-13）
+- **L52「自定义取色器 UI 太丑」根因**：SV/色相/透明条是生硬方块、HEX/RGBA 是默认白底系统边框 TextBox，在深色弹层里极突兀。
+- 打磨：① 输入字段主题化——`Field()` 深色圆角底(TrackBg)+描边、聚焦转强调色，TextBox 改透明无边框+主题前景/插入符；② SV/色相/透明条 `Round()` 圆角+细描边（Border 按 CornerRadius 裁剪）；③ 标签改 TextDim 更克制、间距规整。
+- **离屏目检**：`SelfTest renderpick <png>` 渲染取色器到 PNG（无断言取证通道），读图确认圆角/深色字段/主题统一——无需实机、零打扰。
