@@ -1956,3 +1956,9 @@ status: done
 - **SelfTest 最终 HEAD 绿**：Debug x64 构建 0 错，SelfTest **PASS=387 FAIL=0**（不钉配置、无 e2e 风险的安全门禁）。
 - **默认选区键冲突已归档、勿重复调查**：`DefaultScopeKey=Ctrl+Shift+R` 与浏览器硬刷新冲突——**TODO.md:375 已完整记录为待用户拍板项**（「属产品决策+改默认有风险故未动」，建议改 `Ctrl+Alt+R`/`Ctrl+Shift+S`，仅影响新装）。改动波及 SelfTest 多处断言 + lib-hotkey/fuzz/README/TEST-CHECKLIST，确属用户决策，**不动**。
 - 结论：无源码改动必要；指令达成、批尾 zip 就绪、配置完好、门禁绿。唯余最后一轮重启 release 实例。
+
+**R134 · 收尾窗口判定 + 单实例结论（重启实例必须留最后一轮）**
+- **TODO.md 全量开放项复核**：逐条读完（含 line 320–415），所有 `[ ]` 均为用户明确「暂缓/后续/留后再美化」的增强候选，或产品决策（默认选区键冲突 line 375，已交用户拍板）——**无安全可自主做的项**。A1 内存工作集已由 `Memory.Reclaim()`（编辑器关闭 + 编码收尾 GC×2+TrimWorkingSet）解决，line 388「待确认」作废。
+- **单实例确认**：`App.xaml.cs:40` `Mutex("Local\FrameCapture.SingleInstance")`；第二实例 `ForwardToPrimary(args)` 转发 `--settings/--help` 后 `Shutdown()` 退出。**含义**：若提前把 Release 实例跑起来，用户醒来双击自己的构建（Debug/Release 同名 Mutex）会被转发到我这个实例后退出——用户自己的构建起不来，易懵。
+- **故「恢复 release 实例」（objective 批尾项）必须是批次最后一轮的动作**，临近截止再做，**不可提前**。提前重启 = 挡用户自启 + 被后续轮次打断的双重风险。
+- **时间**：02:46，距截止 7.2h，未到收尾窗口。本轮无源码改动；后续轮次轻量确认净态，临近截止（约 09:30+）再执行重启实例 + 更新 TODO.md 收尾状态头。
