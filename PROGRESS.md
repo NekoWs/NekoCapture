@@ -1902,3 +1902,13 @@ status: done
 - 用户关切：B2 应删掉「一切能用快捷键配置替代的键→动作设置项」，「双击录制」是例子，担心做错。复核结论：已删 `CaptureHotkey/ScopeHotkey/TapThresholdMs/TapAlwaysShowsRegion/DoubleTapRecord` 全部键→动作设置；所有行为均为手势动作（截图/选区/录制起停/同键起停/滚动/延时/贴图/OCR/进编辑器…）。
 - 唯一残留：REC 徽标 `StartRecBadge` 的 `toggle` 分支文案「· 再连按两下结束」——旧双击录制语义，且唯一调用方 `StartRecBadge()` 无参（toggle 恒 false）实为死代码。按用户「徽标里的提示去掉就好了」删除该后缀 + 清死参数 `toggle`/死字段 `_recToggle`。
 - 键盘多击现状（记录）：引擎 `DoubleClick/TripleClick` 仅由鼠标 `OnMouseDown/Up` 驱动（组合键激活态 + 鼠标连击），**无键盘双击触发器**；旧「双击某键起停录制」在新模型由「按住录制」或「单击起停（KeyDown→record.toggle）」覆盖，非字面双击。若日后要字面键盘双击可再补引擎。构建 0 错。
+
+## Round 127 — UI/动效打磨（对标 PCL2 丝滑感，用户离线新指令）
+
+用户睡前新指令：「有空就多打磨 UI，让动效和 PCL2 启动器一样丝滑」。PCL2 = Plain Craft Launcher 2，WPF 标杆级顺滑（平滑切页/一致缓动/无生硬跳变）。本轮起以此为动效品质基线，逐面打磨。
+
+**① 设置窗切类别：Visibility 硬切 → 交叉淡入 + 轻微上浮**
+- 现状：B1 主从式左栏导航竖条滑动 + 卡片淡入淡出已平滑，但右栏内容 `cats[i].Body.Visibility = Visible/Collapsed` **硬切**（旧面板瞬没、新面板瞬现）——对标 PCL2 最大差距。
+- 改法：内容面板同处一个 `Grid`（重叠），`ShowCat` 改交叉淡入——旧面板 110ms CubicEase-In 淡出后 `Collapsed`（`Completed` 里带 `_cat!=capturedPrev` 守卫防快速连切误收），新面板 `Visible` 后 190ms(`Motion.EnterMs`) CubicEase-Out 淡入 + `TranslateTransform.Y` 12→0 轻微上浮（复用编辑器 A1「内容上浮」语言）。快速连切先把无关面板 `BeginAnimation(null)` 清零并收起，杜绝竞态残留/双面板叠影。首帧/换肤重建 `animate=false` 走原直切路径。
+- 取证：`Shot mouse` 注入点击导航项 + `UICap burstregion` 连拍（绝对前缀 + 标题加引号，避开 `Start-Process -ArgumentList` 拆参坑）→ `tr4.013.png` 实证「录制」内容半透明淡入 + 上浮、旧「快捷键」已淡出、竖条平滑跟随；终态 `after-click.png` 单面板全不透明无叠影。护栏 FAIL=0 SKIP=1，SelfTest 387。
+- 待办（后续轮，PCL2 化）：① 内容标题 `contentHeader` 现瞬切，可随面板一起淡入；② 切页滚动位置未复位（可 `ScrollToTop`，但 `scroller` 在 `ShowCat` 之后声明，需调整声明序或在调用点补）；③ 帮助窗/手势配置器切页同款处理；④ 悬浮条/编辑器 hover 与按压反馈统一复核。

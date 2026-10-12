@@ -273,9 +273,43 @@ public sealed class SettingsWindow : Window
         }
         void ShowCat(int idx, bool animate)
         {
+            int prev = _cat;
             _cat = idx;
+            bool doFade = animate && prev != idx && prev >= 0 && prev < cats.Count;
+            // 内容切换（对标 PCL2 平滑切页，替代原 Visibility 硬切）：旧面板淡出后收起、新面板淡入 + 轻微上浮。
+            // 面板同处一个 Grid（重叠），故可交叉淡入；快速连切时先把无关面板动画清零并收起，避免竞态残留。
             for (int i = 0; i < cats.Count; i++)
-                cats[i].Body.Visibility = i == idx ? Visibility.Visible : Visibility.Collapsed;
+            {
+                var b = cats[i].Body;
+                if (i == idx || (doFade && i == prev)) continue;
+                b.BeginAnimation(UIElement.OpacityProperty, null);
+                b.Opacity = 1; b.RenderTransform = null; b.Visibility = Visibility.Collapsed;
+            }
+            if (doFade)
+            {
+                var outgoing = cats[prev].Body;
+                outgoing.BeginAnimation(UIElement.OpacityProperty, null);
+                int capturedPrev = prev;
+                var fo = new DoubleAnimation(0, TimeSpan.FromMilliseconds(110)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseIn } };
+                fo.Completed += (_, __) => { if (_cat != capturedPrev) outgoing.Visibility = Visibility.Collapsed; };
+                outgoing.BeginAnimation(UIElement.OpacityProperty, fo);
+            }
+            var incoming = cats[idx].Body;
+            incoming.Visibility = Visibility.Visible;
+            incoming.BeginAnimation(UIElement.OpacityProperty, null);
+            incoming.RenderTransform = null;
+            if (animate)
+            {
+                var tt = new TranslateTransform(0, 12);
+                incoming.RenderTransform = tt;
+                incoming.Opacity = 0;
+                incoming.BeginAnimation(UIElement.OpacityProperty,
+                    new DoubleAnimation(1, TimeSpan.FromMilliseconds(FrameCapture.Core.Fluent.Motion.EnterMs)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
+                var slide = new DoubleAnimation(12, 0, TimeSpan.FromMilliseconds(FrameCapture.Core.Fluent.Motion.EnterMs)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } };
+                slide.Completed += (_, __) => { if (incoming.RenderTransform == tt) incoming.RenderTransform = null; };
+                tt.BeginAnimation(TranslateTransform.YProperty, slide);
+            }
+            else incoming.Opacity = 1;
             contentHeader.Text = cats[idx].Name;
             var acc = Theme.Accent;
             for (int i = 0; i < navItems.Count; i++)
