@@ -2145,6 +2145,16 @@ static class SelfTest
                 b2 != null && b2.Chord.Key == 0x52 && b2.Trigger == GE.TriggerKind.Chord && b2.Actions[0] == "record.selection",
                 "Ctrl+Alt+R → Chord → record.selection 解析正确");
         }
+        // T136 录制同键起停 + 即时截图动作（R120 B2 用户实测修正）
+        {
+            Chk("T136a-record-toggle-registered", GestureActions.IsValid("record.toggle"), "record.toggle 动作已注册");
+            Chk("T136b-capture-frame-still-valid", GestureActions.IsValid("capture.frame"), "capture.frame 仍在（改为即时抓取，名不变）");
+            var d = new GestureBindingDto { Id = "qq.rec2", Chord = "Ctrl+Alt+R", Trigger = "Chord", Actions = new[] { "record.toggle" } };
+            var b = d.ToBinding();
+            Chk("T136c-toggle-parse",
+                b != null && b.Chord.Key == 0x52 && b.Trigger == GE.TriggerKind.Chord && b.Actions[0] == "record.toggle",
+                "Ctrl+Alt+R → record.toggle 解析正确（同键起停）");
+        }
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");
         return fail == 0 ? 0 : 1;
     }

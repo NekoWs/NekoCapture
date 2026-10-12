@@ -20,6 +20,7 @@ public static class GestureActions
     public const string ScopeSelect = "scope.select";
     public const string CaptureSelection = "capture.selection";
     public const string RecordSelection = "record.selection";
+    public const string RecordToggle = "record.toggle";
     public const string RecordStart = "record.start";
     public const string RecordStop = "record.stop";
     public const string ScrollCapture = "scroll.capture";
@@ -33,10 +34,11 @@ public static class GestureActions
     /// <summary>全部可用动作（顺序即建议展示顺序）。GestureInvoker 必须覆盖每一个，否则该动作视为未实现（执行失败）。</summary>
     public static readonly GestureAction[] All =
     {
-        new(CaptureFrame, "捕获单帧", "对当前范围截取一帧（走点按路径，静图）"),
+        new(CaptureFrame, "即时截图", "按下即抓当前区域当下这一帧（无延时、不抢焦点，适合游戏）"),
         new(ScopeSelect, "选取范围", "进入交互式选区"),
         new(CaptureSelection, "选区截图", "先选一块区域，选完立即截静态图（QQ 式 Ctrl+Alt+A）"),
         new(RecordSelection, "选区录制", "先选一块区域，选完立即录制该区域（QQ 式选区录）"),
+        new(RecordToggle, "选区录制·同键停", "空闲→选区起录；录制中→停止进编辑器（QQ 式一键起停）"),
         new(RecordStart, "开始录制", "对当前范围开始录制（录到停止为止）"),
         new(RecordStop, "结束录制", "停止录制并进入编辑器"),
         new(ScrollCapture, "滚动截图", "对当前范围做滚动长截图"),

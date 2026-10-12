@@ -1785,3 +1785,9 @@ status: done
 - 新增动作 `capture.selection`（选区截图，复用现成 `_captureAfterSelect`）+ `record.selection`（选区录制，新增 `_recordAfterSelect`：选区存好后延迟 220ms 让选取层退场，再 `BeginCaptureCore` 对刚选区域起录）。
 - CaptureController 加 `BeginCaptureSelection()` / `BeginRecordSelection()`（仿 `BeginScrollCapture` 的「选区→X」模式）；GestureInvoker 接两动作。
 - Ctrl+Alt+A/R 是 Chord，不占用 F6/F7 → 旧热键照常并存。T135a/b/c（动作注册 + Ctrl+Alt+A/R 解析成 Chord），护栏 363→**366**。
+
+## R120 B2 用户实测两处修正（录制停不掉 + 截图要即时）
+- **Bug：选区录制起来后无法结束**。`record.selection` 起录后 Ctrl+Alt+R 只会重开选区，没有停止入口。→ 新增 `record.toggle`（同键起停：空闲→选区起录；录制中→`FinishCapture` 进编辑器），Ctrl+Alt+R 改绑它。QQ 式一键起停。
+- **截图不干净利落**：`capture.frame` 原走 `BeginCapture()`+**600ms 定时器**+`EndCapture()`——600ms 足够游戏丢焦点暂停，截到的是暂停画面。→ 新增 `CaptureInstantStill()`：`LiveCapture.Grab` 直接抓当下这一帧（GDI BitBlt，抓取前不弹任何窗、不抢焦点）+ `DispatchStill`。`capture.frame` 改走它。Ctrl+Alt+A 改绑 `capture.frame`（即时定格，游戏友好）。
+- T136a/b/c（record.toggle 注册/解析 + capture.frame 仍在），护栏 366→**369**。
+- 待办：独占吞键（用户确认后续要做）——手势命中时钩子同步吞键，防 Ctrl+Alt+A/R 漏给前台。

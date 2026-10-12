@@ -32,19 +32,14 @@ sealed class GestureInvoker : GC.IActionInvoker
         {
             case GestureActions.CaptureFrame:
                 if (c.State != CaptureController.Phase.Idle) return false;
-                Post(() =>
-                {
-                    c.BeginCapture();
-                    // 无“松手”来源：600ms 后自动结束（与托盘「立即捕获」同款已知可靠单帧路径）
-                    var t = new System.Timers.Timer(600);
-                    t.Elapsed += (_, _) => { t.Stop(); t.Dispose(); Post(() => c.EndCapture()); };
-                    t.Start();
-                });
+                // 即时定格：直接抓当下这一帧，不走 BeginCapture+600ms 定时器（那 600ms 会让游戏丢焦点暂停）。
+                Post(() => c.CaptureInstantStill());
                 return true;
 
             case GestureActions.ScopeSelect: Post(() => c.BeginScopeSelection()); return true;
             case GestureActions.CaptureSelection: Post(() => c.BeginCaptureSelection()); return true;
             case GestureActions.RecordSelection: Post(() => c.BeginRecordSelection()); return true;
+            case GestureActions.RecordToggle: Post(() => c.ToggleRecordSelection()); return true;
 
             case GestureActions.RecordStart:
                 if (c.State != CaptureController.Phase.Idle) return false;   // 非空闲→失败（可顺延下一条）

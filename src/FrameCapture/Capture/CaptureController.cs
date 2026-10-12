@@ -269,6 +269,31 @@ public sealed class CaptureController : IDisposable
         _recordAfterSelect = true;
     }
 
+    /// <summary>R120 B2：录制中→停止并进编辑器；否则→选区起录。QQ 式「同键开始/结束」，
+    /// 解决「选区录制起来后没有停止入口、停不掉」。</summary>
+    public void ToggleRecordSelection()
+    {
+        if (State == Phase.Capturing)
+        {
+            FrameCapture.Core.Trace.Log("record-toggle→stop");
+            FinishCapture(-1);
+            return;
+        }
+        BeginRecordSelection();
+    }
+
+    /// <summary>R120 B2：干净利落的即时单帧截图——直接抓当前区域当下这一帧，无点按窗、无录制管线、无延时、
+    /// 抓取前不弹任何窗（不抢焦点）。专治游戏「一丢焦点就暂停」：按下即定格此刻画面。</summary>
+    public void CaptureInstantStill()
+    {
+        if (State != Phase.Idle) return;
+        var region = StoredRegion() ?? FullMonitorAtCursor();
+        var f = LiveCapture.Grab(region.Bounds);
+        if (f == null) { FrameCapture.Core.Trace.Log("instant still: grab null"); return; }
+        FrameCapture.Core.Trace.Log($"instant still grab {f.W}x{f.H}");
+        DispatchStill(f, region.Bounds, region.DeviceName);
+    }
+
     void StartScrollLoop(RectI region, string device)
     {
         var f = LiveCapture.Grab(region);
