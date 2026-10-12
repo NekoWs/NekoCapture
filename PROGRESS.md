@@ -1414,3 +1414,18 @@ status: done
 - 构建 0 错误；SelfTest 仍 **305**（本轮为 WPF 按键路由，非纯逻辑，无新增单测）
 - 完整护栏 GUARDRAIL PASS（FAIL=0 SKIP=1 floor280，err_delta=0）
 - 实机 e2e：设 220×150 特征图（红底+蓝块）→ `--pin-clip` 贴图并自动前台 → 焦点安全确认前台是 `FrameCapture Pin` → 先把剪贴板清成纯文本 → `hkm Ctrl+C` → trace `pin-copy`、剪贴板 `ContainsImage=True` 且文本被替换；取回图片逐像素核对：220×150、中心 (100,70)=蓝(0,0,255)、左上 (5,5)=红(220,40,40)，与贴图内容完全一致
+
+
+## 2026-10-12 上午 选区窗内按 F 循环取色格式 R96（开发者/设计师免进设置）
+
+**动机**：R89 取色格式（HEX/RGB/HSL）只能在设置窗改。开发者常要 RGB、设计师常要 HEX，来回切要进设置很烦。选区窗内加一个键就地循环，读数立刻跟着变。
+
+**实现**（`Overlays/RegionPickerWindow.cs`）：
+- `_colorFormat` 由 readonly 改可变；新增 `_lastRgb` 记住放大镜中心最近一次像素色。
+- `KeyDown` 加 `F`：`(fmt+1)%3` 循环 Hex→RGB→HSL → 用 `_lastRgb` 就地重算 `_loupeHexText` 并刷新读数 → `AppHost.Current.Settings.Mutate` 持久化（下次捕获、设置窗 chip 同步）。`C` 仍复制当前格式。
+- 帮助窗放大镜条目补「按 F 即时循环切换格式」。
+
+**验证**：
+- 构建 0 错误；SelfTest 仍 **305**（循环是按键路由 + 枚举取模，`ColorFormat.Format` 已由 T120 覆盖，无新增单测）
+- 完整护栏 GUARDRAIL PASS（FAIL=0 SKIP=1 floor280，err_delta=0）
+- 实机 e2e：选区窗内同一像素，`C`→`#151517`；`F,C`→`rgb(21, 21, 23)`；`F,C`→`hsl(240, 5%, 9%)`；关窗后 settings.json `ColorCopyFormat=hsl`（持久化生效）。三格式 + 持久化全对

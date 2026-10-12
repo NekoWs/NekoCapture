@@ -27,7 +27,8 @@ public sealed class RegionPickerWindow : Window
     private RectI? _existing;
     private readonly bool _snapContent;
     private readonly bool _magnifier;
-    private readonly Core.ColorCopyFormat _colorFormat; // R89：按 C 复制颜色时的文本形式
+    private Core.ColorCopyFormat _colorFormat; // R89：按 C 复制颜色时的文本形式；R96 按 F 可循环切换（Hex→RGB→HSL）
+    private (int r, int g, int b)? _lastRgb; // R96：放大镜中心最近一次像素色，供 F 切换格式后就地刷新读数
     private System.Windows.Media.Imaging.BitmapSource? _snap; // 选区放大镜快照（构造时抓，遮罩未渲染→真实颜色）
     private byte[]? _snapBgra; // 快照原始 BGRA（取光标下像素颜色用）
     private int _snapW;
@@ -299,6 +300,18 @@ public sealed class RegionPickerWindow : Window
                 if (_loupeHex != null) _loupeHex.Text = "已复制 " + _loupeHexText;
                 e.Handled = true;
             }
+            else if (e.Key == Key.F)
+            {
+                // R96：循环取色复制格式 Hex→RGB→HSL，就地刷新放大镜读数并持久化（下次捕获/设置窗同步）
+                _colorFormat = (Core.ColorCopyFormat)(((int)_colorFormat + 1) % 3);
+                if (_lastRgb is { } c && _loupeHex != null)
+                {
+                    _loupeHexText = Core.ColorFormat.Format(c.r, c.g, c.b, _colorFormat);
+                    _loupeHex.Text = _loupeHexText;
+                }
+                Services.AppHost.Current.Settings.Mutate(s => s.ColorCopyFormat = Core.ColorFormat.ToSetting(_colorFormat));
+                e.Handled = true;
+            }
             else if (e.Key == Key.Tab && _curElem != null)
             {
                 // Tab 上钻控件层级：输入框 → 表单容器 → … → 整窗
@@ -408,6 +421,7 @@ public sealed class RegionPickerWindow : Window
         if (_snapBgra != null && _loupeSwatch != null && _loupeHex != null)
         {
             var (r, g, b) = Core.MagnifierMath.PixelRgb(_snapBgra, _snapW, sx, sy);
+            _lastRgb = ((int)r, (int)g, (int)b); // R96：记住当前色，F 切格式时就地重算读数
             _loupeHexText = Core.ColorFormat.Format(r, g, b, _colorFormat);
             _loupeSwatch.Background = new SolidColorBrush(Color.FromRgb((byte)r, (byte)g, (byte)b));
             _loupeHex.Text = _loupeHexText;
