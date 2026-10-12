@@ -100,6 +100,44 @@ static class SelfTest
         return 0;
     }
 
+    // 滚动拼接真实数据取证（R87）：给两张 PNG，跑 ScrollStitch 找重叠并拼，存 stitched.png 供肉眼核对
+    static int StitchMode(string pathA, string pathB)
+    {
+        var (a, aw, ah) = LoadBgra(pathA);
+        var (b, bw, bh) = LoadBgra(pathB);
+        if (aw != bw) { Console.WriteLine($"width mismatch {aw} vs {bw}"); return 1; }
+        int ov = FrameCapture.Core.ScrollStitch.FindOverlap(a, aw, ah, b, bh);
+        var merged = FrameCapture.Core.ScrollStitch.Append(a, aw, ah, b, bh, ov);
+        int mh = merged.Length / (aw * 4);
+        Console.WriteLine($"A {aw}x{ah}  B {bw}x{bh}  overlap={ov}  merged={aw}x{mh}");
+        using var bmp = new System.Drawing.Bitmap(aw, mh, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+        var data = bmp.LockBits(new System.Drawing.Rectangle(0, 0, aw, mh), System.Drawing.Imaging.ImageLockMode.WriteOnly, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+        for (int y = 0; y < mh; y++)
+            System.Runtime.InteropServices.Marshal.Copy(merged, y * aw * 4, IntPtr.Add(data.Scan0, y * data.Stride), aw * 4);
+        bmp.UnlockBits(data);
+        string outPath = Path.Combine(Path.GetDirectoryName(Path.GetFullPath(pathA))!, "stitched.png");
+        bmp.Save(outPath, System.Drawing.Imaging.ImageFormat.Png);
+        Console.WriteLine($"saved {outPath}");
+        return 0;
+    }
+
+    static (byte[], int, int) LoadBgra(string path)
+    {
+        using var bmp = new System.Drawing.Bitmap(path);
+        int w = bmp.Width, h = bmp.Height;
+        var data = bmp.LockBits(new System.Drawing.Rectangle(0, 0, w, h), System.Drawing.Imaging.ImageLockMode.ReadOnly, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+        var buf = new byte[data.Stride * h];
+        System.Runtime.InteropServices.Marshal.Copy(data.Scan0, buf, 0, buf.Length);
+        bmp.UnlockBits(data);
+        if (data.Stride != w * 4)   // 裁掉行对齐填充，成紧凑 w*4*h
+        {
+            var tight = new byte[w * h * 4];
+            for (int y = 0; y < h; y++) System.Buffer.BlockCopy(buf, y * data.Stride, tight, y * w * 4, w * 4);
+            buf = tight;
+        }
+        return (buf, w, h);
+    }
+
     static CapturedFrame Solid(int w, int h, byte r, byte g, byte b)    {
         var buf = new byte[w * h * 4];
         for (int i = 0; i < buf.Length; i += 4) { buf[i] = b; buf[i + 1] = g; buf[i + 2] = r; buf[i + 3] = 255; }
@@ -144,6 +182,7 @@ static class SelfTest
         if (args.Length == 2 && args[0] == "renderhelp") return RenderHelp(args[1]);
         if (args.Length == 2 && args[0] == "renderpick") return RenderPick(args[1]);
         if (args.Length == 2 && args[0] == "renderslider") return RenderSlider(args[1]);
+        if (args.Length == 3 && args[0] == "stitch") return StitchMode(args[1], args[2]);
         string tmp = Path.Combine(Path.GetTempPath(), "FrameCapture", "selftest");
         Directory.CreateDirectory(tmp);
 
@@ -1655,6 +1694,55 @@ static class SelfTest
                 Chk("T118c-peak-safe", pf > 0.1 && pf < 0.5, $"峰值 {pf:F3} 满量程（不静音/不削顶）");
                 short last = BitConverter.ToInt16(wav, wav.Length - 2);
                 Chk("T118d-decays", Math.Abs((int)last) / 32767.0 < 0.02 && peak != 0, $"末样本 {Math.Abs((int)last) / 32767.0:F4} 峰值 {pf:F3}");
+            }
+            // T119 滚动截图拼接算法（R87，ScrollStitch 纯函数）：找重叠 + 拼接 + 无重叠 + 抗噪
+            {
+                static byte Gray(int row)   // 雪崩整数哈希：相邻/任意偏移行输出都近似独立，杜绝线性假重叠
+                {
+                    uint x = (uint)row;
+                    x ^= x >> 16; x *= 0x7feb352d; x ^= x >> 15; x *= 0x846ca68b; x ^= x >> 16;
+                    return (byte)(x >> 24);
+                }
+                static byte[] Frame(int w, int start, int len)   // 文档行 start..start+len-1
+                {
+                    var buf = new byte[len * w * 4];
+                    for (int r = 0; r < len; r++)
+                    {
+                        byte g = Gray(start + r);
+                        for (int x = 0; x < w; x++) { int p = (r * w + x) * 4; buf[p] = g; buf[p + 1] = g; buf[p + 2] = g; buf[p + 3] = 255; }
+                    }
+                    return buf;
+                }
+                static byte[] ConstFrame(int w, int len, byte g)
+                {
+                    var buf = new byte[len * w * 4];
+                    for (int i = 0; i < buf.Length; i += 4) { buf[i] = g; buf[i + 1] = g; buf[i + 2] = g; buf[i + 3] = 255; }
+                    return buf;
+                }
+                int W = 8;
+                var acc = Frame(W, 0, 100);        // 文档行 0..99
+                var bOv = Frame(W, 60, 100);       // 文档行 60..159 → 与 acc 底部重叠 40 行
+                int ov = FrameCapture.Core.ScrollStitch.FindOverlap(acc, W, 100, bOv, 100);
+                Chk("T119a-overlap", ov == 40, $"重叠应 40，实得 {ov}");
+                var merged = FrameCapture.Core.ScrollStitch.Append(acc, W, 100, bOv, 100, ov);
+                int newH = merged.Length / (W * 4);
+                byte RowGray(byte[] buf, int row) => buf[(row * W) * 4];   // 该行第 0 列 B 通道=灰度
+                Chk("T119b-append", newH == 160 && RowGray(merged, 100) == Gray(100) && RowGray(merged, 159) == Gray(159),
+                    $"拼接高 {newH} 期望 160，行100={RowGray(merged, 100)} 期望 {Gray(100)}，行159={RowGray(merged, 159)} 期望 {Gray(159)}");
+                var bNo = ConstFrame(W, 100, (byte)((acc[(99 * W) * 4] + 128) & 0xFF)); // 常量帧，与 acc 末行差 128、且各行灰度各异 → 无重叠
+                int ovNo = FrameCapture.Core.ScrollStitch.FindOverlap(acc, W, 100, bNo, 100);
+                Chk("T119c-no-overlap", ovNo == 0, $"无重叠应 0，实得 {ovNo}");
+                var bNoise = (byte[])bOv.Clone();   // 每像素 ±3 抖动，仍应找到重叠 40
+                var rng = new Random(1234);
+                for (int i = 0; i < bNoise.Length; i += 4)
+                {
+                    int d = rng.Next(-3, 4);
+                    bNoise[i] = (byte)Math.Clamp(bNoise[i] + d, 0, 255);
+                    bNoise[i + 1] = (byte)Math.Clamp(bNoise[i + 1] + d, 0, 255);
+                    bNoise[i + 2] = (byte)Math.Clamp(bNoise[i + 2] + d, 0, 255);
+                }
+                int ovN = FrameCapture.Core.ScrollStitch.FindOverlap(acc, W, 100, bNoise, 100);
+                Chk("T119d-noise-tolerant", ovN == 40, $"抗噪重叠应 40，实得 {ovN}");
             }
         }
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");

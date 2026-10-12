@@ -74,6 +74,9 @@
 - [x] **截图提示音**（R86）：QQ 招牌听觉反馈、我们缺位——截图完成「嘀」一声确认「截好了」（尤其只复制模式画面无变化时）。但后台工具默认响会吵，故做成**默认关的开关 + 「试听」按钮**，兼容所有受众。
        `Core/CaptureSound.cs` 运行时合成（不引外部音频文件）：`Samples()` 柔和短促「嘀」（44.1kHz/16bit/42ms/1000Hz 正弦/指数衰减短尾/2ms 起音防爆音/峰值仅 0.18 满量程）→ `MakeWav()` 封 PCM WAV（纯函数）→ `Play()` 用 Win32 `PlaySound(SND_MEMORY|SND_ASYNC)` 异步播放（避开 SoundPlayer 立即 Dispose 截断坑），异常静默忽略。设置项 `CaptureSound`（默认 false），`CaptureController` 静态图捕获成功后接线（三态都响，关=零副作用）；设置窗「截图」组 `CaptureSoundRow()`（扬声器图标 E767 + 试听 chip + 开关），帮助窗补说明。SelfTest 282→**286**（T118a WAV 头/RIFF size 自洽 · T118b 时长 30–60ms · T118c 峰值 0.1–0.5 满量程 · T118d 末样本衰减<0.02）。实机 e2e（PrintWindow+trace）：F6 截图 trace `capture sound played=True bytes=3748`、设置行渲染正常、点试听再响一条、开关持久化 False + OFF 视觉确认。
 
+- [~] **滚动截图**（R87 算法已落地 / UI 待 R88）：QQ 最大缺口、我们完全没有——长网页/聊天记录/代码一屏截不下，滚动自动拼长图。多轮特性。
+       R87 已做核心拼接 `Core/ScrollStitch.cs`（纯函数）：`FindOverlap` 灰度行签名从最大重叠往下扫命中即返回（偏好最大重叠、滚动小则快），搜索窗口界定 `min(accH,bH)`+候选上限防卡顿；`Append` BlockCopy 拼新内容。SelfTest 286→**290**（T119a-d 合成帧：找重叠/拼接/无重叠/抗噪）。真实像素取证 `SelfTest stitch` 模式：同区域下移 200px 两帧→overlap=800 正解、stitched.png 肉眼无缝。踩坑：早退均值 bug（加 bad 标志）、测试帧灰度须用雪崩哈希（线性序列偏移 d 只差近恒定小值会假重叠）。**R88 待做**：捕获循环 + 控制浮窗（滚动后按空格拼接/Enter 完成/Esc 取消）+ 完成后进剪贴板与 AfterCapture 流；真实滚动阈值调优。
+
 ## 用户反馈
 - [x] **录制后的全屏黄色边框持续存在（10-04 已修复）**：根因 = **不是我们的代码**，是 Windows 11
   自带的 WGC 捕获提示边框（`#FFD11C`）。`WgcLiveCapture` 用 `GraphicsCaptureSession` 捕获**整台

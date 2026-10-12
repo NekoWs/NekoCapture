@@ -1241,3 +1241,21 @@ status: done
 - 构建 0 错误；SelfTest 282→**286**（T118a WAV 头 RIFF/WAVE/fmt/data + RIFF size 字段自洽；T118b 时长 30–60ms；T118c 峰值 0.1–0.5 满量程=不静音不削顶；T118d 末样本衰减到 <0.02 且峰值非零）
 - 完整护栏 GUARDRAIL PASS（FAIL=0 SKIP=1 floor280，err_delta=0）
 - 实机 e2e（PrintWindow 亲眼看 + trace）：开 CaptureSound 后 F6 截图→trace `capture sound played=True bytes=3748`；设置窗「截图提示音」行渲染正常（扬声器图标清晰、试听 chip、开关蓝=开）；点「试听」→trace 再出一条 `played=True`（前台校验=Settings 通过）；点开关→settings.json `CaptureSound=False` 持久化、复抓该行确认 OFF 视觉（knob 左、灰轨、试听 chip 仍在）
+
+
+## 2026-10-12 上午 滚动截图·核心拼接算法 R87（QQ 最大缺口，先落地最难也最可验证的部分）
+
+**动机**（补 QQ 最大缺口）：滚动截图（长网页/聊天记录/代码一屏截不下，滚动自动拼长图）是 QQ 招牌、我们完全没有的能力，也是剩余 QQ 功能里价值最高的一项。它是多轮特性，本轮先做**最难、最容易出错、也最可单测**的核心：给定「已累积长图 acc」与「滚动后再截的一帧 b（同宽）」，找两者纵向重叠行数、把 b 的新内容拼到 acc 下方。UI/捕获流程留 R88。
+
+**实现**（`Core/ScrollStitch.cs`，纯函数、零依赖、可单测）：
+- `FindOverlap(acc,w,accH,b,bH,cols=64,thresh=14)`：每行取 cols 个等距列的灰度均值作「行签名」（抗轻微色差、够快），从最大候选重叠往下扫、命中第一个即返回（偏好最大重叠；滚动量小时命中快）。搜索窗口界定在 `min(accH,bH)` 内、最多检查 2500 个候选，防长图卡顿；单行均值超 `thresh*2` 即早退该候选。找不到可靠重叠返回 0（调用方决定：整帧追加或提示「滚动太多」）。
+- `Append(acc,w,accH,b,bH,ov)`：`Buffer.BlockCopy` 把 b 去掉顶部 ov 行拼到 acc 下方，返回新 BGRA 缓冲。
+
+**踩坑（都在 SelfTest 里逼出来）**：
+- 早退 bug：候选不合格提前 break 时 `sum` 只累加了部分行，却仍除以全行数 `ov` → 均值虚小误判通过（返回 100）。加 `bad` 标志，早退即拒绝该候选。
+- 测试帧灰度别用线性序列：`(row*37)%256` 与 Knuth 乘法哈希高位都是**线性斜坡**——偏移 d 行灰度只差近恒定小值（偏移 7 行差 3），被当成重叠（返回 47/95）。改**雪崩整数哈希**（xorshift-multiply finalizer），任意偏移行输出近似独立，才真正测出「只有真重叠才命中」。
+
+**验证**：
+- 构建 0 错误；SelfTest 286→**290**（T119a 合成帧找重叠=40 · T119b 拼接高 160 且首尾行内容正确 · T119c 无重叠返回 0 · T119d ±3 噪声仍命中 40）
+- **真实像素取证**：新增 `SelfTest stitch <a.png> <b.png>` 模式（载 PNG→BGRA、跑算法、存 stitched.png）。从一张全屏截图裁「同区域下移 200px」两帧（同源零时序风险）→ overlap=**800**（正解 1000−200）、merged 1400×1200；肉眼核对 stitched.png 文字连续无缝、重叠边界无重复无断裂
+- 完整护栏 GUARDRAIL PASS（FAIL=0 SKIP=1 floor280，err_delta=0；首轮 e2e 因浏览器抢前台被焦点安全全 SKIP，重跑干净全过）
