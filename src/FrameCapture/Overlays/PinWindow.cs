@@ -30,17 +30,22 @@ public sealed class PinWindow : Window
     readonly Border _snack;
     readonly TextBlock _snackText;
     DispatcherTimer? _snackTimer;
+    // R118：贴图显示时是否抢焦点。默认 true（编辑器 Ctrl+P / 剪贴板贴图，用户正盯着它）；
+    // 「截图后=贴图」传 false——贴图静默出现不抢焦点，符合"钉住参考后继续原应用操作"意图，点击时才激活（Snipaste 式）。
+    readonly bool _activateOnShow;
     double _scale = 1.0, _baseW, _baseH;
 
-    public PinWindow(CapturedFrame frame, RectI physPos)
+    public PinWindow(CapturedFrame frame, RectI physPos, bool activateOnShow = true)
     {
         _frame = frame;
         _srcRegion = physPos; // R84：记住源区域，供「更新内容」原地重抓
+        _activateOnShow = activateOnShow;
         WindowStyle = WindowStyle.None;
         ResizeMode = ResizeMode.NoResize;
         ShowInTaskbar = false;
         Topmost = true;
         AllowsTransparency = true;
+        ShowActivated = activateOnShow; // false：Show 时不激活（不抢焦点），点击客户区仍会激活→键盘快捷键可用
         Background = Brushes.Transparent;
         Title = "FrameCapture Pin";
         UseLayoutRounding = true;
@@ -94,7 +99,7 @@ public sealed class PinWindow : Window
             Left = physPos.X / d.DpiScaleX;
             Top = physPos.Y / d.DpiScaleY;
             ApplyScale();
-            Activate();
+            if (_activateOnShow) Activate();
         };
 
         MouseLeftButtonDown += (_, e) =>

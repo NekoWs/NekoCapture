@@ -1672,3 +1672,14 @@ status: done
 - `HelpWindow.cs`：「截图后」KV 补贴图说明（注明仅单帧生效、录制仍进编辑器）。
 
 **验证**：构建 0 错误；SelfTest **337 PASS / 0 FAIL**（新增 T116e-pin 断言 `Resolve("pin")==Pin`，只增不减）；完整护栏 GUARDRAIL PASS（FAIL=0 SKIP=1 floor280，err_delta=0）。焦点安全 e2e 取证：设 AfterCapture=pin + 存储区域 (1200,700,900×650) → `--delay` 倒计时后截该区 → EnumWindows 见「FrameCapture Pin @ 1200,700 903×653」原地钉屏，CopyFromScreen 裁该区确认显示捕获画面；设置窗 PrintWindow 裁「截图后」行确认 4 芯片（弹提示/进编辑器/只复制/**贴图**选中）无溢出。
+
+
+## 2026-10-12 下午 贴图不抢焦点（Snipaste 式手感）R118
+
+**动机**（用户「测测手感、哪里受阻」）：R117 的「截图后=贴图」沿用 `PinWindow.Loaded` 里的 `Activate()`，贴图显示即抢焦点——与 toast（`ShowActivated=false` 不抢焦点）不一致，且打断「钉住参考后继续原应用操作」这一贴图核心意图。
+
+**改动**（`PinWindow.cs` + `CaptureController.cs`）：
+- `PinWindow` 构造加 `bool activateOnShow = true`：`ShowActivated = activateOnShow`（false 时 Show 不激活）+ `Loaded` 里 `if (_activateOnShow) Activate()`。默认 true → 编辑器 Ctrl+P / 剪贴板贴图行为**逐字不变**（ShowActivated=true + Activate()）。
+- `PinFrameAt`（AfterCapture=pin 专用）传 `activateOnShow: false`：贴图静默出现不抢焦点；WPF 客户区点击仍发 WM_MOUSEACTIVATE 激活（未设 WS_EX_NOACTIVATE），故点击贴图后 Esc/R/Ctrl+S 等 `KeyDown` 快捷键照常可用。
+
+**验证**：构建 0 错误；完整护栏 GUARDRAIL PASS（FAIL=0 SKIP=1 floor280，err_delta=0）。焦点安全 e2e 双段取证：AfterCapture=pin + 区域 (1200,700,900×650) → `--delay` 出贴图后，前台 = DSH GUI（**未抢焦点**）；核验贴图矩形后点其中心（Topmost 保证输入落到贴图），前台变 `FrameCapture Pin`（**点击激活成功**），再按 Esc 贴图关闭（快捷键确可用）。默认贴图路径未动，行为不变。

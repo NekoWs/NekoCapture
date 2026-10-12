@@ -438,10 +438,11 @@ public sealed class CaptureController : IDisposable
         return true;
     }
 
-    /// <summary>截图后=贴图（R117）：把刚截的单帧钉在捕获区域原位（Snipaste 式原地钉，可多张并存）。须在 UI 线程调用。</summary>
+    /// <summary>截图后=贴图（R117）：把刚截的单帧钉在捕获区域原位（Snipaste 式原地钉，可多张并存）。
+    /// activateOnShow=false：不抢焦点，用户可继续在原应用操作，点贴图才激活（R118）。须在 UI 线程调用。</summary>
     void PinFrameAt(CapturedFrame f, RectI reg)
     {
-        var w = new Overlays.PinWindow(f, reg);
+        var w = new Overlays.PinWindow(f, reg, activateOnShow: false);
         w.Show();
         FrameCapture.Core.Trace.Log($"pin-at {f.W}x{f.H} @ {reg.X},{reg.Y}");
     }
