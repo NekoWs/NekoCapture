@@ -346,3 +346,7 @@
 - [x] **奇数宽高取偶**：`BuildArgs` 奇数尺寸插 `-vf scale=trunc(iw/2)*2:trunc(ih/2)*2`（yuv420p 要求偶数，否则 libx264/vp9 报 "width not divisible by 2" 编码失败）；偶数不加滤镜。SelfTest 335（T127g/h/i 含真实 65×49 编码）。护栏 PASS。
 - [ ] **边界后续**：① 极短录制（1–2 帧）导出视频的可播性已隐式覆盖（FpsFromFrames 单帧回退 30），可加一条 1 帧真实编码 e2e；② 超大选区（4K）长录制的 ffmpeg 内存/耗时上限观察（当前 stdin 流式，理论 O(1) 内存）；③ 帧尺寸中途变化（当前烘焙后统一，若未来支持动态裁剪需重估）。
 
+## 帮助窗同步录制格式/高刷文档 R105（2026-10-12 中午，发现面审计）
+- [x] **文档追平功能**：HelpWindow「底部工具条」Ctrl+E 改「导出录制（MP4/WebM/GIF）」+ 新增「录制帧率/高刷」（含诚实投递限制说明）+「录制格式 MP4/WebM/GIF」（ffmpeg 探测/回退/Enter 始终 GIF）。护栏 PASS，PrintWindow 视觉核对渲染正常。
+- [ ] **文档后续**：① 设置窗各新项 tooltip 已同步，可考虑帮助窗「录制格式」条目旁给一个「检测 ffmpeg」的即时状态（当前只在格式行 tooltip）；② 若未来加 WebM 码率档位，帮助同步。
+
