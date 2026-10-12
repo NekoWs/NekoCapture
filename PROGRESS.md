@@ -1938,3 +1938,9 @@ status: done
 - 分发产物形态：`release/FrameCapture.zip`（72MB，gitignore `release/*.zip`，现 10/3 旧版）。批尾 = 由新 staging 重打包该 zip（含 R127–R129 全部改动）+ 恢复 release 实例。
 - 用户 settings.json 完好（4 手势自定义配置，护栏 e2e 临时钉配置已正确还原）；`RunAtStartup=false`、无 HKCU Run 启动项。
 - 结论：PCL2 丝滑指令已达成（全 11 窗动效齐备、零缺口），批尾发布已 de-risk；zip 重打包 + deploy + 重启实例留临近截止（2026-10-13 10:00）执行，避免后续测试打断。
+
+**R131 · 可截图面走查收官 + R128 视觉验证**
+- **选区窗不可截图（正确设计）**：`RegionPickerWindow` 设 `WDA_EXCLUDEFROMCAPTURE`（防自入镜），故 UICap 拍不到其遮罩/提示/放大镜——非缺陷。同类 WDA 隐身浮窗：CaptureToast/WelcomeToast/CountdownWindow/ScrollHintWindow/RegionOutlineWindow，均由 e2e 覆盖、无法截图走查。
+- **OCR 结果窗走查**（可靠路径：F2 录制→编辑器→`Shot hkm 79 1 0 0 0 60` 真 Ctrl+O，先校验前台=编辑器才发）：标题「识别文字」+OCR 图标无豆腐块、文本框加载即全选（就绪复制）、底部「N 字」计数 + 紫色「复制全部」钮醒目——**无缺陷**。**R128 入场淡入视觉验证通过**（窗完整可见，动画未致不可见/半透明）。
+- `ctrlw`（PostMessage Ctrl+键）不触发 WPF 修饰键命令（WPF 读 GetKeyState 异步态，PostMessage 的 Ctrl 不更新）→ 触发编辑器 Ctrl+O 须用 SendInput（`hkm`）且前台须为本窗。
+- 可截图面走查收官：设置 8 页 / 编辑器 / OCR / 帮助 / 配置器 均无缺陷；WDA 隐身面 e2e 覆盖。PCL2 指令 + 全 app UI 走查完成，无剩余改动。
