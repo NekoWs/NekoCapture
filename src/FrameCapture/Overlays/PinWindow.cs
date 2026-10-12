@@ -28,6 +28,7 @@ public sealed class PinWindow : Window
     int _rotSteps;             // R84：累计顺时针 90° 次数，刷新后按同角度重放
     readonly Image _img;
     readonly Border _snack;
+    Border _card;   // R120 D3：入场「落图」缩放动画挂这（RenderTransform 空闲，Rotate 转的是帧数据非变换）
     readonly TextBlock _snackText;
     DispatcherTimer? _snackTimer;
     // R118：贴图显示时是否抢焦点。默认 true（编辑器 Ctrl+P / 剪贴板贴图，用户正盯着它）；
@@ -69,6 +70,9 @@ public sealed class PinWindow : Window
             Child = _img,
             ClipToBounds = true,
         };
+        border.RenderTransformOrigin = new Point(0.5, 0.5);
+        _card = border;
+        Opacity = 0; // 入场动画首帧前即隐形（避免缩放起始态闪一帧）；ContentRendered 后淡入+落图
         // R75：贴图内轻提示浮层（识别文字等反馈用；贴图无独立 snackbar），默认隐藏，Flash 淡入淡出
         _snackText = new TextBlock
         {
@@ -155,8 +159,9 @@ public sealed class PinWindow : Window
             // Ctrl+滚轮=调不透明度（20%~100%）；纯滚轮=以中心为锚缩放（10%~600%）
             if ((Keyboard.Modifiers & ModifierKeys.Control) != 0)
             {
-                // 先清 FadeIn 的 HoldEnd 动画：否则 Opacity 读到的恒是动画值 1.0、写入也被动画值压制（R119 修不透明度失效）
-                BeginAnimation(OpacityProperty, null);
+                // 先提交淡入动画的可见值再清动画：否则清动画后 Opacity 读回基础值 0，Next(0,±) 一律夹到 0.2
+                // ——首滚突跳 0.2、再向下滚恒 0.2「无效果」（R120 修 R119 未竟的不透明度失效）
+                CommitOpacity();
                 Opacity = FrameCapture.Core.PinOpacity.Next(Opacity, e.Delta);
                 e.Handled = true;
                 return;
@@ -182,12 +187,40 @@ public sealed class PinWindow : Window
         Loaded += (_, _) => _open.Add(this);
         Closed += (_, _) => _open.Remove(this);
 
-        FrameCapture.Core.Fluent.FadeIn(this, 120, 10);
+        // R120 D3：入场=淡入 + 卡片从 0.82 缩放「落图」带轻微回弹（BackEase），像把图钉到桌面
+        ContentRendered += (_, _) =>
+        {
+            FrameCapture.Core.Fluent.FadeIn(this, 140);
+            PlayDrop();
+        };
         SourceInitialized += (_, _) =>
         {
             var hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
             Win32.SetWindowTextW(hwnd, "FrameCapture Pin"); // 自动化/焦点安全需要稳定标题
         };
+    }
+
+    /// <summary>把淡入动画的当前可见值落为基础值并清掉动画：清动画后 WPF 回退到基础值（0），
+    /// 不先提交就会读回 0——不透明度调节因此首滚跳 0.2、再滚无反应（R120 修）。同 Fluent.PopupEnter 模式。</summary>
+    void CommitOpacity()
+    {
+        double cur = Opacity;
+        BeginAnimation(OpacityProperty, null);
+        Opacity = cur;
+    }
+
+    /// <summary>R120 D3：入场「落图」——卡片缩放 0.82→1.0 带 BackEase 轻微过冲回弹，配合淡入像钉到桌面。</summary>
+    void PlayDrop()
+    {
+        if (_card == null) return;
+        var st = new ScaleTransform(0.82, 0.82);
+        _card.RenderTransform = st;
+        var ease = new BackEase { EasingMode = EasingMode.EaseOut, Amplitude = 0.55 };
+        var dur = new Duration(TimeSpan.FromMilliseconds(220));
+        var sx = new DoubleAnimation(0.82, 1.0, dur) { EasingFunction = ease };
+        var sy = new DoubleAnimation(0.82, 1.0, dur) { EasingFunction = ease };
+        st.BeginAnimation(ScaleTransform.ScaleXProperty, sx);
+        st.BeginAnimation(ScaleTransform.ScaleYProperty, sy);
     }
 
     void ApplyScale()
@@ -385,7 +418,7 @@ public sealed class PinWindow : Window
 
     void ShowMenu()
     {
-        var menu = new ContextMenu();
+        var menu = new ContextMenu { Resources = FrameCapture.Core.Fluent.MenuResources() }; // R120 D4：套用共享 Fluent 菜单样式（原裸 ContextMenu 系统默认样式很丑）
         var copy = new MenuItem { Header = "复制 (Ctrl+C)" };
         copy.Click += (_, _) => Copy();
         var saveAs = new MenuItem { Header = "另存为…" };
@@ -402,7 +435,7 @@ public sealed class PinWindow : Window
         {
             double v = pct / 100.0;
             var mi = new MenuItem { Header = pct + "%" };
-            mi.Click += (_, _) => { BeginAnimation(OpacityProperty, null); Opacity = v; }; // 清 FadeIn HoldEnd，否则改了没效果
+            mi.Click += (_, _) => { CommitOpacity(); Opacity = v; }; // 提交淡入可见值再设绝对档，避免清动画后闪回 0 / 淡入未完成时竞态
             opacity.Items.Add(mi);
         }
         var close = new MenuItem { Header = "关闭 (Esc)" };

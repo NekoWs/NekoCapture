@@ -633,7 +633,7 @@ public static class Fluent
                 <Setter Property="Template">
                   <Setter.Value>
                     <ControlTemplate TargetType="MenuItem">
-                      <Border x:Name="bd" CornerRadius="5" Background="Transparent">
+                      <Grid><Border x:Name="bd" CornerRadius="5" Background="Transparent">
                         <Grid Height="27">
                           <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="24"/>
@@ -643,15 +643,24 @@ public static class Fluent
                           <TextBlock x:Name="chk" Grid.Column="0" Text="" FontFamily="Segoe Fluent Icons"
                                      FontSize="11" HorizontalAlignment="Center" VerticalAlignment="Center"
                                      Foreground="{Hex(Theme.Accent)}"/>
-                          <ContentPresenter Grid.Column="1" ContentSource="Header" VerticalAlignment="Center" Margin="0,0,14,0"/>
+                          <ContentPresenter Grid.Column="1" ContentSource="Header" VerticalAlignment="Center" Margin="0,0,14,0"/><TextBlock x:Name="arrow" Grid.Column="2" Text="&#xE76C;" FontFamily="Segoe Fluent Icons" FontSize="10" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,10,0" Foreground="{Hex(Theme.Text)}" Visibility="Collapsed"/>
                         </Grid>
                       </Border>
+                      <Popup x:Name="PART_Popup" AllowsTransparency="True" Focusable="False" Placement="Right"
+                             HorizontalOffset="-4" PopupAnimation="Fade">
+                        <Border CornerRadius="8" Background="{Hex(Theme.CardBg)}" BorderBrush="{Hex(Theme.Stroke)}"
+                                BorderThickness="1" Padding="3,4,3,4" Margin="0,0,10,10">
+                          <Border.Effect><DropShadowEffect BlurRadius="16" ShadowDepth="4" Opacity="0.4"/></Border.Effect>
+                          <ItemsPresenter/>
+                        </Border>
+                      </Popup>
+                      </Grid>
                       <ControlTemplate.Triggers>
                         <Trigger Property="IsHighlighted" Value="True">
                           <Setter TargetName="bd" Property="Background" Value="{Hex(Theme.Hover)}"/>
                         </Trigger>
                         <Trigger Property="IsChecked" Value="True">
-                          <Setter TargetName="chk" Property="Text" Value="&#xE73E;"/>
+                          <Setter TargetName="chk" Property="Text" Value="&#xE73E;"/></Trigger><Trigger Property="Role" Value="SubmenuHeader"><Setter TargetName="arrow" Property="Visibility" Value="Visible"/>
                         </Trigger>
                       </ControlTemplate.Triggers>
                     </ControlTemplate>
