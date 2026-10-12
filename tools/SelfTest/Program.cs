@@ -1659,6 +1659,7 @@ static class SelfTest
                     && FrameCapture.Core.AfterCapture.Resolve("") == FrameCapture.Core.AfterCaptureAction.Toast
                     && FrameCapture.Core.AfterCapture.Resolve("Editor") == FrameCapture.Core.AfterCaptureAction.Toast
                     && FrameCapture.Core.AfterCapture.Resolve("garbage") == FrameCapture.Core.AfterCaptureAction.Toast, "null/空/大小写/脏值→回落 Toast");
+                Chk("T116e-pin", FrameCapture.Core.AfterCapture.Resolve("pin") == FrameCapture.Core.AfterCaptureAction.Pin, "R117 pin→Pin");
             }
             // T117 荧光笔半透明烘焙（R85）：盖在白底上应透出白（半透明），而非不透明纯色
             {

@@ -760,7 +760,7 @@ public sealed class SettingsWindow : Window
     {
         var g = Row();
         g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); // 芯片列
-        g.Children.Add(Icon("\uE7B5", "截图完成后做什么：弹提示 / 直接进编辑器 / 只复制"));
+        g.Children.Add(Icon("\uE7B5", "截图完成后做什么：弹提示 / 直接进编辑器 / 只复制 / 贴图"));
         var lbl = new TextBlock
         {
             Text = "截图后",
@@ -779,6 +779,7 @@ public sealed class SettingsWindow : Window
             ("toast", "弹提示", "复制后弹缩略浮窗，点一下或按 Enter 进编辑器标注（默认，兼顾确认与标注）"),
             ("editor", "进编辑器", "复制后直接打开标注编辑器（QQ 式，省一步点击）"),
             ("copy", "只复制", "只复制到剪贴板，不弹窗、不开编辑器（最快，范围轮廓闪一下作反馈）"),
+            ("pin", "贴图", "复制后直接把这张图钉在屏幕原捕获位置（Snipaste 式，可多张并存、拖动/缩放/标注）"),
         };
         var chipList = new System.Collections.Generic.List<(Border chip, string id)>();
         foreach (var (id, text, tip) in opts)

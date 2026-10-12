@@ -1656,3 +1656,19 @@ status: done
 **改动**：三处文案统一为「保存文件夹：自动保存副本存到这里，编辑器/贴图『另存为』对话框也默认打开这里」（图标 tooltip）/「点击选择保存文件夹（自动保存副本 + 导出对话框默认目录）」（行 tooltip）/「选择保存文件夹（自动保存副本 + 导出对话框默认目录）」（对话框描述）。纯文案，无逻辑改动。
 
 **验证**：构建 0 错误；完整护栏 GUARDRAIL PASS（FAIL=0 SKIP=1 floor280，err_delta=0）。tooltip/对话框描述为直接文本，无布局逻辑，内容确定，故未截图取证（同 R113 理由）。
+
+
+## 2026-10-12 下午 「截图后」新增「贴图」选项 R117（Snipaste 式工作流）
+
+**动机**（用户「多加功能可选项、扩大受众」）：Snipaste 用户的核心工作流是「截图→直接钉屏对照」，本 app 的「截图后」只有 弹提示/进编辑器/只复制 三态，缺「截图即贴图」。补第 4 态「贴图」。
+
+**可行性核查**：AfterCapture 三处分发（静图 CaptureController:225 / 滚动:322 / 延时:394）**全是单帧**（录制多帧走编辑器不经 AfterCapture），故「贴图」无多帧边界问题；三处均在 DispatcherTimer.Tick（UI 线程），`PinWindow.Show()` 可直接调。
+
+**改动**：
+- `AfterCapture.cs`：枚举加 `Pin`，`Resolve` 加 `"pin" => Pin`（脏值仍回落 Toast）。
+- `AppSettings.cs:165`：校验放行 `"pin"`。
+- `CaptureController.cs`：新增 `PinFrameAt(f, reg)`（`new PinWindow(f, reg).Show()`，钉在捕获区域原位）；三处分发各加 `case Pin: PinFrameAt(...)`。
+- `SettingsWindow.cs`：`AfterCaptureRow` opts 加第 4 项 `("pin","贴图",…)`（数据驱动，选中态逻辑通用）；图标 tooltip 补「/ 贴图」。
+- `HelpWindow.cs`：「截图后」KV 补贴图说明（注明仅单帧生效、录制仍进编辑器）。
+
+**验证**：构建 0 错误；SelfTest **337 PASS / 0 FAIL**（新增 T116e-pin 断言 `Resolve("pin")==Pin`，只增不减）；完整护栏 GUARDRAIL PASS（FAIL=0 SKIP=1 floor280，err_delta=0）。焦点安全 e2e 取证：设 AfterCapture=pin + 存储区域 (1200,700,900×650) → `--delay` 倒计时后截该区 → EnumWindows 见「FrameCapture Pin @ 1200,700 903×653」原地钉屏，CopyFromScreen 裁该区确认显示捕获画面；设置窗 PrintWindow 裁「截图后」行确认 4 芯片（弹提示/进编辑器/只复制/**贴图**选中）无溢出。

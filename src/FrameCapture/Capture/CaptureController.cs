@@ -229,6 +229,9 @@ public sealed class CaptureController : IDisposable
                                 break;
                             case FrameCapture.Core.AfterCaptureAction.Copy:
                                 break; // 只复制（上面已 SetFrame），下方轮廓闪一下作反馈
+                            case FrameCapture.Core.AfterCaptureAction.Pin:
+                                PinFrameAt(f, reg); // 截图后直接原地钉屏（Snipaste 式）
+                                break;
                             default:
                                 // 拍完即见（R42）：缩略浮窗确认"已复制"，点击原地进编辑器标注，不抢焦点
                                 Overlays.CaptureToast.Show(f, reg, monitor.DeviceName, () => OpenEditorForFrame(f, reg, monitor.DeviceName));
@@ -326,6 +329,9 @@ public sealed class CaptureController : IDisposable
                 break;
             case FrameCapture.Core.AfterCaptureAction.Copy:
                 break;
+            case FrameCapture.Core.AfterCaptureAction.Pin:
+                PinFrameAt(frame, reg);
+                break;
             default:
                 Overlays.CaptureToast.Show(frame, reg, dev, () => OpenEditorForFrame(frame, reg, dev));
                 break;
@@ -398,6 +404,9 @@ public sealed class CaptureController : IDisposable
                 break;
             case FrameCapture.Core.AfterCaptureAction.Copy:
                 break;
+            case FrameCapture.Core.AfterCaptureAction.Pin:
+                PinFrameAt(f, reg);
+                break;
             default:
                 Overlays.CaptureToast.Show(f, reg, dev, () => OpenEditorForFrame(f, reg, dev));
                 break;
@@ -427,6 +436,14 @@ public sealed class CaptureController : IDisposable
         w.Show();
         FrameCapture.Core.Trace.Log($"pin-clip {f.W}x{f.H} at {x},{y}");
         return true;
+    }
+
+    /// <summary>截图后=贴图（R117）：把刚截的单帧钉在捕获区域原位（Snipaste 式原地钉，可多张并存）。须在 UI 线程调用。</summary>
+    void PinFrameAt(CapturedFrame f, RectI reg)
+    {
+        var w = new Overlays.PinWindow(f, reg);
+        w.Show();
+        FrameCapture.Core.Trace.Log($"pin-at {f.W}x{f.H} @ {reg.X},{reg.Y}");
     }
 
     public ScreenRegion? StoredRegion()

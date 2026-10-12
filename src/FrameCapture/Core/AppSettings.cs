@@ -162,7 +162,7 @@ public sealed class AppSettings
         MaxDurationMs = Math.Clamp(MaxDurationMs, 1000, 30_000);
         AgentStripFrames = Math.Clamp(AgentStripFrames, 4, 24);
         if (Theme is not ("system" or "light" or "dark")) Theme = "system";
-        if (AfterCapture is not ("toast" or "editor" or "copy")) AfterCapture = "toast";
+        if (AfterCapture is not ("toast" or "editor" or "copy" or "pin")) AfterCapture = "toast";
         if (RegionW < 16 || RegionH < 16)
         {
             RegionMonitorId = null; RegionX = RegionY = RegionW = RegionH = 0;
