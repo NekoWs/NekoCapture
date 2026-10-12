@@ -31,7 +31,6 @@ public sealed class WgcLiveCapture : IDisposable
     }
 
     private readonly object _gate = new();
-    private Thread? _loop;
     private volatile bool _running;
     private System.Diagnostics.Stopwatch _clock = new();
     private Direct3D11CaptureFramePool? _pool;
@@ -41,12 +40,20 @@ public sealed class WgcLiveCapture : IDisposable
     private RectI _region;
     private RectI _monOrigin;
     private Windows.Graphics.DirectX.Direct3D11.IDirect3DDevice? _device;
-    private int _intervalMs = 33;
+    private double _intervalMs = 33;
+    private int _targetFps = 30;
+    private bool _keepAll;
+    private long _lastKeptMs = -1;
+    private readonly object _frameGate = new();
     private long _frameLost;
+    private long _delivered;   // 诊断：TryGetNextFrame 成功数（= WGC 投递率，与拷贝无关）
+    private long _keptThrottle; // 诊断：过节流数（= 采样率）
     /// <summary>取帧线程最后一次异常（null=正常）。测试/诊断用。</summary>
     public string? LastLoopError { get; private set; }
     /// <summary>TryGetNextFrame 空返回次数。</summary>
     public long FramesMissed => _frameLost;
+    public long Delivered => Interlocked.Read(ref _delivered);
+    public long KeptThrottle => Interlocked.Read(ref _keptThrottle);
 
     /// <summary>启动捕获。region 为虚拟桌面物理像素区域（必须位于 monitor 内）。
     /// WinRT 初始化放在独立 MTA 线程：WPF UI(STA) 线程上直接激活会死锁。</summary>
@@ -55,7 +62,9 @@ public sealed class WgcLiveCapture : IDisposable
         Stop();
         _region = region;
         _monOrigin = monitor.Bounds;
-        _intervalMs = Math.Max(16, 1000 / Math.Clamp(fps, AppSettings.FpsMin, AppSettings.FpsMax));
+        _targetFps = Math.Clamp(fps, AppSettings.FpsMin, AppSettings.FpsMax);
+        _intervalMs = FpsThrottle.IntervalMs(_targetFps);
+        _lastKeptMs = -1;
 
         Exception? initErr = null;
         using var done = new ManualResetEventSlim();
@@ -97,61 +106,37 @@ public sealed class WgcLiveCapture : IDisposable
         // 需要系统/用户授权（Win10 或未授权会抛），失败即保持系统默认行为。
         if (!TrySuppressSystemBorder()) { /* 已记录原因 */ }
 
+        // 事件驱动取帧（R100）：FrameArrived 按显示器真实刷新节奏回调，取代旧的 Thread.Sleep 轮询——
+        // Sleep 粒度 ~15ms 是 60fps 天花板的真凶。目标帧率≥刷新率时全保（录满），否则按时间节流丢帧。
+        int refresh = DisplayRefresh.RateOf(monitor.DeviceName);
+        _keepAll = refresh > 0 && _targetFps >= refresh;
+        FrameCapture.Core.Trace.Log($"wgc fps={_targetFps} refresh={refresh} keepAll={_keepAll} interval={_intervalMs:F2}ms");
+        _pool.FrameArrived += OnFrameArrived;
+
         _session.StartCapture();
 
         _running = true;
         _clock = System.Diagnostics.Stopwatch.StartNew();
-        _loop = new Thread(Loop) { IsBackground = true, Name = "WgcLiveCapture", Priority = ThreadPriority.AboveNormal };
-        _loop.Start();
     }
 
-    private void Loop()
+    private void OnFrameArrived(Direct3D11CaptureFramePool sender, object args)
     {
-        long nextDue = 0;
-        while (_running)
+        if (!_running) return;
+        // 串行化：拷贝耗时可能超过帧间隔，重叠回调在锁上排队，池(3 缓冲)自然背压丢帧。
+        lock (_frameGate)
         {
-            int wait = Math.Max(1, _intervalMs - (int)(_clock.ElapsedMilliseconds - nextDue));
-            if (wait > _intervalMs) wait = _intervalMs;
-            if (!_clock.IsRunning) break;
-            Thread.Sleep(wait);
-            if (!_running) break;
-            nextDue = _clock.ElapsedMilliseconds;
+            if (!_running) return;
+            using var frame = sender.TryGetNextFrame();
+            if (frame is null) { Interlocked.Increment(ref _frameLost); return; }
+            Interlocked.Increment(ref _delivered);
 
-            try
-            {
-                using var frame = _pool?.TryGetNextFrame();
-                if (frame is null) { Interlocked.Increment(ref _frameLost); continue; }
+            long now = _clock.ElapsedMilliseconds;
+            if (!FpsThrottle.ShouldKeep(now, _lastKeptMs, _intervalMs, _keepAll))
+                return; // 未到采样时刻：丢弃（frame 随 using 释放）
+            _lastKeptMs = now;
+            Interlocked.Increment(ref _keptThrottle);
 
-                using var sb = Windows.Graphics.Imaging.SoftwareBitmap.CreateCopyFromSurfaceAsync(frame.Surface).GetAwaiter().GetResult();
-                if (sb.BitmapPixelFormat != Windows.Graphics.Imaging.BitmapPixelFormat.Bgra8)
-                    throw new NotSupportedException($"pixel format {sb.BitmapPixelFormat}");
-
-                int fw = sb.PixelWidth, fh = sb.PixelHeight;
-                // region 为虚拟桌面绝对坐标，转监视器内坐标（帧覆盖整个监视器）
-                int rx = _region.X - _monOrigin.X, ry = _region.Y - _monOrigin.Y;
-                if (rx < 0 || ry < 0 || rx + _region.W > fw || ry + _region.H > fh)
-                    throw new NotSupportedException($"region {_region} outside frame {fw}x{fh}");
-
-                int stride = fw * 4; // SoftwareBitmap(Bgra8) 单平面连续
-                var full = new byte[stride * fh];
-                using var bb = sb.LockBuffer(Windows.Graphics.Imaging.BitmapBufferAccessMode.Read);
-                using var reference = bb.CreateReference();
-                IntPtr data = WgcNative.ReferenceBytes(reference);
-                Marshal.Copy(data, full, 0, full.Length);
-
-                var bgra = new byte[_region.W * 4 * _region.H];
-                for (int y = 0; y < _region.H; y++)
-                    Buffer.BlockCopy(full, (ry + y) * stride + rx * 4, bgra, y * _region.W * 4, _region.W * 4);
-
-                double t = _clock.ElapsedMilliseconds;
-                FrameSampled?.Invoke(new CapturedFrame
-                {
-                    Bgra = bgra,
-                    W = _region.W,
-                    H = _region.H,
-                    TimeMs = t,
-                });
-            }
+            try { CopyAndEmit(frame); }
             catch (Exception ex)
             {
                 LastLoopError = ex.ToString();
@@ -159,6 +144,42 @@ public sealed class WgcLiveCapture : IDisposable
                 _running = false; // 触发回退语义：停止本后端
             }
         }
+    }
+
+    private void CopyAndEmit(Direct3D11CaptureFrame frame)
+    {
+        // R100 实测：无拷贝时 WGC 投递仍 ~47fps（见 PROGRESS），拷贝不是瓶颈，故不做 staging 优化。
+        CopyViaSoftwareBitmap(frame);
+    }
+
+    private void Emit(byte[] bgra)
+    {
+        double t = _clock.ElapsedMilliseconds;
+        FrameSampled?.Invoke(new CapturedFrame { Bgra = bgra, W = _region.W, H = _region.H, TimeMs = t });
+    }
+
+    private void CopyViaSoftwareBitmap(Direct3D11CaptureFrame frame)
+    {
+        using var sb = Windows.Graphics.Imaging.SoftwareBitmap.CreateCopyFromSurfaceAsync(frame.Surface).GetAwaiter().GetResult();
+        if (sb.BitmapPixelFormat != Windows.Graphics.Imaging.BitmapPixelFormat.Bgra8)
+            throw new NotSupportedException($"pixel format {sb.BitmapPixelFormat}");
+
+        int fw = sb.PixelWidth, fh = sb.PixelHeight;
+        // region 为虚拟桌面绝对坐标，转监视器内坐标（帧覆盖整个监视器）
+        int rx = _region.X - _monOrigin.X, ry = _region.Y - _monOrigin.Y;
+        if (rx < 0 || ry < 0 || rx + _region.W > fw || ry + _region.H > fh)
+            throw new NotSupportedException($"region {_region} outside frame {fw}x{fh}");
+
+        int stride = fw * 4; // SoftwareBitmap(Bgra8) 单平面连续
+        var bgra = new byte[_region.W * 4 * _region.H];
+        using var bb = sb.LockBuffer(Windows.Graphics.Imaging.BitmapBufferAccessMode.Read);
+        using var reference = bb.CreateReference();
+        IntPtr data = WgcNative.ReferenceBytes(reference);
+        int rowBytes = _region.W * 4;
+        for (int y = 0; y < _region.H; y++)
+            Marshal.Copy(data + (ry + y) * stride + rx * 4, bgra, y * rowBytes, rowBytes);
+
+        Emit(bgra);
     }
 
     /// <summary>
@@ -200,17 +221,20 @@ public sealed class WgcLiveCapture : IDisposable
     public void Stop()
     {
         _running = false;
-        try { _loop?.Join(500); } catch { }
-        _loop = null;
-        lock (_gate)
+        // 先等在途的 FrameArrived 拷贝结束（持 _frameGate），再退订并释放池——避免回调正用 surface 时被 Dispose。
+        lock (_frameGate)
         {
-            try { _session?.Dispose(); } catch { }
-            _session = null;
-            try { _pool?.Dispose(); } catch { }
-            _pool = null;
-            _item = null;
-            _device = null;
-            if (_deviceAbi != IntPtr.Zero) { Marshal.Release(_deviceAbi); _deviceAbi = IntPtr.Zero; }
+            lock (_gate)
+            {
+                if (_pool != null) { try { _pool.FrameArrived -= OnFrameArrived; } catch { } }
+                try { _session?.Dispose(); } catch { }
+                _session = null;
+                try { _pool?.Dispose(); } catch { }
+                _pool = null;
+                _item = null;
+                _device = null;
+                if (_deviceAbi != IntPtr.Zero) { Marshal.Release(_deviceAbi); _deviceAbi = IntPtr.Zero; }
+            }
         }
     }
 

@@ -129,6 +129,12 @@ public sealed class SettingsWindow : Window
         panel.Children.Add(SliderRow("\uEC4A", "录制帧率 (FPS)", "录制时每秒捕获的帧数",
             AppSettings.FpsMin, AppSettings.FpsMax, 5, _settings.Current.Fps,
             v => $"{v:0} fps", v => _settings.Mutate(s => s.Fps = (int)v)));
+        int hz = Core.DisplayRefresh.RateOf(FrameCapture.Capture.Monitors.All().FirstOrDefault(m => m.IsPrimary)?.DeviceName);
+        panel.Children.Add(ToggleRow("\uE7F4", "跟随显示器刷新率录满",
+            (hz > 0 ? $"开启后录制帧率自动取当前录制显示器的刷新率（本机主屏检测到 {hz}Hz → 录满 {hz}fps），忽略上面的手动帧率。"
+                    : "开启后录制帧率自动取当前录制显示器的刷新率（本机暂未检测到主屏刷新率，录制时按实际显示器实时检测）。")
+            + "高刷屏（144/165/240Hz）录满才丝滑；MP4/WebM 可录满，GIF 受格式封顶约 50fps",
+            _settings.Current.FollowMonitorRefresh, v => _settings.Mutate(s => s.FollowMonitorRefresh = v)));
         // R61：长按录制时长上限已移除——录到用户停为止（帧落盘，不再受内存/时长限制）。
         // 唯一护栏是磁盘剩余空间（<1GB 自动停并保留已录内容），无需再暴露数值。
         panel.Children.Add(ToggleRow("\uE7C4", "录制时显示范围边框", "录制期间按真实捕获范围高亮描边，只提示、不录进产物。取代 Windows 11 那条绕整屏的黄色系统捕获边框（WGC 只能整显示器捕获，系统边框必然全屏、与所选范围无关）",

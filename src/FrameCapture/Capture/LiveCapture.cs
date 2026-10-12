@@ -13,7 +13,7 @@ public sealed class LiveCapture : IDisposable
     private Thread? _loop;
     private volatile bool _running;
     private readonly Stopwatch _clock = new();
-    private int _intervalMs = 33;
+    private double _intervalMs = 33;
     private CapturedFrame? _latest;
     private readonly object _gate = new();
     private bool _disposed;
@@ -37,7 +37,7 @@ public sealed class LiveCapture : IDisposable
         Stop();
         TargetMonitor = monitor;
         _region = region;
-        _intervalMs = Math.Max(16, 1000 / Math.Clamp(fps, AppSettings.FpsMin, AppSettings.FpsMax));
+        _intervalMs = FpsThrottle.IntervalMs(Math.Clamp(fps, AppSettings.FpsMin, AppSettings.FpsMax));
         lock (_gate) _latest = null;
 
         _running = true;
@@ -59,7 +59,7 @@ public sealed class LiveCapture : IDisposable
                 Thread.Sleep((int)Math.Min(8, nextDue - now));
                 continue;
             }
-            nextDue = _clock.ElapsedMilliseconds + _intervalMs;
+            nextDue = _clock.ElapsedMilliseconds + (long)Math.Round(_intervalMs);
 
             var f = Grab(_region);
             if (f != null)

@@ -495,6 +495,12 @@ public sealed class CaptureController : IDisposable
         _captureClock = System.Diagnostics.Stopwatch.StartNew();
 
         var fps = _settings.Current.Fps;
+        // 跟随显示器刷新率（R100）：开启且检测成功 → 录满该显示器刷新率（如 160Hz→160fps）；否则用手动值。
+        if (_settings.Current.FollowMonitorRefresh)
+        {
+            int hz = Core.DisplayRefresh.RateOf(monitor.DeviceName);
+            if (hz > 0) fps = Math.Clamp(hz, Core.AppSettings.FpsMin, Core.AppSettings.FpsMax);
+        }
         bool wgcOk = false;
         if (_settings.Current.UseWgc)
         {
@@ -598,7 +604,8 @@ public sealed class CaptureController : IDisposable
         _outline?.StopRecBadge();
         _outline?.SetBorderVisible(true); // 免按住录制的"只徽标"模式复位，别把无边框带给下次
         _live.Stop();
-        if (_wgc != null) { try { _wgc.Stop(); _wgc.Dispose(); } catch { } _wgc = null; }
+        long wgcMissed = 0, wgcDelivered = 0, wgcKept = 0;
+        if (_wgc != null) { wgcMissed = _wgc.FramesMissed; wgcDelivered = _wgc.Delivered; wgcKept = _wgc.KeptThrottle; try { _wgc.Stop(); _wgc.Dispose(); } catch { } _wgc = null; }
         // 录制范围提示的去向（决策见 CaptureGuards.OnCaptureFinished）：
         //  常显模式且录的就是已存范围 → 把常显轮廓带回来。旧版在这里无条件 FadeAway，
         //  注释却写「由后续分支重新点亮」——实际没有任何分支点亮，于是常显模式下一次录制
@@ -624,6 +631,8 @@ public sealed class CaptureController : IDisposable
         var spoolList = _spool != null && _spool.Count > 0 ? _spool.OpenReader() : null;
         _spool = null;
         IReadOnlyList<CapturedFrame> frames = spoolList ?? (IReadOnlyList<CapturedFrame>)new List<CapturedFrame>();
+        if (durMs > 50)
+            FrameCapture.Core.Trace.Log($"wgc stats kept={frames.Count} delivered={wgcDelivered} keptThrottle={wgcKept} missed={wgcMissed} dur={durMs:F0}ms fps={frames.Count / (durMs / 1000.0):F1}");
         if (frames.Count == 0)
         {
             // WGC 脏区语义在极短/全静止场景理论可为 0 帧：GDI 补抓一帧兜底，保证“点按必有产物”

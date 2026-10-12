@@ -879,8 +879,8 @@ static class SelfTest
                 "范围键松开→吞掉复位；捕获中无关键放行；范围按住时可按捕获键");
             // T77：Fps 钳制单一事实源（常量 = 文档范围，Normalize 钳越界值）
             Chk("T77a-fps-constants",
-                AppSettings.FpsMin == 10 && AppSettings.FpsMax == 60 && AppSettings.FpsMin < AppSettings.FpsMax,
-                "Fps 常量单一事实源：10..60");
+                AppSettings.FpsMin == 10 && AppSettings.FpsMax == 240 && AppSettings.FpsMin < AppSettings.FpsMax,
+                "Fps 常量单一事实源：10..240（R100 放开高刷）");
             var fpsLo = new AppSettings { Fps = 5 }; fpsLo.Normalize();
             var fpsHi = new AppSettings { Fps = 999 }; fpsHi.Normalize();
             var fpsOk = new AppSettings { Fps = 30 }; fpsOk.Normalize();
@@ -1836,6 +1836,20 @@ static class SelfTest
                 Chk("T125e-angle90", Math.Abs(a3.X) < 1e-6 && a3.Y > 100, "近垂直吸附到 90°（x=0）");
                 var a0 = ShapeConstraint.Angle45(0, 0, 0, 0);
                 Chk("T125f-angle-zero", a0.X == 0 && a0.Y == 0, "零长度不崩（原样返回）");
+            }
+            // T126 高刷节流 + 刷新率检测（R100）：无 16ms 地板 + 逐帧时间判定 + EnumDisplaySettings
+            {
+                Chk("T126a-interval-60", Math.Abs(FpsThrottle.IntervalMs(60) - 1000.0 / 60) < 1e-9,
+                    "60fps 间隔 ≈16.67ms（不再被 16ms 地板截断）");
+                Chk("T126b-interval-240", Math.Abs(FpsThrottle.IntervalMs(240) - 1000.0 / 240) < 1e-9,
+                    "240fps 间隔 ≈4.17ms（高刷可低至亚 16ms）");
+                Chk("T126c-keepall", FpsThrottle.ShouldKeep(1000, 999, 16.7, true), "keepAll 全保（目标≥刷新率）");
+                Chk("T126d-first-frame", FpsThrottle.ShouldKeep(0, -1, 16.7, false), "首帧必保（lastKept<0）");
+                Chk("T126e-drop-early", !FpsThrottle.ShouldKeep(1005, 1000, 16.7, false), "未到间隔丢帧（5ms<16.7）");
+                Chk("T126f-keep-due", FpsThrottle.ShouldKeep(1017, 1000, 16.7, false), "到间隔保帧（17≥16.7-0.5）");
+                Chk("T126g-refresh-null", DisplayRefresh.RateOf(null) == 0 && DisplayRefresh.RateOf("") == 0, "空设备名返回 0 不抛");
+                int hz = DisplayRefresh.RateOf(FrameCapture.Capture.Monitors.All().FirstOrDefault(m => m.IsPrimary)?.DeviceName);
+                Chk("T126h-refresh-real", hz > 0, $"本机主屏刷新率检测 → {hz}Hz");
             }
         }
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");

@@ -324,3 +324,12 @@
 - [x] **HEX/RGB/HSL 可选**：`Core/ColorFormat.cs` 纯格式化 + 设置项 `ColorCopyFormat`（默认 hex）+ 选区放大镜读数/按 C 复制 + 设置窗 chip 行 + 帮助。T120a-h，298 PASS；实机 rgb/hsl 剪贴板 + 读数 + 设置行渲染全验。
 - [ ] **取色候选增强**（后续）：① 选区窗内按某键**循环切换**格式（不用进设置）；② 取色历史（最近 N 色，编辑器调色板已有最近用色，可打通）；③ 放大镜读数对超长格式（hsl）的换行/宽度自适应（当前单行够用）。
 
+## Shift 约束绘制 R99（2026-10-12 上午）
+- [x] **锁比例/锁角度**：`Core/ShapeConstraint.cs` 纯函数（矩形正方/圆正圆/线·箭头 45° 吸附）+ 预览与落点两处接线 + `Keyboard.Modifiers` 实时。T125a-d（326）。护栏 PASS，实机 Shift 正方/正圆核对。
+- [ ] **约束候选增强**（后续）：① 手绘/曲线按住 Shift 锁水平/垂直起笔方向；② 箭头吸附角度可配置（当前固定 45°，避免堆数值暂缓）；③ 从中心绘制（Alt 键，形状类通用，需改锚点语义，暂缓）。
+
+## 高刷录制 R100（2026-10-12 上午）
+- [x] **去 60fps 天花板 + 跟随刷新率**：`FpsMax`→240 + `FollowMonitorRefresh` + `DisplayRefresh`（实测 160Hz）+ `FpsThrottle` 纯函数 + `WgcLiveCapture` 事件驱动取代 Sleep 轮询 + 区域行拷贝 + 设置滑杆到 240 + 跟随开关。T77a 更新 + T126a-h（326）。护栏 PASS，实机 `fps=160 refresh=160 keepAll=True` 核对。
+- [x] **实测否决 staging**：`FC_NO_COPY` 隔离证明拷贝非瓶颈（无拷贝仍 ~47fps），D3D11 staging 优化无收益且本机投影取不到底层纹理 → 干净回退，不留死代码。
+- [ ] **高刷后续（R101+）**：① `Encoding/VideoEncoder.cs` 定位 ffmpeg（PATH + `C:\Program Files\FFmpeg\bin`）→ 管道 BGRA 帧 → MP4(libx264)/WebM(libvpx-vp9)，异步 + 进度 + 取消；② `RecordFormat` 接进编辑器导出（MP4/WebM/GIF 三选）+ 托盘 + 设置；③ e2e 录短片 → 导 MP4 → ffprobe 核对可播 + 帧率。GIF 受格式限制封顶 ~50fps，MP4/WebM 才是高刷落盘的正解。
+

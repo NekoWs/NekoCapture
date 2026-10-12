@@ -1459,3 +1459,39 @@ status: done
 - 构建 0 错误；SelfTest **312**（T92 目录锁改 11 项/键串含 R；T10b 动态校验 E739 在 Segoe Fluent Icons 可渲染；新增 T124a-c 烘焙核对空心矩形：上边中点着色、内部与框外保持原色）
 - 完整护栏 GUARDRAIL PASS（FAIL=0 SKIP=1 floor280，err_delta=0）
 - 实机：截 ~900×650 → 编辑器按 R → 拖框，PrintWindow 核对红色空心矩形正确画出、工具栏第 3 枚方块按钮（直线与圆之间）accent 高亮、字形为干净方块
+
+
+## 2026-10-12 上午 Shift 约束绘制（矩形正方 / 圆正圆 / 线·箭头 45° 吸附）R99
+
+**动机**：QQ/Snipaste 拖形状时按住 Shift 锁比例——矩形锁正方形、圆锁正圆、直线/箭头吸附 45° 整数倍。此前我们的形状拖拽是自由比例，画正圆/正方/水平线全靠手稳，标注对齐很吃力。
+
+**实现**（单一数据源 `Core/ShapeConstraint.cs`）：
+- `Apply(kind, p0, p1, shift)` 纯函数：矩形/圆 → 取 `max(|dx|,|dy|)` 保号锁成正方/正圆；直线/箭头 → 角度吸附到 45° 网格（`round(θ/45°)*45°`）保长度。其余形状原样返回。
+- `ToolCatalog` 标注哪些形状支持约束；`EditorWindow.Drawing` 拖拽预览与落点两处都过 `ShapeConstraint.Apply`，按住 Shift（`Keyboard.Modifiers`）实时生效。
+
+**验证**：
+- 构建 0 错误；SelfTest **326**（新增 T125a-d：矩形 Shift 锁正方 / 圆锁正圆 / 线 45° 吸附 / 未按 Shift 自由比例不变）
+- 完整护栏 GUARDRAIL PASS（FAIL=0 SKIP=1 floor280，err_delta=0）
+- 实机：编辑器按 R 拖矩形 + 按住 Shift → 恒为正方形；按 O 拖圆 + Shift → 正圆
+- 注：本条为提交 94a7d3e 的文档补记（该提交当时漏写 PROGRESS 条目）
+
+
+## 2026-10-12 上午 高刷录制：去 60fps 天花板 + 跟随显示器刷新率 R100
+
+**动机**：用户明确「录制的都是 60fps，我要能录满刷新率，比如我显示器 160Hz」。排查发现两处天花板：① `AppSettings.FpsMax=60` 硬顶；② 旧 `WgcLiveCapture` 用 `Thread.Sleep` 轮询取帧，Sleep 粒度 ~15ms 本身就压到 ~60fps。
+
+**实现**：
+- `AppSettings`：`FpsMax` 60→**240**；新增 `FollowMonitorRefresh`（默认关）；新增 `RecordFormat` 枚举（Gif/Mp4/WebM，默认 Gif，供后续编码轮接线）。
+- `Core/DisplayRefresh.cs`（新）：`EnumDisplaySettings(ENUM_CURRENT_SETTINGS)` 读 `dmDisplayFrequency`，实测本机 `\\.\DISPLAY1`=**160**。
+- `Core/FpsThrottle.cs`（新）：`IntervalMs=1000/fps`（去掉旧 16ms 地板）；`ShouldKeep` 纯函数便于单测。
+- `WgcLiveCapture` 重写为**事件驱动**：`FrameArrived` 回调取代 Sleep 轮询；目标帧率≥刷新率时 `keepAll` 全保（录满），否则按时间节流丢帧；拷贝只搬区域行（`Marshal.Copy` 逐行），不再分配整块监视器缓冲。
+- `CaptureController`：`FollowMonitorRefresh` 开时用 `DisplayRefresh.RateOf` 覆盖 fps；新增 `delivered/keptThrottle` 诊断计数 + `wgc stats` 统计行。
+- `SettingsWindow`：帧率滑杆自动到 240；新增「跟随显示器刷新率录满」开关（描述里带实测 Hz）。
+
+**关键实测（诚实记录）**：加 `FC_NO_COPY` 诊断隔离后发现——**完全不做拷贝时 WGC 投递仍只有 ~47fps**（delivered=keptThrottle=kept，missed=0），与拷贝耗时、帧池缓冲数（3→8 无效）、运动源（小动画 vs 铺满区域闪色）均无关。即 **拷贝不是瓶颈**，~47fps 是 WGC/DWM 对窗口内容的投递行为；真·160fps 需要内容本身以刷新率变化（全屏 GPU 渲染/视频），PowerShell 驱动的动画造不出真 160Hz DWM 重合成。据此**否决了 D3D11 staging 纹理优化**（Vortice 直引缓存 DLL 试过：`IDirect3DSurface` 取底层纹理的 `GetInterface`/`IDirect3DDxgiInterfaceAccess` 在本机投影下均失败，且它只优化非瓶颈的拷贝，无收益）——干净回退，不留死代码。
+
+**验证**：
+- 构建 0 错误；SelfTest **326**（T77a 更新为 FpsMax==240；新增 T126a-h：interval 60≈16.67 / 240≈4.17 / keepall / 首帧 / 早丢 / 到点保 / refresh null / refresh 实测>0）
+- 完整护栏 GUARDRAIL PASS（FAIL=0 SKIP=1 floor280，err_delta=0）
+- 实机：`FollowMonitorRefresh=true` + Fps=160 → trace `wgc fps=160 refresh=160 keepAll=True interval=6.25ms`（60fps 天花板消失、跟随刷新率识别 160Hz）；录制 kept=47/delivered=47/missed=0，编辑器正常出帧
+- 说明：本轮交付的是「天花板移除 + 跟随刷新率 + 事件驱动」，让 160fps 在内容够快时成为可能；输出格式（MP4/WebM）与真高刷落盘在后续编码轮（R101+）接线

@@ -6,9 +6,10 @@ namespace FrameCapture.Core;
 /// <summary>应用设置。全部字段带默认值；损坏的设置文件会被重置。</summary>
 public sealed class AppSettings
 {
-    /// <summary>捕获帧率范围（单一事实源：设置滑条 / Normalize / 捕获引擎 / 编辑器全部引用）。</summary>
+    /// <summary>捕获帧率范围（单一事实源：设置滑条 / Normalize / 捕获引擎 / 编辑器全部引用）。
+    /// 上限 240 覆盖高刷屏（144/165/240Hz）；GIF 输出受格式封顶 ~50fps，MP4/WebM 可录满。</summary>
     public const int FpsMin = 10;
-    public const int FpsMax = 60;
+    public const int FpsMax = 240;
 
     public string ScopeHotkey { get; set; } = "Ctrl+Shift+R";
     public string CaptureHotkey { get; set; } = "Ctrl+Shift+G";
@@ -19,6 +20,13 @@ public sealed class AppSettings
 
     /// <summary>长按捕获帧率。</summary>
     public int Fps { get; set; } = 30;
+
+    /// <summary>跟随显示器刷新率（R100）：开启后捕获帧率自动取当前录制显示器的刷新率（如 160Hz 录满 160fps），
+    /// 关闭时用上面的手动 Fps。检测失败则回退手动值。</summary>
+    public bool FollowMonitorRefresh { get; set; } = false;
+
+    /// <summary>录制产物格式（R100）：Gif 通用轻量（封顶 ~50fps）；Mp4/WebM 真视频，可录满高刷（需系统装有 ffmpeg）。</summary>
+    public RecordFormat RecordFormat { get; set; } = RecordFormat.Gif;
 
     /// <summary>已废弃（R61）：长按录制时长上限移除——录到用户停为止，帧落盘不再受内存/时长限制。
     /// 保留字段仅为兼容旧 settings.json（读写无害），运行期不再有任何消费方。</summary>
@@ -156,6 +164,14 @@ public sealed class AppSettings
             RegionMonitorId = null; RegionX = RegionY = RegionW = RegionH = 0;
         }
     }
+}
+
+/// <summary>录制产物格式（R100）。显式赋值，避免枚举顺序变动破坏已存 settings.json。</summary>
+public enum RecordFormat
+{
+    Gif = 0,
+    Mp4 = 1,
+    WebM = 2,
 }
 
 /// <summary>JSON 设置存取，带并发保护与损坏自愈。</summary>
