@@ -2003,6 +2003,16 @@ status: done
 - **护栏后用户配置核验**：try/finally 还原成功——4 条自定义手势逐字段完好（qq.rec `Ctrl+Alt+R`→record.toggle→edit.lastvideo；bfd68f4 `Ctrl+Alt+A`→capture.selection；bc235bc `F2 KeyDown`→record.start；b3c320e `F2 KeyUp`→record.stop→edit.lastvideo），`Enabled/Exclusive/Seeded=true`，其余设置未动。
 - **结论**：objective 验证标准「构建 0 错 + SelfTest 只增不减 + GUARDRAIL PASS」在**最终 HEAD（R127–R139 全部改动后）直接达成**，非假设。本轮无源码改动。
 
+**R140 · 最终完整护栏（最终 HEAD 上 objective 验证标准直接达成）**
+- **GUARDRAIL PASS（FAIL=0 SKIP=1，共 10 项）**，后台运行至完成（exit 0）：
+  - build:app / build:Shot / build:SelfTest 全 **errors=0 exe=ok**；
+  - **SelfTest PASS=387 FAIL=0**（floor 387）；
+  - e2e **editor-keys / zoom / esc-layers / tap-semantics / fuzz-statemachine 全 PASS**——其中 **tap-semantics（手势轻点截图 / 长按录制）正是 B2 核心语义**；
+  - **err_delta=0**（error.log 34733→34733，无新崩溃）；
+  - focus-safety **SKIP**（前台为 DSH GUI 非本软件窗，注入探针安全跳过，SKIP≠FAIL）。
+- **护栏后用户配置核验**：try/finally 还原成功——4 条自定义手势逐字段完好（qq.rec `Ctrl+Alt+R`→record.toggle→edit.lastvideo；bfd68f4 `Ctrl+Alt+A`→capture.selection；bc235bc `F2 KeyDown`→record.start；b3c320e `F2 KeyUp`→record.stop→edit.lastvideo），`Enabled/Exclusive/Seeded=true`，其余设置未动。
+- **结论**：objective 验证标准「构建 0 错 + SelfTest 只增不减 + GUARDRAIL PASS」在**最终 HEAD（R127–R139 全部改动后）直接达成**，非假设。本轮无源码改动。
+
 **R141 · 净态快照 + zip 时效确认（03:04，距截止 6.9h）**
 - **净态**：git HEAD `5bcee53` 干净 · 0 FrameCapture 实例 · release zip 69.7MB（mtime 02:36）· 用户配置完好 · error.log 34733 无新增。
 - **zip 时效确认**：`git diff --stat 9f85a15(R132)..HEAD -- src` **输出为空** = R133–R140 仅改 PROGRESS.md，**src 零改动** → **zip 反映最终源码，无需重发布**。
