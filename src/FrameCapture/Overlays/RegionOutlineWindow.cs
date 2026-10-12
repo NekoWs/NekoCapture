@@ -192,12 +192,9 @@ public sealed class RegionOutlineWindow : Window
         Hide();
     }
 
-    /// <summary>录制指示徽标：按住超过点按阈值后由控制器点亮，红点脉冲 + 实时时长。
-    /// toggle=true（R60 免按住录制）：文案附「再连按两下结束」——没有"松手"这个动作，结束方式必须写在脸上。</summary>
-    private bool _recToggle;
-    public void StartRecBadge(bool toggle = false)
+    /// <summary>录制指示徽标：录制进行中由控制器点亮，红点脉冲 + 实时时长。</summary>
+    public void StartRecBadge()
     {
-        _recToggle = toggle;
         if (_recBadge.Visibility == Visibility.Visible) { UpdateRecText(); return; }
         _recClock = System.Diagnostics.Stopwatch.StartNew();
         UpdateRecText();
@@ -247,7 +244,7 @@ public sealed class RegionOutlineWindow : Window
     {
         if (_recClock == null) return;
         double t = _recClock.Elapsed.TotalSeconds;
-        _recText.Text = $"REC {(int)(t / 60)}:{t % 60:00.0}" + (_recToggle ? " · 再连按两下结束" : "");
+        _recText.Text = $"REC {(int)(t / 60)}:{t % 60:00.0}";
     }
 
     System.Windows.Threading.DispatcherTimer? _fadeTimer;

@@ -107,6 +107,34 @@ public sealed class SettingsWindow : Window
             Text = "捕获键「轻点 = 截图、按住 = 录制」，选区键「组合键 = 选区」——全部键位与触发方式在下方手势配置器里增删改，保存即生效。",
         });
 
+        // ---- 当前生效键位（R126 B2：从手势绑定推导，免开配置器即可一眼看到截图/选区键）----
+        var gk = _settings.Current.Gestures;
+        var keyCard = new Border
+        {
+            Margin = new Thickness(0, 2, 0, 2),
+            CornerRadius = new CornerRadius(6),
+            BorderThickness = new Thickness(1),
+            BorderBrush = new SolidColorBrush(Theme.Stroke),
+            Background = new SolidColorBrush(Theme.CardBg),
+            Padding = new Thickness(12, 10, 12, 10),
+        };
+        var keyStack = new StackPanel();
+        void KeyRow(string label, string key)
+        {
+            var row = new Grid { Margin = new Thickness(0, 2, 0, 2) };
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            var lb = new TextBlock { Text = label, Foreground = new SolidColorBrush(Theme.TextDim), FontSize = 12.5, VerticalAlignment = VerticalAlignment.Center };
+            var kv = new TextBlock { Text = key, Foreground = new SolidColorBrush(Theme.Accent), FontSize = 13, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center };
+            Grid.SetColumn(lb, 0); Grid.SetColumn(kv, 1);
+            row.Children.Add(lb); row.Children.Add(kv);
+            keyStack.Children.Add(row);
+        }
+        KeyRow("截图键", gk.CaptureKeyText());
+        KeyRow("选区键", gk.ScopeKeyText());
+        keyCard.Child = keyStack;
+        panel.Children.Add(keyCard);
+
         // ---- 手势配置器入口（R122）：可视化增删改键位绑定，保存即热重载生效 ----
         var geBtn = new Border
         {

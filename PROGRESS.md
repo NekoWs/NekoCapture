@@ -1892,3 +1892,13 @@ status: done
   - **退役** `test-hotkey-e2e.ps1`（旧改键/旧键失效/恢复，字段已删）+ 从 guardrail 列表移除。
   - `GestureService` apply 日志加 `oc=<OnComplete 数>`（本 bug 若有此字段可秒查；留作手势可观测性）。
 - 全量护栏 `-MinSelfTestPass 387`：**FAIL=0 SKIP=1**（focus-safety 因前台窗口守卫 SKIP≠FAIL）。用户 settings.json 完好（qq.rec/bfd68f4/bc235bc/b3c320e）。
+
+**⑤ B2 后 UI 一致性走查（截图核对 + 快捷键页补当前键位）**
+- 逐界面截图（明/暗双主题）核对 B2 改动的 UI 面：设置「快捷键」页、帮助窗——渲染干净、图标无豆腐块、文案连贯；全仓 grep 无 `TapAlwaysShowsRegion/DoubleTapRecord/连按两下/CaptureHotkey/ScopeHotkey/HookDecision/ToggleRecord` 死引用（`record.toggle` 的「再连按两下结束」是活的同键起停动作、`OnCaptureHotkey/OnScopeHotkey` 是内部意图函数名，均非遗留）。
+- **快捷键页补「当前生效键位」卡片**：B2 删两行热键后该页偏空，用户看不到自己的键。加一张卡（从 `GestureConfig.CaptureKeyText/ScopeKeyText` 推导）显示「截图键 / 选区键」= 实际绑定键（强调色加粗右对齐），免开配置器一眼可见；明/暗双主题像素核对（`test-out/b2-ui/settings-hotkey-keys{,-light}.png`）。UI-only，SelfTest 仍 387，护栏 FAIL=0 SKIP=1。
+- 走查发现（未改，记录）：帮助窗把「轻点截图/按住录制」通用语义绑到派生键名——对自定义成纯 Chord 的用户「按住录制」行略不符，属静态速查表固有简化，动态枚举绑定属大改且非用户所求，暂不动。
+
+**⑥ 用户复核「双击录制」类设置项的移除（徽标残留提示清除）**
+- 用户关切：B2 应删掉「一切能用快捷键配置替代的键→动作设置项」，「双击录制」是例子，担心做错。复核结论：已删 `CaptureHotkey/ScopeHotkey/TapThresholdMs/TapAlwaysShowsRegion/DoubleTapRecord` 全部键→动作设置；所有行为均为手势动作（截图/选区/录制起停/同键起停/滚动/延时/贴图/OCR/进编辑器…）。
+- 唯一残留：REC 徽标 `StartRecBadge` 的 `toggle` 分支文案「· 再连按两下结束」——旧双击录制语义，且唯一调用方 `StartRecBadge()` 无参（toggle 恒 false）实为死代码。按用户「徽标里的提示去掉就好了」删除该后缀 + 清死参数 `toggle`/死字段 `_recToggle`。
+- 键盘多击现状（记录）：引擎 `DoubleClick/TripleClick` 仅由鼠标 `OnMouseDown/Up` 驱动（组合键激活态 + 鼠标连击），**无键盘双击触发器**；旧「双击某键起停录制」在新模型由「按住录制」或「单击起停（KeyDown→record.toggle）」覆盖，非字面双击。若日后要字面键盘双击可再补引擎。构建 0 错。
