@@ -1587,3 +1587,14 @@ status: done
 - 构建 0 错误；SelfTest **336 PASS**（新增 T128a-cursor-default 锁死默认开=无回归）；完整护栏 GUARDRAIL PASS（FAIL=0 SKIP=1 floor280，err_delta=0）
 - 视觉取证：PrintWindow 设置窗裁「录制」组 → 新行「录制包含鼠标指针」+ E8B0 光标字形渲染正常、开关默认开、位置在「录制时显示范围边框」后、「产物」组前，与既有 ToggleRow 风格一致
 - 说明：默认 true 保证老用户无感知；关掉后 WGC 会话不合成光标，成片干净——一个低成本、广受众的自定义维度
+
+
+## 2026-10-12 下午 让「导出视频需要 FFmpeg」可操作 R109
+
+**发现**：用户选了 MP4/WebM 但本机没装 ffmpeg 时，编辑器只弹「未找到 ffmpeg（装 FFmpeg 后可导视频）」——告诉要装却没说怎么装，非技术用户卡住。
+
+**修复**（纯文案，无行为变化）：
+- `EditorWindow.DispatchSave` HUD：改为「未找到 ffmpeg，无法导出视频 — 安装方法见帮助（按 F1）」，把死胡同变成有出口的指引。
+- `HelpWindow` 新增「导出视频需要 FFmpeg」条目：说明软件不内置、运行时自动探测；给三条安装路径（`winget install Gyan.FFmpeg` / ffmpeg.org 下载加 PATH / 已装未进 PATH 补 PATH），并点明装好无需重启设置、下次导出即生效。
+
+**验证**：构建 0 错误；完整护栏 GUARDRAIL PASS（FAIL=0 SKIP=1 floor280，err_delta=0）。说明：ffmpeg 缺失路径需隐藏本机 ffmpeg 才能 e2e，风险高（可能弄坏用户环境），故以编译 + 护栏 + 文案审查为准；文案是字符串字面量，编译期即锁。

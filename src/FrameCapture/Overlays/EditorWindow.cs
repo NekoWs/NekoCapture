@@ -1122,7 +1122,7 @@ public sealed partial class EditorWindow : Window
         {
             if (FrameCapture.Encoding.FfmpegLocator.Find() == null)
             {
-                _hud.Text = "未找到 ffmpeg（装 FFmpeg 后可导视频）";
+                _hud.Text = "未找到 ffmpeg，无法导出视频 — 安装方法见帮助（按 F1）";
                 return;
             }
             var fmt = ext == ".mp4" ? FrameCapture.Encoding.VideoFormat.Mp4 : FrameCapture.Encoding.VideoFormat.WebM;
