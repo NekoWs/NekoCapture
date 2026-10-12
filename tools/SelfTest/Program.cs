@@ -1799,6 +1799,17 @@ static class SelfTest
                         .Equals(new HD.Outcome(HD.Act.BeginCapture, true, HD.Key.CapturePrimary)),
                     "未暂停（默认参数）：捕获键仍触发 Begin，旧调用零改动");
             }
+            // T123 适配倍率封顶（R97，ZoomMath.FitScale）：小图不放大（默认 1:1 清晰），大图仍缩小适配
+            {
+                Chk("T123a-small-no-upscale", Math.Abs(ZoomMath.FitScale(900, 700, 320, 220) - 1.0) < 1e-9,
+                    "图小于视口 → 1.0（不放大变糊）");
+                Chk("T123b-large-downscale", Math.Abs(ZoomMath.FitScale(800, 600, 1600, 1200) - 0.5) < 1e-9,
+                    "图大于视口 → 0.5 缩小适配（旧行为不变）");
+                Chk("T123c-exact-fit", Math.Abs(ZoomMath.FitScale(800, 600, 800, 600) - 1.0) < 1e-9,
+                    "图恰等视口 → 1.0");
+                Chk("T123d-onetoone-small", Math.Abs(ZoomMath.OneToOneZoom(ZoomMath.FitScale(900, 700, 320, 220)) - 1.0) < 1e-9,
+                    "小图 1:1 键 → _zoom=1.0（默认即 1:1）");
+            }
         }
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");
         return fail == 0 ? 0 : 1;

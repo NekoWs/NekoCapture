@@ -11,8 +11,13 @@ public static class ZoomMath
     public const double MinZoom = 1.0;
     public const double MaxZoom = 16.0;
 
+    /// <summary>
+    /// 适配倍率：把整帧放进视口，但**封顶 1.0**——小图绝不放大填充（放大只会糊）。
+    /// 图小于视口 → 1.0（逐像素 1:1 居中，QQ/Snipaste 式清晰）；图大于视口 → 缩小到刚好放下。
+    /// 这是编辑器默认视图与「适配」键的基准；放大仍靠 Ctrl+滚轮 / 1:1 键显式进行。
+    /// </summary>
     public static double FitScale(double vw, double vh, double fw, double fh)
-        => fw <= 0 || fh <= 0 || vw <= 0 || vh <= 0 ? 1.0 : Math.Min(vw / fw, vh / fh);
+        => fw <= 0 || fh <= 0 || vw <= 0 || vh <= 0 ? 1.0 : Math.Min(1.0, Math.Min(vw / fw, vh / fh));
 
     public static double ClampZoom(double z) => Math.Clamp(z, MinZoom, MaxZoom);
 
