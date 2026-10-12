@@ -62,14 +62,19 @@ public static class VideoEncoder
         return Math.Clamp((frames.Count - 1) / (dur / 1000.0), 1, 240);
     }
 
-    /// <summary>拼 ffmpeg 命令行（纯函数，便于单测）。rawvideo BGRA 从 stdin 进，按 fmt 选编码器。</summary>
+    /// <summary>拼 ffmpeg 命令行（纯函数，便于单测）。rawvideo BGRA 从 stdin 进，按 fmt 选编码器。
+    /// yuv420p 要求宽高为偶数，而用户选区可能是奇数（如 641×401）→ 奇数时插一条向下取偶的 scale
+    /// 滤镜（641→640、401→400），否则 libx264/vp9 直接报 "width not divisible by 2" 编码失败。</summary>
     public static string BuildArgs(int w, int h, double fps, VideoFormat fmt, string outPath)
     {
         string fpsS = fps.ToString("0.###", CultureInfo.InvariantCulture);
         string codec = fmt == VideoFormat.Mp4
             ? "-c:v libx264 -pix_fmt yuv420p -preset ultrafast -movflags +faststart"
             : "-c:v libvpx-vp9 -pix_fmt yuv420p -b:v 0 -crf 40";
-        return $"-hide_banner -loglevel error -y -f rawvideo -pix_fmt bgra -s {w}x{h} -framerate {fpsS} -i pipe:0 {codec} \"{outPath}\"";
+        string vf = (w % 2 != 0 || h % 2 != 0)
+            ? " -vf \"scale=trunc(iw/2)*2:trunc(ih/2)*2\""
+            : "";
+        return $"-hide_banner -loglevel error -y -f rawvideo -pix_fmt bgra -s {w}x{h} -framerate {fpsS} -i pipe:0{vf} {codec} \"{outPath}\"";
     }
 
     /// <summary>

@@ -1870,6 +1870,15 @@ static class SelfTest
                     && webmArgs.Contains("-s 320x240"),
                     "WebM：libvpx-vp9/crf40/bitrate0/尺寸");
 
+                // 奇数尺寸必须向下取偶（yuv420p 要求偶数宽高，否则 libx264/vp9 报 "width not divisible by 2"）
+                string oddArgs = VideoEncoder.BuildArgs(641, 401, 30, VideoFormat.Mp4, @"C:\t\o.mp4");
+                Chk("T127g-args-odd-scale",
+                    oddArgs.Contains("scale=trunc(iw/2)*2:trunc(ih/2)*2") && oddArgs.Contains("-s 641x401"),
+                    "奇数尺寸 → 插入向下取偶 scale 滤镜");
+                Chk("T127h-args-even-noscale",
+                    !mp4Args.Contains("-vf") && !webmArgs.Contains("-vf"),
+                    "偶数尺寸 → 不加 scale 滤镜（常见路径零额外开销）");
+
                 var tf = MakeVidFrames(11, 32, 24); // 11 帧跨 1000ms → 10fps
                 double fps = VideoEncoder.FpsFromFrames(tf);
                 Chk("T127d-fps-from-frames", Math.Abs(fps - 10.0) < 0.01, $"11 帧跨 1s → {fps:F2}fps");
@@ -1886,8 +1895,23 @@ static class SelfTest
                     }
                     catch (Exception ex) { Chk("T127f-encode-mp4", false, "编码异常：" + ex.Message.Split('\n')[0]); }
                     finally { try { if (File.Exists(outMp4)) File.Delete(outMp4); } catch { } }
+
+                    // 奇数尺寸真实编码：修复前 libx264 直接失败，修复后经 scale 取偶应成功产出
+                    string outOdd = Path.Combine(Path.GetTempPath(), $"fc_encodd_{Guid.NewGuid():N}.mp4");
+                    try
+                    {
+                        VideoEncoder.Encode(MakeVidFrames(6, 65, 49), ff, outOdd, VideoFormat.Mp4, 24);
+                        long len = new FileInfo(outOdd).Length;
+                        Chk("T127i-encode-odd", len > 300, $"奇数尺寸 65×49 真实编码 → {len} 字节（取偶成功）");
+                    }
+                    catch (Exception ex) { Chk("T127i-encode-odd", false, "奇数尺寸编码异常：" + ex.Message.Split('\n')[0]); }
+                    finally { try { if (File.Exists(outOdd)) File.Delete(outOdd); } catch { } }
                 }
-                else Chk("T127f-encode-mp4", true, "无 ffmpeg，跳过实编码");
+                else
+                {
+                    Chk("T127f-encode-mp4", true, "无 ffmpeg，跳过实编码");
+                    Chk("T127i-encode-odd", true, "无 ffmpeg，跳过实编码");
+                }
             }
         }
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");

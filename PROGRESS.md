@@ -1530,3 +1530,16 @@ status: done
 - 完整护栏 GUARDRAIL PASS（FAIL=0 SKIP=1 floor280，err_delta=0）
 - 全链路 e2e：`AutoSaveCopy=true` + `RecordFormat=MP4` → 录 43 帧 → 焦点安全核前台=编辑器 → Enter(Commit) → trace `autosave mp4 …56782B 43f` → **ffprobe h264 / 640×400 / 43 帧 / 0.91s / 解码 exit=0 可播**
 - 说明：显式「导出录制」(Ctrl+E) 与自动保存现在都跟随 `RecordFormat`，格式设置语义全链一致
+
+
+## 2026-10-12 中午 修复奇数尺寸选区导出视频失败 R104
+
+**发现**：边界正确性审计——libx264 / libvpx-vp9 的 `yuv420p` 要求宽高为**偶数**，而用户框选的区域完全可能是奇数（如 641×401）。实测 `ffmpeg -s 641x401 -c:v libx264 -pix_fmt yuv420p` 直接报 `width not divisible by 2 (641x401)` → 编码失败、产物为空。R101–R103 的视频导出对奇数选区是坏的（GIF 无此约束所以之前没暴露）。
+
+**修复**（`Encoding/VideoEncoder.cs` `BuildArgs`）：仅当 `w` 或 `h` 为奇数时，插入一条向下取偶的 scale 滤镜 `-vf "scale=trunc(iw/2)*2:trunc(ih/2)*2"`（641→640、401→400，丢最右/最下一行像素，视觉无损）；偶数尺寸不加滤镜，常见路径零额外开销。
+
+**验证**：
+- 构建 0 错误；SelfTest **335**（新增 T127g 奇数含 scale / T127h 偶数不含 / **T127i 真实 ffmpeg 编码 65×49 奇数尺寸产物 >300B**——修复前该用例会因 libx264 报错而失败）
+- 完整护栏 GUARDRAIL PASS（FAIL=0 SKIP=1 floor280，err_delta=0）
+- 独立 ffmpeg 实测：奇数 641×401 + scale → MP4/WebM 均 exit=0、输出 640×400
+- 说明：这是「看细节 + 测边界」抓出的真实缺陷——用户随手框个奇数区域导 MP4 就会失败，现已覆盖

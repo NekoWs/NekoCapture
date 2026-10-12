@@ -342,3 +342,7 @@
 - [x] **格式语义全链一致**：`MaybeSaveArtifact` 多帧按 `RecordFormat`（MP4/WebM+ffmpeg → 后台 `Task.Run` 编码不冻 UI，临时文件原子落盘，失败 GIF 兜底；GIF/未装 ffmpeg 仍 GIF）+ tooltip 同步。护栏 PASS，全链路 e2e：录 43 帧→Enter→`autosave mp4 56782B 43f`→ffprobe h264/43帧/可播。
 - [ ] **自动保存候选**（后续）：① 后台编码期间托盘/编辑器给个「正在保存视频…」轻提示（当前静默，文件稍后出现）；② 长录制 vp9 编码可加进度或完成后气泡；③ 自动保存目录里视频/图片混排，可按类型分子目录（重度需求暂缓）。
 
+## 修复奇数尺寸选区导出视频失败 R104（2026-10-12 中午，边界审计）
+- [x] **奇数宽高取偶**：`BuildArgs` 奇数尺寸插 `-vf scale=trunc(iw/2)*2:trunc(ih/2)*2`（yuv420p 要求偶数，否则 libx264/vp9 报 "width not divisible by 2" 编码失败）；偶数不加滤镜。SelfTest 335（T127g/h/i 含真实 65×49 编码）。护栏 PASS。
+- [ ] **边界后续**：① 极短录制（1–2 帧）导出视频的可播性已隐式覆盖（FpsFromFrames 单帧回退 30），可加一条 1 帧真实编码 e2e；② 超大选区（4K）长录制的 ffmpeg 内存/耗时上限观察（当前 stdin 流式，理论 O(1) 内存）；③ 帧尺寸中途变化（当前烘焙后统一，若未来支持动态裁剪需重估）。
+
