@@ -1620,3 +1620,12 @@ status: done
 **修复**：编辑器本就按设置帧率播放（`_playTimer=1000/fps`），计数区应与刻度/播放一致。`Show()` 里计数区时间改用 `_index / fps`（fps 同刻度做 Clamp），删去不再使用的 `tMs`。`_times` 字段仍保留（PNG 另存默认名 `frame-{…}.png` 仍用实际时间戳，语义正确）。
 
 **验证**：构建 0 错误；完整护栏 GUARDRAIL PASS（FAIL=0 SKIP=1 floor280，err_delta=0）。焦点安全 e2e 取证：录制→编辑器→PrintWindow 裁计数区放大 → 帧 1 现显示「1/11 **0.00s**」（修复前 0.09s），与刻度起点一致。说明：纯显示层改动，不改 `_times`/导出时序；GIF/视频导出仍按实际帧间隔（`frames[i].TimeMs` 差值），不受影响。
+
+
+## 2026-10-12 下午 设置「录制格式」行加 ffmpeg 检测即时状态 R112
+
+**动机**（TODO 文档后续①）：ffmpeg 是否装好，原来只藏在 MP4/WebM 芯片的 tooltip 里，用户选格式时看不到——正是 R109 那类「选了 MP4 导出才发现没 ffmpeg」困惑的源头。让检测状态在选格式时一眼可见。
+
+**改动**：`SettingsWindow.RecordFormatRow()` 末尾把单行 Grid 包进 StackPanel，下方加一行状态：绘制的小圆点（`System.Windows.Shapes.Ellipse`，非字形，规避未验证字形规则）+ 文案。绿点 `已检测到 ffmpeg · 可导出 MP4 / WebM`；琥珀点 `未检测到 ffmpeg · 导出 MP4/WebM 需先安装（见帮助 F1），GIF 不受影响`。`hasFf` 复用行内已算好的 `FfmpegLocator.Find()`，只读、开设置时算一次，无行为改动。
+
+**验证**：构建 0 错误；完整护栏 GUARDRAIL PASS（FAIL=0 SKIP=1 floor280，err_delta=0）。焦点安全 e2e 取证：开设置→PrintWindow 裁录制格式区 → 本机装有 ffmpeg，格式行下方正确显示绿点 +「已检测到 ffmpeg · 可导出 MP4 / WebM」，缩进对齐标签。未检测到分支为对称逻辑（仅文案+琥珀色不同），本机无法在不破坏 ffmpeg 安装的前提下触发，按对称代码审查确认。

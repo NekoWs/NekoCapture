@@ -886,7 +886,31 @@ public sealed class SettingsWindow : Window
             chips.Children.Add(chip);
         }
         g.Children.Add(chips);
-        return g;
+        // R112：ffmpeg 检测状态即时可见（原来只在 MP4/WebM 芯片 tooltip 里，选格式时看不到）；
+        // 用绘制的小圆点而非字形，规避未验证字形；只读、开设置时算一次
+        var status = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(32, 3, 0, 0) };
+        var dotColor = hasFf ? Color.FromRgb(0x4C, 0xAF, 0x50) : Color.FromRgb(0xD1, 0x8B, 0x00);
+        status.Children.Add(new System.Windows.Shapes.Ellipse
+        {
+            Width = 7,
+            Height = 7,
+            Fill = new SolidColorBrush(dotColor),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 7, 0),
+        });
+        status.Children.Add(new TextBlock
+        {
+            Text = hasFf ? "已检测到 ffmpeg · 可导出 MP4 / WebM"
+                         : "未检测到 ffmpeg · 导出 MP4/WebM 需先安装（见帮助 F1），GIF 不受影响",
+            FontSize = 11.5,
+            Foreground = new SolidColorBrush(Theme.TextDim),
+            VerticalAlignment = VerticalAlignment.Center,
+            TextWrapping = TextWrapping.Wrap,
+        });
+        var wrap = new StackPanel();
+        wrap.Children.Add(g);
+        wrap.Children.Add(status);
+        return wrap;
     }
 
     FrameworkElement ColorFormatRow()
