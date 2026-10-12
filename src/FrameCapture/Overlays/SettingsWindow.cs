@@ -618,12 +618,12 @@ public sealed class SettingsWindow : Window
     {
         var g = Row();
         g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); // 更改列
-        g.Children.Add(Icon("\uE838", "选择自动保存副本的文件夹"));
+        g.Children.Add(Icon("\uE838", "保存文件夹：自动保存副本存到这里，编辑器/贴图「另存为」对话框也默认打开这里"));
         var stack = new StackPanel
         {
             Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center,
             Cursor = Cursors.Hand, Background = Brushes.Transparent,
-            ToolTip = "点击选择保存文件夹",
+            ToolTip = "点击选择保存文件夹（自动保存副本 + 导出对话框默认目录）",
         };
         var lbl = new TextBlock { Text = "保存位置", FontSize = 13, Foreground = new SolidColorBrush(Theme.Text), VerticalAlignment = VerticalAlignment.Center };
         var path = new TextBlock
@@ -652,7 +652,7 @@ public sealed class SettingsWindow : Window
         void Open()
         {
             using var dlg = new System.Windows.Forms.FolderBrowserDialog
-            { Description = "选择自动保存副本的文件夹", UseDescriptionForTitle = true };
+            { Description = "选择保存文件夹（自动保存副本 + 导出对话框默认目录）", UseDescriptionForTitle = true };
             var cur = _settings.Current.AutoSavePath;
             if (!string.IsNullOrWhiteSpace(cur) && System.IO.Directory.Exists(cur)) dlg.SelectedPath = cur;
             // 设置窗 Topmost：对话框须挂到本窗句柄，否则可能盖在设置窗之下
