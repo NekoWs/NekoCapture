@@ -21,6 +21,8 @@ public sealed class CaptureController : IDisposable
     private ScreenRegion? _pendingRegion;
     /// <summary>点按总是先显示选区（QQ 式）：本次选区确认后立即截一帧静态图。</summary>
     private bool _captureAfterSelect;
+    /// <summary>R120 B2：QQ 式「选区录制」——本次选区确认后立即对该区域起录。</summary>
+    private bool _recordAfterSelect;
     private System.Windows.Threading.DispatcherTimer? _recBadgeTimer; // R43：按住过阈值→REC 徽标
     // R60：连按两下=免按住录制（纯逻辑在 Core.ToggleRecord，这里只做引擎/徽标接线）
     private Core.ToggleRecord.St _tr = Core.ToggleRecord.St.Idle;
@@ -204,6 +206,16 @@ public sealed class CaptureController : IDisposable
                 st.Start();
                 return;
             }
+            if (_recordAfterSelect)
+            {
+                // QQ 式选区录制：区域已由上方 Mutate 存好（RegionX/Y/W/H），延迟一拍让选取层退场后对该区域起录。
+                _recordAfterSelect = false;
+                HideOutline();
+                var rt = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(220) };
+                rt.Tick += (_, _) => { rt.Stop(); BeginCaptureCore(); };
+                rt.Start();
+                return;
+            }
             if (stillAfterSelect)
             {
                 // 选区完成即截一帧**静态图**（PNG + 剪贴板），不进 GIF 管线、不开编辑器。
@@ -239,6 +251,22 @@ public sealed class CaptureController : IDisposable
         FrameCapture.Core.Trace.Log("scroll capture→picker");
         BeginScopeSelection();
         _scrollAfterSelect = true;
+    }
+
+    /// <summary>R120 B2：QQ 式「选区截图」——选一块区域，选完立即截静态图（不受 AutoCaptureOnSelect 影响）。</summary>
+    public void BeginCaptureSelection()
+    {
+        FrameCapture.Core.Trace.Log("capture-selection→picker");
+        BeginScopeSelection();
+        _captureAfterSelect = true;
+    }
+
+    /// <summary>R120 B2：QQ 式「选区录制」——选一块区域，选完立即对该区域起录。</summary>
+    public void BeginRecordSelection()
+    {
+        FrameCapture.Core.Trace.Log("record-selection→picker");
+        BeginScopeSelection();
+        _recordAfterSelect = true;
     }
 
     void StartScrollLoop(RectI region, string device)

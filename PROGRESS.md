@@ -1779,3 +1779,9 @@ status: done
 - 我上一条消息误报「录制上限 6 秒」——其实 **R61 早已移除录制时长上限**（CaptureController:558 / FrameSpool:7 / SettingsWindow:156 / HelpWindow:122 均写明「录到松手为止，不设时长上限」，护栏是磁盘 DiskLow 自动停）。`MaxDurationMs` 是 R61 后遗留的死设置（AppSettings 注释「已废弃」，运行期从无消费方）。
 - 用户要「不要录制上限」→ 行为本已满足；把死设置**彻底删除**（属性 + Normalize 行），并清掉 settings.json 残留键，杜绝再误导。旧 settings.json 残留该键反序列化被忽略，无害。
 - 护栏 363 绿、新实例启动正常、手势钩子仍装。
+
+## R120 B2 扩展：QQ 风味「选区截图 / 选区录制」动作（用户实测需求）
+- 用户要 `Ctrl+Alt+A`=选区截图、`Ctrl+Alt+R`=选区录制。手势顺序动作是同步的，`[scope.select, record.start]` 会在选完前就起录——需「选区完成后」再动作的专用入口。
+- 新增动作 `capture.selection`（选区截图，复用现成 `_captureAfterSelect`）+ `record.selection`（选区录制，新增 `_recordAfterSelect`：选区存好后延迟 220ms 让选取层退场，再 `BeginCaptureCore` 对刚选区域起录）。
+- CaptureController 加 `BeginCaptureSelection()` / `BeginRecordSelection()`（仿 `BeginScrollCapture` 的「选区→X」模式）；GestureInvoker 接两动作。
+- Ctrl+Alt+A/R 是 Chord，不占用 F6/F7 → 旧热键照常并存。T135a/b/c（动作注册 + Ctrl+Alt+A/R 解析成 Chord），护栏 363→**366**。

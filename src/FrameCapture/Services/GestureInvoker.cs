@@ -43,6 +43,8 @@ sealed class GestureInvoker : GC.IActionInvoker
                 return true;
 
             case GestureActions.ScopeSelect: Post(() => c.BeginScopeSelection()); return true;
+            case GestureActions.CaptureSelection: Post(() => c.BeginCaptureSelection()); return true;
+            case GestureActions.RecordSelection: Post(() => c.BeginRecordSelection()); return true;
 
             case GestureActions.RecordStart:
                 if (c.State != CaptureController.Phase.Idle) return false;   // 非空闲→失败（可顺延下一条）

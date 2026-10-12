@@ -2127,6 +2127,24 @@ static class SelfTest
             Chk("T134a-hook-for-keysink", sinkInstalled, "有手势 KeySink 时即使无旧热键也装钩子（否则手势永不触发）");
             Chk("T134b-no-hook-when-idle", !idleNotInstalled, "无 KeySink 且无热键时不装钩子（零开销）");
         }
+        // T135 QQ 风味选区动作（R120 B2）：capture.selection / record.selection 注册 + Ctrl+Alt+A/R 解析成 Chord
+        {
+            Chk("T135a-actions-registered",
+                GestureActions.IsValid("capture.selection") && GestureActions.IsValid("record.selection"),
+                "选区截图/选区录制动作已注册");
+            var d1 = new GestureBindingDto { Id = "qq.shot", Chord = "Ctrl+Alt+A", Trigger = "Chord", Actions = new[] { "capture.selection" } };
+            var b1 = d1.ToBinding();
+            Chk("T135b-shot-chord-parse",
+                b1 != null && b1.Chord.Key == 0x41 && (b1.Chord.Mods & GE.ModifierKeys.Control) != 0 &&
+                (b1.Chord.Mods & GE.ModifierKeys.Alt) != 0 && b1.Trigger == GE.TriggerKind.Chord &&
+                b1.Actions.Count == 1 && b1.Actions[0] == "capture.selection",
+                "Ctrl+Alt+A → Chord(Ctrl+Alt+A) → capture.selection 解析正确");
+            var d2 = new GestureBindingDto { Id = "qq.rec", Chord = "Ctrl+Alt+R", Trigger = "Chord", Actions = new[] { "record.selection" } };
+            var b2 = d2.ToBinding();
+            Chk("T135c-rec-chord-parse",
+                b2 != null && b2.Chord.Key == 0x52 && b2.Trigger == GE.TriggerKind.Chord && b2.Actions[0] == "record.selection",
+                "Ctrl+Alt+R → Chord → record.selection 解析正确");
+        }
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");
         return fail == 0 ? 0 : 1;
     }
