@@ -11,5 +11,6 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\FrameCapture\FrameCapture.csproj" />
+    <ProjectReference Include="..\..\src\GestureCore\GestureCore.csproj" />
   </ItemGroup>
 </Project>

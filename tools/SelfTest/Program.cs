@@ -11,6 +11,7 @@ using FrameCapture.Encoding;
 using FrameCapture.Services;
 using System.Windows;
 using HD = FrameCapture.Core.HookDecision;
+using GE = GestureCore;
 
 static class SelfTest
 {
@@ -1949,6 +1950,117 @@ static class SelfTest
             catch { ok = false; }
             Chk("T129a-reclaim-no-throw", ok, "Memory.Reclaim() 全代 GC + 裁工作集不抛");
         }
+        // T130 GestureCore 引擎（R120 B1，netstandard2.0 可复用库）：按住/单击/双击消歧/长按/失败策略/修饰键/三击/优先级
+        {
+            var M = new GestureProbe();
+            var eng = new GE.GestureEngine(M);
+            GE.GestureBinding B(string id, GE.ModifierKeys mods, int key, GE.TriggerKind trig, string[] acts,
+                GE.FallbackPolicy fb = GE.FallbackPolicy.Stop, int prio = 0, int dbl = 400, int lp = 500)
+                => new GE.GestureBinding { Id = id, Chord = new GE.KeyChord(mods, key), Trigger = trig,
+                     Actions = new List<string>(acts), Fallback = fb, Priority = prio, DoubleClickMs = dbl, LongPressMs = lp };
+            const int F6 = 0x75, A = 0x41, CTRL = 0x11, ALT = 0x12;
+
+            // T130a 按住做 A、松手做 B（KeyDown/KeyUp 配对）
+            eng.SetBindings(new[] {
+                B("s", GE.ModifierKeys.None, F6, GE.TriggerKind.KeyDown, new[] { "StartRec" }),
+                B("t", GE.ModifierKeys.None, F6, GE.TriggerKind.KeyUp, new[] { "StopRec" }) });
+            eng.OnKeyDown(F6, GE.ModifierKeys.None, 0);
+            eng.OnKeyUp(F6, GE.ModifierKeys.None, 500);
+            Chk("T130a-hold-pattern", M.Log.SequenceEqual(new[] { "StartRec", "StopRec" }), "F6 按下→StartRec、抬起→StopRec，实得 " + string.Join(",", M.Log));
+
+            // T130b 组合键激活 + 单击（仅绑 Click → 零延迟立即触发）
+            M.Log.Clear();
+            eng.SetBindings(new[] { B("c", GE.ModifierKeys.None, F6, GE.TriggerKind.Click, new[] { "Capture" }) });
+            eng.OnKeyDown(F6, GE.ModifierKeys.None, 0);
+            eng.OnMouseDown(0, GE.ModifierKeys.None, 10);
+            eng.OnMouseUp(0, GE.ModifierKeys.None, 30);
+            Chk("T130b-click-held", M.Log.SequenceEqual(new[] { "Capture" }), "F6 按住单击→Capture（无更高阶绑定，立即触发）");
+
+            // T130c Click 与 DoubleClick 并存：单击等满间隔才触发 Click；双击立即触发 DoubleClick
+            M.Log.Clear();
+            eng.SetBindings(new[] {
+                B("one", GE.ModifierKeys.None, F6, GE.TriggerKind.Click, new[] { "One" }),
+                B("two", GE.ModifierKeys.None, F6, GE.TriggerKind.DoubleClick, new[] { "Two" }) });
+            eng.OnKeyDown(F6, GE.ModifierKeys.None, 0);
+            eng.OnMouseDown(0, GE.ModifierKeys.None, 10); eng.OnMouseUp(0, GE.ModifierKeys.None, 20);
+            eng.Tick(419);
+            bool waited = M.Log.Count == 0;
+            eng.Tick(420);
+            Chk("T130c-single-waits-then-click", waited && M.Log.SequenceEqual(new[] { "One" }), "单击须等满 400ms 才判 Click→One，实得 " + string.Join(",", M.Log));
+            M.Log.Clear();
+            eng.OnMouseDown(0, GE.ModifierKeys.None, 1000); eng.OnMouseUp(0, GE.ModifierKeys.None, 1010);
+            eng.OnMouseDown(0, GE.ModifierKeys.None, 1100); eng.OnMouseUp(0, GE.ModifierKeys.None, 1110);
+            Chk("T130c-double-immediate", M.Log.SequenceEqual(new[] { "Two" }), "两次连击达最高阶→立即 DoubleClick→Two");
+
+            // T130d 长按：保持 ≥LongPressMs 触发 LongPress 并吞掉随后的抬起（不再计单击）
+            M.Log.Clear();
+            eng.SetBindings(new[] {
+                B("tap", GE.ModifierKeys.None, F6, GE.TriggerKind.Click, new[] { "Tap" }),
+                B("hold", GE.ModifierKeys.None, F6, GE.TriggerKind.LongPress, new[] { "Hold" }, lp: 500) });
+            eng.OnKeyDown(F6, GE.ModifierKeys.None, 0);
+            eng.OnMouseDown(0, GE.ModifierKeys.None, 10);
+            eng.Tick(509);
+            bool notYet = M.Log.Count == 0;
+            eng.Tick(510);
+            eng.OnMouseUp(0, GE.ModifierKeys.None, 700);
+            Chk("T130d-longpress", notYet && M.Log.SequenceEqual(new[] { "Hold" }), "按住满 500ms→LongPress→Hold，抬起不再触发 Tap");
+
+            // T130e NextBinding：首条动作失败 → 顺延下一条绑定
+            M.Log.Clear(); M.Fail = new HashSet<string> { "Fail1" };
+            eng.SetBindings(new[] {
+                B("b1", GE.ModifierKeys.None, F6, GE.TriggerKind.Click, new[] { "Fail1", "After" }, GE.FallbackPolicy.NextBinding, prio: 0),
+                B("b2", GE.ModifierKeys.None, F6, GE.TriggerKind.Click, new[] { "Second" }, GE.FallbackPolicy.Stop, prio: 1) });
+            eng.OnKeyDown(F6, GE.ModifierKeys.None, 0);
+            eng.OnMouseDown(0, GE.ModifierKeys.None, 10); eng.OnMouseUp(0, GE.ModifierKeys.None, 20);
+            Chk("T130e-next-binding", M.Log.SequenceEqual(new[] { "Fail1", "Second" }), "b1 首步失败→NextBinding→b2 执行 Second（After 不跑）");
+            M.Fail.Clear();
+
+            // T130f SkipStep：失败步跳过、继续本条后续动作
+            M.Log.Clear(); M.Fail = new HashSet<string> { "Fail1" };
+            eng.SetBindings(new[] { B("b1", GE.ModifierKeys.None, F6, GE.TriggerKind.Click, new[] { "Fail1", "After" }, GE.FallbackPolicy.SkipStep) });
+            eng.OnKeyDown(F6, GE.ModifierKeys.None, 0);
+            eng.OnMouseDown(0, GE.ModifierKeys.None, 10); eng.OnMouseUp(0, GE.ModifierKeys.None, 20);
+            Chk("T130f-skip-step", M.Log.SequenceEqual(new[] { "Fail1", "After" }), "SkipStep：Fail1 失败被跳过、After 继续");
+            M.Fail.Clear();
+
+            // T130g Stop：失败即中止、不顺延
+            M.Log.Clear(); M.Fail = new HashSet<string> { "Fail1" };
+            eng.SetBindings(new[] {
+                B("b1", GE.ModifierKeys.None, F6, GE.TriggerKind.Click, new[] { "Fail1", "After" }, GE.FallbackPolicy.Stop, prio: 0),
+                B("b2", GE.ModifierKeys.None, F6, GE.TriggerKind.Click, new[] { "Second" }, GE.FallbackPolicy.Stop, prio: 1) });
+            eng.OnKeyDown(F6, GE.ModifierKeys.None, 0);
+            eng.OnMouseDown(0, GE.ModifierKeys.None, 10); eng.OnMouseUp(0, GE.ModifierKeys.None, 20);
+            Chk("T130g-stop", M.Log.SequenceEqual(new[] { "Fail1" }), "Stop：Fail1 失败即中止，After/Second 均不跑");
+
+            // T130h 修饰键组合 Ctrl+Alt+A + 单击
+            M.Log.Clear();
+            eng.SetBindings(new[] { B("pick", GE.ModifierKeys.Control | GE.ModifierKeys.Alt, A, GE.TriggerKind.Click, new[] { "Pick" }) });
+            eng.OnKeyDown(CTRL, GE.ModifierKeys.Control, 0);
+            eng.OnKeyDown(ALT, GE.ModifierKeys.Control | GE.ModifierKeys.Alt, 0);
+            eng.OnKeyDown(A, GE.ModifierKeys.Control | GE.ModifierKeys.Alt, 0);
+            eng.OnMouseDown(0, GE.ModifierKeys.Control | GE.ModifierKeys.Alt, 10); eng.OnMouseUp(0, GE.ModifierKeys.Control | GE.ModifierKeys.Alt, 20);
+            Chk("T130h-mods-chord", M.Log.SequenceEqual(new[] { "Pick" }), "Ctrl+Alt+A 激活 + 单击→Pick");
+
+            // T130i 三击
+            M.Log.Clear();
+            eng.SetBindings(new[] {
+                B("one", GE.ModifierKeys.None, F6, GE.TriggerKind.Click, new[] { "One" }),
+                B("three", GE.ModifierKeys.None, F6, GE.TriggerKind.TripleClick, new[] { "Three" }) });
+            eng.OnKeyDown(F6, GE.ModifierKeys.None, 0);
+            eng.OnMouseDown(0, GE.ModifierKeys.None, 10); eng.OnMouseUp(0, GE.ModifierKeys.None, 20);
+            eng.OnMouseDown(0, GE.ModifierKeys.None, 110); eng.OnMouseUp(0, GE.ModifierKeys.None, 120);
+            eng.OnMouseDown(0, GE.ModifierKeys.None, 210); eng.OnMouseUp(0, GE.ModifierKeys.None, 220);
+            Chk("T130i-triple", M.Log.SequenceEqual(new[] { "Three" }), "三击达最高阶→TripleClick→Three");
+
+            // T130j 优先级：同触发多条，小优先级先跑且成功即止
+            M.Log.Clear();
+            eng.SetBindings(new[] {
+                B("low", GE.ModifierKeys.None, F6, GE.TriggerKind.Click, new[] { "B" }, prio: 1),
+                B("high", GE.ModifierKeys.None, F6, GE.TriggerKind.Click, new[] { "A" }, prio: 0) });
+            eng.OnKeyDown(F6, GE.ModifierKeys.None, 0);
+            eng.OnMouseDown(0, GE.ModifierKeys.None, 10); eng.OnMouseUp(0, GE.ModifierKeys.None, 20);
+            Chk("T130j-priority", M.Log.SequenceEqual(new[] { "A" }), "优先级 0 的绑定先跑且成功即止→A");
+        }
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");
         return fail == 0 ? 0 : 1;
     }
@@ -1972,4 +2084,12 @@ static class SelfTest
         }
         return list;
     }
+}
+
+/// <summary>GestureCore 测试探针：记录被调用的动作名，可指定某些动作必然失败以驱动失败策略分支。</summary>
+sealed class GestureProbe : GestureCore.IActionInvoker
+{
+    public List<string> Log = new();
+    public HashSet<string> Fail = new();
+    public bool Invoke(string actionName) { Log.Add(actionName); return !Fail.Contains(actionName); }
 }

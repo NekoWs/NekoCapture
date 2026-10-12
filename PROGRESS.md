@@ -1710,3 +1710,9 @@ status: done
 - **诊断**：trace 有 `pin-snap (1596,843)→(1609,843)`——**触发过但只挪 13px、仅松手瞬间、过程零反馈** → 用户感知"无效"（非死 bug，是 UX）。
 - **修法**：`DragMove` 改**手动拖拽 + 实时磁吸**——按住即 `CaptureMouse`，`MouseMove` 用光标物理坐标换算 DIP 实时算 `SnapTarget` 并跟随（靠近屏幕边/同屏其他贴图边·中线当场"吸附上去"，过程可感），`MouseLeftButtonUp` 收尾兜底。抽出 `SnapTarget(left,top)` 供拖拽实时与松手收尾共用。
 - **待实机验证**：A1 工作集回落、A2 真实滚动拼接、A3 拖拽实时吸附——均需 e2e，留待确认用户离开后做（输入模拟规则：先校验前台为本窗再操作）。
+
+## 夜间批次 R120 · B1 GestureCore 可复用引擎（2026-10-13）
+用户要求「把所有功能触发方式拆分、允许分离/组合键绑定，且此模块单独做、其它软件复用」。落地为独立类库 `src/GestureCore`（netstandard2.0、零 UI/OS 依赖、刻意不引 NuGet 含 System.Text.Json——序列化交宿主）。
+- **模型**：`ModifierKeys`(自持 Flags)、`KeyChord`(修饰键+不透明 int 主键，Key==0 为纯修饰键)、`TriggerKind`(KeyDown/KeyUp/Click/DoubleClick/TripleClick/LongPress/Chord)、`FallbackPolicy`(Stop/SkipStep/**NextBinding**——逐条绑定显式指定，引擎不内置宿主语义)、`GestureBinding`(组合键+触发+动作序列+失败策略+优先级+可配 DoubleClickMs/LongPressMs)、`IActionInvoker`(宿主按名执行、返回成败)、`IKeyNamer`(键名映射，保持库中立)。
+- **引擎** `GestureEngine`：喂原始键/鼠事件(带毫秒时间戳)+绑定表→消歧→回调动作序列。键用不透明 int、修饰键态随事件传入(贴合 WH_KEYBOARD_LL 取数)、时间由宿主 `Tick(now)` 推进→**确定性可单测、跨宿主复用**。消歧：组合键激活瞬间触发 KeyDown/Chord、失活触发 KeyUp(配对=按住做A松手做B)；激活期鼠标按已绑最高阶触发分类，连击达最高阶立即触发否则等 DoubleClickMs；只绑 Click 则零延迟；长按满阈值触发并吞掉抬起。同触发多绑定按优先级顺延，某步失败按该条 Fallback 决定顺延/跳过/中止。
+- **单测** T130a–j（SelfTest 340→351）：按住配对、单击零延迟、单击等待 vs 双击立即、长按吞抬起、NextBinding 顺延、SkipStep 跳步、Stop 中止、Ctrl+Alt+A 修饰键组合、三击、优先级。

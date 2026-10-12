@@ -1,0 +1,250 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
+namespace GestureCore;
+
+/// <summary>
+/// 手势引擎：喂入原始按键/鼠标事件（带毫秒时间戳）+ 绑定表 → 消歧 → 经 <see cref="IActionInvoker"/> 回调动作序列。
+/// 与 UI/OS 完全解耦：键用不透明 int 标识、修饰键状态由宿主随事件传入（贴合 WH_KEYBOARD_LL 等低级钩子的取数方式）、
+/// 时间由宿主传入（<see cref="Tick"/> 推进待决的点击消歧与长按判定），因此可确定性单测、可跨宿主复用。
+///
+/// 消歧规则：
+///  • 组合键激活瞬间触发 KeyDown/Chord，失活瞬间触发 KeyUp（配对即「按住做 A、松手做 B」）。
+///  • 组合键激活期间的鼠标动作按 Click / DoubleClick / TripleClick / LongPress 分类：
+///    连击数达到该组合键已绑定的最高阶触发即立即触发；否则等 DoubleClickMs 无后续再触发当前阶。
+///    若该组合键只绑了 Click（无更高阶），单击立即触发、零延迟。
+///  • 长按：鼠标按下保持 ≥ LongPressMs 即触发 LongPress，并吞掉随后的抬起（不再计为单击）。
+///  • 同一触发命中多条绑定按 <see cref="GestureBinding.Priority"/> 顺延；某步失败按该条 <see cref="GestureBinding.Fallback"/> 处理。
+/// </summary>
+public sealed class GestureEngine
+{
+    readonly IActionInvoker _invoker;
+    List<GestureBinding> _bindings = new List<GestureBinding>();
+    // 每个组合键的运行时状态（用引用键存，KeyChord 值相等即可命中）
+    readonly Dictionary<KeyChord, ChordState> _state = new Dictionary<KeyChord, ChordState>(ChordEq.Instance);
+    // 每个组合键已绑定的触发集合（决定消歧的最高阶 + 是否需等待）
+    readonly Dictionary<KeyChord, HashSet<TriggerKind>> _triggers = new Dictionary<KeyChord, HashSet<TriggerKind>>(ChordEq.Instance);
+    readonly HashSet<int> _keyDown = new HashSet<int>();
+    List<ChordState> _pressCandidates = new List<ChordState>();   // 本次鼠标按下时处于激活态、且有鼠标触发的组合键
+
+    sealed class ChordState
+    {
+        public KeyChord Chord = null!;
+        public bool Active;
+        public bool PressDown;
+        public long PressTime;
+        public bool LongPressFired;
+        public int ClickCount;
+        public long LastClickTime;
+        public bool ClickPending;
+        public int DoubleClickMs = 400;
+    }
+
+    sealed class ChordEq : IEqualityComparer<KeyChord>
+    {
+        public static readonly ChordEq Instance = new ChordEq();
+        public bool Equals(KeyChord? a, KeyChord? b) => a != null && b != null && a.Equals(b);
+        public int GetHashCode(KeyChord c) => c.GetHashCode();
+    }
+
+    public GestureEngine(IActionInvoker invoker)
+    {
+        _invoker = invoker ?? throw new ArgumentNullException(nameof(invoker));
+    }
+
+    /// <summary>替换绑定表（按优先级预排序）。会重置所有运行时状态。</summary>
+    public void SetBindings(IEnumerable<GestureBinding> bindings)
+    {
+        _bindings = (bindings ?? Enumerable.Empty<GestureBinding>())
+            .Select(b => b.Clone())
+            .OrderBy(b => b.Priority)
+            .ToList();
+        _state.Clear();
+        _triggers.Clear();
+        _keyDown.Clear();
+        _pressCandidates.Clear();
+        foreach (var b in _bindings)
+        {
+            if (!_triggers.TryGetValue(b.Chord, out var set))
+                _triggers[b.Chord] = set = new HashSet<TriggerKind>();
+            set.Add(b.Trigger);
+        }
+    }
+
+    static bool ChordSatisfied(KeyChord c, ModifierKeys mods, HashSet<int> keyDown) =>
+        (c.Mods & ~mods) == 0 && (c.Key == 0 || keyDown.Contains(c.Key));
+
+    ChordState State(KeyChord c)
+    {
+        if (!_state.TryGetValue(c, out var s))
+            _state[c] = s = new ChordState { Chord = c };
+        return s;
+    }
+
+    /// <summary>重算所有已知组合键的激活态，触发新激活(KeyDown/Chord)/新失活(KeyUp)绑定。mods=事件时刻修饰键状态。</summary>
+    void RefreshActivation(ModifierKeys mods)
+    {
+        foreach (var kv in _triggers)
+        {
+            var st = State(kv.Key);
+            bool now = ChordSatisfied(kv.Key, mods, _keyDown);
+            if (now && !st.Active)
+            {
+                st.Active = true;
+                FireTrigger(kv.Key, TriggerKind.KeyDown);
+                FireTrigger(kv.Key, TriggerKind.Chord);
+            }
+            else if (!now && st.Active)
+            {
+                st.Active = false;
+                FireTrigger(kv.Key, TriggerKind.KeyUp);
+                // 失活即清空该组合键的鼠标/点击累积
+                st.PressDown = false; st.ClickCount = 0; st.ClickPending = false; st.LongPressFired = false;
+            }
+        }
+    }
+
+    public void OnKeyDown(int key, ModifierKeys mods, long now)
+    {
+        _keyDown.Add(key);
+        RefreshActivation(mods);
+    }
+
+    public void OnKeyUp(int key, ModifierKeys mods, long now)
+    {
+        _keyDown.Remove(key);
+        RefreshActivation(mods);
+    }
+
+    public void OnMouseDown(int button, ModifierKeys mods, long now)
+    {
+        RefreshActivation(mods);   // 鼠标事件也刷新（修饰键可能在鼠标事件间隙变化）
+        _pressCandidates.Clear();
+        foreach (var kv in _triggers)
+        {
+            var st = State(kv.Key);
+            if (!st.Active) continue;
+            var trig = kv.Value;
+            bool hasMouse = trig.Contains(TriggerKind.Click) || trig.Contains(TriggerKind.DoubleClick)
+                            || trig.Contains(TriggerKind.TripleClick) || trig.Contains(TriggerKind.LongPress);
+            if (!hasMouse) continue;
+            st.PressDown = true; st.PressTime = now; st.LongPressFired = false;
+            st.DoubleClickMs = BindingDoubleClickMs(kv.Key);
+            _pressCandidates.Add(st);
+        }
+    }
+
+    public void OnMouseUp(int button, ModifierKeys mods, long now)
+    {
+        foreach (var st in _pressCandidates)
+        {
+            if (!st.PressDown) continue;
+            st.PressDown = false;
+            if (st.LongPressFired) { st.LongPressFired = false; continue; }  // 长按已吞掉本次抬起
+            if (!st.Active) continue;                                        // 抬起时组合键已失活 → 不计击
+            st.ClickCount++;
+            st.LastClickTime = now;
+            Classify(st);
+        }
+        _pressCandidates.Clear();
+    }
+
+    int BindingDoubleClickMs(KeyChord c)
+    {
+        foreach (var b in _bindings)
+            if (b.Chord.Equals(c) && (b.Trigger == TriggerKind.DoubleClick || b.Trigger == TriggerKind.TripleClick))
+                return b.DoubleClickMs;
+        foreach (var b in _bindings)
+            if (b.Chord.Equals(c)) return b.DoubleClickMs;
+        return 400;
+    }
+
+    /// <summary>抬起后判定当前连击是否已达该组合键已绑定的最高阶触发；达到即触发，否则挂起等后续连击。</summary>
+    void Classify(ChordState st)
+    {
+        var trig = _triggers[st.Chord];
+        int highest = trig.Contains(TriggerKind.TripleClick) ? 3
+                    : trig.Contains(TriggerKind.DoubleClick) ? 2
+                    : trig.Contains(TriggerKind.Click) ? 1 : 0;
+        if (highest == 0) { st.ClickCount = 0; return; }
+        if (st.ClickCount >= highest)
+        {
+            FireTrigger(st.Chord, TriggerForCount(st.ClickCount, trig));
+            st.ClickCount = 0; st.ClickPending = false;
+        }
+        else
+        {
+            st.ClickPending = true;   // 等 DoubleClickMs 看是否还有下一击
+        }
+    }
+
+    static TriggerKind TriggerForCount(int count, HashSet<TriggerKind> avail)
+    {
+        if (count >= 3 && avail.Contains(TriggerKind.TripleClick)) return TriggerKind.TripleClick;
+        if (count >= 2 && avail.Contains(TriggerKind.DoubleClick)) return TriggerKind.DoubleClick;
+        return TriggerKind.Click;
+    }
+
+    /// <summary>推进时间：结算挂起的连击消歧与长按判定。宿主应在事件循环里周期性调用（或按需）。</summary>
+    public void Tick(long now)
+    {
+        foreach (var st in _state.Values)
+        {
+            if (st.PressDown && !st.LongPressFired && _triggers.TryGetValue(st.Chord, out var t) && t.Contains(TriggerKind.LongPress))
+            {
+                int lp = BindingLongPressMs(st.Chord);
+                if (now - st.PressTime >= lp)
+                {
+                    st.LongPressFired = true;
+                    FireTrigger(st.Chord, TriggerKind.LongPress);
+                }
+            }
+            if (st.ClickPending && now - st.LastClickTime >= st.DoubleClickMs)
+            {
+                st.ClickPending = false;
+                if (st.ClickCount > 0)
+                {
+                    FireTrigger(st.Chord, TriggerForCount(st.ClickCount, _triggers[st.Chord]));
+                    st.ClickCount = 0;
+                }
+            }
+        }
+    }
+
+    int BindingLongPressMs(KeyChord c)
+    {
+        foreach (var b in _bindings)
+            if (b.Chord.Equals(c) && b.Trigger == TriggerKind.LongPress) return b.LongPressMs;
+        return 500;
+    }
+
+    /// <summary>触发某组合键的某类触发：按优先级依次尝试绑定，成功即止；失败按该条 Fallback 决定是否顺延下一条。</summary>
+    void FireTrigger(KeyChord chord, TriggerKind trigger)
+    {
+        for (int i = 0; i < _bindings.Count; i++)
+        {
+            var b = _bindings[i];
+            if (!b.Chord.Equals(chord) || b.Trigger != trigger) continue;
+            bool ok = RunActions(b);
+            if (ok) return;
+            if (b.Fallback == FallbackPolicy.NextBinding) continue;   // 失败自动下一个
+            return;                                                    // Stop / SkipStep 已在本条内消化
+        }
+    }
+
+    /// <summary>顺序执行一条绑定的动作序列。SkipStep 跳过失败步继续；Stop/NextBinding 遇失败即中止返回 false。</summary>
+    bool RunActions(GestureBinding b)
+    {
+        foreach (var action in b.Actions)
+        {
+            bool ok;
+            try { ok = _invoker.Invoke(action); }
+            catch { ok = false; }
+            if (ok) continue;
+            if (b.Fallback == FallbackPolicy.SkipStep) continue;   // 跳过这步，继续后续
+            return false;                                          // Stop / NextBinding：中止本条
+        }
+        return true;
+    }
+}
