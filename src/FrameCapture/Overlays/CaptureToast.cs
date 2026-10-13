@@ -13,7 +13,7 @@ using FrameCapture.Services;
 namespace FrameCapture.Overlays;
 
 /// <summary>
-/// 截屏成功浮窗（，对标 QQ 截图的"拍完即见"）：缩略图 + 「已复制」+ 点击继续标注。
+/// 截屏成功浮窗（对标 QQ 截图的「拍完即见」）：缩略图 + 「已复制」+ 点击继续标注。
 /// 不抢焦点、WDA 排除不入镜、悬停暂停自动消失；落点由 Core.ToastPlace 决策（贴刚截完的区域）。
 /// </summary>
 public sealed class CaptureToast : Window
@@ -22,11 +22,20 @@ public sealed class CaptureToast : Window
 
     readonly DispatcherTimer _dismiss;
     bool _closing;
-    bool _persistent;   // C：ToastSeconds=0 → 常驻，不自动消失
+    bool _persistent;   // ToastSeconds=0 → 常驻，不自动消失
 
     const double W = 300;      // DIP 宽
     const double EstH = 84;    // 估算高（落点用；实际 SizeToContent）
 
+    /// <summary>
+    /// 弹出截屏成功浮窗：同一时刻只保留一张，再次调用先收起上一张。
+    /// 非激活浮窗（ShowActivated=false），不打断用户当前输入；必须在 UI 线程调用。
+    /// 剪贴板内容已由调用方写好——本方法只负责告知与「继续标注」入口。
+    /// </summary>
+    /// <param name="frame">刚截下的帧（BGRA），只用于生成 56×44 缩略图；建窗时即拷成冻结位图，之后改帧字节不影响浮窗。</param>
+    /// <param name="region">截图区域，物理像素、虚拟桌面绝对坐标，决定落点。</param>
+    /// <param name="monitorDevice">区域所在显示器 device name；按设备取不到时按区域坐标就近回退。</param>
+    /// <param name="onEdit">点卡片或按 Enter 时执行的回调（进编辑器），在 UI 线程调用，执行后收起浮窗。</param>
     public static void Show(CapturedFrame frame, RectI region, string monitorDevice, Action onEdit)
     {
         _current?.Close();
@@ -74,7 +83,7 @@ public sealed class CaptureToast : Window
             Effect = new DropShadowEffect { BlurRadius = 18, ShadowDepth = 2, Opacity = 0.35, Color = Colors.Black },
             Cursor = System.Windows.Input.Cursors.Hand,
         };
-        // 整张卡片可点→进编辑器；hover 描边亮起强调色，把「点我标注」的可点性显出来（此前只有手型光标、卡片没反应，显「太平」）
+        // 整张卡片可点→进编辑器；hover 描边亮起强调色，把「点我标注」的可点性显出来
         card.MouseEnter += (_, _) => borderBrush.BeginAnimation(SolidColorBrush.ColorProperty,
             new ColorAnimation(Theme.Accent, new Duration(TimeSpan.FromMilliseconds(Fluent.Motion.HoverMs))));
         card.MouseLeave += (_, _) => borderBrush.BeginAnimation(SolidColorBrush.ColorProperty,
@@ -152,16 +161,16 @@ public sealed class CaptureToast : Window
             // 后续截屏拍不到浮窗；FC_TOAST_NOEXCLUDE=1 仅供视觉审查截图（生产默认排除）
             if (Environment.GetEnvironmentVariable("FC_TOAST_NOEXCLUDE") != "1")
                 Win32.SetWindowDisplayAffinity(h, Win32.WDA_EXCLUDEFROMCAPTURE);
-            // Enter/Esc 不在此 HWND 钩子里处理：浮窗 ShowActivated=false 不抢焦点，键根本不会发到本 HWND，
-            // 旧钩子是死代码（修「Enter 无效」）。改由 HotkeyManager 全局钩子在 ToastActive 时代收。
+            // Enter/Esc 不在本 HWND 钩子里处理：ShowActivated=false 的窗口不是键盘焦点目标，
+            // WM_KEYDOWN 不会路由到这里，挂在这里等于没挂。唯一入口见下方 HotkeyManager。
         };
 
-        // 全局钩子代收 Enter/Esc（浮窗不抢焦点，只能这样）；生命周期绑定本浮窗，Closed 清零，绝不泄漏成"全局 Enter 失灵"。
+        // 全局钩子代收 Enter/Esc（浮窗不抢焦点，只能这样）；生命周期绑定本浮窗，Closed 清零，绝不泄漏成「全局 Enter 失灵」。
         Services.HotkeyManager.ToastActive = true;
         Services.HotkeyManager.ToastEnter = () => Dispatcher.BeginInvoke(() => { FrameCapture.Core.Trace.Log("toast→edit(key)"); onEdit(); Dismiss(); });
         Services.HotkeyManager.ToastEsc = () => Dispatcher.BeginInvoke(Dismiss);
 
-        // C：存在时间可自定义（ToastSeconds，0=常驻不自动消失）。悬停暂停计时、移开重数满时长。
+        // 存在时间可自定义（ToastSeconds，0=常驻不自动消失）。悬停暂停计时、移开重数满时长。
         double secs = SettingsService.Shared?.Current.ToastSeconds ?? 3.2;
         _persistent = secs <= 0;
         _dismiss = new DispatcherTimer { Interval = TimeSpan.FromSeconds(_persistent ? 3.2 : secs) };

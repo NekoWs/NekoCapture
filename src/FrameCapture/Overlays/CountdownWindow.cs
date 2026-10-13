@@ -18,6 +18,7 @@ namespace FrameCapture.Overlays;
 /// </summary>
 public sealed class CountdownWindow : Window
 {
+    /// <value>点「取消」的回调；未挂时点按钮无副作用，在 UI 线程执行。</value>
     public Action? OnCancel;
 
     readonly TextBlock _num;
@@ -26,8 +27,16 @@ public sealed class CountdownWindow : Window
     const double W = 300;      // DIP 宽（落点估算；实际 SizeToContent）
     const double EstH = 150;   // 估算高（落点用）
 
+    /// <value>当前显示中的倒计时浮窗，无则 null；<c>Closed</c> 时自行清零。</value>
     public static CountdownWindow? Current;
 
+    /// <summary>
+    /// 构造倒计时浮窗：只建界面、不起计时——调用方须自行 Show 并驱动 <see cref="SetNumber"/>。
+    /// 构造期即定好落点（所在屏顶部居中，Show 前定位，无首帧闪烁），WDA 排除在 SourceInitialized 里设。
+    /// 必须在 UI 线程构造。
+    /// </summary>
+    /// <param name="regionLabel">标题行右侧的范围描述文案（如「范围 800×600」「全屏」），原样上屏。</param>
+    /// <param name="monitorDevice">倒计时所在显示器 device name；按设备取不到则退主屏，再退坐标就近屏。</param>
     public CountdownWindow(string regionLabel, string monitorDevice)
     {
         Title = "FrameCapture Countdown";
@@ -151,6 +160,7 @@ public sealed class CountdownWindow : Window
     }
 
     /// <summary>刷新倒计时数字：每个数字弹入（0.6→1.0 BackEase 轻微过冲），与下拉/Toast 同款 PopIn 手感。</summary>
+    /// <param name="n">剩余秒数，原样显示；本方法不做递减与「到 0 就截」判定——那是调用方的状态机。</param>
     public void SetNumber(int n)
     {
         _num.Text = n.ToString();
@@ -163,6 +173,7 @@ public sealed class CountdownWindow : Window
         st.BeginAnimation(ScaleTransform.ScaleYProperty, a);
     }
 
+    /// <summary>带淡出收起本浮窗；重复调用无副作用。不停倒计时定时器、不触发 OnCancel——收尾由调用方负责。</summary>
     public void CloseSelf()
     {
         if (_closing) return;

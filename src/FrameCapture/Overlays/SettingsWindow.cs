@@ -20,14 +20,18 @@ public sealed partial class SettingsWindow : Window
     int _cat;           // 当前分页索引
     int _restoreCat;    // 重建（改主题/强调色）时要恢复的分页索引
 
+    /// <summary>
+    /// 设置窗的窗口属性：无边框 + WindowChrome 原生拖窗区与缩放边框、固定起始尺寸、不进任务栏、不总在最前。
+    /// 必须在 UI 线程调用；此处只取 <c>SettingsService</c> 引用，内容装配在 <see cref="Build"/>。
+    /// </summary>
     public SettingsWindow()
     {
         // 覆盖层不需要文本输入：禁用输入法，避免拼音拦截快捷键
         System.Windows.Input.InputMethod.SetIsInputMethodEnabled(this, false);
         _settings = AppHost.Current.Settings;
         WindowStyle = WindowStyle.None;
-        ResizeMode = ResizeMode.CanResize;   // 可拖边缩放（「允许更改窗口尺寸」）
-        // WindowChrome 原生缩放边框 + 原生圆角/阴影（与编辑器同款）；不再用 AllowsTransparency（软渲染代价大）。
+        ResizeMode = ResizeMode.CanResize;   // 可拖边缩放（WindowChrome 的 6px 缩放边框）
+        // WindowChrome 原生缩放边框 + 原生圆角/阴影（与编辑器同款）；不用 AllowsTransparency——整窗会被推到软件渲染。
         FrameCapture.Core.Fluent.BorderlessNative(this, resizeBorder: 6);
         // 标题条 = WindowChrome 原生 CaptionHeight 拖窗区（比 WM_NCHITTEST 钩子更稳，避免与 WindowChrome 命中测试抢序）；
         // 关闭按钮在 Build 里标 IsHitTestVisibleInChrome 让位给 WPF 命中。
@@ -39,14 +43,17 @@ public sealed partial class SettingsWindow : Window
         Width = 760; Height = Math.Min(660, SystemParameters.WorkArea.Height - 120);
         MinWidth = 680; MinHeight = 460;
         ShowInTaskbar = false;
-        Topmost = false;   // 不再总在最前：设置窗是普通工具窗，不该压住用户正在截/录的画面
+        Topmost = false;   // 普通工具窗：不该压住用户正在截/录的画面
         Title = "FrameCapture Settings";
-        // 拖动改由 WM_NCHITTEST→HTCAPTION 原生处理（见 Build 的标题栏钩子）：
-        // 旧「整窗背景可拖」既被 ScrollContentPresenter 吞掉命中（用户实测拖不动），
-        // 又与标题栏 DragMove 双路径叠加出现位移超调，一并废除。
+        // 拖窗区只有标题条那一条（CaptionHeight = Fluent.TitleBarHeight）：整窗背景不承担拖拽——
+        // 整窗拖拽会被 ScrollContentPresenter 吞掉命中（滚动画布里拖不动），还会与标题栏的拖拽双路径叠加出现位移超调。
         FrameCapture.Core.Fluent.PopupEnter(this);
     }
 
+    /// <summary>
+    /// 打开设置窗；已有实例时只激活它，全进程同时最多一个设置窗。
+    /// 必须在 UI 线程调用（遍历 <c>Application.Current.Windows</c> 找现存实例）。
+    /// </summary>
     public static void ShowOrFocus()
     {
         var app = Application.Current;
@@ -67,19 +74,19 @@ public sealed partial class SettingsWindow : Window
 
     void Build()
     {
-        // 改版：自绘标题栏（QQ 式，拖动即走+自绘关闭）+ 按类别分组 + 强调色自定义。
-        // 旧版整窗"背景可拖"实际被 ScrollViewer 吞掉 → 用户实测"无法拖动"，标题栏是显式、可发现的拖拽区。
+        // 自绘标题栏（QQ 式：拖动即走 + 自绘关闭）+ 按类别分页 + 强调色自定义。
+        // 标题栏是显式、可发现的拖拽区，正文区不承担拖拽。
         var root = new Border
         {
             CornerRadius = new CornerRadius(8),
             Background = new SolidColorBrush(Theme.WindowBg),
             BorderBrush = new SolidColorBrush(Theme.Stroke),
             BorderThickness = new Thickness(1),
-            // 阴影交给 WindowChrome 的原生 DWM 阴影（自绘 DropShadow 与原生缩放窗叠加会重影/发虚，）
+            // 阴影交给 WindowChrome 的原生 DWM 阴影（自绘 DropShadow 与原生缩放窗叠加会重影、发虚）
         };
         var dock = new DockPanel { LastChildFill = true };
 
-        #region 标题栏：取景框图标 + 标题 + 关闭；整条可拖（共享件 Fluent.TitleBar，与帮助窗同款）
+        #region 标题栏：图标 + 标题 + 关闭（共享件 Fluent.TitleBar）
         var (bar, closeBtn) = FrameCapture.Core.Fluent.TitleBar("\uE7A8", "设置");
         closeBtn.Click += (_, _) => FrameCapture.Core.Fluent.CloseWithFade(this);
         // 关闭按钮落在原生 CaptionHeight 拖窗区内，须显式让位给 WPF 命中，否则点它会拖窗而非关闭
@@ -88,7 +95,7 @@ public sealed partial class SettingsWindow : Window
         dock.Children.Add(bar);
         #endregion
 
-        #region 主从式（B1）：每个类别一个 StackPanel，左栏竖向导航一次只显示一个，治「布局太长」
+        #region 类别容器：每类一个 StackPanel，一次只显示一个
         var cats = new List<(string Name, string Glyph, StackPanel Body)>();
         StackPanel Cat(string name, string glyph)
         {
@@ -99,7 +106,7 @@ public sealed partial class SettingsWindow : Window
         StackPanel panel = Cat("快捷键", "\uE765");
         #endregion
 
-        #region 快捷键（旧「选区/捕获快捷键」两行退役，键位统一由手势配置器管理）
+        #region 快捷键页说明：键位统一由手势配置器管理
         panel.Children.Add(new TextBlock
         {
             Foreground = new SolidColorBrush(Theme.TextDim),
@@ -133,8 +140,8 @@ public sealed partial class SettingsWindow : Window
             row.Children.Add(lb); row.Children.Add(kv);
             keyStack.Children.Add(row);
         }
-        // 逐条列出用户真实绑定（动作→键），不再写死「截图键/选区键」两槽——
-        // 自定义手势下旧 ScopeKeyText 会回落成没绑定的死键（Ctrl+Shift+R），且漏掉录制键。
+        // 逐条列出用户真实绑定（动作→键）：手势可自定义，固定「截图键/选区键」两槽会漏掉录制键，
+        // 且没绑定的槽位会显示成一个按了没反应的死键。
         var active = gk.Bindings
             .Where(b => b.Enabled && b.Actions.Length > 0 && HotkeySpec.Parse(b.Chord) != null)
             .ToList();
@@ -169,7 +176,7 @@ public sealed partial class SettingsWindow : Window
         geRow.Children.Add(new TextBlock { Text = "   打开手势配置器…", Foreground = new SolidColorBrush(Theme.Text), FontSize = 13, VerticalAlignment = VerticalAlignment.Center });
         geBtn.Child = geRow;
         FrameCapture.Core.Fluent.Elevate(geBtn, blur: 24, depth: 6);
-        Fluent.ChipHover(geBtn);   // 去掉悬停上浮（Lift），与普通按钮一致只改底色带过渡
+        Fluent.ChipHover(geBtn);   // 悬停只改底色带过渡，不上浮、不缩放（与普通按钮同语言）
         geBtn.MouseLeftButtonUp += (_, _) => FrameCapture.Services.GestureEditorHost.ShowOrFocus();
         panel.Children.Add(geBtn);
         #endregion
@@ -261,8 +268,8 @@ public sealed partial class SettingsWindow : Window
             _settings.Current.FollowMonitorRefresh,
             v => { _settings.Mutate(s => s.FollowMonitorRefresh = v); SetFpsVisible(!v); })); // 开→帧率行淡出隐藏，关→淡入恢复
         panel.Children.Add(RecordFormatRow());
-        // 长按录制时长上限已移除——录到用户停为止（帧落盘，不再受内存/时长限制）。
-        // 唯一护栏是磁盘剩余空间（<1GB 自动停并保留已录内容），无需再暴露数值。
+        // 长按录制没有时长上限——录到用户停为止，帧持续落盘，不受内存与时长约束，因此这里没有可调数值。
+        // 唯一护栏是磁盘剩余空间（<1GB 自动停并保留已录内容）。
         panel.Children.Add(ToggleRow("\uE7C4", "录制时显示范围边框", "录制期间按真实捕获范围高亮描边，只提示、不录进产物。取代 Windows 11 那条绕整屏的黄色系统捕获边框（WGC 只能整显示器捕获，系统边框必然全屏、与所选范围无关）",
             _settings.Current.ShowRecordingBorder, v => _settings.Mutate(s => s.ShowRecordingBorder = v)));
         panel.Children.Add(ToggleRow("\uE8B0", "录制包含鼠标指针", "录出的画面里带上鼠标光标（默认开）。关掉后成片干净无光标，适合做教程/演示时后期自己加高亮，或不想让光标乱入",
@@ -273,8 +280,6 @@ public sealed partial class SettingsWindow : Window
 
         #region 产物
         panel = Cat("产物", "\uE74E");
-        // 「自动生成 Agent 胶片条 / 抽帧数」两行移除——胶片条改为视频编辑器里的功能按钮
-        // （「生成胶片条」→ 小窗问抽帧参数 → 直接复制剪贴板），参数记忆在小窗里，不再是全局设置。
         panel.Children.Add(ToggleRow("\uE74E", "自动保存副本", "捕获完成后，除复制到剪贴板外，再存一份文件到本地目录（截图存 PNG；录制按上面的「录制格式」存 MP4/WebM，未装 ffmpeg 则回退 GIF）。视频在后台编码、文件稍后出现。写盘失败不影响剪贴板，捕获永远成功",
             _settings.Current.AutoSaveCopy, v => _settings.Mutate(s => s.AutoSaveCopy = v)));
         panel.Children.Add(PathRow());
@@ -320,7 +325,7 @@ public sealed partial class SettingsWindow : Window
         Cardify(panel); // 系统页行归入卡片
         #endregion
 
-        #region 主从式装配（B1）：左栏竖向导航「设置项」+ 右栏「设置内容」，中间细分隔线
+        #region 主从式装配：左栏竖向导航 + 右栏内容，中间细分隔线
         var iconFont = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets, Segoe UI Symbol");
         var contentHeader = new TextBlock
         {
@@ -331,7 +336,7 @@ public sealed partial class SettingsWindow : Window
         };
         var navItems = new List<(Border el, TextBlock icon, TextBlock label, Border accent)>();
 
-        // 滑动竖条（胶囊）：唯一平移的元素，切换时滑过去 + 轻微回弹；强调色卡片改为每项自带、淡入淡出
+        // 滑动竖条（胶囊）：唯一做位移动画的元素，切换时滑到目标行；选中底色由每项自带的强调色卡片淡入淡出
         var selBar = new Border { Width = 3, Height = 18, CornerRadius = new CornerRadius(2), Background = new SolidColorBrush(Theme.Accent) };
         selBar.Effect = new System.Windows.Media.Effects.DropShadowEffect { Color = Theme.Accent, BlurRadius = 9, ShadowDepth = 0, Opacity = 0.75 };
         Canvas.SetLeft(selBar, 4);
@@ -343,8 +348,8 @@ public sealed partial class SettingsWindow : Window
         {
             double barTop = idx * RowPitch + RowTop + (RowH - BarH) / 2;
             if (!animate) { Canvas.SetTop(selBar, barTop); return; }
-            // 单调缓动、绝不过冲：弹性缓动（ElasticEase）会滑过目标行再回弹，视觉上冲出选项卡边框（用户反馈）。
-            // 改 CubicEase EaseOut——平滑滑入即停，全程落在首末选项卡之间，不越界。
+            // 单调缓动、绝不过冲：弹性缓动（ElasticEase）会滑过目标行再回弹，视觉上冲出选项卡边框。
+            // CubicEase EaseOut 平滑滑入即停，全程落在首末选项卡之间，不越界。
             var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
             selBar.BeginAnimation(Canvas.TopProperty, new DoubleAnimation(barTop, TimeSpan.FromMilliseconds(300)) { EasingFunction = ease });
         }
@@ -366,11 +371,11 @@ public sealed partial class SettingsWindow : Window
         void ShowCat(int idx, bool animate)
         {
             int prev = _cat;
-            // 重复点击当前已选类别：内容/胶囊/标题都已在位，直接返回，不重播进入动画（用户反馈：点同一页会重复播放切换动画）。
+            // 重复点击当前已选类别：内容/胶囊/标题都已在位，直接返回，不重播进入动画。
             if (animate && prev == idx) return;
             _cat = idx;
             bool doFade = animate && prev != idx && prev >= 0 && prev < cats.Count;
-            // 内容切换（对标 PCL2 平滑切页，替代原 Visibility 硬切）：旧面板淡出后收起、新面板淡入 + 轻微上浮。
+            // 内容切换（对标 PCL2 平滑切页）：离开的面板淡出后收起、进入的面板淡入 + 轻微上浮。
             // 面板同处一个 Grid（重叠），故可交叉淡入；快速连切时先把无关面板动画清零并收起，避免竞态残留。
             for (int i = 0; i < cats.Count; i++)
             {
@@ -453,7 +458,7 @@ public sealed partial class SettingsWindow : Window
             };
             el.MouseLeftButtonDown += (_, e) => { ShowCat(captured, true); e.Handled = true; };
             el.KeyDown += (_, e) => { if (e.Key is Key.Space or Key.Enter) { ShowCat(captured, true); e.Handled = true; } };
-            // 键盘焦点环：与 toggle/chip/试听 同款（此前可 Tab 聚焦却无可见焦点态，指令④一致性）
+            // 键盘焦点环：与 toggle/chip/试听 同款——Tab 聚焦时描边转强调色，失焦归零
             el.GotKeyboardFocus += (_, _) => { el.BorderBrush = new SolidColorBrush(Theme.Accent); el.BorderThickness = new Thickness(1); };
             el.LostKeyboardFocus += (_, _) => el.BorderThickness = new Thickness(0);
             navItems.Add((el, icon, label, accent));
@@ -504,7 +509,7 @@ public sealed partial class SettingsWindow : Window
             Win32.SetRoundedCorners(hwnd);
             Win32.SetWindowTextW(hwnd, "FrameCapture Settings");
         };
-        // 拖窗改由 WindowChrome 原生 CaptionHeight 处理（见 ctor）；不再挂 WM_NCHITTEST 钩子，避免与 WindowChrome 命中测试抢序。
+        // 关窗时重挂一次全局钩子：<c>InstallHotkeys</c> 可重复调用，确保设置窗期间的改动都已装进引擎。
         Closed += (_, _) => AppHost.Current.InstallHotkeys();
     }
         #endregion

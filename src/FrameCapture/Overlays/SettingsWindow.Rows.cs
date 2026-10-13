@@ -14,9 +14,13 @@ using WinFormsKeys = System.Windows.Forms.Keys;
 namespace FrameCapture.Overlays;
 
 // 本 partial 职责：设置行控件工厂——滑杆行、开关行、保存位置行、录制格式行，及通用行骨架/卡片/图标小件。
+/// <summary>
+/// 设置窗的行控件工厂部分：所有 <c>*Row()</c> 返回未挂到父容器的片段，由 <see cref="SettingsWindow.Build"/> 决定归属分页。
+/// 滑杆行与开关行把副作用交给调用方的 <c>onChange</c>；保存位置行与录制格式行在回调里自己 <c>Mutate</c> 落盘。
+/// </summary>
 public sealed partial class SettingsWindow : Window
 {
-    #region 滑杆行
+    #region 滑杆行：名称常显 + 整宽滑杆
 
     FrameworkElement SliderRow(string glyph, string label, string tip, double min, double max, double tick, double val,
         Func<double, string> fmt, Action<double> onChange)
@@ -73,7 +77,7 @@ public sealed partial class SettingsWindow : Window
     }
     #endregion
 
-    #region 开关行
+    #region 开关行与保存位置、录制格式选择行
 
     FrameworkElement ToggleRow(string glyph, string label, string tip, bool initial, Action<bool> onChange)
     {
@@ -109,7 +113,7 @@ public sealed partial class SettingsWindow : Window
         {
             Width = 12,
             Height = 12,
-            // 滑块恒白 + 极淡描边（QQ 式）——旧版亮色主题下黑滑块/黑字压 accent，适配感缺失
+            // 滑块恒白 + 极淡描边（QQ 式）：开关状态只靠轨道底色表达，滑块不参与状态配色
             Fill = new SolidColorBrush(Colors.White),
             Stroke = new SolidColorBrush(Color.FromArgb(0x26, 0, 0, 0)),
             StrokeThickness = 1,
@@ -203,7 +207,7 @@ public sealed partial class SettingsWindow : Window
             { Description = "选择保存文件夹（自动保存副本 + 导出对话框默认目录）", UseDescriptionForTitle = true };
             var cur = _settings.Current.AutoSavePath;
             if (!string.IsNullOrWhiteSpace(cur) && System.IO.Directory.Exists(cur)) dlg.SelectedPath = cur;
-            // 设置窗 Topmost：对话框须挂到本窗句柄，否则可能盖在设置窗之下
+            // 对话框须挂到本窗句柄，否则可能落在设置窗之下
             var owner = new Win32.WndOwner(new System.Windows.Interop.WindowInteropHelper(this).Handle);
             if (dlg.ShowDialog(owner) == System.Windows.Forms.DialogResult.OK)
                 _settings.Mutate(s => s.AutoSavePath = dlg.SelectedPath);
@@ -214,10 +218,6 @@ public sealed partial class SettingsWindow : Window
         return g;
     }
 
-    // 全局「截图后」四选一已移除——改由每条手势在「手势配置器」里各自设置。
-    // 连「见手势配置器」的占位行也删了——截图页顶部就有手势配置器入口，不必再留指路行。
-
-    // 取色复制格式：选区放大镜按 C 复制颜色时的文本形式，HEX/RGB/HSL 三选（QQ 只有 HEX）
     FrameworkElement RecordFormatRow()
     {
         var g = Row();
@@ -264,7 +264,7 @@ public sealed partial class SettingsWindow : Window
                 ToolTip = tip,
             };
             chipList.Add((chip, id));
-            Fluent.ChipHover(chip, 1.06);   // 分段芯片补 hover 缩放弹性（此前仅手型光标、零反馈，与主题芯片不一致）
+            Fluent.ChipHover(chip, 1.06);   // 悬停只改底色带过渡，不缩放——缩放会盖住相邻芯片
             void Apply()
             {
                 _settings.Mutate(s => s.RecordFormat = captured);
@@ -283,7 +283,7 @@ public sealed partial class SettingsWindow : Window
             chips.Children.Add(chip);
         }
         g.Children.Add(chips);
-        // ffmpeg 检测状态即时可见（原来只在 MP4/WebM 芯片 tooltip 里，选格式时看不到）；
+        // 未检测到 ffmpeg 时在行下方直接写明（芯片 tooltip 要悬停才读到，这行一眼可见）；
         // 用绘制的小圆点而非字形，规避未验证字形；只读、开设置时算一次
         var status = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(32, 3, 0, 0) };
         var dotColor = hasFf ? Color.FromRgb(0x4C, 0xAF, 0x50) : Color.FromRgb(0xD1, 0x8B, 0x00);
@@ -311,7 +311,7 @@ public sealed partial class SettingsWindow : Window
     }
     #endregion
 
-    #region 小部件
+    #region 行骨架与卡片小件
 
     static Grid Row()
     {
@@ -322,7 +322,8 @@ public sealed partial class SettingsWindow : Window
     }
 
     /// <summary>把一页里平铺的设置行整体归入一张浮起卡片（沿用快捷键页 keyCard 模式），
-    /// 让截图/录制/产物…各页与快捷键页视觉一致、不再裸铺在深色背景上（治「太平」）。快捷键页自带卡片，不调本方法。</summary>
+    /// 让截图/录制/产物…各页与快捷键页用同一套卡片语言，而不是裸行铺在窗体背景上。
+    /// 快捷键页自带卡片结构，不调本方法；空页直接返回，不生成空卡片。</summary>
     void Cardify(StackPanel p)
     {
         if (p.Children.Count == 0) return;

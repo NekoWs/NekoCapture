@@ -14,8 +14,13 @@ using WinFormsKeys = System.Windows.Forms.Keys;
 namespace FrameCapture.Overlays;
 
 // 本 partial 职责：截图分组行控件构建——取色格式、延时截图、悬浮窗时长、截图提示音（含其提示文案与下拉配色）。
+/// <summary>
+/// 设置窗的截图分组部分：每个 <c>*Row()</c> 产出一行控件，初值取自 <c>SettingsService.Current</c>，
+/// 交互回调里就地 <c>Mutate</c> 落盘，无需「应用」按钮。全部方法只在 <see cref="SettingsWindow.Build"/> 期间、UI 线程调用。
+/// </summary>
 public sealed partial class SettingsWindow : Window
 {
+    // 取色复制格式：选区放大镜按 C 复制颜色时的文本形式，HEX / RGB / HSL 三选
     FrameworkElement ColorFormatRow()
     {
         var g = Row();
@@ -60,7 +65,7 @@ public sealed partial class SettingsWindow : Window
                 ToolTip = tip,
             };
             chipList.Add((chip, id));
-            Fluent.ChipHover(chip, 1.06);   // 分段芯片补 hover 缩放弹性（此前仅手型光标、零反馈，与主题芯片不一致）
+            Fluent.ChipHover(chip, 1.06);   // 悬停只改底色带过渡，不缩放——缩放会盖住相邻芯片
             void Apply()
             {
                 _settings.Mutate(s => s.ColorCopyFormat = captured);
@@ -109,7 +114,7 @@ public sealed partial class SettingsWindow : Window
             (10, "10秒", "充裕：够摆好几个界面元素"),
         };
         var chipList = new System.Collections.Generic.List<(Border chip, int secs)>();
-        // 预设之外补「自定义」输入（此前只有 5 档，想要 2 秒/8 秒都调不了）；文字居中，与悬浮窗时长同款交互
+        // 预设 5 档之外还有「自定义」输入框：1–120 秒任意值都调得了；文字居中，与悬浮窗时长同款交互
         var box = new TextBox
         {
             Text = cur.ToString(),
@@ -182,7 +187,7 @@ public sealed partial class SettingsWindow : Window
                 ToolTip = tip,
             };
             chipList.Add((chip, secs));
-            Fluent.ChipHover(chip, 1.06);   // 分段芯片补 hover 缩放弹性（此前仅手型光标、零反馈，与主题芯片不一致）
+            Fluent.ChipHover(chip, 1.06);   // 悬停只改底色带过渡，不缩放——缩放会盖住相邻芯片
             void Apply()
             {
                 _settings.Mutate(s => s.DelayCaptureSeconds = captured);
@@ -201,7 +206,7 @@ public sealed partial class SettingsWindow : Window
         return g;
     }
 
-    // C：截图后悬浮窗存在时间——文字芯片（常驻/秒数），点击就地更新选中态
+    // 截图后悬浮窗存在时间——文字芯片（常驻/秒数），点击就地更新选中态
     FrameworkElement ToastRow()
     {
         var g = Row();
@@ -220,7 +225,7 @@ public sealed partial class SettingsWindow : Window
         var chips = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
         Grid.SetColumn(chips, 2);
         double cur = _settings.Current.ToastSeconds;
-        // 预设精简为 常驻/1秒/2秒/5秒 + 自定义输入（此前 常驻/2/3.2/5/8 五档太密且默认值占一档）
+        // 预设只留 常驻/1秒/2秒/5秒 四档（0 = 常驻单独成档），其余秒数走自定义输入
         var opts = new (double secs, string text, string tip)[]
         {
             (0, "常驻", "不自动消失，点一下或 Esc 才关"),
@@ -235,7 +240,7 @@ public sealed partial class SettingsWindow : Window
             Text = Fmt(cur),
             Width = 34,
             FontSize = 12.5,
-            TextAlignment = TextAlignment.Center,   // 自定义输入框文字居中（此前右对齐，数字贴边难看）
+            TextAlignment = TextAlignment.Center,   // 数字居中：34px 窄框里贴边数字像被裁了一半
             Background = System.Windows.Media.Brushes.Transparent,
             BorderThickness = new Thickness(0),
             Foreground = new SolidColorBrush(Theme.Text),
@@ -267,7 +272,7 @@ public sealed partial class SettingsWindow : Window
                 c.Background = new SolidColorBrush(sel ? Theme.Accent : Theme.Hover);
                 if (c.Child is TextBlock tb) tb.Foreground = new SolidColorBrush(sel ? Fluent.OnAccentColor(Theme.Accent) : Theme.Text);
             }
-            // 值不落在任何预设档 = 自定义生效，自定义框高亮成选中态（此前永远灰底，看不出当前用的是哪个值）
+            // 值不落在任何预设档 = 自定义生效，自定义框高亮成选中态，一眼看出当前用的是哪个值
             customBox.Background = new SolidColorBrush(anySel ? Theme.CardBg : Theme.Accent);
             customBox.BorderBrush = new SolidColorBrush(anySel ? Theme.Stroke : Theme.Accent);
             box.Foreground = new SolidColorBrush(anySel ? Theme.Text : Fluent.OnAccentColor(Theme.Accent));
@@ -304,7 +309,7 @@ public sealed partial class SettingsWindow : Window
                 ToolTip = tip,
             };
             chipList.Add((chip, secs));
-            Fluent.ChipHover(chip, 1.06);   // 分段芯片补 hover 缩放弹性（此前仅手型光标、零反馈，与主题芯片不一致）
+            Fluent.ChipHover(chip, 1.06);   // 悬停只改底色带过渡，不缩放——缩放会盖住相邻芯片
             void Apply()
             {
                 _settings.Mutate(s => s.ToastSeconds = captured);
@@ -361,7 +366,7 @@ public sealed partial class SettingsWindow : Window
         preview.KeyDown += (_, e) => { if (e.Key is Key.Space or Key.Enter) { DoPreview(); e.Handled = true; } };
         preview.GotKeyboardFocus += (_, _) => { preview.BorderBrush = new SolidColorBrush(Theme.Accent); preview.BorderThickness = new Thickness(1); };
         preview.LostKeyboardFocus += (_, _) => preview.BorderThickness = new Thickness(0);
-        Fluent.ChipHover(preview);   // 与普通按钮一致——悬停/按住只改底色带过渡，不再放大
+        Fluent.ChipHover(preview);   // 与普通按钮一致——悬停只改底色带过渡，不放大
         right.Children.Add(preview);
 
         // 开关+固定音 → 三选下拉「关闭 / 轻弹 / 自定义…」。选「自定义…」弹文件选择窗（ogg/wav）；

@@ -13,9 +13,9 @@ using FrameCapture.Services;
 namespace FrameCapture.Overlays;
 
 /// <summary>
-/// 帮助从「一屏文字墙」改为渐进式分步演示——布局对齐设置页：左侧本步大标题（图标+名称），
+/// 使用指南：渐进式分步演示，一步只讲一件事。布局与设置页同语言——左侧本步大标题（图标+名称），
 /// 右侧正文只讲这一步（几行短句，细节进悬停气泡），右下角 上一页/下一页 翻页。
-/// 文字量按「一步只学一件事」裁剪；标注工具目录仍是单一数据源（ToolCatalog），防漂移不变。
+/// 标注工具目录的唯一数据源是 <see cref="ToolCatalog"/>，本页不另存一份，故不会与编辑器漂移。
 /// </summary>
 public sealed class HelpWindow : Window
 {
@@ -27,6 +27,10 @@ public sealed class HelpWindow : Window
     Border _prevBtn = null!, _nextBtn = null!;
     List<(string icon, string title, string sub, Action<StackPanel> body)> _steps = null!;
 
+    /// <summary>
+    /// 打开使用指南：已开则激活既有窗口——同屏至多一张指南，重复触发不叠窗。
+    /// 必须在 UI 线程调用；无边框 Topmost 窗，Show 后 Activate 会取前台焦点。
+    /// </summary>
     public static void ShowOrFocus()
     {
         foreach (Window w in Application.Current.Windows)
@@ -38,6 +42,7 @@ public sealed class HelpWindow : Window
     }
 
     /// <summary>SelfTest renderhelp 离屏取证用：构建但不 Show——不占任务栏、不抢焦点、不碰热键，与运行实例互不干扰。</summary>
+    /// <returns>已 Build 但未 Show 的实例，停在 <c>_lastStep</c> 钳制后的步骤，可直接 measure/arrange 渲染 <c>Content</c>。</returns>
     public static HelpWindow CreateForCapture()
     {
         var w = new HelpWindow();
@@ -94,8 +99,8 @@ public sealed class HelpWindow : Window
         _step = Math.Clamp(_step, 0, _steps.Count - 1);
 
         #region 主体：左大标题 | 右正文（与设置页同款视觉分工）
-        // 去掉旧的 main.Height=322 + Dock.Top 硬钉——那会让主体不填充剩余高度，内容少时底部一大片空。
-        // 改为 DockPanel 的填充子项（最后加入），左栏与正文都垂直居中：短页居中不空、长页仍在右栏内滚。
+        // 主体是 DockPanel 的填充子项（最后加入），不钉固定高度——钉死会让内容少时底部一大片空。
+        // 左栏与正文都垂直居中：短页居中不空，长页仍在右栏内滚。
         var main = new Grid { Margin = new Thickness(18, 8, 18, 0) };
         main.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(184) });
         main.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -126,7 +131,7 @@ public sealed class HelpWindow : Window
         main.Children.Add(bodyScroll);
         #endregion
 
-        #region 底部：左「第 N / M 步」，右 上一页 / 下一页（右下角，用户点名位置）
+        #region 底部：左「第 N / M 步」，右 上一页 / 下一页（固定右下角）
         var foot = new Grid { Margin = new Thickness(18, 6, 18, 14) };
         foot.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         foot.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });

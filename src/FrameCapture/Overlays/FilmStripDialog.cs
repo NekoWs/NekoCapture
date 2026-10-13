@@ -7,14 +7,24 @@ using FrameCapture.Core;
 
 namespace FrameCapture.Overlays;
 
-/// <summary>「生成胶片条」小窗——问「抽多少帧」「每多少帧取一次」两个参数，
-/// 确定后由编辑器抽样渲染、直接复制剪贴板（不落盘）。参数写回 settings 记忆，下次打开沿用。
-/// 取代旧的全局「自动生成 Agent 胶片条」设置：功能从后台默认行为变成编辑器里的显式按钮。</summary>
+/// <summary>「生成胶片条」参数小窗——问「抽多少帧」「每多少帧取一次」，
+/// 确定后由编辑器抽样渲染、直接复制剪贴板（不落盘）。
+/// 本窗不写设置：调用方读回 <see cref="Frames"/>/<see cref="EveryN"/> 后自行记忆，下次打开沿用。</summary>
 public sealed class FilmStripDialog : Window
 {
+    /// <value>用户确认的抽帧数，钳制到 2–48；仅当 ShowDialog 返回 true 时有意义。</value>
     public int Frames { get; private set; }
+    /// <value>用户确认的抽样步长（每 N 帧取一次），钳制到 1–60；仅当 ShowDialog 返回 true 时有意义。</value>
     public int EveryN { get; private set; }
 
+    /// <summary>
+    /// 构造参数小窗：以记忆值作输入框初值，Enter=生成 / Esc=取消。
+    /// 无边框 + 允许透明，靠 Owner 居中；必须用 ShowDialog 打开——按钮与 Esc 写的是 DialogResult。
+    /// </summary>
+    /// <param name="owner">宿主编辑器窗口，决定居中与父子层级。</param>
+    /// <param name="frames">「抽帧数」初值；输入非法时回退到它，再钳到 2–48。</param>
+    /// <param name="everyN">「每 N 帧取一次」初值；输入非法时回退到它，再钳到 1–60。</param>
+    /// <param name="totalFrames">当前时间轴（含裁剪范围）总帧数，只进说明文案，不参与钳制。</param>
     public FilmStripDialog(Window owner, int frames, int everyN, int totalFrames)
     {
         Owner = owner;

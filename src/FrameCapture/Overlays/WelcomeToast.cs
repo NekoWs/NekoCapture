@@ -10,7 +10,8 @@ namespace FrameCapture.Overlays;
 
 /// <summary>
 /// 首次启动欢迎卡：新用户装完只看到托盘图标、不知按什么键——这是「人人都爱用」的头号上手摩擦。
-/// 首启弹一张不抢焦点的卡片，直接点破两个热键 + 关键手感，给一个「查看帮助」入口；看过一次（FirstRunHintShown）永不再打扰。
+/// 弹一张不抢焦点的卡片，直接点破两个热键 + 关键手感，给一个「查看帮助」入口；
+/// 首启路径弹一次——调用方置位 FirstRunHintShown 后，自动弹出的条件即消失。
 /// 复用 CaptureToast 的浮窗骨架：ShowActivated=false 不打断输入、WDA 排除不入镜、悬停暂停自动消失、Esc/点关闭。
 /// </summary>
 public sealed class WelcomeToast : Window
@@ -23,6 +24,13 @@ public sealed class WelcomeToast : Window
     const double W = 372;      // DIP 宽
     const double EstH = 168;   // 估算高（落点用；实际 SizeToContent）
 
+    /// <summary>
+    /// 弹出欢迎卡：同一时刻只保留一张，再次调用先收起上一张。
+    /// 非激活浮窗（ShowActivated=false），不打断用户当前输入；必须在 UI 线程调用。
+    /// 本方法不写设置——是否记为「已看过」（FirstRunHintShown）由调用方决定。
+    /// </summary>
+    /// <param name="captureHotkey">「截图」键位的展示文案，原样上屏，不做二次解析。</param>
+    /// <param name="scopeHotkey">「选区」键位的展示文案，原样上屏。</param>
     public static void Show(string captureHotkey, string scopeHotkey)
     {
         _current?.Close();
@@ -110,7 +118,7 @@ public sealed class WelcomeToast : Window
             Template = RoundedBtnTemplate(),
         };
         help.Click += (_, _) => { FrameCapture.Core.Trace.Log("welcome→help"); HelpWindow.ShowOrFocus(); Dismiss(); };
-        Fluent.Springy(help, hover: 1.05, press: 0.94);   // 与滚动控制条按钮同款弹性，替代旧的 hover 淡出
+        Fluent.Springy(help, hover: 1.05, press: 0.94);   // 悬停只改底色带过渡，不缩放（与滚动控制条按钮同款反馈）
         root.Children.Add(help);
 
         card.Child = root;
@@ -180,7 +188,7 @@ public sealed class WelcomeToast : Window
         return sp;
     }
 
-    // 圆角实心按钮模板（强调色底）；hover/press 弹性由 Fluent.Springy 在代码里驱动
+    // 圆角实心按钮模板（强调色底）；模板内无触发器，悬停底色由 Fluent.Springy 在代码里驱动
     static ControlTemplate RoundedBtnTemplate()
     {
         var t = new ControlTemplate(typeof(Button));

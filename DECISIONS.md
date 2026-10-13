@@ -226,3 +226,26 @@
   读者会去 AppHost 里找那条根本不存在的去重分支；编译器与扫描器都不校验"调用方是否还在"。
 - **护栏**：文档只描述"给什么、返回什么、比较的是哪张表、何时刷新"；
   缺文档 / 缺 `<param>` / 缺 `<returns>` 由 `lint-comments.ps1` 拦，注释与代码不一致按缺陷处理。
+
+## 非激活浮窗的键盘等价只能走全局钩子
+
+- **不变量 / 契约**：`ShowActivated=false` 的浮窗不是键盘焦点目标，`WM_KEYDOWN` 不会路由到它的 HWND。
+  因此 Enter/Esc 这类等价键**只能**由 `HotkeyManager` 的低级键盘钩子代收；开关 `ToastActive` 与回调
+  `ToastEnter` / `ToastEsc` 必须与浮窗同生共死——`Closed` 里成对清零。
+- **曾经的错误**：把 Enter/Esc 处理挂在浮窗自己的 `HwndSource` 钩子里。那条分支永不命中，
+  代码却写着"已处理"——按 Enter 毫无反应、无报错、无日志，用户只当这功能不存在。
+  反向风险同样静默：全局开关漏了 `Closed` 清零，就泄漏成"全局 Enter 失灵"。
+- **护栏**：`CaptureToast` 的 `SourceInitialized` 只设圆角与 WDA 排除，不装键盘钩子；
+  `ToastActive` / `ToastEnter` / `ToastEsc` 在构造里置位、`Closed` 里按 `ReferenceEquals(_current, this)` 清零；
+  焦点侧由 `test-focus-safety.ps1`（自有窗文本框不漏入任何字符）覆盖。
+
+## 悬停反馈 helper 的缩放参数是保留位
+
+- **不变量 / 契约**：`Fluent.Springy` / `Fluent.ChipHover` 一律转发 `BgHover`——悬停**只改底色带过渡**，
+  不缩放、不上浮；`hover` / `press` / `scale` 是保留位，不参与效果（各自的 `<param>` 已写明）。
+  调用点注释只允许陈述"只改底色带过渡"。
+- **曾经的错误**：调用点注释写着"hover 轻微放大、按下回缩、松手 BackEase 弹回"，而 helper 早已收敛为
+  只改底色——注释描述的动效在代码里不存在。读者会去调那个被忽略的缩放系数，审查者会拿不存在的弹跳判视觉。
+  根因：helper 收敛时只改了 helper 的文档，调用点注释没人回头改。
+- **护栏**：缩放会盖住相邻控件、让一排小按钮互相挤动，因此不允许再引入缩放式悬停；
+  helper 的 `<param>` 写明"保留位，不参与效果"，调用点注释与 helper 文档同措辞。

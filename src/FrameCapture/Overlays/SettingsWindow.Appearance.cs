@@ -14,17 +14,24 @@ using WinFormsKeys = System.Windows.Forms.Keys;
 namespace FrameCapture.Overlays;
 
 // 本 partial 职责：外观分组——外观主题行、强调色行（含取色弹层状态字段），以及主题/强调色变更后的原地重建。
+/// <summary>
+/// 设置窗的外观分组部分：主题三档与强调色都在变更瞬间生效——先 <c>Theme.Apply</c> +
+/// <c>Fluent.ApplyGlobalStyles</c> 刷全局，再整窗重建，因为本窗颜色是构造期取值的静态画刷。
+/// </summary>
 public sealed partial class SettingsWindow : Window
 {
-    /// <summary>主题/强调色变更后原地重建：同位交叉淡入新窗（旧淡出与新淡入非对称节拍）。</summary>
+    /// <summary>
+    /// 主题/强调色变更后原地重建：新窗在原位置淡入，本窗同时淡出后关闭，两者节拍非对称。
+    /// 必须在 UI 线程调用；重建期间两个实例短暂共存，分页索引由 <c>_restoreCat</c> 交给新窗。
+    /// </summary>
     void RebuildInPlace()
     {
         var oldw = this;
         var nw = new SettingsWindow();
         nw._restoreCat = oldw._cat;   // 改主题/强调色重建后停在原分页，不跳回首页
         nw.Build();
-        // 构造里是 CenterScreen，Show 时会覆盖下面手设的 Left/Top → 每次改主题/强调色都弹回屏幕中心。
-        // 重建必须走 Manual，才尊重原位置（修「改主题/强调色窗口跑到中心」）。
+        // 构造里是 CenterScreen，Show 时会覆盖下面手设的 Left/Top，窗口会弹回屏幕中心。
+        // 重建必须走 Manual，才尊重原位置。
         nw.WindowStartupLocation = WindowStartupLocation.Manual;
         nw.Left = oldw.Left; nw.Top = oldw.Top;
         nw.Opacity = 0;
@@ -35,7 +42,7 @@ public sealed partial class SettingsWindow : Window
         nw.BeginAnimation(OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(1, TimeSpan.FromMilliseconds(FrameCapture.Core.Fluent.Motion.ThemeMs)));
     }
 
-    #region 强调色（设置里此前无处可改，Core 早已支持）
+    #region 强调色：色片入口与取色弹层
 
     Popup? _accentPop;
     ColorPickView? _accentView;
@@ -70,7 +77,7 @@ public sealed partial class SettingsWindow : Window
             ToolTip = "点击自定义强调色（与编辑器调色板同款）；右键恢复跟随系统",
         };
         Grid.SetColumn(chip, 2);
-        Fluent.ChipHover(chip, 1.12);   // 可点色片补 hover 缩放弹性，与编辑器色板同款手感（此前仅光标变手型、零反馈）
+        Fluent.ChipHover(chip, 1.12);   // 悬停只改底色带过渡，不缩放
         void Open()
         {
             if (_accentPop == null)
@@ -82,7 +89,7 @@ public sealed partial class SettingsWindow : Window
                     // 拖动中只预览（改静态色+全局样式），松板才落盘重建——避免每像素重建窗口
                     previewed = c;
                     Theme.Accent = Color.FromRgb(c.R, c.G, c.B);
-                    chip.Background = new SolidColorBrush(Theme.Accent); // 色片实时跟色，所见即所得（缓解「强调色不实时」）
+                    chip.Background = new SolidColorBrush(Theme.Accent); // 色片实时跟色，所见即所得
                     FrameCapture.Core.Fluent.ApplyGlobalStyles();
                 };
                 _accentPop = new Popup
@@ -115,7 +122,7 @@ public sealed partial class SettingsWindow : Window
             RebuildInPlace();
         };
         chip.KeyDown += (_, e) => { if (e.Key is Key.Space or Key.Enter) { Open(); e.Handled = true; } };
-        // 键盘焦点环：与「试听」按钮同款——聚焦时描边转强调色（此前可聚焦却无可见焦点态，指令④一致性）
+        // 键盘焦点环：与「试听」按钮同款——聚焦时描边转强调色，失焦回描边底色
         chip.GotKeyboardFocus += (_, _) => chip.BorderBrush = new SolidColorBrush(Theme.Accent);
         chip.LostKeyboardFocus += (_, _) => chip.BorderBrush = new SolidColorBrush(Theme.Stroke);
         g.Children.Add(chip);
@@ -194,7 +201,7 @@ public sealed partial class SettingsWindow : Window
                 _settings.Mutate(s => s.Theme = captured);
                 Theme.Apply(captured, _settings.Current.Accent);
                 FrameCapture.Core.Fluent.ApplyGlobalStyles();
-                // 无缝过渡：旧窗淡出的同时同位置淡入新窗（Theme.Changed 已让其他窗口即时换色）
+                // 无缝过渡：本窗淡出的同时，同位置淡入新窗（Theme.Changed 已让其他窗口即时换色）
                 RebuildInPlace();
             }
             chip.MouseLeftButtonDown += (_, e) => { ApplyTheme(); e.Handled = true; };

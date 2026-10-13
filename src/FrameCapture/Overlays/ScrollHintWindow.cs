@@ -18,6 +18,8 @@ namespace FrameCapture.Overlays;
 /// </summary>
 public sealed class ScrollHintWindow : Window
 {
+    /// <value>「完成」/「取消」的回调；未挂时点按钮无副作用。
+    /// 由按钮点击或 Enter/Esc 在 UI 线程触发；<c>CloseSelf</c> 不会调用它们。</value>
     public Action? OnDone, OnCancel;
 
     readonly TextBlock _progress;
@@ -29,8 +31,16 @@ public sealed class ScrollHintWindow : Window
     const double W = 372;      // DIP 宽（估算落点用；实际 SizeToContent）
     const double EstH = 96;    // 估算高（落点用）
 
+    /// <value>当前显示中的控制条，无则 null；<c>Closed</c> 时自行清零。</value>
     public static ScrollHintWindow? Current;
 
+    /// <summary>
+    /// 构造滚动截图控制条：只建界面、不起会话——调用方须自行 Show 并挂 <see cref="OnDone"/>/<see cref="OnCancel"/>。
+    /// 构造期即定好落点（Show 前定位，无首帧闪烁），WDA 排除在 SourceInitialized 里设。
+    /// 必须在 UI 线程构造。
+    /// </summary>
+    /// <param name="region">要滚的选区，物理像素、虚拟桌面绝对坐标；控制条贴其上方居中，放不下则落回区域上沿内侧。</param>
+    /// <param name="monitorDevice">选区所在显示器 device name；按设备取不到时按区域坐标就近回退。</param>
     public ScrollHintWindow(RectI region, string monitorDevice)
     {
         Title = "FrameCapture Scroll";
@@ -116,7 +126,7 @@ public sealed class ScrollHintWindow : Window
         done.Click += (_, _) => OnDone?.Invoke();
         var cancel = MakeBtn("取消", Theme.Hover, Theme.TextDim);
         cancel.Click += (_, _) => OnCancel?.Invoke();
-        // PCL2 式弹性：hover 轻微放大、按下回缩、松手 BackEase 弹回（替代旧的 hover 淡出，不再「变淡像退后」）
+        // 悬停只改底色带过渡，不缩放——缩放会让一排小按钮互相挤动
         Fluent.Springy(done, hover: 1.05, press: 0.94);
         Fluent.Springy(cancel, hover: 1.05, press: 0.94);
         btns.Children.Add(done);
@@ -153,6 +163,10 @@ public sealed class ScrollHintWindow : Window
         Fluent.FadeIn(this, Fluent.Motion.EnterMs, 8, offscreenFirstFrame: true);
     }
 
+    /// <summary>刷新进度：段数与拼接后总高，并把提示行复位为默认文案（清掉 <see cref="FlashHint"/> 的提醒）。
+    /// 段数变化才让数字弹一下，刷同一值不动画。</summary>
+    /// <param name="segments">已拼接段数，从 1 起（基准帧算第 1 段）。</param>
+    /// <param name="heightPx">拼接后位图的总高，物理像素。</param>
     public void SetProgress(int segments, int heightPx)
     {
         _progress.Text = $"已拼接 {segments} 段 · 高 {heightPx} px";
@@ -174,12 +188,14 @@ public sealed class ScrollHintWindow : Window
     }
 
     /// <summary>刷一句反馈（如「滚动太快」），琥珀色提醒；下次成功拼接由 SetProgress 复位。</summary>
+    /// <param name="msg">整句提示文案，原样上屏；超宽由 TextWrapping 折行，本方法不做长度裁剪。</param>
     public void FlashHint(string msg)
     {
         _hint.Text = msg;
         _hint.Foreground = new SolidColorBrush(Color.FromRgb(0xE6, 0xA8, 0x4B)); // 琥珀色提醒
     }
 
+    /// <summary>带淡出收起本控制条；重复调用无副作用。不触发 OnDone/OnCancel，也不停拼接定时器——收尾由调用方负责。</summary>
     public void CloseSelf()
     {
         if (_closing) return;
