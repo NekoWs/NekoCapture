@@ -413,3 +413,6 @@
 - [x] **D2 OCR 悬停预览选文本**、不直接复制（L63）。→ `OcrShowResult` 默认翻 true（预览优先）+ 开结果窗时不再自动写剪贴板（预览即选取入口），关才走快速复制；编辑器/贴图两处同步 + 设置/帮助文案；T133。
 - [x] **D3 Pin 贴图动画**（L68）。→ `ContentRendered` 触发 `PlayDrop`（ScaleTransform 0.82→1.0 BackEase 220ms）+ 淡入。
 - [x] **D4 贴图右键菜单样式**（L72）。→ 套 `Fluent.MenuResources()` + MenuItem 模板补 `PART_Popup` 子菜单（修不透明度子菜单展不开）+ SubmenuHeader 箭头；不透明度真 bug `CommitOpacity`（提交淡入可见值再清动画，修 Next(0) 夹 0.2 首滚跳/再滚无反应）。
+
+## 内容标题栏品牌前缀不一致 R156（2026-10-13 上午，看截图抓到，交产品决策，未擅改）
+- [ ] **内容标题栏文字前缀不统一**：OS 标题栏（任务栏/Alt+Tab）所有窗都带 `FrameCapture` 前缀（`FrameCapture Settings/Editor/OCR/…`），但**窗内自绘标题栏**文字混用——设置=`FrameCapture 设置`、帮助=`FrameCapture 使用速查`（带前缀），OCR=`识别文字`、手势配置=`手势配置`（不带）。两种取向各有道理：带前缀=品牌一致；不带=功能名更干净（OS 栏已标品牌，窗内重复略冗余，且手势配置在独立库 `GestureEditor` 内本就设计为产品无关、不应硬编码品牌名）。**建议**（需你拍板，属品牌取向故未动）：统一为「不带前缀」（更 Fluent、且与库的产品无关设计自洽）或「全带前缀」（品牌更强，但需让 `GestureEditorHost` 注入标题、OCR 改文案）。改动纯文案、零逻辑风险，一句话即可执行。
