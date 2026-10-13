@@ -424,7 +424,10 @@ public sealed class GestureEditorWindow : Window
     // ---------- 控件小工具 ----------
     TextBlock Label(string t) => new() { Text = t, Foreground = _pal.B(_pal.TextDim), FontSize = 12, Margin = new Thickness(0, 12, 0, 4) };
 
-    static string TriggerLabel(object t) => t switch
+    // R150：补 Tap/Hold/HoldRelease——旧版这三项落到默认分支与 Chord 同名「组合键（同时按下）」，
+    // 触发下拉（列 Enum.GetValues<TriggerKind>() 全 10 值）出现 4 个同名项，用户无法区分轻点/按住/松手/组合键。
+    // 改 public static 供 SelfTest 锁「10 项标签两两不同」不变量（纯函数，不触 WPF）。
+    public static string TriggerLabel(object t) => t switch
     {
         TriggerKind.KeyDown => "组合键按下",
         TriggerKind.KeyUp => "组合键抬起",
@@ -432,6 +435,9 @@ public sealed class GestureEditorWindow : Window
         TriggerKind.DoubleClick => "激活时双击",
         TriggerKind.TripleClick => "激活时三击",
         TriggerKind.LongPress => "激活时长按",
+        TriggerKind.Tap => "轻点（短按即松）",
+        TriggerKind.Hold => "按住（达阈值触发）",
+        TriggerKind.HoldRelease => "松手（按住后释放）",
         _ => "组合键（同时按下）",
     };
 

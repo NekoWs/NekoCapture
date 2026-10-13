@@ -24,6 +24,7 @@ public partial class App : System.Windows.Application
     const string MsgPinClip = "FrameCapture_PinClip";
     const string MsgPauseToggle = "FrameCapture_PauseToggle";
     const string MsgOcr = "FrameCapture_Ocr";
+    const string MsgGesture = "FrameCapture_Gesture";
 
     [System.Runtime.InteropServices.DllImport("user32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
     static extern uint RegisterWindowMessageW(string lpString);
@@ -107,6 +108,10 @@ public partial class App : System.Windows.Application
         if (e.Args.Any(a => string.Equals(a, "--ocr", StringComparison.OrdinalIgnoreCase)))
             Dispatcher.BeginInvoke(() => Services.AppHost.Current.Controller.OcrStoredStill(),
                 System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+        // R150：打开手势配置器（手势「手势配置器」/设置窗按钮同一入口，也便于脚本/e2e 调用与截图审查）
+        if (e.Args.Any(a => string.Equals(a, "--gesture", StringComparison.OrdinalIgnoreCase)))
+            Dispatcher.BeginInvoke(() => Services.GestureEditorHost.ShowOrFocus(),
+                System.Windows.Threading.DispatcherPriority.ApplicationIdle);
     }
 
     void StartMessageSink()
@@ -119,7 +124,8 @@ public partial class App : System.Windows.Application
             () => Dispatcher.BeginInvoke(() => Services.AppHost.Current.Controller.BeginDelayedCapture()),
             () => Dispatcher.BeginInvoke(() => Services.AppHost.Current.Controller.PinFromClipboard()),
             () => Dispatcher.BeginInvoke(() => Services.AppHost.Current.Tray.TogglePause()),
-            () => Dispatcher.BeginInvoke(() => Services.AppHost.Current.Controller.OcrStoredStill())); }
+            () => Dispatcher.BeginInvoke(() => Services.AppHost.Current.Controller.OcrStoredStill()),
+            () => Dispatcher.BeginInvoke(() => Services.GestureEditorHost.ShowOrFocus())); }
         catch (System.Exception ex) { LogCrash(ex, "MsgSink"); }
     }
 
@@ -129,11 +135,11 @@ public partial class App : System.Windows.Application
     /// 直接建消息专用窗，仅用于接收二次实例转发的"打开设置/帮助"。</summary>
     sealed class MsgSink : System.Windows.Forms.NativeWindow
     {
-        readonly Action _onSettings, _onHelp, _onEditLast, _onScroll, _onDelay, _onPinClip, _onPauseToggle, _onOcr;
-        readonly uint _mSet, _mHelp, _mEditLast, _mScroll, _mDelay, _mPinClip, _mPauseToggle, _mOcr;
-        public MsgSink(Action onSettings, Action onHelp, Action onEditLast, Action onScroll, Action onDelay, Action onPinClip, Action onPauseToggle, Action onOcr)
+        readonly Action _onSettings, _onHelp, _onEditLast, _onScroll, _onDelay, _onPinClip, _onPauseToggle, _onOcr, _onGesture;
+        readonly uint _mSet, _mHelp, _mEditLast, _mScroll, _mDelay, _mPinClip, _mPauseToggle, _mOcr, _mGesture;
+        public MsgSink(Action onSettings, Action onHelp, Action onEditLast, Action onScroll, Action onDelay, Action onPinClip, Action onPauseToggle, Action onOcr, Action onGesture)
         {
-            _onSettings = onSettings; _onHelp = onHelp; _onEditLast = onEditLast; _onScroll = onScroll; _onDelay = onDelay; _onPinClip = onPinClip; _onPauseToggle = onPauseToggle; _onOcr = onOcr;
+            _onSettings = onSettings; _onHelp = onHelp; _onEditLast = onEditLast; _onScroll = onScroll; _onDelay = onDelay; _onPinClip = onPinClip; _onPauseToggle = onPauseToggle; _onOcr = onOcr; _onGesture = onGesture;
             _mSet = RegisterWindowMessageW(MsgOpenSettings);
             _mHelp = RegisterWindowMessageW(MsgOpenHelp);
             _mEditLast = RegisterWindowMessageW(MsgEditLast);
@@ -142,6 +148,7 @@ public partial class App : System.Windows.Application
             _mPinClip = RegisterWindowMessageW(MsgPinClip);
             _mPauseToggle = RegisterWindowMessageW(MsgPauseToggle);
             _mOcr = RegisterWindowMessageW(MsgOcr);
+            _mGesture = RegisterWindowMessageW(MsgGesture);
             CreateHandle(new System.Windows.Forms.CreateParams { Caption = SinkName, Parent = HWND_MESSAGE, Style = 0 });
             Core.Trace.Log($"sink created hwnd={Handle}");
         }
@@ -155,6 +162,7 @@ public partial class App : System.Windows.Application
             else if (m.Msg == _mPinClip) { Core.Trace.Log("sink→pin clipboard"); _onPinClip(); }
             else if (m.Msg == _mPauseToggle) { Core.Trace.Log("sink→pause toggle"); _onPauseToggle(); }
             else if (m.Msg == _mOcr) { Core.Trace.Log("sink→ocr range"); _onOcr(); }
+            else if (m.Msg == _mGesture) { Core.Trace.Log("sink→gesture editor"); _onGesture(); }
             base.WndProc(ref m);
         }
     }
@@ -169,7 +177,8 @@ public partial class App : System.Windows.Application
             args.Any(a => string.Equals(a, "--delay", StringComparison.OrdinalIgnoreCase)) ? MsgDelay :
             args.Any(a => string.Equals(a, "--pin-clip", StringComparison.OrdinalIgnoreCase)) ? MsgPinClip :
             args.Any(a => string.Equals(a, "--pause-toggle", StringComparison.OrdinalIgnoreCase)) ? MsgPauseToggle :
-            args.Any(a => string.Equals(a, "--ocr", StringComparison.OrdinalIgnoreCase)) ? MsgOcr : null;
+            args.Any(a => string.Equals(a, "--ocr", StringComparison.OrdinalIgnoreCase)) ? MsgOcr :
+            args.Any(a => string.Equals(a, "--gesture", StringComparison.OrdinalIgnoreCase)) ? MsgGesture : null;
         if (name == null) return;
         try
         {

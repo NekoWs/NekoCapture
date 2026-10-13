@@ -2095,3 +2095,11 @@ status: done
 - **同类缺陷·设置窗「当前生效键位」卡**（截图审查发现，比帮助更主要）：`SettingsWindow` 写死两槽 `KeyRow("截图键",CaptureKeyText())`/`KeyRow("选区键",ScopeKeyText())`——用户配置下「选区键」显示**死键 Ctrl+Shift+R**（accent 高亮），且**漏掉录制键**（Ctrl+Alt+R/F2）；顶部说明也写死默认方案。修：`GestureActions` 加 `LabelOf(name)`（动作→中文短名，未知名原样返回）；卡片改为**逐条枚举启用绑定**（`动作标签 → 键+触发后缀`），说明改「按你的手势配置实时反映」。修后显示 4 条真实绑定（开始/停止录制→Ctrl+Alt+R、选区截图→Ctrl+Alt+A、开始录制→F2 按下、停止录制→F2 松开），无死键、无遗漏。
 - **验证**：构建 **0 错**；**SelfTest 403 绿**（396+T149×5+T150×2：未绑定/分组/Chord 无后缀+禁用排除/默认集/触发后缀/LabelOf 已知+未知透传）；**截图核验**帮助窗（未绑定/Ctrl+Alt+R，F2 按下/松开/Ctrl+Alt+A）与设置卡（4 条真实绑定）均与用户配置逐条吻合，排版对齐换行干净。
 - **未动**：`WelcomeToast` 也用 `CaptureKeyText/ScopeKeyText`，但它是**首启卡**（`FirstRunHintShown=true` 已置，用户不再见；且首启时用户尚未自定义，显示默认键正确），非缺陷。
+
+---
+
+**R150 · 手势配置器触发下拉标签补全（Tap/Hold/HoldRelease 不再与 Chord 同名）+ `--gesture` 入口**
+- **缺陷**（审查 `GestureEditorWindow.TriggerLabel` 发现）：该 switch 只覆盖 KeyDown/KeyUp/Click/DoubleClick/TripleClick/LongPress，**Tap/Hold/HoldRelease 落到默认分支** → 与 Chord 同为「组合键（同时按下）」。而触发下拉 `MakeCombo(Enum.GetValues<TriggerKind>())` 列全部 10 值 → **Chord/Tap/Hold/HoldRelease 四项同名**，用户想配「轻点截图、按住录制」（QQ 式默认手感）时下拉里 4 项无法区分。
+- **修复**：`TriggerLabel` 补 `Tap→轻点（短按即松）`/`Hold→按住（达阈值触发）`/`HoldRelease→松手（按住后释放）`，Chord 保留「组合键（同时按下）」；改 `public static`（纯函数、不触 WPF）供测试。
+- **`--gesture` 调试/e2e 入口**（与 `--settings/--help/--ocr` 同款全套 MsgSink 转发管线，7 触点：常量/OnStartup/StartMessageSink/字段/ctor/WndProc/ForwardToPrimary）：`GestureEditorHost.ShowOrFocus()` 同一入口，零配置可脚本触发 + UICap 截图审查（PrintWindow 不需前台，规避前台输入风险）。
+- **验证**：构建 **0 错**；**SelfTest 404 绿**（+T151 锁「10 个触发标签两两不同非空」不变量——直接锁住下拉不歧义）；**截图核验**配置器：左列 4 条绑定触发标签全对（组合键（同时按下）/组合键按下/组合键抬起 两两不同）、右详情面板齐全、accent 选中态、无豆腐图标、✓ 配置有效。

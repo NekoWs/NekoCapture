@@ -2417,6 +2417,15 @@ static class SelfTest
                 && FrameCapture.Core.GestureActions.LabelOf(null) == "",
                 "未知名原样返回（前向兼容不崩）/ null → 空串");
         }
+
+        // T151 手势配置器触发下拉标签两两不同（R150，GestureEditorWindow.TriggerLabel 纯函数）
+        {
+            var kinds = System.Enum.GetValues<GE.TriggerKind>();
+            var labels = kinds.Select(k => GEdit.GestureEditorWindow.TriggerLabel(k)).ToList();
+            Chk("T151-trigger-labels-distinct",
+                labels.All(s => !string.IsNullOrEmpty(s)) && labels.Distinct().Count() == kinds.Length,
+                $"触发下拉 {kinds.Length} 项标签两两不同非空（Tap/Hold/HoldRelease 不再与 Chord 同名「组合键（同时按下）」）");
+        }
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");
         return fail == 0 ? 0 : 1;
     }
