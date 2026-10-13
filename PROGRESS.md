@@ -2103,3 +2103,16 @@ status: done
 - **修复**：`TriggerLabel` 补 `Tap→轻点（短按即松）`/`Hold→按住（达阈值触发）`/`HoldRelease→松手（按住后释放）`，Chord 保留「组合键（同时按下）」；改 `public static`（纯函数、不触 WPF）供测试。
 - **`--gesture` 调试/e2e 入口**（与 `--settings/--help/--ocr` 同款全套 MsgSink 转发管线，7 触点：常量/OnStartup/StartMessageSink/字段/ctor/WndProc/ForwardToPrimary）：`GestureEditorHost.ShowOrFocus()` 同一入口，零配置可脚本触发 + UICap 截图审查（PrintWindow 不需前台，规避前台输入风险）。
 - **验证**：构建 **0 错**；**SelfTest 404 绿**（+T151 锁「10 个触发标签两两不同非空」不变量——直接锁住下拉不歧义）；**截图核验**配置器：左列 4 条绑定触发标签全对（组合键（同时按下）/组合键按下/组合键抬起 两两不同）、右详情面板齐全、accent 选中态、无豆腐图标、✓ 配置有效。
+
+---
+
+## ✅ 批次末完成（10-13 10:43，deadline 12:00，四步全绿）
+
+> 时间校准：实际时钟 10:38（早期摘要「~10:20 起 + 估的 11:15」均偏早，护栏/发布比预估快）。护栏+发布在最后一次提交 `5edd026` 之后跑，源码无改动 → 有效，无需重跑。
+
+1. **护栏** `guardrail.ps1 -MinSelfTestPass 404`（后台）→ **PASS FAIL=0 SKIP=1**（10 项）：SelfTest 404/0、e2e 全过、focus-safety SKIP（前台 Chrome_WidgetWin，SKIP≠FAIL）。护栏钉测试配置后 try/finally 恢复用户配置——**逐字段核对仅多 6 行空白（12 字节，app 重序列化格式），4 条手势/所有设置零丢失**，功能完好无需回滚。
+2. **重发布** `publish.ps1` → staging 10:38:02，250 文件，SDK 投影在位，errors=0。
+3. **打包** `release/FrameCapture.zip` 69.7MB（10:42:50）→ **CRC 逐条校验 250 条 badCRC=0、exe=1、sdk=1**。
+4. **重启出厂实例**（最后一步，单实例 Mutex）pid 48936（publish-staging）→ trace `gesture apply on=True excl=True n=4`（用户 4 绑定含 onComplete edit.lastvideo 正确加载）；**截图核验出厂件设置卡显示 4 条真实绑定**（与 Debug 同 sha256，确认 R149b 已入出厂件）。
+
+**本会话净产出**：R149（帮助窗反映真实键位）+ R149b（设置卡逐条反映真实绑定）+ R150（配置器触发下拉补 Tap/Hold/HoldRelease + `--gesture` 入口）+ docs（TEST-CHECKLIST CLI 清单）——修 3 个真实用户可见缺陷，全部截图核验；SelfTest 396→404；HEAD `5edd026` git clean；出厂件已含全部改动并运行中。
