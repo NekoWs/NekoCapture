@@ -2137,3 +2137,5 @@ status: done
 - **出厂件端到端确认**：抓 Release 实例 Help 窗核验 R149 真实键位渲染正确（设置捕获范围=未绑定、录制=Ctrl+Alt+R+F2 按下/松开、截图=Ctrl+Alt+A，均与用户配置一致）。
 
 **R153 · 手势配置器绑定列表长摘要换行（修裁切）**：出厂件截图审视配置器，发现左侧绑定列表选中项第二行 `开始/停止录制（同键起停）→ 完成后: 打开编辑器（上次录制）` 因动作名长被**按面板宽度裁切**（截在"打开编辑"）。根因两层：① `Summary()` 返回单串、ListBoxItem 默认模板的 ContentPresenter 不换行；② 列表 `HorizontalScrollBarVisibility=Auto` 使 ScrollViewer 以无限宽测量，TextBlock 永不换行、反出横向滚动条。修：列表项改存字符串 + `ItemTemplate` 用 `TextWrapping=Wrap` 的 TextBlock + **禁用横向滚动**（`ScrollViewer.SetHorizontalScrollBarVisibility=Disabled`，否则换行不生效）。**截图核验**：长摘要完整折成 3 行、横向滚动条消失、选中黑字在 accent 底可读、其余项不受影响。构建 0 错、SelfTest 404 绿（纯 WPF 渲染改动，`Summary` 逻辑未变故无需新增单测）。
+
+**R153 批次末**：护栏 PASS（FAIL=0 SKIP=1，focus-safety 因前台非本软件窗 SKIP≠FAIL）；用户 4 条自定义手势完好（`gesture apply n=4`）；重发布 staging 11:23:13 → zip 69.7MB/250 项/CRC 全绿/exe=1/sdk=1 → 重启出厂实例 pid 50412。HEAD `32ab512`。
