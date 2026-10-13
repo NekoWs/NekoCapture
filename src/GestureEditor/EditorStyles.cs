@@ -1,7 +1,9 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Markup;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 
 namespace GestureEditor;
 
@@ -42,7 +44,7 @@ public static class EditorStyles
         </ControlTemplate>
       </ToggleButton.Template>
     </ToggleButton>
-    <Popup AllowsTransparency=""True"" Placement=""Bottom"" VerticalOffset=""2""
+    <Popup x:Name=""PART_Popup"" AllowsTransparency=""True"" Placement=""Bottom"" VerticalOffset=""2""
         IsOpen=""{{TemplateBinding IsDropDownOpen}}"" PopupAnimation=""Fade"">
       <Border Background=""{Hex(p.PanelBg)}"" BorderBrush=""{Hex(p.Stroke)}"" BorderThickness=""1"" CornerRadius=""6""
           MinWidth=""{{Binding ActualWidth, RelativeSource={{RelativeSource TemplatedParent}}}}"">
@@ -52,6 +54,20 @@ public static class EditorStyles
   </Grid>
 </ControlTemplate>";
         c.Template = (ControlTemplate)XamlReader.Parse(xaml);
+        // 下拉弹层弹性入场：每次展开从 0.94 缩放弹到 1（BackEase 轻微过冲），与宿主 ContextMenu 同款手感
+        c.DropDownOpened += (_, _) =>
+        {
+            if (c.Template?.FindName("PART_Popup", c) is Popup pop && pop.Child is Border dd)
+            {
+                var st = new ScaleTransform(0.94, 0.94);
+                dd.RenderTransformOrigin = new Point(0, 0);
+                dd.RenderTransform = st;
+                var a = new DoubleAnimation(0.94, 1.0, new Duration(TimeSpan.FromMilliseconds(200)))
+                { EasingFunction = new BackEase { Amplitude = 0.45, EasingMode = EasingMode.EaseOut } };
+                st.BeginAnimation(ScaleTransform.ScaleXProperty, a);
+                st.BeginAnimation(ScaleTransform.ScaleYProperty, a);
+            }
+        };
         c.Resources[typeof(ComboBoxItem)] = ItemStyle(p, "ComboBoxItem", p.Hover, selected: false);
     }
 

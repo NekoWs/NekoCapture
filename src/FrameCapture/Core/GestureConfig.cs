@@ -23,6 +23,8 @@ public sealed class GestureBindingDto
     public string[] Actions { get; set; } = Array.Empty<string>();
     /// <summary>完成后序列（A3）：主动作全部成功后再跑（如"截图后→贴图"）。可空。</summary>
     public string[] OnComplete { get; set; } = Array.Empty<string>();
+    /// <summary>截图后行为（R157）：本条手势触发截图完成后的动作——toast/editor/copy/pin；空=跟随默认（弹提示）。仅截图类手势生效。</summary>
+    public string AfterCapture { get; set; } = "";
     /// <summary>GestureCore.FallbackPolicy 名：Stop/SkipStep/NextBinding（逐条显式，非引擎硬编码）。</summary>
     public string Fallback { get; set; } = "Stop";
     public int Priority { get; set; }
@@ -47,6 +49,7 @@ public sealed class GestureBindingDto
             Trigger = trig,
             Actions = Actions.Where(GestureActions.IsValid).ToList(),
             OnComplete = (OnComplete ?? Array.Empty<string>()).Where(GestureActions.IsValid).ToList(),
+            AfterCapture = AfterCapture ?? "",
             Fallback = fb,
             Priority = Priority,
             DoubleClickMs = Math.Clamp(DoubleClickMs, 50, 2000),
@@ -68,6 +71,7 @@ public sealed class GestureBindingDto
         {
             Id = b.Id, Chord = chord, Trigger = b.Trigger.ToString(), Actions = b.Actions.ToArray(),
             OnComplete = b.OnComplete.ToArray(),
+            AfterCapture = b.AfterCapture,
             Fallback = b.Fallback.ToString(), Priority = b.Priority,
             DoubleClickMs = b.DoubleClickMs, LongPressMs = b.LongPressMs,
         };

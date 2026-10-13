@@ -34,6 +34,12 @@ sealed class GestureInvoker : GC.IActionInvoker
         return result;
     }
 
+    // R157：绑定开始执行前，把本条手势的「截图后」交给控制器作上下文（截图完成时分派；空=默认弹提示）。
+    public void BeginBinding(GC.GestureBinding b)
+    {
+        try { _host.Controller.SetPendingAfterCapture(b.AfterCapture); } catch { }
+    }
+
     bool InvokeCore(string actionName, CaptureController c)
     {
         switch (actionName)

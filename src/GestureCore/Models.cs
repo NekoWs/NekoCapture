@@ -110,6 +110,10 @@ public sealed class GestureBinding
     /// 尽力而为：其失败不改变本条结果。宿主若把动作投递到串行队列，则天然排在主动作之后执行。</summary>
     public List<string> OnComplete { get; set; } = new List<string>();
 
+    /// <summary>截图后行为（R157）：本条手势触发截图完成后的动作——"toast"弹提示 / "editor"进编辑器 / "copy"只复制 / "pin"贴图；
+    /// 空串＝跟随默认（弹提示）。仅对含截图动作的绑定生效。取代旧的全局 AfterCapture 设置——每条手势各配各的截图后行为。</summary>
+    public string AfterCapture { get; set; } = "";
+
     /// <summary>本条绑定内某步失败时的处理策略（显式数据，非引擎硬编码）。</summary>
     public FallbackPolicy Fallback { get; set; } = FallbackPolicy.Stop;
 
@@ -125,6 +129,7 @@ public sealed class GestureBinding
         LongPressMs = LongPressMs,
         Actions = new List<string>(Actions),
         OnComplete = new List<string>(OnComplete),
+        AfterCapture = AfterCapture,
         Fallback = Fallback,
         Priority = Priority,
     };
@@ -135,6 +140,10 @@ public sealed class GestureBinding
 public interface IActionInvoker
 {
     bool Invoke(string actionName);
+
+    /// <summary>绑定开始执行前通知宿主（R157）：宿主可读取 b 的元数据（如 <see cref="GestureBinding.AfterCapture"/>）
+    /// 作为本次动作序列的上下文（截图完成时据此分派「截图后」行为）。在跑任何动作之前调用一次。实现应轻量、不抛。</summary>
+    void BeginBinding(GestureBinding b);
 }
 
 /// <summary>内部工具：把修饰键枚举格式化为 "Ctrl+Alt" 形式（供 KeyChord.Format）。</summary>

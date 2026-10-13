@@ -2409,7 +2409,7 @@ static class SelfTest
         {
             Chk("T150a-label-known",
                 FrameCapture.Core.GestureActions.LabelOf("capture.selection") == "选区截图"
-                && FrameCapture.Core.GestureActions.LabelOf("record.toggle") == "开始/停止录制（同键起停）"
+                && FrameCapture.Core.GestureActions.LabelOf("record.toggle") == "开始/停止录制"
                 && FrameCapture.Core.GestureActions.LabelOf("ocr.selection") == "识别文字",
                 "已知动作 → 中文短名");
             Chk("T150b-label-unknown-passthrough",
@@ -2467,7 +2467,9 @@ sealed class GestureProbe : GestureCore.IActionInvoker
 {
     public List<string> Log = new();
     public HashSet<string> Fail = new();
+    public List<string> Bindings = new();   // R157：记录 BeginBinding 收到的绑定 Id
     public bool Invoke(string actionName) { Log.Add(actionName); return !Fail.Contains(actionName); }
+    public void BeginBinding(GestureCore.GestureBinding b) { Bindings.Add(b.Id); }
 }
 
 /// <summary>GestureEditor 校验测试用的最小动作清单（宿主无关，只认两个合法动作名）。</summary>

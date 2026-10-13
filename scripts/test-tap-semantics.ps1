@@ -41,6 +41,9 @@ try {
     $tapOk = ($pk1 - $pk0) -ge 1
 
     # 场景2：按住 600ms（> 250ms 阈值）→ 起录→停止→编辑器，frames>1
+    # R157：场景间重启隔离——keyw(PostMessage) 不触发 WPF Esc，上一场景的编辑器/选区窗关不掉，
+    # 会让下一场景 edit.lastvideo 复用旧窗、不再产生「open editor frames=」trace（环境抖动，非产品缺陷）。
+    Restart-App
     $n2 = Count-Trace "open editor frames="
     Invoke-FcHotkey $shot $capHk 600 | Out-Null; Start-Sleep 2.0
     $f2 = Last-Frames $n2
@@ -49,6 +52,7 @@ try {
     $holdOk = $f2 -gt 1
 
     # 场景3：按住 1300ms → 更长录制，frames 明显多于场景2（阈值语义随按住时长伸缩）
+    Restart-App
     $n3 = Count-Trace "open editor frames="
     Invoke-FcHotkey $shot $capHk 1300 | Out-Null; Start-Sleep 2.2
     $f3 = Last-Frames $n3

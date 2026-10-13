@@ -217,13 +217,23 @@ public sealed class GestureEditorWindow : Window
     string Summary(BindingEdit b)
     {
         var chord = b.Chord.Format(_namer);
-        var acts = b.Actions.Count == 0 ? "（无动作）" : string.Join(" → ", b.Actions.Select(ActionLabel));
+        var acts = b.Actions.Count == 0 ? "无动作" : string.Join(" → ", b.Actions.Select(ActionLabel));
         if (b.OnComplete.Count > 0) acts += "  ⟶ 完成后: " + string.Join(" → ", b.OnComplete.Select(ActionLabel));
-        var head = (b.Enabled ? "" : "已禁用 · ") + (string.IsNullOrEmpty(chord) ? "（未设键）" : chord);
+        var head = (b.Enabled ? "" : "已禁用 · ") + (string.IsNullOrEmpty(chord) ? "未设键" : chord);
         return $"{head}  ·  {TriggerLabel(b.Trigger)}\n{acts}";
     }
 
     string ActionLabel(string actionName) => _catalog.Actions().FirstOrDefault(a => a.Name == actionName)?.Label ?? actionName;
+
+    // R157：截图后行为的中文标签（取值与宿主 AfterCapture 一致；空=跟随默认弹提示）
+    static string AfterCaptureLabel(string v) => v switch
+    {
+        "" => "跟随默认",
+        "editor" => "进编辑器",
+        "copy" => "只复制",
+        "pin" => "贴图",
+        _ => "弹提示",
+    };
 
     void AddBinding()
     {
@@ -255,13 +265,20 @@ public sealed class GestureEditorWindow : Window
         _detail.Children.Add(MakeToggle("启用此绑定", v => { b.Enabled = v; RefreshList(); RefreshValidation(); }, out _, b.Enabled));
 
         // 组合键捕获
-        _detail.Children.Add(Label("组合键（点击后按下新组合）"));
+        _detail.Children.Add(Label("组合键"));
         _chordBox = new Border { CornerRadius = new CornerRadius(6), BorderThickness = new Thickness(1), BorderBrush = _pal.B(_pal.Stroke), Background = _pal.B(_pal.CardBg), Padding = new Thickness(12, 9, 12, 9), Cursor = Cursors.Hand, Focusable = true };
         _chordText = new TextBlock { Foreground = _pal.B(_pal.Text), FontSize = 14 };
         _chordBox.Child = _chordText;
         UpdateChordText();
         _chordBox.MouseLeftButtonDown += (_, _) => BeginCapture();
         _chordBox.KeyDown += (_, e) => { if (!_capturing && e.Key is Key.Space or Key.Enter) { BeginCapture(); e.Handled = true; } };
+        // hover 与键盘焦点共用一套描边刷新：聚焦或悬停任一成立即转 accent（此前只有 hover、Tab 聚焦无可见焦点态，指令④一致性）
+        bool chordHover = false, chordFocus = false;
+        void RefreshChordBorder() { if (!_capturing) _chordBox.BorderBrush = _pal.B((chordHover || chordFocus) ? _pal.Accent : _pal.Stroke); }
+        _chordBox.MouseEnter += (_, _) => { chordHover = true; RefreshChordBorder(); };
+        _chordBox.MouseLeave += (_, _) => { chordHover = false; RefreshChordBorder(); };
+        _chordBox.GotKeyboardFocus += (_, _) => { chordFocus = true; RefreshChordBorder(); };
+        _chordBox.LostKeyboardFocus += (_, _) => { chordFocus = false; RefreshChordBorder(); };
         _detail.Children.Add(_chordBox);
 
         // 触发方式
@@ -308,8 +325,13 @@ public sealed class GestureEditorWindow : Window
             root.Children.Add(addRow);
             return root;
         }
-        _detail.Children.Add(BuildActionList(b.Actions, "动作序列（按顺序执行）", "添加动作"));
-        _detail.Children.Add(BuildActionList(b.OnComplete, "完成后序列（主动作成功后再跑，可留空）", "添加完成动作"));
+        _detail.Children.Add(BuildActionList(b.Actions, "动作序列", "添加动作"));
+        _detail.Children.Add(BuildActionList(b.OnComplete, "完成后序列", "添加完成动作"));
+
+        // 截图后（R157）：本条手势触发截图完成后的行为；空=跟随默认（弹提示）。仅截图类手势生效。
+        _detail.Children.Add(Label("截图后"));
+        var afterOpts = new object[] { "", "toast", "editor", "copy", "pin" };
+        _detail.Children.Add(MakeCombo(afterOpts, v => AfterCaptureLabel((string)v), b.AfterCapture, v => { b.AfterCapture = (string)v; RefreshList(); }));
 
         // 失败策略 + 优先级
         var two = new Grid { Margin = new Thickness(0, 4, 0, 0) };
@@ -318,7 +340,7 @@ public sealed class GestureEditorWindow : Window
         two.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         var fbCol = new StackPanel(); fbCol.Children.Add(Label("失败策略"));
         fbCol.Children.Add(MakeCombo(Enum.GetValues<FallbackPolicy>().Cast<object>(), FallbackLabel, b.Fallback, v => b.Fallback = (FallbackPolicy)v));
-        var prCol = new StackPanel(); prCol.Children.Add(Label("优先级（小者先）"));
+        var prCol = new StackPanel(); prCol.Children.Add(Label("优先级"));
         prCol.Children.Add(MakeNum(b.Priority.ToString(), s => { if (int.TryParse(s, out var p)) b.Priority = p; }));
         Grid.SetColumn(fbCol, 0); Grid.SetColumn(prCol, 2);
         two.Children.Add(fbCol); two.Children.Add(prCol);
@@ -343,7 +365,7 @@ public sealed class GestureEditorWindow : Window
         if (_selected < 0 || _selected >= _doc.Bindings.Count) return;
         var b = _doc.Bindings[_selected];
         var s = b.Chord.Format(_namer);
-        _chordText.Text = _capturing ? "按下新键…（Esc 取消）" : (string.IsNullOrEmpty(s) ? "（未设置，点击捕获）" : s);
+        _chordText.Text = _capturing ? "按下新键…（Esc 取消）" : (string.IsNullOrEmpty(s) ? "点击设置" : s);
         _chordText.Foreground = _pal.B(_capturing ? _pal.Accent : _pal.Text);
         _chordBox.BorderBrush = _pal.B(_capturing ? _pal.Accent : _pal.Stroke);
     }
@@ -411,7 +433,7 @@ public sealed class GestureEditorWindow : Window
         _saveBtn.IsEnabled = !errs;
         if (problems.Count == 0)
         {
-            _valText.Text = _doc.Enabled ? "✓ 配置有效" : "手势层当前关闭（保存后不生效，直到启用）";
+            _valText.Text = _doc.Enabled ? "✓ 配置有效" : "手势层当前关闭";
             _valText.Foreground = _pal.B(_pal.TextDim);
         }
         else
@@ -446,10 +468,10 @@ public sealed class GestureEditorWindow : Window
         TriggerKind.DoubleClick => "激活时双击",
         TriggerKind.TripleClick => "激活时三击",
         TriggerKind.LongPress => "激活时长按",
-        TriggerKind.Tap => "轻点（短按即松）",
-        TriggerKind.Hold => "按住（达阈值触发）",
-        TriggerKind.HoldRelease => "松手（按住后释放）",
-        _ => "组合键（同时按下）",
+        TriggerKind.Tap => "轻点",
+        TriggerKind.Hold => "按住",
+        TriggerKind.HoldRelease => "松手",
+        _ => "组合键",
     };
 
     static string FallbackLabel(object f) => f switch
@@ -484,6 +506,7 @@ public sealed class GestureEditorWindow : Window
         b.Foreground = _pal.B(accent ? _pal.OnAccent() : _pal.Text);
         b.BorderBrush = _pal.B(ghost ? _pal.Stroke : (accent ? _pal.Accent : _pal.Stroke));
         b.Template = SimpleButtonTemplate();
+        Springy(b);
         return b;
     }
 
@@ -498,6 +521,7 @@ public sealed class GestureEditorWindow : Window
     void StyleChromeButton(Button b)
     {
         b.Template = SimpleButtonTemplate();
+        Springy(b);
     }
 
     static ControlTemplate? _tpl;
@@ -520,17 +544,49 @@ public sealed class GestureEditorWindow : Window
         return t;
     }
 
+    /// <summary>R158：lib 自带按钮弹性（镜像宿主 Fluent.Springy，不引用宿主）——hover 轻弹、按下回缩、松手回弹。</summary>
+    static void Springy(FrameworkElement el, double hover = 1.06, double press = 0.96)
+    {
+        var st = new ScaleTransform(1, 1);
+        el.RenderTransform = st;
+        el.RenderTransformOrigin = new Point(0.5, 0.5);
+        el.MouseEnter += (_, _) => AnimateScale(st, hover, 160, new BackEase { Amplitude = 0.4, EasingMode = EasingMode.EaseOut });
+        el.MouseLeave += (_, _) => AnimateScale(st, 1.0, 140, new CubicEase { EasingMode = EasingMode.EaseOut });
+        el.PreviewMouseLeftButtonDown += (_, _) => AnimateScale(st, press, 70, new CubicEase { EasingMode = EasingMode.EaseOut });
+        el.PreviewMouseLeftButtonUp += (_, _) => AnimateScale(st, hover, 160, new BackEase { Amplitude = 0.6, EasingMode = EasingMode.EaseOut });
+    }
+    static void AnimateScale(ScaleTransform st, double to, int ms, EasingFunctionBase ease)
+    {
+        var d = new Duration(TimeSpan.FromMilliseconds(ms));
+        st.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(to, d) { EasingFunction = ease });
+        st.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(to, d) { EasingFunction = ease });
+    }
+
     StackPanel MakeToggle(string text, Action<bool> onToggle, out TextBlock state, bool initial)
     {
         var sp = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 20, 0), Cursor = Cursors.Hand };
-        bool on = initial;
-        var track = new Border { Width = 40, Height = 20, CornerRadius = new CornerRadius(10), Background = _pal.B(on ? _pal.Accent : _pal.TrackBg), VerticalAlignment = VerticalAlignment.Center };
-        var knob = new Ellipse { Width = 14, Height = 14, Fill = _pal.B(_pal.Text), HorizontalAlignment = on ? HorizontalAlignment.Right : HorizontalAlignment.Left, Margin = new Thickness(on ? 0 : 3, 0, on ? 3 : 0, 0) };
+        bool on = initial, focused = false;
+        var track = new Border
+        {
+            Width = 40, Height = 20, CornerRadius = new CornerRadius(10),
+            Background = _pal.B(on ? _pal.Accent : _pal.TrackBg),
+            BorderBrush = _pal.B(on ? _pal.Accent : _pal.Stroke),
+            BorderThickness = new Thickness(1),
+            VerticalAlignment = VerticalAlignment.Center,
+            Focusable = true, // 键盘可达：Tab 聚焦、空格/Enter 切换（与设置窗开关同款焦点环，R69 补此前鼠标专属的缺口）
+        };
+        var knob = new Ellipse { Width = 14, Height = 14, Fill = _pal.B(_pal.Text), HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(3, 0, 3, 0) };
+        var knobT = new TranslateTransform { X = on ? 20 : 0 };
+        knob.RenderTransform = knobT;
         var inner = new Grid(); inner.Children.Add(knob); track.Child = inner;
         state = new TextBlock { Text = (on ? "  " : "  ") + text, Foreground = _pal.B(_pal.Text), VerticalAlignment = VerticalAlignment.Center };
         sp.Children.Add(track); sp.Children.Add(state);
-        void Flip() { on = !on; track.Background = _pal.B(on ? _pal.Accent : _pal.TrackBg); knob.HorizontalAlignment = on ? HorizontalAlignment.Right : HorizontalAlignment.Left; knob.Margin = new Thickness(on ? 0 : 3, 0, on ? 3 : 0, 0); onToggle(on); }
+        void SetBorder() => track.BorderBrush = _pal.B(focused || on ? _pal.Accent : _pal.Stroke);
+        void Flip() { on = !on; track.Background = _pal.B(on ? _pal.Accent : _pal.TrackBg); SetBorder(); knobT.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(on ? 20 : 0, new Duration(TimeSpan.FromMilliseconds(220))) { EasingFunction = new BackEase { Amplitude = 0.3, EasingMode = EasingMode.EaseOut } }); onToggle(on); }
         sp.MouseLeftButtonDown += (_, _) => Flip();
+        track.KeyDown += (_, e) => { if (e.Key is Key.Space or Key.Enter) { Flip(); e.Handled = true; } };
+        track.GotKeyboardFocus += (_, _) => { focused = true; SetBorder(); };
+        track.LostKeyboardFocus += (_, _) => { focused = false; SetBorder(); };
         return sp;
     }
 }

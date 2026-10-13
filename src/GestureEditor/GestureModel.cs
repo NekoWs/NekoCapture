@@ -31,6 +31,8 @@ public sealed class BindingEdit
     /// <summary>完成后序列（A3）：主 <see cref="Actions"/> 成功后再跑（如"截图后→贴图"）。可空。</summary>
     public List<string> OnComplete { get; set; } = new();
     public FallbackPolicy Fallback { get; set; } = FallbackPolicy.Stop;
+    /// <summary>截图后行为（R157）：本条手势触发截图完成后的动作；空=跟随默认（弹提示）。仅截图类手势生效。</summary>
+    public string AfterCapture { get; set; } = "";
     public int Priority { get; set; }
     public int DoubleClickMs { get; set; } = 400;
     public int LongPressMs { get; set; } = 500;
@@ -40,7 +42,7 @@ public sealed class BindingEdit
     public BindingEdit Clone() => new BindingEdit
     {
         Id = Id, Enabled = Enabled, Mods = Mods, Key = Key, Trigger = Trigger,
-        Actions = new List<string>(Actions), OnComplete = new List<string>(OnComplete), Fallback = Fallback, Priority = Priority,
+        Actions = new List<string>(Actions), OnComplete = new List<string>(OnComplete), Fallback = Fallback, AfterCapture = AfterCapture, Priority = Priority,
         DoubleClickMs = DoubleClickMs, LongPressMs = LongPressMs,
     };
 }

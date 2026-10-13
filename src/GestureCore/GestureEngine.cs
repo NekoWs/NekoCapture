@@ -305,6 +305,7 @@ public sealed class GestureEngine
     /// 主序列成功后再跑「完成后序列」OnComplete（A3）——尽力而为，其失败不改变本条结果。</summary>
     bool RunActions(GestureBinding b)
     {
+        try { _invoker.BeginBinding(b); } catch { }   // R157：把本条绑定元数据（如截图后行为）交给宿主作上下文
         foreach (var action in b.Actions)
         {
             bool ok;
