@@ -102,6 +102,9 @@ public sealed class RegionPickerWindow : Window
             // 选区窗本身绝不入镜（BitBlt/WGC 都拍不到）：放大镜快照因此可在 Show 之后异步抓，
             // 把 4K 抓取挪出打开关键路径 → 选区窗更快出现，且遮罩已渲染也不影响取色。
             try { Win32.SetWindowDisplayAffinity(h, Win32.WDA_EXCLUDEFROMCAPTURE); } catch { }
+            // R160：WS_EX_NOACTIVATE——Show 与鼠标按下都不激活本窗，前台焦点始终留在目标窗。
+            // 否则拖框的 MouseDown 会把焦点从浏览器抢走，Z 序/前台一变，选区里就截到别的软件。
+            try { Win32.SetWindowLongW(h, Win32.GWL_EXSTYLE, Win32.GetWindowLongW(h, Win32.GWL_EXSTYLE) | Win32.WS_EX_NOACTIVATE); } catch { }
             if (_magnifier) StartMagnifierSnapshot();
             // 分层窗（AllowsTransparency）没有黑首帧问题，绝不能屏外停放：
             // 本窗 Left/Top 在 Loaded 才赋值，Park 抓到的 home=NaN，回写 NaN 会让系统级联位兜底（实测偏移 266,266，提示被推出屏外）
@@ -117,6 +120,7 @@ public sealed class RegionPickerWindow : Window
         Title = "FrameCapture Region"; // 与 SourceInitialized 里 SetWindowText 一致，自动化可定位
         ShowInTaskbar = false;
         Topmost = true;
+        ShowActivated = false; // R160：不夺前台焦点（配合 SourceInitialized 里的 WS_EX_NOACTIVATE）——目标窗（如浏览器）保持焦点，截图不再截错窗口
         // 与其它置顶窗（游戏等）同带竞争：失活即重插到置顶带最前，另有 400ms 巡检兜底
         Deactivated += (_, _) => { if (IsLoaded) ReassertTop(); };
         _topTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(400) };
@@ -179,7 +183,7 @@ public sealed class RegionPickerWindow : Window
         Content = rootGrid;
 
         Loaded += (_, _) => _topTimer.Start();
-        Closed += (_, _) => _topTimer.Stop();
+        Closed += (_, _) => { _topTimer.Stop(); Services.HotkeyManager.PickerActive = false; Services.HotkeyManager.PickerKey = null; }; // R160：清零全局键拦截，绝不泄漏成"全局键失灵"
 
         Loaded += (_, _) =>
         {
@@ -324,47 +328,13 @@ public sealed class RegionPickerWindow : Window
                 st.BeginAnimation(ScaleTransform.ScaleXProperty, MaskAnim(1, 190, 90));
                 st.BeginAnimation(ScaleTransform.ScaleYProperty, MaskAnim(1, 190, 90));
             }
-            Activate();
-            Keyboard.Focus(this);
+            // R160：不再 Activate/抢键盘焦点——选区窗是非激活窗，键由 HotkeyManager 全局钩子代收（见 OnPickerKey）。
+            Services.HotkeyManager.PickerActive = true;
+            Services.HotkeyManager.PickerKey = OnPickerKey;
         };
 
-        KeyDown += (_, e) =>
-        {
-            if (e.Key == Key.Escape) Finish(null);
-            else if (e.Key == Key.Enter && _existing != null) Finish(_existing);
-            else if (e.Key == Key.C && _loupeHexText.Length > 0)
-            {
-                // 取色：复制光标下像素的 #RRGGBB 到剪贴板
-                try { System.Windows.Clipboard.SetText(_loupeHexText); } catch { }
-                if (_loupeHex != null) _loupeHex.Text = "已复制 " + _loupeHexText;
-                e.Handled = true;
-            }
-            else if (e.Key == Key.F)
-            {
-                // R96：循环取色复制格式 Hex→RGB→HSL，就地刷新放大镜读数并持久化（下次捕获/设置窗同步）
-                _colorFormat = (Core.ColorCopyFormat)(((int)_colorFormat + 1) % 3);
-                if (_lastRgb is { } c && _loupeHex != null)
-                {
-                    _loupeHexText = Core.ColorFormat.Format(c.r, c.g, c.b, _colorFormat);
-                    _loupeHex.Text = _loupeHexText;
-                }
-                Services.AppHost.Current.Settings.Mutate(s => s.ColorCopyFormat = Core.ColorFormat.ToSetting(_colorFormat));
-                e.Handled = true;
-            }
-            else if (e.Key == Key.Tab && _curElem != null)
-            {
-                // Tab 上钻控件层级：输入框 → 表单容器 → … → 整窗。锁定结果，鼠标微动不再被 hover 抢回子控件（R119）。
-                var up = Core.ElementSnap.Parent(_curElem);
-                if (up != null)
-                {
-                    _curElem = up;
-                    _drillLock = true;
-                    _drillAnchor = Mouse.GetPosition(this);
-                    ShowSpot(up.Rect);
-                    e.Handled = true;
-                }
-            }
-        };
+        // R160：原 WPF KeyDown 已移除——选区窗是非激活窗（WS_EX_NOACTIVATE），KeyDown 不会触发；
+        // Esc/Enter/C/F/Tab 改由 HotkeyManager 全局钩子代收（见类末 OnPickerKey）。
         MouseLeftButtonDown += OnDown;
         MouseMove += OnMove;
         MouseLeftButtonUp += OnUp;
@@ -374,6 +344,71 @@ public sealed class RegionPickerWindow : Window
             var hit = SnapWindowAt(p);
             Finish(hit ?? _existing ?? new RectI(_monitorPhys.X, _monitorPhys.Y, _monitorPhys.W, _monitorPhys.H));
         };
+    }
+
+    // ---------- R160：全局钩子代收选区窗按键（选区窗不抢焦点，键不会进它自己的 HWND）----------
+    /// <summary>由 HotkeyManager 全局低级键盘钩子在 PickerActive 时调用。返回 true=本键归选区窗处理（吞掉，前台收不到）。
+    /// 只接管无 Ctrl/Alt/Win 的裸键：Ctrl+C 等留给前台，Ctrl+Esc 是开始菜单，含修饰键的组合放行给手势层。
+    /// 动作经 Dispatcher.BeginInvoke 投递到干净的 dispatcher 轮次执行（与浮窗/滚动同款，避免在输入链里做重活）。</summary>
+    private bool OnPickerKey(uint vk)
+    {
+        if (Win32.IsKeyDown(Win32.VK_CONTROL) || Win32.IsKeyDown(Win32.VK_MENU)
+            || Win32.IsKeyDown(Win32.VK_LWIN) || Win32.IsKeyDown(Win32.VK_RWIN)) return false;
+        switch (vk)
+        {
+            case 0x1B: // Esc 取消
+                Dispatcher.BeginInvoke(() => Finish(null));
+                return true;
+            case 0x0D: // Enter 确认上次选区
+                if (_existing == null) return false;
+                Dispatcher.BeginInvoke(() => Finish(_existing.Value));
+                return true;
+            case 0x43: // C 复制光标下像素色
+                if (_loupeHexText.Length == 0) return false;
+                {
+                    var t = _loupeHexText;
+                    Dispatcher.BeginInvoke(() =>
+                    {
+                        try { System.Windows.Clipboard.SetText(t); } catch { }
+                        if (_loupeHex != null) _loupeHex.Text = "已复制 " + t;
+                    });
+                }
+                return true;
+            case 0x46: // F 循环取色复制格式 Hex→RGB→HSL
+                Dispatcher.BeginInvoke(CycleColorFormat);
+                return true;
+            case 0x09: // Tab 上钻控件层级
+                if (_curElem == null) return false;
+                Dispatcher.BeginInvoke(DrillUpElement);
+                return true;
+            default: return false;
+        }
+    }
+
+    // R96：循环取色复制格式 Hex→RGB→HSL，就地刷新放大镜读数并持久化（下次捕获/设置窗同步）
+    private void CycleColorFormat()
+    {
+        _colorFormat = (Core.ColorCopyFormat)(((int)_colorFormat + 1) % 3);
+        if (_lastRgb is { } c && _loupeHex != null)
+        {
+            _loupeHexText = Core.ColorFormat.Format(c.r, c.g, c.b, _colorFormat);
+            _loupeHex.Text = _loupeHexText;
+        }
+        Services.AppHost.Current.Settings.Mutate(s => s.ColorCopyFormat = Core.ColorFormat.ToSetting(_colorFormat));
+    }
+
+    // Tab 上钻控件层级：输入框 → 表单容器 → … → 整窗。锁定结果，鼠标微动不再被 hover 抢回子控件（R119）。
+    private void DrillUpElement()
+    {
+        if (_curElem == null) return;
+        var up = Core.ElementSnap.Parent(_curElem);
+        if (up != null)
+        {
+            _curElem = up;
+            _drillLock = true;
+            _drillAnchor = Mouse.GetPosition(this);
+            ShowSpot(up.Rect);
+        }
     }
 
     private Rectangle _spotStroke = null!;

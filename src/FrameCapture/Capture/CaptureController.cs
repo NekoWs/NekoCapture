@@ -23,6 +23,13 @@ public sealed class CaptureController : IDisposable
     private bool _captureAfterSelect;
     /// <summary>R120 B2：QQ 式「选区录制」——本次选区确认后立即对该区域起录。</summary>
     private bool _recordAfterSelect;
+    /// <summary>R157：本条手势的「截图后」（引擎 BeginBinding 设，截图发起时捕获进 <see cref="_sessionAfter"/>）。空=默认弹提示。</summary>
+    private string _pendingAfter = "";
+    /// <summary>R157：本次截图会话的「截图后」（发起时从 <see cref="_pendingAfter"/> 捕获，完成时分派）。
+    /// 单独存一份是为防选区拖框期间触发的别的手势把 _pendingAfter 覆盖掉。</summary>
+    private string _sessionAfter = "";
+    /// <summary>R157：引擎在跑某条手势动作前告知本条的「截图后」（空=默认）。仅记录，真正生效在截图发起时捕获。</summary>
+    public void SetPendingAfterCapture(string? v) => _pendingAfter = string.IsNullOrEmpty(v) ? "" : v;
     /// <summary>选区完成后到真正抓取/起录之间的留白(ms)。选区窗已 WDA_EXCLUDEFROMCAPTURE，抓取本就拍不到它；
     /// 这里只留极短一拍让选区窗 Close() 走完（防 WDA 万一失效时把选区界面截进画面）。旧值 220ms 明显拖慢截图。</summary>
     private const int PickerExitMs = 40;
@@ -150,7 +157,7 @@ public sealed class CaptureController : IDisposable
         if (scopeIntent == Core.CaptureGuards.ScopeIntent.RefocusPicker)
         {
             // 再按一次热键：把选取层重新顶到所有窗口最前（游戏等霸屏窗口会盖住它）
-            _picker!.Show(); ForceForeground(_picker);
+            _picker!.Show(); // R160：不再 ForceForeground（选区窗不抢焦点，见本方法末尾注释）
             return;
         }
         CloseEditor();
@@ -230,7 +237,8 @@ public sealed class CaptureController : IDisposable
             }
         };
         _picker.Show();
-        ForceForeground(_picker);
+        // R160：不再 ForceForeground——选区窗是非激活窗，抢前台会把焦点从目标窗（如浏览器）夺走，
+        // Z 序/前台一变，选区里就截到别的软件。Topmost + ReassertTop 已保证视觉置顶，键走全局钩子代收。
         FrameCapture.Core.Trace.Log($"picker Show returned dt={swOpen.ElapsedMilliseconds}ms");
     }
 
@@ -239,6 +247,7 @@ public sealed class CaptureController : IDisposable
     public void BeginScrollCapture()
     {
         FrameCapture.Core.Trace.Log("scroll capture→picker");
+        _sessionAfter = _pendingAfter; _pendingAfter = "";   // R157：捕获本条手势的截图后
         BeginScopeSelection();
         _scrollAfterSelect = true;
     }
@@ -247,6 +256,7 @@ public sealed class CaptureController : IDisposable
     public void BeginCaptureSelection()
     {
         FrameCapture.Core.Trace.Log("capture-selection→picker");
+        _sessionAfter = _pendingAfter; _pendingAfter = "";   // R157：捕获本条手势的截图后
         BeginScopeSelection();
         _captureAfterSelect = true;
     }
@@ -278,6 +288,7 @@ public sealed class CaptureController : IDisposable
     public void CaptureInstantStill()
     {
         if (State != Phase.Idle) return;
+        _sessionAfter = _pendingAfter; _pendingAfter = "";   // R157：捕获本条手势的截图后
         var region = FullMonitorAtCursor();
         var f = LiveCapture.Grab(region.Bounds);
         if (f == null) { FrameCapture.Core.Trace.Log("instant still: grab null"); return; }
@@ -290,6 +301,7 @@ public sealed class CaptureController : IDisposable
     public void CaptureStoredStill()
     {
         if (State != Phase.Idle) return;
+        _sessionAfter = _pendingAfter; _pendingAfter = "";   // R157：捕获本条手势的截图后（托盘触发时 _pendingAfter 已空=默认弹提示）
         var region = StoredRegion() ?? FullMonitorAtCursor();
         var f = LiveCapture.Grab(region.Bounds);
         if (f == null) { FrameCapture.Core.Trace.Log("stored still: grab null"); return; }
@@ -395,7 +407,7 @@ public sealed class CaptureController : IDisposable
         FrameCapture.Services.SaveService.MaybeSavePng(frame);
         if (_settings.Current.CaptureSound) FrameCapture.Core.CaptureSound.Play();
         FrameCapture.Core.Trace.Log($"scroll done {frame.W}x{frame.H} segs={segs} {pth}");
-        switch (FrameCapture.Core.AfterCapture.Resolve(_settings.Current.AfterCapture))
+        switch (FrameCapture.Core.AfterCapture.Resolve(_sessionAfter))
         {
             case FrameCapture.Core.AfterCaptureAction.Editor:
                 OpenEditorForFrame(frame, reg, dev);
@@ -427,6 +439,7 @@ public sealed class CaptureController : IDisposable
     public void BeginDelayedCapture()
     {
         if (_delayWindow != null) { FrameCapture.Core.Trace.Log("delay: already running, ignore"); return; }
+        _sessionAfter = _pendingAfter; _pendingAfter = "";   // R157：捕获本条手势的截图后
         int secs = Math.Clamp(_settings.Current.DelayCaptureSeconds, 0, 60);
         var region = StoredRegion() ?? FullMonitorAtCursor();
         string label = StoredRegion() != null ? $"范围 {region.Bounds.W}×{region.Bounds.H}" : "全屏";
@@ -490,7 +503,7 @@ public sealed class CaptureController : IDisposable
         FrameCapture.Services.SaveService.MaybeSavePng(f);
         if (_settings.Current.CaptureSound) FrameCapture.Core.CaptureSound.Play();
         FrameCapture.Core.Trace.Log($"delay fire {f.W}x{f.H}");
-        switch (FrameCapture.Core.AfterCapture.Resolve(_settings.Current.AfterCapture))
+        switch (FrameCapture.Core.AfterCapture.Resolve(_sessionAfter))
         {
             case FrameCapture.Core.AfterCaptureAction.Editor:
                 OpenEditorForFrame(f, reg, dev);
@@ -789,7 +802,7 @@ public sealed class CaptureController : IDisposable
         FrameCapture.Core.Trace.Log($"still saved {pth} {f.W}x{f.H}");
         if (_settings.Current.CaptureSound) FrameCapture.Core.CaptureSound.Play(); // R86 提示音（关=零副作用）
         // 截图后行为（R83）：弹提示浮窗 / 直接进编辑器 / 只复制 / 贴图——四态覆盖不同人群
-        switch (FrameCapture.Core.AfterCapture.Resolve(_settings.Current.AfterCapture))
+        switch (FrameCapture.Core.AfterCapture.Resolve(_sessionAfter))
         {
             case FrameCapture.Core.AfterCaptureAction.Editor:
                 OpenEditorForFrame(f, reg, device);

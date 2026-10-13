@@ -112,6 +112,36 @@ public partial class App : System.Windows.Application
         if (e.Args.Any(a => string.Equals(a, "--gesture", StringComparison.OrdinalIgnoreCase)))
             Dispatcher.BeginInvoke(() => Services.GestureEditorHost.ShowOrFocus(),
                 System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+        // 打开托盘右键菜单（同一入口，便于脚本/e2e 调用与截图审查；用户也可绑一个热键唤出）
+        if (e.Args.Any(a => string.Equals(a, "--tray-menu", StringComparison.OrdinalIgnoreCase)))
+            Dispatcher.BeginInvoke(() => Services.AppHost.Current.Tray.ShowMenu(),
+                System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+        // 打开滚动截图控制条（模拟拼接进度，便于脚本/e2e 调用与截图审查；不启动真实滚动捕获）
+        if (e.Args.Any(a => string.Equals(a, "--scroll-hint", StringComparison.OrdinalIgnoreCase)))
+            Dispatcher.BeginInvoke(() =>
+            {
+                var mon = Capture.Monitors.All().FirstOrDefault(m => m.IsPrimary) ?? Capture.Monitors.Nearest(0, 0);
+                var region = new Capture.RectI(mon.Bounds.X + mon.Bounds.W / 2 - 220, mon.Bounds.Y + mon.Bounds.H / 2 - 160, 440, 320);
+                var bar = new Overlays.ScrollHintWindow(region, mon.DeviceName);
+                bar.OnDone = bar.OnCancel = () => bar.CloseSelf();
+                Overlays.ScrollHintWindow.Current = bar;
+                bar.Show();
+                int seg = 1;
+                var t = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(850) };
+                t.Tick += (_, _) => { seg++; bar.SetProgress(seg, 320 + seg * 260); };
+                t.Start();
+            }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+        // 打开首次启动欢迎卡（便于脚本/e2e 调用与截图审查；不改动 FirstRunHintShown，纯查看）
+        if (e.Args.Any(a => string.Equals(a, "--welcome", StringComparison.OrdinalIgnoreCase)))
+            Dispatcher.BeginInvoke(() =>
+            {
+                var st = Services.AppHost.Current.Settings;
+                Overlays.WelcomeToast.Show(st.Current.Gestures.CaptureKeyText(), st.Current.Gestures.ScopeKeyText());
+            }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+        // R160：打开选区窗（截图/选区同一入口，便于脚本/e2e 验证「不抢焦点」与全局键代收）
+        if (e.Args.Any(a => string.Equals(a, "--picker", StringComparison.OrdinalIgnoreCase)))
+            Dispatcher.BeginInvoke(() => Services.AppHost.Current.Controller.BeginScopeSelection(),
+                System.Windows.Threading.DispatcherPriority.ApplicationIdle);
     }
 
     void StartMessageSink()

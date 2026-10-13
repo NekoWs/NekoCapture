@@ -25,6 +25,13 @@ public sealed class HotkeyManager : IDisposable
     public static volatile bool ToastActive;
     public static Action? ToastEnter;
     public static Action? ToastEsc;
+    /// <summary>选区窗（RegionPickerWindow）活跃时置位：全局代收 Esc/Enter/C/F/Tab 并吞掉。R160 修
+    /// 「截图抢焦点→截到别的软件」：选区窗改 WS_EX_NOACTIVATE + ShowActivated=false 不再夺前台，目标窗
+    /// （如浏览器）保持焦点，其键不会进选区窗自己的 HWND，只能靠全局钩子代劳（与滚动/浮窗同款会话拦截）。
+    /// PickerKey 返回 true=本键归选区窗处理（吞掉，前台收不到）；false=放行。生命周期绑定选区窗 Loaded/Closed，
+    /// 绝不泄漏成"全局键失灵"。</summary>
+    public static volatile bool PickerActive;
+    public static Func<uint, bool>? PickerKey;
     /// <summary>R94 暂停全局热键：为 true 时钩子对所有自有热键放行（不触发、不吞键），
     /// 让键完整落到前台应用——游戏/演示/与其他软件热键冲突时临时避让。托盘「暂停全局热键」切换，
     /// 运行时状态（不持久化，重启自动恢复工作）。滚动会话的 Esc 取消仍优先于本判断。</summary>
@@ -120,6 +127,10 @@ public sealed class HotkeyManager : IDisposable
             if (vk == 0x0D) ToastEnter?.Invoke(); else ToastEsc?.Invoke();
             return true;
         }
+
+        // 选区窗活跃：Esc/Enter/C/F/Tab 全局代收并吞掉（选区窗不抢焦点，键不会进它自己的 HWND，R160）。
+        // 放在手势喂键之后、独占吞键之前：会话级优先；选区窗只认裸键（OnPickerKey 内查修饰键，Ctrl/Alt/Win 组合放行给手势与前台）。
+        if (isDown && PickerActive && PickerKey != null && PickerKey(vk)) return true;
 
         // 独占吞键（R120 B2）：手势命中「带具体键的组合键」→ 吞掉本键，前台程序收不到（QQ 式全局独占）。
         // 放在滚动/浮窗判定之后：那两类是会话级优先；且手势只绑具体键(A/R)，不会误吞 Esc/Enter。
