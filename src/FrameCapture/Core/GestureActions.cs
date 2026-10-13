@@ -58,4 +58,12 @@ public static class GestureActions
         new(System.Linq.Enumerable.Select(All, a => a.Name));
 
     public static bool IsValid(string? name) => name != null && Names.Contains(name);
+
+    /// <summary>动作名 → 中文短名（供设置窗「当前生效键位」等处展示）；未知名原样返回（不崩，便于前向兼容）。</summary>
+    public static string LabelOf(string? name)
+    {
+        if (string.IsNullOrEmpty(name)) return "";
+        foreach (var a in All) if (a.Name == name) return a.Label;
+        return name!;
+    }
 }

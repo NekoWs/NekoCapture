@@ -2404,6 +2404,19 @@ static class SelfTest
                 && FrameCapture.Core.GestureConfig.TriggerLabel("DoubleClick") == "双击",
                 "触发后缀：轻点/空/松手/双击");
         }
+
+        // T150 设置窗「当前生效键位」用动作短标签（R149，GestureActions.LabelOf 纯查找）
+        {
+            Chk("T150a-label-known",
+                FrameCapture.Core.GestureActions.LabelOf("capture.selection") == "选区截图"
+                && FrameCapture.Core.GestureActions.LabelOf("record.toggle") == "开始/停止录制（同键起停）"
+                && FrameCapture.Core.GestureActions.LabelOf("ocr.selection") == "识别文字",
+                "已知动作 → 中文短名");
+            Chk("T150b-label-unknown-passthrough",
+                FrameCapture.Core.GestureActions.LabelOf("future.xyz") == "future.xyz"
+                && FrameCapture.Core.GestureActions.LabelOf(null) == "",
+                "未知名原样返回（前向兼容不崩）/ null → 空串");
+        }
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");
         return fail == 0 ? 0 : 1;
     }

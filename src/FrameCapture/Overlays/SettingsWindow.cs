@@ -104,7 +104,7 @@ public sealed class SettingsWindow : Window
             FontSize = 12.5,
             Margin = new Thickness(2, 2, 0, 6),
             TextWrapping = TextWrapping.Wrap,
-            Text = "捕获键「轻点 = 截图、按住 = 录制」，选区键「组合键 = 选区」——全部键位与触发方式在下方手势配置器里增删改，保存即生效。",
+            Text = "当前生效的键位如下（按你的手势配置实时反映）——增删改请打开下方手势配置器，保存即生效。",
         });
 
         // ---- 当前生效键位（R126 B2：从手势绑定推导，免开配置器即可一眼看到截图/选区键）----
@@ -130,8 +130,20 @@ public sealed class SettingsWindow : Window
             row.Children.Add(lb); row.Children.Add(kv);
             keyStack.Children.Add(row);
         }
-        KeyRow("截图键", gk.CaptureKeyText());
-        KeyRow("选区键", gk.ScopeKeyText());
+        // R149：逐条列出用户真实绑定（动作→键），不再写死「截图键/选区键」两槽——
+        // 自定义手势下旧 ScopeKeyText 会回落成没绑定的死键（Ctrl+Shift+R），且漏掉录制键。
+        var active = gk.Bindings
+            .Where(b => b.Enabled && b.Actions.Length > 0 && HotkeySpec.Parse(b.Chord) != null)
+            .ToList();
+        if (active.Count == 0)
+            KeyRow("键位", "未配置");
+        else
+            foreach (var b in active)
+            {
+                var suf = GestureConfig.TriggerLabel(b.Trigger);
+                KeyRow(string.Join("·", b.Actions.Select(GestureActions.LabelOf)),
+                       b.Chord + (suf.Length > 0 ? " " + suf : ""));
+            }
         keyCard.Child = keyStack;
         panel.Children.Add(keyCard);
 
