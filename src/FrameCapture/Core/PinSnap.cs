@@ -54,4 +54,38 @@ public static class PinSnap
         if (by > threshold) nt = top;
         return (nl, nt);
     }
+
+    /// <summary>R163 拖动实时磁吸阈值（DIP）：参考 Slick Window Arrangement 的固定吸附距离，
+    /// 按贴图尺寸微调并夹在 12–22。有了「垂直跨度重叠才吸」的判定，阈值不必很大也不会乱吸。</summary>
+    public static double MagnetDist(double w, double h) => Math.Clamp(Math.Min(w, h) * 0.06, 12, 22);
+
+    /// <summary>一条磁吸参考边：Pos=边的坐标，Span0/Span1=该边在垂直方向上的跨度。
+    /// 只有本贴图该轴的边与参考边在垂直方向重叠时才会吸附（Slick Window Arrangement 手感核心）。</summary>
+    public readonly struct Edge
+    {
+        public readonly double Pos, Span0, Span1;
+        public Edge(double pos, double s0, double s1) { Pos = pos; Span0 = s0; Span1 = s1; }
+    }
+
+    /// <summary>R163 单轴磁吸（参考 Slick Window Arrangement）：本贴图该轴近边（左/上）只与 nearTargets
+    /// 里的同类边对齐、远边（右/下）只与 farTargets 对齐（同类边对同类边 + 屏幕边），且要求垂直跨度重叠。
+    /// 近/远边各取阈值内最近者（互斥）。返回该轴最终位置（near 值）。纯函数，供单测。</summary>
+    public static double Magnet(double near, double far, double span0, double span1,
+        IReadOnlyList<Edge> nearTargets, IReadOnlyList<Edge> farTargets, double threshold)
+    {
+        double best = double.MaxValue, shift = 0; bool found = false;
+        foreach (var e in nearTargets)
+        {
+            if (span0 >= e.Span1 || span1 <= e.Span0) continue;   // 垂直跨度不重叠 → 不吸
+            double d = Math.Abs(e.Pos - near);
+            if (d <= threshold && d < best) { best = d; shift = e.Pos - near; found = true; }
+        }
+        foreach (var e in farTargets)
+        {
+            if (span0 >= e.Span1 || span1 <= e.Span0) continue;
+            double d = Math.Abs(e.Pos - far);
+            if (d <= threshold && d < best) { best = d; shift = e.Pos - far; found = true; }
+        }
+        return found ? near + shift : near;
+    }
 }

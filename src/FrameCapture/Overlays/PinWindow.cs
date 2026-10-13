@@ -39,6 +39,10 @@ public sealed class PinWindow : Window
     bool _dragging;
     double _grabDX, _grabDY;   // 光标相对贴图左上角的抓取偏移（DIP），拖动时贴图不"跳"到光标下
     double _rawLeft, _rawTop;  // 未吸附的逻辑位置（磁吸作为显示偏移叠加其上，避免与光标互相拉扯）
+    // R163 拖动实时磁吸：拖拽起点预计算的本屏参考边（DIP，带垂直跨度），左/右、上/下分开（同类边对同类边）
+    System.Collections.Generic.List<FrameCapture.Core.PinSnap.Edge>
+        _snapXL = null!, _snapXR = null!, _snapYT = null!, _snapYB = null!;
+    string? _snapScr;
 
     public PinWindow(CapturedFrame frame, RectI physPos, bool activateOnShow = true)
     {
@@ -128,6 +132,8 @@ public sealed class PinWindow : Window
                 }
                 _rawLeft = Left; _rawTop = Top;
                 _winGuides = BuildWinGuides();   // R162：拖拽起点快照窗口参考线，拖动途中不再全量枚举
+                _snapScr = null;
+                BuildSnapLines();                // R163：起点预计算本屏参考边（带跨度），拖动途中零枚举
                 _dragging = true;
                 CaptureMouse();
                 e.Handled = true;
@@ -142,9 +148,15 @@ public sealed class PinWindow : Window
             _rawTop = pt.Y / d.DpiScaleY - _grabDY;
             if (FrameCapture.Core.SettingsService.Shared?.Current.PinSnapEdges == true)
             {
-                // 实时磁吸：靠近屏幕边/同屏其他贴图边·中线时，贴图当场"吸附上去"——拖动过程即可感（Snipaste 手感）
-                var (sl, st) = SnapTarget(_rawLeft, _rawTop);
-                Left = sl; Top = st;
+                // R163 实时磁吸（Slick Window Arrangement 手感）：临近屏幕边/窗口边/其他贴图边就吸过去。
+                // 关键＝只有垂直跨度真正重叠的同类边才吸（杜绝「到处吸附」）；无滞回也不抖（重叠判定天然稳定）。
+                double ccx = (_rawLeft + Width / 2) * d.DpiScaleX, ccy = (_rawTop + Height / 2) * d.DpiScaleY;
+                if (_snapScr == null ||
+                    System.Windows.Forms.Screen.FromPoint(new System.Drawing.Point((int)ccx, (int)ccy)).DeviceName != _snapScr)
+                    BuildSnapLines();   // 仅跨屏时重建（罕见），同屏零枚举
+                double md = FrameCapture.Core.PinSnap.MagnetDist(Width, Height);
+                Left = FrameCapture.Core.PinSnap.Magnet(_rawLeft, _rawLeft + Width, _rawTop, _rawTop + Height, _snapXL, _snapXR, md);
+                Top = FrameCapture.Core.PinSnap.Magnet(_rawTop, _rawTop + Height, Left, Left + Width, _snapYT, _snapYB, md);
             }
             else { Left = _rawLeft; Top = _rawTop; }
         };
@@ -152,9 +164,10 @@ public sealed class PinWindow : Window
         {
             if (!_dragging) return;
             _dragging = false;
-            _winGuides = null;
             ReleaseMouseCapture();
-            SnapToEdge(); // 收尾兜底（实时已吸附，这里确保最终贴合 + 记 trace）
+            // R163：磁吸已在拖动中把贴图放到线上，松手无需再吸一次；清拖拽态
+            _winGuides = null; _snapScr = null;
+            _snapXL = _snapXR = _snapYT = _snapYB = null!;
         };
         MouseWheel += (_, e) =>
         {
@@ -338,48 +351,50 @@ public sealed class PinWindow : Window
         catch { Flash("保存失败"); }
     }
 
-    /// <summary>R120 A3：算出把贴图放到 (left,top) 时磁吸后的目标位置——屏幕工作区四边 + 同屏可见窗口/贴图的边。
-    /// 用贴图中心定位所在屏（多屏），工作区物理像素 ÷ DpiScale 转 DIP 与 Left/Top 同单位。纯几何，
-    /// 拖拽实时（MouseMove）与松手收尾（SnapToEdge）共用同一套参考线，保证手感一致。
-    /// R161：参考线扩展到同屏所有普通应用窗口的边（「贴图窗口吸附」）。
-    /// R162：①只吸边不吸中线（用户点名「屏幕边缘、可视窗口边缘就够了」，中线是乱吸+卡顿感主源）；
-    /// ②窗口参考线在拖拽起点快照缓存——此前每个 MouseMove 全量 EnumWindows+DWM 查框，拖动明显掉帧。</summary>
-    (double Left, double Top) SnapTarget(double left, double top)
+    List<(double L, double T, double R, double B)>? _winGuides;   // DIP，拖拽期间有效
+
+    /// <summary>R163：拖拽起点一次性算好本屏磁吸参考边（屏幕工作区四边 + 同屏其他贴图边 + 同屏窗口边，全 DIP，
+    /// 每条边带垂直跨度）。左/上边进 near 列表、右/下边进 far 列表（同类边对同类边）。此前每个 MouseMove 全量重算
+    /// （含多次 Screen.FromPoint）＝拖动掉帧「卡卡的」来源之一；预计算后热路径只剩纯几何。</summary>
+    void BuildSnapLines()
     {
+        _snapXL = new(); _snapXR = new(); _snapYT = new(); _snapYB = new();
         try
         {
             var d = VisualTreeHelper.GetDpi(this);
-            double cx = (left + Width / 2) * d.DpiScaleX, cy = (top + Height / 2) * d.DpiScaleY;
+            double cx = (Left + Width / 2) * d.DpiScaleX, cy = (Top + Height / 2) * d.DpiScaleY;
             var scr = System.Windows.Forms.Screen.FromPoint(new System.Drawing.Point((int)cx, (int)cy));
+            _snapScr = scr.DeviceName;
             var wa = scr.WorkingArea;
             double cl = wa.X / d.DpiScaleX, ct = wa.Y / d.DpiScaleY, cr = wa.Right / d.DpiScaleX, cb = wa.Bottom / d.DpiScaleY;
-            // R77：同屏其他贴图的边作为对齐参考线（跨屏 DPI 不同，仅同屏参与，避免 DIP 混算）
-            var xAny = new System.Collections.Generic.List<double>();
-            var yAny = new System.Collections.Generic.List<double>();
+            // 屏幕工作区四边：左/上边可被本贴图左/上边吸，右/下边可被本贴图右/下边吸
+            _snapXL.Add(new FrameCapture.Core.PinSnap.Edge(cl, ct, cb));
+            _snapXR.Add(new FrameCapture.Core.PinSnap.Edge(cr, ct, cb));
+            _snapYT.Add(new FrameCapture.Core.PinSnap.Edge(ct, cl, cr));
+            _snapYB.Add(new FrameCapture.Core.PinSnap.Edge(cb, cl, cr));
+            void AddRect(double l, double t, double r, double b)
+            {
+                _snapXL.Add(new FrameCapture.Core.PinSnap.Edge(l, t, b));
+                _snapXR.Add(new FrameCapture.Core.PinSnap.Edge(r, t, b));
+                _snapYT.Add(new FrameCapture.Core.PinSnap.Edge(t, l, r));
+                _snapYB.Add(new FrameCapture.Core.PinSnap.Edge(b, l, r));
+            }
             foreach (var p in _open)
             {
                 if (ReferenceEquals(p, this)) continue;
                 double pcx = (p.Left + p.Width / 2) * d.DpiScaleX, pcy = (p.Top + p.Height / 2) * d.DpiScaleY;
-                if (System.Windows.Forms.Screen.FromPoint(new System.Drawing.Point((int)pcx, (int)pcy)).DeviceName != scr.DeviceName) continue;
-                xAny.Add(p.Left); xAny.Add(p.Left + p.Width);
-                yAny.Add(p.Top); yAny.Add(p.Top + p.Height);
+                if (System.Windows.Forms.Screen.FromPoint(new System.Drawing.Point((int)pcx, (int)pcy)).DeviceName != _snapScr) continue;
+                AddRect(p.Left, p.Top, p.Left + p.Width, p.Top + p.Height);
             }
-            // R161：同屏所有应用窗口的边（物理像素 → DIP），中心落在本屏的才参与；R162 用拖拽起点缓存
             foreach (var (wl, wt, wr, wb) in _winGuides ??= BuildWinGuides())
             {
                 double wcx = (wl + wr) / 2 * d.DpiScaleX, wcy = (wt + wb) / 2 * d.DpiScaleY;
-                if (System.Windows.Forms.Screen.FromPoint(new System.Drawing.Point((int)wcx, (int)wcy)).DeviceName != scr.DeviceName) continue;
-                xAny.Add(wl); xAny.Add(wr);
-                yAny.Add(wt); yAny.Add(wb);
+                if (System.Windows.Forms.Screen.FromPoint(new System.Drawing.Point((int)wcx, (int)wcy)).DeviceName != _snapScr) continue;
+                AddRect(wl, wt, wr, wb);
             }
-            return FrameCapture.Core.PinSnap.SnapToLines(left, top, Width, Height,
-                new[] { cl, cr }, xAny, new[] { ct, cb }, yAny,
-                FrameCapture.Core.PinSnap.Threshold(Width, Height));
         }
-        catch { return (left, top); }
+        catch { _snapXL.Clear(); _snapXR.Clear(); _snapYT.Clear(); _snapYB.Clear(); }
     }
-
-    List<(double L, double T, double R, double B)>? _winGuides;   // DIP，拖拽期间有效
 
     List<(double L, double T, double R, double B)> BuildWinGuides()
     {
@@ -392,27 +407,6 @@ public sealed class PinWindow : Window
         }
         catch { /* 枚举失败不影响贴图/屏幕边吸附 */ }
         return list;
-    }
-
-    /// <summary>R74 磁边收尾：拖动松手后确保贴图吸附到参考线（实时拖拽已吸附，这里兜底 + 记 trace）。</summary>
-    void SnapToEdge()
-    {
-        if (FrameCapture.Core.SettingsService.Shared?.Current.PinSnapEdges != true) return;
-        var (l, t) = SnapTarget(Left, Top);
-        if (Math.Abs(l - Left) < 0.5 && Math.Abs(t - Top) < 0.5) return;
-        double ol = Left, ot = Top;
-        SlideTo(l, t);
-        FrameCapture.Core.Trace.Log($"pin-snap ({ol:F0},{ot:F0})→({l:F0},{t:F0})");
-    }
-
-    void SlideTo(double l, double t)
-    {
-        double oldL = Left, oldT = Top;
-        Left = l; Top = t; // 先落本地值=目标，动画从旧值滑来，结束后回落到本地值即目标（不留动画锁）
-        var dur = new Duration(TimeSpan.FromMilliseconds(FrameCapture.Core.Fluent.Motion.StateMs));
-        var ease = new CircleEase { EasingMode = EasingMode.EaseOut };
-        BeginAnimation(LeftProperty, new DoubleAnimation(oldL, l, dur) { EasingFunction = ease });
-        BeginAnimation(TopProperty, new DoubleAnimation(oldT, t, dur) { EasingFunction = ease });
     }
 
     /// <summary>R75：识别贴图里的印刷文字（Windows 内置 OCR）→ 写剪贴板；开「识别后显示结果窗」则弹结果窗，

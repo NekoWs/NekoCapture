@@ -2256,3 +2256,12 @@ status: done
 - **贴图吸附（图8）**：①**只吸边不吸中线**——`SnapToLines` 删 center/middle 锚点，SnapTarget 参考线只留屏幕边+窗口/贴图边（用户点名「屏幕边缘、可视窗口边缘就够了」）；②**拖动卡顿根因**＝每个 MouseMove 全量 EnumWindows+DWM 查框——改为**拖拽起点快照缓存** `_winGuides`，松手清空。T113c/f 断言按新行为更新（中线不再吸）。
 - **贴图开合动画（图9）**：入场落图幅度调小（0.82→0.94、BackEase 0.55→0.25、220→180ms）；新增 `CloseAnimated`（淡出+微收缩 120ms 后真关），双击/Esc/右键关闭统一走它；「关闭全部」保持即时关。
 - **验证**：构建 0 错；SelfTest **408/0**（新增 T162a 细滚动条视觉树探针/T162b WCAG/T162c 库同口径；T113c/f 更新）；护栏 **PASS FAIL=0 SKIP=1**；亮色实拍两处——手势配置器（accent 白字/白滑块/右侧 8px 细滚动条）+ 设置页截图页（试听文字居中、开关白滑块、HEX 段白字）。
+
+---
+
+**R163 · 用户 4 条反馈：ChipHover 变白棘轮 + 帮助窗布局重排 + 配置器开合动画 + 贴图磁吸手感（参考 Slick Window Arrangement）**
+- **手势编辑器按钮悬停变白不回原（图1）**：`BgHover` 棘轮 bug——MouseLeave 把「当前色」当基色存回，反复悬停逐次变白。重写为**实例身份跟踪**：`ours` 刷子 + 固定 `baseColor`，MouseEnter 仅在 `!hasBase || !ReferenceEquals(sb,ours)` 时重捕基色，MouseLeave 仅同实例才还原；外部换底＝新刷子实例→自动重捕基色。`ChipHover`/`Springy` 均委托它。
+- **帮助窗布局重排（图2）**：①去掉旧 `main.Height=322`+`Dock.Top` 硬钉（主体不填充→内容少时底部一大片空）——改 DockPanel 填充子项（foot 先加、main 最后加）；②短页垂直居中：`ScrollViewer.VerticalContentAlignment` 对 StackPanel 内容**不生效**（内容被拉伸填满），改用 **Grid.MinHeight 绑 ViewportHeight + 内容 VerticalAlignment=Center**（短→撑到视口高居中、长→随内容滚）；③左栏 168→184 + 9 步 sub 全部缩到 ≤~13 字（「三步就会：定范围→触发→复制走人。」→「定范围→触发→复制。」等），左大标题不再溢出；④上一页/下一页同 padding 同高、放 `VerticalAlignment=Center` 的 StackPanel→上下对齐。renderhelp 改按真实固定 660×430 量（反射设 `_lastStep`）取证：短页(步7)/长页(步0)均居中、左右同带对齐、底部不空。
+- **配置器开合动画（图3/4）**：库不能引用宿主 Fluent → 新建 `src/GestureEditor/Native.cs`（自带 `SetAlphaZero`＝WS_EX_LAYERED+LWA_ALPHA=0）。`SetupMotion` 入场：SourceInitialized/LayoutUpdated 里 PreTransparent（强制分层，否则 WindowChrome 非分层窗的 `Window.Opacity` 不参与屏幕合成＝淡入看不见），ContentRendered 后淡入 0→1 + 内容 scale 0.96→1；退场 `CloseWithFade` 淡出后再对内容做 scale 0.97 / translate Y12 微收（纯 150ms 淡出在大窗上几乎无感）。**实机取证**：Shot 发 Esc 关闭，burstregion 连拍——帧 009/011 全不透明 → 帧 012 整窗明显变暗半透明（桌面透出）→ 消失＝淡出走屏幕合成、确实在跑。
+- **贴图磁吸手感（用户两轮纠偏 + 参考 `D:\source.txt` Windhawk Slick Window Arrangement，不抄其拖动滑动/惯性）**：真因＝旧实现「任何线只要距离够近就吸」→「到处吸附」。按 Slick 手感重写 `PinSnap`：①**参考边带垂直跨度**（`Edge{Pos,Span0,Span1}`），只有本贴图该轴边与参考边**垂直方向真正重叠**才吸（`span0>=e.Span1||span1<=e.Span0` 跳过）＝杜绝乱吸的核心；②**同类边对同类边**（左对左 `_snapXL`、右对右 `_snapXR`、上对上、下对下 + 屏幕工作区四边），近/远边各取阈值内最近者互斥；③**无滞回**（重叠判定天然稳定，不抖）；④拖拽起点预计算 4 条边列表、仅跨屏重建（热路径零枚举）。删死代码 `SnapToEdge/SnapTarget/SlideTo`。新增 **T163a–g** 7 条（重叠才吸/不重叠不吸/同类边/超阈值/取最近/相切不算重叠）。
+- **验证**：构建 0 错；SelfTest **415/0**（+T163×7）；护栏 **PASS FAIL=0 SKIP=1**；renderhelp 短/长页居中取证 + 配置器关闭淡出 burstregion 实拍取证。

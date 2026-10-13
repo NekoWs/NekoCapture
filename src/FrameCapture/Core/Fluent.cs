@@ -392,18 +392,31 @@ public static class Fluent
 
     static readonly HashSet<Window> _fadingOut = new();
 
-    /// <summary>退场：淡出 150ms cubic-in 后再真正 Close（主题切换的交叉淡入不使用此路径）。</summary>
+    /// <summary>退场：淡出 + 与入场对称的位移/缩放，再真正 Close（主题切换的交叉淡入不使用此路径）。
+    /// R163：纯 150ms 透明度淡出在大窗（截图编辑器）上几乎看不出来，用户反馈「编辑器没有关闭动画」——
+    /// 按入场留下的变换类型反向补一点动效：缩放窗（设置/帮助 PopupEnter）缩到 0.97，位移窗（编辑器 FadeIn rise）下沉 12。</summary>
     public static void CloseWithFade(Window w)
     {
         if (!_fadingOut.Add(w)) return; // 动画已在进行中（含按键重复触发的重入）
         w.Closing += (_, e) => { if (_fadingOut.Contains(w)) e.Cancel = true; }; // 动画期间任何 Close 一律拦下
         var cur = w.Opacity; // 先取当前有效值（PopupEnter 把基础值设成了 0，清动画后会闪没）
-        var a = new DoubleAnimation(cur, 0.0, new Duration(TimeSpan.FromMilliseconds(Motion.ExitMs)))
-        { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseIn } };
+        var dur = new Duration(TimeSpan.FromMilliseconds(Motion.ExitMs));
+        var ease = new CubicEase { EasingMode = EasingMode.EaseIn };
+        var a = new DoubleAnimation(cur, 0.0, dur) { EasingFunction = ease };
         a.Completed += (_, _) => { _fadingOut.Remove(w); w.Close(); };
         w.BeginAnimation(System.Windows.UIElement.OpacityProperty, null);
         w.Opacity = cur;
         w.BeginAnimation(System.Windows.UIElement.OpacityProperty, a);
+        if (w.Content is FrameworkElement fe)
+        {
+            if (fe.RenderTransform is ScaleTransform st)
+            {
+                st.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(0.97, dur) { EasingFunction = ease });
+                st.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(0.97, dur) { EasingFunction = ease });
+            }
+            else if (fe.RenderTransform is TranslateTransform tt)
+                tt.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(12, dur) { EasingFunction = ease });
+        }
     }
 
     public static void FadeIn(Window w, int ms = 160, double risePx = 0, bool offscreenFirstFrame = false)
@@ -497,12 +510,16 @@ public static class Fluent
 
     /// <summary>R161：小按钮不再放大——放大动画会盖住相邻控件、显廉价，与普通按钮统一为
     /// 「悬停/按住只改底色 + 过渡动画」。scale 参数保留兼容旧调用点，已忽略。
-    /// 基色在进入时捕获、离开时还原；若悬停期间外部换了底色（选中态切换），离开时不强行回旧色。</summary>
+    /// R163 修「悬停几次变白不还原」：旧版每次进入重取基色，动画没走完就离开时把**中途色**
+    /// 当成了基色，下次悬停在其上再叠一层 hover → 棘轮式越悬越白。现改为实例跟踪：
+    /// 基色只在「画刷实例不是我们这份」时重取（外部换底=选中态切换），动画目标永远从固定基色算。</summary>
     public static void ChipHover(FrameworkElement el, double scale = 1.18) => BgHover(el);
 
     static void BgHover(FrameworkElement el)
     {
-        Color lastKnown = Colors.Transparent;
+        Color baseColor = Colors.Transparent;
+        bool hasBase = false;
+        SolidColorBrush? ours = null;   // 我们持有并驱动动画的那份画刷（实例身份=「底色还是我们的」）
         // Background 分别定义在 Border / Control 上（FrameworkElement 没有）——只读取当前画刷做颜色动画
         SolidColorBrush? Bg() => el is Border bd ? bd.Background as SolidColorBrush
                             : el is Control cc ? cc.Background as SolidColorBrush : null;
@@ -510,13 +527,14 @@ public static class Fluent
         void An(Color to, int ms)
         {
             var cur = Bg();
-            Color from = cur?.Color ?? lastKnown;
+            Color from = cur?.Color ?? baseColor;
             if (cur == null || cur.IsFrozen)   // Theme.B() 产出的画刷是冻结的——动画前先换成当前色的可动画副本
             {
                 var nb = new SolidColorBrush(from);
                 SetBg(nb);
                 cur = nb;
             }
+            ours = cur;
             cur.BeginAnimation(SolidColorBrush.ColorProperty, new ColorAnimation(to, new Duration(TimeSpan.FromMilliseconds(ms))));
         }
         static Color Blend(Color src, Color over)
@@ -527,18 +545,22 @@ public static class Fluent
                 (byte)(src.G * (1 - a) + over.G * a),
                 (byte)(src.B * (1 - a) + over.B * a));
         }
-        el.MouseEnter += (_, _) => { var sb = Bg(); if (sb != null) { lastKnown = sb.Color; An(Blend(sb.Color, Theme.Hover), 140); } };
+        el.MouseEnter += (_, _) =>
+        {
+            var sb = Bg();
+            if (sb == null) return;
+            if (!hasBase || !ReferenceEquals(sb, ours)) { baseColor = sb.Color; hasBase = true; }   // 外部换底（选中态等）→ 重取基色
+            An(Blend(baseColor, Theme.Hover), 140);
+        };
         el.MouseLeave += (_, _) =>
         {
-            var sb = Bg(); if (sb == null) return;
-            var hoverTarget = Blend(lastKnown, Theme.Hover);
-            bool near(byte x, byte y) => System.Math.Abs(x - y) <= 3;
-            if (near(sb.Color.R, hoverTarget.R) && near(sb.Color.G, hoverTarget.G) && near(sb.Color.B, hoverTarget.B))
-                An(lastKnown, 160);
-            else lastKnown = sb.Color;   // 外部已换底色（如选中态），以新色为基色
+            var sb = Bg();
+            if (sb == null) return;
+            if (hasBase && ReferenceEquals(sb, ours)) An(baseColor, 160);
+            else { baseColor = sb.Color; hasBase = true; ours = null; }   // 外部已换底：以新色为基色，别覆盖它
         };
-        el.PreviewMouseLeftButtonDown += (_, _) => An(Blend(lastKnown, Theme.Press), 70);
-        el.MouseUp += (_, _) => An(Blend(lastKnown, Theme.Hover), 120);
+        el.PreviewMouseLeftButtonDown += (_, _) => { if (hasBase) An(Blend(baseColor, Theme.Press), 70); };
+        el.MouseUp += (_, _) => { if (hasBase) An(Blend(baseColor, Theme.Hover), 120); };
     }
 
     /// <summary>开关轨道 hover：进入时边框提亮一档、离开还原（on=accent / off=stroke）。

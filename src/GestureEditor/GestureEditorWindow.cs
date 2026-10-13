@@ -98,8 +98,20 @@ public sealed class GestureEditorWindow : Window
     void SetupMotion()
     {
         Opacity = 0;
+        // R163：本窗是 WindowChrome + 非分层窗，WPF 的 Opacity 动画不驱动屏幕合成（实测开合无淡入淡出）。
+        // 与宿主 Fluent.PreTransparent 同款：SourceInitialized 起强制 WS_EX_LAYERED+alpha0，首帧前多次布局逐次补回，
+        // ContentRendered 放行——强制分层后下面的 Opacity 动画才真正在屏幕上渐变。
+        bool released = false;
+        void Apply()
+        {
+            if (released) return;
+            Native.SetAlphaZero(new System.Windows.Interop.WindowInteropHelper(this).Handle);
+        }
+        SourceInitialized += (_, _) => Apply();
+        LayoutUpdated += (_, _) => Apply();
         ContentRendered += (_, _) =>
         {
+            released = true;
             var dur = new Duration(TimeSpan.FromMilliseconds(EnterMs));
             var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
             BeginAnimation(OpacityProperty, new DoubleAnimation(1, dur) { EasingFunction = ease });

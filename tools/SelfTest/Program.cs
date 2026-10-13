@@ -71,22 +71,29 @@ static class SelfTest
     }
 
     static int RenderHelp(string outPath)    {
+        return RenderHelp(outPath, 0);
+    }
+    static int RenderHelp(string outPath, int step)    {
         var app = new Application();
+        // 反射设静态 _lastStep，让窗口停在指定步（长页/短页分别取证）
+        typeof(FrameCapture.Overlays.HelpWindow)
+            .GetField("_lastStep", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!
+            .SetValue(null, step);
         var w = FrameCapture.Overlays.HelpWindow.CreateForCapture();
-        // 未 Show 的 Window 不参与布局（ActualHeight 恒 0）：把内容根单独 measure/arrange 后直接渲染视觉树
+        // 按真实固定窗口尺寸 measure/arrange：短页垂直居中、底部翻页条固定——正是用户点名的布局验证点
+        double W = w.Width, H = w.Height;
         var root = (System.Windows.UIElement)w.Content;
-        root.Measure(new System.Windows.Size(640, 4000));
-        double h = Math.Min(4000, Math.Max(1, root.DesiredSize.Height));
-        root.Arrange(new Rect(0, 0, 640, h));
+        root.Measure(new System.Windows.Size(W, H));
+        root.Arrange(new Rect(0, 0, W, H));
         root.UpdateLayout();
-        int hh = (int)Math.Ceiling(h);
-        var rtb = new System.Windows.Media.Imaging.RenderTargetBitmap(640, hh, 96, 96, System.Windows.Media.PixelFormats.Pbgra32);
+        int ww = (int)Math.Ceiling(W), hh = (int)Math.Ceiling(H);
+        var rtb = new System.Windows.Media.Imaging.RenderTargetBitmap(ww, hh, 96, 96, System.Windows.Media.PixelFormats.Pbgra32);
         rtb.Render(root);
         var enc = new System.Windows.Media.Imaging.PngBitmapEncoder();
         enc.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(rtb));
         Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(outPath))!);
         using (var f = File.Create(outPath)) enc.Save(f);
-        Console.WriteLine($"saved {outPath} 640x{hh}");
+        Console.WriteLine($"saved {outPath} {ww}x{hh}");
         return 0;
     }
 
@@ -223,7 +230,7 @@ static class SelfTest
     {
         Console.OutputEncoding = System.Text.Encoding.UTF8;
         // 离屏渲染帮助窗取证（R49）：独立进程、不 Show、不注册热键，不打断正在运行的实例
-        if (args.Length == 2 && args[0] == "renderhelp") return RenderHelp(args[1]);
+        if (args.Length >= 2 && args[0] == "renderhelp") return RenderHelp(args[1], args.Length >= 3 && int.TryParse(args[2], out var hs) ? hs : 0);
         if (args.Length == 2 && args[0] == "sbprobe") return SbProbe(args[1]);
         if (args.Length == 2 && args[0] == "renderpick") return RenderPick(args[1]);
         if (args.Length == 2 && args[0] == "renderslider") return RenderSlider(args[1]);
@@ -1619,6 +1626,33 @@ static class SelfTest
                 // x/y 各轴独立取最近
                 var a8 = FrameCapture.Core.PinSnap.SnapToLines(105, 505, 200, 100, new[] { 100.0 }, new[] { 302.0 }, new[] { 700.0 }, e, 12);
                 Chk("T113h-axes", a8.Left == 102 && a8.Top == 505, "x 取最近(right→302 差3)，y 超阈值不动");
+            }
+
+            // T163 拖动实时磁吸（R163，Slick Window Arrangement 手感：重叠才吸 + 同类边对同类边）
+            {
+                var en = Array.Empty<FrameCapture.Core.PinSnap.Edge>();
+                // 贴图 left=105 right=305 top=500 bottom=600，阈值 12
+                // a：近边(左)贴同类近边(左)，垂直跨度重叠 → 吸到 100
+                var m1 = FrameCapture.Core.PinSnap.Magnet(105, 305, 500, 600, new[] { new FrameCapture.Core.PinSnap.Edge(100, 480, 620) }, en, 12);
+                Chk("T163a-near-overlap", m1 == 100, "左边距左参考边 5<阈值且垂直重叠 → 吸左");
+                // b：垂直跨度不重叠 → 绝不吸（杜绝「到处吸附」的核心）
+                var m2 = FrameCapture.Core.PinSnap.Magnet(105, 305, 500, 600, new[] { new FrameCapture.Core.PinSnap.Edge(100, 700, 800) }, en, 12);
+                Chk("T163b-no-overlap", m2 == 105, "距离够近但垂直跨度不重叠 → 不吸（到处吸附的根因）");
+                // c：远边(右)贴同类远边(右)，重叠 → 右对齐到 300（left 随之 100）
+                var m3 = FrameCapture.Core.PinSnap.Magnet(105, 305, 500, 600, en, new[] { new FrameCapture.Core.PinSnap.Edge(300, 480, 620) }, 12);
+                Chk("T163c-far-overlap", m3 == 100, "右边距右参考边 5 → 右对齐，left=100");
+                // d：同类边对同类边——近边不吸远边列表里的线（左参考边放进 farTargets 不生效）
+                var m4 = FrameCapture.Core.PinSnap.Magnet(105, 305, 500, 600, en, new[] { new FrameCapture.Core.PinSnap.Edge(100, 480, 620) }, 12);
+                Chk("T163d-like-to-like", m4 == 105, "左参考边只在 farTargets → 左边不吸（同类边对同类边）");
+                // e：超阈值不动
+                var m5 = FrameCapture.Core.PinSnap.Magnet(105, 305, 500, 600, new[] { new FrameCapture.Core.PinSnap.Edge(80, 480, 620) }, en, 12);
+                Chk("T163e-far", m5 == 105, "近边距参考边 25>阈值 → 不动");
+                // f：多条重叠近边取最近
+                var m6 = FrameCapture.Core.PinSnap.Magnet(105, 305, 500, 600, new[] { new FrameCapture.Core.PinSnap.Edge(100, 480, 620), new FrameCapture.Core.PinSnap.Edge(108, 480, 620) }, en, 12);
+                Chk("T163f-nearest", m6 == 108, "两条重叠近边 100/108 → 取更近的 108");
+                // g：边界相切（span1==Span0）不算重叠
+                var m7 = FrameCapture.Core.PinSnap.Magnet(105, 305, 500, 600, new[] { new FrameCapture.Core.PinSnap.Edge(100, 600, 700) }, en, 12);
+                Chk("T163g-tangent", m7 == 105, "跨度仅相切(600==600)不算重叠 → 不吸");
             }
 
             // T114 最近静态截图保留（R78，LastStill 状态持有）

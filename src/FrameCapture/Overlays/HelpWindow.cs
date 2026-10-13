@@ -94,11 +94,13 @@ public sealed class HelpWindow : Window
         _step = Math.Clamp(_step, 0, _steps.Count - 1);
 
         // ---- 主体：左大标题 | 右正文（与设置页同款视觉分工） ----
-        var main = new Grid { Margin = new Thickness(18, 8, 18, 0), VerticalAlignment = VerticalAlignment.Stretch };
-        main.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(168) });
+        // R163：去掉旧的 main.Height=322 + Dock.Top 硬钉——那会让主体不填充剩余高度，内容少时底部一大片空。
+        // 改为 DockPanel 的填充子项（最后加入），左栏与正文都垂直居中：短页居中不空、长页仍在右栏内滚。
+        var main = new Grid { Margin = new Thickness(18, 8, 18, 0) };
+        main.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(184) });
         main.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-        var left = new StackPanel { Margin = new Thickness(2, 10, 8, 0) };
+        var left = new StackPanel { Margin = new Thickness(2, 0, 10, 0), VerticalAlignment = VerticalAlignment.Center };
         _bigIcon = new TextBlock { FontFamily = new FontFamily(Fluent.IconFontChain), FontSize = 34, Foreground = new SolidColorBrush(Theme.Accent) };
         _bigTitle = new TextBlock { FontSize = 21, FontWeight = FontWeights.Bold, Foreground = new SolidColorBrush(Theme.Text), Margin = new Thickness(0, 10, 0, 0), TextWrapping = TextWrapping.Wrap };
         _bigSub = new TextBlock { FontSize = 12, Foreground = new SolidColorBrush(Theme.TextDim), Margin = new Thickness(0, 6, 0, 0), TextWrapping = TextWrapping.Wrap, LineHeight = 18 };
@@ -106,19 +108,22 @@ public sealed class HelpWindow : Window
         Grid.SetColumn(left, 0);
         main.Children.Add(left);
 
-        _body = new StackPanel { Margin = new Thickness(6, 2, 0, 0) };
+        _body = new StackPanel { Margin = new Thickness(6, 2, 0, 0), VerticalAlignment = VerticalAlignment.Center };
+        // 内容不足一屏时垂直居中（不留空底），超过一屏时正常滚动：Grid.MinHeight 绑 ScrollViewer.ViewportHeight，
+        // 短→Grid 撑到视口高、StackPanel 居中；长→Grid 随内容长、StackPanel 填满可滚。
+        var bodyHost = new Grid();
+        bodyHost.Children.Add(_body);
         var bodyScroll = new ScrollViewer
         {
-            Content = _body,
+            Content = bodyHost,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
             Focusable = false,
         };
+        bodyHost.SetBinding(FrameworkElement.MinHeightProperty,
+            new System.Windows.Data.Binding("ViewportHeight") { Source = bodyScroll });
         Grid.SetColumn(bodyScroll, 1);
         main.Children.Add(bodyScroll);
-        DockPanel.SetDock(main, Dock.Top);   // 底部翻页条固定，主体不吞掉它的高度
-        main.Height = 322;
-        dock.Children.Add(main);
 
         // ---- 底部：左「第 N / M 步」，右 上一页 / 下一页（右下角，用户点名位置） ----
         var foot = new Grid { Margin = new Thickness(18, 6, 18, 14) };
@@ -127,13 +132,15 @@ public sealed class HelpWindow : Window
         _pager = new TextBlock { FontSize = 12, Foreground = new SolidColorBrush(Theme.TextDim), VerticalAlignment = VerticalAlignment.Center };
         Grid.SetColumn(_pager, 0);
         foot.Children.Add(_pager);
-        var nav = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
+        var nav = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center };
         _prevBtn = NavBtn("\u2190 上一页", on: false, () => Go(-1));
         _nextBtn = NavBtn("下一页 \u2192", on: true, () => Go(+1));
         nav.Children.Add(_prevBtn); nav.Children.Add(_nextBtn);
         Grid.SetColumn(nav, 1);
         foot.Children.Add(nav);
+        DockPanel.SetDock(foot, Dock.Bottom);   // 底部翻页条固定，主体填充剩余高度
         dock.Children.Add(foot);
+        dock.Children.Add(main);                // 最后加入 = DockPanel 填充子项
 
         root.Child = dock;
         Content = root;
@@ -259,7 +266,7 @@ public sealed class HelpWindow : Window
     {
         _steps = new()
         {
-            ("\uE945", "快速上手", "三步就会：定范围 → 触发 → 复制走人。", p =>
+            ("\uE945", "快速上手", "定范围 → 触发 → 复制。", p =>
             {
                 KV(p, KeysFor(GestureActions.ScopeSelect), "设置捕获范围（拖框或点窗口）");
                 KV(p, KeysFor(GestureActions.CaptureFrame, GestureActions.CaptureSelection), "截图：截完自动进剪贴板");
@@ -269,7 +276,7 @@ public sealed class HelpWindow : Window
                 Note(p, "键位都是默认值，可在「手势配置器」里改成自己的习惯。");
             }),
 
-            ("\uE7A8", "选捕获范围", "告诉它截哪儿，之后每次指哪打哪。", p =>
+            ("\uE7A8", "选捕获范围", "指哪儿，截哪儿。", p =>
             {
                 KV(p, "拖框", "选任意矩形；滚轮微调、方向键移动");
                 KV(p, "悬停", "自动吸附整窗；Tab 上钻到父容器");
@@ -278,7 +285,7 @@ public sealed class HelpWindow : Window
                 Note(p, "设置里可开「常显捕获范围轮廓」，范围一眼在；「吸附到控件」让悬停吸到按钮/文字级。");
             }),
 
-            ("\uE7B5", "截图", "快：一次触发，图已在剪贴板。", p =>
+            ("\uE7B5", "截图", "一次触发，进剪贴板。", p =>
             {
                 KV(p, "触发即截", "有范围截范围，没范围截光标所在屏");
                 KV(p, "截图后", "每条手势单独设：弹浮窗 / 进编辑器 / 只复制 / 贴图");
@@ -287,7 +294,7 @@ public sealed class HelpWindow : Window
                 Note(p, "「截图后」在「手势配置器」每条手势里设置；托盘还能「编辑上次截图」。");
             }),
 
-            ("\uE714", "录制", "按住就是录，松手即成片——不用点按钮。", p =>
+            ("\uE714", "录制", "按住录，松手成片。", p =>
             {
                 KV(p, "按住 / 松开", "起录 / 停止（REC 红徽标=正在录）");
                 KV(p, "帧率", "手动 10–240；开「跟随显示器刷新率」自动录满高刷");
@@ -296,7 +303,7 @@ public sealed class HelpWindow : Window
                 Note(p, "录屏边框只提示不入镜；「包含鼠标指针」可关。");
             }),
 
-            ("\uE70F", "编辑器", "产物都先落这里：看、剪、标、走。", p =>
+            ("\uE70F", "编辑器", "看、剪、标、复制。", p =>
             {
                 KV(p, "空格 / ←→", "播放暂停 / 逐帧（Shift 一秒）");
                 KV(p, "Ctrl+滚轮", "缩放；1:1 看像素");
@@ -306,9 +313,9 @@ public sealed class HelpWindow : Window
                 Note(p, "Ctrl+H 视觉暂留合成图；「生成胶片条」抽帧拼成一张逐帧图直接复制，喂 AI 最好用。");
             }),
 
-            ("\uE71C", ToolCatalog.HelpHeading, "标注工具全在左侧竖栏，单键切换。", p => Tools(p)),
+            ("\uE71C", ToolCatalog.HelpHeading, "左侧竖栏，单键切换。", p => Tools(p)),
 
-            ("\uE718", "贴图", "把图钉在屏幕上，对着抄、比着看。", p =>
+            ("\uE718", "贴图", "把图钉在屏幕上。", p =>
             {
                 KV(p, "Ctrl+P", "编辑器里把当前帧钉到屏幕");
                 KV(p, "滚轮 / +/-", "缩放贴图 / 调透明度");
@@ -317,14 +324,14 @@ public sealed class HelpWindow : Window
                 Note(p, "吸附开关在设置「贴图」页。");
             }),
 
-            ("\uE8C1", "识别文字", "图里的字，直接变文本。", p =>
+            ("\uE8C1", "识别文字", "图里的字，变文本。", p =>
             {
                 KV(p, "Ctrl+O", "识别当前帧 → 结果窗：选哪段复制哪段");
                 KV(p, "贴图右键", "也能对贴图识字");
                 Note(p, "用 Windows 内置 OCR，离线可用；关「显示结果窗」则直接全文进剪贴板。");
             }),
 
-            ("\uE713", "更多玩法", "都藏在设置和托盘里，各管一件小事。", p =>
+            ("\uE713", "更多玩法", "藏在设置和托盘里。", p =>
             {
                 KV(p, "延时截图", "托盘触发后倒数几秒再截——摆好菜单/悬停再入镜，支持自定义秒数");
                 KV(p, "滚动截图", "长网页/长对话自动拼接成一张");
