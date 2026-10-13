@@ -2141,3 +2141,5 @@ status: done
 **R153 批次末**：护栏 PASS（FAIL=0 SKIP=1，focus-safety 因前台非本软件窗 SKIP≠FAIL）；用户 4 条自定义手势完好（`gesture apply n=4`）；重发布 staging 11:23:13 → zip 69.7MB/250 项/CRC 全绿/exe=1/sdk=1 → 重启出厂实例 pid 50412。HEAD `32ab512`。
 
 **R154 · 手势配置器 Esc 关闭（补注释承诺的关闭路径）**：清理测试窗时发现配置器按 Esc 关不掉。查 `OnPreviewKeyDown` 仅在 `_capturing`（录键中）处理 Esc（取消录键），非录键态落到 `base` 不关窗；而退场注释（line 96）明写「任何关闭路径（关闭钮/**Esc**/宿主 Close）先淡出再真关」——注释承诺 Esc 可关、代码未实现，属注释/代码不一致 + 对话框缺标准 Esc 关闭。修：非录键态 `if (e.Key==Escape){ Close(); e.Handled=true; return; }`，走 Closing 淡出退场、与「取消」钮一致。**e2e 核验**：开配置器→fg 校验为「手势配置」→SendInput Esc→窗口 not-found（已淡出关闭）。构建 0 错、SelfTest 404 绿（WPF 键处理，非决策函数故无需新增单测）。
+
+**R154 批次末**：护栏 PASS（FAIL=0 SKIP=1）；用户 4 条手势完好（`gesture apply n=4`）；重发布 staging 11:32:36 → zip 69.7MB/250 项/CRC 全绿/exe=1/sdk=1 → 重启出厂实例 pid 11928。HEAD `bdfdc18`。
