@@ -78,6 +78,8 @@ public sealed class GestureEditorWindow : Window
         var chrome = new System.Windows.Shell.WindowChrome { CaptionHeight = 36, ResizeBorderThickness = new Thickness(6), CornerRadius = new CornerRadius(8), GlassFrameThickness = new Thickness(0), UseAeroCaptionButtons = false };
         System.Windows.Shell.WindowChrome.SetWindowChrome(this, chrome);
         Background = _pal.B(_pal.WindowBg);
+        // R162：窗口级细滚动条（列表/详情/下拉弹层全覆盖）——此前吃的是 WPF 默认 17px 经典滚动条
+        Resources[typeof(System.Windows.Controls.Primitives.ScrollBar)] = EditorStyles.ScrollBarStyle(_pal);
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
         Width = 760; Height = 560; MinWidth = 640; MinHeight = 440;
         ShowInTaskbar = true;
@@ -248,7 +250,8 @@ public sealed class GestureEditorWindow : Window
         return new BindingRow { Card = card, Head = head, Body = body, Enabled = b.Enabled };
     }
 
-    /// <summary>逐行刷三态：选中（accent 底 + OnAccent 字色）、问题（红框）、禁用（muted 灰字，不再加「已禁用 ·」前缀）。</summary>
+    /// <summary>逐行刷三态：选中（accent 底 + OnAccent 字色）、问题（红框）、禁用（muted 灰字，不再加「已禁用 ·」前缀）。
+    /// R162：三态切换走 140ms 颜色过渡（此前直接换刷子，选中/取消选中颜色硬跳）。</summary>
     void PaintRows()
     {
         for (int i = 0; i < _rows.Count; i++)
@@ -258,12 +261,24 @@ public sealed class GestureEditorWindow : Window
             bool has = i < _doc.Bindings.Count;
             r.Problem = has && _problemIds.Contains(_doc.Bindings[i].Id);
             r.Enabled = !has || _doc.Bindings[i].Enabled;
-            r.Card.Background = _pal.B(sel ? _pal.Accent : _pal.CardBg);
-            r.Card.BorderBrush = _pal.B(r.Problem ? Danger : (sel ? _pal.Accent : _pal.Stroke));
-            r.Head.Foreground = _pal.B(sel ? _pal.OnAccent() : (r.Enabled ? _pal.Text : _pal.TextDim));
-            r.Body.Foreground = _pal.B(sel ? _pal.OnAccent() : _pal.TextDim);
+            AnimBrush(r.Card.Background as SolidColorBrush, sel ? _pal.Accent : _pal.CardBg, br => r.Card.Background = br);
+            AnimBrush(r.Card.BorderBrush as SolidColorBrush, r.Problem ? Danger : (sel ? _pal.Accent : _pal.Stroke), br => r.Card.BorderBrush = br);
+            AnimBrush(r.Head.Foreground as SolidColorBrush, sel ? _pal.OnAccent() : (r.Enabled ? _pal.Text : _pal.TextDim), br => r.Head.Foreground = br);
+            AnimBrush(r.Body.Foreground as SolidColorBrush, sel ? _pal.OnAccent() : _pal.TextDim, br => r.Body.Foreground = br);
             r.Body.Opacity = r.Enabled || sel ? 1.0 : 0.6;
         }
+    }
+
+    /// <summary>把画刷属性过渡到目标色：冻结画刷（_pal.B）先换成当前色的可动画副本再动。</summary>
+    void AnimBrush(SolidColorBrush? cur, Color to, Action<SolidColorBrush> set)
+    {
+        if (cur == null || cur.IsFrozen)
+        {
+            var nb = new SolidColorBrush(cur?.Color ?? to);
+            set(nb);
+            cur = nb;
+        }
+        AnimateColor(cur, to, 140);
     }
 
     string ActionLabel(string actionName) => _catalog.Actions().FirstOrDefault(a => a.Name == actionName)?.Label ?? actionName;
@@ -691,14 +706,22 @@ public sealed class GestureEditorWindow : Window
             VerticalAlignment = VerticalAlignment.Center,
             Focusable = true, // 键盘可达：Tab 聚焦、空格/Enter 切换（与设置窗开关同款焦点环，R69 补此前鼠标专属的缺口）
         };
-        var knob = new Ellipse { Width = 14, Height = 14, Fill = _pal.B(_pal.Text), HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(3, 0, 3, 0) };
+        // R162：滑块恒白 + 极淡描边（QQ 式）——旧版亮色主题下黑滑块像没做适配
+        var knob = new Ellipse { Width = 14, Height = 14, Fill = _pal.B(Colors.White), Stroke = _pal.B(Color.FromArgb(0x26, 0, 0, 0)), StrokeThickness = 1, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(3, 0, 3, 0) };
         var knobT = new TranslateTransform { X = on ? 20 : 0 };
         knob.RenderTransform = knobT;
         var inner = new Grid(); inner.Children.Add(knob); track.Child = inner;
         state = new TextBlock { Text = (on ? "  " : "  ") + text, Foreground = _pal.B(_pal.Text), VerticalAlignment = VerticalAlignment.Center };
         sp.Children.Add(track); sp.Children.Add(state);
-        void SetBorder() => track.BorderBrush = _pal.B(focused || on ? _pal.Accent : _pal.Stroke);
-        void Flip() { on = !on; track.Background = _pal.B(on ? _pal.Accent : _pal.TrackBg); SetBorder(); knobT.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(on ? 20 : 0, new Duration(TimeSpan.FromMilliseconds(220))) { EasingFunction = new BackEase { Amplitude = 0.3, EasingMode = EasingMode.EaseOut } }); onToggle(on); }
+        void SetBorder() => AnimBrush(track.BorderBrush as SolidColorBrush, focused || on ? _pal.Accent : _pal.Stroke, br => track.BorderBrush = br);
+        void Flip()
+        {
+            on = !on;
+            AnimBrush(track.Background as SolidColorBrush, on ? _pal.Accent : _pal.TrackBg, br => track.Background = br);   // R162：开关换色带过渡，不再硬切
+            SetBorder();
+            knobT.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(on ? 20 : 0, new Duration(TimeSpan.FromMilliseconds(220))) { EasingFunction = new BackEase { Amplitude = 0.3, EasingMode = EasingMode.EaseOut } });
+            onToggle(on);
+        }
         sp.MouseLeftButtonDown += (_, _) => Flip();
         track.KeyDown += (_, e) => { if (e.Key is Key.Space or Key.Enter) { Flip(); e.Handled = true; } };
         track.GotKeyboardFocus += (_, _) => { focused = true; SetBorder(); };

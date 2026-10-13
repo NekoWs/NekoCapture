@@ -139,4 +139,68 @@ public static class EditorStyles
 </Style>";
         return xaml;
     }
+
+    /// <summary>R162：同宿主 Fluent.Slim——主题 ScrollBar 样式的 MinWidth/MinHeight（系统滚动条宽）
+    /// 经 DynamicResource 以直值泄漏到模板内 ScrollBar，样式 Setter 压不住；附加属性在样式应用时归零。</summary>
+    public static readonly DependencyProperty SlimProperty = DependencyProperty.RegisterAttached(
+        "Slim", typeof(bool), typeof(EditorStyles), new PropertyMetadata(false, (d, e) =>
+        {
+            if (d is ScrollBar sb && (bool)e.NewValue) { sb.MinWidth = 0; sb.MinHeight = 0; }
+        }));
+    public static void SetSlim(DependencyObject d, bool v) => d.SetValue(SlimProperty, v);
+    public static bool GetSlim(DependencyObject d) => (bool)d.GetValue(SlimProperty);
+
+    /// <summary>细滚动条（R162，用户「还是太粗基本没变」）：轨道 8DIP、滑块 4DIP 圆角胶囊、无箭头，
+    /// 配色随调色板；竖/横两套模板（Track 方向必须匹配）。挂到窗口 Resources[typeof(ScrollBar)]
+    /// 即覆盖列表/详情/下拉弹层内所有滚动条。</summary>
+    public static Style ScrollBarStyle(EditorPalette p)
+    {
+        string thumb = Hex(p.TextDim), thumbHi = Hex(p.Text);
+        string Tmpl(string orient, string dirRev) =>
+            $@"<Setter.Value>
+  <ControlTemplate TargetType=""ScrollBar"">
+    <Grid Background=""Transparent"">
+      <Track x:Name=""PART_Track"" Orientation=""{orient}"" IsDirectionReversed=""{dirRev}"">
+        <Track.DecreaseRepeatButton>
+          <RepeatButton Focusable=""False"" IsTabStop=""False"">
+            <RepeatButton.Template><ControlTemplate TargetType=""RepeatButton""><Border Background=""Transparent""/></ControlTemplate></RepeatButton.Template>
+          </RepeatButton>
+        </Track.DecreaseRepeatButton>
+        <Track.IncreaseRepeatButton>
+          <RepeatButton Focusable=""False"" IsTabStop=""False"">
+            <RepeatButton.Template><ControlTemplate TargetType=""RepeatButton""><Border Background=""Transparent""/></ControlTemplate></RepeatButton.Template>
+          </RepeatButton>
+        </Track.IncreaseRepeatButton>
+        <Track.Thumb>
+          <Thumb Focusable=""False"" IsTabStop=""False"">
+            <Thumb.Template>
+              <ControlTemplate TargetType=""Thumb"">
+                <Border x:Name=""tb"" CornerRadius=""2"" Background=""{thumb}"" Margin=""2""/>
+                <ControlTemplate.Triggers>
+                  <Trigger Property=""IsMouseOver"" Value=""True""><Setter TargetName=""tb"" Property=""Background"" Value=""{thumbHi}""/></Trigger>
+                </ControlTemplate.Triggers>
+              </ControlTemplate>
+            </Thumb.Template>
+          </Thumb>
+        </Track.Thumb>
+      </Track>
+    </Grid>
+  </ControlTemplate>
+</Setter.Value>";
+        var st = (Style)XamlReader.Parse(
+            $@"<Style TargetType=""ScrollBar"" xmlns=""{Pres}"" xmlns:x=""{X}"">
+  <Setter Property=""Background"" Value=""Transparent""/>
+  <Setter Property=""Width"" Value=""8""/>
+  <Setter Property=""Template"">{Tmpl("Vertical", "True")}</Setter>
+  <Style.Triggers>
+    <Trigger Property=""Orientation"" Value=""Horizontal"">
+      <Setter Property=""Width"" Value=""Auto""/>
+      <Setter Property=""Height"" Value=""8""/>
+      <Setter Property=""Template"">{Tmpl("Horizontal", "False")}</Setter>
+    </Trigger>
+  </Style.Triggers>
+</Style>");
+        st.Setters.Add(new System.Windows.Setter(SlimProperty, true));
+        return st;
+    }
 }

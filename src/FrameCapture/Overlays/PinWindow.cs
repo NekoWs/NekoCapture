@@ -112,7 +112,7 @@ public sealed class PinWindow : Window
 
         MouseLeftButtonDown += (_, e) =>
         {
-            if (e.ClickCount == 2) { Close(); return; } // 双击关闭（先于拖动判定）
+            if (e.ClickCount == 2) { CloseAnimated(); return; } // 双击关闭（先于拖动判定）
             if (e.ButtonState == MouseButtonState.Pressed)
             {
                 // 若上一次磁边滑动动画还在飞，先结算到目标值再拖，避免起点与本地值不一致
@@ -127,6 +127,7 @@ public sealed class PinWindow : Window
                     _grabDY = pt.Y / d.DpiScaleY - Top;
                 }
                 _rawLeft = Left; _rawTop = Top;
+                _winGuides = BuildWinGuides();   // R162：拖拽起点快照窗口参考线，拖动途中不再全量枚举
                 _dragging = true;
                 CaptureMouse();
                 e.Handled = true;
@@ -151,6 +152,7 @@ public sealed class PinWindow : Window
         {
             if (!_dragging) return;
             _dragging = false;
+            _winGuides = null;
             ReleaseMouseCapture();
             SnapToEdge(); // 收尾兜底（实时已吸附，这里确保最终贴合 + 记 trace）
         };
@@ -176,7 +178,7 @@ public sealed class PinWindow : Window
         MouseRightButtonUp += (_, e) => { ShowMenu(); e.Handled = true; };
         KeyDown += (_, e) =>
         {
-            if (e.Key == Key.Escape) Close();
+            if (e.Key == Key.Escape) CloseAnimated();
             else if (e.Key == Key.R) Rotate();
             else if (e.Key == Key.F3) Refresh();
             else if (e.Key == Key.S && (Keyboard.Modifiers & ModifierKeys.Control) != 0) SaveAs();
@@ -213,18 +215,45 @@ public sealed class PinWindow : Window
         Opacity = cur;
     }
 
-    /// <summary>R120 D3：入场「落图」——卡片缩放 0.82→1.0 带 BackEase 轻微过冲回弹，配合淡入像钉到桌面。</summary>
+    /// <summary>R120 D3：入场「落图」——卡片缩放带 BackEase 轻微过冲，配合淡入像钉到桌面。
+    /// R162：幅度调小（0.82→0.94、过冲 0.55→0.25）——原幅度太大，大图闪一下像 zoom 故障。</summary>
     void PlayDrop()
     {
         if (_card == null) return;
-        var st = new ScaleTransform(0.82, 0.82);
+        var st = new ScaleTransform(0.94, 0.94);
         _card.RenderTransform = st;
-        var ease = new BackEase { EasingMode = EasingMode.EaseOut, Amplitude = 0.55 };
-        var dur = new Duration(TimeSpan.FromMilliseconds(220));
-        var sx = new DoubleAnimation(0.82, 1.0, dur) { EasingFunction = ease };
-        var sy = new DoubleAnimation(0.82, 1.0, dur) { EasingFunction = ease };
+        var ease = new BackEase { EasingMode = EasingMode.EaseOut, Amplitude = 0.25 };
+        var dur = new Duration(TimeSpan.FromMilliseconds(180));
+        var sx = new DoubleAnimation(0.94, 1.0, dur) { EasingFunction = ease };
+        var sy = new DoubleAnimation(0.94, 1.0, dur) { EasingFunction = ease };
         st.BeginAnimation(ScaleTransform.ScaleXProperty, sx);
         st.BeginAnimation(ScaleTransform.ScaleYProperty, sy);
+    }
+
+    bool _closingOut;
+    /// <summary>R162：退场动画——淡出 + 轻微收缩（与入场呼应、幅度小），130ms 后真正 Close。
+    /// 双击/Esc/右键菜单关闭统一走这里；「关闭全部贴图」保持即时关（批量不排队演动画）。</summary>
+    void CloseAnimated()
+    {
+        if (_closingOut) return;
+        _closingOut = true;
+        CommitOpacity();
+        var dur = new Duration(TimeSpan.FromMilliseconds(120));
+        var ease = new CircleEase { EasingMode = EasingMode.EaseIn };
+        BeginAnimation(OpacityProperty, new DoubleAnimation(0, dur) { EasingFunction = ease });
+        if (_card != null)
+        {
+            if (_card.RenderTransform is not ScaleTransform st)
+            {
+                st = new ScaleTransform(1, 1);
+                _card.RenderTransform = st;
+            }
+            st.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(0.96, dur) { EasingFunction = ease });
+            st.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(0.96, dur) { EasingFunction = ease });
+        }
+        var t = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(130) };
+        t.Tick += (_, __) => { t.Stop(); Close(); };
+        t.Start();
     }
 
     void ApplyScale()
@@ -309,11 +338,12 @@ public sealed class PinWindow : Window
         catch { Flash("保存失败"); }
     }
 
-    /// <summary>R120 A3：算出把贴图放到 (left,top) 时磁吸后的目标位置——屏幕工作区四边 + 同屏其他贴图的边/中线。
+    /// <summary>R120 A3：算出把贴图放到 (left,top) 时磁吸后的目标位置——屏幕工作区四边 + 同屏可见窗口/贴图的边。
     /// 用贴图中心定位所在屏（多屏），工作区物理像素 ÷ DpiScale 转 DIP 与 Left/Top 同单位。纯几何，
     /// 拖拽实时（MouseMove）与松手收尾（SnapToEdge）共用同一套参考线，保证手感一致。
-    /// R161：参考线扩展到同屏所有普通应用窗口的边/中线（「贴图窗口吸附」）——把贴图对齐到浏览器/资源管理器
-    /// 窗口边缘从此和贴齐另一张贴图一样自然。自家浮层都是 WS_EX_NOACTIVATE，枚举天然跳过。</summary>
+    /// R161：参考线扩展到同屏所有普通应用窗口的边（「贴图窗口吸附」）。
+    /// R162：①只吸边不吸中线（用户点名「屏幕边缘、可视窗口边缘就够了」，中线是乱吸+卡顿感主源）；
+    /// ②窗口参考线在拖拽起点快照缓存——此前每个 MouseMove 全量 EnumWindows+DWM 查框，拖动明显掉帧。</summary>
     (double Left, double Top) SnapTarget(double left, double top)
     {
         try
@@ -323,7 +353,7 @@ public sealed class PinWindow : Window
             var scr = System.Windows.Forms.Screen.FromPoint(new System.Drawing.Point((int)cx, (int)cy));
             var wa = scr.WorkingArea;
             double cl = wa.X / d.DpiScaleX, ct = wa.Y / d.DpiScaleY, cr = wa.Right / d.DpiScaleX, cb = wa.Bottom / d.DpiScaleY;
-            // R77：同屏其他贴图的边/中线作为对齐参考线（跨屏 DPI 不同，仅同屏参与，避免 DIP 混算）
+            // R77：同屏其他贴图的边作为对齐参考线（跨屏 DPI 不同，仅同屏参与，避免 DIP 混算）
             var xAny = new System.Collections.Generic.List<double>();
             var yAny = new System.Collections.Generic.List<double>();
             foreach (var p in _open)
@@ -331,27 +361,37 @@ public sealed class PinWindow : Window
                 if (ReferenceEquals(p, this)) continue;
                 double pcx = (p.Left + p.Width / 2) * d.DpiScaleX, pcy = (p.Top + p.Height / 2) * d.DpiScaleY;
                 if (System.Windows.Forms.Screen.FromPoint(new System.Drawing.Point((int)pcx, (int)pcy)).DeviceName != scr.DeviceName) continue;
-                xAny.Add(p.Left); xAny.Add(p.Left + p.Width / 2); xAny.Add(p.Left + p.Width);
-                yAny.Add(p.Top); yAny.Add(p.Top + p.Height / 2); yAny.Add(p.Top + p.Height);
+                xAny.Add(p.Left); xAny.Add(p.Left + p.Width);
+                yAny.Add(p.Top); yAny.Add(p.Top + p.Height);
             }
-            // R161：同屏所有应用窗口的边/中线（物理像素 → DIP），中心落在本屏的才参与
-            try
+            // R161：同屏所有应用窗口的边（物理像素 → DIP），中心落在本屏的才参与；R162 用拖拽起点缓存
+            foreach (var (wl, wt, wr, wb) in _winGuides ??= BuildWinGuides())
             {
-                foreach (var (_, bounds, _) in FrameCapture.Native.WindowEnum.ListTopmostCandidates(skipIconic: true))
-                {
-                    double wcx = (bounds.X + bounds.W / 2.0) / d.DpiScaleX, wcy = (bounds.Y + bounds.H / 2.0) / d.DpiScaleY;
-                    if (System.Windows.Forms.Screen.FromPoint(new System.Drawing.Point((int)(wcx * d.DpiScaleX), (int)(wcy * d.DpiScaleY))).DeviceName != scr.DeviceName) continue;
-                    double wl = bounds.X / d.DpiScaleX, wt = bounds.Y / d.DpiScaleY, ww = bounds.W / d.DpiScaleX, wh = bounds.H / d.DpiScaleX;
-                    xAny.Add(wl); xAny.Add(wl + ww / 2); xAny.Add(wl + ww);
-                    yAny.Add(wt); yAny.Add(wt + wh / 2); yAny.Add(wt + wh);
-                }
+                double wcx = (wl + wr) / 2 * d.DpiScaleX, wcy = (wt + wb) / 2 * d.DpiScaleY;
+                if (System.Windows.Forms.Screen.FromPoint(new System.Drawing.Point((int)wcx, (int)wcy)).DeviceName != scr.DeviceName) continue;
+                xAny.Add(wl); xAny.Add(wr);
+                yAny.Add(wt); yAny.Add(wb);
             }
-            catch { /* 枚举失败不影响贴图/屏幕边吸附 */ }
             return FrameCapture.Core.PinSnap.SnapToLines(left, top, Width, Height,
                 new[] { cl, cr }, xAny, new[] { ct, cb }, yAny,
                 FrameCapture.Core.PinSnap.Threshold(Width, Height));
         }
         catch { return (left, top); }
+    }
+
+    List<(double L, double T, double R, double B)>? _winGuides;   // DIP，拖拽期间有效
+
+    List<(double L, double T, double R, double B)> BuildWinGuides()
+    {
+        var list = new System.Collections.Generic.List<(double, double, double, double)>();
+        try
+        {
+            var d = VisualTreeHelper.GetDpi(this);
+            foreach (var (_, b, _) in FrameCapture.Native.WindowEnum.ListTopmostCandidates(skipIconic: true))
+                list.Add((b.X / d.DpiScaleX, b.Y / d.DpiScaleY, (b.X + b.W) / d.DpiScaleX, (b.Y + b.H) / d.DpiScaleY));
+        }
+        catch { /* 枚举失败不影响贴图/屏幕边吸附 */ }
+        return list;
     }
 
     /// <summary>R74 磁边收尾：拖动松手后确保贴图吸附到参考线（实时拖拽已吸附，这里兜底 + 记 trace）。</summary>
@@ -463,7 +503,7 @@ public sealed class PinWindow : Window
             opacity.Items.Add(mi);
         }
         var close = new MenuItem { Header = "关闭", InputGestureText = "Esc" };
-        close.Click += (_, _) => Close();
+        close.Click += (_, _) => CloseAnimated();
         var closeAll = new MenuItem { Header = $"关闭全部贴图 ({_open.Count})" };
         closeAll.Click += (_, _) => { foreach (var p in _open.ToArray()) p.Close(); };
         menu.Items.Add(copy);

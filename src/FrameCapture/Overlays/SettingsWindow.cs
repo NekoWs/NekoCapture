@@ -165,7 +165,7 @@ public sealed class SettingsWindow : Window
         geRow.Children.Add(new TextBlock { Text = "   打开手势配置器…", Foreground = new SolidColorBrush(Theme.Text), FontSize = 13, VerticalAlignment = VerticalAlignment.Center });
         geBtn.Child = geRow;
         FrameCapture.Core.Fluent.Elevate(geBtn, blur: 24, depth: 6);
-        FrameCapture.Core.Fluent.Lift(geBtn);
+        Fluent.ChipHover(geBtn);   // R162：去掉悬停上浮（Lift），与普通按钮一致只改底色带过渡
         geBtn.MouseLeftButtonUp += (_, _) => FrameCapture.Services.GestureEditorHost.ShowOrFocus();
         panel.Children.Add(geBtn);
 
@@ -661,7 +661,10 @@ public sealed class SettingsWindow : Window
         {
             Width = 12,
             Height = 12,
-            Fill = new SolidColorBrush(initial ? Fluent.OnAccentColor(Theme.Accent) : Theme.Text),
+            // R162：滑块恒白 + 极淡描边（QQ 式）——旧版亮色主题下黑滑块/黑字压 accent，适配感缺失
+            Fill = new SolidColorBrush(Colors.White),
+            Stroke = new SolidColorBrush(Color.FromArgb(0x26, 0, 0, 0)),
+            StrokeThickness = 1,
             HorizontalAlignment = HorizontalAlignment.Left,
             Margin = new Thickness(4, 0, 4, 0),
             RenderTransform = new System.Windows.Media.TranslateTransform(initial ? 20 : 0, 0),
@@ -1276,8 +1279,10 @@ public sealed class SettingsWindow : Window
             CornerRadius = new CornerRadius(6),
             Padding = new Thickness(10, 4, 10, 4),
             Margin = new Thickness(0, 0, 12, 0),
+            // R162：垂直居中——横向 StackPanel 里 Border 被拉满行高，文字贴左上「错位」真凶
+            VerticalAlignment = VerticalAlignment.Center,
             Background = new SolidColorBrush(Theme.Hover),
-            Child = new TextBlock { Text = "试听", FontSize = 12.5, Foreground = new SolidColorBrush(Theme.Text) },
+            Child = new TextBlock { Text = "试听", FontSize = 12.5, Foreground = new SolidColorBrush(Theme.Text), VerticalAlignment = VerticalAlignment.Center },
             Cursor = Cursors.Hand,
             ToolTip = "点一下试听当前提示音（选「自定义…」后也会立刻放一声让你确认）",
             Focusable = true,
@@ -1286,11 +1291,9 @@ public sealed class SettingsWindow : Window
             _settings.Current.CaptureSound ? _settings.Current.CustomSoundPath : "");
         preview.MouseLeftButtonDown += (_, e) => { DoPreview(); e.Handled = true; };
         preview.KeyDown += (_, e) => { if (e.Key is Key.Space or Key.Enter) { DoPreview(); e.Handled = true; } };
-        preview.MouseEnter += (_, _) => preview.Background = new SolidColorBrush(Theme.Press);
-        preview.MouseLeave += (_, _) => preview.Background = new SolidColorBrush(Theme.Hover);
         preview.GotKeyboardFocus += (_, _) => { preview.BorderBrush = new SolidColorBrush(Theme.Accent); preview.BorderThickness = new Thickness(1); };
         preview.LostKeyboardFocus += (_, _) => preview.BorderThickness = new Thickness(0);
-        Fluent.ChipHover(preview, 1.04);   // 与全站芯片同款缩放弹性（叠加在原有 hover 背景之上）
+        Fluent.ChipHover(preview);   // R162：与普通按钮一致——悬停/按住只改底色带过渡，不再放大
         right.Children.Add(preview);
 
         // R161：开关+固定音 → 三选下拉「关闭 / 轻弹 / 自定义…」。选「自定义…」弹文件选择窗（ogg/wav）；

@@ -27,8 +27,50 @@ static class SelfTest
         else { fail++; Console.WriteLine($"FAIL {name}{(detail != null ? " :: " + detail : "")}"); }
     }
 
-    static int RenderHelp(string outPath)
+    /// <summary>R161 探针：全局细滚动条样式是否真的落到 ScrollViewer 模板内的 ScrollBar 上。</summary>
+    static int SbProbe(string outPath)
     {
+        var app = new Application();
+        FrameCapture.Core.Fluent.ApplyGlobalStyles();
+        var sv = new System.Windows.Controls.ScrollViewer { Width = 100, Height = 60, VerticalScrollBarVisibility = System.Windows.Controls.ScrollBarVisibility.Visible };
+        sv.Content = new System.Windows.Controls.Border { Width = 90, Height = 400, Background = System.Windows.Media.Brushes.Red };
+        var win = new Window { Content = sv, Left = -3000, Top = -3000, Width = 140, Height = 100, ShowInTaskbar = false, ShowActivated = false, WindowStyle = WindowStyle.None };
+        win.Show();
+        win.UpdateLayout();
+        System.Windows.Controls.Primitives.ScrollBar? found = null;
+        void Walk(System.Windows.DependencyObject o)
+        {
+            if (found != null) return;
+            if (o is System.Windows.Controls.Primitives.ScrollBar sb && sb.Orientation == System.Windows.Controls.Orientation.Vertical) { found = sb; return; }
+            int n = System.Windows.Media.VisualTreeHelper.GetChildrenCount(o);
+            for (int i = 0; i < n; i++) Walk(System.Windows.Media.VisualTreeHelper.GetChild(o, i));
+        }
+        Walk(win);
+        string info = found == null
+            ? "no-scrollbar"
+            : $"w={found.ActualWidth} styleNotNull={found.Style != null} hasAppStyle={app.Resources.Contains(typeof(System.Windows.Controls.Primitives.ScrollBar))}";
+        if (found?.Style != null)
+        {
+            var ours = (Style)app.Resources[typeof(System.Windows.Controls.Primitives.ScrollBar)];
+            info += $"\ntt={found.Style.TargetType} setters={found.Style.Setters.Count} isOurs={ReferenceEquals(found.Style, ours)}";
+            info += $"\nwidthProp={found.Width} actualH={found.ActualHeight} localWidth={found.ReadLocalValue(FrameworkElement.WidthProperty)}";
+            info += $"\nminW={found.GetValue(FrameworkElement.MinWidthProperty)} desired={found.DesiredSize} parent={System.Windows.Media.VisualTreeHelper.GetParent(found)?.GetType().Name}";
+            var par = System.Windows.Media.VisualTreeHelper.GetParent(found);
+            info += $"\nlocalMinW={found.ReadLocalValue(FrameworkElement.MinWidthProperty)} gp={(par is FrameworkElement p ? p.GetType().Name + "/" + p.ActualWidth : "?")}";
+            found.MinWidth = 0;
+            win.UpdateLayout();
+            info += $"\nafterMinW0 w={found.ActualWidth}";
+            found.Style = ours;
+            win.UpdateLayout();
+            info += $"\nafterForce w={found.ActualWidth}";
+        }
+        File.WriteAllText(outPath, info);
+        Console.WriteLine(info);
+        win.Close();
+        return 0;
+    }
+
+    static int RenderHelp(string outPath)    {
         var app = new Application();
         var w = FrameCapture.Overlays.HelpWindow.CreateForCapture();
         // 未 Show 的 Window 不参与布局（ActualHeight 恒 0）：把内容根单独 measure/arrange 后直接渲染视觉树
@@ -182,6 +224,7 @@ static class SelfTest
         Console.OutputEncoding = System.Text.Encoding.UTF8;
         // 离屏渲染帮助窗取证（R49）：独立进程、不 Show、不注册热键，不打断正在运行的实例
         if (args.Length == 2 && args[0] == "renderhelp") return RenderHelp(args[1]);
+        if (args.Length == 2 && args[0] == "sbprobe") return SbProbe(args[1]);
         if (args.Length == 2 && args[0] == "renderpick") return RenderPick(args[1]);
         if (args.Length == 2 && args[0] == "renderslider") return RenderSlider(args[1]);
         if (args.Length == 3 && args[0] == "stitch") return StitchMode(args[1], args[2]);
@@ -1558,18 +1601,18 @@ static class SelfTest
                 // 右边贴屏幕边（xEdge 接受 right 锚点）
                 var a2 = FrameCapture.Core.PinSnap.SnapToLines(105, 500, 200, 100, new[] { 300.0 }, e, e, e, 12);
                 Chk("T113b-edge-right", a2.Left == 100, "right(305) 距屏幕边 300 差 5 → 右对齐到 300");
-                // 中心贴其他贴图线（xAny 接受 center 锚点）
+                // R162：中线锚点已移除——只有边贴边，中心/中线不再吸附任何线
                 var a3 = FrameCapture.Core.PinSnap.SnapToLines(105, 500, 200, 100, e, new[] { 200.0 }, e, e, 12);
-                Chk("T113c-any-center", a3.Left == 100, "center(205) 距贴图线 200 差 5 → 中心对齐");
+                Chk("T113c-no-center", a3.Left == 105, "center(205) 距线 200 差 5 也不再吸（R162 只认边）");
                 // 关键：屏幕边不接受 center 锚点（否则半张图出屏）
                 var a4 = FrameCapture.Core.PinSnap.SnapToLines(105, 500, 200, 100, new[] { 205.0 }, e, e, e, 12);
                 Chk("T113d-edge-no-center", a4.Left == 105, "center 恰在屏幕边线上也不吸（屏幕边只认左右边）");
                 // 超阈值不动
                 var a5 = FrameCapture.Core.PinSnap.SnapToLines(105, 500, 200, 100, new[] { 50.0 }, e, e, e, 12);
                 Chk("T113e-far", a5.Left == 105 && a5.Top == 500, "参考线超阈值 → 不动");
-                // y 轴中线贴其他贴图
+                // y 轴中线同样不再吸附（R162）
                 var a6 = FrameCapture.Core.PinSnap.SnapToLines(500, 305, 200, 100, e, e, e, new[] { 350.0 }, 12);
-                Chk("T113f-any-middle", a6.Top == 300, "middle(355) 距贴图线 350 差 5 → 垂直中心对齐");
+                Chk("T113f-no-middle", a6.Top == 305, "middle(355) 距线 350 差 5 也不再吸（R162 只认边）");
                 // 空参考线 → 原样
                 var a7 = FrameCapture.Core.PinSnap.SnapToLines(123, 456, 200, 100, e, e, e, e, 12);
                 Chk("T113g-empty", a7.Left == 123 && a7.Top == 456, "无参考线 → 原样");
@@ -2436,6 +2479,50 @@ static class SelfTest
                 .ToList();
             Chk("T155-lib-host-trigger-coreword-consistent", drift.Count == 0,
                 drift.Count == 0 ? "配置器每个触发标签都含宿主核心词（KeyUp 抬起→松开 已对齐）" : string.Join("；", drift));
+        }
+        // T162 细滚动条全局样式真正生效（R162，用户「基本没变」根因：主题 ScrollBar 样式的
+        // MinWidth=17.33 经 DynamicResource 以直值泄漏到模板内 ScrollBar，样式 Setter 压不住，须附加属性归零）
+        {
+            var app = new Application();
+            FrameCapture.Core.Fluent.ApplyGlobalStyles();
+            var sv = new System.Windows.Controls.ScrollViewer { Width = 100, Height = 60, VerticalScrollBarVisibility = System.Windows.Controls.ScrollBarVisibility.Visible };
+            sv.Content = new System.Windows.Controls.Border { Width = 90, Height = 400 };
+            var win = new Window { Content = sv, Left = -3000, Top = -3000, Width = 140, Height = 100, ShowInTaskbar = false, ShowActivated = false, WindowStyle = WindowStyle.None };
+            win.Show();
+            win.UpdateLayout();
+            System.Windows.Controls.Primitives.ScrollBar sb = null;
+            void WalkSb(System.Windows.DependencyObject o)
+            {
+                if (sb != null) return;
+                if (o is System.Windows.Controls.Primitives.ScrollBar s && s.Orientation == System.Windows.Controls.Orientation.Vertical) { sb = s; return; }
+                int n = System.Windows.Media.VisualTreeHelper.GetChildrenCount(o);
+                for (int i = 0; i < n; i++) WalkSb(System.Windows.Media.VisualTreeHelper.GetChild(o, i));
+            }
+            WalkSb(win);
+            Chk("T162a-sb-thin", sb != null && sb.ActualWidth <= 8.5 && sb.MinWidth == 0,
+                $"模板内滚动条实宽 {sb?.ActualWidth.ToString() ?? "?"}（≤8.5）且 MinWidth 归零");
+            win.Close();
+        }
+        // T162b accent 反白 = WCAG 相对亮度 <0.35→白（R162，旧 0.299/0.587/0.114 加权把 #7F75FF 判成黑字）
+        {
+            var purple = FrameCapture.Core.Fluent.OnAccentColor(System.Windows.Media.Color.FromRgb(0x7F, 0x75, 0xFF));
+            var orange = FrameCapture.Core.Fluent.OnAccentColor(System.Windows.Media.Color.FromRgb(0xFF, 0x8C, 0x00));
+            var teal = FrameCapture.Core.Fluent.OnAccentColor(System.Windows.Media.Color.FromRgb(0x00, 0xB2, 0x94));
+            var white = FrameCapture.Core.Fluent.OnAccentColor(System.Windows.Media.Color.FromRgb(0xFF, 0xFF, 0xFF));
+            var black = FrameCapture.Core.Fluent.OnAccentColor(System.Windows.Media.Color.FromRgb(0x00, 0x00, 0x00));
+            Chk("T162b-onaccent-wcag",
+                purple == System.Windows.Media.Colors.White && orange == System.Windows.Media.Colors.Black
+                && teal == System.Windows.Media.Colors.White && white == System.Windows.Media.Colors.Black
+                && black == System.Windows.Media.Colors.White,
+                $"#7F75FF→白 #{purple} / #FF8C00→黑 #{orange} / #00B294→白 #{teal} / 白底黑 黑底白");
+            // lib 侧同公式（GestureEditor 独立库自带 OnAccent，防漂移）
+            var pal = new GEdit.EditorPalette();
+            pal.Accent = System.Windows.Media.Color.FromRgb(0x7F, 0x75, 0xFF);
+            bool libPurple = pal.OnAccent() == System.Windows.Media.Colors.White;
+            pal.Accent = System.Windows.Media.Color.FromRgb(0xFF, 0x8C, 0x00);
+            bool libOrange = pal.OnAccent() == System.Windows.Media.Colors.Black;
+            Chk("T162c-lib-onaccent-same", libPurple && libOrange,
+                "配置器库 OnAccent 与宿主同 WCAG 公式（#7F75FF→白 / #FF8C00→黑）");
         }
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");
         return fail == 0 ? 0 : 1;

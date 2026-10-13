@@ -288,12 +288,8 @@ public static class Fluent
             track.BorderBrush = bb;
             bb.BeginAnimation(SolidColorBrush.ColorProperty, new ColorAnimation(on ? Theme.Accent : Theme.Stroke, new Duration(TimeSpan.FromMilliseconds(Motion.StateMs))));
         }
-        if (knob is Shape sh && sh.Fill is SolidColorBrush kfOld)
-        {
-            var kf = new SolidColorBrush(kfOld.Color);
-            sh.Fill = kf;
-            kf.BeginAnimation(SolidColorBrush.ColorProperty, new ColorAnimation(on ? Color.FromRgb(0, 0, 0) : Theme.Text, new Duration(TimeSpan.FromMilliseconds(Motion.StateMs))));
-        }
+        // R162：滑块恒白（QQ 式），不再随状态在 accent 反白/Theme.Text 间跳——亮色主题下
+        // Theme.Text=黑，关态黑滑块像没做适配的 bug；状态只靠轨道底色表达。
     }
 
     // ---------------- 窗口淡入 ----------------
@@ -474,9 +470,15 @@ public static class Fluent
 
     // ---------------- 工具按钮选中态：accent 实心 + 反白图标（与 ✓ 主按钮同一语言） ----------------
 
-    /// <summary>accent 底色上的反白色：按亮度取黑/白（浅色 accent 配黑字，深色 accent 配白字）。</summary>
-    public static Color OnAccentColor(Color accent)
-        => (0.299 * accent.R + 0.587 * accent.G + 0.114 * accent.B) > 128 ? Colors.Black : Colors.White;
+    /// <summary>accent 底色上的反白色：WCAG 相对亮度（sRGB 线性化）低于 0.35 → 白字，否则黑字。
+    /// R161：旧式 0.299/0.587/0.114 加权在 128 一刀切，把 #7F75FF 这类中等饱和紫判成黑字——
+    /// 紫底黑字糊成一片，用户点名「对比度没生效」。线性亮度才符合人眼感知。</summary>
+    public static Color OnAccentColor(Color a)
+    {
+        static double L(double c) { c /= 255.0; return c <= 0.03928 ? c / 12.92 : System.Math.Pow((c + 0.055) / 1.055, 2.4); }
+        double lum = 0.2126 * L(a.R) + 0.7152 * L(a.G) + 0.0722 * L(a.B);
+        return lum < 0.35 ? Colors.White : Colors.Black;
+    }
 
     public static void HighlightBtn(Button b, bool on)
     {
@@ -491,16 +493,52 @@ public static class Fluent
         fg.BeginAnimation(SolidColorBrush.ColorProperty, new ColorAnimation(on ? OnAccentColor(Theme.Accent) : Theme.Text, new Duration(TimeSpan.FromMilliseconds(Motion.StateMs))));
     }
 
-    // ---------------- 芯片（颜色选择）：悬停放大 + 按下回缩 ----------------
+    // ---------------- 芯片/小按钮：悬停/按下只改底色带过渡（与普通按钮一致） ----------------
 
-    public static void ChipHover(FrameworkElement el, double scale = 1.18)
+    /// <summary>R161：小按钮不再放大——放大动画会盖住相邻控件、显廉价，与普通按钮统一为
+    /// 「悬停/按住只改底色 + 过渡动画」。scale 参数保留兼容旧调用点，已忽略。
+    /// 基色在进入时捕获、离开时还原；若悬停期间外部换了底色（选中态切换），离开时不强行回旧色。</summary>
+    public static void ChipHover(FrameworkElement el, double scale = 1.18) => BgHover(el);
+
+    static void BgHover(FrameworkElement el)
     {
-        el.RenderTransformOrigin = new Point(0.5, 0.5);
-        el.RenderTransform = new ScaleTransform(1, 1);
-        el.MouseEnter += (_, _) => AnimateScale(el, scale, 120, Spring(0.5));
-        el.MouseLeave += (_, _) => AnimateScale(el, 1, 140);
-        el.MouseUp += (_, _) => AnimateScale(el, scale, Motion.SpringMs, Spring(0.8));
-        el.PreviewMouseLeftButtonDown += (_, _) => AnimateScale(el, 0.9, 70);
+        Color lastKnown = Colors.Transparent;
+        // Background 分别定义在 Border / Control 上（FrameworkElement 没有）——只读取当前画刷做颜色动画
+        SolidColorBrush? Bg() => el is Border bd ? bd.Background as SolidColorBrush
+                            : el is Control cc ? cc.Background as SolidColorBrush : null;
+        void SetBg(SolidColorBrush b) { if (el is Border bd) bd.Background = b; else if (el is Control cc) cc.Background = b; }
+        void An(Color to, int ms)
+        {
+            var cur = Bg();
+            Color from = cur?.Color ?? lastKnown;
+            if (cur == null || cur.IsFrozen)   // Theme.B() 产出的画刷是冻结的——动画前先换成当前色的可动画副本
+            {
+                var nb = new SolidColorBrush(from);
+                SetBg(nb);
+                cur = nb;
+            }
+            cur.BeginAnimation(SolidColorBrush.ColorProperty, new ColorAnimation(to, new Duration(TimeSpan.FromMilliseconds(ms))));
+        }
+        static Color Blend(Color src, Color over)
+        {
+            double a = over.A / 255.0;
+            return Color.FromArgb(src.A,
+                (byte)(src.R * (1 - a) + over.R * a),
+                (byte)(src.G * (1 - a) + over.G * a),
+                (byte)(src.B * (1 - a) + over.B * a));
+        }
+        el.MouseEnter += (_, _) => { var sb = Bg(); if (sb != null) { lastKnown = sb.Color; An(Blend(sb.Color, Theme.Hover), 140); } };
+        el.MouseLeave += (_, _) =>
+        {
+            var sb = Bg(); if (sb == null) return;
+            var hoverTarget = Blend(lastKnown, Theme.Hover);
+            bool near(byte x, byte y) => System.Math.Abs(x - y) <= 3;
+            if (near(sb.Color.R, hoverTarget.R) && near(sb.Color.G, hoverTarget.G) && near(sb.Color.B, hoverTarget.B))
+                An(lastKnown, 160);
+            else lastKnown = sb.Color;   // 外部已换底色（如选中态），以新色为基色
+        };
+        el.PreviewMouseLeftButtonDown += (_, _) => An(Blend(lastKnown, Theme.Press), 70);
+        el.MouseUp += (_, _) => An(Blend(lastKnown, Theme.Hover), 120);
     }
 
     /// <summary>开关轨道 hover：进入时边框提亮一档、离开还原（on=accent / off=stroke）。
@@ -575,17 +613,9 @@ public static class Fluent
         return new Border { Padding = new Thickness(18), Child = inner };
     }
 
-    /// <summary>紧凑可交互元素（卡片/行/芯片）的弹性微交互：hover 轻微放大 + 松手 BackEase 过冲弹回。
-    /// 用于有外边距、放大不致裁切的元素；满宽卡片请改用 <see cref="Lift"/>（纵向位移，绝不横向溢出容器）。</summary>
-    public static void Springy(FrameworkElement el, double hover = 1.02, double press = 0.985)
-    {
-        el.RenderTransformOrigin = new Point(0.5, 0.5);
-        el.RenderTransform = new ScaleTransform(1, 1);
-        el.MouseEnter += (_, _) => AnimateScale(el, hover, Motion.HoverMs, Spring(0.35));
-        el.MouseLeave += (_, _) => AnimateScale(el, 1, 140);
-        el.PreviewMouseLeftButtonDown += (_, _) => AnimateScale(el, press, 70);
-        el.MouseUp += (_, _) => AnimateScale(el, hover, Motion.SpringMs, Spring(0.6));
-    }
+    /// <summary>R162：与 ChipHover 同款——小按钮悬停/按住只改底色带过渡，不再放大
+    /// （用户：「小按钮的变大动画改成和普通按钮一致」）。hover/press 参数保留兼容，已忽略。</summary>
+    public static void Springy(FrameworkElement el, double hover = 1.02, double press = 0.985) => BgHover(el);
 
     /// <summary>满宽卡片的安全「浮起」反馈：hover 轻微上移 + 松手回弹，离开复位——不缩放故绝不横向溢出容器。</summary>
     public static void Lift(Border b, double dy = 2.0)
@@ -663,63 +693,77 @@ public static class Fluent
         return (Style)System.Windows.Markup.XamlReader.Parse(xaml);
     }
 
+    /// <summary>R161：主题 ScrollBar 样式的 MinWidth/MinHeight（=系统滚动条宽 17.33）经 DynamicResource
+    /// 以直值形式泄漏到模板内 ScrollBar 上，样式 Setter 压不住（直值优先级更高）——细滚动条样式
+    /// 「看起来没生效」的真凶。附加属性在样式应用瞬间把两者归零（本地值可压直值，探针实证）。</summary>
+    public static readonly DependencyProperty SlimProperty = DependencyProperty.RegisterAttached(
+        "Slim", typeof(bool), typeof(Fluent), new PropertyMetadata(false, (d, e) =>
+        {
+            if (d is ScrollBar sb && (bool)e.NewValue) { sb.MinWidth = 0; sb.MinHeight = 0; }
+        }));
+    public static void SetSlim(DependencyObject d, bool v) => d.SetValue(SlimProperty, v);
+    public static bool GetSlim(DependencyObject d) => (bool)d.GetValue(SlimProperty);
+
     public static Style ScrollBarStyle()
     {
         string thumb = Hex(Theme.Stroke), thumbHi = Hex(Theme.Press);
+        // 轨道 8DIP、滑块 4DIP 圆角胶囊、无箭头；竖/横两套模板（Track 方向必须匹配，否则滑块拖不动）
+        string Tmpl(string orient, string dirRev) => $"""
+            <Setter.Value>
+              <ControlTemplate TargetType="ScrollBar">
+                <Grid Background="Transparent">
+                  <Track x:Name="PART_Track" Orientation="{orient}" IsDirectionReversed="{dirRev}">
+                  <Track.DecreaseRepeatButton>
+                    <RepeatButton Focusable="False" IsTabStop="False">
+                      <RepeatButton.Template>
+                        <ControlTemplate TargetType="RepeatButton"><Border Background="Transparent"/></ControlTemplate>
+                      </RepeatButton.Template>
+                    </RepeatButton>
+                  </Track.DecreaseRepeatButton>
+                  <Track.IncreaseRepeatButton>
+                    <RepeatButton Focusable="False" IsTabStop="False">
+                      <RepeatButton.Template>
+                        <ControlTemplate TargetType="RepeatButton"><Border Background="Transparent"/></ControlTemplate>
+                      </RepeatButton.Template>
+                    </RepeatButton>
+                  </Track.IncreaseRepeatButton>
+                  <Track.Thumb>
+                    <Thumb Focusable="False" IsTabStop="False">
+                      <Thumb.Template>
+                        <ControlTemplate TargetType="Thumb">
+                          <Border x:Name="tb" CornerRadius="2" Background="{thumb}" Margin="2"/>
+                          <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                              <Setter TargetName="tb" Property="Background" Value="{thumbHi}"/>
+                            </Trigger>
+                          </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                      </Thumb.Template>
+                    </Thumb>
+                  </Track.Thumb>
+                </Track>
+                </Grid>
+              </ControlTemplate>
+            </Setter.Value>
+            """;
         string sbXaml = $"""
             <Style TargetType="ScrollBar"
                    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
               <Setter Property="Background" Value="Transparent"/>
               <Setter Property="Width" Value="8"/>
-              <Setter Property="Template">
-                <Setter.Value>
-                  <ControlTemplate TargetType="ScrollBar">
-                    <Grid Background="Transparent">
-                      <Track x:Name="PART_Track" IsDirectionReversed="True">
-                        <Track.DecreaseRepeatButton>
-                          <RepeatButton Focusable="False">
-                            <RepeatButton.Template>
-                              <ControlTemplate TargetType="RepeatButton"><Border Background="Transparent"/></ControlTemplate>
-                            </RepeatButton.Template>
-                          </RepeatButton>
-                        </Track.DecreaseRepeatButton>
-                        <Track.IncreaseRepeatButton>
-                          <RepeatButton Focusable="False">
-                            <RepeatButton.Template>
-                              <ControlTemplate TargetType="RepeatButton"><Border Background="Transparent"/></ControlTemplate>
-                            </RepeatButton.Template>
-                          </RepeatButton>
-                        </Track.IncreaseRepeatButton>
-                        <Track.Thumb>
-                          <Thumb Focusable="False">
-                            <Thumb.Template>
-                              <ControlTemplate TargetType="Thumb">
-                                <!-- R161：滚动条改细（10→8 轨道、滑块 5/8→4px 且横竖一致），圆角随厚度收小 -->
-                                <Border x:Name="tb" CornerRadius="2" Background="{thumb}" Margin="2"/>
-                                <ControlTemplate.Triggers>
-                                  <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter TargetName="tb" Property="Background" Value="{thumbHi}"/>
-                                  </Trigger>
-                                </ControlTemplate.Triggers>
-                              </ControlTemplate>
-                            </Thumb.Template>
-                          </Thumb>
-                        </Track.Thumb>
-                      </Track>
-                    </Grid>
-                  </ControlTemplate>
-                </Setter.Value>
-              </Setter>
+              <Setter Property="Template">{Tmpl("Vertical", "True")}</Setter>
               <Style.Triggers>
                 <Trigger Property="Orientation" Value="Horizontal">
                   <Setter Property="Width" Value="Auto"/>
                   <Setter Property="Height" Value="8"/>
+                  <Setter Property="Template">{Tmpl("Horizontal", "False")}</Setter>
                 </Trigger>
               </Style.Triggers>
             </Style>
             """;
         var st = (Style)System.Windows.Markup.XamlReader.Parse(sbXaml);
+        st.Setters.Add(new Setter(SlimProperty, true));   // 附加属性用 DP 对象直挂（XAML 里 clr-namespace 解析不了）
         return st;
     }
 

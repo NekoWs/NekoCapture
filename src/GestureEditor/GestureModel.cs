@@ -83,7 +83,12 @@ public sealed class EditorPalette
 
     public SolidColorBrush B(Color c) { var b = new SolidColorBrush(c); b.Freeze(); return b; }
 
-    /// <summary>压在 Accent 底上的可读前景：强调色偏亮→黑字，偏暗→白字。与宿主 Fluent.OnAccentColor 同款判定，库内自包含不引用宿主 Fluent。</summary>
+    /// <summary>压在 Accent 底上的可读前景：WCAG 相对亮度（sRGB 线性化）&lt;0.35→白字，否则黑字。
+    /// 与宿主 Fluent.OnAccentColor 同款判定（R162：旧加权亮度把 #7F75FF 误判黑字），库内自包含不引用宿主 Fluent。</summary>
     public Color OnAccent()
-        => (0.299 * Accent.R + 0.587 * Accent.G + 0.114 * Accent.B) > 128 ? Colors.Black : Colors.White;
+    {
+        static double L(double c) { c /= 255.0; return c <= 0.03928 ? c / 12.92 : System.Math.Pow((c + 0.055) / 1.055, 2.4); }
+        double lum = 0.2126 * L(Accent.R) + 0.7152 * L(Accent.G) + 0.0722 * L(Accent.B);
+        return lum < 0.35 ? Colors.White : Colors.Black;
+    }
 }
