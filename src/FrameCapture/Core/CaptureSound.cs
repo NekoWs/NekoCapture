@@ -67,16 +67,48 @@ public static class CaptureSound
 
     const uint SND_ASYNC = 0x0001, SND_NODEFAULT = 0x0002, SND_MEMORY = 0x0004;
 
-    /// <summary>播放一声（异步，不阻塞 UI 线程）。首次合成后缓存字节。绝不抛——无音频设备等情况静默忽略。</summary>
-    public static void Play()
+    /// <summary>播放一声（异步，不阻塞 UI 线程）。首次合成后缓存字节。绝不抛——无音频设备等情况静默忽略。
+    /// R161：customPath 非空且存在时优先播自定义提示音——wav 直接读字节走 winmm（无编解码依赖，保证可播）；
+    /// ogg/mp3 等走 WPF MediaPlayer（系统媒体管线），解码失败/文件损坏回退内置嘀声，绝不无声。</summary>
+    public static void Play(string? customPath = null)
     {
         try
         {
+            if (!string.IsNullOrWhiteSpace(customPath) && PlayCustom(customPath)) return;
             _cached ??= MakeWav(Samples());
             // SND_MEMORY|SND_ASYNC|SND_NODEFAULT：Windows 自持缓冲，fire-and-forget，无对象生命周期问题
             bool ok = PlaySound(_cached, IntPtr.Zero, SND_MEMORY | SND_ASYNC | SND_NODEFAULT);
             Trace.Log($"capture sound played={ok} bytes={_cached.Length}");
         }
         catch (Exception e) { Trace.Log($"capture sound failed: {e.GetType().Name}"); }
+    }
+
+    static byte[]? _customBytes;
+    static string _customKey = "";
+    static System.Windows.Media.MediaPlayer? _mp;
+
+    /// <summary>返回 true=已交给播放管线（wav 成功或已交给 MediaPlayer）；false=回退内置嘀声。</summary>
+    static bool PlayCustom(string path)
+    {
+        try
+        {
+            if (!File.Exists(path)) return false;
+            if (path.EndsWith(".wav", StringComparison.OrdinalIgnoreCase))
+            {
+                string key = path + "|" + File.GetLastWriteTimeUtc(path);
+                if (_customKey != key) { _customBytes = File.ReadAllBytes(path); _customKey = key; }
+                if (_customBytes != null && PlaySound(_customBytes, IntPtr.Zero, SND_MEMORY | SND_ASYNC | SND_NODEFAULT))
+                    return true;
+                return false;   // wav 播放失败（如畸形头）→ 回退嘀声
+            }
+            // 非 wav：MediaPlayer 需 UI 线程（与 Dispatcher 绑定）；捕获完成都在 UI 线程，异常场景直接回退
+            if (System.Windows.Application.Current?.Dispatcher.CheckAccess() != true) return false;
+            _mp?.Stop(); _mp?.Close();
+            _mp = new System.Windows.Media.MediaPlayer();
+            _mp.Open(new Uri(path));
+            _mp.Play();
+            return true;
+        }
+        catch (Exception e) { Trace.Log($"custom sound failed: {e.GetType().Name} → 回退嘀声"); return false; }
     }
 }

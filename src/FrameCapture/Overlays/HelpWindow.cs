@@ -1,17 +1,32 @@
+using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using FrameCapture.Core;
 using FrameCapture.Native;
 using FrameCapture.Services;
 
 namespace FrameCapture.Overlays;
 
-/// <summary>快捷键与用法速查（教程文档，允许成段文字）。</summary>
+/// <summary>
+/// R161：帮助从「一屏文字墙」改为渐进式分步演示——布局对齐设置页：左侧本步大标题（图标+名称），
+/// 右侧正文只讲这一步（几行短句，细节进悬停气泡），右下角 上一页/下一页 翻页。
+/// 文字量按「一步只学一件事」裁剪；标注工具目录仍是单一数据源（ToolCatalog），防漂移不变。
+/// </summary>
 public sealed class HelpWindow : Window
 {
+    static int _lastStep;   // 主题切换重建窗口时停留在原步骤；跨次打开也沿用（学到哪下次从哪继续）
+
+    int _step;
+    StackPanel _body = null!;
+    TextBlock _bigIcon = null!, _bigTitle = null!, _bigSub = null!, _pager = null!;
+    Border _prevBtn = null!, _nextBtn = null!;
+    List<(string icon, string title, string sub, Action<StackPanel> body)> _steps = null!;
+
     public static void ShowOrFocus()
     {
         foreach (Window w in Application.Current.Windows)
@@ -38,16 +53,16 @@ public sealed class HelpWindow : Window
         nw.Left = oldw.Left; nw.Top = oldw.Top;
         nw.Opacity = 0;
         nw.Show();
-        var fo = new System.Windows.Media.Animation.DoubleAnimation(0, TimeSpan.FromMilliseconds(FrameCapture.Core.Fluent.Motion.ExitMs + 20)); // 交叉淡入的非对称节拍
+        var fo = new DoubleAnimation(0, TimeSpan.FromMilliseconds(Fluent.Motion.ExitMs + 20)); // 交叉淡入的非对称节拍
         fo.Completed += (_, _) => oldw.Close();
         oldw.BeginAnimation(OpacityProperty, fo);
-        nw.BeginAnimation(OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(1, TimeSpan.FromMilliseconds(FrameCapture.Core.Fluent.Motion.ThemeMs)));
+        nw.BeginAnimation(OpacityProperty, new DoubleAnimation(1, TimeSpan.FromMilliseconds(Fluent.Motion.ThemeMs)));
     }
 
     void Build()
     {
         // 覆盖层不需要文本输入：禁用输入法，避免拼音拦截快捷键
-        System.Windows.Input.InputMethod.SetIsInputMethodEnabled(this, false);
+        InputMethod.SetIsInputMethodEnabled(this, false);
         WindowStyle = WindowStyle.None;
         ResizeMode = ResizeMode.NoResize;
         AllowsTransparency = true;
@@ -55,12 +70,10 @@ public sealed class HelpWindow : Window
         ShowInTaskbar = false;
         Topmost = true;
         Title = "FrameCapture Help";
-        Width = 640;
-        // 条目随功能增长（R13 起 806 装不下，末条被裁一半）：高度自适应内容，超高封顶后滚动
-        SizeToContent = SizeToContent.Height;
-        // R49：封顶值跟随工作区（固定 1040 在 2K 屏白白滚动藏底，1080p 屏又可能超屏）
-        MaxHeight = Math.Max(600, SystemParameters.WorkArea.Height - 80);
+        Width = 660;
+        Height = 430;   // 固定高度：翻页时窗口不跳，正文超高在右栏内滚
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
+        _step = Math.Clamp(_lastStep, 0, 99);   // 步数可能变少，Show() 前再钳一次
 
         var root = new Border
         {
@@ -68,131 +81,74 @@ public sealed class HelpWindow : Window
             Background = new SolidColorBrush(Theme.WindowBg),
             BorderBrush = new SolidColorBrush(Theme.Stroke),
             BorderThickness = new Thickness(1),
-            Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 24, ShadowDepth = 2, Opacity = 0.5 },
+            Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 24, ShadowDepth = 2, Opacity = Theme.IsDark ? 0.5 : 0.15 },
         };
         var dock = new DockPanel { LastChildFill = true };
 
-        // R62 紧凑化：与设置窗同款自绘标题栏（共享件 Fluent.TitleBar），去掉旧版 18px 大标题 + 悬浮关闭钮；
-        // 分组小标题/行距/内衬全部对齐设置窗同一套密度与视觉语言。
-        var (bar, closeBtn) = FrameCapture.Core.Fluent.TitleBar("\uE9CE", "使用速查");
-        closeBtn.Click += (_, _) => FrameCapture.Core.Fluent.CloseWithFade(this);
+        var (bar, closeBtn) = Fluent.TitleBar("\uE9CE", "使用指南");
+        closeBtn.Click += (_, _) => Fluent.CloseWithFade(this);
         DockPanel.SetDock(bar, Dock.Top);
         dock.Children.Add(bar);
 
-        var panel = new StackPanel { Margin = new Thickness(16, 6, 16, 14) };
-        void H(string t) => panel.Children.Add(new TextBlock
+        BuildSteps();
+        _step = Math.Clamp(_step, 0, _steps.Count - 1);
+
+        // ---- 主体：左大标题 | 右正文（与设置页同款视觉分工） ----
+        var main = new Grid { Margin = new Thickness(18, 8, 18, 0), VerticalAlignment = VerticalAlignment.Stretch };
+        main.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(168) });
+        main.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+        var left = new StackPanel { Margin = new Thickness(2, 10, 8, 0) };
+        _bigIcon = new TextBlock { FontFamily = new FontFamily(Fluent.IconFontChain), FontSize = 34, Foreground = new SolidColorBrush(Theme.Accent) };
+        _bigTitle = new TextBlock { FontSize = 21, FontWeight = FontWeights.Bold, Foreground = new SolidColorBrush(Theme.Text), Margin = new Thickness(0, 10, 0, 0), TextWrapping = TextWrapping.Wrap };
+        _bigSub = new TextBlock { FontSize = 12, Foreground = new SolidColorBrush(Theme.TextDim), Margin = new Thickness(0, 6, 0, 0), TextWrapping = TextWrapping.Wrap, LineHeight = 18 };
+        left.Children.Add(_bigIcon); left.Children.Add(_bigTitle); left.Children.Add(_bigSub);
+        Grid.SetColumn(left, 0);
+        main.Children.Add(left);
+
+        _body = new StackPanel { Margin = new Thickness(6, 2, 0, 0) };
+        var bodyScroll = new ScrollViewer
         {
-            Text = t, FontSize = 11, FontWeight = FontWeights.SemiBold,
-            Foreground = new SolidColorBrush(Theme.TextDim), Margin = new Thickness(2, 12, 0, 3),
-        });
-        void KV(string k, string v)
-        {
-            // 两列栅格：键位列定宽（各行同宽才对齐），说明列自适应换行
-            var g = new Grid { Margin = new Thickness(2, 1, 0, 1) };
-            g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(172) });
-            g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            var kt = new TextBlock
-            {
-                Text = k, FontSize = 12.5,
-                Foreground = new SolidColorBrush(Theme.Text),
-                VerticalAlignment = VerticalAlignment.Top,
-                Margin = new Thickness(0, 0, 12, 0),
-            };
-            var vt = new TextBlock
-            {
-                Text = v, FontSize = 12.5,
-                Foreground = new SolidColorBrush(Theme.Text),
-                TextWrapping = TextWrapping.Wrap,
-            };
-            g.Children.Add(kt);
-            Grid.SetColumn(vt, 1);
-            g.Children.Add(vt);
-            panel.Children.Add(g);
-        }
-        // R149：键位列反映用户「真实绑定」而非写死的默认方案——自定义手势下旧 ScopeKeyText/CaptureKeyText
-        // 会回落成没绑定的死键（如 Ctrl+Shift+R）或把 Chord 说成「按住/轻点」。按动作查实际绑定并带触发语义。
-        string KeysFor(params string[] actions)
-        {
-            var g = SettingsService.Shared?.Current?.Gestures;
-            return g == null ? "未绑定" : g.DescribeKeysFor(actions);
-        }
-
-        H("捕获");
-        KV(KeysFor(GestureActions.ScopeSelect), "设置捕获范围（拖框 / 悬停吸附窗口，Enter 确认，Esc 取消）——范围沿用；虚线旧选区可在设置关闭");
-        KV("选区放大镜", "拖框/悬停时光标旁显示高倍像素放大镜 + 坐标/尺寸读数 + 光标下像素颜色，像素级精确选区/取色；按 C 复制颜色（格式 HEX/RGB/HSL 可在设置选，默认 HEX），选区窗内按 F 即时循环切换格式（读数立刻变，偏好会记住）");
-        KV(KeysFor(GestureActions.RecordToggle, GestureActions.RecordStart, GestureActions.RecordStop), "开始 / 停止录制：可设为同键切换，或按住起录·松手停止（不设时长上限），范围角上亮 REC 徽标；产物留内存，用『打开上次录制』进编辑器标注");
-        KV("录制帧率 / 高刷", "设置「录制」组：帧率滑杆 10–240，或开「跟随显示器刷新率录满」（如 160Hz 屏就按 160fps 录，忽略手动值）。实际帧率受内容变化率与系统捕获投递限制——静态画面不会凭空产帧；要真正录满高刷，需被录内容本身以刷新率变化（全屏游戏/视频等）");
-        KV("录制格式 MP4/WebM/GIF", "设置「录制格式」决定「导出录制」(Ctrl+E) 与「自动保存副本」的默认容器：MP4(libx264)/WebM(vp9) 支持高帧率、体积小，需本机装 FFmpeg（软件自动探测，未装则视频项提示安装、GIF 始终可用）；GIF 免依赖到处能贴但封顶约 50fps 且体积大。Enter 写剪贴板始终是 GIF（聊天工具可直接粘贴）");
-        KV("录制包含鼠标指针", "设置「录制」组可关：默认录出的画面带鼠标光标；关掉后成片干净无光标，适合做教程/演示时后期自己加高亮，或不想让光标乱入");
-        KV("导出视频需要 FFmpeg", "MP4/WebM 导出靠本机 ffmpeg（软件不内置，运行时自动探测 PATH 与常见安装目录）。没装时视频项会提示、GIF 仍可导出。安装任选其一：① 命令行 `winget install Gyan.FFmpeg`（Win11 自带 winget，装完重开软件即识别）；② 到 ffmpeg.org 下载解压后把其 bin 目录加入 PATH；③ 已装过但没进 PATH，可把 ffmpeg.exe 所在目录加进系统 PATH。装好后无需重启设置，下次导出即生效");
-        KV(KeysFor(GestureActions.CaptureSelection, GestureActions.CaptureFrame), "截图：选一块区域立即截静态图进剪贴板（QQ 式 Ctrl+Alt+A 手感），或即时抓光标屏全屏一帧；浮窗上点一下或 Enter 继续标注");
-        KV("截图后", "设置里可选：弹提示（默认，浮窗点一下/Enter 进编辑器）· 进编辑器（复制后直接开标注，QQ 式）· 只复制（不弹窗不开编辑器，最快）· 贴图（复制后直接把图钉在原捕获位置，Snipaste 式，可多张并存、拖动/缩放/标注；仅对静图/滚动/延时等单帧捕获生效，录制仍进编辑器）");
-        KV("截图提示音", "设置「截图」组可开：静态截图完成放一声柔和短促的「嘀」作听觉确认（默认关）；旁边「试听」可先听再决定");
-        KV("滚动截图（长图）", "托盘「滚动截图（长图）」→ 拖选区 → 只管滚动目标窗口，自动找重叠拼接长图（进度实时显示）；点「完成」出图，按 Esc 随时取消（QQ 式）。网页/聊天记录/代码一屏截不下时用");
-        KV("延时截图", "托盘「延时截图（N 秒）」→ 倒计时期间去打开右键菜单/悬停提示/下拉框，到点自动截当前范围（QQ 式延时）。秒数在设置「截图」组选（关/1/3/5/10）；倒计时浮窗不抢焦点、不入镜，点「取消」可中止");
-        KV("从剪贴板贴图", "复制任意图片（截图 / 图片文件 / 网页图）后，托盘「从剪贴板贴图」把它钉在光标处作参考（Snipaste 式粘贴即贴图）；剪贴板没图片会气泡提示");
-
-        H("编辑器 · 播放");
-        KV("空格", "播放 / 暂停");
-        KV("← →", "上一帧 / 下一帧");
-        KV("Shift + ← →", "往前 / 往后一秒");
-        KV("时间轴", "点/拖跳转；拖两端把手选一段范围（导出只含该段），单击清除");
-        KV("[ / ]", "裁剪起点/终点 = 当前帧（Backspace 清除范围）");
-        KV("＋ / －", "播放倍速 ×0.25–×8（0 或 × 复位）");
-
-        H("编辑器 · 缩放");
-        KV("Ctrl + 滚轮", "以光标为锚放大 / 缩小");
-        KV("PageUp / PageDown", "放大 / 缩小（同 Ctrl + ＋ / －）");
-        KV("Home 或 Ctrl+0", "回到适配视图");
-        KV("End 或 Ctrl+1", "逐像素 1:1（HUD 显示当前倍率）");
-        KV("拖 拽", "放大后：浏览态左键拖，或任意工具下按住中键平移");
-
-        H(FrameCapture.Core.ToolCatalog.HelpHeading);
-        // 工具条目从目录生成：加工具不会再漏帮助（R48，T92 配套）
-        foreach (var t in FrameCapture.Core.ToolCatalog.Tools)
-            KV(t.Sym == t.Key ? t.Key : $"{t.Sym} {t.Key}", t.Help); // Sym 是普通 Unicode：帮助窗默认字体渲染，图标字形(Glyph)会出豆腐块
-        KV("调色板 K", "自绘 RGBA 调色板：色相/饱和/明度/透明度拖动即时生效，HEX 与 R/G/B/A 可直填；最近用色钉在旁侧，点一下即用");
-        KV("⋯ 宽度 W", "自定义线宽：滑杆 1–24px，实时预览");
-        KV("Ctrl+Z / U / Del", "撤销上一笔（标注与裁剪按发生顺序统一撤销）");
-        KV("V 选中后改色/宽", "选中已有标注后点色板或线宽，就地改这条标注的颜色/粗细（文字/序号的粗细即字号），Ctrl+Z 可撤销；未选中时改的是后续新标注的默认值");
-        KV("Ctrl+Y / Y", "重做上一笔");
-
-        H("完成");
-        KV("Enter / ✓", "生成 GIF 写入剪贴板（可直接粘贴到聊天工具），并自动生成 Agent 胶片条");
-        KV("F1", "打开本帮助（编辑器/设置窗内均可）");
-        KV("Esc / ✕", "放弃本次捕获（绘制态下 Esc 先退出工具，不会丢捕获；再按才放弃）");
-        KV("底部工具条", "保存当前帧 Ctrl+S / 复制当前帧 Ctrl+C / 钉到屏幕 Ctrl+P / 识别文字 Ctrl+O / 导出录制 Ctrl+E（MP4/WebM/GIF 三选一）/ 暂留合成图 Ctrl+H");
-        KV("Ctrl+P / 图片钮", "钉到屏幕：把当前帧（含标注）作为置顶小图钉在原位置，可拖动/滚轮缩放/双击或 Esc 关闭/R 键旋转 90°/F3 原地重抓源区域刷新内容（盯梢会变的画面免重截，Snipaste 式）/Ctrl+S 另存为/Ctrl+C 复制回剪贴板/Ctrl+O 识别文字/右键菜单（复制·另存为·识别文字·旋转·更新内容·不透明度·关闭），多张并存；拖动松手自动磁边贴屏幕边缘，也会对齐到同屏其他贴图的边/中线（可在设置关闭）");
-        KV("Ctrl+O / 识别钮", "识别文字：用 Windows 内置 OCR 识别当前帧里的印刷文字（中英文），无语言包时提示安装，不联网。默认（设置「识别文字后显示结果窗」开）弹出结果窗预览——可编辑、鼠标悬停部分选中复制、一键复制全部，不自动写剪贴板；关闭该设置则退回快速路径：纯文本直接写入剪贴板 + 轻提示");
-        KV("图钉", "编辑器总在最前（默认关）：钉上后盖着其他窗口也看得见，选择偏好会记住");
-
-        H("其他");
-        KV("托盘图标", "右键：设置 / 帮助 / 退出；修改快捷键后全局即时生效");
-        KV("暂停全局热键", "托盘「暂停全局热键（游戏/演示时）」勾选后，截图/选区/录制等热键全部让位给前台软件（不拦截、不误触），适合打游戏、投屏演示、或与其他软件热键撞车时临时避让；托盘图标提示会变「已暂停」，随时回来取消勾选即恢复。暂停期间托盘菜单里的「立即捕获」等仍可用（只让位热键，不影响托盘操作）；重启软件自动恢复工作");
-        KV("主题", "设置 → 外观：跟随系统 / 浅色 / 深色 + 强调色，全应用即时生效");
-        KV("胶片条", "确定后在 %TEMP%\\FrameCapture\\agent\\ 生成逐帧横排长图（含帧号/时间戳，可在设置关闭）");
-        var tip = new TextBlock
-        {
-            Text = "小提示：所有按钮悬停都有说明气泡。",
-            FontSize = 11.5, Foreground = new SolidColorBrush(Theme.TextDim), Margin = new Thickness(2, 14, 0, 0),
-        };
-        panel.Children.Add(tip);
-
-        var scroll = new ScrollViewer
-        {
-            Content = panel, VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            Content = _body,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            Focusable = false,
         };
-        DockPanel.SetDock(scroll, Dock.Bottom); // LastChildFill 填满剩余
-        dock.Children.Add(scroll);
+        Grid.SetColumn(bodyScroll, 1);
+        main.Children.Add(bodyScroll);
+        DockPanel.SetDock(main, Dock.Top);   // 底部翻页条固定，主体不吞掉它的高度
+        main.Height = 322;
+        dock.Children.Add(main);
+
+        // ---- 底部：左「第 N / M 步」，右 上一页 / 下一页（右下角，用户点名位置） ----
+        var foot = new Grid { Margin = new Thickness(18, 6, 18, 14) };
+        foot.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        foot.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        _pager = new TextBlock { FontSize = 12, Foreground = new SolidColorBrush(Theme.TextDim), VerticalAlignment = VerticalAlignment.Center };
+        Grid.SetColumn(_pager, 0);
+        foot.Children.Add(_pager);
+        var nav = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
+        _prevBtn = NavBtn("\u2190 上一页", on: false, () => Go(-1));
+        _nextBtn = NavBtn("下一页 \u2192", on: true, () => Go(+1));
+        nav.Children.Add(_prevBtn); nav.Children.Add(_nextBtn);
+        Grid.SetColumn(nav, 1);
+        foot.Children.Add(nav);
+        dock.Children.Add(foot);
+
         root.Child = dock;
         Content = root;
+        ShowStep(animate: false);
+
         Theme.Changed += OnThemeRebuild;
         Closed += (_, _) => Theme.Changed -= OnThemeRebuild;
-        PreviewKeyDown += (_, e) => { if (e.Key == Key.Escape) FrameCapture.Core.Fluent.CloseWithFade(this); };
-        FrameCapture.Core.Fluent.PopupEnter(this);
-        // 标题栏 = 原生 HTCAPTION（共享件，与设置窗同款）；旧版整窗 DragMove 废除（内容区不该拖窗）
-        FrameCapture.Core.Fluent.InstallCaptionDrag(this, closeBtn);
+        PreviewKeyDown += (_, e) =>
+        {
+            if (e.Key == Key.Escape) Fluent.CloseWithFade(this);
+            else if (e.Key == Key.Left) { Go(-1); e.Handled = true; }
+            else if (e.Key == Key.Right) { Go(+1); e.Handled = true; }
+        };
+        Fluent.PopupEnter(this);
+        Fluent.InstallCaptionDrag(this, closeBtn);
         SourceInitialized += (_, _) =>
         {
             var h = new System.Windows.Interop.WindowInteropHelper(this).Handle;
@@ -205,5 +161,196 @@ public sealed class HelpWindow : Window
             Left = wa.Left + (wa.Width - Width) / 2;
             Top = wa.Top + (wa.Height - Height) / 2;
         };
+    }
+
+    void Go(int dir)
+    {
+        int n = Math.Clamp(_step + dir, 0, _steps.Count - 1);
+        if (n == _step)
+        {
+            if (dir > 0) Fluent.CloseWithFade(this);   // 最后一步「完成」= 关闭
+            return;
+        }
+        _step = n;
+        _lastStep = n;
+        ShowStep(animate: true);
+    }
+
+    void ShowStep(bool animate)
+    {
+        var (icon, title, sub, body) = _steps[_step];
+        _bigIcon.Text = icon;
+        _bigTitle.Text = title;
+        _bigSub.Text = sub;
+        _body.Children.Clear();
+        body(_body);
+        _pager.Text = $"第 {_step + 1} / {_steps.Count} 步";
+        SetNavEnabled(_prevBtn, _step > 0);
+        // 最后一步：下一页变「完成」
+        if (_nextBtn.Child is TextBlock tb) tb.Text = _step == _steps.Count - 1 ? "完成 \u2713" : "下一页 \u2192";
+        if (animate)
+        {
+            // 翻页轻推：正文从右侧 12px 滑入 + 淡入（CubicEase，不用过冲——固定高度容器里过冲会被裁）
+            var host = (UIElement)_body;
+            var tt = new System.Windows.Media.TranslateTransform(12, 0);
+            host.RenderTransform = tt;
+            host.Opacity = 0;
+            var d = new Duration(TimeSpan.FromMilliseconds(200));
+            var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
+            host.BeginAnimation(OpacityProperty, new DoubleAnimation(1, d) { EasingFunction = ease });
+            tt.BeginAnimation(System.Windows.Media.TranslateTransform.XProperty, new DoubleAnimation(0, d) { EasingFunction = ease });
+        }
+    }
+
+    // ---------- 翻页按钮（芯片样式，与设置页同语言） ----------
+    Border NavBtn(string text, bool on, Action onClick)
+    {
+        var tb = new TextBlock { Text = text, FontSize = 12.5, Foreground = new SolidColorBrush(on ? Fluent.OnAccentColor(Theme.Accent) : Theme.Text) };
+        var b = new Border
+        {
+            CornerRadius = new CornerRadius(6),
+            Padding = new Thickness(12, 6, 12, 6),
+            Margin = new Thickness(8, 0, 0, 0),
+            Background = new SolidColorBrush(on ? Theme.Accent : Theme.CardBg),
+            BorderBrush = new SolidColorBrush(on ? Theme.Accent : Theme.Stroke),
+            BorderThickness = new Thickness(1),
+            Cursor = Cursors.Hand,
+            Focusable = true,
+            Child = tb,
+        };
+        Fluent.ChipHover(b, 1.04);
+        // 禁用态用低透明度+箭头光标表达（SetNavEnabled），点击/回车都先查这个门槛
+        b.MouseLeftButtonUp += (_, _) => { if (b.Opacity > 0.6) onClick(); };
+        b.KeyDown += (_, e) => { if (e.Key is Key.Space or Key.Enter && b.Opacity > 0.6) { onClick(); e.Handled = true; } };
+        return b;
+    }
+
+    void SetNavEnabled(Border b, bool en)
+    {
+        b.Opacity = en ? 1.0 : 0.35;
+        b.Cursor = en ? Cursors.Hand : Cursors.Arrow;
+        if (en) b.Focusable = true; else b.Focusable = false;
+    }
+
+    // ---------- 内容行 ----------
+    static void KV(StackPanel p, string k, string v)
+    {
+        var g = new Grid { Margin = new Thickness(2, 3, 0, 3) };
+        g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(128) });
+        g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        var kt = new TextBlock { Text = k, FontSize = 12.5, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(Theme.Accent), VerticalAlignment = VerticalAlignment.Top, TextWrapping = TextWrapping.Wrap };
+        var vt = new TextBlock { Text = v, FontSize = 12.5, Foreground = new SolidColorBrush(Theme.Text), TextWrapping = TextWrapping.Wrap, LineHeight = 17 };
+        Grid.SetColumn(kt, 0); Grid.SetColumn(vt, 1);
+        g.Children.Add(kt); g.Children.Add(vt);
+        p.Children.Add(g);
+    }
+
+    static void Note(StackPanel p, string v)
+        => p.Children.Add(new TextBlock { Text = v, FontSize = 11.5, Foreground = new SolidColorBrush(Theme.TextDim), TextWrapping = TextWrapping.Wrap, LineHeight = 16, Margin = new Thickness(2, 6, 0, 0) });
+
+    static string KeysFor(params string[] actions)
+    {
+        var g = SettingsService.Shared?.Current?.Gestures;
+        return g == null ? "未绑定" : g.DescribeKeysFor(actions);
+    }
+
+    // ---------- 步骤内容（一步只讲一件事，细节进气泡） ----------
+    void BuildSteps()
+    {
+        _steps = new()
+        {
+            ("\uE945", "快速上手", "三步就会：定范围 → 触发 → 复制走人。", p =>
+            {
+                KV(p, KeysFor(GestureActions.ScopeSelect), "设置捕获范围（拖框或点窗口）");
+                KV(p, KeysFor(GestureActions.CaptureFrame, GestureActions.CaptureSelection), "截图：截完自动进剪贴板");
+                KV(p, KeysFor(GestureActions.RecordToggle, GestureActions.RecordStart, GestureActions.RecordStop), "录制：按住起录，松手停");
+                KV(p, "Enter / Esc", "编辑器里：确定复制 / 取消");
+                KV(p, "F1", "随时回到本指南");
+                Note(p, "键位都是默认值，可在「手势配置器」里改成自己的习惯。");
+            }),
+
+            ("\uE7A8", "选捕获范围", "告诉它截哪儿，之后每次指哪打哪。", p =>
+            {
+                KV(p, "拖框", "选任意矩形；滚轮微调、方向键移动");
+                KV(p, "悬停", "自动吸附整窗；Tab 上钻到父容器");
+                KV(p, "Enter / Esc", "确认范围 / 取消");
+                KV(p, "清除范围", "托盘菜单里，恢复「截光标所在屏」");
+                Note(p, "设置里可开「常显捕获范围轮廓」，范围一眼在；「吸附到控件」让悬停吸到按钮/文字级。");
+            }),
+
+            ("\uE7B5", "截图", "快：一次触发，图已在剪贴板。", p =>
+            {
+                KV(p, "触发即截", "有范围截范围，没范围截光标所在屏");
+                KV(p, "截图后", "每条手势单独设：弹浮窗 / 进编辑器 / 只复制 / 贴图");
+                KV(p, "悬浮窗", "点它进编辑器；常驻/1/2/5秒/自定义可调");
+                KV(p, "提示音", "关闭 / 轻弹 / 自定义 ogg·wav，可试听");
+                Note(p, "「截图后」在「手势配置器」每条手势里设置；托盘还能「编辑上次截图」。");
+            }),
+
+            ("\uE714", "录制", "按住就是录，松手即成片——不用点按钮。", p =>
+            {
+                KV(p, "按住 / 松开", "起录 / 停止（REC 红徽标=正在录）");
+                KV(p, "帧率", "手动 10–240；开「跟随显示器刷新率」自动录满高刷");
+                KV(p, "格式", "GIF 通用；MP4 / WebM 需 ffmpeg");
+                KV(p, "录完", "自动进编辑器预览，Enter 复制成片");
+                Note(p, "录屏边框只提示不入镜；「包含鼠标指针」可关。");
+            }),
+
+            ("\uE70F", "编辑器", "产物都先落这里：看、剪、标、走。", p =>
+            {
+                KV(p, "空格 / ←→", "播放暂停 / 逐帧（Shift 一秒）");
+                KV(p, "Ctrl+滚轮", "缩放；1:1 看像素");
+                KV(p, "[ 和 ]", "掐头 / 去尾，只导出要的一段");
+                KV(p, "Enter / Esc", "确定复制成片 / 取消");
+                KV(p, "Ctrl+S / E", "存当前帧 PNG / 导出 MP4·WebM·GIF");
+                Note(p, "Ctrl+H 视觉暂留合成图；「生成胶片条」抽帧拼成一张逐帧图直接复制，喂 AI 最好用。");
+            }),
+
+            ("\uE71C", ToolCatalog.HelpHeading, "标注工具全在左侧竖栏，单键切换。", p => Tools(p)),
+
+            ("\uE718", "贴图", "把图钉在屏幕上，对着抄、比着看。", p =>
+            {
+                KV(p, "Ctrl+P", "编辑器里把当前帧钉到屏幕");
+                KV(p, "滚轮 / +/-", "缩放贴图 / 调透明度");
+                KV(p, "拖动", "「贴图窗口吸附」：贴齐屏幕边、其他贴图、任意窗口边");
+                KV(p, "Esc / 右键", "关闭 / 菜单（存盘、识字、复制）");
+                Note(p, "吸附开关在设置「贴图」页。");
+            }),
+
+            ("\uE8C1", "识别文字", "图里的字，直接变文本。", p =>
+            {
+                KV(p, "Ctrl+O", "识别当前帧 → 结果窗：选哪段复制哪段");
+                KV(p, "贴图右键", "也能对贴图识字");
+                Note(p, "用 Windows 内置 OCR，离线可用；关「显示结果窗」则直接全文进剪贴板。");
+            }),
+
+            ("\uE713", "更多玩法", "都藏在设置和托盘里，各管一件小事。", p =>
+            {
+                KV(p, "延时截图", "托盘触发后倒数几秒再截——摆好菜单/悬停再入镜，支持自定义秒数");
+                KV(p, "滚动截图", "长网页/长对话自动拼接成一张");
+                KV(p, "手势配置器", "所有键位的家：改键、改触发、改截图后");
+                KV(p, "托盘菜单", "暂停手势 / 清除范围 / 设置…");
+                KV(p, "外观", "主题跟随系统，强调色可自定义");
+                Note(p, "本页只是地图，细节都在各处的悬停气泡里——指到哪读到哪。");
+            }),
+        };
+    }
+
+    void Tools(StackPanel p)
+    {
+        foreach (var t in ToolCatalog.Tools)
+        {
+            var g = new Grid { Margin = new Thickness(2, 2, 0, 2) };
+            g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(26) });
+            g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(112) });
+            g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            var sym = new TextBlock { Text = t.Sym, FontSize = 14, Foreground = new SolidColorBrush(Theme.Accent), VerticalAlignment = VerticalAlignment.Center };
+            var name = new TextBlock { Text = $"{(t.Tip.Contains(" (") ? t.Tip[..t.Tip.IndexOf(" (", StringComparison.Ordinal)] : t.Tip)} {t.Key}", FontSize = 12.5, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(Theme.Text), VerticalAlignment = VerticalAlignment.Center };
+            var help = new TextBlock { Text = t.Help, FontSize = 12, Foreground = new SolidColorBrush(Theme.TextDim), TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center };
+            Grid.SetColumn(sym, 0); Grid.SetColumn(name, 1); Grid.SetColumn(help, 2);
+            g.Children.Add(sym); g.Children.Add(name); g.Children.Add(help);
+            p.Children.Add(g);
+        }
+        p.Children.Add(new TextBlock { Text = $"再按一次工具键或 {ToolCatalog.ExitKey} 退出绘制；滚轮调粗细（文字调字号）；Alt 吸色。", FontSize = 11.5, Foreground = new SolidColorBrush(Theme.TextDim), Margin = new Thickness(2, 6, 0, 0), TextWrapping = TextWrapping.Wrap });
     }
 }

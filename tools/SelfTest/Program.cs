@@ -1522,9 +1522,9 @@ static class SelfTest
                 Chk("T110d-bottom", s4.Left == 500 && s4.Top == 980, "下边距 5<阈值 → 吸下");
                 var s5 = FrameCapture.Core.PinSnap.Snap(500, 500, 200, 100, 0, 0, 1920, 1080, 12);
                 Chk("T110e-none", s5.Left == 500 && s5.Top == 500, "远离边缘 → 不动");
-                Chk("T110f-thresh", FrameCapture.Core.PinSnap.Threshold(200, 100) == 24
-                    && FrameCapture.Core.PinSnap.Threshold(1000, 800) == 56
-                    && FrameCapture.Core.PinSnap.Threshold(300, 300) == 36, "阈值=短边12%夹24–56（R119 放宽）");
+                Chk("T110f-thresh", FrameCapture.Core.PinSnap.Threshold(200, 100) == 16
+                    && FrameCapture.Core.PinSnap.Threshold(1000, 800) == 40
+                    && FrameCapture.Core.PinSnap.Threshold(300, 300) == 24, "阈值=短边8%夹16–40（R161 参考线扩到所有窗口后调低，贴边才吸不乱跳）");
             }
 
             // T111 OCR 反馈文案（R75，编辑器/贴图共用措辞）

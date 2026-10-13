@@ -43,7 +43,7 @@ public static class GestureEditorHost
     sealed class FrameActionCatalog : GE.IActionCatalog
     {
         static readonly GE.ActionInfo[] All =
-            GestureActions.All.Select(a => new GE.ActionInfo(a.Name, a.Label, a.Description)).ToArray();
+            GestureActions.All.Select(a => new GE.ActionInfo(a.Name, a.Label, a.Description, a.IsCapture)).ToArray();
         public IReadOnlyList<GE.ActionInfo> Actions() => All;
         public bool IsValid(string name) => GestureActions.IsValid(name);
     }

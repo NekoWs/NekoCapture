@@ -109,7 +109,7 @@ public sealed class TrayService : IDisposable
                 catch (Exception ex) { Trace.Log($"open folder failed: {ex.Message}"); Notify("打开保存文件夹失败"); }
             });
         Sep();
-        Item("快捷键设置…", OpenSettings);
+        Item("设置…", OpenSettings);   // R161：原「快捷键设置…」——设置页早已不止快捷键，名字跟上内容
         Item("帮助", OpenHelp);
         Item("开机自启", () =>
         {

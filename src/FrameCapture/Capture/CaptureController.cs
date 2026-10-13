@@ -77,9 +77,20 @@ public sealed class CaptureController : IDisposable
 
     public void Initialize()
     {
-        if (_settings.Current.AlwaysShowRegionOutline)
-            ShowOutlineIfStored();
+        _outlineOn = _settings.Current.AlwaysShowRegionOutline;
+        if (_outlineOn) ShowOutlineIfStored();
+        // R161 修复「常显捕获区域不生效」：此前开关只在下一次捕获收尾时被消费——拨动瞬间毫无反应，
+        // 用户自然认为无效。订阅设置变更做边沿检测：开→立刻显示已存范围轮廓，关→立刻收起。
+        _settings.Changed += () =>
+        {
+            bool on = _settings.Current.AlwaysShowRegionOutline;
+            if (on == _outlineOn) return;
+            _outlineOn = on;
+            if (on) ShowOutlineIfStored(); else HideOutline();
+        };
     }
+
+    bool _outlineOn;   // 上次已应用的「常显轮廓」开关态（Changed 边沿检测用）
 
     // ---------------- 设置范围 ----------------
 
@@ -405,7 +416,7 @@ public sealed class CaptureController : IDisposable
         try { FrameCapture.Services.BgraImage.SavePng(frame, pth); } catch { }
         FrameCapture.Encoding.ClipboardService.SetFrame(frame);
         FrameCapture.Services.SaveService.MaybeSavePng(frame);
-        if (_settings.Current.CaptureSound) FrameCapture.Core.CaptureSound.Play();
+        if (_settings.Current.CaptureSound) FrameCapture.Core.CaptureSound.Play(_settings.Current.CustomSoundPath);
         FrameCapture.Core.Trace.Log($"scroll done {frame.W}x{frame.H} segs={segs} {pth}");
         switch (FrameCapture.Core.AfterCapture.Resolve(_sessionAfter))
         {
@@ -501,7 +512,7 @@ public sealed class CaptureController : IDisposable
         if (f == null) { FrameCapture.Core.Trace.Log("delay: grab null"); return; }
         FrameCapture.Encoding.ClipboardService.SetFrame(f);
         FrameCapture.Services.SaveService.MaybeSavePng(f);
-        if (_settings.Current.CaptureSound) FrameCapture.Core.CaptureSound.Play();
+        if (_settings.Current.CaptureSound) FrameCapture.Core.CaptureSound.Play(_settings.Current.CustomSoundPath);
         FrameCapture.Core.Trace.Log($"delay fire {f.W}x{f.H}");
         switch (FrameCapture.Core.AfterCapture.Resolve(_sessionAfter))
         {
@@ -800,7 +811,7 @@ public sealed class CaptureController : IDisposable
         FrameCapture.Encoding.ClipboardService.SetFrame(f);
         FrameCapture.Services.SaveService.MaybeSavePng(f); // R63 自动保存副本（关=零副作用）
         FrameCapture.Core.Trace.Log($"still saved {pth} {f.W}x{f.H}");
-        if (_settings.Current.CaptureSound) FrameCapture.Core.CaptureSound.Play(); // R86 提示音（关=零副作用）
+        if (_settings.Current.CaptureSound) FrameCapture.Core.CaptureSound.Play(_settings.Current.CustomSoundPath); // R86 提示音（关=零副作用）
         // 截图后行为（R83）：弹提示浮窗 / 直接进编辑器 / 只复制 / 贴图——四态覆盖不同人群
         switch (FrameCapture.Core.AfterCapture.Resolve(_sessionAfter))
         {

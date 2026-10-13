@@ -10,7 +10,9 @@ public readonly struct GestureAction
     public string Name { get; }
     public string Label { get; }   // 中文短名（未来编辑器/帮助展示）
     public string Description { get; }
-    public GestureAction(string name, string label, string desc) { Name = name; Label = label; Description = desc; }
+    /// <summary>会产生静图截图（R161）：手势配置器据此决定「截图后」下拉是否显示（序列里没有截图类动作就不显示）。</summary>
+    public bool IsCapture { get; }
+    public GestureAction(string name, string label, string desc, bool isCapture = false) { Name = name; Label = label; Description = desc; IsCapture = isCapture; }
 }
 
 public static class GestureActions
@@ -36,18 +38,18 @@ public static class GestureActions
     /// <summary>全部可用动作（顺序即建议展示顺序）。GestureInvoker 必须覆盖每一个，否则该动作视为未实现（执行失败）。</summary>
     public static readonly GestureAction[] All =
     {
-        new(CaptureFrame, "全屏即时截图", "按下立即抓光标所在屏幕全屏当下这一帧（无选区、无延时、不抢焦点，适合游戏）"),
-        new(ScopeSelect, "选区", "进入交互式选区（选一块区域）"),
-        new(CaptureSelection, "选区截图", "先选一块区域，选完立即截静态图（QQ 式 Ctrl+Alt+A）"),
+        new(CaptureFrame, "全屏即时截图", "按下立即抓光标所在屏幕全屏当下这一帧（无选区、无延时、不抢焦点，适合游戏）", true),
+        new(ScopeSelect, "选区", "进入交互式选区（选一块区域）", true),
+        new(CaptureSelection, "选区截图", "先选一块区域，选完立即截静态图（QQ 式 Ctrl+Alt+A）", true),
         new(RecordStart, "开始录制", "对当前范围开始录制（录到停止为止）"),
         new(RecordStop, "停止录制", "停止录制（产物留在内存，不进编辑器；要进编辑器请在「完成后序列」加『打开编辑器』）"),
         new(RecordToggle, "开始/停止录制", "空闲→选区起录；录制中→停止（不进编辑器，进编辑器请在完成后序列加『打开编辑器』）"),
         new(RecordSelection, "选区录制", "先选一块区域，选完立即录制该区域（只起录，不含停止）"),
-        new(ScrollCapture, "滚动截图", "对当前范围做滚动长截图"),
-        new(DelayedCapture, "延时截图", "倒数数秒后截当前范围（抓一动就没的菜单/悬停）"),
+        new(ScrollCapture, "滚动截图", "对当前范围做滚动长截图", true),
+        new(DelayedCapture, "延时截图", "倒数数秒后截当前范围（抓一动就没的菜单/悬停）", true),
         new(EditLastStill, "编辑上次截图", "打开标注编辑器编辑上一次静图"),
         new(EditLastVideo, "打开编辑器", "打开视频编辑器编辑上一次录制（常配在『完成后序列』，让停止录制后再进编辑器）"),
-        new(OcrSelection, "识别文字", "对当前范围做 OCR（QQ 式提取文字）：开「识别后显示结果窗」则弹可编辑结果窗，否则直接复制文本"),
+        new(OcrSelection, "识别文字", "对当前范围做 OCR（QQ 式提取文字）：开「识别后显示结果窗」则弹可编辑结果窗，否则直接复制文本", true),
         new(PinSelection, "贴图当前选区", "把当前范围钉成贴图（Snipaste 式）"),
         new(SettingsOpen, "打开设置", "打开设置窗口"),
         new(HelpOpen, "打开帮助", "打开使用说明窗口"),

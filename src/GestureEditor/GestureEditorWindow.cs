@@ -45,6 +45,23 @@ public sealed class GestureEditorWindow : Window
     TextBlock _enableState = null!;
     TextBlock _exclusiveState = null!;
 
+    // R161：列表卡片化（选中/问题红框/禁用置灰逐行自绘）+「截图后」条件显示 + 输入框/按钮过渡动画
+    static readonly Color Danger = Color.FromRgb(0xFF, 0x6B, 0x6B);
+    readonly HashSet<string> _problemIds = new();
+    readonly List<BindingRow> _rows = new();
+    StackPanel _afterSec = null!;
+    SolidColorBrush _chordStroke = null!;
+    bool _chordHover, _chordFocus;
+
+    /// <summary>R161：左侧一条绑定的卡片行——选中=accent 底+明度自适应字色，问题=红框，禁用=muted 灰字。</summary>
+    sealed class BindingRow
+    {
+        public Border Card = null!;
+        public TextBlock Head = null!;
+        public TextBlock Body = null!;
+        public bool Problem, Enabled = true;
+    }
+
     /// <summary>捕获组合键开始/结束：宿主应在此暂停/恢复全局键盘钩子。</summary>
     public event Action? ChordCaptureBegan;
     public event Action? ChordCaptureEnded;
@@ -177,10 +194,7 @@ public sealed class GestureEditorWindow : Window
         // 列表项文本换行：长摘要（多动作 / 带「完成后」序列）折行显示，而非按面板宽度裁切（R153）
         // 须禁用横向滚动——否则 ScrollViewer 以无限宽测量，TextBlock 永不换行、改为横向滚动条
         System.Windows.Controls.ScrollViewer.SetHorizontalScrollBarVisibility(_list, System.Windows.Controls.ScrollBarVisibility.Disabled);
-        _list.ItemTemplate = (System.Windows.DataTemplate)System.Windows.Markup.XamlReader.Parse(
-            @"<DataTemplate xmlns=""http://schemas.microsoft.com/winfx/2006/xaml/presentation"">"
-            + @"<TextBlock Text=""{Binding}"" TextWrapping=""Wrap""/></DataTemplate>");
-        _list.SelectionChanged += (_, _) => { if (_suppress) return; _selected = _list.SelectedIndex; ShowDetail(); };
+        _list.SelectionChanged += (_, _) => { if (_suppress) return; _selected = _list.SelectedIndex; PaintRows(); ShowDetail(); };
         left.Children.Add(_list);
         Grid.SetColumn(left, 0);
         split.Children.Add(left);
@@ -202,25 +216,54 @@ public sealed class GestureEditorWindow : Window
         Content = root;
     }
 
-    // ---------- 列表 ----------
+    // ---------- 列表（R161 卡片化：边框+底色，选中/问题/禁用逐行自绘） ----------
     void RefreshList()
     {
         _suppress = true;
         _list.Items.Clear();
+        _rows.Clear();
         foreach (var b in _doc.Bindings)
-            _list.Items.Add(Summary(b));
+        {
+            var row = BuildRow(b);
+            _rows.Add(row);
+            _list.Items.Add(row.Card);
+        }
         if (_selected >= _doc.Bindings.Count) _selected = _doc.Bindings.Count - 1;
         _list.SelectedIndex = _selected;
         _suppress = false;
+        PaintRows();
     }
 
-    string Summary(BindingEdit b)
+    BindingRow BuildRow(BindingEdit b)
     {
+        var head = new TextBlock { FontSize = 12.5, FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap };
+        var body = new TextBlock { FontSize = 11.5, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 0) };
         var chord = b.Chord.Format(_namer);
+        head.Text = (string.IsNullOrEmpty(chord) ? "未设键" : chord) + " · " + TriggerLabel(b.Trigger);
         var acts = b.Actions.Count == 0 ? "无动作" : string.Join(" → ", b.Actions.Select(ActionLabel));
         if (b.OnComplete.Count > 0) acts += "  ⟶ 完成后: " + string.Join(" → ", b.OnComplete.Select(ActionLabel));
-        var head = (b.Enabled ? "" : "已禁用 · ") + (string.IsNullOrEmpty(chord) ? "未设键" : chord);
-        return $"{head}  ·  {TriggerLabel(b.Trigger)}\n{acts}";
+        body.Text = acts;
+        var sp = new StackPanel(); sp.Children.Add(head); sp.Children.Add(body);
+        var card = new Border { CornerRadius = new CornerRadius(6), BorderThickness = new Thickness(1), Padding = new Thickness(10, 7, 10, 7), Margin = new Thickness(1, 3, 3, 3), Child = sp };
+        return new BindingRow { Card = card, Head = head, Body = body, Enabled = b.Enabled };
+    }
+
+    /// <summary>逐行刷三态：选中（accent 底 + OnAccent 字色）、问题（红框）、禁用（muted 灰字，不再加「已禁用 ·」前缀）。</summary>
+    void PaintRows()
+    {
+        for (int i = 0; i < _rows.Count; i++)
+        {
+            var r = _rows[i];
+            bool sel = i == _list.SelectedIndex;
+            bool has = i < _doc.Bindings.Count;
+            r.Problem = has && _problemIds.Contains(_doc.Bindings[i].Id);
+            r.Enabled = !has || _doc.Bindings[i].Enabled;
+            r.Card.Background = _pal.B(sel ? _pal.Accent : _pal.CardBg);
+            r.Card.BorderBrush = _pal.B(r.Problem ? Danger : (sel ? _pal.Accent : _pal.Stroke));
+            r.Head.Foreground = _pal.B(sel ? _pal.OnAccent() : (r.Enabled ? _pal.Text : _pal.TextDim));
+            r.Body.Foreground = _pal.B(sel ? _pal.OnAccent() : _pal.TextDim);
+            r.Body.Opacity = r.Enabled || sel ? 1.0 : 0.6;
+        }
     }
 
     string ActionLabel(string actionName) => _catalog.Actions().FirstOrDefault(a => a.Name == actionName)?.Label ?? actionName;
@@ -266,19 +309,20 @@ public sealed class GestureEditorWindow : Window
 
         // 组合键捕获
         _detail.Children.Add(Label("组合键"));
-        _chordBox = new Border { CornerRadius = new CornerRadius(6), BorderThickness = new Thickness(1), BorderBrush = _pal.B(_pal.Stroke), Background = _pal.B(_pal.CardBg), Padding = new Thickness(12, 9, 12, 9), Cursor = Cursors.Hand, Focusable = true };
+        _chordBox = new Border { CornerRadius = new CornerRadius(6), BorderThickness = new Thickness(1), Background = _pal.B(_pal.CardBg), Padding = new Thickness(12, 9, 12, 9), Cursor = Cursors.Hand, Focusable = true };
+        _chordStroke = new SolidColorBrush(_pal.Stroke); _chordBox.BorderBrush = _chordStroke;
+        _chordHover = _chordFocus = false;
         _chordText = new TextBlock { Foreground = _pal.B(_pal.Text), FontSize = 14 };
         _chordBox.Child = _chordText;
         UpdateChordText();
         _chordBox.MouseLeftButtonDown += (_, _) => BeginCapture();
         _chordBox.KeyDown += (_, e) => { if (!_capturing && e.Key is Key.Space or Key.Enter) { BeginCapture(); e.Handled = true; } };
-        // hover 与键盘焦点共用一套描边刷新：聚焦或悬停任一成立即转 accent（此前只有 hover、Tab 聚焦无可见焦点态，指令④一致性）
-        bool chordHover = false, chordFocus = false;
-        void RefreshChordBorder() { if (!_capturing) _chordBox.BorderBrush = _pal.B((chordHover || chordFocus) ? _pal.Accent : _pal.Stroke); }
-        _chordBox.MouseEnter += (_, _) => { chordHover = true; RefreshChordBorder(); };
-        _chordBox.MouseLeave += (_, _) => { chordHover = false; RefreshChordBorder(); };
-        _chordBox.GotKeyboardFocus += (_, _) => { chordFocus = true; RefreshChordBorder(); };
-        _chordBox.LostKeyboardFocus += (_, _) => { chordFocus = false; RefreshChordBorder(); };
+        // hover 与键盘焦点共用一套描边刷新：聚焦或悬停任一成立即转 accent；R161 改颜色过渡（此前硬切换生硬）
+        void RefreshChordBorder() { if (!_capturing) AnimateColor(_chordStroke, (_chordHover || _chordFocus) ? _pal.Accent : _pal.Stroke, 140); }
+        _chordBox.MouseEnter += (_, _) => { _chordHover = true; RefreshChordBorder(); };
+        _chordBox.MouseLeave += (_, _) => { _chordHover = false; RefreshChordBorder(); };
+        _chordBox.GotKeyboardFocus += (_, _) => { _chordFocus = true; RefreshChordBorder(); };
+        _chordBox.LostKeyboardFocus += (_, _) => { _chordFocus = false; RefreshChordBorder(); };
         _detail.Children.Add(_chordBox);
 
         // 触发方式
@@ -298,19 +342,40 @@ public sealed class GestureEditorWindow : Window
                 for (int i = 0; i < list.Count; i++)
                 {
                     int idx = i;
-                    var row = new Grid { Margin = new Thickness(0, 2, 0, 2) };
-                    row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-                    row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-                    var txt = new TextBlock { Text = (i + 1) + ". " + ActionLabel(list[i]), Foreground = _pal.B(_pal.Text), VerticalAlignment = VerticalAlignment.Center };
-                    var ctl = new StackPanel { Orientation = Orientation.Horizontal };
+                    // R161：已配置动作行卡片化——与旁边动作下拉等高（MinHeight 34）、序号做成独立徽标、
+                    // 加边框+底色；此前是裸文本行「1. xxx」，太不显眼且序号和内容糊在一起。
+                    var row = new Border
+                    {
+                        Margin = new Thickness(0, 2, 0, 2),
+                        CornerRadius = new CornerRadius(6),
+                        BorderThickness = new Thickness(1),
+                        BorderBrush = _pal.B(_pal.Stroke),
+                        Background = _pal.B(_pal.CardBg),
+                        Padding = new Thickness(8, 0, 6, 0),
+                        MinHeight = 34,
+                    };
+                    var g = new Grid();
+                    g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                    g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                    g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                    var badge = new Border
+                    {
+                        Width = 20, Height = 20, CornerRadius = new CornerRadius(5),
+                        Background = _pal.B(_pal.TrackBg), VerticalAlignment = VerticalAlignment.Center,
+                        Child = new TextBlock { Text = (i + 1).ToString(), FontSize = 11, Foreground = _pal.B(_pal.TextDim), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center },
+                    };
+                    var txt = new TextBlock { Text = ActionLabel(list[i]), Foreground = _pal.B(_pal.Text), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 8, 0), TextTrimming = TextTrimming.CharacterEllipsis };
+                    var ctl = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
                     var up = MiniBtn("\uE70E", () => { if (idx > 0) { (list[idx - 1], list[idx]) = (list[idx], list[idx - 1]); Rebuild(); RefreshList(); } });
                     var dn = MiniBtn("\uE70D", () => { if (idx < list.Count - 1) { (list[idx + 1], list[idx]) = (list[idx], list[idx + 1]); Rebuild(); RefreshList(); } });
                     var rm = MiniBtn("\uE74D", () => { list.RemoveAt(idx); Rebuild(); RefreshList(); RefreshValidation(); });
                     ctl.Children.Add(up); ctl.Children.Add(dn); ctl.Children.Add(rm);
-                    Grid.SetColumn(txt, 0); Grid.SetColumn(ctl, 1);
-                    row.Children.Add(txt); row.Children.Add(ctl);
+                    Grid.SetColumn(badge, 0); Grid.SetColumn(txt, 1); Grid.SetColumn(ctl, 2);
+                    g.Children.Add(badge); g.Children.Add(txt); g.Children.Add(ctl);
+                    row.Child = g;
                     panel.Children.Add(row);
                 }
+                UpdateAfterSec();   // R161：序列增删/换序后重判「截图后」是否还该显示
             }
             Rebuild();
             root.Children.Add(panel);
@@ -320,6 +385,7 @@ public sealed class GestureEditorWindow : Window
             foreach (var a in _catalog.Actions()) actCombo.Items.Add(new ComboBoxItem { Content = a.Label, Tag = a.Name, ToolTip = a.Description });
             if (actCombo.Items.Count > 0) actCombo.SelectedIndex = 0;
             var addAct = MakeButton(addLabel, ghost: true);
+            addAct.Margin = new Thickness(8, 0, 0, 0);   // R161：与下拉隔开边距（此前右外边距，按钮直接黏住下拉框）
             addAct.Click += (_, _) => { if (actCombo.SelectedItem is ComboBoxItem it && it.Tag is string n) { list.Add(n); Rebuild(); RefreshList(); RefreshValidation(); } };
             addRow.Children.Add(actCombo); addRow.Children.Add(addAct);
             root.Children.Add(addRow);
@@ -328,10 +394,14 @@ public sealed class GestureEditorWindow : Window
         _detail.Children.Add(BuildActionList(b.Actions, "动作序列", "添加动作"));
         _detail.Children.Add(BuildActionList(b.OnComplete, "完成后序列", "添加完成动作"));
 
-        // 截图后（R157）：本条手势触发截图完成后的行为；空=跟随默认（弹提示）。仅截图类手势生效。
-        _detail.Children.Add(Label("截图后"));
+        // 截图后（R157）：本条手势触发截图完成后的行为；空=跟随默认（弹提示）。
+        // R161：序列里没有截图类动作时整段隐藏（录制/编辑器/OCR 之外的手势配它没意义，徒增困惑）。
+        _afterSec = new StackPanel();
+        _afterSec.Children.Add(Label("截图后"));
         var afterOpts = new object[] { "", "toast", "editor", "copy", "pin" };
-        _detail.Children.Add(MakeCombo(afterOpts, v => AfterCaptureLabel((string)v), b.AfterCapture, v => { b.AfterCapture = (string)v; RefreshList(); }));
+        _afterSec.Children.Add(MakeCombo(afterOpts, v => AfterCaptureLabel((string)v), b.AfterCapture, v => { b.AfterCapture = (string)v; RefreshList(); }));
+        _detail.Children.Add(_afterSec);
+        UpdateAfterSec();
 
         // 失败策略 + 优先级
         var two = new Grid { Margin = new Thickness(0, 4, 0, 0) };
@@ -360,6 +430,20 @@ public sealed class GestureEditorWindow : Window
         _detail.Children.Add(two2);
     }
 
+    /// <summary>R161：序列（动作+完成后）是否含截图类动作——由宿主目录的 IsCapture 标记决定，库不硬编码动作名。</summary>
+    bool HasCaptureAction(BindingEdit b)
+    {
+        var caps = new HashSet<string>(_catalog.Actions().Where(a => a.IsCapture).Select(a => a.Name));
+        return b.Actions.Any(caps.Contains) || b.OnComplete.Any(caps.Contains);
+    }
+
+    void UpdateAfterSec()
+    {
+        if (_afterSec == null) return;   // ShowDetail 首建期间（动作列表先于本段构建）
+        bool show = _selected >= 0 && _selected < _doc.Bindings.Count && HasCaptureAction(_doc.Bindings[_selected]);
+        _afterSec.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+    }
+
     void UpdateChordText()
     {
         if (_selected < 0 || _selected >= _doc.Bindings.Count) return;
@@ -367,7 +451,8 @@ public sealed class GestureEditorWindow : Window
         var s = b.Chord.Format(_namer);
         _chordText.Text = _capturing ? "按下新键…（Esc 取消）" : (string.IsNullOrEmpty(s) ? "点击设置" : s);
         _chordText.Foreground = _pal.B(_capturing ? _pal.Accent : _pal.Text);
-        _chordBox.BorderBrush = _pal.B(_capturing ? _pal.Accent : _pal.Stroke);
+        if (_chordStroke != null)
+            AnimateColor(_chordStroke, _capturing || _chordHover || _chordFocus ? _pal.Accent : _pal.Stroke, 140);
     }
 
     // ---------- 组合键捕获 ----------
@@ -431,15 +516,19 @@ public sealed class GestureEditorWindow : Window
         var problems = GestureValidation.Validate(_doc, _catalog, _namer);
         bool errs = GestureValidation.HasErrors(problems);
         _saveBtn.IsEnabled = !errs;
+        // R161：左下角不再显示「✓ 配置有效」——有问题的那条绑定整卡红框标出，无问题即静默。
+        _problemIds.Clear();
+        foreach (var p in problems) _problemIds.Add(p.BindingId);
+        PaintRows();
         if (problems.Count == 0)
         {
-            _valText.Text = _doc.Enabled ? "✓ 配置有效" : "手势层当前关闭";
+            _valText.Text = _doc.Enabled ? "" : "手势层当前关闭";
             _valText.Foreground = _pal.B(_pal.TextDim);
         }
         else
         {
             _valText.Text = string.Join("；", problems.Select(p => p.Message).Distinct().Take(3));
-            _valText.Foreground = _pal.B(errs ? Color.FromRgb(0xFF, 0x6B, 0x6B) : _pal.TextDim);
+            _valText.Foreground = _pal.B(errs ? Danger : _pal.TextDim);
         }
     }
 
@@ -457,17 +546,17 @@ public sealed class GestureEditorWindow : Window
     // R150：补 Tap/Hold/HoldRelease——旧版这三项落到默认分支与 Chord 同名「组合键（同时按下）」，
     // 触发下拉（列 Enum.GetValues<TriggerKind>() 全 10 值）出现 4 个同名项，用户无法区分轻点/按住/松手/组合键。
     // 改 public static 供 SelfTest 锁「10 项标签两两不同」不变量（纯函数，不触 WPF）。
-    // R155：KeyUp 核心词「抬起」→「松开」对齐宿主 GestureConfig.TriggerLabel（其余 9 项核心词本就一致，
-    // 唯此项用了引擎内部术语「抬起」，用户在配置器见「抬起」、在设置/帮助见「松开」不一致）。
-    // 「组合键」前缀保留——下拉里用于把键盘触发与「激活时…」鼠标触发分组。SelfTest T155 锁「配置器标签含宿主核心词」。
+    // R155：KeyUp 核心词「抬起」→「松开」对齐宿主 GestureConfig.TriggerLabel。
+    // R161：全部改短词（「组合键按下」→「按下」等），与宿主 GestureConfig.TriggerLabel 完全同词——
+    // 下拉/列表/帮助同一触发方式同一说法；T151 锁两两不同、T155 锁含宿主核心词（同词即含）。
     public static string TriggerLabel(object t) => t switch
     {
-        TriggerKind.KeyDown => "组合键按下",
-        TriggerKind.KeyUp => "组合键松开",
-        TriggerKind.Click => "激活时单击",
-        TriggerKind.DoubleClick => "激活时双击",
-        TriggerKind.TripleClick => "激活时三击",
-        TriggerKind.LongPress => "激活时长按",
+        TriggerKind.KeyDown => "按下",
+        TriggerKind.KeyUp => "松开",
+        TriggerKind.Click => "单击",
+        TriggerKind.DoubleClick => "双击",
+        TriggerKind.TripleClick => "三击",
+        TriggerKind.LongPress => "长按",
         TriggerKind.Tap => "轻点",
         TriggerKind.Hold => "按住",
         TriggerKind.HoldRelease => "松手",
@@ -491,29 +580,47 @@ public sealed class GestureEditorWindow : Window
         return c;
     }
 
-    TextBox MakeNum(string val, Action<string> onChange)
+    // R161：数字输入框卡片化——圆角 + hover/聚焦边框色过渡动画（此前直角、描边硬切换）。
+    // 返回外层 Border（TextBox 本体去边框透明，嵌在圆角 Border 里）。
+    FrameworkElement MakeNum(string val, Action<string> onChange)
     {
-        var t = new TextBox { Text = val, Background = _pal.B(_pal.CardBg), Foreground = _pal.B(_pal.Text), BorderBrush = _pal.B(_pal.Stroke), Padding = new Thickness(8, 6, 8, 6), CaretBrush = _pal.B(_pal.Text) };
+        var t = new TextBox { Text = val, BorderThickness = new Thickness(0), Background = Brushes.Transparent, Foreground = _pal.B(_pal.Text), CaretBrush = _pal.B(_pal.Text), Padding = new Thickness(0), VerticalContentAlignment = VerticalAlignment.Center };
+        var stroke = new SolidColorBrush(_pal.Stroke);
+        var border = new Border { CornerRadius = new CornerRadius(6), BorderThickness = new Thickness(1), BorderBrush = stroke, Background = _pal.B(_pal.CardBg), Padding = new Thickness(8, 6, 8, 6), Child = t, Focusable = false };
+        bool hov = false, foc = false;
+        void Target() => AnimateColor(stroke, hov || foc ? _pal.Accent : _pal.Stroke, 140);
+        border.MouseEnter += (_, _) => { hov = true; Target(); };
+        border.MouseLeave += (_, _) => { hov = false; Target(); };
+        t.GotKeyboardFocus += (_, _) => { foc = true; Target(); };
+        t.LostKeyboardFocus += (_, _) => { foc = false; Target(); };
+        border.MouseLeftButtonDown += (_, _) => t.Focus();
         t.LostFocus += (_, _) => onChange(t.Text);
         t.TextChanged += (_, _) => onChange(t.Text);
-        return t;
+        return border;
     }
 
     Button MakeButton(string text, bool accent = false, bool ghost = false)
     {
         var b = new Button { Content = text, Margin = new Thickness(0, 0, 8, 0), Padding = new Thickness(14, 7, 14, 7), Cursor = Cursors.Hand, BorderThickness = new Thickness(1), FontSize = 13 };
-        b.Background = _pal.B(accent ? _pal.Accent : _pal.CardBg);
         b.Foreground = _pal.B(accent ? _pal.OnAccent() : _pal.Text);
         b.BorderBrush = _pal.B(ghost ? _pal.Stroke : (accent ? _pal.Accent : _pal.Stroke));
         b.Template = SimpleButtonTemplate();
-        Springy(b);
+        // R161：悬停/按住只改底色（带过渡），不再缩放——放大动画会压到旁边的下拉框上重叠一下，很难看
+        HoverBg(b, accent ? _pal.Accent : _pal.CardBg);
         return b;
     }
 
     Button MiniBtn(string glyph, Action onClick)
     {
-        var b = new Button { Content = glyph, FontFamily = new FontFamily(IconFontChain), FontSize = 12, Width = 26, Height = 24, Margin = new Thickness(2, 0, 0, 0), Background = Brushes.Transparent, BorderThickness = new Thickness(0), Foreground = _pal.B(_pal.TextDim), Cursor = Cursors.Hand };
-        StyleChromeButton(b);
+        var b = new Button { Content = glyph, FontFamily = new FontFamily(IconFontChain), FontSize = 12, Width = 26, Height = 24, Margin = new Thickness(2, 0, 0, 0), BorderThickness = new Thickness(1), Foreground = _pal.B(_pal.TextDim), Cursor = Cursors.Hand };
+        b.Template = SimpleButtonTemplate();
+        // R161：迷你按钮加边框 + 悬停底色过渡（此前全透明无反馈，藏在卡片里几乎不可见）
+        var stroke = new SolidColorBrush(_pal.Stroke); b.BorderBrush = stroke;
+        var brush = new SolidColorBrush(_pal.CardBg); b.Background = brush;   // 与所在卡片同色=视觉透明
+        b.MouseEnter += (_, _) => { AnimateColor(brush, Blend(_pal.CardBg, _pal.Hover), 140); AnimateColor(stroke, _pal.Accent, 140); };
+        b.MouseLeave += (_, _) => { AnimateColor(brush, _pal.CardBg, 160); AnimateColor(stroke, _pal.Stroke, 160); };
+        b.PreviewMouseLeftButtonDown += (_, _) => AnimateColor(brush, Blend(_pal.CardBg, _pal.Press), 70);
+        b.PreviewMouseLeftButtonUp += (_, _) => AnimateColor(brush, Blend(_pal.CardBg, _pal.Hover), 120);
         b.Click += (_, _) => onClick();
         return b;
     }
@@ -521,7 +628,7 @@ public sealed class GestureEditorWindow : Window
     void StyleChromeButton(Button b)
     {
         b.Template = SimpleButtonTemplate();
-        Springy(b);
+        HoverBg(b, _pal.PanelBg);   // 标题栏关闭钮：底色与标题栏同，悬停/按住改底色过渡（R161，不再缩放）
     }
 
     static ControlTemplate? _tpl;
@@ -544,22 +651,31 @@ public sealed class GestureEditorWindow : Window
         return t;
     }
 
-    /// <summary>R158：lib 自带按钮弹性（镜像宿主 Fluent.Springy，不引用宿主）——hover 轻弹、按下回缩、松手回弹。</summary>
-    static void Springy(FrameworkElement el, double hover = 1.06, double press = 0.96)
+    /// <summary>R161：按钮悬停/按住=底色过渡动画（悬停提亮、按住回落、松手回悬停态），不缩放——
+    /// 缩放会压到相邻控件上重叠（用户点名「悬停后变大的动画贴在下拉框上」）。底色须传不透明实色。</summary>
+    void HoverBg(Control b, Color baseC)
     {
-        var st = new ScaleTransform(1, 1);
-        el.RenderTransform = st;
-        el.RenderTransformOrigin = new Point(0.5, 0.5);
-        el.MouseEnter += (_, _) => AnimateScale(st, hover, 160, new BackEase { Amplitude = 0.4, EasingMode = EasingMode.EaseOut });
-        el.MouseLeave += (_, _) => AnimateScale(st, 1.0, 140, new CubicEase { EasingMode = EasingMode.EaseOut });
-        el.PreviewMouseLeftButtonDown += (_, _) => AnimateScale(st, press, 70, new CubicEase { EasingMode = EasingMode.EaseOut });
-        el.PreviewMouseLeftButtonUp += (_, _) => AnimateScale(st, hover, 160, new BackEase { Amplitude = 0.6, EasingMode = EasingMode.EaseOut });
+        var brush = new SolidColorBrush(baseC); b.Background = brush;
+        var hover = Blend(baseC, _pal.Hover);
+        var press = Blend(baseC, _pal.Press);
+        b.MouseEnter += (_, _) => AnimateColor(brush, hover, 140);
+        b.MouseLeave += (_, _) => AnimateColor(brush, baseC, 160);
+        b.PreviewMouseLeftButtonDown += (_, _) => AnimateColor(brush, press, 70);
+        b.PreviewMouseLeftButtonUp += (_, _) => AnimateColor(brush, hover, 120);
     }
-    static void AnimateScale(ScaleTransform st, double to, int ms, EasingFunctionBase ease)
+
+    static void AnimateColor(SolidColorBrush br, Color to, int ms) =>
+        br.BeginAnimation(SolidColorBrush.ColorProperty,
+            new ColorAnimation(to, new Duration(TimeSpan.FromMilliseconds(ms))) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
+
+    /// <summary>半透明 over 叠在不透明 src 上 → 不透明混合色（算 hover/press 底色用）。</summary>
+    static Color Blend(Color src, Color over)
     {
-        var d = new Duration(TimeSpan.FromMilliseconds(ms));
-        st.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(to, d) { EasingFunction = ease });
-        st.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(to, d) { EasingFunction = ease });
+        double t = over.A / 255.0;
+        return Color.FromRgb(
+            (byte)(src.R * (1 - t) + over.R * t),
+            (byte)(src.G * (1 - t) + over.G * t),
+            (byte)(src.B * (1 - t) + over.B * t));
     }
 
     StackPanel MakeToggle(string text, Action<bool> onToggle, out TextBlock state, bool initial)

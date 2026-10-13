@@ -533,7 +533,8 @@ public static class Fluent
     /// 仅用于卡片/弹层等少量容器，勿逐行加（DropShadowEffect 有渲染成本）。</summary>
     public static void Elevate(Border b, double blur = 22, double depth = 5, double opacity = -1)
     {
-        double op = opacity >= 0 ? opacity : (Theme.IsDark ? 0.55 : 0.26);
+        // R161：亮色下 0.26 太深（白底上像脏灰块），降到 0.13——亮底只需极淡投影提示层次即可
+        double op = opacity >= 0 ? opacity : (Theme.IsDark ? 0.5 : 0.13);
         var sh = new System.Windows.Media.Effects.DropShadowEffect
         {
             Color = Colors.Black,
@@ -567,7 +568,7 @@ public static class Fluent
             BlurRadius = 16,
             ShadowDepth = 4,
             Direction = 270,
-            Opacity = Theme.IsDark ? 0.45 : 0.22,
+            Opacity = Theme.IsDark ? 0.45 : 0.12,   // R161：亮色下 0.22 太深，随 Elevate 一起调浅
         };
         sh.Freeze();
         inner.Effect = sh;
@@ -643,7 +644,7 @@ public static class Fluent
                     <Border x:Name="bd" CornerRadius="8" Background="{Hex(Theme.CardBg)}"
                             BorderBrush="{Hex(Theme.Stroke)}" BorderThickness="1"
                             Padding="10,7,10,7" Opacity="0">
-                      <Border.Effect><DropShadowEffect BlurRadius="14" ShadowDepth="3" Opacity="0.35"/></Border.Effect>
+                      <Border.Effect><DropShadowEffect BlurRadius="14" ShadowDepth="3" Opacity="{(Theme.IsDark ? 0.35 : 0.14):0.00}"/></Border.Effect>
                       <ContentPresenter VerticalAlignment="Center"/>
                     </Border>
                     <ControlTemplate.Triggers>
@@ -670,7 +671,7 @@ public static class Fluent
                    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
               <Setter Property="Background" Value="Transparent"/>
-              <Setter Property="Width" Value="10"/>
+              <Setter Property="Width" Value="8"/>
               <Setter Property="Template">
                 <Setter.Value>
                   <ControlTemplate TargetType="ScrollBar">
@@ -694,7 +695,8 @@ public static class Fluent
                           <Thumb Focusable="False">
                             <Thumb.Template>
                               <ControlTemplate TargetType="Thumb">
-                                <Border x:Name="tb" CornerRadius="4" Background="{thumb}" Margin="2,1,3,1"/>
+                                <!-- R161：滚动条改细（10→8 轨道、滑块 5/8→4px 且横竖一致），圆角随厚度收小 -->
+                                <Border x:Name="tb" CornerRadius="2" Background="{thumb}" Margin="2"/>
                                 <ControlTemplate.Triggers>
                                   <Trigger Property="IsMouseOver" Value="True">
                                     <Setter TargetName="tb" Property="Background" Value="{thumbHi}"/>
@@ -712,7 +714,7 @@ public static class Fluent
               <Style.Triggers>
                 <Trigger Property="Orientation" Value="Horizontal">
                   <Setter Property="Width" Value="Auto"/>
-                  <Setter Property="Height" Value="10"/>
+                  <Setter Property="Height" Value="8"/>
                 </Trigger>
               </Style.Triggers>
             </Style>
@@ -734,24 +736,29 @@ public static class Fluent
                 <Setter Property="Template">
                   <Setter.Value>
                     <ControlTemplate TargetType="ContextMenu">
-                      <Border x:Name="bd" CornerRadius="8" Background="{Hex(Theme.CardBg)}"
-                              BorderBrush="{Hex(Theme.Stroke)}" BorderThickness="1" Padding="3,4,3,4"
-                              RenderTransformOrigin="0,0" Opacity="0">
-                        <Border.RenderTransform><ScaleTransform ScaleX="0.92" ScaleY="0.92"/></Border.RenderTransform>
-                        <Border.Effect><DropShadowEffect BlurRadius="16" ShadowDepth="4" Opacity="0.4"/></Border.Effect>
-                        <ItemsPresenter/>
-                        <Border.Triggers>
-                          <EventTrigger RoutedEvent="FrameworkElement.Loaded">
-                            <BeginStoryboard><Storyboard>
-                              <DoubleAnimation Storyboard.TargetName="bd" Storyboard.TargetProperty="Opacity"
-                                               To="1" Duration="0:0:0.11"><DoubleAnimation.EasingFunction><CubicEase EasingMode="EaseOut"/></DoubleAnimation.EasingFunction></DoubleAnimation>
-                              <DoubleAnimation Storyboard.TargetName="bd" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)"
-                                               To="1" Duration="0:0:0.2"><DoubleAnimation.EasingFunction><BackEase Amplitude="0.45" EasingMode="EaseOut"/></DoubleAnimation.EasingFunction></DoubleAnimation>
-                              <DoubleAnimation Storyboard.TargetName="bd" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)"
-                                               To="1" Duration="0:0:0.2"><DoubleAnimation.EasingFunction><BackEase Amplitude="0.45" EasingMode="EaseOut"/></DoubleAnimation.EasingFunction></DoubleAnimation>
-                            </Storyboard></BeginStoryboard>
-                          </EventTrigger>
-                        </Border.Triggers>
+                      <!-- R161：外包透明 Border 右下留 24px——Popup 窗按模板 DesiredSize 开窗，
+                           BackEase 过冲(>1.0)与投影此前都被窗缘裁掉，Q 弹弹到一半被切；留白后完整。
+                           只留右下（缩放原点 0,0，过冲只向右下扩），卡片仍贴鼠标点，不留缝。 -->
+                      <Border Padding="0,0,24,24">
+                        <Border x:Name="bd" CornerRadius="8" Background="{Hex(Theme.CardBg)}"
+                                BorderBrush="{Hex(Theme.Stroke)}" BorderThickness="1" Padding="3,4,3,4" MinWidth="176"
+                                RenderTransformOrigin="0,0" Opacity="0" HorizontalAlignment="Left" VerticalAlignment="Top">
+                          <Border.RenderTransform><ScaleTransform ScaleX="0.92" ScaleY="0.92"/></Border.RenderTransform>
+                          <Border.Effect><DropShadowEffect BlurRadius="16" ShadowDepth="4" Opacity="{(Theme.IsDark ? 0.4 : 0.15):0.00}"/></Border.Effect>
+                          <ItemsPresenter/>
+                          <Border.Triggers>
+                            <EventTrigger RoutedEvent="FrameworkElement.Loaded">
+                              <BeginStoryboard><Storyboard>
+                                <DoubleAnimation Storyboard.TargetName="bd" Storyboard.TargetProperty="Opacity"
+                                                 To="1" Duration="0:0:0.11"><DoubleAnimation.EasingFunction><CubicEase EasingMode="EaseOut"/></DoubleAnimation.EasingFunction></DoubleAnimation>
+                                <DoubleAnimation Storyboard.TargetName="bd" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)"
+                                                 To="1" Duration="0:0:0.2"><DoubleAnimation.EasingFunction><BackEase Amplitude="0.45" EasingMode="EaseOut"/></DoubleAnimation.EasingFunction></DoubleAnimation>
+                                <DoubleAnimation Storyboard.TargetName="bd" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)"
+                                                 To="1" Duration="0:0:0.2"><DoubleAnimation.EasingFunction><BackEase Amplitude="0.45" EasingMode="EaseOut"/></DoubleAnimation.EasingFunction></DoubleAnimation>
+                              </Storyboard></BeginStoryboard>
+                            </EventTrigger>
+                          </Border.Triggers>
+                        </Border>
                       </Border>
                     </ControlTemplate>
                   </Setter.Value>
@@ -790,7 +797,7 @@ public static class Fluent
                              HorizontalOffset="-4" PopupAnimation="Fade">
                         <Border CornerRadius="8" Background="{Hex(Theme.CardBg)}" BorderBrush="{Hex(Theme.Stroke)}"
                                 BorderThickness="1" Padding="3,4,3,4" Margin="0,0,10,10">
-                          <Border.Effect><DropShadowEffect BlurRadius="16" ShadowDepth="4" Opacity="0.4"/></Border.Effect>
+                          <Border.Effect><DropShadowEffect BlurRadius="16" ShadowDepth="4" Opacity="{(Theme.IsDark ? 0.4 : 0.15):0.00}"/></Border.Effect>
                           <ItemsPresenter/>
                         </Border>
                       </Popup>

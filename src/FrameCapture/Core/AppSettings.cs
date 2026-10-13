@@ -33,11 +33,13 @@ public sealed class AppSettings
     // 原 MaxDurationMs 死设置（R120 清理）：运行期从无消费方，留着只会让人误以为有上限，故删除；
     // 旧 settings.json 里残留的该键反序列化时被忽略，无害。
 
-    /// <summary>是否自动生成给 Agent 看的逐帧胶片条。</summary>
-    public bool AgentStripEnabled { get; set; } = true;
-
-    /// <summary>胶片条抽帧数量。</summary>
+    /// <summary>R161：胶片条改为编辑器里的功能按钮（不再自动生成，AgentStripEnabled 退役），
+    /// 这两个值现在是「生成胶片条」小窗的记忆参数：抽帧数 + 每 N 帧取一次（1=逐帧）。
+    /// 旧 settings.json 里残留的 AgentStripEnabled 键反序列化时被忽略，无害。</summary>
     public int AgentStripFrames { get; set; } = 12;
+
+    /// <summary>胶片条抽样步长：每 N 帧取一次（≥1）。与抽帧数上限配合：先按步长取，再多则均匀稀释到上限。</summary>
+    public int AgentStripEveryN { get; set; } = 1;
 
     /// <summary>是否在屏幕上常显当前捕获范围轮廓。</summary>
     public bool AlwaysShowRegionOutline { get; set; } = false;
@@ -124,6 +126,10 @@ public sealed class AppSettings
     /// 默认关——后台工具每次截图都响会吵；设置里带「试听」可先听再决定。开启后 toast/进编辑器/只复制三态都响。</summary>
     public bool CaptureSound { get; set; } = false;
 
+    /// <summary>自定义提示音文件（R161，空=内置「轻弹」嘀声）：设置里提示音下拉选「自定义…」后
+    /// 经文件选择窗选定（ogg/wav）。wav 走 winmm 保证可播；其余格式走系统媒体管线，缺解码器时回退嘀声。</summary>
+    public string CustomSoundPath { get; set; } = "";
+
     /// <summary>取色复制格式（默认 hex，R89）：选区放大镜按 C 复制光标下像素颜色时的文本形式。
     /// "hex"=#RRGGBB（QQ 同款）/ "rgb"=rgb(r, g, b) / "hsl"=hsl(h, s%, l%)——后两者便于直接贴进 CSS。
     /// 无法识别的值回退 hex（向后兼容旧配置）。</summary>
@@ -159,7 +165,8 @@ public sealed class AppSettings
     public void Normalize()
     {
         Fps = Math.Clamp(Fps, FpsMin, FpsMax);
-        AgentStripFrames = Math.Clamp(AgentStripFrames, 4, 24);
+        AgentStripFrames = Math.Clamp(AgentStripFrames, 2, 48);
+        AgentStripEveryN = Math.Clamp(AgentStripEveryN, 1, 60);
         if (Theme is not ("system" or "light" or "dark")) Theme = "system";
         if (AfterCapture is not ("toast" or "editor" or "copy" or "pin")) AfterCapture = "toast";
         Gestures ??= new GestureConfig();

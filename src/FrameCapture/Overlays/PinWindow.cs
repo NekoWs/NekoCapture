@@ -311,7 +311,9 @@ public sealed class PinWindow : Window
 
     /// <summary>R120 A3：算出把贴图放到 (left,top) 时磁吸后的目标位置——屏幕工作区四边 + 同屏其他贴图的边/中线。
     /// 用贴图中心定位所在屏（多屏），工作区物理像素 ÷ DpiScale 转 DIP 与 Left/Top 同单位。纯几何，
-    /// 拖拽实时（MouseMove）与松手收尾（SnapToEdge）共用同一套参考线，保证手感一致。</summary>
+    /// 拖拽实时（MouseMove）与松手收尾（SnapToEdge）共用同一套参考线，保证手感一致。
+    /// R161：参考线扩展到同屏所有普通应用窗口的边/中线（「贴图窗口吸附」）——把贴图对齐到浏览器/资源管理器
+    /// 窗口边缘从此和贴齐另一张贴图一样自然。自家浮层都是 WS_EX_NOACTIVATE，枚举天然跳过。</summary>
     (double Left, double Top) SnapTarget(double left, double top)
     {
         try
@@ -332,6 +334,19 @@ public sealed class PinWindow : Window
                 xAny.Add(p.Left); xAny.Add(p.Left + p.Width / 2); xAny.Add(p.Left + p.Width);
                 yAny.Add(p.Top); yAny.Add(p.Top + p.Height / 2); yAny.Add(p.Top + p.Height);
             }
+            // R161：同屏所有应用窗口的边/中线（物理像素 → DIP），中心落在本屏的才参与
+            try
+            {
+                foreach (var (_, bounds, _) in FrameCapture.Native.WindowEnum.ListTopmostCandidates(skipIconic: true))
+                {
+                    double wcx = (bounds.X + bounds.W / 2.0) / d.DpiScaleX, wcy = (bounds.Y + bounds.H / 2.0) / d.DpiScaleY;
+                    if (System.Windows.Forms.Screen.FromPoint(new System.Drawing.Point((int)(wcx * d.DpiScaleX), (int)(wcy * d.DpiScaleY))).DeviceName != scr.DeviceName) continue;
+                    double wl = bounds.X / d.DpiScaleX, wt = bounds.Y / d.DpiScaleY, ww = bounds.W / d.DpiScaleX, wh = bounds.H / d.DpiScaleX;
+                    xAny.Add(wl); xAny.Add(wl + ww / 2); xAny.Add(wl + ww);
+                    yAny.Add(wt); yAny.Add(wt + wh / 2); yAny.Add(wt + wh);
+                }
+            }
+            catch { /* 枚举失败不影响贴图/屏幕边吸附 */ }
             return FrameCapture.Core.PinSnap.SnapToLines(left, top, Width, Height,
                 new[] { cl, cr }, xAny, new[] { ct, cb }, yAny,
                 FrameCapture.Core.PinSnap.Threshold(Width, Height));

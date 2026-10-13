@@ -5,8 +5,9 @@ namespace FrameCapture.Native;
 /// <summary>窗口枚举（范围吸附用）：Z 序从上到下，带 DWM 扩展边界。</summary>
 public static class WindowEnum
 {
-    /// <summary>返回按 Z 序排列的可见候选窗口（物理像素边界），跳过桌面/壳层/工具窗口。</summary>
-    public static IEnumerable<(IntPtr Hwnd, Capture.RectI Bounds, Capture.RectI Client)> ListTopmostCandidates(IntPtr excludeHwnd = default)
+    /// <summary>返回按 Z 序排列的可见候选窗口（物理像素边界），跳过桌面/壳层/工具窗口。
+    /// R161：skipIconic=true 供贴图吸附用——最小化的窗口不该当对齐参考线。</summary>
+    public static IEnumerable<(IntPtr Hwnd, Capture.RectI Bounds, Capture.RectI Client)> ListTopmostCandidates(IntPtr excludeHwnd = default, bool skipIconic = false)
     {
         var list = new List<(IntPtr, Capture.RectI, Capture.RectI)>();
         IntPtr shell = Win32.GetShellWindow();
@@ -15,6 +16,7 @@ public static class WindowEnum
         {
             if (hwnd == shell) return true;
             if (!Win32.IsWindowVisible(hwnd)) return true;
+            if (skipIconic && Win32.IsIconic(hwnd)) return true;
 
             uint ex = Win32.GetWindowLongW(hwnd, Win32.GWL_EXSTYLE);
             if ((ex & (Win32.WS_EX_TOOLWINDOW | Win32.WS_EX_TRANSPARENT | Win32.WS_EX_NOACTIVATE)) != 0)

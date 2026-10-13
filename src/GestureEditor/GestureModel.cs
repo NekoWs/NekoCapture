@@ -5,8 +5,10 @@ using GestureCore;
 namespace GestureEditor;
 
 /// <summary>一个可编辑动作的展示信息（宿主经 <see cref="IActionCatalog"/> 提供）。
-/// <see cref="Name"/> 是持久化/引擎用的稳定标识；<see cref="Label"/>/<see cref="Description"/> 给人看。</summary>
-public sealed record ActionInfo(string Name, string Label, string Description);
+/// <see cref="Name"/> 是持久化/引擎用的稳定标识；<see cref="Label"/>/<see cref="Description"/> 给人看。
+/// <see cref="IsCapture"/>：该动作会产生一张静图截图（R161）——编辑器据此决定「截图后」下拉是否出现，
+/// 库不硬编码宿主动作名。</summary>
+public sealed record ActionInfo(string Name, string Label, string Description, bool IsCapture = false);
 
 /// <summary>宿主提供动作清单：编辑器据此渲染「选动作」列表并校验动作名合法性。
 /// 编辑器不硬编码任何宿主动作——这是配置器可跨软件复用的关键接缝。</summary>

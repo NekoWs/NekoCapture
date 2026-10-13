@@ -311,7 +311,9 @@ public sealed partial class EditorWindow : Window
             var bOcrFrame = OcrBtn();
             var bSaveGif = IconBtn("\uE116", "导出录制 (MP4 / WebM / GIF)  Ctrl+E"); bSaveGif.Click += (_, _) => SaveRecording();
             var bAfter = IconBtn("\uE955", "保存视觉暂留合成图  Ctrl+H"); bAfter.Click += (_, _) => SaveAfterimage();
-            foreach (var b in new[] { bSaveFrame, bCopyFrame, bPinFrame, bOcrFrame, bSaveGif, bAfter }) actions.Children.Add(b);
+            // R161：胶片条从「设置里全局自动生成」改为显式功能按钮——小窗问抽帧参数，生成后直接复制剪贴板
+            var bStrip = IconBtn("\uE8B9", "生成胶片条（抽帧拼成一张逐帧图 → 剪贴板）"); bStrip.Click += (_, _) => GenerateFilmStrip();
+            foreach (var b in new[] { bSaveFrame, bCopyFrame, bPinFrame, bOcrFrame, bSaveGif, bAfter, bStrip }) actions.Children.Add(b);
             actions.Children.Add(Sep());
             var bCancel = IconBtn("\uE711", "取消 (Esc)"); bCancel.Click += (_, _) => FrameCapture.Core.Fluent.CloseWithFade(this);
             var bOk = IconBtn("\uF78C", "确定：GIF 写入剪贴板 (Enter)"); bOk.Click += (_, _) => Commit();
@@ -890,13 +892,12 @@ public sealed partial class EditorWindow : Window
     void Commit()
     {
         int idx = Math.Clamp(_index, 0, _seq.Frames.Count - 1);
-        bool strip = _settings.Current.AgentStripEnabled;
+        // R161：不再自动生成 Agent 胶片条（设置项已移除）——改为工具栏「生成胶片条」按钮显式触发。
         StartEncode(null, null, (seq, gif) =>
         {
             Trace.Log($"gif encoded bytes={gif!.Length} frames={seq.Frames.Count}");
             ClipboardService.SetCapture(seq, gif, idx);
             FrameCapture.Services.SaveService.MaybeSaveArtifact(seq, gif); // R63 自动保存副本：单帧 PNG / 多帧按 RecordFormat（R103，视频后台编码；关=零副作用）
-            if (strip) TryGenerateAgentStrip(seq);
             FrameCapture.Core.Fluent.CloseWithFade(this);
         });
     }
@@ -1118,16 +1119,55 @@ public sealed partial class EditorWindow : Window
     }
 
 
-    void TryGenerateAgentStrip(CapturedSequence export)
+    /// <summary>R161：生成胶片条——小窗问「抽多少帧 / 每 N 帧取一次」（参数记忆），
+    /// 确定后按时间轴裁剪范围取子集、折算裁剪与标注（与导出同口径），后台烘焙抽样帧，
+    /// 渲染成一张逐帧图直接复制剪贴板（不落盘）。生成中复用 _encoding 互斥锁防并发导出。</summary>
+    async void GenerateFilmStrip()
     {
+        if (_encoding || !_seq.Frames.Any()) return;
+        var (a, b) = TrimRange;
+        int count = b - a + 1;
+        var dlg = new FilmStripDialog(this, _settings.Current.AgentStripFrames, _settings.Current.AgentStripEveryN, count) { Owner = this };
+        if (dlg.ShowDialog() != true) return;
+        int frames = dlg.Frames, every = dlg.EveryN;
+        _settings.Mutate(s => { s.AgentStripFrames = frames; s.AgentStripEveryN = every; });   // 小窗参数持久化，下次沿用
+
+        // UI 线程快照（后台只读）：抽样索引先算好，只烘焙要用的那几帧，长录制也秒级
+        IReadOnlyList<CapturedFrame> subset = _seq.Frames is FrameSpoolList spl
+            ? spl.Slice(a, count)
+            : _seq.Frames.Skip(a).Take(count).ToList();
+        var idxs = FrameCapture.Encoding.AgentStrip.SampleIndices(count, frames, every);
+        var sampled = idxs.Select(i => subset[i]).ToList();
+        var anns = new List<FrameCapture.Drawing.Annotation>(_anns.Items);
+        var cropSnap = _crop.Current; bool cropOn = _crop.IsCropped;
+
+        _encoding = true; SetOkBusy(true);
+        ShowSnack("生成胶片条…");
         try
         {
-            string dir = Path.Combine(Path.GetTempPath(), "FrameCapture", "agent");
-            Directory.CreateDirectory(dir);
-            string path = Path.Combine(dir, $"strip-{DateTime.Now:HHmmss}.png");
-            AgentStrip.Generate(export, _settings.Current.AgentStripFrames, path);
+            var baked = await System.Threading.Tasks.Task.Run(() =>
+            {
+                IReadOnlyList<CapturedFrame> fs = sampled; var outAnns = anns;
+                if (cropOn && fs.Count > 0)
+                {
+                    int fw = fs[0].W, fh = fs[0].H;
+                    var (cx, cy, cw, ch) = FrameCapture.Core.CropState.ToPixelOf(cropSnap, fw, fh);
+                    fs = FrameCapture.Drawing.Bake.Crop(fs, cx, cy, cw, ch);
+                    outAnns = FrameCapture.Core.CropRemap.Remap(anns, (double)cx / fw, (double)cy / fh, (double)cw / fw, (double)ch / fh);
+                }
+                return FrameCapture.Drawing.Bake.Apply(fs, outAnns);
+            });
+            var img = FrameCapture.Encoding.AgentStrip.Render(baked, idxs);
+            try { System.Windows.Clipboard.SetImage(img); ShowSnack($"胶片条已复制（{idxs.Count} 帧）"); }
+            catch { ShowSnack("剪贴板被占用，生成失败"); }
+            Trace.Log($"filmstrip {idxs.Count}/{count} frames every={every}");
         }
-        catch (Exception ex) { Trace.Log("agent strip: " + ex.Message); }
+        catch (Exception ex)
+        {
+            Trace.Log("filmstrip: " + ex.Message);
+            ShowSnack("生成胶片条失败");
+        }
+        finally { _encoding = false; SetOkBusy(false); }
     }
 
     void SaveFrame()

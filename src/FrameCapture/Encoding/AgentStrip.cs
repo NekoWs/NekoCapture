@@ -13,20 +13,35 @@ namespace FrameCapture.Encoding;
 /// </summary>
 public static class AgentStrip
 {
-    public static string Generate(CapturedSequence seq, int desiredFrames, string path)
+    /// <summary>R161：抽样索引——先按步长 everyN 取（1=逐帧），若超过 desired 上限再均匀稀释到 desired。
+    /// 纯函数供编辑器小窗预览计数与 SelfTest 锁语义。</summary>
+    public static List<int> SampleIndices(int n, int desired, int everyN)
     {
-        // 均匀抽帧
-        int n = seq.Frames.Count;
-        int take = Math.Min(Math.Max(1, desiredFrames), n);
-        var idxs = new int[take];
-        for (int i = 0; i < take; i++)
-            idxs[i] = (int)Math.Round(i * (n - 1) / (double)Math.Max(1, take - 1));
+        var list = new List<int>();
+        if (n <= 0) return list;
+        everyN = Math.Max(1, everyN);
+        for (int i = 0; i < n; i += everyN) list.Add(i);
+        if (desired > 0 && list.Count > desired)
+        {
+            var thin = new List<int>(desired);
+            for (int k = 0; k < desired; k++)
+                thin.Add(list[(int)Math.Round(k * (list.Count - 1) / (double)Math.Max(1, desired - 1))]);
+            return thin;
+        }
+        return list;
+    }
+
+    /// <summary>由帧序列渲染胶片条位图（每格带帧号与时间码）。R161：不再落盘，编辑器直接复制剪贴板。</summary>
+    public static BitmapSource Render(IReadOnlyList<CapturedFrame> frames, IReadOnlyList<int> idxs)
+    {
+        int take = idxs.Count;
+        if (take == 0) throw new ArgumentException("empty strip");
 
         int cols = Math.Min(take, 8);
         int rows = (take + cols - 1) / cols;
 
         // 单元格尺寸：宽 288，高按帧宽高比
-        int srcW = seq.Frames[0].W, srcH = seq.Frames[0].H;
+        int srcW = frames[idxs[0]].W, srcH = frames[idxs[0]].H;
         double scale = 288.0 / srcW;
         int cellW = (int)Math.Round(srcW * scale);
         int cellH = (int)Math.Round(srcH * scale);
@@ -49,7 +64,7 @@ public static class AgentStrip
                 int r = i / cols, c = i % cols;
                 int x = pad + c * (cellW + pad);
                 int y = pad + r * ((int)fh + label + pad);
-                var frame = seq.Frames[idxs[i]];
+                var frame = frames[idxs[i]];
                 var bmp = BgraImage.ToSource(frame);
                 dc.DrawImage(bmp, new Rect(x, y, fw, fh));
                 var ft = new FormattedText(
@@ -64,9 +79,16 @@ public static class AgentStrip
         var rtb = new RenderTargetBitmap(imgW, imgH, 96, 96, PixelFormats.Pbgra32);
         rtb.Render(dv);
         rtb.Freeze();
+        return rtb;
+    }
 
+    /// <summary>兼容旧入口：均匀抽 desiredFrames 帧渲染并写 PNG 文件。</summary>
+    public static string Generate(CapturedSequence seq, int desiredFrames, string path)
+    {
+        var idxs = SampleIndices(seq.Frames.Count, desiredFrames, 1);
+        var img = Render(seq.Frames, idxs);
         var enc = new PngBitmapEncoder();
-        enc.Frames.Add(BitmapFrame.Create(rtb));
+        enc.Frames.Add(BitmapFrame.Create(img));
         using var fs = File.Create(path);
         enc.Save(fs);
         return path;

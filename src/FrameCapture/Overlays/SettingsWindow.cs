@@ -180,9 +180,8 @@ public sealed class SettingsWindow : Window
         panel.Children.Add(ToggleRow("\uE721", "选区放大镜", "拖框或悬停选区时，光标旁显示高倍像素放大镜、坐标/尺寸读数与光标下像素颜色（按 C 复制颜色，格式见下），便于像素级精确选区/取色（QQ/Snipaste 式）；关闭可省一点开销",
             _settings.Current.PickerMagnifier, v => _settings.Mutate(s => s.PickerMagnifier = v)));
         panel.Children.Add(ColorFormatRow());
-        panel.Children.Add(ToggleRow("\uE71A", "常显捕获范围轮廓", "在屏幕上持续显示当前捕获范围的边框",
+        panel.Children.Add(ToggleRow("\uE71A", "常显捕获范围轮廓", "在屏幕上持续显示当前捕获范围的边框，开/关立刻生效（R161 修复：此前要等下一次捕获才动）。尚未设置范围时没有可显示的边框——先用托盘「设置捕获范围」",
             _settings.Current.AlwaysShowRegionOutline, v => _settings.Mutate(s => s.AlwaysShowRegionOutline = v)));
-        panel.Children.Add(AfterCaptureRow());
         panel.Children.Add(ToastRow());
         panel.Children.Add(CaptureSoundRow());
         panel.Children.Add(DelayRow());
@@ -191,18 +190,37 @@ public sealed class SettingsWindow : Window
 
         // ---- 录制 ----
         panel = Cat("录制", "\uE714");
-        var fpsRow = SliderRow("\uEC4A", "录制帧率 (FPS)", "录制时每秒捕获的帧数；开启下方「跟随显示器刷新率」时本项被忽略",
+        var fpsRow = SliderRow("\uEC4A", "录制帧率 (FPS)", "录制时每秒捕获的帧数；开启下方「跟随显示器刷新率」时本项隐藏（被刷新率取代）",
             AppSettings.FpsMin, AppSettings.FpsMax, 5, _settings.Current.Fps,
             v => $"{v:0} fps", v => _settings.Mutate(s => s.Fps = (int)v));
-        fpsRow.IsEnabled = !_settings.Current.FollowMonitorRefresh; // 跟随刷新率开启→手动帧率失效，禁用整行避免误调（R119）
+        // R161：跟随刷新率开启→手动帧率完全失效，整行淡出隐藏（关闭再淡入恢复），比灰着更诚实、页面更干净
+        void SetFpsVisible(bool vis)
+        {
+            if (vis)
+            {
+                fpsRow.Visibility = Visibility.Visible;
+                fpsRow.BeginAnimation(OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(1.0,
+                    new System.Windows.Duration(TimeSpan.FromMilliseconds(200)))
+                { EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut } });
+            }
+            else
+            {
+                var fade = new System.Windows.Media.Animation.DoubleAnimation(0.0,
+                    new System.Windows.Duration(TimeSpan.FromMilliseconds(160)))
+                { EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseIn } };
+                fade.Completed += (_, _) => fpsRow.Visibility = Visibility.Collapsed;
+                fpsRow.BeginAnimation(OpacityProperty, fade);
+            }
+        }
+        if (_settings.Current.FollowMonitorRefresh) { fpsRow.Opacity = 0; fpsRow.Visibility = Visibility.Collapsed; }
         panel.Children.Add(fpsRow);
         int hz = Core.DisplayRefresh.RateOf(FrameCapture.Capture.Monitors.All().FirstOrDefault(m => m.IsPrimary)?.DeviceName);
         panel.Children.Add(ToggleRow("\uE7F4", "跟随显示器刷新率录满",
-            (hz > 0 ? $"开启后录制帧率自动取当前录制显示器的刷新率（本机主屏检测到 {hz}Hz → 录满 {hz}fps），忽略上面的手动帧率。"
-                    : "开启后录制帧率自动取当前录制显示器的刷新率（本机暂未检测到主屏刷新率，录制时按实际显示器实时检测）。")
+            (hz > 0 ? $"开启后录制帧率自动取当前录制显示器的刷新率（本机主屏检测到 {hz}Hz → 录满 {hz}fps），上面的手动帧率随之隐藏。"
+                    : "开启后录制帧率自动取当前录制显示器的刷新率（本机暂未检测到主屏刷新率，录制时按实际显示器实时检测），上面的手动帧率随之隐藏。")
             + "高刷屏（144/165/240Hz）录满才丝滑；MP4/WebM 可录满，GIF 受格式封顶约 50fps",
             _settings.Current.FollowMonitorRefresh,
-            v => { _settings.Mutate(s => s.FollowMonitorRefresh = v); fpsRow.IsEnabled = !v; })); // 实时联动禁用上面的帧率滑杆（R119）
+            v => { _settings.Mutate(s => s.FollowMonitorRefresh = v); SetFpsVisible(!v); })); // 开→帧率行淡出隐藏，关→淡入恢复（R161）
         panel.Children.Add(RecordFormatRow());
         // R61：长按录制时长上限已移除——录到用户停为止（帧落盘，不再受内存/时长限制）。
         // 唯一护栏是磁盘剩余空间（<1GB 自动停并保留已录内容），无需再暴露数值。
@@ -215,11 +233,8 @@ public sealed class SettingsWindow : Window
 
         // ---- 产物 ----
         panel = Cat("产物", "\uE74E");
-        panel.Children.Add(ToggleRow("\uE8B9", "自动生成 Agent 胶片条", "每次捕获后自动生成逐帧胶片条图，便于 AI 理解动作过程",
-            _settings.Current.AgentStripEnabled, v => _settings.Mutate(s => s.AgentStripEnabled = v)));
-        panel.Children.Add(SliderRow("\uE8FD", "胶片条抽帧数", "自动生成 Agent 胶片条时从录制帧中抽取的帧数",
-            4, 24, 1, _settings.Current.AgentStripFrames,
-            v => $"{v:0} 帧", v => _settings.Mutate(s => s.AgentStripFrames = (int)v)));
+        // R161：「自动生成 Agent 胶片条 / 抽帧数」两行移除——胶片条改为视频编辑器里的功能按钮
+        // （「生成胶片条」→ 小窗问抽帧参数 → 直接复制剪贴板），参数记忆在小窗里，不再是全局设置。
         panel.Children.Add(ToggleRow("\uE74E", "自动保存副本", "捕获完成后，除复制到剪贴板外，再存一份文件到本地目录（截图存 PNG；录制按上面的「录制格式」存 MP4/WebM，未装 ffmpeg 则回退 GIF）。视频在后台编码、文件稍后出现。写盘失败不影响剪贴板，捕获永远成功",
             _settings.Current.AutoSaveCopy, v => _settings.Mutate(s => s.AutoSaveCopy = v)));
         panel.Children.Add(PathRow());
@@ -237,7 +252,7 @@ public sealed class SettingsWindow : Window
 
         // ---- 贴图 ----
         panel = Cat("贴图", "\uE718");
-        panel.Children.Add(ToggleRow("\uE718", "拖动贴图自动磁边", "拖动贴图松手时自动吸附对齐：贴近所在屏幕边缘则贴合停靠到屏幕四边/四角，贴近同屏其他贴图的边或中线则与之对齐（便于整齐排布多张贴图，Snipaste 式手感）。关闭则松手停在原地",
+        panel.Children.Add(ToggleRow("\uE718", "贴图窗口吸附", "拖动贴图时实时吸附对齐（R161 由「磁边」升级）：贴近所在屏幕边缘则停靠四边/四角；贴近同屏其他贴图、以及任何应用窗口（浏览器/资源管理器…）的边或中线则与之对齐，把贴图摆齐像吸附网格一样自然。阈值调低为「贴边才吸」，不会隔空乱跳。关闭则松手停在原地",
             _settings.Current.PinSnapEdges, v => _settings.Mutate(s => s.PinSnapEdges = v)));
 
         Cardify(panel); // R158 贴图页行归入卡片
@@ -837,34 +852,8 @@ public sealed class SettingsWindow : Window
         return g;
     }
 
-    // R157：全局「截图后」四选一已移除——改由每条手势在「手势配置器」里各自设置。此行改为引导提示。
-    FrameworkElement AfterCaptureRow()
-    {
-        var g = Row();
-        g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        g.Children.Add(Icon("\uE7B5", "截图完成后做什么，现在在「手势配置器」里为每条手势单独设置"));
-        var lbl = new TextBlock
-        {
-            Text = "截图后",
-            FontSize = 13,
-            Foreground = new SolidColorBrush(Theme.Text),
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 0, 12, 0),
-        };
-        Grid.SetColumn(lbl, 1);
-        g.Children.Add(lbl);
-        var hint = new TextBlock
-        {
-            Text = "见手势配置器",
-            FontSize = 12,
-            Foreground = new SolidColorBrush(Theme.Text),
-            VerticalAlignment = VerticalAlignment.Center,
-            HorizontalAlignment = HorizontalAlignment.Right,
-        };
-        Grid.SetColumn(hint, 2);
-        g.Children.Add(hint);
-        return g;
-    }
+    // R157：全局「截图后」四选一已移除——改由每条手势在「手势配置器」里各自设置。
+    // R161：连「见手势配置器」的占位行也删了——截图页顶部就有手势配置器入口，不必再留指路行。
 
     // 取色复制格式（R89）：选区放大镜按 C 复制颜色时的文本形式，HEX/RGB/HSL 三选（QQ 只有 HEX）
     FrameworkElement RecordFormatRow()
@@ -1051,6 +1040,60 @@ public sealed class SettingsWindow : Window
             (10, "10秒", "充裕：够摆好几个界面元素"),
         };
         var chipList = new System.Collections.Generic.List<(Border chip, int secs)>();
+        // R161：预设之外补「自定义」输入（此前只有 5 档，想要 2 秒/8 秒都调不了）；文字居中，与悬浮窗时长同款交互
+        var box = new TextBox
+        {
+            Text = cur.ToString(),
+            Width = 30,
+            FontSize = 12.5,
+            TextAlignment = TextAlignment.Center,
+            Background = System.Windows.Media.Brushes.Transparent,
+            BorderThickness = new Thickness(0),
+            Foreground = new SolidColorBrush(Theme.Text),
+            CaretBrush = new SolidColorBrush(Theme.Accent),
+            VerticalAlignment = VerticalAlignment.Center,
+            VerticalContentAlignment = VerticalAlignment.Center,
+        };
+        var unit = new TextBlock { Text = "秒", FontSize = 12.5, Foreground = new SolidColorBrush(Theme.TextDim), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(3, 0, 0, 0) };
+        var customBox = new Border
+        {
+            CornerRadius = new CornerRadius(6),
+            Padding = new Thickness(8, 4, 8, 4),
+            Margin = new Thickness(8, 0, 2, 0),
+            Background = new SolidColorBrush(Theme.CardBg),
+            BorderBrush = new SolidColorBrush(Theme.Stroke),
+            BorderThickness = new Thickness(1),
+            Child = new StackPanel { Orientation = Orientation.Horizontal, Children = { box, unit } },
+            ToolTip = "自定义：输入任意秒数（1–120），回车或移开焦点生效",
+            Cursor = Cursors.Hand,
+        };
+        customBox.MouseLeftButtonUp += (_, _) => { box.Focus(); box.SelectAll(); };
+        void RefreshSel(int v)
+        {
+            bool anySel = false;
+            foreach (var (c, cs) in chipList)
+            {
+                bool sel = cs == v;
+                anySel |= sel;
+                c.Background = new SolidColorBrush(sel ? Theme.Accent : Theme.Hover);
+                if (c.Child is TextBlock tb) tb.Foreground = new SolidColorBrush(sel ? Fluent.OnAccentColor(Theme.Accent) : Theme.Text);
+            }
+            customBox.Background = new SolidColorBrush(anySel ? Theme.CardBg : Theme.Accent);
+            customBox.BorderBrush = new SolidColorBrush(anySel ? Theme.Stroke : Theme.Accent);
+            box.Foreground = new SolidColorBrush(anySel ? Theme.Text : Fluent.OnAccentColor(Theme.Accent));
+            unit.Foreground = new SolidColorBrush(anySel ? Theme.TextDim : Fluent.OnAccentColor(Theme.Accent));
+            box.Text = v.ToString();
+        }
+        void Commit()
+        {
+            var raw = (box.Text ?? "").Trim();
+            if (!int.TryParse(raw, out int v) || v < 1) { box.Text = _settings.Current.DelayCaptureSeconds.ToString(); return; }
+            v = Math.Clamp(v, 1, 120);
+            _settings.Mutate(s => s.DelayCaptureSeconds = v);
+            RefreshSel(v);
+        }
+        box.LostFocus += (_, _) => Commit();
+        box.KeyDown += (_, e) => { if (e.Key == Key.Enter) { Commit(); box.MoveFocus(new TraversalRequest(FocusNavigationDirection.Next)); e.Handled = true; } };
         foreach (var (secs, text, tip) in opts)
         {
             int captured = secs;
@@ -1074,12 +1117,7 @@ public sealed class SettingsWindow : Window
             void Apply()
             {
                 _settings.Mutate(s => s.DelayCaptureSeconds = captured);
-                foreach (var (c, cs) in chipList)
-                {
-                    bool sel = cs == captured;
-                    c.Background = new SolidColorBrush(sel ? Theme.Accent : Theme.Hover);
-                    if (c.Child is TextBlock tb) tb.Foreground = new SolidColorBrush(sel ? Fluent.OnAccentColor(Theme.Accent) : Theme.Text);
-                }
+                RefreshSel(captured);
             }
             chip.MouseLeftButtonDown += (_, e) => { Apply(); e.Handled = true; };
             chip.Focusable = true;
@@ -1088,6 +1126,8 @@ public sealed class SettingsWindow : Window
             chip.LostKeyboardFocus += (_, _) => { chip.BorderThickness = new Thickness(0); };
             chips.Children.Add(chip);
         }
+        chips.Children.Add(customBox);
+        RefreshSel(cur);
         g.Children.Add(chips);
         return g;
     }
@@ -1110,23 +1150,22 @@ public sealed class SettingsWindow : Window
         var chips = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
         Grid.SetColumn(chips, 2);
         double cur = _settings.Current.ToastSeconds;
+        // R161：预设精简为 常驻/1秒/2秒/5秒 + 自定义输入（此前 常驻/2/3.2/5/8 五档太密且默认值占一档）
         var opts = new (double secs, string text, string tip)[]
         {
             (0, "常驻", "不自动消失，点一下或 Esc 才关"),
-            (2, "2秒", "快闪：确认一下就走"),
-            (3.2, "3.2秒", "默认：够看清并决定点不点"),
+            (1, "1秒", "快闪：确认一下就走"),
+            (2, "2秒", "利落：来得及看一眼"),
             (5, "5秒", "从容：够移动鼠标去点"),
-            (8, "8秒", "宽裕：边看边想"),
         };
         var chipList = new System.Collections.Generic.List<(Border chip, double secs)>();
-        // 自定义精确值输入（R157 用户反馈：只有 5 个预设档，想要任意秒数）。芯片与输入框共用一套高亮/回显。
         string Fmt(double v) => v.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
         var box = new TextBox
         {
             Text = Fmt(cur),
             Width = 34,
             FontSize = 12.5,
-            TextAlignment = TextAlignment.Right,
+            TextAlignment = TextAlignment.Center,   // R161：自定义输入框文字居中（此前右对齐，数字贴边难看）
             Background = System.Windows.Media.Brushes.Transparent,
             BorderThickness = new Thickness(0),
             Foreground = new SolidColorBrush(Theme.Text),
@@ -1144,16 +1183,25 @@ public sealed class SettingsWindow : Window
             BorderBrush = new SolidColorBrush(Theme.Stroke),
             BorderThickness = new Thickness(1),
             Child = new StackPanel { Orientation = Orientation.Horizontal, Children = { box, unit } },
-            ToolTip = "输入任意秒数（0.5–60，0=常驻），回车或移开焦点生效",
+            ToolTip = "自定义：输入任意秒数（0.5–60，0=常驻），回车或移开焦点生效",
+            Cursor = Cursors.Hand,
         };
+        customBox.MouseLeftButtonUp += (_, _) => { box.Focus(); box.SelectAll(); };
         void RefreshSel(double v)
         {
+            bool anySel = false;
             foreach (var (c, cs) in chipList)
             {
                 bool sel = Math.Abs(cs - v) < 0.01;
+                anySel |= sel;
                 c.Background = new SolidColorBrush(sel ? Theme.Accent : Theme.Hover);
                 if (c.Child is TextBlock tb) tb.Foreground = new SolidColorBrush(sel ? Fluent.OnAccentColor(Theme.Accent) : Theme.Text);
             }
+            // 值不落在任何预设档 = 自定义生效，自定义框高亮成选中态（此前永远灰底，看不出当前用的是哪个值）
+            customBox.Background = new SolidColorBrush(anySel ? Theme.CardBg : Theme.Accent);
+            customBox.BorderBrush = new SolidColorBrush(anySel ? Theme.Stroke : Theme.Accent);
+            box.Foreground = new SolidColorBrush(anySel ? Theme.Text : Fluent.OnAccentColor(Theme.Accent));
+            unit.Foreground = new SolidColorBrush(anySel ? Theme.TextDim : Fluent.OnAccentColor(Theme.Accent));
             box.Text = Fmt(v);
         }
         void Commit()
@@ -1200,13 +1248,15 @@ public sealed class SettingsWindow : Window
             chips.Children.Add(chip);
         }
         chips.Children.Add(customBox);
+        RefreshSel(cur);   // 初始回显：值不在预设档时自定义框即刻高亮
         g.Children.Add(chips);
         return g;
     }
     FrameworkElement CaptureSoundRow()
-    {        var g = Row();
+    {
+        var g = Row();
         g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); // 控件列
-        g.Children.Add(Icon("\uE767", "静态截图完成时放一声柔和短促的「嘀」作听觉确认（QQ 招牌反馈）；默认关，可点「试听」先听"));
+        g.Children.Add(Icon("\uE767", "静态截图完成时的听觉确认。关闭=静音；轻弹=内置柔和「嘀」；自定义…=选一个 ogg/wav 文件（wav 最稳，ogg 需系统解码器，播不了会自动回退轻弹）。随时可「试听」"));
         var lbl = new TextBlock
         {
             Text = "截图提示音",
@@ -1220,7 +1270,7 @@ public sealed class SettingsWindow : Window
         var right = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center };
         Grid.SetColumn(right, 2);
 
-        // 试听：点一下立刻放一声，让用户判断这个音量/音色能否接受
+        // 试听：按当前选择（含自定义文件）立刻放一声
         var preview = new Border
         {
             CornerRadius = new CornerRadius(6),
@@ -1229,10 +1279,11 @@ public sealed class SettingsWindow : Window
             Background = new SolidColorBrush(Theme.Hover),
             Child = new TextBlock { Text = "试听", FontSize = 12.5, Foreground = new SolidColorBrush(Theme.Text) },
             Cursor = Cursors.Hand,
-            ToolTip = "点一下试听这声提示音（无论开关是否开启都可试听）",
+            ToolTip = "点一下试听当前提示音（选「自定义…」后也会立刻放一声让你确认）",
             Focusable = true,
         };
-        void DoPreview() => FrameCapture.Core.CaptureSound.Play();
+        void DoPreview() => FrameCapture.Core.CaptureSound.Play(
+            _settings.Current.CaptureSound ? _settings.Current.CustomSoundPath : "");
         preview.MouseLeftButtonDown += (_, e) => { DoPreview(); e.Handled = true; };
         preview.KeyDown += (_, e) => { if (e.Key is Key.Space or Key.Enter) { DoPreview(); e.Handled = true; } };
         preview.MouseEnter += (_, _) => preview.Background = new SolidColorBrush(Theme.Press);
@@ -1242,35 +1293,62 @@ public sealed class SettingsWindow : Window
         Fluent.ChipHover(preview, 1.04);   // 与全站芯片同款缩放弹性（叠加在原有 hover 背景之上）
         right.Children.Add(preview);
 
-        // 开关（与 ToggleRow 同款 track/knob）
-        bool on = _settings.Current.CaptureSound;
-        var track = new Border
+        // R161：开关+固定音 → 三选下拉「关闭 / 轻弹 / 自定义…」。选「自定义…」弹文件选择窗（ogg/wav）；
+        // 取消则回退上一个选项，绝不出现「选了自定义却没文件」的悬空态。
+        var combo = new ComboBox { Width = 118, VerticalAlignment = VerticalAlignment.Center };
+        GestureEditor.EditorStyles.ApplyCombo(combo, EditorPal());
+        combo.Items.Add("关闭");
+        combo.Items.Add("轻弹");
+        combo.Items.Add("自定义…");
+        int last = !_settings.Current.CaptureSound ? 0 : (string.IsNullOrWhiteSpace(_settings.Current.CustomSoundPath) ? 1 : 2);
+        combo.SelectedIndex = last;
+        combo.ToolTip = SoundTip(combo.SelectedIndex);
+        bool suppress = false;
+        combo.SelectionChanged += (_, _) =>
         {
-            Width = 40, Height = 20, CornerRadius = new CornerRadius(10),
-            Background = new SolidColorBrush(on ? Theme.Accent : Theme.TrackBg),
-            BorderBrush = new SolidColorBrush(on ? Theme.Accent : Theme.Stroke),
-            BorderThickness = new Thickness(1),
-            VerticalAlignment = VerticalAlignment.Center, Cursor = Cursors.Hand,
-            ToolTip = "开启后每次静态截图完成放一声柔和提示音", Focusable = true,
+            if (suppress) return;
+            int i = combo.SelectedIndex;
+            if (i == 2)
+            {
+                var dlg = new Microsoft.Win32.OpenFileDialog
+                {
+                    Title = "选择提示音（ogg / wav）",
+                    Filter = "提示音 (*.ogg;*.wav)|*.ogg;*.wav|所有文件 (*.*)|*.*",
+                    CheckFileExists = true,
+                };
+                if (dlg.ShowDialog(this) == true)
+                {
+                    _settings.Mutate(s => { s.CaptureSound = true; s.CustomSoundPath = dlg.FileName; });
+                    FrameCapture.Core.CaptureSound.Play(dlg.FileName);   // 选完立刻放一声确认效果
+                }
+                else { suppress = true; combo.SelectedIndex = last; suppress = false; }   // 取消→回退原选项
+            }
+            else if (i == 0) _settings.Mutate(s => s.CaptureSound = false);
+            else _settings.Mutate(s => { s.CaptureSound = true; s.CustomSoundPath = ""; });
+            last = combo.SelectedIndex;
+            combo.ToolTip = SoundTip(last);
         };
-        var knob = new Ellipse
-        {
-            Width = 12, Height = 12, Fill = new SolidColorBrush(on ? Fluent.OnAccentColor(Theme.Accent) : Theme.Text),
-            HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(4, 0, 4, 0),
-            RenderTransform = new System.Windows.Media.TranslateTransform(on ? 20 : 0, 0),
-        };
-        track.Child = knob;
-        void Flip() { on = !on; FrameCapture.Core.Fluent.SlideToggle(knob, track, on, 20); _settings.Mutate(s => s.CaptureSound = on); }
-        track.MouseLeftButtonDown += (_, e) => { Flip(); e.Handled = true; };
-        track.KeyDown += (_, e) => { if (e.Key is Key.Space or Key.Enter) { Flip(); e.Handled = true; } };
-        track.GotKeyboardFocus += (_, _) => track.BorderBrush = new SolidColorBrush(Theme.Accent);
-        track.LostKeyboardFocus += (_, _) => track.BorderBrush = new SolidColorBrush(on ? Theme.Accent : Theme.Stroke);
-        FrameCapture.Core.Fluent.ToggleBorderHover(track, () => on);   // 与 ToggleRow 同款 hover 边框提亮（此前手写开关零反馈）
-        right.Children.Add(track);
+        right.Children.Add(combo);
 
         g.Children.Add(right);
         return g;
     }
+
+    static string SoundTip(int i) => i switch
+    {
+        0 => "静音：截图完成不放声音",
+        1 => "内置柔和「嘀」声（QQ 式听觉确认）",
+        _ => "自定义提示音文件（ogg/wav）；点击可重新选择",
+    };
+
+    /// <summary>R161：手势编辑器同款下拉/输入样式的配色（lib 不引用宿主，配色由宿主注入）。</summary>
+    static GestureEditor.EditorPalette EditorPal() => new()
+    {
+        WindowBg = Theme.WindowBg, PanelBg = Theme.PanelBg, CardBg = Theme.CardBg,
+        Text = Theme.Text, TextDim = Theme.TextDim, Stroke = Theme.Stroke,
+        Accent = Theme.Accent, Hover = Theme.Hover, Press = Theme.Press, TrackBg = Theme.TrackBg,
+        IsDark = Theme.IsDark,
+    };
 
     // ---------- 小部件 ----------
 
