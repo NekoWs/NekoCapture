@@ -2127,3 +2127,5 @@ status: done
 **R151 后重跑批次末（10:58，四步全绿）**：护栏 PASS 404（FAIL=0 SKIP=1，用户 4 手势完好恢复）→ 重发布 staging 10:57:51 errors=0 → 重打包 zip 69.7MB CRC 250 条 badCRC=0 exe=1 sdk=1（10:58:02）→ 重启出厂实例 pid 29612，trace `gesture apply n=4` 正确加载。HEAD `c55d2f6` git clean。
 
 **R151b · 完成 easing 审计（REC 录制徽标淡入）**：续审 `RegionOutlineWindow` 全部 `DoubleAnimation`——红点呼吸脉冲(209)线性属**故意**（稳态 throb，加 easing 反"弹"）、FadeAway(260)已 EaseInOut、主题切换交叉淡入（HelpWindow/SettingsWindow）注释明示"非对称节拍"故意线性（交叉淡入线性保总不透明度恒定）——唯 **REC 徽标淡入(205)线性**不一致（每次录制都现的显眼角标）。补 `EaseOut` 对齐约定，淡入前 `Opacity=0`(204) 确保 0→1 生效。**至此全应用瞬时淡入淡出 easing 一致**（脉冲/交叉淡入等有意线性者除外）。构建 0 错、SelfTest 404 绿。批次末重跑（11:03）：护栏 PASS 404、zip CRC 全绿、出厂实例 pid 67848 运行、`gesture apply n=4`。HEAD `f458634` git clean。
+
+**R152 · README.txt 准确性（随出厂件分发的用户第一手文档）**：全文核查 53 行，发现 2 处 B2 后陈旧——① line6「设置窗内点击按键框重录；两键相同会有琥珀色提示」是 **B2 前旧按键框 UI**，现改键/加动作走「设置→快捷键→手势配置器」（每条=组合键+触发方式→动作），旧述会误导用户去找已不存在的按键框；② line4「悬停看当前热键」不准，托盘 tooltip 实为「手势 N 条·范围」（反映条数非具体键，R36 已改代码，文档未跟）。默认键 Ctrl+Shift+G/R + 点按/长按语义本身准确（出厂默认，保留）。**纯内容改动、代码未变**→跳过护栏，仅重发布（staging README 已核验含修正）→重打包 zip CRC 全绿→重启出厂实例 pid 42944、`gesture apply n=4`。HEAD `95456d0` git clean。
