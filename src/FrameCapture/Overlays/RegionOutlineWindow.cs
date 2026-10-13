@@ -204,7 +204,8 @@ public sealed class RegionOutlineWindow : Window
         _recBadge.Opacity = 0;
         _recBadge.BeginAnimation(OpacityProperty,
             new System.Windows.Media.Animation.DoubleAnimation(1,
-                new System.Windows.Duration(TimeSpan.FromMilliseconds(FrameCapture.Core.Fluent.Motion.EnterMs))));
+                new System.Windows.Duration(TimeSpan.FromMilliseconds(FrameCapture.Core.Fluent.Motion.EnterMs)))
+            { EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut } });
         // 红点 1s 呼吸脉冲（录制进行感）
         var pulse = new System.Windows.Media.Animation.DoubleAnimation(1, 0.35,
             new System.Windows.Duration(TimeSpan.FromSeconds(1)))

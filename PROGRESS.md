@@ -2125,3 +2125,5 @@ status: done
 - **验证**：构建 **0 错**；**SelfTest 404 绿**（无回归）；**逻辑核验**贴图 snack Border 初始 `Opacity=0/Collapsed`（88-89）→ 首次 Flash 即从 0 淡入、淡出后归 0 再显亦淡入，曲线正确。动效曲线为瞬时过程无法截图（任何动效改动皆然），以「构建+测试+初值/目标/写法对齐」三重核验替代。
 
 **R151 后重跑批次末（10:58，四步全绿）**：护栏 PASS 404（FAIL=0 SKIP=1，用户 4 手势完好恢复）→ 重发布 staging 10:57:51 errors=0 → 重打包 zip 69.7MB CRC 250 条 badCRC=0 exe=1 sdk=1（10:58:02）→ 重启出厂实例 pid 29612，trace `gesture apply n=4` 正确加载。HEAD `c55d2f6` git clean。
+
+**R151b · 完成 easing 审计（REC 录制徽标淡入）**：续审 `RegionOutlineWindow` 全部 `DoubleAnimation`——红点呼吸脉冲(209)线性属**故意**（稳态 throb，加 easing 反"弹"）、FadeAway(260)已 EaseInOut、主题切换交叉淡入（HelpWindow/SettingsWindow）注释明示"非对称节拍"故意线性（交叉淡入线性保总不透明度恒定）——唯 **REC 徽标淡入(205)线性**不一致（每次录制都现的显眼角标）。补 `EaseOut` 对齐约定，淡入前 `Opacity=0`(204) 确保 0→1 生效。**至此全应用瞬时淡入淡出 easing 一致**（脉冲/交叉淡入等有意线性者除外）。构建 0 错、SelfTest 404 绿。
