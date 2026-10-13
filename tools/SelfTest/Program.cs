@@ -2371,6 +2371,39 @@ static class SelfTest
             Chk("T148e-ocr-action-registered", FrameCapture.Core.GestureActions.IsValid("ocr.selection"),
                 "ocr.selection 动作仍注册（手势可绑定，且 GestureInvoker 已接线非死动作）");
         }
+
+        // T149 帮助窗键位反映用户真实绑定（R149，GestureConfig.DescribeKeysFor/TriggerLabel 纯决策）
+        {
+            var GC = new FrameCapture.Core.GestureConfig();
+            GC.Bindings = new System.Collections.Generic.List<FrameCapture.Core.GestureBindingDto>
+            {
+                new() { Id = "r", Enabled = true, Chord = "Ctrl+Alt+R", Trigger = "Chord", Actions = new[] { "record.toggle" } },
+                new() { Id = "a", Enabled = true, Chord = "Ctrl+Alt+A", Trigger = "Chord", Actions = new[] { "capture.selection" } },
+                new() { Id = "fd", Enabled = true, Chord = "F2", Trigger = "KeyDown", Actions = new[] { "record.start" } },
+                new() { Id = "fu", Enabled = true, Chord = "F2", Trigger = "KeyUp", Actions = new[] { "record.stop" } },
+                new() { Id = "off", Enabled = false, Chord = "Ctrl+Alt+X", Trigger = "Chord", Actions = new[] { "capture.selection" } },
+            };
+            Chk("T149a-scope-unbound",
+                GC.DescribeKeysFor(FrameCapture.Core.GestureActions.ScopeSelect) == "未绑定",
+                "无选区绑定 → 未绑定（不再回落显示没绑定的死键 Ctrl+Shift+R）");
+            var rec = GC.DescribeKeysFor(FrameCapture.Core.GestureActions.RecordToggle, FrameCapture.Core.GestureActions.RecordStart, FrameCapture.Core.GestureActions.RecordStop);
+            Chk("T149b-record-grouped", rec == "Ctrl+Alt+R，F2 按下/松开",
+                "录制键按组合键分组、合并触发后缀，实得 " + rec);
+            Chk("T149c-capture-chord-nosuffix",
+                GC.DescribeKeysFor(FrameCapture.Core.GestureActions.CaptureSelection, FrameCapture.Core.GestureActions.CaptureFrame) == "Ctrl+Alt+A",
+                "Chord 触发无后缀 + 禁用绑定排除 → Ctrl+Alt+A");
+            var def = new FrameCapture.Core.GestureConfig { Bindings = FrameCapture.Core.GestureConfig.DefaultTapHoldSet("Ctrl+Shift+G", "Ctrl+Shift+R") };
+            Chk("T149d-default-taphold",
+                def.DescribeKeysFor(FrameCapture.Core.GestureActions.CaptureSelection) == "Ctrl+Shift+G 轻点"
+                && def.DescribeKeysFor(FrameCapture.Core.GestureActions.RecordStart, FrameCapture.Core.GestureActions.RecordStop) == "Ctrl+Shift+G 按住/松手",
+                "默认集：截图=轻点、录制=按住/松手");
+            Chk("T149e-trigger-label",
+                FrameCapture.Core.GestureConfig.TriggerLabel("Tap") == "轻点"
+                && FrameCapture.Core.GestureConfig.TriggerLabel("Chord") == ""
+                && FrameCapture.Core.GestureConfig.TriggerLabel("HoldRelease") == "松手"
+                && FrameCapture.Core.GestureConfig.TriggerLabel("DoubleClick") == "双击",
+                "触发后缀：轻点/空/松手/双击");
+        }
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");
         return fail == 0 ? 0 : 1;
     }

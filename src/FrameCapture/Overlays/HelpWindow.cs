@@ -109,22 +109,23 @@ public sealed class HelpWindow : Window
             g.Children.Add(vt);
             panel.Children.Add(g);
         }
-        string HK(bool scope)
+        // R149：键位列反映用户「真实绑定」而非写死的默认方案——自定义手势下旧 ScopeKeyText/CaptureKeyText
+        // 会回落成没绑定的死键（如 Ctrl+Shift+R）或把 Chord 说成「按住/轻点」。按动作查实际绑定并带触发语义。
+        string KeysFor(params string[] actions)
         {
             var g = SettingsService.Shared?.Current?.Gestures;
-            if (g == null) return scope ? GestureConfig.DefaultScopeKey : GestureConfig.DefaultCaptureKey;
-            return scope ? g.ScopeKeyText() : g.CaptureKeyText();
+            return g == null ? "未绑定" : g.DescribeKeysFor(actions);
         }
 
         H("捕获");
-        KV(HK(true), "设置捕获范围（拖框 / 悬停吸附窗口，Enter 确认，Esc 取消）——范围沿用；虚线旧选区可在设置关闭");
+        KV(KeysFor(GestureActions.ScopeSelect), "设置捕获范围（拖框 / 悬停吸附窗口，Enter 确认，Esc 取消）——范围沿用；虚线旧选区可在设置关闭");
         KV("选区放大镜", "拖框/悬停时光标旁显示高倍像素放大镜 + 坐标/尺寸读数 + 光标下像素颜色，像素级精确选区/取色；按 C 复制颜色（格式 HEX/RGB/HSL 可在设置选，默认 HEX），选区窗内按 F 即时循环切换格式（读数立刻变，偏好会记住）");
-        KV(HK(false) + " 按住", "按住即起录、松手停止（录到松手为止，不设时长上限），范围角上亮 REC 徽标；产物留内存，用『打开上次录制』进编辑器标注");
+        KV(KeysFor(GestureActions.RecordToggle, GestureActions.RecordStart, GestureActions.RecordStop), "开始 / 停止录制：可设为同键切换，或按住起录·松手停止（不设时长上限），范围角上亮 REC 徽标；产物留内存，用『打开上次录制』进编辑器标注");
         KV("录制帧率 / 高刷", "设置「录制」组：帧率滑杆 10–240，或开「跟随显示器刷新率录满」（如 160Hz 屏就按 160fps 录，忽略手动值）。实际帧率受内容变化率与系统捕获投递限制——静态画面不会凭空产帧；要真正录满高刷，需被录内容本身以刷新率变化（全屏游戏/视频等）");
         KV("录制格式 MP4/WebM/GIF", "设置「录制格式」决定「导出录制」(Ctrl+E) 与「自动保存副本」的默认容器：MP4(libx264)/WebM(vp9) 支持高帧率、体积小，需本机装 FFmpeg（软件自动探测，未装则视频项提示安装、GIF 始终可用）；GIF 免依赖到处能贴但封顶约 50fps 且体积大。Enter 写剪贴板始终是 GIF（聊天工具可直接粘贴）");
         KV("录制包含鼠标指针", "设置「录制」组可关：默认录出的画面带鼠标光标；关掉后成片干净无光标，适合做教程/演示时后期自己加高亮，或不想让光标乱入");
         KV("导出视频需要 FFmpeg", "MP4/WebM 导出靠本机 ffmpeg（软件不内置，运行时自动探测 PATH 与常见安装目录）。没装时视频项会提示、GIF 仍可导出。安装任选其一：① 命令行 `winget install Gyan.FFmpeg`（Win11 自带 winget，装完重开软件即识别）；② 到 ffmpeg.org 下载解压后把其 bin 目录加入 PATH；③ 已装过但没进 PATH，可把 ffmpeg.exe 所在目录加进系统 PATH。装好后无需重启设置，下次导出即生效");
-        KV(HK(false) + " 轻点", "选一块区域、选完立即截静态图进剪贴板（QQ 式 Ctrl+Alt+A 手感）；浮窗上点一下或 Enter 继续标注");
+        KV(KeysFor(GestureActions.CaptureSelection, GestureActions.CaptureFrame), "截图：选一块区域立即截静态图进剪贴板（QQ 式 Ctrl+Alt+A 手感），或即时抓光标屏全屏一帧；浮窗上点一下或 Enter 继续标注");
         KV("截图后", "设置里可选：弹提示（默认，浮窗点一下/Enter 进编辑器）· 进编辑器（复制后直接开标注，QQ 式）· 只复制（不弹窗不开编辑器，最快）· 贴图（复制后直接把图钉在原捕获位置，Snipaste 式，可多张并存、拖动/缩放/标注；仅对静图/滚动/延时等单帧捕获生效，录制仍进编辑器）");
         KV("截图提示音", "设置「截图」组可开：静态截图完成放一声柔和短促的「嘀」作听觉确认（默认关）；旁边「试听」可先听再决定");
         KV("滚动截图（长图）", "托盘「滚动截图（长图）」→ 拖选区 → 只管滚动目标窗口，自动找重叠拼接长图（进度实时显示）；点「完成」出图，按 Esc 随时取消（QQ 式）。网页/聊天记录/代码一屏截不下时用");

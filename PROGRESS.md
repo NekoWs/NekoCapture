@@ -2084,3 +2084,13 @@ status: done
 - **批次末**：Release 已重发布（staging 10:05:28，250 文件，SDK 投影在位）；护栏 `-MinSelfTestPass 391` 后台跑；zip 重打包；TODO.md line 3 头已更新（337→396、全出厂默认→用户自定义手势）。
 
 **批次末净态**：见下方最终 HEAD。
+
+---
+
+> **⏰ deadline 更正**：权威 deadline 是 **12:00**（goal objective 头部「用户离线至 2026-10-13 12:00」），非早期摘要里的 10:00。上方 10:04 的「批次末」执行偏早（护栏/重发布/zip/恢复实例均幂等，12:00 前会再跑一遍）。真正批次末留到 ~11:30+。R148 之后继续做有价值的小改动，每步构建+SelfTest 绿即可，最终批次末统一重发布。
+
+**R149 · 帮助窗「捕获」段反映用户真实键位（修自定义手势下显示死键/错语义）**
+- **缺陷**（截图审查 HelpWindow 发现）：帮助「捕获」段三行键位用 `HK(bool)`→`ScopeKeyText()/CaptureKeyText()`，**为默认 tap/hold 方案写死**。用户是自定义手势（Ctrl+Alt+A=选区截图 Chord、Ctrl+Alt+R=录制切换、F2=按住录制），帮助却显示：① 「**Ctrl+Shift+R** 设置捕获范围」——用户根本没绑 Ctrl+Shift+R，`ScopeKeyText` 无 ScopeSelect 绑定时**回落默认键**→显示一个按了没反应的**死键**；② 「Ctrl+Alt+A **按住**→录制 / **轻点**→截图」——用户 Ctrl+Alt+A 是 Chord 选区截图，**按住/轻点语义全错**。帮助是用户参考，误导即「不人人爱用」。
+- **修复**（纯决策函数 + 可测，仿既有风格）：`GestureConfig` 加 `TriggerLabel(trigger)`（KeyDown→按下/KeyUp→松开/Tap→轻点/Hold→按住/HoldRelease→松手/…/Chord→空）+ `DescribeKeysFor(params actions)`（按组合键分组、合并触发后缀如 `F2 按下/松开`、多条顿号分隔、无匹配「未绑定」）。HelpWindow `HK`→`KeysFor`，三行改按动作查真实绑定；描述改**触发无关**（录制行含「同键切换或按住起录·松手停止」，截图行含「选区截图或即时全屏一帧」）。
+- **验证**：构建 **0 错**；**SelfTest 401 绿**（396+T149×5：未绑定/分组/Chord 无后缀+禁用排除/默认集/触发后缀）；**截图核验**修复后帮助窗显示「未绑定 设置捕获范围」「Ctrl+Alt+R，F2 按下/松开 开始/停止录制」「Ctrl+Alt+A 截图」——与用户真实配置逐条吻合，排版对齐换行干净。
+- **未动**：`WelcomeToast` 也用 `CaptureKeyText/ScopeKeyText`，但它是**首启卡**（`FirstRunHintShown=true` 已置，用户不再见；且首启时用户尚未自定义，显示默认键正确），非缺陷。

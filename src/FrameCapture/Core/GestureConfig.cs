@@ -202,4 +202,37 @@ public sealed class GestureConfig
                 return b.Chord;
         return DefaultScopeKey;
     }
+
+    /// <summary>触发方式 → 中文后缀（供帮助/展示反映真实手感）。Chord 及未知返回空串——组合键本身即触发，无需后缀。</summary>
+    public static string TriggerLabel(string trigger) => trigger switch
+    {
+        "KeyDown" => "按下",
+        "KeyUp" => "松开",
+        "Tap" => "轻点",
+        "Hold" => "按住",
+        "HoldRelease" => "松手",
+        "LongPress" => "长按",
+        "DoubleClick" => "双击",
+        "TripleClick" => "三击",
+        "Click" => "单击",
+        _ => "",
+    };
+
+    /// <summary>把「绑定了指定动作的启用绑定」渲染成人类可读键位：按组合键分组、合并触发后缀（如 <c>F2 按下/松开</c>），
+    /// 多条以顿号分隔（如 <c>Ctrl+Alt+R，F2 按下/松开</c>）；无匹配返回「未绑定」。
+    /// 供帮助窗反映用户真实键位——自定义手势下不再显示写死的默认键（R149：旧 <c>ScopeKeyText</c> 回落默认键会显示一个没绑定的死键）。</summary>
+    public string DescribeKeysFor(params string[] actionNames)
+    {
+        var byChord = new Dictionary<string, List<string>>();
+        foreach (var b in Bindings)
+        {
+            if (!b.Enabled || !b.Actions.Any(a => actionNames.Contains(a))) continue;
+            if (HotkeySpec.Parse(b.Chord) == null) continue;
+            if (!byChord.TryGetValue(b.Chord, out var list)) byChord[b.Chord] = list = new List<string>();
+            var suf = TriggerLabel(b.Trigger);
+            if (suf.Length > 0 && !list.Contains(suf)) list.Add(suf);
+        }
+        if (byChord.Count == 0) return "未绑定";
+        return string.Join("，", byChord.Select(kv => kv.Key + (kv.Value.Count == 0 ? "" : " " + string.Join("/", kv.Value))));
+    }
 }
