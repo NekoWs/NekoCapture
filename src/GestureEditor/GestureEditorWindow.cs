@@ -435,10 +435,13 @@ public sealed class GestureEditorWindow : Window
     // R150：补 Tap/Hold/HoldRelease——旧版这三项落到默认分支与 Chord 同名「组合键（同时按下）」，
     // 触发下拉（列 Enum.GetValues<TriggerKind>() 全 10 值）出现 4 个同名项，用户无法区分轻点/按住/松手/组合键。
     // 改 public static 供 SelfTest 锁「10 项标签两两不同」不变量（纯函数，不触 WPF）。
+    // R155：KeyUp 核心词「抬起」→「松开」对齐宿主 GestureConfig.TriggerLabel（其余 9 项核心词本就一致，
+    // 唯此项用了引擎内部术语「抬起」，用户在配置器见「抬起」、在设置/帮助见「松开」不一致）。
+    // 「组合键」前缀保留——下拉里用于把键盘触发与「激活时…」鼠标触发分组。SelfTest T155 锁「配置器标签含宿主核心词」。
     public static string TriggerLabel(object t) => t switch
     {
         TriggerKind.KeyDown => "组合键按下",
-        TriggerKind.KeyUp => "组合键抬起",
+        TriggerKind.KeyUp => "组合键松开",
         TriggerKind.Click => "激活时单击",
         TriggerKind.DoubleClick => "激活时双击",
         TriggerKind.TripleClick => "激活时三击",

@@ -2143,3 +2143,5 @@ status: done
 **R154 · 手势配置器 Esc 关闭（补注释承诺的关闭路径）**：清理测试窗时发现配置器按 Esc 关不掉。查 `OnPreviewKeyDown` 仅在 `_capturing`（录键中）处理 Esc（取消录键），非录键态落到 `base` 不关窗；而退场注释（line 96）明写「任何关闭路径（关闭钮/**Esc**/宿主 Close）先淡出再真关」——注释承诺 Esc 可关、代码未实现，属注释/代码不一致 + 对话框缺标准 Esc 关闭。修：非录键态 `if (e.Key==Escape){ Close(); e.Handled=true; return; }`，走 Closing 淡出退场、与「取消」钮一致。**e2e 核验**：开配置器→fg 校验为「手势配置」→SendInput Esc→窗口 not-found（已淡出关闭）。构建 0 错、SelfTest 404 绿（WPF 键处理，非决策函数故无需新增单测）。
 
 **R154 批次末**：护栏 PASS（FAIL=0 SKIP=1）；用户 4 条手势完好（`gesture apply n=4`）；重发布 staging 11:32:36 → zip 69.7MB/250 项/CRC 全绿/exe=1/sdk=1 → 重启出厂实例 pid 11928。HEAD `bdfdc18`。
+
+**R155 · 触发方式标签跨库核心词一致（KeyUp 抬起→松开）**：配置器（lib `GestureEditorWindow.TriggerLabel`）与宿主（`GestureConfig.TriggerLabel`，供设置/帮助）是两份独立实现（lib 不能引用宿主，天然会漂移）。逐项对照发现**唯 KeyUp 核心词不一致**——配置器"组合键**抬起**"（引擎内部术语）、设置/帮助"**松开**"；其余 9 项核心词本就一致（按下/轻点/按住/松手/长按/双击/三击/单击）。用户配置正含 F2 KeyUp，会在配置器见"抬起"、在设置/帮助见"松开"。修：lib KeyUp "组合键抬起"→"组合键松开"（核心词对齐，"组合键"前缀保留作下拉键盘/鼠标触发分组）。**新增 T155** 锁「每个触发方式的配置器标签都含宿主核心词」（跳过 host 返回空的 Chord），防两份实现再漂移。SelfTest 404→**405**。截图核验配置器第 4 条现"F2 · 组合键松开"、与第 3 条"组合键按下"及设置/帮助一致。构建 0 错。

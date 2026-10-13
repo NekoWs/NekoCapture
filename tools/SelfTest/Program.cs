@@ -2426,6 +2426,17 @@ static class SelfTest
                 labels.All(s => !string.IsNullOrEmpty(s)) && labels.Distinct().Count() == kinds.Length,
                 $"触发下拉 {kinds.Length} 项标签两两不同非空（Tap/Hold/HoldRelease 不再与 Chord 同名「组合键（同时按下）」）");
         }
+        // T155 配置器(lib)触发标签须含宿主(host GestureConfig)核心词（R155，防两份独立 TriggerLabel 漂移；
+        // 用户在配置器与设置/帮助看到同一触发方式应同核心词。KeyUp 旧「抬起」vs 宿主「松开」即此漂移，已对齐）
+        {
+            var drift = System.Enum.GetValues<GE.TriggerKind>()
+                .Select(k => (k, lib: GEdit.GestureEditorWindow.TriggerLabel(k), host: FrameCapture.Core.GestureConfig.TriggerLabel(k.ToString())))
+                .Where(x => x.host.Length > 0 && !x.lib.Contains(x.host))
+                .Select(x => $"{x.k}:配置器「{x.lib}」不含宿主「{x.host}」")
+                .ToList();
+            Chk("T155-lib-host-trigger-coreword-consistent", drift.Count == 0,
+                drift.Count == 0 ? "配置器每个触发标签都含宿主核心词（KeyUp 抬起→松开 已对齐）" : string.Join("；", drift));
+        }
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");
         return fail == 0 ? 0 : 1;
     }
