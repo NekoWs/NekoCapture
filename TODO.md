@@ -1,6 +1,6 @@
 # FrameCapture Todo
 
-> **收尾状态（10-13 批次末）**：SelfTest 404 PASS、护栏 PASS（下限 404）、git clean、Release 已重发布并恢复运行。
+> **收尾状态（10-13 批次末）**：SelfTest 405 PASS、护栏 PASS（下限 405）、git clean、Release 已重发布并恢复运行。
 > **用户当前为自定义手势**（Ctrl+Alt+A 选区 / Ctrl+Alt+R 录制 / F2 按住录制），非出厂默认——这是用户自己配的，勿当测试残留还原。出厂默认仍是 Ctrl+Shift+G（截图）/ Ctrl+Shift+R（选区）；测试若临时改键，批次末还原到用户配置即可。详见 PROGRESS.md「收尾审计与决策」。
 
 ## 用户反馈（10-12 排队，按用户给定顺序做）
