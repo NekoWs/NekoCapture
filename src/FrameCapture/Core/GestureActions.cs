@@ -1,7 +1,7 @@
 namespace FrameCapture.Core;
 
 /// <summary>
-/// 手势动作词汇表（R120 B2）：把「功能」抽象成稳定的动作名，供 GestureCore 绑定序列引用。
+/// 手势动作词汇表：把「功能」抽象成稳定的动作名，供 GestureCore 绑定序列引用。
 /// 名与 UI 文案分离——名是持久化/引擎用的稳定标识（改名会破坏已存 settings.json，故用英文小写点分），
 /// 文案是给人看的。新增功能 = 在此加一条 + 在 GestureInvoker 里接上实现。
 /// </summary>
@@ -10,7 +10,7 @@ public readonly struct GestureAction
     public string Name { get; }
     public string Label { get; }   // 中文短名（未来编辑器/帮助展示）
     public string Description { get; }
-    /// <summary>会产生静图截图（R161）：手势配置器据此决定「截图后」下拉是否显示（序列里没有截图类动作就不显示）。</summary>
+    /// <summary>会产生静图截图：手势配置器据此决定「截图后」下拉是否显示（序列里没有截图类动作就不显示）。</summary>
     public bool IsCapture { get; }
     public GestureAction(string name, string label, string desc, bool isCapture = false) { Name = name; Label = label; Description = desc; IsCapture = isCapture; }
 }

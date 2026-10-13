@@ -23,8 +23,8 @@ public sealed partial class EditorWindow : Window
 
     private readonly SettingsService _settings;
     private readonly CapturedSequence _seq;
-    private readonly int _fps;   // 本序列实际帧率：优先 seq.Fps（跟随刷新率录的实际值），回退设置手动值——时间轴/时长/播放都用它（R119）
-    // R61：位图惰性缓存（LRU）——长录制帧数可达数万，全量转 BitmapSource 必 OOM。
+    private readonly int _fps;   // 本序列实际帧率：优先 seq.Fps（跟随刷新率录的实际值），回退设置手动值——时间轴/时长/播放都用它
+    // 位图惰性缓存（LRU）——长录制帧数可达数万，全量转 BitmapSource 必 OOM。
     // 只缓存最近浏览的若干帧；缓存上限按帧字节数自适应（约 600MB 帧数据）。
     private readonly Dictionary<int, BitmapSource> _bmpCache = new();
     private readonly Queue<int> _bmpFifo = new();
@@ -36,7 +36,7 @@ public sealed partial class EditorWindow : Window
     private readonly Image _view;
     private readonly System.Windows.Threading.DispatcherTimer _playTimer;
     private readonly TextBlock _hud;
-    // R69：预览底部轻提示（snackbar），单帧/多帧通用——OCR/复制等即时反馈用
+    // 预览底部轻提示（snackbar），单帧/多帧通用——OCR/复制等即时反馈用
     private Border? _snack;
     private TextBlock? _snackText;
     private System.Windows.Threading.DispatcherTimer? _snackTimer;
@@ -44,14 +44,14 @@ public sealed partial class EditorWindow : Window
     private int _index;
     private bool _playing;
     private bool _userClosed;
-    private bool _ocrBusy; // R69：识别进行中，防重入
+    private bool _ocrBusy; // 识别进行中，防重入
 
     private static Color DarkBg => Theme.WindowBg;
     private static Color PanelBg => Theme.PanelBg;
     private static readonly FontFamily IconFont = new("Segoe Fluent Icons, Segoe MDL2 Assets, Segoe UI Symbol");
     private Button? _bPlay;
     private Border? _playPanel, _toolPanel;
-    private StackPanel? _toolsBar; // R93：底部工具条，用于让 MinWidth 跟随其实际宽度（防窄图裁切两端工具）
+    private StackPanel? _toolsBar; // 底部工具条，用于让 MinWidth 跟随其实际宽度（防窄图裁切两端工具）
 
     public EditorWindow(SettingsService settings, CapturedSequence seq)
     {
@@ -78,7 +78,7 @@ public sealed partial class EditorWindow : Window
         WindowStyle = WindowStyle.None;
         ResizeMode = ResizeMode.CanResize;
         ShowInTaskbar = true;
-        // 总在最前=图钉开关（R44，默认关）。开启时失活即重插置顶带（与旧行为一致），
+        // 总在最前=图钉开关（，默认关）。开启时失活即重插置顶带（与旧行为一致），
         // 关闭时是普通窗口，绝不能被 Deactivated 兜底重新钉上去。
         Topmost = _settings.Current.EditorTopmost;
         Deactivated += (_, _) => { if (IsLoaded && Topmost) { Topmost = false; Topmost = true; } };
@@ -89,7 +89,7 @@ public sealed partial class EditorWindow : Window
         MouseLeftButtonDown += (_, e) => { if (e.ButtonState == MouseButtonState.Pressed) { try { DragMove(); } catch { } } };
 
         var mon = Monitors.ByDevice(seq.MonitorDevice) ?? Monitors.Nearest(seq.Region.X, seq.Region.Y);
-        // 812 DIP 是工具条早期列宽的下限（R34/R44）。R93 起 FitMinWidthToToolbar 会按工具条
+        // 812 DIP 是工具条早期列宽的下限（/）。起 FitMinWidthToToolbar 会按工具条
         // 实测宽度动态抬高 MinWidth（工具/色板/最近用色/宽度/撤销重做/保存·复制·图钉·OCR·确定·取消/置顶·设置·帮助），
         // 这里只留一个不会更小的地板值。
         MinWidth = 812;
@@ -117,7 +117,7 @@ public sealed partial class EditorWindow : Window
         _playTimer = new System.Windows.Threading.DispatcherTimer();
         _playTimer.Tick += (_, _) =>
         {
-            if (_userClosed || _seq.Frames.Count == 0) return; // 关闭中：spool 已释放，绝不再读帧（R61 磁盘 spool 后读已关文件会抛）
+            if (_userClosed || _seq.Frames.Count == 0) return; // 关闭中：spool 已释放，绝不再读帧（磁盘 spool 后读已关文件会抛）
             var (a, b) = TrimRange;
             int next = _index + 1;
             if (next > b || next >= _seq.Frames.Count) next = a;
@@ -127,13 +127,13 @@ public sealed partial class EditorWindow : Window
 
         InitDrawing();
         BuildLayout();
-        RestoreEditorPrefs(); // R64：恢复上次的工具/颜色/粗细（关=保持默认）
-        FitMinWidthToToolbar(); // R93：工具条列（含最近用色）实测宽 → MinWidth，窄图不再裁切两端工具
+        RestoreEditorPrefs(); // 恢复上次的工具/颜色/粗细（关=保持默认）
+        FitMinWidthToToolbar(); // 工具条列（含最近用色）实测宽 → MinWidth，窄图不再裁切两端工具
         if (_toolsBar != null) _toolsBar.SizeChanged += (_, _) => FitMinWidthToToolbar(); // 最近用色增减时跟随
-        if (!_settings.Current.EditorGuideShown) ShowGuide(); // 首次打开：一次性上手引导（R45）
+        if (!_settings.Current.EditorGuideShown) ShowGuide(); // 首次打开：一次性上手引导
         Theme.Changed += Editor_OnTheme;
         Closed += (_, _) => Theme.Changed -= Editor_OnTheme;
-        Closed += (_, _) => SaveEditorPrefs(); // R64：关闭时记住标注设置（✓/✕/Esc 三条路径都经此）
+        Closed += (_, _) => SaveEditorPrefs(); // 关闭时记住标注设置（✓/✕/Esc 三条路径都经此）
         Show(0);
         System.Windows.Input.InputMethod.SetIsInputMethodEnabled(this, false);
         PreviewKeyDown += OnKeyDown;
@@ -152,7 +152,7 @@ public sealed partial class EditorWindow : Window
         };
     }
 
-    // ---------------- 首次上手引导（R45，一次性） ----------------
+    // ---------------- 首次上手引导（，一次性） ----------------
 
     Grid? _root;
     Border? _guide;

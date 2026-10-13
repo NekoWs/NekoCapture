@@ -21,10 +21,10 @@ public sealed partial class SettingsWindow : Window
     {
         var oldw = this;
         var nw = new SettingsWindow();
-        nw._restoreCat = oldw._cat;   // 改主题/强调色重建后停在原分页，不跳回首页（R119）
+        nw._restoreCat = oldw._cat;   // 改主题/强调色重建后停在原分页，不跳回首页
         nw.Build();
         // 构造里是 CenterScreen，Show 时会覆盖下面手设的 Left/Top → 每次改主题/强调色都弹回屏幕中心。
-        // 重建必须走 Manual，才尊重原位置（R119 修「改主题/强调色窗口跑到中心」）。
+        // 重建必须走 Manual，才尊重原位置（修「改主题/强调色窗口跑到中心」）。
         nw.WindowStartupLocation = WindowStartupLocation.Manual;
         nw.Left = oldw.Left; nw.Top = oldw.Top;
         nw.Opacity = 0;
@@ -35,7 +35,7 @@ public sealed partial class SettingsWindow : Window
         nw.BeginAnimation(OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(1, TimeSpan.FromMilliseconds(FrameCapture.Core.Fluent.Motion.ThemeMs)));
     }
 
-    // ---------- 强调色（R59：设置里此前无处可改，Core 早已支持） ----------
+    // ---------- 强调色（设置里此前无处可改，Core 早已支持） ----------
 
     Popup? _accentPop;
     ColorPickView? _accentView;
@@ -82,7 +82,7 @@ public sealed partial class SettingsWindow : Window
                     // 拖动中只预览（改静态色+全局样式），松板才落盘重建——避免每像素重建窗口
                     previewed = c;
                     Theme.Accent = Color.FromRgb(c.R, c.G, c.B);
-                    chip.Background = new SolidColorBrush(Theme.Accent); // 色片实时跟色，所见即所得（R119 缓解「强调色不实时」）
+                    chip.Background = new SolidColorBrush(Theme.Accent); // 色片实时跟色，所见即所得（缓解「强调色不实时」）
                     FrameCapture.Core.Fluent.ApplyGlobalStyles();
                 };
                 _accentPop = new Popup
@@ -197,7 +197,7 @@ public sealed partial class SettingsWindow : Window
                 RebuildInPlace();
             }
             chip.MouseLeftButtonDown += (_, e) => { ApplyTheme(); e.Handled = true; };
-            // R29：键盘可达——Tab 聚焦、空格/Enter 切换主题（与点击同一路径）
+            // 键盘可达——Tab 聚焦、空格/Enter 切换主题（与点击同一路径）
             chip.Focusable = true;
             chip.KeyDown += (_, e) =>
             {

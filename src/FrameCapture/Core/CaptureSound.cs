@@ -4,7 +4,7 @@ using System.Runtime.InteropServices;
 namespace FrameCapture.Core;
 
 /// <summary>
-/// 截图提示音（R86）：捕获完成时放一声柔和短促的「嘀」，给用户「截好了」的听觉确认（QQ 招牌反馈）。
+/// 截图提示音：捕获完成时放一声柔和短促的「嘀」，给用户「截好了」的听觉确认（QQ 招牌反馈）。
 /// 不引外部音频文件——运行时合成一段 44.1kHz/16bit 单声道 WAV（纯函数，可单测），Win32 PlaySound 异步播放不阻塞 UI。
 /// 音量刻意压低、时长压短、起音 2ms 防爆音：宁可轻不可噪，且设置里带「试听」让用户先听再决定开不开。
 /// </summary>
@@ -68,7 +68,7 @@ public static class CaptureSound
     const uint SND_ASYNC = 0x0001, SND_NODEFAULT = 0x0002, SND_MEMORY = 0x0004;
 
     /// <summary>播放一声（异步，不阻塞 UI 线程）。首次合成后缓存字节。绝不抛——无音频设备等情况静默忽略。
-    /// R161：customPath 非空且存在时优先播自定义提示音——wav 直接读字节走 winmm（无编解码依赖，保证可播）；
+    /// customPath 非空且存在时优先播自定义提示音——wav 直接读字节走 winmm（无编解码依赖，保证可播）；
     /// ogg/mp3 等走 WPF MediaPlayer（系统媒体管线），解码失败/文件损坏回退内置嘀声，绝不无声。</summary>
     public static void Play(string? customPath = null)
     {

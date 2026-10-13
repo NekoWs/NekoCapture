@@ -9,7 +9,7 @@ using WinFormsKeys = System.Windows.Forms.Keys;
 namespace FrameCapture.Services;
 
 /// <summary>
-/// 手势配置器的 FrameCapture 宿主适配（R122 方案 C）。把 <see cref="GE.GestureEditorWindow"/> 库的四个注入点
+/// 手势配置器的 FrameCapture 宿主适配（方案 C）。把 <see cref="GE.GestureEditorWindow"/> 库的四个注入点
 /// ——动作清单 / 配置读写 / 键名 / 配色——接到 FrameCapture 上，并提供打开入口。
 /// GestureEditor 库本身不认识 FrameCapture；所有耦合都收在这个文件里。
 /// </summary>

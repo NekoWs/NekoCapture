@@ -6,7 +6,7 @@ namespace GestureEditor;
 
 /// <summary>一个可编辑动作的展示信息（宿主经 <see cref="IActionCatalog"/> 提供）。
 /// <see cref="Name"/> 是持久化/引擎用的稳定标识；<see cref="Label"/>/<see cref="Description"/> 给人看。
-/// <see cref="IsCapture"/>：该动作会产生一张静图截图（R161）——编辑器据此决定「截图后」下拉是否出现，
+/// <see cref="IsCapture"/>：该动作会产生一张静图截图——编辑器据此决定「截图后」下拉是否出现，
 /// 库不硬编码宿主动作名。</summary>
 public sealed record ActionInfo(string Name, string Label, string Description, bool IsCapture = false);
 
@@ -33,7 +33,7 @@ public sealed class BindingEdit
     /// <summary>完成后序列（A3）：主 <see cref="Actions"/> 成功后再跑（如"截图后→贴图"）。可空。</summary>
     public List<string> OnComplete { get; set; } = new();
     public FallbackPolicy Fallback { get; set; } = FallbackPolicy.Stop;
-    /// <summary>截图后行为（R157）：本条手势触发截图完成后的动作；空=跟随默认（弹提示）。仅截图类手势生效。</summary>
+    /// <summary>截图后行为：本条手势触发截图完成后的动作；空=跟随默认（弹提示）。仅截图类手势生效。</summary>
     public string AfterCapture { get; set; } = "";
     public int Priority { get; set; }
     public int DoubleClickMs { get; set; } = 400;
@@ -84,7 +84,7 @@ public sealed class EditorPalette
     public SolidColorBrush B(Color c) { var b = new SolidColorBrush(c); b.Freeze(); return b; }
 
     /// <summary>压在 Accent 底上的可读前景：WCAG 相对亮度（sRGB 线性化）&lt;0.35→白字，否则黑字。
-    /// 与宿主 Fluent.OnAccentColor 同款判定（R162：旧加权亮度把 #7F75FF 误判黑字），库内自包含不引用宿主 Fluent。</summary>
+    /// 与宿主 Fluent.OnAccentColor 同款判定（旧加权亮度把 #7F75FF 误判黑字），库内自包含不引用宿主 Fluent。</summary>
     public Color OnAccent()
     {
         static double L(double c) { c /= 255.0; return c <= 0.03928 ? c / 12.92 : System.Math.Pow((c + 0.055) / 1.055, 2.4); }

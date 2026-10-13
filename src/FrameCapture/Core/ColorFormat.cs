@@ -1,9 +1,9 @@
 namespace FrameCapture.Core;
 
 /// <summary>
-/// 取色复制格式（R89）：选区放大镜按 C 复制光标下像素颜色时的文本形式。
-/// QQ 只给 HEX；开发者/设计师常要 rgb()/hsl() 直接贴进 CSS，故做成可选项。
-/// 纯格式化、零依赖，供单测（T120）。屏幕像素恒不透明，故不提供带 alpha 的形式。
+/// 取色复制格式：选区放大镜按 C 复制光标下像素颜色时的文本形式。
+/// QQ 只给 HEX；开发者/设计师常要 rgb/hsl 直接贴进 CSS，故做成可选项。
+/// 纯格式化、零依赖，供单测。屏幕像素恒不透明，故不提供带 alpha 的形式。
 /// </summary>
 public enum ColorCopyFormat { Hex, Rgb, Hsl }
 

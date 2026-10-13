@@ -1,7 +1,7 @@
 namespace FrameCapture.Core;
 
 /// <summary>
-/// Shift 约束绘制的纯几何（R99）：正方形/正圆 与 45° 角度吸附。
+/// Shift 约束绘制的纯几何：正方形/正圆 与 45° 角度吸附。
 /// 与 WPF/鼠标解耦，只吃锚点 + 当前点，供单测；UI 侧在拖拽预览与松手提交两处调用同一函数保证所见即所得。
 /// </summary>
 public static class ShapeConstraint

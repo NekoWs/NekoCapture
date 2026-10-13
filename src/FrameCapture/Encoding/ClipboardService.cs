@@ -57,7 +57,7 @@ public static class ClipboardService
         return data;
     }
 
-    /// <summary>仅复制单帧位图。includePng=true（R165 窗口截图带 alpha）时额外放 "PNG" 格式保透明，
+    /// <summary>仅复制单帧位图。includePng=true（窗口截图带 alpha）时额外放 "PNG" 格式保透明，
     /// 并把 CF_DIB 拍平到白底（只认 DIB 的应用不会看到透明区变黑）。</summary>
     public static void SetFrame(CapturedFrame frame, bool includePng = false)
     {

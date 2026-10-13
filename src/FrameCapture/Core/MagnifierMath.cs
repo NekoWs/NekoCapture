@@ -1,7 +1,7 @@
 namespace FrameCapture.Core;
 
 /// <summary>
-/// 选区放大镜的纯几何决策：源矩形取法与浮窗摆放。无 WPF/无共享状态，供单测（T106）。
+/// 选区放大镜的纯几何决策：源矩形取法与浮窗摆放。无 WPF/无共享状态，供单测。
 /// 快照以监视器左上角为原点（快照像素 (0,0) = 虚拟桌面 (monitorX,monitorY)）。
 /// </summary>
 public static class MagnifierMath

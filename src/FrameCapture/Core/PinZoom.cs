@@ -1,7 +1,7 @@
 namespace FrameCapture.Core;
 
 /// <summary>
-/// R65：钉图滚轮缩放的纯决策——按滚轮方向乘一个固定倍率并夹到 [min,max]。
+/// 钉图滚轮缩放的纯决策——按滚轮方向乘一个固定倍率并夹到 [min,max]。
 /// 与 WPF 解耦，SelfTest 可断言（只增不减的缩放手感、上下限锁死）。
 /// </summary>
 public static class PinZoom

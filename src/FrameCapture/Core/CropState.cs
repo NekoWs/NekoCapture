@@ -1,7 +1,7 @@
 namespace FrameCapture.Core;
 
 /// <summary>
-/// 裁剪 = 视图状态而非破坏性编辑（SelfTest T80）。
+/// 裁剪 = 视图状态而非破坏性编辑（SelfTest ）。
 /// 帧数据永不因裁剪被替换；裁剪框以"全帧归一化矩形"的栈记录（每级存合成后的可视区），
 /// 显示时把当前矩形映射到视口，导出时一次性 Bake.Crop。撤销裁剪 = 弹栈，零内存代价。
 /// 不变量：矩形恒在全帧 [0,1]² 内且 w/h &gt; 0；Push 与当前可视区求交（二次裁剪=缩窗，绝不越界）。
@@ -75,7 +75,7 @@ public sealed class CropState
 }
 
 /// <summary>
-/// 标注与裁剪两条操作流共享单调序号的撤销次序（SelfTest T81）：
+/// 标注与裁剪两条操作流共享单调序号的撤销次序（SelfTest ）：
 /// Undo 弹出"最近发生"的那条流（序号大者），Redo 对称。跨流交错不破坏 LIFO 直觉。
 /// </summary>
 public sealed class ActionOrder

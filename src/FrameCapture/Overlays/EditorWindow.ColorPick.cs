@@ -6,7 +6,7 @@ using Theme = FrameCapture.Core.Theme;
 
 namespace FrameCapture.Overlays;
 
-// 调色板弹层宿主（R54）：视图在 ColorPickView（可离屏渲染取证），这里只管弹出与收口。
+// 调色板弹层宿主：视图在 ColorPickView（可离屏渲染取证），这里只管弹出与收口。
 public sealed partial class EditorWindow
 {
     Popup? _colorPop;
@@ -42,7 +42,7 @@ public sealed partial class EditorWindow
                 var c = _customColor.Value;
                 _settings.Mutate(s => s.CustomColors = FrameCapture.Core.CustomPick.RememberColor(s.CustomColors, FrameCapture.Core.HexColor.Format(c)));
                 RebuildRecentSwatches();
-                RestyleSelected(CurColor, null); // R76：选中项随取色即时改色（单条撤销）
+                RestyleSelected(CurColor, null); // 选中项随取色即时改色（单条撤销）
             };
         }
         if (_colorView != null) _colorView.Color = _customColor ?? CurColor;

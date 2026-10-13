@@ -4,7 +4,7 @@ using System.Runtime.InteropServices;
 namespace GestureEditor;
 
 /// <summary>
-/// 库自带的极小 Win32 互操作（R163）。GestureEditor 不引用宿主 FrameCapture，但入场/退场的
+/// 库自带的极小 Win32 互操作。GestureEditor 不引用宿主 FrameCapture，但入场/退场的
 /// 透明度淡入淡出需要把窗口强制成分层窗（WS_EX_LAYERED）——WindowChrome + 非分层窗上，
 /// WPF 的 Window.Opacity 动画根本不驱动屏幕合成（实测开合都「啪」地出现/消失，无渐变）。
 /// 与宿主 Fluent.PreTransparent 同款配方，只是自带一份、保持库可独立复用。

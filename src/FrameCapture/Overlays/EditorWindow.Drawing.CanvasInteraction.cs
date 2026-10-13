@@ -22,9 +22,9 @@ public sealed partial class EditorWindow
         e.Handled = true;
         if (_tool == Tool.Select)
         {
-            // 选中工具（R52）：点标注=选中并可拖移；点空白=取消选中
+            // 选中工具：点标注=选中并可拖移；点空白=取消选中
             var sp = e.GetPosition(_canvas);
-            // 先试选中框四角缩放手柄：命中即进入缩放拖拽，优先于移动/重选（R119）
+            // 先试选中框四角缩放手柄：命中即进入缩放拖拽，优先于移动/重选
             if (_sel != null && _anns.Items.Contains(_sel) && TryBeginResize(sp)) return;
             var hit = HitAnn(sp);
             SetSelection(hit);
@@ -37,7 +37,7 @@ public sealed partial class EditorWindow
         }
         if (_tool == Tool.Text)
         {
-            // 文字：点哪写哪；点到已有文字 = 重新编辑（R50）
+            // 文字：点哪写哪；点到已有文字 = 重新编辑
             var tp = e.GetPosition(_canvas);
             var hit = HitText(tp);
             OpenTextInput(hit != null ? NormToDisp(hit.Points[0]) : tp, hit);
@@ -116,7 +116,7 @@ public sealed partial class EditorWindow
         if (_preview != null)
         {
             // Line/Arrow/Freehand/Highlight 的形状内部用绝对画布坐标（X1/Y1、Points、Path 几何），
-            // 元素须留在画布原点(0,0)——与提交态渲染一致；若按 _pressPos 落点会被二次偏移→预览跑到屏幕外（R119 修）。
+            // 元素须留在画布原点(0,0)——与提交态渲染一致；若按 _pressPos 落点会被二次偏移→预览跑到屏幕外（修）。
             // Rect/Ellipse/Crop/Mosaic 用相对 Width/Height，位置在 Canvas_Move 里按包围盒重设，这里先落 _pressPos 无妨。
             if (_tool is not (Tool.Line or Tool.Arrow or Tool.Freehand or Tool.Highlight))
             {
@@ -142,7 +142,7 @@ public sealed partial class EditorWindow
             double dx = mp.X - _movePress.X, dy = mp.Y - _movePress.Y;
             _movePress = mp;
             // Line/Arrow/Freehand/Highlight 元素用绝对内部坐标、未设 Canvas.Left/Top → GetLeft 返回 NaN，
-            // 直接 +dx 会把元素甩到 NaN（屏幕外）。NaN 视作 0（元素本就在原点），整体平移才正确（R119 修）。
+            // 直接 +dx 会把元素甩到 NaN（屏幕外）。NaN 视作 0（元素本就在原点），整体平移才正确（修）。
             static double CL(UIElement el) => double.IsNaN(Canvas.GetLeft(el)) ? 0 : Canvas.GetLeft(el);
             static double CT(UIElement el) => double.IsNaN(Canvas.GetTop(el)) ? 0 : Canvas.GetTop(el);
             foreach (var (el, a) in _annEls)
@@ -150,7 +150,7 @@ public sealed partial class EditorWindow
             if (_selBox != null) { Canvas.SetLeft(_selBox, CL(_selBox) + dx); Canvas.SetTop(_selBox, CT(_selBox) + dy); }
             return;
         }
-        if (_tool == Tool.Select) { UpdateResizeCursor(e.GetPosition(_canvas)); return; }   // 悬停角手柄→缩放光标（R119）
+        if (_tool == Tool.Select) { UpdateResizeCursor(e.GetPosition(_canvas)); return; }   // 悬停角手柄→缩放光标
         if (!_dragging || _preview == null) return;
         var p = Constrain(e.GetPosition(_canvas));
         var n = Norm(p);
@@ -301,14 +301,14 @@ public sealed partial class EditorWindow
         EndCropGuide();
     }
 
-    // ---------------- 选中工具（R52）：点选→虚线框；拖移/删除都走操作栈可撤销 ----------------
+    // ---------------- 选中工具：点选→虚线框；拖移/删除都走操作栈可撤销 ----------------
 
     Annotation? _sel;
     Rectangle? _selBox;
     bool _moveDrag;
     Annotation? _moveAnn;
     Point _moveStart, _movePress;
-    // 缩放手柄（R119）：选中框四角拖拽改大小。归一化点集对所有标注类型通用缩放。
+    // 缩放手柄：选中框四角拖拽改大小。归一化点集对所有标注类型通用缩放。
     bool _resizeDrag;
     int _resizeCorner;                              // 0=TL 1=TR 2=BR 3=BL
     Annotation? _resizeAnn;
@@ -345,7 +345,7 @@ public sealed partial class EditorWindow
         }
     }
 
-    // ---- 缩放手柄（R119）：选中框四角拖拽，按对角锚点等比缩放归一化点集（对所有标注类型通用）----
+    // ---- 缩放手柄：选中框四角拖拽，按对角锚点等比缩放归一化点集（对所有标注类型通用）----
 
     /// <summary>点集归一化包围盒（不含 AnnBDisp 的描边外扩，缩放以真实几何为准）。</summary>
     static Rect NormBox(List<(float X, float Y)> pts)
@@ -404,7 +404,7 @@ public sealed partial class EditorWindow
         RedrawAnns();
     }
 
-    /// <summary>悬停在四角附近时切换对角缩放光标，让手柄「看得见、找得到」（R119 直接回应「看不到角手柄」）。</summary>
+    /// <summary>悬停在四角附近时切换对角缩放光标，让手柄「看得见、找得到」（直接回应「看不到角手柄」）。</summary>
     void UpdateResizeCursor(Point sp)
     {
         if (_tool != Tool.Select || _sel == null || _sel.Points.Count == 0) { _canvas.Cursor = null; return; }
@@ -464,7 +464,7 @@ public sealed partial class EditorWindow
         RedrawAnns();
     }
 
-    /// <summary>R76：选中已有标注时改颜色/粗细——原位替换（可撤销），同时该项已是当前默认（后续新标注沿用）。
+    /// <summary>选中已有标注时改颜色/粗细——原位替换（可撤销），同时该项已是当前默认（后续新标注沿用）。
     /// 传 null 表示该项不改（改色时不动粗细、改粗细时不动颜色）。文字/序号的粗细即字号。</summary>
     void RestyleSelected(Color? wpfColor, float? thickness)
     {

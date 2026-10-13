@@ -7,12 +7,12 @@ namespace FrameCapture.Core;
 /// 不再在方法开头散落 <c>if-return</c>。这样"哪条路径允许动轮廓"变成可断言的决策表。
 ///
 /// 修掉的历史缺陷（决策表即回归护栏）：
-///  - BeginCapture() 第一行无条件 HideOutline()，守卫在其后。于是"编辑器已开时再按捕获键"
-///    （RefocusEditor 路径）会把<b>常显范围轮廓永久弄没</b>，任何提前 return 的失败分支
-///    （如 GDI 启动异常）同样误隐藏。
-///    不变量：<b>只有 StartCapture 允许隐藏轮廓</b>（轮廓绝不能入镜，故起录前必须隐藏）。
-///  - FinishCapture() 注释写着"常显轮廓则由后续分支重新点亮"，但没有任何分支重新点亮：
-///    常显模式下一次录制就把轮廓淡出且不再回来。现由 OnCaptureFinished 明确决策。
+/// - BeginCapture 第一行无条件 HideOutline，守卫在其后。于是"编辑器已开时再按捕获键"
+/// （RefocusEditor 路径）会把<b>常显范围轮廓永久弄没</b>，任何提前 return 的失败分支
+/// （如 GDI 启动异常）同样误隐藏。
+/// 不变量：<b>只有 StartCapture 允许隐藏轮廓</b>（轮廓绝不能入镜，故起录前必须隐藏）。
+/// - FinishCapture 注释写着"常显轮廓则由后续分支重新点亮"，但没有任何分支重新点亮：
+/// 常显模式下一次录制就把轮廓淡出且不再回来。现由 OnCaptureFinished 明确决策。
 /// </summary>
 public static class CaptureGuards
 {

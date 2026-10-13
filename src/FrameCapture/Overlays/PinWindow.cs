@@ -12,7 +12,7 @@ using FrameCapture.Services;
 namespace FrameCapture.Overlays;
 
 /// <summary>
-/// R65：钉到屏幕——把当前帧（含标注/裁剪，WYSIWYG）作为一张无边框、置顶、可拖动/滚轮缩放的小图，
+/// 钉到屏幕——把当前帧（含标注/裁剪，WYSIWYG）作为一张无边框、置顶、可拖动/滚轮缩放的小图，
 /// 钉在桌面原捕获位置。Snipaste/QQ 的招牌手感，此前缺位。
 /// 交互：按住拖动移动；滚轮以中心为锚缩放（10%~600%）；Ctrl+滚轮调不透明度（20%~100%）；
 /// 双击或 Esc 关闭；R 键顺时针旋转 90°、F3 原地重抓源区域刷新内容、Ctrl+S 另存为、Ctrl+C 复制回剪贴板、Ctrl+O 识别文字；右键菜单复制/另存为/识别文字/旋转/更新内容/不透明度/关闭/关闭全部贴图。
@@ -20,26 +20,26 @@ namespace FrameCapture.Overlays;
 /// </summary>
 public sealed class PinWindow : Window
 {
-    // R66：所有在屏贴图的登记表——右键菜单「关闭全部贴图」用；UI 线程访问，无需加锁
+    // 所有在屏贴图的登记表——右键菜单「关闭全部贴图」用；UI 线程访问，无需加锁
     static readonly List<PinWindow> _open = new();
 
-    CapturedFrame _frame; // R79：旋转会替换为旋转后的新帧
-    readonly RectI _srcRegion; // R84：源捕获区域（物理像素），「更新内容」按此重抓
-    int _rotSteps;             // R84：累计顺时针 90° 次数，刷新后按同角度重放
+    CapturedFrame _frame; // 旋转会替换为旋转后的新帧
+    readonly RectI _srcRegion; // 源捕获区域（物理像素），「更新内容」按此重抓
+    int _rotSteps;             // 累计顺时针 90° 次数，刷新后按同角度重放
     readonly Image _img;
     readonly Border _snack;
-    Border _card;   // R120 D3：入场「落图」缩放动画挂这（RenderTransform 空闲，Rotate 转的是帧数据非变换）
+    Border _card;   // 入场「落图」缩放动画挂这（RenderTransform 空闲，Rotate 转的是帧数据非变换）
     readonly TextBlock _snackText;
     DispatcherTimer? _snackTimer;
-    // R118：贴图显示时是否抢焦点。默认 true（编辑器 Ctrl+P / 剪贴板贴图，用户正盯着它）；
+    // 贴图显示时是否抢焦点。默认 true（编辑器 Ctrl+P / 剪贴板贴图，用户正盯着它）；
     // 「截图后=贴图」传 false——贴图静默出现不抢焦点，符合"钉住参考后继续原应用操作"意图，点击时才激活（Snipaste 式）。
     readonly bool _activateOnShow;
     double _scale = 1.0, _baseW, _baseH;
-    // R120 A3：手动拖拽 + 实时磁吸状态（替代 DragMove——旧版只在松手瞬间吸附、过程零反馈，用户感知"磁边无效"）
+    // 手动拖拽 + 实时磁吸状态（替代 DragMove——旧版只在松手瞬间吸附、过程零反馈，用户感知"磁边无效"）
     bool _dragging;
     double _grabDX, _grabDY;   // 光标相对贴图左上角的抓取偏移（DIP），拖动时贴图不"跳"到光标下
     double _rawLeft, _rawTop;  // 未吸附的逻辑位置（磁吸作为显示偏移叠加其上，避免与光标互相拉扯）
-    // R163 拖动实时磁吸：拖拽起点预计算的本屏参考边（DIP，带垂直跨度），左/右、上/下分开（同类边对同类边）
+    // 拖动实时磁吸：拖拽起点预计算的本屏参考边（DIP，带垂直跨度），左/右、上/下分开（同类边对同类边）
     System.Collections.Generic.List<FrameCapture.Core.PinSnap.Edge>
         _snapXL = null!, _snapXR = null!, _snapYT = null!, _snapYB = null!;
     string? _snapScr;
@@ -47,7 +47,7 @@ public sealed class PinWindow : Window
     public PinWindow(CapturedFrame frame, RectI physPos, bool activateOnShow = true)
     {
         _frame = frame;
-        _srcRegion = physPos; // R84：记住源区域，供「更新内容」原地重抓
+        _srcRegion = physPos; // 记住源区域，供「更新内容」原地重抓
         _activateOnShow = activateOnShow;
         WindowStyle = WindowStyle.None;
         ResizeMode = ResizeMode.NoResize;
@@ -77,7 +77,7 @@ public sealed class PinWindow : Window
         border.RenderTransformOrigin = new Point(0.5, 0.5);
         _card = border;
         Opacity = 0; // 入场动画首帧前即隐形（避免缩放起始态闪一帧）；ContentRendered 后淡入+落图
-        // R75：贴图内轻提示浮层（识别文字等反馈用；贴图无独立 snackbar），默认隐藏，Flash 淡入淡出
+        // 贴图内轻提示浮层（识别文字等反馈用；贴图无独立 snackbar），默认隐藏，Flash 淡入淡出
         _snackText = new TextBlock
         {
             Foreground = Brushes.White,
@@ -122,7 +122,7 @@ public sealed class PinWindow : Window
                 // 若上一次磁边滑动动画还在飞，先结算到目标值再拖，避免起点与本地值不一致
                 BeginAnimation(LeftProperty, null);
                 BeginAnimation(TopProperty, null);
-                // R120 A3：按住即捕获鼠标，改手动拖拽（见 MouseMove 实时磁吸）。用光标物理坐标换算 DIP，
+                // 按住即捕获鼠标，改手动拖拽（见 MouseMove 实时磁吸）。用光标物理坐标换算 DIP，
                 // 记录抓取偏移，使贴图跟随光标且不跳到光标正下方。
                 if (Win32.GetCursorPos(out var pt))
                 {
@@ -131,9 +131,9 @@ public sealed class PinWindow : Window
                     _grabDY = pt.Y / d.DpiScaleY - Top;
                 }
                 _rawLeft = Left; _rawTop = Top;
-                _winGuides = BuildWinGuides();   // R162：拖拽起点快照窗口参考线，拖动途中不再全量枚举
+                _winGuides = BuildWinGuides();   // 拖拽起点快照窗口参考线，拖动途中不再全量枚举
                 _snapScr = null;
-                BuildSnapLines();                // R163：起点预计算本屏参考边（带跨度），拖动途中零枚举
+                BuildSnapLines();                // 起点预计算本屏参考边（带跨度），拖动途中零枚举
                 _dragging = true;
                 CaptureMouse();
                 e.Handled = true;
@@ -148,7 +148,7 @@ public sealed class PinWindow : Window
             _rawTop = pt.Y / d.DpiScaleY - _grabDY;
             if (FrameCapture.Core.SettingsService.Shared?.Current.PinSnapEdges == true)
             {
-                // R163 实时磁吸（Slick Window Arrangement 手感）：临近屏幕边/窗口边/其他贴图边就吸过去。
+                // 实时磁吸（Slick Window Arrangement 手感）：临近屏幕边/窗口边/其他贴图边就吸过去。
                 // 关键＝只有垂直跨度真正重叠的同类边才吸（杜绝「到处吸附」）；无滞回也不抖（重叠判定天然稳定）。
                 double ccx = (_rawLeft + Width / 2) * d.DpiScaleX, ccy = (_rawTop + Height / 2) * d.DpiScaleY;
                 if (_snapScr == null ||
@@ -165,7 +165,7 @@ public sealed class PinWindow : Window
             if (!_dragging) return;
             _dragging = false;
             ReleaseMouseCapture();
-            // R163：磁吸已在拖动中把贴图放到线上，松手无需再吸一次；清拖拽态
+            // 磁吸已在拖动中把贴图放到线上，松手无需再吸一次；清拖拽态
             _winGuides = null; _snapScr = null;
             _snapXL = _snapXR = _snapYT = _snapYB = null!;
         };
@@ -175,7 +175,7 @@ public sealed class PinWindow : Window
             if ((Keyboard.Modifiers & ModifierKeys.Control) != 0)
             {
                 // 先提交淡入动画的可见值再清动画：否则清动画后 Opacity 读回基础值 0，Next(0,±) 一律夹到 0.2
-                // ——首滚突跳 0.2、再向下滚恒 0.2「无效果」（R120 修 R119 未竟的不透明度失效）
+                // ——首滚突跳 0.2、再向下滚恒 0.2「无效果」（修 未竟的不透明度失效）
                 CommitOpacity();
                 Opacity = FrameCapture.Core.PinOpacity.Next(Opacity, e.Delta);
                 e.Handled = true;
@@ -195,19 +195,19 @@ public sealed class PinWindow : Window
             else if (e.Key == Key.R) Rotate();
             else if (e.Key == Key.F3) Refresh();
             else if (e.Key == Key.S && (Keyboard.Modifiers & ModifierKeys.Control) != 0) SaveAs();
-            else if (e.Key == Key.C && (Keyboard.Modifiers & ModifierKeys.Control) != 0) Copy(); // R95 复制回剪贴板
-            else if (e.Key == Key.O && (Keyboard.Modifiers & ModifierKeys.Control) != 0) OcrFrame(); // R95 识别文字（与编辑器一致）
+            else if (e.Key == Key.C && (Keyboard.Modifiers & ModifierKeys.Control) != 0) Copy(); // 复制回剪贴板
+            else if (e.Key == Key.O && (Keyboard.Modifiers & ModifierKeys.Control) != 0) OcrFrame(); // 识别文字（与编辑器一致）
         };
 
         Loaded += (_, _) => _open.Add(this);
         Closed += (_, _) => _open.Remove(this);
 
-        // R120 D3：入场=淡入 + 卡片从 0.82 缩放「落图」带轻微回弹（BackEase），像把图钉到桌面
+        // 入场=淡入 + 卡片从 0.82 缩放「落图」带轻微回弹（BackEase），像把图钉到桌面
         ContentRendered += (_, _) =>
         {
             FrameCapture.Core.Fluent.FadeIn(this, 140);
             PlayDrop();
-            // 淡入后确认 Opacity 已起来（R157：曾因 FadeIn 在已渲染时不再淡入，贴图永久 Opacity=0 隐形）
+            // 淡入后确认 Opacity 已起来（曾因 FadeIn 在已渲染时不再淡入，贴图永久 Opacity=0 隐形）
             var t = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) };
             t.Tick += (_, __) => { t.Stop(); FrameCapture.Core.Trace.Log($"pin shown opacity={Opacity:F2}"); };
             t.Start();
@@ -220,7 +220,7 @@ public sealed class PinWindow : Window
     }
 
     /// <summary>把淡入动画的当前可见值落为基础值并清掉动画：清动画后 WPF 回退到基础值（0），
-    /// 不先提交就会读回 0——不透明度调节因此首滚跳 0.2、再滚无反应（R120 修）。同 Fluent.PopupEnter 模式。</summary>
+    /// 不先提交就会读回 0——不透明度调节因此首滚跳 0.2、再滚无反应（修）。同 Fluent.PopupEnter 模式。</summary>
     void CommitOpacity()
     {
         double cur = Opacity;
@@ -228,8 +228,8 @@ public sealed class PinWindow : Window
         Opacity = cur;
     }
 
-    /// <summary>R120 D3：入场「落图」——卡片缩放带 BackEase 轻微过冲，配合淡入像钉到桌面。
-    /// R162：幅度调小（0.82→0.94、过冲 0.55→0.25）——原幅度太大，大图闪一下像 zoom 故障。</summary>
+    /// <summary>入场「落图」——卡片缩放带 BackEase 轻微过冲，配合淡入像钉到桌面。
+    /// 幅度调小（0.82→0.94、过冲 0.55→0.25）——原幅度太大，大图闪一下像 zoom 故障。</summary>
     void PlayDrop()
     {
         if (_card == null) return;
@@ -244,7 +244,7 @@ public sealed class PinWindow : Window
     }
 
     bool _closingOut;
-    /// <summary>R162：退场动画——淡出 + 轻微收缩（与入场呼应、幅度小），130ms 后真正 Close。
+    /// <summary>退场动画——淡出 + 轻微收缩（与入场呼应、幅度小），130ms 后真正 Close。
     /// 双击/Esc/右键菜单关闭统一走这里；「关闭全部贴图」保持即时关（批量不排队演动画）。</summary>
     void CloseAnimated()
     {
@@ -277,10 +277,10 @@ public sealed class PinWindow : Window
         Height = _img.Height + 2;
     }
 
-    /// <summary>R79：顺时针旋转 90°（无损像素重排），以中心为锚保持位置不漂移；转 4 次回原图。</summary>
+    /// <summary>顺时针旋转 90°（无损像素重排），以中心为锚保持位置不漂移；转 4 次回原图。</summary>
     void Rotate()
     {
-        _rotSteps = (_rotSteps + 1) % 4; // R84：记录角度，刷新后重放
+        _rotSteps = (_rotSteps + 1) % 4; // 记录角度，刷新后重放
         _frame = FrameCapture.Core.PinRotate.Rotate90Cw(_frame);
         var src = BgraImage.ToSource(_frame);
         src.Freeze();
@@ -294,7 +294,7 @@ public sealed class PinWindow : Window
         FrameCapture.Core.Trace.Log($"pin-rotate → {_frame.W}x{_frame.H}");
     }
 
-    /// <summary>R84：原地重抓源区域刷新贴图内容（Snipaste F3 式）——盯梢会变的区域（进度条、数值、直播画面）
+    /// <summary>原地重抓源区域刷新贴图内容（Snipaste F3 式）——盯梢会变的区域（进度条、数值、直播画面）
     /// 不必重新截图。先隐藏本贴图避免把自己截进新帧（反馈循环），短暂延迟让隐藏生效，再按当前旋转角度重放。</summary>
     void Refresh()
     {
@@ -325,8 +325,8 @@ public sealed class PinWindow : Window
         t.Start();
     }
 
-    /// <summary>R80：把贴图当前帧（含旋转后状态）另存为 PNG，默认目录「图片\FrameCapture」，与编辑器保存一致。</summary>
-    /// <summary>R95 把贴图当前画面（含旋转后）复制回剪贴板，Ctrl+C / 右键「复制」共用。</summary>
+    /// <summary>把贴图当前帧（含旋转后状态）另存为 PNG，默认目录「图片\FrameCapture」，与编辑器保存一致。</summary>
+    /// <summary>把贴图当前画面（含旋转后）复制回剪贴板，Ctrl+C / 右键「复制」共用。</summary>
     void Copy()
     {
         ClipboardService.SetFrame(_frame);
@@ -353,7 +353,7 @@ public sealed class PinWindow : Window
 
     List<(double L, double T, double R, double B)>? _winGuides;   // DIP，拖拽期间有效
 
-    /// <summary>R163：拖拽起点一次性算好本屏磁吸参考边（屏幕工作区四边 + 同屏其他贴图边 + 同屏窗口边，全 DIP，
+    /// <summary>拖拽起点一次性算好本屏磁吸参考边（屏幕工作区四边 + 同屏其他贴图边 + 同屏窗口边，全 DIP，
     /// 每条边带垂直跨度）。左/上边进 near 列表、右/下边进 far 列表（同类边对同类边）。此前每个 MouseMove 全量重算
     /// （含多次 Screen.FromPoint）＝拖动掉帧「卡卡的」来源之一；预计算后热路径只剩纯几何。</summary>
     void BuildSnapLines()
@@ -386,7 +386,7 @@ public sealed class PinWindow : Window
                 if (System.Windows.Forms.Screen.FromPoint(new System.Drawing.Point((int)pcx, (int)pcy)).DeviceName != _snapScr) continue;
                 AddRect(p.Left, p.Top, p.Left + p.Width, p.Top + p.Height);
             }
-            // R164：窗口边只取"可见段"——被更靠上窗口盖住的部分剔除（Slick RemoveOverlappedTargets 思路）。
+            // 窗口边只取"可见段"——被更靠上窗口盖住的部分剔除（Slick RemoveOverlappedTargets 思路）。
             // 此前把同屏所有窗口的整条边都当参考，包括被压在后面的背景窗 → 吸到看不见的边＝莫名其妙。
             var wins = _winGuides ??= BuildWinGuides();   // Z 序上→下，DIP
             for (int i = 0; i < wins.Count; i++)
@@ -403,7 +403,7 @@ public sealed class PinWindow : Window
         catch { _snapXL.Clear(); _snapXR.Clear(); _snapYT.Clear(); _snapYB.Clear(); }
     }
 
-    /// <summary>R164：把窗口一条边 [lo,hi]@pos 减去更靠上（wins[0..above-1]，Z 序更靠前）窗口在该边线上的覆盖区间，
+    /// <summary>把窗口一条边 [lo,hi]@pos 减去更靠上（wins[0..above-1]，Z 序更靠前）窗口在该边线上的覆盖区间，
     /// 只把可见子段加入目标边列表。vertical=true 表示竖边（x=pos，跨度沿 Y，用窗口 L/R 判是否盖住该竖线）。</summary>
     static void AddVisible(double pos, double lo, double hi,
         System.Collections.Generic.List<FrameCapture.Core.PinSnap.Edge> target, bool vertical,
@@ -429,7 +429,7 @@ public sealed class PinWindow : Window
         try
         {
             var d = VisualTreeHelper.GetDpi(this);
-            // R164：排除自己——否则拖拽起点快照会把本贴图此刻的边当参考边，拖起来"吸回自己起点"＝莫名其妙。
+            // 排除自己——否则拖拽起点快照会把本贴图此刻的边当参考边，拖起来"吸回自己起点"＝莫名其妙。
             var self = new System.Windows.Interop.WindowInteropHelper(this).Handle;
             // 保持 EnumWindows 的 Z 序（上→下），供 BuildSnapLines 做遮挡裁剪：只把"看得见的边"当参考。
             foreach (var (_, b, _) in FrameCapture.Native.WindowEnum.ListTopmostCandidates(self, skipIconic: true))
@@ -439,7 +439,7 @@ public sealed class PinWindow : Window
         return list;
     }
 
-    /// <summary>R75：识别贴图里的印刷文字（Windows 内置 OCR）→ 写剪贴板；开「识别后显示结果窗」则弹结果窗，
+    /// <summary>识别贴图里的印刷文字（Windows 内置 OCR）→ 写剪贴板；开「识别后显示结果窗」则弹结果窗，
     /// 否则贴图内浮层提示。无语言包/无文字等优雅降级，浮层给出原因。</summary>
     async void OcrFrame()
     {
@@ -450,7 +450,7 @@ public sealed class PinWindow : Window
             if (outcome.Status == FrameCapture.Core.OcrStatus.Success)
             {
                 var text = FrameCapture.Core.OcrService.Normalize(outcome.Text);
-                // R120 D2 预览优先：开结果窗时以「预览选取」为主，不自动写剪贴板；关结果窗才走快速复制路径。
+                // D2 预览优先：开结果窗时以「预览选取」为主，不自动写剪贴板；关结果窗才走快速复制路径。
                 if (FrameCapture.Core.SettingsService.Shared?.Current.OcrShowResult == true)
                 {
                     HideSnack();
@@ -506,7 +506,7 @@ public sealed class PinWindow : Window
 
     void ShowMenu()
     {
-        var menu = new ContextMenu { Resources = FrameCapture.Core.Fluent.MenuResources() }; // R120 D4：套用共享 Fluent 菜单样式（原裸 ContextMenu 系统默认样式很丑）
+        var menu = new ContextMenu { Resources = FrameCapture.Core.Fluent.MenuResources() }; // 套用共享 Fluent 菜单样式（原裸 ContextMenu 系统默认样式很丑）
         var copy = new MenuItem { Header = "复制", InputGestureText = "Ctrl+C" };
         copy.Click += (_, _) => Copy();
         var saveAs = new MenuItem { Header = "另存为…", InputGestureText = "Ctrl+S" };

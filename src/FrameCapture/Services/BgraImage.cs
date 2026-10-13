@@ -16,8 +16,8 @@ public static class BgraImage
     }
 
     /// <summary>
-    /// BitmapSource → BGRA 帧（R92）：从剪贴板图片等外部源建帧。统一转 Bgra32 再 CopyPixels，
-    /// 与 ToSource 同格式 → 往返无损（SelfTest T121）。空/零尺寸返回 null。
+    /// BitmapSource → BGRA 帧：从剪贴板图片等外部源建帧。统一转 Bgra32 再 CopyPixels，
+    /// 与 ToSource 同格式 → 往返无损（SelfTest ）。空/零尺寸返回 null。
     /// </summary>
     public static CapturedFrame? FromSource(BitmapSource? src)
     {
@@ -40,7 +40,7 @@ public static class BgraImage
         enc.Save(fs);
     }
 
-    /// <summary>帧 → PNG 字节（保留 alpha）。用于剪贴板 "PNG" 格式（R165 窗口截图透明）。</summary>
+    /// <summary>帧 → PNG 字节（保留 alpha）。用于剪贴板 "PNG" 格式（窗口截图透明）。</summary>
     public static byte[] PngBytes(CapturedFrame f)
     {
         var enc = new PngBitmapEncoder();
@@ -51,7 +51,7 @@ public static class BgraImage
     }
 
     /// <summary>把带 alpha 的帧拍平到纯色底（alpha=255）。给只认 CF_DIB（无 alpha）的应用做兜底，
-    /// 避免透明区在它们眼里变黑（R165）。不透明帧原样返回。</summary>
+    /// 避免透明区在它们眼里变黑。不透明帧原样返回。</summary>
     public static CapturedFrame FlattenOver(CapturedFrame f, byte r, byte g, byte b)
     {
         var src = f.Bgra;
@@ -71,7 +71,7 @@ public static class BgraImage
     }
 
     /// <summary>从帧里裁出 (x,y,w,h) 子矩形（越界自动钳进画布；裁空返回 null）。逐行拷贝。
-    /// 定格截图用它从全屏定格帧里裁出选区（R166）。纯函数供单测。</summary>
+    /// 定格截图用它从全屏定格帧里裁出选区。纯函数供单测。</summary>
     public static CapturedFrame? Crop(CapturedFrame? src, int x, int y, int w, int h)
     {
         if (src == null || src.W <= 0 || src.H <= 0 || w < 1 || h < 1) return null;
@@ -87,8 +87,8 @@ public static class BgraImage
     }
 
     /// <summary>
-    /// 马赛克（R47）：区域内逐 block 均值填充，就地修改。坐标越界自动钳进画布；纯字节运算，
-    /// 编辑器预览与烘焙共用同一函数 → 所见即所得（SelfTest T91）。
+    /// 马赛克：区域内逐 block 均值填充，就地修改。坐标越界自动钳进画布；纯字节运算，
+    /// 编辑器预览与烘焙共用同一函数 → 所见即所得（SelfTest ）。
     /// </summary>
     public static void MosaicInPlace(byte[] bgra, int w, int h, int x, int y, int rw, int rh, int block)
     {

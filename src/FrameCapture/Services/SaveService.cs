@@ -6,7 +6,7 @@ using FrameCapture.Encoding;
 namespace FrameCapture.Services;
 
 /// <summary>
-/// 捕获产物自动保存副本（R63）：截图存 PNG、录制按「录制格式」存 MP4/WebM（未装 ffmpeg 回退 GIF）到本地目录，剪贴板照常写入。
+/// 捕获产物自动保存副本：截图存 PNG、录制按「录制格式」存 MP4/WebM（未装 ffmpeg 回退 GIF）到本地目录，剪贴板照常写入。
 /// 关闭时零副作用；开启后任何写盘失败只记 trace，绝不影响剪贴板主流程（捕获永远成功）。
 /// </summary>
 public static class SaveService
@@ -92,7 +92,7 @@ public static class SaveService
                 finally { try { if (File.Exists(tmp)) File.Delete(tmp); } catch { } }
             }).ContinueWith(_ =>
             {
-                // R120 A1：后台编码闭包持有的整段烘焙帧（长录制可达 GB）此刻已随任务委托释放，
+                // 后台编码闭包持有的整段烘焙帧（长录制可达 GB）此刻已随任务委托释放，
                 // 主动全代 GC + 裁工作集，避免"录完视频内存一直虚高、要手动 MemReduct 才回落"。
                 FrameCapture.Core.Memory.Reclaim();
             }, System.Threading.Tasks.TaskScheduler.Default);

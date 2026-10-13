@@ -42,8 +42,8 @@ public sealed partial class EditorWindow : Window
             {
                 case Key.S: SaveFrame(); return;
                 case Key.C: ClipboardService.SetFrame(ExportFrame(_index)); return;
-                case Key.P: PinCurrentFrame(); return; // R65 钉到屏幕
-                case Key.O: OcrCurrentFrame(); return; // R69 识别文字
+                case Key.P: PinCurrentFrame(); return; // 钉到屏幕
+                case Key.O: OcrCurrentFrame(); return; // 识别文字
                 case Key.E: SaveRecording(); return;
                 case Key.H: SaveAfterimage(); return;
                 // 视图缩放（浏览器惯例）：Ctrl +/− 以中心放大缩小，Ctrl+0 适配，Ctrl+1 逐像素 1:1
@@ -75,7 +75,7 @@ public sealed partial class EditorWindow : Window
                 case Key.Delete: UndoAnn(); return;
                 case Key.K: PickCustomColor(); return;
                 case Key.W: if (_widthMoreBtn != null) ShowWidthPopup(_widthMoreBtn); return;
-                // 时间轴裁剪键盘化（R31）：端点=当前帧，钳位保证至少 2 帧；Backspace 清除
+                // 时间轴裁剪键盘化：端点=当前帧，钳位保证至少 2 帧；Backspace 清除
                 case Key.OemOpenBrackets: _rd.Count = _seq.Frames.Count; _rd.SetA(_index); Show(_index); e.Handled = true; return;
                 case Key.OemCloseBrackets: _rd.Count = _seq.Frames.Count; _rd.SetB(_index); Show(_index); e.Handled = true; return;
                 case Key.Back: _rd.A = _rd.B = -1; Show(_index); e.Handled = true; return;
@@ -87,7 +87,7 @@ public sealed partial class EditorWindow : Window
                 // 弹层打开时：Esc 只收弹层（分层语义的第一层）
                 if (_colorPop is { IsOpen: true }) { _colorPop.IsOpen = false; e.Handled = true; return; }
                 if (_widthPop is { IsOpen: true }) { _widthPop.IsOpen = false; e.Handled = true; return; }
-                // 分层语义（T82/T96）：导出中=取消；有选中=先取消选中；绘制态=先退出工具，误触 Esc 绝不丢整次捕获；浏览态=关闭
+                // 分层语义（/）：导出中=取消；有选中=先取消选中；绘制态=先退出工具，误触 Esc 绝不丢整次捕获；浏览态=关闭
                 switch (FrameCapture.Core.EscStep.Select(_encoding, _tool != Tool.Browse, _sel != null))
                 {
                     case FrameCapture.Core.EscAction.CancelEncode: _commitCts?.Cancel(); break;
@@ -168,9 +168,9 @@ public sealed partial class EditorWindow : Window
     {
         _index = Math.Clamp(index, 0, _seq.Frames.Count - 1);
         _view.Source = Bmp(_index);
-        UpdateMosaicBrushes(); // 马赛克=区域滤镜：内容随帧走，不是静止贴图（R50）
+        UpdateMosaicBrushes(); // 马赛克=区域滤镜：内容随帧走，不是静止贴图
         // 计数区时间用「帧号/帧率」= 播放基准，与时间轴刻度(DrawRange 同用 i/fps)一致；
-        // 不用 _times 实际捕获时间戳（首帧非 0、且与刻度基准两套，R111 看截图抓到不一致）
+        // 不用 _times 实际捕获时间戳（首帧非 0、且与刻度基准两套，看截图抓到不一致）
         int fps = _fps;
         double eff = _imgRect.Width / Math.Max(1, _frameW);
         string zoomTxt = _zoom <= 1.001 ? "" : (Math.Abs(eff - 1.0) < 0.02 ? "  1:1" : $"  {eff * 100:0}%");
@@ -181,9 +181,9 @@ public sealed partial class EditorWindow : Window
             cropTxt = $"  裁剪 {cqW:0}×{cqH:0}";
         }
         var (ta, tb2) = TrimRange;
-        // 含两端闭区间 [a,b]：1-based 显示须 tb+1（R31 抓到差一）；全范围=未裁剪不显示（R39 逐帧复查抓到 tb2<count-1 差一）
+        // 含两端闭区间 [a,b]：1-based 显示须 tb+1（抓到差一）；全范围=未裁剪不显示（逐帧复查抓到 tb2<count-1 差一）
         string trimTxt = _rd.A >= 0 && tb2 > ta && (ta > 0 || tb2 < _seq.Frames.Count - 1) ? $"  导出 {ta + 1}–{tb2 + 1}" : "";
-        // 计数区：帧号 + 当前帧时刻 / 总时长（末帧时刻，与刻度/播放同基准）；总时长让用户一眼看到录制长度（R114）
+        // 计数区：帧号 + 当前帧时刻 / 总时长（末帧时刻，与刻度/播放同基准）；总时长让用户一眼看到录制长度
         _hud.Text = $"{_index + 1}/{_seq.Frames.Count}  {_index / (double)fps:0.00}s / {(_seq.Frames.Count - 1) / (double)fps:0.00}s"
             + (_speed != 1.0 ? $"  ×{_speed:0.###}" : "")
             + zoomTxt + cropTxt + trimTxt

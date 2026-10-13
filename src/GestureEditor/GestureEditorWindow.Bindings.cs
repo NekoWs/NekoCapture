@@ -16,7 +16,7 @@ namespace GestureEditor;
 // 本 partial 承载绑定编辑交互：绑定增删改、详情编辑、组合键录键、校验与保存、列表刷新。
 public sealed partial class GestureEditorWindow : Window
 {
-    // ---------- 列表（R161 卡片化：边框+底色，选中/问题/禁用逐行自绘） ----------
+    // ---------- 列表（卡片化：边框+底色，选中/问题/禁用逐行自绘） ----------
     void RefreshList()
     {
         _suppress = true;
@@ -49,7 +49,7 @@ public sealed partial class GestureEditorWindow : Window
     }
 
     /// <summary>逐行刷三态：选中（accent 底 + OnAccent 字色）、问题（红框）、禁用（muted 灰字，不再加「已禁用 ·」前缀）。
-    /// R162：三态切换走 140ms 颜色过渡（此前直接换刷子，选中/取消选中颜色硬跳）。</summary>
+    /// 三态切换走 140ms 颜色过渡（此前直接换刷子，选中/取消选中颜色硬跳）。</summary>
     void PaintRows()
     {
         for (int i = 0; i < _rows.Count; i++)
@@ -69,7 +69,7 @@ public sealed partial class GestureEditorWindow : Window
 
     string ActionLabel(string actionName) => _catalog.Actions().FirstOrDefault(a => a.Name == actionName)?.Label ?? actionName;
 
-    // R157：截图后行为的中文标签（取值与宿主 AfterCapture 一致；空=跟随默认弹提示）
+    // 截图后行为的中文标签（取值与宿主 AfterCapture 一致；空=跟随默认弹提示）
     static string AfterCaptureLabel(string v) => v switch
     {
         "" => "跟随默认",
@@ -118,7 +118,7 @@ public sealed partial class GestureEditorWindow : Window
         UpdateChordText();
         _chordBox.MouseLeftButtonDown += (_, _) => BeginCapture();
         _chordBox.KeyDown += (_, e) => { if (!_capturing && e.Key is Key.Space or Key.Enter) { BeginCapture(); e.Handled = true; } };
-        // hover 与键盘焦点共用一套描边刷新：聚焦或悬停任一成立即转 accent；R161 改颜色过渡（此前硬切换生硬）
+        // hover 与键盘焦点共用一套描边刷新：聚焦或悬停任一成立即转 accent；改颜色过渡（此前硬切换生硬）
         void RefreshChordBorder() { if (!_capturing) AnimateColor(_chordStroke, (_chordHover || _chordFocus) ? _pal.Accent : _pal.Stroke, 140); }
         _chordBox.MouseEnter += (_, _) => { _chordHover = true; RefreshChordBorder(); };
         _chordBox.MouseLeave += (_, _) => { _chordHover = false; RefreshChordBorder(); };
@@ -143,7 +143,7 @@ public sealed partial class GestureEditorWindow : Window
                 for (int i = 0; i < list.Count; i++)
                 {
                     int idx = i;
-                    // R161：已配置动作行卡片化——与旁边动作下拉等高（MinHeight 34）、序号做成独立徽标、
+                    // 已配置动作行卡片化——与旁边动作下拉等高（MinHeight 34）、序号做成独立徽标、
                     // 加边框+底色；此前是裸文本行「1. xxx」，太不显眼且序号和内容糊在一起。
                     var row = new Border
                     {
@@ -176,7 +176,7 @@ public sealed partial class GestureEditorWindow : Window
                     row.Child = g;
                     panel.Children.Add(row);
                 }
-                UpdateAfterSec();   // R161：序列增删/换序后重判「截图后」是否还该显示
+                UpdateAfterSec();   // 序列增删/换序后重判「截图后」是否还该显示
             }
             Rebuild();
             root.Children.Add(panel);
@@ -186,7 +186,7 @@ public sealed partial class GestureEditorWindow : Window
             foreach (var a in _catalog.Actions()) actCombo.Items.Add(new ComboBoxItem { Content = a.Label, Tag = a.Name, ToolTip = a.Description });
             if (actCombo.Items.Count > 0) actCombo.SelectedIndex = 0;
             var addAct = MakeButton(addLabel, ghost: true);
-            addAct.Margin = new Thickness(8, 0, 0, 0);   // R161：与下拉隔开边距（此前右外边距，按钮直接黏住下拉框）
+            addAct.Margin = new Thickness(8, 0, 0, 0);   // 与下拉隔开边距（此前右外边距，按钮直接黏住下拉框）
             addAct.Click += (_, _) => { if (actCombo.SelectedItem is ComboBoxItem it && it.Tag is string n) { list.Add(n); Rebuild(); RefreshList(); RefreshValidation(); } };
             addRow.Children.Add(actCombo); addRow.Children.Add(addAct);
             root.Children.Add(addRow);
@@ -195,8 +195,8 @@ public sealed partial class GestureEditorWindow : Window
         _detail.Children.Add(BuildActionList(b.Actions, "动作序列", "添加动作"));
         _detail.Children.Add(BuildActionList(b.OnComplete, "完成后序列", "添加完成动作"));
 
-        // 截图后（R157）：本条手势触发截图完成后的行为；空=跟随默认（弹提示）。
-        // R161：序列里没有截图类动作时整段隐藏（录制/编辑器/OCR 之外的手势配它没意义，徒增困惑）。
+        // 截图后：本条手势触发截图完成后的行为；空=跟随默认（弹提示）。
+        // 序列里没有截图类动作时整段隐藏（录制/编辑器/OCR 之外的手势配它没意义，徒增困惑）。
         _afterSec = new StackPanel();
         _afterSec.Children.Add(Label("截图后"));
         var afterOpts = new object[] { "", "toast", "editor", "copy", "pin" };
@@ -231,7 +231,7 @@ public sealed partial class GestureEditorWindow : Window
         _detail.Children.Add(two2);
     }
 
-    /// <summary>R161：序列（动作+完成后）是否含截图类动作——由宿主目录的 IsCapture 标记决定，库不硬编码动作名。</summary>
+    /// <summary>序列（动作+完成后）是否含截图类动作——由宿主目录的 IsCapture 标记决定，库不硬编码动作名。</summary>
     bool HasCaptureAction(BindingEdit b)
     {
         var caps = new HashSet<string>(_catalog.Actions().Where(a => a.IsCapture).Select(a => a.Name));
@@ -296,7 +296,7 @@ public sealed partial class GestureEditorWindow : Window
             RefreshList(); ShowDetail(); RefreshValidation();
             return;
         }
-        // 非录键态：Esc = 取消关闭（走 Closing 淡出退场），与「取消」钮及退场注释一致（R154）
+        // 非录键态：Esc = 取消关闭（走 Closing 淡出退场），与「取消」钮及退场注释一致
         if (e.Key == Key.Escape) { Close(); e.Handled = true; return; }
         base.OnPreviewKeyDown(e);
     }
@@ -317,7 +317,7 @@ public sealed partial class GestureEditorWindow : Window
         var problems = GestureValidation.Validate(_doc, _catalog, _namer);
         bool errs = GestureValidation.HasErrors(problems);
         _saveBtn.IsEnabled = !errs;
-        // R161：左下角不再显示「✓ 配置有效」——有问题的那条绑定整卡红框标出，无问题即静默。
+        // 左下角不再显示「✓ 配置有效」——有问题的那条绑定整卡红框标出，无问题即静默。
         _problemIds.Clear();
         foreach (var p in problems) _problemIds.Add(p.BindingId);
         PaintRows();

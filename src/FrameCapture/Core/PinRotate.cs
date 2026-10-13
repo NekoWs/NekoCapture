@@ -2,7 +2,7 @@ using FrameCapture.Capture;
 
 namespace FrameCapture.Core;
 
-/// <summary>贴图旋转（R79）：把已捕获帧按 90° 整数倍旋转，无损像素重排（非重采样）。
+/// <summary>贴图旋转：把已捕获帧按 90° 整数倍旋转，无损像素重排（非重采样）。
 /// 纯函数，返回新帧；原帧不变。旋转 4 次回到原图。</summary>
 public static class PinRotate
 {

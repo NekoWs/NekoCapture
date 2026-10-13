@@ -25,13 +25,13 @@ public sealed class TrayService : IDisposable
         };
         _icon.MouseUp += (_, e) =>
         {
-            // 左键单击=选区截图（R119：此前左键单击无动作、只有双击才捕获，反直觉）；右键=菜单。
+            // 左键单击=选区截图（此前左键单击无动作、只有双击才捕获，反直觉）；右键=菜单。
             // 双击会连发两次 MouseUp，但 BeginScopeSelection 有重入保护（已在选区只顶前不重开），不会截两次。
             if (e.Button == WinForms.MouseButtons.Left) Dispatch(() => _host.Controller.BeginScopeSelection());
             else if (e.Button == WinForms.MouseButtons.Right) Dispatch(ShowMenu);
         };
         _icon.DoubleClick += (_, _) => Dispatch(() => _host.Controller.BeginScopeSelection());
-        // 悬停提示动态反映当前热键/范围/fps（R36）：改键或换范围后无需打开菜单即可确认状态
+        // 悬停提示动态反映当前热键/范围/fps：改键或换范围后无需打开菜单即可确认状态
         _host.Settings.Changed += () => Dispatch(UpdateTip);
         UpdateTip();
     }
@@ -39,7 +39,7 @@ public sealed class TrayService : IDisposable
     void UpdateTip()
     {
         var s = _host.Settings.Current;
-        if (Services.HotkeyManager.Paused) // R94：暂停态一眼可见，避免用户以为热键失灵
+        if (Services.HotkeyManager.Paused) // 暂停态一眼可见，避免用户以为热键失灵
         {
             _icon.Text = "FrameCapture · 已暂停（热键让位其他软件）";
             return;
@@ -58,7 +58,7 @@ public sealed class TrayService : IDisposable
         catch { }
     }
 
-    /// <summary>R94 切换「暂停全局热键」。托盘菜单项与 `--pause-toggle` IPC 共用；返回切换后的状态。</summary>
+    /// <summary>切换「暂停全局热键」。托盘菜单项与 `--pause-toggle` IPC 共用；返回切换后的状态。</summary>
     public bool TogglePause()
     {
         bool on = !Services.HotkeyManager.Paused;
@@ -87,7 +87,7 @@ public sealed class TrayService : IDisposable
         Item("清除捕获范围", () => _host.Controller.ClearStoredRegion());
         Sep();
         Item("立即捕获", () => _host.Controller.CaptureStoredStill());
-        // R78：静态截图的确认浮窗会自动消失，留一个入口把最近那张重新拉回编辑器标注
+        // 静态截图的确认浮窗会自动消失，留一个入口把最近那张重新拉回编辑器标注
         if (_host.Controller.HasLastStill)
             Item("编辑上次截图", () => _host.Controller.EditLastStill());
         Item("滚动截图", () => _host.Controller.BeginScrollCapture());
@@ -109,20 +109,20 @@ public sealed class TrayService : IDisposable
                 catch (Exception ex) { Trace.Log($"open folder failed: {ex.Message}"); Notify("打开保存文件夹失败"); }
             });
         Sep();
-        Item("设置…", OpenSettings);   // R161：原「快捷键设置…」——设置页早已不止快捷键，名字跟上内容
+        Item("设置…", OpenSettings);   // 原「快捷键设置…」——设置页早已不止快捷键，名字跟上内容
         Item("帮助", OpenHelp);
         Item("开机自启", () =>
         {
             _host.Settings.Mutate(s => s.RunAtStartup = !s.RunAtStartup);
             StartupService.Apply(_host.Settings.Current.RunAtStartup);
         }, checkable: true, isChecked: _host.Settings.Current.RunAtStartup);
-        // R94：暂停全局热键——游戏/演示/与其他软件热键冲突时临时让位，键完整落到前台应用。
+        // 暂停全局热键——游戏/演示/与其他软件热键冲突时临时让位，键完整落到前台应用。
         // 运行时状态（不持久化），重启自动恢复工作。
         Item("暂停全局热键", () => TogglePause(),
             checkable: true, isChecked: Services.HotkeyManager.Paused);
         // 按需提权：解决被更高权限窗口（管理员终端/游戏）压住、快捷键盲区的问题
         if (AppHost.IsElevated)
-            Item("管理员权限运行", () => { }, checkable: true, isChecked: true); // 勾选标记由 checkable 呈现，文本不再带 ✓（R24 去双勾）
+            Item("管理员权限运行", () => { }, checkable: true, isChecked: true); // 勾选标记由 checkable 呈现，文本不再带 ✓（去双勾）
         else
             Item("以管理员身份运行", () => _host.RestartAsAdmin());
         Sep();
@@ -133,7 +133,7 @@ public sealed class TrayService : IDisposable
         });
 
         // 透明锚点窗：保证菜单在鼠标处弹出、并能在关闭时回收。
-        // 必须激活（R58）：应用此前无任何激活窗口时，ContextMenu 收不到"失焦"，点别处菜单也不消失。
+        // 必须激活：应用此前无任何激活窗口时，ContextMenu 收不到"失焦"，点别处菜单也不消失。
         _menuAnchor?.Close();
         var anchor = new System.Windows.Window
         {
@@ -176,7 +176,7 @@ public sealed class TrayService : IDisposable
 
     static Icon MakeIcon()
     {
-        // 取景框图标：四角实心括号 + 中心点。虚线在托盘 16px 缩略下会糊成一团（R24 改实角）
+        // 取景框图标：四角实心括号 + 中心点。虚线在托盘 16px 缩略下会糊成一团（改实角）
         using var bmp = new Bitmap(32, 32);
         using var g = Graphics.FromImage(bmp);
         g.Clear(Color.Transparent);

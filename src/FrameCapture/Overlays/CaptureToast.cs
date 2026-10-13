@@ -13,7 +13,7 @@ using FrameCapture.Services;
 namespace FrameCapture.Overlays;
 
 /// <summary>
-/// 截屏成功浮窗（R42，对标 QQ 截图的"拍完即见"）：缩略图 + 「已复制」+ 点击继续标注。
+/// 截屏成功浮窗（，对标 QQ 截图的"拍完即见"）：缩略图 + 「已复制」+ 点击继续标注。
 /// 不抢焦点、WDA 排除不入镜、悬停暂停自动消失；落点由 Core.ToastPlace 决策（贴刚截完的区域）。
 /// </summary>
 public sealed class CaptureToast : Window
@@ -22,7 +22,7 @@ public sealed class CaptureToast : Window
 
     readonly DispatcherTimer _dismiss;
     bool _closing;
-    bool _persistent;   // R120 C：ToastSeconds=0 → 常驻，不自动消失
+    bool _persistent;   // C：ToastSeconds=0 → 常驻，不自动消失
 
     const double W = 300;      // DIP 宽
     const double EstH = 84;    // 估算高（落点用；实际 SizeToContent）
@@ -153,7 +153,7 @@ public sealed class CaptureToast : Window
             if (Environment.GetEnvironmentVariable("FC_TOAST_NOEXCLUDE") != "1")
                 Win32.SetWindowDisplayAffinity(h, Win32.WDA_EXCLUDEFROMCAPTURE);
             // Enter/Esc 不在此 HWND 钩子里处理：浮窗 ShowActivated=false 不抢焦点，键根本不会发到本 HWND，
-            // 旧钩子是死代码（R119 修「Enter 无效」）。改由 HotkeyManager 全局钩子在 ToastActive 时代收。
+            // 旧钩子是死代码（修「Enter 无效」）。改由 HotkeyManager 全局钩子在 ToastActive 时代收。
         };
 
         // 全局钩子代收 Enter/Esc（浮窗不抢焦点，只能这样）；生命周期绑定本浮窗，Closed 清零，绝不泄漏成"全局 Enter 失灵"。
@@ -161,7 +161,7 @@ public sealed class CaptureToast : Window
         Services.HotkeyManager.ToastEnter = () => Dispatcher.BeginInvoke(() => { FrameCapture.Core.Trace.Log("toast→edit(key)"); onEdit(); Dismiss(); });
         Services.HotkeyManager.ToastEsc = () => Dispatcher.BeginInvoke(Dismiss);
 
-        // R120 C：存在时间可自定义（ToastSeconds，0=常驻不自动消失）。悬停暂停计时、移开重数满时长。
+        // C：存在时间可自定义（ToastSeconds，0=常驻不自动消失）。悬停暂停计时、移开重数满时长。
         double secs = SettingsService.Shared?.Current.ToastSeconds ?? 3.2;
         _persistent = secs <= 0;
         _dismiss = new DispatcherTimer { Interval = TimeSpan.FromSeconds(_persistent ? 3.2 : secs) };

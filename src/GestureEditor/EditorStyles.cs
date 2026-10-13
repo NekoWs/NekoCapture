@@ -8,7 +8,7 @@ using System.Windows.Media.Animation;
 namespace GestureEditor;
 
 /// <summary>
-/// 跟随 <see cref="EditorPalette"/> 的控件样式（R122）。WPF 默认 ComboBox/ListBox 模板是浅色系统色，
+/// 跟随 <see cref="EditorPalette"/> 的控件样式。WPF 默认 ComboBox/ListBox 模板是浅色系统色，
 /// 深色下文字与背景几乎同色不可读——这里用 XamlReader 现拼一套配色模板套上去，明/暗都正确。
 /// 库自带、不依赖宿主 Fluent（保持可复用）。
 /// </summary>
@@ -57,7 +57,7 @@ public static class EditorStyles
 </ControlTemplate>";
         c.Template = (ControlTemplate)XamlReader.Parse(xaml);
         // 下拉弹层弹性入场：每次展开从 0.94 缩放弹到 1（BackEase 轻微过冲），与宿主 ContextMenu 同款手感。
-        // R161：弹层外包 16px 透明 Padding（Popup 负偏移补偿对齐）——过冲超出 1.0 的部分此前被 Popup
+        // 弹层外包 16px 透明 Padding（Popup 负偏移补偿对齐）——过冲超出 1.0 的部分此前被 Popup
         // 边界裁掉，Q 弹变成「弹到一半被切」；留白后完整可见。
         c.DropDownOpened += (_, _) =>
         {
@@ -78,15 +78,15 @@ public static class EditorStyles
 
     public static void ApplyList(ListBox l, EditorPalette p)
     {
-        l.Background = p.B(p.PanelBg);   // R161：列表底改 PanelBg，让 CardBg+描边的卡片浮出来（此前同色糊平）
+        l.Background = p.B(p.PanelBg);   // 列表底改 PanelBg，让 CardBg+描边的卡片浮出来（此前同色糊平）
         l.BorderBrush = p.B(p.Stroke);
         l.Foreground = p.B(p.Text);
-        // R161：列表项改「卡片自绘」（选中/问题红框/禁用置灰由编辑器逐行刷），
+        // 列表项改「卡片自绘」（选中/问题红框/禁用置灰由编辑器逐行刷），
         // ListBoxItem 本身退化为透明容器——否则其选中底色会垫在卡片后面糊成一片。
         l.Resources[typeof(ListBoxItem)] = PlainItemStyle(p, "ListBoxItem");
     }
 
-    /// <summary>透明无装饰条目：悬停/选中底色交给卡片自己画（R161 卡片化列表）。</summary>
+    /// <summary>透明无装饰条目：悬停/选中底色交给卡片自己画（卡片化列表）。</summary>
     static Style PlainItemStyle(EditorPalette p, string typeName) => (Style)XamlReader.Parse(
         $@"<Style TargetType=""{typeName}"" xmlns=""{Pres}"" xmlns:x=""{X}"">
   <Setter Property=""Padding"" Value=""0""/>
@@ -111,7 +111,7 @@ public static class EditorStyles
     public static string ItemStyleXaml(EditorPalette p, string typeName, Color hover, bool selected)
     {
         string selTrigger = selected
-            // R161：选中底=accent，前景按 accent 明度自适应（亮 accent→黑字、暗 accent→白字），
+            // 选中底=accent，前景按 accent 明度自适应（亮 accent→黑字、暗 accent→白字），
             // 此前写死黑字，用户选低明度主题色时选中项文字与底色糊在一起看不清。
             ? $@"<Trigger Property=""IsSelected"" Value=""True"">
                    <Setter TargetName=""b"" Property=""Background"" Value=""{Hex(p.Accent)}""/>
@@ -140,7 +140,7 @@ public static class EditorStyles
         return xaml;
     }
 
-    /// <summary>R162：同宿主 Fluent.Slim——主题 ScrollBar 样式的 MinWidth/MinHeight（系统滚动条宽）
+    /// <summary>同宿主 Fluent.Slim——主题 ScrollBar 样式的 MinWidth/MinHeight（系统滚动条宽）
     /// 经 DynamicResource 以直值泄漏到模板内 ScrollBar，样式 Setter 压不住；附加属性在样式应用时归零。</summary>
     public static readonly DependencyProperty SlimProperty = DependencyProperty.RegisterAttached(
         "Slim", typeof(bool), typeof(EditorStyles), new PropertyMetadata(false, (d, e) =>
@@ -150,7 +150,7 @@ public static class EditorStyles
     public static void SetSlim(DependencyObject d, bool v) => d.SetValue(SlimProperty, v);
     public static bool GetSlim(DependencyObject d) => (bool)d.GetValue(SlimProperty);
 
-    /// <summary>细滚动条（R162，用户「还是太粗基本没变」）：轨道 8DIP、滑块 4DIP 圆角胶囊、无箭头，
+    /// <summary>细滚动条（，用户「还是太粗基本没变」）：轨道 8DIP、滑块 4DIP 圆角胶囊、无箭头，
     /// 配色随调色板；竖/横两套模板（Track 方向必须匹配）。挂到窗口 Resources[typeof(ScrollBar)]
     /// 即覆盖列表/详情/下拉弹层内所有滚动条。</summary>
     public static Style ScrollBarStyle(EditorPalette p)

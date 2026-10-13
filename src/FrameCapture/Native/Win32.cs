@@ -60,7 +60,7 @@ internal static class Win32
 
     public static bool IsKeyDown(int vk) => (GetAsyncKeyState(vk) & 0x8000) != 0;
 
-    // ---------- 鼠标钩子（R120 B2：手势引擎的鼠标触发源） ----------
+    // ---------- 鼠标钩子（手势引擎的鼠标触发源） ----------
     public const int WH_MOUSE_LL = 14;
     public const int WM_LBUTTONDOWN = 0x0201, WM_LBUTTONUP = 0x0202;
     public const int WM_RBUTTONDOWN = 0x0204, WM_RBUTTONUP = 0x0205;
@@ -314,7 +314,7 @@ internal static class Win32
 
     public static readonly uint SIZEOF_BITMAPINFOHEADER = (uint)Marshal.SizeOf<BITMAPINFO>();
 
-    // ---- 工作集回收（R120 A1）：录制/编辑大位图关闭后，.NET 只标垃圾不把页交还 OS，工作集虚高；
+    // ---- 工作集回收：录制/编辑大位图关闭后，.NET 只标垃圾不把页交还 OS，工作集虚高；
     // 用户手动 MemReduct 就是调 SetProcessWorkingSetSize(-1,-1) 把空闲页踢回系统。我们在大操作收尾主动做同样的事。 ----
     [DllImport("kernel32.dll")]
     public static extern IntPtr GetCurrentProcess();
@@ -328,7 +328,7 @@ internal static class Win32
         try { SetProcessWorkingSetSize(GetCurrentProcess(), new IntPtr(-1), new IntPtr(-1)); } catch { }
     }
 
-    /// <summary>把 WPF 窗口句柄包成 WinForms IWin32Window，供 FolderBrowserDialog 等模态框挂 owner（R63）。</summary>
+    /// <summary>把 WPF 窗口句柄包成 WinForms IWin32Window，供 FolderBrowserDialog 等模态框挂 owner。</summary>
     internal sealed class WndOwner : System.Windows.Forms.IWin32Window
     {
         public WndOwner(IntPtr handle) => Handle = handle;

@@ -1,11 +1,11 @@
 namespace FrameCapture.Core;
 
 /// <summary>
-/// 绘图工具目录（R48）：工具 → 快捷键 / 帮助符号 / 图标字形 / 工具条提示 / 帮助说明 的**唯一数据源**。
+/// 绘图工具目录：工具 → 快捷键 / 帮助符号 / 图标字形 / 工具条提示 / 帮助说明 的**唯一数据源**。
 /// 工具条、帮助窗、快捷键分发都从这里取，加新工具只改一处——
-/// 此前工具定义散在工具条数组、帮助窗、引导卡三处，加马赛克时就漏了帮助窗（SelfTest T92 锁死防漂移）。
+/// 此前工具定义散在工具条数组、帮助窗、引导卡三处，加马赛克时就漏了帮助窗（SelfTest 锁死防漂移）。
 /// Glyph 是图标字体字形（仅工具条用，PUA 码位，GlyphProbe 人工验证）；Sym 是帮助窗键位列的普通 Unicode 符号。
-/// 两者不可混用：帮助窗用默认字体，塞 PUA 码位会出豆腐块（R49 离屏渲染抓到，T92f 锁死 Sym 非 PUA）。
+/// 两者不可混用：帮助窗用默认字体，塞 PUA 码位会出豆腐块（离屏渲染抓到，锁死 Sym 非 PUA）。
 /// </summary>
 public readonly record struct ToolInfo(string Key, string Sym, string Glyph, string Tip, string Help);
 

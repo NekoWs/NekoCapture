@@ -8,7 +8,7 @@ using FrameCapture.Native;
 namespace FrameCapture.Capture;
 
 /// <summary>
-/// macOS 式「真·窗口截图」（R165）：用 WGC 按窗口捕获窗口本体（含 DWM 边框/Win11 圆角，圆角处 alpha=0，
+/// macOS 式「真·窗口截图」：用 WGC 按窗口捕获窗口本体（含 DWM 边框/Win11 圆角，圆角处 alpha=0，
 /// 浏览器/GPU 窗也干净）。可选投影＝按窗口 alpha 轮廓**合成**的柔和阴影（高斯模糊轮廓→黑色渐隐），
 /// 绝不抓屏幕背景——否则窗口压在别的软件上时，投影环会把背景内容（文字等）截进来，圆角处还会露出深色脏边。
 /// 产出带 alpha 的 BGRA 帧 + 实际捕获矩形（物理像素，虚拟桌面坐标）。

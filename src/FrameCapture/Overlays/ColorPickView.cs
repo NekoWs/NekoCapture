@@ -8,7 +8,7 @@ using Theme = FrameCapture.Core.Theme;
 namespace FrameCapture.Overlays;
 
 /// <summary>
-/// 自绘 RGBA 调色板控件（R54）：DevTools 式 SV 区 + 色相/透明度竖条 + HEX/RGBA 直填。
+/// 自绘 RGBA 调色板控件：DevTools 式 SV 区 + 色相/透明度竖条 + HEX/RGBA 直填。
 /// 替代系统 ColorDialog——主题一致、就地弹出、拖动即时生效。
 /// 纯视图：不关心弹出方式；宿主（编辑器弹层 / SelfTest 离屏渲染）订阅 Changed 收色。
 /// </summary>
@@ -43,7 +43,7 @@ public sealed class ColorPickView : StackPanel
         };
         var sv = new Grid { Width = 180, Height = 120, Cursor = Cursors.Cross, ClipToBounds = true };
         sv.Children.Add(_svHue); sv.Children.Add(_svVal);
-        // 游标必须活在 Canvas 里：Canvas.SetLeft/Top 对 Grid 子级无效（R54 起游标一直钉死中央）
+        // 游标必须活在 Canvas 里：Canvas.SetLeft/Top 对 Grid 子级无效（起游标一直钉死中央）
         var knobHost = new Canvas { IsHitTestVisible = false };
         knobHost.Children.Add(_svKnob);
         sv.Children.Add(knobHost);
@@ -171,7 +171,7 @@ public sealed class ColorPickView : StackPanel
     }
 
     static UIElement Spacing(double w) => new Rectangle { Width = w };
-    // R120 D1：圆角包裹（Border 按 CornerRadius 裁剪子内容）+ 细描边，让 SV/色相/透明条不再是生硬方块
+    // 圆角包裹（Border 按 CornerRadius 裁剪子内容）+ 细描边，让 SV/色相/透明条不再是生硬方块
     static Border Round(UIElement e, double r) => new()
     {
         CornerRadius = new CornerRadius(r), ClipToBounds = true, Child = e,
@@ -195,7 +195,7 @@ public sealed class ColorPickView : StackPanel
             },
         },
     };
-    // R120 D1：主题化输入字段——深色圆角底 + 描边，聚焦转强调色（原默认白底系统边框在深色弹层里很突兀）
+    // 主题化输入字段——深色圆角底 + 描边，聚焦转强调色（原默认白底系统边框在深色弹层里很突兀）
     static Border Field(UIElement inner, double w)
     {
         var b = new Border

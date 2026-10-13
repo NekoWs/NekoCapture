@@ -108,7 +108,7 @@ public sealed class WgcLiveCapture : IDisposable
         // 需要系统/用户授权（Win10 或未授权会抛），失败即保持系统默认行为。
         if (!TrySuppressSystemBorder()) { /* 已记录原因 */ }
 
-        // 事件驱动取帧（R100）：FrameArrived 按显示器真实刷新节奏回调，取代旧的 Thread.Sleep 轮询——
+        // 事件驱动取帧：FrameArrived 按显示器真实刷新节奏回调，取代旧的 Thread.Sleep 轮询——
         // Sleep 粒度 ~15ms 是 60fps 天花板的真凶。目标帧率≥刷新率时全保（录满），否则按时间节流丢帧。
         int refresh = DisplayRefresh.RateOf(monitor.DeviceName);
         _keepAll = refresh > 0 && _targetFps >= refresh;
@@ -150,7 +150,7 @@ public sealed class WgcLiveCapture : IDisposable
 
     private void CopyAndEmit(Direct3D11CaptureFrame frame)
     {
-        // R100 实测：无拷贝时 WGC 投递仍 ~47fps（见 PROGRESS），拷贝不是瓶颈，故不做 staging 优化。
+        // 实测：无拷贝时 WGC 投递仍 ~47fps（见 PROGRESS），拷贝不是瓶颈，故不做 staging 优化。
         CopyViaSoftwareBitmap(frame);
     }
 

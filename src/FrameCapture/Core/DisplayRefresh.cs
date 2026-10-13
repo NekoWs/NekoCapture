@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 namespace FrameCapture.Core;
 
 /// <summary>
-/// 显示器当前刷新率检测（R100）。EnumDisplaySettings 取 DEVMODE.dmDisplayFrequency（整数 Hz，
+/// 显示器当前刷新率检测。EnumDisplaySettings 取 DEVMODE.dmDisplayFrequency（整数 Hz，
 /// 如 160；59.94→60、143.98→144 由驱动取整）。失败返回 0，调用方回退手动帧率。
 /// 供「跟随显示器刷新率」一键录满高刷。
 /// </summary>

@@ -61,7 +61,7 @@ internal static class WgcNative
     [UnmanagedFunctionPointer(CallingConvention.StdCall)]
     private delegate int QueryIfaceDelegate(IntPtr self, ref Guid riid, out IntPtr ppv);
 
-    /// <summary>IUnknown::QueryInterface（vtable slot 0）。</summary>
+    /// <summary>IUnknown:QueryInterface（vtable slot 0）。</summary>
     private static IntPtr ComQuery(IntPtr punk, Guid iid)
     {
         IntPtr vt = Marshal.ReadIntPtr(punk);
@@ -185,11 +185,11 @@ internal static class WgcNative
     /// Windows.Graphics.Capture.IGraphicsCaptureSession3（Win11 新增）。
     ///
     /// GUID 与槽序取自本机 Windows SDK 10.0.26100.0：
-    ///   MIDL_INTERFACE("f2cdd966-22ae-5ea1-9596-3a289344c3be")
-    ///   → Include\10.0.26100.0\winrt\windows.graphics.capture.h
+    /// MIDL_INTERFACE("f2cdd966-22ae-5ea1-9596-3a289344c3be")
+    /// → Include\10.0.26100.0\winrt\windows.graphics.capture.h
     /// 槽序（含 IInspectable 的 6 个）：
-    ///   0-2 QueryInterface/AddRef/Release，3-5 GetIids/GetRuntimeClassName/GetTrustLevel，
-    ///   6 get_IsBorderRequired，7 put_IsBorderRequired。
+    /// 0-2 QueryInterface/AddRef/Release，3-5 GetIids/GetRuntimeClassName/GetTrustLevel，
+    /// 6 get_IsBorderRequired，7 put_IsBorderRequired。
     ///
     /// 因此这里必须**完整声明**前面 6 个方法，才能让 put 落在槽 7；不能只声明本接口自己的两个。
     /// 钉住的 19041 投影程序集没有 IsBorderRequired 成员，所以只能手写 vtable。

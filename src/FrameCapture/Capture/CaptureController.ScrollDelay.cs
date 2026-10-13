@@ -7,17 +7,17 @@ namespace FrameCapture.Services;
 // 本 partial 职责：滚动截图的步进拼接循环，与延时截图的倒计时状态机。
 public sealed partial class CaptureController : IDisposable
 {
-    // ---------- R88 滚动截图 ----------
+    // ---------- 滚动截图 ----------
     /// <summary>托盘/入口调用：复用选区流程选一块要滚的区域，选完进入步进拼接循环。</summary>
     public void BeginScrollCapture()
     {
         FrameCapture.Core.Trace.Log("scroll capture→picker");
-        _sessionAfter = _pendingAfter; _pendingAfter = "";   // R157：捕获本条手势的截图后
+        _sessionAfter = _pendingAfter; _pendingAfter = "";   // 捕获本条手势的截图后
         BeginScopeSelection();
         _scrollAfterSelect = true;
     }
 
-    /// <summary>R120 B2：QQ 式「选区截图」——选一块区域，选完立即截静态图（不受 AutoCaptureOnSelect 影响）。</summary>
+    /// <summary>QQ 式「选区截图」——选一块区域，选完立即截静态图（不受 AutoCaptureOnSelect 影响）。</summary>
 
     void StartScrollLoop(RectI region, string device)
     {
@@ -28,7 +28,7 @@ public sealed partial class CaptureController : IDisposable
         _scrollBar = new Overlays.ScrollHintWindow(region, device) { OnDone = ScrollDone, OnCancel = ScrollCancel };
         _scrollBar.SetProgress(1, _scrollH);
         _scrollBar.Show();   // ShowActivated=false：不抢焦点，目标窗继续接收滚动
-        // R90：会话期间全局吞 Esc 取消；标志绑定控制条生命周期，Closed 兜底清零，绝不泄漏成"全局 Esc 失灵"
+        // 会话期间全局吞 Esc 取消；标志绑定控制条生命周期，Closed 兜底清零，绝不泄漏成"全局 Esc 失灵"
         Services.HotkeyManager.ScrollActive = true;
         _scrollBar.Closed += (_, _) => Services.HotkeyManager.ScrollActive = false;
         Overlays.ScrollHintWindow.Current = _scrollBar;
@@ -102,13 +102,13 @@ public sealed partial class CaptureController : IDisposable
         FrameCapture.Core.Trace.Log("scroll cancel");
     }
 
-    // ---------- R91 延时截图 ----------
+    // ---------- 延时截图 ----------
     /// <summary>托盘/入口调用：倒计时 N 秒后截「当前范围」（已存范围，否则光标所在屏全屏）。
     /// 独立于点按/录制状态机——只借完成路径，不碰 Phase，避免与按住录制的模式交互。</summary>
     public void BeginDelayedCapture()
     {
         if (_delayWindow != null) { FrameCapture.Core.Trace.Log("delay: already running, ignore"); return; }
-        _sessionAfter = _pendingAfter; _pendingAfter = "";   // R157：捕获本条手势的截图后
+        _sessionAfter = _pendingAfter; _pendingAfter = "";   // 捕获本条手势的截图后
         int secs = Math.Clamp(_settings.Current.DelayCaptureSeconds, 0, 60);
         var region = StoredRegion() ?? FullMonitorAtCursor();
         string label = StoredRegion() != null ? $"范围 {region.Bounds.W}×{region.Bounds.H}" : "全屏";
@@ -122,7 +122,7 @@ public sealed partial class CaptureController : IDisposable
         _delayTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         _delayTimer.Tick += (_, _) => DelayTick(region);
         _delayTimer.Start();
-        // 倒计时期间高亮将要截取的范围（轮廓窗 WDA_EXCLUDEFROMCAPTURE，绝不入镜），让用户看清"截的是这块"（R119）。
+        // 倒计时期间高亮将要截取的范围（轮廓窗 WDA_EXCLUDEFROMCAPTURE，绝不入镜），让用户看清"截的是这块"。
         // 全屏范围无需高亮（整屏即范围，描边贴屏幕外缘看不见）；仅对已存选区显示。
         if (StoredRegion() != null)
         {

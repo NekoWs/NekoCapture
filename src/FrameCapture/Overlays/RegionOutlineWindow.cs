@@ -11,8 +11,8 @@ namespace FrameCapture.Overlays;
 /// 捕获范围轮廓：点击穿透、不抢焦点、**不进屏幕捕获**。
 ///
 /// 两种用法：
-///  - 选区确认反馈 / 常显（<c>AlwaysShowRegionOutline</c>）：Flash + FadeAway；
-///  - 录制中范围指示（<c>ShowCaptureScope</c>）：录制期间常亮，松开后淡出。
+/// - 选区确认反馈 / 常显（<c>AlwaysShowRegionOutline</c>）：Flash + FadeAway；
+/// - 录制中范围指示（<c>ShowCaptureScope</c>）：录制期间常亮，松开后淡出。
 ///
 /// 之所以必须"不进捕获"：Windows 11 的系统捕获提示边框（#FFD11C）由 WGC 按"被捕获对象"绘制，
 /// 而 WGC 只能整显示器捕获，于是它永远绕整个屏幕、与我们选的范围无关。关掉它
@@ -25,7 +25,7 @@ public sealed class RegionOutlineWindow : Window
     private readonly System.Windows.Threading.DispatcherTimer _flashTimer;
     private bool _captureExcluded;
 
-    // REC 徽标（R43）：按住超过点按阈值才出现——"还在按 = 正在录"一眼看懂，附实时时长
+    // REC 徽标：按住超过点按阈值才出现——"还在按 = 正在录"一眼看懂，附实时时长
     private readonly Border _recBadge;
     private readonly System.Windows.Shapes.Ellipse _recDot;
     private readonly TextBlock _recText;
@@ -105,7 +105,7 @@ public sealed class RegionOutlineWindow : Window
         new System.Windows.Interop.WindowInteropHelper(this).EnsureHandle();
         EnsureExcludedFromCapture();
 
-        // WPF 布局会用 DIP 覆写 SetWindowPos 的物理定位（R43 实测 681→454）：位置一变就钉回去，
+        // WPF 布局会用 DIP 覆写 SetWindowPos 的物理定位（实测 681→454）：位置一变就钉回去，
         // guard 防自激，最终稳定在物理坐标。
         LocationChanged += (_, _) =>
         {
@@ -137,7 +137,7 @@ public sealed class RegionOutlineWindow : Window
         ResetBorder();
         if (!IsVisible) Show();
         // WPF 的 Show/布局会用 Left/Top(DIP) 覆写我们 SetWindowPos 的物理定位（实测 681→454=÷1.5，
-        // R43 逐帧抓到：录制轮廓整体偏左上）。Show 之后重新按物理像素钉死，再兜一拍防布局回写。
+        // 逐帧抓到：录制轮廓整体偏左上）。Show 之后重新按物理像素钉死，再兜一拍防布局回写。
         Place(_region);
         Dispatcher.BeginInvoke(() => Place(_region));
         EnsureExcludedFromCapture();
@@ -222,7 +222,7 @@ public sealed class RegionOutlineWindow : Window
     }
 
     /// <summary>录制结束→编辑器构造这段 UI 冻结期，把 REC 徽标转成「处理中…」并停掉计时刷新
-    /// （否则 _recTimer 每 100ms 会把文案覆盖回 REC 计时）。调用方随后强制刷新一帧再进编辑器（R119）。</summary>
+    /// （否则 _recTimer 每 100ms 会把文案覆盖回 REC 计时）。调用方随后强制刷新一帧再进编辑器。</summary>
     public void SetRecProcessing()
     {
         _recTimer?.Stop();
@@ -235,7 +235,7 @@ public sealed class RegionOutlineWindow : Window
         _recText.Text = "处理中…";
     }
 
-    /// <summary>边框显隐（R60）：免按住录制且用户关了「录制边框」时，窗口只挂 REC 徽标不画框。</summary>
+    /// <summary>边框显隐：免按住录制且用户关了「录制边框」时，窗口只挂 REC 徽标不画框。</summary>
     public void SetBorderVisible(bool visible)
     {
         _border.BorderThickness = new Thickness(visible ? 2 : 0);
@@ -292,7 +292,7 @@ public sealed class RegionOutlineWindow : Window
         if (hwnd == IntPtr.Zero) return;
         Win32.SetWindowPos(hwnd, Win32.HWND_TOPMOST, region.X, region.Y, region.W, region.H,
             Win32.SWP_NOACTIVATE | Win32.SWP_SHOWWINDOW);
-        // 上屏后 WPF 布局会用 Left/Top/Width/Height(DIP) 回写窗口位置（R43 实测把 681 覆写成 454=÷1.5）。
+        // 上屏后 WPF 布局会用 Left/Top/Width/Height(DIP) 回写窗口位置（实测把 681 覆写成 454=÷1.5）。
         // 把同一物理矩形换算成 DIP 同步给 WPF，令它的回写变成幂等，两边不再打架。
         if (IsLoaded && !_syncing)
         {

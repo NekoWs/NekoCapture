@@ -20,11 +20,11 @@ public sealed class Annotation
     /// <summary>文字内容（仅 Kind=Text）。</summary>
     public string Text { get; set; } = "";
 
-    /// <summary>R85：荧光笔的不透明度（0-255）。alpha 是 Highlight 这一「类型」的属性而非颜色的一部分——
+    /// <summary>荧光笔的不透明度（0-255）。alpha 是 Highlight 这一「类型」的属性而非颜色的一部分——
     /// 标注颜色仍存不透明色（改色/调色板/最近用色都正常），只在预览与烘焙时统一套此 alpha，两条路径同值保证 WYSIWYG。</summary>
     public const byte HighlightAlpha = 90;
 
-    /// <summary>R76：返回改了颜色/粗细的副本（Kind/几何/文字不变；传 null 表示该项保持原值）。
+    /// <summary>返回改了颜色/粗细的副本（Kind/几何/文字不变；传 null 表示该项保持原值）。
     /// 供「选中已有标注→改样式」原位替换（可撤销）用。纯函数，供单测。</summary>
     public Annotation WithStyle(Color? color, float? thickness)
     {

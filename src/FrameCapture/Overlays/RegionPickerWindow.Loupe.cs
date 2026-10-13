@@ -11,8 +11,8 @@ namespace FrameCapture.Overlays;
 // 本 partial 负责放大镜与读数：loupe 绘制与刷新、坐标/尺寸读数、取色与格式切换、C/F/Tab 键处理与选区命中判定。
 public sealed partial class RegionPickerWindow : Window
 {
-    private Core.ColorCopyFormat _colorFormat; // R89：按 C 复制颜色时的文本形式；R96 按 F 可循环切换（Hex→RGB→HSL）
-    private (int r, int g, int b)? _lastRgb; // R96：放大镜中心最近一次像素色，供 F 切换格式后就地刷新读数
+    private Core.ColorCopyFormat _colorFormat; // 按 C 复制颜色时的文本形式；按 F 可循环切换（Hex→RGB→HSL）
+    private (int r, int g, int b)? _lastRgb; // 放大镜中心最近一次像素色，供 F 切换格式后就地刷新读数
     private System.Windows.Controls.Border? _loupe;
     private Image? _loupeImg;
     private Rectangle? _loupeMarker;
@@ -26,7 +26,7 @@ public sealed partial class RegionPickerWindow : Window
     private System.Windows.Controls.Border _badge = null!;
     private TextBlock _badgeText = null!;
 
-    // ---------- R160：全局钩子代收选区窗按键（选区窗不抢焦点，键不会进它自己的 HWND）----------
+    // ---------- 全局钩子代收选区窗按键（选区窗不抢焦点，键不会进它自己的 HWND）----------
     /// <summary>由 HotkeyManager 全局低级键盘钩子在 PickerActive 时调用。返回 true=本键归选区窗处理（吞掉，前台收不到）。
     /// 只接管无 Ctrl/Alt/Win 的裸键：Ctrl+C 等留给前台，Ctrl+Esc 是开始菜单，含修饰键的组合放行给手势层。
     /// 动作经 Dispatcher.BeginInvoke 投递到干净的 dispatcher 轮次执行（与浮窗/滚动同款，避免在输入链里做重活）。</summary>
@@ -65,7 +65,7 @@ public sealed partial class RegionPickerWindow : Window
         }
     }
 
-    // R96：循环取色复制格式 Hex→RGB→HSL，就地刷新放大镜读数并持久化（下次捕获/设置窗同步）
+    // 循环取色复制格式 Hex→RGB→HSL，就地刷新放大镜读数并持久化（下次捕获/设置窗同步）
     private void CycleColorFormat()
     {
         _colorFormat = (Core.ColorCopyFormat)(((int)_colorFormat + 1) % 3);
@@ -77,7 +77,7 @@ public sealed partial class RegionPickerWindow : Window
         Services.AppHost.Current.Settings.Mutate(s => s.ColorCopyFormat = Core.ColorFormat.ToSetting(_colorFormat));
     }
 
-    // Tab 上钻控件层级：输入框 → 表单容器 → … → 整窗。锁定结果，鼠标微动不再被 hover 抢回子控件（R119）。
+    // Tab 上钻控件层级：输入框 → 表单容器 → … → 整窗。锁定结果，鼠标微动不再被 hover 抢回子控件。
     private void DrillUpElement()
     {
         if (_curElem == null) return;
@@ -154,7 +154,7 @@ public sealed partial class RegionPickerWindow : Window
         if (srcBgra != null && _loupeSwatch != null && _loupeHex != null)
         {
             var (r, g, b) = Core.MagnifierMath.PixelRgb(srcBgra, srcW, px, py);
-            _lastRgb = ((int)r, (int)g, (int)b); // R96：记住当前色，F 切格式时就地重算读数
+            _lastRgb = ((int)r, (int)g, (int)b); // 记住当前色，F 切格式时就地重算读数
             _loupeHexText = Core.ColorFormat.Format(r, g, b, _colorFormat);
             _loupeSwatch.Background = new SolidColorBrush(Color.FromRgb((byte)r, (byte)g, (byte)b));
             _loupeHex.Text = _loupeHexText;
@@ -206,7 +206,7 @@ public sealed partial class RegionPickerWindow : Window
         Close();
     }
 
-    /// <summary>R165：点/双击吸附到的窗口时，若开关开且该窗未被更靠上的窗遮挡，返回其 (HWND, 整窗 frame)；
+    /// <summary>点/双击吸附到的窗口时，若开关开且该窗未被更靠上的窗遮挡，返回其 (HWND, 整窗 frame)；
     /// 否则 null（回退区域截图）。frame 用 DWM 扩展边界（含标题栏/边框，q6）。</summary>
     private (IntPtr Hwnd, RectI Bounds)? WindowHitForCapture((int X, int Y) p)
     {

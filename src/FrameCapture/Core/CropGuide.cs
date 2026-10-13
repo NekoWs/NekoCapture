@@ -1,7 +1,7 @@
 namespace FrameCapture.Core;
 
 /// <summary>
-/// 裁剪拖框引导（R45）：把"拖到哪"换算成引导层几何——纯逻辑，SelfTest T89 覆盖。
+/// 裁剪拖框引导：把"拖到哪"换算成引导层几何——纯逻辑，SelfTest 覆盖。
 /// 坐标全部是画布 DIP；提示气泡放不下时翻到框上方，再不行钳进画布。
 /// </summary>
 public static class CropGuide

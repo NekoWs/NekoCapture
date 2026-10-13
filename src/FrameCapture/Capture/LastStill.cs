@@ -1,6 +1,6 @@
 namespace FrameCapture.Capture;
 
-/// <summary>保留最近一次静态截图帧，供托盘「编辑上次截图」在确认浮窗自动消失后找回编辑器（R78）。
+/// <summary>保留最近一次静态截图帧，供托盘「编辑上次截图」在确认浮窗自动消失后找回编辑器。
 /// 纯状态持有：只留最新一帧（Set 覆盖旧的，旧帧随之可被 GC），可清空。仅在 UI 线程访问。</summary>
 public sealed class LastStill
 {

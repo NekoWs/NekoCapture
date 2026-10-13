@@ -118,7 +118,7 @@ public static partial class Fluent
     static readonly HashSet<Window> _fadingOut = new();
 
     /// <summary>退场：淡出 + 与入场对称的位移/缩放，再真正 Close（主题切换的交叉淡入不使用此路径）。
-    /// R163：纯 150ms 透明度淡出在大窗（截图编辑器）上几乎看不出来，用户反馈「编辑器没有关闭动画」——
+    /// 纯 150ms 透明度淡出在大窗（截图编辑器）上几乎看不出来，用户反馈「编辑器没有关闭动画」——
     /// 按入场留下的变换类型反向补一点动效：缩放窗（设置/帮助 PopupEnter）缩到 0.97，位移窗（编辑器 FadeIn rise）下沉 12。</summary>
     public static void CloseWithFade(Window w)
     {
@@ -149,13 +149,13 @@ public static partial class Fluent
         w.Opacity = 0;
         // 分层窗（AllowsTransparency）自创建即 per-pixel alpha，首帧前没有黑/白闪；
         // 且 DWM 合成下 WPF 不再调 UpdateLayeredWindow——手工 SetLayeredWindowAttributes(alpha=0)
-        // 永远不会被 WPF 清掉，用了就是整窗永久隐形（R11 教训：选区窗遮罩+提示全隐形 6 轮无人察觉）。
+        // 永远不会被 WPF 清掉，用了就是整窗永久隐形（教训：选区窗遮罩+提示全隐形 6 轮无人察觉）。
         if (w.AllowsTransparency)
         {
             void StartFade() => w.BeginAnimation(UIElement.OpacityProperty,
                 new DoubleAnimation(1, new Duration(TimeSpan.FromMilliseconds(ms)))
                 { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
-            // 修复（R157）：若内容已渲染（ContentRendered 已过——PinWindow 是在自己的 ContentRendered 回调里才调 FadeIn），
+            // 修复：若内容已渲染（ContentRendered 已过——PinWindow 是在自己的 ContentRendered 回调里才调 FadeIn），
             // 再订阅 ContentRendered 永不触发（该事件仅首次渲染后触发一次），淡入不启动、Opacity 永久卡 0 → 贴图完全隐形，
             // 表现为「Ctrl+P 钉到屏幕完全没反应」。此时立即淡入。Show 前调用的窗口 IsLoaded=false，仍走订阅路径，行为不变。
             if (w.IsLoaded) { StartFade(); return; }
@@ -212,7 +212,7 @@ public static partial class Fluent
     /// 仅用于卡片/弹层等少量容器，勿逐行加（DropShadowEffect 有渲染成本）。</summary>
     public static void Elevate(Border b, double blur = 22, double depth = 5, double opacity = -1)
     {
-        // R161：亮色下 0.26 太深（白底上像脏灰块），降到 0.13——亮底只需极淡投影提示层次即可
+        // 亮色下 0.26 太深（白底上像脏灰块），降到 0.13——亮底只需极淡投影提示层次即可
         double op = opacity >= 0 ? opacity : (Theme.IsDark ? 0.5 : 0.13);
         var sh = new System.Windows.Media.Effects.DropShadowEffect
         {
@@ -247,14 +247,14 @@ public static partial class Fluent
             BlurRadius = 16,
             ShadowDepth = 4,
             Direction = 270,
-            Opacity = Theme.IsDark ? 0.45 : 0.12,   // R161：亮色下 0.22 太深，随 Elevate 一起调浅
+            Opacity = Theme.IsDark ? 0.45 : 0.12,   // 亮色下 0.22 太深，随 Elevate 一起调浅
         };
         sh.Freeze();
         inner.Effect = sh;
         return new Border { Padding = new Thickness(18), Child = inner };
     }
 
-    /// <summary>R162：与 ChipHover 同款——小按钮悬停/按住只改底色带过渡，不再放大
+    /// <summary>与 ChipHover 同款——小按钮悬停/按住只改底色带过渡，不再放大
     /// （用户：「小按钮的变大动画改成和普通按钮一致」）。hover/press 参数保留兼容，已忽略。</summary>
     public static void Springy(FrameworkElement el, double hover = 1.02, double press = 0.985) => BgHover(el);
 

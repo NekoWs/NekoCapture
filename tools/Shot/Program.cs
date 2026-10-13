@@ -1,7 +1,7 @@
 // 自动化助手
-//   Shot.exe shot <out.png>
-//   Shot.exe title <text>                → 找窗口，打印 hwnd（找不到打 0）
-//   Shot.exe commit <text> [vk]          → 找窗口+置前台+发送键（默认 Enter），重试 10×300ms
+// Shot.exe shot <out.png>
+// Shot.exe title <text> → 找窗口，打印 hwnd（找不到打 0）
+// Shot.exe commit <text> [vk] → 找窗口+置前台+发送键（默认 Enter），重试 10×300ms
 using System.Runtime.InteropServices;
 using System.Drawing;
 using System.Drawing;
@@ -358,7 +358,7 @@ switch (mode)
         }
         return 0;
     }
-    case "hotkey": // hotkey <holdMs>  Ctrl+Shift+G
+    case "hotkey": // hotkey <holdMs> Ctrl+Shift+G
     {
         int hold = args.Length > 1 ? int.Parse(args[1]) : 1500;
         keybd_event(0x11, 0, 0, 0);

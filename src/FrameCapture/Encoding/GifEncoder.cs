@@ -17,7 +17,7 @@ public static class GifEncoder
         IProgress<int>? progress = null, CancellationToken ct = default)
     {
         if (frames.Count == 0) throw new ArgumentException("no frames");
-        // 厘秒重采样：60fps 直存会整体提速 1.2×；重采样保总时长（Core.GifTiming 纯逻辑，T87 断言）
+        // 厘秒重采样：60fps 直存会整体提速 1.2×；重采样保总时长（Core.GifTiming 纯逻辑，断言）
         var (keep, qDelays) = FrameCapture.Core.GifTiming.Resample(delaysMs);
         if (keep.Count < frames.Count)
         {
@@ -128,7 +128,7 @@ public static class GifEncoder
     static (byte[] Indices, byte[] Palette, int EntryBits) Quantize(byte[] bgra, int w, int h)
     {
         // 1) 收集样本颜色（大步长抽样）。6bit 归约键：5bit 会把暗渐变灰与暗杂色并进同桶，
-        //    桶均值被拉离灰轴 → 渐变端头整段同档（R25 T85 抓到）
+        // 桶均值被拉离灰轴 → 渐变端头整段同档（抓到）
         int total = w * h;
         int step = Math.Max(1, total / 60_000);
         var counts = new Dictionary<int, int>();
@@ -139,8 +139,8 @@ public static class GifEncoder
             if (counts.TryGetValue(key, out int c)) counts[key] = c + 1; else counts[key] = 1;
         }
 
-        // 2) median-cut 分桶（R25：按 跨度×像素数 加权选分裂桶——纯 span 优先会让杂色垄断调色板，
-        //    大面积渐变被挤成两三档，抖动也救不回顶部行）
+        // 2) median-cut 分桶（按 跨度×像素数 加权选分裂桶——纯 span 优先会让杂色垄断调色板，
+        // 大面积渐变被挤成两三档，抖动也救不回顶部行）
         var boxes = new List<ColorBox>();
         var all = new List<(int Key, int Count)>(counts.Select(kv => (kv.Key, kv.Value)));
         boxes.Add(new ColorBox(all));
@@ -191,9 +191,9 @@ public static class GifEncoder
         }
 
         // 4) 像素 → 最近调色板色 + Floyd–Steinberg 误差扩散（蛇形扫描）。
-        //    无抖动的中位切割在暗渐变上出明显带状纹（R25 逐帧审查 GIF 产物发现）；
-        //    误差全为 0 的平坦区直接跳过传播，文字边缘不引入噪点。
-        // 7bit 键缓存：6bit 的 4 宽桶会把误差反馈量化成 4px 周期竖纹（R26 真实帧 3x 放大抓到）
+        // 无抖动的中位切割在暗渐变上出明显带状纹（逐帧审查 GIF 产物发现）；
+        // 误差全为 0 的平坦区直接跳过传播，文字边缘不引入噪点。
+        // 7bit 键缓存：6bit 的 4 宽桶会把误差反馈量化成 4px 周期竖纹（真实帧 3x 放大抓到）
         var cache = new int[2097152];
         Array.Fill(cache, -1);
         var indices = new byte[total];

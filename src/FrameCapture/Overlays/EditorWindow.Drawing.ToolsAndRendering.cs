@@ -14,7 +14,7 @@ namespace FrameCapture.Overlays;
 // 本 partial 职责：裁剪引导层、文字标注、马赛克，与标注渲染/撤销重做。
 public sealed partial class EditorWindow
 {
-    // ---------------- 裁剪引导层（R45）：框外压暗 + 三分网格 + 「松开应用」 ----------------
+    // ---------------- 裁剪引导层：框外压暗 + 三分网格 + 「松开应用」 ----------------
 
     System.Windows.Shapes.Path? _cropMask, _cropGrid;
     Border? _cropHint;
@@ -78,7 +78,7 @@ public sealed partial class EditorWindow
         if (_cropHint != null) { _canvas.Children.Remove(_cropHint); _cropHint = null; }
     }
 
-    // ---------------- 文字标注（R46）：点画布→就地输入→Enter/失焦上屏；R50 点已有文字=再编辑 ----------------
+    // ---------------- 文字标注：点画布→就地输入→Enter/失焦上屏；点已有文字=再编辑 ----------------
 
     TextBox? _textInput;
     Point _textPos;
@@ -103,7 +103,7 @@ public sealed partial class EditorWindow
     {
         if (_textInput != null) CommitTextInput();
         var f = _seq.Frames[_index];
-        // 与上屏 TextBlock 完全同式的字号（R50：此前 clamp 下限不同导致预览/上屏字号错位）
+        // 与上屏 TextBlock 完全同式的字号（此前 clamp 下限不同导致预览/上屏字号错位）
         double disp = FrameCapture.Core.AnnFont.BakePx(editing?.Thickness ?? CurWidth, f.W, f.H) * Math.Max(0.05, _imgRect.Width / Math.Max(1, f.W));
         var box = new TextBox
         {
@@ -125,7 +125,7 @@ public sealed partial class EditorWindow
             box.SelectAll();
             _textEditing = editing;
         }
-        // 文字起点 = pos：把边框+内边距反向挪掉，输入框里的字与上屏后的字同位（R50 修预览错位）
+        // 文字起点 = pos：把边框+内边距反向挪掉，输入框里的字与上屏后的字同位（修预览错位）
         Canvas.SetLeft(box, pos.X - 6.5); Canvas.SetTop(box, pos.Y - 3.5);
         _textPos = pos;
         box.PreviewKeyDown += (_, ek) =>
@@ -181,7 +181,7 @@ public sealed partial class EditorWindow
         _textEditing = null;
     }
 
-    // ---------------- 马赛克（R47）：拖框实时块均值预览，与烘焙共用 MosaicInPlace ----------------
+    // ---------------- 马赛克：拖框实时块均值预览，与烘焙共用 MosaicInPlace ----------------
 
     readonly Dictionary<(int, float, int, int, int, int), BitmapSource> _mosaicCache = new();
     readonly List<(System.Windows.Shapes.Rectangle el, Annotation a)> _mosaicEls = new();
@@ -200,8 +200,8 @@ public sealed partial class EditorWindow
     }
 
     /// <summary>
-    /// 帧的指定区域马赛克位图（R50）：只算区域不算整帧 → 翻帧/播放时逐帧重算也便宜，
-    /// 马赛克从「静止贴图」变成「区域滤镜」。块从区域原点起算，与 Bake 完全一致（WYSIWYG，T94 锁）。
+    /// 帧的指定区域马赛克位图：只算区域不算整帧 → 翻帧/播放时逐帧重算也便宜，
+    /// 马赛克从「静止贴图」变成「区域滤镜」。块从区域原点起算，与 Bake 完全一致（WYSIWYG，锁）。
     /// </summary>
     BitmapSource GetMosaicRect(int frameIndex, float thickness, int rx, int ry, int rw, int rh, bool cache = true)
     {
@@ -225,7 +225,7 @@ public sealed partial class EditorWindow
         return src;
     }
 
-    /// <summary>翻帧/播放时刷新所有马赛克元素的内容（R50：马赛克是区域滤镜，不是静止贴图）。</summary>
+    /// <summary>翻帧/播放时刷新所有马赛克元素的内容（马赛克是区域滤镜，不是静止贴图）。</summary>
     void UpdateMosaicBrushes()
     {
         if (_mosaicEls.Count == 0) return;
@@ -459,7 +459,7 @@ public sealed partial class EditorWindow
                 }
             }
         }
-        // 选中框（R52）：虚线强调色，纯装饰不吃命中
+        // 选中框：虚线强调色，纯装饰不吃命中
         if (_sel != null && _anns.Items.Contains(_sel))
         {
             var b = AnnBDisp(_sel);
@@ -473,7 +473,7 @@ public sealed partial class EditorWindow
                 };
                 Canvas.SetLeft(_selBox, b.X); Canvas.SetTop(_selBox, b.Y);
                 _canvas.Children.Add(_selBox);
-                // 四角缩放手柄（R119）：实心小方块标出可拖角，命中按位置测（TryBeginResize），故元素本身不吃命中
+                // 四角缩放手柄：实心小方块标出可拖角，命中按位置测（TryBeginResize），故元素本身不吃命中
                 foreach (var c in SelCornersDisp(_sel))
                 {
                     var h = new Rectangle
@@ -487,7 +487,7 @@ public sealed partial class EditorWindow
                 }
             }
         }
-        // R164：画布常显（不再收起），此处无需再兜底恢复 Visibility；命中态由 SetTool 统一管。
+        // 画布常显（不再收起），此处无需再兜底恢复 Visibility；命中态由 SetTool 统一管。
     }
 
 }

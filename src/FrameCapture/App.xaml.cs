@@ -66,7 +66,7 @@ public partial class App : System.Windows.Application
         Services.AppHost.Current.Startup();
         StartMessageSink();
 
-        // R82：首次启动弹一张欢迎卡，点破两个热键 + 关键手感（新用户装完只见托盘图标、不知按什么键是头号上手摩擦）。
+        // 首次启动弹一张欢迎卡，点破两个热键 + 关键手感（新用户装完只见托盘图标、不知按什么键是头号上手摩擦）。
         // 看过一次（FirstRunHintShown）永不再打扰；非激活浮窗不打断输入，ApplicationIdle 时再弹避免和启动抢焦点。
         if (!Services.AppHost.Current.Settings.Current.FirstRunHintShown)
             Dispatcher.BeginInvoke(() =>
@@ -84,31 +84,31 @@ public partial class App : System.Windows.Application
         if (e.Args.Any(a => string.Equals(a, "--help", StringComparison.OrdinalIgnoreCase)))
             Dispatcher.BeginInvoke(() => Overlays.HelpWindow.ShowOrFocus(),
                 System.Windows.Threading.DispatcherPriority.ApplicationIdle);
-        // R78：把最近一次静态截图重新拉回编辑器（与托盘「编辑上次截图」同一入口，也便于脚本调用）
+        // 把最近一次静态截图重新拉回编辑器（与托盘「编辑上次截图」同一入口，也便于脚本调用）
         if (e.Args.Any(a => string.Equals(a, "--edit-last", StringComparison.OrdinalIgnoreCase)))
             Dispatcher.BeginInvoke(() => Services.AppHost.Current.Controller.EditLastStill(),
                 System.Windows.Threading.DispatcherPriority.ApplicationIdle);
-        // R88：滚动截图入口（托盘「滚动截图」同一入口，也便于脚本/e2e 调用）
+        // 滚动截图入口（托盘「滚动截图」同一入口，也便于脚本/e2e 调用）
         if (e.Args.Any(a => string.Equals(a, "--scroll", StringComparison.OrdinalIgnoreCase)))
             Dispatcher.BeginInvoke(() => Services.AppHost.Current.Controller.BeginScrollCapture(),
                 System.Windows.Threading.DispatcherPriority.ApplicationIdle);
-        // R91：延时截图入口（托盘「延时截图」同一入口，也便于脚本/e2e 调用）
+        // 延时截图入口（托盘「延时截图」同一入口，也便于脚本/e2e 调用）
         if (e.Args.Any(a => string.Equals(a, "--delay", StringComparison.OrdinalIgnoreCase)))
             Dispatcher.BeginInvoke(() => Services.AppHost.Current.Controller.BeginDelayedCapture(),
                 System.Windows.Threading.DispatcherPriority.ApplicationIdle);
-        // R92：从剪贴板贴图入口（托盘「从剪贴板贴图」同一入口，也便于脚本/e2e 调用）
+        // 从剪贴板贴图入口（托盘「从剪贴板贴图」同一入口，也便于脚本/e2e 调用）
         if (e.Args.Any(a => string.Equals(a, "--pin-clip", StringComparison.OrdinalIgnoreCase)))
             Dispatcher.BeginInvoke(() => Services.AppHost.Current.Controller.PinFromClipboard(),
                 System.Windows.Threading.DispatcherPriority.ApplicationIdle);
-        // R94：切换「暂停全局热键」（托盘同一入口；也便于用户用 Windows 快捷方式/脚本绑一个暂停热键）
+        // 切换「暂停全局热键」（托盘同一入口；也便于用户用 Windows 快捷方式/脚本绑一个暂停热键）
         if (e.Args.Any(a => string.Equals(a, "--pause-toggle", StringComparison.OrdinalIgnoreCase)))
             Dispatcher.BeginInvoke(() => Services.AppHost.Current.Tray.TogglePause(),
                 System.Windows.Threading.DispatcherPriority.ApplicationIdle);
-        // R148：对当前范围 OCR（手势「识别文字」同一入口，也便于脚本/e2e 调用）
+        // 对当前范围 OCR（手势「识别文字」同一入口，也便于脚本/e2e 调用）
         if (e.Args.Any(a => string.Equals(a, "--ocr", StringComparison.OrdinalIgnoreCase)))
             Dispatcher.BeginInvoke(() => Services.AppHost.Current.Controller.OcrStoredStill(),
                 System.Windows.Threading.DispatcherPriority.ApplicationIdle);
-        // R150：打开手势配置器（手势「手势配置器」/设置窗按钮同一入口，也便于脚本/e2e 调用与截图审查）
+        // 打开手势配置器（手势「手势配置器」/设置窗按钮同一入口，也便于脚本/e2e 调用与截图审查）
         if (e.Args.Any(a => string.Equals(a, "--gesture", StringComparison.OrdinalIgnoreCase)))
             Dispatcher.BeginInvoke(() => Services.GestureEditorHost.ShowOrFocus(),
                 System.Windows.Threading.DispatcherPriority.ApplicationIdle);
@@ -138,12 +138,12 @@ public partial class App : System.Windows.Application
                 var st = Services.AppHost.Current.Settings;
                 Overlays.WelcomeToast.Show(st.Current.Gestures.CaptureKeyText(), st.Current.Gestures.ScopeKeyText());
             }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
-        // R160：打开选区窗（截图/选区同一入口，便于脚本/e2e 验证「不抢焦点」与全局键代收）
+        // 打开选区窗（截图/选区同一入口，便于脚本/e2e 验证「不抢焦点」与全局键代收）
         if (e.Args.Any(a => string.Equals(a, "--picker", StringComparison.OrdinalIgnoreCase)))
             Dispatcher.BeginInvoke(() => Services.AppHost.Current.Controller.BeginScopeSelection(),
                 System.Windows.Threading.DispatcherPriority.ApplicationIdle);
-        // R165 调试/e2e：按标题子串截取一个窗口（WGC 本体 + 可选投影），存 PNG，便于取证 alpha/圆角/投影。
-        //   FrameCapture.exe --wincap <标题子串> <输出png路径> [--noshadow]
+        // 调试/e2e：按标题子串截取一个窗口（WGC 本体 + 可选投影），存 PNG，便于取证 alpha/圆角/投影。
+        // FrameCapture.exe --wincap <标题子串> <输出png路径> [--noshadow]
         int wi = Array.FindIndex(e.Args, a => string.Equals(a, "--wincap", StringComparison.OrdinalIgnoreCase));
         if (wi >= 0)
         {
@@ -164,7 +164,7 @@ public partial class App : System.Windows.Application
                 catch (Exception ex) { FrameCapture.Core.Trace.Log("wincap fail: " + ex); }
             }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
         }
-        // R166 调试/e2e：定格 vs 实时取证。先抓全屏定格帧并裁出区域 R（＝定格截图会得到的内容），
+        // 调试/e2e：定格 vs 实时取证。先抓全屏定格帧并裁出区域 R（＝定格截图会得到的内容），
         // 再在屏幕上盖一层不透明品红窗改变画面，实时重抓 R（＝实时截图会得到的内容）。
         // 输出并排图 [定格裁出 | 实时]：左＝旧内容、右＝品红，二者不同即证明定格裁的是定格帧、不是重抓。
         int ffi = Array.FindIndex(e.Args, a => string.Equals(a, "--freezetest", StringComparison.OrdinalIgnoreCase));

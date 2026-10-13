@@ -27,7 +27,7 @@ static class SelfTest
         else { fail++; Console.WriteLine($"FAIL {name}{(detail != null ? " :: " + detail : "")}"); }
     }
 
-    /// <summary>R161 探针：全局细滚动条样式是否真的落到 ScrollViewer 模板内的 ScrollBar 上。</summary>
+    /// <summary>探针：全局细滚动条样式是否真的落到 ScrollViewer 模板内的 ScrollBar 上。</summary>
     static int SbProbe(string outPath)
     {
         var app = new Application();
@@ -129,7 +129,7 @@ static class SelfTest
     static int RenderSlider(string outPath)
     {
         var app = new Application();
-        // 滑条取证（R57）：放大 3 倍看填充线与圆钮接缝是否露底色缝
+        // 滑条取证：放大 3 倍看填充线与圆钮接缝是否露底色缝
         var panel = new System.Windows.Controls.StackPanel { Background = new System.Windows.Media.SolidColorBrush(FrameCapture.Core.Theme.PanelBg) };
         foreach (double v in new double[] { 0, 35, 100 })
         {
@@ -151,7 +151,7 @@ static class SelfTest
         return 0;
     }
 
-    // 滚动拼接真实数据取证（R87）：给两张 PNG，跑 ScrollStitch 找重叠并拼，存 stitched.png 供肉眼核对
+    // 滚动拼接真实数据取证：给两张 PNG，跑 ScrollStitch 找重叠并拼，存 stitched.png 供肉眼核对
     static int StitchMode(string pathA, string pathB)
     {
         var (a, aw, ah) = LoadBgra(pathA);
@@ -229,7 +229,7 @@ static class SelfTest
     static int Main(string[] args)
     {
         Console.OutputEncoding = System.Text.Encoding.UTF8;
-        // 离屏渲染帮助窗取证（R49）：独立进程、不 Show、不注册热键，不打断正在运行的实例
+        // 离屏渲染帮助窗取证：独立进程、不 Show、不注册热键，不打断正在运行的实例
         if (args.Length >= 2 && args[0] == "renderhelp") return RenderHelp(args[1], args.Length >= 3 && int.TryParse(args[2], out var hs) ? hs : 0);
         if (args.Length == 2 && args[0] == "sbprobe") return SbProbe(args[1]);
         if (args.Length == 2 && args[0] == "renderpick") return RenderPick(args[1]);
@@ -238,7 +238,7 @@ static class SelfTest
         string tmp = Path.Combine(Path.GetTempPath(), "FrameCapture", "selftest");
         Directory.CreateDirectory(tmp);
 
-        // T1 GIF 编码往返 + 调色板 RGB 序回归（历史 bug：调色板写成 BGR 导致红变蓝）
+        // GIF 编码往返 + 调色板 RGB 序回归（历史 bug：调色板写成 BGR 导致红变蓝）
         try
         {
             int W = 64, H = 48, N = 8;
@@ -267,7 +267,7 @@ static class SelfTest
         }
         catch (Exception e) { Chk("T1-gif", false, e.Message); }
 
-        // T2 标注烘焙：黑底画红线 → 线上红、线外仍黑
+        // 标注烘焙：黑底画红线 → 线上红、线外仍黑
         try
         {
             var f = Solid(100, 100, 0, 0, 0);
@@ -295,7 +295,7 @@ static class SelfTest
                     if (outF.Bgra[i] < 40 && outF.Bgra[i + 1] > 150 && outF.Bgra[i + 2] > 150) { yellow = true; break; }
                 Chk($"T2-{kind}-baked", yellow);
             }
-            // T2c/T2d 序号编号自适应（R146）：圆圈色决定编号黑白；绿底隔离背景色后查前景像素
+            // /序号编号自适应：圆圈色决定编号黑白；绿底隔离背景色后查前景像素
             var numLight = new Annotation { Kind = AnnKind.Number, Color = Color.White, Thickness = 50, Text = "8" };
             numLight.Points.Add((0.5f, 0.5f));
             var bakedL = Bake.Apply([Solid(200, 200, 0, 200, 0)], [numLight])[0]; // 绿底白圈(亮)
@@ -313,7 +313,7 @@ static class SelfTest
         }
         catch (Exception e) { Chk("T2-bake", false, e.Message); }
 
-        // T3 裁剪：尺寸 + 像素对应
+        // 裁剪：尺寸 + 像素对应
         try
         {
             var f = Solid(100, 100, 0, 0, 0);
@@ -325,7 +325,7 @@ static class SelfTest
         }
         catch (Exception e) { Chk("T3-crop", false, e.Message); }
 
-        // T4 视觉暂留合成
+        // 视觉暂留合成
         try
         {
             var seq = Enumerable.Range(0, 10).Select(k => MovingSquare(64, 48, k, 10)).ToList();
@@ -338,7 +338,7 @@ static class SelfTest
         }
         catch (Exception e) { Chk("T4-afterimage", false, e.Message); }
 
-        // T5 快捷键解析
+        // 快捷键解析
         try
         {
             var s1 = FrameCapture.Core.HotkeySpec.Parse("Ctrl+Shift+R");
@@ -351,7 +351,7 @@ static class SelfTest
         }
         catch (Exception e) { Chk("T5-hotkey", false, e.Message); }
 
-        // T6 抽帧索引
+        // 抽帧索引
         try
         {
             var idx = BgraImage.SampleIndices(30, 12);
@@ -360,7 +360,7 @@ static class SelfTest
         }
         catch (Exception e) { Chk("T6-sample", false, e.Message); }
 
-        // T7 Agent 胶片条
+        // Agent 胶片条
         try
         {
             var frames = Enumerable.Range(0, 16).Select(k =>
@@ -386,7 +386,7 @@ static class SelfTest
         }
         catch (Exception e) { Chk("T7-strip", false, e.ToString()); }
 
-        // T8 主题：明/暗双调色板对比度正确（文字与背景必须反向）
+        // 主题：明/暗双调色板对比度正确（文字与背景必须反向）
         try
         {
             double Lum(System.Windows.Media.Color c) => 0.299 * c.R + 0.587 * c.G + 0.114 * c.B;
@@ -405,7 +405,7 @@ static class SelfTest
         }
         catch (Exception e) { Chk("T8-theme", false, e.Message); }
 
-        // T9 富色内容量化：彩色渐变帧编 GIF 解码后仍保留多色
+        // 富色内容量化：彩色渐变帧编 GIF 解码后仍保留多色
         try
         {
             int W = 64, H = 64;
@@ -430,7 +430,7 @@ static class SelfTest
         }
         catch (Exception e) { Chk("T9-quant", false, e.Message); }
 
-        // T10 UI glyph 回归：所有用到的图标必须真实存在于 Segoe Fluent Icons（首字体吞 BMP 导致豆腐块）
+        // UI glyph 回归：所有用到的图标必须真实存在于 Segoe Fluent Icons（首字体吞 BMP 导致豆腐块）
         try
         {
             var uiGlyphs = new[]
@@ -451,8 +451,8 @@ static class SelfTest
                 if (ok && !(gt!.CharacterToGlyphMap.ContainsKey(ch) && gt.AdvanceWidths[gt.CharacterToGlyphMap[ch]] > 0.08))
                 { all = false; Console.WriteLine($"  missing glyph U+{(int)ch:X4}"); }
             Chk("T10-ui-glyphs-resolve", all && ok, "tofu risk");
-            // T10b 目录字形动态锁：工具目录里每个 Glyph 必须在字体里真实存在且有宽度——
-            // 静态清单会漏新工具（R52 加 V 时就漏了），目录本身才是该锁的对象
+            // 目录字形动态锁：工具目录里每个 Glyph 必须在字体里真实存在且有宽度——
+            // 静态清单会漏新工具（加 V 时就漏了），目录本身才是该锁的对象
             bool catOk = true;
             foreach (var t in FrameCapture.Core.ToolCatalog.Tools)
             {
@@ -464,7 +464,7 @@ static class SelfTest
         }
         catch (Exception e) { Chk("T10-glyphs", false, e.Message); }
 
-        // T11 Fluent 模板可解析（XAML 命名空间/触发器语法回归）
+        // Fluent 模板可解析（XAML 命名空间/触发器语法回归）
         try
         {
             var tplA = FrameCapture.Core.Fluent.IconButtonTemplate();
@@ -474,7 +474,7 @@ static class SelfTest
         }
         catch (Exception e) { Chk("T11-fluent-templates", false, e.Message); }
 
-        // T12 全局 ToolTip/菜单样式可解析（主题相关 XAML 回归）
+        // 全局 ToolTip/菜单样式可解析（主题相关 XAML 回归）
         try
         {
             var tt = FrameCapture.Core.Fluent.ToolTipStyle();
@@ -484,7 +484,7 @@ static class SelfTest
         }
         catch (Exception e) { Chk("T12-global-styles", false, e.Message); }
 
-        // T13 同类多标注：3 个不同颜色的圆/点全部烘焙可见（防“第 N 笔丢失”回归）
+        // 同类多标注：3 个不同颜色的圆/点全部烘焙可见（防“第 N 笔丢失”回归）
         try
         {
             var anns = new List<Annotation>();
@@ -519,7 +519,7 @@ static class SelfTest
         }
         catch (Exception e) { Chk("T13-multi-ann", false, e.Message); }
 
-        // T14 FrameRing：预算驱逐语义（保首帧、丢最老、计数正确）+ 自适应预算区间
+        // FrameRing：预算驱逐语义（保首帧、丢最老、计数正确）+ 自适应预算区间
         try
         {
             int F = 1024;
@@ -541,7 +541,7 @@ static class SelfTest
         }
         catch (Exception e) { Chk("T14-framer-ring", false, e.Message); }
 
-        // T15 剪贴板 DataObject：文件 + 位图 + 自定义 GIF 三格式齐备（不触碰真实剪贴板）
+        // 剪贴板 DataObject：文件 + 位图 + 自定义 GIF 三格式齐备（不触碰真实剪贴板）
         try
         {
             var frame = Solid(16, 16, 10, 20, 30);
@@ -572,7 +572,7 @@ static class SelfTest
         }
         catch (Exception e) { Chk("T15-clipboard", false, e.Message); }
 
-        // T16 timeline 拖范围状态机（原 UI 内逻辑下沉，人工清单缩小）
+        // timeline 拖范围状态机（原 UI 内逻辑下沉，人工清单缩小）
         try
         {
             var rd = new FrameCapture.Core.RangeDragState { Count = 16, Width = 1000 };
@@ -600,7 +600,7 @@ static class SelfTest
         }
         catch (Exception e) { Chk("T16-range-drag", false, e.Message); }
 
-        // T17 窗口吸附命中：z 序取最先包含者、跳过 <4px、未命中返回 null
+        // 窗口吸附命中：z 序取最先包含者、跳过 <4px、未命中返回 null
         try
         {
             var cands = new[]
@@ -645,7 +645,7 @@ static class SelfTest
             Console.WriteLine($"BENCH 4K x{N}: encode={sw4k.ElapsedMilliseconds}ms gif={gif.Length / 1024 / 1024.0:F1}MB");
         }
 
-        // T18 并行编码：多帧输出与顺序逐帧编码逐字节一致 + 取消生效
+        // 并行编码：多帧输出与顺序逐帧编码逐字节一致 + 取消生效
         try
         {
             var fr = new List<CapturedFrame>();
@@ -671,7 +671,7 @@ static class SelfTest
         }
         catch (Exception e) { Chk("T18-parallel", false, e.Message); }
 
-        // T19 UndoRedo：新增清空重做栈；撤销/重做往返；裁剪清空语义
+        // UndoRedo：新增清空重做栈；撤销/重做往返；裁剪清空语义
         try
         {
             var h = new FrameCapture.Core.UndoRedo<string>();
@@ -687,7 +687,7 @@ static class SelfTest
         }
         catch (Exception e) { Chk("T19-undo-redo", false, e.Message); }
 
-        // T20 WGC（Windows.Graphics.Capture）后端：设备/项创建 + 真实取帧
+        // WGC（Windows.Graphics.Capture）后端：设备/项创建 + 真实取帧
         try
         {
             var mons = FrameCapture.Capture.Monitors.All();
@@ -737,7 +737,7 @@ static class SelfTest
             probeForm.Hide();
             Chk("T20c-wgc-restart", n2 >= 1, $"n2={n2} missed={wgc2.FramesMissed} err={wgc2.LastLoopError?.Split('\n')[0]}");
 
-            // T73 关闭 WGC 系统捕获提示边框（Windows 11 那条绕整屏的黄色 #FFD11C 框）：
+            // 关闭 WGC 系统捕获提示边框（Windows 11 那条绕整屏的黄色 #FFD11C 框）：
             // 我们的 WGC 只能整显示器捕获，系统边框必然全屏、与所选录制范围无关，于是改为
             // 自家按范围绘制轮廓。这里断言这个"关边框"的动作在支持的系统上真的成功了
             // （Win10 没有 IGraphicsCaptureSession3，SystemBorderSuppressed 保持 null→跳过，不算失败）。
@@ -745,7 +745,7 @@ static class SelfTest
             Chk("T73-wgc-borderless", wgc2.SystemBorderSuppressed == true || !canBorderless,
                 $"suppressed={wgc2.SystemBorderSuppressed} canBorderless={canBorderless}");
 
-            // T74 轮廓窗"在屏可见但不进捕获"的机制前提：WDA_EXCLUDEFROMCAPTURE(0x11) 必须真的能被设置成功，
+            // 轮廓窗"在屏可见但不进捕获"的机制前提：WDA_EXCLUDEFROMCAPTURE(0x11) 必须真的能被设置成功，
             // 否则 RegionOutlineWindow 会静默变成"看不见"（那就等于录制期间没有任何范围提示）。
             {
                 var probeWin = new System.Windows.Window
@@ -771,7 +771,7 @@ static class SelfTest
         }
         catch (Exception e) { Chk("T20-wgc-backend", false, e.Message); }
 
-        // T68: 时间轴裁剪端点直设与钳位（A<=B-1、B>=A+1、至少 2 帧）
+        // 时间轴裁剪端点直设与钳位（A<=B-1、B>=A+1、至少 2 帧）
         {
             var rd = new FrameCapture.Core.RangeDragState { Count = 10, Width = 300 };
             var dflt = rd.Effective;
@@ -784,7 +784,7 @@ static class SelfTest
                 $"dflt={dflt} set={got} overA={a} underB={b} underA={c}");
         }
 
-        // T69: 主题变更事件（实际变化才触发；强调色变化同样触发）
+        // 主题变更事件（实际变化才触发；强调色变化同样触发）
         {
             int fired = 0;
             Action th = () => fired++;
@@ -808,7 +808,7 @@ static class SelfTest
             }
         }
 
-        // T70: 时间轴坐标与帧号映射：边界与单调性
+        // 时间轴坐标与帧号映射：边界与单调性
         {
             var rd = new FrameCapture.Core.RangeDragState { Count = 20, Width = 380 };
             int first = FrameCapture.Core.RangeDragState.XToIdx(0, 380, 20), last = FrameCapture.Core.RangeDragState.XToIdx(380, 380, 20),
@@ -823,7 +823,7 @@ static class SelfTest
             Chk("T70-timeline-map", first == 0 && last == 19 && over == 19 && mono, $"first={first} last={last} over={over} mono={mono}");
         }
 
-        // T71 ElementSnap：UIA 控件级吸附——命中的是文本框边界而非整窗
+        // ElementSnap：UIA 控件级吸附——命中的是文本框边界而非整窗
         try
         {
             var win = new System.Windows.Window
@@ -860,7 +860,7 @@ static class SelfTest
         }
         catch (Exception ex) { Chk("T71-uia", false, ex.Message); }
 
-        // T72 C1 选中态语义：工具单选切换（再点=取消）+ accent 反白对比色（纯逻辑）
+        // C1 选中态语义：工具单选切换（再点=取消）+ accent 反白对比色（纯逻辑）
         {
             var a = FrameCapture.Core.ToolToggle.Select(System.DayOfWeek.Sunday, System.DayOfWeek.Monday, System.DayOfWeek.Sunday);
             var b = FrameCapture.Core.ToolToggle.Select(a, System.DayOfWeek.Monday, System.DayOfWeek.Sunday);   // 再点当前 → 取消
@@ -873,9 +873,9 @@ static class SelfTest
                 $"light={onLight} dark={onDark}");
         }
 
-        // T75 捕获状态机入口守卫（纯逻辑决策表）：
-        //  回归护栏 = "只有 StartCapture 允许隐藏范围轮廓"。旧版 BeginCapture 第一行无条件
-        //  HideOutline()，守卫在其后 → 编辑器开着再按捕获键会把常显轮廓永久弄没。
+        // 捕获状态机入口守卫（纯逻辑决策表）：
+        // 回归护栏 = "只有 StartCapture 允许隐藏范围轮廓"。旧版 BeginCapture 第一行无条件
+        // HideOutline，守卫在其后 → 编辑器开着再按捕获键会把常显轮廓永久弄没。
         {
             var idle = FrameCapture.Core.CaptureGuards.OnCaptureHotkey(false, false, false);
             var cap = FrameCapture.Core.CaptureGuards.OnCaptureHotkey(true, false, false);
@@ -915,9 +915,9 @@ static class SelfTest
                 $"o1={o1} o2={o2} o3={o3}");
         }
 
-        // T77/T78 作用域（原 T76 全局钩子决策表随旧 F6/F7 热键路径退役，R126 B2）
+        // /作用域（原 全局钩子决策表随旧 F6/F7 热键路径退役，B2）
         {
-            // T77：Fps 钳制单一事实源（常量 = 文档范围，Normalize 钳越界值）
+            // Fps 钳制单一事实源（常量 = 文档范围，Normalize 钳越界值）
             Chk("T77a-fps-constants",
                 AppSettings.FpsMin == 10 && AppSettings.FpsMax == 240 && AppSettings.FpsMin < AppSettings.FpsMax,
                 "Fps 常量单一事实源：10..240（R100 放开高刷）");
@@ -927,7 +927,7 @@ static class SelfTest
             Chk("T77b-fps-normalize-clamps",
                 fpsLo.Fps == AppSettings.FpsMin && fpsHi.Fps == AppSettings.FpsMax && fpsOk.Fps == 30,
                 "Normalize 把 Fps 钳进 [FpsMin,FpsMax]，合法值原样通过");
-            // T78：裁剪→标注重映射（Core.CropRemap）——坐标变换、跨界丢弃、像素级往返
+            // 裁剪→标注重映射（Core.CropRemap）——坐标变换、跨界丢弃、像素级往返
             {
                 var dotIn = new Annotation { Kind = AnnKind.Dot, Color = Color.FromArgb(255, 0xE7, 0x48, 0x4C), Thickness = 8 };
                 dotIn.Points.Add((0.5f, 0.5f));
@@ -955,7 +955,7 @@ static class SelfTest
                 Chk("T78c-crop-remap-pixel-roundtrip", pxSame && centerRed,
                     $"Bake(Crop(Bake)) ≡ Crop→Remap→Bake 逐字节相等={pxSame} 中心红点={centerRed}");
             }
-            // T79：视图缩放/平移数学（Core.ZoomMath）
+            // 视图缩放/平移数学（Core.ZoomMath）
             {
                 // 视口 800x600，帧 1600x1200 → sFit=0.5；1:1 → zoom=2
                 double sFit = ZoomMath.FitScale(800, 600, 1600, 1200);
@@ -977,7 +977,7 @@ static class SelfTest
                 var (dx, dy) = ZoomMath.PanBy(100, 0, -1000, 50, 800, 600, 1600, 1200);
                 Chk("T79d-panby-clamped", dx == -400 && dy == 50, "拖拽增量叠加后仍受钳制");
             }
-            // T80：裁剪=视图状态栈（Core.CropState），帧数据不被破坏
+            // 裁剪=视图状态栈（Core.CropState），帧数据不被破坏
             {
                 var cs = new CropState();
                 var (px0, py0, pw0, ph0) = cs.ToPixel(1600, 1200);
@@ -1015,7 +1015,7 @@ static class SelfTest
                     redo1 && Math.Abs(cr.X - 0.2) < 1e-12 && Math.Abs(cr.H - 0.6) < 1e-12 && !redo2 && !redo3 && cs3.Depth == 2,
                     "Pop→Redo 精确还原矩形；redo 耗尽返回 false；新裁剪清空 redo 栈");
             }
-            // T81：标注/裁剪双流撤销次序（Core.ActionOrder）
+            // 标注/裁剪双流撤销次序（Core.ActionOrder）
             {
                 var ao = new ActionOrder();
                 ao.AnnAdded();       // seq1 画一笔
@@ -1047,7 +1047,7 @@ static class SelfTest
                 Chk("T81c-new-action-clears-redo", !ao3.CanRedoCrop && !ao3.CanUndoCrop,
                     "裁剪被撤销后画新笔 → 裁剪 redo 失效（标准撤销语义），两栈皆空");
             }
-            // T82：Esc 分层（导出中=取消；绘制态=退工具；浏览=关闭）
+            // Esc 分层（导出中=取消；绘制态=退工具；浏览=关闭）
             {
                 Chk("T82a-esc-layers",
                     EscStep.Select(encoding: true, inToolMode: true) == EscAction.CancelEncode
@@ -1055,7 +1055,7 @@ static class SelfTest
                     && EscStep.Select(encoding: false, inToolMode: false) == EscAction.Close,
                     "导出中优先取消；绘制态先退工具（误触不丢捕获）；仅浏览态关闭");
             }
-            // T83：自定义线宽/最近自定义色（Core.CustomPick）
+            // 自定义线宽/最近自定义色（Core.CustomPick）
             {
                 float[] presets = { 3f, 6f, 10f };
                 Chk("T83a-width-presets",
@@ -1084,7 +1084,7 @@ static class SelfTest
                     mem5.Count == 1 && mem5[0] == "#AABBCC",
                     "空/新色缺失时丢弃，不占位");
             }
-            // T84：时间轴秒标步长（Core.TimelineScale）
+            // 时间轴秒标步长（Core.TimelineScale）
             {
                 Chk("T84a-short-clip-fine-labels",
                     TimelineScale.LabelStepFrames(39, 60) == 3,
@@ -1100,7 +1100,7 @@ static class SelfTest
                     && TimelineScale.LabelStepFrames(0.001, 60) == 1800,
                     "退化输入返回 1；极窄时落到最大档 30s（1800帧）");
             }
-            // T85：GIF 误差扩散抖动（R25）——调色板被杂色占满时，暗渐变不得退化成少数几档
+            // GIF 误差扩散抖动——调色板被杂色占满时，暗渐变不得退化成少数几档
             {
                 int W = 200, H = 40;
                 var buf = new byte[W * H * 4];
@@ -1142,7 +1142,7 @@ static class SelfTest
                         ? " dec=[" + string.Join(" ", rowMeans.Select(m => m.ToString("F0"))) + "]"
                         + " src=[" + string.Join(" ", Enumerable.Range(0, H).Select(y => (10 + y * 30 / H).ToString())) + "]" : ""));
             }
-            // T86：视觉暂留合成——末帧全亮、历史帧留衰减尾迹、暗底亮物可见；出图供逐帧目检
+            // 视觉暂留合成——末帧全亮、历史帧留衰减尾迹、暗底亮物可见；出图供逐帧目检
             {
                 int W = 160, H = 40;
                 var frames = new List<CapturedFrame>();
@@ -1165,7 +1165,7 @@ static class SelfTest
                 BgraImage.SavePng(comb, Path.Combine(tmp, "afterimage-t86.png"));
                 Chk("T86c-afterimage-png", File.Exists(Path.Combine(tmp, "afterimage-t86.png")));
             }
-            // T87：GIF 厘秒重采样——60fps 不提速、30fps 不丢帧、总时长守恒、延迟全为 ≥2cs 的整十毫秒
+            // GIF 厘秒重采样——60fps 不提速、30fps 不丢帧、总时长守恒、延迟全为 ≥2cs 的整十毫秒
             {
                 var (k60, d60) = FrameCapture.Core.GifTiming.Resample(Enumerable.Repeat(16, 60).ToList());
                 int t60 = d60.Sum();
@@ -1194,7 +1194,7 @@ static class SelfTest
                 int n = img.GetFrameCount(FrameDimension.Time);
                 Chk("T87d-gif-framecount", n == k60.Count, $"GIF 解码 {n} 帧 = 重采样 {k60.Count} 帧");
             }
-            // T88：截屏浮窗落点（R42）——大区域贴内侧右下；小区域贴外下缘；越界翻转/钳进工作区
+            // 截屏浮窗落点——大区域贴内侧右下；小区域贴外下缘；越界翻转/钳进工作区
             {
                 var work = new RectI(0, 0, 3840, 2100);
                 var big = FrameCapture.Core.ToastPlace.Place(new RectI(100, 100, 1200, 800), work, 300, 84);
@@ -1214,7 +1214,7 @@ static class SelfTest
                 Chk("T88e-always-in-workarea", inside, "多区域（含负坐标/贴边）浮窗恒在工作区内");
             }
             {
-                // T89 裁剪拖框引导（R45）
+                // 裁剪拖框引导
                 var r1 = FrameCapture.Core.CropGuide.Rect(300, 400, 100, 120);
                 Chk("T89a-rect-anydir", r1 == (100.0, 120.0, 200.0, 280.0), $"左上→右下反向拖 → {r1}");
                 var r2 = FrameCapture.Core.CropGuide.Rect(100, 120, 300, 400);
@@ -1227,7 +1227,7 @@ static class SelfTest
                 Chk("T89e-hint-clamp-x", h3.X == 676 && h3.Y == 158, $"贴右缘横向钳边 → {h3}");
             }
             {
-                // T90 文字标注（R46）：字号公式 + 裁剪保文本
+                // 文字标注：字号公式 + 裁剪保文本
                 Chk("T90a-font-frame", FrameCapture.Core.AnnFont.FramePx(3) == 22 && FrameCapture.Core.AnnFont.FramePx(10) == 50, "细=22 粗=50 @1080p");
                 Chk("T90b-font-1080", Math.Abs(FrameCapture.Core.AnnFont.BakePx(3, 1920, 1080) - 22) < 1e-9, "1080p 帧 = 基准");
                 Chk("T90c-font-half", Math.Abs(FrameCapture.Core.AnnFont.BakePx(3, 960, 540) - 11) < 1e-9, "半分辨率等比缩 → 11px");
@@ -1239,7 +1239,7 @@ static class SelfTest
                     $"裁剪重映射保留文字与坐标 → {keptT.Count}");
             }
             {
-                // T91 马赛克（R47）：块粒度公式 + 块均值正确性 + 越界钳制
+                // 马赛克：块粒度公式 + 块均值正确性 + 越界钳制
                 Chk("T91a-block-1080", FrameCapture.Core.MosaicBlock.Px(3, 1920, 1080) == 6 && FrameCapture.Core.MosaicBlock.Px(10, 1920, 1080) == 20, "细=6 粗=20 @1080p");
                 Chk("T91b-block-floor", FrameCapture.Core.MosaicBlock.Px(1, 200, 200) == 4, "小帧下限 4px");
                 // 4x4 图，块 2：左上块 (10,10,10)×2 + (30,30,30)×2 → 均值 20
@@ -1255,7 +1255,7 @@ static class SelfTest
                 Chk("T91e-clamp", buf[(2 * 4 + 2) * 4] == 25 && buf[(3 * 4 + 3) * 4] == 25, $"越界矩形钳进画布 → 右下块均值 25,{buf[(2 * 4 + 2) * 4]},{buf[(3 * 4 + 3) * 4]}");
             }
             {
-                // T92 工具目录（R48）：单一数据源防漂移——加新工具漏帮助/漏字形/键位撞车当场红
+                // 工具目录：单一数据源防漂移——加新工具漏帮助/漏字形/键位撞车当场红
                 var tools = FrameCapture.Core.ToolCatalog.Tools;
                 Chk("T92a-count", tools.Length == 11, $"十一个绘制工具 → {tools.Length}");
                 var keys = tools.Select(t => t.Key).ToList();
@@ -1268,7 +1268,7 @@ static class SelfTest
                     "帮助符号是普通 Unicode（默认字体可渲染，图标字形进帮助窗=豆腐块）");
             }
             {
-                // T93 操作栈（R50）：编辑可撤销/重做、顺序保持、操作时序 LIFO——文字再编辑与对象化编辑的地基
+                // 操作栈：编辑可撤销/重做、顺序保持、操作时序 LIFO——文字再编辑与对象化编辑的地基
                 var h = new FrameCapture.Core.UndoRedo<string>();
                 var a = "A"; var b = "B"; var b2 = "B'";
                 h.Add(a); h.Add(b);
@@ -1289,7 +1289,7 @@ static class SelfTest
                 Chk("T93g-replace-missing", !h2.Replace("nope", "x"), "替换不存在的对象返回 false");
             }
             {
-                // T94 马赛克 WYSIWYG（R50）：编辑器预览=区域提取后 MosaicInPlace(0,0)，烘焙=整帧内 rect 起块
+                // 马赛克 WYSIWYG：编辑器预览=区域提取后 MosaicInPlace(0,0)，烘焙=整帧内 rect 起块
                 // 两者必须逐字节一致，否则预览与输出块相位错位
                 int w = 64, h = 64, rx = 10, ry = 8, rw = 30, rh = 20, blk = 6;
                 var full = new byte[w * h * 4];
@@ -1318,7 +1318,7 @@ static class SelfTest
                     "归一化→像素矩形映射正确：框内马赛克、框外原样");
             }
             {
-                // T95 删除操作（R52 选中工具）：原位删除、原位放回、与 Add/Edit 混排 LIFO
+                // 删除操作（选中工具）：原位删除、原位放回、与 Add/Edit 混排 LIFO
                 var h = new FrameCapture.Core.UndoRedo<string>();
                 var a = "A"; var b = "B"; var c = "C";
                 h.Add(a); h.Add(b); h.Add(c);
@@ -1334,7 +1334,7 @@ static class SelfTest
                 Chk("T95f-remove-missing", !h.Remove("nope"), "删除不存在的对象返回 false");
             }
             {
-                // T96 Esc 分层加选中层（R52）：取消导出 > 取消选中 > 退工具 > 关窗
+                // Esc 分层加选中层：取消导出 > 取消选中 > 退工具 > 关窗
                 Chk("T96a-esc-sel",
                     EscStep.Select(encoding: false, inToolMode: true, hasSelection: true) == EscAction.ClearSelection
                     && EscStep.Select(encoding: true, inToolMode: true, hasSelection: true) == EscAction.CancelEncode
@@ -1346,7 +1346,7 @@ static class SelfTest
                     "无选中时旧语义不变（默认参数向后兼容）");
             }
             {
-                // T97 调色板数学（R54）：HSV 双向 + HEX 解析/格式化——自绘 RGBA 调色板的正确性地基
+                // 调色板数学：HSV 双向 + HEX 解析/格式化——自绘 RGBA 调色板的正确性地基
                 static (byte, byte, byte) Rgb(double h, double s, double v) => FrameCapture.Core.Hsv.ToRgb(h, s, v);
                 Chk("T97a-hsv-known",
                     Rgb(0, 1, 1) == (255, 0, 0) && Rgb(120, 1, 1) == (0, 255, 0) && Rgb(240, 1, 1) == (0, 0, 255)
@@ -1378,7 +1378,7 @@ static class SelfTest
                     "A=255 省略 AA；带透明出 8 位；格式↔解析闭环");
             }
             {
-                // T98 设置项默认值与 JSON 往返（R55 新增 ShowLastRegion）：老配置缺字段必须回默认 true，不能默默变 false
+                // 设置项默认值与 JSON 往返（新增 ShowLastRegion）：老配置缺字段必须回默认 true，不能默默变 false
                 var json = System.Text.Json.JsonSerializer.Serialize(new AppSettings());
                 var bare = System.Text.Json.JsonSerializer.Deserialize<AppSettings>("{}")!;
                 var full = System.Text.Json.JsonSerializer.Deserialize<AppSettings>(json)!;
@@ -1390,11 +1390,11 @@ static class SelfTest
                     "开/关均能序列化往返");
             }
             {
-                // T99 连按两下=免按住录制状态机随旧 F6/F7 热键路径退役（R126 B2）；保留 T128a 光标默认断言
+                // 连按两下=免按住录制状态机随旧 F6/F7 热键路径退役；保留 光标默认断言
                 Chk("T128a-cursor-default", new AppSettings().RecordIncludeCursor, "录制包含鼠标指针默认开（无回归）");
             }
             {
-                // T100 磁盘暂存帧仓（R61，FrameSpool/FrameSpoolList）：落盘往返 / 惰性回读 / 切片 / 元数据 / 文件生命周期
+                // 磁盘暂存帧仓（，FrameSpool/FrameSpoolList）：落盘往返 / 惰性回读 / 切片 / 元数据 / 文件生命周期
                 var dir = Path.Combine(Path.GetTempPath(), "FrameCapture", "selftest");
                 Directory.CreateDirectory(dir);
                 var spoolPath = Path.Combine(dir, $"spool-test-{Guid.NewGuid():N}.fcf");
@@ -1435,7 +1435,7 @@ static class SelfTest
                 Chk("T100j-abandon", !File.Exists(p2), "Abandon 删半成品文件");
                 Chk("T100k-freebytes", FrameSpool.FreeBytesFor(spoolPath) > 0, "卷剩余空间查询有效");
 
-                // T101 自动保存副本（R63，SaveService）：唯一命名 / 目录回退 / 关闭零副作用
+                // 自动保存副本（，SaveService）：唯一命名 / 目录回退 / 关闭零副作用
                 var svDir = Path.Combine(dir, "autosave-" + Guid.NewGuid().ToString("N"));
                 Directory.CreateDirectory(svDir);
                 Chk("T101a-unique-free",
@@ -1467,7 +1467,7 @@ static class SelfTest
                 try { Directory.Delete(svDir, true); } catch { }
             }
 
-            // T102 编辑器记住工具/颜色/粗细（R64，EditorPrefs 纯决策）
+            // 编辑器记住工具/颜色/粗细（，EditorPrefs 纯决策）
             {
                 var sw = new (byte A, byte R, byte G, byte B)[]
                 {
@@ -1483,7 +1483,7 @@ static class SelfTest
                 Chk("T102f-hex", FrameCapture.Core.EditorPrefs.ToHex(255, 0xE8, 0x11, 0x23) == "#FFE81123", "颜色 → #AARRGGBB");
             }
 
-            // T103 钉图滚轮缩放（R65，PinZoom 纯决策）
+            // 钉图滚轮缩放（，PinZoom 纯决策）
             {
                 Chk("T103a-zoom-in", System.Math.Abs(FrameCapture.Core.PinZoom.Next(1.0, 1) - 1.1) < 1e-9, "delta>0 → ×1.1 放大");
                 Chk("T103b-zoom-out", System.Math.Abs(FrameCapture.Core.PinZoom.Next(1.0, -1) - 1.0 / 1.1) < 1e-9, "delta<0 → ÷1.1 缩小");
@@ -1492,7 +1492,7 @@ static class SelfTest
                 Chk("T103e-zoom-zero", FrameCapture.Core.PinZoom.Next(2.5, 0) == 2.5, "delta=0 → 不变");
             }
 
-            // T104 贴图不透明度滚轮（R66，PinOpacity 纯决策）
+            // 贴图不透明度滚轮（，PinOpacity 纯决策）
             {
                 Chk("T104a-op-up", System.Math.Abs(FrameCapture.Core.PinOpacity.Next(0.5, 1) - 0.6) < 1e-9, "delta>0 → +0.1 更不透明");
                 Chk("T104b-op-down", System.Math.Abs(FrameCapture.Core.PinOpacity.Next(0.5, -1) - 0.4) < 1e-9, "delta<0 → −0.1 更透明");
@@ -1501,7 +1501,7 @@ static class SelfTest
                 Chk("T104e-op-zero", FrameCapture.Core.PinOpacity.Next(0.7, 0) == 0.7, "delta=0 → 不变");
             }
 
-            // T105 OCR 结果分类（R69，OcrService.Classify 纯决策）
+            // OCR 结果分类（，OcrService.Classify 纯决策）
             {
                 Chk("T105a-ocr-text", FrameCapture.Core.OcrService.Classify("hello 世界") == FrameCapture.Core.OcrStatus.Success, "有文字 → Success");
                 Chk("T105b-ocr-empty", FrameCapture.Core.OcrService.Classify("") == FrameCapture.Core.OcrStatus.Empty, "空串 → Empty");
@@ -1509,7 +1509,7 @@ static class SelfTest
                 Chk("T105d-ocr-padded", FrameCapture.Core.OcrService.Classify("  有字  ") == FrameCapture.Core.OcrStatus.Success, "带空白有字 → Success");
             }
 
-            // T106 选区放大镜几何（R70，MagnifierMath 纯决策）
+            // 选区放大镜几何（，MagnifierMath 纯决策）
             {
                 var c1 = FrameCapture.Core.MagnifierMath.Crop(100, 100, 1000, 1000, 15);
                 Chk("T106a-crop-center", c1 == (93, 93, 15), "中心 → 居中 15×15");
@@ -1527,7 +1527,7 @@ static class SelfTest
                 Chk("T106g-place-flipy", p3 == (118, 752), "越下边 → 翻上");
             }
 
-            // T107 放大镜取色（R71，MagnifierMath.PixelRgb/Hex 纯决策）
+            // 放大镜取色（，MagnifierMath.PixelRgb/Hex 纯决策）
             {
                 var buf = new byte[] { 10, 20, 30, 255, 40, 50, 60, 255 }; // 2px BGRA
                 Chk("T107a-rgb-p0", FrameCapture.Core.MagnifierMath.PixelRgb(buf, 2, 0, 0) == (30, 20, 10), "像素0 → R,G,B");
@@ -1538,7 +1538,7 @@ static class SelfTest
                 Chk("T107f-hex-clamp", FrameCapture.Core.MagnifierMath.Hex(300, -5, 16) == "#FF0010", "越界分量夹到 0–255");
             }
 
-            // T108 OCR 文本清理（R72，OcrService.Normalize 纯决策）
+            // OCR 文本清理（，OcrService.Normalize 纯决策）
             {
                 Chk("T108a-collapse-blank", FrameCapture.Core.OcrService.Normalize("a\n\n\n\nb") == "a\n\nb", "连续空行压成一个");
                 Chk("T108b-trim-end", FrameCapture.Core.OcrService.Normalize("  x  \n  y  ") == "  x\n  y", "去行尾空白留缩进");
@@ -1548,7 +1548,7 @@ static class SelfTest
                 Chk("T108f-crlf", FrameCapture.Core.OcrService.Normalize("a\r\nb\r\nc") == "a\nb\nc", "CRLF→LF");
             }
 
-            // T109 序号编号（R73，NumberBadge 纯决策）
+            // 序号编号（，NumberBadge 纯决策）
             {
                 Chk("T109a-first", FrameCapture.Core.NumberBadge.Next(new string[0]) == 1, "无 → 1");
                 Chk("T109b-seq", FrameCapture.Core.NumberBadge.Next(new[] { "1", "2", "3" }) == 4, "1,2,3 → 4");
@@ -1560,7 +1560,7 @@ static class SelfTest
                 Chk("T109h-darkcircle", !FrameCapture.Core.NumberBadge.NumberOnLightCircle(0xE8, 0x11, 0x23) && !FrameCapture.Core.NumberBadge.NumberOnLightCircle(0, 0, 0), "红#E81123/黑圆圈→白编号");
             }
 
-            // T110 贴图磁边（R74，PinSnap 纯决策）
+            // 贴图磁边（，PinSnap 纯决策）
             {
                 var s1 = FrameCapture.Core.PinSnap.Snap(5, 500, 200, 100, 0, 0, 1920, 1080, 12);
                 Chk("T110a-left", s1.Left == 0 && s1.Top == 500, "左边距 5<阈值 → 吸左");
@@ -1577,14 +1577,14 @@ static class SelfTest
                     && FrameCapture.Core.PinSnap.Threshold(300, 300) == 24, "阈值=短边8%夹16–40（R161 参考线扩到所有窗口后调低，贴边才吸不乱跳）");
             }
 
-            // T111 OCR 反馈文案（R75，编辑器/贴图共用措辞）
+            // OCR 反馈文案（，编辑器/贴图共用措辞）
             {
                 Chk("T111a-success", FrameCapture.Core.OcrService.Feedback(FrameCapture.Core.OcrStatus.Success, 42) == "已识别 42 字 · 已复制", "成功带字数");
                 Chk("T111b-noengine", FrameCapture.Core.OcrService.Feedback(FrameCapture.Core.OcrStatus.NoEngine, 0).Contains("语言包"), "无引擎→装语言包指引");
                 Chk("T111c-empty", FrameCapture.Core.OcrService.Feedback(FrameCapture.Core.OcrStatus.Empty, 0) == "未识别到文字", "空→未识别");
             }
 
-            // T112 标注改样式副本（R76，WithStyle 纯函数）
+            // 标注改样式副本（，WithStyle 纯函数）
             {
                 var red = System.Drawing.Color.FromArgb(255, 0xE7, 0x48, 0x4C);
                 var blue = System.Drawing.Color.FromArgb(255, 0, 0, 255);
@@ -1599,7 +1599,7 @@ static class SelfTest
                 Chk("T112d-keep", c1.Points[0].X == 0.1f && c1.Points[1].Y == 0.6f && c1.Text == "hi" && b0.Points.Count == 2, "点集/文字保留且原对象不变");
             }
 
-            // T113 贴图对齐参考线（R77，SnapToLines 纯决策）
+            // 贴图对齐参考线（，SnapToLines 纯决策）
             {
                 var e = Array.Empty<double>();
                 // 左边贴屏幕边（xEdge 接受 left 锚点）
@@ -1608,7 +1608,7 @@ static class SelfTest
                 // 右边贴屏幕边（xEdge 接受 right 锚点）
                 var a2 = FrameCapture.Core.PinSnap.SnapToLines(105, 500, 200, 100, new[] { 300.0 }, e, e, e, 12);
                 Chk("T113b-edge-right", a2.Left == 100, "right(305) 距屏幕边 300 差 5 → 右对齐到 300");
-                // R162：中线锚点已移除——只有边贴边，中心/中线不再吸附任何线
+                // 中线锚点已移除——只有边贴边，中心/中线不再吸附任何线
                 var a3 = FrameCapture.Core.PinSnap.SnapToLines(105, 500, 200, 100, e, new[] { 200.0 }, e, e, 12);
                 Chk("T113c-no-center", a3.Left == 105, "center(205) 距线 200 差 5 也不再吸（R162 只认边）");
                 // 关键：屏幕边不接受 center 锚点（否则半张图出屏）
@@ -1617,7 +1617,7 @@ static class SelfTest
                 // 超阈值不动
                 var a5 = FrameCapture.Core.PinSnap.SnapToLines(105, 500, 200, 100, new[] { 50.0 }, e, e, e, 12);
                 Chk("T113e-far", a5.Left == 105 && a5.Top == 500, "参考线超阈值 → 不动");
-                // y 轴中线同样不再吸附（R162）
+                // y 轴中线同样不再吸附
                 var a6 = FrameCapture.Core.PinSnap.SnapToLines(500, 305, 200, 100, e, e, e, new[] { 350.0 }, 12);
                 Chk("T113f-no-middle", a6.Top == 305, "middle(355) 距线 350 差 5 也不再吸（R162 只认边）");
                 // 空参考线 → 原样
@@ -1628,7 +1628,7 @@ static class SelfTest
                 Chk("T113h-axes", a8.Left == 102 && a8.Top == 505, "x 取最近(right→302 差3)，y 超阈值不动");
             }
 
-            // T163 拖动实时磁吸（R163，Slick Window Arrangement 手感：重叠才吸 + 同类边对同类边）
+            // 拖动实时磁吸（，Slick Window Arrangement 手感：重叠才吸 + 同类边对同类边）
             {
                 var en = Array.Empty<FrameCapture.Core.PinSnap.Edge>();
                 // 贴图 left=105 right=305 top=500 bottom=600，阈值 12
@@ -1655,7 +1655,7 @@ static class SelfTest
                 Chk("T163g-tangent", m7 == 105, "跨度仅相切(600==600)不算重叠 → 不吸");
             }
 
-            // T164 磁吸遮挡裁剪（R164，只吸"看得见的边"：被更靠上窗口盖住的边段剔除）
+            // 磁吸遮挡裁剪（，只吸"看得见的边"：被更靠上窗口盖住的边段剔除）
             {
                 var vs = FrameCapture.Core.PinSnap.VisibleSegments;
                 var a1 = vs(100, 200, Array.Empty<(double, double)>());
@@ -1674,7 +1674,7 @@ static class SelfTest
                 Chk("T164g-degenerate", a7.Count == 0, "lo>=hi 退化区间 → 空");
             }
 
-            // T165 编辑器浏览态标注仍显示（R164：取消选中所有工具后编辑不再凭空消失）
+            // 编辑器浏览态标注仍显示（取消选中所有工具后编辑不再凭空消失）
             try
             {
                 var settings = new FrameCapture.Core.SettingsService();
@@ -1713,7 +1713,7 @@ static class SelfTest
             }
             catch (Exception e) { Chk("T165-editor-browse-ann", false, e.ToString()); }
 
-            // T114 最近静态截图保留（R78，LastStill 状态持有）
+            // 最近静态截图保留（，LastStill 状态持有）
             {
                 var ls = new FrameCapture.Capture.LastStill();
                 Chk("T114a-empty", ls.Empty && !ls.TryGet(out _, out _, out _), "初始为空 → TryGet false");
@@ -1729,7 +1729,7 @@ static class SelfTest
                 Chk("T114d-clear", ls.Empty && !ls.TryGet(out _, out _, out _), "Clear 后回到空");
             }
 
-            // T115 贴图旋转（R79，PinRotate 纯函数）
+            // 贴图旋转（，PinRotate 纯函数）
             {
                 static FrameCapture.Capture.CapturedFrame Mk(int w, int h)
                 {
@@ -1754,7 +1754,7 @@ static class SelfTest
                     && Same(FrameCapture.Core.PinRotate.Rotate(orig, 5), FrameCapture.Core.PinRotate.Rotate(orig, 1))
                     && Same(FrameCapture.Core.PinRotate.Rotate(orig, -1), FrameCapture.Core.PinRotate.Rotate(orig, 3)), "steps=0 同实例；5≡1、-1≡3");
             }
-            // T116 截图后行为解析（R83，AfterCapture 纯函数）
+            // 截图后行为解析（，AfterCapture 纯函数）
             {
                 Chk("T116a-editor", FrameCapture.Core.AfterCapture.Resolve("editor") == FrameCapture.Core.AfterCaptureAction.Editor, "editor→Editor");
                 Chk("T116b-copy", FrameCapture.Core.AfterCapture.Resolve("copy") == FrameCapture.Core.AfterCaptureAction.Copy, "copy→Copy");
@@ -1765,7 +1765,7 @@ static class SelfTest
                     && FrameCapture.Core.AfterCapture.Resolve("garbage") == FrameCapture.Core.AfterCaptureAction.Toast, "null/空/大小写/脏值→回落 Toast");
                 Chk("T116e-pin", FrameCapture.Core.AfterCapture.Resolve("pin") == FrameCapture.Core.AfterCaptureAction.Pin, "R117 pin→Pin");
             }
-            // T117 荧光笔半透明烘焙（R85）：盖在白底上应透出白（半透明），而非不透明纯色
+            // 荧光笔半透明烘焙：盖在白底上应透出白（半透明），而非不透明纯色
             {
                 var hl = new Annotation { Kind = AnnKind.Highlight, Color = Color.FromArgb(255, 255, 0, 0), Thickness = 300 };
                 hl.Points.Add((0.2f, 0.5f)); hl.Points.Add((0.5f, 0.5f)); hl.Points.Add((0.8f, 0.5f));
@@ -1781,7 +1781,7 @@ static class SelfTest
                 Chk("T117b-pen-opaque-contrast", penF.Bgra[pon] < 60 && penF.Bgra[pon + 1] < 60,
                     $"对照不透明手绘 B/G 应低 rgba={penF.Bgra[pon]},{penF.Bgra[pon + 1]},{penF.Bgra[pon + 2]}");
             }
-            // T118 截图提示音合成（R86，CaptureSound 纯函数）：WAV 头合法 + 时长 + 峰值安全 + 有声音且衰减
+            // 截图提示音合成（，CaptureSound 纯函数）：WAV 头合法 + 时长 + 峰值安全 + 有声音且衰减
             {
                 var s = FrameCapture.Core.CaptureSound.Samples();
                 var wav = FrameCapture.Core.CaptureSound.MakeWav(s);
@@ -1801,7 +1801,7 @@ static class SelfTest
                 short last = BitConverter.ToInt16(wav, wav.Length - 2);
                 Chk("T118d-decays", Math.Abs((int)last) / 32767.0 < 0.02 && peak != 0, $"末样本 {Math.Abs((int)last) / 32767.0:F4} 峰值 {pf:F3}");
             }
-            // T119 滚动截图拼接算法（R87，ScrollStitch 纯函数）：找重叠 + 拼接 + 无重叠 + 抗噪
+            // 滚动截图拼接算法（，ScrollStitch 纯函数）：找重叠 + 拼接 + 无重叠 + 抗噪
             {
                 static byte Gray(int row)   // 雪崩整数哈希：相邻/任意偏移行输出都近似独立，杜绝线性假重叠
                 {
@@ -1849,8 +1849,8 @@ static class SelfTest
                 }
                 int ovN = FrameCapture.Core.ScrollStitch.FindOverlap(acc, W, 100, bNoise, 100);
                 Chk("T119d-noise-tolerant", ovN == 40, $"抗噪重叠应 40，实得 {ovN}");
-                // T119e：重叠区含个别离群行（平滑滚动重采样/闪烁光标行），旧「运行均值」早退会误杀返回 0，
-                // 新版抽样多数匹配应仍判 40（R119 修「滚动太快」误报的回归护栏）
+                // 重叠区含个别离群行（平滑滚动重采样/闪烁光标行），旧「运行均值」早退会误杀返回 0，
+                // 新版抽样多数匹配应仍判 40（修「滚动太快」误报的回归护栏）
                 var bOutlier = (byte[])bOv.Clone();
                 for (int rr = 0; rr < 2; rr++)   // 把 b 顶部两行（重叠区首两行）改成完全不同的灰度
                 {
@@ -1859,8 +1859,8 @@ static class SelfTest
                 }
                 int ovO = FrameCapture.Core.ScrollStitch.FindOverlap(acc, W, 100, bOutlier, 100);
                 Chk("T119e-outlier-tolerant", ovO == 40, $"含离群行的重叠应仍判 40，实得 {ovO}");
-                // T119f：±1px 垂直抖动（平滑/分数滚动取整，奇数行整体下移 1px）。旧「只比对应行」→ 半数行差超阈
-                // → 误判 0 → 拼接出现重复内容带「重叠」；新版容差趟应仍判 40（R120 修「重叠」回归护栏）
+                // ±1px 垂直抖动（平滑/分数滚动取整，奇数行整体下移 1px）。旧「只比对应行」→ 半数行差超阈
+                // → 误判 0 → 拼接出现重复内容带「重叠」；新版容差趟应仍判 40（修「重叠」回归护栏）
                 var bJit = new byte[100 * W * 4];
                 for (int r = 0; r < 100; r++)
                 {
@@ -1871,7 +1871,7 @@ static class SelfTest
                 Chk("T119f-jitter-tolerant", ovJ == 40, $"±1px 抖动的重叠应判 40，实得 {ovJ}");
             }
 
-            // T120 取色复制格式（R89，ColorFormat 纯函数）：HEX/RGB/HSL 文本 + 分量夹取 + 设置串解析往返
+            // 取色复制格式（，ColorFormat 纯函数）：HEX/RGB/HSL 文本 + 分量夹取 + 设置串解析往返
             {
                 var Hex = FrameCapture.Core.ColorCopyFormat.Hex;
                 var Rgb = FrameCapture.Core.ColorCopyFormat.Rgb;
@@ -1887,7 +1887,7 @@ static class SelfTest
                     && FrameCapture.Core.ColorFormat.Parse("garbage") == Hex && FrameCapture.Core.ColorFormat.Parse(null) == Hex, "解析含大小写/未知回退 Hex");
                 Chk("T120h-tosetting", FrameCapture.Core.ColorFormat.ToSetting(Hsl) == "hsl" && FrameCapture.Core.ColorFormat.ToSetting(Hex) == "hex", "枚举↔设置串往返");
             }
-            // T121 剪贴板图片建帧（R92，BgraImage.FromSource）：ToSource↔FromSource 往返无损 + 非 Bgra32 转换 + 空值
+            // 剪贴板图片建帧（，BgraImage.FromSource）：ToSource↔FromSource 往返无损 + 非 Bgra32 转换 + 空值
             {
                 var f0 = new FrameCapture.Capture.CapturedFrame
                 {
@@ -1906,9 +1906,9 @@ static class SelfTest
                     conv == null ? "null" : $"BGR→BGRA {conv.Bgra[0]},{conv.Bgra[1]},{conv.Bgra[2]},{conv.Bgra[3]}");
                 Chk("T121c-null", FrameCapture.Services.BgraImage.FromSource(null) == null, "null → null");
             }
-            // T122 暂停全局热键决策随旧 HookDecision 决策表退役（R126 B2）：暂停语义现由 HotkeyManager
+            // 暂停全局热键决策随旧 HookDecision 决策表退役：暂停语义现由 HotkeyManager
             // 「Paused 时不喂 KeySink」实现（见 HotkeyManager.HandleKey），属宿主接线，无独立纯逻辑可测。
-            // T123 适配倍率封顶（R97，ZoomMath.FitScale）：小图不放大（默认 1:1 清晰），大图仍缩小适配
+            // 适配倍率封顶（，ZoomMath.FitScale）：小图不放大（默认 1:1 清晰），大图仍缩小适配
             {
                 Chk("T123a-small-no-upscale", Math.Abs(ZoomMath.FitScale(900, 700, 320, 220) - 1.0) < 1e-9,
                     "图小于视口 → 1.0（不放大变糊）");
@@ -1919,7 +1919,7 @@ static class SelfTest
                 Chk("T123d-onetoone-small", Math.Abs(ZoomMath.OneToOneZoom(ZoomMath.FitScale(900, 700, 320, 220)) - 1.0) < 1e-9,
                     "小图 1:1 键 → _zoom=1.0（默认即 1:1）");
             }
-            // T124 矩形标注烘焙（R98）：空心框——边着色、内部与外部保持原色（区别于填充矩形）
+            // 矩形标注烘焙：空心框——边着色、内部与外部保持原色（区别于填充矩形）
             {
                 var rf = Solid(100, 100, 0, 0, 0);
                 var ra = new Annotation { Kind = AnnKind.Rect, Color = Color.FromArgb(255, 255, 255, 0), Thickness = 150 };
@@ -1931,7 +1931,7 @@ static class SelfTest
                 Chk("T124b-rect-hollow", Black(50, 50), "内部保持原色（空心不填充）");
                 Chk("T124c-rect-outside", Black(5, 5), "框外保持原色");
             }
-            // T125 Shift 约束几何（R99，ShapeConstraint）：正方/正圆 与 45° 吸附
+            // Shift 约束几何（，ShapeConstraint）：正方/正圆 与 45° 吸附
             {
                 var sq = ShapeConstraint.Square(0, 0, 100, 60);
                 Chk("T125a-square-min", Math.Abs(sq.X - 60) < 1e-9 && Math.Abs(sq.Y - 60) < 1e-9, "取较小边作正方边长");
@@ -1946,7 +1946,7 @@ static class SelfTest
                 var a0 = ShapeConstraint.Angle45(0, 0, 0, 0);
                 Chk("T125f-angle-zero", a0.X == 0 && a0.Y == 0, "零长度不崩（原样返回）");
             }
-            // T126 高刷节流 + 刷新率检测（R100）：无 16ms 地板 + 逐帧时间判定 + EnumDisplaySettings
+            // 高刷节流 + 刷新率检测：无 16ms 地板 + 逐帧时间判定 + EnumDisplaySettings
             {
                 Chk("T126a-interval-60", Math.Abs(FpsThrottle.IntervalMs(60) - 1000.0 / 60) < 1e-9,
                     "60fps 间隔 ≈16.67ms（不再被 16ms 地板截断）");
@@ -1961,7 +1961,7 @@ static class SelfTest
                 Chk("T126h-refresh-real", hz > 0, $"本机主屏刷新率检测 → {hz}Hz");
             }
 
-            // T127 视频编码（R101，VideoEncoder/FfmpegLocator）：定位 + 命令行拼装 + 帧率推算 + 真实 ffmpeg 编码
+            // 视频编码（，VideoEncoder/FfmpegLocator）：定位 + 命令行拼装 + 帧率推算 + 真实 ffmpeg 编码
             {
                 string? ff = FfmpegLocator.Find();
                 Chk("T127a-ffmpeg-find", ff == null || File.Exists(ff), ff ?? "未找到 ffmpeg（PATH/常见目录，将回退 GIF）");
@@ -2023,7 +2023,7 @@ static class SelfTest
                 }
             }
         }
-        // T129 内存回收助手（R120 A1）：录制/编辑大位图关闭后主动全代 GC + 裁工作集，等价用户手动 MemReduct
+        // 内存回收助手：录制/编辑大位图关闭后主动全代 GC + 裁工作集，等价用户手动 MemReduct
         {
             bool ok = true;
             try
@@ -2036,7 +2036,7 @@ static class SelfTest
             catch { ok = false; }
             Chk("T129a-reclaim-no-throw", ok, "Memory.Reclaim() 全代 GC + 裁工作集不抛");
         }
-        // T130 GestureCore 引擎（R120 B1，netstandard2.0 可复用库）：按住/单击/双击消歧/长按/失败策略/修饰键/三击/优先级
+        // GestureCore 引擎（B1，netstandard2.0 可复用库）：按住/单击/双击消歧/长按/失败策略/修饰键/三击/优先级
         {
             var M = new GestureProbe();
             var eng = new GE.GestureEngine(M);
@@ -2046,7 +2046,7 @@ static class SelfTest
                      Actions = new List<string>(acts), Fallback = fb, Priority = prio, DoubleClickMs = dbl, LongPressMs = lp };
             const int F6 = 0x75, A = 0x41, CTRL = 0x11, ALT = 0x12;
 
-            // T130a 按住做 A、松手做 B（KeyDown/KeyUp 配对）
+            // 按住做 A、松手做 B（KeyDown/KeyUp 配对）
             eng.SetBindings(new[] {
                 B("s", GE.ModifierKeys.None, F6, GE.TriggerKind.KeyDown, new[] { "StartRec" }),
                 B("t", GE.ModifierKeys.None, F6, GE.TriggerKind.KeyUp, new[] { "StopRec" }) });
@@ -2054,7 +2054,7 @@ static class SelfTest
             eng.OnKeyUp(F6, GE.ModifierKeys.None, 500);
             Chk("T130a-hold-pattern", M.Log.SequenceEqual(new[] { "StartRec", "StopRec" }), "F6 按下→StartRec、抬起→StopRec，实得 " + string.Join(",", M.Log));
 
-            // T130b 组合键激活 + 单击（仅绑 Click → 零延迟立即触发）
+            // 组合键激活 + 单击（仅绑 Click → 零延迟立即触发）
             M.Log.Clear();
             eng.SetBindings(new[] { B("c", GE.ModifierKeys.None, F6, GE.TriggerKind.Click, new[] { "Capture" }) });
             eng.OnKeyDown(F6, GE.ModifierKeys.None, 0);
@@ -2062,7 +2062,7 @@ static class SelfTest
             eng.OnMouseUp(0, GE.ModifierKeys.None, 30);
             Chk("T130b-click-held", M.Log.SequenceEqual(new[] { "Capture" }), "F6 按住单击→Capture（无更高阶绑定，立即触发）");
 
-            // T130c Click 与 DoubleClick 并存：单击等满间隔才触发 Click；双击立即触发 DoubleClick
+            // Click 与 DoubleClick 并存：单击等满间隔才触发 Click；双击立即触发 DoubleClick
             M.Log.Clear();
             eng.SetBindings(new[] {
                 B("one", GE.ModifierKeys.None, F6, GE.TriggerKind.Click, new[] { "One" }),
@@ -2078,7 +2078,7 @@ static class SelfTest
             eng.OnMouseDown(0, GE.ModifierKeys.None, 1100); eng.OnMouseUp(0, GE.ModifierKeys.None, 1110);
             Chk("T130c-double-immediate", M.Log.SequenceEqual(new[] { "Two" }), "两次连击达最高阶→立即 DoubleClick→Two");
 
-            // T130d 长按：保持 ≥LongPressMs 触发 LongPress 并吞掉随后的抬起（不再计单击）
+            // 长按：保持 ≥LongPressMs 触发 LongPress 并吞掉随后的抬起（不再计单击）
             M.Log.Clear();
             eng.SetBindings(new[] {
                 B("tap", GE.ModifierKeys.None, F6, GE.TriggerKind.Click, new[] { "Tap" }),
@@ -2091,7 +2091,7 @@ static class SelfTest
             eng.OnMouseUp(0, GE.ModifierKeys.None, 700);
             Chk("T130d-longpress", notYet && M.Log.SequenceEqual(new[] { "Hold" }), "按住满 500ms→LongPress→Hold，抬起不再触发 Tap");
 
-            // T130e NextBinding：首条动作失败 → 顺延下一条绑定
+            // NextBinding：首条动作失败 → 顺延下一条绑定
             M.Log.Clear(); M.Fail = new HashSet<string> { "Fail1" };
             eng.SetBindings(new[] {
                 B("b1", GE.ModifierKeys.None, F6, GE.TriggerKind.Click, new[] { "Fail1", "After" }, GE.FallbackPolicy.NextBinding, prio: 0),
@@ -2101,7 +2101,7 @@ static class SelfTest
             Chk("T130e-next-binding", M.Log.SequenceEqual(new[] { "Fail1", "Second" }), "b1 首步失败→NextBinding→b2 执行 Second（After 不跑）");
             M.Fail.Clear();
 
-            // T130f SkipStep：失败步跳过、继续本条后续动作
+            // SkipStep：失败步跳过、继续本条后续动作
             M.Log.Clear(); M.Fail = new HashSet<string> { "Fail1" };
             eng.SetBindings(new[] { B("b1", GE.ModifierKeys.None, F6, GE.TriggerKind.Click, new[] { "Fail1", "After" }, GE.FallbackPolicy.SkipStep) });
             eng.OnKeyDown(F6, GE.ModifierKeys.None, 0);
@@ -2109,7 +2109,7 @@ static class SelfTest
             Chk("T130f-skip-step", M.Log.SequenceEqual(new[] { "Fail1", "After" }), "SkipStep：Fail1 失败被跳过、After 继续");
             M.Fail.Clear();
 
-            // T130g Stop：失败即中止、不顺延
+            // Stop：失败即中止、不顺延
             M.Log.Clear(); M.Fail = new HashSet<string> { "Fail1" };
             eng.SetBindings(new[] {
                 B("b1", GE.ModifierKeys.None, F6, GE.TriggerKind.Click, new[] { "Fail1", "After" }, GE.FallbackPolicy.Stop, prio: 0),
@@ -2118,7 +2118,7 @@ static class SelfTest
             eng.OnMouseDown(0, GE.ModifierKeys.None, 10); eng.OnMouseUp(0, GE.ModifierKeys.None, 20);
             Chk("T130g-stop", M.Log.SequenceEqual(new[] { "Fail1" }), "Stop：Fail1 失败即中止，After/Second 均不跑");
 
-            // T130h 修饰键组合 Ctrl+Alt+A + 单击
+            // 修饰键组合 Ctrl+Alt+A + 单击
             M.Log.Clear();
             eng.SetBindings(new[] { B("pick", GE.ModifierKeys.Control | GE.ModifierKeys.Alt, A, GE.TriggerKind.Click, new[] { "Pick" }) });
             eng.OnKeyDown(CTRL, GE.ModifierKeys.Control, 0);
@@ -2127,7 +2127,7 @@ static class SelfTest
             eng.OnMouseDown(0, GE.ModifierKeys.Control | GE.ModifierKeys.Alt, 10); eng.OnMouseUp(0, GE.ModifierKeys.Control | GE.ModifierKeys.Alt, 20);
             Chk("T130h-mods-chord", M.Log.SequenceEqual(new[] { "Pick" }), "Ctrl+Alt+A 激活 + 单击→Pick");
 
-            // T130i 三击
+            // 三击
             M.Log.Clear();
             eng.SetBindings(new[] {
                 B("one", GE.ModifierKeys.None, F6, GE.TriggerKind.Click, new[] { "One" }),
@@ -2138,7 +2138,7 @@ static class SelfTest
             eng.OnMouseDown(0, GE.ModifierKeys.None, 210); eng.OnMouseUp(0, GE.ModifierKeys.None, 220);
             Chk("T130i-triple", M.Log.SequenceEqual(new[] { "Three" }), "三击达最高阶→TripleClick→Three");
 
-            // T130j 优先级：同触发多条，小优先级先跑且成功即止
+            // 优先级：同触发多条，小优先级先跑且成功即止
             M.Log.Clear();
             eng.SetBindings(new[] {
                 B("low", GE.ModifierKeys.None, F6, GE.TriggerKind.Click, new[] { "B" }, prio: 1),
@@ -2147,7 +2147,7 @@ static class SelfTest
             eng.OnMouseDown(0, GE.ModifierKeys.None, 10); eng.OnMouseUp(0, GE.ModifierKeys.None, 20);
             Chk("T130j-priority", M.Log.SequenceEqual(new[] { "A" }), "优先级 0 的绑定先跑且成功即止→A");
         }
-        // T131 GestureConfig 配置层（R120 B2）：DTO 转换 / 非法跳过 / 默认与预设 / JSON 往返 / 动作过滤
+        // GestureConfig 配置层：DTO 转换 / 非法跳过 / 默认与预设 / JSON 往返 / 动作过滤
         {
             var d = new GestureBindingDto { Id = "x", Chord = "Ctrl+Shift+G", Trigger = "Chord", Actions = new[] { GestureActions.CaptureFrame } };
             var b = d.ToBinding();
@@ -2186,7 +2186,7 @@ static class SelfTest
             Chk("T131g-from-binding-chord", rt.Chord == "Ctrl+Alt+A" && rt.Trigger == "Click",
                 "引擎绑定回推组合键串 Ctrl+Alt+A，实得 " + rt.Chord);
         }
-        // T132 ToastSeconds 归一化（R120 C）：默认 3.2、0=常驻保留、负→0、超界夹取、过小→0.5
+        // ToastSeconds 归一化（C）：默认 3.2、0=常驻保留、负→0、超界夹取、过小→0.5
         {
             Chk("T132a-toast-default", new AppSettings().ToastSeconds == 3.2, "默认 3.2 秒");
             var s0 = new AppSettings { ToastSeconds = 0 }; s0.Normalize();
@@ -2196,9 +2196,9 @@ static class SelfTest
             Chk("T132b-toast-normalize", s0.ToastSeconds == 0 && sneg.ToastSeconds == 0 && sbig.ToastSeconds == 60 && Math.Abs(stiny.ToastSeconds - 0.5) < 1e-9,
                 $"0 保留(常驻)、负→0、100→60、0.3→0.5，实得 {s0.ToastSeconds}/{sneg.ToastSeconds}/{sbig.ToastSeconds}/{stiny.ToastSeconds}");
         }
-        // T133 OCR 预览优先默认（R120 D2）：结果窗默认开（预览即选取入口，不自动复制）
+        // OCR 预览优先默认：结果窗默认开（预览即选取入口，不自动复制）
         Chk("T133-ocr-preview-default", new AppSettings().OcrShowResult, "识别结果窗默认开（预览优先）");
-        // T134 键盘钩子仅在「有手势 KeySink」时安装（R120 B2 修复，R126 B2 改无参 Install）：
+        // 键盘钩子仅在「有手势 KeySink」时安装（B2 修复，B2 改无参 Install）：
         // 手势层是默认触发路径，钩子把键喂给 KeySink；滚动截图 Esc 取消、浮窗 Enter/Esc 也依赖此钩子。
         // 无 KeySink（手势关闭）时不装钩子，零开销。
         {
@@ -2213,7 +2213,7 @@ static class SelfTest
             Chk("T134a-hook-for-keysink", sinkInstalled, "有手势 KeySink 时装钩子（否则手势永不触发）");
             Chk("T134b-no-hook-when-idle", !idleNotInstalled, "无 KeySink 时不装钩子（零开销）");
         }
-        // T135 QQ 风味选区动作（R120 B2）：capture.selection / record.selection 注册 + Ctrl+Alt+A/R 解析成 Chord
+        // QQ 风味选区动作：capture.selection / record.selection 注册 + Ctrl+Alt+A/R 解析成 Chord
         {
             Chk("T135a-actions-registered",
                 GestureActions.IsValid("capture.selection") && GestureActions.IsValid("record.selection"),
@@ -2231,7 +2231,7 @@ static class SelfTest
                 b2 != null && b2.Chord.Key == 0x52 && b2.Trigger == GE.TriggerKind.Chord && b2.Actions[0] == "record.selection",
                 "Ctrl+Alt+R → Chord → record.selection 解析正确");
         }
-        // T136 录制同键起停 + 即时截图动作（R120 B2 用户实测修正）
+        // 录制同键起停 + 即时截图动作（B2 用户实测修正）
         {
             Chk("T136a-record-toggle-registered", GestureActions.IsValid("record.toggle"), "record.toggle 动作已注册");
             Chk("T136b-capture-frame-still-valid", GestureActions.IsValid("capture.frame"), "capture.frame 仍在（改为即时抓取，名不变）");
@@ -2241,7 +2241,7 @@ static class SelfTest
                 b != null && b.Chord.Key == 0x52 && b.Trigger == GE.TriggerKind.Chord && b.Actions[0] == "record.toggle",
                 "Ctrl+Alt+R → record.toggle 解析正确（同键起停）");
         }
-        // T137 独占吞键（R120 B2）：引擎回报「带具体键的组合键命中」→ 宿主吞键；纯修饰键组合/未命中键不吞
+        // 独占吞键：引擎回报「带具体键的组合键命中」→ 宿主吞键；纯修饰键组合/未命中键不吞
         {
             var M = new GestureProbe();
             var eng = new GE.GestureEngine(M);
@@ -2272,7 +2272,7 @@ static class SelfTest
             bool swF6 = eng.OnKeyDown(F6, GE.ModifierKeys.None, 0);
             Chk("T137d-unbound-key-no-swallow", !swF6, "未绑定的键（F6）不吞");
         }
-        // T138 手势配置器模型/校验（R122 方案 C）：GestureEditor 库的纯逻辑，宿主无关，可脱离 UI 单测
+        // 手势配置器模型/校验（方案 C）：GestureEditor 库的纯逻辑，宿主无关，可脱离 UI 单测
         {
             var cat = new TestCatalog();
             var nm = new TestNamer();
@@ -2301,7 +2301,7 @@ static class SelfTest
             var p5 = GEdit.GestureValidation.Validate(badTime, cat, nm);
             Chk("T138f-timing-warn-not-error", p5.Count > 0 && !GEdit.GestureValidation.HasErrors(p5), "时间越界仅提示、非 error");
         }
-        // T139 编辑器控件配色模板可套可 measure（R122/R124）：XamlReader 现拼的 ComboBox/ListBox 模板在 measure 套模板时才解析，
+        // 编辑器控件配色模板可套可 measure（/）：XamlReader 现拼的 ComboBox/ListBox 模板在 measure 套模板时才解析，
         // 编译与 XamlReader.Parse 都不报（SelectionBoxItem 嵌套模板坑）——这里真正 Measure 兜底。
         {
             var pal = new GEdit.EditorPalette();
@@ -2326,13 +2326,13 @@ static class SelfTest
             Chk("T139a-combo-template-measures", comboErr == null, "ComboBox 配色模板可套可 measure（深色下拉可读）" + (comboErr != null ? " 异常:" + comboErr : ""));
             Chk("T139b-list-item-style-measures", listErr == null, "ListBox 条目样式可套可 measure" + (listErr != null ? " 异常:" + listErr : ""));
         }
-        // T140 文字字号映射（C3）：线宽挡位→帧像素字号，单调递增，锚定 细3/中6/粗10 = 22/34/50px @1080p
+        // 文字字号映射（C3）：线宽挡位→帧像素字号，单调递增，锚定 细3/中6/粗10 = 22/34/50px @1080p
         {
             double f3 = FrameCapture.Core.AnnFont.FramePx(3), f6 = FrameCapture.Core.AnnFont.FramePx(6), f10 = FrameCapture.Core.AnnFont.FramePx(10);
             Chk("T140a-font-anchor-values", Math.Abs(f3 - 22) < 1e-3 && Math.Abs(f6 - 34) < 1e-3 && Math.Abs(f10 - 50) < 1e-3, $"字号锚定 细{f3}/中{f6}/粗{f10} = 22/34/50");
             Chk("T140b-font-monotonic", f3 < f6 && f6 < f10 && FrameCapture.Core.AnnFont.FramePx(24) > f10, "字号随线宽单调递增（A+ 变大）");
         }
-        // T141 启用/禁用（A1）：禁用绑定不校验、不进引擎
+        // 启用/禁用（A1）：禁用绑定不校验、不进引擎
         {
             var cat = new TestCatalog(); var nm = new TestNamer();
             var offDoc = new GEdit.GestureDoc { Bindings = { new GEdit.BindingEdit { Id = "off", Enabled = false, Mods = GE.ModifierKeys.None, Key = 0, Actions = new List<string>() } } };
@@ -2343,7 +2343,7 @@ static class SelfTest
             var bs = cfg.ToBindings();
             Chk("T141b-disabled-excluded-from-engine", bs.Count == 1 && bs[0].Id == "on", "禁用绑定不进引擎、启用保留");
         }
-        // T142 动作目录拆分/改名（A2）：选区/开始/停止/同键起停 齐全 + 即时截图语义=全屏
+        // 动作目录拆分/改名（A2）：选区/开始/停止/同键起停 齐全 + 即时截图语义=全屏
         {
             bool split = FrameCapture.Core.GestureActions.IsValid("scope.select")
                 && FrameCapture.Core.GestureActions.IsValid("record.start")
@@ -2353,7 +2353,7 @@ static class SelfTest
             var cf = FrameCapture.Core.GestureActions.All.First(a => a.Name == "capture.frame");
             Chk("T142b-instant-is-fullscreen", cf.Label.Contains("全屏"), $"即时截图改名含「全屏」：{cf.Label}");
         }
-        // T143 完成后序列（A3）：主序列成功后跑 OnComplete；主序列失败则不跑
+        // 完成后序列（A3）：主序列成功后跑 OnComplete；主序列失败则不跑
         {
             var M = new GestureProbe();
             var eng = new GE.GestureEngine(M);
@@ -2369,7 +2369,7 @@ static class SelfTest
             eng.OnMouseDown(0, GE.ModifierKeys.None, 10); eng.OnMouseUp(0, GE.ModifierKeys.None, 20);
             Chk("T143b-oncomplete-skipped-on-fail", !M.Log.Contains("Pin"), "主动作失败则完成后序列不跑，实得 " + string.Join(",", M.Log));
         }
-        // T144 录制动作去默认行为（R124）：停止/同键起停不再自动开编辑器；开编辑器是独立动作、配在完成后序列
+        // 录制动作去默认行为：停止/同键起停不再自动开编辑器；开编辑器是独立动作、配在完成后序列
         {
             Chk("T144a-edit-lastvideo-exists", FrameCapture.Core.GestureActions.IsValid("edit.lastvideo"),
                 "新增『打开编辑器（上次录制）』动作");
@@ -2383,7 +2383,7 @@ static class SelfTest
             Chk("T144d-edit-lastvideo-guides-oncomplete", lv.Description.Contains("完成后序列"),
                 $"打开编辑器动作文案引导配到完成后序列：{lv.Description}");
         }
-        // T145 裁剪视图居中（R125）：非居中裁剪后，裁剪子区中心必落在视口中心+pan。
+        // 裁剪视图居中：非居中裁剪后，裁剪子区中心必落在视口中心+pan。
         // 旧公式用 s 而非整帧显示宽 w 定位裁剪中心，非居中裁剪会把画面甩出视口、中键拖不回。
         {
             void CropCenter(double vw, double vh, double fw, double fh, double cx0, double cy0, double cw0, double ch0, double s, double panX, double panY, string tag)
@@ -2399,7 +2399,7 @@ static class SelfTest
             var (_, _, ww, hh) = ZoomMath.CropViewRect(1000, 800, 1920, 1080, 0.2, 0.3, 0.4, 0.5, 0.5, 0, 0);
             Chk("T145d-fullframe-size", Math.Abs(ww - 960) < 1e-6 && Math.Abs(hh - 540) < 1e-6, $"整帧显示尺寸=帧×s：实得 {ww}x{hh}");
         }
-        // T146 键盘点按/按住时序（R126 B2）：同一捕获键 轻点→截图、按住→录制。
+        // 键盘点按/按住时序：同一捕获键 轻点→截图、按住→录制。
         // Tap=快速抬起(<阈值)，HoldRelease=长按抬起(≥阈值)，Hold=按住到阈值即触发（确认按住才开始）。
         {
             var M = new GestureProbe();
@@ -2409,20 +2409,20 @@ static class SelfTest
                      Actions = new List<string>(acts), LongPressMs = lp };
             const int F6 = 0x75;
 
-            // T146a 轻点（100ms<250）→ 只触发 Tap
+            // 轻点（100ms<250）→ 只触发 Tap
             eng.SetBindings(new[] { B("tap", GE.ModifierKeys.None, F6, GE.TriggerKind.Tap, new[] { "Shot" }) });
             eng.OnKeyDown(F6, GE.ModifierKeys.None, 0);
             eng.OnKeyUp(F6, GE.ModifierKeys.None, 100);
             Chk("T146a-tap-quick", M.Log.SequenceEqual(new[] { "Shot" }), "轻点 F6(100ms)→Tap→Shot，实得 " + string.Join(",", M.Log));
 
-            // T146b 长按抬起（400ms≥250）→ 只触发 HoldRelease
+            // 长按抬起（400ms≥250）→ 只触发 HoldRelease
             M.Log.Clear();
             eng.SetBindings(new[] { B("hr", GE.ModifierKeys.None, F6, GE.TriggerKind.HoldRelease, new[] { "Stop" }) });
             eng.OnKeyDown(F6, GE.ModifierKeys.None, 0);
             eng.OnKeyUp(F6, GE.ModifierKeys.None, 400);
             Chk("T146b-holdrelease-long", M.Log.SequenceEqual(new[] { "Stop" }), "长按 F6(400ms)抬起→HoldRelease→Stop，实得 " + string.Join(",", M.Log));
 
-            // T146c 零丢帧：KeyDown 起录 + Tap 丢弃 + HoldRelease 停止；轻点 → Start,Discard
+            // 零丢帧：KeyDown 起录 + Tap 丢弃 + HoldRelease 停止；轻点 → Start,Discard
             M.Log.Clear();
             eng.SetBindings(new[] {
                 B("kd", GE.ModifierKeys.None, F6, GE.TriggerKind.KeyDown, new[] { "Start" }),
@@ -2432,13 +2432,13 @@ static class SelfTest
             eng.OnKeyUp(F6, GE.ModifierKeys.None, 100);
             Chk("T146c-zeroloss-tap", M.Log.SequenceEqual(new[] { "Start", "Discard" }), "零丢帧轻点→按下起录+抬起丢弃截图，实得 " + string.Join(",", M.Log));
 
-            // T146d 零丢帧：长按 → Start,Stop（保留录制）
+            // 零丢帧：长按 → Start,Stop（保留录制）
             M.Log.Clear();
             eng.OnKeyDown(F6, GE.ModifierKeys.None, 0);
             eng.OnKeyUp(F6, GE.ModifierKeys.None, 400);
             Chk("T146d-zeroloss-hold", M.Log.SequenceEqual(new[] { "Start", "Stop" }), "零丢帧长按→按下起录+抬起停止保留，实得 " + string.Join(",", M.Log));
 
-            // T146e 非零丢帧：Hold 到阈值才起录，抬起停止；249ms 未起录
+            // 非零丢帧：Hold 到阈值才起录，抬起停止；249ms 未起录
             M.Log.Clear();
             eng.SetBindings(new[] {
                 B("h", GE.ModifierKeys.None, F6, GE.TriggerKind.Hold, new[] { "Start" }),
@@ -2450,7 +2450,7 @@ static class SelfTest
             eng.OnKeyUp(F6, GE.ModifierKeys.None, 400);
             Chk("T146e-hold-at-threshold", early && M.Log.SequenceEqual(new[] { "Start", "Stop" }), "按住满 250ms 才起录→Stop，249ms 未起录，实得 " + string.Join(",", M.Log));
 
-            // T146f 认领吞键：tap/hold 组合键按下即吞（即便没绑 KeyDown/Chord），自动重复与抬起也吞
+            // 认领吞键：tap/hold 组合键按下即吞（即便没绑 KeyDown/Chord），自动重复与抬起也吞
             M.Log.Clear();
             eng.SetBindings(new[] { B("tap", GE.ModifierKeys.None, F6, GE.TriggerKind.Tap, new[] { "Shot" }) });
             bool swDown = eng.OnKeyDown(F6, GE.ModifierKeys.None, 0);
@@ -2458,7 +2458,7 @@ static class SelfTest
             bool swUp = eng.OnKeyUp(F6, GE.ModifierKeys.None, 100);
             Chk("T146f-claim-swallow", swDown && swRepeat && swUp, $"tap/hold 键按下+重复+抬起全吞（前台收不到），实得 down={swDown} rep={swRepeat} up={swUp}");
         }
-        // T147 默认手势集播种（R126 B2）：捕获键 轻点截图+按住录制，选区键 组合键选区；一次性、尊重已有绑定。
+        // 默认手势集播种：捕获键 轻点截图+按住录制，选区键 组合键选区；一次性、尊重已有绑定。
         {
             var set = FrameCapture.Core.GestureConfig.DefaultTapHoldSet("Ctrl+Shift+G", "Ctrl+Shift+R");
             Chk("T147a-default-set-shape",
@@ -2487,7 +2487,7 @@ static class SelfTest
             Chk("T147e-seed-idempotent", cfg3.Bindings.Count == 0, "已播种后清空绑定不再重新塞回");
         }
 
-        // T148 手势「识别文字」结果路由（R148，OcrService.Route 纯决策；编辑器与范围 OCR 共用）
+        // 手势「识别文字」结果路由（，OcrService.Route 纯决策；编辑器与范围 OCR 共用）
         {
             Chk("T148a-success-window",
                 FrameCapture.Core.OcrService.Route(FrameCapture.Core.OcrStatus.Success, true) == FrameCapture.Core.OcrRoute.ResultWindow,
@@ -2507,7 +2507,7 @@ static class SelfTest
                 "ocr.selection 动作仍注册（手势可绑定，且 GestureInvoker 已接线非死动作）");
         }
 
-        // T149 帮助窗键位反映用户真实绑定（R149，GestureConfig.DescribeKeysFor/TriggerLabel 纯决策）
+        // 帮助窗键位反映用户真实绑定（，GestureConfig.DescribeKeysFor/TriggerLabel 纯决策）
         {
             var GC = new FrameCapture.Core.GestureConfig();
             GC.Bindings = new System.Collections.Generic.List<FrameCapture.Core.GestureBindingDto>
@@ -2540,7 +2540,7 @@ static class SelfTest
                 "触发后缀：轻点/空/松手/双击");
         }
 
-        // T150 设置窗「当前生效键位」用动作短标签（R149，GestureActions.LabelOf 纯查找）
+        // 设置窗「当前生效键位」用动作短标签（，GestureActions.LabelOf 纯查找）
         {
             Chk("T150a-label-known",
                 FrameCapture.Core.GestureActions.LabelOf("capture.selection") == "选区截图"
@@ -2553,7 +2553,7 @@ static class SelfTest
                 "未知名原样返回（前向兼容不崩）/ null → 空串");
         }
 
-        // T151 手势配置器触发下拉标签两两不同（R150，GestureEditorWindow.TriggerLabel 纯函数）
+        // 手势配置器触发下拉标签两两不同（，GestureEditorWindow.TriggerLabel 纯函数）
         {
             var kinds = System.Enum.GetValues<GE.TriggerKind>();
             var labels = kinds.Select(k => GEdit.GestureEditorWindow.TriggerLabel(k)).ToList();
@@ -2561,7 +2561,7 @@ static class SelfTest
                 labels.All(s => !string.IsNullOrEmpty(s)) && labels.Distinct().Count() == kinds.Length,
                 $"触发下拉 {kinds.Length} 项标签两两不同非空（Tap/Hold/HoldRelease 不再与 Chord 同名「组合键（同时按下）」）");
         }
-        // T155 配置器(lib)触发标签须含宿主(host GestureConfig)核心词（R155，防两份独立 TriggerLabel 漂移；
+        // 配置器(lib)触发标签须含宿主(host GestureConfig)核心词（，防两份独立 TriggerLabel 漂移；
         // 用户在配置器与设置/帮助看到同一触发方式应同核心词。KeyUp 旧「抬起」vs 宿主「松开」即此漂移，已对齐）
         {
             var drift = System.Enum.GetValues<GE.TriggerKind>()
@@ -2572,7 +2572,7 @@ static class SelfTest
             Chk("T155-lib-host-trigger-coreword-consistent", drift.Count == 0,
                 drift.Count == 0 ? "配置器每个触发标签都含宿主核心词（KeyUp 抬起→松开 已对齐）" : string.Join("；", drift));
         }
-        // T162 细滚动条全局样式真正生效（R162，用户「基本没变」根因：主题 ScrollBar 样式的
+        // 细滚动条全局样式真正生效（，用户「基本没变」根因：主题 ScrollBar 样式的
         // MinWidth=17.33 经 DynamicResource 以直值泄漏到模板内 ScrollBar，样式 Setter 压不住，须附加属性归零）
         {
             var app = new Application();
@@ -2595,7 +2595,7 @@ static class SelfTest
                 $"模板内滚动条实宽 {sb?.ActualWidth.ToString() ?? "?"}（≤8.5）且 MinWidth 归零");
             win.Close();
         }
-        // T162b accent 反白 = WCAG 相对亮度 <0.35→白（R162，旧 0.299/0.587/0.114 加权把 #7F75FF 判成黑字）
+        // accent 反白 = WCAG 相对亮度 <0.35→白（，旧 0.299/0.587/0.114 加权把 #7F75FF 判成黑字）
         {
             var purple = FrameCapture.Core.Fluent.OnAccentColor(System.Windows.Media.Color.FromRgb(0x7F, 0x75, 0xFF));
             var orange = FrameCapture.Core.Fluent.OnAccentColor(System.Windows.Media.Color.FromRgb(0xFF, 0x8C, 0x00));
@@ -2617,9 +2617,9 @@ static class SelfTest
                 "配置器库 OnAccent 与宿主同 WCAG 公式（#7F75FF→白 / #FF8C00→黑）");
         }
 
-        // ===== R165：macOS 式真·窗口截图（WGC 本体 + 按轮廓合成阴影）纯逻辑 =====
+        // ===== macOS 式真·窗口截图（WGC 本体 + 按轮廓合成阴影）纯逻辑 =====
         {
-            // T165a 相交
+            // 相交
             var ov = WindowCapture.Intersect(new RectI(0, 0, 10, 10), new RectI(5, 5, 10, 10));
             var dis = WindowCapture.Intersect(new RectI(0, 0, 10, 10), new RectI(20, 20, 5, 5));
             var con = WindowCapture.Intersect(new RectI(0, 0, 100, 100), new RectI(10, 10, 20, 20));
@@ -2627,14 +2627,14 @@ static class SelfTest
                 ov.Equals(new RectI(5, 5, 5, 5)) && dis.W == 0 && dis.H == 0 && con.Equals(new RectI(10, 10, 20, 20)),
                 $"ov={ov} dis={dis} con={con}");
 
-            // T165b 外扩
+            // 外扩
             var inf = WindowCapture.Inflate(new RectI(100, 100, 200, 150), 26);
             var inf0 = WindowCapture.Inflate(new RectI(100, 100, 200, 150), 0);
             Chk("T165w2-inflate",
                 inf.Equals(new RectI(74, 74, 252, 202)) && inf0.Equals(new RectI(100, 100, 200, 150)),
                 $"inf={inf} inf0={inf0}");
 
-            // T165c 贴本体（含越界裁剪）
+            // 贴本体（含越界裁剪）
             var dst = new byte[10 * 10 * 4];
             var src = new byte[4 * 4 * 4];
             for (int i = 0; i < src.Length; i++) src[i] = 0xAA;
@@ -2663,7 +2663,7 @@ static class SelfTest
             Chk("T165w4-shadow", farZero && nearPresent && mono && isBlack,
                 $"far={SA(0,0)} d1={SA(14,20)} d3={SA(12,20)} d6={SA(9,20)} black={isBlack}");
 
-            // T165e PickWindow：命中第一个包含点的窗（跳过 <4px），返回 hwnd+bounds
+            // PickWindow：命中第一个包含点的窗（跳过 <4px），返回 hwnd+bounds
             var cands = new List<(IntPtr, RectI)>
             {
                 (new IntPtr(1), new RectI(0, 0, 2, 2)),      // 太小，跳过
@@ -2675,7 +2675,7 @@ static class SelfTest
             Chk("T165w5-pickwindow", pk != null && pk.Value.Hwnd == new IntPtr(2) && pkNone == null,
                 $"pk={pk?.Hwnd} none={pkNone == null}");
 
-            // T165f 遮挡判定：更靠上的窗与目标相交→遮挡；仅更靠下相交→不算
+            // 遮挡判定：更靠上的窗与目标相交→遮挡；仅更靠下相交→不算
             var z = new List<RectI>
             {
                 new RectI(20, 20, 50, 50), // idx0 更靠上，与目标 (10,10,20,20) 相交
@@ -2704,7 +2704,7 @@ static class SelfTest
                 $"center={OA(20,20)} corner={OA(15,15)} far={OA(0,0)} ring={OA(13,20)}");
         }
 
-        // ===== R166：选区定格画面（定格帧裁剪 + 预抓窗口排序）纯逻辑 =====
+        // ===== 选区定格画面（定格帧裁剪 + 预抓窗口排序）纯逻辑 =====
         {
             // T166w1 定格帧裁剪：正常裁 + 越界钳 + 负偏移收缩 + 空返回 null
             var big = new byte[10 * 10 * 4];
@@ -2773,7 +2773,7 @@ sealed class GestureProbe : GestureCore.IActionInvoker
 {
     public List<string> Log = new();
     public HashSet<string> Fail = new();
-    public List<string> Bindings = new();   // R157：记录 BeginBinding 收到的绑定 Id
+    public List<string> Bindings = new();   // 记录 BeginBinding 收到的绑定 Id
     public bool Invoke(string actionName) { Log.Add(actionName); return !Fail.Contains(actionName); }
     public void BeginBinding(GestureCore.GestureBinding b) { Bindings.Add(b.Id); }
 }

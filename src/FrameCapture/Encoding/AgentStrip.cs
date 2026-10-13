@@ -13,7 +13,7 @@ namespace FrameCapture.Encoding;
 /// </summary>
 public static class AgentStrip
 {
-    /// <summary>R161：抽样索引——先按步长 everyN 取（1=逐帧），若超过 desired 上限再均匀稀释到 desired。
+    /// <summary>抽样索引——先按步长 everyN 取（1=逐帧），若超过 desired 上限再均匀稀释到 desired。
     /// 纯函数供编辑器小窗预览计数与 SelfTest 锁语义。</summary>
     public static List<int> SampleIndices(int n, int desired, int everyN)
     {
@@ -31,7 +31,7 @@ public static class AgentStrip
         return list;
     }
 
-    /// <summary>由帧序列渲染胶片条位图（每格带帧号与时间码）。R161：不再落盘，编辑器直接复制剪贴板。</summary>
+    /// <summary>由帧序列渲染胶片条位图（每格带帧号与时间码）。不再落盘，编辑器直接复制剪贴板。</summary>
     public static BitmapSource Render(IReadOnlyList<CapturedFrame> frames, IReadOnlyList<int> idxs)
     {
         int take = idxs.Count;

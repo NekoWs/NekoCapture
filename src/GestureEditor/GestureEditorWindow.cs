@@ -14,7 +14,7 @@ using GcMods = GestureCore.ModifierKeys;
 namespace GestureEditor;
 
 /// <summary>
-/// 可复用手势配置器窗口（R122 方案 C）。只依赖 GestureCore + WPF，通过四个注入点接入任意宿主：
+/// 可复用手势配置器窗口（方案 C）。只依赖 GestureCore + WPF，通过四个注入点接入任意宿主：
 /// <see cref="IActionCatalog"/>（动作清单）、<see cref="IGestureConfigStore"/>（配置读写）、
 /// <see cref="IKeyNamer"/>（键名显示）、<see cref="EditorPalette"/>（配色）。
 /// 主从布局：左=绑定列表，右=选中绑定的详情编辑；底部实时校验 + 保存/取消。
@@ -45,7 +45,7 @@ public sealed partial class GestureEditorWindow : Window
     TextBlock _enableState = null!;
     TextBlock _exclusiveState = null!;
 
-    // R161：列表卡片化（选中/问题红框/禁用置灰逐行自绘）+「截图后」条件显示 + 输入框/按钮过渡动画
+    // 列表卡片化（选中/问题红框/禁用置灰逐行自绘）+「截图后」条件显示 + 输入框/按钮过渡动画
     static readonly Color Danger = Color.FromRgb(0xFF, 0x6B, 0x6B);
     readonly HashSet<string> _problemIds = new();
     readonly List<BindingRow> _rows = new();
@@ -53,7 +53,7 @@ public sealed partial class GestureEditorWindow : Window
     SolidColorBrush _chordStroke = null!;
     bool _chordHover, _chordFocus;
 
-    /// <summary>R161：左侧一条绑定的卡片行——选中=accent 底+明度自适应字色，问题=红框，禁用=muted 灰字。</summary>
+    /// <summary>左侧一条绑定的卡片行——选中=accent 底+明度自适应字色，问题=红框，禁用=muted 灰字。</summary>
     sealed class BindingRow
     {
         public Border Card = null!;
@@ -78,7 +78,7 @@ public sealed partial class GestureEditorWindow : Window
         var chrome = new System.Windows.Shell.WindowChrome { CaptionHeight = 36, ResizeBorderThickness = new Thickness(6), CornerRadius = new CornerRadius(8), GlassFrameThickness = new Thickness(0), UseAeroCaptionButtons = false };
         System.Windows.Shell.WindowChrome.SetWindowChrome(this, chrome);
         Background = _pal.B(_pal.WindowBg);
-        // R162：窗口级细滚动条（列表/详情/下拉弹层全覆盖）——此前吃的是 WPF 默认 17px 经典滚动条
+        // 窗口级细滚动条（列表/详情/下拉弹层全覆盖）——此前吃的是 WPF 默认 17px 经典滚动条
         Resources[typeof(System.Windows.Controls.Primitives.ScrollBar)] = EditorStyles.ScrollBarStyle(_pal);
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
         Width = 760; Height = 560; MinWidth = 640; MinHeight = 440;
@@ -98,7 +98,7 @@ public sealed partial class GestureEditorWindow : Window
     void SetupMotion()
     {
         Opacity = 0;
-        // R163：本窗是 WindowChrome + 非分层窗，WPF 的 Opacity 动画不驱动屏幕合成（实测开合无淡入淡出）。
+        // 本窗是 WindowChrome + 非分层窗，WPF 的 Opacity 动画不驱动屏幕合成（实测开合无淡入淡出）。
         // 与宿主 Fluent.PreTransparent 同款：SourceInitialized 起强制 WS_EX_LAYERED+alpha0，首帧前多次布局逐次补回，
         // ContentRendered 放行——强制分层后下面的 Opacity 动画才真正在屏幕上渐变。
         bool released = false;
@@ -205,7 +205,7 @@ public sealed partial class GestureEditorWindow : Window
         left.Children.Add(listBtns);
         _list = new ListBox { BorderThickness = new Thickness(1) };
         EditorStyles.ApplyList(_list, _pal);
-        // 列表项文本换行：长摘要（多动作 / 带「完成后」序列）折行显示，而非按面板宽度裁切（R153）
+        // 列表项文本换行：长摘要（多动作 / 带「完成后」序列）折行显示，而非按面板宽度裁切
         // 须禁用横向滚动——否则 ScrollViewer 以无限宽测量，TextBlock 永不换行、改为横向滚动条
         System.Windows.Controls.ScrollViewer.SetHorizontalScrollBarVisibility(_list, System.Windows.Controls.ScrollBarVisibility.Disabled);
         _list.SelectionChanged += (_, _) => { if (_suppress) return; _selected = _list.SelectedIndex; PaintRows(); ShowDetail(); };
@@ -245,12 +245,12 @@ public sealed partial class GestureEditorWindow : Window
     // ---------- 控件小工具 ----------
     TextBlock Label(string t) => new() { Text = t, Foreground = _pal.B(_pal.TextDim), FontSize = 12, Margin = new Thickness(0, 12, 0, 4) };
 
-    // R150：补 Tap/Hold/HoldRelease——旧版这三项落到默认分支与 Chord 同名「组合键（同时按下）」，
-    // 触发下拉（列 Enum.GetValues<TriggerKind>() 全 10 值）出现 4 个同名项，用户无法区分轻点/按住/松手/组合键。
+    // 补 Tap/Hold/HoldRelease——旧版这三项落到默认分支与 Chord 同名「组合键（同时按下）」，
+    // 触发下拉（列 Enum.GetValues<TriggerKind> 全 10 值）出现 4 个同名项，用户无法区分轻点/按住/松手/组合键。
     // 改 public static 供 SelfTest 锁「10 项标签两两不同」不变量（纯函数，不触 WPF）。
-    // R155：KeyUp 核心词「抬起」→「松开」对齐宿主 GestureConfig.TriggerLabel。
-    // R161：全部改短词（「组合键按下」→「按下」等），与宿主 GestureConfig.TriggerLabel 完全同词——
-    // 下拉/列表/帮助同一触发方式同一说法；T151 锁两两不同、T155 锁含宿主核心词（同词即含）。
+    // KeyUp 核心词「抬起」→「松开」对齐宿主 GestureConfig.TriggerLabel。
+    // 全部改短词（「组合键按下」→「按下」等），与宿主 GestureConfig.TriggerLabel 完全同词——
+    // 下拉/列表/帮助同一触发方式同一说法；锁两两不同、锁含宿主核心词（同词即含）。
     public static string TriggerLabel(object t) => t switch
     {
         TriggerKind.KeyDown => "按下",
@@ -282,7 +282,7 @@ public sealed partial class GestureEditorWindow : Window
         return c;
     }
 
-    // R161：数字输入框卡片化——圆角 + hover/聚焦边框色过渡动画（此前直角、描边硬切换）。
+    // 数字输入框卡片化——圆角 + hover/聚焦边框色过渡动画（此前直角、描边硬切换）。
     // 返回外层 Border（TextBox 本体去边框透明，嵌在圆角 Border 里）。
     FrameworkElement MakeNum(string val, Action<string> onChange)
     {
@@ -307,7 +307,7 @@ public sealed partial class GestureEditorWindow : Window
         b.Foreground = _pal.B(accent ? _pal.OnAccent() : _pal.Text);
         b.BorderBrush = _pal.B(ghost ? _pal.Stroke : (accent ? _pal.Accent : _pal.Stroke));
         b.Template = SimpleButtonTemplate();
-        // R161：悬停/按住只改底色（带过渡），不再缩放——放大动画会压到旁边的下拉框上重叠一下，很难看
+        // 悬停/按住只改底色（带过渡），不再缩放——放大动画会压到旁边的下拉框上重叠一下，很难看
         HoverBg(b, accent ? _pal.Accent : _pal.CardBg);
         return b;
     }
@@ -316,7 +316,7 @@ public sealed partial class GestureEditorWindow : Window
     {
         var b = new Button { Content = glyph, FontFamily = new FontFamily(IconFontChain), FontSize = 12, Width = 26, Height = 24, Margin = new Thickness(2, 0, 0, 0), BorderThickness = new Thickness(1), Foreground = _pal.B(_pal.TextDim), Cursor = Cursors.Hand };
         b.Template = SimpleButtonTemplate();
-        // R161：迷你按钮加边框 + 悬停底色过渡（此前全透明无反馈，藏在卡片里几乎不可见）
+        // 迷你按钮加边框 + 悬停底色过渡（此前全透明无反馈，藏在卡片里几乎不可见）
         var stroke = new SolidColorBrush(_pal.Stroke); b.BorderBrush = stroke;
         var brush = new SolidColorBrush(_pal.CardBg); b.Background = brush;   // 与所在卡片同色=视觉透明
         b.MouseEnter += (_, _) => { AnimateColor(brush, Blend(_pal.CardBg, _pal.Hover), 140); AnimateColor(stroke, _pal.Accent, 140); };
@@ -330,7 +330,7 @@ public sealed partial class GestureEditorWindow : Window
     void StyleChromeButton(Button b)
     {
         b.Template = SimpleButtonTemplate();
-        HoverBg(b, _pal.PanelBg);   // 标题栏关闭钮：底色与标题栏同，悬停/按住改底色过渡（R161，不再缩放）
+        HoverBg(b, _pal.PanelBg);   // 标题栏关闭钮：底色与标题栏同，悬停/按住改底色过渡（，不再缩放）
     }
 
     static ControlTemplate? _tpl;
@@ -353,7 +353,7 @@ public sealed partial class GestureEditorWindow : Window
         return t;
     }
 
-    /// <summary>R161：按钮悬停/按住=底色过渡动画（悬停提亮、按住回落、松手回悬停态），不缩放——
+    /// <summary>按钮悬停/按住=底色过渡动画（悬停提亮、按住回落、松手回悬停态），不缩放——
     /// 缩放会压到相邻控件上重叠（用户点名「悬停后变大的动画贴在下拉框上」）。底色须传不透明实色。</summary>
     void HoverBg(Control b, Color baseC)
     {
@@ -391,9 +391,9 @@ public sealed partial class GestureEditorWindow : Window
             BorderBrush = _pal.B(on ? _pal.Accent : _pal.Stroke),
             BorderThickness = new Thickness(1),
             VerticalAlignment = VerticalAlignment.Center,
-            Focusable = true, // 键盘可达：Tab 聚焦、空格/Enter 切换（与设置窗开关同款焦点环，R69 补此前鼠标专属的缺口）
+            Focusable = true, // 键盘可达：Tab 聚焦、空格/Enter 切换（与设置窗开关同款焦点环，补此前鼠标专属的缺口）
         };
-        // R162：滑块恒白 + 极淡描边（QQ 式）——旧版亮色主题下黑滑块像没做适配
+        // 滑块恒白 + 极淡描边（QQ 式）——旧版亮色主题下黑滑块像没做适配
         var knob = new Ellipse { Width = 14, Height = 14, Fill = _pal.B(Colors.White), Stroke = _pal.B(Color.FromArgb(0x26, 0, 0, 0)), StrokeThickness = 1, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(3, 0, 3, 0) };
         var knobT = new TranslateTransform { X = on ? 20 : 0 };
         knob.RenderTransform = knobT;
@@ -404,7 +404,7 @@ public sealed partial class GestureEditorWindow : Window
         void Flip()
         {
             on = !on;
-            AnimBrush(track.Background as SolidColorBrush, on ? _pal.Accent : _pal.TrackBg, br => track.Background = br);   // R162：开关换色带过渡，不再硬切
+            AnimBrush(track.Background as SolidColorBrush, on ? _pal.Accent : _pal.TrackBg, br => track.Background = br);   // 开关换色带过渡，不再硬切
             SetBorder();
             knobT.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(on ? 20 : 0, new Duration(TimeSpan.FromMilliseconds(220))) { EasingFunction = new BackEase { Amplitude = 0.3, EasingMode = EasingMode.EaseOut } });
             onToggle(on);

@@ -25,17 +25,17 @@ public sealed partial class EditorWindow : Window
     void Commit()
     {
         int idx = Math.Clamp(_index, 0, _seq.Frames.Count - 1);
-        // R161：不再自动生成 Agent 胶片条（设置项已移除）——改为工具栏「生成胶片条」按钮显式触发。
+        // 不再自动生成 Agent 胶片条（设置项已移除）——改为工具栏「生成胶片条」按钮显式触发。
         StartEncode(null, null, (seq, gif) =>
         {
             Trace.Log($"gif encoded bytes={gif!.Length} frames={seq.Frames.Count}");
             ClipboardService.SetCapture(seq, gif, idx);
-            FrameCapture.Services.SaveService.MaybeSaveArtifact(seq, gif); // R63 自动保存副本：单帧 PNG / 多帧按 RecordFormat（R103，视频后台编码；关=零副作用）
+            FrameCapture.Services.SaveService.MaybeSaveArtifact(seq, gif); // 自动保存副本：单帧 PNG / 多帧按 RecordFormat（，视频后台编码；关=零副作用）
             FrameCapture.Core.Fluent.CloseWithFade(this);
         });
     }
 
-    /// <summary>R65：把当前帧（含标注+裁剪，WYSIWYG）烘焙成一张位图帧，用于钉到屏幕。
+    /// <summary>把当前帧（含标注+裁剪，WYSIWYG）烘焙成一张位图帧，用于钉到屏幕。
     /// 单帧同步烘焙（快，无需后台任务）；返回帧 + 其对应的物理屏幕矩形（裁剪后随之收缩）。</summary>
     (CapturedFrame? frame, RectI region) BakeCurrentFrame()
     {
@@ -57,7 +57,7 @@ public sealed partial class EditorWindow : Window
         return (baked.Count > 0 ? baked[0] : null, region);
     }
 
-    /// <summary>R65：钉到屏幕——烘焙当前帧并在原捕获位置弹出一张贴图（可多张并存，Snipaste 式）。</summary>
+    /// <summary>钉到屏幕——烘焙当前帧并在原捕获位置弹出一张贴图（可多张并存，Snipaste 式）。</summary>
     void PinCurrentFrame()
     {
         var (f, region) = BakeCurrentFrame();
@@ -67,7 +67,7 @@ public sealed partial class EditorWindow : Window
         FrameCapture.Core.Trace.Log($"pin frame {f.W}x{f.H} at {region.X},{region.Y}");
     }
 
-    /// <summary>预览底部轻提示：淡入显示 msg，约 1.8s 后淡出。OCR/复制等即时反馈用（R69）。</summary>
+    /// <summary>预览底部轻提示：淡入显示 msg，约 1.8s 后淡出。OCR/复制等即时反馈用。</summary>
     void ShowSnack(string msg)
     {
         if (_snack == null || _snackText == null) return;
@@ -91,7 +91,7 @@ public sealed partial class EditorWindow : Window
         _snackTimer.Start();
     }
 
-    /// <summary>R69：识别当前帧文字（Windows 内置 OCR）→ 纯文本写剪贴板 → 轻提示。
+    /// <summary>识别当前帧文字（Windows 内置 OCR）→ 纯文本写剪贴板 → 轻提示。
     /// 帧像素在首个 await 前同步拷贝，故与关窗/释放 spool 无竞态；无语言包优雅降级不抛。</summary>
     async void OcrCurrentFrame()
     {
@@ -107,7 +107,7 @@ public sealed partial class EditorWindow : Window
             {
                 case FrameCapture.Core.OcrStatus.Success:
                     var text = FrameCapture.Core.OcrService.Normalize(outcome.Text);
-                    // R120 D2 预览优先：开结果窗时以「预览选取」为主，不自动写剪贴板（要哪段选哪段 / 点复制全部）；
+                    // D2 预览优先：开结果窗时以「预览选取」为主，不自动写剪贴板（要哪段选哪段 / 点复制全部）；
                     // 关结果窗才走快速路径——直接复制 + 轻提示。
                     if (_settings.Current.OcrShowResult)
                         OcrResultWindow.Show(text);
@@ -179,7 +179,7 @@ public sealed partial class EditorWindow : Window
                 // 使"导出失败"HUD 终态可确定性触达并做双主题像素取证（UIAUDIT D9）。正常用户环境永不置位。
                 if (System.Environment.GetEnvironmentVariable("FC_TEST_ENCODE_FAIL") == "1")
                     throw new System.InvalidOperationException("forced encode failure (FC_TEST_ENCODE_FAIL=1)");
-                // 裁剪=视图状态：导出瞬间一次性折算（T78c 像素级等价：先裁剪后烘焙 ≡ 先烘焙后裁剪）
+                // 裁剪=视图状态：导出瞬间一次性折算（像素级等价：先裁剪后烘焙 ≡ 先烘焙后裁剪）
                 var frames = subset; var outAnns = anns; var outRegion = region;
                 if (cropOn && frames.Count > 0)
                 {
@@ -252,7 +252,7 @@ public sealed partial class EditorWindow : Window
     }
 
 
-    /// <summary>R161：生成胶片条——小窗问「抽多少帧 / 每 N 帧取一次」（参数记忆），
+    /// <summary>生成胶片条——小窗问「抽多少帧 / 每 N 帧取一次」（参数记忆），
     /// 确定后按时间轴裁剪范围取子集、折算裁剪与标注（与导出同口径），后台烘焙抽样帧，
     /// 渲染成一张逐帧图直接复制剪贴板（不落盘）。生成中复用 _encoding 互斥锁防并发导出。</summary>
     async void GenerateFilmStrip()
@@ -374,7 +374,7 @@ public sealed partial class EditorWindow : Window
             src = new LazyCropList(_seq.Frames, cx, cy, cw, ch);
         }
         var combined = BgraImage.Afterimage(src, 5);
-        // 合成图同样带标注（R46）：裁剪坐标已随裁剪折算，标注做同一重映射后烘焙
+        // 合成图同样带标注：裁剪坐标已随裁剪折算，标注做同一重映射后烘焙
         var anns = _anns.Items.ToList();
         if (_crop.IsCropped && combined.W > 0 && _frameW > 0)
         {

@@ -57,7 +57,7 @@ public sealed partial class SettingsWindow : Window
             Value = val,
             Foreground = new SolidColorBrush(Theme.Accent),
             Margin = new Thickness(4, 4, 0, 0),
-            // 吸附开启时步长必须=档位：默认 SmallChange=1 会被吸回原档，方向键看似失灵（R29）
+            // 吸附开启时步长必须=档位：默认 SmallChange=1 会被吸回原档，方向键看似失灵
             SmallChange = tick,
             LargeChange = tick * 2,
         };
@@ -102,13 +102,13 @@ public sealed partial class SettingsWindow : Window
             VerticalAlignment = VerticalAlignment.Center,
             Cursor = Cursors.Hand,
             ToolTip = tip,
-            Focusable = true, // R29：键盘可达——Tab 聚焦、空格/Enter 切换
+            Focusable = true, // 键盘可达——Tab 聚焦、空格/Enter 切换
         };
         var knob = new Ellipse
         {
             Width = 12,
             Height = 12,
-            // R162：滑块恒白 + 极淡描边（QQ 式）——旧版亮色主题下黑滑块/黑字压 accent，适配感缺失
+            // 滑块恒白 + 极淡描边（QQ 式）——旧版亮色主题下黑滑块/黑字压 accent，适配感缺失
             Fill = new SolidColorBrush(Colors.White),
             Stroke = new SolidColorBrush(Color.FromArgb(0x26, 0, 0, 0)),
             StrokeThickness = 1,
@@ -154,7 +154,7 @@ public sealed partial class SettingsWindow : Window
         return g;
     }
 
-    /// <summary>自动保存位置行（R63）：整行可点，弹系统文件夹选择器；空路径显示默认「图片\FrameCapture」。</summary>
+    /// <summary>自动保存位置行：整行可点，弹系统文件夹选择器；空路径显示默认「图片\FrameCapture」。</summary>
     FrameworkElement PathRow()
     {
         var g = Row();
@@ -213,10 +213,10 @@ public sealed partial class SettingsWindow : Window
         return g;
     }
 
-    // R157：全局「截图后」四选一已移除——改由每条手势在「手势配置器」里各自设置。
-    // R161：连「见手势配置器」的占位行也删了——截图页顶部就有手势配置器入口，不必再留指路行。
+    // 全局「截图后」四选一已移除——改由每条手势在「手势配置器」里各自设置。
+    // 连「见手势配置器」的占位行也删了——截图页顶部就有手势配置器入口，不必再留指路行。
 
-    // 取色复制格式（R89）：选区放大镜按 C 复制颜色时的文本形式，HEX/RGB/HSL 三选（QQ 只有 HEX）
+    // 取色复制格式：选区放大镜按 C 复制颜色时的文本形式，HEX/RGB/HSL 三选（QQ 只有 HEX）
     FrameworkElement RecordFormatRow()
     {
         var g = Row();
@@ -282,7 +282,7 @@ public sealed partial class SettingsWindow : Window
             chips.Children.Add(chip);
         }
         g.Children.Add(chips);
-        // R112：ffmpeg 检测状态即时可见（原来只在 MP4/WebM 芯片 tooltip 里，选格式时看不到）；
+        // ffmpeg 检测状态即时可见（原来只在 MP4/WebM 芯片 tooltip 里，选格式时看不到）；
         // 用绘制的小圆点而非字形，规避未验证字形；只读、开设置时算一次
         var status = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(32, 3, 0, 0) };
         var dotColor = hasFf ? Color.FromRgb(0x4C, 0xAF, 0x50) : Color.FromRgb(0xD1, 0x8B, 0x00);
@@ -319,7 +319,7 @@ public sealed partial class SettingsWindow : Window
         return g;
     }
 
-    /// <summary>R158：把一页里平铺的设置行整体归入一张浮起卡片（沿用快捷键页 keyCard 模式），
+    /// <summary>把一页里平铺的设置行整体归入一张浮起卡片（沿用快捷键页 keyCard 模式），
     /// 让截图/录制/产物…各页与快捷键页视觉一致、不再裸铺在深色背景上（治「太平」）。快捷键页自带卡片，不调本方法。</summary>
     void Cardify(StackPanel p)
     {

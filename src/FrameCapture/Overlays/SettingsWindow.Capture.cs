@@ -109,7 +109,7 @@ public sealed partial class SettingsWindow : Window
             (10, "10秒", "充裕：够摆好几个界面元素"),
         };
         var chipList = new System.Collections.Generic.List<(Border chip, int secs)>();
-        // R161：预设之外补「自定义」输入（此前只有 5 档，想要 2 秒/8 秒都调不了）；文字居中，与悬浮窗时长同款交互
+        // 预设之外补「自定义」输入（此前只有 5 档，想要 2 秒/8 秒都调不了）；文字居中，与悬浮窗时长同款交互
         var box = new TextBox
         {
             Text = cur.ToString(),
@@ -201,7 +201,7 @@ public sealed partial class SettingsWindow : Window
         return g;
     }
 
-    // R120 C：截图后悬浮窗存在时间——文字芯片（常驻/秒数），点击就地更新选中态
+    // C：截图后悬浮窗存在时间——文字芯片（常驻/秒数），点击就地更新选中态
     FrameworkElement ToastRow()
     {
         var g = Row();
@@ -220,7 +220,7 @@ public sealed partial class SettingsWindow : Window
         var chips = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
         Grid.SetColumn(chips, 2);
         double cur = _settings.Current.ToastSeconds;
-        // R161：预设精简为 常驻/1秒/2秒/5秒 + 自定义输入（此前 常驻/2/3.2/5/8 五档太密且默认值占一档）
+        // 预设精简为 常驻/1秒/2秒/5秒 + 自定义输入（此前 常驻/2/3.2/5/8 五档太密且默认值占一档）
         var opts = new (double secs, string text, string tip)[]
         {
             (0, "常驻", "不自动消失，点一下或 Esc 才关"),
@@ -235,7 +235,7 @@ public sealed partial class SettingsWindow : Window
             Text = Fmt(cur),
             Width = 34,
             FontSize = 12.5,
-            TextAlignment = TextAlignment.Center,   // R161：自定义输入框文字居中（此前右对齐，数字贴边难看）
+            TextAlignment = TextAlignment.Center,   // 自定义输入框文字居中（此前右对齐，数字贴边难看）
             Background = System.Windows.Media.Brushes.Transparent,
             BorderThickness = new Thickness(0),
             Foreground = new SolidColorBrush(Theme.Text),
@@ -347,7 +347,7 @@ public sealed partial class SettingsWindow : Window
             CornerRadius = new CornerRadius(6),
             Padding = new Thickness(10, 4, 10, 4),
             Margin = new Thickness(0, 0, 12, 0),
-            // R162：垂直居中——横向 StackPanel 里 Border 被拉满行高，文字贴左上「错位」真凶
+            // 垂直居中——横向 StackPanel 里 Border 被拉满行高，文字贴左上「错位」真凶
             VerticalAlignment = VerticalAlignment.Center,
             Background = new SolidColorBrush(Theme.Hover),
             Child = new TextBlock { Text = "试听", FontSize = 12.5, Foreground = new SolidColorBrush(Theme.Text), VerticalAlignment = VerticalAlignment.Center },
@@ -361,10 +361,10 @@ public sealed partial class SettingsWindow : Window
         preview.KeyDown += (_, e) => { if (e.Key is Key.Space or Key.Enter) { DoPreview(); e.Handled = true; } };
         preview.GotKeyboardFocus += (_, _) => { preview.BorderBrush = new SolidColorBrush(Theme.Accent); preview.BorderThickness = new Thickness(1); };
         preview.LostKeyboardFocus += (_, _) => preview.BorderThickness = new Thickness(0);
-        Fluent.ChipHover(preview);   // R162：与普通按钮一致——悬停/按住只改底色带过渡，不再放大
+        Fluent.ChipHover(preview);   // 与普通按钮一致——悬停/按住只改底色带过渡，不再放大
         right.Children.Add(preview);
 
-        // R161：开关+固定音 → 三选下拉「关闭 / 轻弹 / 自定义…」。选「自定义…」弹文件选择窗（ogg/wav）；
+        // 开关+固定音 → 三选下拉「关闭 / 轻弹 / 自定义…」。选「自定义…」弹文件选择窗（ogg/wav）；
         // 取消则回退上一个选项，绝不出现「选了自定义却没文件」的悬空态。
         var combo = new ComboBox { Width = 118, VerticalAlignment = VerticalAlignment.Center };
         GestureEditor.EditorStyles.ApplyCombo(combo, EditorPal());
@@ -412,7 +412,7 @@ public sealed partial class SettingsWindow : Window
         _ => "自定义提示音文件（ogg/wav）；点击可重新选择",
     };
 
-    /// <summary>R161：手势编辑器同款下拉/输入样式的配色（lib 不引用宿主，配色由宿主注入）。</summary>
+    /// <summary>手势编辑器同款下拉/输入样式的配色（lib 不引用宿主，配色由宿主注入）。</summary>
     static GestureEditor.EditorPalette EditorPal() => new()
     {
         WindowBg = Theme.WindowBg, PanelBg = Theme.PanelBg, CardBg = Theme.CardBg,

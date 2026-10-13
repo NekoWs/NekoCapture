@@ -1,7 +1,7 @@
 namespace FrameCapture.Core;
 
 /// <summary>
-/// 编辑器视图缩放/平移决策数学（纯逻辑，SelfTest T79）。
+/// 编辑器视图缩放/平移决策数学（纯逻辑，SelfTest ）。
 /// 坐标约定：viewport=视图区尺寸（WPF 逻辑像素），frame=帧像素尺寸；
 /// zoom 为相对"适配"的倍率（1=适配，1/sFit=1:1）；pan=图像中心相对视口中心的偏移。
 /// 不变量：图像不大于视口时 pan 恒 (0,0)（适配视图居中）；放大后 pan 钳制使图像始终铺满视口（无黑边露出）。
@@ -54,7 +54,7 @@ public static class ZoomMath
         => ClampPan(panX0 + dx, panY0 + dy, vw, vh, iw, ih);
 
     /// <summary>
-    /// 裁剪视图矩形（T145）：整帧（frameW×frameH 像素）按缩放 s 绘制后的显示矩形，
+    /// 裁剪视图矩形：整帧（frameW×frameH 像素）按缩放 s 绘制后的显示矩形，
     /// 使「裁剪子区（归一化 crop*）的中心」恰落在视口中心 + pan。
     /// 不变量：X + (cropX+cropW/2)*W == vw/2 + panX（Y 同理）——非居中裁剪也不会把画面甩出视口。
     /// </summary>

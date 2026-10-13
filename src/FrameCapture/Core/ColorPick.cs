@@ -4,7 +4,7 @@ using System.Windows.Media;
 namespace FrameCapture.Core;
 
 /// <summary>
-/// 自绘调色板的纯数学（R54，SelfTest T97）：HSV 双向换算 + HEX 解析/格式化。
+/// 自绘调色板的纯数学（，SelfTest ）：HSV 双向换算 + HEX 解析/格式化。
 /// 替代系统 ColorDialog 的地基——UI 只做拖拽与绑定，换算全在这里，可离线断言。
 /// H∈[0,360)，S/V/A∈[0,1]。
 /// </summary>

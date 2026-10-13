@@ -9,7 +9,7 @@ using FrameCapture.Native;
 namespace FrameCapture.Overlays;
 
 /// <summary>
-/// 首次启动欢迎卡（R82）：新用户装完只看到托盘图标、不知按什么键——这是「人人都爱用」的头号上手摩擦。
+/// 首次启动欢迎卡：新用户装完只看到托盘图标、不知按什么键——这是「人人都爱用」的头号上手摩擦。
 /// 首启弹一张不抢焦点的卡片，直接点破两个热键 + 关键手感，给一个「查看帮助」入口；看过一次（FirstRunHintShown）永不再打扰。
 /// 复用 CaptureToast 的浮窗骨架：ShowActivated=false 不打断输入、WDA 排除不入镜、悬停暂停自动消失、Esc/点关闭。
 /// </summary>

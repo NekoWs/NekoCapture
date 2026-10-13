@@ -1,7 +1,7 @@
 namespace FrameCapture.Core;
 
 /// <summary>
-/// 捕获帧率节流纯逻辑（R100）。与 WGC/线程解耦，供单测。
+/// 捕获帧率节流纯逻辑。与 WGC/线程解耦，供单测。
 /// 旧实现用 <c>Math.Max(16, 1000/fps)</c> 的整数毫秒地板，把帧率硬卡在 ~62fps；
 /// 这里改为无地板的双精度间隔 + 逐帧时间判定，配合事件驱动 FrameArrived 才能真正跑满高刷。
 /// </summary>

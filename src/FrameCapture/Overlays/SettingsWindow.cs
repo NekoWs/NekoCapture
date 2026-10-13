@@ -17,7 +17,7 @@ namespace FrameCapture.Overlays;
 public sealed partial class SettingsWindow : Window
 {
     readonly SettingsService _settings;
-    int _cat;           // 当前分页索引（R119）
+    int _cat;           // 当前分页索引
     int _restoreCat;    // 重建（改主题/强调色）时要恢复的分页索引
 
     public SettingsWindow()
@@ -26,7 +26,7 @@ public sealed partial class SettingsWindow : Window
         System.Windows.Input.InputMethod.SetIsInputMethodEnabled(this, false);
         _settings = AppHost.Current.Settings;
         WindowStyle = WindowStyle.None;
-        ResizeMode = ResizeMode.CanResize;   // 可拖边缩放（R119「允许更改窗口尺寸」）
+        ResizeMode = ResizeMode.CanResize;   // 可拖边缩放（「允许更改窗口尺寸」）
         // WindowChrome 原生缩放边框 + 原生圆角/阴影（与编辑器同款）；不再用 AllowsTransparency（软渲染代价大）。
         FrameCapture.Core.Fluent.BorderlessNative(this, resizeBorder: 6);
         // 标题条 = WindowChrome 原生 CaptionHeight 拖窗区（比 WM_NCHITTEST 钩子更稳，避免与 WindowChrome 命中测试抢序）；
@@ -39,7 +39,7 @@ public sealed partial class SettingsWindow : Window
         Width = 760; Height = Math.Min(660, SystemParameters.WorkArea.Height - 120);
         MinWidth = 680; MinHeight = 460;
         ShowInTaskbar = false;
-        Topmost = false;   // 不再总在最前（R119）：设置窗是普通工具窗，不该压住用户正在截/录的画面
+        Topmost = false;   // 不再总在最前：设置窗是普通工具窗，不该压住用户正在截/录的画面
         Title = "FrameCapture Settings";
         // 拖动改由 WM_NCHITTEST→HTCAPTION 原生处理（见 Build 的标题栏钩子）：
         // 旧「整窗背景可拖」既被 ScrollContentPresenter 吞掉命中（用户实测拖不动），
@@ -67,7 +67,7 @@ public sealed partial class SettingsWindow : Window
 
     void Build()
     {
-        // R59 改版：自绘标题栏（QQ 式，拖动即走+自绘关闭）+ 按类别分组 + 强调色自定义。
+        // 改版：自绘标题栏（QQ 式，拖动即走+自绘关闭）+ 按类别分组 + 强调色自定义。
         // 旧版整窗"背景可拖"实际被 ScrollViewer 吞掉 → 用户实测"无法拖动"，标题栏是显式、可发现的拖拽区。
         var root = new Border
         {
@@ -75,14 +75,14 @@ public sealed partial class SettingsWindow : Window
             Background = new SolidColorBrush(Theme.WindowBg),
             BorderBrush = new SolidColorBrush(Theme.Stroke),
             BorderThickness = new Thickness(1),
-            // 阴影交给 WindowChrome 的原生 DWM 阴影（自绘 DropShadow 与原生缩放窗叠加会重影/发虚，R119）
+            // 阴影交给 WindowChrome 的原生 DWM 阴影（自绘 DropShadow 与原生缩放窗叠加会重影/发虚，）
         };
         var dock = new DockPanel { LastChildFill = true };
 
         // ---- 标题栏：取景框图标 + 标题 + 关闭；整条可拖（共享件 Fluent.TitleBar，与帮助窗同款） ----
         var (bar, closeBtn) = FrameCapture.Core.Fluent.TitleBar("\uE7A8", "设置");
         closeBtn.Click += (_, _) => FrameCapture.Core.Fluent.CloseWithFade(this);
-        // 关闭按钮落在原生 CaptionHeight 拖窗区内，须显式让位给 WPF 命中，否则点它会拖窗而非关闭（R119）
+        // 关闭按钮落在原生 CaptionHeight 拖窗区内，须显式让位给 WPF 命中，否则点它会拖窗而非关闭
         System.Windows.Shell.WindowChrome.SetIsHitTestVisibleInChrome(closeBtn, true);
         DockPanel.SetDock(bar, Dock.Top);
         dock.Children.Add(bar);
@@ -97,7 +97,7 @@ public sealed partial class SettingsWindow : Window
         }
         StackPanel panel = Cat("快捷键", "\uE765");
 
-        // ---- 快捷键（R126 B2：旧「选区/捕获快捷键」两行退役，键位统一由手势配置器管理）----
+        // ---- 快捷键（旧「选区/捕获快捷键」两行退役，键位统一由手势配置器管理）----
         panel.Children.Add(new TextBlock
         {
             Foreground = new SolidColorBrush(Theme.TextDim),
@@ -107,7 +107,7 @@ public sealed partial class SettingsWindow : Window
             Text = "当前生效的键位如下，增删改请打开下方手势配置器。",
         });
 
-        // ---- 当前生效键位（R126 B2：从手势绑定推导，免开配置器即可一眼看到截图/选区键）----
+        // ---- 当前生效键位（从手势绑定推导，免开配置器即可一眼看到截图/选区键）----
         var gk = _settings.Current.Gestures;
         var keyCard = new Border
         {
@@ -130,7 +130,7 @@ public sealed partial class SettingsWindow : Window
             row.Children.Add(lb); row.Children.Add(kv);
             keyStack.Children.Add(row);
         }
-        // R149：逐条列出用户真实绑定（动作→键），不再写死「截图键/选区键」两槽——
+        // 逐条列出用户真实绑定（动作→键），不再写死「截图键/选区键」两槽——
         // 自定义手势下旧 ScopeKeyText 会回落成没绑定的死键（Ctrl+Shift+R），且漏掉录制键。
         var active = gk.Bindings
             .Where(b => b.Enabled && b.Actions.Length > 0 && HotkeySpec.Parse(b.Chord) != null)
@@ -148,7 +148,7 @@ public sealed partial class SettingsWindow : Window
         FrameCapture.Core.Fluent.Elevate(keyCard, blur: 24, depth: 6);
         panel.Children.Add(keyCard);
 
-        // ---- 手势配置器入口（R122）：可视化增删改键位绑定，保存即热重载生效 ----
+        // ---- 手势配置器入口：可视化增删改键位绑定，保存即热重载生效 ----
         var geBtn = new Border
         {
             Margin = new Thickness(0, 8, 0, 2),
@@ -165,7 +165,7 @@ public sealed partial class SettingsWindow : Window
         geRow.Children.Add(new TextBlock { Text = "   打开手势配置器…", Foreground = new SolidColorBrush(Theme.Text), FontSize = 13, VerticalAlignment = VerticalAlignment.Center });
         geBtn.Child = geRow;
         FrameCapture.Core.Fluent.Elevate(geBtn, blur: 24, depth: 6);
-        Fluent.ChipHover(geBtn);   // R162：去掉悬停上浮（Lift），与普通按钮一致只改底色带过渡
+        Fluent.ChipHover(geBtn);   // 去掉悬停上浮（Lift），与普通按钮一致只改底色带过渡
         geBtn.MouseLeftButtonUp += (_, _) => FrameCapture.Services.GestureEditorHost.ShowOrFocus();
         panel.Children.Add(geBtn);
 
@@ -183,7 +183,7 @@ public sealed partial class SettingsWindow : Window
             _settings.Current.ShowLastRegion, v => _settings.Mutate(s => s.ShowLastRegion = v)));
         panel.Children.Add(ToggleRow("\uE721", "选区放大镜", "拖框或悬停选区时，光标旁显示高倍像素放大镜、坐标/尺寸读数与光标下像素颜色（按 C 复制颜色，格式见下），便于像素级精确选区/取色（QQ/Snipaste 式）；关闭可省一点开销",
             _settings.Current.PickerMagnifier, v => _settings.Mutate(s => s.PickerMagnifier = v)));
-        // R166：定格画面开关 + 定格时预抓窗口上限（上限仅在定格开时显示，仿「跟随刷新率→隐藏手动帧率」）
+        // 定格画面开关 + 定格时预抓窗口上限（上限仅在定格开时显示，仿「跟随刷新率→隐藏手动帧率」）
         var pregrabRow = SliderRow("\uE7C8", "定格时预抓窗口数", "「定格画面」与「点击窗口时截取完整窗口」都开着时，定格瞬间后台按 Z 序（当前聚焦窗最优先）预抓这么多「完整可见」窗口的干净画面；点窗口即用缓存＝定格+干净圆角+投影，没缓存好则实时抓兜底。0=不预抓（点窗口一律实时抓）",
             0, 16, 1, _settings.Current.FreezePregrabMaxWindows,
             v => v <= 0 ? "不预抓" : $"{v:0} 个", v => _settings.Mutate(s => s.FreezePregrabMaxWindows = (int)v));
@@ -219,14 +219,14 @@ public sealed partial class SettingsWindow : Window
         panel.Children.Add(CaptureSoundRow());
         panel.Children.Add(DelayRow());
 
-        Cardify(panel); // R158 截图页行归入卡片
+        Cardify(panel); // 截图页行归入卡片
 
         // ---- 录制 ----
         panel = Cat("录制", "\uE714");
         var fpsRow = SliderRow("\uEC4A", "录制帧率 (FPS)", "录制时每秒捕获的帧数；开启下方「跟随显示器刷新率」时本项隐藏（被刷新率取代）",
             AppSettings.FpsMin, AppSettings.FpsMax, 5, _settings.Current.Fps,
             v => $"{v:0} fps", v => _settings.Mutate(s => s.Fps = (int)v));
-        // R161：跟随刷新率开启→手动帧率完全失效，整行淡出隐藏（关闭再淡入恢复），比灰着更诚实、页面更干净
+        // 跟随刷新率开启→手动帧率完全失效，整行淡出隐藏（关闭再淡入恢复），比灰着更诚实、页面更干净
         void SetFpsVisible(bool vis)
         {
             if (vis)
@@ -253,26 +253,26 @@ public sealed partial class SettingsWindow : Window
                     : "开启后录制帧率自动取当前录制显示器的刷新率（本机暂未检测到主屏刷新率，录制时按实际显示器实时检测），上面的手动帧率随之隐藏。")
             + "高刷屏（144/165/240Hz）录满才丝滑；MP4/WebM 可录满，GIF 受格式封顶约 50fps",
             _settings.Current.FollowMonitorRefresh,
-            v => { _settings.Mutate(s => s.FollowMonitorRefresh = v); SetFpsVisible(!v); })); // 开→帧率行淡出隐藏，关→淡入恢复（R161）
+            v => { _settings.Mutate(s => s.FollowMonitorRefresh = v); SetFpsVisible(!v); })); // 开→帧率行淡出隐藏，关→淡入恢复
         panel.Children.Add(RecordFormatRow());
-        // R61：长按录制时长上限已移除——录到用户停为止（帧落盘，不再受内存/时长限制）。
+        // 长按录制时长上限已移除——录到用户停为止（帧落盘，不再受内存/时长限制）。
         // 唯一护栏是磁盘剩余空间（<1GB 自动停并保留已录内容），无需再暴露数值。
         panel.Children.Add(ToggleRow("\uE7C4", "录制时显示范围边框", "录制期间按真实捕获范围高亮描边，只提示、不录进产物。取代 Windows 11 那条绕整屏的黄色系统捕获边框（WGC 只能整显示器捕获，系统边框必然全屏、与所选范围无关）",
             _settings.Current.ShowRecordingBorder, v => _settings.Mutate(s => s.ShowRecordingBorder = v)));
         panel.Children.Add(ToggleRow("\uE8B0", "录制包含鼠标指针", "录出的画面里带上鼠标光标（默认开）。关掉后成片干净无光标，适合做教程/演示时后期自己加高亮，或不想让光标乱入",
             _settings.Current.RecordIncludeCursor, v => _settings.Mutate(s => s.RecordIncludeCursor = v)));
 
-        Cardify(panel); // R158 录制页行归入卡片
+        Cardify(panel); // 录制页行归入卡片
 
         // ---- 产物 ----
         panel = Cat("产物", "\uE74E");
-        // R161：「自动生成 Agent 胶片条 / 抽帧数」两行移除——胶片条改为视频编辑器里的功能按钮
+        // 「自动生成 Agent 胶片条 / 抽帧数」两行移除——胶片条改为视频编辑器里的功能按钮
         // （「生成胶片条」→ 小窗问抽帧参数 → 直接复制剪贴板），参数记忆在小窗里，不再是全局设置。
         panel.Children.Add(ToggleRow("\uE74E", "自动保存副本", "捕获完成后，除复制到剪贴板外，再存一份文件到本地目录（截图存 PNG；录制按上面的「录制格式」存 MP4/WebM，未装 ffmpeg 则回退 GIF）。视频在后台编码、文件稍后出现。写盘失败不影响剪贴板，捕获永远成功",
             _settings.Current.AutoSaveCopy, v => _settings.Mutate(s => s.AutoSaveCopy = v)));
         panel.Children.Add(PathRow());
 
-        Cardify(panel); // R158 产物页行归入卡片
+        Cardify(panel); // 产物页行归入卡片
 
         // ---- 编辑器 ----
         panel = Cat("编辑器", "\uE70F");
@@ -281,21 +281,21 @@ public sealed partial class SettingsWindow : Window
         panel.Children.Add(ToggleRow("\uE8C1", "识别文字后显示结果窗", "「识别文字」成功后弹出结果窗预览：可查看/编辑识别文本、鼠标悬停部分选中复制、一键复制全部——预览即选取入口，此时不再自动写剪贴板（要哪段选哪段）。关闭则退回快速路径：直接写剪贴板 + 轻提示，不弹窗",
             _settings.Current.OcrShowResult, v => _settings.Mutate(s => s.OcrShowResult = v)));
 
-        Cardify(panel); // R158 编辑器页行归入卡片
+        Cardify(panel); // 编辑器页行归入卡片
 
         // ---- 贴图 ----
         panel = Cat("贴图", "\uE718");
         panel.Children.Add(ToggleRow("\uE718", "贴图窗口吸附", "拖动贴图时实时吸附对齐（R161 由「磁边」升级）：贴近所在屏幕边缘则停靠四边/四角；贴近同屏其他贴图、以及任何应用窗口（浏览器/资源管理器…）的边或中线则与之对齐，把贴图摆齐像吸附网格一样自然。阈值调低为「贴边才吸」，不会隔空乱跳。关闭则松手停在原地",
             _settings.Current.PinSnapEdges, v => _settings.Mutate(s => s.PinSnapEdges = v)));
 
-        Cardify(panel); // R158 贴图页行归入卡片
+        Cardify(panel); // 贴图页行归入卡片
 
         // ---- 外观 ----
         panel = Cat("外观", "\uE790");
         panel.Children.Add(ThemeRow());
         panel.Children.Add(AccentRow());
 
-        Cardify(panel); // R158 外观页行归入卡片
+        Cardify(panel); // 外观页行归入卡片
 
         // ---- 系统 ----
         panel = Cat("系统", "\uE713");
@@ -306,7 +306,7 @@ public sealed partial class SettingsWindow : Window
                 try { StartupService.Apply(v); } catch { }
             }));
 
-        Cardify(panel); // R158 系统页行归入卡片
+        Cardify(panel); // 系统页行归入卡片
 
         // ---- 主从式装配（B1）：左栏竖向导航「设置项」+ 右栏「设置内容」，中间细分隔线 ----
         var iconFont = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets, Segoe UI Symbol");
@@ -331,7 +331,7 @@ public sealed partial class SettingsWindow : Window
         {
             double barTop = idx * RowPitch + RowTop + (RowH - BarH) / 2;
             if (!animate) { Canvas.SetTop(selBar, barTop); return; }
-            // 单调缓动、绝不过冲：弹性缓动（ElasticEase）会滑过目标行再回弹，视觉上冲出选项卡边框（R157 用户反馈）。
+            // 单调缓动、绝不过冲：弹性缓动（ElasticEase）会滑过目标行再回弹，视觉上冲出选项卡边框（用户反馈）。
             // 改 CubicEase EaseOut——平滑滑入即停，全程落在首末选项卡之间，不越界。
             var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
             selBar.BeginAnimation(Canvas.TopProperty, new DoubleAnimation(barTop, TimeSpan.FromMilliseconds(300)) { EasingFunction = ease });
@@ -354,7 +354,7 @@ public sealed partial class SettingsWindow : Window
         void ShowCat(int idx, bool animate)
         {
             int prev = _cat;
-            // 重复点击当前已选类别：内容/胶囊/标题都已在位，直接返回，不重播进入动画（R157 用户反馈：点同一页会重复播放切换动画）。
+            // 重复点击当前已选类别：内容/胶囊/标题都已在位，直接返回，不重播进入动画（用户反馈：点同一页会重复播放切换动画）。
             if (animate && prev == idx) return;
             _cat = idx;
             bool doFade = animate && prev != idx && prev >= 0 && prev < cats.Count;
@@ -474,7 +474,7 @@ public sealed partial class SettingsWindow : Window
         Grid.SetColumn(navHost, 0); Grid.SetColumn(divider, 1); Grid.SetColumn(rightPanel, 2);
         body.Children.Add(navHost); body.Children.Add(divider); body.Children.Add(rightPanel);
 
-        ShowCat(Math.Clamp(_restoreCat, 0, cats.Count - 1), false);   // 重建时停在原类别（R119），首帧不播动画
+        ShowCat(Math.Clamp(_restoreCat, 0, cats.Count - 1), false);   // 重建时停在原类别，首帧不播动画
 
         dock.Children.Add(body);   // LastChildFill 填满标题栏以下区域
         root.Child = dock;

@@ -6,14 +6,14 @@ using GC = GestureCore;
 namespace FrameCapture.Core;
 
 /// <summary>
-/// 一条手势绑定的可序列化形态（R120 B2）。JSON 友好：组合键用 "Ctrl+Shift+G" 串（复用 <see cref="HotkeySpec"/> 解析，
+/// 一条手势绑定的可序列化形态。JSON 友好：组合键用 "Ctrl+Shift+G" 串（复用 <see cref="HotkeySpec"/> 解析，
 /// 含键名映射，不重造键表）、触发/失败策略用字符串枚举名。与 <see cref="GC.GestureBinding"/> 互转。
 /// 序列化由宿主负责（GestureCore 刻意不引 System.Text.Json 以保持中立、可跨宿主复用）。
 /// </summary>
 public sealed class GestureBindingDto
 {
     public string Id { get; set; } = "";
-    /// <summary>启用/禁用（R123 A1）：禁用=保留配置但不进引擎、不触发，无需删除。默认启用。</summary>
+    /// <summary>启用/禁用：禁用=保留配置但不进引擎、不触发，无需删除。默认启用。</summary>
     public bool Enabled { get; set; } = true;
     /// <summary>组合键串，如 "F6" / "Ctrl+Shift+G" / "Ctrl+Alt+A"（须含主键，纯修饰键组合暂不支持）。</summary>
     public string Chord { get; set; } = "";
@@ -23,7 +23,7 @@ public sealed class GestureBindingDto
     public string[] Actions { get; set; } = Array.Empty<string>();
     /// <summary>完成后序列（A3）：主动作全部成功后再跑（如"截图后→贴图"）。可空。</summary>
     public string[] OnComplete { get; set; } = Array.Empty<string>();
-    /// <summary>截图后行为（R157）：本条手势触发截图完成后的动作——toast/editor/copy/pin；空=跟随默认（弹提示）。仅截图类手势生效。</summary>
+    /// <summary>截图后行为：本条手势触发截图完成后的动作——toast/editor/copy/pin；空=跟随默认（弹提示）。仅截图类手势生效。</summary>
     public string AfterCapture { get; set; } = "";
     /// <summary>GestureCore.FallbackPolicy 名：Stop/SkipStep/NextBinding（逐条显式，非引擎硬编码）。</summary>
     public string Fallback { get; set; } = "Stop";
@@ -78,21 +78,21 @@ public sealed class GestureBindingDto
     }
 }
 
-/// <summary>手势配置（存于 settings.json 的 gestures 段）。R126 B2 起为默认触发路径：
+/// <summary>手势配置（存于 settings.json 的 gestures 段）。B2 起为默认触发路径：
 /// 首次加载自动播种「捕获键 轻点截图 + 按住录制」默认集（<see cref="SeedIfNeeded"/>），旧热键退役。</summary>
 public sealed class GestureConfig
 {
-    /// <summary>手势层总开关。R126 起默认 true（手势替代旧热键）。关掉则退回纯观察（不吞键、不触发）。</summary>
+    /// <summary>手势层总开关。起默认 true（手势替代旧热键）。关掉则退回纯观察（不吞键、不触发）。</summary>
     public bool Enabled { get; set; } = true;
 
-    /// <summary>独占吞键（R120 B2）：手势命中「带具体键的组合键」（如 Ctrl+Alt+A）时，把该键的按下与抬起一起吞掉，
+    /// <summary>独占吞键：手势命中「带具体键的组合键」（如 Ctrl+Alt+A）时，把该键的按下与抬起一起吞掉，
     /// 前台程序收不到——QQ 式全局独占，避免快捷键漏进输入框打出字符或触发别的软件。默认 true。
     /// 纯修饰键组合（无具体键，如 Ctrl+Alt 本身）永不吞，防止 Ctrl+C 等被劫持。关掉=手势层只观察、键照常放行。</summary>
     public bool Exclusive { get; set; } = true;
 
     public List<GestureBindingDto> Bindings { get; set; } = new();
 
-    /// <summary>默认集是否已播种过（R126 一次性迁移）。首启/升级时若为空则播种并置真；
+    /// <summary>默认集是否已播种过（一次性迁移）。首启/升级时若为空则播种并置真；
     /// 之后用户清空绑定不会被重新塞回（尊重「我就是不要任何绑定」）。</summary>
     public bool Seeded { get; set; } = false;
 
@@ -155,7 +155,7 @@ public sealed class GestureConfig
     public const string DefaultCaptureKey = "Ctrl+Shift+G";
     public const string DefaultScopeKey = "Ctrl+Shift+R";
 
-    /// <summary>默认「轻点截图 + 按住录制」集（R126 B2，完整旧手感）：
+    /// <summary>默认「轻点截图 + 按住录制」集（B2，完整旧手感）：
     /// 捕获键 轻点→选区截图(QQ 式)、按住→起录、松手→停止；选区键 组合键→选区。
     /// 按住阈值 250ms（复用 LongPressMs 字段）。</summary>
     public static List<GestureBindingDto> DefaultTapHoldSet(string captureKey, string scopeKey)
@@ -172,7 +172,7 @@ public sealed class GestureConfig
         return list;
     }
 
-    /// <summary>一次性播种（R126）：未播种且当前无任何绑定 → 灌入默认 tap/hold 集并启用；随后置 Seeded。
+    /// <summary>一次性播种：未播种且当前无任何绑定 → 灌入默认 tap/hold 集并启用；随后置 Seeded。
     /// 已有绑定的用户（含自定义）不受影响，只补置 Seeded。</summary>
     public void SeedIfNeeded(string captureKey, string scopeKey)
     {
@@ -224,7 +224,7 @@ public sealed class GestureConfig
 
     /// <summary>把「绑定了指定动作的启用绑定」渲染成人类可读键位：按组合键分组、合并触发后缀（如 <c>F2 按下/松开</c>），
     /// 多条以顿号分隔（如 <c>Ctrl+Alt+R，F2 按下/松开</c>）；无匹配返回「未绑定」。
-    /// 供帮助窗反映用户真实键位——自定义手势下不再显示写死的默认键（R149：旧 <c>ScopeKeyText</c> 回落默认键会显示一个没绑定的死键）。</summary>
+    /// 供帮助窗反映用户真实键位——自定义手势下不再显示写死的默认键（旧 <c>ScopeKeyText</c> 回落默认键会显示一个没绑定的死键）。</summary>
     public string DescribeKeysFor(params string[] actionNames)
     {
         var byChord = new Dictionary<string, List<string>>();

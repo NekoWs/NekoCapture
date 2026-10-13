@@ -36,7 +36,7 @@ public sealed partial class EditorWindow : Window
         return b;
     }
 
-    // R81：钉到屏幕按钮改用实心图钉 E840（招牌动作配招牌图钉，Snipaste/QQ 惯例）；「总在最前」改置顶箭头 E898 以免两图钉混淆
+    // 钉到屏幕按钮改用实心图钉 E840（招牌动作配招牌图钉，Snipaste/QQ 惯例）；「总在最前」改置顶箭头 E898 以免两图钉混淆
     Button PinBtn()
     {
         var b = IconBtn("\uE840", "钉到屏幕 (Ctrl+P)");
@@ -44,7 +44,7 @@ public sealed partial class EditorWindow : Window
         return b;
     }
 
-    // R69：识别文字按钮（E8C1「A字」= 文字识别，与文本工具/复制明显区分）
+    // 识别文字按钮（E8C1「A字」= 文字识别，与文本工具/复制明显区分）
     Button OcrBtn()
     {
         var b = IconBtn("\uE8C1", "识别文字（复制到剪贴板）  Ctrl+O");
@@ -61,7 +61,7 @@ public sealed partial class EditorWindow : Window
         root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         _viewGrid.Children.Add(_view);
         _viewGrid.Children.Add(_canvas);
-        // R69：预览底部居中轻提示浮层（默认隐藏，ShowSnack 淡入淡出）
+        // 预览底部居中轻提示浮层（默认隐藏，ShowSnack 淡入淡出）
         _snackText = new TextBlock
         {
             Foreground = Brushes.White,
@@ -161,7 +161,7 @@ public sealed partial class EditorWindow : Window
                 Grid.SetColumn(_rangeHost, 1);
                 g.Children.Add(_rangeHost);
             }
-            // HUD 定底宽右对齐（R57）：帧数/时间/裁剪段文本变宽不再挤压时间轴列（用户实测：布局整体抖动）。
+            // HUD 定底宽右对齐：帧数/时间/裁剪段文本变宽不再挤压时间轴列（用户实测：布局整体抖动）。
             // MinWidth 而非 Width：罕见的「⚠丢帧」长警告仍完整可读，只是那种情况下才允许变宽。
             _hud.MinWidth = 210;
             _hud.TextAlignment = TextAlignment.Right;
@@ -176,7 +176,7 @@ public sealed partial class EditorWindow : Window
             var bOcrFrame = OcrBtn();
             var bSaveGif = IconBtn("\uE116", "导出录制 (MP4 / WebM / GIF)  Ctrl+E"); bSaveGif.Click += (_, _) => SaveRecording();
             var bAfter = IconBtn("\uE955", "保存视觉暂留合成图  Ctrl+H"); bAfter.Click += (_, _) => SaveAfterimage();
-            // R161：胶片条从「设置里全局自动生成」改为显式功能按钮——小窗问抽帧参数，生成后直接复制剪贴板
+            // 胶片条从「设置里全局自动生成」改为显式功能按钮——小窗问抽帧参数，生成后直接复制剪贴板
             var bStrip = IconBtn("\uE8B9", "生成胶片条（抽帧拼成一张逐帧图 → 剪贴板）"); bStrip.Click += (_, _) => GenerateFilmStrip();
             foreach (var b in new[] { bSaveFrame, bCopyFrame, bPinFrame, bOcrFrame, bSaveGif, bAfter, bStrip }) actions.Children.Add(b);
             actions.Children.Add(Sep());
@@ -195,7 +195,7 @@ public sealed partial class EditorWindow : Window
         }
 
         var tools = BuildToolsBar();
-        _toolsBar = tools; // R93：留引用，供 FitMinWidthToToolbar 量宽
+        _toolsBar = tools; // 留引用，供 FitMinWidthToToolbar 量宽
         if (!MultiFrame)
         {
             tools.Children.Add(Sep());
@@ -210,7 +210,7 @@ public sealed partial class EditorWindow : Window
             _okBtns.Add(bOkF); // 主按钮：accent 实心
         }
         tools.Children.Add(Sep());
-        // R81：编辑器总在最前（R44）。改用置顶箭头 E898（向上箭头带顶栏，GlyphProbe 已验证），开关态靠高亮底色区分，不再与「钉到屏幕」图钉混淆
+        // 编辑器总在最前。改用置顶箭头 E898（向上箭头带顶栏，GlyphProbe 已验证），开关态靠高亮底色区分，不再与「钉到屏幕」图钉混淆
         var bPin = IconBtn("\uE898", "总在最前");
         FrameCapture.Core.Fluent.HighlightBtn(bPin, _settings.Current.EditorTopmost);
         bPin.Click += (_, _) =>
@@ -243,7 +243,7 @@ public sealed partial class EditorWindow : Window
     }
 
     /// <summary>
-    /// R93：让窗口 MinWidth 跟随底部工具条的实际宽度。工具条是居中 StackPanel，窗口比它窄时
+    /// 让窗口 MinWidth 跟随底部工具条的实际宽度。工具条是居中 StackPanel，窗口比它窄时
     /// 两端工具会被裁掉（历史上 MinWidth 是写死的 812，但工具条随功能增长早已超过它）。
     /// 量工具条 DesiredSize（含最近用色，最多 4 枚）+ 面板内边距，夹到 [812, 工作区宽]。
     /// DesiredSize 是内容宽（StackPanel 不受容器约束），故窗口窄时也能量到真实需要。
@@ -291,7 +291,7 @@ public sealed partial class EditorWindow : Window
             var inner = new System.Windows.Shapes.Ellipse
             {
                 Width = 14, Height = 14, Fill = new SolidColorBrush(Swatches[idx]),
-                // 40% 文字色环：Theme.Stroke 在浅色主题太淡，白色色块会融进白工具条（R28 浅色截图抓到）
+                // 40% 文字色环：Theme.Stroke 在浅色主题太淡，白色色块会融进白工具条（浅色截图抓到）
                 Stroke = new SolidColorBrush(Color.FromArgb(0x66, Theme.Text.R, Theme.Text.G, Theme.Text.B)), StrokeThickness = 1,
             };
             var bd = new Border
@@ -370,7 +370,7 @@ public sealed partial class EditorWindow : Window
         bool canU = _anns.CanUndo || _order.CanUndoCrop, canR = _anns.CanRedo || _order.CanRedoCrop;
         SetGhost(_undoBtn, canU);
         SetGhost(_redoBtn, canR);
-        // 步数进 tooltip（R45）：撤销到哪一步、还能撤几步，悬停即知
+        // 步数进 tooltip：撤销到哪一步、还能撤几步，悬停即知
         int u = _anns.Count + _order.CropUndoCount, r = _anns.RedoCount + _order.CropRedoCount;
         if (_undoBtn != null) _undoBtn.ToolTip = canU ? $"撤销上一笔（可撤 {u} 步）  Ctrl+Z" : "撤销 (Ctrl+Z)";
         if (_redoBtn != null) _redoBtn.ToolTip = canR ? $"重做上一笔（可重做 {r} 步）  Ctrl+Y" : "重做 (Ctrl+Y)";
@@ -445,7 +445,7 @@ public sealed partial class EditorWindow : Window
 
     void PickCustomColor()
     {
-        // R54：系统 ColorDialog 退役 → 自绘 RGBA 调色板弹层（EditorWindow.ColorPick.cs，主题一致+就地+即时生效）
+        // 系统 ColorDialog 退役 → 自绘 RGBA 调色板弹层（EditorWindow.ColorPick.cs，主题一致+就地+即时生效）
         if (_paletteBtn != null) ShowColorPicker(_paletteBtn);
     }
 
@@ -476,7 +476,7 @@ public sealed partial class EditorWindow : Window
                 AllowsTransparency = true,
                 PopupAnimation = PopupAnimation.Fade,
             };
-            // R76：滑杆拖动只改默认值（实时预览），关闭弹层时一次性把最终粗细应用到选中项（单条撤销）
+            // 滑杆拖动只改默认值（实时预览），关闭弹层时一次性把最终粗细应用到选中项（单条撤销）
             _widthPop.Closed += (_, _) => RestyleSelected(null, CurWidth);
         }
         _widthSlider.Value = Math.Clamp(_customWidth, 1, 24);
@@ -485,6 +485,6 @@ public sealed partial class EditorWindow : Window
         OpenPopSticky(_widthPop, this);
     }
 
-    // OpenPopSticky 已上收 Fluent（R59，设置窗调色板共用）
+    // OpenPopSticky 已上收 Fluent（，设置窗调色板共用）
     static void OpenPopSticky(Popup pop, UIElement hostEl) => FrameCapture.Core.Fluent.OpenPopSticky(pop, hostEl);
 }

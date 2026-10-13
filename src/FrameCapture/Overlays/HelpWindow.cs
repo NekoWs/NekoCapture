@@ -13,7 +13,7 @@ using FrameCapture.Services;
 namespace FrameCapture.Overlays;
 
 /// <summary>
-/// R161：帮助从「一屏文字墙」改为渐进式分步演示——布局对齐设置页：左侧本步大标题（图标+名称），
+/// 帮助从「一屏文字墙」改为渐进式分步演示——布局对齐设置页：左侧本步大标题（图标+名称），
 /// 右侧正文只讲这一步（几行短句，细节进悬停气泡），右下角 上一页/下一页 翻页。
 /// 文字量按「一步只学一件事」裁剪；标注工具目录仍是单一数据源（ToolCatalog），防漂移不变。
 /// </summary>
@@ -73,7 +73,7 @@ public sealed class HelpWindow : Window
         Width = 660;
         Height = 430;   // 固定高度：翻页时窗口不跳，正文超高在右栏内滚
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
-        _step = Math.Clamp(_lastStep, 0, 99);   // 步数可能变少，Show() 前再钳一次
+        _step = Math.Clamp(_lastStep, 0, 99);   // 步数可能变少，Show 前再钳一次
 
         var root = new Border
         {
@@ -94,7 +94,7 @@ public sealed class HelpWindow : Window
         _step = Math.Clamp(_step, 0, _steps.Count - 1);
 
         // ---- 主体：左大标题 | 右正文（与设置页同款视觉分工） ----
-        // R163：去掉旧的 main.Height=322 + Dock.Top 硬钉——那会让主体不填充剩余高度，内容少时底部一大片空。
+        // 去掉旧的 main.Height=322 + Dock.Top 硬钉——那会让主体不填充剩余高度，内容少时底部一大片空。
         // 改为 DockPanel 的填充子项（最后加入），左栏与正文都垂直居中：短页居中不空、长页仍在右栏内滚。
         var main = new Grid { Margin = new Thickness(18, 8, 18, 0) };
         main.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(184) });

@@ -1,13 +1,13 @@
 namespace FrameCapture.Core;
 
 /// <summary>
-/// 贴图磁边（R74）：拖动松手后把贴图吸附到所在屏幕工作区边缘（Snipaste 式手感）。
+/// 贴图磁边：拖动松手后把贴图吸附到所在屏幕工作区边缘（Snipaste 式手感）。
 /// 纯函数、坐标单位由调用方统一（这里用 DIP），供单测。
 /// </summary>
 public static class PinSnap
 {
-    /// <summary>吸附阈值：短边的 8%，夹在 16–40。R119 曾放宽到 12%/24–56（小图吸不上被误判无效）；
-    /// R161 参考线扩展到所有窗口后回调到 8%/16–40——线多了阈值再大就会频繁吸到远处的线上，
+    /// <summary>吸附阈值：短边的 8%，夹在 16–40。曾放宽到 12%/24–56（小图吸不上被误判无效）；
+    /// 参考线扩展到所有窗口后回调到 8%/16–40——线多了阈值再大就会频繁吸到远处的线上，
     /// 「贴边才吸」的确定性比「更容易吸」更重要（用户点名阈值调低）。</summary>
     public static double Threshold(double w, double h) => Math.Clamp(Math.Min(w, h) * 0.08, 16, 40);
 
@@ -25,9 +25,9 @@ public static class PinSnap
     }
 
     /// <summary>
-    /// 贴图对齐（R77）：拖动松手时把本贴图吸附到一组参考线——屏幕边 + 同屏其他窗口/贴图的边。
+    /// 贴图对齐：拖动松手时把本贴图吸附到一组参考线——屏幕边 + 同屏其他窗口/贴图的边。
     /// 本贴图的 left/right 贴 xEdge（屏幕左右边）与 xAny（其他窗口线）；y 轴同理。
-    /// R162：去掉中心锚点——用户点名「只要吸附屏幕边缘、可视窗口边缘就够了」，中线吸附是
+    /// 去掉中心锚点——用户点名「只要吸附屏幕边缘、可视窗口边缘就够了」，中线吸附是
     /// 拖动卡顿感与「莫名吸走」的主要来源。每轴取全局最小偏移，超阈值则该轴不动。
     /// 坐标统一为同一 DPI 空间的 DIP。纯函数，供单测。
     /// </summary>
@@ -55,7 +55,7 @@ public static class PinSnap
         return (nl, nt);
     }
 
-    /// <summary>R163 拖动实时磁吸阈值（DIP）：参考 Slick Window Arrangement 的固定吸附距离，
+    /// <summary>拖动实时磁吸阈值（DIP）：参考 Slick Window Arrangement 的固定吸附距离，
     /// 按贴图尺寸微调并夹在 12–22。有了「垂直跨度重叠才吸」的判定，阈值不必很大也不会乱吸。</summary>
     public static double MagnetDist(double w, double h) => Math.Clamp(Math.Min(w, h) * 0.06, 12, 22);
 
@@ -67,7 +67,7 @@ public static class PinSnap
         public Edge(double pos, double s0, double s1) { Pos = pos; Span0 = s0; Span1 = s1; }
     }
 
-    /// <summary>R163 单轴磁吸（参考 Slick Window Arrangement）：本贴图该轴近边（左/上）只与 nearTargets
+    /// <summary>单轴磁吸（参考 Slick Window Arrangement）：本贴图该轴近边（左/上）只与 nearTargets
     /// 里的同类边对齐、远边（右/下）只与 farTargets 对齐（同类边对同类边 + 屏幕边），且要求垂直跨度重叠。
     /// 近/远边各取阈值内最近者（互斥）。返回该轴最终位置（near 值）。纯函数，供单测。</summary>
     public static double Magnet(double near, double far, double span0, double span1,
@@ -89,7 +89,7 @@ public static class PinSnap
         return found ? near + shift : near;
     }
 
-    /// <summary>R164：从 [lo,hi] 中减去 covered 覆盖区间，返回可见子段（起点升序）。贴图磁吸的「遮挡裁剪」用——
+    /// <summary>从 [lo,hi] 中减去 covered 覆盖区间，返回可见子段（起点升序）。贴图磁吸的「遮挡裁剪」用——
     /// 一条窗口边被更靠上（Z 序更前）的窗口盖住的部分不算参考边，只吸「看得见的边」（Slick RemoveOverlappedTargets 思路）。
     /// 空 covered → 整段可见；完全覆盖 → 空。纯函数，供单测。</summary>
     public static List<(double s0, double s1)> VisibleSegments(double lo, double hi, IReadOnlyList<(double a, double b)> covered)

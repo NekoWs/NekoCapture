@@ -11,7 +11,7 @@ using FrameCapture.Native;
 namespace FrameCapture.Overlays;
 
 /// <summary>
-/// 延时截图倒计时浮窗（R91）：触发后倒数 N 秒再截「当前范围」，给用户时间去打开
+/// 延时截图倒计时浮窗：触发后倒数 N 秒再截「当前范围」，给用户时间去打开
 /// 右键菜单 / 悬停提示 / 下拉框这类「鼠标一动就没了」的界面。
 /// 关键手感：ShowActivated=false **不抢焦点**——否则目标窗失焦，正要截的菜单反而被关掉；
 /// WDA_EXCLUDEFROMCAPTURE 排除，倒计时浮窗本身绝不入镜。点「取消」中止（点击不依赖焦点）。
@@ -150,7 +150,7 @@ public sealed class CountdownWindow : Window
         Fluent.FadeIn(this, Fluent.Motion.EnterMs, 8, offscreenFirstFrame: true);
     }
 
-    /// <summary>刷新倒计时数字：每个数字弹入（0.6→1.0 BackEase 轻微过冲），与下拉/Toast 同款 PopIn 手感（R70）。</summary>
+    /// <summary>刷新倒计时数字：每个数字弹入（0.6→1.0 BackEase 轻微过冲），与下拉/Toast 同款 PopIn 手感。</summary>
     public void SetNumber(int n)
     {
         _num.Text = n.ToString();

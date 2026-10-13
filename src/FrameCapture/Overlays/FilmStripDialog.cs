@@ -7,7 +7,7 @@ using FrameCapture.Core;
 
 namespace FrameCapture.Overlays;
 
-/// <summary>R161：「生成胶片条」小窗——问「抽多少帧」「每多少帧取一次」两个参数，
+/// <summary>「生成胶片条」小窗——问「抽多少帧」「每多少帧取一次」两个参数，
 /// 确定后由编辑器抽样渲染、直接复制剪贴板（不落盘）。参数写回 settings 记忆，下次打开沿用。
 /// 取代旧的全局「自动生成 Agent 胶片条」设置：功能从后台默认行为变成编辑器里的显式按钮。</summary>
 public sealed class FilmStripDialog : Window

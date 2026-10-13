@@ -2,7 +2,7 @@ namespace FrameCapture.Core;
 
 /// <summary>
 /// 轻量撤销/重做栈：新增操作清空重做栈；撤销可逐步重做。
-/// R50 升级为操作栈：除 Add 外支持 Replace（编辑对象，如改文字内容），编辑可撤销/重做且保持列表顺序。
+/// 升级为操作栈：除 Add 外支持 Replace（编辑对象，如改文字内容），编辑可撤销/重做且保持列表顺序。
 /// 操作日志与条目列表分离——编辑中间条目后，撤销顺序仍按操作时间倒序（Add A → Add B → Edit A 的撤销次序是 Edit、B、A）。
 /// </summary>
 public sealed class UndoRedo<T> where T : class

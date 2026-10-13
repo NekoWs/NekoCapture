@@ -11,7 +11,7 @@ using FrameCapture.Native;
 namespace FrameCapture.Overlays;
 
 /// <summary>
-/// 滚动截图控制条（R88）：选区后常驻，用户只管滚动目标窗口，后台定时器自动找重叠拼接；
+/// 滚动截图控制条：选区后常驻，用户只管滚动目标窗口，后台定时器自动找重叠拼接；
 /// 本条只做进度显示 + 完成/取消。WDA_EXCLUDEFROMCAPTURE 排除，绝不入镜。
 /// 关键手感：ShowActivated=false **不抢焦点**——目标窗口保持焦点，滚轮/键盘滚动照常生效
 /// （若本条抢了焦点，关闭「悬停滚动」的系统里滚轮会落到本条、目标窗纹丝不动）。

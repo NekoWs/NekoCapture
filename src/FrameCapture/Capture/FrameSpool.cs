@@ -4,7 +4,7 @@ using System.IO;
 namespace FrameCapture.Capture;
 
 /// <summary>
-/// 磁盘暂存帧仓（R61）：录制时长上限移除后，帧不再驻留内存，按到达顺序落盘，
+/// 磁盘暂存帧仓：录制时长上限移除后，帧不再驻留内存，按到达顺序落盘，
 /// 编辑器经 <see cref="OpenReader"/> 拿到的惰性列表按需回读。
 /// 4K@60fps BGRA≈2GB/s——纯内存必 OOM；NVMe 顺写扛得住这个带宽，且 OS 文件缓存
 /// 让"刚录完立刻回读"接近内存速度（回放顺序读同样命中缓存）。
@@ -70,8 +70,8 @@ public sealed class FrameSpool : IDisposable
     {
         lock (_gate)
         {
-            // Flush() 而非 Flush(true)：spool 是临时文件，回读走同一 OS 文件缓存（新 FileStream 读同路径），
-            // 无需 FSync 强制落盘。Flush(true) 会把整段（可达 GB 级）脏页压到物理盘，实测卡 UI 线程 ~1.8s（R124）。
+            // Flush 而非 Flush(true)：spool 是临时文件，回读走同一 OS 文件缓存（新 FileStream 读同路径），
+            // 无需 FSync 强制落盘。Flush(true) 会把整段（可达 GB 级）脏页压到物理盘，实测卡 UI 线程 ~1.8s。
             _fs?.Flush();
             _fs?.Dispose();
             _fs = null;

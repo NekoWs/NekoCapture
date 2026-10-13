@@ -7,7 +7,7 @@ using FrameCapture.Services;
 
 namespace FrameCapture.Overlays;
 
-/// <summary>R72：OCR 结果预览窗（可选，设置「识别后显示结果窗」开启时弹出）。
+/// <summary>OCR 结果预览窗（可选，设置「识别后显示结果窗」开启时弹出）。
 /// 显示识别文本（可编辑、可部分选中复制），底部「复制全部」+ 字数统计。
 /// 非模态——编辑器仍可继续操作；Esc / 关闭钮淡出关闭。</summary>
 public sealed class OcrResultWindow : Window

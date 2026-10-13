@@ -13,7 +13,7 @@ namespace FrameCapture.Overlays;
 /// </summary>
 public sealed partial class RegionPickerWindow : Window
 {
-    public event Action<RectI?, IntPtr>? Result; // (选区矩形, 窗口句柄)：hwnd≠0 表示按窗口截图（R165）
+    public event Action<RectI?, IntPtr>? Result; // (选区矩形, 窗口句柄)：hwnd≠0 表示按窗口截图
 
     private readonly MonitorInfo _monitor;
     private readonly RectI _monitorPhys;
@@ -26,17 +26,17 @@ public sealed partial class RegionPickerWindow : Window
     private bool _finished;
     private RectI? _existing;
     private readonly bool _snapContent;
-    private readonly bool _windowCapture; // R165：点吸附窗口时走「真·窗口截图」
+    private readonly bool _windowCapture; // 点吸附窗口时走「真·窗口截图」
     private readonly bool _magnifier;
-    private readonly bool _freeze;       // R166：选区时定格画面（显示/放大镜/截图都用定格帧）
-    private readonly int _pregrabMax;    // R166：定格时后台预抓「完整可见」窗口干净画面的上限
-    private readonly bool _windowShadow; // R166：预抓的窗口画面是否带合成投影
+    private readonly bool _freeze;       // 选区时定格画面（显示/放大镜/截图都用定格帧）
+    private readonly int _pregrabMax;    // 定格时后台预抓「完整可见」窗口干净画面的上限
+    private readonly bool _windowShadow; // 预抓的窗口画面是否带合成投影
     private System.Windows.Media.Imaging.BitmapSource? _snap; // 定格全屏快照（定格模式：喂放大镜 + 背景 + 裁选区）
     private byte[]? _snapBgra; // 快照原始 BGRA（取光标下像素颜色用）
     private int _snapW;
-    private CapturedFrame? _snapFrame;  // R166：定格全屏帧（裁选区用，物理 BGRA）
-    private System.Windows.Controls.Image? _freezeBg; // R166：定格背景图（让屏幕看起来定格）
-    // R166：定格时后台预抓的窗口干净画面缓存（HWND → 帧+区域）；点窗口命中即用，避免实时抓（定格+干净）
+    private CapturedFrame? _snapFrame;  // 定格全屏帧（裁选区用，物理 BGRA）
+    private System.Windows.Controls.Image? _freezeBg; // 定格背景图（让屏幕看起来定格）
+    // 定格时后台预抓的窗口干净画面缓存（HWND → 帧+区域）；点窗口命中即用，避免实时抓（定格+干净）
     private readonly System.Collections.Concurrent.ConcurrentDictionary<IntPtr, (CapturedFrame Frame, RectI Region)> _winCache = new();
 
     /// <summary>mouseDown 时记录（物理坐标，相对监视器原点存 DIP）。</summary>
@@ -56,7 +56,7 @@ public sealed partial class RegionPickerWindow : Window
         Native.Win32.SetWindowPos(h, Native.Win32.HWND_TOPMOST, 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0010); // NOMOVE|NOSIZE|NOACTIVATE
     }
 
-    /// <summary>R166：定格模式——Show 之后在后台线程抓全屏定格帧（本窗已 WDA 排除，遮罩已渲染也拍不到，颜色真实）。
+    /// <summary>定格模式——Show 之后在后台线程抓全屏定格帧（本窗已 WDA 排除，遮罩已渲染也拍不到，颜色真实）。
     /// 抓完回 UI 线程填 _snap/_snapFrame 并把定格帧铺成背景（屏幕看起来就定格了）；放大镜在定格帧到位后显示。</summary>
     void StartFreezeSnapshot()
     {
@@ -81,7 +81,7 @@ public sealed partial class RegionPickerWindow : Window
         });
     }
 
-    /// <summary>R166：定格+窗口截图都开时，后台按 Z 序（聚焦窗最优先）预抓「完整可见」窗口的干净画面（WGC，
+    /// <summary>定格+窗口截图都开时，后台按 Z 序（聚焦窗最优先）预抓「完整可见」窗口的干净画面（WGC，
     /// 带透明圆角+可选投影），缓存到 _winCache。点窗口命中即用＝定格+干净；没缓存好则控制器实时抓兜底。
     /// 只抓本屏、完整可见（未被更靠上窗遮挡）、数量取前 N 个；每个失败静默跳过；选区结束即停。</summary>
     void StartWindowPregrab()
@@ -116,14 +116,14 @@ public sealed partial class RegionPickerWindow : Window
         });
     }
 
-    /// <summary>R166：控制器取预抓的窗口干净画面（定格+干净）。命中返回 true。</summary>
+    /// <summary>控制器取预抓的窗口干净画面（定格+干净）。命中返回 true。</summary>
     public bool TryGetCachedWindow(IntPtr hwnd, out CapturedFrame frame, out RectI region)
     {
         if (_winCache.TryGetValue(hwnd, out var v)) { frame = v.Frame; region = v.Region; return true; }
         frame = null!; region = default; return false;
     }
 
-    /// <summary>R166：定格全屏帧 + 其原点对应的虚拟桌面坐标（控制器据此把选区裁自定格帧而非重抓）。</summary>
+    /// <summary>定格全屏帧 + 其原点对应的虚拟桌面坐标（控制器据此把选区裁自定格帧而非重抓）。</summary>
     public CapturedFrame? FrozenFrame => _snapFrame;
     public RectI FrozenOrigin => _monitorPhys;
 
@@ -152,10 +152,10 @@ public sealed partial class RegionPickerWindow : Window
             // 选区窗本身绝不入镜（BitBlt/WGC 都拍不到）：放大镜快照因此可在 Show 之后异步抓，
             // 把 4K 抓取挪出打开关键路径 → 选区窗更快出现，且遮罩已渲染也不影响取色。
             try { Win32.SetWindowDisplayAffinity(h, Win32.WDA_EXCLUDEFROMCAPTURE); } catch { }
-            // R160：WS_EX_NOACTIVATE——Show 与鼠标按下都不激活本窗，前台焦点始终留在目标窗。
+            // WS_EX_NOACTIVATE——Show 与鼠标按下都不激活本窗，前台焦点始终留在目标窗。
             // 否则拖框的 MouseDown 会把焦点从浏览器抢走，Z 序/前台一变，选区里就截到别的软件。
             try { Win32.SetWindowLongW(h, Win32.GWL_EXSTYLE, Win32.GetWindowLongW(h, Win32.GWL_EXSTYLE) | Win32.WS_EX_NOACTIVATE); } catch { }
-            // R166：定格模式开框瞬间抓一张全屏定格帧（喂背景+放大镜+裁选区）；实时模式不抓全屏，
+            // 定格模式开框瞬间抓一张全屏定格帧（喂背景+放大镜+裁选区）；实时模式不抓全屏，
             // 放大镜改每次移动实时小区域重抓（跟画面）。定格+窗口截图都开时，后台按 Z 序预抓可见窗口干净画面。
             if (_freeze) { StartFreezeSnapshot(); if (_windowCapture && _pregrabMax > 0) StartWindowPregrab(); }
             // 分层窗（AllowsTransparency）没有黑首帧问题，绝不能屏外停放：
@@ -172,7 +172,7 @@ public sealed partial class RegionPickerWindow : Window
         Title = "FrameCapture Region"; // 与 SourceInitialized 里 SetWindowText 一致，自动化可定位
         ShowInTaskbar = false;
         Topmost = true;
-        ShowActivated = false; // R160：不夺前台焦点（配合 SourceInitialized 里的 WS_EX_NOACTIVATE）——目标窗（如浏览器）保持焦点，截图不再截错窗口
+        ShowActivated = false; // 不夺前台焦点（配合 SourceInitialized 里的 WS_EX_NOACTIVATE）——目标窗（如浏览器）保持焦点，截图不再截错窗口
         // 与其它置顶窗（游戏等）同带竞争：失活即重插到置顶带最前，另有 400ms 巡检兜底
         Deactivated += (_, _) => { if (IsLoaded) ReassertTop(); };
         _topTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(400) };
@@ -241,7 +241,7 @@ public sealed partial class RegionPickerWindow : Window
         Content = rootGrid;
 
         Loaded += (_, _) => _topTimer.Start();
-        Closed += (_, _) => { _topTimer.Stop(); _winCache.Clear(); Services.HotkeyManager.PickerActive = false; Services.HotkeyManager.PickerKey = null; }; // R160：清零全局键拦截，绝不泄漏成"全局键失灵"；R166：释放预抓窗口缓存
+        Closed += (_, _) => { _topTimer.Stop(); _winCache.Clear(); Services.HotkeyManager.PickerActive = false; Services.HotkeyManager.PickerKey = null; }; // 清零全局键拦截，绝不泄漏成"全局键失灵"；释放预抓窗口缓存
 
         Loaded += (_, _) =>
         {
@@ -297,7 +297,7 @@ public sealed partial class RegionPickerWindow : Window
             };
             _canvas.Children.Add(_badge);
 
-            // 放大镜：光标旁高倍像素窗 + 坐标/尺寸读数（R70）。UI 先建好，_snap 异步到位后 UpdateLoupe 自动显示。
+            // 放大镜：光标旁高倍像素窗 + 坐标/尺寸读数。UI 先建好，_snap 异步到位后 UpdateLoupe 自动显示。
             if (_magnifier)
             {
                 double cell = LoupeSize / LoupeSpan;
@@ -387,12 +387,12 @@ public sealed partial class RegionPickerWindow : Window
                 st.BeginAnimation(ScaleTransform.ScaleXProperty, MaskAnim(1, 190, 90));
                 st.BeginAnimation(ScaleTransform.ScaleYProperty, MaskAnim(1, 190, 90));
             }
-            // R160：不再 Activate/抢键盘焦点——选区窗是非激活窗，键由 HotkeyManager 全局钩子代收（见 OnPickerKey）。
+            // 不再 Activate/抢键盘焦点——选区窗是非激活窗，键由 HotkeyManager 全局钩子代收（见 OnPickerKey）。
             Services.HotkeyManager.PickerActive = true;
             Services.HotkeyManager.PickerKey = OnPickerKey;
         };
 
-        // R160：原 WPF KeyDown 已移除——选区窗是非激活窗（WS_EX_NOACTIVATE），KeyDown 不会触发；
+        // 原 WPF KeyDown 已移除——选区窗是非激活窗（WS_EX_NOACTIVATE），KeyDown 不会触发；
         // Esc/Enter/C/F/Tab 改由 HotkeyManager 全局钩子代收（见类末 OnPickerKey）。
         MouseLeftButtonDown += OnDown;
         MouseMove += OnMove;
@@ -411,7 +411,7 @@ public sealed partial class RegionPickerWindow : Window
     }
 
     private Core.ElementHit? _curElem;
-    private bool _drillLock;      // Tab 上钻后锁定选中的父容器：鼠标微动不再被 hover 吸附抢回子控件（R119）
+    private bool _drillLock;      // Tab 上钻后锁定选中的父容器：鼠标微动不再被 hover 吸附抢回子控件
     private Point _drillAnchor;   // 锁定时的光标 DIP 位置，移动超过阈值才解锁恢复常规吸附
     private System.Windows.Controls.Border _hint = null!;
 
@@ -436,7 +436,7 @@ public sealed partial class RegionPickerWindow : Window
         }
         else
         {
-            // Tab 上钻锁定：光标未明显移动就保持锁定的父容器，否则鼠标一抖就被 hover 吸附回子控件（R119）。
+            // Tab 上钻锁定：光标未明显移动就保持锁定的父容器，否则鼠标一抖就被 hover 吸附回子控件。
             if (_drillLock)
             {
                 if ((dip - _drillAnchor).Length <= 6)
@@ -483,7 +483,7 @@ public sealed partial class RegionPickerWindow : Window
                 var eh = Core.ElementSnap.At(p.X, p.Y, selfH);
                 if (eh != null && eh.Rect.W >= 8 && eh.Rect.H >= 8) { Finish(eh.Rect); return; }
             }
-            // R165：点吸附到的窗口 → 真·窗口截图（开关开 + 未被遮挡 + 吸附到的是窗口而非 UIA 子元素）
+            // 点吸附到的窗口 → 真·窗口截图（开关开 + 未被遮挡 + 吸附到的是窗口而非 UIA 子元素）
             if (_windowCapture)
             {
                 var wc = WindowHitForCapture(p);

@@ -1,7 +1,7 @@
 namespace FrameCapture.Core;
 
 /// <summary>
-/// R66：贴图不透明度滚轮调节的纯决策——按滚轮方向增减一档并夹到 [min,max]。
+/// 贴图不透明度滚轮调节的纯决策——按滚轮方向增减一档并夹到 [min,max]。
 /// 与 WPF 解耦，SelfTest 可断言（上下限锁死、delta=0 不变）。
 /// </summary>
 public static class PinOpacity

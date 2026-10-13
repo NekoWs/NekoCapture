@@ -6,7 +6,7 @@ namespace FrameCapture.Native;
 public static class WindowEnum
 {
     /// <summary>返回按 Z 序排列的可见候选窗口（物理像素边界），跳过桌面/壳层/工具窗口。
-    /// R161：skipIconic=true 供贴图吸附用——最小化的窗口不该当对齐参考线。</summary>
+    /// skipIconic=true 供贴图吸附用——最小化的窗口不该当对齐参考线。</summary>
     public static IEnumerable<(IntPtr Hwnd, Capture.RectI Bounds, Capture.RectI Client)> ListTopmostCandidates(IntPtr excludeHwnd = default, bool skipIconic = false)
     {
         var list = new List<(IntPtr, Capture.RectI, Capture.RectI)>();

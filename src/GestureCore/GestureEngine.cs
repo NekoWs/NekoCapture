@@ -10,12 +10,12 @@ namespace GestureCore;
 /// 时间由宿主传入（<see cref="Tick"/> 推进待决的点击消歧与长按判定），因此可确定性单测、可跨宿主复用。
 ///
 /// 消歧规则：
-///  • 组合键激活瞬间触发 KeyDown/Chord，失活瞬间触发 KeyUp（配对即「按住做 A、松手做 B」）。
-///  • 组合键激活期间的鼠标动作按 Click / DoubleClick / TripleClick / LongPress 分类：
-///    连击数达到该组合键已绑定的最高阶触发即立即触发；否则等 DoubleClickMs 无后续再触发当前阶。
-///    若该组合键只绑了 Click（无更高阶），单击立即触发、零延迟。
-///  • 长按：鼠标按下保持 ≥ LongPressMs 即触发 LongPress，并吞掉随后的抬起（不再计为单击）。
-///  • 同一触发命中多条绑定按 <see cref="GestureBinding.Priority"/> 顺延；某步失败按该条 <see cref="GestureBinding.Fallback"/> 处理。
+/// • 组合键激活瞬间触发 KeyDown/Chord，失活瞬间触发 KeyUp（配对即「按住做 A、松手做 B」）。
+/// • 组合键激活期间的鼠标动作按 Click / DoubleClick / TripleClick / LongPress 分类：
+/// 连击数达到该组合键已绑定的最高阶触发即立即触发；否则等 DoubleClickMs 无后续再触发当前阶。
+/// 若该组合键只绑了 Click（无更高阶），单击立即触发、零延迟。
+/// • 长按：鼠标按下保持 ≥ LongPressMs 即触发 LongPress，并吞掉随后的抬起（不再计为单击）。
+/// • 同一触发命中多条绑定按 <see cref="GestureBinding.Priority"/> 顺延；某步失败按该条 <see cref="GestureBinding.Fallback"/> 处理。
 /// </summary>
 public sealed class GestureEngine
 {
@@ -305,7 +305,7 @@ public sealed class GestureEngine
     /// 主序列成功后再跑「完成后序列」OnComplete（A3）——尽力而为，其失败不改变本条结果。</summary>
     bool RunActions(GestureBinding b)
     {
-        try { _invoker.BeginBinding(b); } catch { }   // R157：把本条绑定元数据（如截图后行为）交给宿主作上下文
+        try { _invoker.BeginBinding(b); } catch { }   // 把本条绑定元数据（如截图后行为）交给宿主作上下文
         foreach (var action in b.Actions)
         {
             bool ok;

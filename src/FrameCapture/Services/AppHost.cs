@@ -34,7 +34,7 @@ public sealed class AppHost
         Gestures = new GestureService(this);
         Tray = new TrayService(this);
 
-        Hotkeys.ScrollCancel += () => Dispatch(Controller.ScrollCancel); // R90：滚动截图中 Esc 全局取消
+        Hotkeys.ScrollCancel += () => Dispatch(Controller.ScrollCancel); // 滚动截图中 Esc 全局取消
         InstallHotkeys();
 
         Controller.Initialize();
@@ -67,7 +67,7 @@ public sealed class AppHost
     public void InstallHotkeys()
     {
         var s = Settings.Current;
-        // R126 B2：手势是唯一的全局触发路径。先应用手势（填引擎绑定表 + 挂键事件汇/鼠标钩子，置 KeySink），
+        // 手势是唯一的全局触发路径。先应用手势（填引擎绑定表 + 挂键事件汇/鼠标钩子，置 KeySink），
         // 再装键盘钩子（Install 据 KeySink 决定装不装）。旧 F6/F7 捕获/选区热键已退役。
         Gestures.Apply(s.Gestures);
         Hotkeys.Install();

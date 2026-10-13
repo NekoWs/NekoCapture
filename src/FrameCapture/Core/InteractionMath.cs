@@ -97,7 +97,7 @@ public static class SnapPick
         return null;
     }
 
-    /// <summary>同上，但候选带 HWND 且一并返回命中的窗口句柄（R165 窗口截图用）。
+    /// <summary>同上，但候选带 HWND 且一并返回命中的窗口句柄（窗口截图用）。
     /// bounds 用于命中判定（可能是 client），hwnd 用于按窗口捕获。</summary>
     public static (IntPtr Hwnd, Capture.RectI Bounds)? PickWindow(IEnumerable<(IntPtr, Capture.RectI)> zTopFirst, int x, int y)
     {
@@ -109,7 +109,7 @@ public static class SnapPick
         return null;
     }
 
-    /// <summary>R165 遮挡判定：z 序里排在 idx 之前（更靠上）的候选窗，是否有任一与 target 相交。
+    /// <summary>遮挡判定：z 序里排在 idx 之前（更靠上）的候选窗，是否有任一与 target 相交。
     /// 有 → 目标窗被遮挡 → 窗口截图应回退区域截图（否则投影环会掺进上层窗内容）。</summary>
     public static bool AnyAboveIntersects(IReadOnlyList<Capture.RectI> zTopFirst, int idx, Capture.RectI target)
     {
@@ -122,7 +122,7 @@ public static class SnapPick
         return false;
     }
 
-    /// <summary>R166 定格预抓排序：从「完整可见」候选（z 序顶在前）里按优先级取前 max 个 HWND——
+    /// <summary>定格预抓排序：从「完整可见」候选（z 序顶在前）里按优先级取前 max 个 HWND——
     /// 当前聚焦窗最优先（若在候选里），其余按 z 序自上而下。max≤0 → 空。纯函数供单测。</summary>
     public static List<IntPtr> PregrabOrder(IntPtr focused, IReadOnlyList<IntPtr> zTopFirst, int max)
     {

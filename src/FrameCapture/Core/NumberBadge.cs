@@ -1,6 +1,6 @@
 namespace FrameCapture.Core;
 
-/// <summary>序号标注（R73）：编号徽章的纯决策，供编辑器放置与单测。</summary>
+/// <summary>序号标注：编号徽章的纯决策，供编辑器放置与单测。</summary>
 public static class NumberBadge
 {
     /// <summary>下一个编号 = 现有编号最大值 + 1（无则 1）。删除/撤销后自动回退，绝不重号。纯函数供单测。</summary>

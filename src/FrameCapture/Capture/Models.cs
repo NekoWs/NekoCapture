@@ -38,7 +38,7 @@ public sealed class CapturedFrame
 }
 
 /// <summary>一次捕获的完整序列。Frames 可能是内存表（单帧/兜底），也可能是磁盘暂存的
-/// 惰性列表（FrameSpoolList，R61）——消费方只按索引/顺序访问，勿假设可写或可全量驻留。</summary>
+/// 惰性列表（FrameSpoolList，）——消费方只按索引/顺序访问，勿假设可写或可全量驻留。</summary>
 public sealed class CapturedSequence
 {
     public required IReadOnlyList<CapturedFrame> Frames { get; set; }
@@ -50,7 +50,7 @@ public sealed class CapturedSequence
     /// <summary>因内存预算被丢弃的帧数（0 = 完整捕获）。</summary>
     public int DroppedFrames { get; init; }
     /// <summary>本次捕获的实际帧率：跟随刷新率时=显示器刷新率，否则=手动值。0=未知，消费方回退设置值。
-    /// 编辑器时间轴/时长必须用它——否则「跟随刷新率」录制（如 160fps）时按手动 30fps 算时间会全错（R119）。</summary>
+    /// 编辑器时间轴/时长必须用它——否则「跟随刷新率」录制（如 160fps）时按手动 30fps 算时间会全错。</summary>
     public int Fps { get; init; }
     public Stopwatch StartedAt { get; init; } = Stopwatch.StartNew();
 

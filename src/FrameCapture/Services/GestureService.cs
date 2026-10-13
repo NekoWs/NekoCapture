@@ -9,7 +9,7 @@ using GC = GestureCore;
 namespace FrameCapture.Services;
 
 /// <summary>
-/// 手势运行时（R120 B2）：把 <see cref="GestureConfig"/> 装进 <see cref="GC.GestureEngine"/>，
+/// 手势运行时：把 <see cref="GestureConfig"/> 装进 <see cref="GC.GestureEngine"/>，
 /// 键盘事件经 <see cref="HotkeyManager.KeySink"/>（共用同一低级键盘钩子）、鼠标事件经本类自装的 WH_MOUSE_LL 钩子喂入，
 /// 引擎消歧后经 <see cref="GestureInvoker"/> 把动作投递到 UI 线程执行。
 ///
@@ -48,7 +48,7 @@ public sealed class GestureService : IDisposable
         FrameCapture.Core.Trace.Log($"gesture apply on={on} excl={_exclusive} n={bindings.Count} [" +
             string.Join(", ", bindings.Select(b => $"mods={b.Chord.Mods} key={b.Chord.Key}/{b.Trigger}/oc={b.OnComplete.Count}")) + "]");
         bool hasMouse = bindings.Any(b => IsMouse(b.Trigger));
-        // Tick 泵：鼠标连击/长按消歧需要，键盘「按住到阈值触发 Hold」也需要（R126）。
+        // Tick 泵：鼠标连击/长按消歧需要，键盘「按住到阈值触发 Hold」也需要。
         bool needsTick = bindings.Any(b => IsMouse(b.Trigger) || b.Trigger == GC.TriggerKind.Hold);
 
         // 键盘：手势开启才挂 sink（关闭时置空，旧热键路径零开销、零改变）

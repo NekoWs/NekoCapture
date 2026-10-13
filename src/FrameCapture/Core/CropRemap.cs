@@ -6,7 +6,7 @@ namespace FrameCapture.Core;
 /// 裁剪 → 标注重映射决策表（纯逻辑）。
 /// 不变量：完整位于裁剪框内（含 Eps 容差）的标注保留并做坐标变换（全帧归一化 → 裁剪框归一化）；
 /// 跨界或框外标注丢弃——钳制会把自由笔/箭头沿裁剪边抹成贴边残影，丢弃才是可预期行为。
-/// 像素级往返保证：Bake(Crop(f, r), Remap(a, r)) ≡ Crop(Bake(f, a), r)（对保留标注成立，见 SelfTest T78c）。
+/// 像素级往返保证：Bake(Crop(f, r), Remap(a, r)) ≡ Crop(Bake(f, a), r)（对保留标注成立，见 SelfTest ）。
 /// </summary>
 public static class CropRemap
 {
