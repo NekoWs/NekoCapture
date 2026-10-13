@@ -38,20 +38,22 @@ public static class Fluent
             RenderTransformOrigin = new Point(0.5, 0.5),
         };
         b.RenderTransform = new ScaleTransform(1, 1);
-        b.PreviewMouseLeftButtonDown += (_, _) => AnimateScale(b, 0.92, 70);
-        b.MouseUp += (_, _) => AnimateScale(b, 1, 160);
+        // 「QQ 弹弹」：hover 轻微放大、按下明显回缩、松手用 BackEase 过冲弹回——比纯 CubicEase 更有生命力
+        b.MouseEnter += (_, _) => AnimateScale(b, 1.08, Motion.HoverMs, Spring(0.4));
+        b.PreviewMouseLeftButtonDown += (_, _) => AnimateScale(b, 0.9, 70);
+        b.MouseUp += (_, _) => AnimateScale(b, 1.08, Motion.SpringMs, Spring(0.7));
         b.MouseLeave += (_, _) => AnimateScale(b, 1, 120);
         return b;
     }
 
-    static void AnimateScale(UIElement el, double to, int ms)
+    static void AnimateScale(UIElement el, double to, int ms, EasingFunctionBase? ease = null)
     {
         if (el.RenderTransform is not ScaleTransform st) return;
         var dur = new Duration(TimeSpan.FromMilliseconds(ms));
-        var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
+        var ef = ease ?? new CubicEase { EasingMode = EasingMode.EaseOut };
         foreach (var p in new[] { ScaleTransform.ScaleXProperty, ScaleTransform.ScaleYProperty })
         {
-            var a = new DoubleAnimation(to, dur) { EasingFunction = ease };
+            var a = new DoubleAnimation(to, dur) { EasingFunction = ef };
             a.Freeze();
             st.BeginAnimation(p, a);
         }
@@ -232,8 +234,8 @@ public static class Fluent
                             <Trigger Property="IsMouseOver" Value="True">
                               <Trigger.EnterActions>
                                 <BeginStoryboard><Storyboard>
-                                  <DoubleAnimation Storyboard.TargetName="dot" Storyboard.TargetProperty="Width" To="16" Duration="0:0:0.12"><DoubleAnimation.EasingFunction><CubicEase EasingMode="EaseOut"/></DoubleAnimation.EasingFunction></DoubleAnimation>
-                                  <DoubleAnimation Storyboard.TargetName="dot" Storyboard.TargetProperty="Height" To="16" Duration="0:0:0.12"><DoubleAnimation.EasingFunction><CubicEase EasingMode="EaseOut"/></DoubleAnimation.EasingFunction></DoubleAnimation>
+                                  <DoubleAnimation Storyboard.TargetName="dot" Storyboard.TargetProperty="Width" To="16" Duration="0:0:0.16"><DoubleAnimation.EasingFunction><BackEase Amplitude="0.6" EasingMode="EaseOut"/></DoubleAnimation.EasingFunction></DoubleAnimation>
+                                  <DoubleAnimation Storyboard.TargetName="dot" Storyboard.TargetProperty="Height" To="16" Duration="0:0:0.16"><DoubleAnimation.EasingFunction><BackEase Amplitude="0.6" EasingMode="EaseOut"/></DoubleAnimation.EasingFunction></DoubleAnimation>
                                   <DoubleAnimation Storyboard.TargetName="halo" Storyboard.TargetProperty="Opacity" To="0.25" Duration="0:0:0.18"/>
                                 </Storyboard></BeginStoryboard>
                               </Trigger.EnterActions>
@@ -271,7 +273,7 @@ public static class Fluent
         tt.X = on ? travel : 0;
         var anim = new DoubleAnimation(on ? travel : 0.0, new Duration(TimeSpan.FromMilliseconds(Motion.StateMs)))
         {
-            EasingFunction = new BackEase { Amplitude = 0.35, EasingMode = EasingMode.EaseOut },
+            EasingFunction = new BackEase { Amplitude = 0.5, EasingMode = EasingMode.EaseOut },
         };
         tt.BeginAnimation(TranslateTransform.XProperty, anim);
         if (track.Background is SolidColorBrush bgOld)
@@ -306,7 +308,12 @@ public static class Fluent
         public const int HoverMs = 110;      // hover 反馈
         public const int StateMs = 150;      // 状态切换（开关/选中），与 Exit 同速
         public const int ThemeMs = 260;      // 主题交叉淡入
+        public const int SpringMs = 260;     // 弹性回弹（松手/入场的「QQ 弹弹」settling，BackEase 过冲）
     }
+
+    /// <summary>弹性缓动工厂：BackEase 过冲回弹，用于松手/入场的「弹一下」手感。
+    /// amp 越大过冲越明显；受限滑轨指示器等不可越界处勿用（那里用单调 CubicEase）。</summary>
+    public static EasingFunctionBase Spring(double amp = 0.6) => new BackEase { Amplitude = amp, EasingMode = EasingMode.EaseOut };
 
     /// <summary>QQ 式真无框窗口：WindowStyle=None 的 WPF 窗口仍保留 DWM 非客户区（顶部白条）。
     /// WindowChrome（WPF 官方方案，内部处理 WM_NCCALCSIZE）让客户区覆盖整窗——白条不再绘制，
@@ -411,9 +418,14 @@ public static class Fluent
         // 永远不会被 WPF 清掉，用了就是整窗永久隐形（R11 教训：选区窗遮罩+提示全隐形 6 轮无人察觉）。
         if (w.AllowsTransparency)
         {
-            w.ContentRendered += (_, _) =>
-                w.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(1, new Duration(TimeSpan.FromMilliseconds(ms)))
+            void StartFade() => w.BeginAnimation(UIElement.OpacityProperty,
+                new DoubleAnimation(1, new Duration(TimeSpan.FromMilliseconds(ms)))
                 { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
+            // 修复（R157）：若内容已渲染（ContentRendered 已过——PinWindow 是在自己的 ContentRendered 回调里才调 FadeIn），
+            // 再订阅 ContentRendered 永不触发（该事件仅首次渲染后触发一次），淡入不启动、Opacity 永久卡 0 → 贴图完全隐形，
+            // 表现为「Ctrl+P 钉到屏幕完全没反应」。此时立即淡入。Show 前调用的窗口 IsLoaded=false，仍走订阅路径，行为不变。
+            if (w.IsLoaded) { StartFade(); return; }
+            w.ContentRendered += (_, _) => StartFade();
             return;
         }
         var releasePre = PreTransparent(w, holdPastRender: offscreenFirstFrame);
@@ -485,10 +497,123 @@ public static class Fluent
     {
         el.RenderTransformOrigin = new Point(0.5, 0.5);
         el.RenderTransform = new ScaleTransform(1, 1);
-        el.MouseEnter += (_, _) => AnimateScale(el, scale, 120);
+        el.MouseEnter += (_, _) => AnimateScale(el, scale, 120, Spring(0.5));
         el.MouseLeave += (_, _) => AnimateScale(el, 1, 140);
-        el.MouseUp += (_, _) => AnimateScale(el, scale, 120);
+        el.MouseUp += (_, _) => AnimateScale(el, scale, Motion.SpringMs, Spring(0.8));
         el.PreviewMouseLeftButtonDown += (_, _) => AnimateScale(el, 0.9, 70);
+    }
+
+    /// <summary>开关轨道 hover：进入时边框提亮一档、离开还原（on=accent / off=stroke）。
+    /// 与 ToggleRow 内联同款手感，供手写开关（如「截图提示音」）复用，避免同类控件反馈不一致。</summary>
+    public static void ToggleBorderHover(Border track, Func<bool> isOn)
+    {
+        track.MouseEnter += (_, _) =>
+        {
+            if (track.BorderBrush is SolidColorBrush bb && bb.CanFreeze)
+            {
+                var h = new SolidColorBrush(bb.Color);
+                track.BorderBrush = h;
+                h.Color = Color.FromArgb((byte)Math.Min(255, bb.Color.A + 0x60), bb.Color.R, bb.Color.G, bb.Color.B);
+            }
+        };
+        track.MouseLeave += (_, _) =>
+        {
+            if (track.BorderBrush is SolidColorBrush bb && bb.CanFreeze)
+            {
+                var h = new SolidColorBrush(bb.Color);
+                track.BorderBrush = h;
+                h.Color = isOn() ? Theme.Accent : Theme.Stroke;
+            }
+        };
+    }
+
+    // ---------------- 层次与弹性（现代化：卡片浮起 + 交互回弹，治「太平/老工具」） ----------------
+
+    /// <summary>给卡片/浮层加柔和投影，使其从背景「浮起」。主题感知：暗底用较浓黑投影、亮底较淡。
+    /// 仅用于卡片/弹层等少量容器，勿逐行加（DropShadowEffect 有渲染成本）。</summary>
+    public static void Elevate(Border b, double blur = 22, double depth = 5, double opacity = -1)
+    {
+        double op = opacity >= 0 ? opacity : (Theme.IsDark ? 0.55 : 0.26);
+        var sh = new System.Windows.Media.Effects.DropShadowEffect
+        {
+            Color = Colors.Black,
+            BlurRadius = blur,
+            ShadowDepth = depth,
+            Direction = 270,          // 向下投影
+            Opacity = op,
+        };
+        sh.Freeze();
+        b.Effect = sh;
+    }
+
+    /// <summary>弹层（Popup.Child）卡片：内层 PanelBg 圆角卡 + 柔和投影，外层透明留白给投影腾出渲染空间。
+    /// Popup 按子元素 DesiredSize 开分层窗、而 Effect 不参与布局，故投影若直接挂内层会被窗缘裁掉——
+    /// 外层 Padding 把 DesiredSize 撑大，投影才有地方画。外层不设 Background（null）→ 留白处点击穿透，
+    /// StaysOpen=false 时点卡片外即正常关闭。让取色/粗细/强调色等浮层从画布「浮起」，不再贴一张平卡。</summary>
+    public static Border PopupCard(FrameworkElement content, Thickness? innerPadding = null)
+    {
+        var inner = new Border
+        {
+            Background = new SolidColorBrush(Theme.PanelBg),
+            BorderBrush = new SolidColorBrush(Theme.Stroke),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(8),
+            Padding = innerPadding ?? new Thickness(12, 10, 12, 10),
+            Child = content,
+        };
+        var sh = new System.Windows.Media.Effects.DropShadowEffect
+        {
+            Color = Colors.Black,
+            BlurRadius = 16,
+            ShadowDepth = 4,
+            Direction = 270,
+            Opacity = Theme.IsDark ? 0.45 : 0.22,
+        };
+        sh.Freeze();
+        inner.Effect = sh;
+        return new Border { Padding = new Thickness(18), Child = inner };
+    }
+
+    /// <summary>紧凑可交互元素（卡片/行/芯片）的弹性微交互：hover 轻微放大 + 松手 BackEase 过冲弹回。
+    /// 用于有外边距、放大不致裁切的元素；满宽卡片请改用 <see cref="Lift"/>（纵向位移，绝不横向溢出容器）。</summary>
+    public static void Springy(FrameworkElement el, double hover = 1.02, double press = 0.985)
+    {
+        el.RenderTransformOrigin = new Point(0.5, 0.5);
+        el.RenderTransform = new ScaleTransform(1, 1);
+        el.MouseEnter += (_, _) => AnimateScale(el, hover, Motion.HoverMs, Spring(0.35));
+        el.MouseLeave += (_, _) => AnimateScale(el, 1, 140);
+        el.PreviewMouseLeftButtonDown += (_, _) => AnimateScale(el, press, 70);
+        el.MouseUp += (_, _) => AnimateScale(el, hover, Motion.SpringMs, Spring(0.6));
+    }
+
+    /// <summary>满宽卡片的安全「浮起」反馈：hover 轻微上移 + 松手回弹，离开复位——不缩放故绝不横向溢出容器。</summary>
+    public static void Lift(Border b, double dy = 2.0)
+    {
+        b.RenderTransformOrigin = new Point(0.5, 0.5);
+        var tt = new System.Windows.Media.TranslateTransform(0, 0);
+        b.RenderTransform = tt;
+        void Move(double y, int ms)
+        {
+            var a = new DoubleAnimation(y, new Duration(TimeSpan.FromMilliseconds(ms))) { EasingFunction = Spring(0.35) };
+            a.Freeze();
+            tt.BeginAnimation(System.Windows.Media.TranslateTransform.YProperty, a);
+        }
+        b.MouseEnter += (_, _) => Move(-dy, Motion.HoverMs);
+        b.MouseLeave += (_, _) => Move(0, 160);
+    }
+
+    /// <summary>入场「弹一下」：元素从 from 缩放弹性放大到 1（BackEase 过冲），用于浮层/toast 的 QQ 弹弹登场。
+    /// 只缩放元素自身（在其窗口边界内），不位移故不会越出宿主窗口。</summary>
+    public static void PopIn(FrameworkElement el, double from = 0.85, int ms = -1)
+    {
+        ms = ms > 0 ? ms : Motion.EnterMs + 70;
+        el.RenderTransformOrigin = new Point(0.5, 0.5);
+        var st = new ScaleTransform(from, from);
+        el.RenderTransform = st;
+        var a = new DoubleAnimation(1, new Duration(TimeSpan.FromMilliseconds(ms))) { EasingFunction = Spring(0.55) };
+        a.Freeze();
+        st.BeginAnimation(ScaleTransform.ScaleXProperty, a);
+        st.BeginAnimation(ScaleTransform.ScaleYProperty, a);
     }
 
     // ---------------- 全局样式：主题化 ToolTip（淡入卡片）+ 细滚动条 ----------------
@@ -609,10 +734,24 @@ public static class Fluent
                 <Setter Property="Template">
                   <Setter.Value>
                     <ControlTemplate TargetType="ContextMenu">
-                      <Border CornerRadius="8" Background="{Hex(Theme.CardBg)}"
-                              BorderBrush="{Hex(Theme.Stroke)}" BorderThickness="1" Padding="3,4,3,4">
+                      <Border x:Name="bd" CornerRadius="8" Background="{Hex(Theme.CardBg)}"
+                              BorderBrush="{Hex(Theme.Stroke)}" BorderThickness="1" Padding="3,4,3,4"
+                              RenderTransformOrigin="0,0" Opacity="0">
+                        <Border.RenderTransform><ScaleTransform ScaleX="0.92" ScaleY="0.92"/></Border.RenderTransform>
                         <Border.Effect><DropShadowEffect BlurRadius="16" ShadowDepth="4" Opacity="0.4"/></Border.Effect>
                         <ItemsPresenter/>
+                        <Border.Triggers>
+                          <EventTrigger RoutedEvent="FrameworkElement.Loaded">
+                            <BeginStoryboard><Storyboard>
+                              <DoubleAnimation Storyboard.TargetName="bd" Storyboard.TargetProperty="Opacity"
+                                               To="1" Duration="0:0:0.11"><DoubleAnimation.EasingFunction><CubicEase EasingMode="EaseOut"/></DoubleAnimation.EasingFunction></DoubleAnimation>
+                              <DoubleAnimation Storyboard.TargetName="bd" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)"
+                                               To="1" Duration="0:0:0.2"><DoubleAnimation.EasingFunction><BackEase Amplitude="0.45" EasingMode="EaseOut"/></DoubleAnimation.EasingFunction></DoubleAnimation>
+                              <DoubleAnimation Storyboard.TargetName="bd" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)"
+                                               To="1" Duration="0:0:0.2"><DoubleAnimation.EasingFunction><BackEase Amplitude="0.45" EasingMode="EaseOut"/></DoubleAnimation.EasingFunction></DoubleAnimation>
+                            </Storyboard></BeginStoryboard>
+                          </EventTrigger>
+                        </Border.Triggers>
                       </Border>
                     </ControlTemplate>
                   </Setter.Value>
@@ -639,11 +778,12 @@ public static class Fluent
                             <ColumnDefinition Width="24"/>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
                           </Grid.ColumnDefinitions>
                           <TextBlock x:Name="chk" Grid.Column="0" Text="" FontFamily="Segoe Fluent Icons"
                                      FontSize="11" HorizontalAlignment="Center" VerticalAlignment="Center"
                                      Foreground="{Hex(Theme.Accent)}"/>
-                          <ContentPresenter Grid.Column="1" ContentSource="Header" VerticalAlignment="Center" Margin="0,0,14,0"/><TextBlock x:Name="arrow" Grid.Column="2" Text="&#xE76C;" FontFamily="Segoe Fluent Icons" FontSize="10" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,10,0" Foreground="{Hex(Theme.Text)}" Visibility="Collapsed"/>
+                          <ContentPresenter Grid.Column="1" ContentSource="Header" VerticalAlignment="Center" Margin="0,0,14,0"/><TextBlock Grid.Column="2" Text="&#123;TemplateBinding InputGestureText&#125;" FontSize="11" Foreground="{Hex(Theme.TextDim)}" VerticalAlignment="Center" Margin="0,0,10,0"/><TextBlock x:Name="arrow" Grid.Column="3" Text="&#xE76C;" FontFamily="Segoe Fluent Icons" FontSize="10" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,10,0" Foreground="{Hex(Theme.Text)}" Visibility="Collapsed"/>
                         </Grid>
                       </Border>
                       <Popup x:Name="PART_Popup" AllowsTransparency="True" Focusable="False" Placement="Right"

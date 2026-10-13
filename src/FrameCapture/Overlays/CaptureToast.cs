@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using System.Windows.Media.Effects;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
@@ -61,16 +62,23 @@ public sealed class CaptureToast : Window
         var pos = ToastPlace.Place(region, work, (int)(W * sx), (int)(EstH * sy));
         Left = pos.X / sx; Top = pos.Y / sy;
 
+        var strokeCol = Color.FromArgb(0x66, Theme.Stroke.R, Theme.Stroke.G, Theme.Stroke.B);
+        var borderBrush = new SolidColorBrush(strokeCol);
         var card = new Border
         {
             Background = new SolidColorBrush(Theme.CardBg),
-            BorderBrush = new SolidColorBrush(Color.FromArgb(0x66, Theme.Stroke.R, Theme.Stroke.G, Theme.Stroke.B)),
+            BorderBrush = borderBrush,
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(10),
             Padding = new Thickness(10, 9, 10, 9),
             Effect = new DropShadowEffect { BlurRadius = 18, ShadowDepth = 2, Opacity = 0.35, Color = Colors.Black },
             Cursor = System.Windows.Input.Cursors.Hand,
         };
+        // 整张卡片可点→进编辑器；hover 描边亮起强调色，把「点我标注」的可点性显出来（此前只有手型光标、卡片没反应，显「太平」）
+        card.MouseEnter += (_, _) => borderBrush.BeginAnimation(SolidColorBrush.ColorProperty,
+            new ColorAnimation(Theme.Accent, new Duration(TimeSpan.FromMilliseconds(Fluent.Motion.HoverMs))));
+        card.MouseLeave += (_, _) => borderBrush.BeginAnimation(SolidColorBrush.ColorProperty,
+            new ColorAnimation(strokeCol, new Duration(TimeSpan.FromMilliseconds(160))));
 
         var grid = new Grid();
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -133,6 +141,8 @@ public sealed class CaptureToast : Window
             Dismiss();
         };
         Content = card;
+        // 「QQ 弹弹」入场：卡片从 0.85 弹性放大到 1（BackEase 过冲），叠加 FadeIn 的淡入+上浮
+        ContentRendered += (_, _) => FrameCapture.Core.Fluent.PopIn(card);
 
         // 键盘等价（Enter/Esc）：浮窗不抢焦点，WPF 焦点路由收不到键——直接在 HWND 层处理消息
         SourceInitialized += (_, _) =>

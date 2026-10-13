@@ -74,7 +74,7 @@ public sealed class HelpWindow : Window
 
         // R62 紧凑化：与设置窗同款自绘标题栏（共享件 Fluent.TitleBar），去掉旧版 18px 大标题 + 悬浮关闭钮；
         // 分组小标题/行距/内衬全部对齐设置窗同一套密度与视觉语言。
-        var (bar, closeBtn) = FrameCapture.Core.Fluent.TitleBar("\uE9CE", "FrameCapture 使用速查");
+        var (bar, closeBtn) = FrameCapture.Core.Fluent.TitleBar("\uE9CE", "使用速查");
         closeBtn.Click += (_, _) => FrameCapture.Core.Fluent.CloseWithFade(this);
         DockPanel.SetDock(bar, Dock.Top);
         dock.Children.Add(bar);

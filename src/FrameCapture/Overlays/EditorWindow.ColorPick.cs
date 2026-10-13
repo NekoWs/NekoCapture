@@ -29,15 +29,7 @@ public sealed partial class EditorWindow
             };
             _colorPop = new Popup
             {
-                Child = new Border
-                {
-                    Background = new SolidColorBrush(Theme.PanelBg),
-                    BorderBrush = new SolidColorBrush(Theme.Stroke),
-                    BorderThickness = new Thickness(1),
-                    CornerRadius = new CornerRadius(8),
-                    Padding = new Thickness(12, 10, 12, 10),
-                    Child = _colorView,
-                },
+                Child = FrameCapture.Core.Fluent.PopupCard(_colorView),
                 Placement = PlacementMode.Top,
                 StaysOpen = false,
                 AllowsTransparency = true,

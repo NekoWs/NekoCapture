@@ -68,7 +68,7 @@ public sealed class TrayService : IDisposable
         return on;
     }
 
-    void ShowMenu()
+    public void ShowMenu()
     {
         Trace.Log("tray menu open");
         if (_menu != null) _menu.IsOpen = false; // 再次右键：先收旧菜单（连带回收旧锚窗）
@@ -86,11 +86,11 @@ public sealed class TrayService : IDisposable
         Item("设置捕获范围", () => _host.Controller.BeginScopeSelection());
         Item("清除捕获范围", () => _host.Controller.ClearStoredRegion());
         Sep();
-        Item("立即捕获（按当前范围）", () => _host.Controller.CaptureStoredStill());
+        Item("立即捕获", () => _host.Controller.CaptureStoredStill());
         // R78：静态截图的确认浮窗会自动消失，留一个入口把最近那张重新拉回编辑器标注
         if (_host.Controller.HasLastStill)
             Item("编辑上次截图", () => _host.Controller.EditLastStill());
-        Item("滚动截图（长图）", () => _host.Controller.BeginScrollCapture());
+        Item("滚动截图", () => _host.Controller.BeginScrollCapture());
         Item($"延时截图（{_host.Settings.Current.DelayCaptureSeconds} 秒）", () => _host.Controller.BeginDelayedCapture());
         Item("从剪贴板贴图", () =>
         {
@@ -118,13 +118,13 @@ public sealed class TrayService : IDisposable
         }, checkable: true, isChecked: _host.Settings.Current.RunAtStartup);
         // R94：暂停全局热键——游戏/演示/与其他软件热键冲突时临时让位，键完整落到前台应用。
         // 运行时状态（不持久化），重启自动恢复工作。
-        Item("暂停全局热键（游戏/演示时）", () => TogglePause(),
+        Item("暂停全局热键", () => TogglePause(),
             checkable: true, isChecked: Services.HotkeyManager.Paused);
         // 按需提权：解决被更高权限窗口（管理员终端/游戏）压住、快捷键盲区的问题
         if (AppHost.IsElevated)
             Item("管理员权限运行", () => { }, checkable: true, isChecked: true); // 勾选标记由 checkable 呈现，文本不再带 ✓（R24 去双勾）
         else
-            Item("以管理员身份运行（防遮挡）", () => _host.RestartAsAdmin());
+            Item("以管理员身份运行", () => _host.RestartAsAdmin());
         Sep();
         Item("退出", () =>
         {

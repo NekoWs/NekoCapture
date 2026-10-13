@@ -108,6 +108,7 @@ public sealed class OcrResultWindow : Window
             HorizontalAlignment = HorizontalAlignment.Center,
         };
         copyBox.Child = copyLabel;
+        Fluent.ChipHover(copyBox, 1.05);   // 弹性 hover/press（与全站按钮同款），此前是静态 accent 块无反馈
         Grid.SetColumn(copyBox, 1);
         bottom.Children.Add(copyBox);
         DockPanel.SetDock(bottom, Dock.Bottom);

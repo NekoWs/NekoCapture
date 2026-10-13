@@ -80,7 +80,7 @@ public sealed class SettingsWindow : Window
         var dock = new DockPanel { LastChildFill = true };
 
         // ---- 标题栏：取景框图标 + 标题 + 关闭；整条可拖（共享件 Fluent.TitleBar，与帮助窗同款） ----
-        var (bar, closeBtn) = FrameCapture.Core.Fluent.TitleBar("\uE7A8", "FrameCapture 设置");
+        var (bar, closeBtn) = FrameCapture.Core.Fluent.TitleBar("\uE7A8", "设置");
         closeBtn.Click += (_, _) => FrameCapture.Core.Fluent.CloseWithFade(this);
         // 关闭按钮落在原生 CaptionHeight 拖窗区内，须显式让位给 WPF 命中，否则点它会拖窗而非关闭（R119）
         System.Windows.Shell.WindowChrome.SetIsHitTestVisibleInChrome(closeBtn, true);
@@ -104,7 +104,7 @@ public sealed class SettingsWindow : Window
             FontSize = 12.5,
             Margin = new Thickness(2, 2, 0, 6),
             TextWrapping = TextWrapping.Wrap,
-            Text = "当前生效的键位如下（按你的手势配置实时反映）——增删改请打开下方手势配置器，保存即生效。",
+            Text = "当前生效的键位如下，增删改请打开下方手势配置器。",
         });
 
         // ---- 当前生效键位（R126 B2：从手势绑定推导，免开配置器即可一眼看到截图/选区键）----
@@ -145,6 +145,7 @@ public sealed class SettingsWindow : Window
                        b.Chord + (suf.Length > 0 ? " " + suf : ""));
             }
         keyCard.Child = keyStack;
+        FrameCapture.Core.Fluent.Elevate(keyCard, blur: 24, depth: 6);
         panel.Children.Add(keyCard);
 
         // ---- 手势配置器入口（R122）：可视化增删改键位绑定，保存即热重载生效 ----
@@ -161,8 +162,10 @@ public sealed class SettingsWindow : Window
         var geIcon = new TextBlock { Text = "\uE713", FontFamily = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets, Segoe UI Symbol"), FontSize = 15, Foreground = new SolidColorBrush(Theme.Accent), VerticalAlignment = VerticalAlignment.Center };
         var geRow = new StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal };
         geRow.Children.Add(geIcon);
-        geRow.Children.Add(new TextBlock { Text = "   打开手势配置器…（可视化增删改键位绑定，保存即生效）", Foreground = new SolidColorBrush(Theme.Text), FontSize = 13, VerticalAlignment = VerticalAlignment.Center });
+        geRow.Children.Add(new TextBlock { Text = "   打开手势配置器…", Foreground = new SolidColorBrush(Theme.Text), FontSize = 13, VerticalAlignment = VerticalAlignment.Center });
         geBtn.Child = geRow;
+        FrameCapture.Core.Fluent.Elevate(geBtn, blur: 24, depth: 6);
+        FrameCapture.Core.Fluent.Lift(geBtn);
         geBtn.MouseLeftButtonUp += (_, _) => FrameCapture.Services.GestureEditorHost.ShowOrFocus();
         panel.Children.Add(geBtn);
 
@@ -183,6 +186,8 @@ public sealed class SettingsWindow : Window
         panel.Children.Add(ToastRow());
         panel.Children.Add(CaptureSoundRow());
         panel.Children.Add(DelayRow());
+
+        Cardify(panel); // R158 截图页行归入卡片
 
         // ---- 录制 ----
         panel = Cat("录制", "\uE714");
@@ -206,6 +211,8 @@ public sealed class SettingsWindow : Window
         panel.Children.Add(ToggleRow("\uE8B0", "录制包含鼠标指针", "录出的画面里带上鼠标光标（默认开）。关掉后成片干净无光标，适合做教程/演示时后期自己加高亮，或不想让光标乱入",
             _settings.Current.RecordIncludeCursor, v => _settings.Mutate(s => s.RecordIncludeCursor = v)));
 
+        Cardify(panel); // R158 录制页行归入卡片
+
         // ---- 产物 ----
         panel = Cat("产物", "\uE74E");
         panel.Children.Add(ToggleRow("\uE8B9", "自动生成 Agent 胶片条", "每次捕获后自动生成逐帧胶片条图，便于 AI 理解动作过程",
@@ -217,6 +224,8 @@ public sealed class SettingsWindow : Window
             _settings.Current.AutoSaveCopy, v => _settings.Mutate(s => s.AutoSaveCopy = v)));
         panel.Children.Add(PathRow());
 
+        Cardify(panel); // R158 产物页行归入卡片
+
         // ---- 编辑器 ----
         panel = Cat("编辑器", "\uE70F");
         panel.Children.Add(ToggleRow("\uEDD7", "记住上次的工具/颜色/粗细", "关闭编辑器时记住你最后用的标注工具、颜色和线宽，下次打开直接是它们，省去每次重选。关闭后每次打开都回到默认（浏览 / 红 / 中）",
@@ -224,15 +233,21 @@ public sealed class SettingsWindow : Window
         panel.Children.Add(ToggleRow("\uE8C1", "识别文字后显示结果窗", "「识别文字」成功后弹出结果窗预览：可查看/编辑识别文本、鼠标悬停部分选中复制、一键复制全部——预览即选取入口，此时不再自动写剪贴板（要哪段选哪段）。关闭则退回快速路径：直接写剪贴板 + 轻提示，不弹窗",
             _settings.Current.OcrShowResult, v => _settings.Mutate(s => s.OcrShowResult = v)));
 
+        Cardify(panel); // R158 编辑器页行归入卡片
+
         // ---- 贴图 ----
         panel = Cat("贴图", "\uE718");
         panel.Children.Add(ToggleRow("\uE718", "拖动贴图自动磁边", "拖动贴图松手时自动吸附对齐：贴近所在屏幕边缘则贴合停靠到屏幕四边/四角，贴近同屏其他贴图的边或中线则与之对齐（便于整齐排布多张贴图，Snipaste 式手感）。关闭则松手停在原地",
             _settings.Current.PinSnapEdges, v => _settings.Mutate(s => s.PinSnapEdges = v)));
 
+        Cardify(panel); // R158 贴图页行归入卡片
+
         // ---- 外观 ----
         panel = Cat("外观", "\uE790");
         panel.Children.Add(ThemeRow());
         panel.Children.Add(AccentRow());
+
+        Cardify(panel); // R158 外观页行归入卡片
 
         // ---- 系统 ----
         panel = Cat("系统", "\uE713");
@@ -242,6 +257,8 @@ public sealed class SettingsWindow : Window
                 _settings.Mutate(s => s.RunAtStartup = v);
                 try { StartupService.Apply(v); } catch { }
             }));
+
+        Cardify(panel); // R158 系统页行归入卡片
 
         // ---- 主从式装配（B1）：左栏竖向导航「设置项」+ 右栏「设置内容」，中间细分隔线 ----
         var iconFont = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets, Segoe UI Symbol");
@@ -256,6 +273,7 @@ public sealed class SettingsWindow : Window
 
         // 滑动竖条（胶囊）：唯一平移的元素，切换时滑过去 + 轻微回弹；强调色卡片改为每项自带、淡入淡出
         var selBar = new Border { Width = 3, Height = 18, CornerRadius = new CornerRadius(2), Background = new SolidColorBrush(Theme.Accent) };
+        selBar.Effect = new System.Windows.Media.Effects.DropShadowEffect { Color = Theme.Accent, BlurRadius = 9, ShadowDepth = 0, Opacity = 0.75 };
         Canvas.SetLeft(selBar, 4);
         var navCanvas = new Canvas { IsHitTestVisible = false };
         navCanvas.Children.Add(selBar);
@@ -265,9 +283,10 @@ public sealed class SettingsWindow : Window
         {
             double barTop = idx * RowPitch + RowTop + (RowH - BarH) / 2;
             if (!animate) { Canvas.SetTop(selBar, barTop); return; }
-            // 幅度调小：低弹性、单次、更短时长（原 Springiness=3 / 520ms 偏夸张）
-            var ease = new ElasticEase { EasingMode = EasingMode.EaseOut, Oscillations = 1, Springiness = 1.0 };
-            selBar.BeginAnimation(Canvas.TopProperty, new DoubleAnimation(barTop, TimeSpan.FromMilliseconds(400)) { EasingFunction = ease });
+            // 单调缓动、绝不过冲：弹性缓动（ElasticEase）会滑过目标行再回弹，视觉上冲出选项卡边框（R157 用户反馈）。
+            // 改 CubicEase EaseOut——平滑滑入即停，全程落在首末选项卡之间，不越界。
+            var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
+            selBar.BeginAnimation(Canvas.TopProperty, new DoubleAnimation(barTop, TimeSpan.FromMilliseconds(300)) { EasingFunction = ease });
         }
         void AnimColor(TextBlock tb, Color to, bool animate)
         {
@@ -287,6 +306,8 @@ public sealed class SettingsWindow : Window
         void ShowCat(int idx, bool animate)
         {
             int prev = _cat;
+            // 重复点击当前已选类别：内容/胶囊/标题都已在位，直接返回，不重播进入动画（R157 用户反馈：点同一页会重复播放切换动画）。
+            if (animate && prev == idx) return;
             _cat = idx;
             bool doFade = animate && prev != idx && prev >= 0 && prev < cats.Count;
             // 内容切换（对标 PCL2 平滑切页，替代原 Visibility 硬切）：旧面板淡出后收起、新面板淡入 + 轻微上浮。
@@ -372,6 +393,9 @@ public sealed class SettingsWindow : Window
             };
             el.MouseLeftButtonDown += (_, e) => { ShowCat(captured, true); e.Handled = true; };
             el.KeyDown += (_, e) => { if (e.Key is Key.Space or Key.Enter) { ShowCat(captured, true); e.Handled = true; } };
+            // 键盘焦点环：与 toggle/chip/试听 同款（此前可 Tab 聚焦却无可见焦点态，指令④一致性）
+            el.GotKeyboardFocus += (_, _) => { el.BorderBrush = new SolidColorBrush(Theme.Accent); el.BorderThickness = new Thickness(1); };
+            el.LostKeyboardFocus += (_, _) => el.BorderThickness = new Thickness(0);
             navItems.Add((el, icon, label, accent));
             navPanel.Children.Add(el);
         }
@@ -478,6 +502,7 @@ public sealed class SettingsWindow : Window
             ToolTip = "点击自定义强调色（与编辑器调色板同款）；右键恢复跟随系统",
         };
         Grid.SetColumn(chip, 2);
+        Fluent.ChipHover(chip, 1.12);   // 可点色片补 hover 缩放弹性，与编辑器色板同款手感（此前仅光标变手型、零反馈）
         void Open()
         {
             if (_accentPop == null)
@@ -494,15 +519,7 @@ public sealed class SettingsWindow : Window
                 };
                 _accentPop = new Popup
                 {
-                    Child = new Border
-                    {
-                        Background = new SolidColorBrush(Theme.PanelBg),
-                        BorderBrush = new SolidColorBrush(Theme.Stroke),
-                        BorderThickness = new Thickness(1),
-                        CornerRadius = new CornerRadius(8),
-                        Padding = new Thickness(12, 10, 12, 10),
-                        Child = _accentView,
-                    },
+                    Child = FrameCapture.Core.Fluent.PopupCard(_accentView),
                     Placement = PlacementMode.Top,
                     AllowsTransparency = true,
                     PopupAnimation = PopupAnimation.Fade,
@@ -530,6 +547,9 @@ public sealed class SettingsWindow : Window
             RebuildInPlace();
         };
         chip.KeyDown += (_, e) => { if (e.Key is Key.Space or Key.Enter) { Open(); e.Handled = true; } };
+        // 键盘焦点环：与「试听」按钮同款——聚焦时描边转强调色（此前可聚焦却无可见焦点态，指令④一致性）
+        chip.GotKeyboardFocus += (_, _) => chip.BorderBrush = new SolidColorBrush(Theme.Accent);
+        chip.LostKeyboardFocus += (_, _) => chip.BorderBrush = new SolidColorBrush(Theme.Stroke);
         g.Children.Add(chip);
         return g;
     }
@@ -696,6 +716,9 @@ public sealed class SettingsWindow : Window
         Refresh();
         stack.Children.Add(lbl);
         stack.Children.Add(path);
+        // 整行可点（弹文件夹选择器）：hover 时路径文字提亮，提示这块也能点，与右侧「更改」链接一致
+        stack.MouseEnter += (_, _) => path.Foreground = new SolidColorBrush(Theme.Text);
+        stack.MouseLeave += (_, _) => path.Foreground = new SolidColorBrush(Theme.TextDim);
         Grid.SetColumn(stack, 1);
         g.Children.Add(stack);
         var browse = new TextBlock
@@ -705,6 +728,9 @@ public sealed class SettingsWindow : Window
         };
         Grid.SetColumn(browse, 2);
         g.Children.Add(browse);
+        // 文字链接 hover 才显下划线（默认干净、悬停才提示可点），比常驻下划线更克制
+        browse.MouseEnter += (_, _) => browse.TextDecorations = System.Windows.TextDecorations.Underline;
+        browse.MouseLeave += (_, _) => browse.TextDecorations = null;
         void Open()
         {
             using var dlg = new System.Windows.Forms.FolderBrowserDialog
@@ -811,12 +837,12 @@ public sealed class SettingsWindow : Window
         return g;
     }
 
-    // 截图后行为三选项（R83）：文字芯片比图标语义更清楚；点击就地更新选中态，不整窗重建
+    // R157：全局「截图后」四选一已移除——改由每条手势在「手势配置器」里各自设置。此行改为引导提示。
     FrameworkElement AfterCaptureRow()
     {
         var g = Row();
-        g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); // 芯片列
-        g.Children.Add(Icon("\uE7B5", "截图完成后做什么：弹提示 / 直接进编辑器 / 只复制 / 贴图"));
+        g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        g.Children.Add(Icon("\uE7B5", "截图完成后做什么，现在在「手势配置器」里为每条手势单独设置"));
         var lbl = new TextBlock
         {
             Text = "截图后",
@@ -827,54 +853,16 @@ public sealed class SettingsWindow : Window
         };
         Grid.SetColumn(lbl, 1);
         g.Children.Add(lbl);
-        var chips = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
-        Grid.SetColumn(chips, 2);
-        string cur = _settings.Current.AfterCapture;
-        var opts = new[]
+        var hint = new TextBlock
         {
-            ("toast", "弹提示", "复制后弹缩略浮窗，点一下或按 Enter 进编辑器标注（默认，兼顾确认与标注）"),
-            ("editor", "进编辑器", "复制后直接打开标注编辑器（QQ 式，省一步点击）"),
-            ("copy", "只复制", "只复制到剪贴板，不弹窗、不开编辑器（最快，范围轮廓闪一下作反馈）"),
-            ("pin", "贴图", "复制后直接把这张图钉在屏幕原捕获位置（Snipaste 式，可多张并存、拖动/缩放/标注）"),
+            Text = "见手势配置器",
+            FontSize = 12,
+            Foreground = new SolidColorBrush(Theme.Text),
+            VerticalAlignment = VerticalAlignment.Center,
+            HorizontalAlignment = HorizontalAlignment.Right,
         };
-        var chipList = new System.Collections.Generic.List<(Border chip, string id)>();
-        foreach (var (id, text, tip) in opts)
-        {
-            string captured = id;
-            var chip = new Border
-            {
-                CornerRadius = new CornerRadius(6),
-                Padding = new Thickness(10, 5, 10, 5),
-                Margin = new Thickness(2, 0, 2, 0),
-                Background = new SolidColorBrush(captured == cur ? Theme.Accent : Theme.Hover),
-                Child = new TextBlock
-                {
-                    Text = text,
-                    FontSize = 12.5,
-                    Foreground = new SolidColorBrush(captured == cur ? Fluent.OnAccentColor(Theme.Accent) : Theme.Text),
-                },
-                Cursor = Cursors.Hand,
-                ToolTip = tip,
-            };
-            chipList.Add((chip, id));
-            void Apply()
-            {
-                _settings.Mutate(s => s.AfterCapture = captured);
-                foreach (var (c, cid) in chipList)
-                {
-                    bool sel = cid == captured;
-                    c.Background = new SolidColorBrush(sel ? Theme.Accent : Theme.Hover);
-                    if (c.Child is TextBlock tb) tb.Foreground = new SolidColorBrush(sel ? Fluent.OnAccentColor(Theme.Accent) : Theme.Text);
-                }
-            }
-            chip.MouseLeftButtonDown += (_, e) => { Apply(); e.Handled = true; };
-            chip.Focusable = true;
-            chip.KeyDown += (_, e) => { if (e.Key is Key.Space or Key.Enter) { Apply(); e.Handled = true; } };
-            chip.GotKeyboardFocus += (_, _) => { chip.BorderBrush = new SolidColorBrush(Theme.Accent); chip.BorderThickness = new Thickness(1); };
-            chip.LostKeyboardFocus += (_, _) => { chip.BorderThickness = new Thickness(0); };
-            chips.Children.Add(chip);
-        }
-        g.Children.Add(chips);
+        Grid.SetColumn(hint, 2);
+        g.Children.Add(hint);
         return g;
     }
 
@@ -925,6 +913,7 @@ public sealed class SettingsWindow : Window
                 ToolTip = tip,
             };
             chipList.Add((chip, id));
+            Fluent.ChipHover(chip, 1.06);   // 分段芯片补 hover 缩放弹性（此前仅手型光标、零反馈，与主题芯片不一致）
             void Apply()
             {
                 _settings.Mutate(s => s.RecordFormat = captured);
@@ -1014,6 +1003,7 @@ public sealed class SettingsWindow : Window
                 ToolTip = tip,
             };
             chipList.Add((chip, id));
+            Fluent.ChipHover(chip, 1.06);   // 分段芯片补 hover 缩放弹性（此前仅手型光标、零反馈，与主题芯片不一致）
             void Apply()
             {
                 _settings.Mutate(s => s.ColorCopyFormat = captured);
@@ -1080,6 +1070,7 @@ public sealed class SettingsWindow : Window
                 ToolTip = tip,
             };
             chipList.Add((chip, secs));
+            Fluent.ChipHover(chip, 1.06);   // 分段芯片补 hover 缩放弹性（此前仅手型光标、零反馈，与主题芯片不一致）
             void Apply()
             {
                 _settings.Mutate(s => s.DelayCaptureSeconds = captured);
@@ -1128,6 +1119,53 @@ public sealed class SettingsWindow : Window
             (8, "8秒", "宽裕：边看边想"),
         };
         var chipList = new System.Collections.Generic.List<(Border chip, double secs)>();
+        // 自定义精确值输入（R157 用户反馈：只有 5 个预设档，想要任意秒数）。芯片与输入框共用一套高亮/回显。
+        string Fmt(double v) => v.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+        var box = new TextBox
+        {
+            Text = Fmt(cur),
+            Width = 34,
+            FontSize = 12.5,
+            TextAlignment = TextAlignment.Right,
+            Background = System.Windows.Media.Brushes.Transparent,
+            BorderThickness = new Thickness(0),
+            Foreground = new SolidColorBrush(Theme.Text),
+            CaretBrush = new SolidColorBrush(Theme.Accent),
+            VerticalAlignment = VerticalAlignment.Center,
+            VerticalContentAlignment = VerticalAlignment.Center,
+        };
+        var unit = new TextBlock { Text = "秒", FontSize = 12.5, Foreground = new SolidColorBrush(Theme.TextDim), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(3, 0, 0, 0) };
+        var customBox = new Border
+        {
+            CornerRadius = new CornerRadius(6),
+            Padding = new Thickness(8, 4, 8, 4),
+            Margin = new Thickness(8, 0, 2, 0),
+            Background = new SolidColorBrush(Theme.CardBg),
+            BorderBrush = new SolidColorBrush(Theme.Stroke),
+            BorderThickness = new Thickness(1),
+            Child = new StackPanel { Orientation = Orientation.Horizontal, Children = { box, unit } },
+            ToolTip = "输入任意秒数（0.5–60，0=常驻），回车或移开焦点生效",
+        };
+        void RefreshSel(double v)
+        {
+            foreach (var (c, cs) in chipList)
+            {
+                bool sel = Math.Abs(cs - v) < 0.01;
+                c.Background = new SolidColorBrush(sel ? Theme.Accent : Theme.Hover);
+                if (c.Child is TextBlock tb) tb.Foreground = new SolidColorBrush(sel ? Fluent.OnAccentColor(Theme.Accent) : Theme.Text);
+            }
+            box.Text = Fmt(v);
+        }
+        void Commit()
+        {
+            var raw = (box.Text ?? "").Trim().Replace(',', '.');
+            if (!double.TryParse(raw, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double v) || v < 0)
+            { box.Text = Fmt(_settings.Current.ToastSeconds); return; }   // 非法输入回退当前值
+            _settings.Mutate(s => s.ToastSeconds = v);                     // Normalize 夹 0.5–60，0=常驻
+            RefreshSel(_settings.Current.ToastSeconds);                    // 用夹取后的实际值回显
+        }
+        box.LostFocus += (_, _) => Commit();
+        box.KeyDown += (_, e) => { if (e.Key == Key.Enter) { Commit(); box.MoveFocus(new TraversalRequest(FocusNavigationDirection.Next)); e.Handled = true; } };
         foreach (var (secs, text, tip) in opts)
         {
             double captured = secs;
@@ -1148,15 +1186,11 @@ public sealed class SettingsWindow : Window
                 ToolTip = tip,
             };
             chipList.Add((chip, secs));
+            Fluent.ChipHover(chip, 1.06);   // 分段芯片补 hover 缩放弹性（此前仅手型光标、零反馈，与主题芯片不一致）
             void Apply()
             {
                 _settings.Mutate(s => s.ToastSeconds = captured);
-                foreach (var (c, cs) in chipList)
-                {
-                    bool sel = Math.Abs(cs - captured) < 0.01;
-                    c.Background = new SolidColorBrush(sel ? Theme.Accent : Theme.Hover);
-                    if (c.Child is TextBlock tb) tb.Foreground = new SolidColorBrush(sel ? Fluent.OnAccentColor(Theme.Accent) : Theme.Text);
-                }
+                RefreshSel(captured);
             }
             chip.MouseLeftButtonDown += (_, e) => { Apply(); e.Handled = true; };
             chip.Focusable = true;
@@ -1165,6 +1199,7 @@ public sealed class SettingsWindow : Window
             chip.LostKeyboardFocus += (_, _) => { chip.BorderThickness = new Thickness(0); };
             chips.Children.Add(chip);
         }
+        chips.Children.Add(customBox);
         g.Children.Add(chips);
         return g;
     }
@@ -1204,6 +1239,7 @@ public sealed class SettingsWindow : Window
         preview.MouseLeave += (_, _) => preview.Background = new SolidColorBrush(Theme.Hover);
         preview.GotKeyboardFocus += (_, _) => { preview.BorderBrush = new SolidColorBrush(Theme.Accent); preview.BorderThickness = new Thickness(1); };
         preview.LostKeyboardFocus += (_, _) => preview.BorderThickness = new Thickness(0);
+        Fluent.ChipHover(preview, 1.04);   // 与全站芯片同款缩放弹性（叠加在原有 hover 背景之上）
         right.Children.Add(preview);
 
         // 开关（与 ToggleRow 同款 track/knob）
@@ -1229,6 +1265,7 @@ public sealed class SettingsWindow : Window
         track.KeyDown += (_, e) => { if (e.Key is Key.Space or Key.Enter) { Flip(); e.Handled = true; } };
         track.GotKeyboardFocus += (_, _) => track.BorderBrush = new SolidColorBrush(Theme.Accent);
         track.LostKeyboardFocus += (_, _) => track.BorderBrush = new SolidColorBrush(on ? Theme.Accent : Theme.Stroke);
+        FrameCapture.Core.Fluent.ToggleBorderHover(track, () => on);   // 与 ToggleRow 同款 hover 边框提亮（此前手写开关零反馈）
         right.Children.Add(track);
 
         g.Children.Add(right);
@@ -1243,6 +1280,30 @@ public sealed class SettingsWindow : Window
         g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         return g;
+    }
+
+    /// <summary>R158：把一页里平铺的设置行整体归入一张浮起卡片（沿用快捷键页 keyCard 模式），
+    /// 让截图/录制/产物…各页与快捷键页视觉一致、不再裸铺在深色背景上（治「太平」）。快捷键页自带卡片，不调本方法。</summary>
+    void Cardify(StackPanel p)
+    {
+        if (p.Children.Count == 0) return;
+        var inner = new StackPanel();
+        var kids = new System.Collections.Generic.List<UIElement>();
+        foreach (UIElement k in p.Children) kids.Add(k);
+        p.Children.Clear();
+        foreach (var k in kids) inner.Children.Add(k);
+        var card = new Border
+        {
+            Margin = new Thickness(0, 2, 0, 2),
+            CornerRadius = new CornerRadius(6),
+            BorderThickness = new Thickness(1),
+            BorderBrush = new SolidColorBrush(Theme.Stroke),
+            Background = new SolidColorBrush(Theme.CardBg),
+            Padding = new Thickness(12, 6, 12, 6),
+            Child = inner,
+        };
+        FrameCapture.Core.Fluent.Elevate(card, blur: 24, depth: 6);
+        p.Children.Add(card);
     }
 
     static TextBlock Icon(string glyph, string tip) => new()

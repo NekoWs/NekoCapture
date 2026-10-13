@@ -1410,17 +1410,21 @@ public sealed partial class EditorWindow
             }
         }
 
-        // 播放头：主题色竖线 + 顶部三角（PR 指针）——浅色主题下白色会隐身（R19 逐帧审查抓到），跟 Theme.Text 走
+        // 播放头：主题色竖线 + 顶部圆形旋钮（现代滑块语言，替代旧 PR 三角指针，与设置窗滑杆圆点同族）
+        // 浅色主题下白色会隐身（R19 逐帧审查抓到），跟 Theme.Text 走；旋钮描边用面板底色做"悬浮"留白环
         var ph = Color.FromArgb(0xFF, Theme.Text.R, Theme.Text.G, Theme.Text.B);
-        c.Children.Add(TlBar(xm - 0.75, 4, 1.5, ch - 4, 0.75, ph));
-        var tri = new System.Windows.Shapes.Polygon
+        c.Children.Add(TlBar(xm - 0.75, 7, 1.5, ch - 7, 0.75, ph));
+        var knob = new System.Windows.Shapes.Ellipse
         {
-            Points = new PointCollection { new Point(0, 0), new Point(7, 0), new Point(3.5, 4.5) },
+            Width = 8,
+            Height = 8,
             Fill = new SolidColorBrush(ph),
+            Stroke = new SolidColorBrush(Theme.PanelBg),
+            StrokeThickness = 1.5,
         };
-        Canvas.SetLeft(tri, xm - 3.5);
-        Canvas.SetTop(tri, 0);
-        c.Children.Add(tri);
+        Canvas.SetLeft(knob, xm - 4);
+        Canvas.SetTop(knob, 0.5);
+        c.Children.Add(knob);
     }
 
     (int a, int b) TrimRange { get { _rd.Count = _seq.Frames.Count; return _rd.Effective; } }

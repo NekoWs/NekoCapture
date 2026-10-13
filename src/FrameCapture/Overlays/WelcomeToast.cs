@@ -110,10 +110,13 @@ public sealed class WelcomeToast : Window
             Template = RoundedBtnTemplate(),
         };
         help.Click += (_, _) => { FrameCapture.Core.Trace.Log("welcome→help"); HelpWindow.ShowOrFocus(); Dismiss(); };
+        Fluent.Springy(help, hover: 1.05, press: 0.94);   // 与滚动控制条按钮同款弹性，替代旧的 hover 淡出
         root.Children.Add(help);
 
         card.Child = root;
         Content = card;
+        // 「QQ 弹弹」入场：与 CaptureToast 同款弹性放大登场
+        ContentRendered += (_, _) => FrameCapture.Core.Fluent.PopIn(card);
 
         // 键盘等价：浮窗不抢焦点，WPF 焦点路由收不到键——直接在 HWND 层处理 Esc
         SourceInitialized += (_, _) =>
@@ -177,7 +180,7 @@ public sealed class WelcomeToast : Window
         return sp;
     }
 
-    // 圆角实心按钮模板（强调色底，悬停/按下略透明），与 Fluent 观感一致
+    // 圆角实心按钮模板（强调色底）；hover/press 弹性由 Fluent.Springy 在代码里驱动
     static ControlTemplate RoundedBtnTemplate()
     {
         var t = new ControlTemplate(typeof(Button));
@@ -190,9 +193,6 @@ public sealed class WelcomeToast : Window
         cp.SetValue(ContentPresenter.VerticalAlignmentProperty, VerticalAlignment.Center);
         border.AppendChild(cp);
         t.VisualTree = border;
-        var hover = new Trigger { Property = UIElement.IsMouseOverProperty, Value = true };
-        hover.Setters.Add(new Setter(UIElement.OpacityProperty, 0.88));
-        t.Triggers.Add(hover);
         return t;
     }
 

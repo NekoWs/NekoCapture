@@ -2,6 +2,7 @@ using System;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using System.Windows.Media.Effects;
 using FrameCapture.Capture;
 using FrameCapture.Core;
@@ -149,8 +150,18 @@ public sealed class CountdownWindow : Window
         Fluent.FadeIn(this, Fluent.Motion.EnterMs, 8, offscreenFirstFrame: true);
     }
 
-    /// <summary>刷新倒计时数字。</summary>
-    public void SetNumber(int n) => _num.Text = n.ToString();
+    /// <summary>刷新倒计时数字：每个数字弹入（0.6→1.0 BackEase 轻微过冲），与下拉/Toast 同款 PopIn 手感（R70）。</summary>
+    public void SetNumber(int n)
+    {
+        _num.Text = n.ToString();
+        var st = new ScaleTransform(0.6, 0.6);
+        _num.RenderTransformOrigin = new Point(0.5, 0.5);
+        _num.RenderTransform = st;
+        var a = new DoubleAnimation(1.0, new Duration(TimeSpan.FromMilliseconds(Fluent.Motion.SpringMs)))
+        { EasingFunction = new BackEase { Amplitude = 0.55, EasingMode = EasingMode.EaseOut } };
+        st.BeginAnimation(ScaleTransform.ScaleXProperty, a);
+        st.BeginAnimation(ScaleTransform.ScaleYProperty, a);
+    }
 
     public void CloseSelf()
     {

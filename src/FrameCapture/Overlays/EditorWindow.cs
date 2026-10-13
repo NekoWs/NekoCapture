@@ -361,6 +361,16 @@ public sealed partial class EditorWindow : Window
         tools.Children.Add(bHelp);
         _toolPanel = Panel(tools);
         _toolPanel.CornerRadius = new CornerRadius(0, 0, 8, 8); // 底角收口，与原生窗口圆角贴合
+        // 工具条浮于画布之上：向上投影（Direction=90，与 Elevate 同族但朝上），暗底浓亮底淡。
+        // 此前工具条只靠 1px 顶边与画布分隔，截到深色画面时几乎融为一体、显「太平」。
+        _toolPanel.Effect = new System.Windows.Media.Effects.DropShadowEffect
+        {
+            Color = Colors.Black,
+            BlurRadius = 20,
+            ShadowDepth = 6,
+            Direction = 90,
+            Opacity = Theme.IsDark ? 0.6 : 0.3,
+        };
         Grid.SetRow(_toolPanel, 2);
         root.Children.Add(_toolPanel);
     }
@@ -591,16 +601,8 @@ public sealed partial class EditorWindow : Window
             var head = new StackPanel { Orientation = Orientation.Horizontal, Children = { _widthSlider, _widthVal, _widthPreview } };
             _widthPop = new Popup
             {
-                Child = new Border
-                {
-                    Background = new SolidColorBrush(Theme.PanelBg),
-                    BorderBrush = new SolidColorBrush(Theme.Stroke),
-                    BorderThickness = new Thickness(1),
-                    CornerRadius = new CornerRadius(8),
-                    Padding = new Thickness(12, 9, 12, 9),
-                    Child = head,
-                    // Popup 从 PlacementTarget（图标按钮）继承 FontFamily=图标字体 → 数字会变豆腐，_widthVal 显式复位
-                },
+                Child = FrameCapture.Core.Fluent.PopupCard(head, new Thickness(12, 9, 12, 9)),
+                // Popup 从 PlacementTarget（图标按钮）继承 FontFamily=图标字体 → 数字会变豆腐，_widthVal 显式复位
                 PlacementTarget = anchor,
                 Placement = PlacementMode.Top,
                 StaysOpen = false,

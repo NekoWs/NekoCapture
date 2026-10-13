@@ -2,6 +2,7 @@ using System;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using System.Windows.Media.Effects;
 using FrameCapture.Capture;
 using FrameCapture.Core;
@@ -22,6 +23,7 @@ public sealed class ScrollHintWindow : Window
     readonly TextBlock _progress;
     readonly TextBlock _hint;
     bool _closing;
+    int _lastSegs = 1;   // 与构造里初始「已拼接 1 段」对齐，首帧不弹，之后每拼接一段弹一下
 
     const string DefaultHint = "滚动目标窗口，自动拼接 · 点「完成」结束";
     const double W = 372;      // DIP 宽（估算落点用；实际 SizeToContent）
@@ -114,6 +116,9 @@ public sealed class ScrollHintWindow : Window
         done.Click += (_, _) => OnDone?.Invoke();
         var cancel = MakeBtn("取消", Theme.Hover, Theme.TextDim);
         cancel.Click += (_, _) => OnCancel?.Invoke();
+        // PCL2 式弹性：hover 轻微放大、按下回缩、松手 BackEase 弹回（替代旧的 hover 淡出，不再「变淡像退后」）
+        Fluent.Springy(done, hover: 1.05, press: 0.94);
+        Fluent.Springy(cancel, hover: 1.05, press: 0.94);
         btns.Children.Add(done);
         btns.Children.Add(new Border { Width = 8 });
         btns.Children.Add(cancel);
@@ -153,6 +158,19 @@ public sealed class ScrollHintWindow : Window
         _progress.Text = $"已拼接 {segments} 段 · 高 {heightPx} px";
         _hint.Text = DefaultHint;
         _hint.Foreground = new SolidColorBrush(Theme.TextDim);
+        if (segments != _lastSegs) { _lastSegs = segments; PopProgress(); }
+    }
+
+    /// <summary>每成功拼接一段，进度数字弹一下（0.72→1.0 BackEase 过冲，右缘锚定不撞标题）——滚动拼接时的「QQ 弹弹」即时反馈，同倒计时数字弹入。</summary>
+    void PopProgress()
+    {
+        var st = new ScaleTransform(0.72, 0.72);
+        _progress.RenderTransformOrigin = new Point(1, 0.5);
+        _progress.RenderTransform = st;
+        var a = new DoubleAnimation(1.0, new Duration(TimeSpan.FromMilliseconds(Fluent.Motion.SpringMs)))
+        { EasingFunction = new BackEase { Amplitude = 0.5, EasingMode = EasingMode.EaseOut } };
+        st.BeginAnimation(ScaleTransform.ScaleXProperty, a);
+        st.BeginAnimation(ScaleTransform.ScaleYProperty, a);
     }
 
     /// <summary>刷一句反馈（如「滚动太快」），琥珀色提醒；下次成功拼接由 SetProgress 复位。</summary>
@@ -196,9 +214,6 @@ public sealed class ScrollHintWindow : Window
         cp.SetValue(ContentPresenter.VerticalAlignmentProperty, VerticalAlignment.Center);
         border.AppendChild(cp);
         t.VisualTree = border;
-        var hover = new Trigger { Property = UIElement.IsMouseOverProperty, Value = true };
-        hover.Setters.Add(new Setter(UIElement.OpacityProperty, 0.88));
-        t.Triggers.Add(hover);
         return t;
     }
 }

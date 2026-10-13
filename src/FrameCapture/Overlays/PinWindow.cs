@@ -192,6 +192,10 @@ public sealed class PinWindow : Window
         {
             FrameCapture.Core.Fluent.FadeIn(this, 140);
             PlayDrop();
+            // 淡入后确认 Opacity 已起来（R157：曾因 FadeIn 在已渲染时不再淡入，贴图永久 Opacity=0 隐形）
+            var t = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) };
+            t.Tick += (_, __) => { t.Stop(); FrameCapture.Core.Trace.Log($"pin shown opacity={Opacity:F2}"); };
+            t.Start();
         };
         SourceInitialized += (_, _) =>
         {
@@ -424,15 +428,15 @@ public sealed class PinWindow : Window
     void ShowMenu()
     {
         var menu = new ContextMenu { Resources = FrameCapture.Core.Fluent.MenuResources() }; // R120 D4：套用共享 Fluent 菜单样式（原裸 ContextMenu 系统默认样式很丑）
-        var copy = new MenuItem { Header = "复制 (Ctrl+C)" };
+        var copy = new MenuItem { Header = "复制", InputGestureText = "Ctrl+C" };
         copy.Click += (_, _) => Copy();
-        var saveAs = new MenuItem { Header = "另存为…" };
+        var saveAs = new MenuItem { Header = "另存为…", InputGestureText = "Ctrl+S" };
         saveAs.Click += (_, _) => SaveAs();
-        var ocr = new MenuItem { Header = "识别文字" };
+        var ocr = new MenuItem { Header = "识别文字", InputGestureText = "Ctrl+O" };
         ocr.Click += (_, _) => OcrFrame();
-        var rotate = new MenuItem { Header = "旋转 90° (R)" };
+        var rotate = new MenuItem { Header = "旋转 90°", InputGestureText = "R" };
         rotate.Click += (_, _) => Rotate();
-        var refresh = new MenuItem { Header = "更新内容 (F3)" };
+        var refresh = new MenuItem { Header = "更新内容", InputGestureText = "F3" };
         refresh.Click += (_, _) => Refresh();
         // 不透明度子菜单：预设档位（Ctrl+滚轮可微调）
         var opacity = new MenuItem { Header = "不透明度" };
@@ -443,7 +447,7 @@ public sealed class PinWindow : Window
             mi.Click += (_, _) => { CommitOpacity(); Opacity = v; }; // 提交淡入可见值再设绝对档，避免清动画后闪回 0 / 淡入未完成时竞态
             opacity.Items.Add(mi);
         }
-        var close = new MenuItem { Header = "关闭 (Esc)" };
+        var close = new MenuItem { Header = "关闭", InputGestureText = "Esc" };
         close.Click += (_, _) => Close();
         var closeAll = new MenuItem { Header = $"关闭全部贴图 ({_open.Count})" };
         closeAll.Click += (_, _) => { foreach (var p in _open.ToArray()) p.Close(); };
