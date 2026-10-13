@@ -1,7 +1,7 @@
 # FrameCapture Todo
 
-> **收尾状态（10-12 下午）**：Release 运行、settings.json 全出厂默认、git clean、SelfTest 337 PASS、护栏 PASS。
-> **热键已重置回出厂默认 Ctrl+Shift+G（截图）/ Ctrl+Shift+R（选区）**——测试需要临时改（如 F6/F7）时，批次末务必还原，勿把测试约定留在交付态。详见 PROGRESS.md「收尾审计与决策」。
+> **收尾状态（10-13 批次末）**：SelfTest 396 PASS、护栏 PASS、git clean、Release 已重发布并恢复运行。
+> **用户当前为自定义手势**（Ctrl+Alt+A 选区 / Ctrl+Alt+R 录制 / F2 按住录制），非出厂默认——这是用户自己配的，勿当测试残留还原。出厂默认仍是 Ctrl+Shift+G（截图）/ Ctrl+Shift+R（选区）；测试若临时改键，批次末还原到用户配置即可。详见 PROGRESS.md「收尾审计与决策」。
 
 ## 用户反馈（10-12 排队，按用户给定顺序做）
 - [x] **新增「选中」工具（V）**（R52）：对象编辑（移动/改大小/删除）从选中工具进入。

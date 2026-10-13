@@ -47,7 +47,7 @@ public static class GestureActions
         new(DelayedCapture, "延时截图", "倒数数秒后截当前范围（抓一动就没的菜单/悬停）"),
         new(EditLastStill, "编辑上次截图", "打开标注编辑器编辑上一次静图"),
         new(EditLastVideo, "打开编辑器（上次录制）", "打开视频编辑器编辑上一次录制（常配在『完成后序列』，让停止录制后再进编辑器）"),
-        new(OcrSelection, "识别文字", "对当前范围做 OCR 并复制文本"),
+        new(OcrSelection, "识别文字", "对当前范围做 OCR（QQ 式提取文字）：开「识别后显示结果窗」则弹可编辑结果窗，否则直接复制文本"),
         new(PinSelection, "贴图当前选区", "把当前范围钉成贴图（Snipaste 式）"),
         new(SettingsOpen, "打开设置", "打开设置窗口"),
         new(HelpOpen, "打开帮助", "打开使用说明窗口"),

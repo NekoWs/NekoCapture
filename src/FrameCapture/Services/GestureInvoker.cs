@@ -67,8 +67,9 @@ sealed class GestureInvoker : GC.IActionInvoker
             case GestureActions.PinSelection: Post(() => c.PinFromClipboard()); return true;
 
             case GestureActions.OcrSelection:
-                // 尚无「对当前范围直接 OCR」的控制器入口（OCR 现长在编辑器里）；未实现→返回 false，交由失败策略处理。
-                return false;
+                // R148：对当前范围直接 OCR（QQ 式「提取文字」）。抓取/识别在投递的动作里于 UI 线程跑，钩子回调不占重活。
+                Post(() => c.OcrStoredStill());
+                return true;
 
             case GestureActions.SettingsOpen: Post(() => Overlays.SettingsWindow.ShowOrFocus()); return true;
             case GestureActions.HelpOpen: Post(() => Overlays.HelpWindow.ShowOrFocus()); return true;

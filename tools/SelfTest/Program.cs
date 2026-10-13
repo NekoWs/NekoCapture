@@ -2351,6 +2351,26 @@ static class SelfTest
             cfg3.SeedIfNeeded("Ctrl+Shift+G", "Ctrl+Shift+R");
             Chk("T147e-seed-idempotent", cfg3.Bindings.Count == 0, "已播种后清空绑定不再重新塞回");
         }
+
+        // T148 手势「识别文字」结果路由（R148，OcrService.Route 纯决策；编辑器与范围 OCR 共用）
+        {
+            Chk("T148a-success-window",
+                FrameCapture.Core.OcrService.Route(FrameCapture.Core.OcrStatus.Success, true) == FrameCapture.Core.OcrRoute.ResultWindow,
+                "Success + 显示结果窗 → 开结果窗");
+            Chk("T148b-success-copy",
+                FrameCapture.Core.OcrService.Route(FrameCapture.Core.OcrStatus.Success, false) == FrameCapture.Core.OcrRoute.CopyThenConfirm,
+                "Success + 关结果窗 → 复制并轻确认");
+            Chk("T148c-noengine-ignores-show",
+                FrameCapture.Core.OcrService.Route(FrameCapture.Core.OcrStatus.NoEngine, true) == FrameCapture.Core.OcrRoute.NoEngineHint
+                && FrameCapture.Core.OcrService.Route(FrameCapture.Core.OcrStatus.NoEngine, false) == FrameCapture.Core.OcrRoute.NoEngineHint,
+                "NoEngine → 无引擎提示（与是否显示结果窗无关）");
+            Chk("T148d-empty-ignores-show",
+                FrameCapture.Core.OcrService.Route(FrameCapture.Core.OcrStatus.Empty, true) == FrameCapture.Core.OcrRoute.EmptyHint
+                && FrameCapture.Core.OcrService.Route(FrameCapture.Core.OcrStatus.Empty, false) == FrameCapture.Core.OcrRoute.EmptyHint,
+                "Empty → 未识别提示（与是否显示结果窗无关）");
+            Chk("T148e-ocr-action-registered", FrameCapture.Core.GestureActions.IsValid("ocr.selection"),
+                "ocr.selection 动作仍注册（手势可绑定，且 GestureInvoker 已接线非死动作）");
+        }
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");
         return fail == 0 ? 0 : 1;
     }

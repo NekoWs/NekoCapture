@@ -23,6 +23,7 @@ public partial class App : System.Windows.Application
     const string MsgDelay = "FrameCapture_Delay";
     const string MsgPinClip = "FrameCapture_PinClip";
     const string MsgPauseToggle = "FrameCapture_PauseToggle";
+    const string MsgOcr = "FrameCapture_Ocr";
 
     [System.Runtime.InteropServices.DllImport("user32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
     static extern uint RegisterWindowMessageW(string lpString);
@@ -102,6 +103,10 @@ public partial class App : System.Windows.Application
         if (e.Args.Any(a => string.Equals(a, "--pause-toggle", StringComparison.OrdinalIgnoreCase)))
             Dispatcher.BeginInvoke(() => Services.AppHost.Current.Tray.TogglePause(),
                 System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+        // R148：对当前范围 OCR（手势「识别文字」同一入口，也便于脚本/e2e 调用）
+        if (e.Args.Any(a => string.Equals(a, "--ocr", StringComparison.OrdinalIgnoreCase)))
+            Dispatcher.BeginInvoke(() => Services.AppHost.Current.Controller.OcrStoredStill(),
+                System.Windows.Threading.DispatcherPriority.ApplicationIdle);
     }
 
     void StartMessageSink()
@@ -113,7 +118,8 @@ public partial class App : System.Windows.Application
             () => Dispatcher.BeginInvoke(() => Services.AppHost.Current.Controller.BeginScrollCapture()),
             () => Dispatcher.BeginInvoke(() => Services.AppHost.Current.Controller.BeginDelayedCapture()),
             () => Dispatcher.BeginInvoke(() => Services.AppHost.Current.Controller.PinFromClipboard()),
-            () => Dispatcher.BeginInvoke(() => Services.AppHost.Current.Tray.TogglePause())); }
+            () => Dispatcher.BeginInvoke(() => Services.AppHost.Current.Tray.TogglePause()),
+            () => Dispatcher.BeginInvoke(() => Services.AppHost.Current.Controller.OcrStoredStill())); }
         catch (System.Exception ex) { LogCrash(ex, "MsgSink"); }
     }
 
@@ -123,11 +129,11 @@ public partial class App : System.Windows.Application
     /// 直接建消息专用窗，仅用于接收二次实例转发的"打开设置/帮助"。</summary>
     sealed class MsgSink : System.Windows.Forms.NativeWindow
     {
-        readonly Action _onSettings, _onHelp, _onEditLast, _onScroll, _onDelay, _onPinClip, _onPauseToggle;
-        readonly uint _mSet, _mHelp, _mEditLast, _mScroll, _mDelay, _mPinClip, _mPauseToggle;
-        public MsgSink(Action onSettings, Action onHelp, Action onEditLast, Action onScroll, Action onDelay, Action onPinClip, Action onPauseToggle)
+        readonly Action _onSettings, _onHelp, _onEditLast, _onScroll, _onDelay, _onPinClip, _onPauseToggle, _onOcr;
+        readonly uint _mSet, _mHelp, _mEditLast, _mScroll, _mDelay, _mPinClip, _mPauseToggle, _mOcr;
+        public MsgSink(Action onSettings, Action onHelp, Action onEditLast, Action onScroll, Action onDelay, Action onPinClip, Action onPauseToggle, Action onOcr)
         {
-            _onSettings = onSettings; _onHelp = onHelp; _onEditLast = onEditLast; _onScroll = onScroll; _onDelay = onDelay; _onPinClip = onPinClip; _onPauseToggle = onPauseToggle;
+            _onSettings = onSettings; _onHelp = onHelp; _onEditLast = onEditLast; _onScroll = onScroll; _onDelay = onDelay; _onPinClip = onPinClip; _onPauseToggle = onPauseToggle; _onOcr = onOcr;
             _mSet = RegisterWindowMessageW(MsgOpenSettings);
             _mHelp = RegisterWindowMessageW(MsgOpenHelp);
             _mEditLast = RegisterWindowMessageW(MsgEditLast);
@@ -135,6 +141,7 @@ public partial class App : System.Windows.Application
             _mDelay = RegisterWindowMessageW(MsgDelay);
             _mPinClip = RegisterWindowMessageW(MsgPinClip);
             _mPauseToggle = RegisterWindowMessageW(MsgPauseToggle);
+            _mOcr = RegisterWindowMessageW(MsgOcr);
             CreateHandle(new System.Windows.Forms.CreateParams { Caption = SinkName, Parent = HWND_MESSAGE, Style = 0 });
             Core.Trace.Log($"sink created hwnd={Handle}");
         }
@@ -147,6 +154,7 @@ public partial class App : System.Windows.Application
             else if (m.Msg == _mDelay) { Core.Trace.Log("sink→delay capture"); _onDelay(); }
             else if (m.Msg == _mPinClip) { Core.Trace.Log("sink→pin clipboard"); _onPinClip(); }
             else if (m.Msg == _mPauseToggle) { Core.Trace.Log("sink→pause toggle"); _onPauseToggle(); }
+            else if (m.Msg == _mOcr) { Core.Trace.Log("sink→ocr range"); _onOcr(); }
             base.WndProc(ref m);
         }
     }
@@ -160,7 +168,8 @@ public partial class App : System.Windows.Application
             args.Any(a => string.Equals(a, "--scroll", StringComparison.OrdinalIgnoreCase)) ? MsgScroll :
             args.Any(a => string.Equals(a, "--delay", StringComparison.OrdinalIgnoreCase)) ? MsgDelay :
             args.Any(a => string.Equals(a, "--pin-clip", StringComparison.OrdinalIgnoreCase)) ? MsgPinClip :
-            args.Any(a => string.Equals(a, "--pause-toggle", StringComparison.OrdinalIgnoreCase)) ? MsgPauseToggle : null;
+            args.Any(a => string.Equals(a, "--pause-toggle", StringComparison.OrdinalIgnoreCase)) ? MsgPauseToggle :
+            args.Any(a => string.Equals(a, "--ocr", StringComparison.OrdinalIgnoreCase)) ? MsgOcr : null;
         if (name == null) return;
         try
         {

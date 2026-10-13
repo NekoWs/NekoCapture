@@ -11,6 +11,10 @@ public enum OcrStatus { Success, NoEngine, Empty }
 /// <summary>OCR 结果：状态 + 识别文本（Success 时有效）。</summary>
 public readonly record struct OcrOutcome(OcrStatus Status, string Text);
 
+/// <summary>OCR 结果的用户可见路由（纯决策，供单测）。编辑器与「手势/范围 OCR」共用，保证两处一致：
+/// ResultWindow=开结果窗；CopyThenConfirm=直接复制并轻确认；NoEngineHint/EmptyHint=对应提示。</summary>
+public enum OcrRoute { ResultWindow, CopyThenConfirm, NoEngineHint, EmptyHint }
+
 /// <summary>
 /// Windows 内置 OCR（Windows.Media.Ocr，无需联网/第三方）。引擎优先用户配置文件语言，
 /// 回退到任一已装识别语言；都没有则 NoEngine（调用方提示装语言包，绝不抛）。
@@ -48,6 +52,15 @@ public static class OcrService
         OcrStatus.Success => $"已识别 {textLen} 字 · 已复制",
         OcrStatus.NoEngine => "未安装 OCR 语言包（设置 › 时间和语言 › 语音）",
         _ => "未识别到文字",
+    };
+
+    /// <summary>OCR 结果路由决策（纯函数，供单测）：Success 时按「是否显示结果窗」分流到结果窗或复制+轻确认；
+    /// NoEngine/Empty 各自走提示。编辑器与手势/范围 OCR 共用，杜绝两处逻辑漂移。</summary>
+    public static OcrRoute Route(OcrStatus status, bool showResult) => status switch
+    {
+        OcrStatus.Success => showResult ? OcrRoute.ResultWindow : OcrRoute.CopyThenConfirm,
+        OcrStatus.NoEngine => OcrRoute.NoEngineHint,
+        _ => OcrRoute.EmptyHint,
     };
 
     /// <summary>清理 OCR 文本：统一换行为 \n、每行去行尾空白、连续空行压成一个空行、整体去首尾空白。

@@ -2063,3 +2063,24 @@ status: done
 - **暂停全局热键审计**：`HotkeyManager.cs:111` `if(!Paused && KeySink!=null)`——暂停时不喂手势层，手势同样避让（不拦截任何键）；`GestureEditorHost` 捕获和弦时临时 `Paused=true` 防自拦截、结束/关窗还原。**暂停对手势生效，B2 未断裂此功能**。
 - **批次中护栏检查点**：R143-146 连改 4 轮源码后跑完整 `guardrail.ps1 -MinSelfTestPass 387`（后台跑避免超时中断 try/finally 还原）→ **GUARDRAIL PASS**（FAIL=0 SKIP=1，focus-safety 属预期跳过非失败；SelfTest 391、e2e editor-keys/zoom/esc-layers/tap-semantics/fuzz-statemachine 全绿）。try/finally 已还原用户 4 手势（Ctrl+Alt+R→record.toggle、Ctrl+Alt+A→capture.selection、F2 点按/松开→record.start/stop，onComplete=edit.lastvideo 均在）+ Accent=#7F75FF 完好。
 - **净态**：git 干净 HEAD=`932ad55`、SelfTest 391、0 实例、zip 落后 4 src 提交（批次末重发布）。
+
+---
+
+## ⚑ 批次末执行（10-13 10:04 起，deadline 10:00 已过）
+
+**R148 · 复活死动作 `ocr.selection`「识别文字」→ QQ 式提取文字（批次末随发布出厂）**
+- **缺陷**：`GestureActions.OcrSelection` 早在 EXPOSED 列表里（用户可在配置器绑定「识别文字」），但 `GestureInvoker.cs:69` 是 `return false` 死分支 → `RunActions`/`FireTrigger` 判失败 → **键不吞、静默无反应**（真缺陷：绑了等于没绑，还吞不掉键泄漏给前台）。
+- **决策**：实现而非删除——对齐北极星（QQ 截图「提取文字」）；反馈**统一走可截图审查的 `OcrResultWindow`**（非 WDA 排除的新 toast，否则不可审查，违背「多看看截图」）。
+- **实现（纯决策函数 + 复用既有件，仿 Classify/Feedback/Normalize 风格）**：
+  - `OcrService` 加 `OcrRoute{ResultWindow,CopyThenConfirm,NoEngineHint,EmptyHint}` + 纯函数 `Route(status,showResult)`：Success→(showResult?结果窗:复制+轻确认)，NoEngine/Empty→对应提示（与 showResult 无关）。
+  - `OcrResultWindow` 加 `ShowMessage(msg)` + `bool message` 构造分支：400×210、居中文本、无编辑框/字数/复制钮，与结果窗共用外壳/淡入淡出/标题栏（同一可审查反馈面）。
+  - `CaptureController.OcrStoredStill()`：仿 `CaptureStoredStill`（Idle 守卫→`StoredRegion()??FullMonitorAtCursor`→`LiveCapture.Grab`→`await RecognizeAsync`→按 `Route` 分流），try/catch 兜底「识别失败」。
+  - `GestureInvoker` 死分支 → `Post(()=>c.OcrStoredStill()); return true;`（与其余 10 个动作同款）。
+  - `GestureActions` 文案更新为「开结果窗则弹可编辑结果窗，否则直接复制文本」。
+  - 加 `--ocr` 命令行/e2e 入口（与 `--scroll/--delay/--pin-clip` 同款全套 MsgSink 转发管线），零配置可脚本触发。
+  - **T148a-e**（5 项）锁 `Route` 全分支 + `ocr.selection` 仍注册。
+- **⚠ 环境限制（非代码缺陷，已决定性证明）**：本沙箱启动的进程**无法加载 WinRT 投影 `Microsoft.Windows.SDK.NET`**（DLL 在位 24MB、版本 10.0.19041.38 正确，但报 file-not-found = 文件打不开签名）。**决定性证据**：同一 Release 实例里跑**出厂的编辑器 OCR**（Ctrl+O）报**完全相同**的 `ocr failed: Could not load ... Microsoft.Windows.SDK.NET`（trace `D:\fc-trace.log`）。→ 我的 `OcrStoredStill` 与出厂编辑器 OCR 调**同一** `OcrService.RecognizeAsync`、行为**完全一致**；用户真实桌面（非沙箱双击）下两者都能正常 OCR。
+- **验证**：构建 **0 错**（无新增警告）；**SelfTest 396 绿**（391+T148×5）；优雅降级**两次截图核验**（Debug+Release 均弹「识别失败」消息窗，深色 Fluent 圆角/标题栏 OCR 图标/居中文案渲染干净）；编辑器本体端到端正常（选区截图→`--edit-last`→编辑器渲染捕获帧、工具栏图标齐全无豆腐、accent ✓ 正常）。
+- **批次末**：Release 已重发布（staging 10:05:28，250 文件，SDK 投影在位）；护栏 `-MinSelfTestPass 391` 后台跑；zip 重打包；TODO.md line 3 头已更新（337→396、全出厂默认→用户自定义手势）。
+
+**批次末净态**：见下方最终 HEAD。

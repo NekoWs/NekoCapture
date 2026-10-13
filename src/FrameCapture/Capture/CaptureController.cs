@@ -297,6 +297,47 @@ public sealed class CaptureController : IDisposable
         DispatchStill(f, region.Bounds, region.DeviceName);
     }
 
+    /// <summary>R148：手势「识别文字」——对已存范围（无则光标屏全屏）抓一帧做 OCR，结果按 <see cref="OcrService.Route"/> 分流：
+    /// 结果窗 / 复制+轻确认 / 无引擎提示 / 空提示（反馈统一走可截图审查的 OcrResultWindow）。
+    /// 帧像素在首个 await 前同步拷入 SoftwareBitmap，与关窗/释放无竞态；无语言包优雅降级不抛。</summary>
+    public async void OcrStoredStill()
+    {
+        if (State != Phase.Idle) return;
+        var region = StoredRegion() ?? FullMonitorAtCursor();
+        var f = LiveCapture.Grab(region.Bounds);
+        if (f == null) { FrameCapture.Core.Trace.Log("ocr-still: grab null"); return; }
+        try
+        {
+            var outcome = await OcrService.RecognizeAsync(f);
+            var text = OcrService.Normalize(outcome.Text);
+            switch (OcrService.Route(outcome.Status, _settings.Current.OcrShowResult))
+            {
+                case OcrRoute.ResultWindow:
+                    OcrResultWindow.Show(text);
+                    FrameCapture.Core.Trace.Log($"ocr-still ok {text.Length}");
+                    break;
+                case OcrRoute.CopyThenConfirm:
+                    try { System.Windows.Clipboard.SetText(text); } catch { }
+                    OcrResultWindow.ShowMessage(OcrService.Feedback(OcrStatus.Success, text.Length));
+                    FrameCapture.Core.Trace.Log($"ocr-still copied {text.Length}");
+                    break;
+                case OcrRoute.NoEngineHint:
+                    OcrResultWindow.ShowMessage(OcrService.Feedback(OcrStatus.NoEngine, 0));
+                    FrameCapture.Core.Trace.Log("ocr-still no-engine");
+                    break;
+                default:
+                    OcrResultWindow.ShowMessage(OcrService.Feedback(OcrStatus.Empty, 0));
+                    FrameCapture.Core.Trace.Log("ocr-still empty");
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            FrameCapture.Core.Trace.Log($"ocr-still failed: {ex.Message}");
+            OcrResultWindow.ShowMessage("识别失败");
+        }
+    }
+
     void StartScrollLoop(RectI region, string device)
     {
         var f = LiveCapture.Grab(region);

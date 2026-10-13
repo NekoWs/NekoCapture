@@ -19,7 +19,16 @@ public sealed class OcrResultWindow : Window
         w.Activate();
     }
 
-    OcrResultWindow(string text)
+    /// <summary>消息模式：无结果窗可展示时（未识别到文字 / 未装语言包 / 已复制轻确认）用同一窗体给一句可读反馈。
+    /// 与结果窗共用外壳与淡入淡出，保证「识别文字」功能只有一个可截图审查的反馈面。</summary>
+    public static void ShowMessage(string msg)
+    {
+        var w = new OcrResultWindow(msg, message: true);
+        w.Show();
+        w.Activate();
+    }
+
+    OcrResultWindow(string text, bool message = false)
     {
         WindowStyle = WindowStyle.None;
         ResizeMode = ResizeMode.NoResize;
@@ -28,8 +37,8 @@ public sealed class OcrResultWindow : Window
         ShowInTaskbar = false;
         Topmost = true;
         Title = "FrameCapture OCR";
-        Width = 500;
-        Height = 460;
+        Width = message ? 400 : 500;
+        Height = message ? 210 : 460;
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
 
         var root = new Border
@@ -46,6 +55,29 @@ public sealed class OcrResultWindow : Window
         close.Click += (_, _) => Fluent.CloseWithFade(this);
         DockPanel.SetDock(bar, Dock.Top);
         dock.Children.Add(bar);
+
+        if (message)
+        {
+            // 消息模式：居中一句提示，无编辑框/字数/复制钮。
+            dock.Children.Add(new TextBlock
+            {
+                Text = text,
+                FontSize = 14,
+                Foreground = new SolidColorBrush(Theme.Text),
+                FontFamily = new FontFamily("Segoe UI"),
+                TextWrapping = TextWrapping.Wrap,
+                TextAlignment = TextAlignment.Center,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(28, 10, 28, 18),
+            });
+            root.Child = dock;
+            Content = root;
+            Fluent.InstallCaptionDrag(this, close);
+            KeyDown += (_, e) => { if (e.Key == Key.Escape) Fluent.CloseWithFade(this); };
+            Fluent.PopupEnter(this);
+            return;
+        }
 
         // 底部：字数（左）+ 复制全部（右）
         var bottom = new Grid { Margin = new Thickness(14, 6, 14, 12) };
