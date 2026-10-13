@@ -62,6 +62,15 @@ public sealed class AppSettings
     /// <summary>选区吸附取客户区（排除窗口边框/标题栏，适合游戏画面）。</summary>
     public bool SnapContentArea { get; set; } = false;
 
+    /// <summary>点击窗口时截取完整窗口（默认开，R165）：选区窗里点一个吸附到的窗口，不再按屏幕矩形抓像素，
+    /// 而是真正截取该窗口本体（WGC 按窗口捕获，Win11 圆角透明、浏览器/GPU 窗也干净），可选带真实投影、
+    /// 背景透明（macOS 式）。关掉则点窗恢复旧的「按矩形区域截图」。目标窗被遮挡或 WGC 取帧失败时自动回退区域截图。</summary>
+    public bool WindowCaptureEnabled { get; set; } = true;
+
+    /// <summary>窗口截图包含投影（默认开，R165）：在上面开关开启时，额外把窗口边缘的真实投影截进来、
+    /// 外缘柔和渐隐到透明（macOS 悬浮感）。关掉则只截窗口本体（圆角透明、无投影）。</summary>
+    public bool WindowCaptureShadow { get; set; } = true;
+
     /// <summary>截图完成后的行为（R83）：toast=弹缩略浮窗可一键进编辑器（默认，兼顾确认与标注）；
     /// editor=复制后直接打开标注编辑器（QQ 式）；copy=只复制不弹窗不开编辑器（最快，轮廓闪一下作反馈）。
     /// 三态覆盖「要确认」「要标注」「只要剪贴板」三类人群，非法值回落 toast。</summary>

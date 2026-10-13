@@ -57,17 +57,29 @@ public static class ClipboardService
         return data;
     }
 
-    /// <summary>仅复制单帧位图。</summary>
-    public static void SetFrame(CapturedFrame frame)
+    /// <summary>仅复制单帧位图。includePng=true（R165 窗口截图带 alpha）时额外放 "PNG" 格式保透明，
+    /// 并把 CF_DIB 拍平到白底（只认 DIB 的应用不会看到透明区变黑）。</summary>
+    public static void SetFrame(CapturedFrame frame, bool includePng = false)
     {
+        object payload = includePng ? BuildAlphaDataObject(frame) : (object)BgraImage.ToSource(frame);
         for (int attempt = 0; attempt < 6; attempt++)
         {
             try
             {
-                Clipboard.SetImage(BgraImage.ToSource(frame));
+                if (includePng) Clipboard.SetDataObject((DataObject)payload, true);
+                else Clipboard.SetImage((System.Windows.Media.Imaging.BitmapSource)payload);
                 return;
             }
             catch (System.Runtime.InteropServices.COMException) { System.Threading.Thread.Sleep(80); }
         }
+    }
+
+    /// <summary>带 alpha 帧的剪贴板 DataObject：PNG 格式（透明，现代应用）+ 白底拍平位图（CF_DIB 兜底）。</summary>
+    static DataObject BuildAlphaDataObject(CapturedFrame frame)
+    {
+        var data = new DataObject();
+        try { data.SetData("PNG", new MemoryStream(BgraImage.PngBytes(frame))); } catch { }
+        try { data.SetImage(BgraImage.ToSource(BgraImage.FlattenOver(frame, 255, 255, 255))); } catch { }
+        return data;
     }
 }

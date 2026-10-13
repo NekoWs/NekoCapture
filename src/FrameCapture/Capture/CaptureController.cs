@@ -187,9 +187,9 @@ public sealed class CaptureController : IDisposable
         // 旧选区可关（R55 设置项）：关=干净屏选区，Enter 确认上次选区随之无意义
         _picker = new RegionPickerWindow(monitor, existing: _settings.Current.ShowLastRegion ? StoredRegion()?.Bounds : null,
             snapContent: _settings.Current.SnapContentArea, teachTip: teachTip, magnifier: _settings.Current.PickerMagnifier,
-            colorFormat: Core.ColorFormat.Parse(_settings.Current.ColorCopyFormat));
+            colorFormat: Core.ColorFormat.Parse(_settings.Current.ColorCopyFormat), windowCapture: _settings.Current.WindowCaptureEnabled);
         FrameCapture.Core.Trace.Log($"picker ctor done dt={swOpen.ElapsedMilliseconds}ms magnifier={_settings.Current.PickerMagnifier}");
-        _picker.Result += region =>
+        _picker.Result += (region, hwnd) =>
         {
             _picker = null;
             State = Phase.Idle;
@@ -232,10 +232,23 @@ public sealed class CaptureController : IDisposable
                 t.Tick += (_, _) =>
                 {
                     t.Stop();
-                    var f = LiveCapture.Grab(region.Value);
-                    if (f != null) DispatchStill(f, region.Value, monitor.DeviceName);
-                    if (_settings.Current.AlwaysShowRegionOutline) ShowOutline(region.Value);
-                    else { FlashOutline(region.Value); _outline!.FadeAway(_settings.Current.OutlineFadeSeconds); }
+                    // R165：点吸附窗口 → 真·窗口截图（带 alpha）；被遮挡/取帧失败 → 回退区域截图。
+                    CapturedFrame? f = null;
+                    RectI capReg = region.Value;
+                    bool winCap = false;
+                    if (hwnd != IntPtr.Zero && _settings.Current.WindowCaptureEnabled)
+                    {
+                        try
+                        {
+                            var (wf, wreg) = WindowCapture.Grab(hwnd, _settings.Current.WindowCaptureShadow);
+                            f = wf; capReg = wreg; winCap = true;
+                        }
+                        catch (Exception ex) { FrameCapture.Core.Trace.Log($"winCap fail→region: {ex.Message}"); f = null; }
+                    }
+                    if (f == null) f = LiveCapture.Grab(region.Value);
+                    if (f != null) DispatchStill(f, capReg, monitor.DeviceName, windowCapture: winCap);
+                    if (_settings.Current.AlwaysShowRegionOutline) ShowOutline(capReg);
+                    else { FlashOutline(capReg); _outline!.FadeAway(_settings.Current.OutlineFadeSeconds); }
                 };
                 t.Start();
             }
@@ -804,11 +817,11 @@ public sealed class CaptureController : IDisposable
     /// <summary>单帧静图完成后的统一处理：复制 + 自动保存副本 + 提示音 + 「截图后」四选一 + 记录上次截图。
     /// 选区拖框路径与点按直出路径共用，保证两条路径行为一致（R119 修复：此前点按直出绕过本分派，
     /// 导致「截图后」设置与提示音对直出截图全部失效，永远进编辑器）。</summary>
-    void DispatchStill(CapturedFrame f, RectI reg, string device)
+    void DispatchStill(CapturedFrame f, RectI reg, string device, bool windowCapture = false)
     {
         var pth = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "FrameCapture", $"capture-{DateTime.Now:HHmmss}.png");
         try { FrameCapture.Services.BgraImage.SavePng(f, pth); } catch { }
-        FrameCapture.Encoding.ClipboardService.SetFrame(f);
+        FrameCapture.Encoding.ClipboardService.SetFrame(f, includePng: windowCapture);
         FrameCapture.Services.SaveService.MaybeSavePng(f); // R63 自动保存副本（关=零副作用）
         FrameCapture.Core.Trace.Log($"still saved {pth} {f.W}x{f.H}");
         if (_settings.Current.CaptureSound) FrameCapture.Core.CaptureSound.Play(_settings.Current.CustomSoundPath); // R86 提示音（关=零副作用）

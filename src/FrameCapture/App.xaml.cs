@@ -142,6 +142,44 @@ public partial class App : System.Windows.Application
         if (e.Args.Any(a => string.Equals(a, "--picker", StringComparison.OrdinalIgnoreCase)))
             Dispatcher.BeginInvoke(() => Services.AppHost.Current.Controller.BeginScopeSelection(),
                 System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+        // R165 调试/e2e：按标题子串截取一个窗口（WGC 本体 + 可选投影），存 PNG，便于取证 alpha/圆角/投影。
+        //   FrameCapture.exe --wincap <标题子串> <输出png路径> [--noshadow]
+        int wi = Array.FindIndex(e.Args, a => string.Equals(a, "--wincap", StringComparison.OrdinalIgnoreCase));
+        if (wi >= 0)
+        {
+            string title = wi + 1 < e.Args.Length ? e.Args[wi + 1] : "";
+            string outp = wi + 2 < e.Args.Length ? e.Args[wi + 2]
+                : System.IO.Path.Combine(System.IO.Path.GetTempPath(), "FrameCapture", "wincap.png");
+            bool shadow = !e.Args.Any(a => string.Equals(a, "--noshadow", StringComparison.OrdinalIgnoreCase));
+            Dispatcher.BeginInvoke(() =>
+            {
+                try
+                {
+                    IntPtr h = FindWindowByTitle(title);
+                    if (h == IntPtr.Zero) { FrameCapture.Core.Trace.Log($"wincap: no window '{title}'"); return; }
+                    var (f, reg) = Capture.WindowCapture.Grab(h, shadow);
+                    Services.BgraImage.SavePng(f, outp);
+                    FrameCapture.Core.Trace.Log($"wincap saved {outp} {f.W}x{f.H} reg={reg}");
+                }
+                catch (Exception ex) { FrameCapture.Core.Trace.Log("wincap fail: " + ex); }
+            }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+        }
+    }
+
+    /// <summary>按标题子串（不区分大小写）找第一个可见顶层窗（调试/e2e 用）。</summary>
+    static IntPtr FindWindowByTitle(string sub)
+    {
+        if (string.IsNullOrEmpty(sub)) return IntPtr.Zero;
+        IntPtr found = IntPtr.Zero;
+        var sb = new System.Text.StringBuilder(512);
+        Native.Win32.EnumWindows((h, _) =>
+        {
+            if (!Native.Win32.IsWindowVisible(h)) return true;
+            sb.Clear(); Native.Win32.GetWindowTextW(h, sb, 512);
+            if (sb.ToString().IndexOf(sub, StringComparison.OrdinalIgnoreCase) >= 0) { found = h; return false; }
+            return true;
+        }, IntPtr.Zero);
+        return found;
     }
 
     void StartMessageSink()

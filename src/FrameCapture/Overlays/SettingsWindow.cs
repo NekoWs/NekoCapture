@@ -175,6 +175,10 @@ public sealed class SettingsWindow : Window
             _settings.Current.AutoCaptureOnSelect, v => _settings.Mutate(s => s.AutoCaptureOnSelect = v)));
         panel.Children.Add(ToggleRow("\uE740", "吸附到控件", "悬停自动吸附窗口内的具体控件：输入框、文字、图片、分组容器等（Snipaste 式，Tab 可上钻到父容器）。依赖应用无障碍接口，不支持时自动回退整窗吸附",
             _settings.Current.SnapContentArea, v => _settings.Mutate(s => s.SnapContentArea = v)));
+        panel.Children.Add(ToggleRow("\uE7C8", "点击窗口时截取完整窗口", "选区窗里点一个吸附到的窗口，不再按屏幕矩形抓像素，而是真正截取该窗口本体——Win11 圆角处透明、浏览器/GPU 窗也干净，背景透明（macOS 式）。关掉则点窗恢复旧的「按矩形区域截图」。拖框选区域不受影响；目标窗被别的窗遮挡或取帧失败时自动回退区域截图",
+            _settings.Current.WindowCaptureEnabled, v => _settings.Mutate(s => s.WindowCaptureEnabled = v)));
+        panel.Children.Add(ToggleRow("\uE7B3", "窗口截图包含投影", "在上面开关开启时，额外把窗口边缘的真实投影截进来、外缘柔和渐隐到透明（macOS 悬浮感）。关掉则只截窗口本体（圆角透明、无投影）",
+            _settings.Current.WindowCaptureShadow, v => _settings.Mutate(s => s.WindowCaptureShadow = v)));
         panel.Children.Add(ToggleRow("\uE7C4", "显示上次选区", "按下选区快捷键后，用虚线框显示上次的选区位置（Enter 可直接确认重选同区域）；关闭后每次都是干净屏",
             _settings.Current.ShowLastRegion, v => _settings.Mutate(s => s.ShowLastRegion = v)));
         panel.Children.Add(ToggleRow("\uE721", "选区放大镜", "拖框或悬停选区时，光标旁显示高倍像素放大镜、坐标/尺寸读数与光标下像素颜色（按 C 复制颜色，格式见下），便于像素级精确选区/取色（QQ/Snipaste 式）；关闭可省一点开销",

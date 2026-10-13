@@ -13,7 +13,7 @@ namespace FrameCapture.Overlays;
 /// </summary>
 public sealed class RegionPickerWindow : Window
 {
-    public event Action<RectI?>? Result;
+    public event Action<RectI?, IntPtr>? Result; // (选区矩形, 窗口句柄)：hwnd≠0 表示按窗口截图（R165）
 
     private readonly MonitorInfo _monitor;
     private readonly RectI _monitorPhys;
@@ -26,6 +26,7 @@ public sealed class RegionPickerWindow : Window
     private bool _finished;
     private RectI? _existing;
     private readonly bool _snapContent;
+    private readonly bool _windowCapture; // R165：点吸附窗口时走「真·窗口截图」
     private readonly bool _magnifier;
     private Core.ColorCopyFormat _colorFormat; // R89：按 C 复制颜色时的文本形式；R96 按 F 可循环切换（Hex→RGB→HSL）
     private (int r, int g, int b)? _lastRgb; // R96：放大镜中心最近一次像素色，供 F 切换格式后就地刷新读数
@@ -81,12 +82,13 @@ public sealed class RegionPickerWindow : Window
         });
     }
 
-    public RegionPickerWindow(MonitorInfo monitor, RectI? existing, bool snapContent = false, string? teachTip = null, bool magnifier = false, Core.ColorCopyFormat colorFormat = Core.ColorCopyFormat.Hex)
+    public RegionPickerWindow(MonitorInfo monitor, RectI? existing, bool snapContent = false, string? teachTip = null, bool magnifier = false, Core.ColorCopyFormat colorFormat = Core.ColorCopyFormat.Hex, bool windowCapture = false)
     {
         // 覆盖层不需要文本输入：禁用输入法，避免拼音拦截快捷键
         System.Windows.Input.InputMethod.SetIsInputMethodEnabled(this, false);
         _monitor = monitor;
         _snapContent = snapContent;
+        _windowCapture = windowCapture;
         _magnifier = magnifier;
         _colorFormat = colorFormat;
         _monitorPhys = monitor.Bounds;
@@ -341,6 +343,11 @@ public sealed class RegionPickerWindow : Window
         MouseDoubleClick += (_, _) =>
         {
             var p = WindowPosToPhys(Mouse.GetPosition(this));
+            if (_windowCapture)
+            {
+                var wc = WindowHitForCapture(p);
+                if (wc != null) { Finish(wc.Value.Bounds, wc.Value.Hwnd); return; }
+            }
             var hit = SnapWindowAt(p);
             Finish(hit ?? _existing ?? new RectI(_monitorPhys.X, _monitorPhys.Y, _monitorPhys.W, _monitorPhys.H));
         };
@@ -539,6 +546,12 @@ public sealed class RegionPickerWindow : Window
                 var eh = Core.ElementSnap.At(p.X, p.Y, selfH);
                 if (eh != null && eh.Rect.W >= 8 && eh.Rect.H >= 8) { Finish(eh.Rect); return; }
             }
+            // R165：点吸附到的窗口 → 真·窗口截图（开关开 + 未被遮挡 + 吸附到的是窗口而非 UIA 子元素）
+            if (_windowCapture)
+            {
+                var wc = WindowHitForCapture(p);
+                if (wc != null) { Finish(wc.Value.Bounds, wc.Value.Hwnd); return; }
+            }
             var hit = SnapWindowAt(p);
             Finish(hit ?? _existing ?? _monitorPhys);
             return;
@@ -580,11 +593,30 @@ public sealed class RegionPickerWindow : Window
         Canvas.SetLeft(_badge, bx); Canvas.SetTop(_badge, by);
     }
 
-    private void Finish(RectI? region)
+    private void Finish(RectI? region) => Finish(region, IntPtr.Zero);
+
+    private void Finish(RectI? region, IntPtr windowHwnd)
     {
         if (_finished) return;
         _finished = true;
-        Result?.Invoke(region);
+        Result?.Invoke(region, windowHwnd);
         Close();
+    }
+
+    /// <summary>R165：点/双击吸附到的窗口时，若开关开且该窗未被更靠上的窗遮挡，返回其 (HWND, 整窗 frame)；
+    /// 否则 null（回退区域截图）。frame 用 DWM 扩展边界（含标题栏/边框，q6）。</summary>
+    private (IntPtr Hwnd, RectI Bounds)? WindowHitForCapture((int X, int Y) p)
+    {
+        var self = new System.Windows.Interop.WindowInteropHelper(this).Handle;
+        var cands = WindowEnum.ListTopmostCandidates(self).ToList(); // Z 序顶在前
+        var pick = Core.SnapPick.PickWindow(
+            cands.Select(t => (t.Hwnd, _snapContent ? t.Client : t.Bounds)), p.X, p.Y);
+        if (pick == null) return null;
+        int idx = cands.FindIndex(t => t.Hwnd == pick.Value.Hwnd);
+        if (idx < 0) return null;
+        var frame = cands[idx].Bounds;
+        // 更靠上的候选窗与本窗 frame 相交 → 遮挡 → 回退区域截图
+        if (Core.SnapPick.AnyAboveIntersects(cands.Select(t => t.Bounds).ToList(), idx, frame)) return null;
+        return (pick.Value.Hwnd, frame);
     }
 }

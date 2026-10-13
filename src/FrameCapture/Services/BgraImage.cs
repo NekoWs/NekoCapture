@@ -40,6 +40,36 @@ public static class BgraImage
         enc.Save(fs);
     }
 
+    /// <summary>帧 → PNG 字节（保留 alpha）。用于剪贴板 "PNG" 格式（R165 窗口截图透明）。</summary>
+    public static byte[] PngBytes(CapturedFrame f)
+    {
+        var enc = new PngBitmapEncoder();
+        enc.Frames.Add(BitmapFrame.Create(ToSource(f)));
+        using var ms = new MemoryStream();
+        enc.Save(ms);
+        return ms.ToArray();
+    }
+
+    /// <summary>把带 alpha 的帧拍平到纯色底（alpha=255）。给只认 CF_DIB（无 alpha）的应用做兜底，
+    /// 避免透明区在它们眼里变黑（R165）。不透明帧原样返回。</summary>
+    public static CapturedFrame FlattenOver(CapturedFrame f, byte r, byte g, byte b)
+    {
+        var src = f.Bgra;
+        bool anyAlpha = false;
+        for (int i = 3; i < src.Length; i += 4) if (src[i] != 255) { anyAlpha = true; break; }
+        if (!anyAlpha) return f;
+        var dst = new byte[src.Length];
+        for (int i = 0; i < src.Length; i += 4)
+        {
+            double a = src[i + 3] / 255.0;
+            dst[i] = (byte)(src[i] * a + b * (1 - a));
+            dst[i + 1] = (byte)(src[i + 1] * a + g * (1 - a));
+            dst[i + 2] = (byte)(src[i + 2] * a + r * (1 - a));
+            dst[i + 3] = 255;
+        }
+        return new CapturedFrame { Bgra = dst, W = f.W, H = f.H, TimeMs = f.TimeMs };
+    }
+
     /// <summary>
     /// 马赛克（R47）：区域内逐 block 均值填充，就地修改。坐标越界自动钳进画布；纯字节运算，
     /// 编辑器预览与烘焙共用同一函数 → 所见即所得（SelfTest T91）。

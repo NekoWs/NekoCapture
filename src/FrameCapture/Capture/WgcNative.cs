@@ -164,6 +164,21 @@ internal static class WgcNative
         finally { Marshal.Release(factoryPtr); }
     }
 
+    /// <summary>HWND → GraphicsCaptureItem（按窗口捕获：含 DWM 边框/圆角，圆角处带 alpha，GPU 窗也干净）。</summary>
+    public static GraphicsCaptureItem CreateItemForWindow(IntPtr hwnd)
+    {
+        Guid iid = IidGraphicsCaptureItemInterop;
+        RoGetActivationFactory("Windows.Graphics.Capture.GraphicsCaptureItem", ref iid, out IntPtr factoryPtr);
+        try
+        {
+            var f = (IGraphicsCaptureItemInterop)Marshal.GetTypedObjectForIUnknown(factoryPtr, typeof(IGraphicsCaptureItemInterop));
+            Guid iidItem = new Guid("00000000-0000-0000-C000-000000000046"); // IUnknown：FromAbi 内部自行 QI
+            f.CreateForWindow(hwnd, ref iidItem, out IntPtr itemPtr);
+            return GraphicsCaptureItem.FromAbi(itemPtr);
+        }
+        finally { Marshal.Release(factoryPtr); }
+    }
+
     // ---------------- 系统捕获提示边框（Windows 11） ----------------
 
     /// <summary>

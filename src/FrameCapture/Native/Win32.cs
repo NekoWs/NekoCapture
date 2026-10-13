@@ -131,7 +131,7 @@ internal static class Win32
     [DllImport("user32.dll")]
     public static extern int GetWindowTextLengthW(IntPtr hWnd);
 
-    [DllImport("user32.dll")]
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     public static extern int GetWindowTextW(IntPtr hWnd, StringBuilder lpString, int nMaxCount);
 
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
@@ -171,6 +171,15 @@ internal static class Win32
 
     [DllImport("user32.dll")]
     public static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
+
+    /// <summary>窗口有效 DPI（96 制，Win10 1607+）。失败返回 0，调用方自兜底。</summary>
+    [DllImport("user32.dll")]
+    public static extern uint GetDpiForWindow(IntPtr hWnd);
+
+    /// <summary>系统度量（DPI 感知进程下为物理像素）。虚拟桌面外接矩形用 SM_XVIRTUALSCREEN 等。</summary>
+    [DllImport("user32.dll")]
+    public static extern int GetSystemMetrics(int nIndex);
+    public const int SM_XVIRTUALSCREEN = 76, SM_YVIRTUALSCREEN = 77, SM_CXVIRTUALSCREEN = 78, SM_CYVIRTUALSCREEN = 79;
 
     /// <summary>WDA_EXCLUDEFROMCAPTURE=0x11：窗口不出现在任何屏幕捕获（BitBlt/WGC）中。</summary>
     [DllImport("user32.dll", SetLastError = true)]

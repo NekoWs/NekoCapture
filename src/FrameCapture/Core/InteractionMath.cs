@@ -96,4 +96,29 @@ public static class SnapPick
         }
         return null;
     }
+
+    /// <summary>同上，但候选带 HWND 且一并返回命中的窗口句柄（R165 窗口截图用）。
+    /// bounds 用于命中判定（可能是 client），hwnd 用于按窗口捕获。</summary>
+    public static (IntPtr Hwnd, Capture.RectI Bounds)? PickWindow(IEnumerable<(IntPtr, Capture.RectI)> zTopFirst, int x, int y)
+    {
+        foreach (var (h, b) in zTopFirst)
+        {
+            if (b.W < 4 || b.H < 4) continue;
+            if (b.Contains(x, y)) return (h, b);
+        }
+        return null;
+    }
+
+    /// <summary>R165 遮挡判定：z 序里排在 idx 之前（更靠上）的候选窗，是否有任一与 target 相交。
+    /// 有 → 目标窗被遮挡 → 窗口截图应回退区域截图（否则投影环会掺进上层窗内容）。</summary>
+    public static bool AnyAboveIntersects(IReadOnlyList<Capture.RectI> zTopFirst, int idx, Capture.RectI target)
+    {
+        for (int i = 0; i < idx && i < zTopFirst.Count; i++)
+        {
+            var b = zTopFirst[i];
+            if (b.X < target.Right && target.X < b.Right && b.Y < target.Bottom && target.Y < b.Bottom)
+                return true;
+        }
+        return false;
+    }
 }

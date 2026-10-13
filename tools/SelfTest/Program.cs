@@ -2616,6 +2616,93 @@ static class SelfTest
             Chk("T162c-lib-onaccent-same", libPurple && libOrange,
                 "配置器库 OnAccent 与宿主同 WCAG 公式（#7F75FF→白 / #FF8C00→黑）");
         }
+
+        // ===== R165：macOS 式真·窗口截图（WGC 本体 + 按轮廓合成阴影）纯逻辑 =====
+        {
+            // T165a 相交
+            var ov = WindowCapture.Intersect(new RectI(0, 0, 10, 10), new RectI(5, 5, 10, 10));
+            var dis = WindowCapture.Intersect(new RectI(0, 0, 10, 10), new RectI(20, 20, 5, 5));
+            var con = WindowCapture.Intersect(new RectI(0, 0, 100, 100), new RectI(10, 10, 20, 20));
+            Chk("T165w1-intersect",
+                ov.Equals(new RectI(5, 5, 5, 5)) && dis.W == 0 && dis.H == 0 && con.Equals(new RectI(10, 10, 20, 20)),
+                $"ov={ov} dis={dis} con={con}");
+
+            // T165b 外扩
+            var inf = WindowCapture.Inflate(new RectI(100, 100, 200, 150), 26);
+            var inf0 = WindowCapture.Inflate(new RectI(100, 100, 200, 150), 0);
+            Chk("T165w2-inflate",
+                inf.Equals(new RectI(74, 74, 252, 202)) && inf0.Equals(new RectI(100, 100, 200, 150)),
+                $"inf={inf} inf0={inf0}");
+
+            // T165c 贴本体（含越界裁剪）
+            var dst = new byte[10 * 10 * 4];
+            var src = new byte[4 * 4 * 4];
+            for (int i = 0; i < src.Length; i++) src[i] = 0xAA;
+            WindowCapture.BlitBody(dst, 10, 10, src, 4, 4, 3, 3);
+            byte A(int x, int y) => dst[(y * 10 + x) * 4];
+            bool blitOk = A(3, 3) == 0xAA && A(6, 6) == 0xAA && A(2, 2) == 0 && A(7, 7) == 0;
+            // 越界：src 4x4 放 (8,8)，只有 2x2 落进 10x10
+            var dst2 = new byte[10 * 10 * 4];
+            WindowCapture.BlitBody(dst2, 10, 10, src, 4, 4, 8, 8);
+            byte A2(int x, int y) => dst2[(y * 10 + x) * 4];
+            bool clipOk = A2(8, 8) == 0xAA && A2(9, 9) == 0xAA && A2(9, 8) == 0xAA;
+            Chk("T165w3-blitbody", blitOk && clipOk, "本体拷贝到偏移处并裁剪越界");
+
+            // T165w4 合成阴影：轮廓外柔和渐隐、单调衰减、纯黑、远处全透（不读屏幕→无背景渗入）
+            int W = 40, H = 40, bx = 15, by = 15, bw = 10, bh = 10, rad = 5;
+            var bodyS = new byte[bw * bh * 4];
+            for (int i = 0; i < bodyS.Length; i++) bodyS[i] = 255; // 全不透明轮廓
+            var sh = new byte[W * H * 4];                          // 透明画布（无屏幕铺底）
+            WindowCapture.SyntheticShadow(sh, W, H, bodyS, bw, bh, bx, by, rad, 0.5, 0);
+            byte SA(int x, int y) => sh[(y * W + x) * 4 + 3];
+            bool farZero = SA(0, 0) < 3;                            // 远处（>3r）淡到 0
+            bool nearPresent = SA(14, 20) > 0;                      // 紧贴轮廓外有阴影
+            bool mono = SA(14, 20) > SA(12, 20) && SA(12, 20) > SA(9, 20); // 越远越淡
+            int si = (20 * W + 14) * 4;
+            bool isBlack = sh[si] == 0 && sh[si + 1] == 0 && sh[si + 2] == 0; // 纯黑阴影
+            Chk("T165w4-shadow", farZero && nearPresent && mono && isBlack,
+                $"far={SA(0,0)} d1={SA(14,20)} d3={SA(12,20)} d6={SA(9,20)} black={isBlack}");
+
+            // T165e PickWindow：命中第一个包含点的窗（跳过 <4px），返回 hwnd+bounds
+            var cands = new List<(IntPtr, RectI)>
+            {
+                (new IntPtr(1), new RectI(0, 0, 2, 2)),      // 太小，跳过
+                (new IntPtr(2), new RectI(0, 0, 50, 50)),    // 包含 (10,10)
+                (new IntPtr(3), new RectI(5, 5, 50, 50)),    // 也包含，但排在后
+            };
+            var pk = SnapPick.PickWindow(cands, 10, 10);
+            var pkNone = SnapPick.PickWindow(cands, 200, 200);
+            Chk("T165w5-pickwindow", pk != null && pk.Value.Hwnd == new IntPtr(2) && pkNone == null,
+                $"pk={pk?.Hwnd} none={pkNone == null}");
+
+            // T165f 遮挡判定：更靠上的窗与目标相交→遮挡；仅更靠下相交→不算
+            var z = new List<RectI>
+            {
+                new RectI(20, 20, 50, 50), // idx0 更靠上，与目标 (10,10,20,20) 相交
+                new RectI(10, 10, 20, 20), // idx1 目标
+                new RectI(500, 500, 50, 50), // idx2 更靠下，相交与否无关
+            };
+            bool occ = SnapPick.AnyAboveIntersects(z, 1, z[1]);
+            bool notOcc = SnapPick.AnyAboveIntersects(new List<RectI> { new RectI(900, 900, 10, 10), z[1] }, 1, z[1]);
+            Chk("T165w6-occlusion", occ && !notOcc, "上层窗相交→遮挡；仅下层相交→不遮挡");
+
+            // T165w7 端到端合成（模拟 Grab 的 5~6 步，不含 WGC）：本体干净 + 圆角透明(不发黑) + 合成阴影渐隐
+            int ow = 40, oh = 40, mbx = 15, mby = 15, mbw = 10, mbh = 10, mrad = 5;
+            var body = new byte[mbw * mbh * 4];
+            for (int i = 0; i < body.Length; i++) body[i] = 255;      // 不透明白
+            body[0] = body[1] = body[2] = body[3] = 0;                // 左上角透明（模拟圆角）
+            var outb = new byte[ow * oh * 4];                         // 全透明画布（不再抓屏幕）
+            WindowCapture.SyntheticShadow(outb, ow, oh, body, mbw, mbh, mbx, mby, mrad, 0.5, 1);
+            WindowCapture.BlitBody(outb, ow, oh, body, mbw, mbh, mbx, mby);
+            byte OA(int x, int y) => outb[(y * ow + x) * 4 + 3];
+            bool centerOpaque = OA(20, 20) == 255 && outb[(20 * ow + 20) * 4] == 255; // 本体白
+            bool cornerTransparent = OA(15, 15) == 0;                                  // 圆角透明（本体 alpha=0 盖住阴影，不发黑）
+            bool farTransparent = OA(0, 0) < 3;                                        // 远处阴影淡到 0
+            bool ringSemi = OA(13, 20) > 0 && OA(13, 20) < 255;                        // 轮廓外阴影半透
+            bool ringBlack = outb[(20 * ow + 13) * 4] == 0;                            // 阴影是黑色（非背景色渗入）
+            Chk("T165w7-composite", centerOpaque && cornerTransparent && farTransparent && ringSemi && ringBlack,
+                $"center={OA(20,20)} corner={OA(15,15)} far={OA(0,0)} ring={OA(13,20)}");
+        }
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");
         return fail == 0 ? 0 : 1;
     }
