@@ -69,14 +69,22 @@ function Get-CommentText {
         if ($i + 1 -lt $n -and $line.Substring($i, 2) -eq '//') { return $line.Substring($i + 2) }
         if ($i + 1 -lt $n -and $line.Substring($i, 2) -eq '/*') { $st.Kind = 'block'; $i += 2; continue }
         if ($i + 3 -le $n -and $line.Substring($i, 3) -eq '"""') { $st.Kind = 'raw'; $i += 3; continue }
+        # 原始字符串四种前缀都要先认：漏了 $""" 会被当成 $" 单行串，状态一路错到文件尾，
+        # 后面所有注释与代码的判定全部失真（内嵌 XAML 的 Fluent.* 就踩在这里）。
         if ($line[$i] -eq '@') {
+            if ($i + 3 -le $n -and $line.Substring($i + 1, 3) -eq '"""') { $st.Kind = 'raw'; $i += 4; continue }
+            if ($i + 1 -lt $n -and $line[$i + 1] -eq '$' -and $i + 4 -le $n -and $line.Substring($i + 2, 3) -eq '"""') { $st.Kind = 'raw'; $i += 5; continue }
             if ($i + 1 -lt $n -and $line[$i + 1] -eq '"') { $st.Kind = 'verbatim'; $i += 2; continue }
             if ($i + 2 -lt $n -and $line[$i + 2] -eq '"') { $st.Kind = 'verbatim'; $i += 3; continue }
             $i++; continue
         }
         if ($line[$i] -eq '$') {
+            if ($i + 3 -le $n -and $line.Substring($i + 1, 3) -eq '"""') { $st.Kind = 'raw'; $i += 4; continue }
+            if ($i + 1 -lt $n -and $line[$i + 1] -eq '@') {
+                if ($i + 4 -le $n -and $line.Substring($i + 2, 3) -eq '"""') { $st.Kind = 'raw'; $i += 5; continue }
+                $st.Kind = 'verbatim'; $i += 3; continue
+            }
             if ($i + 1 -lt $n -and $line[$i + 1] -eq '"') { $st.Kind = 'string'; $i += 2; continue }
-            if ($i + 1 -lt $n -and $line[$i + 1] -eq '@') { $st.Kind = 'verbatim'; $i += 3; continue }
             $i++; continue
         }
         if ($line[$i] -eq '"') { $st.Kind = 'string'; $i++; continue }
@@ -156,6 +164,22 @@ function Resolve-MethodDecl {
     return @{ Name = $name; Before = $before; Args = $a; Count = $n }
 }
 
+# 嵌套在非公开类型体内的 public 成员对外不可见：CS1591 不报，扫描器也不该报。
+# 靠缩进回溯找最近的外层类型声明判定——外层类型没有 public/internal 即视为私有嵌套。
+function Test-NestedInPrivateType {
+    param([string[]]$lines, [int]$idx)
+    $ind = $lines[$idx].Length - $lines[$idx].TrimStart().Length
+    for ($k = $idx - 1; $k -ge 0; $k--) {
+        $l = $lines[$k]
+        if ($l.Trim() -eq '') { continue }
+        if (($l.Length - $l.TrimStart().Length) -ge $ind) { continue }
+        if ($l -match '^\s*(?:public|internal)\s+(?:sealed\s+|static\s+|abstract\s+|readonly\s+|partial\s+)*(class|struct|enum|interface|record)\b') { return $false }
+        if ($l -match '^\s*(?:sealed\s+|static\s+|abstract\s+|readonly\s+|partial\s+)*(class|struct|enum|interface|record)\b') { return $true }
+        # 非类型行（类体的 '{'、上一个成员的 '}' 等）不终止回溯：最近的外层「类型」声明才决定可见性
+    }
+    return $false
+}
+
 $files = [System.Collections.Generic.List[object]]::new()
 foreach ($p in $Paths) {
     if (-not (Test-Path $p)) { continue }
@@ -193,6 +217,7 @@ foreach ($f in $files) {
 
         if (-not $inSrc) { continue }
         if ($raw -notmatch '^\s*(public|internal)\b' -or $raw -match '^\s*///') { continue }
+        if (Test-NestedInPrivateType $lines $idx) { continue }
 
         # 向上跳过特性行，定位文档块
         $j = $idx - 1

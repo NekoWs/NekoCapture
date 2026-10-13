@@ -122,9 +122,14 @@ private IntPtr _prevFg;         // 关闭编辑器后归还焦点的目标窗
 
 ### 4.4 覆盖范围与强制强度
 
-- `public` / `internal` 的类型与成员：**必须有 `<summary>`**；有参数必须有 `<param>`；有返回值必须有 `<returns>`。
-  由 `CS1591` + `CS1573` = **error** 在构建期强制。
-- `private` / 局部函数：**不强制**。只在存在非显然语义时写，写则用 `///` 或 `//` 皆可。
+| 对象 | 要求 | 谁来强制 |
+|---|---|---|
+| `public` 类型与成员 | `<summary>`；有参必 `<param>`，有返必 `<returns>` | 编译器 `CS1591` + `CS1573` = **error**，构建即拦 |
+| `internal` 类型与成员 | 同上 | **只有 `scripts/lint-comments.ps1`**。`CS1591` 对外部不可见的 `internal` 根本不触发，别指望构建期兜底 |
+| `private`、私有嵌套类型内的成员、局部函数 | 不强制 | 有非显然语义才写 |
+
+- 属性与事件写 `<value>`，**不是** `<param>`。扫描器不把属性/事件/字段/元组返回类型当方法；
+  若它要求你给属性补 `<param>`，那是扫描器的缺陷——修扫描器，不要为了过线凑标签。
 - 显式接口实现、`override`：不重复基类文档，用 `<inheritdoc/>`。
 - 编译器生成物（`obj/*.g.cs`、`AssemblyInfo.cs`）不参与强制。
 - **宁缺毋滥优先于覆盖率**：若某成员加文档只会变成复述签名，写进 `.editorconfig` 的豁免而不是硬凑——
@@ -223,9 +228,16 @@ private IntPtr _prevFg;         // 关闭编辑器后归还焦点的目标窗
 
 | 工具 | 作用 |
 |---|---|
-| `.editorconfig` | `CS1591`/`CS1573` = error；`max_line_comment_length = 110`；缩进与编码基线 |
-| `scripts/lint-comments.ps1` | 扫注释：硬禁词 FAIL、歧义词 WARN、编号 FAIL、超长 FAIL；`#region 其他` FAIL |
+| `.editorconfig` | `CS1591`/`CS1573` = error（仅对外可见成员）；`max_line_comment_length = 110`；缩进与编码基线 |
+| `scripts/lint-comments.ps1` | 扫注释：硬禁词 FAIL、歧义词 WARN、编号 FAIL、超长 FAIL；`#region` 标题同样扫（编号/硬禁词/超长/分类失败名 FAIL）；`internal` 文档覆盖只由它保证 |
 | `scripts/guardrail.ps1` | 已把上表挂为第 0 关，注释不合规直接 FAIL，不进构建 |
+
+**扫描器的两处盲区，靠人补**：
+
+1. **字符串字面量内的注释**（XAML `<!-- -->`、内嵌 SQL/markup）扫描器一律跳过——它无法区分代码与字面量里的伪注释。
+   这类伪注释同样受 §8 约束，改动前先确认没有断言依赖该字面量的字节内容。
+2. **UI 可见文案**不是注释，扫描器和本轮清理都不该动它；但开发笔记漏进产品文案（把 `R###`、
+   "此前如何如何"写给用户看）属于文案缺陷，按缺陷单独修，不要混进注释改动里。
 
 **豁免机制**：确需保留（如 native 互操作里 SDK 原文含"deprecated"字样），在该行尾加
 `// lint-comments:ignore <一句理由>`。豁免必须带理由，扫描器统计豁免数并在收口时报告——

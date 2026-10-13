@@ -164,8 +164,8 @@ public static partial class Fluent
                 <Setter Property="Template">
                   <Setter.Value>
                     <ControlTemplate TargetType="ContextMenu">
-                      <!-- R161：外包透明 Border 右下留 24px——Popup 窗按模板 DesiredSize 开窗，
-                           BackEase 过冲(>1.0)与投影此前都被窗缘裁掉，Q 弹弹到一半被切；留白后完整。
+                      <!-- 外包透明 Border 右下留 24px：Popup 窗按模板 DesiredSize 开窗，
+                           BackEase 过冲(>1.0)与投影会被窗缘裁掉，Q 弹弹到一半被切；留白后完整。
                            只留右下（缩放原点 0,0，过冲只向右下扩），卡片仍贴鼠标点，不留缝。 -->
                       <Border Padding="0,0,24,24">
                         <Border x:Name="bd" CornerRadius="8" Background="{Hex(Theme.CardBg)}"

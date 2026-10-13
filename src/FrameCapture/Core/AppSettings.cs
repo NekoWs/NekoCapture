@@ -174,6 +174,7 @@ public sealed class AppSettings
     public int RegionY { get; set; }
     public int RegionW { get; set; }
     public int RegionH { get; set; }
+    #endregion
 
     /// <summary>深拷贝：经 JSON 序列化往返得到一个与本机设置完全解耦的副本，改副本不影响 <c>settings.json</c>。</summary>
     /// <returns>字段值等同的副本；Gestures 等引用类型也是新的实例。</returns>
@@ -314,6 +315,4 @@ public sealed class SettingsService
         }
         Changed?.Invoke();
     }
-    #endregion
-
 }

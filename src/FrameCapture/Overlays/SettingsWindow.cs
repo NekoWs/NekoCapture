@@ -222,7 +222,7 @@ public sealed partial class SettingsWindow : Window
             _settings.Current.FreezeOnSelect, v => { _settings.Mutate(s => s.FreezeOnSelect = v); SetPregrabVisible(v); }));
         panel.Children.Add(pregrabRow);
         panel.Children.Add(ColorFormatRow());
-        panel.Children.Add(ToggleRow("\uE71A", "常显捕获范围轮廓", "在屏幕上持续显示当前捕获范围的边框，开/关立刻生效（R161 修复：此前要等下一次捕获才动）。尚未设置范围时没有可显示的边框——先用托盘「设置捕获范围」",
+        panel.Children.Add(ToggleRow("\uE71A", "常显捕获范围轮廓", "在屏幕上持续显示当前捕获范围的边框，开/关立刻生效。尚未设置范围时没有可显示的边框——先用托盘「设置捕获范围」",
             _settings.Current.AlwaysShowRegionOutline, v => _settings.Mutate(s => s.AlwaysShowRegionOutline = v)));
         panel.Children.Add(SliderRow("\uE7C4", "截图后边框显示时间", "截完那一下范围边框「亮边闪一下」作确认——这里设它全亮停留多久再淡出。拍完即走调小、想多留一眼确认截对没调大（与「常显轮廓」和录制边框各自独立）",
             0.2, 3.0, 0.1, _settings.Current.OutlineFadeSeconds,
@@ -299,7 +299,7 @@ public sealed partial class SettingsWindow : Window
 
         #region 贴图
         panel = Cat("贴图", "\uE718");
-        panel.Children.Add(ToggleRow("\uE718", "贴图窗口吸附", "拖动贴图时实时吸附对齐（R161 由「磁边」升级）：贴近所在屏幕边缘则停靠四边/四角；贴近同屏其他贴图、以及任何应用窗口（浏览器/资源管理器…）的边或中线则与之对齐，把贴图摆齐像吸附网格一样自然。阈值调低为「贴边才吸」，不会隔空乱跳。关闭则松手停在原地",
+        panel.Children.Add(ToggleRow("\uE718", "贴图窗口吸附", "拖动贴图时实时吸附对齐：贴近所在屏幕边缘则停靠四边/四角；贴近同屏其他贴图、以及任何应用窗口（浏览器/资源管理器…）的边或中线则与之对齐，把贴图摆齐像吸附网格一样自然。阈值调低为「贴边才吸」，不会隔空乱跳。关闭则松手停在原地",
             _settings.Current.PinSnapEdges, v => _settings.Mutate(s => s.PinSnapEdges = v)));
 
         Cardify(panel); // 贴图页行归入卡片

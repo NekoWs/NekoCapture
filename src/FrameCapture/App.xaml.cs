@@ -42,7 +42,7 @@ public partial class App : System.Windows.Application
         _mutex = new System.Threading.Mutex(true, @"Local\FrameCapture.SingleInstance", out bool owned);
         if (!owned)
         {
-            // 已有实例：--settings/--help 转发给它再退（此前静默失效——用户从快捷方式再开一次等于没点）。
+            // 已有实例：--settings/--help 转发给它再退——从快捷方式再开一次必须看得见效果，不能静默退出。
             // 注意绝不能 ReleaseMutex：本进程从未持有，释放会抛 ApplicationException 炸出 WER 崩溃弹窗。
             ForwardToPrimary(e.Args);
             _mutex.Dispose();
@@ -67,7 +67,7 @@ public partial class App : System.Windows.Application
         StartMessageSink();
 
         // 首次启动弹一张欢迎卡，点破两个热键 + 关键手感（新用户装完只见托盘图标、不知按什么键是头号上手摩擦）。
-        // 看过一次（FirstRunHintShown）永不再打扰；非激活浮窗不打断输入，ApplicationIdle 时再弹避免和启动抢焦点。
+        // FirstRunHintShown 置位后本条件即消失；非激活浮窗不打断输入，ApplicationIdle 时再弹避免和启动抢焦点。
         if (!Services.AppHost.Current.Settings.Current.FirstRunHintShown)
             Dispatcher.BeginInvoke(() =>
             {
@@ -166,7 +166,7 @@ public partial class App : System.Windows.Application
         }
         // 调试/e2e：定格 vs 实时取证。先抓全屏定格帧并裁出区域 R（＝定格截图会得到的内容），
         // 再在屏幕上盖一层不透明品红窗改变画面，实时重抓 R（＝实时截图会得到的内容）。
-        // 输出并排图 [定格裁出 | 实时]：左＝旧内容、右＝品红，二者不同即证明定格裁的是定格帧、不是重抓。
+        // 输出并排图 [定格裁出 | 实时]：左＝定格帧内容，右＝盖品红后的实时画面；二者不同即证明定格裁的是定格帧、不是重抓。
         int ffi = Array.FindIndex(e.Args, a => string.Equals(a, "--freezetest", StringComparison.OrdinalIgnoreCase));
         if (ffi >= 0)
         {
@@ -246,7 +246,7 @@ public partial class App : System.Windows.Application
     }
 
     /// <summary>真正的 message-only 窗（HWND_MESSAGE 父）：不可见、不进任务栏、绝不抢前台。
-    /// 实测教训：WPF 的 HwndSource 不支持 HWND_MESSAGE 父——会建成带 WS_VISIBLE|WS_OVERLAPPEDWINDOW
+    /// WPF 的 HwndSource 不支持 HWND_MESSAGE 父——会建成带 WS_VISIBLE|WS_OVERLAPPEDWINDOW
     /// 的顶层窗，启动瞬间即抢走前台焦点（GetForegroundWindow 直接变成它）。故用 WinForms NativeWindow
     /// 直接建消息专用窗，仅用于接收二次实例转发的"打开设置/帮助"。</summary>
     sealed class MsgSink : System.Windows.Forms.NativeWindow

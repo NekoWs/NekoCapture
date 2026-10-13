@@ -425,3 +425,42 @@
 - [x] **⑤ 自定义截图后提示消失时间**：悬浮窗存在时间除预设芯片外加自定义秒数输入框。**核验**：设置截图显示「3.2 秒」输入框。
 
 **批次末（R157）**：护栏 PASS（下限 405，FAIL=0 SKIP=1）；SelfTest 405；用户 4 条自定义手势完好；重发布 staging → zip 69.7MB → 重启出厂实例。附带修 `test-tap-semantics.ps1` 场景间未隔离（`keyw`/PostMessage 关不掉 WPF 窗致场景3 复用旧编辑器）——干净 HEAD 同样复现，确认非本次改动引入，加场景间 `Restart-App` 隔离后 PASS（hold600=9 帧、hold1300=47 帧）。
+
+## 注释全量优化轮 — 代码侧遗留（本轮只改注释，以下按约束一律未动）
+
+> 来源：按 `docs/COMMENT-STYLE.md` 全量重写注释时逐条核出的"注释承诺 ≠ 代码实现"。
+> 注释已按代码事实改写；下面这些是要动代码的活，按严重度排。
+
+### A 会导致用户可见故障
+- [ ] **`CaptureSound.Play(customPath)` 解码失败静默**：`MediaPlayer.Open` 之后的解码失败是异步的、没有回调，
+      用户选了坏 wav/ogg/mp3 就是**完全无声且无提示**。注释原承诺"解码失败回退嘀声"，实现做不到。
+      需要：预解码探测或 `MediaFailed` 挂接 + 回退系统嘀声。
+- [ ] **`BgraImage.SampleIndices` 整数除零窗口**：`samples=1 且 count>1` 时分母 `(samples-1)` 为 0。
+      文档已写明前置条件 ≥2，但代码无护栏。
+- [ ] **`BgraImage.Afterimage` 签名非空却可返回 null**：采样帧尺寸与首帧全不一致时 `lastOut!` 为 null。
+      要么护栏（尺寸全不匹配即返回首帧），要么签名改可空并让调用方处理。
+- [ ] **`Theme.UserPreferenceDark` 三条失败路径默认值不一致**：键缺失/值非 int → `false`（浅色），
+      抛异常 → `true`（深色）。同一个"读不到"该给同一个默认。
+
+### B 死代码 / 无人使用（接线或删除，二选一）
+- [ ] `GestureService.ClaimsKey` 无任何调用方（原文档称供 AppHost 去重，AppHost 已不注册自有热键）。
+- [ ] `CaptureController.FinishCapture` 的 `holdMs` 形参：3 个调用点全传 `-1`，钩子时间戳从未流入，
+      按住时长实际只来自 `_captureClock`。
+- [ ] `RegionOutlineWindow._flashTimer`（600ms 回落）只有创建与 `Stop()`，**无 `Start()`**；`Flash()` 走 450ms 动画。
+- [ ] `Fluent.Springy` / `Fluent.ChipHover` 的 `hover`/`press`/`scale` 参数被实现完全忽略（`=> BgHover(el)`），
+      调用点仍传 `1.05/0.94` 等数值 —— 要么实现弹性，要么删参数（现在会误导读代码的人）。
+- [ ] `ScrollHintWindow.Current` / `CountdownWindow.Current` 全仓只有赋值、无读取。
+- [ ] `EditorWindow.Drawing.RemapAnnsForExport` 无调用方。
+- [ ] `Win32.GetDisplayNameW` / `DISPLAY_DEVICE_PATH_SIZE` 无调用点（设备名实际走 WinForms `Screen.DeviceName`）。
+- [ ] `DIB_RGB_COLORS_` 与 `DIB_RGB_COLORS` 同值重复且无引用；
+      `DWMWA_WINDOW_ROUNDED_CORNER_PREFERENCE` 与 `DWMWA_WINDOW_CORNER_PREFERENCE` 同值 33，二者留一。
+- [ ] `GifEncoder.Encode` 局部函数 `LE32` 未使用（CS8321）；`ColorBox._errBuf` 可空性告警（CS8618）。
+- [ ] `GestureEngine.OnMouseDown/OnMouseUp` 的 `button` 参数完全未用 —— 现在不区分鼠标键，是有意还是漏了？
+- [ ] `GestureEditorWindow.MakeToggle` 的 `(on ? "  " : "  ")` 两分支字面量完全相同（疑似漏改的全角空格占位）。
+- [ ] `CaptureController.Dispose()` 不释放 `_wgc`、不关 `_picker` / `_editor`。
+
+### C 契约与文案
+- [ ] `WindowEnum` 只排除发起选取的**单个 hwnd**，不是"跳过自己的进程"——若要排除本进程全部窗口需改实现。
+- [ ] `AgentStrip.Generate` 在 `src` 内无调用点，仅 SelfTest 使用：确认是否作为产品能力保留。
+- [ ] 设置页两处用户可见文案曾把内部编号与变更叙述写给用户（"R161 修复：此前要等…"），本轮已删；
+      后续新增设置项注意**开发笔记不要进产品文案**。
