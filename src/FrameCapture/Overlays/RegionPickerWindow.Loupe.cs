@@ -8,7 +8,11 @@ using FrameCapture.Native;
 
 namespace FrameCapture.Overlays;
 
-// 本 partial 负责放大镜与读数：loupe 绘制与刷新、坐标/尺寸读数、取色与格式切换、C/F/Tab 键处理与选区命中判定。
+/// <summary>
+/// RegionPickerWindow partial：放大镜与读数——loupe 绘制与刷新、坐标/尺寸读数、取色与格式切换、
+/// 全局钩子代收的选区窗按键、选区高亮与命中判定。
+/// 本 partial 内所有坐标字段都成对出现：DIP（WPF 布局用）与物理像素（虚拟桌面绝对坐标，捕获/吸附用）。
+/// </summary>
 public sealed partial class RegionPickerWindow : Window
 {
     private Core.ColorCopyFormat _colorFormat; // 按 C 复制颜色时的文本形式；按 F 可循环切换（Hex→RGB→HSL）
@@ -26,7 +30,7 @@ public sealed partial class RegionPickerWindow : Window
     private System.Windows.Controls.Border _badge = null!;
     private TextBlock _badgeText = null!;
 
-    #region 全局钩子代收选区窗按键（选区窗不抢焦点，键不会进它自己的 HWND）
+    #region 选区交互：按键代收、放大镜、命中与收尾（非激活窗收不到键）
     /// <summary>由 HotkeyManager 全局低级键盘钩子在 PickerActive 时调用。返回 true=本键归选区窗处理（吞掉，前台收不到）。
     /// 只接管无 Ctrl/Alt/Win 的裸键：Ctrl+C 等留给前台，Ctrl+Esc 是开始菜单，含修饰键的组合放行给手势层。
     /// 动作经 Dispatcher.BeginInvoke 投递到干净的 dispatcher 轮次执行（与浮窗/滚动同款，避免在输入链里做重活）。</summary>
@@ -77,7 +81,7 @@ public sealed partial class RegionPickerWindow : Window
         Services.AppHost.Current.Settings.Mutate(s => s.ColorCopyFormat = Core.ColorFormat.ToSetting(_colorFormat));
     }
 
-    // Tab 上钻控件层级：输入框 → 表单容器 → … → 整窗。锁定结果，鼠标微动不再被 hover 抢回子控件。
+    // Tab 上钻控件层级：输入框 → 表单容器 → … → 整窗。锁定结果，光标微动不会被 hover 抢回子控件。
     private void DrillUpElement()
     {
         if (_curElem == null) return;
@@ -91,6 +95,9 @@ public sealed partial class RegionPickerWindow : Window
         }
     }
 
+    /// <summary>物理矩形 → 本窗内的 DIP 矩形：先减显示器原点，再按可视树 DPI 缩放。</summary>
+    /// <param name="phys">物理像素、虚拟桌面绝对坐标；原点不在本显示器上时会得到负坐标。</param>
+    /// <returns>相对本窗左上角的 DIP 矩形，可直接喂 Canvas.SetLeft/Top。</returns>
     private Rect ToDip(RectI phys)
     {
         var tr = VisualTreeHelper.GetDpi(this);
@@ -101,6 +108,9 @@ public sealed partial class RegionPickerWindow : Window
             phys.H / tr.DpiScaleY);
     }
 
+    /// <summary>本窗内 DIP 光标位置 → 物理像素、虚拟桌面绝对坐标（加显示器原点 + DPI 缩放，四舍五入）。</summary>
+    /// <param name="dipInWindow">相对本窗左上角的 DIP 位置；本窗铺满整个显示器，故等价于屏内 DIP。</param>
+    /// <returns>取整后的物理坐标、虚拟桌面绝对坐标；不做越界钳制，光标贴边时可能落在显示器之外。</returns>
     private (int X, int Y) WindowPosToPhys(Point dipInWindow)
     {
         var tr = VisualTreeHelper.GetDpi(this);
@@ -109,6 +119,10 @@ public sealed partial class RegionPickerWindow : Window
             _monitorPhys.Y + (int)Math.Round(dipInWindow.Y * tr.DpiScaleY));
     }
 
+    /// <summary>遮罩几何：外框 + 可选洞，靠 EvenOdd 填充规则让洞内透明、洞外压暗。</summary>
+    /// <param name="outer">遮罩外框（DIP，通常 = 整窗）。</param>
+    /// <param name="hole">要挖亮的选区（DIP）；null = 整屏均匀压暗，不挖洞。</param>
+    /// <returns>可直接赋给 <c>Path.Data</c> 的几何；洞与外框不相交时等价于不挖洞。</returns>
     private static Geometry BuildMask(Rect outer, Rect? hole)
     {
         var g = new GeometryGroup { FillRule = FillRule.EvenOdd };
@@ -124,7 +138,7 @@ public sealed partial class RegionPickerWindow : Window
         if (!_magnifier || _loupe == null || _loupeImg == null || _loupeMarker == null || _loupeInfo == null) return;
         int sx = phys.X - _monitorPhys.X, sy = phys.Y - _monitorPhys.Y;
 
-        // 取源：定格读定格快照；实时每次移动实时重抓（修掉放大镜不跟画面变的 bug）
+        // 取源：定格读定格快照；实时每次移动重抓光标周围小区域，放大镜因此始终跟画面变
         byte[]? srcBgra; int srcW, cx, cy, size, px, py;
         if (_freeze)
         {
@@ -207,7 +221,7 @@ public sealed partial class RegionPickerWindow : Window
     }
 
     /// <summary>点/双击吸附到的窗口时，若开关开且该窗未被更靠上的窗遮挡，返回其 (HWND, 整窗 frame)；
-    /// 否则 null（回退区域截图）。frame 用 DWM 扩展边界（含标题栏/边框，q6）。</summary>
+    /// 否则 null（回退区域截图）。frame 用 DWM 扩展边界（含标题栏与投影前的整窗边框）。</summary>
     private (IntPtr Hwnd, RectI Bounds)? WindowHitForCapture((int X, int Y) p)
     {
         var self = new System.Windows.Interop.WindowInteropHelper(this).Handle;

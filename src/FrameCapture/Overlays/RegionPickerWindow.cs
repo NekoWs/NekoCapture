@@ -18,10 +18,10 @@ public sealed partial class RegionPickerWindow : Window
     private readonly MonitorInfo _monitor;
     private readonly RectI _monitorPhys;
     private readonly Canvas _canvas;
-    private readonly Rectangle _prev = new(); // 旧选区虚线框（_veil/_spot 为历史死代码，已删）
+    private readonly Rectangle _prev = new(); // 上次选区虚线框：_existing 非空才画出，Enter 即确认它
     private System.Windows.Shapes.Path? _spotPath;
     private System.Windows.Shapes.Path? _holeFill;
-    private int _dragX1, _dragY1;
+    private int _dragX1, _dragY1;   // 拖框起点：物理像素、虚拟桌面绝对坐标
     private bool _dragging;
     private bool _finished;
     private RectI? _existing;
@@ -39,7 +39,7 @@ public sealed partial class RegionPickerWindow : Window
     // 定格时后台预抓的窗口干净画面缓存（HWND → 帧+区域）；点窗口命中即用，避免实时抓（定格+干净）
     private readonly System.Collections.Concurrent.ConcurrentDictionary<IntPtr, (CapturedFrame Frame, RectI Region)> _winCache = new();
 
-    /// <summary>mouseDown 时记录（物理坐标，相对监视器原点存 DIP）。</summary>
+    // 置顶带巡检定时器：Loaded 起每 400ms 重插一次，防被游戏等霸屏窗压住；窗口不可见即停
     readonly System.Windows.Threading.DispatcherTimer _topTimer;
 
     static System.Windows.Media.Animation.DoubleAnimation MaskAnim(double to, int ms, int delay)
@@ -116,17 +116,42 @@ public sealed partial class RegionPickerWindow : Window
         });
     }
 
-    /// <summary>控制器取预抓的窗口干净画面（定格+干净）。命中返回 true。</summary>
+    /// <summary>
+    /// 取定格瞬间预抓的窗口干净画面（干净圆角 + 可选投影），命中即免去实时重抓。
+    /// 缓存只增不淘汰，随本窗 <c>Closed</c> 一并清空。
+    /// </summary>
+    /// <param name="hwnd">目标窗口句柄；0 与未预抓的句柄一律不命中。</param>
+    /// <param name="frame">命中时为窗口帧（BGRA，可能带 alpha）；未命中时为 null，不得读取。</param>
+    /// <param name="region">命中时为该帧对应的捕获矩形（物理像素、虚拟桌面绝对坐标）；未命中时为默认值。</param>
+    /// <returns>true = 命中，两个 out 参数有效；false = 该窗没被抓到（被遮挡、不在本屏或尚未轮到），调用方自行实时抓。</returns>
     public bool TryGetCachedWindow(IntPtr hwnd, out CapturedFrame frame, out RectI region)
     {
         if (_winCache.TryGetValue(hwnd, out var v)) { frame = v.Frame; region = v.Region; return true; }
         frame = null!; region = default; return false;
     }
 
-    /// <summary>定格全屏帧 + 其原点对应的虚拟桌面坐标（控制器据此把选区裁自定格帧而非重抓）。</summary>
+    /// <summary>开框瞬间的全屏定格帧：选区应裁自它而非重抓，所见即所得。</summary>
+    /// <value>定格模式且抓取已完成时为整屏帧（物理 BGRA，覆盖范围 = <see cref="FrozenOrigin"/> 所指显示器）；
+    /// 实时模式、抓取失败或尚未到位时为 null，调用方须回退实时抓。</value>
     public CapturedFrame? FrozenFrame => _snapFrame;
+    /// <summary><see cref="FrozenFrame"/> 左上角对应的坐标，即本窗所在显示器的物理原点。</summary>
+    /// <value>物理像素、虚拟桌面绝对坐标；与定格帧是否到位无关，始终有效。</value>
     public RectI FrozenOrigin => _monitorPhys;
 
+    /// <summary>
+    /// 全屏选区窗：几何在构造期按 <c>monitor</c> 的 DPI 定好，Show 即全屏；非激活窗，不抢前台。
+    /// 必须在 UI 线程构造与显示（Loaded 时会注册全局键代收，并读可视树 DPI 复核几何）。
+    /// </summary>
+    /// <param name="monitor">要覆盖的显示器；选区、定格帧与预抓候选都限定在它的物理范围内。</param>
+    /// <param name="existing">上次选区（物理像素、虚拟桌面绝对坐标），画出虚线框并允许 Enter 确认；null = 干净屏选区。</param>
+    /// <param name="snapContent">true = 吸附优先取 UIA 控件矩形（不含标题栏/边框），取不到才回退窗口矩形。</param>
+    /// <param name="teachTip">提示条第二行的教学文案；null = 只显示一行。</param>
+    /// <param name="magnifier">true = 建放大镜（光标旁像素窗 + 坐标/尺寸读数 + 取色行）。</param>
+    /// <param name="colorFormat">按 C 复制像素色的文本形式；按 F 循环切换并写回设置。</param>
+    /// <param name="windowCapture">true = 点吸附到的窗口时走真·窗口截图（带 alpha），而非按矩形截区域。</param>
+    /// <param name="freeze">true = 开框瞬间定格整屏，背景/放大镜/裁选区共用这一帧。</param>
+    /// <param name="pregrabMax">定格模式下后台预抓「完整可见」窗口干净画面的数量上限；0 = 不预抓，且只在 <c>freeze</c> 为 true 时才启动。</param>
+    /// <param name="windowShadow">预抓的窗口画面是否带合成投影。</param>
     public RegionPickerWindow(MonitorInfo monitor, RectI? existing, bool snapContent = false, string? teachTip = null, bool magnifier = false, Core.ColorCopyFormat colorFormat = Core.ColorCopyFormat.Hex, bool windowCapture = false, bool freeze = false, int pregrabMax = 0, bool windowShadow = false)
     {
         // 覆盖层不需要文本输入：禁用输入法，避免拼音拦截快捷键
@@ -141,9 +166,8 @@ public sealed partial class RegionPickerWindow : Window
         _colorFormat = colorFormat;
         _monitorPhys = monitor.Bounds;
         _existing = existing;
-        // 放大镜快照改到 Show 之后异步抓（见 SourceInitialized → StartMagnifierSnapshot）：
-        // 不再把 4K BitBlt 挡在打开关键路径上。本窗设了 WDA_EXCLUDEFROMCAPTURE，
-        // 抓取时即便遮罩已渲染也拍不到本窗，像素颜色仍真实。
+        // 全屏快照一律在 Show 之后异步抓（见 SourceInitialized）：打开关键路径上没有 4K BitBlt。
+        // 本窗设了 WDA_EXCLUDEFROMCAPTURE，抓取时即便遮罩已渲染也拍不到本窗，像素颜色仍真实。
 
         SourceInitialized += (_, _) =>
         {
@@ -172,7 +196,7 @@ public sealed partial class RegionPickerWindow : Window
         Title = "FrameCapture Region"; // 与 SourceInitialized 里 SetWindowText 一致，自动化可定位
         ShowInTaskbar = false;
         Topmost = true;
-        ShowActivated = false; // 不夺前台焦点（配合 SourceInitialized 里的 WS_EX_NOACTIVATE）——目标窗（如浏览器）保持焦点，截图不再截错窗口
+        ShowActivated = false; // 不夺前台焦点（配合 SourceInitialized 里的 WS_EX_NOACTIVATE）——目标窗（如浏览器）保持焦点，截到的才是选区里那个窗
         // 与其它置顶窗（游戏等）同带竞争：失活即重插到置顶带最前，另有 400ms 巡检兜底
         Deactivated += (_, _) => { if (IsLoaded) ReassertTop(); };
         _topTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(400) };
@@ -181,8 +205,8 @@ public sealed partial class RegionPickerWindow : Window
         Background = Brushes.Transparent;
         AllowsTransparency = true;
         WindowStartupLocation = WindowStartupLocation.Manual;
-        // 打开即全屏：Show 之前就用显示器 DPI 定好几何，消除"默认尺寸→Loaded 跳全屏"那一跳的边框闪烁。
-        // （选区窗 FadeIn 未用 offscreenFirstFrame，不受"Park 读 NaN"历史坑影响；Loaded 仍会按可视树 DPI 兜底校正。）
+        // 打开即全屏：构造期就按显示器 DPI 定好几何，消除"默认尺寸→Loaded 跳全屏"那一跳的边框闪烁。
+        // （本窗 FadeIn 不传 offscreenFirstFrame，不走屏外 Park；Loaded 仍会按可视树 DPI 兜底校正。）
         {
             double gx = 1, gy = 1;
             try
@@ -372,7 +396,7 @@ public sealed partial class RegionPickerWindow : Window
                 _prev.StrokeThickness = 2;
                 _prev.StrokeDashArray = new DoubleCollection { 4, 3 };
             }
-            // 入场：遮罩 150ms 渐显；旧区域虚线滞后错开并轻微放大落位（ArkPV 式分层，不打扰）
+            // 入场：遮罩 150ms 渐显；上次选区虚线滞后错开并轻微放大落位（ArkPV 式分层，不打扰）
             _canvas.Opacity = 0;
             _canvas.BeginAnimation(OpacityProperty, MaskAnim(1, 150, 0));
             if (_freezeBg != null) _freezeBg.BeginAnimation(OpacityProperty, MaskAnim(1, 150, 0)); // 定格背景与遮罩同步淡入
@@ -387,13 +411,13 @@ public sealed partial class RegionPickerWindow : Window
                 st.BeginAnimation(ScaleTransform.ScaleXProperty, MaskAnim(1, 190, 90));
                 st.BeginAnimation(ScaleTransform.ScaleYProperty, MaskAnim(1, 190, 90));
             }
-            // 不再 Activate/抢键盘焦点——选区窗是非激活窗，键由 HotkeyManager 全局钩子代收（见 OnPickerKey）。
+            // 这里不 Activate、不抢键盘焦点——选区窗是非激活窗，键由 HotkeyManager 全局钩子代收（见 OnPickerKey）。
             Services.HotkeyManager.PickerActive = true;
             Services.HotkeyManager.PickerKey = OnPickerKey;
         };
 
-        // 原 WPF KeyDown 已移除——选区窗是非激活窗（WS_EX_NOACTIVATE），KeyDown 不会触发；
-        // Esc/Enter/C/F/Tab 改由 HotkeyManager 全局钩子代收（见类末 OnPickerKey）。
+        // 选区窗没有 WPF KeyDown 处理：非激活窗（WS_EX_NOACTIVATE）收不到路由键事件，
+        // Esc/Enter/C/F/Tab 全部由 HotkeyManager 全局钩子代收（见类末 OnPickerKey）。
         MouseLeftButtonDown += OnDown;
         MouseMove += OnMove;
         MouseLeftButtonUp += OnUp;
@@ -411,7 +435,7 @@ public sealed partial class RegionPickerWindow : Window
     }
 
     private Core.ElementHit? _curElem;
-    private bool _drillLock;      // Tab 上钻后锁定选中的父容器：鼠标微动不再被 hover 吸附抢回子控件
+    private bool _drillLock;      // Tab 上钻后锁定选中的父容器：光标微动不会被 hover 吸附抢回子控件
     private Point _drillAnchor;   // 锁定时的光标 DIP 位置，移动超过阈值才解锁恢复常规吸附
     private System.Windows.Controls.Border _hint = null!;
 

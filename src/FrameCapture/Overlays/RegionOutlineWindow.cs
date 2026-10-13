@@ -32,6 +32,10 @@ public sealed class RegionOutlineWindow : Window
     private readonly System.Windows.Threading.DispatcherTimer _recTimer;
     private System.Diagnostics.Stopwatch? _recClock;
 
+    /// <summary>
+    /// 构造轮廓窗：无边框、点击穿透、不抢焦点、不进任务栏，并在句柄建好而尚未上屏时就打上 WDA 排除标记
+    /// （先上屏再打标记会让轮廓的第一帧被录进产物）。必须在 UI 线程构造。
+    /// </summary>
     public RegionOutlineWindow()
     {
         // 覆盖层不需要文本输入：禁用输入法，避免拼音拦截快捷键
@@ -119,6 +123,8 @@ public sealed class RegionOutlineWindow : Window
 
     private RectI _region; // 最近一次目标区域（物理像素）
 
+    /// <summary>设定轮廓矩形，并立刻按物理像素定位（当前 + 已加载 + 下一拍各钉一次，压住 WPF 布局的回写）。</summary>
+    /// <param name="region">目标范围：物理像素、虚拟桌面绝对坐标。本窗不用 DIP 定位，传 DIP 会整体缩小一个 DPI 倍率。</param>
     public void SetRegion(RectI region)
     {
         _region = region;
@@ -144,9 +150,10 @@ public sealed class RegionOutlineWindow : Window
     }
 
     /// <summary>
-    /// 让本窗不出现在屏幕捕获里（BitBlt 与 WGC 都排除）。
-    /// Win10 1803+/Win11 支持；失败（旧系统或权限不足）返回 false，调用方据此决定是否上屏。
+    /// 让本窗不出现在屏幕捕获里（BitBlt 与 WGC 都排除）。幂等：已排除过直接返回 true。
     /// </summary>
+    /// <returns>true = 已排除；false = 取证开关打开（故意让轮廓可被截到）、HWND 尚未就绪，
+    /// 或系统不支持（Win10 1803 以下）/ 权限不足。返回 false 时本窗一旦上屏就会被录进捕获产物。</returns>
     public bool EnsureExcludedFromCapture()
     {
         if (_captureExcluded) return true;
@@ -183,6 +190,8 @@ public sealed class RegionOutlineWindow : Window
         return Color.FromArgb(a, c.R, c.G, c.B);
     }
 
+    /// <summary>立即隐藏：停 REC 徽标、停在途淡出动画，直接 Hide()，不播退场动画。</summary>
+    /// <remarks>起录与开选区前必须走这里——残留的半透明边框会和选区窗叠着闪，且可能被截进首帧。</remarks>
     public void HideSilently()
     {
         StopRecBadge();
@@ -213,6 +222,7 @@ public sealed class RegionOutlineWindow : Window
         _recDot.BeginAnimation(OpacityProperty, pulse);
     }
 
+    /// <summary>停掉 REC 计时与红点脉冲并收起徽标；轮廓边框的显隐与位置不受影响。</summary>
     public void StopRecBadge()
     {
         _recTimer?.Stop();
@@ -236,6 +246,7 @@ public sealed class RegionOutlineWindow : Window
     }
 
     /// <summary>边框显隐：免按住录制且用户关了「录制边框」时，窗口只挂 REC 徽标不画框。</summary>
+    /// <param name="visible">false = 描边宽度置 0（窗口与 REC 徽标仍在，只是不画框）；true = 恢复 2px 描边。</param>
     public void SetBorderVisible(bool visible)
     {
         _border.BorderThickness = new Thickness(visible ? 2 : 0);
@@ -250,6 +261,8 @@ public sealed class RegionOutlineWindow : Window
 
     System.Windows.Threading.DispatcherTimer? _fadeTimer;
 
+    /// <summary>延时退场：保持常显 <c>seconds</c> 秒，到点后 350ms 淡出并 Hide。</summary>
+    /// <param name="seconds">从本次调用起保持常显的秒数。重复调用以最后一次为准（计时被重置）。</param>
     public void FadeAway(double seconds)
     {
         if (_fadeTimer == null)
@@ -269,9 +282,11 @@ public sealed class RegionOutlineWindow : Window
         _fadeTimer.Start();
     }
 
+    /// <summary>一次强调：描边瞬时加亮到 alpha 0xFF / 3px，随后 450ms cubic-out 回落到淡色常态（0x60 / 2px）。</summary>
+    /// <remarks>淡色常态由本动画落到；下一次 <see cref="ShowNoActivate"/> 会经 ResetBorder 复位到 0xC0 / 2px。</remarks>
     public void Flash()
     {
-        // 强调衰减：亮起后 450ms cubic-out 回落常态（不再是 600ms 后的步进两跳）
+        // 亮起后 450ms cubic-out 连续回落到常态，中途不分档，避免看到"跳一下"
         _flashTimer.Stop();
         var b = new SolidColorBrush(AccentCol(0xFF));
         _border.BorderBrush = b;
@@ -293,7 +308,7 @@ public sealed class RegionOutlineWindow : Window
         Win32.SetWindowPos(hwnd, Win32.HWND_TOPMOST, region.X, region.Y, region.W, region.H,
             Win32.SWP_NOACTIVATE | Win32.SWP_SHOWWINDOW);
         // 上屏后 WPF 布局会用 Left/Top/Width/Height(DIP) 回写窗口位置（实测把 681 覆写成 454=÷1.5）。
-        // 把同一物理矩形换算成 DIP 同步给 WPF，令它的回写变成幂等，两边不再打架。
+        // 把同一物理矩形换算成 DIP 同步给 WPF，令它的回写变成幂等，两套坐标收敛到同一个物理矩形。
         if (IsLoaded && !_syncing)
         {
             _syncing = true;
