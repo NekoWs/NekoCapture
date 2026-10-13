@@ -2,19 +2,27 @@ namespace FrameCapture.Core;
 
 /// <summary>
 /// 绘图工具目录：工具 → 快捷键 / 帮助符号 / 图标字形 / 工具条提示 / 帮助说明 的**唯一数据源**。
-/// 工具条、帮助窗、快捷键分发都从这里取，加新工具只改一处——
-/// 此前工具定义散在工具条数组、帮助窗、引导卡三处，加马赛克时就漏了帮助窗（SelfTest 锁死防漂移）。
+/// 工具条、帮助窗、快捷键分发都从这里取，加新工具只改一处（SelfTest 锁死目录完整性，防漂移）。
 /// Glyph 是图标字体字形（仅工具条用，PUA 码位，GlyphProbe 人工验证）；Sym 是帮助窗键位列的普通 Unicode 符号。
 /// 两者不可混用：帮助窗用默认字体，塞 PUA 码位会出豆腐块（离屏渲染抓到，锁死 Sym 非 PUA）。
 /// </summary>
+/// <param name="Key">快捷键字母，也是工具的稳定标识。</param>
+/// <param name="Sym">帮助窗键位列显示的普通 Unicode 符号，须非 PUA。</param>
+/// <param name="Glyph">工具条图标字形的 PUA 码位（单个字符）。</param>
+/// <param name="Tip">工具条悬停提示。</param>
+/// <param name="Help">帮助窗里该工具的一行说明。</param>
+/// <returns>不可变的目录条目；工具条、帮助窗、快捷键分发取到的是同一份值。</returns>
 public readonly record struct ToolInfo(string Key, string Sym, string Glyph, string Tip, string Help);
 
+/// <summary>全部绘图工具的静态目录，以及退出绘制态的键位与帮助小节标题。</summary>
 public static class ToolCatalog
 {
     /// <summary>绘制工具（顺序 = 工具条从左到右；浏览/退出键 X 单列在 ExitKey）。</summary>
     public static readonly ToolInfo[] Tools =
     {
-        // Glyph 均为 GlyphProbe 渲染矩阵人工定稿：选中 E8B0 / 线 E949 / 圆 EA3F（线性环，与画出的描边椭圆同语言；EA3B 是实心盘已弃用）/ 箭头 F0AF / 手绘 E70F / 文字 E8D2 / 马赛克 E80A / 裁剪 E7A8
+        // Glyph 均为 GlyphProbe 渲染矩阵人工定稿：
+        // 选中 E8B0 / 线 E949 / 圆 EA3F（线性环，与画出的描边椭圆同语言）/ 箭头 F0AF / 手绘 E70F
+        // 文字 E8D2 / 马赛克 E80A / 裁剪 E7A8
         new("V", "V", "\uE8B0", "选中 (V)", "点击标注=选中（虚线框）；拖动=移动；Delete=删除；Esc 先取消选中。移动/删除都可 Ctrl+Z 撤销"),
         new("L", "─", "\uE949", "直线 (L) · Shift 锁 45°", "拖出直线；按住 Shift 拖=吸附到 0/45/90°；再按 L 或点同一图标退出绘制"),
         new("R", "□", "\uE739", "矩形 (R) · Shift 正方", "拖出矩形框，圈住/框选目标区域（最常用的强调框）；按住 Shift 拖=正方形；再按 R 或点同一图标退出绘制"),

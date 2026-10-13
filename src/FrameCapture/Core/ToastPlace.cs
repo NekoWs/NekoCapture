@@ -12,6 +12,13 @@ public static class ToastPlace
     public const int Margin = 12;   // 区域内边距
     public const int Gap = 10;      // 区域外间距
 
+    /// <summary>浮窗落点。</summary>
+    /// <param name="region">本次捕获区域，物理像素的虚拟桌面坐标。</param>
+    /// <param name="work">所在显示器工作区（物理像素，已扣任务栏），最终钳制边界。</param>
+    /// <param name="toastW">浮窗宽（物理像素）。</param>
+    /// <param name="toastH">浮窗高（物理像素）。</param>
+    /// <returns>位置与尺寸同值的 RectI：区域放得下贴区域内右下，放不下贴区域下缘（越界则上缘），
+    /// 最后钳进工作区并留 4px 边距。</returns>
     public static RectI Place(RectI region, RectI work, int toastW, int toastH)
     {
         int x, y;

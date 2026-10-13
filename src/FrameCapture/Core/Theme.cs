@@ -4,19 +4,27 @@ using System.Windows.Media;
 namespace FrameCapture.Core;
 
 /// <summary>
-/// 明暗主题调色板。所有覆盖层从这里取色，主题切换后新建窗口即生效。
+/// 明暗主题调色板。所有覆盖层从这里取色；主题变化时广播 <see cref="Changed"/>，订阅的窗口即时换色，新建窗口直接取新色。
 /// 基调：Fluent 深色 #202020 / 浅色 #F3F3F3，强调色可自定义。
+/// 背景类颜色自带 alpha：Chrome 0xD9 最透、Window 0xF2 近不透、Card 全不透明——覆盖层要透出桌面。
 /// </summary>
 public static class Theme
 {
+    /// <summary>当前强调色。</summary>
+    /// <value>由 <see cref="Apply"/> 从设置写入；解析失败时保持原值。</value>
     public static Color Accent = Color.FromRgb(0x4C, 0xC2, 0xFF);
 
+    /// <summary>当前生效的是否深色主题。</summary>
+    /// <value>调色板所有属性分支的依据，由 <see cref="Apply"/> 从设置算出；未 Apply 前为深色。</value>
     public static bool IsDark => EffectiveDark;
     static bool EffectiveDark = true;
 
     /// <summary>主题实际变化后触发，窗口订阅后可即时换色。</summary>
     public static event Action Changed = () => { };
 
+    /// <summary>把设置里的主题与强调色落到全局调色板，实际变了才广播 <see cref="Changed"/>。</summary>
+    /// <param name="theme">"light" / "dark"；其余值（含空）跟随系统 AppsUseLightTheme。</param>
+    /// <param name="accentHex">强调色 HEX 文本；null、空白或解析失败都保持当前强调色。</param>
     public static void Apply(string theme, string accentHex)
     {
         var oldDark = EffectiveDark;
@@ -30,7 +38,7 @@ public static class Theme
         if (!string.IsNullOrWhiteSpace(accentHex))
         {
             try { Accent = (Color)ColorConverter.ConvertFromString(accentHex); }
-            catch { /* 保持默认 */ }
+            catch { /* 保持当前强调色 */ }
         }
         if (EffectiveDark != oldDark || Accent != oldAcc)
         {
@@ -54,6 +62,8 @@ public static class Theme
 
 static class SystemParams
 {
+    /// <summary>读系统的「应用用深色」偏好。</summary>
+    /// <returns>AppsUseLightTheme = 0 时 true；取不到值（键缺失、值不是 int）按 false 走浅色，注册表访问抛异常时按 true。</returns>
     public static bool UserPreferenceDark()
     {
         try

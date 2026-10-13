@@ -6,7 +6,9 @@ namespace FrameCapture.Core;
 /// 纯函数，返回新帧；原帧不变。旋转 4 次回到原图。</summary>
 public static class PinRotate
 {
-    /// <summary>顺时针旋转 90°。新帧宽=旧高、高=旧宽。old(x,y) → new(H-1-y, x)。</summary>
+    /// <summary>顺时针旋转 90°：old(x,y) → new(H−1−y, x)，新帧宽=源帧高、高=源帧宽。</summary>
+    /// <param name="f">源帧，BGRA 行主序；本方法只读，不修改其缓冲。</param>
+    /// <returns>新帧：新分配的 BGRA 缓冲，W/H 互换，TimeMs 沿用源帧。</returns>
     public static CapturedFrame Rotate90Cw(CapturedFrame f)
     {
         int w = f.W, h = f.H;
@@ -30,7 +32,10 @@ public static class PinRotate
         return new CapturedFrame { Bgra = dst, W = h, H = w, TimeMs = f.TimeMs };
     }
 
-    /// <summary>连续旋转 steps 次（0~3，取模）。steps=0 原样返回同一实例。</summary>
+    /// <summary>连续旋转 steps 次（取模 4）。</summary>
+    /// <param name="f">源帧。</param>
+    /// <param name="steps">顺时针 90° 的次数；对 4 取模，负数按同方向回卷（−1 等价 3）。</param>
+    /// <returns>steps ≡ 0 时原样返回同一实例（不复制像素）；否则返回逐步旋转后的新帧。</returns>
     public static CapturedFrame Rotate(CapturedFrame f, int steps)
     {
         steps = ((steps % 4) + 4) % 4;

@@ -1,7 +1,7 @@
 namespace FrameCapture.Core;
 
 /// <summary>
-/// 滚动截图核心拼接算法（，纯函数、可单测）。
+/// 滚动截图核心拼接算法（纯函数、可单测）。
 /// 场景：同一屏幕区域截了 acc（已累积的长图）与 b（滚动后再截的一帧，同宽）。
 /// 向下滚动 dy 像素后，b 的顶部若干行与 acc 的底部若干行是同一内容（重叠），b 底部才是新内容。
 /// FindOverlap 找重叠行数 ov，Append 把 b 去掉顶部 ov 行后拼到 acc 下方。
@@ -29,16 +29,22 @@ public static class ScrollStitch
     }
 
     /// <summary>
-    /// 找 b 顶部与 acc 底部的纵向重叠行数（0..min(accH,bH)）。找不到可靠重叠返回 0。
-    /// thresh = 单行平均灰度差阈值（同内容行≈0，错位行≫此值）。
-    /// 判据：对每个候选重叠，从最大往下扫，均匀抽样至多 32 行（含首尾），逐行独立比对，
-    /// ≥80% 抽样行匹配才算重叠——容忍个别因闪烁光标/抗锯齿而略变的行（旧版「运行均值」早退会误杀，修）。
-    /// 两趟匹配（修「裁切/重叠」）：
+    /// 找 b 顶部与 acc 底部的纵向重叠行数。
+    /// 判据：候选重叠从最大往下扫，每个候选均匀抽样至多 32 行（含首尾）逐行<b>独立</b>比对，
+    /// ≥80% 抽样行匹配才收——个别因闪烁光标/抗锯齿而略变的行不足以否掉整段重叠。
+    /// 两趟匹配：
     /// ① 严格趟——只比对应行，命中即返回，保证整像素滚动的重叠精确（不多不少一行）。
     /// ② 容差趟——严格趟全军覆没时才启用，每行允许在 acc 里 ±1 行窗口内找匹配，吸收平滑/分数滚动
-    /// 的 ±1px 取整抖动（旧版此时会把整段重叠误判为 0 或过小 → 拼接出现重复内容带「重叠」）。
-    /// 容差趟仍从最大往下、≥80% 才收，且 ±1 窗口把高估上界锁在 1 行（肉眼不可见），不会 gross 裁切。
+    /// 的 ±1px 取整抖动；重叠的高估上界因此锁在 1 行（肉眼不可见），不会 gross 裁切。
     /// </summary>
+    /// <param name="acc">已累积长图，BGRA 行主序。</param>
+    /// <param name="w">两帧共同宽度（像素），须 &gt;0。</param>
+    /// <param name="accH">acc 的行数。</param>
+    /// <param name="b">滚动后再截的一帧，BGRA 行主序，宽度须与 acc 相同。</param>
+    /// <param name="bH">b 的行数。</param>
+    /// <param name="cols">每行抽样的列数（等距取点），越大越准也越慢。</param>
+    /// <param name="thresh">单行平均灰度差阈值（0–255 尺度）：同内容行 ≈0，错位行 ≫ 此值。</param>
+    /// <returns>重叠行数，范围 0..min(accH,bH)；0 = 没找到可靠重叠，调用方按「整帧都是新内容」处理。</returns>
     public static int FindOverlap(byte[] acc, int w, int accH, byte[] b, int bH, int cols = 64, double thresh = 16.0)
     {
         if (w <= 0 || accH <= 0 || bH <= 0) return 0;
@@ -86,7 +92,14 @@ public static class ScrollStitch
         return strict != 0 ? strict : Scan(1);
     }
 
-    /// <summary>把 b 去掉顶部 ov 行后拼到 acc 下方，返回新 BGRA 缓冲（高 accH + bH − ov）。无新内容原样返回。</summary>
+    /// <summary>把 b 去掉顶部 ov 行后拼到 acc 下方。无新内容原样返回。</summary>
+    /// <param name="acc">已累积长图，BGRA 行主序。</param>
+    /// <param name="w">宽度（像素）。</param>
+    /// <param name="accH">acc 的行数。</param>
+    /// <param name="b">待拼入的新帧，宽度须与 acc 相同。</param>
+    /// <param name="bH">b 的行数。</param>
+    /// <param name="ov">要跳过的 b 顶部行数，来自 <see cref="FindOverlap"/>。</param>
+    /// <returns>新 BGRA 缓冲，高 accH + bH − ov；bH ≤ ov 时返回 acc 本身（不复制）。</returns>
     public static byte[] Append(byte[] acc, int w, int accH, byte[] b, int bH, int ov)
     {
         int newRows = bH - ov;

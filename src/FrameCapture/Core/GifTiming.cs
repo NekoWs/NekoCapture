@@ -8,9 +8,14 @@ namespace FrameCapture.Core;
 /// </summary>
 public static class GifTiming
 {
+    /// <summary>可靠下限帧延迟（毫秒）。</summary>
+    /// <value>20 = 2cs。1cs 会被播放器当 0，故任何一帧都不许低于此值。</value>
     public const int MinMs = 20; // 2cs：可靠下限（1cs 抬升逻辑的根源）
 
-    /// <summary>返回保留帧下标与对应毫秒延迟（均为 10 的倍数、≥20）。</summary>
+    /// <summary>把源逐帧延迟重采样成 GIF 能表达的延迟。</summary>
+    /// <param name="delaysMs">源逐帧延迟（毫秒）；负值按 0 计，末帧<b>永不丢弃</b>。</param>
+    /// <returns>Keep：保留帧在原序列里的下标，末位一定是最后一帧；
+    /// DelayMs：与之一一对应的毫秒延迟，均为 10 的倍数且 ≥20，被丢弃帧的时间已并入后续保留帧。</returns>
     public static (List<int> Keep, List<int> DelayMs) Resample(IReadOnlyList<int> delaysMs)
     {
         var keep = new List<int>();

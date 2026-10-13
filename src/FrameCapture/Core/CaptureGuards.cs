@@ -4,15 +4,11 @@ namespace FrameCapture.Core;
 /// 捕获状态机的入口守卫与轮廓决策（纯逻辑，可测）。
 ///
 /// 两个全局热键在各状态下"该做什么"全部集中在这里，<c>CaptureController</c> 只负责执行意图，
-/// 不再在方法开头散落 <c>if-return</c>。这样"哪条路径允许动轮廓"变成可断言的决策表。
+/// 于是"哪条路径允许动轮廓"是一张可断言的决策表。
 ///
-/// 修掉的历史缺陷（决策表即回归护栏）：
-/// - BeginCapture 第一行无条件 HideOutline，守卫在其后。于是"编辑器已开时再按捕获键"
-/// （RefocusEditor 路径）会把<b>常显范围轮廓永久弄没</b>，任何提前 return 的失败分支
-/// （如 GDI 启动异常）同样误隐藏。
-/// 不变量：<b>只有 StartCapture 允许隐藏轮廓</b>（轮廓绝不能入镜，故起录前必须隐藏）。
-/// - FinishCapture 注释写着"常显轮廓则由后续分支重新点亮"，但没有任何分支重新点亮：
-/// 常显模式下一次录制就把轮廓淡出且不再回来。现由 OnCaptureFinished 明确决策。
+/// 不变量：<b>只有 StartCapture 允许隐藏范围轮廓</b>——轮廓绝不能入镜，故只有真正起录前必须隐藏它；
+/// 编辑器已开、选取中、GDI 启动异常等分支一律不碰轮廓。
+/// 录制结束后轮廓的去向由 <see cref="OnCaptureFinished"/> 单点决策。
 /// </summary>
 public static class CaptureGuards
 {
@@ -47,6 +43,11 @@ public static class CaptureGuards
         FadeOut,
     }
 
+    /// <summary>按下捕获热键时要做的意图。</summary>
+    /// <param name="capturing">是否正在录制（录制中不打断）。</param>
+    /// <param name="selecting">选取层是否打开（选区尚未定，不打断）。</param>
+    /// <param name="editing">标注编辑器是否打开。</param>
+    /// <returns>三者皆 false 才起录；否则按 Ignore / RefocusEditor 打断掉。</returns>
     public static CaptureIntent OnCaptureHotkey(bool capturing, bool selecting, bool editing)
         => capturing ? CaptureIntent.Ignore
          : selecting ? CaptureIntent.Ignore
@@ -54,18 +55,27 @@ public static class CaptureGuards
          : CaptureIntent.StartCapture;
 
     /// <summary>
-    /// 选取窗是否"活着"由调用方给出（<c>_picker != null</c>）。
-    /// 选取态但窗已不在（Alt+F4 等异常关闭）视为卡死，复位后重新开选取。
+    /// 按下"设置范围"热键时要做的意图。选取态但窗已不在（Alt+F4 等异常关闭）视为卡死，复位后重新开选取。
     /// </summary>
+    /// <param name="capturing">是否正在录制（录制中不打断）。</param>
+    /// <param name="selecting">是否处于选取态。</param>
+    /// <param name="pickerAlive">选取窗是否还活着，由调用方给出（<c>_picker != null</c>）。</param>
+    /// <returns>录制中 Ignore；选取态且窗在 RefocusPicker（顶到最前）；其余 StartSelection。</returns>
     public static ScopeIntent OnScopeHotkey(bool capturing, bool selecting, bool pickerAlive)
         => capturing ? ScopeIntent.Ignore
          : selecting && pickerAlive ? ScopeIntent.RefocusPicker
          : ScopeIntent.StartSelection;
 
+    /// <summary>录制结束后范围轮廓的去向。</summary>
+    /// <param name="alwaysShowRegionOutline">用户是否开了"范围轮廓常显"。</param>
+    /// <param name="hasStoredRegion">本次录的是不是已存范围（临时框不算）。</param>
+    /// <returns>两者同时成立才 KeepPersistent；临时框或非常显模式一律 FadeOut，不把轮廓拖到编辑器上。</returns>
     public static AfterCaptureOutline OnCaptureFinished(bool alwaysShowRegionOutline, bool hasStoredRegion)
         => alwaysShowRegionOutline && hasStoredRegion ? AfterCaptureOutline.KeepPersistent
                                                       : AfterCaptureOutline.FadeOut;
 
     /// <summary>不变量护栏：只有真正起录才允许隐藏范围轮廓。</summary>
+    /// <param name="intent">本次热键决策出的意图。</param>
+    /// <returns>仅 <see cref="CaptureIntent.StartCapture"/> 为 true；调用方据此决定是否 HideOutline。</returns>
     public static bool MayHideOutline(CaptureIntent intent) => intent == CaptureIntent.StartCapture;
 }

@@ -29,6 +29,10 @@ public static class ElementSnap
     private static ElementHit? _cache;
 
     /// <summary>返回光标物理点所在的最深控件边界；无候选窗口或 UIA 不可用时为 null。</summary>
+    /// <param name="physX">光标横坐标，<b>物理像素</b>的虚拟桌面坐标，不是 DIP。</param>
+    /// <param name="physY">光标纵坐标，同上。</param>
+    /// <param name="excludeHwnd">要从候选窗口里排除的句柄（自己的选区窗），无则 <c>IntPtr.Zero</c>。</param>
+    /// <returns>命中结果；同一坐标重复调用走缓存。没有窗口含该点、或 UIA 抛异常时为 null。</returns>
     public static ElementHit? At(int physX, int physY, IntPtr excludeHwnd)
     {
         if (physX == _cacheX && physY == _cacheY && _cache != null)
@@ -79,6 +83,8 @@ public static class ElementSnap
     }
 
     /// <summary>从命中的控件向上钻一层（Tab 键：控件 → 父容器 → … → 整窗）。</summary>
+    /// <param name="hit">上一次命中结果，其 Element 决定起点。</param>
+    /// <returns>父容器的新命中；已到根元素、父级边界取不到或 UIA 抛异常时为 null，调用方据此停止上钻。</returns>
     public static ElementHit? Parent(ElementHit hit)
     {
         try

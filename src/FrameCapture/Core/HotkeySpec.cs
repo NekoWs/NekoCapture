@@ -16,11 +16,17 @@ public sealed partial class HotkeySpec
     public bool Win { get; init; }
     public WinFormsKeys Key { get; init; }
 
+    /// <summary>RegisterHotKey 的修饰键位标志，取值按 Win32 原样。</summary>
+    /// <value>MOD_NOREPEAT 恒被 <see cref="Modifiers"/> 叠加：按住不放不重复触发。</value>
     public const uint MOD_ALT = 0x1, MOD_CONTROL = 0x2, MOD_SHIFT = 0x4, MOD_WIN = 0x8, MOD_NOREPEAT = 0x4000;
 
+    /// <summary>交给 RegisterHotKey 的修饰键掩码。</summary>
+    /// <value>四个分量按位或，且<b>总是</b>带上 MOD_NOREPEAT。</value>
     public uint Modifiers =>
         (Alt ? MOD_ALT : 0) | (Ctrl ? MOD_CONTROL : 0) | (Shift ? MOD_SHIFT : 0) | (Win ? MOD_WIN : 0) | MOD_NOREPEAT;
 
+    /// <summary>主键的 Win32 虚拟键码（VK_*）。</summary>
+    /// <value><c>(uint)Key</c>，直接用于 RegisterHotKey 的 vk 参数。</value>
     public uint VirtualKey => (uint)Key;
 
     /// <summary>主键是否为“修饰键本身”（如用户按 F12 之外的裸键）。</summary>
@@ -28,6 +34,8 @@ public sealed partial class HotkeySpec
         or WinFormsKeys.LWin or WinFormsKeys.RWin or WinFormsKeys.LShiftKey or WinFormsKeys.RShiftKey
         or WinFormsKeys.LControlKey or WinFormsKeys.RControlKey;
 
+    /// <summary>渲染成快捷键文本。</summary>
+    /// <returns>形如 "Ctrl+Alt+A"；修饰键顺序固定 Ctrl → Alt → Shift → Win，与 <see cref="Parse"/> 接受的写法同源。</returns>
     public override string ToString()
     {
         var sb = new StringBuilder();
@@ -39,12 +47,22 @@ public sealed partial class HotkeySpec
         return sb.ToString();
     }
 
+    /// <summary>四个修饰键标志与主键全部相同，才算同一个快捷键。</summary>
+    /// <param name="obj">待比较对象；非 <see cref="HotkeySpec"/> 直接 false。</param>
+    /// <returns>逐分量全等的结果；左右修饰键（LShift 与 Shift）是不同 Key，视为不相等。</returns>
     public override bool Equals(object? obj) =>
         obj is HotkeySpec h && h.Ctrl == Ctrl && h.Alt == Alt && h.Shift == Shift && h.Win == Win && h.Key == Key;
 
+    /// <summary>与 <see cref="Equals"/> 取同一组分量的哈希。</summary>
+    /// <returns>HashCode.Combine(Ctrl, Alt, Shift, Win, Key)，保证相等对象哈希相等。</returns>
     public override int GetHashCode() => HashCode.Combine(Ctrl, Alt, Shift, Win, (int)Key);
 
-    /// <summary>解析快捷键文本。非法或不安全（裸普通键）时返回 null。</summary>
+    /// <summary>解析快捷键文本。</summary>
+    /// <param name="text">以 + 分隔的串，如 "Ctrl+Shift+G"。修饰键认 ctrl/control、alt、shift、win/windows/super；
+    /// 主键按 <c>System.Windows.Forms.Keys</c> 枚举名，另认 esc/enter/space/prtsc 等别名与 0–9、numpad0–9。
+    /// 大小写与前后空白不敏感。</param>
+    /// <returns>合法且安全的快捷键。null/空白、出现两个主键、键名认不出、裸普通键（非 F1–F24 且无修饰键）、
+    /// 主键本身是修饰键时都返回 null——调用方据此拒绝注册，而不是劫持用户的普通按键。</returns>
     public static HotkeySpec? Parse(string? text)
     {
         if (string.IsNullOrWhiteSpace(text)) return null;

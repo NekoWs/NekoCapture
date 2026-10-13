@@ -5,7 +5,8 @@ namespace FrameCapture.Core;
 
 /// <summary>
 /// 截图提示音：捕获完成时放一声柔和短促的「嘀」，给用户「截好了」的听觉确认（QQ 招牌反馈）。
-/// 不引外部音频文件——运行时合成一段 44.1kHz/16bit 单声道 WAV（纯函数，可单测），Win32 PlaySound 异步播放不阻塞 UI。
+/// 内置音不依赖外部音频文件——运行时合成一段 44.1kHz/16bit 单声道 WAV（纯函数，可单测），
+/// Win32 PlaySound 异步播放不阻塞 UI。用户另选自定义音文件时走 <see cref="Play"/> 的 customPath 分支。
 /// 音量刻意压低、时长压短、起音 2ms 防爆音：宁可轻不可噪，且设置里带「试听」让用户先听再决定开不开。
 /// </summary>
 public static class CaptureSound
@@ -16,7 +17,12 @@ public static class CaptureSound
     const double Freq = 1000;
     const double Amp = 0.18;
 
-    /// <summary>合成一段柔和快门「嘀」声的 PCM 样本（-1..1）。纯函数，供单测与 WAV 封装共用。</summary>
+    /// <summary>合成一段柔和快门「嘀」声的 PCM 样本，供单测与 WAV 封装共用。</summary>
+    /// <param name="rate">采样率（Hz）。</param>
+    /// <param name="ms">总时长（毫秒）；过短也至少产出一个采样。</param>
+    /// <param name="freq">正弦频率（Hz），决定音高。</param>
+    /// <param name="amp">包络峰值幅度（0–1 的归一化比例）。</param>
+    /// <returns>长度 ≈ rate×ms/1000 的样本，取值 −1..1，包络为 2ms 起音 + 指数衰减。</returns>
     public static double[] Samples(int rate = Rate, double ms = Ms, double freq = Freq, double amp = Amp)
     {
         int n = Math.Max(1, (int)(rate * ms / 1000.0));
@@ -32,7 +38,10 @@ public static class CaptureSound
         return s;
     }
 
-    /// <summary>把 PCM 样本封成标准 44 字节头 PCM WAV（16bit 单声道）。纯函数。</summary>
+    /// <summary>把 PCM 样本封成标准 44 字节头 PCM WAV（16bit 单声道）。</summary>
+    /// <param name="samples">归一化样本（−1..1），写盘前逐个钳到端点，越界不报错。</param>
+    /// <param name="rate">采样率（Hz），同时决定头里的字节率与块对齐。</param>
+    /// <returns>完整 WAV 字节，可直接落盘或交给 PlaySound(SND_MEMORY)。</returns>
     public static byte[] MakeWav(double[] samples, int rate = Rate)
     {
         int dataBytes = samples.Length * 2;
@@ -68,8 +77,10 @@ public static class CaptureSound
     const uint SND_ASYNC = 0x0001, SND_NODEFAULT = 0x0002, SND_MEMORY = 0x0004;
 
     /// <summary>播放一声（异步，不阻塞 UI 线程）。首次合成后缓存字节。绝不抛——无音频设备等情况静默忽略。
-    /// customPath 非空且存在时优先播自定义提示音——wav 直接读字节走 winmm（无编解码依赖，保证可播）；
-    /// ogg/mp3 等走 WPF MediaPlayer（系统媒体管线），解码失败/文件损坏回退内置嘀声，绝不无声。</summary>
+    /// 自定义音：wav 直接读字节走 winmm（无编解码依赖，保证可播）；ogg/mp3 等走 WPF MediaPlayer（系统媒体管线）。
+    /// 交给播放管线前的失败（文件不存在、非 UI 线程、打开即抛、wav 头畸形）一律回退内置嘀声；
+    /// MediaPlayer 打开后的异步解码失败没有回调，那一趟会无声。</summary>
+    /// <param name="customPath">用户指定的提示音文件；null、空白或文件不存在都直接用内置嘀声。</param>
     public static void Play(string? customPath = null)
     {
         try

@@ -7,14 +7,33 @@ namespace FrameCapture.Core;
 /// </summary>
 public readonly struct GestureAction
 {
+    /// <summary>稳定动作名，持久化与引擎只认这个。</summary>
+    /// <value>英文小写点分串（如 <c>capture.frame</c>）；改名等于让已存绑定失效。</value>
     public string Name { get; }
-    public string Label { get; }   // 中文短名（未来编辑器/帮助展示）
+
+    /// <summary>给人看的中文短名。</summary>
+    /// <value>编辑器、帮助与设置窗展示用，不参与持久化。</value>
+    public string Label { get; }
+
+    /// <summary>这个动作做什么的一句话。</summary>
+    /// <value>帮助窗与手势配置器里的详细说明。</value>
     public string Description { get; }
+
     /// <summary>会产生静图截图：手势配置器据此决定「截图后」下拉是否显示（序列里没有截图类动作就不显示）。</summary>
+    /// <value>true = 该动作产出一张静图。</value>
     public bool IsCapture { get; }
+
+    /// <summary>装配一个动作条目，各字段原样保存。</summary>
+    /// <param name="name">稳定动作名（英文小写点分）。</param>
+    /// <param name="label">中文短名。</param>
+    /// <param name="desc">详细说明。</param>
+    /// <param name="isCapture">是否产出静图，默认 false（非截图类）。</param>
     public GestureAction(string name, string label, string desc, bool isCapture = false) { Name = name; Label = label; Description = desc; IsCapture = isCapture; }
 }
 
+/// <summary>
+/// 动作名常量与全量目录：<see cref="All"/> 是唯一清单，设置窗、手势配置器、帮助窗都从这里取名字与文案。
+/// </summary>
 public static class GestureActions
 {
     // 稳定动作名常量（持久化标识，勿随意改名）
@@ -59,9 +78,14 @@ public static class GestureActions
     static readonly System.Collections.Generic.HashSet<string> Names =
         new(System.Linq.Enumerable.Select(All, a => a.Name));
 
+    /// <summary>名字是否在本词汇表里。</summary>
+    /// <param name="name">待校验的动作名，区分大小写。</param>
+    /// <returns>null 或表外名为 false；设置文件里的未知动作名据此判为未实现，而不是崩在分发处。</returns>
     public static bool IsValid(string? name) => name != null && Names.Contains(name);
 
-    /// <summary>动作名 → 中文短名（供设置窗「当前生效键位」等处展示）；未知名原样返回（不崩，便于前向兼容）。</summary>
+    /// <summary>动作名 → 中文短名（供设置窗「当前生效键位」等处展示）。</summary>
+    /// <param name="name">动作名；null 或空串按空名处理。</param>
+    /// <returns>表内条目的 Label；未知名原样返回（不崩，便于前向兼容），空名返回空串。</returns>
     public static string LabelOf(string? name)
     {
         if (string.IsNullOrEmpty(name)) return "";
