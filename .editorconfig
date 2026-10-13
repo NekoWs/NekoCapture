@@ -1,0 +1,63 @@
+# 注释与代码风格基线 —— 详规见 docs/COMMENT-STYLE.md
+# 强制强度：CS1591/CS1573 = error（public 层）；internal 层与注释内容规则由
+# scripts/lint-comments.ps1 强制（CS1591 只覆盖对外可见成员，管不到 internal）。
+root = true
+
+[*]
+charset = utf-8
+end_of_line = crlf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 4
+
+[*.cs]
+# ---- 文档注释强制（docs/COMMENT-STYLE.md §4.4）----
+# 缺失 XML 文档：public 可见类型/成员
+dotnet_diagnostic.CS1591.severity = error
+# 写了部分 <param> 却没写全
+dotnet_diagnostic.CS1573.severity = error
+# 无法解析的 cref / param 引用——注释指向不存在的符号就是谎言的前兆
+dotnet_diagnostic.CS1574.severity = error
+dotnet_diagnostic.CS1584.severity = error
+dotnet_diagnostic.CS1658.severity = error
+# XML 注释结构错误（未闭合标签等）
+dotnet_diagnostic.CS1570.severity = error
+# 重复的 param / returns
+dotnet_diagnostic.CS1571.severity = warning
+dotnet_diagnostic.CS1572.severity = warning
+
+# ---- 行宽（docs/COMMENT-STYLE.md §6）----
+max_line_length = 140
+max_line_comment_length = 110
+
+# ---- C# 排版基线（不做大规模重排，只防新增劣化）----
+csharp_new_line_before_open_brace = all
+csharp_prefer_braces = true:suggestion
+csharp_using_directive_placement = outside_namespace:suggestion
+dotnet_sort_system_directives_first = true
+
+# ---- 命名与可读性 ----
+dotnet_style_qualification_for_field = false:suggestion
+dotnet_style_qualification_for_property = false:suggestion
+dotnet_style_qualification_for_method = false:suggestion
+
+[*.{xaml,xml,props,targets}]
+indent_size = 2
+
+[*.json]
+indent_size = 2
+
+[*.{ps1,psm1}]
+indent_size = 4
+
+# ---- 编译器生成物不参与文档强制 ----
+[**/obj/**]
+generated_code = true
+dotnet_diagnostic.CS1591.severity = none
+dotnet_diagnostic.CS1573.severity = none
+dotnet_diagnostic.CS1570.severity = none
+dotnet_diagnostic.CS1574.severity = none
+
+[*AssemblyInfo.cs]
+dotnet_diagnostic.CS1591.severity = none

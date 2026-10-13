@@ -20,7 +20,16 @@ function Add-Result([string]$name, [string]$status, [string]$note = "") {
     Say ("  [{0,-4}] {1} {2}" -f $status, $name, $note)
 }
 
-# 0) 杀掉运行中的实例（否则 MSB3027 会让构建静默失败）
+# 0a) 注释护栏（docs/COMMENT-STYLE.md）：注释不合规直接 FAIL，不进构建
+$lintOut = & pwsh -NoProfile -File (Join-Path $PSScriptRoot "lint-comments.ps1") -Quiet 2>&1 | Out-String
+$lm = [regex]::Match($lintOut, 'LINT-COMMENTS (\w+)\s+FAIL=(\d+) WARN=(\d+)')
+if ($lm.Success) {
+    $lf = [int]$lm.Groups[2].Value; $lw = [int]$lm.Groups[3].Value
+    Add-Result "lint:comments" $(if ($lf -eq 0) { "PASS" } else { "FAIL" }) "FAIL=$lf WARN=$lw"
+    if ($lf -gt 0) { Say (& pwsh -NoProfile -File (Join-Path $PSScriptRoot "lint-comments.ps1") 2>&1 | Out-String) }
+} else { Add-Result "lint:comments" "FAIL" "扫描器无输出" }
+
+# 1) 杀掉运行中的实例（否则 MSB3027 会让构建静默失败）
 $hadUserInstance = [bool](Get-Process FrameCapture -EA SilentlyContinue)
 Get-Process FrameCapture -EA SilentlyContinue | Stop-Process -Force
 Start-Sleep 0.6
