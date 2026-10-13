@@ -1,6 +1,6 @@
 # FrameCapture Todo
 
-> **收尾状态（10-13 批次末）**：SelfTest 405 PASS、护栏 PASS（下限 405）、git clean、Release 已重发布并恢复运行。
+> **收尾状态（10-13 R158 批次末）**：SelfTest 405 PASS、护栏 PASS（下限 405）、Release 已重发布；R157 五条反馈 + R158 全站 UI 现代化/QQ 弹弹（标题全不带、IconButton/Chip 弹性、卡片浮起+导航辉光、Toast/菜单弹入、滑块/开关过冲、设置整页卡片化+卡片规格对齐、手势配置器按钮/开关/下拉弹层/录键框弹性、OCR「复制全部」与设置「试听」按钮弹性）+ **简洁少字**（手势配置器章节标签/触发下拉/动作目录标签/设置窗常驻文案去括号，tooltip 保留详细说明）已核验，**改动待用户确认后提交**（工作区脏）。
 > **用户当前为自定义手势**（Ctrl+Alt+A 选区 / Ctrl+Alt+R 录制 / F2 按住录制），非出厂默认——这是用户自己配的，勿当测试残留还原。出厂默认仍是 Ctrl+Shift+G（截图）/ Ctrl+Shift+R（选区）；测试若临时改键，批次末还原到用户配置即可。详见 PROGRESS.md「收尾审计与决策」。
 
 ## 用户反馈（10-12 排队，按用户给定顺序做）
@@ -203,7 +203,7 @@
 ## 待办
 - [ ] 时间轴拖范围 / 窗口吸附的实机确认（手动清单）
 - [ ] 保存对话框（保存单帧/动图/视觉暂留）流程确认——默认目录已改为「图片\FrameCapture」
-- [ ] 待查：error.log 偶发 `(Dispatcher) ObjectDisposedException: Cannot access a closed file`（10-12 03:45 单次，已被 e.Handled 兜住未崩）——疑某处对已关闭流写盘（设置保存/trace/临时图？），若复现再定位
+- [x] 已查清并确认已修：error.log `(Dispatcher) ObjectDisposedException: Cannot access a closed file`（10-12 03:45 单次，被 e.Handled 兜住未崩）。根因非「写盘」而是**读**：编辑器播放 `DispatcherTimer.Tick → Show→Bmp→FrameSpoolList[i]→FileStream.Seek` 读到已释放的磁盘 spool。现码 tick 首行 `_userClosed` 守卫 + 两条关闭路径 `_playTimer.Stop()`（R61 已修，见 PROGRESS R95）；UI 线程内 tick 不与关闭交错，守卫充分。今日运行零新异常。
 
 ## Round 40 — 用户 9 条 bug 清单 + 悬浮工具条重构（已修，待用户复测）
 1. 选取层不总在最前 → Deactivated 自动 re-topmost + 重复按 Ctrl+Shift+R 重新顶前
@@ -279,7 +279,7 @@
 - [x] **播放控件常驻 + 移到预览内容下方**（R12 停靠面板）：录制（多帧）时常驻显示，停靠预览画面下方（不再悬浮在内容里/不再自动隐藏）。
 - [x] **PR 式带刻度小进度条**（R12 落地）：逐帧刻度+整秒标尺+裁剪把手+播放头，替换现 320px 圆点进度条。
 - [x] **面性图标 + 更紧凑**（R12 定稿）：GlyphProbe 全区扫描定稿面性集（F5B0▶/E769⏸/F08C◀/F08E▶/F8AC⏮/F8AD⏭/E105存/F413复制/E786GIF/F78C✓/E9CE?/EA3B○/EDD7✎/F0AF→），按钮尺寸收小。
-- [ ] **每个组件都过一遍改好看**（进度条被点名）。
+- [x] **每个组件都过一遍改好看**（进度条被点名）：R69–R82 全站逐界面过了一遍——设置窗（切页淡入上浮/导航 accent 卡片+竖条滑动/4 组分段芯片 ChipHover/开关 ToggleBorderHover/色片/试听/更改链接/保存路径/整页卡片化/细圆角滚动条/焦点环全覆盖）、编辑器（工具条上投影/浮层 PopupCard 投影/全动作按钮 IconButton/色片与最近用色 ChipHover/选中工具 HighlightBtn/时间轴播放头改细竖线+现代圆旋钮）、贴图/托盘/手势配置器/toast/欢迎/倒计时/滚动提示（弹性微交互 + 去括号赘述）。进度条（时间轴播放头）即被点名项已现代化。**待用户实测确认**。
 
 ## 滚动截图（长图）R87–R88（2026-10-12 上午）
 - [x] **核心拼接算法**（R87）：`Core/ScrollStitch.cs` 纯函数 `FindOverlap`/`Append`；T119a-d，290 PASS；真实像素 `SelfTest stitch` overlap=800 精确无缝。
@@ -416,3 +416,12 @@
 
 ## 内容标题栏品牌前缀不一致 R156（2026-10-13 上午，看截图抓到，交产品决策，未擅改）
 - [ ] **内容标题栏文字前缀不统一**：OS 标题栏（任务栏/Alt+Tab）所有窗都带 `FrameCapture` 前缀（`FrameCapture Settings/Editor/OCR/…`），但**窗内自绘标题栏**文字混用——设置=`FrameCapture 设置`、帮助=`FrameCapture 使用速查`（带前缀），OCR=`识别文字`、手势配置=`手势配置`（不带）。两种取向各有道理：带前缀=品牌一致；不带=功能名更干净（OS 栏已标品牌，窗内重复略冗余，且手势配置在独立库 `GestureEditor` 内本就设计为产品无关、不应硬编码品牌名）。**建议**（需你拍板，属品牌取向故未动）：统一为「不带前缀」（更 Fluent、且与库的产品无关设计自洽）或「全带前缀」（品牌更强，但需让 `GestureEditorHost` 注入标题、OCR 改文案）。改动纯文案、零逻辑风险，一句话即可执行。
+
+## 用户反馈 5 条（2026-10-13 上午，R157，全部修复+核验）
+- [x] **① 设置分类胶囊动作幅度太大、超出选项卡边框**：分类切换胶囊用 ElasticEase（过冲回弹）会越过卡片边框。→ 改 CubicEase EaseOut（单调不过冲），动效仍丝滑但不越界。
+- [x] **② 「结束后」未移入手势配置**：原「截图后」是设置里的全局四选一，与「每条手势各自决定截图后行为」的诉求冲突。→ 移除设置里全局四选一（该行改为「已移至手势配置器」引导提示，`AppSettings.AfterCapture` 字段保留仅为反序列化兼容、不再被截图流程读）；每条手势新增独立「截图后」属性（跟随默认/弹提示/进编辑器/只复制/贴图），在配置器详情面板下拉配置。链路 `GestureBinding.AfterCapture`（GestureCore）↔ `GestureBindingDto`（持久化）↔ `BindingEdit`（编辑器）双向映射；截图发起时固化到 `_sessionAfter`、完成时按其分派。**为何不用 onComplete**：onComplete 在动作 post 后立即跑，而 `capture.selection` 只打开选区窗（真截图在拖框后），onComplete 早于截图完成、读不到「这次」截图。**e2e 核验**：capture.selection 设 AfterCapture=pin → 截图后直接贴图（trace `pin-at`+`pin shown opacity=1.00`），不弹 toast、不进编辑器；配置器下拉 UI 截图核验。旧 JSON 无该字段→默认「跟随默认（弹提示）」，与用户当前行为零漂移。
+- [x] **③ 点同一页面重复播放切换进入动画**：`ShowCat` 每次点击都重播分类进入动画。→ prev==idx 时直接返回，不重播。
+- [x] **④ Ctrl+P 钉到屏幕失效**：贴图窗 `FadeIn` 在内容已渲染（PinWindow 于自身 ContentRendered 内调 FadeIn）时再订阅 ContentRendered 永不触发→淡入不启动、Opacity 永久卡 0→贴图完全隐形。→ `if (w.IsLoaded) 立即淡入`。**e2e 核验**：trace `pin shown opacity=1.00`。
+- [x] **⑤ 自定义截图后提示消失时间**：悬浮窗存在时间除预设芯片外加自定义秒数输入框。**核验**：设置截图显示「3.2 秒」输入框。
+
+**批次末（R157）**：护栏 PASS（下限 405，FAIL=0 SKIP=1）；SelfTest 405；用户 4 条自定义手势完好；重发布 staging → zip 69.7MB → 重启出厂实例。附带修 `test-tap-semantics.ps1` 场景间未隔离（`keyw`/PostMessage 关不掉 WPF 窗致场景3 复用旧编辑器）——干净 HEAD 同样复现，确认非本次改动引入，加场景间 `Restart-App` 隔离后 PASS（hold600=9 帧、hold1300=47 帧）。

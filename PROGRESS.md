@@ -2147,3 +2147,87 @@ status: done
 **R155 · 触发方式标签跨库核心词一致（KeyUp 抬起→松开）**：配置器（lib `GestureEditorWindow.TriggerLabel`）与宿主（`GestureConfig.TriggerLabel`，供设置/帮助）是两份独立实现（lib 不能引用宿主，天然会漂移）。逐项对照发现**唯 KeyUp 核心词不一致**——配置器"组合键**抬起**"（引擎内部术语）、设置/帮助"**松开**"；其余 9 项核心词本就一致（按下/轻点/按住/松手/长按/双击/三击/单击）。用户配置正含 F2 KeyUp，会在配置器见"抬起"、在设置/帮助见"松开"。修：lib KeyUp "组合键抬起"→"组合键松开"（核心词对齐，"组合键"前缀保留作下拉键盘/鼠标触发分组）。**新增 T155** 锁「每个触发方式的配置器标签都含宿主核心词」（跳过 host 返回空的 Chord），防两份实现再漂移。SelfTest 404→**405**。截图核验配置器第 4 条现"F2 · 组合键松开"、与第 3 条"组合键按下"及设置/帮助一致。构建 0 错。
 
 **R155 批次末**：护栏 PASS（下限 405，FAIL=0 SKIP=1）；用户 4 条手势完好（`gesture apply n=4`）；重发布 staging 11:42:15 → zip 69.7MB/250 项/CRC 全绿/exe=1/sdk=1 → 重启出厂实例 pid 26936。TODO 头同步 405。HEAD `52879e1`。
+
+---
+
+**R157 · 用户反馈 5 条（设置胶囊越界 / 截图后移入手势 / 重复动画 / Ctrl+P 贴图隐形 / 自定义提示时长）**
+- **① 设置分类胶囊越界**：分类切换胶囊用 ElasticEase（过冲回弹）越过卡片边框。改 CubicEase EaseOut（单调不过冲），丝滑度保留、不越界。
+- **② 「截图后」移入手势配置（架构级）**：原全局四选一（设置里 `AfterCapture`）与「每条手势各自决定截图后行为」冲突。移除设置里全局四选一（该行改为「已移至手势配置器」引导提示，`AppSettings.AfterCapture` 字段保留仅为反序列化兼容、不再被截图流程读）；每条手势新增独立 `AfterCapture`（跟随默认""/toast/editor/copy/pin），配置器详情面板下拉配置。链路 `GestureCore.GestureBinding.AfterCapture` → `GestureBindingDto`（持久化）↔ `BindingEdit`（编辑器）双向映射 + `GestureEngine.RunActions` 首行 `BeginBinding` → `GestureInvoker` → `CaptureController.SetPendingAfterCapture`；截图发起时把 `_pendingAfter` 固化到 `_sessionAfter`（跨「打开选区窗」这段异步窗口存活），完成时三处 switch（ScrollFinish/DelayFire/DispatchStill）按 `Resolve(_sessionAfter)` 分派。**为何不用 onComplete**：onComplete 在动作被 post 后立即 FIFO 跑，而 `capture.selection` 只打开选区窗（真截图在用户拖框后），onComplete 早于截图完成、读不到「这次」截图——故用完成时读的独立属性。`IActionInvoker` 加 `BeginBinding`（GestureCore 无默认接口方法，故 GestureInvoker + SelfTest `GestureProbe` 两处实现者均补）。**e2e 核验**：capture.selection 设 AfterCapture=pin → 截图后直接贴图（trace `pin-at 700x500`+`pin shown opacity=1.00`），无 toast、无 open editor；配置器下拉 UI 截图核验（「截图后（仅截图类手势生效）→ 跟随默认（弹提示）」）。旧 JSON 无字段→默认""→toast，与用户当前行为零漂移。
+- **③ 点同页重播进入动画**：`ShowCat` 每次点击重播分类进入动画。prev==idx 直接返回。
+- **④ Ctrl+P 贴图隐形（根因）**：`Fluent.FadeIn` 的 AllowsTransparency 分支再订阅 `ContentRendered` 启动淡入，但 PinWindow 是在**自己的 ContentRendered 回调里**才调 FadeIn——该事件一次性、已触发，淡入 handler 永不跑→Opacity 永久卡 0→贴图 `vis=True` 却完全隐形。8 个 FadeIn 调用者唯 PinWindow 在 ContentRendered 内调（其余 Show 前调、IsLoaded=false 走订阅路径不受影响）。修：`if (w.IsLoaded) { StartFade(); return; }`（局部函数名 StartFade 避开下方非分层分支的 Start，否则 CS0136）。**e2e 核验**：trace `pin shown opacity=1.00`。
+- **⑤ 自定义提示消失时间**：`ToastRow` 预设芯片外补自定义秒数输入框（写 `AppSettings.ToastSeconds`）。**核验**：设置截图显示「3.2 秒」输入框。
+- **附带·测试脚本隔离**：护栏 `e2e:tap-semantics` 场景3 稳定 FAIL（frames=-1）。`git stash` 回干净 HEAD 跑出**完全相同**签名→确认非本次改动引入。根因：场景间用 `keyw`(PostMessage，不触发 WPF Esc) 关窗，上一场景编辑器关不掉→下一场景 edit.lastvideo 复用旧窗、不再产生 `open editor frames=` trace。修：场景间 `Restart-App` 隔离（各场景本应独立）。修后 hold600=9 帧、hold1300=47 帧（按住越久帧越多，正是点按/按住语义）、PASS。
+- **验证**：构建 0 错；**SelfTest 405 绿**（GestureProbe 补 BeginBinding）；护栏 **PASS FAIL=0 SKIP=1**（10 项，含修好的 tap-semantics）；配置恢复完好（4 手势、globalAfter=toast、ToastSeconds=3.2）。
+
+---
+
+**R158 · 全站 UI 现代化 + PCL2 式「QQ 弹弹」动效（用户指令：UI 太平像老工具、要现代感 + 到处弹弹；标题全不带前缀）**
+- **标题全不带**：设置窗自绘标题「设置」、帮助「使用速查」（原带「FrameCapture」前缀）；识别文字/手势配置本就无前缀。OS `Window.Title`（任务栏/Alt+Tab）保留前缀作品牌。
+- **动效地基（Fluent.cs）**：新增 `Motion.SpringMs=260`、`Spring(amp)`（BackEase EaseOut）、`AnimateScale(el,to,ms,ease)`（默认 CubicEase、可传 Spring）、`Elevate(b,blur,depth,opacity)`（DropShadow 卡片投影，深/浅主题分别 0.55/0.26）、`Springy(el,hover,press)`、`Lift(b,dy)`（hover 上移，安全用于整宽卡片不横向越界）、`PopIn(el,from,ms)`（scale from→1 + Spring 弹入）。
+- **到处弹弹（IconButton/ChipHover 全局生效）**：IconButton hover→1.08 Spring(0.4)、按下→0.9、松手→1.08 Spring(0.7)、离开→1；ChipHover 同款。编辑器/贴图/toast/标题栏/选区所有图标按钮 + 色块芯片自动获得弹性。
+- **设置窗层次**：快捷键卡 `keyCard`、手势卡 `geBtn` 加 `Elevate(24,6)`；geBtn 加 `Lift` hover 上浮；导航选中条 selBar 加 accent 辉光 DropShadow（BlurRadius 9）。
+- **Toast/Welcome 弹入**：CaptureToast、WelcomeToast `ContentRendered→Fluent.PopIn(card)`（scale 0.85→1 弹性登场）。
+- **菜单弹性入场**：ContextMenu 模板根 Border 加 Loaded 触发器——Opacity 0→1（Cubic 110ms）+ Scale 0.92→1（BackEase 0.45、200ms、从锚点左上角 `RenderTransformOrigin 0,0` 弹出）。pin 右键菜单/托盘菜单都会「弹开」。
+- **控件弹性**：滑块拇指 hover 13→16 改 BackEase 0.6（弹出）；开关 SlideToggle 过冲 BackEase 0.35→0.5（更 QQ）；手势配置器「组合键」录键框加 hover 强调色描边（可点提示，`!_capturing` 守卫不干扰捕获态）；手势配置器下拉框弹层加弹性缩放入场（`DropDownOpened` 驱动 0.94→1 BackEase 0.45、`FindName`/`is Border` null 守卫优雅降级，与 ContextMenu 同款手感；设置窗无下拉框故全站下拉仅此一处）；OCR 结果窗「复制全部」按钮加 `ChipHover(1.05)` 弹性（此前是静态 accent 块无反馈）；设置「试听」按钮加 `ChipHover(1.04)`（原有 hover 背景+焦点边框，补缩放与全站芯片一致）；外观页「强调色」色片加 `ChipHover(1.12)`（此前仅光标变手型、零反馈，与编辑器色板同款缩放弹性、色片小故取 1.12 介于色板 1.18 与按钮 1.04 之间）；产物页保存路径「更改」文字链接加 hover 才显下划线（默认干净、悬停才提示可点，比常驻下划线克制；文字链接不用缩放以免字糊）。
+- **焦点态一致性（指令④）**：系统排查设置窗所有可聚焦元素（`Focusable=true`）的焦点环——toggle track、各主题/选项 chip、试听按钮本就配同款 accent 焦点环（`GotKeyboardFocus`→accent 描边、`LostKeyboardFocus`→还原）；本轮补齐此前缺环的两处：① 强调色色片（可 Tab 聚焦+Enter 开取色，却无可见焦点态）；② 左侧导航项（可 Tab 聚焦+Enter 切页，却只有鼠标 hover 才有的背景、键盘用户 Tab 时看不到焦点落在哪）。至此设置窗可聚焦元素焦点环全覆盖、与全站 accent 焦点态一致。手势配置器录键框（`_chordBox`，可 Tab 聚焦+Enter 录键）同样补焦点环——因其 hover 改描边，改用 hover+focus 共用一套刷新（任一成立即 accent，避免 MouseLeave 误清焦点环）；绑定列表是 `ListBox` 键盘可达无缺口，「启用」开关是鼠标专属 StackPanel（补键盘可达需改 track 视觉，次级界面暂不动）。
+- **时间轴播放头现代化（编辑器细节）**：旧播放头是「白色竖线 + 顶部下三角」（PR 指针），三角在深色工具条上偏「老工具」味。改为「细竖线 + 顶部圆形旋钮」——旋钮 8px `Theme.Text` 填充 + `Theme.PanelBg` 描边留白环（与设置窗滑杆圆点同族的现代滑块语言），竖线起点下移到旋钮下方成「棒棒糖」指针，精确对帧不变。颜色仍跟 `Theme.Text`（R19 浅色主题逐帧审查教训：纯白在浅色面板会隐身）。`Show→DrawRange` 每帧重绘，播放/拖动实时跟随。UICap 实拍核验旋钮落位、留白环清晰。
+- **设置窗逐页复查（R68 核验轮，无改动）**：实拍快捷键/外观/系统三页确认已现代化——导航选中=accent 卡片+左侧竖条+图标/文字 accent 变色、hover 灰卡片；快捷键页 keyCard 浮起+键位 accent 右对齐；外观页主题分段控件（选中 chip accent 实心反白）+ 强调色色片 ChipHover；系统页开关 track+knob 现代态。未发现「太平/老工具」残留，不强改。
+- **OCR 结果窗文本框圆角（评估后主动跳过）**：该窗是圆角 12 卡片内嵌一个方角 TextBox，与设置窗「自定义秒数」输入的「无边框 TextBox 套圆角 Border」语言不一致。但①大文本区方角是常见合法设计、②套圆角 Border 后滚动条方角会在圆角处露出（ClipToBounds 只裁矩形不裁圆弧）、③OCR 结果模式在本沙箱环境跑不起来（WinRT OCR 载不了 Microsoft.Windows.SDK.NET），无法截图核验——属「不可核验的视觉改动」，按纪律不 ship。若日后用户在正常环境测出确需圆角，再连同滚动条内衬一并处理。
+- **手势配置器开关键盘可达（R69，指令④焦点态）**：`MakeToggle`（启用手势层/独占吞键/启用此绑定）此前是鼠标专属 StackPanel（`MouseLeftButtonDown→Flip`，不可聚焦），键盘用户 Tab 遍历时这三个开关是缺口。照搬设置窗开关同款：track `Focusable=true` + `KeyDown`（空格/Enter→Flip）+ 常驻 1px 边框做焦点环（`GotKeyboardFocus`→accent、`LostKeyboardFocus`→还原 `on?accent:stroke`，`focused` 标志避免鼠标切换时把焦点环刷掉）。OFF 态焦点环 accent 可见、ON 态与填充同色（与设置窗开关同一已知取舍，靠旋钮位置表意）。绑定列表是 `ListBox` 本就键盘可达；选中项 accent 底 + 黑字（`ItemStyle` 的 `#FF000000`，实测黑字在 #7F75FF 上对比约 5:1、可读）。构建 0 错、护栏 PASS；开关渲染核验无破版（1px 边框仅给 OFF 态加一圈淡描边、与设置窗一致）。
+- **延时倒计时数字弹入（R70，指令②弹性/③进出场）**：`CountdownWindow.SetNumber` 此前只 `Text=n.ToString()`，3→2→1 干巴巴换字、像老工具。改成每个数字弹入：`ScaleTransform(0.6→1.0)` + `BackEase(Amplitude 0.55, EaseOut)` 过冲、时长 `Motion.SpringMs`，与下拉/Toast PopIn 同款手感；`RenderTransformOrigin=(0.5,0.5)` 居中缩放。**核验方法**：倒计时窗 WDA 排除、UICap 默认拍成全黑，但它认 `FC_TOAST_NOEXCLUDE=1`（跳过排除）→ 用该环境变量重启 `--delay` 即可拍；连拍 30 帧量 accent 数字像素高度，见 `40→52→50→49`（小→过冲→落定）与 3→2 处 `47→52`，弹跳坐实、数字全程可读。构建 0 错、护栏 PASS。
+- **贴图右键菜单快捷键改右对齐（R71，指令⑤简洁少字）**：`PinWindow.ShowMenu` 此前把快捷键塞进标签括号——「复制 (Ctrl+C)」「旋转 90° (R)」「更新内容 (F3)」「关闭 (Esc)」，正是用户嫌的「括号里的字」。改成 Windows 菜单惯例：标签只留动作名，快捷键走 `MenuItem.InputGestureText` 右对齐淡字。为此给 `Fluent.MenuResources` 的 MenuItem 模板加一列 `Text="&#123;TemplateBinding InputGestureText&#125;"`（Column 2，TextDim 11px，箭头挪到 Column 3；无快捷键的项该列零宽、不位移）。顺带补上此前没显示的 Ctrl+S（另存为）/Ctrl+O（识别文字）。**「关闭全部贴图 (N)」的 (N) 是数量不是快捷键、保留**（破坏性批量操作前给个确认数）。
+  - **踩坑**：菜单 XAML 在 C# 内插原始字符串 `$"""` 里，`{TemplateBinding}` 被当 C# 插值（CS1073）；`{{}}` 又报 CS9006（原始串要更多 `$` 才允许连续左括号）。正解是 XML 字符实体 `&#123;`/`&#125;`——XML 解析先解码成 `{`/`}`，XAML 再当标记扩展，且不含字面左括号、C# 不插值。
+  - **核验**：贴图 `AllowsTransparency` 但**无 WDA 排除**，故 `UICap desk`（整屏）能拍到它和它的菜单（`win` 按标题拍分层窗仍黑）。剪贴板塞图→`--pin-clip`→`Shot rclick` 贴图中心→desk 拍→裁菜单：实测快捷键全部右对齐淡字、标签无括号、不透明度带 ▶ 子菜单箭头、(1) 计数保留。T12 兜底菜单模板可解析。构建 0 错、护栏 PASS。
+- **托盘菜单去括号赘述（R72，指令⑤简洁少字）**：`TrayService.ShowMenu` 是常驻高频入口，却满是解释性括号——「立即捕获（按当前范围）」「滚动截图（长图）」「暂停全局热键（游戏/演示时）」「以管理员身份运行（防遮挡）」，正是用户嫌的「括号里的各种字」。删掉这 4 处解释性括号（信息在帮助/设置里都有，标签本身已自明）。**「延时截图（3 秒）」保留**——它是动态数值不是赘述，与贴图「关闭全部贴图 (N)」同一惯例（括号只留给有用的动态数字，不留给解释性文字）。
+  - **新增 `--tray-menu` 调试入口**（`ShowMenu` 改 public + App.xaml.cs 一条，与 `--settings`/`--help`/`--gesture` 同列；用户也可绑热键唤出）。菜单 `Placement=MousePoint`、锚窗无 WDA 排除 → 先把光标 `Cursor.Position` 挪到安全点再启动，`UICap desk` 即可拍到整张托盘菜单。实拍核验：4 处括号已删、「延时截图（3 秒）」保留、分隔线分组清晰、菜单圆角卡片正常。构建 0 错、护栏 PASS。
+- **滚动截图控制条 QQ 弹弹（R73，指令②弹性）**：`ScrollHintWindow` 卡片/淡入本就不错，但两处「太平」——① 进度「已拼接 N 段」每拼接一段干换字、无反馈；② 完成/取消按钮 hover 只是 `Opacity 0.88` 淡出（变淡像退后，正是老工具味）。改：① `SetProgress` 段数变化时数字弹一下（`ScaleTransform 0.72→1.0` + `BackEase 0.5`，`Motion.SpringMs`，右缘锚定 `RenderTransformOrigin=(1,0.5)` 不撞标题），滚动拼接时每段「啵」一下，同倒计时数字弹入；`_lastSegs=1` 对齐初始态、首帧不弹。② 按钮改用 `Fluent.Springy(hover 1.05, press 0.94)`（hover 放大、按下回缩、松手 BackEase 弹回），删掉模板里的 opacity 触发器。
+  - **新增 `--scroll-hint` 调试入口**（App.xaml.cs，与 `--delay` 同列）：主屏中央造个区域直接 `Show()` 控制条 + `DispatcherTimer` 每 850ms 递增段数模拟拼接（不启动真实滚动捕获），`OnDone/OnCancel=CloseSelf`。控制条 WDA 排除但认 `FC_TOAST_NOEXCLUDE=1` → 用该环境变量启动即可拍。
+  - **核验**：`--scroll-hint` + `FC_TOAST_NOEXCLUDE=1` 启动。按钮 hover——`Cursor.Position` 移到「完成」上、`UICap desk` 拍，按钮明显放大（1.05 生效）。进度弹——连拍 34 帧量 accent 数字像素高度，见 `20→15→20`（15≈0.72×20 弹起点，落回 20），弹跳坐实。构建 0 错、护栏 PASS。
+- **截图浮窗 hover 描边亮起（R74，指令①hover 反馈）**：`CaptureToast` 整张卡片可点→进编辑器（`Cursor=Hand`、`MouseLeftButtonUp` 触发 onEdit），但卡片本身 hover 毫无反应——只有手型光标、卡片不响应，正是「太平」。改：hover 时描边从淡灰 stroke 动画亮起强调色（`ColorAnimation` → `Theme.Accent`，`Motion.HoverMs`），离开 160ms 淡回。把「点我标注」的可点性显出来，且只改描边颜色、不动几何（不用 Lift/缩放，避免 SizeToContent 窗里投影被裁）。
+  - **核验**：`FC_TOAST_NOEXCLUDE=1` 启动→`Ctrl+Alt+A`→拖框→浮窗弹出→`Cursor.Position` 移到浮窗中心（hover 暂停自动消失）→desk 拍：描边明显紫色强调色；再把光标移开重拍：描边淡回灰。hover 触发、非长亮，坐实。构建 0 错、护栏 PASS。
+- **首启欢迎卡按钮弹性 + `--welcome` 入口（R75，指令②弹性 / 首因体验）**：`WelcomeToast`（首启弹一次，新用户头一眼）卡片/PopIn/强调色热键行都好，但「查看帮助与全部快捷键」按钮还挂着旧的 `RoundedBtnTemplate` hover `Opacity 0.88` 淡出（同滚动控制条旧毛病）。改：删模板里的 opacity 触发器，代码里 `Fluent.Springy(hover 1.05, press 0.94)`，与全站按钮统一。
+  - **新增 `--welcome` 调试入口**（App.xaml.cs，与 `--settings`/`--scroll-hint` 同列）：直接 `WelcomeToast.Show(CaptureKeyText(), ScopeKeyText())`，**不写 `FirstRunHintShown`**（纯查看、不消耗用户首启状态）。借此把首因界面完整审了一遍：标题「FrameCapture 已就绪」+ 两行强调色热键（截图 Ctrl+Alt+A / 选区 Ctrl+Shift+R）+ `·` 分隔的简短手感提示 + 强调色按钮——干净现代，新用户一眼知道按什么键。（标题带 FrameCapture 属首启问候语、非重复标题栏，命名 App 正当，保留。）
+  - **核验**：`--welcome` + `FC_TOAST_NOEXCLUDE=1` 启动。按钮弹性——光标移开拍基线、移到按钮上拍 hover，量 accent 按钮像素宽 `223→235`（1.054×≈Springy 1.05），放大坐实。构建 0 错、护栏 PASS。
+- **编辑器工具条浮起投影（R77，指令①层次，撤销旧「刻意跳过」）**：编辑器底部工具条 `Panel(tools)` 只靠 1px 顶边（stroke 0x66）与画布分隔，截到深色画面时几乎融为一体、显「太平」（此前把「工具条投影」列为刻意跳过，但实拍确认确实糊成一片，值得做）。改：给 `_toolPanel` 加**向上**投影 `DropShadowEffect{Blur 20, Depth 6, Direction=90, Opacity 暗0.6/亮0.3}`（与 `Elevate` 同族、方向朝上投到画布上）。画布底色恒为深 `0x14`，故暗底用较浓投影、亮底较淡。
+  - **核验**：拖一段含浅色任务栏的区域→进编辑器→`UICap win` 拍。量工具条上缘竖向亮度：画布 `20→12` 平滑变暗约 20px（向上投影渐变），紧接工具条浅色顶边（62）与条底（41）——工具条从画布「浮起」、不再融为一体，坐实。浅色主题下工具条本就浅色、与深画布强对比，投影不抢戏。构建 0 错、护栏 PASS。
+- **浮层卡片统一投影（R78，指令①层次 + ④一致性）**：编辑器取色弹层 `_colorPop`、粗细弹层 `_widthPop`、设置强调色弹层 `_accentPop` 三处 `Popup.Child` 都是「PanelBg 圆角卡 + 1px 描边」的平卡、无投影，贴在画布/窗口上显「太平」。新增 `Fluent.PopupCard(content, innerPadding?)`：内层 PanelBg 圆角卡 + 柔和投影（Blur 16/Depth 4/暗0.45·亮0.22），外层透明留白 Padding 18 给投影腾渲染空间——**Popup 按子元素 DesiredSize 开分层窗、Effect 不参与布局，投影直接挂内层会被窗缘裁掉**，外层 Padding 撑大 DesiredSize 投影才有地方画；外层不设 Background（null）→ 留白处点击穿透，`StaysOpen=false` 点卡片外仍正常关闭。三处弹层改用同一 helper。
+  - **核验**：设置→外观→点强调色色片开取色弹层，`UICap desk` 拍。卡片四周出现柔和暗晕（投影、未被裁）、与色片之间留出干净间隙——浮层从窗口「浮起」，坐实。编辑器取色/粗细弹层走同一 helper，同效。构建 0 错、护栏 PASS。
+- **分段选择芯片补 hover（R79，指令②弹性 + ④一致性）**：设置「截图」页三组分段芯片——取色格式（HEX/RGB/HSL）、悬浮窗存在时间（常驻/2秒/…）、延时截图（关/1秒/3秒/…）——此前只有手型光标 + 键盘焦点环 + 选中态，**悬停零视觉反馈**（实拍 hover 前后逐像素 diff=0 坐实）；而同页/外观的主题芯片（跟随系统/浅色/深色）却有 hover 底色动画，不一致。给三组芯片各加 `Fluent.ChipHover(chip, 1.06)`：hover 放大 1.06、按下缩 0.9、点击回弹（scale 走 RenderTransform，与选中态改 bg 互不冲突；1.06 增幅约 1.5px/边 < 芯片间 4px 间隙，相邻不压边）。
+  - **核验**：设置→截图→光标移到「5秒」芯片，`UICap win` 拍基线/hover 两帧逐像素 diff：芯片边缘 454px 变化（放大所致），hover 反馈坐实。构建 0 错、护栏 PASS。
+- **hover 反馈扫尾（R80，指令②弹性 + ④一致性）**：顺着 R79 的线索把设置窗里所有「可点但悬停零反馈」的控件补齐——
+  - **录制格式芯片**（GIF/MP4/WebM，「录制」页）：同 R79 分段芯片，加 `Fluent.ChipHover(chip, 1.06)`。核验：光标移到「GIF」，逐像素 diff 357px（边缘放大）。
+  - **「截图提示音」开关**：这是页内手写开关，此前只有手型光标 + 焦点环，缺主 `ToggleRow` 的 hover 边框提亮。抽出 `Fluent.ToggleBorderHover(track, isOn)` helper（与主开关内联同款：进入边框 alpha +0x60、离开还原 on=accent/off=stroke），本开关调用之，与全站开关一致。
+  - **「保存位置」路径**（「产物」页）：整行可点弹文件夹选择器，但路径文字悬停无反应（仅右侧「更改」链接有下划线 hover）。加 `stack` 的 MouseEnter/Leave 把路径文字 TextDim↔Text 提亮，提示这块也能点。核验：光标移到路径，逐像素 diff 1623px，取样点 142→231（暗→亮）坐实。
+  - 构建 0 错、护栏 PASS。
+- **设置整页卡片化（治「太平」主招）**：新增 `Cardify(panel)`——把截图/录制/产物/编辑器/贴图/外观/系统 7 个纯行页的所有设置行整体移入一张浮起卡片（沿用快捷键页 keyCard 模式：CardBg + 描边 + Elevate），与快捷键页视觉统一、不再裸铺深色背景。快捷键页自带卡片不调。截图核验录制页/截图页（FPS 滑杆、格式/取色/时长芯片、自定义秒数输入、试听按钮等复合行均适配良好）。卡片规格与快捷键页 keyCard 对齐（圆角 6、实描边、Elevate 24/6），切页时卡片圆角/描边/阴影深浅不再跳变。
+- **简洁少字（用户新反馈：别让老用户被括号里的各种字烦）**：全面清理**常驻可见**文案的括号赘述。手势配置器：章节标签（组合键/动作序列/完成后序列/截图后/优先级）、触发下拉（轻点/按住/松手/组合键，去「（短按即松）」等——10 项仍两两不同非空且含宿主核心词，T151/T155 绿）、列表占位（无动作/未设键）、录键框占位（点击设置）、校验语（手势层当前关闭）、截图后下拉（跟随默认）。动作目录标签「开始/停止录制（同键起停）」→「开始/停止录制」、「打开编辑器（上次录制）」→「打开编辑器」（同步 SelfTest T150a；描述里对旧标签名的引用一并更新）。设置窗快捷键页描述与手势配置器入口按钮去括号；截图页「截图后」行常驻提示「已移至「手势配置器」，每条手势可单独设置」→「见手势配置器」（详细说明留 tooltip）。**tooltip（hover）保留详细说明**（非常驻、非「看久了」）；帮助窗为教程文档暂留成段文字。截图核验手势配置器/设置快捷键页均已干净精简。
+- **验证**：构建 0 错；**SelfTest 405 绿**；护栏 **PASS FAIL=0 SKIP=1**（三轮，含菜单/滑块/开关、强调色色片/更改链接批次）；XAML 运行时解析核验（PowerShell 加载程序集调 `Fluent.MenuResources()`/`StyleSlider()` 不抛，Count=3/模板 OK）；截图核验设置（卡片浮起+导航辉光）、编辑器（IconButton 弹性、布局未动）、toast（PopIn 落定态卡片正常）。选区窗 PrintWindow 拍全黑（已知分层快照限制、非 bug）。编辑器工具面板 `Panel()` 本就有顶部 1px 分隔线、未强加 DropShadow（避免整块位图渲染糊化图标）。**Release 构建端到端实拍**：F2 录制手势流→编辑器（时间轴+工具条两行结构清晰、色板选中带环、图标等距）；Ctrl+Alt+A→选区窗→拖框→截图→toast 弹出（rect 432×99）——两条捕获路径均正常；toast 亦为分层合成窗、PrintWindow 拍全黑（同选区、非 bug）。
+- **未提交**：R157+R158 全部改动待用户确认后提交（工作区脏）。
+
+---
+
+**R81–R84 · 全站 hover/press 反馈核验扫尾 + 交付就绪快照（无代码改动）**
+- **核验轮（R81–R83，指令②④）**：顺着 R79/R80「可点却零反馈」的线索，把剩余界面逐处过了一遍，**未发现新缺口**（故无改动，符合「不强行改不可核验/边际项」纪律）：
+  - 设置 8 页逐页实拍：每个可点控件都有 hover（R79/R80 已补齐 4 组分段芯片 + 截图提示音开关 + 保存路径）。编辑器/贴图/系统页内容少（1–2 开关）但开关均有 hover，留白是设置项本就少、非缺陷。
+  - 切页动效 `ShowCat`：已是 PCL2 级（旧页淡出 EaseIn + 新页淡入并上浮 12→0 + 标题随正文淡入 + 导航强调色/图标/竖条同步过渡 + 重复点同页不重播）。
+  - 编辑器交互元素（grep 全量交叉核对）：工具/调色板/线宽/⋯/字号 A−A+ 全走 `IconButton`（hover+press）；色片、最近用色走 `ChipHover`；选中工具走 `HighlightBtn`（accent 底 + 图标反白，StateMs 淡变）。画布底色恒深 `0x14` 是图像编辑器惯例（工具面板本身走 `Theme.PanelBg` 随主题），非 bug。
+  - 标题栏关闭钮（共享 `Fluent.TitleBar`→`IconButton`）hover+press 齐全；全局 `ScrollBarStyle` 已是现代细圆角无箭头样式（设置/帮助/OCR 共用）；选区窗提示「拖框选择 · 悬停点击吸附窗口 · Esc 取消」点号分隔无括号赘述。
+- **交付就绪快照（R84，用户 20:30 回来测）**：Release **pid 9476** 运行中，跑的就是 R80 护栏 PASS 的二进制（staging 20:05:10，之后无代码改动、无需重发布）；配置完好（4 手势、启用手势层/独占吞键 True、accent #7F75FF、theme system、afterCapture toast、delay 3、悬浮窗 3.2 秒）；工作区无残留临时截图；未提交改动 = R69–R82 全套打磨（28 文件）。
+- **沙箱边界（非 bug）**：选区窗/悬浮 toast/编辑器实机这三处，合成热键触发不了（手势层低级钩子按安全惯例忽略注入输入；护栏 e2e 的应用内捕获正常）。它们已在 R74/R77/R78 目视核验过，本轮补做代码级复核无新问题。
+- **两处待用户定夺**：① 帮助窗 A 精简成短句 / B 保持成段教程（倾向 B，读完即关的文档）；② tooltip 是否也精简（倾向保留，非常驻）。
+
+---
+
+**R95 · 稳定性核验：error.log 历史异常均已修复，今日运行零新异常（无代码改动）**
+- 用户尚未开测（settings.json 仍停在 20:04:59 护栏还原态；error.log 最后写入停在昨天 10-12 22:01，今日 pid 9476 这次运行**没有落任何新异常**）。趁空把 error.log 里最近两条异常查了根因，确认**当前源码都已修**、非本轮打磨引入：
+  - **10-12 03:45 `ObjectDisposedException: Cannot access a closed file`**：栈是播放 `DispatcherTimer.Tick → EditorWindow.Show→Bmp→FrameSpoolList[i]→FileStream.Seek`（读已关 spool）。现码 tick 首行 `if (_userClosed || _seq.Frames.Count==0) return;`（[EditorWindow.cs:120](src/FrameCapture/Overlays/EditorWindow.cs#L120)，注释「R61 磁盘 spool 后读已关文件会抛」）+ 两条关闭路径都 `_playTimer.Stop()`（:144/:1241）。DispatcherTimer 与 Closed 同在 UI 线程、tick 不会与关闭交错，守卫充分。
+  - **10-12 22:01 `XamlParseException 无法从文本"SelectionBoxItem"创建"DependencyProperty"`**：开手势配置器时 ComboBox 模板解析抛。旧写法把 `SelectionBoxItem` 当字面串/`Setter Property`；现码 [EditorStyles.cs:38-39](src/GestureEditor/EditorStyles.cs#L38-L39) 已用正确的 `{Binding SelectionBoxItem, RelativeSource=…}`，grep 全仓无残留坏形。
+- **结论**：运行中的 Release（今日 20:05 从含上述修复的源码构建）稳定；这两条是历史遗留、已闭环，无需再动。TODO 里「error.log 偶发 ObjectDisposedException（待查）」实为已修（R61），可视为已闭环。
+
+---
+
+**R160 · 修「截图抢焦点→截到别的软件」（用户反馈：截浏览器时因切焦点截到了另一个软件）**
+- **根因**：选区窗打开时 `ForceForeground(_picker)` + `Activate()` + `Keyboard.Focus(this)` 抢前台，把焦点从目标窗（浏览器）夺走、前台/Z 序随之变，选区关闭后 `LiveCapture.Grab(region)` 抓到的是被顶到前面的另一个窗。
+- **修法（QQ/Snipaste 同款：选区窗不激活）**：`ShowActivated=false` + SourceInitialized 里加 `WS_EX_NOACTIVATE`，去掉 ForceForeground/Activate/Keyboard.Focus——选区窗 Show 与鼠标按下都不激活，前台焦点始终留在目标窗。选区窗的 Esc/Enter/C/F/Tab 改由常驻 `WH_KEYBOARD_LL` 全局钩子代收（`HotkeyManager.PickerActive`/`PickerKey`，与滚动截图控制条、悬浮 toast 同一套代收模式），键经 `Dispatcher.BeginInvoke` 转干净调度回合执行；`OnPickerKey` 只认裸键（Ctrl/Alt/Win 组合放行给手势与前台），Closed 里清零 PickerActive/PickerKey 绝不泄漏成"全局键失灵"。编辑器仍 `ForceForeground`（用户要编辑，理应拿焦点）。
+- **验证**：Debug 实拍——`--picker`（新增调试入口）开选区窗后 `ex=0x08080008`（WS_EX_NOACTIVATE 已置）、窗可见且 Topmost，但 `GetForegroundWindow` 仍是别的窗（非 FrameCapture）＝不抢焦点；`Shot hkm 27`（Esc）经全局钩子关闭选区窗＝代收生效。构建 0 错；**SelfTest 405 绿**；护栏 **PASS FAIL=0 SKIP=1**（focus-safety 前台保护本因 SKIP，与基线一致）；e2e 里真实 Ctrl+Shift+G 触发选区窗（`pk=rect 0,0 3840x2160`）通过。重发布 staging 21:17:24 → 重启 Release pid 63548；用户配置完好（4 手势、启用/独占 True、accent #7F75FF、区域保留）。
+- **未提交**：R157+R158+R160 全部改动待用户确认后提交（工作区脏）。

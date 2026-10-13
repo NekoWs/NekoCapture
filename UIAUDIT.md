@@ -82,3 +82,28 @@ B1 主题化悬浮条 → C1/C2 状态语义 → A1/A2 入退场 → A3-A5 → B
   `Close()`——同一窗口两种退场手感，且与入场动效（EditorEnter240）不对称。三处统一为 CloseWithFade。
   取证：EDITOR-KEYS PASS（Enter→Commit→淡出后 window-not-found + 剪贴板三格式）；OUTLINE-LIFECYCLE PASS
   （Esc 淡出路径 + 捕获链路）；SelfTest 85/85。
+
+## 全站 UI 现代化 + PCL2 式「QQ 弹弹」+ 简洁少字（2026-10-13 夜间长跑 R69–R82）
+北极星「超过 QQ 截图、人人都爱用」。用户反馈「UI 太平、像很老的工具」→ 要现代感 + 到处弹性微交互；「要的 UI 风格是简洁少字的，防止老用户被括号里的各种字烦」。逐界面推进，每处=构建 0 错 + 截图核验 + 护栏 PASS（下限 405）。详细逐轮记录见 PROGRESS.md 末尾。
+
+### 动效地基（Core/Fluent.cs）
+- [x] `Motion` 令牌（SpringMs260/Enter/State/Exit/Hover/Theme）+ helper 族：`Spring`/`Elevate`（卡片投影）/`Springy`/`Lift`/`PopIn`/`ChipHover`/`HighlightBtn`/`IconButton`/`PopupCard`（浮层投影，外层透明 Padding 给 Popup 投影腾渲染空间）/`ToggleBorderHover`
+- [x] 全局 `ScrollBarStyle`（10px 细、圆角滑块、无箭头、hover 加深）、`MenuResources`（ContextMenu 弹开 + MenuItem 快捷键右对齐列）、`TitleBar`（共享自绘标题栏，关闭钮 IconButton）
+
+### 逐界面（hover/press 弹性 + 层次 + 简洁）
+- [x] **设置窗**：切页交叉淡入+上浮 12→0、导航 accent 卡片+竖条滑动+辉光、4 组分段芯片 `ChipHover(1.06)`（取色格式/悬浮窗时长/延时截图/录制格式）、开关 `ToggleBorderHover`、强调色色片/试听/更改链接/保存路径 hover 反馈、7 页整体卡片化、可聚焦元素焦点环全覆盖
+- [x] **编辑器**：工具条向上投影、三处浮层 `PopupCard` 投影、全部动作按钮（工具/撤销重做/保存复制/导出/钉图/OCR/播放/确定取消/置顶设置帮助）`IconButton`、色片与最近用色 `ChipHover`、选中工具 `HighlightBtn`（accent 底+反白，StateMs）、时间轴播放头改现代圆旋钮
+- [x] **贴图**：右键菜单快捷键走 `InputGestureText` 右对齐、去解释性括号（保留「关闭全部贴图 (N)」计数）、菜单弹开
+- [x] **托盘菜单**：删 4 处解释性括号（保留「延时截图（3 秒）」动态数值）、菜单弹开、`--tray-menu` 入口
+- [x] **手势配置器**：章节标签/触发下拉/占位/校验语去括号、录键框 hover+focus 共用 accent 描边、下拉弹层弹性缩放入场、开关键盘可达+焦点环
+- [x] **toast/欢迎/倒计时/滚动提示**：`PopIn` 弹入、截图浮窗 hover accent 描边亮起、倒计时/拼接段数数字 `BackEase` 弹入、按钮 `Springy`、`--welcome`/`--scroll-hint` 入口
+- [x] **标题栏文字全不带** `FrameCapture` 前缀（设置「设置」/帮助「使用速查」/识别文字/手势配置；OS `Window.Title` 任务栏/Alt+Tab 保留前缀作品牌；首启欢迎「FrameCapture 已就绪」属问候语保留）
+
+### 待用户定夺（open，回来测后拍板）
+- [ ] **帮助窗**：A 精简成短句 / B 保持成段教程文档（倾向 B——读完即关、非常驻，不属「看久了被烦」的常驻文案）
+- [ ] **tooltip**：hover 详细说明是否也精简（倾向保留——非常驻、非「看久了」，常驻界面已够简洁）
+
+### 已知边界（非 bug）
+- D5 选区吸附/拖框态需真鼠标人工核验（自动化边界外）
+- 选区窗/悬浮 toast/编辑器实机：沙箱内合成热键触发不了（手势层低级钩子按安全惯例忽略注入输入；护栏 e2e 的应用内捕获正常）→ 已代码级复核 + R74/R77/R78 历史目视核验
+- OCR 结果窗文本框圆角：WinRT OCR 在本沙箱载不了 `Microsoft.Windows.SDK.NET`、不可核验 → 按纪律不 ship，留待正常环境
