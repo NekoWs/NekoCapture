@@ -47,7 +47,7 @@ public enum TriggerKind
 /// 引擎不内置任何宿主语义（用户明确要求：复用库里失败策略是每条绑定的数据，而非硬编码）。</summary>
 public enum FallbackPolicy
 {
-    /// <summary>中止本条绑定剩余动作，不再尝试其它绑定。</summary>
+    /// <summary>中止本条绑定剩余动作，也不顺延到其它绑定。</summary>
     Stop,
     /// <summary>跳过失败的这一步，继续本条绑定的后续动作。</summary>
     SkipStep,
@@ -62,20 +62,39 @@ public sealed class KeyChord : IEquatable<KeyChord>
     public ModifierKeys Mods { get; set; }
     public int Key { get; set; }
 
+    /// <summary>无参构造：默认无修饰键、无主键（<see cref="IsModifierOnly"/> 为 true），供对象初始化器与序列化框架使用。</summary>
     public KeyChord() { }
+
+    /// <summary>按修饰键与主键构造组合键。</summary>
+    /// <param name="mods">修饰键标志的按位或；<see cref="ModifierKeys.None"/> 表示裸键。</param>
+    /// <param name="key">不透明整型主键标识，0 = 纯修饰键组合。</param>
     public KeyChord(ModifierKeys mods, int key) { Mods = mods; Key = key; }
 
     /// <summary>组合键是否「无主键、仅修饰键」（如 Ctrl+Alt 按住待命）。</summary>
     public bool IsModifierOnly => Key == 0;
 
+    /// <summary>按值比较：修饰键与主键都相同即同一组合键，与实例身份无关。</summary>
+    /// <param name="other">待比较的组合键；null 视为不相等。</param>
+    /// <returns>修饰键与主键均相同时为 true。</returns>
     public bool Equals(KeyChord? other) =>
         other != null && Mods == other.Mods && Key == other.Key;
+
+    /// <summary>装箱形式的值比较，等价于 <c>Equals(KeyChord)</c> 重载；非 <see cref="KeyChord"/> 一律 false。</summary>
+    /// <param name="obj">待比较对象，可为 null。</param>
+    /// <returns>同为组合键且修饰键、主键都相同时为 true。</returns>
     public override bool Equals(object? obj) => Equals(obj as KeyChord);
+
+    /// <summary>与 <c>Equals(KeyChord)</c> 一致的散列：值相等的组合键散列必相等。</summary>
+    /// <returns>由 <see cref="Mods"/> 与 <see cref="Key"/> 混合出的散列码；溢出按 unchecked 环绕。</returns>
     public override int GetHashCode() => unchecked((int)Mods * 397 ^ Key);
 
     /// <summary>可读串（修饰键部分）。主键名由宿主经 <see cref="IKeyNamer"/> 提供，见 <see cref="Format"/>。</summary>
+    /// <returns>如 "Ctrl+Alt"；无修饰键时为空串。带主键时以 "#键码" 占位——这里没有命名器。</returns>
     public override string ToString() => Format(null);
 
+    /// <summary>格式化为可读串，修饰键在前、主键在后，以 "+" 连接。</summary>
+    /// <param name="namer">主键标识 → 可读名的宿主实现；传 null 时主键以 "#键码" 占位。</param>
+    /// <returns>如 "Ctrl+Shift+F12"；纯修饰键组合只返回修饰键部分；命名器返回空串时同样只剩修饰键部分。</returns>
     public string Format(IKeyNamer? namer)
     {
         string mods = ModifierKeysString.FormatMods(Mods);
@@ -88,19 +107,27 @@ public sealed class KeyChord : IEquatable<KeyChord>
 /// <summary>把不透明键标识映射为可读名（宿主实现；GestureCore 不内置任何键名表以保持中立）。</summary>
 public interface IKeyNamer
 {
+    /// <summary>键标识 → 显示名，仅用于界面回显，不参与任何匹配判定。</summary>
+    /// <param name="key">与 <see cref="KeyChord.Key"/> 同一编码体系的键标识，调用方保证非 0。</param>
+    /// <returns>可读键名（如 "F12"）；返回空串时 <see cref="KeyChord.Format"/> 退化为只输出修饰键部分。</returns>
     string Name(int key);
 }
 
 /// <summary>一条手势绑定：组合键 + 触发方式 + 动作序列 + 失败策略 + 优先级。</summary>
 public sealed class GestureBinding
 {
+    /// <summary>绑定标识，配置内唯一；引擎不解释其含义，只随整条绑定透传给 <see cref="IActionInvoker.BeginBinding"/>。</summary>
     public string Id { get; set; } = "";
+    /// <summary>触发本条的组合键；引擎按键值相等匹配，替换实例即换键。</summary>
     public KeyChord Chord { get; set; } = new KeyChord();
+    /// <summary>触发方式；同一组合键可同时存在多条不同触发的绑定，互不干扰。</summary>
     public TriggerKind Trigger { get; set; } = TriggerKind.KeyDown;
 
-    /// <summary>双击/三击判定窗口（毫秒）——可逐条配置（用户要求 DoubleClick 间隔可自定义）。</summary>
+    /// <summary>双击/三击判定窗口（毫秒），逐条可配。同一组合键多条绑定时取优先级最高那条的值，
+    /// 且优先取绑了 DoubleClick/TripleClick 的那条；都取不到时按 400。</summary>
     public int DoubleClickMs { get; set; } = 400;
-    /// <summary>长按判定阈值（毫秒）。</summary>
+    /// <summary>长按判定阈值（毫秒），兼作键盘轻点/按住（Tap/Hold/HoldRelease）的时长阈值。
+    /// 同一组合键多条绑定时取优先级最高且触发匹配的那条；取不到时长按按 500、键盘按住按 250。</summary>
     public int LongPressMs { get; set; } = 500;
 
     /// <summary>动作名序列（宿主经 <see cref="IActionInvoker"/> 按名执行）。</summary>
@@ -111,7 +138,7 @@ public sealed class GestureBinding
     public List<string> OnComplete { get; set; } = new List<string>();
 
     /// <summary>截图后行为：本条手势触发截图完成后的动作——"toast"弹提示 / "editor"进编辑器 / "copy"只复制 / "pin"贴图；
-    /// 空串＝跟随默认（弹提示）。仅对含截图动作的绑定生效。取代旧的全局 AfterCapture 设置——每条手势各配各的截图后行为。</summary>
+    /// 空串＝跟随默认（弹提示）。仅对含截图动作的绑定生效，逐条各配各的，引擎本身不解释取值。</summary>
     public string AfterCapture { get; set; } = "";
 
     /// <summary>本条绑定内某步失败时的处理策略（显式数据，非引擎硬编码）。</summary>
@@ -120,6 +147,8 @@ public sealed class GestureBinding
     /// <summary>同一触发命中多条绑定时的先后（小者先；相等按加入顺序）。「同键多绑定按优先级顺延」。</summary>
     public int Priority { get; set; }
 
+    /// <summary>深拷贝：新建 <see cref="Chord"/> 与两个动作列表，改副本不影响原绑定。</summary>
+    /// <returns>字段等值的新 <see cref="GestureBinding"/>；<see cref="GestureEngine.SetBindings"/> 入库时逐条走它。</returns>
     public GestureBinding Clone() => new GestureBinding
     {
         Id = Id,
@@ -139,16 +168,24 @@ public sealed class GestureBinding
 /// 抛异常等同失败。</summary>
 public interface IActionInvoker
 {
+    /// <summary>按名执行一个动作。宿主负责动作的真实实现与耗时，引擎只在触发线程上同步调用。</summary>
+    /// <param name="actionName">动作稳定标识，取自 <see cref="GestureBinding.Actions"/>
+    /// 或 <see cref="GestureBinding.OnComplete"/>。</param>
+    /// <returns>true=成功；false=失败，按该条绑定的 <see cref="GestureBinding.Fallback"/> 处理。抛异常等同失败。</returns>
     bool Invoke(string actionName);
 
     /// <summary>绑定开始执行前通知宿主：宿主可读取 b 的元数据（如 <see cref="GestureBinding.AfterCapture"/>）
-    /// 作为本次动作序列的上下文（截图完成时据此分派「截图后」行为）。在跑任何动作之前调用一次。实现应轻量、不抛。</summary>
+    /// 作为本次动作序列的上下文（截图完成时据此分派「截图后」行为）。先于本条的任何动作调用一次；实现应轻量、不抛。</summary>
+    /// <param name="b">即将执行动作序列的绑定。引擎已克隆过入库副本，宿主不应在此改写它。</param>
     void BeginBinding(GestureBinding b);
 }
 
 /// <summary>内部工具：把修饰键枚举格式化为 "Ctrl+Alt" 形式（供 KeyChord.Format）。</summary>
 static class ModifierKeysString
 {
+    /// <summary>修饰键 → 可读串，顺序固定为 Ctrl、Alt、Shift、Win，与入参置位顺序无关。</summary>
+    /// <param name="m">修饰键标志的按位或组合。</param>
+    /// <returns>以 "+" 连接的修饰键名；<see cref="ModifierKeys.None"/> 返回空串。</returns>
     public static string FormatMods(ModifierKeys m)
     {
         var parts = new List<string>();

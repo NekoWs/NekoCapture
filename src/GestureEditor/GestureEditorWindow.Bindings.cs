@@ -14,9 +14,16 @@ using GcMods = GestureCore.ModifierKeys;
 namespace GestureEditor;
 
 // 本 partial 承载绑定编辑交互：绑定增删改、详情编辑、组合键录键、校验与保存、列表刷新。
+/// <summary>
+/// <see cref="GestureEditorWindow"/> 的绑定编辑分部：左侧卡片列表的构建与三态刷新、右侧详情表单的逐条重建、
+/// 组合键录键状态机（<see cref="ChordCaptureBegan"/>/<see cref="ChordCaptureEnded"/> 通知宿主暂停/恢复钩子）、
+/// 以及校验驱动的保存按钮可用性。
+/// </summary>
 public sealed partial class GestureEditorWindow : Window
 {
     #region 列表（卡片化：边框+底色，选中/问题/禁用逐行自绘）
+    /// <summary>整表重建：清空后按 <c>_doc.Bindings</c> 顺序逐条建卡片，再统一刷三态。
+    /// 重建期间置 <c>_suppress</c>，避免 Clear/Add 把选中位冲掉。</summary>
     void RefreshList()
     {
         _suppress = true;
@@ -48,8 +55,8 @@ public sealed partial class GestureEditorWindow : Window
         return new BindingRow { Card = card, Head = head, Body = body, Enabled = b.Enabled };
     }
 
-    /// <summary>逐行刷三态：选中（accent 底 + OnAccent 字色）、问题（红框）、禁用（muted 灰字，不再加「已禁用 ·」前缀）。
-    /// 三态切换走 140ms 颜色过渡（此前直接换刷子，选中/取消选中颜色硬跳）。</summary>
+    /// <summary>逐行刷三态：选中（accent 底 + OnAccent 字色）、问题（红框）、禁用（muted 灰字，无文字前缀）。
+    /// 三态切换一律走 140ms 颜色过渡；底色/描边若是 <c>EditorPalette.B</c> 造的冻结画刷，AnimBrush 会直接换成目标色新画刷（这一次不过渡）。</summary>
     void PaintRows()
     {
         for (int i = 0; i < _rows.Count; i++)
@@ -96,6 +103,8 @@ public sealed partial class GestureEditorWindow : Window
     #endregion
 
     #region 详情
+    /// <summary>重建右侧详情表单：整段清空后按选中绑定重新搭一遍，控件在闭包里直接捕获这条绑定。
+    /// 不做增量同步——切换选中或改键后一律重建：每个控件的闭包与它编辑的那条绑定同源，不会错位。</summary>
     void ShowDetail()
     {
         _detail.Children.Clear();
@@ -119,7 +128,7 @@ public sealed partial class GestureEditorWindow : Window
         UpdateChordText();
         _chordBox.MouseLeftButtonDown += (_, _) => BeginCapture();
         _chordBox.KeyDown += (_, e) => { if (!_capturing && e.Key is Key.Space or Key.Enter) { BeginCapture(); e.Handled = true; } };
-        // hover 与键盘焦点共用一套描边刷新：聚焦或悬停任一成立即转 accent；改颜色过渡（此前硬切换生硬）
+        // hover 与键盘焦点共用一套描边刷新：聚焦或悬停任一成立即转 accent，140ms 颜色过渡
         void RefreshChordBorder() { if (!_capturing) AnimateColor(_chordStroke, (_chordHover || _chordFocus) ? _pal.Accent : _pal.Stroke, 140); }
         _chordBox.MouseEnter += (_, _) => { _chordHover = true; RefreshChordBorder(); };
         _chordBox.MouseLeave += (_, _) => { _chordHover = false; RefreshChordBorder(); };
@@ -145,7 +154,7 @@ public sealed partial class GestureEditorWindow : Window
                 {
                     int idx = i;
                     // 已配置动作行卡片化——与旁边动作下拉等高（MinHeight 34）、序号做成独立徽标、
-                    // 加边框+底色；此前是裸文本行「1. xxx」，太不显眼且序号和内容糊在一起。
+                    // 加边框+底色：裸文本行会让序号和内容糊在一起，也看不出这是一行可操作项。
                     var row = new Border
                     {
                         Margin = new Thickness(0, 2, 0, 2),
@@ -187,7 +196,7 @@ public sealed partial class GestureEditorWindow : Window
             foreach (var a in _catalog.Actions()) actCombo.Items.Add(new ComboBoxItem { Content = a.Label, Tag = a.Name, ToolTip = a.Description });
             if (actCombo.Items.Count > 0) actCombo.SelectedIndex = 0;
             var addAct = MakeButton(addLabel, ghost: true);
-            addAct.Margin = new Thickness(8, 0, 0, 0);   // 与下拉隔开边距（此前右外边距，按钮直接黏住下拉框）
+            addAct.Margin = new Thickness(8, 0, 0, 0);   // 左边距 8px：贴住下拉框会被读成同一个控件
             addAct.Click += (_, _) => { if (actCombo.SelectedItem is ComboBoxItem it && it.Tag is string n) { list.Add(n); Rebuild(); RefreshList(); RefreshValidation(); } };
             addRow.Children.Add(actCombo); addRow.Children.Add(addAct);
             root.Children.Add(addRow);
@@ -239,6 +248,7 @@ public sealed partial class GestureEditorWindow : Window
         return b.Actions.Any(caps.Contains) || b.OnComplete.Any(caps.Contains);
     }
 
+    /// <summary>「截图后」小节只在选中绑定的序列含截图类动作时出现；隐藏不删数据，配过的值仍留在绑定里。</summary>
     void UpdateAfterSec()
     {
         if (_afterSec == null) return;   // ShowDetail 首建期间（动作列表先于本段构建）
@@ -246,6 +256,7 @@ public sealed partial class GestureEditorWindow : Window
         _afterSec.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
     }
 
+    /// <summary>回显当前组合键：捕获中显示等待提示并转 accent，未设键显示占位文案，描边随捕获/悬停/聚焦转 accent。</summary>
     void UpdateChordText()
     {
         if (_selected < 0 || _selected >= _doc.Bindings.Count) return;
@@ -259,6 +270,8 @@ public sealed partial class GestureEditorWindow : Window
     #endregion
 
     #region 组合键捕获
+    /// <summary>进入录键态：先收掉上一次捕获，再通知宿主暂停全局钩子（否则组合键被宿主吞掉、编辑器收不到），
+    /// 并把焦点抢回录键框。捕获到的键只写进当前选中的那条绑定，编辑器不留任何按键记录。</summary>
     void BeginCapture()
     {
         EndCapture();
@@ -268,6 +281,7 @@ public sealed partial class GestureEditorWindow : Window
         _chordBox.Focus();
     }
 
+    /// <summary>退出录键态并通知宿主恢复全局钩子。非捕获态直接返回，重复调用无副作用。</summary>
     void EndCapture()
     {
         if (!_capturing) return;
@@ -276,6 +290,11 @@ public sealed partial class GestureEditorWindow : Window
         UpdateChordText();
     }
 
+    /// <summary>录键态下整段吞掉按键，按「修饰键 + 一个主键」判定是否录成：
+    /// Esc 取消；纯修饰键不算录成，继续等主键；F1–F24 允许裸按且强制清空修饰键；
+    /// 其余键必须带至少一个修饰键，否则等于把普通输入劫持成热键。录成即写入选中绑定并退出捕获。
+    /// 非录键态只拦 Esc：取消关闭，走 Closing 的淡出退场，与「取消」钮同一路径。</summary>
+    /// <param name="e">预览按键事件；录键态下一律置 Handled，不让按键冒泡到其它控件。</param>
     protected override void OnPreviewKeyDown(KeyEventArgs e)
     {
         if (_capturing)
@@ -298,11 +317,13 @@ public sealed partial class GestureEditorWindow : Window
             RefreshList(); ShowDetail(); RefreshValidation();
             return;
         }
-        // 非录键态：Esc = 取消关闭（走 Closing 淡出退场），与「取消」钮及退场注释一致
+        // 非录键态：Esc = 取消关闭，走 Closing 的淡出退场，与「取消」钮同一路径
         if (e.Key == Key.Escape) { Close(); e.Handled = true; return; }
         base.OnPreviewKeyDown(e);
     }
 
+    /// <summary>WPF 修饰键 → GestureCore 自持枚举的逐位映射。两边数值恰好相同，但仍逐位写而不强转：
+    /// 强转会把「数值一致」变成隐式契约，任一侧改值就静默错位。</summary>
     static GcMods ToGcMods(System.Windows.Input.ModifierKeys m)
     {
         GcMods r = GcMods.None;
@@ -315,12 +336,14 @@ public sealed partial class GestureEditorWindow : Window
     #endregion
 
     #region 校验 + 保存
+    /// <summary>重跑整份配置的校验：错误级问题禁用保存按钮；全部问题（含提示级）按绑定 Id 落到对应卡片红框。</summary>
     void RefreshValidation()
     {
         var problems = GestureValidation.Validate(_doc, _catalog, _namer);
         bool errs = GestureValidation.HasErrors(problems);
         _saveBtn.IsEnabled = !errs;
-        // 左下角不再显示「✓ 配置有效」——有问题的那条绑定整卡红框标出，无问题即静默。
+        // 有问题的那条绑定整卡红框标出，无问题即静默：底部只留最多三条去重后的文案，不做「配置有效」回执。
+        // 全通过时唯一可能出现的文案是手势层关闭提示，免得整窗看着像没渲染。
         _problemIds.Clear();
         foreach (var p in problems) _problemIds.Add(p.BindingId);
         PaintRows();
@@ -336,6 +359,7 @@ public sealed partial class GestureEditorWindow : Window
         }
     }
 
+    /// <summary>保存并关窗。落盘前再校验一次：校验是保存的唯一闸门，有错误级问题就什么都不写。</summary>
     void Save()
     {
         var problems = GestureValidation.Validate(_doc, _catalog, _namer);

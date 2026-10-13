@@ -18,6 +18,10 @@ public static class EditorStyles
     const string X = "http://schemas.microsoft.com/winfx/2006/xaml";
     static string Hex(Color c) => c.ToString(); // Color.ToString 已是 #AARRGGBB
 
+    /// <summary>给 ComboBox 套上跟随调色板的模板：卡片底 + 描边 + 自绘下拉弹层，明/暗主题都可读。
+    /// 每次展开弹层做一次 0.94→1.0 的 BackEase 缩放；同一实例重复调用会再挂一个展开动画处理器，只应调一次。</summary>
+    /// <param name="c">目标下拉框，就地改其 Foreground/Background/BorderBrush/Template 与条目样式资源。</param>
+    /// <param name="p">配色来源。</param>
     public static void ApplyCombo(ComboBox c, EditorPalette p)
     {
         c.Foreground = p.B(p.Text);
@@ -57,8 +61,8 @@ public static class EditorStyles
 </ControlTemplate>";
         c.Template = (ControlTemplate)XamlReader.Parse(xaml);
         // 下拉弹层弹性入场：每次展开从 0.94 缩放弹到 1（BackEase 轻微过冲），与宿主 ContextMenu 同款手感。
-        // 弹层外包 16px 透明 Padding（Popup 负偏移补偿对齐）——过冲超出 1.0 的部分此前被 Popup
-        // 边界裁掉，Q 弹变成「弹到一半被切」；留白后完整可见。
+        // 弹层外包 16px 透明 Padding（Popup 负偏移补偿对齐）：过冲超出 1.0 的那部分会被 Popup 边界裁掉，
+        // 留白把它画进去，Q 弹才完整可见。
         c.DropDownOpened += (_, _) =>
         {
             if (c.Template?.FindName("PART_Popup", c) is Popup pop
@@ -76,13 +80,15 @@ public static class EditorStyles
         c.Resources[typeof(ComboBoxItem)] = ItemStyle(p, "ComboBoxItem", p.Hover, selected: false);
     }
 
+    /// <summary>给 ListBox 套调色板配色，并把条目退化为透明容器：选中/问题红框/禁用置灰由编辑器逐行自绘，
+    /// ListBoxItem 自带的选中底色若留着，会垫在卡片后面糊成一片。</summary>
+    /// <param name="l">目标列表，就地改其 Background/BorderBrush/Foreground 与 ListBoxItem 样式资源。</param>
+    /// <param name="p">配色来源。</param>
     public static void ApplyList(ListBox l, EditorPalette p)
     {
-        l.Background = p.B(p.PanelBg);   // 列表底改 PanelBg，让 CardBg+描边的卡片浮出来（此前同色糊平）
+        l.Background = p.B(p.PanelBg);   // 列表底用 PanelBg，CardBg+描边的卡片才浮得出来
         l.BorderBrush = p.B(p.Stroke);
         l.Foreground = p.B(p.Text);
-        // 列表项改「卡片自绘」（选中/问题红框/禁用置灰由编辑器逐行刷），
-        // ListBoxItem 本身退化为透明容器——否则其选中底色会垫在卡片后面糊成一片。
         l.Resources[typeof(ListBoxItem)] = PlainItemStyle(p, "ListBoxItem");
     }
 
@@ -107,12 +113,17 @@ public static class EditorStyles
         return (Style)XamlReader.Parse(ItemStyleXaml(p, typeName, hover, selected));
     }
 
-    /// <summary>调试用：返回条目样式 XAML 原文（供离线定位解析错误）。</summary>
+    /// <summary>生成条目样式 XAML 原文：<see cref="ItemStyle"/> 解析它；公开是为了能取出原文离线定位解析错误。</summary>
+    /// <param name="p">配色来源：前景取 Text，选中底取 Accent，选中前景取 OnAccent。</param>
+    /// <param name="typeName">样式的 TargetType 类型名，如 "ComboBoxItem"。</param>
+    /// <param name="hover">悬停底色。</param>
+    /// <param name="selected">是否生成选中触发器；false 时条目只有悬停高亮。</param>
+    /// <returns>可直接交给 <c>XamlReader.Parse</c> 的 Style 文本。</returns>
     public static string ItemStyleXaml(EditorPalette p, string typeName, Color hover, bool selected)
     {
         string selTrigger = selected
-            // 选中底=accent，前景按 accent 明度自适应（亮 accent→黑字、暗 accent→白字），
-            // 此前写死黑字，用户选低明度主题色时选中项文字与底色糊在一起看不清。
+            // 选中底=accent，前景按 accent 明度自适应（亮 accent→黑字、暗 accent→白字）：
+            // 写死黑字会在低明度主题色下与底色糊在一起，选中项反而看不清。
             ? $@"<Trigger Property=""IsSelected"" Value=""True"">
                    <Setter TargetName=""b"" Property=""Background"" Value=""{Hex(p.Accent)}""/>
                    <Setter Property=""Foreground"" Value=""{Hex(p.OnAccent())}""/>
@@ -147,12 +158,20 @@ public static class EditorStyles
         {
             if (d is ScrollBar sb && (bool)e.NewValue) { sb.MinWidth = 0; sb.MinHeight = 0; }
         }));
+    /// <summary>附加属性写入器：置 true 时把该滚动条的 MinWidth/MinHeight 归零。</summary>
+    /// <param name="d">目标依赖对象；只有 <see cref="ScrollBar"/> 且值为 true 时才动手，其余静默忽略。</param>
+    /// <param name="v">是否瘦身。</param>
     public static void SetSlim(DependencyObject d, bool v) => d.SetValue(SlimProperty, v);
+
+    /// <summary>读取 <see cref="SlimProperty"/> 的当前值。</summary>
+    /// <param name="d">目标依赖对象。</param>
+    /// <returns>未显式设置过时为 false。</returns>
     public static bool GetSlim(DependencyObject d) => (bool)d.GetValue(SlimProperty);
 
-    /// <summary>细滚动条（，用户「还是太粗基本没变」）：轨道 8DIP、滑块 4DIP 圆角胶囊、无箭头，
-    /// 配色随调色板；竖/横两套模板（Track 方向必须匹配）。挂到窗口 Resources[typeof(ScrollBar)]
-    /// 即覆盖列表/详情/下拉弹层内所有滚动条。</summary>
+    /// <summary>细滚动条样式：轨道 8DIP、滑块 4DIP 圆角胶囊、无箭头，取色随调色板；竖/横两套模板
+    /// （Track 方向必须与滚动条方向匹配）。挂到窗口 Resources[typeof(ScrollBar)] 即覆盖列表/详情/下拉弹层内所有滚动条。</summary>
+    /// <param name="p">滑块与悬停高亮的取色来源。</param>
+    /// <returns>已附带 <see cref="SlimProperty"/>=true 的 ScrollBar 样式，可直接放进资源字典。</returns>
     public static Style ScrollBarStyle(EditorPalette p)
     {
         string thumb = Hex(p.TextDim), thumbHi = Hex(p.Text);

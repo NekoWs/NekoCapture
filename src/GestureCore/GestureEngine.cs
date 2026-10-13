@@ -8,20 +8,22 @@ namespace GestureCore;
 /// 手势引擎：喂入原始按键/鼠标事件（带毫秒时间戳）+ 绑定表 → 消歧 → 经 <see cref="IActionInvoker"/> 回调动作序列。
 /// 与 UI/OS 完全解耦：键用不透明 int 标识、修饰键状态由宿主随事件传入（贴合 WH_KEYBOARD_LL 等低级钩子的取数方式）、
 /// 时间由宿主传入（<see cref="Tick"/> 推进待决的点击消歧与长按判定），因此可确定性单测、可跨宿主复用。
+/// 线程：无锁、非线程安全——喂入事件与 <see cref="Tick"/> 必须在宿主同一条线程上串行调用。
+/// 隐私边界：事件只用于即时匹配判定，内存里只保留「哪些键当前处于按下态」，不留按键序列、不落盘。
 ///
 /// 消歧规则：
 /// • 组合键激活瞬间触发 KeyDown/Chord，失活瞬间触发 KeyUp（配对即「按住做 A、松手做 B」）。
 /// • 组合键激活期间的鼠标动作按 Click / DoubleClick / TripleClick / LongPress 分类：
 /// 连击数达到该组合键已绑定的最高阶触发即立即触发；否则等 DoubleClickMs 无后续再触发当前阶。
 /// 若该组合键只绑了 Click（无更高阶），单击立即触发、零延迟。
-/// • 长按：鼠标按下保持 ≥ LongPressMs 即触发 LongPress，并吞掉随后的抬起（不再计为单击）。
+/// • 长按：鼠标按下保持 ≥ LongPressMs 即触发 LongPress，其后的抬起被吞掉、不计入单击。
 /// • 同一触发命中多条绑定按 <see cref="GestureBinding.Priority"/> 顺延；某步失败按该条 <see cref="GestureBinding.Fallback"/> 处理。
 /// </summary>
 public sealed class GestureEngine
 {
     readonly IActionInvoker _invoker;
     List<GestureBinding> _bindings = new List<GestureBinding>();
-    // 每个组合键的运行时状态（用引用键存，KeyChord 值相等即可命中）
+    // 每个组合键的运行时状态；字典按键值相等命中（见 ChordEq），不按实例身份
     readonly Dictionary<KeyChord, ChordState> _state = new Dictionary<KeyChord, ChordState>(ChordEq.Instance);
     // 每个组合键已绑定的触发集合（决定消歧的最高阶 + 是否需等待）
     readonly Dictionary<KeyChord, HashSet<TriggerKind>> _triggers = new Dictionary<KeyChord, HashSet<TriggerKind>>(ChordEq.Instance);
@@ -32,6 +34,9 @@ public sealed class GestureEngine
     readonly HashSet<int> _swallowKeyUp = new HashSet<int>();
     List<ChordState> _pressCandidates = new List<ChordState>();   // 本次鼠标按下时处于激活态、且有鼠标触发的组合键
 
+    /// <summary>单个组合键的运行时时序状态：激活态、鼠标按下与连击累积、键盘按下与按住判定。
+    /// 只在喂入事件的线程上读写。组合键失活时鼠标/点击累积清零；键盘侧以按下时刻为基准算时长——
+    /// Hold 由 <see cref="Tick"/> 在按住期间触发，Tap 与 HoldRelease 在失活或抬起那一刻结算。</summary>
     sealed class ChordState
     {
         public KeyChord Chord = null!;
@@ -49,19 +54,33 @@ public sealed class GestureEngine
         public bool HoldFired;
     }
 
+    /// <summary>让状态字典按组合键的值命中：绑定表里的 KeyChord 与事件构造的实例不同，但值相同就必须是同一状态。</summary>
     sealed class ChordEq : IEqualityComparer<KeyChord>
     {
         public static readonly ChordEq Instance = new ChordEq();
+
+        /// <summary>按组合键的值比较；任一为 null 即不相等。</summary>
+        /// <param name="a">左值。</param>
+        /// <param name="b">右值。</param>
+        /// <returns>修饰键与主键都相同时为 true。</returns>
         public bool Equals(KeyChord? a, KeyChord? b) => a != null && b != null && a.Equals(b);
+
+        /// <summary>转发 <see cref="KeyChord.GetHashCode"/>，与 <see cref="Equals"/> 保持一致。</summary>
+        /// <param name="c">待散列的组合键，不可为 null。</param>
+        /// <returns>与值相等性一致的散列码。</returns>
         public int GetHashCode(KeyChord c) => c.GetHashCode();
     }
 
+    /// <summary>创建引擎。引擎与宿主的全部耦合都经 <paramref name="invoker"/> 发生，此外无任何外部依赖。</summary>
+    /// <param name="invoker">动作执行回调，由宿主实现；为 null 直接抛 <see cref="ArgumentNullException"/>。</param>
     public GestureEngine(IActionInvoker invoker)
     {
         _invoker = invoker ?? throw new ArgumentNullException(nameof(invoker));
     }
 
-    /// <summary>替换绑定表（按优先级预排序）。会重置所有运行时状态。</summary>
+    /// <summary>替换绑定表（按优先级预排序）。会重置所有运行时状态：按下集合、吞键认领、连击与长按累积全部作废。</summary>
+    /// <param name="bindings">新绑定集合；逐条 <c>Clone</c> 入库，之后改原对象不影响引擎，须再次调用本方法才生效。
+    /// 传 null 视作空集（等于清空绑定）。</param>
     public void SetBindings(IEnumerable<GestureBinding> bindings)
     {
         _bindings = (bindings ?? Enumerable.Empty<GestureBinding>())
@@ -82,6 +101,8 @@ public sealed class GestureEngine
         }
     }
 
+    // 激活判定：绑定的修饰键必须全部按下，多按的修饰键不算冲突（绑 Ctrl+Alt 时按住 Ctrl+Alt+Shift 仍激活）；
+    // 带主键的绑定还要求该主键当前在按下集合里。
     static bool ChordSatisfied(KeyChord c, ModifierKeys mods, HashSet<int> keyDown) =>
         (c.Mods & ~mods) == 0 && (c.Key == 0 || keyDown.Contains(c.Key));
 
@@ -134,7 +155,12 @@ public sealed class GestureEngine
         }
     }
 
-    /// <summary>喂入按键按下。返回是否应吞掉本键（命中带具体键的组合键并成功触发）——宿主结合 Exclusive 开关决定是否吞。</summary>
+    /// <summary>喂入按键按下：更新按下集合后重算激活态，按需触发 KeyDown/Chord 并认领吞键。</summary>
+    /// <param name="key">不透明键标识，与 <see cref="KeyChord.Key"/> 同一编码体系。</param>
+    /// <param name="mods">本次事件时刻的修饰键状态，由宿主读取随事件传入；引擎不自行推断。</param>
+    /// <param name="now">毫秒时间戳，作为本次键盘按下的计时起点（轻点/按住按它判时长）。</param>
+    /// <returns>是否应吞掉本键：命中带具体键的组合键并成功触发，或该键已被认领后的系统自动重复。
+    /// 宿主结合独占开关决定是否真的吞。</returns>
     public bool OnKeyDown(int key, ModifierKeys mods, long now)
     {
         _swallowThisEvent = false;
@@ -142,13 +168,17 @@ public sealed class GestureEngine
         _keyDown.Add(key);
         RefreshActivation(mods, key, now);
         if (_swallowThisEvent) { _swallowKeyUp.Add(key); return true; }
-        // 自动重复：该键首次按下已被认领（在 _swallowKeyUp 里）→ 重复也吞，
-        // 免得按住录制期间重复键漏给前台（旧 HookDecision 在捕获期吞主键的等价行为）。
+        // 自动重复跟随首次认领：该键首次按下已被吞（在 _swallowKeyUp 里）→ 重复事件同样吞。
+        // 否则按住不放期间连发的重复键会漏给前台，表现为按住期间字符不断重复。
         if (repeat && _swallowKeyUp.Contains(key)) return true;
         return false;
     }
 
-    /// <summary>喂入按键抬起。返回是否应吞掉本键（其按下曾被吞 → 抬起也吞，保持前台键态一致）。</summary>
+    /// <summary>喂入按键抬起：移出按下集合并重算激活态——失活瞬间触发 KeyUp，并结算轻点/按住。</summary>
+    /// <param name="key">抬起的键标识，与按下时同一编码。</param>
+    /// <param name="mods">本次事件时刻的修饰键状态，用于判定组合键是否随之失活。</param>
+    /// <param name="now">毫秒时间戳，轻点/按住按「抬起时刻 − 按下时刻」判时长。</param>
+    /// <returns>该键按下时曾被吞则抬起同样吞（前台不会看到「只抬起没按下」的畸形键态），否则 false。</returns>
     public bool OnKeyUp(int key, ModifierKeys mods, long now)
     {
         _swallowThisEvent = false;
@@ -158,6 +188,10 @@ public sealed class GestureEngine
         return false;
     }
 
+    /// <summary>喂入鼠标按下：把此刻处于激活态且绑了鼠标触发的组合键记为候选，各自重置长按标记与计时起点。</summary>
+    /// <param name="button">鼠标键编号；引擎不区分左右中，任意键都进同一套连击/长按判定。</param>
+    /// <param name="mods">事件时刻修饰键状态。鼠标事件也刷新激活态——修饰键可能在两次事件之间变化。</param>
+    /// <param name="now">毫秒时间戳，长按判定的起点。</param>
     public void OnMouseDown(int button, ModifierKeys mods, long now)
     {
         RefreshActivation(mods, 0, now);   // 鼠标事件也刷新（修饰键可能在鼠标事件间隙变化）
@@ -176,6 +210,10 @@ public sealed class GestureEngine
         }
     }
 
+    /// <summary>喂入鼠标抬起：对候选组合键计一击并消歧。长按已触发则吞掉本次抬起；组合键已失活则不计击。</summary>
+    /// <param name="button">鼠标键编号，同 <see cref="OnMouseDown"/>，不参与判定。</param>
+    /// <param name="mods">事件时刻修饰键状态；本方法不读它——抬起不改变组合键激活态。</param>
+    /// <param name="now">毫秒时间戳，作为连击间隔的计时起点。</param>
     public void OnMouseUp(int button, ModifierKeys mods, long now)
     {
         foreach (var st in _pressCandidates)
@@ -191,6 +229,8 @@ public sealed class GestureEngine
         _pressCandidates.Clear();
     }
 
+    /// <summary>该组合键的连击判定窗口：绑定表已按优先级排序，先取绑了 DoubleClick/TripleClick 的第一条，
+    /// 其次取同键任意第一条，都没有则按 400。</summary>
     int BindingDoubleClickMs(KeyChord c)
     {
         foreach (var b in _bindings)
@@ -220,6 +260,7 @@ public sealed class GestureEngine
         }
     }
 
+    /// <summary>连击数 → 实际触发：够三击且绑了三击取三击，够两击且绑了两击取两击，否则落到单击。</summary>
     static TriggerKind TriggerForCount(int count, HashSet<TriggerKind> avail)
     {
         if (count >= 3 && avail.Contains(TriggerKind.TripleClick)) return TriggerKind.TripleClick;
@@ -227,7 +268,8 @@ public sealed class GestureEngine
         return TriggerKind.Click;
     }
 
-    /// <summary>推进时间：结算挂起的连击消歧与长按判定。宿主应在事件循环里周期性调用（或按需）。</summary>
+    /// <summary>推进时间：结算挂起的连击消歧、鼠标长按与键盘按住。宿主应在事件循环里周期性调用（或按需）。</summary>
+    /// <param name="now">当前毫秒时间戳，须与喂入事件时同一时基且单调不减，否则阈值判定不成立。</param>
     public void Tick(long now)
     {
         foreach (var st in _state.Values)
@@ -262,6 +304,7 @@ public sealed class GestureEngine
         }
     }
 
+    /// <summary>该组合键的长按阈值：取绑了 LongPress 的第一条（优先级最高者），没有则按 500。</summary>
     int BindingLongPressMs(KeyChord c)
     {
         foreach (var b in _bindings)

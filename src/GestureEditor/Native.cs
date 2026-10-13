@@ -20,6 +20,7 @@ internal static class Native
     [DllImport("user32.dll")] public static extern bool SetLayeredWindowAttributes(IntPtr hwnd, uint crKey, byte bAlpha, uint dwFlags);
 
     /// <summary>把窗口置为分层窗并把 Win32 alpha 压到 0（消除首帧不透明黑闪，并让后续 WPF Opacity 动画真正生效）。</summary>
+    /// <param name="hwnd">目标窗口句柄，须在 <c>SourceInitialized</c> 之后取；<see cref="IntPtr.Zero"/> 时静默返回。</param>
     public static void SetAlphaZero(IntPtr hwnd)
     {
         if (hwnd == IntPtr.Zero) return;
