@@ -11,6 +11,8 @@ public sealed class AppHost
 {
     public static AppHost Current { get; } = new();
 
+    // 不变量：以下服务在 Startup 返回时全部就位；Startup 未跑完就访问会拿到 null（声明成 null! 只为过编译检查）。
+    // 生命周期归本类，Shutdown 逐个释放。
     public SettingsService Settings { get; private set; } = null!;
     public HotkeyManager Hotkeys { get; private set; } = null!;
     public GestureService Gestures { get; private set; } = null!;
@@ -19,6 +21,11 @@ public sealed class AppHost
 
     private AppHost() { }
 
+    /// <summary>
+    /// 装配并启动全部服务：清残留磁盘暂存帧 → 设置与主题 → 控制器 → 手势与键盘钩子 → 托盘 → settings.json 监听。
+    /// </summary>
+    /// <remarks>必须在 UI 线程调用：托盘、WPF 全局样式、<c>DispatcherTimer</c> 都挂在 UI 线程。
+    /// 启动顺序的硬约束见 <see cref="InstallHotkeys"/>。</remarks>
     public void Startup()
     {
         FrameCapture.Core.Trace.Log("Startup begin");
@@ -56,6 +63,8 @@ public sealed class AppHost
         FrameCapture.Core.Trace.Log("Startup done");
     }
 
+    /// <summary>按 键盘钩子 → 手势 → 托盘 → 控制器 的顺序释放。每步独立吞异常：一步失败不拖累其余释放。</summary>
+    /// <remarks>Startup 只跑了一半时也可调用：未就位的服务是 null，<c>?.</c> 直接跳过。</remarks>
     public void Shutdown()
     {
         try { Hotkeys?.Uninstall(); } catch { }
@@ -64,11 +73,16 @@ public sealed class AppHost
         try { Controller?.Dispose(); } catch { }
     }
 
+    /// <summary>
+    /// 把手势配置装进引擎并重挂全局钩子。顺序是硬约束：先 <c>Gestures.Apply</c> 置好 KeySink，
+    /// 再 <c>Hotkeys.Install</c>——后者按 KeySink 是否为 null 决定装不装键盘钩子。
+    /// </summary>
+    /// <remarks>启动、settings.json 外部改动热重载、手势配置器保存、设置窗关闭都走这里；可重复调用。</remarks>
     public void InstallHotkeys()
     {
         var s = Settings.Current;
         // 手势是唯一的全局触发路径。先应用手势（填引擎绑定表 + 挂键事件汇/鼠标钩子，置 KeySink），
-        // 再装键盘钩子（Install 据 KeySink 决定装不装）。旧 F6/F7 捕获/选区热键已退役。
+        // 再装键盘钩子（Install 据 KeySink 决定装不装）。
         Gestures.Apply(s.Gestures);
         Hotkeys.Install();
     }
@@ -135,10 +149,10 @@ public sealed class AppHost
         catch (Exception ex) { FrameCapture.Core.Trace.Log($"elevate failed: {ex.GetType().Name}"); }
     }
 
-    /// <summary>把钩子动作投递到 UI 线程。绝不阻塞：钩子回调占着全系统输入链，
-    /// 曾经的阻塞 Invoke 让整台机器键盘卡住 ~130ms（等 WGC 初始化），且超过
-    /// LowLevelHooksTimeout 会被系统静默摘钩。Send 优先级排在输入之前，
-    /// 同优先级 FIFO —— Begin/End 的先后顺序因此保持。</summary>
+    /// <summary>把钩子动作投递到 UI 线程，绝不阻塞。
+    /// 钩子回调占着全系统输入链：阻塞 Invoke 会让整台机器的键盘卡住（等 WGC 初始化可达 ~130ms），
+    /// 且超过 LowLevelHooksTimeout 会被系统静默摘钩。
+    /// Send 优先级高于 Input、同优先级 FIFO —— Begin/End 的先后顺序因此保持。</summary>
     static void Dispatch(Action a)
     {
         var app = System.Windows.Application.Current;

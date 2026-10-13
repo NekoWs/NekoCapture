@@ -13,6 +13,8 @@ public sealed class TrayService : IDisposable
     private System.Windows.Window? _menuAnchor;
     private System.Windows.Controls.ContextMenu? _menu;
 
+    /// <summary>建托盘图标并订阅设置变更以刷新悬停提示。图标此刻 <c>Visible=false</c>，由 <see cref="Show"/> 点亮。</summary>
+    /// <param name="host">宿主，用于把菜单项动作转给 <see cref="CaptureController"/> 与设置服务；须已完成装配。</param>
     public TrayService(AppHost host)
     {
         _host = host;
@@ -25,7 +27,7 @@ public sealed class TrayService : IDisposable
         };
         _icon.MouseUp += (_, e) =>
         {
-            // 左键单击=选区截图（此前左键单击无动作、只有双击才捕获，反直觉）；右键=菜单。
+            // 左键单击=选区截图，右键=菜单。
             // 双击会连发两次 MouseUp，但 BeginScopeSelection 有重入保护（已在选区只顶前不重开），不会截两次。
             if (e.Button == WinForms.MouseButtons.Left) Dispatch(() => _host.Controller.BeginScopeSelection());
             else if (e.Button == WinForms.MouseButtons.Right) Dispatch(ShowMenu);
@@ -49,9 +51,11 @@ public sealed class TrayService : IDisposable
         _icon.Text = tip.Length <= 63 ? tip : "FrameCapture"; // NotifyIcon.Text 上限 63 字符
     }
 
+    /// <summary>让托盘图标可见。构造时故意不可见，宿主装配完再调本方法——避免图标先出现、菜单还点不动的窗口期。</summary>
     public void Show() => _icon.Visible = true;
 
     /// <summary>托盘气泡提示：tray 动作的轻量反馈（如「剪贴板里没有图片」）。失败静默。</summary>
+    /// <param name="msg">气泡正文，单行短文本；显示 2.5 秒后自动消失，不阻塞调用。</param>
     public void Notify(string msg)
     {
         try { _icon.ShowBalloonTip(2500, "FrameCapture", msg, WinForms.ToolTipIcon.Info); }
@@ -59,6 +63,7 @@ public sealed class TrayService : IDisposable
     }
 
     /// <summary>切换「暂停全局热键」。托盘菜单项与 `--pause-toggle` IPC 共用；返回切换后的状态。</summary>
+    /// <returns>切换后的暂停态：true = 已暂停（钩子不喂手势、不吞任何键），false = 恢复正常工作。</returns>
     public bool TogglePause()
     {
         bool on = !Services.HotkeyManager.Paused;
@@ -68,10 +73,14 @@ public sealed class TrayService : IDisposable
         return on;
     }
 
+    /// <summary>
+    /// 在鼠标处弹出托盘菜单。菜单项每次重建，因此始终反映当前设置（延时秒数、自启勾选、是否已提权）。
+    /// 同一时刻只保留一份菜单与其锚窗：再次右键会先关掉上一份。
+    /// </summary>
     public void ShowMenu()
     {
         Trace.Log("tray menu open");
-        if (_menu != null) _menu.IsOpen = false; // 再次右键：先收旧菜单（连带回收旧锚窗）
+        if (_menu != null) _menu.IsOpen = false; // 再次右键：先关掉已开着的菜单，连带回收它的锚窗
         var menu = new ContextMenu { Resources = Fluent.MenuResources() };
         _menu = menu;
 
@@ -109,7 +118,7 @@ public sealed class TrayService : IDisposable
                 catch (Exception ex) { Trace.Log($"open folder failed: {ex.Message}"); Notify("打开保存文件夹失败"); }
             });
         Sep();
-        Item("设置…", OpenSettings);   // 原「快捷键设置…」——设置页早已不止快捷键，名字跟上内容
+        Item("设置…", OpenSettings);
         Item("帮助", OpenHelp);
         Item("开机自启", () =>
         {
@@ -122,7 +131,7 @@ public sealed class TrayService : IDisposable
             checkable: true, isChecked: Services.HotkeyManager.Paused);
         // 按需提权：解决被更高权限窗口（管理员终端/游戏）压住、快捷键盲区的问题
         if (AppHost.IsElevated)
-            Item("管理员权限运行", () => { }, checkable: true, isChecked: true); // 勾选标记由 checkable 呈现，文本不再带 ✓（去双勾）
+            Item("管理员权限运行", () => { }, checkable: true, isChecked: true); // 勾选标记由 checkable 呈现，文本里不重复打勾
         else
             Item("以管理员身份运行", () => _host.RestartAsAdmin());
         Sep();
@@ -133,7 +142,7 @@ public sealed class TrayService : IDisposable
         });
 
         // 透明锚点窗：保证菜单在鼠标处弹出、并能在关闭时回收。
-        // 必须激活：应用此前无任何激活窗口时，ContextMenu 收不到"失焦"，点别处菜单也不消失。
+        // 必须激活：应用没有任何激活窗口时，ContextMenu 收不到"失焦"，点别处菜单也不消失。
         _menuAnchor?.Close();
         var anchor = new System.Windows.Window
         {
@@ -176,7 +185,7 @@ public sealed class TrayService : IDisposable
 
     static Icon MakeIcon()
     {
-        // 取景框图标：四角实心括号 + 中心点。虚线在托盘 16px 缩略下会糊成一团（改实角）
+        // 取景框图标：四角实心括号 + 中心点。虚线在托盘 16px 缩略下会糊成一团，故用实角
         using var bmp = new Bitmap(32, 32);
         using var g = Graphics.FromImage(bmp);
         g.Clear(Color.Transparent);
@@ -194,6 +203,10 @@ public sealed class TrayService : IDisposable
         return Icon.FromHandle(hicon);
     }
 
+    /// <summary>
+    /// 隐藏并释放托盘图标，同时关闭还开着的菜单锚窗。宿主 Shutdown 与托盘「退出」菜单项都走这里。
+    /// </summary>
+    /// <remarks>调用后实例不可再用：<see cref="WinForms.NotifyIcon"/> 已释放，再调 <see cref="Show"/> 会抛异常。</remarks>
     public void Dispose()
     {
         _icon.Visible = false;

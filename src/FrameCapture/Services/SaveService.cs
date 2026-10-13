@@ -12,6 +12,8 @@ namespace FrameCapture.Services;
 public static class SaveService
 {
     /// <summary>解析保存目录：设置指定路径优先（自动建目录），空或非法回退 图片\FrameCapture。</summary>
+    /// <returns>绝对路径，目录已尽力创建。设置里的路径建不出来（非法字符 / 无写权限）时
+    /// 直接回退默认目录——绝不因设置炸掉捕获；默认目录本身建不出来也照样返回，写盘失败由调用方吞掉。</returns>
     public static string ResolveFolder()
     {
         var custom = SettingsService.Shared?.Current.AutoSavePath;
@@ -26,6 +28,11 @@ public static class SaveService
     }
 
     /// <summary>时间戳命名，同秒冲突自动加 (2)(3)…；纯逻辑，可单测。</summary>
+    /// <param name="dir">用于探测同名冲突的目录，须已存在；本方法不创建目录。</param>
+    /// <param name="stem">主名，不含扩展名分隔点。</param>
+    /// <param name="ext">扩展名，<b>不带</b>点（如 <c>png</c>）。</param>
+    /// <returns>仅文件名（不含目录）。依次试 <c>stem.ext</c>、<c>stem (2).ext</c> … 直到 <c>stem (999)</c>；
+    /// 全撞上则退 GUID 主名，保证同一秒内连拍也不会互相覆盖。</returns>
     public static string UniqueName(string dir, string stem, string ext)
     {
         var name = $"{stem}.{ext}";
@@ -45,6 +52,9 @@ public static class SaveService
     /// 编辑器提交：按帧数选自然格式存副本——单帧截图存 PNG、多帧录制按「录制格式」设置
     /// （MP4/WebM 且装了 ffmpeg → 后台编码，不阻塞编辑器关闭；否则 GIF）。均为已烘焙标注/裁剪的最终产物。
     /// </summary>
+    /// <param name="seq">编辑器提交的序列。<c>Frames</c> 可能是磁盘暂存的惰性列表，本方法只在需要时按索引取帧，
+    /// 不整段物化。视频分支把 <c>Frames</c> 交给后台任务持有，闭包释放后主动回收内存。</param>
+    /// <param name="gif">已编码好的 GIF 字节：无 ffmpeg 时它就是产物，视频编码失败时是兜底产物。调用方必然备妥。</param>
     public static void MaybeSaveArtifact(CapturedSequence seq, byte[] gif)
     {
         if (SettingsService.Shared?.Current.AutoSaveCopy != true) return;
@@ -101,6 +111,7 @@ public static class SaveService
     }
 
     /// <summary>点按截图：存 PNG 副本（原始帧，无标注）。</summary>
+    /// <param name="frame">待存的原始帧，BGRA 长度须为 <c>W*H*4</c>。本方法只读不改。</param>
     public static void MaybeSavePng(CapturedFrame frame)
     {
         if (SettingsService.Shared?.Current.AutoSaveCopy != true) return;

@@ -203,3 +203,26 @@
 - **护栏**：`Fluent.PreTransparent` 在 `SourceInitialized` 置 `WS_EX_LAYERED` + `LWA_ALPHA`，
   并在每次布局再补一次（WPF 首帧准备会冲掉手工样式），放行时机由它返回的 release 决定；
   入场路径改动必须走视觉暂留审查（`UICap.exe burstregion` → `montage` 逐帧确认首帧干净）。
+
+## 手势层是默认开启的唯一全局触发路径
+
+- **不变量 / 契约**：`GestureConfig.Enabled` 默认为 `true`，手势层因此是功能触发的**唯一**全局路径；
+  关掉它才置空 `KeySink`，`HotkeyManager.Install` 随之连低级键盘钩子都不装
+  （开关开着而绑定清空时钩子照装，只是引擎里没有可命中的绑定）。
+  "默认值"只在 `GestureConfig` 声明处写一次，跨文件用 `<see cref>` 指过去。
+- **曾经的错误**：`GestureService` 类注释写着"默认（Enabled=false 或无绑定）不装鼠标钩子……对旧热键路径零影响"，
+  把默认值写成 `false`，还暗示存在一条与之并存的热键路径。读者据此会认为装配是可选的，
+  于是去 `Apply` 之外另找地方装钩子、或以为关掉手势还有热键兜底——两种判断都会静默错。
+  根因：注释复述了**别人家的字面默认值**，默认值改了没人回头改注释。
+- **护栏**：默认值单一事实源是 `GestureConfig.Enabled` / `Exclusive` 的声明处；
+  跨文件契约只允许 `GestureConfig.Enabled` 这类符号引用，不允许复述 `true` / `false` 字面值。
+
+## 文档只声明行为，不声明调用方
+
+- **不变量 / 契约**：`<summary>` 写输入约束、返回语义、线程与副作用，**不写"由 X 调用"**。
+  调用关系是 IDE Find Usages 与 `git grep` 随时能算出来的事实，写进注释等于多养一份会过期的副本。
+- **曾经的错误**：`GestureService.ClaimsKey` 的文档自称"用于 AppHost 避免旧热键与手势重复触发"，
+  而 AppHost 不注册自有热键，该方法**没有任何调用方**。文档承诺的协作关系不存在，
+  读者会去 AppHost 里找那条根本不存在的去重分支；编译器与扫描器都不校验"调用方是否还在"。
+- **护栏**：文档只描述"给什么、返回什么、比较的是哪张表、何时刷新"；
+  缺文档 / 缺 `<param>` / 缺 `<returns>` 由 `lint-comments.ps1` 拦，注释与代码不一致按缺陷处理。

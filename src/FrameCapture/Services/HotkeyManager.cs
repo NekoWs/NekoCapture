@@ -6,10 +6,12 @@ using FrameCapture.Native;
 namespace FrameCapture.Services;
 
 /// <summary>
-/// 基于低级键盘钩子的全局键事件源。旧 F6/F7 捕获/选区热键退役后，本类不再自带热键决策，
-/// 钩子只承载三件事——手势层喂键（<see cref="KeySink"/>，唯一的全局触发路径）、滚动截图 Esc 全局取消、
-/// 截图浮窗 Enter/Esc。回调内绝不抛异常、不做耗时操作：动作经 AppHost.Dispatch 非阻塞投递到 UI 线程；
-/// 慢回调看门狗把违反不变量的现场写进 trace（"hook slow Nms"），回归脚本据此断言。
+/// 基于低级键盘钩子的全局键事件源。本类自身不做热键决策，钩子只承载三件事——手势层喂键
+/// （<see cref="KeySink"/>，唯一的全局触发路径）、滚动截图 Esc 全局取消、截图浮窗 Enter/Esc。
+///
+/// 回调占着全系统输入链：<b>绝不抛异常、绝不做耗时操作</b>，动作一律经 AppHost.Dispatch 非阻塞投递到 UI 线程。
+/// 回调耗时超过 LowLevelHooksTimeout 会被系统<b>静默摘钩</b>——热键无声失效，系统侧不留任何痕迹。
+/// 慢回调看门狗把违反该不变量的现场写进 trace（"hook slow Nms"），自检脚本 test-outline-lifecycle 断言其永不出现。
 /// </summary>
 public sealed class HotkeyManager : IDisposable
 {
@@ -21,27 +23,34 @@ public sealed class HotkeyManager : IDisposable
     /// volatile：钩子线程读、UI 线程写。为 true 时全局吞掉 Esc 并触发 ScrollCancel（QQ 式取消）。</summary>
     public static volatile bool ScrollActive;
     /// <summary>截图浮窗（CaptureToast）活跃时置位：全局吞 Enter/Esc 并回调（浮窗不抢焦点，键不会进它自己的
-    /// HWND，只能靠全局钩子代劳——修「浮窗 Enter 无效」）。Enter→进编辑器，Esc→关闭。生命周期绑定浮窗 Show/Closed。</summary>
+    /// HWND，只能靠全局钩子代劳）。Enter→进编辑器，Esc→关闭。生命周期绑定浮窗 Show/Closed。</summary>
     public static volatile bool ToastActive;
+    /// <value>Enter 的响应，由浮窗 Show 时赋值、Closed 时清空。<b>在钩子回调内被同步调用</b>，
+    /// 赋值方必须自己投递（CaptureToast 走 Dispatcher.BeginInvoke），否则回调耗时直接计入摘钩超时。</value>
     public static Action? ToastEnter;
+    /// <value>Esc 的响应，赋值时机与线程要求同 <see cref="ToastEnter"/>。</value>
     public static Action? ToastEsc;
-    /// <summary>选区窗（RegionPickerWindow）活跃时置位：全局代收 Esc/Enter/C/F/Tab 并吞掉。修
-    /// 「截图抢焦点→截到别的软件」：选区窗改 WS_EX_NOACTIVATE + ShowActivated=false 不再夺前台，目标窗
-    /// （如浏览器）保持焦点，其键不会进选区窗自己的 HWND，只能靠全局钩子代劳（与滚动/浮窗同款会话拦截）。
+    /// <summary>选区窗（RegionPickerWindow）活跃时置位：全局代收 Esc/Enter/C/F/Tab 并吞掉。
+    /// 选区窗是 WS_EX_NOACTIVATE + ShowActivated=false，不夺前台——目标窗（如浏览器）保持焦点，
+    /// 其键不会进选区窗自己的 HWND，只能靠全局钩子代劳（与滚动/浮窗同款会话拦截）。
     /// PickerKey 返回 true=本键归选区窗处理（吞掉，前台收不到）；false=放行。生命周期绑定选区窗 Loaded/Closed，
     /// 绝不泄漏成"全局键失灵"。</summary>
     public static volatile bool PickerActive;
+    /// <value>选区窗的键判定，入参 vk，返回 true=本键归选区窗（被吞）。<b>在钩子回调内被同步调用</b>，
+    /// 实现方只做判断、把副作用投递出去；选区窗 Closed 时必须置回 null。</value>
     public static Func<uint, bool>? PickerKey;
-    /// <summary>暂停全局热键：为 true 时钩子对所有自有热键放行（不触发、不吞键），
+    /// <summary>暂停全局热键：为 true 时不喂手势、不吞任何键，
     /// 让键完整落到前台应用——游戏/演示/与其他软件热键冲突时临时避让。托盘「暂停全局热键」切换，
     /// 运行时状态（不持久化，重启自动恢复工作）。滚动会话的 Esc 取消仍优先于本判断。</summary>
     public static volatile bool Paused;
 
+    /// <value>钩子句柄非零即已装。<see cref="Paused"/> 只让钩子放行，不改本值——暂停态下钩子仍在。</value>
     public bool Installed => _hook != IntPtr.Zero;
 
-    /// <summary>手势引擎键事件汇。非 null 时，<see cref="HandleKey"/> 顶部（早于旧热键判定与吞键）
-    /// 把每个键事件喂给它，使手势层与旧热键<b>共用同一个低级键盘钩子</b>（不额外挂钩、不重复处理）。
-    /// 参数=(vk, 是否按下, 事件时刻修饰键态, 事件时间戳ms)。null=手势层关闭，零开销。Paused 时不喂（用户要求不拦截键）。</summary>
+    /// <summary>手势引擎键事件汇。非 null 时 <see cref="HandleKey"/> 第一件事就是喂它，先于全部吞键判定，
+    /// 手势层因此与本类<b>共用同一个低级键盘钩子</b>（不额外挂钩、不重复处理）。
+    /// 参数=(vk, 是否按下, 事件时刻修饰键态, 事件时间戳ms)；返回 true=独占吞掉本键。
+    /// null=手势层关闭，零开销，且 <see cref="Install"/> 不装钩子。Paused 时不喂（用户要求不拦截键）。</summary>
     public Func<uint, bool, GestureCore.ModifierKeys, long, bool>? KeySink;
 
     static GestureCore.ModifierKeys CurrentMods()
@@ -57,9 +66,9 @@ public sealed class HotkeyManager : IDisposable
     /// <summary>慢回调看门狗阈值（ms）：钩子回调占着全系统输入链，超过即记 trace。</summary>
     const double HookSlowWarnMs = 50;
 
-    /// <summary>装全局低级键盘钩子。旧 F6/F7 热键退役后，钩子只承载手势喂键（KeySink）、
-    /// 滚动截图 Esc 全局取消、截图浮窗 Enter/Esc。手势层关闭（KeySink=null）时不装——
-    /// 滚动/浮窗会话只在手势触发时才活跃，故无 KeySink 即无会话需求。</summary>
+    /// <summary>装全局低级键盘钩子。钩子承载三件事：手势喂键（<see cref="KeySink"/>）、滚动截图 Esc 全局取消、
+    /// 截图浮窗 Enter/Esc。<c>KeySink=null</c> 时不装——滚动/浮窗会话只在手势触发时才活跃，无 KeySink 即无会话需求。
+    /// 幂等：内部先卸后装。装失败抛 <see cref="System.ComponentModel.Win32Exception"/>，由调用方决定怎么呈现。</summary>
     public void Install()
     {
         Uninstall();
@@ -75,6 +84,9 @@ public sealed class HotkeyManager : IDisposable
         }
     }
 
+    /// <summary>卸载键盘钩子并弃掉委托引用。未装时静默返回，可重复调用。</summary>
+    /// <remarks>顺序是<b>先 Unhook 再弃引用</b>：钩子卸掉前系统仍可能回调，托管委托必须一直存活到那一刻，
+    /// 否则它的 native thunk 可能被 GC 回收。</remarks>
     public void Uninstall()
     {
         if (_hook != IntPtr.Zero)
@@ -111,7 +123,7 @@ public sealed class HotkeyManager : IDisposable
         if (Environment.GetEnvironmentVariable("FC_TRACE_KEYS") == "1")
             FrameCapture.Core.Trace.Log($"hook key={info.vkCode} down={isDown} installed={Installed}");
 
-        // 手势引擎喂键（唯一的全局触发路径，B2）。手势层关闭时 KeySink=null，零开销。
+        // 手势引擎喂键（唯一的全局触发路径）。手势层关闭时 KeySink=null，零开销。
         // Paused 时不喂：用户暂停全局热键=要求不拦截任何键，手势层同样避让。
         // 返回值=是否独占吞键（命中带具体键的组合键且开启 Exclusive）。
         bool gestureSwallow = false;
@@ -121,15 +133,16 @@ public sealed class HotkeyManager : IDisposable
         // 热路径仅一次 volatile 读 + 一次整数比较；ScrollActive 绑定控制条生命周期，绝不泄漏成"全局 Esc 失灵"。
         if (isDown && vk == 0x1B && ScrollActive) { ScrollCancel?.Invoke(); return true; }
 
-        // 截图浮窗活跃：Enter=进编辑器、Esc=关闭，全局吞掉（浮窗不抢焦点，键不会进它自己的 HWND，）。
+        // 截图浮窗活跃：Enter=进编辑器、Esc=关闭，全局吞掉（浮窗不抢焦点，键不会进它自己的 HWND）。
         if (isDown && ToastActive && (vk == 0x0D || vk == 0x1B))
         {
             if (vk == 0x0D) ToastEnter?.Invoke(); else ToastEsc?.Invoke();
             return true;
         }
 
-        // 选区窗活跃：Esc/Enter/C/F/Tab 全局代收并吞掉（选区窗不抢焦点，键不会进它自己的 HWND，）。
-        // 放在手势喂键之后、独占吞键之前：会话级优先；选区窗只认裸键（OnPickerKey 内查修饰键，Ctrl/Alt/Win 组合放行给手势与前台）。
+        // 选区窗活跃：Esc/Enter/C/F/Tab 全局代收并吞掉（选区窗不抢焦点，键不会进它自己的 HWND）。
+        // 排在手势喂键与会话键之后、独占吞键判定前面：会话级优先。
+        // 选区窗只认裸键（OnPickerKey 内查修饰键，Ctrl/Alt/Win 组合放行给手势与前台）。
         if (isDown && PickerActive && PickerKey != null && PickerKey(vk)) return true;
 
         // 独占吞键：手势命中「带具体键的组合键」→ 吞掉本键，前台程序收不到（QQ 式全局独占）。
@@ -138,5 +151,6 @@ public sealed class HotkeyManager : IDisposable
         return false;
     }
 
+    /// <summary>卸载钩子，等价于 <see cref="Uninstall"/>；宿主 Shutdown 与本类被丢弃都走这里。</summary>
     public void Dispose() => Uninstall();
 }

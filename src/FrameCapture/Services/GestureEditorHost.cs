@@ -44,13 +44,22 @@ public static class GestureEditorHost
     {
         static readonly GE.ActionInfo[] All =
             GestureActions.All.Select(a => new GE.ActionInfo(a.Name, a.Label, a.Description, a.IsCapture)).ToArray();
+        /// <summary>动作清单，来源是 <see cref="GestureActions.All"/>，进程内固定不变。</summary>
+        /// <returns>底层数组的只读视图（不复制），每次返回同一实例；配置器只读，不得回写。</returns>
         public IReadOnlyList<GE.ActionInfo> Actions() => All;
+
+        /// <summary>动作名是否为本 app 真实支持的动作。</summary>
+        /// <param name="name">动作名，与 <see cref="GestureActions"/> 表内原文逐字比对（区分大小写）。</param>
+        /// <returns>命中返回 true；null、空串、未知名返回 false——配置器据此拒绝写入该动作。</returns>
         public bool IsValid(string name) => GestureActions.IsValid(name);
     }
 
     /// <summary>键名：VK → WinFormsKeys 枚举名（与 <see cref="HotkeySpec"/> 的键名一致，保证显示与存储串一致）。</summary>
     sealed class FrameKeyNamer : GC.IKeyNamer
     {
+        /// <summary>虚拟键码 → 配置器显示与 chord 里用的键名。</summary>
+        /// <param name="key">Windows 虚拟键码（VK_*），不做合法性校验。</param>
+        /// <returns><c>System.Windows.Forms.Keys</c> 的枚举名；表外 VK 返回其十进制数字串，不抛异常。</returns>
         public string Name(int key) => ((WinFormsKeys)key).ToString();
     }
 
@@ -58,6 +67,10 @@ public static class GestureEditorHost
     /// 组合键串复用 <see cref="HotkeySpec"/> 解析/重建（不重造键表）。Save 走 Mutate → 触发热重载。</summary>
     sealed class FrameGestureConfigStore : GE.IGestureConfigStore
     {
+        /// <summary>读当前设置的手势段，翻成宿主无关的编辑文档。</summary>
+        /// <returns>新建的文档（与设置对象不共享引用，改文档不会即时影响运行时）。
+        /// chord 解析不出来的绑定保留但键位归零（mods=None、key=0），由用户在配置器里重设；
+        /// trigger / fallback 字符串认不出来时分别按 Chord / Stop 兜底，不整条丢弃。</returns>
         public GE.GestureDoc Load()
         {
             var cfg = AppHost.Current.Settings.Current.Gestures;
@@ -84,6 +97,8 @@ public static class GestureEditorHost
             return doc;
         }
 
+        /// <summary>把编辑文档整体写回 settings.json 的手势段，并当场让手势引擎与键盘钩子重载。</summary>
+        /// <param name="doc">配置器当前文档。<b>整体替换</b>现有配置：文档里没有的绑定即被删除，不做增量合并。</param>
         public void Save(GE.GestureDoc doc)
         {
             var cfg = new GestureConfig { Enabled = doc.Enabled, Exclusive = doc.Exclusive };
@@ -114,7 +129,7 @@ public static class GestureEditorHost
             }
             AppHost.Current.Settings.Mutate(s => s.Gestures = cfg);
             // 立即热重载引擎：Mutate 是本进程自写盘，文件 watcher 会因 RecentlySelfWritten 跳过，
-            // 不主动 Apply 的话引擎还拿着旧绑定（新增的完成后序列/启用状态要等下次重启才生效）。
+            // 不自己触发 InstallHotkeys，引擎就继续持保存前的绑定表——完成后序列/启用状态要等下次启动才生效。
             AppHost.Current.InstallHotkeys();
         }
 
