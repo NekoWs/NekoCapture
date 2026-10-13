@@ -9,15 +9,18 @@ using System.Windows.Shapes;
 
 namespace FrameCapture.Core;
 
+/// <summary>Fluent 视觉与交互工厂的窗口级 partial：入场/退场动效、无框窗口、投影层次与弹性反馈。
+/// 全部成员必须在 UI 线程调用——它们订阅窗口事件并启动 Storyboard。</summary>
 public static partial class Fluent
 {
+    /// <summary>图标字形回退链：Segoe Fluent Icons 优先，缺字形时逐级回退到 MDL2 / Symbol。</summary>
     public const string IconFontChain = "Segoe Fluent Icons, Segoe MDL2 Assets, Segoe UI Symbol";
 
     static string Hex(Color c) => $"#{c.A:X2}{c.R:X2}{c.G:X2}{c.B:X2}";
 
     static readonly FontFamily IconFont = new(IconFontChain);
 
-    // ---------------- 窗口淡入 ----------------
+    #region 窗口淡入
 
     /// <summary>全站动效令牌：入场 cubic-out，退场 cubic-in，节奏统一（对标 Fluent Dependency/Transient）。</summary>
     public static class Motion
@@ -33,13 +36,17 @@ public static partial class Fluent
     }
 
     /// <summary>弹性缓动工厂：BackEase 过冲回弹，用于松手/入场的「弹一下」手感。
-    /// amp 越大过冲越明显；受限滑轨指示器等不可越界处勿用（那里用单调 CubicEase）。</summary>
+    /// 受限滑轨指示器等不可越界处勿用（那里用单调 CubicEase）。</summary>
+    /// <param name="amp">过冲幅度，越大弹得越明显；0 退化为无过冲。</param>
+    /// <returns>新建的 <c>BackEase</c>（EaseOut）；每次调用返回新实例，可安全并发动画。</returns>
     public static EasingFunctionBase Spring(double amp = 0.6) => new BackEase { Amplitude = amp, EasingMode = EasingMode.EaseOut };
 
     /// <summary>QQ 式真无框窗口：WindowStyle=None 的 WPF 窗口仍保留 DWM 非客户区（顶部白条）。
-    /// WindowChrome（WPF 官方方案，内部处理 WM_NCCALCSIZE）让客户区覆盖整窗——白条不再绘制，
+    /// WindowChrome（WPF 官方方案，内部处理 WM_NCCALCSIZE）让客户区覆盖整窗，白条不绘制，
     /// 且保留 WS_THICKFRAME → 原生阴影与 Win11 圆角、原生边缘调整大小，硬件加速不受影响
     /// （勿用 AllowsTransparency，软件渲染代价大）。CaptionHeight=0：拖拽由 DragMove 自理。</summary>
+    /// <param name="w">目标窗口；各调用点一律在构造期（Show 前）设置 Chrome。</param>
+    /// <param name="resizeBorder">边缘可拖拽调整大小的宽度（逻辑像素），过窄会难点中。</param>
     public static void BorderlessNative(Window w, double resizeBorder = 5)
     {
         System.Windows.Shell.WindowChrome.SetWindowChrome(w, new System.Windows.Shell.WindowChrome
@@ -65,10 +72,13 @@ public static partial class Fluent
         Native.Win32.SetLayeredWindowAttributes(hwnd, IntPtr.Zero, 0, Native.Win32.LWA_ALPHA);
     }
 
-    /// <summary>消除入场黑闪：WPF 的 Opacity=0 要等首帧渲染才应用到 HWND，之前 DWM 显示不透明黑面（或类背景白闪）。
-    /// SourceInitialized（HWND 已建、未渲染）置 Win32 分层 alpha=0；WPF 首帧准备会冲掉手工样式，
+    /// <summary>消除入场黑闪：WPF 的 Opacity=0 要等首帧渲染才应用到 HWND，未应用的那几帧 DWM 显示不透明黑面
+    /// （或类背景白闪）。SourceInitialized（HWND 已建、未渲染）置 Win32 分层 alpha=0；WPF 首帧准备会冲掉手工样式，
     /// 故每次布局再补一次。默认 ContentRendered 放行；holdPastRender=true 时由返回的 release 决定放行时机
-    /// （离屏首帧方案需要回屏后继续压住 alpha）。返回的 release 幂等。</summary>
+    /// （离屏首帧方案需要回屏后继续压住 alpha）。</summary>
+    /// <param name="w">待压住首帧的窗口。</param>
+    /// <param name="holdPastRender">true 表示渲染完成后仍压住 alpha，直到调用返回的 release。</param>
+    /// <returns>放行函数：调用后停止补写 alpha=0，入场淡入才可生效。幂等，重复调用无副作用。</returns>
     public static Action PreTransparent(Window w, bool holdPastRender = false)
     {
         bool released = false;
@@ -86,6 +96,7 @@ public static partial class Fluent
     }
 
     /// <summary>紧凑弹窗（设置/帮助）入场：淡入 + 0.96→1 内容放大（WinUI Dialog 范式）。</summary>
+    /// <param name="w">待入场的窗口；内容须是 <see cref="FrameworkElement"/> 才有放大动画，否则只淡入。</param>
     public static void PopupEnter(Window w)
     {
         w.Opacity = 0;
@@ -117,9 +128,11 @@ public static partial class Fluent
 
     static readonly HashSet<Window> _fadingOut = new();
 
-    /// <summary>退场：淡出 + 与入场对称的位移/缩放，再真正 Close（主题切换的交叉淡入不使用此路径）。
-    /// 纯 150ms 透明度淡出在大窗（截图编辑器）上几乎看不出来，用户反馈「编辑器没有关闭动画」——
-    /// 按入场留下的变换类型反向补一点动效：缩放窗（设置/帮助 PopupEnter）缩到 0.97，位移窗（编辑器 FadeIn rise）下沉 12。</summary>
+    /// <summary>退场：淡出 + 与入场对称的位移/缩放，再真正 Close（主题切换的交叉淡入不走此路径）。
+    /// 大窗（截图编辑器）上纯 150ms 透明度淡出几乎看不出来，故按入场留下的变换类型反向补一点动效：
+    /// 缩放窗（设置/帮助 PopupEnter）缩到 0.97，位移窗（编辑器 FadeIn rise）下沉 12。
+    /// 只改 Opacity 与 RenderTransform，不碰 Left/Top——避免多窗关闭时闪出桌面。</summary>
+    /// <param name="w">待关闭的窗口。淡出期间任何 Close（含按键重复）都被取消，重复调用只生效一次。</param>
     public static void CloseWithFade(Window w)
     {
         if (!_fadingOut.Add(w)) return; // 动画已在进行中（含按键重复触发的重入）
@@ -144,20 +157,31 @@ public static partial class Fluent
         }
     }
 
+    /// <summary>窗口淡入：Opacity 0→1（CubicEase Out），可选自下方 risePx 抬起。
+    /// 分层窗（AllowsTransparency）走独立分支：它自创建即 per-pixel alpha，首帧没有黑/白闪，
+    /// 且 DWM 合成下 WPF 不调 UpdateLayeredWindow——手工 SetLayeredWindowAttributes(alpha=0)
+    /// 永远不会被 WPF 清掉，用了就是整窗永久隐形。该分支只淡入，risePx 与 offscreenFirstFrame 不生效。
+    /// 非分层窗由 <see cref="PreTransparent"/> 压住首帧，黑面/白闪不会先于淡入露出。</summary>
+    /// <param name="w">待入场的窗口。</param>
+    /// <param name="ms">淡入时长（ms）。</param>
+    /// <param name="risePx">入场位移（逻辑像素），内容从下方 risePx 抬回 0；0 = 只淡入。
+    /// 内容已挂 TransformGroup 时跳过，不覆盖调用方自己的变换。</param>
+    /// <param name="offscreenFirstFrame">true = 先把窗口挪到 -32000 渲染首帧再回位，黑相永远发生在屏幕外；
+    /// 代价是回位瞬间要再压一次 alpha 并等下一渲染帧放行。</param>
     public static void FadeIn(Window w, int ms = 160, double risePx = 0, bool offscreenFirstFrame = false)
     {
         w.Opacity = 0;
         // 分层窗（AllowsTransparency）自创建即 per-pixel alpha，首帧前没有黑/白闪；
-        // 且 DWM 合成下 WPF 不再调 UpdateLayeredWindow——手工 SetLayeredWindowAttributes(alpha=0)
-        // 永远不会被 WPF 清掉，用了就是整窗永久隐形（教训：选区窗遮罩+提示全隐形 6 轮无人察觉）。
+        // 且 DWM 合成下 WPF 不调 UpdateLayeredWindow——手工 SetLayeredWindowAttributes(alpha=0)
+        // 永远不会被 WPF 清掉，用了就是整窗永久隐形。本分支绝不碰 Win32 分层属性。
         if (w.AllowsTransparency)
         {
             void StartFade() => w.BeginAnimation(UIElement.OpacityProperty,
                 new DoubleAnimation(1, new Duration(TimeSpan.FromMilliseconds(ms)))
                 { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
-            // 修复：若内容已渲染（ContentRendered 已过——PinWindow 是在自己的 ContentRendered 回调里才调 FadeIn），
-            // 再订阅 ContentRendered 永不触发（该事件仅首次渲染后触发一次），淡入不启动、Opacity 永久卡 0 → 贴图完全隐形，
-            // 表现为「Ctrl+P 钉到屏幕完全没反应」。此时立即淡入。Show 前调用的窗口 IsLoaded=false，仍走订阅路径，行为不变。
+            // ContentRendered 只在首次渲染后触发一次：此刻内容已渲染（IsLoaded，例如 PinWindow 在自己的
+            // ContentRendered 回调里才调 FadeIn）时再订阅永不触发，淡入不启动、Opacity 永久卡 0 → 整窗隐形。
+            // 故此刻直接起淡入；Show 前调用的窗口 IsLoaded=false，仍走订阅路径。
             if (w.IsLoaded) { StartFade(); return; }
             w.ContentRendered += (_, _) => StartFade();
             return;
@@ -205,14 +229,19 @@ public static partial class Fluent
         }
         else w.ContentRendered += (_, _) => Start();
     }
+    #endregion
 
-    // ---------------- 层次与弹性（现代化：卡片浮起 + 交互回弹，治「太平/老工具」） ----------------
+    #region 层次与弹性：卡片浮起 + 交互回弹
 
     /// <summary>给卡片/浮层加柔和投影，使其从背景「浮起」。主题感知：暗底用较浓黑投影、亮底较淡。
     /// 仅用于卡片/弹层等少量容器，勿逐行加（DropShadowEffect 有渲染成本）。</summary>
+    /// <param name="b">承载投影的卡片；Effect 会被整体替换。</param>
+    /// <param name="blur">模糊半径（逻辑像素），越大越柔。</param>
+    /// <param name="depth">投影偏移（逻辑像素），0 = 正下方贴边。</param>
+    /// <param name="opacity">投影不透明度 0–1；负数（默认）表示按主题取档：暗底 0.5、亮底 0.13。</param>
     public static void Elevate(Border b, double blur = 22, double depth = 5, double opacity = -1)
     {
-        // 亮色下 0.26 太深（白底上像脏灰块），降到 0.13——亮底只需极淡投影提示层次即可
+        // 亮底只需极淡投影提示层次，再深一点在白底上就成了脏灰块
         double op = opacity >= 0 ? opacity : (Theme.IsDark ? 0.5 : 0.13);
         var sh = new System.Windows.Media.Effects.DropShadowEffect
         {
@@ -229,7 +258,10 @@ public static partial class Fluent
     /// <summary>弹层（Popup.Child）卡片：内层 PanelBg 圆角卡 + 柔和投影，外层透明留白给投影腾出渲染空间。
     /// Popup 按子元素 DesiredSize 开分层窗、而 Effect 不参与布局，故投影若直接挂内层会被窗缘裁掉——
     /// 外层 Padding 把 DesiredSize 撑大，投影才有地方画。外层不设 Background（null）→ 留白处点击穿透，
-    /// StaysOpen=false 时点卡片外即正常关闭。让取色/粗细/强调色等浮层从画布「浮起」，不再贴一张平卡。</summary>
+    /// StaysOpen=false 时点卡片外即正常关闭。取色/粗细/强调色等浮层由此从画布「浮起」。</summary>
+    /// <param name="content">卡片内容。</param>
+    /// <param name="innerPadding">内层留白；null = 12,10,12,10。</param>
+    /// <returns>可直接赋给 <c>Popup.Child</c> 的外层 Border（四周留 18 给投影）。</returns>
     public static Border PopupCard(FrameworkElement content, Thickness? innerPadding = null)
     {
         var inner = new Border
@@ -247,18 +279,22 @@ public static partial class Fluent
             BlurRadius = 16,
             ShadowDepth = 4,
             Direction = 270,
-            Opacity = Theme.IsDark ? 0.45 : 0.12,   // 亮色下 0.22 太深，随 Elevate 一起调浅
+            Opacity = Theme.IsDark ? 0.45 : 0.12,   // 亮底投影与 Elevate 同档，极淡
         };
         sh.Freeze();
         inner.Effect = sh;
         return new Border { Padding = new Thickness(18), Child = inner };
     }
 
-    /// <summary>与 ChipHover 同款——小按钮悬停/按住只改底色带过渡，不再放大
-    /// （用户：「小按钮的变大动画改成和普通按钮一致」）。hover/press 参数保留兼容，已忽略。</summary>
+    /// <summary>小按钮的悬停反馈：与普通按钮一致，只改底色带过渡，不缩放——缩放会让一排小按钮互相挤动。</summary>
+    /// <param name="el">目标元素。</param>
+    /// <param name="hover">保留位，不参与效果（本方法只转发 <see cref="BgHover"/>）。</param>
+    /// <param name="press">保留位，不参与效果。</param>
     public static void Springy(FrameworkElement el, double hover = 1.02, double press = 0.985) => BgHover(el);
 
     /// <summary>满宽卡片的安全「浮起」反馈：hover 轻微上移 + 松手回弹，离开复位——不缩放故绝不横向溢出容器。</summary>
+    /// <param name="b">卡片容器；RenderTransform 被替换为 TranslateTransform。</param>
+    /// <param name="dy">上移距离（逻辑像素），悬停时取负值。</param>
     public static void Lift(Border b, double dy = 2.0)
     {
         b.RenderTransformOrigin = new Point(0.5, 0.5);
@@ -276,6 +312,9 @@ public static partial class Fluent
 
     /// <summary>入场「弹一下」：元素从 from 缩放弹性放大到 1（BackEase 过冲），用于浮层/toast 的 QQ 弹弹登场。
     /// 只缩放元素自身（在其窗口边界内），不位移故不会越出宿主窗口。</summary>
+    /// <param name="el">登场元素；RenderTransform 被替换为 ScaleTransform。</param>
+    /// <param name="from">起始缩放倍率，小于 1 才有「放大进场」感。</param>
+    /// <param name="ms">时长（ms）；≤0 表示用 <c>Motion.EnterMs + 70</c>。</param>
     public static void PopIn(FrameworkElement el, double from = 0.85, int ms = -1)
     {
         ms = ms > 0 ? ms : Motion.EnterMs + 70;
@@ -287,4 +326,6 @@ public static partial class Fluent
         st.BeginAnimation(ScaleTransform.ScaleXProperty, a);
         st.BeginAnimation(ScaleTransform.ScaleYProperty, a);
     }
+    #endregion
+
 }

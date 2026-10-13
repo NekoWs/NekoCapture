@@ -26,7 +26,7 @@ public sealed partial class RegionPickerWindow : Window
     private System.Windows.Controls.Border _badge = null!;
     private TextBlock _badgeText = null!;
 
-    // ---------- 全局钩子代收选区窗按键（选区窗不抢焦点，键不会进它自己的 HWND）----------
+    #region 全局钩子代收选区窗按键（选区窗不抢焦点，键不会进它自己的 HWND）
     /// <summary>由 HotkeyManager 全局低级键盘钩子在 PickerActive 时调用。返回 true=本键归选区窗处理（吞掉，前台收不到）。
     /// 只接管无 Ctrl/Alt/Win 的裸键：Ctrl+C 等留给前台，Ctrl+Esc 是开始菜单，含修饰键的组合放行给手势层。
     /// 动作经 Dispatcher.BeginInvoke 投递到干净的 dispatcher 轮次执行（与浮窗/滚动同款，避免在输入链里做重活）。</summary>
@@ -222,4 +222,6 @@ public sealed partial class RegionPickerWindow : Window
         if (Core.SnapPick.AnyAboveIntersects(cands.Select(t => t.Bounds).ToList(), idx, frame)) return null;
         return (pick.Value.Hwnd, frame);
     }
+    #endregion
+
 }

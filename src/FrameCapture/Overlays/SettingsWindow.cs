@@ -79,15 +79,16 @@ public sealed partial class SettingsWindow : Window
         };
         var dock = new DockPanel { LastChildFill = true };
 
-        // ---- 标题栏：取景框图标 + 标题 + 关闭；整条可拖（共享件 Fluent.TitleBar，与帮助窗同款） ----
+        #region 标题栏：取景框图标 + 标题 + 关闭；整条可拖（共享件 Fluent.TitleBar，与帮助窗同款）
         var (bar, closeBtn) = FrameCapture.Core.Fluent.TitleBar("\uE7A8", "设置");
         closeBtn.Click += (_, _) => FrameCapture.Core.Fluent.CloseWithFade(this);
         // 关闭按钮落在原生 CaptionHeight 拖窗区内，须显式让位给 WPF 命中，否则点它会拖窗而非关闭
         System.Windows.Shell.WindowChrome.SetIsHitTestVisibleInChrome(closeBtn, true);
         DockPanel.SetDock(bar, Dock.Top);
         dock.Children.Add(bar);
+        #endregion
 
-        // ---- 主从式（B1）：每个类别一个 StackPanel，左栏竖向导航一次只显示一个，治「布局太长」----
+        #region 主从式（B1）：每个类别一个 StackPanel，左栏竖向导航一次只显示一个，治「布局太长」
         var cats = new List<(string Name, string Glyph, StackPanel Body)>();
         StackPanel Cat(string name, string glyph)
         {
@@ -96,8 +97,9 @@ public sealed partial class SettingsWindow : Window
             return p;
         }
         StackPanel panel = Cat("快捷键", "\uE765");
+        #endregion
 
-        // ---- 快捷键（旧「选区/捕获快捷键」两行退役，键位统一由手势配置器管理）----
+        #region 快捷键（旧「选区/捕获快捷键」两行退役，键位统一由手势配置器管理）
         panel.Children.Add(new TextBlock
         {
             Foreground = new SolidColorBrush(Theme.TextDim),
@@ -106,8 +108,9 @@ public sealed partial class SettingsWindow : Window
             TextWrapping = TextWrapping.Wrap,
             Text = "当前生效的键位如下，增删改请打开下方手势配置器。",
         });
+        #endregion
 
-        // ---- 当前生效键位（从手势绑定推导，免开配置器即可一眼看到截图/选区键）----
+        #region 当前生效键位（从手势绑定推导，免开配置器即可一眼看到截图/选区键）
         var gk = _settings.Current.Gestures;
         var keyCard = new Border
         {
@@ -147,8 +150,9 @@ public sealed partial class SettingsWindow : Window
         keyCard.Child = keyStack;
         FrameCapture.Core.Fluent.Elevate(keyCard, blur: 24, depth: 6);
         panel.Children.Add(keyCard);
+        #endregion
 
-        // ---- 手势配置器入口：可视化增删改键位绑定，保存即热重载生效 ----
+        #region 手势配置器入口：可视化增删改键位绑定，保存即热重载生效
         var geBtn = new Border
         {
             Margin = new Thickness(0, 8, 0, 2),
@@ -168,8 +172,9 @@ public sealed partial class SettingsWindow : Window
         Fluent.ChipHover(geBtn);   // 去掉悬停上浮（Lift），与普通按钮一致只改底色带过渡
         geBtn.MouseLeftButtonUp += (_, _) => FrameCapture.Services.GestureEditorHost.ShowOrFocus();
         panel.Children.Add(geBtn);
+        #endregion
 
-        // ---- 截图 ----
+        #region 截图
         panel = Cat("截图", "\uE7A8");
         panel.Children.Add(ToggleRow("\uE7B5", "选区自动截取", "完成选区后立即截取一帧静态图（PNG，同时复制到剪贴板）",
             _settings.Current.AutoCaptureOnSelect, v => _settings.Mutate(s => s.AutoCaptureOnSelect = v)));
@@ -220,8 +225,9 @@ public sealed partial class SettingsWindow : Window
         panel.Children.Add(DelayRow());
 
         Cardify(panel); // 截图页行归入卡片
+        #endregion
 
-        // ---- 录制 ----
+        #region 录制
         panel = Cat("录制", "\uE714");
         var fpsRow = SliderRow("\uEC4A", "录制帧率 (FPS)", "录制时每秒捕获的帧数；开启下方「跟随显示器刷新率」时本项隐藏（被刷新率取代）",
             AppSettings.FpsMin, AppSettings.FpsMax, 5, _settings.Current.Fps,
@@ -263,8 +269,9 @@ public sealed partial class SettingsWindow : Window
             _settings.Current.RecordIncludeCursor, v => _settings.Mutate(s => s.RecordIncludeCursor = v)));
 
         Cardify(panel); // 录制页行归入卡片
+        #endregion
 
-        // ---- 产物 ----
+        #region 产物
         panel = Cat("产物", "\uE74E");
         // 「自动生成 Agent 胶片条 / 抽帧数」两行移除——胶片条改为视频编辑器里的功能按钮
         // （「生成胶片条」→ 小窗问抽帧参数 → 直接复制剪贴板），参数记忆在小窗里，不再是全局设置。
@@ -273,8 +280,9 @@ public sealed partial class SettingsWindow : Window
         panel.Children.Add(PathRow());
 
         Cardify(panel); // 产物页行归入卡片
+        #endregion
 
-        // ---- 编辑器 ----
+        #region 编辑器
         panel = Cat("编辑器", "\uE70F");
         panel.Children.Add(ToggleRow("\uEDD7", "记住上次的工具/颜色/粗细", "关闭编辑器时记住你最后用的标注工具、颜色和线宽，下次打开直接是它们，省去每次重选。关闭后每次打开都回到默认（浏览 / 红 / 中）",
             _settings.Current.RememberEditorTools, v => _settings.Mutate(s => s.RememberEditorTools = v)));
@@ -282,22 +290,25 @@ public sealed partial class SettingsWindow : Window
             _settings.Current.OcrShowResult, v => _settings.Mutate(s => s.OcrShowResult = v)));
 
         Cardify(panel); // 编辑器页行归入卡片
+        #endregion
 
-        // ---- 贴图 ----
+        #region 贴图
         panel = Cat("贴图", "\uE718");
         panel.Children.Add(ToggleRow("\uE718", "贴图窗口吸附", "拖动贴图时实时吸附对齐（R161 由「磁边」升级）：贴近所在屏幕边缘则停靠四边/四角；贴近同屏其他贴图、以及任何应用窗口（浏览器/资源管理器…）的边或中线则与之对齐，把贴图摆齐像吸附网格一样自然。阈值调低为「贴边才吸」，不会隔空乱跳。关闭则松手停在原地",
             _settings.Current.PinSnapEdges, v => _settings.Mutate(s => s.PinSnapEdges = v)));
 
         Cardify(panel); // 贴图页行归入卡片
+        #endregion
 
-        // ---- 外观 ----
+        #region 外观
         panel = Cat("外观", "\uE790");
         panel.Children.Add(ThemeRow());
         panel.Children.Add(AccentRow());
 
         Cardify(panel); // 外观页行归入卡片
+        #endregion
 
-        // ---- 系统 ----
+        #region 系统
         panel = Cat("系统", "\uE713");
         panel.Children.Add(ToggleRow("\uE7E8", "开机自启", "登录 Windows 时自动启动 FrameCapture",
             _settings.Current.RunAtStartup, v =>
@@ -307,8 +318,9 @@ public sealed partial class SettingsWindow : Window
             }));
 
         Cardify(panel); // 系统页行归入卡片
+        #endregion
 
-        // ---- 主从式装配（B1）：左栏竖向导航「设置项」+ 右栏「设置内容」，中间细分隔线 ----
+        #region 主从式装配（B1）：左栏竖向导航「设置项」+ 右栏「设置内容」，中间细分隔线
         var iconFont = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets, Segoe UI Symbol");
         var contentHeader = new TextBlock
         {
@@ -495,4 +507,6 @@ public sealed partial class SettingsWindow : Window
         // 拖窗改由 WindowChrome 原生 CaptionHeight 处理（见 ctor）；不再挂 WM_NCHITTEST 钩子，避免与 WindowChrome 命中测试抢序。
         Closed += (_, _) => AppHost.Current.InstallHotkeys();
     }
+        #endregion
+
 }

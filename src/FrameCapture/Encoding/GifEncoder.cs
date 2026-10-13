@@ -123,7 +123,7 @@ public static class GifEncoder
         return ms.ToArray();
     }
 
-    // ---------------- 量化：median-cut → ≤256 色 ----------------
+    #region 量化：median-cut → ≤256 色
 
     static (byte[] Indices, byte[] Palette, int EntryBits) Quantize(byte[] bgra, int w, int h)
     {
@@ -289,8 +289,9 @@ public static class GifEncoder
             axis = 2; return spanB;
         }
     }
+    #endregion
 
-    // ---------------- LZW（GIF 变体：低位在前） ----------------
+    #region LZW（GIF 变体：低位在前）
 
     static void LzwCompress(byte[] indices, int entryBits, BinaryWriter bw)
     {
@@ -357,4 +358,6 @@ public static class GifEncoder
         PutBits(eoiCode, codeSize);
         Flush();
     }
+    #endregion
+
 }

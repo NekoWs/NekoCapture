@@ -69,7 +69,7 @@ public static class WindowCapture
         return (f, outer);
     }
 
-    // ---------------- 纯几何/像素函数（可单测） ----------------
+    #region 纯几何/像素函数（可单测）
 
     public static RectI Intersect(RectI a, RectI b)
     {
@@ -155,8 +155,9 @@ public static class WindowCapture
     }
 
     static int Clamp(int v, int lo, int hi) => v < lo ? lo : (v > hi ? hi : v);
+    #endregion
 
-    // ---------------- WGC 按窗口一次性取帧 ----------------
+    #region WGC 按窗口一次性取帧
 
     static (byte[] bgra, int w, int h) WgcGrab(IntPtr hwnd)
     {
@@ -244,4 +245,6 @@ public static class WindowCapture
         if (dpi < 96) dpi = 96;
         return (int)Math.Round(ShadowBasePx * dpi / 96.0);
     }
+    #endregion
+
 }

@@ -17,7 +17,7 @@ namespace FrameCapture.Overlays;
 public sealed partial class EditorWindow : Window
 {
 
-    // ---------------- 布局 ----------------
+    #region 布局
 
     Button IconBtn(string glyph, string tip, double size = 28) =>
         FrameCapture.Core.Fluent.IconButton(glyph, tip, size, 13);
@@ -399,8 +399,9 @@ public sealed partial class EditorWindow : Window
             FrameCapture.Core.Fluent.HighlightBtn(_widthBtns[i], i == _widthIdx);
         UpdateFontStepper();
     }
+    #endregion
 
-    // ---------------- 自定义颜色 / 线宽 ----------------
+    #region 自定义颜色 / 线宽
 
     Button? _paletteBtn;
     Button? _widthMoreBtn;
@@ -487,4 +488,6 @@ public sealed partial class EditorWindow : Window
 
     // OpenPopSticky 已上收 Fluent（，设置窗调色板共用）
     static void OpenPopSticky(Popup pop, UIElement hostEl) => FrameCapture.Core.Fluent.OpenPopSticky(pop, hostEl);
+    #endregion
+
 }

@@ -14,7 +14,7 @@ namespace FrameCapture.Overlays;
 // 本 partial 职责：画布鼠标交互（绘制一笔/Shift 约束/取消落笔）与选中工具（点选/拖移/四角缩放/字号步进）。
 public sealed partial class EditorWindow
 {
-    // ---------------- 画布交互 ----------------
+    #region 画布交互
 
     void Canvas_Down(object sender, MouseButtonEventArgs e)
     {
@@ -300,8 +300,9 @@ public sealed partial class EditorWindow
         if (_preview != null) { _canvas.Children.Remove(_preview); _preview = null; }
         EndCropGuide();
     }
+    #endregion
 
-    // ---------------- 选中工具：点选→虚线框；拖移/删除都走操作栈可撤销 ----------------
+    #region 选中工具：点选→虚线框；拖移/删除都走操作栈可撤销
 
     Annotation? _sel;
     Rectangle? _selBox;
@@ -318,8 +319,9 @@ public sealed partial class EditorWindow
     readonly List<(UIElement el, Annotation a)> _annEls = new();
 
     void SetSelection(Annotation? a) { _sel = a; RedrawAnns(); UpdateFontStepper(); }
+    #endregion
 
-    // ---- 字号步进器（C3）：文字工具/选中文字时可见，A−/A+ 调字号 ----
+    #region 字号步进器（C3）：文字工具/选中文字时可见，A−/A+ 调字号
     bool TextRelevant => _tool == Tool.Text || _sel is { Kind: AnnKind.Text or AnnKind.Number };
     bool SelIsText => _sel is { Kind: AnnKind.Text or AnnKind.Number };
 
@@ -344,8 +346,9 @@ public sealed partial class EditorWindow
             _fontLabel.Text = $"{(int)FrameCapture.Core.AnnFont.FramePx(t)}px";
         }
     }
+    #endregion
 
-    // ---- 缩放手柄：选中框四角拖拽，按对角锚点等比缩放归一化点集（对所有标注类型通用）----
+    #region 缩放手柄：选中框四角拖拽，按对角锚点等比缩放归一化点集（对所有标注类型通用）
 
     /// <summary>点集归一化包围盒（不含 AnnBDisp 的描边外扩，缩放以真实几何为准）。</summary>
     static Rect NormBox(List<(float X, float Y)> pts)
@@ -483,5 +486,6 @@ public sealed partial class EditorWindow
             FrameCapture.Core.Trace.Log($"editor restyle kind={s.Kind} color={colorChanged} w={widthChanged}");
         }
     }
+    #endregion
 
 }

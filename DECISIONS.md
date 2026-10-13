@@ -93,3 +93,33 @@
 - **曾经的错误**：把被拦截当成失败（假阴性），或把没跑当成通过（假阳性）。
 - **护栏**：`guardrail.ps1` 先跑注入可达性探针（轻点捕获键看是否出现 FC 窗口），
   未命中则 e2e 全部 SKIP 并明确提示"前台疑似反外挂游戏"。
+
+## 分层窗（AllowsTransparency）禁止手工 LWA_ALPHA=0
+
+- **不变量 / 契约**：`Fluent.PreTransparent` 的 Win32 分层 alpha=0 只适用于 **非** 分层窗
+  （`AllowsTransparency=false`）。`AllowsTransparency=true` 的窗口自创建即 per-pixel alpha，
+  入场透明度只由 WPF `Opacity` 控制，本分支绝不碰 `GWL_EXSTYLE` / `SetLayeredWindowAttributes`。
+- **曾经的错误**：把 alpha=0 也压到分层窗上想"消除首帧闪"。DWM 合成下 WPF 对分层窗不调
+  `UpdateLayeredWindow`，手工 `LWA_ALPHA=0` 没有人在首帧后清掉 → 窗口永久 alpha=0。
+  行为 e2e 全绿：点击、选区、截图逻辑全对，只是整窗看不见——纯视觉缺陷，逻辑断言抓不到。
+- **护栏**：`FadeIn` / `PopupEnter` 的 `if (w.AllowsTransparency)` 分支排在 `PreTransparent` 之前并直接
+  return；入场类改动必须走视觉暂留审查（`UICap.exe burstregion` → `montage` 逐帧确认内容真的可见）。
+
+## 一次性生命周期事件必须在订阅处补判"事件已发生"
+
+- **不变量 / 契约**：靠 `ContentRendered` 这类**只触发一次**的事件去启动的动作，订阅前必须先判断
+  事件是否已经过去（`IsLoaded`），已发生就地执行，不能只挂回调。
+- **曾经的错误**：`FadeIn` 把淡入挂在 `ContentRendered`；而调用方（`PinWindow`）是在自己的
+  `ContentRendered` 回调里才调 `FadeIn` —— 事件早已发生，订阅永不触发，`Opacity` 永久停在 0，
+  整窗隐形且无任何报错。与"分层窗 alpha=0"是同一症状（看不见）的两条独立成因。
+- **护栏**：`Fluent.FadeIn` 里 `if (w.IsLoaded) { StartFade(); return; }` 兜底；
+  通用规则：任何"等一次性事件才恢复可见 / 可用"的代码都必须有"事件已发生"分支。
+
+## 悬停底色动画的基色按画刷实例身份取
+
+- **不变量 / 契约**：悬停底色动画的基色必须来自"我们持有并驱动动画的那份画刷"（实例身份），
+  只有外部换底（选中态切换等）才重取基色；动画目标永远从固定基色起算。
+- **曾经的错误**：`MouseEnter` 直接读当前底色当基色。动画未走完就再次进入时，没走完的**中途色**
+  被当成基色，每次悬停都向高亮侧偏一点——越悬越白的棘轮效应，不报错、不崩溃，只有用久了才看得出来。
+- **护栏**：`Fluent.Controls` 的 `ChipHover` / `ToggleBorderHover` 用 `ReferenceEquals(sb, ours)`
+  判画刷身份，身份不符才 `baseColor = sb.Color`；同类"读当前值当动画起点"的代码一律按实例身份取基色。

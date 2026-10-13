@@ -152,7 +152,7 @@ public sealed partial class EditorWindow : Window
         };
     }
 
-    // ---------------- 首次上手引导（，一次性） ----------------
+    #region 首次上手引导（，一次性）
 
     Grid? _root;
     Border? _guide;
@@ -248,4 +248,6 @@ public sealed partial class EditorWindow : Window
         ClosedByUser?.Invoke();
         FrameCapture.Core.Fluent.CloseWithFade(this);
     }
+    #endregion
+
 }

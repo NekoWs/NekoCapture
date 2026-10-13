@@ -17,7 +17,7 @@ namespace FrameCapture.Overlays;
 public sealed partial class EditorWindow : Window
 {
 
-    // ---------------- 行为 ----------------
+    #region 行为
 
     void OnKeyDown(object sender, KeyEventArgs e)
     {
@@ -190,4 +190,6 @@ public sealed partial class EditorWindow : Window
             + (_seq.DroppedFrames > 0 ? $"  ⚠内存预算已丢 {_seq.DroppedFrames} 帧" : "");
         DrawRange();
     }
+    #endregion
+
 }

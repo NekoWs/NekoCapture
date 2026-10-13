@@ -16,7 +16,7 @@ namespace FrameCapture.Overlays;
 // 本 partial 职责：设置行控件工厂——滑杆行、开关行、保存位置行、录制格式行，及通用行骨架/卡片/图标小件。
 public sealed partial class SettingsWindow : Window
 {
-    // ---------- 滑杆行 ----------
+    #region 滑杆行
 
     FrameworkElement SliderRow(string glyph, string label, string tip, double min, double max, double tick, double val,
         Func<double, string> fmt, Action<double> onChange)
@@ -71,8 +71,9 @@ public sealed partial class SettingsWindow : Window
         outer.Children.Add(sl);
         return outer;
     }
+    #endregion
 
-    // ---------- 开关行 ----------
+    #region 开关行
 
     FrameworkElement ToggleRow(string glyph, string label, string tip, bool initial, Action<bool> onChange)
     {
@@ -308,8 +309,9 @@ public sealed partial class SettingsWindow : Window
         wrap.Children.Add(status);
         return wrap;
     }
+    #endregion
 
-    // ---------- 小部件 ----------
+    #region 小部件
 
     static Grid Row()
     {
@@ -353,4 +355,6 @@ public sealed partial class SettingsWindow : Window
         Margin = new Thickness(4, 0, 14, 0),
         ToolTip = tip,
     };
+    #endregion
+
 }

@@ -7,7 +7,7 @@ namespace FrameCapture.Services;
 // 本 partial 职责：滚动截图的步进拼接循环，与延时截图的倒计时状态机。
 public sealed partial class CaptureController : IDisposable
 {
-    // ---------- 滚动截图 ----------
+    #region 滚动截图
     /// <summary>托盘/入口调用：复用选区流程选一块要滚的区域，选完进入步进拼接循环。</summary>
     public void BeginScrollCapture()
     {
@@ -101,8 +101,9 @@ public sealed partial class CaptureController : IDisposable
         bar?.CloseSelf();
         FrameCapture.Core.Trace.Log("scroll cancel");
     }
+    #endregion
 
-    // ---------- 延时截图 ----------
+    #region 延时截图
     /// <summary>托盘/入口调用：倒计时 N 秒后截「当前范围」（已存范围，否则光标所在屏全屏）。
     /// 独立于点按/录制状态机——只借完成路径，不碰 Phase，避免与按住录制的模式交互。</summary>
     public void BeginDelayedCapture()
@@ -191,6 +192,7 @@ public sealed partial class CaptureController : IDisposable
         if (_settings.Current.AlwaysShowRegionOutline) ShowOutline(reg);
         else { FlashOutline(reg); _outline!.FadeAway(_settings.Current.OutlineFadeSeconds); }
     }
+    #endregion
 
 
 }

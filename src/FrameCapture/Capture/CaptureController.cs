@@ -92,7 +92,7 @@ public sealed partial class CaptureController : IDisposable
 
     bool _outlineOn;   // 上次已应用的「常显轮廓」开关态（Changed 边沿检测用）
 
-    // ---------------- 设置范围 ----------------
+    #region 设置范围
 
     private IntPtr _prevFg; // 触发捕获/选区前的前台窗，关闭编辑器后归还焦点
 
@@ -220,8 +220,9 @@ public sealed partial class CaptureController : IDisposable
         // Z 序/前台一变，选区里就截到别的软件。Topmost + ReassertTop 已保证视觉置顶，键走全局钩子代收。
         FrameCapture.Core.Trace.Log($"picker Show returned dt={swOpen.ElapsedMilliseconds}ms");
     }
+    #endregion
 
-    // ---------------- 捕获 ----------------
+    #region 捕获
 
     /// <summary>真正起录的核心（region = 已存范围或光标所在显示器全屏）。
     /// 由手势「开始录制」（<see cref="StartRecording"/>）与选区录制复用。旧 BeginCapture 点按/双击状态机已退役。</summary>
@@ -422,8 +423,9 @@ public sealed partial class CaptureController : IDisposable
         _editor.Show();
         ForceForeground(_editor);
     }
+    #endregion
 
-    // ---------------- 轮廓 ----------------
+    #region 轮廓
 
     void ShowOutlineIfStored()
     {
@@ -495,4 +497,6 @@ static class Win32Wrap
         Native.Win32.GetCursorPos(out var p);
         return (p.X, p.Y);
     }
+    #endregion
+
 }

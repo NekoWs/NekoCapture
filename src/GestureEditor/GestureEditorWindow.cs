@@ -92,7 +92,7 @@ public sealed partial class GestureEditorWindow : Window
         SetupMotion();
     }
 
-    // ---------- 入场/退场动效（自包含：库不引用宿主 Fluent，但手感与其 PopupEnter/CloseWithFade 同款）----------
+    #region 入场/退场动效（自包含：库不引用宿主 Fluent，但手感与其 PopupEnter/CloseWithFade 同款）
     const int EnterMs = 190, ExitMs = 150;   // 对齐宿主 Fluent.Motion.EnterMs/ExitMs
     bool _closing;
     void SetupMotion()
@@ -138,8 +138,9 @@ public sealed partial class GestureEditorWindow : Window
             BeginAnimation(OpacityProperty, a);
         };
     }
+    #endregion
 
-    // ---------- 布局 ----------
+    #region 布局
     void Build()
     {
         var root = new Border { CornerRadius = new CornerRadius(8), Background = _pal.B(_pal.WindowBg), BorderBrush = _pal.B(_pal.Stroke), BorderThickness = new Thickness(1) };
@@ -241,8 +242,9 @@ public sealed partial class GestureEditorWindow : Window
         }
         AnimateColor(cur, to, 140);
     }
+    #endregion
 
-    // ---------- 控件小工具 ----------
+    #region 控件小工具
     TextBlock Label(string t) => new() { Text = t, Foreground = _pal.B(_pal.TextDim), FontSize = 12, Margin = new Thickness(0, 12, 0, 4) };
 
     // 补 Tap/Hold/HoldRelease——旧版这三项落到默认分支与 Chord 同名「组合键（同时按下）」，
@@ -415,4 +417,6 @@ public sealed partial class GestureEditorWindow : Window
         track.LostKeyboardFocus += (_, _) => { focused = false; SetBorder(); };
         return sp;
     }
+    #endregion
+
 }

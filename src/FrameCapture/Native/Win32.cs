@@ -5,7 +5,7 @@ namespace FrameCapture.Native;
 
 internal static class Win32
 {
-    // ---------- 内存状态 ----------
+    #region 内存状态
     [StructLayout(LayoutKind.Sequential)]
     public class MEMORYSTATUSEX
     {
@@ -22,8 +22,9 @@ internal static class Win32
 
     [DllImport("kernel32.dll", SetLastError = true)]
     public static extern bool GlobalMemoryStatusEx(MEMORYSTATUSEX lpStatus);
+    #endregion
 
-    // ---------- 键盘钩子 ----------
+    #region 键盘钩子
     public const int WH_KEYBOARD_LL = 13;
     public const int WM_KEYDOWN = 0x0100, WM_KEYUP = 0x0101, WM_SYSKEYDOWN = 0x0104, WM_SYSKEYUP = 0x0105;
     public const uint LLKHF_UP = 0x80;
@@ -59,8 +60,9 @@ internal static class Win32
     public const int VK_CONTROL = 0x11, VK_MENU = 0x12, VK_SHIFT = 0x10, VK_LWIN = 0x5B, VK_RWIN = 0x5C;
 
     public static bool IsKeyDown(int vk) => (GetAsyncKeyState(vk) & 0x8000) != 0;
+    #endregion
 
-    // ---------- 鼠标钩子（手势引擎的鼠标触发源） ----------
+    #region 鼠标钩子（手势引擎的鼠标触发源）
     public const int WH_MOUSE_LL = 14;
     public const int WM_LBUTTONDOWN = 0x0201, WM_LBUTTONUP = 0x0202;
     public const int WM_RBUTTONDOWN = 0x0204, WM_RBUTTONUP = 0x0205;
@@ -80,8 +82,9 @@ internal static class Win32
 
     [DllImport("user32.dll", SetLastError = true)]
     public static extern IntPtr SetWindowsHookExW(int idHook, LowLevelMouseProc lpfn, IntPtr hMod, uint dwThreadId);
+    #endregion
 
-    // ---------- 光标 / 显示器 ----------
+    #region 光标 / 显示器
     [StructLayout(LayoutKind.Sequential)]
     public struct POINT { public int X, Y; }
 
@@ -118,8 +121,9 @@ internal static class Win32
     public static extern bool GetDisplayNameW(IntPtr hMonitor, StringBuilder displayName, uint displayNameLength);
 
     public const uint DISPLAY_DEVICE_PATH_SIZE = 512;
+    #endregion
 
-    // ---------- 窗口枚举（范围吸附） ----------
+    #region 窗口枚举（范围吸附）
     public delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
 
     [DllImport("user32.dll")]
@@ -222,8 +226,9 @@ internal static class Win32
         uint v = pref;
         try { DwmSetWindowAttribute(hwnd, DWMWA_WINDOW_ROUNDED_CORNER_PREFERENCE, ref v, 4); } catch { }
     }
+    #endregion
 
-    // ---------- 其他 ----------
+    #region 其他
     [DllImport("user32.dll")]
     public static extern bool SetForegroundWindow(IntPtr hWnd);
 
@@ -252,8 +257,9 @@ internal static class Win32
     public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
 
     public const int SW_RESTORE = 9, SW_SHOW = 5;
+    #endregion
 
-    // ---------- GDI 捕获 ----------
+    #region GDI 捕获
     [DllImport("user32.dll")]
     public static extern IntPtr GetDC(IntPtr hWnd);
 
@@ -334,4 +340,6 @@ internal static class Win32
         public WndOwner(IntPtr handle) => Handle = handle;
         public IntPtr Handle { get; }
     }
+    #endregion
+
 }

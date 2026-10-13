@@ -2617,7 +2617,7 @@ static class SelfTest
                 "配置器库 OnAccent 与宿主同 WCAG 公式（#7F75FF→白 / #FF8C00→黑）");
         }
 
-        // ===== macOS 式真·窗口截图（WGC 本体 + 按轮廓合成阴影）纯逻辑 =====
+        #region macOS 式真·窗口截图（WGC 本体 + 按轮廓合成阴影）纯逻辑
         {
             // 相交
             var ov = WindowCapture.Intersect(new RectI(0, 0, 10, 10), new RectI(5, 5, 10, 10));
@@ -2703,8 +2703,9 @@ static class SelfTest
             Chk("T165w7-composite", centerOpaque && cornerTransparent && farTransparent && ringSemi && ringBlack,
                 $"center={OA(20,20)} corner={OA(15,15)} far={OA(0,0)} ring={OA(13,20)}");
         }
+        #endregion
 
-        // ===== 选区定格画面（定格帧裁剪 + 预抓窗口排序）纯逻辑 =====
+        #region 选区定格画面（定格帧裁剪 + 预抓窗口排序）纯逻辑
         {
             // T166w1 定格帧裁剪：正常裁 + 越界钳 + 负偏移收缩 + 空返回 null
             var big = new byte[10 * 10 * 4];
@@ -2794,4 +2795,6 @@ sealed class TestCatalog : GestureEditor.IActionCatalog
 sealed class TestNamer : GestureCore.IKeyNamer
 {
     public string Name(int key) => key switch { 0x41 => "A", 0x52 => "R", 0x75 => "F6", _ => "#" + key };
+        #endregion
+
 }

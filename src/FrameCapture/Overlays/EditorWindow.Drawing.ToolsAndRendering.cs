@@ -14,7 +14,7 @@ namespace FrameCapture.Overlays;
 // 本 partial 职责：裁剪引导层、文字标注、马赛克，与标注渲染/撤销重做。
 public sealed partial class EditorWindow
 {
-    // ---------------- 裁剪引导层：框外压暗 + 三分网格 + 「松开应用」 ----------------
+    #region 裁剪引导层：框外压暗 + 三分网格 + 「松开应用」
 
     System.Windows.Shapes.Path? _cropMask, _cropGrid;
     Border? _cropHint;
@@ -77,8 +77,9 @@ public sealed partial class EditorWindow
         if (_cropGrid != null) { _canvas.Children.Remove(_cropGrid); _cropGrid = null; }
         if (_cropHint != null) { _canvas.Children.Remove(_cropHint); _cropHint = null; }
     }
+    #endregion
 
-    // ---------------- 文字标注：点画布→就地输入→Enter/失焦上屏；点已有文字=再编辑 ----------------
+    #region 文字标注：点画布→就地输入→Enter/失焦上屏；点已有文字=再编辑
 
     TextBox? _textInput;
     Point _textPos;
@@ -180,8 +181,9 @@ public sealed partial class EditorWindow
         _textInput = null;
         _textEditing = null;
     }
+    #endregion
 
-    // ---------------- 马赛克：拖框实时块均值预览，与烘焙共用 MosaicInPlace ----------------
+    #region 马赛克：拖框实时块均值预览，与烘焙共用 MosaicInPlace
 
     readonly Dictionary<(int, float, int, int, int, int), BitmapSource> _mosaicCache = new();
     readonly List<(System.Windows.Shapes.Rectangle el, Annotation a)> _mosaicEls = new();
@@ -489,5 +491,6 @@ public sealed partial class EditorWindow
         }
         // 画布常显（不再收起），此处无需再兜底恢复 Visibility；命中态由 SetTool 统一管。
     }
+    #endregion
 
 }

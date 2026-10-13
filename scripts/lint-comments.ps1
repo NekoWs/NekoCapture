@@ -116,8 +116,12 @@ function Resolve-MethodDecl {
     while ($k -lt $lines.Count -and $k -le $idx + 8 -and -not $done) {
         $seg = $lines[$k]
         $cut = -1
-        $bi = $seg.IndexOf('{'); $ai = $seg.IndexOf('=>')
-        if ($bi -ge 0 -and ($ai -lt 0 -or $bi -lt $ai)) { $cut = $bi } elseif ($ai -ge 0) { $cut = $ai }
+        $bi = $seg.IndexOf('{'); $ai = $seg.IndexOf('=>'); $si = $seg.IndexOf(';')
+        # 截到 { / => / ; 中最早者：';' 终止很关键，否则字段与事件会吞掉后续行、
+        # 把下一个成员的括号当成自己的参数表
+        foreach ($cand in @($bi, $ai, $si)) {
+            if ($cand -ge 0 -and ($cut -lt 0 -or $cand -lt $cut)) { $cut = $cand }
+        }
         if ($cut -ge 0) { $decl += $seg.Substring(0, $cut); $done = $true } else { $decl += ' ' + $seg }
         $k++
     }
@@ -131,10 +135,14 @@ function Resolve-MethodDecl {
     $nameStart = $lastOpen
     while ($nameStart -gt 0 -and $decl[$nameStart - 1] -match '[\w>]') { $nameStart-- }
     $name = $decl.Substring($nameStart, $lastOpen - $nameStart)
+    # 方法名必须是裸标识符：元组返回类型 "(double A, double B) Foo" 的括号前是空白 -> 名为空，排除
+    if ($name -notmatch '^[A-Za-z_]\w*$' -or $name -eq 'new') { return $null }
     $before = $decl.Substring(0, $nameStart)
     $after = $decl.Substring($lastOpen + $lastArgs.Length + 2)
     # 排除字段/属性初始化器（参数表之前出现 '='）与 new(...) 表达式
-    if ($name -eq 'new' -or $before -match '=' -or $after -match '=') { return $null }
+    if ($before -match '=' -or $after -match '=') { return $null }
+    # 排除事件与操作符：event / operator 关键字不是方法
+    if ($before -match '\b(event|delegate|operator|when|get|set|init|value)\b') { return $null }
     $n = 0
     $a = $lastArgs.Trim()
     if ($a -ne '') {
@@ -173,6 +181,15 @@ foreach ($f in $files) {
 
         $cmt = Get-CommentText $raw $st
         if ($null -ne $cmt) { Invoke-CommentRules $cmt.Trim() $ln $rel }
+
+        # #region 标题不是注释，扫描器必须单独看：同样禁编号、禁硬禁词、限长
+        if ($raw -match '^\s*#region\s+(?<t>\S.*?)\s*$') {
+            $t = $Matches['t']
+            if ($t -match $TagRx)    { Add-V "#region 标题含编号（§8）" "FAIL" $rel $ln $t }
+            if ($t.Length -gt 48)    { Add-V "#region 标题过长（§7）" "FAIL" $rel $ln "$($t.Length) 字符" }
+            if ($t -match '^(其他|杂项|其它|Other|Misc|通用|工具方法|私有方法|行为)\s*$') { Add-V "#region 分类失败名（§7）" "FAIL" $rel $ln $t }
+            foreach ($w in $HardWords) { if ($t -match [regex]::Escape($w)) { Add-V "#region 标题含硬禁词「$w」（§3.1）" "FAIL" $rel $ln $t; break } }
+        }
 
         if (-not $inSrc) { continue }
         if ($raw -notmatch '^\s*(public|internal)\b' -or $raw -match '^\s*///') { continue }

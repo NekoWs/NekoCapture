@@ -103,7 +103,7 @@ public sealed partial class CaptureController : IDisposable
             OcrResultWindow.ShowMessage("识别失败");
         }
     }
-    // ---------- 从剪贴板贴图 ----------
+    #region 从剪贴板贴图
     /// <summary>托盘/入口调用：把剪贴板里的图片钉成贴图（Snipaste 式"粘贴即贴图"）——
     /// 复制任意图片（截图/图片文件/网页图）后一键钉屏参考。剪贴板无图片返回 false（调用方给反馈）。
     /// 落点：光标所在屏、以光标为中心，越界钳进屏内。须在 UI 线程调用（托盘菜单点击即 UI 线程）。</summary>
@@ -228,5 +228,6 @@ public sealed partial class CaptureController : IDisposable
         var m = Monitors.Nearest(cursor.X, cursor.Y);
         return new ScreenRegion(m.DeviceName, m.Bounds);
     }
+    #endregion
 
 }

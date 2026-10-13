@@ -35,7 +35,7 @@ public sealed partial class SettingsWindow : Window
         nw.BeginAnimation(OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(1, TimeSpan.FromMilliseconds(FrameCapture.Core.Fluent.Motion.ThemeMs)));
     }
 
-    // ---------- 强调色（设置里此前无处可改，Core 早已支持） ----------
+    #region 强调色（设置里此前无处可改，Core 早已支持）
 
     Popup? _accentPop;
     ColorPickView? _accentView;
@@ -121,8 +121,9 @@ public sealed partial class SettingsWindow : Window
         g.Children.Add(chip);
         return g;
     }
+    #endregion
 
-    // ---------- 主题 ----------
+    #region 主题
 
     FrameworkElement ThemeRow()
     {
@@ -210,4 +211,6 @@ public sealed partial class SettingsWindow : Window
         g.Children.Add(chips);
         return g;
     }
+    #endregion
+
 }

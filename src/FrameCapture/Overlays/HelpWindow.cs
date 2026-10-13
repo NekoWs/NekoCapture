@@ -93,7 +93,7 @@ public sealed class HelpWindow : Window
         BuildSteps();
         _step = Math.Clamp(_step, 0, _steps.Count - 1);
 
-        // ---- 主体：左大标题 | 右正文（与设置页同款视觉分工） ----
+        #region 主体：左大标题 | 右正文（与设置页同款视觉分工）
         // 去掉旧的 main.Height=322 + Dock.Top 硬钉——那会让主体不填充剩余高度，内容少时底部一大片空。
         // 改为 DockPanel 的填充子项（最后加入），左栏与正文都垂直居中：短页居中不空、长页仍在右栏内滚。
         var main = new Grid { Margin = new Thickness(18, 8, 18, 0) };
@@ -124,8 +124,9 @@ public sealed class HelpWindow : Window
             new System.Windows.Data.Binding("ViewportHeight") { Source = bodyScroll });
         Grid.SetColumn(bodyScroll, 1);
         main.Children.Add(bodyScroll);
+        #endregion
 
-        // ---- 底部：左「第 N / M 步」，右 上一页 / 下一页（右下角，用户点名位置） ----
+        #region 底部：左「第 N / M 步」，右 上一页 / 下一页（右下角，用户点名位置）
         var foot = new Grid { Margin = new Thickness(18, 6, 18, 14) };
         foot.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         foot.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -208,8 +209,9 @@ public sealed class HelpWindow : Window
             tt.BeginAnimation(System.Windows.Media.TranslateTransform.XProperty, new DoubleAnimation(0, d) { EasingFunction = ease });
         }
     }
+        #endregion
 
-    // ---------- 翻页按钮（芯片样式，与设置页同语言） ----------
+    #region 翻页按钮（芯片样式，与设置页同语言）
     Border NavBtn(string text, bool on, Action onClick)
     {
         var tb = new TextBlock { Text = text, FontSize = 12.5, Foreground = new SolidColorBrush(on ? Fluent.OnAccentColor(Theme.Accent) : Theme.Text) };
@@ -238,8 +240,9 @@ public sealed class HelpWindow : Window
         b.Cursor = en ? Cursors.Hand : Cursors.Arrow;
         if (en) b.Focusable = true; else b.Focusable = false;
     }
+    #endregion
 
-    // ---------- 内容行 ----------
+    #region 内容行
     static void KV(StackPanel p, string k, string v)
     {
         var g = new Grid { Margin = new Thickness(2, 3, 0, 3) };
@@ -260,8 +263,9 @@ public sealed class HelpWindow : Window
         var g = SettingsService.Shared?.Current?.Gestures;
         return g == null ? "未绑定" : g.DescribeKeysFor(actions);
     }
+    #endregion
 
-    // ---------- 步骤内容（一步只讲一件事，细节进气泡） ----------
+    #region 步骤内容（一步只讲一件事，细节进气泡）
     void BuildSteps()
     {
         _steps = new()
@@ -360,4 +364,6 @@ public sealed class HelpWindow : Window
         }
         p.Children.Add(new TextBlock { Text = $"再按一次工具键或 {ToolCatalog.ExitKey} 退出绘制；滚轮调粗细（文字调字号）；Alt 吸色。", FontSize = 11.5, Foreground = new SolidColorBrush(Theme.TextDim), Margin = new Thickness(2, 6, 0, 0), TextWrapping = TextWrapping.Wrap });
     }
+    #endregion
+
 }

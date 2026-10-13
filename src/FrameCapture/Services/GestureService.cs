@@ -71,7 +71,7 @@ public sealed class GestureService : IDisposable
         return _exclusive && candidate;
     }
 
-    // ---------- 鼠标钩子（仅当存在鼠标触发绑定时才装） ----------
+    #region 鼠标钩子（仅当存在鼠标触发绑定时才装）
     void InstallMouseHook()
     {
         _mouseProc = MouseProc;
@@ -140,4 +140,6 @@ public sealed class GestureService : IDisposable
         ((m & GC.ModifierKeys.Shift) != 0) == s.Shift && ((m & GC.ModifierKeys.Win) != 0) == s.Win;
 
     public void Dispose() { UninstallMouseHook(); StopTick(); }
+    #endregion
+
 }

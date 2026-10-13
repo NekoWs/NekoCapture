@@ -16,7 +16,7 @@ namespace GestureEditor;
 // 本 partial 承载绑定编辑交互：绑定增删改、详情编辑、组合键录键、校验与保存、列表刷新。
 public sealed partial class GestureEditorWindow : Window
 {
-    // ---------- 列表（卡片化：边框+底色，选中/问题/禁用逐行自绘） ----------
+    #region 列表（卡片化：边框+底色，选中/问题/禁用逐行自绘）
     void RefreshList()
     {
         _suppress = true;
@@ -93,8 +93,9 @@ public sealed partial class GestureEditorWindow : Window
         _selected = Math.Min(_selected, _doc.Bindings.Count - 1);
         RefreshList(); if (_selected >= 0) _list.SelectedIndex = _selected; ShowDetail(); RefreshValidation();
     }
+    #endregion
 
-    // ---------- 详情 ----------
+    #region 详情
     void ShowDetail()
     {
         _detail.Children.Clear();
@@ -255,8 +256,9 @@ public sealed partial class GestureEditorWindow : Window
         if (_chordStroke != null)
             AnimateColor(_chordStroke, _capturing || _chordHover || _chordFocus ? _pal.Accent : _pal.Stroke, 140);
     }
+    #endregion
 
-    // ---------- 组合键捕获 ----------
+    #region 组合键捕获
     void BeginCapture()
     {
         EndCapture();
@@ -310,8 +312,9 @@ public sealed partial class GestureEditorWindow : Window
         if (m.HasFlag(System.Windows.Input.ModifierKeys.Windows)) r |= GcMods.Win;
         return r;
     }
+    #endregion
 
-    // ---------- 校验 + 保存 ----------
+    #region 校验 + 保存
     void RefreshValidation()
     {
         var problems = GestureValidation.Validate(_doc, _catalog, _namer);
@@ -340,4 +343,6 @@ public sealed partial class GestureEditorWindow : Window
         _store.Save(_doc);
         Close();
     }
+    #endregion
+
 }

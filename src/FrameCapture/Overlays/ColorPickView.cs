@@ -32,7 +32,7 @@ public sealed class ColorPickView : StackPanel
 
     public ColorPickView()
     {
-        // ---- SV 区（180×120）：白→色相横渐变 + 透明→黑竖渐变，十字准星 ----
+        #region SV 区（180×120）：白→色相横渐变 + 透明→黑竖渐变，十字准星
         _svHue = new Rectangle { Fill = new LinearGradientBrush(Colors.White, Colors.Red, 0) };
         _svVal = new Rectangle { Fill = new LinearGradientBrush(Colors.Transparent, Colors.Black, 90) };
         _svKnob = new Ellipse
@@ -48,8 +48,9 @@ public sealed class ColorPickView : StackPanel
         knobHost.Children.Add(_svKnob);
         sv.Children.Add(knobHost);
         AttachDrag(sv, (x, y) => { _s = x; _v = 1 - y; Sync(); Fire(); });
+        #endregion
 
-        // ---- 色相竖条：彩虹常驻 ----
+        #region 色相竖条：彩虹常驻
         var hue = new Rectangle { Width = 14, Height = 120 };
         hue.Fill = new LinearGradientBrush
         {
@@ -64,16 +65,18 @@ public sealed class ColorPickView : StackPanel
         var hueHost = new Grid { Width = 14, Height = 120, Cursor = Cursors.Hand };
         hueHost.Children.Add(hue); hueHost.Children.Add(_hueThumb);
         AttachDrag(hueHost, (_, y) => { _h = y * 360; Sync(); Fire(); });
+        #endregion
 
-        // ---- 透明度竖条：棋盘底 + 实色→透明 ----
+        #region 透明度竖条：棋盘底 + 实色→透明
         var alphaHost = new Grid { Width = 14, Height = 120, Cursor = Cursors.Hand };
         alphaHost.Children.Add(new Rectangle { Width = 14, Height = 120, Fill = Checker() });
         _alphaFill = new Rectangle { Width = 14, Height = 120 };
         _alphaThumb = ThumbLine();
         alphaHost.Children.Add(_alphaFill); alphaHost.Children.Add(_alphaThumb);
         AttachDrag(alphaHost, (_, y) => { _a = 1 - y; Sync(); Fire(); });
+        #endregion
 
-        // ---- 预览（棋盘底看透明）----
+        #region 预览（棋盘底看透明）
         var preview = new Grid { Width = 28, Height = 28, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(8, 0, 0, 0) };
         preview.Children.Add(new Rectangle { Width = 28, Height = 28, Fill = Checker(), RadiusX = 4, RadiusY = 4 });
         _previewRect = new Rectangle { Width = 28, Height = 28, RadiusX = 4, RadiusY = 4, Stroke = new SolidColorBrush(Color.FromArgb(0x66, Theme.Text.R, Theme.Text.G, Theme.Text.B)), StrokeThickness = 1 };
@@ -84,8 +87,9 @@ public sealed class ColorPickView : StackPanel
             Orientation = Orientation.Horizontal,
             Children = { Round(sv, 6), Spacing(6), Round(hueHost, 4), Spacing(6), Round(alphaHost, 4), preview },
         };
+        #endregion
 
-        // ---- HEX + RGBA 直填（宿主 Popup 继承图标字体，文本框显式复位）----
+        #region HEX + RGBA 直填（宿主 Popup 继承图标字体，文本框显式复位）
         _hexBox = TextBoxAt(96);
         _rBox = NumBox(); _gBox = NumBox(); _bBox = NumBox(); _aBox = NumBox();
         _hexBox.KeyDown += (_, ek) => { if (ek.Key == Key.Enter) { CommitHex(); ek.Handled = true; } };
@@ -242,4 +246,6 @@ public sealed class ColorPickView : StackPanel
         d.Children.Add(new GeometryDrawing(a, null, new RectangleGeometry(new Rect(8, 8, 8, 8))));
         return new DrawingBrush(d) { TileMode = TileMode.Tile, Viewport = new Rect(0, 0, 16, 16), ViewportUnits = BrushMappingMode.Absolute };
     }
+        #endregion
+
 }

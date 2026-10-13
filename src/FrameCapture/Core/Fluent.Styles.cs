@@ -9,10 +9,14 @@ using System.Windows.Shapes;
 
 namespace FrameCapture.Core;
 
+/// <summary>Fluent 工厂的样式 partial：全局 ToolTip、细滚动条与菜单资源字典。
+/// 样式全部由 XAML 字符串现拼现解，颜色烘的是当次调用的主题色——主题切换后必须重新生成。</summary>
 public static partial class Fluent
 {
-    // ---------------- 全局样式：主题化 ToolTip（淡入卡片）+ 细滚动条 ----------------
+    #region 全局样式：主题化 ToolTip（淡入卡片）+ 细滚动条
 
+    /// <summary>把 ToolTip 与 ScrollBar 的隐式样式写进 <c>Application.Resources</c>（键即类型）。
+    /// 启动时与每次主题切换后都要重跑一次：样式里的颜色是生成时烘死的，不随主题自动更新。</summary>
     public static void ApplyGlobalStyles()
     {
         var app = System.Windows.Application.Current;
@@ -21,6 +25,8 @@ public static partial class Fluent
         app.Resources[typeof(ScrollBar)] = ScrollBarStyle();
     }
 
+    /// <summary>主题化 ToolTip 样式：去系统底、卡片圆角 + 淡入。</summary>
+    /// <returns><c>TargetType=ToolTip</c> 的隐式样式，可直接作 <c>Resources[typeof(ToolTip)]</c> 的键值。</returns>
     public static Style ToolTipStyle()
     {
         string xaml = $"""
@@ -57,17 +63,27 @@ public static partial class Fluent
         return (Style)System.Windows.Markup.XamlReader.Parse(xaml);
     }
 
-    /// <summary>R161：主题 ScrollBar 样式的 MinWidth/MinHeight（=系统滚动条宽 17.33）经 DynamicResource
-    /// 以直值形式泄漏到模板内 ScrollBar 上，样式 Setter 压不住（直值优先级更高）——细滚动条样式
-    /// 「看起来没生效」的真凶。附加属性在样式应用瞬间把两者归零（本地值可压直值，探针实证）。</summary>
+    /// <summary>把 ScrollBar 的 MinWidth/MinHeight 归零的附加属性。
+    /// 主题 ScrollBar 样式的 MinWidth/MinHeight（=系统滚动条宽 17.33）经 DynamicResource 以直值形式
+    /// 落到模板内 ScrollBar 上，样式 Setter 压不住直值——不归零则细滚动条样式看着像没生效。
+    /// 本地值优先级高于直值，故在属性应用瞬间置零；由 <see cref="ScrollBarStyle"/> 用 DP 对象直挂。</summary>
     public static readonly DependencyProperty SlimProperty = DependencyProperty.RegisterAttached(
         "Slim", typeof(bool), typeof(Fluent), new PropertyMetadata(false, (d, e) =>
         {
             if (d is ScrollBar sb && (bool)e.NewValue) { sb.MinWidth = 0; sb.MinHeight = 0; }
         }));
+    /// <summary>挂载 <see cref="SlimProperty"/>：置 true 的 ScrollBar 立刻放弃系统最小尺寸。</summary>
+    /// <param name="d">目标依赖对象；只有 ScrollBar 会被真正改动。</param>
+    /// <param name="v">是否启用细滚动条修正。</param>
     public static void SetSlim(DependencyObject d, bool v) => d.SetValue(SlimProperty, v);
+    /// <summary>读回 <see cref="SlimProperty"/>。</summary>
+    /// <param name="d">目标依赖对象。</param>
+    /// <returns>该对象上记录的 Slim 值，未设置过为 false。</returns>
     public static bool GetSlim(DependencyObject d) => (bool)d.GetValue(SlimProperty);
 
+    /// <summary>细滚动条样式：轨道 8DIP、滑块 4DIP 圆角胶囊、无箭头，竖/横两套模板
+    /// （Track 方向必须与模板匹配，否则滑块拖不动）。附带 <see cref="SlimProperty"/> 压掉系统最小宽。</summary>
+    /// <returns><c>TargetType=ScrollBar</c> 的隐式样式，可直接作 <c>Resources[typeof(ScrollBar)]</c> 的键值。</returns>
     public static Style ScrollBarStyle()
     {
         string thumb = Hex(Theme.Stroke), thumbHi = Hex(Theme.Press);
@@ -131,6 +147,10 @@ public static partial class Fluent
         return st;
     }
 
+    /// <summary>主题化菜单资源字典：ContextMenu / MenuItem / Separator 三套样式。
+    /// 菜单样式不进 <c>Application.Resources</c>（<see cref="ApplyGlobalStyles"/> 只注册 ToolTip 与 ScrollBar），
+    /// 须逐个挂到 <c>ContextMenu.Resources</c>——托盘菜单与贴图右键菜单共用这一份。</summary>
+    /// <returns>可直接赋给 <c>ContextMenu.Resources</c> 的字典；每次调用重新解析，返回新实例。</returns>
     public static ResourceDictionary MenuResources()
     {
         string xaml = $"""
@@ -226,4 +246,6 @@ public static partial class Fluent
             """;
         return (ResourceDictionary)System.Windows.Markup.XamlReader.Parse(xaml);
     }
+    #endregion
+
 }

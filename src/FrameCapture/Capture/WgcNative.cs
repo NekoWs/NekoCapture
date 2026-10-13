@@ -179,7 +179,7 @@ internal static class WgcNative
         finally { Marshal.Release(factoryPtr); }
     }
 
-    // ---------------- 系统捕获提示边框（Windows 11） ----------------
+    #region 系统捕获提示边框（Windows 11）
 
     /// <summary>
     /// Windows.Graphics.Capture.IGraphicsCaptureSession3（Win11 新增）。
@@ -197,11 +197,15 @@ internal static class WgcNative
     [ComImport, Guid("F2CDD966-22AE-5EA1-9596-3A289344C3BE"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
     private interface IGraphicsCaptureSession3
     {
-        // --- IInspectable（槽 0-5，仅为对齐槽位，实际不调用） ---
+    #endregion
+
+        #region IInspectable（槽 0-5，仅为对齐槽位，实际不调用）
         void GetIids(out uint iidCount, out IntPtr iids);
         void GetRuntimeClassName(out IntPtr className);
         void GetTrustLevel(out int trustLevel);
-        // --- IGraphicsCaptureSession3 自身（槽 6-7） ---
+        #endregion
+
+        #region IGraphicsCaptureSession3 自身（槽 6-7）
         void GetIsBorderRequired(out bool value);
         void PutIsBorderRequired(bool value);
     }
@@ -243,4 +247,6 @@ internal static class WgcNative
         }
         finally { Marshal.Release(punk); }
     }
+        #endregion
+
 }

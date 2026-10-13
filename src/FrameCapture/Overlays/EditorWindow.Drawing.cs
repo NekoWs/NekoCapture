@@ -150,7 +150,7 @@ public sealed partial class EditorWindow
         else _viewGrid.Clip = null;
     }
 
-    // ---------------- 缩放 / 平移 ----------------
+    #region 缩放 / 平移
 
     void SetZoom(double newZoom, double cx, double cy)
     {
@@ -229,8 +229,9 @@ public sealed partial class EditorWindow
     }
 
     void Highlight(Button b, bool on) => FrameCapture.Core.Fluent.HighlightBtn(b, on);
+    #endregion
 
-    // ---------------- 记住上次的工具/颜色/粗细 ----------------
+    #region 记住上次的工具/颜色/粗细
 
     /// <summary>打开编辑器时恢复上次的标注设置（RememberEditorTools 关则不动，保持默认浏览/红/中）。
     /// 在 BuildLayout 之后调用——此时工具/色板/宽度按钮已建好，SetTool/Refresh* 的高亮才生效。</summary>
@@ -283,8 +284,9 @@ public sealed partial class EditorWindow
     }
 
     static Color Acc => FrameCapture.Core.Theme.Accent;
+    #endregion
 
-    // ---------------- 裁剪 ----------------
+    #region 裁剪
 
     void ApplyCrop(Point a, Point b)
     {
@@ -323,8 +325,9 @@ public sealed partial class EditorWindow
         }
         return FrameCapture.Drawing.Bake.Apply(frames, anns)[0];
     }
+    #endregion
 
-    // ---------------- 时间轴范围 ----------------
+    #region 时间轴范围
 
     int _tlMode; // 0 空闲 1 拖动跳转/待拉选段 2 拖范围左端 3 拖范围右端 4 拉选段中
     double _tlPressX; int _tlPressIdx;   // 时间轴按下点（拖过阈值从此点拉选段，）
@@ -483,4 +486,6 @@ public sealed partial class EditorWindow
     }
 
     (int a, int b) TrimRange { get { _rd.Count = _seq.Frames.Count; return _rd.Effective; } }
+    #endregion
+
 }
