@@ -121,4 +121,20 @@ public static class SnapPick
         }
         return false;
     }
+
+    /// <summary>R166 定格预抓排序：从「完整可见」候选（z 序顶在前）里按优先级取前 max 个 HWND——
+    /// 当前聚焦窗最优先（若在候选里），其余按 z 序自上而下。max≤0 → 空。纯函数供单测。</summary>
+    public static List<IntPtr> PregrabOrder(IntPtr focused, IReadOnlyList<IntPtr> zTopFirst, int max)
+    {
+        var res = new List<IntPtr>();
+        if (max <= 0) return res;
+        if (focused != IntPtr.Zero)
+            foreach (var h in zTopFirst) if (h == focused) { res.Add(focused); break; }
+        foreach (var h in zTopFirst)
+        {
+            if (res.Count >= max) break;
+            if (h != focused) res.Add(h);
+        }
+        return res;
+    }
 }

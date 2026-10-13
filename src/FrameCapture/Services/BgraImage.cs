@@ -70,6 +70,22 @@ public static class BgraImage
         return new CapturedFrame { Bgra = dst, W = f.W, H = f.H, TimeMs = f.TimeMs };
     }
 
+    /// <summary>从帧里裁出 (x,y,w,h) 子矩形（越界自动钳进画布；裁空返回 null）。逐行拷贝。
+    /// 定格截图用它从全屏定格帧里裁出选区（R166）。纯函数供单测。</summary>
+    public static CapturedFrame? Crop(CapturedFrame? src, int x, int y, int w, int h)
+    {
+        if (src == null || src.W <= 0 || src.H <= 0 || w < 1 || h < 1) return null;
+        // 请求矩形 [x,x+w)×[y,y+h) 与画布 [0,W)×[0,H) 求交（负偏移正确收缩，不向右多取）
+        int x0 = Math.Max(0, x), y0 = Math.Max(0, y);
+        int x1 = Math.Min(src.W, x + w), y1 = Math.Min(src.H, y + h);
+        int cw = x1 - x0, ch = y1 - y0;
+        if (cw < 1 || ch < 1) return null;
+        var dst = new byte[(long)cw * ch * 4];
+        for (int r = 0; r < ch; r++)
+            Buffer.BlockCopy(src.Bgra, (int)(((long)(y0 + r) * src.W + x0) * 4), dst, (int)((long)r * cw * 4), cw * 4);
+        return new CapturedFrame { Bgra = dst, W = cw, H = ch, TimeMs = 0 };
+    }
+
     /// <summary>
     /// 马赛克（R47）：区域内逐 block 均值填充，就地修改。坐标越界自动钳进画布；纯字节运算，
     /// 编辑器预览与烘焙共用同一函数 → 所见即所得（SelfTest T91）。

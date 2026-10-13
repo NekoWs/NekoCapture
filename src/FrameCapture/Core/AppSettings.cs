@@ -127,6 +127,17 @@ public sealed class AppSettings
     /// 便于像素级精确选区（QQ/Snipaste 招牌手感）。关闭则不抓快照、不显示放大镜。</summary>
     public bool PickerMagnifier { get; set; } = true;
 
+    /// <summary>选区时定格画面（默认开，R166）：按下选区热键的瞬间抓一张全屏定格帧，整个选区过程画面看起来就
+    /// 定格了——放大镜读定格帧、拖框/区域截图也裁这张定格帧（不再选完后重新抓屏），所见即所得（QQ/Snipaste 式）。
+    /// 关掉则全程实时：屏幕实时可见、放大镜每次移动实时重抓跟画面、截图实时重抓。
+    /// 与「点击窗口时截取完整窗口」正交：定格开着且窗口截图也开着时，定格瞬间会后台按 Z 序预抓可见窗口的干净
+    /// 画面（WGC），点窗口即用缓存＝定格+干净圆角+投影；没缓存好则实时抓兜底。</summary>
+    public bool FreezeOnSelect { get; set; } = true;
+
+    /// <summary>定格时最多预抓多少个「完整可见」窗口的干净画面（默认 6，R166）：按 Z 序取前 N 个
+    /// （当前聚焦窗最优先）。0=不预抓（点窗口一律实时抓）。仅在「定格 + 窗口截图」都开启时生效。</summary>
+    public int FreezePregrabMaxWindows { get; set; } = 6;
+
     /// <summary>识别后显示结果窗（默认开，R120 D2 改为预览优先）：编辑器/贴图「识别文字」成功后弹出可编辑、
     /// 可部分选中复制的结果窗（含字数、复制全部钮）——预览即选取入口，此时<b>不再自动写剪贴板</b>（要哪段选哪段，
     /// 或点「复制全部」）。关闭则退回快速路径：直接写剪贴板 + 轻提示，不弹窗。</summary>
@@ -186,6 +197,7 @@ public sealed class AppSettings
         Gestures ??= new GestureConfig();
         Gestures.SeedIfNeeded(GestureConfig.DefaultCaptureKey, GestureConfig.DefaultScopeKey);   // R126 一次性：空配置播种「轻点截图+按住录制」默认集
         ToastSeconds = ToastSeconds <= 0 ? 0 : Math.Clamp(ToastSeconds, 0.5, 60);
+        FreezePregrabMaxWindows = Math.Clamp(FreezePregrabMaxWindows, 0, 16);
         if (RegionW < 16 || RegionH < 16)
         {
             RegionMonitorId = null; RegionX = RegionY = RegionW = RegionH = 0;

@@ -2285,3 +2285,14 @@ status: done
 - **设置项**：截图页「吸附到控件」下加两条 `ToggleRow`——「点击窗口时截取完整窗口」(`WindowCaptureEnabled` 默认 true)、「窗口截图包含投影」(`WindowCaptureShadow` 默认 true)。
 - **顺带修**：`Win32.GetWindowTextW` 缺 `CharSet.Unicode`→中文标题被 ANSI 截断（潜在 bug，影响按标题找窗）；补 Unicode。新增 `--wincap <标题子串> <out.png> [--noshadow]` 调试/e2e 入口（同 `--picker`/`--gesture` 类）。
 - **验证**：构建 0 错；SelfTest **433/0**（+T165w1–w7：相交/外扩/贴本体裁剪/合成阴影单调衰减纯黑/PickWindow/遮挡判定/端到端合成含圆角不发黑）；护栏 **PASS FAIL=0 SKIP=1**。**实机取证**：`--wincap` 截记事本→四角 A=0 圆角透明、本体干净（magenta 合成图确认）；**投影修复后**把记事本移到 DSH 密集文字背景上 `--wincap`→**白底合成图**确认环里零背景文字、是一圈干净柔和阴影、四角圆角干净（不再发黑）；**真实选区窗 SendInput 点击**记事本→遮挡判定放行→控制器→WindowCapture→透明 PNG 角 A=0/中心 A=255；发布版 `--wincap` 冒烟角 A=0/中心 A=255（无裁剪/AOT 破坏）。
+
+---
+
+**R166 · 中等功能：选区时定格画面（放大镜跟画面 bug 修复 + 定格所见即所得 + 定格瞬间预抓窗口）**
+- **需求（用户）**：「放大镜的放大内容不会跟随画面改变，因为遮罩不会定格画面，新增一个开关，决定选区时是否定格画面，并且这个开关会改变截图的行为，定格的话截取的就是定格的画面而不是重新获取画面」。根因＝放大镜读的是开框后一次性抓的 `_snap`（定格），但遮罩是透明的（屏幕实时可见）、截图又实时重抓 → 三者不一致。grilling 共识：①`FreezeOnSelect` 默认**开**；②定格开＝开框瞬间抓一张全屏定格帧、屏幕看起来就定格、放大镜读定格帧、**区域截图裁定格帧**（与窗口截图开关正交——就算窗口截图关了，区域截图也裁定格帧，用户明确「窗口截图就算关了，截图也要是定格的画面截取」）；③定格关＝全程实时，放大镜每次移动实时重抓跟画面（修 bug）；④定格+窗口截图都开时，定格瞬间后台按 Z 序（聚焦窗最优先）预抓「完整可见」窗口的干净 WGC 画面缓存，点窗口即用＝定格+干净，没缓存好实时抓兜底；⑤`FreezePregrabMaxWindows` 默认 **6**，设置页可调（0=不预抓）。
+- **定格帧裁剪**：`BgraImage.Crop(src,x,y,w,h)` 纯函数——请求矩形 `[x,x+w)×[y,y+h)` 与画布求交（负偏移正确收缩、不向右多取），逐行 `BlockCopy`，越界钳、裁空返回 null。控制器定格分支 `Crop(frozenFrame, region-origin)` 得定格内容，`capReg` 同步收缩到实际裁出矩形（跨屏窗超出本屏部分裁掉、轮廓不超框）；定格帧没到位（极快点选）→ `LiveCapture.Grab` 兜底。
+- **选区窗双模**：新增 `freeze`/`pregrabMax`/`windowShadow` 构造参数。定格模式 `StartFreezeSnapshot` 抓全屏帧铺成 `_freezeBg`（`Image` 铺在遮罩下、随遮罩 150ms 同步淡入）→ 屏幕看起来定格；`UpdateLoupe` 分叉——定格读 `_snap`（`CroppedBitmap`），实时每次移动 `LiveCapture.Grab` 光标周围 15px 小区域重抓（跟画面，修掉不跟画面的 bug；本窗 WDA 排除、放大镜画在光标偏移处不拍自己）。`StartWindowPregrab` 后台枚举 `ListTopmostCandidates`（Z 序顶在前）→ 本屏 + 未被更靠上窗遮挡（`AnyAboveIntersects`）＝完整可见 → `PregrabOrder` 排序 → 逐个 `WindowCapture.Grab` 存 `ConcurrentDictionary` 缓存；`_finished` 即停、`Closed` 清空释放。暴露 `FrozenFrame`/`FrozenOrigin`/`TryGetCachedWindow`。
+- **预抓排序**：`SnapPick.PregrabOrder(focused, zTopFirst, max)` 纯函数——聚焦窗最优先（若在候选里）、其余按 Z 序自上而下、截断到 max、max≤0→空。控制器窗口点击分支先 `TryGetCachedWindow`（命中＝定格+干净圆角+投影），未命中实时 `WindowCapture.Grab` 兜底。
+- **设置项**：截图页「选区放大镜」下加 `ToggleRow`「选区时定格画面」(`FreezeOnSelect` 默认 true) + `SliderRow`「定格时预抓窗口数」0–16（`FreezePregrabMaxWindows` 默认 6，仅定格开时显示，仿「跟随刷新率→隐藏手动帧率」淡入淡出）。`Normalize` 钳 0–16。
+- **调试/e2e**：新增 `--freezetest <out.png>`——抓全屏定格帧裁出区域 R（＝定格截图内容），再盖一层不透明品红全屏窗改变画面、实时重抓 R（＝实时截图内容），输出并排图 `[定格裁出 | 实时]` 并记 `staticMatch`/`changed`。
+- **验证**：构建 0 错；SelfTest **435/0**（+T166w1-crop 正常/越界钳/负偏移收缩/空 null、+T166w2-pregraborder 聚焦最优先/无聚焦/聚焦不在候选/max=0/超量）；护栏 **PASS FAIL=0 SKIP=1**（e2e 默认走定格路径出图正常）。**实机取证**：`--freezetest` 并排图左＝定格裁出的真实桌面内容（深色窗搜索/筛选图标 + 中文文字，像素对齐正确）、右＝品红（盖窗后实时重抓），trace `staticMatch=True changed=True`＝裁剪像素级正确 + 定格确实截定格帧非重抓；`--picker` 真机 `picker freeze snapshot ready (3840x2160)` + `picker pregrab cached=1/1`＝定格快照 + 窗口预抓管线端到端跑通。

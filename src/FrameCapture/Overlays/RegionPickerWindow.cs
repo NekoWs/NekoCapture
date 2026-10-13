@@ -28,11 +28,18 @@ public sealed class RegionPickerWindow : Window
     private readonly bool _snapContent;
     private readonly bool _windowCapture; // R165：点吸附窗口时走「真·窗口截图」
     private readonly bool _magnifier;
+    private readonly bool _freeze;       // R166：选区时定格画面（显示/放大镜/截图都用定格帧）
+    private readonly int _pregrabMax;    // R166：定格时后台预抓「完整可见」窗口干净画面的上限
+    private readonly bool _windowShadow; // R166：预抓的窗口画面是否带合成投影
     private Core.ColorCopyFormat _colorFormat; // R89：按 C 复制颜色时的文本形式；R96 按 F 可循环切换（Hex→RGB→HSL）
     private (int r, int g, int b)? _lastRgb; // R96：放大镜中心最近一次像素色，供 F 切换格式后就地刷新读数
-    private System.Windows.Media.Imaging.BitmapSource? _snap; // 选区放大镜快照（构造时抓，遮罩未渲染→真实颜色）
+    private System.Windows.Media.Imaging.BitmapSource? _snap; // 定格全屏快照（定格模式：喂放大镜 + 背景 + 裁选区）
     private byte[]? _snapBgra; // 快照原始 BGRA（取光标下像素颜色用）
     private int _snapW;
+    private CapturedFrame? _snapFrame;  // R166：定格全屏帧（裁选区用，物理 BGRA）
+    private System.Windows.Controls.Image? _freezeBg; // R166：定格背景图（让屏幕看起来定格）
+    // R166：定格时后台预抓的窗口干净画面缓存（HWND → 帧+区域）；点窗口命中即用，避免实时抓（定格+干净）
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<IntPtr, (CapturedFrame Frame, RectI Region)> _winCache = new();
     private System.Windows.Controls.Border? _loupe;
     private Image? _loupeImg;
     private Rectangle? _loupeMarker;
@@ -60,29 +67,78 @@ public sealed class RegionPickerWindow : Window
         Native.Win32.SetWindowPos(h, Native.Win32.HWND_TOPMOST, 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0010); // NOMOVE|NOSIZE|NOACTIVATE
     }
 
-    /// <summary>Show 之后在后台线程抓全屏快照喂放大镜：本窗已 WDA 排除，遮罩已渲染也拍不到，颜色真实。
-    /// 抓完回 UI 线程填 _snap；放大镜在光标下次移动时自然出现（UpdateLoupe 见 _snap 非空即显示）。</summary>
-    void StartMagnifierSnapshot()
+    /// <summary>R166：定格模式——Show 之后在后台线程抓全屏定格帧（本窗已 WDA 排除，遮罩已渲染也拍不到，颜色真实）。
+    /// 抓完回 UI 线程填 _snap/_snapFrame 并把定格帧铺成背景（屏幕看起来就定格了）；放大镜在定格帧到位后显示。</summary>
+    void StartFreezeSnapshot()
     {
         var mon = _monitorPhys;
         _ = System.Threading.Tasks.Task.Run(() =>
         {
             var f = LiveCapture.Grab(mon);
             if (f == null) return;
-            var src = FrameCapture.Services.BgraImage.ToSource(f);
+            System.Windows.Media.Imaging.BitmapSource src;
+            try { src = FrameCapture.Services.BgraImage.ToSource(f); }
+            catch { return; }
             try
             {
                 Dispatcher.BeginInvoke(() =>
                 {
-                    _snap = src; _snapBgra = f.Bgra; _snapW = f.W;
-                    Core.Trace.Log($"picker magnifier snapshot ready ({mon.W}x{mon.H})");
+                    _snap = src; _snapBgra = f.Bgra; _snapW = f.W; _snapFrame = f;
+                    if (_freezeBg != null) _freezeBg.Source = src;
+                    Core.Trace.Log($"picker freeze snapshot ready ({mon.W}x{mon.H})");
                 });
             }
             catch { }
         });
     }
 
-    public RegionPickerWindow(MonitorInfo monitor, RectI? existing, bool snapContent = false, string? teachTip = null, bool magnifier = false, Core.ColorCopyFormat colorFormat = Core.ColorCopyFormat.Hex, bool windowCapture = false)
+    /// <summary>R166：定格+窗口截图都开时，后台按 Z 序（聚焦窗最优先）预抓「完整可见」窗口的干净画面（WGC，
+    /// 带透明圆角+可选投影），缓存到 _winCache。点窗口命中即用＝定格+干净；没缓存好则控制器实时抓兜底。
+    /// 只抓本屏、完整可见（未被更靠上窗遮挡）、数量取前 N 个；每个失败静默跳过；选区结束即停。</summary>
+    void StartWindowPregrab()
+    {
+        var self = new System.Windows.Interop.WindowInteropHelper(this).Handle;
+        int max = _pregrabMax; bool shadow = _windowShadow; var mon = _monitorPhys;
+        _ = System.Threading.Tasks.Task.Run(() =>
+        {
+            try
+            {
+                var cands = WindowEnum.ListTopmostCandidates(self).ToList(); // Z 序顶在前
+                var bounds = cands.Select(t => t.Bounds).ToList();
+                var visible = new List<IntPtr>();
+                for (int i = 0; i < cands.Count; i++)
+                {
+                    var b = cands[i].Bounds;
+                    if (b.W < 4 || b.H < 4) continue;
+                    if (b.X >= mon.Right || mon.X >= b.Right || b.Y >= mon.Bottom || mon.Y >= b.Bottom) continue; // 不在本屏
+                    if (Core.SnapPick.AnyAboveIntersects(bounds, i, b)) continue;                                 // 被遮挡
+                    visible.Add(cands[i].Hwnd);
+                }
+                var order = Core.SnapPick.PregrabOrder(Win32.GetForegroundWindow(), visible, max);
+                foreach (var h in order)
+                {
+                    if (_finished) return; // 选区已结束，别再抓
+                    try { var (f, r) = WindowCapture.Grab(h, shadow); _winCache[h] = (f, r); }
+                    catch { }
+                }
+                Core.Trace.Log($"picker pregrab cached={_winCache.Count}/{order.Count}");
+            }
+            catch (Exception e) { Core.Trace.Log("picker pregrab err " + e.Message); }
+        });
+    }
+
+    /// <summary>R166：控制器取预抓的窗口干净画面（定格+干净）。命中返回 true。</summary>
+    public bool TryGetCachedWindow(IntPtr hwnd, out CapturedFrame frame, out RectI region)
+    {
+        if (_winCache.TryGetValue(hwnd, out var v)) { frame = v.Frame; region = v.Region; return true; }
+        frame = null!; region = default; return false;
+    }
+
+    /// <summary>R166：定格全屏帧 + 其原点对应的虚拟桌面坐标（控制器据此把选区裁自定格帧而非重抓）。</summary>
+    public CapturedFrame? FrozenFrame => _snapFrame;
+    public RectI FrozenOrigin => _monitorPhys;
+
+    public RegionPickerWindow(MonitorInfo monitor, RectI? existing, bool snapContent = false, string? teachTip = null, bool magnifier = false, Core.ColorCopyFormat colorFormat = Core.ColorCopyFormat.Hex, bool windowCapture = false, bool freeze = false, int pregrabMax = 0, bool windowShadow = false)
     {
         // 覆盖层不需要文本输入：禁用输入法，避免拼音拦截快捷键
         System.Windows.Input.InputMethod.SetIsInputMethodEnabled(this, false);
@@ -90,6 +146,9 @@ public sealed class RegionPickerWindow : Window
         _snapContent = snapContent;
         _windowCapture = windowCapture;
         _magnifier = magnifier;
+        _freeze = freeze;
+        _pregrabMax = pregrabMax;
+        _windowShadow = windowShadow;
         _colorFormat = colorFormat;
         _monitorPhys = monitor.Bounds;
         _existing = existing;
@@ -107,7 +166,9 @@ public sealed class RegionPickerWindow : Window
             // R160：WS_EX_NOACTIVATE——Show 与鼠标按下都不激活本窗，前台焦点始终留在目标窗。
             // 否则拖框的 MouseDown 会把焦点从浏览器抢走，Z 序/前台一变，选区里就截到别的软件。
             try { Win32.SetWindowLongW(h, Win32.GWL_EXSTYLE, Win32.GetWindowLongW(h, Win32.GWL_EXSTYLE) | Win32.WS_EX_NOACTIVATE); } catch { }
-            if (_magnifier) StartMagnifierSnapshot();
+            // R166：定格模式开框瞬间抓一张全屏定格帧（喂背景+放大镜+裁选区）；实时模式不抓全屏，
+            // 放大镜改每次移动实时小区域重抓（跟画面）。定格+窗口截图都开时，后台按 Z 序预抓可见窗口干净画面。
+            if (_freeze) { StartFreezeSnapshot(); if (_windowCapture && _pregrabMax > 0) StartWindowPregrab(); }
             // 分层窗（AllowsTransparency）没有黑首帧问题，绝不能屏外停放：
             // 本窗 Left/Top 在 Loaded 才赋值，Park 抓到的 home=NaN，回写 NaN 会让系统级联位兜底（实测偏移 266,266，提示被推出屏外）
             FrameCapture.Core.Fluent.FadeIn(this, 120);
@@ -180,12 +241,18 @@ public sealed class RegionPickerWindow : Window
             _hint.Child = hintPanel;
         }
         var rootGrid = new Grid();
+        if (_freeze)
+        {
+            // 定格背景：铺在最底，快照到位后填 Source → 屏幕看起来就定格；遮罩(_canvas)盖在其上作暗化/挖洞
+            _freezeBg = new Image { Stretch = Stretch.Fill, IsHitTestVisible = false, Opacity = 0 };
+            rootGrid.Children.Add(_freezeBg);
+        }
         rootGrid.Children.Add(_canvas);
         rootGrid.Children.Add(_hint);
         Content = rootGrid;
 
         Loaded += (_, _) => _topTimer.Start();
-        Closed += (_, _) => { _topTimer.Stop(); Services.HotkeyManager.PickerActive = false; Services.HotkeyManager.PickerKey = null; }; // R160：清零全局键拦截，绝不泄漏成"全局键失灵"
+        Closed += (_, _) => { _topTimer.Stop(); _winCache.Clear(); Services.HotkeyManager.PickerActive = false; Services.HotkeyManager.PickerKey = null; }; // R160：清零全局键拦截，绝不泄漏成"全局键失灵"；R166：释放预抓窗口缓存
 
         Loaded += (_, _) =>
         {
@@ -319,6 +386,7 @@ public sealed class RegionPickerWindow : Window
             // 入场：遮罩 150ms 渐显；旧区域虚线滞后错开并轻微放大落位（ArkPV 式分层，不打扰）
             _canvas.Opacity = 0;
             _canvas.BeginAnimation(OpacityProperty, MaskAnim(1, 150, 0));
+            if (_freezeBg != null) _freezeBg.BeginAnimation(OpacityProperty, MaskAnim(1, 150, 0)); // 定格背景与遮罩同步淡入
             _hint.BeginAnimation(OpacityProperty, MaskAnim(1, 220, 320)); // 提示滞后入场，不打扰
             if (_existing != null)
             {
@@ -504,13 +572,32 @@ public sealed class RegionPickerWindow : Window
         }
     }
 
-    /// <summary>更新放大镜：从快照取光标周围像素高倍显示，标记光标正下方像素，读数显示坐标(+选区尺寸)。</summary>
+    /// <summary>更新放大镜：定格模式读定格快照；实时模式每次移动实时重抓光标周围小区域（跟画面）。
+    /// 标记光标正下方像素，读数显示坐标(+选区尺寸)与像素色。</summary>
     private void UpdateLoupe(Point dip, (int X, int Y) phys, RectI? sel)
     {
-        if (!_magnifier || _loupe == null || _loupeImg == null || _loupeMarker == null || _loupeInfo == null || _snap == null) return;
+        if (!_magnifier || _loupe == null || _loupeImg == null || _loupeMarker == null || _loupeInfo == null) return;
         int sx = phys.X - _monitorPhys.X, sy = phys.Y - _monitorPhys.Y;
-        var (cx, cy, size) = Core.MagnifierMath.Crop(sx, sy, _snap.PixelWidth, _snap.PixelHeight, LoupeSpan);
-        _loupeImg.Source = new System.Windows.Media.Imaging.CroppedBitmap(_snap, new Int32Rect(cx, cy, size, size));
+
+        // 取源：定格读定格快照；实时每次移动实时重抓（修掉放大镜不跟画面变的 bug）
+        byte[]? srcBgra; int srcW, cx, cy, size, px, py;
+        if (_freeze)
+        {
+            if (_snap == null) return; // 定格帧还没到位
+            (cx, cy, size) = Core.MagnifierMath.Crop(sx, sy, _snap.PixelWidth, _snap.PixelHeight, LoupeSpan);
+            _loupeImg.Source = new System.Windows.Media.Imaging.CroppedBitmap(_snap, new Int32Rect(cx, cy, size, size));
+            srcBgra = _snapBgra; srcW = _snapW; px = sx; py = sy; // 取色用整幅快照坐标
+        }
+        else
+        {
+            (cx, cy, size) = Core.MagnifierMath.Crop(sx, sy, _monitorPhys.W, _monitorPhys.H, LoupeSpan);
+            if (size < 2) return;
+            var g = LiveCapture.Grab(new RectI(_monitorPhys.X + cx, _monitorPhys.Y + cy, size, size));
+            if (g == null) return;
+            _loupeImg.Source = FrameCapture.Services.BgraImage.ToSource(g);
+            srcBgra = g.Bgra; srcW = g.W; px = sx - cx; py = sy - cy; // 取色用裁片内坐标
+        }
+
         double cell = LoupeSize / size;
         _loupeMarker.Width = _loupeMarker.Height = cell;
         Canvas.SetLeft(_loupeMarker, (sx - cx) * cell);
@@ -519,9 +606,9 @@ public sealed class RegionPickerWindow : Window
         var (lx, ly) = Core.MagnifierMath.Place(dip.X, dip.Y, _loupe.DesiredSize.Width, _loupe.DesiredSize.Height, Width, Height, 18);
         Canvas.SetLeft(_loupe, lx); Canvas.SetTop(_loupe, ly);
         _loupeInfo.Text = sel != null ? $"{phys.X}, {phys.Y}   {sel.Value.W}×{sel.Value.H}" : $"{phys.X}, {phys.Y}";
-        if (_snapBgra != null && _loupeSwatch != null && _loupeHex != null)
+        if (srcBgra != null && _loupeSwatch != null && _loupeHex != null)
         {
-            var (r, g, b) = Core.MagnifierMath.PixelRgb(_snapBgra, _snapW, sx, sy);
+            var (r, g, b) = Core.MagnifierMath.PixelRgb(srcBgra, srcW, px, py);
             _lastRgb = ((int)r, (int)g, (int)b); // R96：记住当前色，F 切格式时就地重算读数
             _loupeHexText = Core.ColorFormat.Format(r, g, b, _colorFormat);
             _loupeSwatch.Background = new SolidColorBrush(Color.FromRgb((byte)r, (byte)g, (byte)b));

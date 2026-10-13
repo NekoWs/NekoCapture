@@ -187,10 +187,13 @@ public sealed class CaptureController : IDisposable
         // 旧选区可关（R55 设置项）：关=干净屏选区，Enter 确认上次选区随之无意义
         _picker = new RegionPickerWindow(monitor, existing: _settings.Current.ShowLastRegion ? StoredRegion()?.Bounds : null,
             snapContent: _settings.Current.SnapContentArea, teachTip: teachTip, magnifier: _settings.Current.PickerMagnifier,
-            colorFormat: Core.ColorFormat.Parse(_settings.Current.ColorCopyFormat), windowCapture: _settings.Current.WindowCaptureEnabled);
+            colorFormat: Core.ColorFormat.Parse(_settings.Current.ColorCopyFormat), windowCapture: _settings.Current.WindowCaptureEnabled,
+            freeze: _settings.Current.FreezeOnSelect, pregrabMax: _settings.Current.FreezePregrabMaxWindows,
+            windowShadow: _settings.Current.WindowCaptureShadow);
         FrameCapture.Core.Trace.Log($"picker ctor done dt={swOpen.ElapsedMilliseconds}ms magnifier={_settings.Current.PickerMagnifier}");
         _picker.Result += (region, hwnd) =>
         {
+            var pk = _picker; // R166：定格帧/预抓缓存挂在选区窗上，先留引用（下面 _picker 置空、窗随即关闭）
             _picker = null;
             State = Phase.Idle;
             bool stillAfterSelect = _settings.Current.AutoCaptureOnSelect || _captureAfterSelect;
@@ -232,18 +235,32 @@ public sealed class CaptureController : IDisposable
                 t.Tick += (_, _) =>
                 {
                     t.Stop();
-                    // R165：点吸附窗口 → 真·窗口截图（带 alpha）；被遮挡/取帧失败 → 回退区域截图。
+                    // R165/R166：点吸附窗口 → 真·窗口截图（带 alpha）；定格+窗口截图时优先用定格瞬间预抓的干净画面。
+                    // 区域截图：定格开 → 裁定格帧（所见即所得，不重抓）；定格关 → 实时重抓。
                     CapturedFrame? f = null;
                     RectI capReg = region.Value;
                     bool winCap = false;
                     if (hwnd != IntPtr.Zero && _settings.Current.WindowCaptureEnabled)
                     {
-                        try
+                        if (pk != null && pk.TryGetCachedWindow(hwnd, out var cf, out var cr))
+                        { f = cf; capReg = cr; winCap = true; } // 定格瞬间预抓的干净窗口（定格+干净圆角+投影）
+                        else
                         {
-                            var (wf, wreg) = WindowCapture.Grab(hwnd, _settings.Current.WindowCaptureShadow);
-                            f = wf; capReg = wreg; winCap = true;
+                            try
+                            {
+                                var (wf, wreg) = WindowCapture.Grab(hwnd, _settings.Current.WindowCaptureShadow);
+                                f = wf; capReg = wreg; winCap = true;
+                            }
+                            catch (Exception ex) { FrameCapture.Core.Trace.Log($"winCap fail→region: {ex.Message}"); f = null; }
                         }
-                        catch (Exception ex) { FrameCapture.Core.Trace.Log($"winCap fail→region: {ex.Message}"); f = null; }
+                    }
+                    if (f == null && _settings.Current.FreezeOnSelect && pk != null && pk.FrozenFrame is { } ff)
+                    {
+                        // 裁自定格帧；跨屏窗口超出本屏部分裁掉，capReg 同步收缩到实际裁出的矩形（轮廓不超框）
+                        int ox = pk.FrozenOrigin.X, oy = pk.FrozenOrigin.Y, rx = region.Value.X - ox, ry = region.Value.Y - oy;
+                        f = BgraImage.Crop(ff, rx, ry, region.Value.W, region.Value.H);
+                        if (f != null) capReg = new RectI(ox + Math.Clamp(rx, 0, ff.W), oy + Math.Clamp(ry, 0, ff.H), f.W, f.H);
+                        else f = LiveCapture.Grab(region.Value); // 定格帧没到位（极快点选）→ 实时兜底
                     }
                     if (f == null) f = LiveCapture.Grab(region.Value);
                     if (f != null) DispatchStill(f, capReg, monitor.DeviceName, windowCapture: winCap);

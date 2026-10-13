@@ -183,6 +183,32 @@ public sealed class SettingsWindow : Window
             _settings.Current.ShowLastRegion, v => _settings.Mutate(s => s.ShowLastRegion = v)));
         panel.Children.Add(ToggleRow("\uE721", "选区放大镜", "拖框或悬停选区时，光标旁显示高倍像素放大镜、坐标/尺寸读数与光标下像素颜色（按 C 复制颜色，格式见下），便于像素级精确选区/取色（QQ/Snipaste 式）；关闭可省一点开销",
             _settings.Current.PickerMagnifier, v => _settings.Mutate(s => s.PickerMagnifier = v)));
+        // R166：定格画面开关 + 定格时预抓窗口上限（上限仅在定格开时显示，仿「跟随刷新率→隐藏手动帧率」）
+        var pregrabRow = SliderRow("\uE7C8", "定格时预抓窗口数", "「定格画面」与「点击窗口时截取完整窗口」都开着时，定格瞬间后台按 Z 序（当前聚焦窗最优先）预抓这么多「完整可见」窗口的干净画面；点窗口即用缓存＝定格+干净圆角+投影，没缓存好则实时抓兜底。0=不预抓（点窗口一律实时抓）",
+            0, 16, 1, _settings.Current.FreezePregrabMaxWindows,
+            v => v <= 0 ? "不预抓" : $"{v:0} 个", v => _settings.Mutate(s => s.FreezePregrabMaxWindows = (int)v));
+        void SetPregrabVisible(bool vis)
+        {
+            if (vis)
+            {
+                pregrabRow.Visibility = Visibility.Visible;
+                pregrabRow.BeginAnimation(OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(1.0,
+                    new System.Windows.Duration(TimeSpan.FromMilliseconds(200)))
+                { EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut } });
+            }
+            else
+            {
+                var fade = new System.Windows.Media.Animation.DoubleAnimation(0.0,
+                    new System.Windows.Duration(TimeSpan.FromMilliseconds(160)))
+                { EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseIn } };
+                fade.Completed += (_, _) => pregrabRow.Visibility = Visibility.Collapsed;
+                pregrabRow.BeginAnimation(OpacityProperty, fade);
+            }
+        }
+        if (!_settings.Current.FreezeOnSelect) { pregrabRow.Opacity = 0; pregrabRow.Visibility = Visibility.Collapsed; }
+        panel.Children.Add(ToggleRow("\uE7C4", "选区时定格画面", "按下选区热键的瞬间抓一张全屏定格帧，整个选区过程画面看起来就定格了——放大镜读定格帧、拖框/区域截图也裁这张定格帧（不再选完后重新抓屏），所见即所得（QQ/Snipaste 式）。关掉则全程实时：屏幕实时可见、放大镜每次移动实时跟画面、截图实时重抓",
+            _settings.Current.FreezeOnSelect, v => { _settings.Mutate(s => s.FreezeOnSelect = v); SetPregrabVisible(v); }));
+        panel.Children.Add(pregrabRow);
         panel.Children.Add(ColorFormatRow());
         panel.Children.Add(ToggleRow("\uE71A", "常显捕获范围轮廓", "在屏幕上持续显示当前捕获范围的边框，开/关立刻生效（R161 修复：此前要等下一次捕获才动）。尚未设置范围时没有可显示的边框——先用托盘「设置捕获范围」",
             _settings.Current.AlwaysShowRegionOutline, v => _settings.Mutate(s => s.AlwaysShowRegionOutline = v)));

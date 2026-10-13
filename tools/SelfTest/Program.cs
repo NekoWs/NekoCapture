@@ -2703,6 +2703,46 @@ static class SelfTest
             Chk("T165w7-composite", centerOpaque && cornerTransparent && farTransparent && ringSemi && ringBlack,
                 $"center={OA(20,20)} corner={OA(15,15)} far={OA(0,0)} ring={OA(13,20)}");
         }
+
+        // ===== R166：选区定格画面（定格帧裁剪 + 预抓窗口排序）纯逻辑 =====
+        {
+            // T166w1 定格帧裁剪：正常裁 + 越界钳 + 负偏移收缩 + 空返回 null
+            var big = new byte[10 * 10 * 4];
+            for (int y = 0; y < 10; y++)
+                for (int x = 0; x < 10; x++)
+                {
+                    int i = (y * 10 + x) * 4;
+                    big[i] = (byte)x; big[i + 1] = (byte)y; big[i + 2] = 0; big[i + 3] = 255;
+                }
+            var srcF = new CapturedFrame { Bgra = big, W = 10, H = 10, TimeMs = 0 };
+            var c1 = BgraImage.Crop(srcF, 2, 3, 4, 5);
+            bool c1ok = c1 != null && c1.W == 4 && c1.H == 5 && c1.Bgra[0] == 2 && c1.Bgra[1] == 3 && c1.Bgra[3] == 255;
+            bool c1px = c1 != null && c1.Bgra[4] == 3 && c1.Bgra[5] == 3; // (1,0)←src(3,3)
+            var c2 = BgraImage.Crop(srcF, 8, 8, 10, 10);                  // 右下越界 → 2x2
+            bool c2ok = c2 != null && c2.W == 2 && c2.H == 2 && c2.Bgra[0] == 8 && c2.Bgra[1] == 8;
+            var c3 = BgraImage.Crop(srcF, -2, -2, 6, 6);                  // 负偏移 → 从(0,0)起 4x4（不向右多取）
+            bool c3ok = c3 != null && c3.W == 4 && c3.H == 4 && c3.Bgra[0] == 0 && c3.Bgra[1] == 0;
+            var c4 = BgraImage.Crop(srcF, 20, 20, 5, 5);                  // 完全在外
+            var c5 = BgraImage.Crop(srcF, 0, 0, 0, 5);                    // 宽 0
+            bool cNull = c4 == null && c5 == null;
+            Chk("T166w1-crop", c1ok && c1px && c2ok && c3ok && cNull,
+                $"c1={c1?.W}x{c1?.H} c2={c2?.W}x{c2?.H} c3={c3?.W}x{c3?.H} null={cNull}");
+
+            // T166w2 预抓排序：聚焦窗最优先（若在候选里）→ 其余按 Z 序 → 截断到 max；max≤0→空
+            var h = new List<IntPtr>();
+            for (int i = 1; i <= 5; i++) h.Add(new IntPtr(i));            // Z 序顶在前：1,2,3,4,5
+            var o1 = SnapPick.PregrabOrder(new IntPtr(3), h, 3);          // 聚焦=3 → 3,1,2
+            bool o1ok = o1.Count == 3 && o1[0] == new IntPtr(3) && o1[1] == new IntPtr(1) && o1[2] == new IntPtr(2);
+            var o2 = SnapPick.PregrabOrder(IntPtr.Zero, h, 4);            // 无聚焦 → 1,2,3,4
+            bool o2ok = o2.Count == 4 && o2[0] == new IntPtr(1) && o2[3] == new IntPtr(4);
+            var o3 = SnapPick.PregrabOrder(new IntPtr(9), h, 2);          // 聚焦不在候选 → 1,2
+            bool o3ok = o3.Count == 2 && o3[0] == new IntPtr(1) && o3[1] == new IntPtr(2);
+            var o4 = SnapPick.PregrabOrder(new IntPtr(3), h, 0);          // max=0 → 空
+            var o5 = SnapPick.PregrabOrder(new IntPtr(3), h, 99);         // max 超量 → 全部 5 个，聚焦仍最前
+            bool o5ok = o5.Count == 5 && o5[0] == new IntPtr(3) && o5[1] == new IntPtr(1);
+            Chk("T166w2-pregraborder", o1ok && o2ok && o3ok && o4.Count == 0 && o5ok,
+                $"o1={o1.Count} o2={o2.Count} o3={o3.Count} o4={o4.Count} o5={o5.Count}");
+        }
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");
         return fail == 0 ? 0 : 1;
     }

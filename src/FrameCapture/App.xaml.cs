@@ -164,6 +164,54 @@ public partial class App : System.Windows.Application
                 catch (Exception ex) { FrameCapture.Core.Trace.Log("wincap fail: " + ex); }
             }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
         }
+        // R166 调试/e2e：定格 vs 实时取证。先抓全屏定格帧并裁出区域 R（＝定格截图会得到的内容），
+        // 再在屏幕上盖一层不透明品红窗改变画面，实时重抓 R（＝实时截图会得到的内容）。
+        // 输出并排图 [定格裁出 | 实时]：左＝旧内容、右＝品红，二者不同即证明定格裁的是定格帧、不是重抓。
+        int ffi = Array.FindIndex(e.Args, a => string.Equals(a, "--freezetest", StringComparison.OrdinalIgnoreCase));
+        if (ffi >= 0)
+        {
+            string outp = ffi + 1 < e.Args.Length ? e.Args[ffi + 1]
+                : System.IO.Path.Combine(System.IO.Path.GetTempPath(), "FrameCapture", "freezetest.png");
+            Dispatcher.BeginInvoke(() =>
+            {
+                try
+                {
+                    var mons = Capture.Monitors.All();
+                    var mon = mons.FirstOrDefault(m => m.IsPrimary) ?? mons[0];
+                    var full = Capture.LiveCapture.Grab(mon.Bounds);
+                    if (full == null) { FrameCapture.Core.Trace.Log("freezetest: grab full null"); return; }
+                    var R = new Capture.RectI(mon.Bounds.X + 240, mon.Bounds.Y + 240, 360, 240);
+                    var frozenCrop = Services.BgraImage.Crop(full, R.X - mon.Bounds.X, R.Y - mon.Bounds.Y, R.W, R.H);
+                    if (frozenCrop == null) { FrameCapture.Core.Trace.Log("freezetest: crop null"); return; }
+                    var liveBefore = Capture.LiveCapture.Grab(R);
+                    bool staticMatch = liveBefore != null && liveBefore.Bgra.AsSpan().SequenceEqual(frozenCrop.Bgra);
+                    using (var w = new System.Windows.Forms.Form
+                    {
+                        TopMost = true, FormBorderStyle = System.Windows.Forms.FormBorderStyle.None,
+                        StartPosition = System.Windows.Forms.FormStartPosition.Manual,
+                        Bounds = new System.Drawing.Rectangle(mon.Bounds.X, mon.Bounds.Y, mon.Bounds.W, mon.Bounds.H),
+                        BackColor = System.Drawing.Color.Magenta, ShowInTaskbar = false,
+                    })
+                    {
+                        w.Show();
+                        System.Threading.Thread.Sleep(220);
+                        var liveAfter = Capture.LiveCapture.Grab(R);
+                        w.Close();
+                        bool changed = liveAfter != null && !liveAfter.Bgra.AsSpan().SequenceEqual(frozenCrop.Bgra);
+                        int gap = 12, cw = frozenCrop.W, chh = Math.Max(frozenCrop.H, liveAfter?.H ?? 0), stride = cw * 2 + gap;
+                        var comp = new byte[(long)stride * chh * 4];
+                        for (int y = 0; y < frozenCrop.H; y++)
+                            Buffer.BlockCopy(frozenCrop.Bgra, y * cw * 4, comp, y * stride * 4, cw * 4);
+                        if (liveAfter != null)
+                            for (int y = 0; y < liveAfter.H; y++)
+                                Buffer.BlockCopy(liveAfter.Bgra, y * liveAfter.W * 4, comp, y * stride * 4 + (cw + gap) * 4, liveAfter.W * 4);
+                        Services.BgraImage.SavePng(new Capture.CapturedFrame { Bgra = comp, W = stride, H = chh, TimeMs = 0 }, outp);
+                        FrameCapture.Core.Trace.Log($"freezetest saved {outp} staticMatch={staticMatch} changed={changed}");
+                    }
+                }
+                catch (Exception ex) { FrameCapture.Core.Trace.Log("freezetest fail: " + ex); }
+            }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+        }
     }
 
     /// <summary>按标题子串（不区分大小写）找第一个可见顶层窗（调试/e2e 用）。</summary>
