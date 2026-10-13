@@ -44,6 +44,11 @@ public sealed class AppSettings
     /// <summary>是否在屏幕上常显当前捕获范围轮廓。</summary>
     public bool AlwaysShowRegionOutline { get; set; } = false;
 
+    /// <summary>截图后范围边框的停留时间（秒，默认 1.1，R164）：截完那一下「亮边闪一下作确认」的边框
+    /// 全亮停留多久再淡出。想「拍完即走」调小、想「多留一眼确认截对没」调大。仅影响截图反馈边框，
+    /// 与「常显捕获范围轮廓」（一直显示）和录制边框各自独立。</summary>
+    public double OutlineFadeSeconds { get; set; } = 1.1;
+
     /// <summary>
     /// 录制期间显示捕获范围边框。取代 Windows 11 那条由 WGC 绘制的全屏黄色系统边框
     /// （它只按"被捕获对象"画，而 WGC 只能整显示器捕获，所以永远全屏、与所选范围无关）。

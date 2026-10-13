@@ -235,7 +235,7 @@ public sealed class CaptureController : IDisposable
                     var f = LiveCapture.Grab(region.Value);
                     if (f != null) DispatchStill(f, region.Value, monitor.DeviceName);
                     if (_settings.Current.AlwaysShowRegionOutline) ShowOutline(region.Value);
-                    else { FlashOutline(region.Value); _outline!.FadeAway(1.1); }
+                    else { FlashOutline(region.Value); _outline!.FadeAway(_settings.Current.OutlineFadeSeconds); }
                 };
                 t.Start();
             }
@@ -244,7 +244,7 @@ public sealed class CaptureController : IDisposable
             {
                 // 选区确认反馈：亮起→强调停顿→柔和退场（FlashOutline/FadeAway 此前是死代码）
                 FlashOutline(region.Value);
-                _outline!.FadeAway(1.1);
+                _outline!.FadeAway(_settings.Current.OutlineFadeSeconds);
             }
         };
         _picker.Show();
@@ -531,7 +531,7 @@ public sealed class CaptureController : IDisposable
         _lastStill.Set(f, reg, dev);
         // 范围闪一下作"截好了"的反馈（只复制模式没有浮窗，这一下尤其重要）
         if (_settings.Current.AlwaysShowRegionOutline) ShowOutline(reg);
-        else { FlashOutline(reg); _outline!.FadeAway(1.1); }
+        else { FlashOutline(reg); _outline!.FadeAway(_settings.Current.OutlineFadeSeconds); }
     }
 
     // ---------- R92 从剪贴板贴图 ----------

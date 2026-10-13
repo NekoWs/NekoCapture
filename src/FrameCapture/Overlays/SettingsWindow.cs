@@ -182,6 +182,9 @@ public sealed class SettingsWindow : Window
         panel.Children.Add(ColorFormatRow());
         panel.Children.Add(ToggleRow("\uE71A", "常显捕获范围轮廓", "在屏幕上持续显示当前捕获范围的边框，开/关立刻生效（R161 修复：此前要等下一次捕获才动）。尚未设置范围时没有可显示的边框——先用托盘「设置捕获范围」",
             _settings.Current.AlwaysShowRegionOutline, v => _settings.Mutate(s => s.AlwaysShowRegionOutline = v)));
+        panel.Children.Add(SliderRow("\uE7C4", "截图后边框显示时间", "截完那一下范围边框「亮边闪一下」作确认——这里设它全亮停留多久再淡出。拍完即走调小、想多留一眼确认截对没调大（与「常显轮廓」和录制边框各自独立）",
+            0.2, 3.0, 0.1, _settings.Current.OutlineFadeSeconds,
+            v => $"{v:0.0} 秒", v => _settings.Mutate(s => s.OutlineFadeSeconds = v)));
         panel.Children.Add(ToastRow());
         panel.Children.Add(CaptureSoundRow());
         panel.Children.Add(DelayRow());

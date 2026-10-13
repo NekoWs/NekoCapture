@@ -70,7 +70,9 @@ public sealed partial class EditorWindow
     void InitDrawing()
     {
         _canvas.Background = Brushes.Transparent;
-        _canvas.Visibility = Visibility.Collapsed;
+        // R164：画布常显（标注是画在它上面的，收起画布＝所有编辑凭空消失）。浏览态改「不可命中」而非 Collapsed：
+        // 标注照常显示，鼠标事件穿透到 _viewGrid 走平移/缩放（Canvas_Down 在 Browse 本就 return）。
+        _canvas.IsHitTestVisible = false;
         _canvas.MouseLeftButtonDown += Canvas_Down;
         _canvas.MouseMove += Canvas_Move;
         _canvas.MouseLeftButtonUp += Canvas_Up;
@@ -219,7 +221,7 @@ public sealed partial class EditorWindow
         // 再点当前工具=回到浏览态（与线宽/颜色的单选切换同一语义，纯逻辑见 ToolToggle，SelfTest T72a）
         _tool = FrameCapture.Core.ToolToggle.Select(_tool, t, Tool.Browse);
         _sel = null; // 换工具即丢选中（选中只属于选中工具，R52）
-        _canvas.Visibility = _tool == Tool.Browse ? Visibility.Collapsed : Visibility.Visible;
+        _canvas.IsHitTestVisible = _tool != Tool.Browse;   // R164：浏览态画布不可命中（标注仍显示、平移穿透），绘制态可命中
         _canvas.Cursor = _tool switch { Tool.Browse or Tool.Select => Cursors.Arrow, Tool.Text => Cursors.IBeam, _ => Cursors.Cross };
         for (int i = 0; i < _toolBtns.Count; i++)
             Highlight(_toolBtns[i], ToolOrder[i] == _tool);
@@ -1225,8 +1227,7 @@ public sealed partial class EditorWindow
                 }
             }
         }
-        if (_tool != Tool.Browse && _canvas.Visibility != Visibility.Visible)
-            _canvas.Visibility = Visibility.Visible;
+        // R164：画布常显（不再收起），此处无需再兜底恢复 Visibility；命中态由 SetTool 统一管。
     }
 
     // ---------------- 裁剪 ----------------

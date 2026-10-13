@@ -386,14 +386,41 @@ public sealed class PinWindow : Window
                 if (System.Windows.Forms.Screen.FromPoint(new System.Drawing.Point((int)pcx, (int)pcy)).DeviceName != _snapScr) continue;
                 AddRect(p.Left, p.Top, p.Left + p.Width, p.Top + p.Height);
             }
-            foreach (var (wl, wt, wr, wb) in _winGuides ??= BuildWinGuides())
+            // R164：窗口边只取"可见段"——被更靠上窗口盖住的部分剔除（Slick RemoveOverlappedTargets 思路）。
+            // 此前把同屏所有窗口的整条边都当参考，包括被压在后面的背景窗 → 吸到看不见的边＝莫名其妙。
+            var wins = _winGuides ??= BuildWinGuides();   // Z 序上→下，DIP
+            for (int i = 0; i < wins.Count; i++)
             {
+                var (wl, wt, wr, wb) = wins[i];
                 double wcx = (wl + wr) / 2 * d.DpiScaleX, wcy = (wt + wb) / 2 * d.DpiScaleY;
                 if (System.Windows.Forms.Screen.FromPoint(new System.Drawing.Point((int)wcx, (int)wcy)).DeviceName != _snapScr) continue;
-                AddRect(wl, wt, wr, wb);
+                AddVisible(wl, wt, wb, _snapXL, true, wins, i);
+                AddVisible(wr, wt, wb, _snapXR, true, wins, i);
+                AddVisible(wt, wl, wr, _snapYT, false, wins, i);
+                AddVisible(wb, wl, wr, _snapYB, false, wins, i);
             }
         }
         catch { _snapXL.Clear(); _snapXR.Clear(); _snapYT.Clear(); _snapYB.Clear(); }
+    }
+
+    /// <summary>R164：把窗口一条边 [lo,hi]@pos 减去更靠上（wins[0..above-1]，Z 序更靠前）窗口在该边线上的覆盖区间，
+    /// 只把可见子段加入目标边列表。vertical=true 表示竖边（x=pos，跨度沿 Y，用窗口 L/R 判是否盖住该竖线）。</summary>
+    static void AddVisible(double pos, double lo, double hi,
+        System.Collections.Generic.List<FrameCapture.Core.PinSnap.Edge> target, bool vertical,
+        System.Collections.Generic.List<(double L, double T, double R, double B)> wins, int above)
+    {
+        if (hi <= lo) return;
+        var covered = new System.Collections.Generic.List<(double a, double b)>();
+        for (int j = 0; j < above; j++)
+        {
+            var a = wins[j];
+            double c0, c1;
+            if (vertical) { if (!(a.L <= pos && pos < a.R)) continue; c0 = Math.Max(lo, a.T); c1 = Math.Min(hi, a.B); }
+            else { if (!(a.T <= pos && pos < a.B)) continue; c0 = Math.Max(lo, a.L); c1 = Math.Min(hi, a.R); }
+            if (c1 > c0) covered.Add((c0, c1));
+        }
+        foreach (var (s0, s1) in FrameCapture.Core.PinSnap.VisibleSegments(lo, hi, covered))
+            target.Add(new FrameCapture.Core.PinSnap.Edge(pos, s0, s1));
     }
 
     List<(double L, double T, double R, double B)> BuildWinGuides()
@@ -402,7 +429,10 @@ public sealed class PinWindow : Window
         try
         {
             var d = VisualTreeHelper.GetDpi(this);
-            foreach (var (_, b, _) in FrameCapture.Native.WindowEnum.ListTopmostCandidates(skipIconic: true))
+            // R164：排除自己——否则拖拽起点快照会把本贴图此刻的边当参考边，拖起来"吸回自己起点"＝莫名其妙。
+            var self = new System.Windows.Interop.WindowInteropHelper(this).Handle;
+            // 保持 EnumWindows 的 Z 序（上→下），供 BuildSnapLines 做遮挡裁剪：只把"看得见的边"当参考。
+            foreach (var (_, b, _) in FrameCapture.Native.WindowEnum.ListTopmostCandidates(self, skipIconic: true))
                 list.Add((b.X / d.DpiScaleX, b.Y / d.DpiScaleY, (b.X + b.W) / d.DpiScaleX, (b.Y + b.H) / d.DpiScaleY));
         }
         catch { /* 枚举失败不影响贴图/屏幕边吸附 */ }

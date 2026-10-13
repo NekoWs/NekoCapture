@@ -1655,6 +1655,64 @@ static class SelfTest
                 Chk("T163g-tangent", m7 == 105, "跨度仅相切(600==600)不算重叠 → 不吸");
             }
 
+            // T164 磁吸遮挡裁剪（R164，只吸"看得见的边"：被更靠上窗口盖住的边段剔除）
+            {
+                var vs = FrameCapture.Core.PinSnap.VisibleSegments;
+                var a1 = vs(100, 200, Array.Empty<(double, double)>());
+                Chk("T164a-empty", a1.Count == 1 && a1[0].s0 == 100 && a1[0].s1 == 200, "无覆盖 → 整段可见");
+                var a2 = vs(100, 200, new[] { (90.0, 210.0) });
+                Chk("T164b-full", a2.Count == 0, "完全被盖 → 无可见段（背景窗的边不再当参考）");
+                var a3 = vs(100, 200, new[] { (130.0, 160.0) });
+                Chk("T164c-middle", a3.Count == 2 && a3[0].s1 == 130 && a3[1].s0 == 160, "中段被盖 → 断成两段");
+                var a4 = vs(100, 200, new[] { (100.0, 150.0) });
+                Chk("T164d-head", a4.Count == 1 && a4[0].s0 == 150 && a4[0].s1 == 200, "起段被盖 → 只剩尾段");
+                var a5 = vs(100, 200, new[] { (150.0, 260.0) });
+                Chk("T164e-tail", a5.Count == 1 && a5[0].s0 == 100 && a5[0].s1 == 150, "尾段被盖(越界钳到 hi) → 只剩头段");
+                var a6 = vs(100, 200, new[] { (110.0, 140.0), (130.0, 170.0) });
+                Chk("T164f-merge", a6.Count == 2 && a6[0].s1 == 110 && a6[1].s0 == 170, "覆盖区间重叠 → 合并后裁剪");
+                var a7 = vs(200, 100, new[] { (120.0, 130.0) });
+                Chk("T164g-degenerate", a7.Count == 0, "lo>=hi 退化区间 → 空");
+            }
+
+            // T165 编辑器浏览态标注仍显示（R164：取消选中所有工具后编辑不再凭空消失）
+            try
+            {
+                var settings = new FrameCapture.Core.SettingsService();
+                var f = MovingSquare(160, 90, 0, 1);
+                var seq = new CapturedSequence { Frames = new List<CapturedFrame> { f }, Region = new RectI(0, 0, 160, 90), MonitorBounds = new RectI(0, 0, 1920, 1080) };
+                var win = new FrameCapture.Overlays.EditorWindow(settings, seq);
+                var T = typeof(FrameCapture.Overlays.EditorWindow);
+                var NP = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+                var canvas = (System.Windows.Controls.Canvas)T.GetField("_canvas", NP)!.GetValue(win)!;
+                var anns = T.GetField("_anns", NP)!.GetValue(win)!;
+                var redraw = T.GetMethod("RedrawAnns", NP)!;
+                var setTool = T.GetMethod("SetTool", NP)!;
+                var toolType = T.GetNestedType("Tool", System.Reflection.BindingFlags.NonPublic)!;
+                object rectTool = Enum.Parse(toolType, "Rect");
+                // 往模型加一条矩形标注（走 UndoRedo<Annotation>.Add）
+                var ann = new FrameCapture.Drawing.Annotation
+                {
+                    Kind = FrameCapture.Drawing.AnnKind.Rect,
+                    Color = System.Drawing.Color.FromArgb(255, 255, 0, 0),
+                    Thickness = 3,
+                };
+                ann.Points.Add((0.2f, 0.2f)); ann.Points.Add((0.7f, 0.7f));
+                anns.GetType().GetMethod("Add", new[] { typeof(FrameCapture.Drawing.Annotation) })!.Invoke(anns, new object[] { ann });
+                // 选中矩形工具：画布可见、可命中、标注已画
+                setTool.Invoke(win, new object[] { rectTool });
+                redraw.Invoke(win, null);
+                Chk("T165a-draw", canvas.Visibility == System.Windows.Visibility.Visible && canvas.IsHitTestVisible && canvas.Children.Count >= 1,
+                    "绘制态：画布可见+可命中+有标注");
+                // 再点同一工具 = 退回浏览态（取消选中所有工具）——旧 bug 此刻把画布 Collapsed，标注全消失
+                setTool.Invoke(win, new object[] { rectTool });
+                redraw.Invoke(win, null);
+                Chk("T165b-browse-visible", canvas.Visibility == System.Windows.Visibility.Visible, "浏览态：画布不再 Collapsed（旧 bug 根因）");
+                Chk("T165c-ann-kept", canvas.Children.Count >= 1, "取消选中工具后标注仍显示（不再凭空消失）");
+                Chk("T165d-no-hittest", !canvas.IsHitTestVisible, "浏览态画布不可命中（平移/缩放穿透到 _viewGrid）");
+                try { win.Close(); } catch { }
+            }
+            catch (Exception e) { Chk("T165-editor-browse-ann", false, e.ToString()); }
+
             // T114 最近静态截图保留（R78，LastStill 状态持有）
             {
                 var ls = new FrameCapture.Capture.LastStill();

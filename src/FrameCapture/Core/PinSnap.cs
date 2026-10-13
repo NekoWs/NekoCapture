@@ -88,4 +88,26 @@ public static class PinSnap
         }
         return found ? near + shift : near;
     }
+
+    /// <summary>R164：从 [lo,hi] 中减去 covered 覆盖区间，返回可见子段（起点升序）。贴图磁吸的「遮挡裁剪」用——
+    /// 一条窗口边被更靠上（Z 序更前）的窗口盖住的部分不算参考边，只吸「看得见的边」（Slick RemoveOverlappedTargets 思路）。
+    /// 空 covered → 整段可见；完全覆盖 → 空。纯函数，供单测。</summary>
+    public static List<(double s0, double s1)> VisibleSegments(double lo, double hi, IReadOnlyList<(double a, double b)> covered)
+    {
+        var res = new List<(double, double)>();
+        if (hi <= lo) return res;
+        if (covered.Count == 0) { res.Add((lo, hi)); return res; }
+        var c = new List<(double a, double b)>(covered);
+        c.Sort((x, y) => x.a.CompareTo(y.a));
+        double cur = lo;
+        foreach (var (a, b) in c)
+        {
+            if (b <= cur) continue;
+            if (a > cur) res.Add((cur, Math.Min(a, hi)));
+            cur = Math.Max(cur, b);
+            if (cur >= hi) break;
+        }
+        if (cur < hi) res.Add((cur, hi));
+        return res;
+    }
 }
