@@ -13,6 +13,13 @@ public static class GifEncoder
     /// frames 为 BGRA 帧；delaysMs 每帧显示时长；loop=true 无限循环。
     /// progress 报告已完成帧数；ct 可取消（抛 OperationCanceledException）。多帧自动并行。
     /// </summary>
+    /// <param name="frames">BGRA 帧序列。<b>逻辑屏幕描述符只写首帧的宽高</b>，因此全部帧必须同宽同高。</param>
+    /// <param name="delaysMs">与 frames 一一对应的显示时长（毫秒）；厘秒量化可能删帧，见 Core.GifTiming。</param>
+    /// <param name="loop">true = 写 Netscape 扩展无限循环；false = 播一遍停住。</param>
+    /// <param name="progress">报告已完成帧数（计数，不是百分比），可为 null。</param>
+    /// <param name="ct">取消令牌；取消时抛 <see cref="OperationCanceledException"/>，已编码结果整个丢弃。</param>
+    /// <returns>完整 GIF89a 字节流，可直接落盘或进剪贴板。</returns>
+    /// <exception cref="ArgumentException">frames 为空。</exception>
     public static byte[] Encode(IReadOnlyList<CapturedFrame> frames, IReadOnlyList<int> delaysMs, bool loop = true,
         IProgress<int>? progress = null, CancellationToken ct = default)
     {
@@ -267,12 +274,17 @@ public static class GifEncoder
     {
         public List<(int Key, int Count)> Colors { get; }
         public long TotalCount { get; }
+        /// <summary>建一个色桶，顺带累计该桶覆盖的样本像素总数。</summary>
+        /// <param name="colors">桶内条目：6bit 归约色键 + 该键的样本像素数。</param>
         public ColorBox(List<(int Key, int Count)> colors)
         {
             Colors = colors;
             long t = 0; foreach (var (_, c) in colors) t += c;
             TotalCount = t;
         }
+        /// <summary>取该桶在三通道上跨度最大的一轴及其跨度，供 median-cut 决定往哪切。</summary>
+        /// <param name="axis">输出分裂轴：0=R、1=G、2=B，对应 6bit 归约键的通道序。</param>
+        /// <returns>该轴跨度（0–63）。并列时按 R、G、B 的优先序取轴，同一输入结果确定。</returns>
         public int Span(out int axis)
         {
             int maxR = 0, minR = 63, maxG = 0, minG = 63, maxB = 0, minB = 63;
@@ -293,6 +305,11 @@ public static class GifEncoder
 
     #region LZW（GIF 变体：低位在前）
 
+    /// <summary>
+    /// GIF 变体 LZW：码字按<b>低位在前</b>压入位缓冲，每满 8 位吐一个字节，
+    /// 字节再攒成最长 255 的子块并前置长度字节，末尾补 0 结束子块链。
+    /// 位流方向反了解码器不会报错，只会读出满屏花码——方向属于格式契约，不是实现细节。
+    /// </summary>
     static void LzwCompress(byte[] indices, int entryBits, BinaryWriter bw)
     {
         int minCodeSize = entryBits;

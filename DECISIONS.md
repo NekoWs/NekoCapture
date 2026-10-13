@@ -191,3 +191,15 @@
   选区里截到的就是别的软件，用户看到"我框的是这个窗，出来是另一个"。
 - **护栏**：`BeginScopeSelection` 里两处 `_picker.Show()` 均不调 `ForceForeground`；
   `ForceForeground` 只服务真正需要键盘输入的窗（编辑器、设置窗）。
+
+## 入场首帧由 Win32 分层 alpha 压住，不等 WPF Opacity
+
+- **不变量 / 契约**：非分层窗（`AllowsTransparency=false`）的入场必须从"完全不可见"开始，
+  且这段不可见由 `SourceInitialized` 时的 `SetLayeredWindowAttributes(alpha=0)` 保证，
+  不能指望 `Window.Opacity=0`——后者要等首帧渲染才落到 HWND。
+- **曾经的错误**：只设 `Opacity=0` 就等首帧。HWND 已建但未渲染的那几帧里，DWM 拿到的是一张
+  **不透明黑面**（或类背景白闪），入场第一下就是黑闪；而行为断言全绿——位置、尺寸、点击全对，
+  闪只存在于肉眼可见的那几帧，逻辑测试抓不到。
+- **护栏**：`Fluent.PreTransparent` 在 `SourceInitialized` 置 `WS_EX_LAYERED` + `LWA_ALPHA`，
+  并在每次布局再补一次（WPF 首帧准备会冲掉手工样式），放行时机由它返回的 release 决定；
+  入场路径改动必须走视觉暂留审查（`UICap.exe burstregion` → `montage` 逐帧确认首帧干净）。

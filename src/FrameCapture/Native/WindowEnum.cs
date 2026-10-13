@@ -5,8 +5,13 @@ namespace FrameCapture.Native;
 /// <summary>窗口枚举（范围吸附用）：Z 序从上到下，带 DWM 扩展边界。</summary>
 public static class WindowEnum
 {
-    /// <summary>返回按 Z 序排列的可见候选窗口（物理像素边界），跳过桌面/壳层/工具窗口。
-    /// skipIconic=true 供贴图吸附用——最小化的窗口不该当对齐参考线。</summary>
+    /// <summary>
+    /// 按 Z 序自顶向下返回可吸附的候选窗口：过滤全在枚举回调内完成，调用方取首个即最上层。
+    /// </summary>
+    /// <param name="excludeHwnd">要排除的窗口，通常是发起选取的浮窗本身；IntPtr.Zero = 不排除。</param>
+    /// <param name="skipIconic">true = 跳过最小化窗口。贴图吸附用它：最小化窗没有可对齐的可见边。</param>
+    /// <returns>每项 (Hwnd, Bounds, Client)。Bounds 取 DWM 可见外框、Client 取客户区，
+    /// 两者均为物理像素、虚拟桌面绝对坐标；取不到外框或边长不足 16 像素的窗口不进结果。</returns>
     public static IEnumerable<(IntPtr Hwnd, Capture.RectI Bounds, Capture.RectI Client)> ListTopmostCandidates(IntPtr excludeHwnd = default, bool skipIconic = false)
     {
         var list = new List<(IntPtr, Capture.RectI, Capture.RectI)>();
@@ -22,7 +27,7 @@ public static class WindowEnum
             if ((ex & (Win32.WS_EX_TOOLWINDOW | Win32.WS_EX_TRANSPARENT | Win32.WS_EX_NOACTIVATE)) != 0)
                 return true;
 
-            // 已披风（虚拟桌面其他会话）
+            // cloaked：窗口此刻不呈现于当前桌面（虚拟桌面切换、应用被挂起），不能当对齐参考
             if (Win32.DwmGetWindowAttribute(hwnd, Win32.DWMWA_CLOAKED, out uint cloaked, 4) == 0 && cloaked != 0)
                 return true;
 
@@ -34,8 +39,7 @@ public static class WindowEnum
             int w = r.Right - r.Left, h = r.Bottom - r.Top;
             if (w < 16 || h < 16) return true;
 
-            // 跳过自己的进程
-            // allow own content windows (editor/settings/help) to be snapped; only skip the caller's picker itself
+            // 只排除发起选取的浮窗本身；自家编辑器/设置/帮助窗同样允许被吸附
             if (hwnd == excludeHwnd) return true;
 
             // 跳过整个桌面（Progman/WorkerW）与壳层
@@ -49,7 +53,7 @@ public static class WindowEnum
             }
 
             var frame = new Capture.RectI(r.Left, r.Top, w, h);
-            // client-area rect (physical px): excludes window frame/title bar
+            // 客户区矩形（物理像素）：不含边框与标题栏
             var client = frame;
             if (Win32.GetClientRect(hwnd, out var rcC) && rcC.Right > 8 && rcC.Bottom > 8)
             {

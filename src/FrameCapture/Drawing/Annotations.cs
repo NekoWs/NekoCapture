@@ -4,6 +4,10 @@ using System.Drawing.Imaging;
 
 namespace FrameCapture.Drawing;
 
+/// <summary>
+/// 标注类型。除 Mosaic 外都由 GDI+ 矢量绘制；Mosaic 是字节级像素运算，
+/// 因此 <see cref="Bake.Apply"/> 先铺 Mosaic 再画其余类型，这个顺序不可换。
+/// </summary>
 public enum AnnKind { Dot, Line, Rect, Ellipse, Arrow, Freehand, Highlight, Text, Mosaic, Number }
 
 /// <summary>
@@ -26,6 +30,9 @@ public sealed class Annotation
 
     /// <summary>返回改了颜色/粗细的副本（Kind/几何/文字不变；传 null 表示该项保持原值）。
     /// 供「选中已有标注→改样式」原位替换（可撤销）用。纯函数，供单测。</summary>
+    /// <param name="color">新颜色；null = 保持原色。</param>
+    /// <param name="thickness">新粗细，按 1080p 像素数计；null = 保持原值。</param>
+    /// <returns>新实例，Points 逐项复制；本实例不被修改，调用方可留原实例当撤销依据。</returns>
     public Annotation WithStyle(Color? color, float? thickness)
     {
         var e = new Annotation { Kind = Kind, Color = color ?? Color, Thickness = thickness ?? Thickness, Text = Text };
@@ -33,6 +40,14 @@ public sealed class Annotation
         return e;
     }
 
+    /// <summary>
+    /// 把本条标注画到给定画布上：归一化坐标乘 w/h 还原成像素，粗细按 min(w,h)/1080 缩放，
+    /// 因此预览小图与烘焙大图上的线条比例一致。点数不够的类型静默不画，不抛异常。
+    /// </summary>
+    /// <param name="g">目标画布。<b>本方法会改写它的 SmoothingMode / TextRenderingHint 且不还原</b>，
+    /// 调用方须自行隔离画布状态。</param>
+    /// <param name="w">目标位图宽（像素），归一化 X 乘它。</param>
+    /// <param name="h">目标位图高（像素），归一化 Y 乘它，并参与粗细缩放。</param>
     public void Render(Graphics g, int w, int h)
     {
         float scale = Math.Min(w, h) / 1080f;
@@ -149,9 +164,16 @@ public sealed class Annotation
     }
 }
 
-/// <summary>把标注烘焙进 BGRA 帧（就地拷贝出新帧列表，不动原帧）。</summary>
+/// <summary>把标注烘焙进 BGRA 帧序列：逐帧克隆缓冲后在副本上绘制，入参帧不被修改。</summary>
 public static class Bake
 {
+    /// <summary>
+    /// 把一组标注烧进每一帧，返回全新帧列表。标注对所有帧一视同仁——帧间不做位移跟踪。
+    /// </summary>
+    /// <param name="frames">源帧序列，本身不被修改。</param>
+    /// <param name="anns">要烘焙的标注。Mosaic 先铺底，其余矢量标注叠在其上。</param>
+    /// <returns>与 frames 等长的新列表。有标注时每项都是新分配的帧缓冲，TimeMs 沿用源帧；
+    /// <b>anns 为空时返回的是原帧实例组成的新列表</b>，此时调用方不得就地改像素。</returns>
     public static List<Capture.CapturedFrame> Apply(IReadOnlyList<Capture.CapturedFrame> frames, IReadOnlyList<Annotation> anns)
     {
         if (anns.Count == 0) return frames.ToList();
@@ -184,7 +206,13 @@ public static class Bake
         return outFrames;
     }
 
-    /// <summary>裁剪所有帧（帧内像素坐标）。</summary>
+    /// <summary>对每一帧套用同一个裁剪框。</summary>
+    /// <param name="frames">源帧序列，每一帧都必须容纳该框。</param>
+    /// <param name="x">裁剪框左上角 X，帧内像素坐标，须非负。</param>
+    /// <param name="y">裁剪框左上角 Y，帧内像素坐标，须非负。</param>
+    /// <param name="w">裁剪宽（像素），至少 8。</param>
+    /// <param name="h">裁剪高（像素），至少 8。</param>
+    /// <returns>逐帧 <see cref="CropFrame"/> 的结果，长度与 frames 相同；任一帧越界即整批抛异常。</returns>
     public static List<Capture.CapturedFrame> Crop(IReadOnlyList<Capture.CapturedFrame> frames, int x, int y, int w, int h)
     {
         var outFrames = new List<Capture.CapturedFrame>(frames.Count);
@@ -194,6 +222,13 @@ public static class Bake
     }
 
     /// <summary>裁剪单帧（帧内像素坐标）。残影等稀疏采样场景用它做惰性投影，避免整段物化。</summary>
+    /// <param name="f">源帧，不被修改。</param>
+    /// <param name="x">裁剪框左上角 X，帧内像素坐标，须非负。</param>
+    /// <param name="y">裁剪框左上角 Y，帧内像素坐标，须非负。</param>
+    /// <param name="w">裁剪宽（像素），小于 8 视为无效。</param>
+    /// <param name="h">裁剪高（像素），小于 8 视为无效。</param>
+    /// <returns>新帧：top-down、无 padding 的 w*h*4 字节，TimeMs 沿用源帧。</returns>
+    /// <exception cref="ArgumentException">裁剪框越出源帧边界，或宽高不足 8 像素。</exception>
     public static Capture.CapturedFrame CropFrame(Capture.CapturedFrame f, int x, int y, int w, int h)
     {
         if (x < 0 || y < 0 || w < 8 || h < 8 || x + w > f.W || y + h > f.H)
