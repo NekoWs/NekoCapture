@@ -700,7 +700,8 @@ public sealed partial class EditorWindow : Window
         _settings.Mutate(s => s.EditorGuideShown = true);
         FrameCapture.Core.Trace.Log("editor guide closed");
         var fade = new System.Windows.Media.Animation.DoubleAnimation(1, 0,
-            new System.Windows.Duration(TimeSpan.FromMilliseconds(160)));
+            new System.Windows.Duration(TimeSpan.FromMilliseconds(160)))
+        { EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseIn } };
         fade.Completed += (_, _) => _root?.Children.Remove(g);
         g.BeginAnimation(OpacityProperty, fade);
     }
@@ -937,7 +938,8 @@ public sealed partial class EditorWindow : Window
         _snackText.Text = msg;
         _snack.Visibility = Visibility.Visible;
         _snack.BeginAnimation(OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(
-            1.0, TimeSpan.FromMilliseconds(FrameCapture.Core.Fluent.Motion.HoverMs)));
+            1.0, TimeSpan.FromMilliseconds(FrameCapture.Core.Fluent.Motion.HoverMs))
+        { EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut } });
         if (_snackTimer == null)
         {
             _snackTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1800) };
@@ -945,7 +947,8 @@ public sealed partial class EditorWindow : Window
             {
                 _snackTimer!.Stop();
                 _snack!.BeginAnimation(OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(
-                    0.0, TimeSpan.FromMilliseconds(320)));
+                    0.0, TimeSpan.FromMilliseconds(320))
+                { EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseIn } });
             };
         }
         _snackTimer.Stop();

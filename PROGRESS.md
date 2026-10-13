@@ -2116,3 +2116,10 @@ status: done
 4. **重启出厂实例**（最后一步，单实例 Mutex）pid 48936（publish-staging）→ trace `gesture apply on=True excl=True n=4`（用户 4 绑定含 onComplete edit.lastvideo 正确加载）；**截图核验出厂件设置卡显示 4 条真实绑定**（与 Debug 同 sha256，确认 R149b 已入出厂件）。
 
 **本会话净产出**：R149（帮助窗反映真实键位）+ R149b（设置卡逐条反映真实绑定）+ R150（配置器触发下拉补 Tap/Hold/HoldRelease + `--gesture` 入口）+ docs（TEST-CHECKLIST CLI 清单）——修 3 个真实用户可见缺陷，全部截图核验；SelfTest 396→404；HEAD `5edd026` git clean；出厂件已含全部改动并运行中。
+
+---
+
+**R151 · 瞬时浮层淡入淡出 easing 一致性（编辑器 snack/guide + 贴图 snack）**
+- **缺陷**（全局 `DoubleAnimation` 审计发现）：全应用淡入淡出统一 CubicEase（Fluent.Motion 约定：淡入 EaseOut、淡出 EaseIn），唯独 4 处瞬时浮层是**线性**——编辑器 snack 淡入(939)/淡出(947)、编辑器 guide 淡出(702，而淡入 689 是 EaseOut，不对称)、贴图 snack 淡出(408)；且贴图 snack 淡入是**瞬时**（`Opacity=1` 直给），与其自身注释「淡入、停留、淡出」**自相矛盾**。
+- **修复**：4 处淡出补 `CubicEase EaseIn`、编辑器 snack 淡入补 `EaseOut`；贴图 snack 淡入改为真淡入（`DoubleAnimation(1, HoverMs) EaseOut`，对齐编辑器 snack 写法，兑现注释承诺）。
+- **验证**：构建 **0 错**；**SelfTest 404 绿**（无回归）；**逻辑核验**贴图 snack Border 初始 `Opacity=0/Collapsed`（88-89）→ 首次 Flash 即从 0 淡入、淡出后归 0 再显亦淡入，曲线正确。动效曲线为瞬时过程无法截图（任何动效改动皆然），以「构建+测试+初值/目标/写法对齐」三重核验替代。

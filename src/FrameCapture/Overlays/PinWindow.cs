@@ -398,14 +398,16 @@ public sealed class PinWindow : Window
     {
         _snackTimer?.Stop();
         _snackText.Text = msg;
-        _snack.BeginAnimation(OpacityProperty, null);
-        _snack.Opacity = 1;
         _snack.Visibility = Visibility.Visible;
+        _snack.BeginAnimation(OpacityProperty, new DoubleAnimation(1,
+            new Duration(TimeSpan.FromMilliseconds(FrameCapture.Core.Fluent.Motion.HoverMs)))
+        { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
         _snackTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1600) };
         _snackTimer.Tick += (_, _) =>
         {
             _snackTimer!.Stop();
-            var fade = new DoubleAnimation(0, new Duration(TimeSpan.FromMilliseconds(FrameCapture.Core.Fluent.Motion.ExitMs)));
+            var fade = new DoubleAnimation(0, new Duration(TimeSpan.FromMilliseconds(FrameCapture.Core.Fluent.Motion.ExitMs)))
+            { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseIn } };
             fade.Completed += (_, _) => _snack.Visibility = Visibility.Collapsed;
             _snack.BeginAnimation(OpacityProperty, fade);
         };
