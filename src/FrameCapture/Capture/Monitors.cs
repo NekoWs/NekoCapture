@@ -4,8 +4,15 @@ using WinForms = System.Windows.Forms;
 
 namespace FrameCapture.Capture;
 
+/// <summary>一台显示器的静态描述。</summary>
+/// <param name="DeviceName">Win32 设备名，与设置里存的 RegionMonitorId 同源，用来跨会话认回同一块屏。</param>
+/// <param name="Bounds">物理像素、虚拟桌面绝对坐标；主屏原点恒 (0,0)，左侧/上方的副屏坐标可为负。</param>
+/// <param name="IsPrimary">是否主显示器。</param>
+/// <returns>按给定值构造的不可变记录。</returns>
 public sealed record MonitorInfo(string DeviceName, RectI Bounds, bool IsPrimary)
 {
+    /// <summary>解析本显示器对应的 HMONITOR：取 Bounds 中心的物理坐标做一次 MONITOR_DEFAULTTONEAREST 命中。</summary>
+    /// <returns>HMONITOR 句柄；解析失败为 <see cref="IntPtr.Zero"/>，调用方必须自行判零。</returns>
     public IntPtr ResolveHMonitor()
     {
         var pt = new Win32.POINT
@@ -20,13 +27,23 @@ public sealed record MonitorInfo(string DeviceName, RectI Bounds, bool IsPrimary
 /// <summary>显示器枚举。应用清单为 PerMonitorV2，Screen.Bounds 即物理像素。</summary>
 public static class Monitors
 {
+    /// <summary>枚举全部显示器。</summary>
+    /// <returns>按 WinForms 的枚举顺序排列。每次调用都重新枚举，热插拔即时可见——代价是一次 Win32 枚举，别放进逐帧路径。</returns>
     public static List<MonitorInfo> All() => WinForms.Screen.AllScreens
         .Select(s => new MonitorInfo(s.DeviceName,
             new RectI(s.Bounds.X, s.Bounds.Y, s.Bounds.Width, s.Bounds.Height), s.Primary))
         .ToList();
 
+    /// <summary>按设备名查找。</summary>
+    /// <param name="device">设备名，须与枚举结果完全一致，不做大小写或前后缀容错。</param>
+    /// <returns>匹配的显示器；null = 该屏已拔出或设备名变了，调用方应回退 <see cref="Nearest"/>。</returns>
     public static MonitorInfo? ByDevice(string device) => All().FirstOrDefault(m => m.DeviceName == device);
 
+    /// <summary>取与给定坐标最相关的显示器：先按命中，再按矩形距离。</summary>
+    /// <param name="x">物理像素、虚拟桌面绝对坐标。</param>
+    /// <param name="y">同上坐标系。</param>
+    /// <returns>命中的一块；都不命中（坐标落在所有屏之外）取距离最近的一块；
+    /// 枚举彻底为空时兜底一块 1920x1080 主屏——本方法绝不返回 null，调用方无需判空。</returns>
     public static MonitorInfo Nearest(int x, int y)
     {
         var list = All();
@@ -45,6 +62,10 @@ public static class Monitors
     }
 
     /// <summary>把矩形裁剪到显示器内。</summary>
+    /// <param name="r">待裁剪矩形，物理像素、虚拟桌面绝对坐标。</param>
+    /// <param name="m">目标显示器。</param>
+    /// <returns>两者交集；交集不足 16x16（几乎总是显示器布局变了、范围整体偏出这块屏）时返回整块显示器矩形，
+    /// 而不是空矩形——捕获宁可多截，也不能截不到东西。</returns>
     public static RectI ClipTo(this RectI r, MonitorInfo m)
     {
         int x1 = Math.Max(r.X, m.Bounds.X), y1 = Math.Max(r.Y, m.Bounds.Y);

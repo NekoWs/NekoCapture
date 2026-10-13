@@ -5,8 +5,13 @@ using FrameCapture.Overlays;
 namespace FrameCapture.Services;
 
 // 本 partial 职责：静态截图与识别文字的触发入口、剪贴板贴图、已存范围与上次产物的存取。
+/// <summary>
+/// <see cref="CaptureController"/> 的静图/贴图分部：单帧产物的出口集中在这里，
+/// 选区拖框与点按直出两条路径都由 <see cref="DispatchStill"/> 收尾。
+/// </summary>
 public sealed partial class CaptureController : IDisposable
 {
+    /// <summary>QQ 式「选区截图」——选一块区域，选完立即截一帧静态图（与 AutoCaptureOnSelect 开关无关）。</summary>
     public void BeginCaptureSelection()
     {
         FrameCapture.Core.Trace.Log("capture-selection→picker");
@@ -23,8 +28,8 @@ public sealed partial class CaptureController : IDisposable
         _recordAfterSelect = true;
     }
 
-    /// <summary>B2 / 录制中→停止（产物留内存，不进编辑器）；否则→选区起录。QQ 式「同键开始/结束」。
-    /// 进编辑器请在「完成后序列」加『打开编辑器（上次录制）』——动作本身不再默认开编辑器。</summary>
+    /// <summary>录制中→停止（产物留内存，不进编辑器）；否则→选区起录。QQ 式「同键开始/结束」。
+    /// 本动作任何时候都不开编辑器；进编辑器请在「完成后序列」加『打开编辑器（上次录制）』。</summary>
     public void ToggleRecordSelection()
     {
         if (State == Phase.Capturing)
@@ -36,9 +41,9 @@ public sealed partial class CaptureController : IDisposable
         BeginRecordSelection();
     }
 
-    /// <summary>B2 / 干净利落的全屏即时截图——直接抓光标所在屏幕全屏当下这一帧，无选区、无点按窗、
+    /// <summary>干净利落的全屏即时截图——直接抓光标所在屏幕全屏当下这一帧，无选区、无点按窗、
     /// 无录制管线、无延时、抓取前不弹任何窗（不抢焦点）。专治游戏「一丢焦点就暂停」：按下即定格此刻画面。
-    /// （此前会优先抓"上次存的范围"，导致明明要全屏却截到残留选区——A2 改为永远全屏，语义清晰。）</summary>
+    /// 本动作<b>永远抓光标屏全屏</b>，已存范围与它无关；要按已存范围截用 <see cref="CaptureStoredStill"/>。</summary>
     public void CaptureInstantStill()
     {
         if (State != Phase.Idle) return;
@@ -50,8 +55,8 @@ public sealed partial class CaptureController : IDisposable
         DispatchStill(f, region.Bounds, region.DeviceName);
     }
 
-    /// <summary>托盘「立即捕获（按当前范围）」——对已存范围（无则光标屏全屏）截一帧静态图，
-    /// 走统一「截图后」分派。替代旧 BeginCapture+600ms+EndCapture 的绕路（那会产出一段 600ms GIF，名不副实）。</summary>
+    /// <summary>托盘「立即捕获（按当前范围）」——对已存范围（无则光标屏全屏）截一帧静态图（PNG，不是 GIF），
+    /// 走统一「截图后」分派。要干净全屏用 <see cref="CaptureInstantStill"/>。</summary>
     public void CaptureStoredStill()
     {
         if (State != Phase.Idle) return;
@@ -107,6 +112,7 @@ public sealed partial class CaptureController : IDisposable
     /// <summary>托盘/入口调用：把剪贴板里的图片钉成贴图（Snipaste 式"粘贴即贴图"）——
     /// 复制任意图片（截图/图片文件/网页图）后一键钉屏参考。剪贴板无图片返回 false（调用方给反馈）。
     /// 落点：光标所在屏、以光标为中心，越界钳进屏内。须在 UI 线程调用（托盘菜单点击即 UI 线程）。</summary>
+    /// <returns>true = 已钉出贴图；false = 剪贴板里没有可用图片（含读取抛异常），此时不创建任何窗口。</returns>
     public bool PinFromClipboard()
     {
         System.Windows.Media.Imaging.BitmapSource? img = null;
@@ -133,6 +139,10 @@ public sealed partial class CaptureController : IDisposable
         FrameCapture.Core.Trace.Log($"pin-at {f.W}x{f.H} @ {reg.X},{reg.Y}");
     }
 
+    /// <summary>已存的捕获范围（物理像素、虚拟桌面绝对坐标），每次选区确认时写进设置。
+    /// 以下情形返回 null：从未设过范围、范围所在显示器已不存在、宽或高不足 16px、
+    /// 范围中心已落在该显示器之外（显示器布局变了）。</summary>
+    /// <returns>可直接用于捕获的范围；null = 无可用范围，调用方应回退到光标屏全屏。</returns>
     public ScreenRegion? StoredRegion()
     {
         var s = _settings.Current;
@@ -145,6 +155,7 @@ public sealed partial class CaptureController : IDisposable
         return new ScreenRegion(m.DeviceName, r);
     }
 
+    /// <summary>清掉已存范围（显示器名与矩形一并归零），并收起常显轮廓——范围没了，轮廓也就无处可画。</summary>
     public void ClearStoredRegion()
     {
         _settings.Mutate(s => { s.RegionMonitorId = null; s.RegionX = s.RegionY = s.RegionW = s.RegionH = 0; });
@@ -169,8 +180,12 @@ public sealed partial class CaptureController : IDisposable
     }
 
     /// <summary>单帧静图完成后的统一处理：复制 + 自动保存副本 + 提示音 + 「截图后」四选一 + 记录上次截图。
-    /// 选区拖框路径与点按直出路径共用，保证两条路径行为一致（修复：此前点按直出绕过本分派，
-    /// 导致「截图后」设置与提示音对直出截图全部失效，永远进编辑器）。</summary>
+    /// 这是单帧产物<b>唯一</b>的完成路径：选区拖框、点按直出、即时截图都必须走这里，
+    /// 绕开它的那条路径会整体丢掉「截图后」设置与提示音。</summary>
+    /// <param name="f">已裁好的 BGRA 帧；本方法不拷贝它，剪贴板/浮窗/贴图/上次截图缓存共享同一份像素。</param>
+    /// <param name="reg">帧对应的捕获矩形：物理像素、虚拟桌面绝对坐标，用于浮窗定位与贴图落点。</param>
+    /// <param name="device">捕获所在显示器设备名。</param>
+    /// <param name="windowCapture">true = 带 alpha 的窗口截图，剪贴板额外写 PNG 格式以保住透明通道。</param>
     void DispatchStill(CapturedFrame f, RectI reg, string device, bool windowCapture = false)
     {
         var pth = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "FrameCapture", $"capture-{DateTime.Now:HHmmss}.png");
@@ -198,7 +213,8 @@ public sealed partial class CaptureController : IDisposable
         _lastStill.Set(f, reg, device); // 浮窗消失后仍可经托盘找回编辑器
     }
 
-    /// <summary>是否有可重新编辑的最近静态截图（，决定托盘项是否出现）。</summary>
+    /// <summary>是否有可重新编辑的最近静态截图。</summary>
+    /// <value>true = 托盘「编辑上次截图」应出现；false = 还没截过图，或缓存已被清。</value>
     public bool HasLastStill => !_lastStill.Empty;
 
     /// <summary>托盘「编辑上次截图」：确认浮窗已消失时，用最近一次静态截图重开编辑器。</summary>
@@ -209,10 +225,12 @@ public sealed partial class CaptureController : IDisposable
     }
 
     /// <summary>是否有留在内存、可进编辑器的上次录制。</summary>
+    /// <value>true = 『打开编辑器（上次录制）』会成功（还要当前空闲）；false = 没有留存产物，或已交给编辑器。</value>
     public bool HasLastVideo => _lastSequence != null;
 
     /// <summary>手势『打开编辑器（上次录制）』——用留在内存的上次录制打开视频编辑器。
     /// 所有权移交编辑器（_lastSequence 置空，编辑器关闭时自行释放 spool）。空闲且确有产物才开。</summary>
+    /// <returns>true = 已打开编辑器并移交产物所有权；false = 非空闲态或没有留存产物，未产生任何副作用。</returns>
     public bool EditLastVideo()
     {
         if (State != Phase.Idle || _lastSequence == null) return false;

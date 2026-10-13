@@ -7,6 +7,11 @@ namespace FrameCapture.Services;
 /// <summary>捕获状态机。所有方法都在 UI 线程调用（AppHost 已 Dispatch）。</summary>
 public sealed partial class CaptureController : IDisposable
 {
+    /// <summary>
+    /// 捕获状态机阶段，<b>唯一</b>写入口是 <see cref="CaptureController"/> 自身，入口方法先读它再决定放行。
+    /// <c>Idle</c>=任何捕获入口都可发起、单帧完成路径可开编辑器；<c>SelectingScope</c>=选区窗等待拖框或取消；
+    /// <c>Capturing</c>=帧持续入仓，只有 <c>FinishCapture</c> 能离开；<c>Editing</c>=编辑器持有产物所有权（含 spool 文件）。
+    /// </summary>
     public enum Phase { Idle, SelectingScope, Capturing, Editing }
 
     private readonly SettingsService _settings;
@@ -29,12 +34,13 @@ public sealed partial class CaptureController : IDisposable
     /// 单独存一份是为防选区拖框期间触发的别的手势把 _pendingAfter 覆盖掉。</summary>
     private string _sessionAfter = "";
     /// <summary>引擎在跑某条手势动作前告知本条的「截图后」（空=默认）。仅记录，真正生效在截图发起时捕获。</summary>
+    /// <param name="v">动作名；null 与空串等价，都按「默认弹提示」处理。</param>
     public void SetPendingAfterCapture(string? v) => _pendingAfter = string.IsNullOrEmpty(v) ? "" : v;
     /// <summary>选区完成后到真正抓取/起录之间的留白(ms)。选区窗已 WDA_EXCLUDEFROMCAPTURE，抓取本就拍不到它；
-    /// 这里只留极短一拍让选区窗 Close 走完（防 WDA 万一失效时把选区界面截进画面）。旧值 220ms 明显拖慢截图。</summary>
+    /// 这里只留极短一拍让选区窗 Close 走完（防 WDA 万一失效时把选区界面截进画面）。再长就是纯等，用户能感觉到截图变慢。</summary>
     private const int PickerExitMs = 40;
     private System.Windows.Threading.DispatcherTimer? _recBadgeTimer; // 起录后延迟点亮 REC 徽标（避免快速点按闪徽标）
-    private const int RecBadgeDelayMs = 250; // 旧 TapThresholdMs 退役，徽标延迟用固定值（录制已是确认动作）
+    private const int RecBadgeDelayMs = 250; // 固定一拍躲开快速点按的闪徽标；录制本身已是确认动作，时长判定归手势引擎
     // 保留最近一次静态截图帧，供托盘「编辑上次截图」在托盘找回编辑器
     private readonly LastStill _lastStill = new();
     // 录制产物留在内存（不落盘、不自动开编辑器）。停止录制只暂存，进编辑器由 edit.lastvideo 动作显式触发。
@@ -58,6 +64,8 @@ public sealed partial class CaptureController : IDisposable
 
     public Phase State { get; private set; } = Phase.Idle;
 
+    /// <summary>构造捕获控制器。必须在 UI 线程创建：内部全部使用 <c>DispatcherTimer</c>，且所有方法都按 UI 线程调用设计。</summary>
+    /// <param name="settings">设置服务：控制器读它的快照、并往里写已存范围与首次教学标记，其生命周期由调用方持有。</param>
     public CaptureController(SettingsService settings)
     {
         _settings = settings;
@@ -75,12 +83,15 @@ public sealed partial class CaptureController : IDisposable
         };
     }
 
+    /// <summary>
+    /// 启动时调用一次：按设置决定开机是否常显范围轮廓，并订阅设置变更做边沿检测。
+    /// </summary>
     public void Initialize()
     {
         _outlineOn = _settings.Current.AlwaysShowRegionOutline;
         if (_outlineOn) ShowOutlineIfStored();
-        // 修复「常显捕获区域不生效」：此前开关只在下一次捕获收尾时被消费——拨动瞬间毫无反应，
-        // 用户自然认为无效。订阅设置变更做边沿检测：开→立刻显示已存范围轮廓，关→立刻收起。
+        // 开关的可见副作用必须在拨动瞬间生效：开→立刻显示已存范围轮廓，关→立刻收起。
+        // 只在捕获收尾时消费该设置会让"拨了没反应"，用户只能判定开关是坏的。
         _settings.Changed += () =>
         {
             bool on = _settings.Current.AlwaysShowRegionOutline;
@@ -96,6 +107,11 @@ public sealed partial class CaptureController : IDisposable
 
     private IntPtr _prevFg; // 触发捕获/选区前的前台窗，关闭编辑器后归还焦点
 
+    /// <summary>
+    /// 打开全屏选区窗（热键与托盘共用）。录制中忽略；选取中再按一次只把选取层顶到最前，不重建选区窗。
+    /// 结果回调按 <c>_scrollAfterSelect</c> / <c>_recordAfterSelect</c> / <c>_captureAfterSelect</c> 分流到
+    /// 滚动拼接、选区起录、单帧静图，都不成立时只记录范围。调用方在返回后置位这些意图标志即可——回调必然晚于返回。
+    /// </summary>
     public void BeginScopeSelection()
     {
         // 防状态卡死：选取窗被异常途径关闭（Alt+F4 等）时复位
@@ -106,7 +122,7 @@ public sealed partial class CaptureController : IDisposable
         if (scopeIntent == Core.CaptureGuards.ScopeIntent.RefocusPicker)
         {
             // 再按一次热键：把选取层重新顶到所有窗口最前（游戏等霸屏窗口会盖住它）
-            _picker!.Show(); // 不再 ForceForeground（选区窗不抢焦点，见本方法末尾注释）
+            _picker!.Show(); // 只顶 Z 序，不抢焦点（原因见本方法末尾）
             return;
         }
         CloseEditor();
@@ -119,10 +135,10 @@ public sealed partial class CaptureController : IDisposable
         Overlays.CaptureToast.DismissCurrent();
         HideOutline();
         var swOpen = System.Diagnostics.Stopwatch.StartNew();
-        // 首次教学：用户还没录过制时，在选区提示里点破"按住=录制"，起录一次后不再打扰
+        // 首次教学：RecHintShown=false 时在选区提示里点破"按住=录制"；起录过一次即永久关闭该提示
         string? teachTip = _settings.Current.RecHintShown ? null
             : "提示：按住 = 录制 GIF（点按 = 截图）";
-        // 旧选区可关（设置项）：关=干净屏选区，Enter 确认上次选区随之无意义
+        // ShowLastRegion 关=干净屏选区（不传 existing 矩形），此时 Enter「确认上次选区」随之无意义
         _picker = new RegionPickerWindow(monitor, existing: _settings.Current.ShowLastRegion ? StoredRegion()?.Bounds : null,
             snapContent: _settings.Current.SnapContentArea, teachTip: teachTip, magnifier: _settings.Current.PickerMagnifier,
             colorFormat: Core.ColorFormat.Parse(_settings.Current.ColorCopyFormat), windowCapture: _settings.Current.WindowCaptureEnabled,
@@ -210,13 +226,13 @@ public sealed partial class CaptureController : IDisposable
             else if (_settings.Current.AlwaysShowRegionOutline) ShowOutline(region.Value);
             else
             {
-                // 选区确认反馈：亮起→强调停顿→柔和退场（FlashOutline/FadeAway 此前是死代码）
+                // 选区确认反馈：亮起→强调停顿→柔和退场，非常显模式下这是唯一的"范围已定"信号
                 FlashOutline(region.Value);
                 _outline!.FadeAway(_settings.Current.OutlineFadeSeconds);
             }
         };
         _picker.Show();
-        // 不再 ForceForeground——选区窗是非激活窗，抢前台会把焦点从目标窗（如浏览器）夺走，
+        // 选区窗不调 ForceForeground：它是非激活窗，抢前台会把焦点从目标窗（如浏览器）夺走，
         // Z 序/前台一变，选区里就截到别的软件。Topmost + ReassertTop 已保证视觉置顶，键走全局钩子代收。
         FrameCapture.Core.Trace.Log($"picker Show returned dt={swOpen.ElapsedMilliseconds}ms");
     }
@@ -224,8 +240,9 @@ public sealed partial class CaptureController : IDisposable
 
     #region 捕获
 
-    /// <summary>真正起录的核心（region = 已存范围或光标所在显示器全屏）。
-    /// 由手势「开始录制」（<see cref="StartRecording"/>）与选区录制复用。旧 BeginCapture 点按/双击状态机已退役。</summary>
+    /// <summary>真正起录的核心（region = 已存范围，无则光标所在显示器全屏）。
+    /// 由手势「开始录制」（<see cref="StartRecording"/>）与选区录制复用；点按/长按的判定在手势引擎，这里只认「起录」。
+    /// 起录失败（GDI 也起不来）时回滚 spool 文件并留在 <see cref="Phase.Idle"/>。</summary>
     void BeginCaptureCore()
     {
         HideOutline(); // 轮廓绝不能入镜：仅真正起录时隐藏
@@ -237,7 +254,7 @@ public sealed partial class CaptureController : IDisposable
         if (_prevFg != System.IntPtr.Zero && Native.Win32.GetWindowThreadProcessId(_prevFg, out uint fgp) == Native.Win32.GetCurrentThreadId())
             _prevFg = System.IntPtr.Zero;
 
-        _spool = new FrameSpool();  // 帧落盘（时长不再设上限），磁盘护栏触发就地停录
+        _spool = new FrameSpool();  // 帧逐帧落盘，不驻留内存（容量护栏见 FrameSpool）
         _spool.DiskLow += free => System.Windows.Application.Current?.Dispatcher.BeginInvoke(() =>
         {
             // 捕获线程触发 → 回 UI 线程停录；已录内容照常进编辑器，绝不静默丢帧
@@ -289,7 +306,7 @@ public sealed partial class CaptureController : IDisposable
             }
         }
 
-        // 录制时长上限移除——录到用户停为止；护栏是磁盘（FrameSpool.DiskLow 自动停）。
+        // 无录制时长上限——录到用户停为止；护栏是磁盘（FrameSpool.DiskLow 自动停）。
         State = Phase.Capturing;
         // 系统 WGC 提示边框已关闭，改用自家按范围绘制的轮廓做"正在录制"提示。
         // 该窗以 WDA_EXCLUDEFROMCAPTURE 排除，不会进产物；关掉开关即完全不提示。
@@ -302,7 +319,9 @@ public sealed partial class CaptureController : IDisposable
         }
     }
 
-    /// <summary>手势「开始录制」——直接起录（不走点按/双击状态机）。非空闲态不动并返回 false（供失败顺延）。</summary>
+    /// <summary>手势「开始录制」——直接起录（不经点按/长按状态机）。非空闲态一律拒绝且无副作用。</summary>
+    /// <returns>true = 已进入 <see cref="Phase.Capturing"/>。
+    /// false = 未起录：当前态不允许，或 WGC 与 GDI 后端都启动失败；调用方可据此顺延。</returns>
     public bool StartRecording()
     {
         if (State != Phase.Idle) return false;
@@ -310,7 +329,8 @@ public sealed partial class CaptureController : IDisposable
         return State == Phase.Capturing;
     }
 
-    /// <summary>B2 / 手势「停止录制」——停止录制、产物留内存（不进编辑器；未在录返回 false）。</summary>
+    /// <summary>手势「停止录制」——停止录制，产物留在内存供『打开编辑器（上次录制）』取用，不进编辑器。</summary>
+    /// <returns>true = 已收尾；false = 当前未在录，未产生任何副作用。</returns>
     public bool StopRecording()
     {
         if (State != Phase.Capturing) return false;
@@ -329,8 +349,8 @@ public sealed partial class CaptureController : IDisposable
         if (_wgc != null) { wgcMissed = _wgc.FramesMissed; wgcDelivered = _wgc.Delivered; wgcKept = _wgc.KeptThrottle; try { _wgc.Stop(); _wgc.Dispose(); } catch { } _wgc = null; }
 
         double durMs = _captureClock?.ElapsedMilliseconds ?? 0;
-        // 点按/长按判定用钩子事件时间戳：本地时钟会把首次 WGC 初始化耗时算成"按住"（实测：
-        // 新实例首次点按被误判长按直接进编辑器）。时钟只兜底无钩子来源（托盘触发/磁盘护栏自动停）。
+        // durMs = 起录到收尾的墙钟时长（时钟在 BeginCaptureCore 起跳），既用于帧率统计，也用于「够长才自动开编辑器」。
+        // holdMs 是给外部覆盖时长的入口（负值=不覆盖）；当前所有调用方都传 -1，时长一律来自这个时钟。
         if (holdMs >= 0) durMs = holdMs;
         _captureClock = null;
         var spoolList = _spool != null && _spool.Count > 0 ? _spool.OpenReader() : null;
@@ -354,8 +374,8 @@ public sealed partial class CaptureController : IDisposable
             if (frames.Count == 0) { RetireCaptureOutline(); spoolList?.Dispose(); State = Phase.Idle; return; }
         }
 
-        // 点按/长按判定已上移到手势引擎（Tap→截图动作、Hold/HoldRelease→录制）。
-        // FinishCapture 现在只处理「真录制」收尾：产物一律按录制走，不再有「点按→单帧」分支。
+        // 点按/长按的判定在手势引擎（Tap→截图动作、Hold/HoldRelease→录制）；
+        // 走到这里就是「真录制」收尾：产物一律按录制走，没有「点按→单帧」分支。
         var region = _pendingRegion ?? new ScreenRegion("", frames[0].W > 0 ? new RectI(0, 0, frames[0].W, frames[0].H) : default);
         var monitor = Monitors.ByDevice(region.DeviceName);
         var seq = new CapturedSequence
@@ -364,7 +384,7 @@ public sealed partial class CaptureController : IDisposable
             Region = region.Bounds,
             MonitorBounds = monitor?.Bounds ?? new RectI(0, 0, frames[0].W, frames[0].H),
             MonitorDevice = region.DeviceName,
-            DroppedFrames = 0, // 磁盘暂存不再丢帧
+            DroppedFrames = 0, // 逐帧落盘，录制路径恒为 0
             Fps = _captureFps, // 实际帧率（跟随刷新率时=刷新率），编辑器时间轴/时长据此而非手动值
         };
 
@@ -481,6 +501,10 @@ public sealed partial class CaptureController : IDisposable
         }
     }
 
+    /// <summary>
+    /// 释放控制器自己持有的产物与后端：上次静图、从未进编辑器的录制序列（含其 spool 文件）、GDI 捕获线程。
+    /// 已交给编辑器的产物归编辑器释放，这里不碰。
+    /// </summary>
     public void Dispose()
     {
         _lastStill.Clear(); // 释放保留帧（最大可达数十 MB）
@@ -492,6 +516,8 @@ public sealed partial class CaptureController : IDisposable
 
 static class Win32Wrap
 {
+    /// <summary>取当前鼠标位置。</summary>
+    /// <returns>物理像素、虚拟桌面绝对坐标（与 <see cref="RectI"/> 同一坐标系，非 DIP）。</returns>
     public static (int X, int Y) GetCursorPosition()
     {
         Native.Win32.GetCursorPos(out var p);

@@ -5,6 +5,10 @@ using FrameCapture.Overlays;
 namespace FrameCapture.Services;
 
 // 本 partial 职责：滚动截图的步进拼接循环，与延时截图的倒计时状态机。
+/// <summary>
+/// <see cref="CaptureController"/> 的滚动/延时分部：两条路径全程不改 <c>Phase</c>，
+/// 各自用独立字段持有会话；产物按 <c>AfterCapture</c> 就地分派，不经 <see cref="DispatchStill"/>。
+/// </summary>
 public sealed partial class CaptureController : IDisposable
 {
     #region 滚动截图
@@ -17,8 +21,8 @@ public sealed partial class CaptureController : IDisposable
         _scrollAfterSelect = true;
     }
 
-    /// <summary>QQ 式「选区截图」——选一块区域，选完立即截静态图（不受 AutoCaptureOnSelect 影响）。</summary>
-
+    /// <summary>选区确认后进入步进拼接循环：先抓基准帧，之后每 280ms 抓一帧，等滚动停稳再按重叠行数追加。
+    /// 基准帧抓不到（区域已被关掉）就直接放弃，不进入循环也不留控制条。</summary>
     void StartScrollLoop(RectI region, string device)
     {
         var f = LiveCapture.Grab(region);
@@ -93,6 +97,8 @@ public sealed partial class CaptureController : IDisposable
         _lastStill.Set(frame, reg, dev);
     }
 
+    /// <summary>取消滚动拼接：停表、关控制条、丢弃已拼接的内容（不落盘、不进剪贴板）。
+    /// 退出必须清 <c>HotkeyManager.ScrollActive</c>，否则全局 Esc 会被一直吞掉（控制条 <c>Closed</c> 另有兜底）。</summary>
     public void ScrollCancel()
     {
         Services.HotkeyManager.ScrollActive = false;

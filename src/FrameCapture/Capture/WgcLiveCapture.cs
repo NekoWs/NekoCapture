@@ -16,6 +16,7 @@ namespace FrameCapture.Capture;
 public sealed class WgcLiveCapture : IDisposable
 {
     /// <summary>约每 1000/fps 毫秒一帧（帧到达节流）。</summary>
+    /// <value>在 WGC 的 FrameArrived 回调线程上同步调用，且调用期间一直持着 <c>_frameGate</c>——回调里做耗时工作会直接丢帧。</value>
     public event Action<CapturedFrame>? FrameSampled;
 
     static WgcLiveCapture()
@@ -50,14 +51,26 @@ public sealed class WgcLiveCapture : IDisposable
     private long _delivered;   // 诊断：TryGetNextFrame 成功数（= WGC 投递率，与拷贝无关）
     private long _keptThrottle; // 诊断：过节流数（= 采样率）
     /// <summary>取帧线程最后一次异常（null=正常）。测试/诊断用。</summary>
+    /// <value>异常完整文本；只在拷贝/解码抛异常时写入，下一次异常覆盖它。</value>
     public string? LastLoopError { get; private set; }
     /// <summary>TryGetNextFrame 空返回次数。</summary>
+    /// <value>回调比投递慢时的背压表现，不等于产物丢帧（产物丢帧看节流）。线程安全读。</value>
     public long FramesMissed => _frameLost;
+    /// <summary>TryGetNextFrame 成功取到的帧数。</summary>
+    /// <value>反映 WGC 的真实投递率，与是否过节流、是否拷贝成功无关。线程安全读。</value>
     public long Delivered => Interlocked.Read(ref _delivered);
+    /// <summary>通过帧率节流、真正交给 <see cref="FrameSampled"/> 的帧数。</summary>
+    /// <value>即实际采样率；与 <see cref="Delivered"/> 的差就是被节流丢掉的部分。线程安全读。</value>
     public long KeptThrottle => Interlocked.Read(ref _keptThrottle);
 
     /// <summary>启动捕获。region 为虚拟桌面物理像素区域（必须位于 monitor 内）。
     /// WinRT 初始化放在独立 MTA 线程：WPF UI(STA) 线程上直接激活会死锁。</summary>
+    /// <param name="monitor">目标显示器。WGC 只能整显示器捕获，这里用它的 Bounds 当帧原点，再从中裁出 region。</param>
+    /// <param name="region">虚拟桌面物理像素区域，须完全落在 <paramref name="monitor"/>.Bounds 内；
+    /// 越界不在本方法报错，而是首帧拷贝时抛异常并停掉本后端。</param>
+    /// <param name="fps">目标帧率，先钳到 AppSettings 上下限；不低于显示器刷新率时全保不丢帧。</param>
+    /// <param name="includeCursor">帧里是否画鼠标指针；系统不支持该开关时按系统默认。</param>
+    /// <exception cref="TimeoutException">初始化线程 5s 内没有返回。</exception>
     public void Start(MonitorInfo monitor, RectI region, int fps, bool includeCursor = true)
     {
         Stop();
@@ -99,7 +112,7 @@ public sealed class WgcLiveCapture : IDisposable
         _pool = Direct3D11CaptureFramePool.CreateFreeThreaded(
             _device, DirectXPixelFormat.B8G8R8A8UIntNormalized, 3, _item.Size);
         _session = _pool.CreateCaptureSession(_item);
-        try { _session.IsCursorCaptureEnabled = _includeCursor; } catch { } // 旧构建无此属性则忽略
+        try { _session.IsCursorCaptureEnabled = _includeCursor; } catch { } // 系统不支持该开关时抛，忽略即保持系统默认
 
         // Windows 11 的系统级捕获提示边框（#FFD11C，绕整个被捕获显示器）：
         // 它只按"被捕获对象"画，而 WGC 只能整显示器捕获 —— 于是永远全屏，
@@ -108,8 +121,8 @@ public sealed class WgcLiveCapture : IDisposable
         // 需要系统/用户授权（Win10 或未授权会抛），失败即保持系统默认行为。
         if (!TrySuppressSystemBorder()) { /* 已记录原因 */ }
 
-        // 事件驱动取帧：FrameArrived 按显示器真实刷新节奏回调，取代旧的 Thread.Sleep 轮询——
-        // Sleep 粒度 ~15ms 是 60fps 天花板的真凶。目标帧率≥刷新率时全保（录满），否则按时间节流丢帧。
+        // 事件驱动取帧：FrameArrived 按显示器真实刷新节奏回调，不受 Sleep 粒度（~15ms）限制——
+        // 自己按间隔轮询会把帧率天花板压在 60fps。目标帧率≥刷新率时全保（录满），否则按时间节流丢帧。
         int refresh = DisplayRefresh.RateOf(monitor.DeviceName);
         _keepAll = refresh > 0 && _targetFps >= refresh;
         FrameCapture.Core.Trace.Log($"wgc fps={_targetFps} refresh={refresh} keepAll={_keepAll} interval={_intervalMs:F2}ms");
@@ -184,10 +197,9 @@ public sealed class WgcLiveCapture : IDisposable
         Emit(bgra);
     }
 
-    /// <summary>
-    /// 系统提示边框是否已被关闭。null = 本系统没有 IGraphicsCaptureSession3（Win10 等）从未尝试；
-    /// true = 已关闭（录制中不再出现那条绕整屏的黄色边框）；false = 系统拒绝，保持默认。
-    /// </summary>
+    /// <summary>系统提示边框是否已被关闭。</summary>
+    /// <value>null = 本系统没有 IGraphicsCaptureSession3（Win10 等），从未尝试；
+    /// true = 已关闭，录制期间那条绕整屏的黄色边框不会出现；false = 系统拒绝，保持默认。</value>
     public bool? SystemBorderSuppressed { get; private set; }
 
     /// <summary>
@@ -220,6 +232,7 @@ public sealed class WgcLiveCapture : IDisposable
         }
     }
 
+    /// <summary>停止捕获并退订、释放池/会话/设备。可重复调用。</summary>
     public void Stop()
     {
         _running = false;
@@ -240,5 +253,6 @@ public sealed class WgcLiveCapture : IDisposable
         }
     }
 
+    /// <summary>等价于 <see cref="Stop"/>：本类不持有非托管资源之外的东西，也没有终值器。</summary>
     public void Dispose() => Stop();
 }

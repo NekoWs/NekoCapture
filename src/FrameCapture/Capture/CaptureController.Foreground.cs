@@ -5,6 +5,10 @@ using FrameCapture.Overlays;
 namespace FrameCapture.Services;
 
 // 本 partial 职责：把窗口推到前台的 Win32 前台锁绕行链，供各捕获入口共用。
+/// <summary>
+/// <see cref="CaptureController"/> 的前台链分部：只提供静态的置顶/前台工具，
+/// <b>不</b>读写 <c>Phase</c> 与任何捕获状态，因此可在任意入口里调用。
+/// </summary>
 public sealed partial class CaptureController : IDisposable
 {
     /// <summary>把窗口推到前台并拿键盘焦点。后台进程直发 SetForegroundWindow 会被前台锁拒绝
@@ -45,8 +49,8 @@ public sealed partial class CaptureController : IDisposable
             w.Activate();
             var h = new System.Windows.Interop.WindowInteropHelper(w).Handle;
             ForegroundNow(h);
-            // 开档 1 秒内有限重试：部分游戏/应用会在窗口弹出后立刻抢回前台；
-            // 之后不再强抢（Topmost 仍在视觉上置顶，用户可点击获取焦点），避免焦点战。
+            // 开档 1 秒内有限重试：部分游戏/应用会在窗口弹出后立刻抢回前台。
+            // 重试次数用尽即止——Topmost 仍在视觉上置顶，用户可点击获取焦点，继续强抢只会变成焦点战。
             int tries = 3;
             var rt = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(350) };
             rt.Tick += (_, _) =>
@@ -62,7 +66,6 @@ public sealed partial class CaptureController : IDisposable
                 {
                     rt.Start();
                 }
-                // 重试次数用尽即止
             };
             rt.Start();
         }

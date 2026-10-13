@@ -20,9 +20,14 @@ public sealed class LiveCapture : IDisposable
     private RectI _region; // 虚拟桌面物理坐标
 
     /// <summary>采样回调（捕获线程）。帧为区域裁剪后的 BGRA。</summary>
+    /// <value>在名为 LiveCapture 的后台线程上同步调用，回调方不得做耗时操作，需要 UI 副作用要自己投递。</value>
     public event Action<CapturedFrame>? FrameSampled;
 
+    /// <summary>目标显示器，<see cref="Start"/> 时记下，<see cref="Stop"/> 之后仍保留最后一次的值。</summary>
+    /// <value>从未启动过时为 null。</value>
     public MonitorInfo? TargetMonitor { get; private set; }
+    /// <summary>当前捕获区域。</summary>
+    /// <value><see cref="Start"/> 传入的原值（虚拟桌面物理坐标），不做裁剪也不做对齐。</value>
     public RectI Region => _region;
 
     /// <summary>最近一帧（点按单帧用），线程安全。</summary>
@@ -31,7 +36,10 @@ public sealed class LiveCapture : IDisposable
         get { lock (_gate) return _latest; }
     }
 
-    /// <summary>启动捕获。region 为虚拟桌面物理像素区域。</summary>
+    /// <summary>启动捕获线程。内部先 <see cref="Stop"/> 上一次，重复调用安全。</summary>
+    /// <param name="monitor">目标显示器，仅作记录；实际抓取完全按 <paramref name="region"/> 的虚拟桌面坐标进行。</param>
+    /// <param name="region">虚拟桌面物理像素区域，可跨屏。宽或高小于 2 时循环每轮都取不到帧。</param>
+    /// <param name="fps">目标帧率，先钳到 AppSettings 的上下限，再换算成双精度采样间隔。</param>
     public void Start(MonitorInfo monitor, RectI region, int fps)
     {
         Stop();
@@ -76,7 +84,12 @@ public sealed class LiveCapture : IDisposable
         FrameCapture.Core.Trace.Log($"loop exit ok={grabbed} fail={failed}");
     }
 
-    /// <summary>抓取虚拟桌面坐标 region 的一帧 BGRA（任意线程可调）。</summary>
+    /// <summary>抓取虚拟桌面坐标 region 的一帧 BGRA（任意线程可调）。
+    /// 走 GetDC(NULL) + BitBlt(SRCCOPY | CAPTUREBLT)：CAPTUREBLT 让分层窗口（指针、部分置顶窗）也进画面。
+    /// 每次调用自建并释放 DIB 与兼容 DC，无跨调用状态，因此 UI 线程与捕获线程可并发调用。</summary>
+    /// <param name="region">物理像素、虚拟桌面绝对坐标；宽或高小于 2 直接返回 null。</param>
+    /// <returns>新分配的 BGRA 帧，top-down、无 padding；<c>TimeMs</c> 恒为 0——单帧抓取没有计时基准。
+    /// 取屏 DC 失败静默返回 null；建 DIBSection、建兼容 DC、BitBlt 失败各记一条 trace（前者与 BitBlt 带 Win32 错误码）。</returns>
     public static CapturedFrame? Grab(RectI region)
     {
         if (region.W < 2 || region.H < 2) return null;
@@ -130,6 +143,7 @@ public sealed class LiveCapture : IDisposable
         }
     }
 
+    /// <summary>停止捕获：置停止位后 Join 等待循环退出，上限 500ms——UI 线程调用时最坏会等这么久。</summary>
     public void Stop()
     {
         _running = false;
@@ -137,6 +151,7 @@ public sealed class LiveCapture : IDisposable
         _loop = null;
     }
 
+    /// <summary>停止线程并丢掉最近一帧。重复调用安全。</summary>
     public void Dispose()
     {
         lock (_gate) { if (_disposed) return; _disposed = true; }

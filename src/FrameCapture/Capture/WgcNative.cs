@@ -74,6 +74,8 @@ internal static class WgcNative
     }
 
     /// <summary>创建硬件 D3D11 设备并包装为 WinRT IDirect3DDevice（调用方持有返回的 IUnknown 引用）。</summary>
+    /// <returns>IDirect3DDevice 的 IUnknown 指针，引用计数已加，调用方负责 <c>Marshal.Release</c>。
+    /// 硬件适配器建不出来时退 WARP；两者都失败抛 <see cref="COMException"/>，调用方据此回退 GDI。</returns>
     public static IntPtr CreateDirect3DDevice()
     {
         const uint SDK_VERSION = 7; // D3D11
@@ -117,6 +119,8 @@ internal static class WgcNative
     }
 
     /// <summary>IMemoryBufferReference → 原始字节指针（IBufferByteAccess，vtable slot 0）。</summary>
+    /// <param name="memoryBufferReference">WinRT IMemoryBufferReference 对象，投影或原生实现均可。</param>
+    /// <returns>帧缓冲首字节指针：归 WGC 所有，只读、不得释放，对应的 <c>Close()</c> 一调用就失效。失败抛 <see cref="COMException"/>。</returns>
     public static IntPtr ReferenceBytes(object memoryBufferReference)
     {
         // 优先取投影对象持有的原生 IUnknown（CCW 不暴露 IMemoryBufferByteAccess）
@@ -150,6 +154,8 @@ internal static class WgcNative
     private delegate int BufferSlotDelegate(IntPtr self, out IntPtr value, out uint capacity);
 
     /// <summary>HMONITOR → GraphicsCaptureItem。</summary>
+    /// <param name="hMonitor">当前已连接显示器的 HMONITOR 句柄。</param>
+    /// <returns>整块显示器的捕获项，<c>Size</c> 为该屏物理像素；引用由调用方持有。任一步失败抛 <see cref="COMException"/>。</returns>
     public static GraphicsCaptureItem CreateItemForMonitor(IntPtr hMonitor)
     {
         Guid iid = IidGraphicsCaptureItemInterop;
@@ -165,6 +171,8 @@ internal static class WgcNative
     }
 
     /// <summary>HWND → GraphicsCaptureItem（按窗口捕获：含 DWM 边框/圆角，圆角处带 alpha，GPU 窗也干净）。</summary>
+    /// <param name="hwnd">目标窗口句柄。窗口销毁后本捕获项失效，会话停止产出帧。</param>
+    /// <returns>窗口本体的捕获项，<c>Size</c> 含 DWM 边框因此比客户区大；引用由调用方持有。</returns>
     public static GraphicsCaptureItem CreateItemForWindow(IntPtr hwnd)
     {
         Guid iid = IidGraphicsCaptureItemInterop;
@@ -219,7 +227,9 @@ internal static class WgcNative
     ///
     /// 找不到该接口（Win10 等）抛 COMException，由调用方降级为"保持系统默认"。
     /// </summary>
-    /// <returns>回读到的 IsBorderRequired 实际值。</returns>
+    /// <param name="session">WinRT GraphicsCaptureSession 投影对象；只认它持有的原生 IUnknown。</param>
+    /// <param name="required">false = 请求无边框。结论以返回值为准，不看这里。</param>
+    /// <returns>回读到的 IsBorderRequired 实际值：false 才代表边框真的关掉了。</returns>
     public static bool SetBorderRequired(object session, bool required)
     {
         // 必须拿投影对象持有的**原生** IUnknown：Marshal.GetIUnknownForObject 返回的是托管 CCW，

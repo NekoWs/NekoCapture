@@ -36,6 +36,10 @@ public static class WindowCapture
 
     /// <summary>截取窗口本体（+可选合成投影）。返回带 alpha 的帧 + 实际捕获矩形（物理像素，虚拟桌面坐标）。
     /// 失败抛异常，调用方回退区域截图。</summary>
+    /// <param name="hwnd">目标窗口句柄，须非零。</param>
+    /// <param name="includeShadow">是否在本体四周合成柔和投影；false 时输出紧贴窗口 frame 矩形。</param>
+    /// <returns>Frame 为带 alpha 的 BGRA（圆角处 alpha=0，投影处是半透明黑）；
+    /// Region 为该帧覆盖的矩形（物理像素、虚拟桌面绝对坐标），开投影时比 frame 外扩一圈。</returns>
     public static (CapturedFrame Frame, RectI Region) Grab(IntPtr hwnd, bool includeShadow)
     {
         if (hwnd == IntPtr.Zero) throw new ArgumentException("hwnd=0");
@@ -71,6 +75,10 @@ public static class WindowCapture
 
     #region 纯几何/像素函数（可单测）
 
+    /// <summary>两个矩形的交集。</summary>
+    /// <param name="a">矩形 A，物理像素、虚拟桌面绝对坐标。</param>
+    /// <param name="b">矩形 B，同一坐标系。</param>
+    /// <returns>交集；不相交时返回 (0,0,0,0) 这个空矩形，绝不返回负宽高。</returns>
     public static RectI Intersect(RectI a, RectI b)
     {
         int x0 = Math.Max(a.X, b.X), y0 = Math.Max(a.Y, b.Y);
@@ -79,14 +87,29 @@ public static class WindowCapture
         return new RectI(x0, y0, x1 - x0, y1 - y0);
     }
 
+    /// <summary>四边等距外扩。</summary>
+    /// <param name="r">原矩形。</param>
+    /// <param name="m">每边外扩的像素数；小于等于 0 时原样返回。</param>
+    /// <returns>宽高各 +2m 的新矩形。不做屏幕裁剪——裁剪由调用方的 <see cref="Intersect"/> 负责。</returns>
     public static RectI Inflate(RectI r, int m)
         => m <= 0 ? r : new RectI(r.X - m, r.Y - m, r.W + 2 * m, r.H + 2 * m);
 
+    /// <summary>整个虚拟桌面的外接矩形。</summary>
+    /// <returns>SM_X/YVIRTUALSCREEN 加 SM_CX/CYVIRTUALSCREEN：物理像素、虚拟桌面绝对坐标，
+    /// 副屏排在左上时 X/Y 可为负。</returns>
     public static RectI VirtualDesktop()
         => new(Win32.GetSystemMetrics(Win32.SM_XVIRTUALSCREEN), Win32.GetSystemMetrics(Win32.SM_YVIRTUALSCREEN),
                Win32.GetSystemMetrics(Win32.SM_CXVIRTUALSCREEN), Win32.GetSystemMetrics(Win32.SM_CYVIRTUALSCREEN));
 
-    /// <summary>把 src（sw×sh，BGRA 带 alpha）拷进 dst 的 (bx,by) 处，越界裁剪。dst 尺寸必须够。</summary>
+    /// <summary>把 src（sw×sh，BGRA 带 alpha）整块覆盖到 dst 的 (bx,by) 处，越界裁剪。dst 尺寸必须够。</summary>
+    /// <param name="dst">目标缓冲，行主序 BGRA，长度须等于 dw*dh*4。</param>
+    /// <param name="dw">目标宽（像素）。</param>
+    /// <param name="dh">目标高（像素）。</param>
+    /// <param name="src">源像素，行主序 BGRA 带 alpha，长度须等于 sw*sh*4。</param>
+    /// <param name="sw">源宽（像素）。</param>
+    /// <param name="sh">源高（像素）。</param>
+    /// <param name="bx">落点左上角 X（dst 内坐标），可为负或超出 dst，超出部分被裁掉。</param>
+    /// <param name="by">落点左上角 Y（dst 内坐标），同上。</param>
     public static void BlitBody(byte[] dst, int dw, int dh, byte[] src, int sw, int sh, int bx, int by)
     {
         int x0 = Math.Max(0, bx), y0 = Math.Max(0, by);
@@ -102,6 +125,17 @@ public static class WindowCapture
     /// <summary>按本体 alpha 轮廓**合成**柔和投影：取本体 alpha 当覆盖率 → 3 次盒式模糊（≈高斯）→
     /// 黑色 × 覆盖率 × strength 写进 dst（dst 其余保持透明）。绝不读屏幕，故背景文字/深色桌面都不会渗进来。
     /// 轮廓含圆角（本体圆角处 alpha=0），阴影自然贴合圆角。</summary>
+    /// <param name="dst">目标缓冲（全透明起步），行主序 BGRA，长度须等于 w*h*4；只有算出非零覆盖率的像素会被写。</param>
+    /// <param name="w">目标宽（像素）。</param>
+    /// <param name="h">目标高（像素）。</param>
+    /// <param name="body">窗口本体像素，只取它的 alpha 通道当阴影覆盖率。</param>
+    /// <param name="bw">本体宽（像素）。</param>
+    /// <param name="bh">本体高（像素）。</param>
+    /// <param name="bx">本体在 dst 中的落点左上角 X。</param>
+    /// <param name="by">本体在 dst 中的落点左上角 Y（阴影另加 <paramref name="offsetY"/> 下移）。</param>
+    /// <param name="radius">单次盒式模糊半径，3 次叠加后外延约 3r；小于 1 按 1 处理。</param>
+    /// <param name="strength">阴影最大不透明度，0–1，乘在覆盖率上。</param>
+    /// <param name="offsetY">阴影整体相对本体下移的像素数——本体仍画在 (bx,by)。</param>
     public static void SyntheticShadow(byte[] dst, int w, int h, byte[] body, int bw, int bh,
         int bx, int by, int radius, double strength, int offsetY)
     {
