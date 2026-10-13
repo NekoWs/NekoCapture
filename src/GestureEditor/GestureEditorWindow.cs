@@ -174,6 +174,12 @@ public sealed class GestureEditorWindow : Window
         left.Children.Add(listBtns);
         _list = new ListBox { BorderThickness = new Thickness(1) };
         EditorStyles.ApplyList(_list, _pal);
+        // 列表项文本换行：长摘要（多动作 / 带「完成后」序列）折行显示，而非按面板宽度裁切（R153）
+        // 须禁用横向滚动——否则 ScrollViewer 以无限宽测量，TextBlock 永不换行、改为横向滚动条
+        System.Windows.Controls.ScrollViewer.SetHorizontalScrollBarVisibility(_list, System.Windows.Controls.ScrollBarVisibility.Disabled);
+        _list.ItemTemplate = (System.Windows.DataTemplate)System.Windows.Markup.XamlReader.Parse(
+            @"<DataTemplate xmlns=""http://schemas.microsoft.com/winfx/2006/xaml/presentation"">"
+            + @"<TextBlock Text=""{Binding}"" TextWrapping=""Wrap""/></DataTemplate>");
         _list.SelectionChanged += (_, _) => { if (_suppress) return; _selected = _list.SelectedIndex; ShowDetail(); };
         left.Children.Add(_list);
         Grid.SetColumn(left, 0);
@@ -202,7 +208,7 @@ public sealed class GestureEditorWindow : Window
         _suppress = true;
         _list.Items.Clear();
         foreach (var b in _doc.Bindings)
-            _list.Items.Add(new ListBoxItem { Content = Summary(b), Padding = new Thickness(8, 6, 8, 6) });
+            _list.Items.Add(Summary(b));
         if (_selected >= _doc.Bindings.Count) _selected = _doc.Bindings.Count - 1;
         _list.SelectedIndex = _selected;
         _suppress = false;
