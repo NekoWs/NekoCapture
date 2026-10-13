@@ -388,6 +388,8 @@ public sealed class GestureEditorWindow : Window
             RefreshList(); ShowDetail(); RefreshValidation();
             return;
         }
+        // 非录键态：Esc = 取消关闭（走 Closing 淡出退场），与「取消」钮及退场注释一致（R154）
+        if (e.Key == Key.Escape) { Close(); e.Handled = true; return; }
         base.OnPreviewKeyDown(e);
     }
 

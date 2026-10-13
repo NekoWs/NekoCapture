@@ -2139,3 +2139,5 @@ status: done
 **R153 · 手势配置器绑定列表长摘要换行（修裁切）**：出厂件截图审视配置器，发现左侧绑定列表选中项第二行 `开始/停止录制（同键起停）→ 完成后: 打开编辑器（上次录制）` 因动作名长被**按面板宽度裁切**（截在"打开编辑"）。根因两层：① `Summary()` 返回单串、ListBoxItem 默认模板的 ContentPresenter 不换行；② 列表 `HorizontalScrollBarVisibility=Auto` 使 ScrollViewer 以无限宽测量，TextBlock 永不换行、反出横向滚动条。修：列表项改存字符串 + `ItemTemplate` 用 `TextWrapping=Wrap` 的 TextBlock + **禁用横向滚动**（`ScrollViewer.SetHorizontalScrollBarVisibility=Disabled`，否则换行不生效）。**截图核验**：长摘要完整折成 3 行、横向滚动条消失、选中黑字在 accent 底可读、其余项不受影响。构建 0 错、SelfTest 404 绿（纯 WPF 渲染改动，`Summary` 逻辑未变故无需新增单测）。
 
 **R153 批次末**：护栏 PASS（FAIL=0 SKIP=1，focus-safety 因前台非本软件窗 SKIP≠FAIL）；用户 4 条自定义手势完好（`gesture apply n=4`）；重发布 staging 11:23:13 → zip 69.7MB/250 项/CRC 全绿/exe=1/sdk=1 → 重启出厂实例 pid 50412。HEAD `32ab512`。
+
+**R154 · 手势配置器 Esc 关闭（补注释承诺的关闭路径）**：清理测试窗时发现配置器按 Esc 关不掉。查 `OnPreviewKeyDown` 仅在 `_capturing`（录键中）处理 Esc（取消录键），非录键态落到 `base` 不关窗；而退场注释（line 96）明写「任何关闭路径（关闭钮/**Esc**/宿主 Close）先淡出再真关」——注释承诺 Esc 可关、代码未实现，属注释/代码不一致 + 对话框缺标准 Esc 关闭。修：非录键态 `if (e.Key==Escape){ Close(); e.Handled=true; return; }`，走 Closing 淡出退场、与「取消」钮一致。**e2e 核验**：开配置器→fg 校验为「手势配置」→SendInput Esc→窗口 not-found（已淡出关闭）。构建 0 错、SelfTest 404 绿（WPF 键处理，非决策函数故无需新增单测）。
