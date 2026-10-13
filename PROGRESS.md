@@ -2123,3 +2123,5 @@ status: done
 - **缺陷**（全局 `DoubleAnimation` 审计发现）：全应用淡入淡出统一 CubicEase（Fluent.Motion 约定：淡入 EaseOut、淡出 EaseIn），唯独 4 处瞬时浮层是**线性**——编辑器 snack 淡入(939)/淡出(947)、编辑器 guide 淡出(702，而淡入 689 是 EaseOut，不对称)、贴图 snack 淡出(408)；且贴图 snack 淡入是**瞬时**（`Opacity=1` 直给），与其自身注释「淡入、停留、淡出」**自相矛盾**。
 - **修复**：4 处淡出补 `CubicEase EaseIn`、编辑器 snack 淡入补 `EaseOut`；贴图 snack 淡入改为真淡入（`DoubleAnimation(1, HoverMs) EaseOut`，对齐编辑器 snack 写法，兑现注释承诺）。
 - **验证**：构建 **0 错**；**SelfTest 404 绿**（无回归）；**逻辑核验**贴图 snack Border 初始 `Opacity=0/Collapsed`（88-89）→ 首次 Flash 即从 0 淡入、淡出后归 0 再显亦淡入，曲线正确。动效曲线为瞬时过程无法截图（任何动效改动皆然），以「构建+测试+初值/目标/写法对齐」三重核验替代。
+
+**R151 后重跑批次末（10:58，四步全绿）**：护栏 PASS 404（FAIL=0 SKIP=1，用户 4 手势完好恢复）→ 重发布 staging 10:57:51 errors=0 → 重打包 zip 69.7MB CRC 250 条 badCRC=0 exe=1 sdk=1（10:58:02）→ 重启出厂实例 pid 29612，trace `gesture apply n=4` 正确加载。HEAD `c55d2f6` git clean。
