@@ -6,7 +6,9 @@ using Theme = FrameCapture.Core.Theme;
 
 namespace FrameCapture.Overlays;
 
-// 调色板弹层宿主：视图在 ColorPickView（可离屏渲染取证），这里只管弹出与收口。
+/// <summary>
+/// EditorWindow partial：调色板弹层宿主——视图在 ColorPickView（可离屏渲染取证），这里只管弹出与收口。
+/// </summary>
 public sealed partial class EditorWindow
 {
     Popup? _colorPop;
@@ -21,7 +23,7 @@ public sealed partial class EditorWindow
             _colorView = new ColorPickView();
             _colorView.Changed += c =>
             {
-                // 即时生效：后续笔画当场用新色（与旧系统对话框的"确定后生效"同语义，只是提前到所见即所得）
+                // 即时生效：后续笔画当场用新色，所见即所得
                 _customColor = c;
                 _colorIdx = Swatches.Length;
                 RefreshSwatches();

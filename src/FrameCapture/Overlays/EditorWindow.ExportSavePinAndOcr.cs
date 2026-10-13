@@ -13,7 +13,9 @@ using FrameCapture.Services;
 
 namespace FrameCapture.Overlays;
 
-// 结果输出：确定提交 + 导出/保存（GIF/MP4/WebM/PNG）+ 胶片条 + 钉图 + OCR + 轻提示/忙态
+/// <summary>
+/// EditorWindow partial：结果输出——确定提交 + 导出/保存（GIF/MP4/WebM/PNG）+ 胶片条 + 钉图 + OCR + 轻提示/忙态。
+/// </summary>
 public sealed partial class EditorWindow : Window
 {
 
@@ -25,12 +27,12 @@ public sealed partial class EditorWindow : Window
     void Commit()
     {
         int idx = Math.Clamp(_index, 0, _seq.Frames.Count - 1);
-        // 不再自动生成 Agent 胶片条（设置项已移除）——改为工具栏「生成胶片条」按钮显式触发。
+        // 胶片条只由工具栏「生成胶片条」按钮显式触发，确定路径不自动生成。
         StartEncode(null, null, (seq, gif) =>
         {
             Trace.Log($"gif encoded bytes={gif!.Length} frames={seq.Frames.Count}");
             ClipboardService.SetCapture(seq, gif, idx);
-            FrameCapture.Services.SaveService.MaybeSaveArtifact(seq, gif); // 自动保存副本：单帧 PNG / 多帧按 RecordFormat（，视频后台编码；关=零副作用）
+            FrameCapture.Services.SaveService.MaybeSaveArtifact(seq, gif); // 自动保存副本：单帧 PNG / 多帧按 RecordFormat（视频后台编码；关=零副作用）
             FrameCapture.Core.Fluent.CloseWithFade(this);
         });
     }
@@ -102,12 +104,12 @@ public sealed partial class EditorWindow : Window
         {
             var frame = _seq.Frames[_index];
             var outcome = await FrameCapture.Core.OcrService.RecognizeAsync(frame);
-            if (_userClosed) return; // 识别期间关窗：不再提示
+            if (_userClosed) return; // 识别期间关窗：跳过提示
             switch (outcome.Status)
             {
                 case FrameCapture.Core.OcrStatus.Success:
                     var text = FrameCapture.Core.OcrService.Normalize(outcome.Text);
-                    // D2 预览优先：开结果窗时以「预览选取」为主，不自动写剪贴板（要哪段选哪段 / 点复制全部）；
+                    // 预览优先：开结果窗时以「预览选取」为主，不自动写剪贴板（要哪段选哪段 / 点复制全部）；
                     // 关结果窗才走快速路径——直接复制 + 轻提示。
                     if (_settings.Current.OcrShowResult)
                         OcrResultWindow.Show(text);
@@ -136,7 +138,7 @@ public sealed partial class EditorWindow : Window
         finally { _ocrBusy = false; }
     }
 
-    /// <summary>时间轴范围+标注的后台烘焙与 GIF 编码（HUD 进度，编码中 Esc 取消）；完成后回 UI 线程执行 onDone。</summary>
+    /// <summary>确定按钮忙态：编码期间淡到 0.55 半透明（带过渡动画），结束恢复 1.0。</summary>
     void SetOkBusy(bool busy)
     {
         foreach (var b in _okBtns)
@@ -389,9 +391,18 @@ public sealed partial class EditorWindow : Window
     sealed class LazyCropList : IReadOnlyList<CapturedFrame>
     {
         readonly IReadOnlyList<CapturedFrame> _src; readonly int _x, _y, _w, _h;
+        /// <summary>记录源列表与裁剪矩形：不复制帧、不改源列表。</summary>
+        /// <param name="s">源帧列表：只读引用，枚举期间须保持可读。</param>
+        /// <param name="x">裁剪矩形左边，源帧内物理像素列。</param>
+        /// <param name="y">裁剪矩形顶边，源帧内物理像素行。</param>
+        /// <param name="w">裁剪矩形宽，物理像素，须为正。</param>
+        /// <param name="h">裁剪矩形高，物理像素，须为正。</param>
         public LazyCropList(IReadOnlyList<CapturedFrame> s, int x, int y, int w, int h) { _src = s; _x = x; _y = y; _w = w; _h = h; }
         public int Count => _src.Count;
+        /// <summary>索引器：访问到哪帧才裁哪帧，不整段物化。</summary>
         public CapturedFrame this[int i] => FrameCapture.Drawing.Bake.CropFrame(_src[i], _x, _y, _w, _h);
+        /// <summary>按索引顺序枚举，逐帧现裁。</summary>
+        /// <returns>逐个产出裁剪帧的枚举器；裁剪结果不缓存。</returns>
         public IEnumerator<CapturedFrame> GetEnumerator() { for (int i = 0; i < Count; i++) yield return this[i]; }
         System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
     }

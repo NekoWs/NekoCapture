@@ -13,7 +13,9 @@ using FrameCapture.Services;
 
 namespace FrameCapture.Overlays;
 
-// 布局与工具条：停靠面板/按钮构建 + 主题换肤 + 撤销重做状态 + 颜色/线宽选择
+/// <summary>
+/// EditorWindow partial：停靠式布局与面板/按钮构建、主题换肤、撤销重做按钮状态、颜色/线宽选择。
+/// </summary>
 public sealed partial class EditorWindow : Window
 {
 
@@ -36,7 +38,7 @@ public sealed partial class EditorWindow : Window
         return b;
     }
 
-    // 钉到屏幕按钮改用实心图钉 E840（招牌动作配招牌图钉，Snipaste/QQ 惯例）；「总在最前」改置顶箭头 E898 以免两图钉混淆
+    // 钉到屏幕按钮用实心图钉 E840（招牌动作配招牌图钉，Snipaste/QQ 惯例）；「总在最前」用置顶箭头 E898，两枚字形不混淆
     Button PinBtn()
     {
         var b = IconBtn("\uE840", "钉到屏幕 (Ctrl+P)");
@@ -54,7 +56,7 @@ public sealed partial class EditorWindow : Window
 
     void BuildLayout()
     {
-        // 停靠式布局：预览在上，播放面板（录制时常驻）与工具面板依次停靠其下——控件不再悬浮在画面里
+        // 停靠式布局：预览在上，播放面板（录制时常驻）与工具面板依次停靠其下——控件一律在画面外，不悬浮在画面上
         var root = new Grid { Margin = new Thickness(0) };
         root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
         root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
@@ -117,7 +119,7 @@ public sealed partial class EditorWindow : Window
             holder.BeginAnimation(System.Windows.Media.SolidColorBrush.ColorProperty, anim);
         }
         _hud.Foreground = new System.Windows.Media.SolidColorBrush(Theme.Text);
-        // 选中语言随行：工具/线宽的前景色随主题（选中项反白、未选中项 Theme.Text），否则换肤后旧色不可读
+        // 选中语言随行：工具/线宽的前景色随主题（选中项反白、未选中项 Theme.Text），否则换肤后文字不可读
         for (int i = 0; i < _toolBtns.Count; i++)
             Highlight(_toolBtns[i], ToolOrder[i] == _tool);
         RefreshWidths();
@@ -161,7 +163,7 @@ public sealed partial class EditorWindow : Window
                 Grid.SetColumn(_rangeHost, 1);
                 g.Children.Add(_rangeHost);
             }
-            // HUD 定底宽右对齐：帧数/时间/裁剪段文本变宽不再挤压时间轴列（用户实测：布局整体抖动）。
+            // HUD 定底宽右对齐：帧数/时间/裁剪段文本变宽不挤压时间轴列（否则布局整体抖动）。
             // MinWidth 而非 Width：罕见的「⚠丢帧」长警告仍完整可读，只是那种情况下才允许变宽。
             _hud.MinWidth = 210;
             _hud.TextAlignment = TextAlignment.Right;
@@ -176,7 +178,7 @@ public sealed partial class EditorWindow : Window
             var bOcrFrame = OcrBtn();
             var bSaveGif = IconBtn("\uE116", "导出录制 (MP4 / WebM / GIF)  Ctrl+E"); bSaveGif.Click += (_, _) => SaveRecording();
             var bAfter = IconBtn("\uE955", "保存视觉暂留合成图  Ctrl+H"); bAfter.Click += (_, _) => SaveAfterimage();
-            // 胶片条从「设置里全局自动生成」改为显式功能按钮——小窗问抽帧参数，生成后直接复制剪贴板
+            // 胶片条是显式功能按钮——小窗问抽帧参数，生成后直接复制剪贴板
             var bStrip = IconBtn("\uE8B9", "生成胶片条（抽帧拼成一张逐帧图 → 剪贴板）"); bStrip.Click += (_, _) => GenerateFilmStrip();
             foreach (var b in new[] { bSaveFrame, bCopyFrame, bPinFrame, bOcrFrame, bSaveGif, bAfter, bStrip }) actions.Children.Add(b);
             actions.Children.Add(Sep());
@@ -210,7 +212,7 @@ public sealed partial class EditorWindow : Window
             _okBtns.Add(bOkF); // 主按钮：accent 实心
         }
         tools.Children.Add(Sep());
-        // 编辑器总在最前。改用置顶箭头 E898（向上箭头带顶栏，GlyphProbe 已验证），开关态靠高亮底色区分，不再与「钉到屏幕」图钉混淆
+        // 编辑器总在最前：置顶箭头 E898（向上箭头带顶栏，GlyphProbe 已验证），开关态靠高亮底色区分，与「钉到屏幕」图钉是两枚字形
         var bPin = IconBtn("\uE898", "总在最前");
         FrameCapture.Core.Fluent.HighlightBtn(bPin, _settings.Current.EditorTopmost);
         bPin.Click += (_, _) =>
@@ -229,7 +231,7 @@ public sealed partial class EditorWindow : Window
         _toolPanel = Panel(tools);
         _toolPanel.CornerRadius = new CornerRadius(0, 0, 8, 8); // 底角收口，与原生窗口圆角贴合
         // 工具条浮于画布之上：向上投影（Direction=90，与 Elevate 同族但朝上），暗底浓亮底淡。
-        // 此前工具条只靠 1px 顶边与画布分隔，截到深色画面时几乎融为一体、显「太平」。
+        // 1px 顶边在深色画面上几乎融为一体，层次靠投影拉开。
         _toolPanel.Effect = new System.Windows.Media.Effects.DropShadowEffect
         {
             Color = Colors.Black,
@@ -244,7 +246,7 @@ public sealed partial class EditorWindow : Window
 
     /// <summary>
     /// 让窗口 MinWidth 跟随底部工具条的实际宽度。工具条是居中 StackPanel，窗口比它窄时
-    /// 两端工具会被裁掉（历史上 MinWidth 是写死的 812，但工具条随功能增长早已超过它）。
+    /// 两端工具会被裁掉。
     /// 量工具条 DesiredSize（含最近用色，最多 4 枚）+ 面板内边距，夹到 [812, 工作区宽]。
     /// DesiredSize 是内容宽（StackPanel 不受容器约束），故窗口窄时也能量到真实需要。
     /// </summary>
@@ -255,7 +257,7 @@ public sealed partial class EditorWindow : Window
         double need = Math.Ceiling(_toolsBar.DesiredSize.Width) + 20; // 面板左右内边距 8+8 + 余量
         double cap = SystemParameters.WorkArea.Width;                 // 不超过工作区，避免窗口比屏还宽
         double target = Math.Max(812, Math.Min(need, cap));
-        if (Math.Abs(MinWidth - target) <= 0.5) return;               // 收敛：值没变就不再触发重排
+        if (Math.Abs(MinWidth - target) <= 0.5) return;               // 收敛：值没变直接返回，不触发重排
         MinWidth = target;
         // 窄图时最小宽会超过当前宽：撑到最小宽并（仅未显示时）重新居中，避免窗口偏右或编辑中跳动
         if (Width < target)
@@ -291,7 +293,7 @@ public sealed partial class EditorWindow : Window
             var inner = new System.Windows.Shapes.Ellipse
             {
                 Width = 14, Height = 14, Fill = new SolidColorBrush(Swatches[idx]),
-                // 40% 文字色环：Theme.Stroke 在浅色主题太淡，白色色块会融进白工具条（浅色截图抓到）
+                // 40% 文字色环：Theme.Stroke 在浅色主题太淡，白色色块会融进白工具条
                 Stroke = new SolidColorBrush(Color.FromArgb(0x66, Theme.Text.R, Theme.Text.G, Theme.Text.B)), StrokeThickness = 1,
             };
             var bd = new Border
@@ -312,7 +314,7 @@ public sealed partial class EditorWindow : Window
             _swatchBtns.Add(bd);
             bar.Children.Add(bd);
         }
-        // 自定义颜色：调色板入口（ColorDialog）+ 最近自定义色直接点选
+        // 自定义颜色：RGBA 调色板弹层入口 + 最近自定义色直接点选
         var pal = IconBtn("\uE790", "RGBA 调色板 (K)");
         pal.PreviewMouseLeftButtonDown += (_, e2) => { PickCustomColor(); e2.Handled = true; };
         pal.PreviewKeyDown += (_, ek) => { if (ek.Key is Key.Enter or Key.Space) { PickCustomColor(); ek.Handled = true; } };
@@ -338,7 +340,7 @@ public sealed partial class EditorWindow : Window
         _widthMoreBtn = wMore;
         _widthBtns.Add(wMore);
         bar.Children.Add(wMore);
-        // 字号步进器（C3）：仅文字工具/选中文字时可见。A−/A+ 调字号——选中文字=改该文字（可撤销），文字工具下=定下次文字字号。
+        // 字号步进器：仅文字工具/选中文字时可见。A−/A+ 调字号——选中文字=改该文字（可撤销），文字工具下=定下次文字字号。
         _fontGroup = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Visibility = Visibility.Collapsed };
         _fontGroup.Children.Add(new System.Windows.Shapes.Rectangle { Width = 1, Fill = new SolidColorBrush(Color.FromArgb(Theme.Stroke.A, Theme.Stroke.R, Theme.Stroke.G, Theme.Stroke.B)), Margin = new Thickness(8, 6, 8, 6) });
         var fMinus = TextSizeBtn("A\u2212", "字号减小"); fMinus.Click += (_, _) => StepFontSize(-1);
@@ -358,7 +360,7 @@ public sealed partial class EditorWindow : Window
         _redoBtn = redo;
         bar.Children.Add(redo);
         RefreshUndo();
-        RefreshWidths(); // 默认宽度"中"的选中态当场可见（此前要等点击才出现）
+        RefreshWidths(); // 默认宽度"中"的选中态当场可见
         return bar;
     }
 
@@ -406,7 +408,7 @@ public sealed partial class EditorWindow : Window
     Button? _paletteBtn;
     Button? _widthMoreBtn;
     StackPanel? _recentHost;
-    StackPanel? _fontGroup;   // 字号步进器（C3）：文字工具/选中文字时可见
+    StackPanel? _fontGroup;   // 字号步进器：文字工具/选中文字时可见
     TextBlock? _fontLabel;
     Popup? _widthPop;
     Slider? _widthSlider;
@@ -446,7 +448,7 @@ public sealed partial class EditorWindow : Window
 
     void PickCustomColor()
     {
-        // 系统 ColorDialog 退役 → 自绘 RGBA 调色板弹层（EditorWindow.ColorPick.cs，主题一致+就地+即时生效）
+        // 自绘 RGBA 调色板弹层（EditorWindow.ColorPick.cs，主题一致+就地+即时生效），不用系统 ColorDialog
         if (_paletteBtn != null) ShowColorPicker(_paletteBtn);
     }
 
@@ -486,7 +488,7 @@ public sealed partial class EditorWindow : Window
         OpenPopSticky(_widthPop, this);
     }
 
-    // OpenPopSticky 已上收 Fluent（，设置窗调色板共用）
+    // OpenPopSticky 已上收 Fluent，设置窗调色板共用
     static void OpenPopSticky(Popup pop, UIElement hostEl) => FrameCapture.Core.Fluent.OpenPopSticky(pop, hostEl);
     #endregion
 

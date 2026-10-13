@@ -11,7 +11,9 @@ using Theme = FrameCapture.Core.Theme;
 
 namespace FrameCapture.Overlays;
 
-// 本 partial 职责：裁剪引导层、文字标注、马赛克，与标注渲染/撤销重做。
+/// <summary>
+/// EditorWindow partial：裁剪引导层、文字标注、马赛克，与标注渲染/撤销重做。
+/// </summary>
 public sealed partial class EditorWindow
 {
     #region 裁剪引导层：框外压暗 + 三分网格 + 「松开应用」
@@ -33,7 +35,7 @@ public sealed partial class EditorWindow
             CornerRadius = new CornerRadius(4),
             Padding = new Thickness(7, 2, 7, 3),
             IsHitTestVisible = false,
-            Child = new TextBlock { Text = "松开应用裁剪", FontSize = 11, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(FrameCapture.Core.Fluent.OnAccentColor(Acc)) }, // 前景随强调色明暗自适应,浅色强调色下转黑可读
+            Child = new TextBlock { Text = "松开应用裁剪", FontSize = 11, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(FrameCapture.Core.Fluent.OnAccentColor(Acc)) }, // 前景随强调色明暗自适应，浅色强调色下转黑可读
         };
         _canvas.Children.Add(_cropMask);
         _canvas.Children.Add(_cropGrid);
@@ -104,7 +106,7 @@ public sealed partial class EditorWindow
     {
         if (_textInput != null) CommitTextInput();
         var f = _seq.Frames[_index];
-        // 与上屏 TextBlock 完全同式的字号（此前 clamp 下限不同导致预览/上屏字号错位）
+        // 与上屏 TextBlock 完全同式的字号：clamp 下限一致，预览与上屏才不错位
         double disp = FrameCapture.Core.AnnFont.BakePx(editing?.Thickness ?? CurWidth, f.W, f.H) * Math.Max(0.05, _imgRect.Width / Math.Max(1, f.W));
         var box = new TextBox
         {
@@ -126,7 +128,7 @@ public sealed partial class EditorWindow
             box.SelectAll();
             _textEditing = editing;
         }
-        // 文字起点 = pos：把边框+内边距反向挪掉，输入框里的字与上屏后的字同位（修预览错位）
+        // 文字起点 = pos：把边框+内边距反向挪掉，输入框里的字与上屏后的字同位
         Canvas.SetLeft(box, pos.X - 6.5); Canvas.SetTop(box, pos.Y - 3.5);
         _textPos = pos;
         box.PreviewKeyDown += (_, ek) =>
@@ -153,7 +155,7 @@ public sealed partial class EditorWindow
         _textEditing = null;
         if (editing != null)
         {
-            // 再编辑：空文或无改动 = 保持原样（删除对象随对象编辑子系统一起上）；有改动 = 原位替换，可撤销
+            // 再编辑：空文或无改动 = 保持原样；有改动 = 原位替换，可撤销
             if (txt.Length > 0 && txt != editing.Text)
             {
                 var e = new Annotation { Kind = AnnKind.Text, Color = editing.Color, Thickness = editing.Thickness };
@@ -335,7 +337,7 @@ public sealed partial class EditorWindow
         _selBox = null;
         foreach (var a in _anns.Items)
         {
-            if (ReferenceEquals(a, _textEditing)) continue;   // 正在编辑的文字：只留输入框，隐藏原字（C2 修重叠）
+            if (ReferenceEquals(a, _textEditing)) continue;   // 正在编辑的文字：只留输入框，隐藏原字，避免与输入框重叠
             double s = Math.Max(1, Math.Min(_imgRect.Width, _imgRect.Height));
             double stroke = Math.Max(1.2, a.Thickness * s / 1080.0);
             var wpfCol = new SolidColorBrush(System.Windows.Media.Color.FromArgb(a.Color.A, a.Color.R, a.Color.G, a.Color.B));
@@ -489,7 +491,7 @@ public sealed partial class EditorWindow
                 }
             }
         }
-        // 画布常显（不再收起），此处无需再兜底恢复 Visibility；命中态由 SetTool 统一管。
+        // 画布常显，无需兜底恢复 Visibility；命中态由 SetTool 统一管。
     }
     #endregion
 

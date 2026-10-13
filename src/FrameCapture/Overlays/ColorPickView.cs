@@ -9,7 +9,7 @@ namespace FrameCapture.Overlays;
 
 /// <summary>
 /// 自绘 RGBA 调色板控件：DevTools 式 SV 区 + 色相/透明度竖条 + HEX/RGBA 直填。
-/// 替代系统 ColorDialog——主题一致、就地弹出、拖动即时生效。
+/// 不用系统 ColorDialog：主题一致、就地弹出、拖动即时生效。
 /// 纯视图：不关心弹出方式；宿主（编辑器弹层 / SelfTest 离屏渲染）订阅 Changed 收色。
 /// </summary>
 public sealed class ColorPickView : StackPanel
@@ -24,12 +24,14 @@ public sealed class ColorPickView : StackPanel
     /// <summary>用户改动（拖动/输入）后当前色。</summary>
     public event Action<Color>? Changed;
 
+    /// <summary>当前颜色（RGBA）。程序性赋值不触发 <see cref="Changed"/>——只有用户交互才发事件。</summary>
     public Color Color
     {
         get { var (r, g, b) = Rgb(); return Color.FromArgb((byte)Math.Round(_a * 255), r, g, b); }
         set { SetState(value); Sync(); }
     }
 
+    /// <summary>构建 SV 区、色相/透明度竖条与 HEX/RGBA 直填；初始色为纯红不透明，构造不发 <see cref="Changed"/>。</summary>
     public ColorPickView()
     {
         #region SV 区（180×120）：白→色相横渐变 + 透明→黑竖渐变，十字准星
@@ -43,7 +45,7 @@ public sealed class ColorPickView : StackPanel
         };
         var sv = new Grid { Width = 180, Height = 120, Cursor = Cursors.Cross, ClipToBounds = true };
         sv.Children.Add(_svHue); sv.Children.Add(_svVal);
-        // 游标必须活在 Canvas 里：Canvas.SetLeft/Top 对 Grid 子级无效（起游标一直钉死中央）
+        // 游标必须活在 Canvas 里：Canvas.SetLeft/Top 对 Grid 子级无效，否则游标钉死中央
         var knobHost = new Canvas { IsHitTestVisible = false };
         knobHost.Children.Add(_svKnob);
         sv.Children.Add(knobHost);
@@ -175,7 +177,7 @@ public sealed class ColorPickView : StackPanel
     }
 
     static UIElement Spacing(double w) => new Rectangle { Width = w };
-    // 圆角包裹（Border 按 CornerRadius 裁剪子内容）+ 细描边，让 SV/色相/透明条不再是生硬方块
+    // 圆角包裹（Border 按 CornerRadius 裁剪子内容）+ 细描边，SV/色相/透明条不生硬
     static Border Round(UIElement e, double r) => new()
     {
         CornerRadius = new CornerRadius(r), ClipToBounds = true, Child = e,
@@ -199,7 +201,7 @@ public sealed class ColorPickView : StackPanel
             },
         },
     };
-    // 主题化输入字段——深色圆角底 + 描边，聚焦转强调色（原默认白底系统边框在深色弹层里很突兀）
+    // 主题化输入字段——深色圆角底 + 描边，聚焦转强调色
     static Border Field(UIElement inner, double w)
     {
         var b = new Border
@@ -235,6 +237,8 @@ public sealed class ColorPickView : StackPanel
         box.LostFocus += (_, _) => { if (int.TryParse(box.Text, out var v)) apply(v); };
     }
 
+    /// <summary>透明预览用棋盘格刷：16×16 DIP 平铺，8×8 方格，灰 #CCCCCC 与白交替。</summary>
+    /// <returns>可平铺的 <see cref="DrawingBrush"/>（Absolute 视口）；每次调用返回新实例。</returns>
     public static DrawingBrush Checker()
     {
         var d = new DrawingGroup();

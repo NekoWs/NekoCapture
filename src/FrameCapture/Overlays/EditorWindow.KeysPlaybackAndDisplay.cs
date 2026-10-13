@@ -13,11 +13,13 @@ using FrameCapture.Services;
 
 namespace FrameCapture.Overlays;
 
-// 快捷键与播放：按键分派 + 播放控制 + 当前帧显示（位图惰性缓存）
+/// <summary>
+/// EditorWindow partial：快捷键分派、播放控制与当前帧显示（位图惰性缓存）。
+/// </summary>
 public sealed partial class EditorWindow : Window
 {
 
-    #region 行为
+    #region 按键分派与播放/帧显示
 
     void OnKeyDown(object sender, KeyEventArgs e)
     {
@@ -87,7 +89,7 @@ public sealed partial class EditorWindow : Window
                 // 弹层打开时：Esc 只收弹层（分层语义的第一层）
                 if (_colorPop is { IsOpen: true }) { _colorPop.IsOpen = false; e.Handled = true; return; }
                 if (_widthPop is { IsOpen: true }) { _widthPop.IsOpen = false; e.Handled = true; return; }
-                // 分层语义（/）：导出中=取消；有选中=先取消选中；绘制态=先退出工具，误触 Esc 绝不丢整次捕获；浏览态=关闭
+                // 分层语义：导出中=取消；有选中=先取消选中；绘制态=先退出工具，误触 Esc 绝不丢整次捕获；浏览态=关闭
                 switch (FrameCapture.Core.EscStep.Select(_encoding, _tool != Tool.Browse, _sel != null))
                 {
                     case FrameCapture.Core.EscAction.CancelEncode: _commitCts?.Cancel(); break;
@@ -170,7 +172,7 @@ public sealed partial class EditorWindow : Window
         _view.Source = Bmp(_index);
         UpdateMosaicBrushes(); // 马赛克=区域滤镜：内容随帧走，不是静止贴图
         // 计数区时间用「帧号/帧率」= 播放基准，与时间轴刻度(DrawRange 同用 i/fps)一致；
-        // 不用 _times 实际捕获时间戳（首帧非 0、且与刻度基准两套，看截图抓到不一致）
+        // 不用 _times 实际捕获时间戳（首帧非 0，与刻度是两套基准，显示会不一致）
         int fps = _fps;
         double eff = _imgRect.Width / Math.Max(1, _frameW);
         string zoomTxt = _zoom <= 1.001 ? "" : (Math.Abs(eff - 1.0) < 0.02 ? "  1:1" : $"  {eff * 100:0}%");
@@ -181,7 +183,7 @@ public sealed partial class EditorWindow : Window
             cropTxt = $"  裁剪 {cqW:0}×{cqH:0}";
         }
         var (ta, tb2) = TrimRange;
-        // 含两端闭区间 [a,b]：1-based 显示须 tb+1（抓到差一）；全范围=未裁剪不显示（逐帧复查抓到 tb2<count-1 差一）
+        // 含两端闭区间 [a,b]：1-based 显示须 tb+1；全范围=未裁剪不显示（tb2<count-1 才算裁过）
         string trimTxt = _rd.A >= 0 && tb2 > ta && (ta > 0 || tb2 < _seq.Frames.Count - 1) ? $"  导出 {ta + 1}–{tb2 + 1}" : "";
         // 计数区：帧号 + 当前帧时刻 / 总时长（末帧时刻，与刻度/播放同基准）；总时长让用户一眼看到录制长度
         _hud.Text = $"{_index + 1}/{_seq.Frames.Count}  {_index / (double)fps:0.00}s / {(_seq.Frames.Count - 1) / (double)fps:0.00}s"

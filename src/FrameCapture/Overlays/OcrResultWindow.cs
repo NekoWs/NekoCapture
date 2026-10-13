@@ -12,6 +12,8 @@ namespace FrameCapture.Overlays;
 /// 非模态——编辑器仍可继续操作；Esc / 关闭钮淡出关闭。</summary>
 public sealed class OcrResultWindow : Window
 {
+    /// <summary>弹出识别结果窗（非模态）：新建一窗、显示并激活；不阻塞调用方。</summary>
+    /// <param name="text">识别文本，原样进可编辑框（用户可编辑、部分选中复制）。</param>
     public static void Show(string text)
     {
         var w = new OcrResultWindow(text);
@@ -21,6 +23,7 @@ public sealed class OcrResultWindow : Window
 
     /// <summary>消息模式：无结果窗可展示时（未识别到文字 / 未装语言包 / 已复制轻确认）用同一窗体给一句可读反馈。
     /// 与结果窗共用外壳与淡入淡出，保证「识别文字」功能只有一个可截图审查的反馈面。</summary>
+    /// <param name="msg">消息文本，居中一句展示，无编辑框与复制钮。</param>
     public static void ShowMessage(string msg)
     {
         var w = new OcrResultWindow(msg, message: true);
@@ -108,7 +111,7 @@ public sealed class OcrResultWindow : Window
             HorizontalAlignment = HorizontalAlignment.Center,
         };
         copyBox.Child = copyLabel;
-        Fluent.ChipHover(copyBox, 1.05);   // 弹性 hover/press（与全站按钮同款），此前是静态 accent 块无反馈
+        Fluent.ChipHover(copyBox, 1.05);   // 悬停只改底色带过渡（与全站按钮同款）
         Grid.SetColumn(copyBox, 1);
         bottom.Children.Add(copyBox);
         DockPanel.SetDock(bottom, Dock.Bottom);

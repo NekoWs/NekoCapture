@@ -14,11 +14,12 @@ using FrameCapture.Services;
 namespace FrameCapture.Overlays;
 
 /// <summary>
-/// 编辑器：帧显示 + 传输控制 + 时间轴 + 右侧操作栏 + 确定（GIF 进剪贴板）。
-/// 绘图层在后续迭代叠加。
+/// 编辑器主 partial：构造与生命周期。帧显示 + 传输控制 + 时间轴 + 标注绘制 + 导出（确定=GIF 进剪贴板）。
+/// 其余职责分布在同名 <c>EditorWindow.*.cs</c> partial 文件中。
 /// </summary>
 public sealed partial class EditorWindow : Window
 {
+    /// <summary>窗口关闭时触发且仅触发一次——用户放弃/确定与控制器主动关闭都走它；控制器据此释放帧源。</summary>
     public event Action? ClosedByUser;
 
     private readonly SettingsService _settings;
@@ -53,6 +54,12 @@ public sealed partial class EditorWindow : Window
     private Border? _playPanel, _toolPanel;
     private StackPanel? _toolsBar; // 底部工具条，用于让 MinWidth 跟随其实际宽度（防窄图裁切两端工具）
 
+    /// <summary>
+    /// 构造编辑器窗口：帧元数据抽入平行数组、位图缓存上限按帧字节自适应、搭建布局并恢复标注设置。
+    /// 必须在 UI 线程调用；帧源生命周期归控制器，窗口关闭（<see cref="ClosedByUser"/>）后不得再读。
+    /// </summary>
+    /// <param name="settings">设置服务：fps 回退值、总在最前、引导与标注设置的持久化来源。</param>
+    /// <param name="seq">捕获序列：帧来源（内存表或磁盘 spool）、捕获区域与显示器信息；本窗口不拥有它。</param>
     public EditorWindow(SettingsService settings, CapturedSequence seq)
     {
         _settings = settings;
@@ -78,7 +85,7 @@ public sealed partial class EditorWindow : Window
         WindowStyle = WindowStyle.None;
         ResizeMode = ResizeMode.CanResize;
         ShowInTaskbar = true;
-        // 总在最前=图钉开关（，默认关）。开启时失活即重插置顶带（与旧行为一致），
+        // 总在最前=图钉开关（默认关）。开启时失活即重插置顶带；
         // 关闭时是普通窗口，绝不能被 Deactivated 兜底重新钉上去。
         Topmost = _settings.Current.EditorTopmost;
         Deactivated += (_, _) => { if (IsLoaded && Topmost) { Topmost = false; Topmost = true; } };
@@ -89,8 +96,8 @@ public sealed partial class EditorWindow : Window
         MouseLeftButtonDown += (_, e) => { if (e.ButtonState == MouseButtonState.Pressed) { try { DragMove(); } catch { } } };
 
         var mon = Monitors.ByDevice(seq.MonitorDevice) ?? Monitors.Nearest(seq.Region.X, seq.Region.Y);
-        // 812 DIP 是工具条早期列宽的下限（/）。起 FitMinWidthToToolbar 会按工具条
-        // 实测宽度动态抬高 MinWidth（工具/色板/最近用色/宽度/撤销重做/保存·复制·图钉·OCR·确定·取消/置顶·设置·帮助），
+        // 812 DIP 只是地板值。FitMinWidthToToolbar 按工具条实测宽度动态抬高 MinWidth
+        // （工具/色板/最近用色/宽度/撤销重做/保存·复制·图钉·OCR·确定·取消/置顶·设置·帮助），
         // 这里只留一个不会更小的地板值。
         MinWidth = 812;
         Width = Math.Min(1600, Math.Max(812, seq.Region.W + 120));
@@ -117,7 +124,7 @@ public sealed partial class EditorWindow : Window
         _playTimer = new System.Windows.Threading.DispatcherTimer();
         _playTimer.Tick += (_, _) =>
         {
-            if (_userClosed || _seq.Frames.Count == 0) return; // 关闭中：spool 已释放，绝不再读帧（磁盘 spool 后读已关文件会抛）
+            if (_userClosed || _seq.Frames.Count == 0) return; // 关闭中：spool 已释放，绝不读帧（磁盘 spool 后读已关文件会抛）
             var (a, b) = TrimRange;
             int next = _index + 1;
             if (next > b || next >= _seq.Frames.Count) next = a;
@@ -128,7 +135,7 @@ public sealed partial class EditorWindow : Window
         InitDrawing();
         BuildLayout();
         RestoreEditorPrefs(); // 恢复上次的工具/颜色/粗细（关=保持默认）
-        FitMinWidthToToolbar(); // 工具条列（含最近用色）实测宽 → MinWidth，窄图不再裁切两端工具
+        FitMinWidthToToolbar(); // 工具条列（含最近用色）实测宽 → MinWidth，窄图下两端工具也不被裁切
         if (_toolsBar != null) _toolsBar.SizeChanged += (_, _) => FitMinWidthToToolbar(); // 最近用色增减时跟随
         if (!_settings.Current.EditorGuideShown) ShowGuide(); // 首次打开：一次性上手引导
         Theme.Changed += Editor_OnTheme;
@@ -152,7 +159,7 @@ public sealed partial class EditorWindow : Window
         };
     }
 
-    #region 首次上手引导（，一次性）
+    #region 首次上手引导
 
     Grid? _root;
     Border? _guide;
@@ -239,7 +246,7 @@ public sealed partial class EditorWindow : Window
         g.BeginAnimation(OpacityProperty, fade);
     }
 
-    /// <summary>控制器主动关闭。</summary>
+    /// <summary>控制器主动关闭：与用户关闭走同一收口——停播放表、触发 <see cref="ClosedByUser"/>、淡出。</summary>
     public void CloseByController()
     {
         if (_userClosed) return;

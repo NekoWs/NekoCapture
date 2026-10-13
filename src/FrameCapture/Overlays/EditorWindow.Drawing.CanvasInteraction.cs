@@ -11,7 +11,9 @@ using Theme = FrameCapture.Core.Theme;
 
 namespace FrameCapture.Overlays;
 
-// 本 partial 职责：画布鼠标交互（绘制一笔/Shift 约束/取消落笔）与选中工具（点选/拖移/四角缩放/字号步进）。
+/// <summary>
+/// EditorWindow partial：画布鼠标交互（绘制一笔/Shift 约束/取消落笔）与选中工具（点选/拖移/四角缩放/字号步进）。
+/// </summary>
 public sealed partial class EditorWindow
 {
     #region 画布交互
@@ -116,7 +118,7 @@ public sealed partial class EditorWindow
         if (_preview != null)
         {
             // Line/Arrow/Freehand/Highlight 的形状内部用绝对画布坐标（X1/Y1、Points、Path 几何），
-            // 元素须留在画布原点(0,0)——与提交态渲染一致；若按 _pressPos 落点会被二次偏移→预览跑到屏幕外（修）。
+            // 元素须留在画布原点(0,0)——与提交态渲染一致；若按 _pressPos 落点会被二次偏移→预览跑到屏幕外。
             // Rect/Ellipse/Crop/Mosaic 用相对 Width/Height，位置在 Canvas_Move 里按包围盒重设，这里先落 _pressPos 无妨。
             if (_tool is not (Tool.Line or Tool.Arrow or Tool.Freehand or Tool.Highlight))
             {
@@ -142,7 +144,7 @@ public sealed partial class EditorWindow
             double dx = mp.X - _movePress.X, dy = mp.Y - _movePress.Y;
             _movePress = mp;
             // Line/Arrow/Freehand/Highlight 元素用绝对内部坐标、未设 Canvas.Left/Top → GetLeft 返回 NaN，
-            // 直接 +dx 会把元素甩到 NaN（屏幕外）。NaN 视作 0（元素本就在原点），整体平移才正确（修）。
+            // 直接 +dx 会把元素甩到 NaN（屏幕外）。NaN 视作 0（元素本就在原点），整体平移才正确。
             static double CL(UIElement el) => double.IsNaN(Canvas.GetLeft(el)) ? 0 : Canvas.GetLeft(el);
             static double CT(UIElement el) => double.IsNaN(Canvas.GetTop(el)) ? 0 : Canvas.GetTop(el);
             foreach (var (el, a) in _annEls)
@@ -283,7 +285,7 @@ public sealed partial class EditorWindow
                 if (dist < 6) { /* 太短：丢弃 */ }
                 else CommitAnn(_pending);
             }
-            else CommitAnn(_pending); // 手绘/荧光笔：单击也提交（预览已修，点下去实时可见，不静默丢弃）
+            else CommitAnn(_pending); // 手绘/荧光笔：单击也提交，不静默丢弃
         }
         _pending = null;
         if (_preview != null) { _canvas.Children.Remove(_preview); _preview = null; }
@@ -321,7 +323,7 @@ public sealed partial class EditorWindow
     void SetSelection(Annotation? a) { _sel = a; RedrawAnns(); UpdateFontStepper(); }
     #endregion
 
-    #region 字号步进器（C3）：文字工具/选中文字时可见，A−/A+ 调字号
+    #region 字号步进器：文字工具/选中文字时可见，A−/A+ 调字号
     bool TextRelevant => _tool == Tool.Text || _sel is { Kind: AnnKind.Text or AnnKind.Number };
     bool SelIsText => _sel is { Kind: AnnKind.Text or AnnKind.Number };
 
@@ -382,7 +384,7 @@ public sealed partial class EditorWindow
         _resizeAnn = _sel;
         _resizeOrigPts = new List<(float, float)>(_sel.Points);
         _resizeOrigBox = NormBox(_sel.Points);
-        _resizeDrag = true;   // 关键：Canvas_Move 的缩放分支以 _resizeDrag 为门，漏设则拖角无反应（C1 修）
+        _resizeDrag = true;   // 关键：Canvas_Move 的缩放分支以 _resizeDrag 为门，漏设则拖角无反应
         _canvas.CaptureMouse();
         FrameCapture.Core.Trace.Log($"editor resize start corner={hitC}");
         return true;
@@ -407,7 +409,7 @@ public sealed partial class EditorWindow
         RedrawAnns();
     }
 
-    /// <summary>悬停在四角附近时切换对角缩放光标，让手柄「看得见、找得到」（直接回应「看不到角手柄」）。</summary>
+    /// <summary>悬停在四角附近时切换对角缩放光标，让手柄「看得见、找得到」。</summary>
     void UpdateResizeCursor(Point sp)
     {
         if (_tool != Tool.Select || _sel == null || _sel.Points.Count == 0) { _canvas.Cursor = null; return; }

@@ -11,13 +11,15 @@ using Theme = FrameCapture.Core.Theme;
 
 namespace FrameCapture.Overlays;
 
-// 绘图工具层：线/圆/箭头/手绘/裁剪 + 撤销 + 时间轴范围
+/// <summary>
+/// EditorWindow partial：绘图工具层——线/矩形/圆/箭头/手绘/高亮/文字/马赛克/裁剪/序号 + 撤销 + 时间轴范围。
+/// </summary>
 public sealed partial class EditorWindow
 {
     enum Tool { Browse, Select, Line, Rect, Ellipse, Arrow, Freehand, Highlight, Text, Mosaic, Crop, Number }
 
     // 工具顺序与 ToolCatalog.Tools 一一对应（锁死）；图标/提示文案的唯一数据源在 Core.ToolCatalog。
-    // ToolOrder 由目录键位派生（教训：手写平行数组+断言=断言写错直接 abort 进程，派生让漂移无处可漂）
+    // ToolOrder 由目录键位派生：顺序与目录的漂移无处可藏，未知键位直接抛。
     static Tool FromKey(string k) => k switch
     {
         "V" => Tool.Select, "L" => Tool.Line, "R" => Tool.Rect, "O" => Tool.Ellipse, "A" => Tool.Arrow,
@@ -76,7 +78,7 @@ public sealed partial class EditorWindow
         _canvas.MouseLeftButtonDown += Canvas_Down;
         _canvas.MouseMove += Canvas_Move;
         _canvas.MouseLeftButtonUp += Canvas_Up;
-        // 视图几何唯一驱动：_viewGrid（浏览态 canvas 是 Collapsed，不能靠它）
+        // 视图几何唯一驱动：_viewGrid——视图容器的尺寸即视口，与画布命中态无关
         _viewGrid.SizeChanged += (_, _) => { UpdateImgRect(); RedrawAnns(); };
 
         // 缩放：Ctrl+滚轮以光标为锚（真实用户路径）；平移：中键拖（任意工具）/ 浏览态放大后左键拖
@@ -111,7 +113,7 @@ public sealed partial class EditorWindow
     readonly FrameCapture.Core.ActionOrder _order = new();
     void UpdateImgRect()
     {
-        // 用 _viewGrid 尺寸：_canvas 在浏览态 Collapsed（ActualWidth 恒 0），而 Image 任何状态都要跟随
+        // 用 _viewGrid 尺寸：视图容器任何状态都被布局且有尺寸，Image 任何状态都要跟随
         double cw = _viewGrid.ActualWidth, ch = _viewGrid.ActualHeight;
         var f = _seq.Frames[_index];
         var (fw, fh) = CropPx(f.W, f.H); // 裁剪子区像素尺寸：适配/钳制都以"可见区"为准
@@ -218,9 +220,9 @@ public sealed partial class EditorWindow
 
     void SetTool(Tool t)
     {
-        // 再点当前工具=回到浏览态（与线宽/颜色的单选切换同一语义，纯逻辑见 ToolToggle，SelfTest ）
+        // 再点当前工具=回到浏览态（与线宽/颜色的单选切换同一语义，纯逻辑见 ToolToggle）
         _tool = FrameCapture.Core.ToolToggle.Select(_tool, t, Tool.Browse);
-        _sel = null; // 换工具即丢选中（选中只属于选中工具，）
+        _sel = null; // 换工具即丢选中（选中只属于选中工具）
         _canvas.IsHitTestVisible = _tool != Tool.Browse;   // 浏览态画布不可命中（标注仍显示、平移穿透），绘制态可命中
         _canvas.Cursor = _tool switch { Tool.Browse or Tool.Select => Cursors.Arrow, Tool.Text => Cursors.IBeam, _ => Cursors.Cross };
         for (int i = 0; i < _toolBtns.Count; i++)
@@ -297,7 +299,7 @@ public sealed partial class EditorWindow
         // 最小 48 帧像素折算为归一化比例（宽高各按自身维度）
         if (!_crop.Push(n0.X, n0.Y, n1.X, n1.Y, 48.0 / f.W, 48.0 / f.H)) return;
         _order.CropPushed();
-        _zoom = FrameCapture.Core.ZoomMath.MinZoom; _panX = 0; _panY = 0;   // 裁剪后回到「适配 + 居中」：小裁剪不再被留在放大/偏移态而飞出视口、中键也拖不回
+        _zoom = FrameCapture.Core.ZoomMath.MinZoom; _panX = 0; _panY = 0;   // 裁剪后回到「适配 + 居中」：防小裁剪停在放大/偏移态飞出视口、中键拖不回
         UpdateImgRect(); RedrawAnns(); Show(_index); RefreshUndo();
         var (cx, cy, cw, ch) = _crop.ToPixel(f.W, f.H);
         FrameCapture.Core.Trace.Log($"editor crop depth={_crop.Depth} px={cx},{cy} {cw}x{ch}");
@@ -310,8 +312,7 @@ public sealed partial class EditorWindow
         var (x, y, w, h) = _crop.ToPixel(fw, fh);
         return FrameCapture.Core.CropRemap.Remap(anns, (double)x / fw, (double)y / fh, (double)w / fw, (double)h / fh);
     }
-    /// <summary>单帧导出（保存帧/复制帧）：与 GIF 同一裁剪收口。</summary>
-    /// <summary>导出单帧（复制/存帧用）。修复：所见即所得——裁剪→重映射→烘焙，与 GIF 确定同管线。</summary>
+    /// <summary>单帧导出（保存帧/复制帧）：所见即所得——裁剪→重映射→烘焙，与 GIF 确定同管线。</summary>
     FrameCapture.Capture.CapturedFrame ExportFrame(int index)
     {
         var f = _seq.Frames[index];
@@ -330,7 +331,7 @@ public sealed partial class EditorWindow
     #region 时间轴范围
 
     int _tlMode; // 0 空闲 1 拖动跳转/待拉选段 2 拖范围左端 3 拖范围右端 4 拉选段中
-    double _tlPressX; int _tlPressIdx;   // 时间轴按下点（拖过阈值从此点拉选段，）
+    double _tlPressX; int _tlPressIdx;   // 时间轴按下点（拖过阈值从此点拉选段）
 
     void Range_Down(object sender, MouseButtonEventArgs e)
     {
@@ -366,7 +367,7 @@ public sealed partial class EditorWindow
         }
         int idx = Core.RangeDragState.XToIdx(x, _rangeCanvas.ActualWidth, _seq.Frames.Count);
         if (_tlMode == 1 && Math.Abs(x - _tlPressX) > 4)
-            _tlMode = 4;   // 拖过阈值：从按下点开始拉选段（原来鼠标拖不出，只能靠 [ ] 键，修）
+            _tlMode = 4;   // 拖过阈值：从按下点开始拉选段（[ ] 键同样可设入/出点）
         switch (_tlMode)
         {
             case 1: Show(idx); break;   // 未过阈值=scrub 跳帧
@@ -444,14 +445,14 @@ public sealed partial class EditorWindow
             c.Children.Add(TlBar(xa - 1.5, 2, 3, ch - 4, 1.5, FrameCapture.Core.Theme.Accent));
             c.Children.Add(TlBar(xb - 1.5, 2, 3, ch - 4, 1.5, FrameCapture.Core.Theme.Accent));
         }
-        // 首尾端线常驻：提示"两端可拖出全范围"的把手位。对齐修复：线内缘精确贴 x=0 / x=cw
-        // （旧版悬停才现且线心偏离端点 3px，看着没对上首尾）。设了裁剪范围时由强调色把手接管，不叠加。
+        // 首尾端线常驻：提示"两端可拖出全范围"的把手位；线内缘精确贴 x=0 / x=cw。
+        // 设了裁剪范围时由强调色把手接管，不叠加。
         if (_rd.A < 0)
         {
             var edge = Color.FromArgb((byte)(_tlHover ? 0xD0 : 0x76), Theme.Stroke.R, Theme.Stroke.G, Theme.Stroke.B);
             c.Children.Add(TlBar(0, 2, 3, ch - 4, 1.5, edge));
             c.Children.Add(TlBar(cw - 3, 2, 3, ch - 4, 1.5, edge));
-            // 悬停且未选段时提示可拖拽选段（直接回应「不知如何触发」）
+            // 悬停且未选段时提示可拖拽选段
             if (_tlHover)
             {
                 var hint = new TextBlock
@@ -468,8 +469,8 @@ public sealed partial class EditorWindow
             }
         }
 
-        // 播放头：主题色竖线 + 顶部圆形旋钮（现代滑块语言，替代旧 PR 三角指针，与设置窗滑杆圆点同族）
-        // 浅色主题下白色会隐身（逐帧审查抓到），跟 Theme.Text 走；旋钮描边用面板底色做"悬浮"留白环
+        // 播放头：主题色竖线 + 顶部圆形旋钮（现代滑块语言，与设置窗滑杆圆点同族）
+        // 浅色主题下白色会隐身，跟 Theme.Text 走；旋钮描边用面板底色做"悬浮"留白环
         var ph = Color.FromArgb(0xFF, Theme.Text.R, Theme.Text.G, Theme.Text.B);
         c.Children.Add(TlBar(xm - 0.75, 7, 1.5, ch - 7, 0.75, ph));
         var knob = new System.Windows.Shapes.Ellipse
