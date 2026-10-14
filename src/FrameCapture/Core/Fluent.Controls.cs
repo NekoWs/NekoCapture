@@ -450,6 +450,25 @@ public static partial class Fluent
         }
         return t;
     }
+
+    /// <summary>浮窗里的圆角按钮：无边框、手型光标、内容居中，底色与文字色由调用方给。</summary>
+    /// <param name="text">按钮文字。</param>
+    /// <param name="bg">按钮底色。</param>
+    /// <param name="fg">文字色。</param>
+    /// <param name="padX">左右内衬（DIP），上下固定 6。</param>
+    /// <param name="hoverFade">悬停是否整钮淡出，转交 <see cref="RoundedButtonTemplate"/>。</param>
+    /// <returns>可直接上屏的按钮。</returns>
+    public static Button RoundButton(string text, Color bg, Color fg, double padX, bool hoverFade) => new()
+    {
+        Content = text,
+        FontSize = 12.5,
+        Foreground = new SolidColorBrush(fg),
+        Background = new SolidColorBrush(bg),
+        BorderThickness = new Thickness(0),
+        Padding = new Thickness(padX, 6, padX, 6),
+        Cursor = System.Windows.Input.Cursors.Hand,
+        Template = RoundedButtonTemplate(hoverFade),
+    };
     #endregion
 
 }

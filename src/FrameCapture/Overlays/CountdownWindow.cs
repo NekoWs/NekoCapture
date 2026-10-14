@@ -168,18 +168,5 @@ public sealed class CountdownWindow : Window
         Fluent.CloseWithFade(this);
     }
 
-    static Button MakeBtn(string text, Color bg, Color fg)
-    {
-        return new Button
-        {
-            Content = text,
-            FontSize = 12.5,
-            Foreground = new SolidColorBrush(fg),
-            Background = new SolidColorBrush(bg),
-            BorderThickness = new Thickness(0),
-            Padding = new Thickness(16, 6, 16, 6),
-            Cursor = System.Windows.Input.Cursors.Hand,
-            Template = Fluent.RoundedButtonTemplate(hoverFade: true),
-        };
-    }
+    static Button MakeBtn(string text, Color bg, Color fg) => Fluent.RoundButton(text, bg, fg, 16, hoverFade: true);
 }
