@@ -313,11 +313,14 @@ public static partial class Fluent
         if (knob.RenderTransform is not TranslateTransform)
             knob.RenderTransform = new TranslateTransform();
         var tt = (TranslateTransform)knob.RenderTransform;
+        // 起点必须显式给：清掉动画后属性回落到基值，To-only 动画拿「当前值」当起点，而基值此刻
+        // 已是目标位 → 起点即终点，滑钮瞬移。先取动画下的实时值，中途连点也从当下位置接着走。
+        double from = tt.X, to = on ? travel : 0;
         tt.BeginAnimation(TranslateTransform.XProperty, null);
-        tt.X = on ? travel : 0;
-        var anim = new DoubleAnimation(on ? travel : 0.0, new Duration(TimeSpan.FromMilliseconds(Motion.StateMs)))
+        tt.X = from;
+        var anim = new DoubleAnimation(from, to, new Duration(TimeSpan.FromMilliseconds(Motion.StateMs)))
         {
-            EasingFunction = new BackEase { Amplitude = 0.5, EasingMode = EasingMode.EaseOut },
+            EasingFunction = Spring(0.5),
         };
         tt.BeginAnimation(TranslateTransform.XProperty, anim);
         if (track.Background is SolidColorBrush bgOld)

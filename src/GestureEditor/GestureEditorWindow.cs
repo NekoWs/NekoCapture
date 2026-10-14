@@ -402,8 +402,8 @@ public sealed partial class GestureEditorWindow : Window
             VerticalAlignment = VerticalAlignment.Center,
             Focusable = true, // 键盘可达：Tab 聚焦、空格/Enter 切换，与设置窗开关同款焦点环
         };
-        // 滑块恒白 + 极淡描边：明暗主题下都保持可辨，不随 Accent 或主题色走
-        var knob = new Ellipse { Width = 14, Height = 14, Fill = _pal.B(Colors.White), Stroke = _pal.B(Color.FromArgb(0x26, 0, 0, 0)), StrokeThickness = 1, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(3, 0, 3, 0) };
+        // 滑块恒白 + 极淡描边：明暗主题下都保持可辨，不随 Accent 或主题色走；尺寸与行程同设置窗开关（40×20 轨道 / 12 滑块 / 行程 20）
+        var knob = new Ellipse { Width = 12, Height = 12, Fill = _pal.B(Colors.White), Stroke = _pal.B(Color.FromArgb(0x26, 0, 0, 0)), StrokeThickness = 1, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(4, 0, 4, 0) };
         var knobT = new TranslateTransform { X = on ? 20 : 0 };
         knob.RenderTransform = knobT;
         var inner = new Grid(); inner.Children.Add(knob); track.Child = inner;
@@ -415,7 +415,11 @@ public sealed partial class GestureEditorWindow : Window
             on = !on;
             AnimBrush(track.Background as SolidColorBrush, on ? _pal.Accent : _pal.TrackBg, br => track.Background = br);   // 开关换色走 140ms 颜色过渡
             SetBorder();
-            knobT.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(on ? 20 : 0, new Duration(TimeSpan.FromMilliseconds(220))) { EasingFunction = new BackEase { Amplitude = 0.3, EasingMode = EasingMode.EaseOut } });
+            // 150ms + BackEase 0.5 轻回弹 = 设置窗开关同一节奏；本库不引用宿主 Fluent，数值各自写明。
+            // 起点取实时值：中途连点从当下位置接着走，不跳回初始位。
+            knobT.BeginAnimation(TranslateTransform.XProperty,
+                new DoubleAnimation(knobT.X, on ? 20 : 0, new Duration(TimeSpan.FromMilliseconds(150)))
+                { EasingFunction = new BackEase { Amplitude = 0.5, EasingMode = EasingMode.EaseOut } });
             onToggle(on);
         }
         sp.MouseLeftButtonDown += (_, _) => Flip();

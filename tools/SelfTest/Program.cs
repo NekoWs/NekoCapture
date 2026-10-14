@@ -153,6 +153,17 @@ static class SelfTest
         return 0;
     }
 
+    // 让 WPF 动画在测试里真的走时间：DispatcherTimer 跑在 Background 优先级，渲染排在它前面，
+    // PushFrame 期间动画时钟照常推进。Thread.Sleep 会冻住分发器，动画一步都不走。
+    static void PumpMs(int ms)
+    {
+        var frame = new System.Windows.Threading.DispatcherFrame();
+        var timer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(ms) };
+        timer.Tick += (_, _) => { timer.Stop(); frame.Continue = false; };
+        timer.Start();
+        System.Windows.Threading.Dispatcher.PushFrame(frame);
+    }
+
     // 滚动拼接真实数据取证：给两张 PNG，跑 ScrollStitch 找重叠并拼，存 stitched.png 供肉眼核对
     static int StitchMode(string pathA, string pathB)
     {
@@ -473,6 +484,46 @@ static class SelfTest
             Chk("T11-fluent-templates", tplA != null && sl.Template != null, "parse");
         }
         catch (Exception e) { Chk("T11-fluent-templates", false, e.Message); }
+
+        // 开关滑钮必须逐帧移动：动画起点若等于目标位，滑钮瞬移且全程无任何报错
+        try
+        {
+            var track = new System.Windows.Controls.Border
+            {
+                Width = 40, Height = 20, CornerRadius = new CornerRadius(10),
+                Background = new System.Windows.Media.SolidColorBrush(Theme.TrackBg),
+                BorderBrush = new System.Windows.Media.SolidColorBrush(Theme.Stroke), BorderThickness = new Thickness(1),
+            };
+            var knob = new System.Windows.Shapes.Ellipse
+            {
+                Width = 12, Height = 12, Fill = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Colors.White),
+                HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(4, 0, 4, 0),
+                RenderTransform = new System.Windows.Media.TranslateTransform(0, 0),
+            };
+            track.Child = knob;
+            var win = new Window
+            {
+                Title = "SelfTest ToggleSlide", Width = 120, Height = 80, ShowInTaskbar = false,
+                WindowStartupLocation = WindowStartupLocation.Manual, Left = 150, Top = 150, Topmost = true,
+                Content = new System.Windows.Controls.StackPanel { Children = { track } },
+            };
+            win.Show();
+            var loaded = new System.Windows.Threading.DispatcherFrame();
+            win.Dispatcher.BeginInvoke(() => { loaded.Continue = false; }, System.Windows.Threading.DispatcherPriority.Loaded);
+            System.Windows.Threading.Dispatcher.PushFrame(loaded);
+            var tt = (System.Windows.Media.TranslateTransform)knob.RenderTransform;
+            Fluent.SlideToggle(knob, track, true, 20);
+            double start = tt.X;
+            PumpMs(320);
+            double end = tt.X;
+            Chk("T170a-knob-slides", start < 19 && end > 19.4, $"首帧 X={start:0.###} → 落点 X={end:0.###}");
+            Fluent.SlideToggle(knob, track, false, 20);
+            double back = tt.X;
+            PumpMs(320);
+            Chk("T170b-knob-returns", back > 1 && tt.X < 0.6, $"回程首帧 X={back:0.###} → 落点 X={tt.X:0.###}");
+            win.Close();
+        }
+        catch (Exception e) { Chk("T170-toggle-slide", false, e.Message); }
 
         // 全局 ToolTip/菜单样式可解析（守主题相关 XAML）
         try
