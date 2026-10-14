@@ -30,7 +30,6 @@ public sealed class GestureService : IDisposable
     System.Windows.Threading.DispatcherTimer? _tick;
     bool _mouseInstalled;
     bool _exclusive;   // 独占吞键开关（来自 GestureConfig.Exclusive，Apply 时刷新）
-    List<GC.GestureBinding> _engineBound = new();
 
     /// <summary>建引擎与动作执行器。构造本身不装钩子、不喂配置——副作用全部在 <see cref="Apply"/>。</summary>
     /// <param name="host">宿主，整个生命周期持有；<see cref="Apply"/> 需要它的 <see cref="HotkeyManager"/> 已就位。</param>
@@ -50,7 +49,6 @@ public sealed class GestureService : IDisposable
         bool on = cfg != null && cfg.Enabled;
         _exclusive = on && cfg!.Exclusive;
         var bindings = on ? cfg!.ToBindings() : new List<GC.GestureBinding>();
-        _engineBound = bindings;
         _engine.SetBindings(bindings);
         FrameCapture.Core.Trace.Log($"gesture apply on={on} excl={_exclusive} n={bindings.Count} [" +
             string.Join(", ", bindings.Select(b => $"mods={b.Chord.Mods} key={b.Chord.Key}/{b.Trigger}/oc={b.OnComplete.Count}")) + "]");
@@ -78,7 +76,7 @@ public sealed class GestureService : IDisposable
         return _exclusive && candidate;
     }
 
-    #region 鼠标钩子 / Tick 泵 / 键占用判定
+    #region 鼠标钩子 / Tick 泵
     void InstallMouseHook()
     {
         _mouseProc = MouseProc;
@@ -131,26 +129,6 @@ public sealed class GestureService : IDisposable
         _tick.Start();
     }
     void StopTick() { _tick?.Stop(); _tick = null; }
-
-    /// <summary>
-    /// 一个热键串是否已被某条<b>键触发</b>手势（Chord / KeyDown / KeyUp / Tap / Hold / HoldRelease）占用。
-    /// 鼠标触发的绑定不参与比较。
-    /// </summary>
-    /// <param name="hotkeyText">热键串，按 <see cref="HotkeySpec"/> 的语法解析；null 或解析不出来返回 false。</param>
-    /// <returns>本次 <see cref="Apply"/> 装入的绑定里存在「同主键 + 同修饰键组合」的键触发绑定时为 true。
-    /// 判定基于已装入引擎的绑定表，配置改了未重新 Apply 时结果随之滞后。</returns>
-    public bool ClaimsKey(string? hotkeyText)
-    {
-        var spec = HotkeySpec.Parse(hotkeyText);
-        if (spec == null) return false;
-        foreach (var b in _engineBound)
-            if (!IsMouse(b.Trigger) && b.Chord.Key == (int)spec.VirtualKey && ModsMatch(b.Chord.Mods, spec))
-                return true;
-        return false;
-    }
-    static bool ModsMatch(GC.ModifierKeys m, HotkeySpec s) =>
-        ((m & GC.ModifierKeys.Control) != 0) == s.Ctrl && ((m & GC.ModifierKeys.Alt) != 0) == s.Alt &&
-        ((m & GC.ModifierKeys.Shift) != 0) == s.Shift && ((m & GC.ModifierKeys.Win) != 0) == s.Win;
 
     /// <summary>卸载鼠标钩子并停掉 Tick 泵。键盘钩子不归本类，由 <see cref="HotkeyManager"/> 自己卸。</summary>
     public void Dispose() { UninstallMouseHook(); StopTick(); }

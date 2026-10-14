@@ -39,7 +39,6 @@ public static class GifEncoder
 
         void B(byte v) => bw.Write(v);
         void W16(int v) => bw.Write((ushort)v);
-        void LE32(int v) => bw.Write(v);
 
         bw.Write(System.Text.Encoding.ASCII.GetBytes("GIF89a"));
         W16(w); W16(h);

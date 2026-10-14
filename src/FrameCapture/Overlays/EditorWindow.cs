@@ -48,8 +48,6 @@ public sealed partial class EditorWindow : Window
     private bool _ocrBusy; // 识别进行中，防重入
 
     private static Color DarkBg => Theme.WindowBg;
-    private static Color PanelBg => Theme.PanelBg;
-    private static readonly FontFamily IconFont = new("Segoe Fluent Icons, Segoe MDL2 Assets, Segoe UI Symbol");
     private Button? _bPlay;
     private Border? _playPanel, _toolPanel;
     private StackPanel? _toolsBar; // 底部工具条，用于让 MinWidth 跟随其实际宽度（防窄图裁切两端工具）

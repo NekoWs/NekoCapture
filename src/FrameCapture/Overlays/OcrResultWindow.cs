@@ -111,7 +111,7 @@ public sealed class OcrResultWindow : Window
             HorizontalAlignment = HorizontalAlignment.Center,
         };
         copyBox.Child = copyLabel;
-        Fluent.ChipHover(copyBox, 1.05);   // 悬停只改底色带过渡（与全站按钮同款）
+        Fluent.ChipHover(copyBox);   // 悬停只改底色带过渡（与全站按钮同款）
         Grid.SetColumn(copyBox, 1);
         bottom.Children.Add(copyBox);
         DockPanel.SetDock(bottom, Dock.Bottom);

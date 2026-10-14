@@ -89,11 +89,11 @@ public static class EditorStyles
         l.Background = p.B(p.PanelBg);   // 列表底用 PanelBg，CardBg+描边的卡片才浮得出来
         l.BorderBrush = p.B(p.Stroke);
         l.Foreground = p.B(p.Text);
-        l.Resources[typeof(ListBoxItem)] = PlainItemStyle(p, "ListBoxItem");
+        l.Resources[typeof(ListBoxItem)] = PlainItemStyle("ListBoxItem");
     }
 
     /// <summary>透明无装饰条目：悬停/选中底色交给卡片自己画（卡片化列表）。</summary>
-    static Style PlainItemStyle(EditorPalette p, string typeName) => (Style)XamlReader.Parse(
+    static Style PlainItemStyle(string typeName) => (Style)XamlReader.Parse(
         $@"<Style TargetType=""{typeName}"" xmlns=""{Pres}"" xmlns:x=""{X}"">
   <Setter Property=""Padding"" Value=""0""/>
   <Setter Property=""Margin"" Value=""0""/>

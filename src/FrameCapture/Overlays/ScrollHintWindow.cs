@@ -127,8 +127,8 @@ public sealed class ScrollHintWindow : Window
         var cancel = MakeBtn("取消", Theme.Hover, Theme.TextDim);
         cancel.Click += (_, _) => OnCancel?.Invoke();
         // 悬停只改底色带过渡，不缩放——缩放会让一排小按钮互相挤动
-        Fluent.Springy(done, hover: 1.05, press: 0.94);
-        Fluent.Springy(cancel, hover: 1.05, press: 0.94);
+        Fluent.Springy(done);
+        Fluent.Springy(cancel);
         btns.Children.Add(done);
         btns.Children.Add(new Border { Width = 8 });
         btns.Children.Add(cancel);

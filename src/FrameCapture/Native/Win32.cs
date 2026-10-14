@@ -158,12 +158,6 @@ internal static class Win32
     [DllImport("user32.dll")]
     public static extern bool GetCursorPos(out POINT pt);
 
-    /// <summary>取该点下的窗口句柄。</summary>
-    /// <param name="pt">物理像素、虚拟桌面绝对坐标。</param>
-    /// <returns>窗口句柄，可能是子窗口；IntPtr.Zero = 该点无窗口。不区分是否被遮挡之外的可见性。</returns>
-    [DllImport("user32.dll")]
-    public static extern IntPtr WindowFromPoint(POINT pt);
-
     /// <summary>取包含该点的显示器句柄。</summary>
     /// <param name="pt">物理像素、虚拟桌面绝对坐标。</param>
     /// <param name="flags">MONITOR_DEFAULTTONULL / TOPRIMARY / TONEAREST 之一，决定无命中时的行为。</param>
@@ -171,48 +165,8 @@ internal static class Win32
     [DllImport("user32.dll")]
     public static extern IntPtr MonitorFromPoint(POINT pt, uint flags);
 
-    /// <summary>取窗口所占面积最大的显示器句柄。</summary>
-    /// <param name="hwnd">目标窗口句柄。</param>
-    /// <param name="flags">MONITOR_DEFAULTTONULL / TOPRIMARY / TONEAREST 之一。</param>
-    /// <returns>HMONITOR；跨屏窗口按最大重叠面积归属。</returns>
-    [DllImport("user32.dll")]
-    public static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint flags);
-
     /// <summary>MonitorFrom* 的 flags 取值：无命中时返回 0 / 主屏 / 最近屏。</summary>
     public const uint MONITOR_DEFAULTTONULL = 0, MONITOR_DEFAULTTOPRIMARY = 1, MONITOR_DEFAULTTONEAREST = 2;
-
-    /// <summary>MONITORINFO 的托管映射：cbSize 是入参也是校验，字段顺序不可换。</summary>
-    [StructLayout(LayoutKind.Sequential)]
-    public struct MONITORINFO
-    {
-        /// <summary>结构字节数，<b>调用前必须填</b>，否则 GetMonitorInfo 直接 false。</summary>
-        public int cbSize;
-        /// <summary>整块屏幕矩形，物理像素、虚拟桌面绝对坐标。</summary>
-        public RECT rcMonitor;
-        /// <summary>工作区矩形（扣掉任务栏与停靠区），同上坐标系。</summary>
-        public RECT rcWork;
-        /// <summary>位标志，1 = 该显示器为主屏。</summary>
-        public uint dwFlags;
-    }
-
-    /// <summary>取显示器的整屏与工作区矩形。</summary>
-    /// <param name="hMonitor">MonitorFrom* 得到的 HMONITOR。</param>
-    /// <param name="lpmi">输出缓冲；cbSize 必须先填成结构字节数。</param>
-    /// <returns>true = 已回填；false = 句柄失效（显示器被拔掉）或 cbSize 未填。</returns>
-    [DllImport("user32.dll")]
-    public static extern bool GetMonitorInfo(IntPtr hMonitor, ref MONITORINFO lpmi);
-
-    /// <summary>取 HMONITOR 对应的显示设备名（形如 <c>\\.\DISPLAYn</c>）。
-    /// 本仓取设备名走 WinForms 的 Screen.DeviceName，此声明无调用点。</summary>
-    /// <param name="hMonitor">HMONITOR。</param>
-    /// <param name="displayName">输出缓冲，收形如 <c>\\.\DISPLAYn</c> 的设备名。</param>
-    /// <param name="displayNameLength">缓冲容量（字符数），小于实际长度即截断。</param>
-    /// <returns>true = 已写入设备名；false = 句柄无效或缓冲不足。</returns>
-    [DllImport("user32.dll")]
-    public static extern bool GetDisplayNameW(IntPtr hMonitor, StringBuilder displayName, uint displayNameLength);
-
-    /// <summary>与 <c>GetDisplayNameW</c> 配套的缓冲容量（字符数），本仓无调用点。</summary>
-    public const uint DISPLAY_DEVICE_PATH_SIZE = 512;
     #endregion
 
     #region 窗口枚举（范围吸附）
@@ -231,12 +185,6 @@ internal static class Win32
     /// <returns>true = 样式上可见；不代表屏幕上真看得见，需配合 DWMWA_CLOAKED 判断。</returns>
     [DllImport("user32.dll")]
     public static extern bool IsWindowVisible(IntPtr hWnd);
-
-    /// <summary>标题字符数（不含终止符）。</summary>
-    /// <param name="hWnd">目标窗口句柄。</param>
-    /// <returns>标题长度；0 表示无标题，也用于跳过取标题的开销。</returns>
-    [DllImport("user32.dll")]
-    public static extern int GetWindowTextLengthW(IntPtr hWnd);
 
     /// <summary>取窗口标题（UTF-16）。</summary>
     /// <param name="hWnd">目标窗口句柄。</param>
@@ -409,8 +357,6 @@ internal static class Win32
     /// <summary>可见外框（不含 DWM 不可见调整边框）；14 = cloaked 标志，非 0 表示窗口此刻不呈现于当前桌面。</summary>
     public const int DWMWA_EXTENDED_FRAME_BOUNDS = 9;
     public const int DWMWA_CLOAKED = 14;
-    /// <summary>与 <c>DWMWA_WINDOW_CORNER_PREFERENCE</c> 同值（33），<c>SetRoundedCorners</c> 用的是它。</summary>
-    public const int DWMWA_WINDOW_ROUNDED_CORNER_PREFERENCE = 33;
 
     /// <summary>设置 DWM 窗口属性（uint 型值）。</summary>
     /// <param name="hwnd">目标窗口句柄。</param>
@@ -427,7 +373,7 @@ internal static class Win32
     public static void SetRoundedCorners(IntPtr hwnd, uint pref = 2)
     {
         uint v = pref;
-        try { DwmSetWindowAttribute(hwnd, DWMWA_WINDOW_ROUNDED_CORNER_PREFERENCE, ref v, 4); } catch { }
+        try { DwmSetWindowAttribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, ref v, 4); } catch { }
     }
     #endregion
 
@@ -480,15 +426,6 @@ internal static class Win32
     /// <returns>true = 已最小化，此时窗口矩形不可作对齐参考。</returns>
     [DllImport("user32.dll")]
     public static extern bool IsIconic(IntPtr hWnd);
-
-    /// <summary>改窗口显示状态。</summary>
-    /// <param name="hWnd">目标窗口句柄。</param>
-    /// <param name="nCmdShow">取 SW_* 常量；SW_RESTORE 会同时还原并显示。</param>
-    /// <returns>改动前的显示状态，非改动结果——不能拿它判断成败。</returns>
-    [DllImport("user32.dll")]
-    public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
-
-    public const int SW_RESTORE = 9, SW_SHOW = 5;
     #endregion
 
     #region GDI 捕获
@@ -510,14 +447,6 @@ internal static class Win32
     /// <returns>内存 DC 句柄。<b>必须配对 DeleteDC</b>，且删除前须先选回原对象。</returns>
     [DllImport("gdi32.dll", SetLastError = true)]
     public static extern IntPtr CreateCompatibleDC(IntPtr hdc);
-
-    /// <summary>建与目标 DC 兼容的位图，初始内容未定义。</summary>
-    /// <param name="hdc">参照 DC，决定色深；IntPtr.Zero = 屏幕。</param>
-    /// <param name="w">宽（像素）。</param>
-    /// <param name="h">高（像素）。</param>
-    /// <returns>位图句柄。<b>必须配对 DeleteObject</b>，且不能删正被选进 DC 的位图。</returns>
-    [DllImport("gdi32.dll", SetLastError = true)]
-    public static extern IntPtr CreateCompatibleBitmap(IntPtr hdc, int w, int h);
 
     /// <summary>把对象选入 DC，返回被换出的对象。</summary>
     /// <param name="hdc">目标内存 DC。</param>
@@ -592,9 +521,6 @@ internal static class Win32
     public static extern IntPtr CreateDIBSection(IntPtr hdc, ref BITMAPINFO bmi, uint usage,
         out IntPtr ppvBits, IntPtr hSection, uint offset);
 
-    /// <summary>与 <c>DIB_RGB_COLORS</c> 同值（0）的第二个常量，代码中无引用点。</summary>
-    public const uint DIB_RGB_COLORS_ = 0;
-
     /// <summary>冲刷 GDI 的延迟批处理队列。</summary>
     /// <returns>true = 队列已清空。BitBlt 之后不刷就可能读到未落地的像素。</returns>
     [DllImport("gdi32.dll")]
@@ -604,8 +530,6 @@ internal static class Win32
     public const uint BI_RGB = 0;
     /// <summary>光栅运算：直接覆盖；CAPTUREBLT 额外把分层窗口画进结果。</summary>
     public const uint SRCCOPY = 0x00CC0020, CAPTUREBLT = 0x40000000;
-    /// <summary>GetDIBits / CreateDIBSection 的调色板解释方式：按 RGB。</summary>
-    public const uint DIB_RGB_COLORS = 0;
 
     /// <summary>
     /// BITMAPINFOHEADER 的托管映射（不含调色板数组，32 位 DIB 用不到）。

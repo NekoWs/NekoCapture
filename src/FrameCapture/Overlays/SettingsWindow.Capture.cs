@@ -65,7 +65,7 @@ public sealed partial class SettingsWindow : Window
                 ToolTip = tip,
             };
             chipList.Add((chip, id));
-            Fluent.ChipHover(chip, 1.06);   // 悬停只改底色带过渡，不缩放——缩放会盖住相邻芯片
+            Fluent.ChipHover(chip);   // 悬停只改底色带过渡，不缩放——缩放会盖住相邻芯片
             void Apply()
             {
                 _settings.Mutate(s => s.ColorCopyFormat = captured);
@@ -187,7 +187,7 @@ public sealed partial class SettingsWindow : Window
                 ToolTip = tip,
             };
             chipList.Add((chip, secs));
-            Fluent.ChipHover(chip, 1.06);   // 悬停只改底色带过渡，不缩放——缩放会盖住相邻芯片
+            Fluent.ChipHover(chip);   // 悬停只改底色带过渡，不缩放——缩放会盖住相邻芯片
             void Apply()
             {
                 _settings.Mutate(s => s.DelayCaptureSeconds = captured);
@@ -309,7 +309,7 @@ public sealed partial class SettingsWindow : Window
                 ToolTip = tip,
             };
             chipList.Add((chip, secs));
-            Fluent.ChipHover(chip, 1.06);   // 悬停只改底色带过渡，不缩放——缩放会盖住相邻芯片
+            Fluent.ChipHover(chip);   // 悬停只改底色带过渡，不缩放——缩放会盖住相邻芯片
             void Apply()
             {
                 _settings.Mutate(s => s.ToastSeconds = captured);

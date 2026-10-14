@@ -42,8 +42,6 @@ public sealed partial class GestureEditorWindow : Window
     Button _saveBtn = null!;
     Border _chordBox = null!;
     TextBlock _chordText = null!;
-    TextBlock _enableState = null!;
-    TextBlock _exclusiveState = null!;
 
     // 列表卡片化（选中/问题红框/禁用置灰逐行自绘）+「截图后」条件显示 + 输入框/按钮过渡动画
     static readonly Color Danger = Color.FromRgb(0xFF, 0x6B, 0x6B);
@@ -195,8 +193,8 @@ public sealed partial class GestureEditorWindow : Window
         center.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
 
         var toggles = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 12) };
-        toggles.Children.Add(MakeToggle("启用手势层", v => { _doc.Enabled = v; RefreshValidation(); }, out _enableState, _doc.Enabled));
-        toggles.Children.Add(MakeToggle("独占吞键", v => { _doc.Exclusive = v; }, out _exclusiveState, _doc.Exclusive));
+        toggles.Children.Add(MakeToggle("启用手势层", v => { _doc.Enabled = v; RefreshValidation(); }, out _, _doc.Enabled));
+        toggles.Children.Add(MakeToggle("独占吞键", v => { _doc.Exclusive = v; }, out _, _doc.Exclusive));
         Grid.SetRow(toggles, 0);
         center.Children.Add(toggles);
 

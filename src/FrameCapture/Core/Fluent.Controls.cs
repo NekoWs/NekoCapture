@@ -358,8 +358,7 @@ public static partial class Fluent
     /// 基色只在「画刷实例不是我们这份」时重取（外部换底 = 选中态切换），动画目标永远从固定基色起算，
     /// 因此反复悬停不会把没走完的中途色累积成基色。</summary>
     /// <param name="el">目标芯片或小按钮：Border 或 Control，其余类型没有底色可动。</param>
-    /// <param name="scale">保留位，不参与效果。</param>
-    public static void ChipHover(FrameworkElement el, double scale = 1.18) => BgHover(el);
+    public static void ChipHover(FrameworkElement el) => BgHover(el);
 
     static void BgHover(FrameworkElement el)
     {
@@ -407,32 +406,6 @@ public static partial class Fluent
         };
         el.PreviewMouseLeftButtonDown += (_, _) => { if (hasBase) An(Blend(baseColor, Theme.Press), 70); };
         el.MouseUp += (_, _) => { if (hasBase) An(Blend(baseColor, Theme.Hover), 120); };
-    }
-
-    /// <summary>开关轨道 hover：进入时边框提亮一档、离开还原（on=accent / off=stroke）。
-    /// 与 ToggleRow 内联同款手感，供手写开关（如「截图提示音」）复用，避免同类控件反馈不一致。</summary>
-    /// <param name="track">轨道 Border；描边不是可冻结的 SolidColorBrush 时整段跳过。</param>
-    /// <param name="isOn">离开时回读当前开关状态，决定描边回 Accent 还是 Stroke。</param>
-    public static void ToggleBorderHover(Border track, Func<bool> isOn)
-    {
-        track.MouseEnter += (_, _) =>
-        {
-            if (track.BorderBrush is SolidColorBrush bb && bb.CanFreeze)
-            {
-                var h = new SolidColorBrush(bb.Color);
-                track.BorderBrush = h;
-                h.Color = Color.FromArgb((byte)Math.Min(255, bb.Color.A + 0x60), bb.Color.R, bb.Color.G, bb.Color.B);
-            }
-        };
-        track.MouseLeave += (_, _) =>
-        {
-            if (track.BorderBrush is SolidColorBrush bb && bb.CanFreeze)
-            {
-                var h = new SolidColorBrush(bb.Color);
-                track.BorderBrush = h;
-                h.Color = isOn() ? Theme.Accent : Theme.Stroke;
-            }
-        };
     }
     #endregion
 

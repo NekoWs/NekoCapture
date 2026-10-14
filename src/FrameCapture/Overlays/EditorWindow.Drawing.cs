@@ -305,13 +305,6 @@ public sealed partial class EditorWindow
         FrameCapture.Core.Trace.Log($"editor crop depth={_crop.Depth} px={cx},{cy} {cw}x{ch}");
     }
 
-    /// <summary>导出收口：裁剪是视图状态，仅在导出瞬间一次性折算（已证 Crop→Remap→Bake ≡ Bake→Crop 逐字节）。</summary>
-    List<Annotation> RemapAnnsForExport(IReadOnlyList<Annotation> anns, int fw, int fh)
-    {
-        if (!_crop.IsCropped) return anns.ToList();
-        var (x, y, w, h) = _crop.ToPixel(fw, fh);
-        return FrameCapture.Core.CropRemap.Remap(anns, (double)x / fw, (double)y / fh, (double)w / fw, (double)h / fh);
-    }
     /// <summary>单帧导出（保存帧/复制帧）：所见即所得——裁剪→重映射→烘焙，与 GIF 确定同管线。</summary>
     FrameCapture.Capture.CapturedFrame ExportFrame(int index)
     {

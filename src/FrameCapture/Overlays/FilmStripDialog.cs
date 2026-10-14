@@ -146,7 +146,7 @@ public sealed class FilmStripDialog : Window
             Background = new SolidColorBrush(accent ? Theme.Accent : Theme.CardBg),
             BorderBrush = new SolidColorBrush(accent ? Theme.Accent : Theme.Stroke),
         };
-        Fluent.Springy(b, 1.05, 0.95);
+        Fluent.Springy(b);
         b.Template = ChromelessTemplate();
         return b;
     }

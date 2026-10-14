@@ -318,7 +318,6 @@ public sealed partial class EditorWindow
     {
         double len = Math.Max(8, stroke * 6);
         double ang = Math.Atan2(b.Y - a.Y, b.X - a.X);
-        double spread = Math.PI / 7;
         var geo = new StreamGeometry();
         using (var ctx = geo.Open())
         {

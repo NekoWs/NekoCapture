@@ -92,7 +92,7 @@ public sealed class ColorPickView : StackPanel
         #endregion
 
         #region HEX + RGBA 直填（宿主 Popup 继承图标字体，文本框显式复位）
-        _hexBox = TextBoxAt(96);
+        _hexBox = TextBoxAt();
         _rBox = NumBox(); _gBox = NumBox(); _bBox = NumBox(); _aBox = NumBox();
         _hexBox.KeyDown += (_, ek) => { if (ek.Key == Key.Enter) { CommitHex(); ek.Handled = true; } };
         _hexBox.LostFocus += (_, _) => CommitHex();
@@ -218,7 +218,7 @@ public sealed class ColorPickView : StackPanel
         inner.LostKeyboardFocus += (_, _) => b.BorderBrush = new SolidColorBrush(Theme.Stroke);
         return b;
     }
-    static TextBox TextBoxAt(double w) => new()
+    static TextBox TextBoxAt() => new()
     {
         FontFamily = new FontFamily("Consolas"), FontSize = 12, Foreground = new SolidColorBrush(Theme.Text),
         Background = Brushes.Transparent, BorderThickness = new Thickness(0), CaretBrush = new SolidColorBrush(Theme.Text),

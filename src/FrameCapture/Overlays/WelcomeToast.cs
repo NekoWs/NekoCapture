@@ -118,7 +118,7 @@ public sealed class WelcomeToast : Window
             Template = RoundedBtnTemplate(),
         };
         help.Click += (_, _) => { FrameCapture.Core.Trace.Log("welcome→help"); HelpWindow.ShowOrFocus(); Dismiss(); };
-        Fluent.Springy(help, hover: 1.05, press: 0.94);   // 悬停只改底色带过渡，不缩放（与滚动控制条按钮同款反馈）
+        Fluent.Springy(help);   // 悬停只改底色带过渡，不缩放（与滚动控制条按钮同款反馈）
         root.Children.Add(help);
 
         card.Child = root;

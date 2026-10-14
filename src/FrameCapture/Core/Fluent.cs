@@ -288,27 +288,7 @@ public static partial class Fluent
 
     /// <summary>小按钮的悬停反馈：与普通按钮一致，只改底色带过渡，不缩放——缩放会让一排小按钮互相挤动。</summary>
     /// <param name="el">目标元素。</param>
-    /// <param name="hover">保留位，不参与效果（本方法只转发 <see cref="BgHover"/>）。</param>
-    /// <param name="press">保留位，不参与效果。</param>
-    public static void Springy(FrameworkElement el, double hover = 1.02, double press = 0.985) => BgHover(el);
-
-    /// <summary>满宽卡片的安全「浮起」反馈：hover 轻微上移 + 松手回弹，离开复位——不缩放故绝不横向溢出容器。</summary>
-    /// <param name="b">卡片容器；RenderTransform 被替换为 TranslateTransform。</param>
-    /// <param name="dy">上移距离（逻辑像素），悬停时取负值。</param>
-    public static void Lift(Border b, double dy = 2.0)
-    {
-        b.RenderTransformOrigin = new Point(0.5, 0.5);
-        var tt = new System.Windows.Media.TranslateTransform(0, 0);
-        b.RenderTransform = tt;
-        void Move(double y, int ms)
-        {
-            var a = new DoubleAnimation(y, new Duration(TimeSpan.FromMilliseconds(ms))) { EasingFunction = Spring(0.35) };
-            a.Freeze();
-            tt.BeginAnimation(System.Windows.Media.TranslateTransform.YProperty, a);
-        }
-        b.MouseEnter += (_, _) => Move(-dy, Motion.HoverMs);
-        b.MouseLeave += (_, _) => Move(0, 160);
-    }
+    public static void Springy(FrameworkElement el) => BgHover(el);
 
     /// <summary>入场「弹一下」：元素从 from 缩放弹性放大到 1（BackEase 过冲），用于浮层/toast 的 QQ 弹弹登场。
     /// 只缩放元素自身（在其窗口边界内），不位移故不会越出宿主窗口。</summary>

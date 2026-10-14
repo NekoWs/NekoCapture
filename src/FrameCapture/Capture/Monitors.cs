@@ -60,17 +60,4 @@ public static class Monitors
         long dy = Math.Max(b.Y - y, Math.Max(y - b.Bottom, 0));
         return dx * dx + dy * dy;
     }
-
-    /// <summary>把矩形裁剪到显示器内。</summary>
-    /// <param name="r">待裁剪矩形，物理像素、虚拟桌面绝对坐标。</param>
-    /// <param name="m">目标显示器。</param>
-    /// <returns>两者交集；交集不足 16x16（几乎总是显示器布局变了、范围整体偏出这块屏）时返回整块显示器矩形，
-    /// 而不是空矩形——捕获宁可多截，也不能截不到东西。</returns>
-    public static RectI ClipTo(this RectI r, MonitorInfo m)
-    {
-        int x1 = Math.Max(r.X, m.Bounds.X), y1 = Math.Max(r.Y, m.Bounds.Y);
-        int x2 = Math.Min(r.Right, m.Bounds.Right), y2 = Math.Min(r.Bottom, m.Bounds.Bottom);
-        if (x2 - x1 < 16 || y2 - y1 < 16) return m.Bounds;
-        return new RectI(x1, y1, x2 - x1, y2 - y1);
-    }
 }

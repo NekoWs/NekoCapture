@@ -232,7 +232,7 @@ public sealed class HelpWindow : Window
             Focusable = true,
             Child = tb,
         };
-        Fluent.ChipHover(b, 1.04);
+        Fluent.ChipHover(b);
         // 禁用态用低透明度+箭头光标表达（SetNavEnabled），点击/回车都先查这个门槛
         b.MouseLeftButtonUp += (_, _) => { if (b.Opacity > 0.6) onClick(); };
         b.KeyDown += (_, e) => { if (e.Key is Key.Space or Key.Enter && b.Opacity > 0.6) { onClick(); e.Handled = true; } };

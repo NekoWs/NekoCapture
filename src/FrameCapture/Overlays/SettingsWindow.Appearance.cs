@@ -77,7 +77,7 @@ public sealed partial class SettingsWindow : Window
             ToolTip = "点击自定义强调色（与编辑器调色板同款）；右键恢复跟随系统",
         };
         Grid.SetColumn(chip, 2);
-        Fluent.ChipHover(chip, 1.12);   // 悬停只改底色带过渡，不缩放
+        Fluent.ChipHover(chip);   // 悬停只改底色带过渡，不缩放
         void Open()
         {
             if (_accentPop == null)
