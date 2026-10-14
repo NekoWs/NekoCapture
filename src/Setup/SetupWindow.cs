@@ -26,6 +26,7 @@ internal sealed class SetupWindow : Window
     private readonly Button _secondary;
     private Mode _mode;
     private bool _busy;
+    readonly bool _mica;   // 背板在场才透明，缺席必须平涂，否则安装器变成黑窗
 
     /// <summary>建窗并按模式准备首屏。</summary>
     /// <param name="mode">启动后的行为。</param>
@@ -38,9 +39,11 @@ internal sealed class SetupWindow : Window
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
         WindowStyle = WindowStyle.None;
         ResizeMode = ResizeMode.NoResize;
-        Background = new SolidColorBrush(Theme.WindowBg);
-        Content = BuildBody(out var closeBtn, out _primary, out _secondary);
+        // 背板要在 BorderlessNative 之后申请：后者把 GlassFrameThickness 设回 0，顺序反了背板让位失败。
         Fluent.BorderlessNative(this);
+        _mica = Fluent.MicaBackdrop(this);
+        Background = _mica ? Brushes.Transparent : new SolidColorBrush(Theme.WindowBg);
+        Content = BuildBody(out var closeBtn, out _primary, out _secondary);
         Fluent.InstallCaptionDrag(this, closeBtn);
         Fluent.FadeIn(this);
 
@@ -63,7 +66,8 @@ internal sealed class SetupWindow : Window
         root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(40) });
         root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
 
-        var bar = new Grid { Background = new SolidColorBrush(Theme.ChromeBg) };
+        // 标题条是 ChromeBg（alpha 0xD9），叠在背板上会变成两层半透明互相污染；背板在场时让它透明。
+        var bar = new Grid { Background = _mica ? Brushes.Transparent : new SolidColorBrush(Theme.ChromeBg) };
         bar.Children.Add(new TextBlock
         {
             Text = "FrameCapture " + VersionText(),

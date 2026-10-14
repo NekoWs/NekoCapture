@@ -589,3 +589,21 @@ Win32 那条通道则完全写不进去。
 浅色/暗色由配置真正决定。跨主题取证前先做一步数值核对：同一取样点在两个主题下必须不同，
 相同就说明主题根本没生效，这张图不能当浅色证据。同理，背板是否在场看停靠条均值——
 平涂应当精确等于 `Theme.PanelBg`，渗出壁纸则蓝通道明显偏高且随位置漂移。
+
+## 共享源文件里的能力门控，被 net48 的版本号谎报整体关掉
+
+**现象**：给安装器接 Mica 背板，`DwmGetWindowAttribute(38)` 回读 0（不是 2），暗色属性 20 也没生效——
+`MicaBackdrop` 像是根本没跑。同一份 `Fluent.cs` 在主程序里工作正常。
+
+**根因**：`Fluent.MicaSupported` 用 `Environment.OSVersion.Version.Build >= 22000` 做门控。
+这个属性在 .NET Framework 一侧谎报 `6.2.9200`，引导器钉在 net48，于是 `MicaSupported=False`，
+`MicaBackdrop` 第一行就返回 false。整套 Win11 特性（背板、按材质指定、暗色标题条）在引导器里
+一直是静默关闭的，没有任何报错。用 Windows PowerShell 5.1 量 `OSVersion` 会得到 26200，
+量不出这个谎报——它自带配置与清单；必须在被怀疑的那个进程里量。
+
+**现在靠什么防回归**：门控改取 `Native.OsVersion.BuildNumber`，走 ntdll 的 `RtlGetVersion`，
+不受运行时版本谎报影响；主程序与引导器各一份同名同命名空间的实现，链入的视觉语言源文件原样编译。
+`T183a-rtl-build-number-sane` 断言探针读数不低于 Win10 下限——结构体布局写错时 `RtlGetVersion`
+会返回 0，那等于悄悄关掉全部 Win11 特性，必须有断言盯着。`T177a` 的基准也从谎报的那个 API 换成 Rtl 值，
+否则等于把「引导器看不见 Win11 特性」钉成正确行为。
+跨 TFM 编译的共享源文件里，任何能力判断都不能依赖运行时的自述版本。

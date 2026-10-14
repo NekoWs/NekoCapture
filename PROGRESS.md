@@ -2387,3 +2387,11 @@ status: done
     - **踩坑二**：`SelfTest editorwave` 只 `new Application()` 不走 `AppHost`，从不 `Theme.Apply`，所以「浅色」截图其实是暗色，两张图数值逐位相同才发现。补上 `Theme.Apply(Current.Theme, Current.Accent)`；跨主题取证先核对同一取样点两主题必须不同。详见 DECISIONS。
     - **定性**：贴图窗 `PinWindow` 是 `AllowsTransparency=true` 分层窗，`MicaBackdrop` 对它返回 false，且工具条浮在截图上而非桌面——不改，理由写进 UIAUDIT。安装器具备接入条件但 `Preview.cs` 是离屏渲染，DWM 背板不进离屏位图，取证路不通，留作独立一条。
     - **验证**：SelfTest **487 → 489**（`T182a` DWM 回读材质=2 且窗底透明与能力一致；`T182b` 画布四周底色 alpha=255）。guardrail 地板 487→489。全链 0 错误 / 0 非 NU1900 警告 / `PASS=489 FAIL=0` / LINT-COMMENTS PASS / LINT-MOTION PASS / GUARDRAIL PASS（FAIL=0 SKIP=1 共 12 项）。
+  **安装器接上 Mica 背板，顺带挖出 net48 版本号谎报（UI 质感轮十二）**
+    - **动机**：UIAUDIT 最后一条非交互项「安装器背板」。上轮判断「取证路不通」是错的——`Setup.exe` 无参数跑就是 Idle 界面，不装任何东西，可以直接屏采真实窗口。
+    - **改动**：`SetupWindow` 加 `_mica`，`MicaBackdrop` 排在 `BorderlessNative` 之后；窗底与标题条按 `_mica` 走透明/平涂（`ChromeBg` 是 alpha 0xD9，叠背板上等于两层半透明互相污染），状态卡片保持不透明。
+    - **挖出来的真问题**：接上后 DWM 属性回读 0，`MicaBackdrop` 没跑。一次性诊断打出 `OSBuild=9200 MicaSupported=False`——`Environment.OSVersion` 在 net48 进程里谎报 6.2.9200，引导器里整套 Win11 特性一直是静默关闭。Windows PowerShell 5.1 量出来是 26200，量不出谎报（它自带配置与清单），必须在被怀疑的进程里量。门控改走 ntdll `RtlGetVersion`（`Native.OsVersion.BuildNumber`，主程序与引导器各一份同名实现，链入源文件原样编译）。详见 DECISIONS。
+    - **A/B**：stash 掉本轮改动重编译（确认 exe 时间戳已换），改动前 `背板38=0 暗色20=0`，改动后 `背板38=2 暗色20=1`。浅色同坐标屏采：标题条 233.7→241.6、页面 235.8→242.8（改动后两处相等＝同一种材质，且都不等于两个平涂色），卡片 249.7→250.3 未受影响。壁纸本身是中性灰（27,27,29），所以渗出来也是中性灰——判据用「既不等于 ChromeBg 也不等于 WindowBg」而不是「偏蓝」。
+    - **护栏**：`Win32.cs` 被探针顶到 721 行触发 §10（700 行上限），拆成 `Native/OsVersion.cs` + `Setup/OsVersionShim.cs`。中途用行号区间删代码算错边界，删错一段直接 `git checkout --` 还原，比修补快。
+    - **取证工具**：`test-out/setupshot2.ps1`（读真实窗口 DWM 属性 38/20/33 + 屏采整窗 + Esc 关自己的窗）。属性必须在窗口稳定后复读，刚出现那一刻 DWM 可能还没应用。
+    - **验证**：SelfTest **489 → 490**（`T183a` 探针读数不低于 Win10 下限；`T177a` 基准换成 Rtl 值）。guardrail 地板 489→490。全链 0 错误 / 0 非 NU1900 警告 / `PASS=490 FAIL=0` / LINT-COMMENTS PASS 文件=132 / LINT-MOTION PASS / GUARDRAIL PASS。

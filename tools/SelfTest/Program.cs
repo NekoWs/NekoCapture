@@ -765,8 +765,13 @@ static class SelfTest
             int hrD = DwmProbe.DwmGetWindowAttribute(hwndM, 20, out uint gotD, 4);
             Chk("T176b-tint-follows-theme", hrD == 0 && gotD == (Theme.IsDark ? 1u : 0u),
                 $"回读 hr={hrD} 暗色={gotD} 主题暗={Theme.IsDark}");
-            Chk("T177a-mica-gate", Fluent.MicaSupported == (Environment.OSVersion.Version.Build >= 22000),
-                $"MicaSupported={Fluent.MicaSupported} 内部版本={Environment.OSVersion.Version.Build}");
+            // 门控基准取 ntdll 的 RtlGetVersion：托管侧 Environment.OSVersion 在 net48 里谎报 6.2.9200，
+            // 拿它当基准等于把「引导器看不见 Win11 特性」这件事钉成正确行为。
+            int rtlBuild = OsProbe.RtlBuildNumber();
+            Chk("T183a-rtl-build-number-sane", rtlBuild >= 10240,
+                $"RtlGetVersion 内部版本={rtlBuild} 托管侧={Environment.OSVersion.Version.Build}");
+            Chk("T177a-mica-gate", Fluent.MicaSupported == (rtlBuild >= 22000),
+                $"MicaSupported={Fluent.MicaSupported} Rtl内部版本={rtlBuild} 托管侧={Environment.OSVersion.Version.Build}");
             Chk("T177b-backdrop-return-matches-gate", micaOn == Fluent.MicaSupported,
                 $"返回={micaOn} 能力={Fluent.MicaSupported}");
             winM.Close();
@@ -3522,4 +3527,40 @@ static class LayerProbe
     public static extern bool GetLayeredWindowAttributes(IntPtr hWnd, out IntPtr pcKey, out byte alpha, out uint flags);
     public const int GWL_EXSTYLE = -20;
     public const uint WS_EX_LAYERED = 0x00080000, LWA_ALPHA = 0x2;
+}
+
+/// <summary>测试侧的系统版本号探针：能力门控以 ntdll 的 RtlGetVersion 为准，
+/// 结构体布局写错会静默返回 0 并把整套 Win11 特性关掉，所以这条本身也要被断言覆盖。</summary>
+static class OsProbe
+{
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+    private struct OsVersionInfoEx
+    {
+        public int dwOSVersionInfoSize;
+        public int dwMajorVersion;
+        public int dwMinorVersion;
+        public int dwBuildNumber;
+        public int dwPlatformId;
+        [System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.ByValTStr, SizeConst = 128)]
+        public string szCSDVersion;
+        public ushort wServicePackMajor;
+        public ushort wServicePackMinor;
+        public ushort wSuiteMask;
+        public byte wProductType;
+        public byte wReserved;
+    }
+
+    [System.Runtime.InteropServices.DllImport("ntdll.dll")]
+    private static extern int RtlGetVersion(ref OsVersionInfoEx info);
+
+    /// <summary>取系统内部版本号，取不到返回 0（调用方据此判探针失效）。</summary>
+    /// <returns>内部版本号，或 0。</returns>
+    public static int RtlBuildNumber()
+    {
+        var v = new OsVersionInfoEx
+        {
+            dwOSVersionInfoSize = System.Runtime.InteropServices.Marshal.SizeOf(typeof(OsVersionInfoEx))
+        };
+        return RtlGetVersion(ref v) == 0 ? v.dwBuildNumber : 0;
+    }
 }

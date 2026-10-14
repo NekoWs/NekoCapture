@@ -67,8 +67,10 @@ public static partial class Fluent
     }
 
     /// <summary>当前系统是否可能提供 Mica 背板。Mica 自 Win11 22000 起存在，
-    /// 22621 起才有 <c>DWMWA_SYSTEMBACKDROP_TYPE</c> 可按材质指定。</summary>
-    public static bool MicaSupported { get; } = Environment.OSVersion.Version.Build >= 22000;
+    /// 22621 起才有 <c>DWMWA_SYSTEMBACKDROP_TYPE</c> 可按材质指定。
+    /// 版本号取 <see cref="Native.OsVersion.BuildNumber"/>：本文件同时被 net48 引导器编译，
+    /// 那边 <see cref="Environment.OSVersion"/> 谎报 6.2.9200，用它做门控会让背板在引导器里整体消失。</summary>
+    public static bool MicaSupported { get; } = Native.OsVersion.BuildNumber >= 22000;
 
     /// <summary>Win11 的 Mica 背板：桌面壁纸的模糊色调渗进窗口，替代平涂半透明底。
     /// 分层窗（<c>AllowsTransparency</c>）背后没有 DWM 背板，直接跳过；
