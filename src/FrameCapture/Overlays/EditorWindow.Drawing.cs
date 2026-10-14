@@ -61,7 +61,7 @@ public sealed partial class EditorWindow
         Height = 26,
         Cursor = Cursors.IBeam,
         Background = Brushes.Transparent,
-        ToolTip = "拖拽选择要导出的片段 · 单击跳转 · 拖两端把手微调 · [ / ] 设入/出点 · Backspace 清除",
+        ToolTip = "拖拽选片段 · [ / ] 设入出点",
     };
     bool _tlHover;
 

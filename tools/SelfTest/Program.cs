@@ -913,6 +913,35 @@ static class SelfTest
         }
         catch (Exception e) { Chk("T184-detail-cascade", false, e.Message); }
 
+        // 悬停提示只放名称与快捷键：说明性文字（全角括号、全角冒号、多段子句）不该出现在 tooltip 里
+        try
+        {
+            var stT = new SettingsService();
+            var seqT = new CapturedSequence
+            {
+                Frames = new List<CapturedFrame> { MovingSquare(520, 300, 0, 3), MovingSquare(520, 300, 1, 3) },
+                Region = new RectI(0, 0, 520, 300),
+                MonitorBounds = new RectI(0, 0, 1920, 1080),
+            };
+            var winT = new FrameCapture.Overlays.EditorWindow(stT, seqT);
+            winT.Show();
+            PumpMs(Fluent.Motion.EditorEnterMs + Fluent.Motion.StaggerMs + 260);
+            var tips = new List<string>();
+            void WalkTips(System.Windows.DependencyObject d)
+            {
+                if (d is System.Windows.FrameworkElement fe && fe.ToolTip is string s) tips.Add(s);
+                int cn = System.Windows.Media.VisualTreeHelper.GetChildrenCount(d);
+                for (int i = 0; i < cn; i++) WalkTips(System.Windows.Media.VisualTreeHelper.GetChild(d, i));
+            }
+            WalkTips(winT);
+            var fat = tips.Where(s => s.Contains('（') || s.Contains('：') || s.Split(" · ").Length > 2).ToList();
+            Chk("T186a-tooltips-lean", tips.Count >= 12 && fat.Count == 0,
+                $"悬停 {tips.Count} 条，超标 {fat.Count} 条：{string.Join(" | ", fat.Take(3))}");
+            winT.Close();
+            PumpMs(200);
+        }
+        catch (Exception e) { Chk("T186-tooltip-lean", false, e.Message); }
+
         // 滚动截图的三层浮层：同刻 Show，入场按 StaggerMs 依次落位，不三件事一起弹出来
         try
         {

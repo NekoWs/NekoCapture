@@ -44,7 +44,7 @@ public sealed partial class EditorWindow : Window
     // 识别文字按钮（E8C1「A字」= 文字识别，与文本工具/复制明显区分）
     Button OcrBtn()
     {
-        var b = IconBtn("\uE8C1", "识别文字（复制到剪贴板）  Ctrl+O");
+        var b = IconBtn("\uE8C1", "识别文字 (Ctrl+O)");
         b.Click += (_, _) => OcrCurrentFrame();
         return b;
     }
@@ -169,18 +169,18 @@ public sealed partial class EditorWindow : Window
             g.Children.Add(_hud);
 
             var actions = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-            var bSaveFrame = IconBtn("\uE105", "保存当前帧 (PNG)  Ctrl+S"); bSaveFrame.Click += (_, _) => SaveFrame();
-            var bCopyFrame = IconBtn("\uF413", "复制当前帧 (位图)  Ctrl+C"); bCopyFrame.Click += (_, _) => ClipboardService.SetFrame(ExportFrame(_index));
+            var bSaveFrame = IconBtn("\uE105", "保存当前帧 (Ctrl+S)"); bSaveFrame.Click += (_, _) => SaveFrame();
+            var bCopyFrame = IconBtn("\uF413", "复制当前帧 (Ctrl+C)"); bCopyFrame.Click += (_, _) => ClipboardService.SetFrame(ExportFrame(_index));
             var bPinFrame = PinBtn();
             var bOcrFrame = OcrBtn();
-            var bSaveGif = IconBtn("\uE116", "导出录制 (MP4 / WebM / GIF)  Ctrl+E"); bSaveGif.Click += (_, _) => SaveRecording();
-            var bAfter = IconBtn("\uE955", "保存视觉暂留合成图  Ctrl+H"); bAfter.Click += (_, _) => SaveAfterimage();
+            var bSaveGif = IconBtn("\uE116", "导出录制 (Ctrl+E)"); bSaveGif.Click += (_, _) => SaveRecording();
+            var bAfter = IconBtn("\uE955", "保存视觉暂留合成图 (Ctrl+H)"); bAfter.Click += (_, _) => SaveAfterimage();
             // 胶片条是显式功能按钮——小窗问抽帧参数，生成后直接复制剪贴板
-            var bStrip = IconBtn("\uE8B9", "生成胶片条（抽帧拼成一张逐帧图 → 剪贴板）"); bStrip.Click += (_, _) => GenerateFilmStrip();
+            var bStrip = IconBtn("\uE8B9", "生成胶片条"); bStrip.Click += (_, _) => GenerateFilmStrip();
             foreach (var b in new[] { bSaveFrame, bCopyFrame, bPinFrame, bOcrFrame, bSaveGif, bAfter, bStrip }) actions.Children.Add(b);
             actions.Children.Add(Sep());
             var bCancel = IconBtn("\uE711", "取消 (Esc)"); bCancel.Click += (_, _) => Fluent.CloseWithFade(this);
-            var bOk = IconBtn("\uF78C", "确定：GIF 写入剪贴板 (Enter)"); bOk.Click += (_, _) => Commit();
+            var bOk = IconBtn("\uF78C", "确定 (Enter)"); bOk.Click += (_, _) => Commit();
             actions.Children.Add(bCancel);
             actions.Children.Add(bOk);
             Fluent.HighlightBtn(bOk, true);
@@ -198,11 +198,11 @@ public sealed partial class EditorWindow : Window
         if (!MultiFrame)
         {
             tools.Children.Add(Sep());
-            var bSaveF = IconBtn("\uE105", "保存当前帧 (PNG)"); bSaveF.Click += (_, _) => SaveFrame();
-            var bCopyF = IconBtn("\uF413", "复制当前帧 (位图)"); bCopyF.Click += (_, _) => ClipboardService.SetFrame(ExportFrame(_index));
+            var bSaveF = IconBtn("\uE105", "保存当前帧"); bSaveF.Click += (_, _) => SaveFrame();
+            var bCopyF = IconBtn("\uF413", "复制当前帧"); bCopyF.Click += (_, _) => ClipboardService.SetFrame(ExportFrame(_index));
             var bPinF = PinBtn();
             var bOcrF = OcrBtn();
-            var bOkF = IconBtn("\uF78C", "确定：写入剪贴板 (Enter)"); bOkF.Click += (_, _) => Commit();
+            var bOkF = IconBtn("\uF78C", "确定 (Enter)"); bOkF.Click += (_, _) => Commit();
             var bX = IconBtn("\uE711", "取消 (Esc)"); bX.Click += (_, _) => Fluent.CloseWithFade(this);
             foreach (var b in new[] { bSaveF, bCopyF, bPinF, bOcrF, bOkF, bX }) tools.Children.Add(b);
             Fluent.HighlightBtn(bOkF, true);
@@ -371,8 +371,8 @@ public sealed partial class EditorWindow : Window
         SetGhost(_redoBtn, canR);
         // 步数进 tooltip：撤销到哪一步、还能撤几步，悬停即知
         int u = _anns.Count + _order.CropUndoCount, r = _anns.RedoCount + _order.CropRedoCount;
-        if (_undoBtn != null) _undoBtn.ToolTip = canU ? $"撤销上一笔（可撤 {u} 步）  Ctrl+Z" : "撤销 (Ctrl+Z)";
-        if (_redoBtn != null) _redoBtn.ToolTip = canR ? $"重做上一笔（可重做 {r} 步）  Ctrl+Y" : "重做 (Ctrl+Y)";
+        if (_undoBtn != null) _undoBtn.ToolTip = canU ? $"撤销上一笔 · 可撤 {u} 步 (Ctrl+Z)" : "撤销 (Ctrl+Z)";
+        if (_redoBtn != null) _redoBtn.ToolTip = canR ? $"重做上一笔 · 可重做 {r} 步 (Ctrl+Y)" : "重做 (Ctrl+Y)";
     }
     static void SetGhost(Button? b, bool on)
     {
