@@ -1,8 +1,6 @@
 using System.Runtime.InteropServices;
-using System.Threading;
 using Windows.Graphics.Capture;
 using Windows.Graphics.DirectX;
-using Windows.Graphics.DirectX.Direct3D11;
 
 using FrameCapture.Core;
 
@@ -87,7 +85,7 @@ public sealed class WgcLiveCapture : IDisposable
         {
             try { Init(monitor); }
             catch (Exception e) { initErr = e; }
-            finally { done.Set(); }
+            finally { Wake.Set(done); }
         }) { IsBackground = true, Name = "WgcInit" }; // 后台线程：初始化卡在 WinRT 里时也不能拖住进程退出
         initThread.Start();
         if (!done.Wait(5000))

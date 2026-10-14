@@ -3,8 +3,6 @@
 // Shot.exe title <text> → 找窗口，打印 hwnd（找不到打 0）
 // Shot.exe commit <text> [vk] → 找窗口+置前台+发送键（默认 Enter），重试 10×300ms
 using System.Runtime.InteropServices;
-using System.Drawing;
-using System.Drawing;
 using System.Drawing.Imaging;
 
 [DllImport("user32.dll")] static extern bool SetProcessDPIAware();

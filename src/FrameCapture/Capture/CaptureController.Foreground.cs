@@ -1,6 +1,3 @@
-using FrameCapture.Capture;
-using FrameCapture.Core;
-using FrameCapture.Overlays;
 
 namespace FrameCapture.Services;
 

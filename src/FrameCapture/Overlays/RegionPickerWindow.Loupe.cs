@@ -186,20 +186,23 @@ public sealed partial class RegionPickerWindow : Window
 
     private void ShowSpot(RectI? phys)
     {
+        // 放大镜元素是懒搭的，没搭出来就没有可画的目标；取成局部量，守卫才覆盖得住后面整段
+        var path = _spotPath; var hole = _holeFill;
+        if (path == null) return;
         if (phys == null)
         {
             _spotStroke.Visibility = Visibility.Collapsed;
             _badge.Visibility = Visibility.Collapsed;
-            _spotPath.Data = BuildMask(new Rect(0, 0, Width, Height), null);
-            if (_holeFill != null) _holeFill.Data = null;
+            path.Data = BuildMask(new Rect(0, 0, Width, Height), null);
+            if (hole != null) hole.Data = null;
             return;
         }
         var r = ToDip(phys.Value);
         _spotStroke.Visibility = Visibility.Visible;
         Canvas.SetLeft(_spotStroke, r.X); Canvas.SetTop(_spotStroke, r.Y);
         _spotStroke.Width = r.Width; _spotStroke.Height = r.Height;
-        _spotPath.Data = BuildMask(new Rect(0, 0, Width, Height), r);
-        _holeFill.Data = new RectangleGeometry(r);
+        path.Data = BuildMask(new Rect(0, 0, Width, Height), r);
+        if (hole != null) hole.Data = new RectangleGeometry(r);
         // 尺寸徽标：贴选区左上角外侧；顶部空间不足时贴入内侧
         _badgeText.Text = $"{phys.Value.W} × {phys.Value.H}";
         _badge.Visibility = Visibility.Visible;

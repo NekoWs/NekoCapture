@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using FrameCapture.Core;
 using GC = GestureCore;
 using GE = GestureEditor;

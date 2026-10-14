@@ -1,6 +1,4 @@
-using System.Windows;
 using FrameCapture.Core;
-using FrameCapture.Services;
 
 namespace FrameCapture.Services;
 

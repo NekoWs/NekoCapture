@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
-using FrameCapture.Core;
 using FrameCapture.Native;
 
 namespace FrameCapture.Services;

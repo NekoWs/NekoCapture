@@ -1,6 +1,5 @@
 // 渲染候选图标矩阵为 PNG，人工挑选语义最贴合的
 using System.Windows;
-using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 

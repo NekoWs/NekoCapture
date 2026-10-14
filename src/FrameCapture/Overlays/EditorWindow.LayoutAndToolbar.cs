@@ -1,15 +1,10 @@
-using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using FrameCapture.Capture;
 using FrameCapture.Core;
-using FrameCapture.Native;
 using FrameCapture.Encoding;
-using FrameCapture.Services;
 
 namespace FrameCapture.Overlays;
 
@@ -482,9 +477,12 @@ public sealed partial class EditorWindow : Window
             // 滑杆拖动只改默认值（实时预览），关闭弹层时一次性把最终粗细应用到选中项（单条撤销）
             _widthPop.Closed += (_, _) => RestyleSelected(null, CurWidth);
         }
-        _widthSlider.Value = Math.Clamp(_customWidth, 1, 24);
-        if (_widthVal != null) _widthVal.Text = $"{(int)_widthSlider.Value}px";
-        if (_widthPreview != null) _widthPreview.Width = _widthPreview.Height = Math.Clamp(_widthSlider.Value, 3, 20);
+        // 弹层元素是懒搭的；取成局部量，下面几处判空才真正覆盖到滑杆本身
+        var slider = _widthSlider;
+        if (slider == null) return;
+        slider.Value = Math.Clamp(_customWidth, 1, 24);
+        if (_widthVal != null) _widthVal.Text = $"{(int)slider.Value}px";
+        if (_widthPreview != null) _widthPreview.Width = _widthPreview.Height = Math.Clamp(slider.Value, 3, 20);
         OpenPopSticky(_widthPop, this);
     }
 

@@ -3,7 +3,6 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using FrameCapture.Core;
-using FrameCapture.Services;
 
 namespace FrameCapture.Overlays;
 

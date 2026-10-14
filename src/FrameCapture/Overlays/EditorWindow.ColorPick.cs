@@ -1,8 +1,5 @@
 using System.Windows;
-using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
-using System.Windows.Media;
-using Theme = FrameCapture.Core.Theme;
 
 namespace FrameCapture.Overlays;
 

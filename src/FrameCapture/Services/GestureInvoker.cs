@@ -1,4 +1,3 @@
-using System;
 using FrameCapture.Core;
 using GC = GestureCore;
 

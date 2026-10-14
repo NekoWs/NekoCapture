@@ -190,8 +190,8 @@ public sealed class TrayService : IDisposable
         using var g = Graphics.FromImage(bmp);
         g.Clear(Color.Transparent);
         g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
-        using var pen = new Pen(Color.FromArgb(255, 0x4C, 0xC2, 0xFF), 3)
-        { StartCap = System.Drawing.Drawing2D.LineCap.Round, EndCap = System.Drawing.Drawing2D.LineCap.Round };
+        using var pen = new Pen(Color.FromArgb(255, 0x4C, 0xC2, 0xFF), 3);
+        pen.StartCap = System.Drawing.Drawing2D.LineCap.Round; pen.EndCap = System.Drawing.Drawing2D.LineCap.Round;
         int m = 5, e = 11, r = 31 - m; // 边距/臂长/右边界
         g.DrawLines(pen, new[] { new Point(m, m + e), new Point(m, m), new Point(m + e, m) });           // 左上
         g.DrawLines(pen, new[] { new Point(r - e, m), new Point(r, m), new Point(r, m + e) });           // 右上

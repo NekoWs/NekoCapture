@@ -1,15 +1,11 @@
-using System.IO;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using FrameCapture.Capture;
 using FrameCapture.Core;
 using FrameCapture.Native;
-using FrameCapture.Encoding;
-using FrameCapture.Services;
 
 namespace FrameCapture.Overlays;
 
@@ -29,10 +25,10 @@ public sealed partial class EditorWindow : Window
     // 只缓存最近浏览的若干帧；缓存上限按帧字节数自适应（约 600MB 帧数据）。
     private readonly Dictionary<int, BitmapSource> _bmpCache = new();
     private readonly Queue<int> _bmpFifo = new();
-    private int _bmpCacheMax = 24;
+    private int _bmpCacheMax;
     // 帧元数据缓存：spool 惰性列表读一帧=整块 BGRA 回盘，HUD/时间轴只要时间戳与尺寸，
     // 故构造时一次性把元数据抽进平行数组（spool 走内存索引，零回盘）。
-    private double[] _times = System.Array.Empty<double>();
+    private double[] _times;
     private int _frameW, _frameH;
     private readonly Image _view;
     private readonly System.Windows.Threading.DispatcherTimer _playTimer;

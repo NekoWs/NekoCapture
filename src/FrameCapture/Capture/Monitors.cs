@@ -1,4 +1,3 @@
-using System.Windows;
 using FrameCapture.Native;
 using WinForms = System.Windows.Forms;
 

@@ -53,12 +53,9 @@ public sealed class Annotation
         float scale = Math.Min(w, h) / 1080f;
         float pen = Math.Max(1.5f, Thickness * scale);
         using var brush = new SolidBrush(Color);
-        using var p = new Pen(Color, pen)
-        {
-            StartCap = LineCap.Round,
-            EndCap = LineCap.Round,
-            LineJoin = LineJoin.Round,
-        };
+        // 帽型/接头在 using 声明之外赋：初始化器抛异常时对象尚未进入 using 作用域，GDI+ 句柄就漏了
+        using var p = new Pen(Color, pen);
+        p.StartCap = LineCap.Round; p.EndCap = LineCap.Round; p.LineJoin = LineJoin.Round;
         PointF[] P = Points.Select(pt => new PointF(pt.X * w, pt.Y * h)).ToArray();
         switch (Kind)
         {
@@ -104,8 +101,8 @@ public sealed class Annotation
                 // 马克笔：半透明 + 平头帽（斜头笔触感），曲线同手绘；alpha 由类型统一施加
                 if (P.Length >= 2)
                 {
-                    using var hp = new Pen(Color.FromArgb(HighlightAlpha, Color.R, Color.G, Color.B), pen)
-                    { StartCap = LineCap.Flat, EndCap = LineCap.Flat, LineJoin = LineJoin.Round };
+                    using var hp = new Pen(Color.FromArgb(HighlightAlpha, Color.R, Color.G, Color.B), pen);
+                    hp.StartCap = LineCap.Flat; hp.EndCap = LineCap.Flat; hp.LineJoin = LineJoin.Round;
                     g.SmoothingMode = SmoothingMode.AntiAlias;
                     g.DrawCurve(hp, P);
                 }
@@ -132,7 +129,8 @@ public sealed class Annotation
                     float cx = P[0].X, cy = P[0].Y;
                     g.FillEllipse(brush, cx - d / 2, cy - d / 2, d, d);
                     using var fnt = new Font("Microsoft YaHei UI", fontPx, FontStyle.Bold, GraphicsUnit.Pixel);
-                    using var sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
+                    using var sf = new StringFormat();
+                    sf.Alignment = StringAlignment.Center; sf.LineAlignment = StringAlignment.Center;
                     using var numFg = new SolidBrush(FrameCapture.Core.NumberBadge.NumberOnLightCircle(Color.R, Color.G, Color.B) ? Color.Black : Color.White);
                     g.DrawString(Text, fnt, numFg, new RectangleF(cx - d / 2, cy - d / 2, d, d), sf);
                 }

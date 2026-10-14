@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -8,7 +5,6 @@ using System.Windows.Media;
 using System.Windows.Media.Animation;
 using FrameCapture.Core;
 using FrameCapture.Native;
-using FrameCapture.Services;
 
 namespace FrameCapture.Overlays;
 

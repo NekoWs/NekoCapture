@@ -3,6 +3,7 @@ using Windows.Foundation;
 using Windows.Graphics.Capture;
 using Windows.Graphics.DirectX;
 using Windows.Graphics.DirectX.Direct3D11;
+using FrameCapture.Core;
 using FrameCapture.Native;
 
 namespace FrameCapture.Capture;
@@ -201,7 +202,7 @@ public static class WindowCapture
         {
             try { (res, rw, rh) = WgcGrabCore(hwnd); }
             catch (Exception e) { err = e; }
-            finally { done.Set(); }
+            finally { Wake.Set(done); }
         }) { IsBackground = true, Name = "WgcWinGrab" };
         th.Start();
         if (!done.Wait(3500)) throw new TimeoutException("wgc window grab timeout");
@@ -238,7 +239,7 @@ public static class WindowCapture
                     using var sb = Windows.Graphics.Imaging.SoftwareBitmap
                         .CreateCopyFromSurfaceAsync(frame.Surface).GetAwaiter().GetResult();
                     fw = sb.PixelWidth; fh = sb.PixelHeight;
-                    if (fw < 2 || fh < 2) { ferr = "surface 0"; are.Set(); return; }
+                    if (fw < 2 || fh < 2) { ferr = "surface 0"; Wake.Set(are); return; }
                     bgra = new byte[fw * fh * 4];
                     using var bb = sb.LockBuffer(Windows.Graphics.Imaging.BitmapBufferAccessMode.Read);
                     using var reference = bb.CreateReference();
@@ -246,9 +247,9 @@ public static class WindowCapture
                     int stride = fw * 4; // SoftwareBitmap(Bgra8) 单平面连续（同 WgcLiveCapture）
                     for (int y = 0; y < fh; y++)
                         Marshal.Copy(IntPtr.Add(data, y * stride), bgra, y * fw * 4, fw * 4);
-                    are.Set();
+                    Wake.Set(are);
                 }
-                catch (Exception e) { ferr = e.Message; are.Set(); }
+                catch (Exception e) { ferr = e.Message; Wake.Set(are); }
             };
             pool.FrameArrived += onArrived;
             session.StartCapture();

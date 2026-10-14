@@ -1,11 +1,6 @@
 // Fluent partial：全局样式——主题化 ToolTip、细滚动条、菜单资源（ContextMenu/MenuItem/Separator）。
-using System;
 using System.Windows;
-using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
-using System.Windows.Media;
-using System.Windows.Media.Animation;
-using System.Windows.Shapes;
 
 namespace FrameCapture.Core;
 

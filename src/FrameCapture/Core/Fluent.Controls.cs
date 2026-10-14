@@ -1,11 +1,9 @@
 // Fluent partial：控件工厂——图标按钮、自绘标题栏、滑杆、开关、工具按钮选中态、芯片/小按钮。
-using System;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
-using System.Windows.Shapes;
 
 namespace FrameCapture.Core;
 

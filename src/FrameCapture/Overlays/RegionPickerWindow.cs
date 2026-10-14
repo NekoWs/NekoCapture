@@ -269,8 +269,7 @@ public sealed partial class RegionPickerWindow : Window
 
         Loaded += (_, _) =>
         {
-            var src = (PresentationSource)PresentationSource.FromVisual(this);
-            double sx = 1, sy = 1;
+            double sx, sy;
             var tr = VisualTreeHelper.GetDpi(this);
             sx = tr.DpiScaleX; sy = tr.DpiScaleY;
 

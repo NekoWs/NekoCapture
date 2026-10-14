@@ -389,3 +389,22 @@
 - **护栏**：SelfTest `T169a`（干净帧取到真值）、`T169b`（掺进一成对不上号的行时完整口径给兜底、
   高置信口径必须返回 0）、`T169c`（重叠区整段落进无信息行时高置信口径不猜）。
   三条断言锁住两个入口的分歧：谁把兜底合回高置信路径，实时拼接就会重新丢行，断言先红。
+
+## 静态扫描按「有没有运行时后果」分档，不按条数排序
+
+- **不变量 / 契约**：一条告警值不值得动手，看它指向的是不是运行时后果。`RedundantNameQualifier` 占掉 68%
+  （1052/1555），全是零运行时收益的改写；能让进程直接没了的问题藏在只有 6 条的 `AccessToDisposedClosure` 里。
+- **真缺陷的形状**：带超时的等待超时后，等待方释放完成事件走人，落在后面的后台线程在 `finally` / `catch`
+  里照样 `Set()`，`ObjectDisposedException` 从那里抛出没有任何接手方，进程终止。全仓 3 处
+  `ManualResetEventSlim` 全是这个形状，统一走 `Core.Wake.Set`。同一条判据也切开了 `using var x = new Pen(…) {…}`
+  这类告警：`Pen`/`Font`/`StringFormat` 的构造函数就分配原生句柄，初始化器抛出时对象还没进 `using` 作用域，
+  句柄确实漏；`Form`/`FolderBrowserDialog` 的句柄到 `Show()` / `ShowDialog()` 才创建，不在此列，为零收益
+  做侵入式重构不划算。
+- **告警成立但不可动**：`GifEncoder.LzwCompress` 里 `int nextCode = eoiCode + 1;` 的值被 `Reset()` 覆盖，
+  没人读它——但 `Reset()` 是局部函数，C# 不认它完成了赋值，去掉初值直接 CS0165。字节级编码器上
+  「顺手删掉没用的赋值」是禁区。
+- **刻意保留**：空 `catch`（尽力而为的清理路径）、按可空注解判定「恒真/恒假」的判空（Win32/WinRT 的
+  注解不可信，删掉等于削弱防御）、浮点 `==`。这类不是没看见，是不接受它的前提。
+- **跑法**：`qodana scan --within-docker=false -l qodana-dotnet`（CLI 装在 WinGet Links，不在 PATH；
+  `qodana-cdnet` 不支持原生模式）。2023.2 起的 linter 要 `QODANA_TOKEN`，本机三个作用域都没有——
+  Rider 里那次跑通用的是 IDE 自己的授权，产物落在 `%TEMP%\qodana_output\qodana.sarif.json`。

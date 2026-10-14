@@ -1,15 +1,10 @@
-using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
-using System.Windows.Media.Animation;
 using System.Windows.Shapes;
 using FrameCapture.Core;
 using FrameCapture.Native;
-using FrameCapture.Services;
-using WinFormsKeys = System.Windows.Forms.Keys;
 
 namespace FrameCapture.Overlays;
 
@@ -203,14 +198,19 @@ public sealed partial class SettingsWindow : Window
         browse.MouseLeave += (_, _) => browse.TextDecorations = null;
         void Open()
         {
-            using var dlg = new System.Windows.Forms.FolderBrowserDialog
-            { Description = "选择保存文件夹（自动保存副本 + 导出对话框默认目录）", UseDescriptionForTitle = true };
+            using var dlg = new System.Windows.Forms.FolderBrowserDialog();
+            dlg.Description = "选择保存文件夹（自动保存副本 + 导出对话框默认目录）";
+            dlg.UseDescriptionForTitle = true;
             var cur = _settings.Current.AutoSavePath;
             if (!string.IsNullOrWhiteSpace(cur) && System.IO.Directory.Exists(cur)) dlg.SelectedPath = cur;
             // 对话框须挂到本窗句柄，否则可能落在设置窗之下
             var owner = new Win32.WndOwner(new System.Windows.Interop.WindowInteropHelper(this).Handle);
             if (dlg.ShowDialog(owner) == System.Windows.Forms.DialogResult.OK)
-                _settings.Mutate(s => s.AutoSavePath = dlg.SelectedPath);
+            {
+                // 路径先取出来再交给 Mutate：回调里握着对话框，等于把设置写入绑到它的生命周期上
+                string picked = dlg.SelectedPath;
+                _settings.Mutate(s => s.AutoSavePath = picked);
+            }
             Refresh();
         }
         stack.MouseLeftButtonDown += (_, e) => { Open(); e.Handled = true; };
