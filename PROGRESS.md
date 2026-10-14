@@ -2371,3 +2371,11 @@ status: done
   - **护栏**：`scripts/lint-motion-tokens.ps1` 挂 guardrail 第 0 关（现共 12 项）。只认动画上下文：动效助手末位实参、`Duration(...)`、直接喂给动画构造函数的 `TimeSpan`；`DispatcherTimer.Interval` 是逻辑定时器，不在射程。注入探针验证会 FAIL 且 `Interval` 行不误伤。guardrail 的 SelfTest 地板 75→481：75 那个数形同虚设，用例掉一半都不会响。
   - **踩坑**：批量正则替换把参数逗号吞掉、又把回填逗号错补给不需要它的模式，12 处损坏全靠编译器抓出（grep 只找到 2 处，因为 `src\**\*.cs` 不递归）。详见 DECISIONS。
   - **验证**：0 错误 / 0 非 NU1900 警告 / `PASS=481 FAIL=0`（纯重构，断言数不变）/ LINT-COMMENTS PASS / LINT-MOTION PASS 文件=130 / GUARDRAIL PASS（FAIL=0 SKIP=1 共 12 项）。
+  **窗级淡入淡出的「不可见」判定被推翻（UI 质感轮十）**
+    - **动机**：UIAUDIT 挂着一条「窗级淡入淡出在真实屏幕上不可见，WPF 的窗口 `Opacity` 动画被 `PreTransparent` 盖住」。本轮先去 Win32 侧找那条被盖住的通道，结果推翻的是判定本身。
+    - **通道探查**：`GetLayeredWindowAttributes` 对 `AllowsTransparency=true`、`Opacity=0.5` 的 WPF 窗返回 false；手工把 `WS_EX_LAYERED` 写进 `GWL_EXSTYLE` 再 `SetLayeredWindowAttributes`，返回 false 且样式位下一帧就丢。WPF 顶层窗走 DirectComposition 合成，没有重定向位图，`LWA_ALPHA` 那条通道根本不存在。三版候选实现（Win32 分层 alpha、逐帧写 `Window.Opacity`、内容元素淡入）逐版屏采都「无效」。
+    - **翻案**：屏采用的是 `UICap burstdesk 1.6 25`，按 PNG 的 `LastWriteTime` 反算真实帧间隔是 **136–163ms（中位 144ms）**——4K 桌面编码一帧 ~120ms，设定 25ms 毫无意义。150–240ms 的动画整个落在一个采样区间里，必然表现为阶跃。据此判定的缺陷并不存在。
+    - **新取证工具**：`scripts/probe-window-fade.ps1` 不落盘，`CopyFromScreen` 后在内存里算区域亮度与边缘能量，实测 ~55fps；开头自检单帧耗时、慢于 40ms 直接 `throw` 判结论无效；退场段要求边缘能量递减 ≥3 阶才 `PROBE PASS`。判据取边缘能量而非亮度均值——Mica 背板由 DWM 画、不参与窗级透明度，淡出时区域均值几乎不动，只有内容结构在化掉。
+    - **同一构建的 A/B**：把生产改动 stash 掉重编译（确认 dll 时间戳已换，第一次因进程占用导致 MSB3027 复制失败、A/B 无效），原始代码的退场同样是平滑斜坡。暗色 4.69→4.47→4.29→3.64→2.45→0.78→消失，浅色 4.34→4.24→4.11→3.98→3.65→2.36→1.23→消失，`PROBE PASS` 递减 5 阶。**生产代码零改动**，`Fluent.cs`/`Win32.cs`/`Win32Shim.cs` 全部回到未修改状态。
+    - **顺带查清**：`PopupEnter` 里 `w.Opacity = 0` 的基础值靠窗口 Opacity 动画的 `FillBehavior.HoldEnd` 抬回；把动画换成别的机制而不处理这个基础值，整窗会永久隐形（本轮踩过，屏采与 `PrintWindow` 双通道确认是真空白，不是截图伪影）。
+    - **验证**：SelfTest **481 → 487**（`T180a-d` 入场半程/走完、退场半程/真关窗；`T181a/b` 钉住「WPF 窗不是 Win32 分层窗」这条通道边界，测试侧自带 P/Invoke，不为测试放宽生产侧可见性）。guardrail 地板 481→487。全链 0 错误 / 0 非 NU1900 警告 / `PASS=487 FAIL=0` / LINT-COMMENTS PASS / LINT-MOTION PASS / GUARDRAIL PASS（FAIL=0 SKIP=1 共 12 项）。

@@ -38,7 +38,7 @@
 - `UIAUDIT.md` 中所有能在自动化边界内完成的条目都已 `[x]`，各附 commit 或截图；
   剩下的每一项都明确写了"需人工 + 为什么"。
 - `test-out/uiaudit/` 里明/暗双主题档案齐备、可对号入座。
-- SelfTest 全绿（**基线 RESULT PASS=481 FAIL=0**），且本轮新增能力有对应断言（不要为了变绿改弱断言）。
+- SelfTest 全绿（**基线 RESULT PASS=487 FAIL=0**），且本轮新增能力有对应断言（不要为了变绿改弱断言）。
 - e2e 捕获链路完好：捕获 → 编辑器 → Enter → GIF 入剪贴板（三种格式）。
 - `git status` 干净。
 
@@ -70,7 +70,7 @@ dotnet build src/FrameCapture -c Debug -p:Platform=x64 -v q --nologo      # 输�
 #   旧 dll 会静默继续运行（R12 曾因此"看到旧界面"排查半天）。截图前验 dll 新鲜度：
 #   FrameCapture.dll 的 LastWriteTime + 字符串探针（新符号在/旧符号无，如 BuildPanels=True、FloatBar=False）。
 
-# 自测（当前基线 RESULT PASS=481 FAIL=0，只增不减）
+# 自测（当前基线 RESULT PASS=487 FAIL=0，只增不减）
 dotnet build tools/SelfTest -c Debug -p:Platform=x64 -v q --nologo
 tools/SelfTest/bin/x64/Debug/net8.0-windows10.0.19041.0/SelfTest.exe
 

@@ -533,3 +533,30 @@ Mica 是低对比度材质，桌面暗时输出也就暗，与 `0x20` 平涂在�
 **现在靠什么防回归**：调 `*W` 导出一律显式 `CharSet = CharSet.Unicode`。
 WPF 窗还有一条独立坑：`FindWindowW` 即便编组正确也可能查不到，取窗统一走 `EnumWindows` + 标题比对。
 高 DPI 屏截图前调 `SetProcessDpiAwarenessContext(-4)`，否则拿到虚拟化坐标，截出来是缩放过的糊图。
+
+## 采样率不足的连拍会把动画量成阶跃
+
+**现象**：25ms 设定的桌面连拍显示设置窗打开与关闭都是一帧到位（亮度 34.4 → 243），据此判定「窗级淡入淡出
+在真实屏幕上不可见」，并为这个不存在的缺陷改了三版生产代码（手工 Win32 分层 alpha、逐帧写 `Window.Opacity`、
+内容元素淡入），逐版屏采都「无效」。
+
+**根因**：连拍每帧要编码 PNG，4K 桌面一帧 ~120ms，实测帧间隔 136–163ms（≈7fps）。150–240ms 的动画整个落在
+一个采样区间里，必然表现为阶跃。测量工具的能力上限被当成了被测对象的能力上限。
+
+**现在靠什么防回归**：量动画先量采样率。`scripts/probe-window-fade.ps1` 不落盘，`CopyFromScreen` 后在内存里
+算亮度与边缘能量（实测 ~55fps），开头自检单帧耗时、慢于 40ms 直接 `throw` 判结论无效；退场段要求边缘能量
+递减 ≥3 阶才 `PROBE PASS`。同一窗口在暗色与浅色下都采到 5 阶平滑衰减——淡入淡出一直是好的，生产代码零改动。
+判据用边缘能量而不是亮度均值：Mica 背板由 DWM 画、不参与窗级透明度，淡出时区域均值几乎不动，只有内容结构在化掉。
+
+## WPF 顶层窗不是 Win32 分层窗，窗级 alpha 那条路不存在
+
+**现象**：给非分层 WPF 窗的 `GWL_EXSTYLE` 补上 `WS_EX_LAYERED` 后 `SetLayeredWindowAttributes` 返回 false，
+样式位下一帧就没了；`GetLayeredWindowAttributes` 对 `AllowsTransparency=true`、`Opacity=0.5` 的窗同样读不出值。
+
+**根因**：WPF 顶层窗走 DirectComposition 合成，没有重定向位图，整窗 alpha 落在合成面里，不经过
+`WS_EX_LAYERED` + `LWA_ALPHA` 这套窗口属性。`Window.Opacity` 的动画值确实逐帧落屏（屏采可见），
+Win32 那条通道则完全写不进去。
+
+**现在靠什么防回归**：`T181a/b` 把边界钉成断言（回读 false、写入 false、样式留不住），窗级透明度只用
+`Window.Opacity` 一条通道。注意回读是在窗口完全初始化之后做的——`SourceInitialized` 时刻能否挂上未测，
+`PreTransparent` 那条压首帧的路径因此保持原样，不动没有证据的东西。

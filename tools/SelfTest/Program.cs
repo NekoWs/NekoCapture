@@ -836,6 +836,79 @@ static class SelfTest
         }
         catch (Exception e) { Chk("T179-play-row-order", false, e.Message); }
 
+        // 窗级淡入淡出确实在跑：动画中途读窗口 Opacity 必须停在半程，走完必须到 1、退场必须真关窗。
+        // 屏幕侧的可见性由 scripts/probe-window-fade.ps1 高速屏采取证（采样率不足会把斜坡量成阶跃）。
+        try
+        {
+            var winR = new Window
+            {
+                Title = "SelfTest WindowFade", Width = 220, Height = 150, ShowInTaskbar = false,
+                WindowStartupLocation = WindowStartupLocation.Manual, Left = 260, Top = 260,
+                WindowStyle = WindowStyle.None,
+                Content = new System.Windows.Controls.Border { Background = System.Windows.Media.Brushes.Gray },
+            };
+            Fluent.BorderlessNative(winR);
+            Fluent.FadeIn(winR, Fluent.Motion.EnterMs);
+            winR.Show();
+            PumpMs(Fluent.Motion.EnterMs / 2);
+            double c1 = winR.Opacity;
+            Chk("T180a-enter-mid-fade", c1 > 0.05 && c1 < 0.999, $"入场半程 Opacity={c1:N3}");
+            PumpMs(Fluent.Motion.EnterMs + 300);
+            Chk("T180b-enter-settled", winR.Opacity > 0.999, $"走完 Opacity={winR.Opacity:N3}");
+            Fluent.CloseWithFade(winR);
+            PumpMs(Fluent.Motion.ExitMs / 2);
+            double d1 = winR.Opacity;
+            Chk("T180c-exit-mid-fade", d1 > 0.02 && d1 < 0.95, $"退场半程 Opacity={d1:N3}");
+            PumpMs(Fluent.Motion.ExitMs + 400);
+            Chk("T180d-closed-after-exit", !winR.IsLoaded, $"窗口仍存活={winR.IsLoaded}");
+        }
+        catch (Exception e) { Chk("T180-window-fade", false, e.Message); }
+
+        // 通道边界：WPF 顶层窗不是 Win32 分层窗。窗级透明度走 DComp 合成面，
+        // 手工挂 WS_EX_LAYERED + SetLayeredWindowAttributes 这条路写不进去也读不回来。
+        try
+        {
+            var winP = new Window
+            {
+                Title = "SelfTest LayeredProbe", Width = 140, Height = 100, ShowInTaskbar = false,
+                WindowStartupLocation = WindowStartupLocation.Manual, Left = 300, Top = 300,
+                WindowStyle = WindowStyle.None, AllowsTransparency = true, Opacity = 0.5,
+                Background = System.Windows.Media.Brushes.Black,
+            };
+            winP.Show();
+            PumpMs(150);
+            var hwndP = new System.Windows.Interop.WindowInteropHelper(winP).Handle;
+            bool readP = LayerProbe.GetLayeredWindowAttributes(hwndP, out _, out byte ap, out _);
+            Chk("T181a-wpf-window-is-not-layered", !readP,
+                $"分层窗 alpha 回读={readP}/{ap}");
+            winP.Close();
+
+            var winQ = new Window
+            {
+                Title = "SelfTest LayeredProbe2", Width = 140, Height = 100, ShowInTaskbar = false,
+                WindowStartupLocation = WindowStartupLocation.Manual, Left = 320, Top = 320,
+                WindowStyle = WindowStyle.None,
+                Content = new System.Windows.Controls.Border { Background = System.Windows.Media.Brushes.Black },
+            };
+            Fluent.BorderlessNative(winQ);
+            winQ.Show();
+            PumpMs(150);
+            var hwndQ = new System.Windows.Interop.WindowInteropHelper(winQ).Handle;
+            uint ex = LayerProbe.GetWindowLongW(hwndQ, LayerProbe.GWL_EXSTYLE);
+            LayerProbe.SetWindowLongW(hwndQ, LayerProbe.GWL_EXSTYLE, ex | LayerProbe.WS_EX_LAYERED);
+            bool setOk = LayerProbe.SetLayeredWindowAttributes(hwndQ, IntPtr.Zero, 90, LayerProbe.LWA_ALPHA);
+            PumpMs(60);
+            uint ex2 = LayerProbe.GetWindowLongW(hwndQ, LayerProbe.GWL_EXSTYLE);
+            bool readQ = LayerProbe.GetLayeredWindowAttributes(hwndQ, out _, out _, out _);
+            Chk("T181b-win32-alpha-channel-unavailable",
+                !setOk && (ex2 & LayerProbe.WS_EX_LAYERED) == 0 && !readQ,
+                $"写入={setOk} 样式留住={(ex2 & LayerProbe.WS_EX_LAYERED) != 0} 回读={readQ}");
+            winQ.Close();
+        }
+        catch (Exception e) { Chk("T181-alpha-channel-boundary", false, e.Message); }
+
+
+
         // 全局 ToolTip/菜单样式可解析（守主题相关 XAML）
         try
         {
@@ -3390,4 +3463,19 @@ static class DwmProbe
 {
     [System.Runtime.InteropServices.DllImport("dwmapi.dll")]
     public static extern int DwmGetWindowAttribute(IntPtr hwnd, int attr, out uint value, int cb);
+}
+
+/// <summary>分层窗口 alpha 通道用的最小声明，同上：不为测试放宽生产侧可见性。</summary>
+static class LayerProbe
+{
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    public static extern uint GetWindowLongW(IntPtr hWnd, int nIndex);
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    public static extern uint SetWindowLongW(IntPtr hWnd, int nIndex, uint dwNewLong);
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    public static extern bool SetLayeredWindowAttributes(IntPtr hWnd, IntPtr crKey, byte bAlpha, uint dwFlags);
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    public static extern bool GetLayeredWindowAttributes(IntPtr hWnd, out IntPtr pcKey, out byte alpha, out uint flags);
+    public const int GWL_EXSTYLE = -20;
+    public const uint WS_EX_LAYERED = 0x00080000, LWA_ALPHA = 0x2;
 }
