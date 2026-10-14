@@ -23,19 +23,7 @@ public sealed partial class SettingsWindow : Window
     // 取色复制格式：选区放大镜按 C 复制颜色时的文本形式，HEX / RGB / HSL 三选
     FrameworkElement ColorFormatRow()
     {
-        var g = Row();
-        g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); // 芯片列
-        g.Children.Add(Icon("\uE790", "选区放大镜按 C 复制颜色时的文本形式：#RRGGBB / rgb(r, g, b) / hsl(h, s%, l%)"));
-        var lbl = new TextBlock
-        {
-            Text = "取色格式",
-            FontSize = 13,
-            Foreground = new SolidColorBrush(Theme.Text),
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 0, 12, 0),
-        };
-        Grid.SetColumn(lbl, 1);
-        g.Children.Add(lbl);
+        var g = ChipRow("\uE790", "选区放大镜按 C 复制颜色时的文本形式：#RRGGBB / rgb(r, g, b) / hsl(h, s%, l%)", "取色格式");
         var chips = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
         Grid.SetColumn(chips, 2);
         string cur = _settings.Current.ColorCopyFormat;
@@ -49,38 +37,14 @@ public sealed partial class SettingsWindow : Window
         foreach (var (id, text, tip) in opts)
         {
             string captured = id;
-            var chip = new Border
-            {
-                CornerRadius = new CornerRadius(6),
-                Padding = new Thickness(10, 5, 10, 5),
-                Margin = new Thickness(2, 0, 2, 0),
-                Background = new SolidColorBrush(captured == cur ? Theme.Accent : Theme.Hover),
-                Child = new TextBlock
-                {
-                    Text = text,
-                    FontSize = 12.5,
-                    Foreground = new SolidColorBrush(captured == cur ? Fluent.OnAccentColor(Theme.Accent) : Theme.Text),
-                },
-                Cursor = Cursors.Hand,
-                ToolTip = tip,
-            };
+            var chip = Chip(text, tip, captured == cur);
             chipList.Add((chip, id));
-            Fluent.ChipHover(chip);   // 悬停只改底色带过渡，不缩放——缩放会盖住相邻芯片
             void Apply()
             {
                 _settings.Mutate(s => s.ColorCopyFormat = captured);
-                foreach (var (c, cid) in chipList)
-                {
-                    bool sel = cid == captured;
-                    c.Background = new SolidColorBrush(sel ? Theme.Accent : Theme.Hover);
-                    if (c.Child is TextBlock tb) tb.Foreground = new SolidColorBrush(sel ? Fluent.OnAccentColor(Theme.Accent) : Theme.Text);
-                }
+                RefreshChips(chipList, captured);
             }
-            chip.MouseLeftButtonDown += (_, e) => { Apply(); e.Handled = true; };
-            chip.Focusable = true;
-            chip.KeyDown += (_, e) => { if (e.Key is Key.Space or Key.Enter) { Apply(); e.Handled = true; } };
-            chip.GotKeyboardFocus += (_, _) => { chip.BorderBrush = new SolidColorBrush(Theme.Accent); chip.BorderThickness = new Thickness(1); };
-            chip.LostKeyboardFocus += (_, _) => { chip.BorderThickness = new Thickness(0); };
+            WireChip(chip, Apply);
             chips.Children.Add(chip);
         }
         g.Children.Add(chips);
@@ -89,19 +53,7 @@ public sealed partial class SettingsWindow : Window
 
     FrameworkElement DelayRow()
     {
-        var g = Row();
-        g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); // 芯片列
-        g.Children.Add(Icon("\uE916", "托盘「延时截图」触发后倒数这么久再截当前范围，留时间打开右键菜单/悬停提示/下拉框这类一动就消失的界面"));
-        var lbl = new TextBlock
-        {
-            Text = "延时截图",
-            FontSize = 13,
-            Foreground = new SolidColorBrush(Theme.Text),
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 0, 12, 0),
-        };
-        Grid.SetColumn(lbl, 1);
-        g.Children.Add(lbl);
+        var g = ChipRow("\uE916", "托盘「延时截图」触发后倒数这么久再截当前范围，留时间打开右键菜单/悬停提示/下拉框这类一动就消失的界面", "延时截图");
         var chips = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
         Grid.SetColumn(chips, 2);
         int cur = _settings.Current.DelayCaptureSeconds;
@@ -144,14 +96,7 @@ public sealed partial class SettingsWindow : Window
         customBox.MouseLeftButtonUp += (_, _) => { box.Focus(); box.SelectAll(); };
         void RefreshSel(int v)
         {
-            bool anySel = false;
-            foreach (var (c, cs) in chipList)
-            {
-                bool sel = cs == v;
-                anySel |= sel;
-                c.Background = new SolidColorBrush(sel ? Theme.Accent : Theme.Hover);
-                if (c.Child is TextBlock tb) tb.Foreground = new SolidColorBrush(sel ? Fluent.OnAccentColor(Theme.Accent) : Theme.Text);
-            }
+            bool anySel = RefreshChips(chipList, v);
             customBox.Background = new SolidColorBrush(anySel ? Theme.CardBg : Theme.Accent);
             customBox.BorderBrush = new SolidColorBrush(anySel ? Theme.Stroke : Theme.Accent);
             box.Foreground = new SolidColorBrush(anySel ? Theme.Text : Fluent.OnAccentColor(Theme.Accent));
@@ -171,33 +116,14 @@ public sealed partial class SettingsWindow : Window
         foreach (var (secs, text, tip) in opts)
         {
             int captured = secs;
-            var chip = new Border
-            {
-                CornerRadius = new CornerRadius(6),
-                Padding = new Thickness(10, 5, 10, 5),
-                Margin = new Thickness(2, 0, 2, 0),
-                Background = new SolidColorBrush(captured == cur ? Theme.Accent : Theme.Hover),
-                Child = new TextBlock
-                {
-                    Text = text,
-                    FontSize = 12.5,
-                    Foreground = new SolidColorBrush(captured == cur ? Fluent.OnAccentColor(Theme.Accent) : Theme.Text),
-                },
-                Cursor = Cursors.Hand,
-                ToolTip = tip,
-            };
+            var chip = Chip(text, tip, captured == cur);
             chipList.Add((chip, secs));
-            Fluent.ChipHover(chip);   // 悬停只改底色带过渡，不缩放——缩放会盖住相邻芯片
             void Apply()
             {
                 _settings.Mutate(s => s.DelayCaptureSeconds = captured);
                 RefreshSel(captured);
             }
-            chip.MouseLeftButtonDown += (_, e) => { Apply(); e.Handled = true; };
-            chip.Focusable = true;
-            chip.KeyDown += (_, e) => { if (e.Key is Key.Space or Key.Enter) { Apply(); e.Handled = true; } };
-            chip.GotKeyboardFocus += (_, _) => { chip.BorderBrush = new SolidColorBrush(Theme.Accent); chip.BorderThickness = new Thickness(1); };
-            chip.LostKeyboardFocus += (_, _) => { chip.BorderThickness = new Thickness(0); };
+            WireChip(chip, Apply);
             chips.Children.Add(chip);
         }
         chips.Children.Add(customBox);
@@ -209,19 +135,7 @@ public sealed partial class SettingsWindow : Window
     // 截图后悬浮窗存在时间——文字芯片（常驻/秒数），点击就地更新选中态
     FrameworkElement ToastRow()
     {
-        var g = Row();
-        g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); // 芯片列
-        g.Children.Add(Icon("\uE916", "截完弹出的「已复制」缩略浮窗停留多久自动消失。悬停其上会暂停计时、移开再给满时长。想拍完即走调小、想留着慢慢点进编辑器调大或常驻。"));
-        var lbl = new TextBlock
-        {
-            Text = "悬浮窗存在时间",
-            FontSize = 13,
-            Foreground = new SolidColorBrush(Theme.Text),
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 0, 12, 0),
-        };
-        Grid.SetColumn(lbl, 1);
-        g.Children.Add(lbl);
+        var g = ChipRow("\uE916", "截完弹出的「已复制」缩略浮窗停留多久自动消失。悬停其上会暂停计时、移开再给满时长。想拍完即走调小、想留着慢慢点进编辑器调大或常驻。", "悬浮窗存在时间");
         var chips = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
         Grid.SetColumn(chips, 2);
         double cur = _settings.Current.ToastSeconds;
@@ -264,6 +178,7 @@ public sealed partial class SettingsWindow : Window
         customBox.MouseLeftButtonUp += (_, _) => { box.Focus(); box.SelectAll(); };
         void RefreshSel(double v)
         {
+            // 预设档匹配用 0.01 容差而非精确相等：自定义框可输入任意小数，近似值仍算命中预设档
             bool anySel = false;
             foreach (var (c, cs) in chipList)
             {
@@ -293,33 +208,14 @@ public sealed partial class SettingsWindow : Window
         {
             double captured = secs;
             bool sel0 = Math.Abs(captured - cur) < 0.01;
-            var chip = new Border
-            {
-                CornerRadius = new CornerRadius(6),
-                Padding = new Thickness(10, 5, 10, 5),
-                Margin = new Thickness(2, 0, 2, 0),
-                Background = new SolidColorBrush(sel0 ? Theme.Accent : Theme.Hover),
-                Child = new TextBlock
-                {
-                    Text = text,
-                    FontSize = 12.5,
-                    Foreground = new SolidColorBrush(sel0 ? Fluent.OnAccentColor(Theme.Accent) : Theme.Text),
-                },
-                Cursor = Cursors.Hand,
-                ToolTip = tip,
-            };
+            var chip = Chip(text, tip, sel0);
             chipList.Add((chip, secs));
-            Fluent.ChipHover(chip);   // 悬停只改底色带过渡，不缩放——缩放会盖住相邻芯片
             void Apply()
             {
                 _settings.Mutate(s => s.ToastSeconds = captured);
                 RefreshSel(captured);
             }
-            chip.MouseLeftButtonDown += (_, e) => { Apply(); e.Handled = true; };
-            chip.Focusable = true;
-            chip.KeyDown += (_, e) => { if (e.Key is Key.Space or Key.Enter) { Apply(); e.Handled = true; } };
-            chip.GotKeyboardFocus += (_, _) => { chip.BorderBrush = new SolidColorBrush(Theme.Accent); chip.BorderThickness = new Thickness(1); };
-            chip.LostKeyboardFocus += (_, _) => { chip.BorderThickness = new Thickness(0); };
+            WireChip(chip, Apply);
             chips.Children.Add(chip);
         }
         chips.Children.Add(customBox);

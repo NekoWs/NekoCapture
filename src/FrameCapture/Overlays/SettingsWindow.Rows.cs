@@ -220,19 +220,7 @@ public sealed partial class SettingsWindow : Window
 
     FrameworkElement RecordFormatRow()
     {
-        var g = Row();
-        g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); // 芯片列
-        g.Children.Add(Icon("\uE786", "录制完成后编辑器「导出录制」默认用的格式。MP4/WebM 需本机装有 ffmpeg（自动探测 PATH 与常见安装目录）；未装则视频项会提示安装，GIF 始终可用"));
-        var lbl = new TextBlock
-        {
-            Text = "录制格式",
-            FontSize = 13,
-            Foreground = new SolidColorBrush(Theme.Text),
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 0, 12, 0),
-        };
-        Grid.SetColumn(lbl, 1);
-        g.Children.Add(lbl);
+        var g = ChipRow("\uE786", "录制完成后编辑器「导出录制」默认用的格式。MP4/WebM 需本机装有 ffmpeg（自动探测 PATH 与常见安装目录）；未装则视频项会提示安装，GIF 始终可用", "录制格式");
         var chips = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
         Grid.SetColumn(chips, 2);
         var cur = _settings.Current.RecordFormat;
@@ -248,38 +236,14 @@ public sealed partial class SettingsWindow : Window
         foreach (var (id, text, tip) in opts)
         {
             RecordFormat captured = id;
-            var chip = new Border
-            {
-                CornerRadius = new CornerRadius(6),
-                Padding = new Thickness(10, 5, 10, 5),
-                Margin = new Thickness(2, 0, 2, 0),
-                Background = new SolidColorBrush(captured == cur ? Theme.Accent : Theme.Hover),
-                Child = new TextBlock
-                {
-                    Text = text,
-                    FontSize = 12.5,
-                    Foreground = new SolidColorBrush(captured == cur ? Fluent.OnAccentColor(Theme.Accent) : Theme.Text),
-                },
-                Cursor = Cursors.Hand,
-                ToolTip = tip,
-            };
+            var chip = Chip(text, tip, captured == cur);
             chipList.Add((chip, id));
-            Fluent.ChipHover(chip);   // 悬停只改底色带过渡，不缩放——缩放会盖住相邻芯片
             void Apply()
             {
                 _settings.Mutate(s => s.RecordFormat = captured);
-                foreach (var (c, cid) in chipList)
-                {
-                    bool sel = cid == captured;
-                    c.Background = new SolidColorBrush(sel ? Theme.Accent : Theme.Hover);
-                    if (c.Child is TextBlock tb) tb.Foreground = new SolidColorBrush(sel ? Fluent.OnAccentColor(Theme.Accent) : Theme.Text);
-                }
+                RefreshChips(chipList, captured);
             }
-            chip.MouseLeftButtonDown += (_, e) => { Apply(); e.Handled = true; };
-            chip.Focusable = true;
-            chip.KeyDown += (_, e) => { if (e.Key is Key.Space or Key.Enter) { Apply(); e.Handled = true; } };
-            chip.GotKeyboardFocus += (_, _) => { chip.BorderBrush = new SolidColorBrush(Theme.Accent); chip.BorderThickness = new Thickness(1); };
-            chip.LostKeyboardFocus += (_, _) => { chip.BorderThickness = new Thickness(0); };
+            WireChip(chip, Apply);
             chips.Children.Add(chip);
         }
         g.Children.Add(chips);
@@ -356,6 +320,81 @@ public sealed partial class SettingsWindow : Window
         Margin = new Thickness(4, 0, 14, 0),
         ToolTip = tip,
     };
+
+    /// <summary>芯片行的行首：图标 + 标签，并补上第三列（芯片列）的 Auto 宽度声明。
+    /// 芯片列用 Auto 而非 Star，芯片才能整体靠右贴齐、宽度随内容伸缩。</summary>
+    /// <param name="glyph">Segoe Fluent Icons 的 PUA 字形。</param>
+    /// <param name="iconTip">图标 tooltip，写明这一行存在的理由。</param>
+    /// <param name="label">行标签文字。</param>
+    /// <returns>已放好图标（第 0 列）与标签（第 1 列）的行容器；芯片 StackPanel 由调用方放进第 2 列。</returns>
+    static Grid ChipRow(string glyph, string iconTip, string label)
+    {
+        var g = Row();
+        g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); // 芯片列
+        g.Children.Add(Icon(glyph, iconTip));
+        var lbl = new TextBlock
+        {
+            Text = label,
+            FontSize = 13,
+            Foreground = new SolidColorBrush(Theme.Text),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 12, 0),
+        };
+        Grid.SetColumn(lbl, 1);
+        g.Children.Add(lbl);
+        return g;
+    }
+
+    /// <summary>一枚可选芯片：选中态用强调色底 + 反白文字，未选中用悬停底色 + 正文色。</summary>
+    /// <param name="text">芯片显示文字。</param>
+    /// <param name="tip">芯片 tooltip。</param>
+    /// <param name="selected">当前是否选中，决定底色与文字色。</param>
+    /// <returns>尚未接事件的芯片容器，交给 <see cref="WireChip"/> 激活。</returns>
+    static Border Chip(string text, string tip, bool selected) => new()
+    {
+        CornerRadius = new CornerRadius(6),
+        Padding = new Thickness(10, 5, 10, 5),
+        Margin = new Thickness(2, 0, 2, 0),
+        Background = new SolidColorBrush(selected ? Theme.Accent : Theme.Hover),
+        Child = new TextBlock
+        {
+            Text = text,
+            FontSize = 12.5,
+            Foreground = new SolidColorBrush(selected ? Fluent.OnAccentColor(Theme.Accent) : Theme.Text),
+        },
+        Cursor = Cursors.Hand,
+        ToolTip = tip,
+    };
+
+    /// <summary>给芯片接上点击与键盘激活、焦点框、悬停反馈。悬停只改底色带过渡、不缩放——缩放会盖住相邻芯片。</summary>
+    /// <param name="chip">目标芯片。</param>
+    /// <param name="apply">用户点选或按空格/回车时要执行的动作。</param>
+    static void WireChip(Border chip, Action apply)
+    {
+        Fluent.ChipHover(chip);
+        chip.MouseLeftButtonDown += (_, e) => { apply(); e.Handled = true; };
+        chip.Focusable = true;
+        chip.KeyDown += (_, e) => { if (e.Key is Key.Space or Key.Enter) { apply(); e.Handled = true; } };
+        chip.GotKeyboardFocus += (_, _) => { chip.BorderBrush = new SolidColorBrush(Theme.Accent); chip.BorderThickness = new Thickness(1); };
+        chip.LostKeyboardFocus += (_, _) => { chip.BorderThickness = new Thickness(0); };
+    }
+
+    /// <summary>按新的选中项刷新整行芯片的选中态配色。</summary>
+    /// <param name="chips">本行全部芯片及其标识值。</param>
+    /// <param name="selected">新的选中标识值。</param>
+    /// <returns>是否存在命中项——调用方据此决定「自定义」输入框要不要高亮。</returns>
+    static bool RefreshChips<T>(System.Collections.Generic.IReadOnlyList<(Border chip, T id)> chips, T selected)
+    {
+        bool anySel = false;
+        foreach (var (c, cid) in chips)
+        {
+            bool sel = Equals(cid, selected);
+            anySel |= sel;
+            c.Background = new SolidColorBrush(sel ? Theme.Accent : Theme.Hover);
+            if (c.Child is TextBlock tb) tb.Foreground = new SolidColorBrush(sel ? Fluent.OnAccentColor(Theme.Accent) : Theme.Text);
+        }
+        return anySel;
+    }
     #endregion
 
 }
