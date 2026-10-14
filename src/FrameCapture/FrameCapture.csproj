@@ -15,6 +15,9 @@
     <RootNamespace>FrameCapture</RootNamespace>
     <Version>0.9.0</Version>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- exe 自身带图标：任务栏、资源管理器、任务管理器和「应用和功能」都取这里，
+         与安装包/快捷方式共用 assets 下同一份多尺寸 .ico（scripts/make-icon.py 生成） -->
+    <ApplicationIcon>..\..\assets\FrameCapture.ico</ApplicationIcon>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
     <!-- 进程 DPI 感知由 app.manifest 的 PerMonitorV2 决定，捕获坐标换算依赖它；托盘虽用 WinForms
          但不经源生成器启动路径，WFAC010 建议的 ApplicationConfiguration 在这里没有对应物 -->

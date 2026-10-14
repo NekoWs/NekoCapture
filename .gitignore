@@ -11,7 +11,10 @@ shot.png
 
 # audit captures & big packages (rebuildable)
 test-out/
-release/*.zip
+release/
+
+# WiX 扩展本地缓存与中间产物
+.wix/
 
 # misc
 DomainServer.*
