@@ -33,7 +33,7 @@ public sealed partial class EditorWindow : Window
         return b;
     }
 
-    // 钉到屏幕按钮用实心图钉 E840（招牌动作配招牌图钉，Snipaste/QQ 惯例）；「总在最前」用置顶箭头 E898，两枚字形不混淆
+    // 钉到屏幕按钮用实心图钉 E840（招牌动作配招牌图钉）；「总在最前」用置顶箭头 E898，两枚字形不混淆
     Button PinBtn()
     {
         var b = IconBtn("\uE840", "钉到屏幕 (Ctrl+P)");

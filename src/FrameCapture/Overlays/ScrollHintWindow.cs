@@ -187,7 +187,7 @@ public sealed class ScrollHintWindow : Window
         _hint.Foreground = new SolidColorBrush(Theme.TextDim);
     }
 
-    /// <summary>每成功拼接一段，进度数字弹一下（0.72→1.0 BackEase 过冲，右缘锚定不撞标题）——滚动拼接时的「QQ 弹弹」即时反馈，同倒计时数字弹入。</summary>
+    /// <summary>每成功拼接一段，进度数字弹一下（0.72→1.0 BackEase 过冲，右缘锚定不撞标题）——滚动拼接时的弹性即时反馈，同倒计时数字弹入。</summary>
     void PopProgress()
     {
         var st = new ScaleTransform(0.72, 0.72);

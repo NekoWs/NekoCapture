@@ -92,7 +92,7 @@ public sealed class GestureConfig
     public bool Enabled { get; set; } = true;
 
     /// <summary>独占吞键：手势命中「带具体键的组合键」（如 Ctrl+Alt+A）时，把该键的按下与抬起一起吞掉，
-    /// 前台程序收不到——QQ 式全局独占，避免快捷键漏进输入框打出字符或触发别的软件。默认 true。
+    /// 前台程序收不到——全局独占，避免快捷键漏进输入框打出字符或触发别的软件。默认 true。
     /// 纯修饰键组合（无具体键，如 Ctrl+Alt 本身）永不吞，防止 Ctrl+C 等被劫持。关掉=手势层只观察、键照常放行。</summary>
     public bool Exclusive { get; set; } = true;
 
@@ -134,12 +134,12 @@ public sealed class GestureConfig
         return list;
     }
 
-    /// <summary>「QQ 手感」预设：两个键都绑成选区，配合 <c>AutoCaptureOnSelect</c> 即选完自动截图。
+    /// <summary>「选区优先」预设：两个键都绑成选区，配合 <c>AutoCaptureOnSelect</c> 即选完自动截图。
     /// 一键切换，用户可在 JSON/编辑器里再改。</summary>
     /// <param name="captureHotkey">捕获键串：这里也改绑选区，非法则跳过该条。</param>
     /// <param name="scopeHotkey">选区键串：与捕获键同义，非法则跳过该条。</param>
     /// <returns>0～2 条绑定，Id 为 <c>qq.capture</c> / <c>qq.scope</c>。</returns>
-    public static List<GestureBindingDto> PresetQQ(string captureHotkey, string scopeHotkey)
+    public static List<GestureBindingDto> PresetScopeFirst(string captureHotkey, string scopeHotkey)
     {
         var list = new List<GestureBindingDto>();
         if (HotkeySpec.Parse(captureHotkey) != null)
@@ -171,7 +171,7 @@ public sealed class GestureConfig
     /// <summary>默认选区键：与 <see cref="DefaultCaptureKey"/> 同为唯一事实源。</summary>
     public const string DefaultScopeKey = "Ctrl+Shift+R";
 
-    /// <summary>默认「轻点截图 + 按住录制」集：捕获键轻点→选区截图（QQ 式）、按住→起录、松手→停止；
+    /// <summary>默认「轻点截图 + 按住录制」集：捕获键轻点→选区截图、按住→起录、松手→停止；
     /// 选区键组合键→选区。按住阈值 250ms 写在三条 tap/hold 绑定的 <c>LongPressMs</c> 上，三条必须同值。</summary>
     /// <param name="captureKey">捕获键串；非法则只生成选区那一条。</param>
     /// <param name="scopeKey">选区键串；非法则只生成捕获那三条。</param>

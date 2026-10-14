@@ -57,15 +57,15 @@ public sealed class AppSettings
 
     /// <summary>点击窗口时截取完整窗口（默认开）：选区窗里点一个吸附到的窗口，截的是该窗口本体而非屏幕矩形像素
     /// （WGC 按窗口捕获，Win11 圆角透明、浏览器/GPU 窗也干净），可选带真实投影、
-    /// 背景透明（macOS 式）。关掉则按屏幕矩形抓像素。目标窗被遮挡或 WGC 取帧失败时自动回退区域截图。</summary>
+    /// 背景透明。关掉则按屏幕矩形抓像素。目标窗被遮挡或 WGC 取帧失败时自动回退区域截图。</summary>
     public bool WindowCaptureEnabled { get; set; } = true;
 
     /// <summary>窗口截图包含投影（默认开）：在上面开关开启时，额外把窗口边缘的真实投影截进来、
-    /// 外缘柔和渐隐到透明（macOS 悬浮感）。关掉则只截窗口本体（圆角透明、无投影）。</summary>
+    /// 外缘柔和渐隐到透明，看上去悬浮在桌面上。关掉则只截窗口本体（圆角透明、无投影）。</summary>
     public bool WindowCaptureShadow { get; set; } = true;
 
     /// <summary>截图完成后的行为：toast=弹缩略浮窗可一键进编辑器（默认，兼顾确认与标注）；
-    /// editor=复制后直接打开标注编辑器（QQ 式）；copy=只复制不弹窗不开编辑器（最快，轮廓闪一下作反馈）。
+    /// editor=复制后直接打开标注编辑器；copy=只复制不弹窗不开编辑器（最快，轮廓闪一下作反馈）。
     /// 三态覆盖「要确认」「要标注」「只要剪贴板」三类人群，非法值回落 toast。</summary>
     public string AfterCapture { get; set; } = "toast";
 
@@ -117,11 +117,11 @@ public sealed class AppSettings
     public bool RunAtStartup { get; set; }
 
     /// <summary>选区放大镜（默认开）：拖框/悬停选区时，光标旁显示高倍像素放大镜 + 坐标/尺寸读数，
-    /// 便于像素级精确选区（QQ/Snipaste 招牌手感）。关闭则不抓快照、不显示放大镜。</summary>
+    /// 便于像素级精确选区。关闭则不抓快照、不显示放大镜。</summary>
     public bool PickerMagnifier { get; set; } = true;
 
     /// <summary>选区时定格画面（默认开）：按下选区热键的瞬间抓一张全屏定格帧，整个选区过程画面看起来就
-    /// 定格了——放大镜读定格帧、拖框/区域截图也裁这张定格帧（选完不重新抓屏），所见即所得（QQ/Snipaste 式）。
+    /// 定格了——放大镜读定格帧、拖框/区域截图也裁这张定格帧（选完不重新抓屏），所见即所得。
     /// 关掉则全程实时：屏幕实时可见、放大镜每次移动实时重抓跟画面、截图实时重抓。
     /// 与「点击窗口时截取完整窗口」正交：定格开着且窗口截图也开着时，定格瞬间会后台按 Z 序预抓可见窗口的干净
     /// 画面（WGC），点窗口即用缓存＝定格+干净圆角+投影；没缓存好则实时抓兜底。</summary>
@@ -137,10 +137,10 @@ public sealed class AppSettings
     public bool OcrShowResult { get; set; } = true;
 
     /// <summary>贴图磁边（默认开）：拖动贴图松手时，若某条边贴近所在屏幕工作区边缘则自动吸附贴合，
-    /// 便于把贴图整齐停靠到屏幕四边/四角（Snipaste 式手感）。关闭则松手停在原地。</summary>
+    /// 便于把贴图整齐停靠到屏幕四边/四角。关闭则松手停在原地。</summary>
     public bool PinSnapEdges { get; set; } = true;
 
-    /// <summary>截图提示音（默认关）：静态截图完成时放一声柔和短促的「嘀」作听觉确认（QQ 招牌反馈）。
+    /// <summary>截图提示音（默认关）：静态截图完成时放一声柔和短促的「嘀」作听觉确认。
     /// 默认关——后台工具每次截图都响会吵；设置里带「试听」可先听再决定。开启后 toast/进编辑器/只复制三态都响。</summary>
     public bool CaptureSound { get; set; } = false;
 
@@ -149,7 +149,7 @@ public sealed class AppSettings
     public string CustomSoundPath { get; set; } = "";
 
     /// <summary>取色复制格式（默认 hex）：选区放大镜按 C 复制光标下像素颜色时的文本形式。
-    /// "hex"=#RRGGBB（QQ 同款）/ "rgb"=rgb(r, g, b) / "hsl"=hsl(h, s%, l%)——后两者便于直接贴进 CSS。
+    /// "hex"=#RRGGBB / "rgb"=rgb(r, g, b) / "hsl"=hsl(h, s%, l%)——后两者便于直接贴进 CSS。
     /// 无法识别的值回退 hex：手写 settings.json 写错也不会炸。</summary>
     public string ColorCopyFormat { get; set; } = "hex";
 

@@ -11,7 +11,7 @@ namespace FrameCapture.Services;
 /// </summary>
 public sealed partial class CaptureController : IDisposable
 {
-    /// <summary>QQ 式「选区截图」——选一块区域，选完立即截一帧静态图（与 AutoCaptureOnSelect 开关无关）。</summary>
+    /// <summary>「选区截图」——选一块区域，选完立即截一帧静态图（与 AutoCaptureOnSelect 开关无关）。</summary>
     public void BeginCaptureSelection()
     {
         Trace.Log("capture-selection→picker");
@@ -20,7 +20,7 @@ public sealed partial class CaptureController : IDisposable
         _captureAfterSelect = true;
     }
 
-    /// <summary>QQ 式「选区录制」——选一块区域，选完立即对该区域起录。</summary>
+    /// <summary>「选区录制」——选一块区域，选完立即对该区域起录。</summary>
     public void BeginRecordSelection()
     {
         Trace.Log("record-selection→picker");
@@ -28,7 +28,7 @@ public sealed partial class CaptureController : IDisposable
         _recordAfterSelect = true;
     }
 
-    /// <summary>录制中→停止（产物留内存，不进编辑器）；否则→选区起录。QQ 式「同键开始/结束」。
+    /// <summary>录制中→停止（产物留内存，不进编辑器）；否则→选区起录。一个键承担开始/结束两面。
     /// 本动作任何时候都不开编辑器；进编辑器请在「完成后序列」加『打开编辑器（上次录制）』。</summary>
     public void ToggleRecordSelection()
     {
@@ -109,7 +109,7 @@ public sealed partial class CaptureController : IDisposable
         }
     }
     #region 从剪贴板贴图
-    /// <summary>托盘/入口调用：把剪贴板里的图片钉成贴图（Snipaste 式"粘贴即贴图"）——
+    /// <summary>托盘/入口调用：把剪贴板里的图片钉成贴图（粘贴即贴图）——
     /// 复制任意图片（截图/图片文件/网页图）后一键钉屏参考。剪贴板无图片返回 false（调用方给反馈）。
     /// 落点：光标所在屏、以光标为中心，越界钳进屏内。须在 UI 线程调用（托盘菜单点击即 UI 线程）。</summary>
     /// <returns>true = 已钉出贴图；false = 剪贴板里没有可用图片（含读取抛异常），此时不创建任何窗口。</returns>
@@ -130,7 +130,7 @@ public sealed partial class CaptureController : IDisposable
         return true;
     }
 
-    /// <summary>截图后=贴图：把刚截的单帧钉在捕获区域原位（Snipaste 式原地钉，可多张并存）。
+    /// <summary>截图后=贴图：把刚截的单帧钉在捕获区域原位（原地钉，可多张并存）。
     /// activateOnShow=false：不抢焦点，用户可继续在原应用操作，点贴图才激活。须在 UI 线程调用。</summary>
     void PinFrameAt(CapturedFrame f, RectI reg)
     {
@@ -203,7 +203,7 @@ public sealed partial class CaptureController : IDisposable
             case AfterCaptureAction.Copy:
                 break; // 只复制（上面已 SetFrame），下方轮廓闪一下作反馈
             case AfterCaptureAction.Pin:
-                PinFrameAt(f, reg); // 截图后直接原地钉屏（Snipaste 式）
+                PinFrameAt(f, reg); // 截图后直接原地钉屏
                 break;
             default:
                 // 拍完即见：缩略浮窗确认"已复制"，点击原地进编辑器标注，不抢焦点

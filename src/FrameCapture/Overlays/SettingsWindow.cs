@@ -70,7 +70,7 @@ public sealed partial class SettingsWindow : Window
 
     void Build()
     {
-        // 自绘标题栏（QQ 式：拖动即走 + 自绘关闭）+ 按类别分页 + 强调色自定义。
+        // 自绘标题栏（拖动即走 + 自绘关闭）+ 按类别分页 + 强调色自定义。
         // 标题栏是显式、可发现的拖拽区，正文区不承担拖拽。
         var root = new Border
         {

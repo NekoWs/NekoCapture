@@ -29,7 +29,7 @@ public static partial class Fluent
         public const int HoverMs = 110;      // hover 反馈
         public const int StateMs = 150;      // 状态切换（开关/选中），与 Exit 同速
         public const int ThemeMs = 260;      // 主题交叉淡入
-        public const int SpringMs = 260;     // 弹性回弹（松手/入场的「QQ 弹弹」settling，BackEase 过冲）
+        public const int SpringMs = 260;     // 弹性回弹（松手/入场的 settling，BackEase 过冲）
     }
 
     /// <summary>弹性缓动工厂：BackEase 过冲回弹，用于松手/入场的「弹一下」手感。
@@ -38,7 +38,7 @@ public static partial class Fluent
     /// <returns>新建的 <c>BackEase</c>（EaseOut）；每次调用返回新实例，可安全并发动画。</returns>
     public static EasingFunctionBase Spring(double amp = 0.6) => new BackEase { Amplitude = amp, EasingMode = EasingMode.EaseOut };
 
-    /// <summary>QQ 式真无框窗口：WindowStyle=None 的 WPF 窗口仍保留 DWM 非客户区（顶部白条）。
+    /// <summary>真无框窗口：WindowStyle=None 的 WPF 窗口仍保留 DWM 非客户区（顶部白条）。
     /// WindowChrome（WPF 官方方案，内部处理 WM_NCCALCSIZE）让客户区覆盖整窗，白条不绘制，
     /// 且保留 WS_THICKFRAME → 原生阴影与 Win11 圆角、原生边缘调整大小，硬件加速不受影响
     /// （勿用 AllowsTransparency，软件渲染代价大）。CaptionHeight=0：拖拽由 DragMove 自理。</summary>
@@ -287,7 +287,7 @@ public static partial class Fluent
     /// <param name="el">目标元素。</param>
     public static void Springy(FrameworkElement el) => BgHover(el);
 
-    /// <summary>入场「弹一下」：元素从 from 缩放弹性放大到 1（BackEase 过冲），用于浮层/toast 的 QQ 弹弹登场。
+    /// <summary>入场「弹一下」：元素从 from 缩放弹性放大到 1（BackEase 过冲），用于浮层/toast 的弹性登场。
     /// 只缩放元素自身（在其窗口边界内），不位移故不会越出宿主窗口。</summary>
     /// <param name="el">登场元素；RenderTransform 被替换为 ScaleTransform。</param>
     /// <param name="from">起始缩放倍率，小于 1 才有「放大进场」感。</param>

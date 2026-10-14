@@ -1,7 +1,7 @@
 namespace FrameCapture.Core;
 
 /// <summary>
-/// 贴图磁边：拖动松手后把贴图吸附到所在屏幕工作区边缘（Snipaste 式手感）。
+/// 贴图磁边：拖动松手后把贴图吸附到所在屏幕工作区边缘。
 /// 纯函数、坐标单位由调用方统一（这里用 DIP），供单测。
 /// </summary>
 public static class PinSnap

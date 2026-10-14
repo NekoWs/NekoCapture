@@ -13,7 +13,7 @@ using FrameCapture.Services;
 namespace FrameCapture.Overlays;
 
 /// <summary>
-/// 截屏成功浮窗（对标 QQ 截图的「拍完即见」）：缩略图 + 「已复制」+ 点击继续标注。
+/// 截屏成功浮窗（拍完即见）：缩略图 + 「已复制」+ 点击继续标注。
 /// 不抢焦点、WDA 排除不入镜、悬停暂停自动消失；落点由 Core.ToastPlace 决策（贴刚截完的区域）。
 /// </summary>
 public sealed class CaptureToast : Window
@@ -137,7 +137,7 @@ public sealed class CaptureToast : Window
             Dismiss();
         };
         Content = card;
-        // 「QQ 弹弹」入场：卡片从 0.85 弹性放大到 1（BackEase 过冲），叠加 FadeIn 的淡入+上浮
+        // 弹性入场：卡片从 0.85 放大到 1（BackEase 过冲），叠加 FadeIn 的淡入+上浮
         ContentRendered += (_, _) => Fluent.PopIn(card);
 
         // 键盘等价（Enter/Esc）：浮窗不抢焦点，WPF 焦点路由收不到键——直接在 HWND 层处理消息

@@ -116,7 +116,7 @@ public sealed class WelcomeToast : Window
 
         card.Child = root;
         Content = card;
-        // 「QQ 弹弹」入场：与 CaptureToast 同款弹性放大登场
+        // 弹性入场：与 CaptureToast 同款放大登场
         ContentRendered += (_, _) => Fluent.PopIn(card);
 
         // 键盘等价：浮窗不抢焦点，WPF 焦点路由收不到键——直接在 HWND 层处理 Esc

@@ -19,7 +19,7 @@ public sealed class HotkeyManager : IDisposable
     /// <summary>滚动截图进行中按 Esc → 取消。控制条不抢焦点，Esc 本会落到目标窗，故全局钩子拦截。</summary>
     public event Action? ScrollCancel;
     /// <summary>滚动截图会话是否活跃（由控制条生命周期置位：Show=true、Closed=false）。
-    /// volatile：钩子线程读、UI 线程写。为 true 时全局吞掉 Esc 并触发 ScrollCancel（QQ 式取消）。</summary>
+    /// volatile：钩子线程读、UI 线程写。为 true 时全局吞掉 Esc 并触发 ScrollCancel。</summary>
     public static volatile bool ScrollActive;
     /// <summary>截图浮窗（CaptureToast）活跃时置位：全局吞 Enter/Esc 并回调（浮窗不抢焦点，键不会进它自己的
     /// HWND，只能靠全局钩子代劳）。Enter→进编辑器，Esc→关闭。生命周期绑定浮窗 Show/Closed。</summary>
@@ -148,7 +148,7 @@ public sealed class HotkeyManager : IDisposable
         // 选区窗只认裸键（OnPickerKey 内查修饰键，Ctrl/Alt/Win 组合放行给手势与前台）。
         if (isDown && PickerActive && PickerKey != null && PickerKey(vk)) return true;
 
-        // 独占吞键：手势命中「带具体键的组合键」→ 吞掉本键，前台程序收不到（QQ 式全局独占）。
+        // 独占吞键：手势命中「带具体键的组合键」→ 吞掉本键，前台程序收不到（全局独占）。
         // 放在滚动/浮窗判定之后：那两类是会话级优先；且手势只绑具体键(A/R)，不会误吞 Esc/Enter。
         if (gestureSwallow) { Core.Trace.Log("gesture swallow"); return true; }
         return false;

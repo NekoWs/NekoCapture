@@ -13,13 +13,13 @@ namespace FrameCapture.Overlays;
 
 /// <summary>
 /// 钉到屏幕——把当前帧（含标注/裁剪，WYSIWYG）作为一张无边框、置顶、可拖动/滚轮缩放的小图，
-/// 钉在桌面原捕获位置（Snipaste/QQ 式招牌手感）。
+/// 钉在桌面原捕获位置。
 /// 单位：入参与源区域都是物理像素、虚拟桌面绝对坐标；Loaded 时按可视树 DPI 换算成 DIP，故 1:1 时像素比 1:1。
 /// 交互：按住拖动移动；滚轮以中心为锚缩放（10%~600%）；Ctrl+滚轮调不透明度（20%~100%）；
 /// 双击或 Esc 关闭；R 键顺时针旋转 90°、F3 原地重抓源区域刷新内容、Ctrl+S 另存为、
 /// Ctrl+C 复制回剪贴板、Ctrl+O 识别文字；
 /// 右键菜单：复制 / 另存为 / 识别文字 / 旋转 / 更新内容 / 不透明度 / 关闭 / 关闭全部贴图。
-/// 不进任务栏（ShowInTaskbar=false），关掉只靠上述手势——与 Snipaste 贴图一致。
+/// 不进任务栏（ShowInTaskbar=false），关掉只靠上述手势。
 /// </summary>
 public sealed class PinWindow : Window
 {
@@ -37,7 +37,7 @@ public sealed class PinWindow : Window
     DispatcherTimer? _refreshTimer; // 「更新内容」的 200ms 延迟定时器，关窗时要停掉
     bool _closed;                   // 窗口已关闭：在途的刷新 Tick 不得再 Show()
     // 贴图显示时是否抢焦点。默认 true（编辑器 Ctrl+P / 剪贴板贴图，用户正盯着它）；
-    // 「截图后=贴图」传 false——贴图静默出现不抢焦点，符合"钉住参考后继续原应用操作"意图，点击时才激活（Snipaste 式）。
+    // 「截图后=贴图」传 false——贴图静默出现不抢焦点，符合"钉住参考后继续原应用操作"意图，点击时才激活。
     readonly bool _activateOnShow;
     double _scale = 1.0, _baseW, _baseH;
     // 手动拖拽 + 实时磁吸：DragMove 拿不到逐帧位置，做不到"拖动途中就吸到边上"的实时反馈
@@ -309,7 +309,7 @@ public sealed class PinWindow : Window
         Core.Trace.Log($"pin-rotate → {_frame.W}x{_frame.H}");
     }
 
-    /// <summary>原地重抓源区域刷新贴图内容（Snipaste F3 式）——盯梢会变的区域（进度条、数值、直播画面）
+    /// <summary>原地重抓源区域刷新贴图内容——盯梢会变的区域（进度条、数值、直播画面）
     /// 不必重新截图。先隐藏本贴图避免把自己截进新帧（反馈循环），短暂延迟让隐藏生效，再按当前旋转角度重放。
     /// 延迟期间窗口被关闭（Esc / 关闭全部贴图）则本次刷新作废：对已关闭的窗调 Show 会抛。</summary>
     void Refresh()

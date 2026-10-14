@@ -39,7 +39,7 @@ public static partial class Fluent
             RenderTransformOrigin = new Point(0.5, 0.5),
         };
         b.RenderTransform = new ScaleTransform(1, 1);
-        // 「QQ 弹弹」：hover 轻微放大、按下明显回缩、松手用 BackEase 过冲弹回——比纯 CubicEase 更有生命力
+        // 弹性手感：hover 轻微放大、按下明显回缩、松手用 BackEase 过冲弹回——比纯 CubicEase 更有生命力
         b.MouseEnter += (_, _) => AnimateScale(b, 1.08, Motion.HoverMs, Spring(0.4));
         b.PreviewMouseLeftButtonDown += (_, _) => AnimateScale(b, 0.9, 70);
         b.MouseUp += (_, _) => AnimateScale(b, 1.08, Motion.SpringMs, Spring(0.7));
@@ -105,7 +105,7 @@ public static partial class Fluent
     /// <summary>标题栏高度（逻辑像素）：既是条带高度，也是 <see cref="InstallCaptionDrag"/> 默认的可拖条带。</summary>
     public const double TitleBarHeight = 36;
 
-    /// <summary>构建自绘标题栏（QQ 式）：CardBg 条带 + 图标 + 标题 + 关闭按钮。
+    /// <summary>构建自绘标题栏：CardBg 条带 + 图标 + 标题 + 关闭按钮。
     /// 设置窗与帮助窗共用同一件——全盘 UI 对齐同一套密度与视觉语言。</summary>
     /// <param name="glyph">左侧图标的 PUA 字形，取 Accent 色。</param>
     /// <param name="title">标题文字。</param>
@@ -335,7 +335,7 @@ public static partial class Fluent
             track.BorderBrush = bb;
             bb.BeginAnimation(SolidColorBrush.ColorProperty, new ColorAnimation(on ? Theme.Accent : Theme.Stroke, new Duration(TimeSpan.FromMilliseconds(Motion.StateMs))));
         }
-        // 滑块恒白（QQ 式），不随状态在 accent 反白 / Theme.Text 之间跳——亮色主题下 Theme.Text=黑，
+        // 滑块恒白，不随状态在 accent 反白 / Theme.Text 之间跳——亮色主题下 Theme.Text=黑，
         // 关态黑滑块看着像没做适配；状态只靠轨道底色表达。
     }
     #endregion

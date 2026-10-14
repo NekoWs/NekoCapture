@@ -24,9 +24,9 @@ public sealed partial class CaptureController : IDisposable
     private System.Diagnostics.Stopwatch? _captureClock;
     private int _captureFps;   // 本次捕获实际帧率（跟随刷新率时=刷新率），随 seq 交给编辑器算时间轴
     private ScreenRegion? _pendingRegion;
-    /// <summary>点按总是先显示选区（QQ 式）：本次选区确认后立即截一帧静态图。</summary>
+    /// <summary>点按总是先显示选区：本次选区确认后立即截一帧静态图。</summary>
     private bool _captureAfterSelect;
-    /// <summary>QQ 式「选区录制」——本次选区确认后立即对该区域起录。</summary>
+    /// <summary>「选区录制」——本次选区确认后立即对该区域起录。</summary>
     private bool _recordAfterSelect;
     /// <summary>本条手势的「截图后」（引擎 BeginBinding 设，截图发起时捕获进 <see cref="_sessionAfter"/>）。空=默认弹提示。</summary>
     private string _pendingAfter = "";
@@ -189,7 +189,7 @@ public sealed partial class CaptureController : IDisposable
             }
             if (_recordAfterSelect)
             {
-                // QQ 式选区录制：区域已由上方 Mutate 存好（RegionX/Y/W/H），选区窗已 WDA 排除，只留一拍让 Close 走完即对该区域起录。
+                // 选区录制：区域已由上方 Mutate 存好（RegionX/Y/W/H），选区窗已 WDA 排除，只留一拍让 Close 走完即对该区域起录。
                 _recordAfterSelect = false;
                 HideOutline();
                 var rt = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(PickerExitMs) };

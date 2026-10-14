@@ -4,7 +4,7 @@ using System.Runtime.InteropServices;
 namespace FrameCapture.Core;
 
 /// <summary>
-/// 截图提示音：捕获完成时放一声柔和短促的「嘀」，给用户「截好了」的听觉确认（QQ 招牌反馈）。
+/// 截图提示音：捕获完成时放一声柔和短促的「嘀」，给用户「截好了」的听觉确认。
 /// 内置音不依赖外部音频文件——运行时合成一段 44.1kHz/16bit 单声道 WAV（纯函数，可单测），
 /// Win32 PlaySound 异步播放不阻塞 UI。用户另选自定义音文件时走 <see cref="Play"/> 的 customPath 分支。
 /// 音量刻意压低、时长压短、起音 2ms 防爆音：宁可轻不可噪，且设置里带「试听」让用户先听再决定开不开。

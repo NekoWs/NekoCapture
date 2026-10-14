@@ -14,7 +14,7 @@ public sealed class ElementHit
 }
 
 /// <summary>
-/// 控件级吸附（Snipaste 式）：用 UI Automation 命中窗口内具体控件的边界
+/// 控件级吸附：用 UI Automation 命中窗口内具体控件的边界
 /// （输入框、文字、图片、分组容器等）。依赖目标应用暴露无障碍元素；
 /// 不支持的应用（多数游戏/自绘 UI）会返回 null，调用方回退窗口级吸附。
 /// </summary>

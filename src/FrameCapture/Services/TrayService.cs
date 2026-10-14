@@ -106,7 +106,7 @@ public sealed class TrayService : IDisposable
             if (!_host.Controller.PinFromClipboard())
                 Notify("剪贴板里没有图片——先复制一张图片（截图/图片文件/网页图）再试");
         });
-        // 开了自动保存后，用户常想知道文件落到哪——直接打开保存目录（QQ 式「打开文件夹」）
+        // 开了自动保存后，用户常想知道文件落到哪——直接打开保存目录
         if (_host.Settings.Current.AutoSaveCopy)
             Item("打开保存文件夹", () =>
             {

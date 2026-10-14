@@ -85,7 +85,7 @@ sealed class GestureInvoker : GC.IActionInvoker
             case GestureActions.PinSelection: Post(() => c.PinFromClipboard()); return true;
 
             case GestureActions.OcrSelection:
-                // 对当前范围直接 OCR（QQ 式「提取文字」）。抓取/识别在投递的动作里于 UI 线程跑，钩子回调不占重活。
+                // 对当前范围直接 OCR（提取文字）。抓取/识别在投递的动作里于 UI 线程跑，钩子回调不占重活。
                 Post(() => c.OcrStoredStill());
                 return true;
 

@@ -112,7 +112,7 @@ public sealed partial class SettingsWindow : Window
         {
             Width = 12,
             Height = 12,
-            // 滑块恒白 + 极淡描边（QQ 式）：开关状态只靠轨道底色表达，滑块不参与状态配色
+            // 滑块恒白 + 极淡描边：开关状态只靠轨道底色表达，滑块不参与状态配色
             Fill = new SolidColorBrush(Colors.White),
             Stroke = new SolidColorBrush(Color.FromArgb(0x26, 0, 0, 0)),
             StrokeThickness = 1,

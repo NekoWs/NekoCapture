@@ -54,7 +54,7 @@ public sealed partial class EditorWindow : Window
         return (baked.Count > 0 ? baked[0] : null, region);
     }
 
-    /// <summary>钉到屏幕——烘焙当前帧并在原捕获位置弹出一张贴图（可多张并存，Snipaste 式）。</summary>
+    /// <summary>钉到屏幕——烘焙当前帧并在原捕获位置弹出一张贴图（可多张并存）。</summary>
     void PinCurrentFrame()
     {
         var (f, region) = BakeCurrentFrame();

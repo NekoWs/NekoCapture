@@ -2371,8 +2371,8 @@ static class SelfTest
             Chk("T131c-default", def.Count == 2 && def[0].Actions[0] == GestureActions.CaptureFrame && def[1].Actions[0] == GestureActions.ScopeSelect,
                 "默认绑定：捕获键→捕获单帧、选区键→选取范围");
 
-            var qq = GestureConfig.PresetQQ("Ctrl+Shift+G", "Ctrl+Shift+R");
-            Chk("T131d-qq-preset", qq.Count == 2 && qq.All(x => x.Actions[0] == GestureActions.ScopeSelect),
+            var scopeFirst = GestureConfig.PresetScopeFirst("Ctrl+Shift+G", "Ctrl+Shift+R");
+            Chk("T131d-scope-first-preset", scopeFirst.Count == 2 && scopeFirst.All(x => x.Actions[0] == GestureActions.ScopeSelect),
                 "选区优先预设：两键均→选取范围（配合选完自动截图）");
 
             var cfg = new GestureConfig { Enabled = true, Bindings = GestureConfig.PresetHoldToRecord("F6", "F7") };
@@ -2422,7 +2422,7 @@ static class SelfTest
             Chk("T134a-hook-for-keysink", sinkInstalled, "有手势 KeySink 时装钩子（否则手势永不触发）");
             Chk("T134b-no-hook-when-idle", !idleNotInstalled, "无 KeySink 时不装钩子（零开销）");
         }
-        // QQ 风味选区动作：capture.selection / record.selection 注册 + Ctrl+Alt+A/R 解析成 Chord
+        // 选区动作：capture.selection / record.selection 注册 + Ctrl+Alt+A/R 解析成 Chord
         {
             Chk("T135a-actions-registered",
                 GestureActions.IsValid("capture.selection") && GestureActions.IsValid("record.selection"),
@@ -2826,7 +2826,7 @@ static class SelfTest
                 "配置器库 OnAccent 与宿主同 WCAG 公式（#7F75FF→白 / #FF8C00→黑）");
         }
 
-        #region macOS 式真·窗口截图（WGC 本体 + 按轮廓合成阴影）纯逻辑
+        #region 真·窗口截图（WGC 本体 + 按轮廓合成阴影）纯逻辑
         {
             // 相交
             var ov = WindowCapture.Intersect(new RectI(0, 0, 10, 10), new RectI(5, 5, 10, 10));
