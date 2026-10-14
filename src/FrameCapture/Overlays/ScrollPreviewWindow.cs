@@ -165,19 +165,22 @@ public sealed class ScrollPreviewWindow : Window
 
     /// <summary>
     /// 长图 → 缩略图：整行整列抽样（不插值、不模糊），输出尺寸恒 ≤ <c>maxW×maxH</c>，首行末行必被取到。
-    /// 抽样步长 <c>ceil(count / max)</c>，末位下标改写为 <c>count-1</c>——长图最新拼上的那一行永远在预览里。
+    /// 两个方向共用同一步长 <c>max(ceil(w/maxW), ceil(h/maxH))</c>：各轴独立取步长会让输出宽高比偏离源图，
+    /// 竖长的文档缩略图会被横向拉宽；共用步长保证缩略图与源图同比例。
+    /// 末位下标改写为 <c>count-1</c>——长图最新拼上的那一行永远在预览里。
     /// </summary>
     /// <param name="bgra">源图本体，行主序 BGRA，行距 <c>w*4</c>；长度不足 <c>w*h*4</c> 视为无效入参。</param>
     /// <param name="w">源图宽，像素。</param>
     /// <param name="h">源图高，像素。</param>
     /// <param name="maxW">输出宽上限，像素。</param>
     /// <param name="maxH">输出高上限，像素。</param>
-    /// <returns>缩略后的 BGRA 与宽高；两个方向都不需要抽样时逐字节原样输出，退化入参返回空数组与 0×0。</returns>
+    /// <returns>缩略后的 BGRA 与宽高，宽高比与源图一致；两个方向都不需要抽样时逐字节原样输出，退化入参返回空数组与 0×0。</returns>
     public static (byte[] Bgra, int W, int H) Thumbnail(byte[] bgra, int w, int h, int maxW, int maxH)
     {
         if (bgra == null || w <= 0 || h <= 0 || maxW <= 0 || maxH <= 0) return (Array.Empty<byte>(), 0, 0);
         if ((long)bgra.Length < (long)w * h * 4) return (Array.Empty<byte>(), 0, 0);
-        int[] ys = SampleIndices(h, maxH), xs = SampleIndices(w, maxW);
+        int stride = Math.Max((w + maxW - 1) / maxW, (h + maxH - 1) / maxH);
+        int[] ys = SampleIndices(h, stride), xs = SampleIndices(w, stride);
         int ow = xs.Length, oh = ys.Length;
         var dst = new byte[ow * oh * 4];
         if (ow == w)
@@ -190,13 +193,12 @@ public sealed class ScrollPreviewWindow : Window
         return (dst, ow, oh);
     }
 
-    /// <summary>在 <c>0..count-1</c> 上按固定步长抽样，步长 <c>ceil(count/max)</c>，末位固定取 <c>count-1</c>。</summary>
+    /// <summary>在 <c>0..count-1</c> 上按固定步长抽样，末位固定取 <c>count-1</c>。</summary>
     /// <param name="count">源方向上的像素数，须 ≥ 1。</param>
-    /// <param name="max">输出上限，须 ≥ 1。</param>
-    /// <returns>严格递增的下标表，长度 ≤ <c>max</c>；首元素恒为 0，末元素恒为 <c>count-1</c>。</returns>
-    static int[] SampleIndices(int count, int max)
+    /// <param name="stride">抽样步长，须 ≥ 1。两个方向共用同一步长，缩略图才与源图同宽高比。</param>
+    /// <returns>严格递增的下标表；首元素恒为 0，末元素恒为 <c>count-1</c>。</returns>
+    static int[] SampleIndices(int count, int stride)
     {
-        int stride = (count + max - 1) / max;
         int n = (count + stride - 1) / stride;
         var idx = new int[n];
         for (int i = 0; i < n; i++) idx[i] = i * stride;

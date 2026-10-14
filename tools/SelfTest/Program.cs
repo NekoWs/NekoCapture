@@ -2838,6 +2838,19 @@ static class SelfTest
             Chk("T167w3-thumb-edges", firstRow == 0 && lastRow == h - 1 && lastCol == ((w - 1) & 0xFF),
                 $"first={firstRow} last={lastRow} lastCol={lastCol}");
 
+            // T167w5 宽高比守恒：缩略图必须与源图同比例。各轴独立取步长会让竖长文档被横向拉宽。
+            // 同一块缓冲按竖（300×1200）与横（1200×300）两种形状各解释一次，两个方向的缺陷都能抓到。
+            bool arOk = true;
+            var arLog = new System.Text.StringBuilder();
+            foreach (var (sw, sh) in new[] { (300, 1200), (1200, 300) })
+            {
+                var ar = FrameCapture.Overlays.ScrollPreviewWindow.Thumbnail(longImg, sw, sh, 64, 50);
+                double dev = System.Math.Abs((double)ar.W / ar.H / ((double)sw / sh) - 1);
+                arOk &= dev < 0.10 && ar.W <= 64 && ar.H <= 50;
+                arLog.Append($"{sw}x{sh}->{ar.W}x{ar.H} dev={dev:P1} ");
+            }
+            Chk("T167w5-thumb-aspect", arOk, arLog.ToString());
+
             // T167w4 退化入参：空数组 + 0×0，绝不抛
             bool deg = true;
             try
