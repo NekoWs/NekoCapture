@@ -1870,6 +1870,65 @@ static class SelfTest
                 int ovJ = FrameCapture.Core.ScrollStitch.FindOverlap(acc, W, 100, bJit, 100);
                 Chk("T119f-jitter-tolerant", ovJ == 40, $"±1px 抖动的重叠应判 40，实得 {ovJ}");
             }
+            // 文字版式页拼接（ScrollStitch 纯函数）：绝大多数行整幅同色（纯背景），签名极差 0，
+            // 在任何纵向偏移下都与同类行相等，定位不了重叠——重叠只能靠少量文字行判定。
+            // 已知步长逐步滚动：每步重叠必须正好等于真值，拼出的长图逐行等于原文档（不丢行、不重行）。
+            {
+                static byte[] Cut(byte[] src, int w, int top, int rows)
+                {
+                    var o = new byte[rows * w * 4];
+                    Buffer.BlockCopy(src, top * w * 4, o, 0, rows * w * 4);
+                    return o;
+                }
+                int TW = 200, TD = 1200, TF = 400, TStep = 120;
+                var trnd = new Random(20260801);
+                var tdoc = new byte[TD * TW * 4];
+                for (int i = 0; i < tdoc.Length; i += 4) { tdoc[i] = 250; tdoc[i + 1] = 250; tdoc[i + 2] = 250; tdoc[i + 3] = 255; }
+                for (int line = 0; line * 14 + 9 < TD; line++)
+                {
+                    if (trnd.Next(100) < 20) continue;                       // 整行留白
+                    int y0 = line * 14 + 2, x = 12 + trnd.Next(10), right = TW - 30 - trnd.Next(60);
+                    while (x < right)
+                    {
+                        int gw = 2 + trnd.Next(4), gh = 6 + trnd.Next(3);
+                        if (trnd.Next(100) >= 25)
+                            for (int dy = 0; dy < gh; dy++)
+                                for (int dx = 0; dx < gw && x + dx < TW; dx++)
+                                {
+                                    int o = ((y0 + dy) * TW + x + dx) * 4;
+                                    tdoc[o] = 30; tdoc[o + 1] = 32; tdoc[o + 2] = 36;
+                                }
+                        x += gw + 2 + trnd.Next(2);
+                    }
+                }
+                var tacc = Cut(tdoc, TW, 0, TF);
+                int taccH = TF, tBottom = TF - 1, tWrong = 0, tLost = 0;
+                for (int k = 0; k < 4; k++)
+                {
+                    int ttop = (k + 1) * TStep;
+                    var tb = Cut(tdoc, TW, ttop, TF);
+                    int tov = FrameCapture.Core.ScrollStitch.FindOverlap(tacc, TW, taccH, tb, TF);
+                    int ttruth = tBottom + 1 - ttop;
+                    if (tov != ttruth) tWrong++;
+                    if (tov > ttruth) tLost += tov - ttruth;
+                    tacc = FrameCapture.Core.ScrollStitch.Append(tacc, TW, taccH, tb, TF, tov);
+                    taccH = tacc.Length / (TW * 4);
+                    tBottom = ttop + TF - 1;
+                }
+                int tBad = -1;
+                for (int y = 0; y < Math.Min(taccH, tBottom + 1); y++)
+                {
+                    bool same = true;
+                    for (int x = 0; x < TW; x++)
+                    {
+                        int o = (y * TW + x) * 4;
+                        if (tacc[o] != tdoc[o] || tacc[o + 1] != tdoc[o + 1] || tacc[o + 2] != tdoc[o + 2]) { same = false; break; }
+                    }
+                    if (!same) { tBad = y; break; }
+                }
+                Chk("T119g-scroll-stitch 文字页重叠精确不丢行", tWrong == 0 && tLost == 0 && taccH == tBottom + 1 && tBad < 0,
+                    $"错步={tWrong} 丢行={tLost} 期望高={tBottom + 1} 实际高={taccH} 首个错行={tBad}");
+            }
 
             // 取色复制格式（，ColorFormat 纯函数）：HEX/RGB/HSL 文本 + 分量夹取 + 设置串解析往返
             {
