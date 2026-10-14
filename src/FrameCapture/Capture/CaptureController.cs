@@ -51,13 +51,19 @@ public sealed partial class CaptureController : IDisposable
     private Overlays.ScrollHintWindow? _scrollBar;
     private Overlays.ScrollStageWindow? _scrollStage;       // 取景层：范围外压暗 + 范围描边，鼠标穿透
     private Overlays.ScrollPreviewWindow? _scrollPreview;   // 选区右侧的已拼接长图实时预览
-    private bool _scrollAuto;   // 「自动滚动」开关：控制条按钮翻转它，本类不注入任何滚动
+    private bool _scrollAuto;   // 「自动滚动」开关：控制条按钮翻转它，注轮节奏由 ScrollTick 驱动
     private byte[]? _scrollAcc;
     private int _scrollW, _scrollH, _scrollSegs;
     private RectI _scrollRegion;
     private string _scrollDevice = "";
     private System.Windows.Threading.DispatcherTimer? _scrollTimer;
     private byte[]? _scrollPrevB;   // 上一 tick 抓帧，用于「滚动已停稳」判定（避免拼接滚动中途的过渡帧）
+    // 自动滚动用 SendInput 注真实滚轮，节奏挂在同一个 ScrollTick 上：发一步 → 等这一步被拼上 → 再发下一步
+    private bool _autoWaitSettle;   // 已注入一步、正等它落定；落定前不做拼接判定
+    private int _autoNoNew;         // 连续「停稳且画面没变」次数，数满判到底
+    private int _autoNotch = ScrollAutoPolicy.NotchStart;   // 当前步长（滚轮格数）
+    private bool _autoCursorSaved;  // 光标是否为注轮移进了选区，退出路径据此还原
+    private Native.Win32.POINT _autoCursorHome;   // 注轮前的光标位置，物理像素
 
     // 延时截图——独立托盘动作，倒计时后截当前范围（不碰点按/录制状态机）
     private Overlays.CountdownWindow? _delayWindow;
@@ -512,10 +518,11 @@ public sealed partial class CaptureController : IDisposable
 
     /// <summary>
     /// 释放控制器自己持有的产物与后端：上次静图、从未进编辑器的录制序列（含其 spool 文件）、GDI 捕获线程。
-    /// 已交给编辑器的产物归编辑器释放，这里不碰。
+    /// 已交给编辑器的产物归编辑器释放，这里不碰。滚动会话还在跑时光标仍被注轮借走，这里负责还回去。
     /// </summary>
     public void Dispose()
     {
+        RestoreAutoCursor();
         _lastStill.Clear(); // 释放保留帧（最大可达数十 MB）
         (_lastSequence?.Frames as System.IDisposable)?.Dispose(); // 留在内存、从未进编辑器的录制产物
         _lastSequence = null;

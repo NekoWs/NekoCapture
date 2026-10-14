@@ -29,6 +29,7 @@ public sealed partial class CaptureController : IDisposable
         if (f == null) { FrameCapture.Core.Trace.Log("scroll: first grab null"); return; }
         _scrollAcc = f.Bgra; _scrollW = f.W; _scrollH = f.H; _scrollRegion = region; _scrollDevice = device; _scrollSegs = 1;
         _scrollPrevB = null; _scrollAuto = false;
+        _autoWaitSettle = false; _autoNoNew = 0; _autoNotch = ScrollAutoPolicy.NotchStart;
         // 三层自下而上：取景层 → 预览卡 → 控制条。三者同为 Topmost，Show 顺序决定 Z 序，控制条必须在最上
         _scrollStage = new Overlays.ScrollStageWindow(region, device);
         _scrollStage.Show();
@@ -51,12 +52,64 @@ public sealed partial class CaptureController : IDisposable
         FrameCapture.Core.Trace.Log($"scroll loop start {region.W}x{region.H}");
     }
 
-    /// <summary>「自动滚动」按钮：翻转开关并把按钮文案/配色交给控制条。这里不注入任何滚动。</summary>
+    /// <summary>「自动滚动」按钮：开＝把光标移进选区中心、由 ScrollTick 按步进注轮；关＝还原光标并交还滚动控制权。
+    /// 滚轮投给光标所在窗口，光标不在选区内就注不到目标窗，所以开启必须先把光标挪进去。</summary>
     void ScrollToggleAuto()
     {
-        _scrollAuto = !_scrollAuto;
-        _scrollBar?.SetAutoScrolling(_scrollAuto);
-        FrameCapture.Core.Trace.Log($"scroll auto={_scrollAuto}");
+        if (_scrollBar == null) return;
+        if (_scrollAuto)
+        {
+            _scrollAuto = false; _autoWaitSettle = false; _autoNoNew = 0;
+            _scrollBar.SetAutoScrolling(false);
+            RestoreAutoCursor();
+            FrameCapture.Core.Trace.Log("scroll auto off");
+            return;
+        }
+        if (!Native.Win32.InputLayoutOk) { _scrollBar.FlashHint("此环境无法注入滚轮，请手动滚动"); return; }
+        // 只在开启这一刻存一次原位置，整个自动滚动过程中光标就停在那儿不动；取不到原位置就不还原，免得把光标甩到 (0,0)
+        _autoCursorSaved = Native.Win32.GetCursorPos(out var home);
+        if (_autoCursorSaved) _autoCursorHome = home;
+        Native.Win32.SetCursorPos(_scrollRegion.X + _scrollRegion.W / 2, _scrollRegion.Y + _scrollRegion.H / 2);
+        _scrollAuto = true; _autoNoNew = 0; _autoNotch = ScrollAutoPolicy.NotchStart;
+        _scrollBar.SetAutoScrolling(true);
+        _scrollBar.FlashHint("自动滚动中：光标已移入选区，停止或结束后移回原位");
+        AutoStep();   // 立刻发第一步，不等下一个空拍
+        FrameCapture.Core.Trace.Log($"scroll auto on notch={_autoNotch}");
+    }
+
+    /// <summary>注入一步滚轮并进入「等这一步落定」：这一步落定后 ScrollTick 才继续判定，等待期间既不发轮也不拼接。</summary>
+    void AutoStep()
+    {
+        _autoWaitSettle = true;
+        if (!Native.Win32.Wheel(_autoNotch)) FrameCapture.Core.Trace.Log($"scroll wheel refused notch={_autoNotch}");
+    }
+
+    /// <summary>把本帧的拼接判定结果交给步进策略：该发下一步就发，判到底就停。手动滚动时不参与。</summary>
+    /// <param name="obs">本帧观测：画面没变 / 找不到重叠 / 一步太小 / 已拼上。</param>
+    void AutoObserve(ScrollAutoObservation obs)
+    {
+        if (!_scrollAuto || _scrollBar == null) return;
+        var d = ScrollAutoPolicy.Next(_autoWaitSettle, _autoNoNew, _autoNotch, obs);
+        _autoNoNew = d.NoNew; _autoNotch = d.Notch; _autoWaitSettle = d.Waiting;
+        if (d.Stop)
+        {
+            // 到底：只停注入、不停会话。光标留在选区内，用户想接着手动滚一段再出图也顺手
+            _scrollAuto = false;
+            _scrollBar.SetAutoScrolling(false);   // 先复位按钮文案，再刷提示，顺序反了会被 SetAutoScrolling 覆盖
+            _scrollBar.FlashHint("已到内容底部，点「完成」出图");
+            FrameCapture.Core.Trace.Log("scroll auto stop: bottom");
+            return;
+        }
+        if (d.Inject) AutoStep();
+    }
+
+    /// <summary>把注轮期间移进选区的光标放回原位。没移过则无副作用，重复调用只还原一次。</summary>
+    void RestoreAutoCursor()
+    {
+        if (!_autoCursorSaved) return;
+        _autoCursorSaved = false;
+        Native.Win32.SetCursorPos(_autoCursorHome.X, _autoCursorHome.Y);
+        FrameCapture.Core.Trace.Log("scroll auto cursor restored");
     }
 
     void ScrollTick()
@@ -65,21 +118,24 @@ public sealed partial class CaptureController : IDisposable
         var b = LiveCapture.Grab(_scrollRegion);
         if (b == null) return;
         // 稳定判定：本帧与上一帧一致（上一帧底部完全包含本帧）才算滚动停稳，避免拼接滚动中途的过渡帧
+        // 自动滚动注的那一步没落定，画面必然还在动，同样卡在这里返回——这一步不拼上就不发下一步
         bool stable = _scrollPrevB != null &&
             FrameCapture.Core.ScrollStitch.FindOverlap(_scrollPrevB, _scrollW, _scrollPrevB.Length / (_scrollW * 4), b.Bgra, b.H) >= b.H;
         _scrollPrevB = b.Bgra;
         if (!stable) return;
+        _autoWaitSettle = false;   // 已停稳：注过的那一步落定，本帧可用于拼接判定
         int ov = FrameCapture.Core.ScrollStitch.FindOverlap(_scrollAcc, _scrollW, _scrollH, b.Bgra, b.H);
-        if (ov >= b.H) return;   // 画面没再滚（本帧已含于累积底部）
-        if (ov <= 0) { _scrollBar.FlashHint("滚动太快、找不到重叠——请少滚一点"); return; }   // 滚过头
+        if (ov >= b.H) { AutoObserve(ScrollAutoObservation.NoNewContent); return; }   // 画面没再滚（本帧已含于累积底部）
+        if (ov <= 0) { _scrollBar.FlashHint("滚动太快、找不到重叠——请少滚一点"); AutoObserve(ScrollAutoObservation.NoOverlap); return; }   // 滚过头
         int newRows = b.H - ov;
-        if (newRows < 3) return; // 抖动级微滚，忽略
+        if (newRows < 3) { AutoObserve(ScrollAutoObservation.TinyStep); return; } // 抖动级微滚，忽略
         _scrollAcc = FrameCapture.Core.ScrollStitch.Append(_scrollAcc, _scrollW, _scrollH, b.Bgra, b.H, ov);
         _scrollH = _scrollAcc.Length / (_scrollW * 4);
         _scrollSegs++;
         _scrollBar.SetProgress(_scrollSegs, _scrollH);
         _scrollPreview?.SetImage(_scrollAcc, _scrollW, _scrollH);
         FrameCapture.Core.Trace.Log($"scroll append ov={ov} new={newRows} h={_scrollH}");
+        AutoObserve(ScrollAutoObservation.Appended);
     }
 
     /// <summary>收起取景层与预览卡并清字段。完成与取消两条退出路径都走这里——漏一条就是关不掉的压暗遮罩。</summary>
@@ -95,6 +151,7 @@ public sealed partial class CaptureController : IDisposable
     {
         Services.HotkeyManager.ScrollActive = false;
         _scrollTimer?.Stop(); _scrollTimer = null;
+        RestoreAutoCursor();   // 注轮借走的光标在出图前就得还回去，acc 为空提前返回也覆盖
         CloseScrollStageAndPreview();
         var acc = _scrollAcc; var bar = _scrollBar;
         _scrollAcc = null; _scrollBar = null; _scrollPrevB = null; _scrollAuto = false;
@@ -125,12 +182,13 @@ public sealed partial class CaptureController : IDisposable
         _lastStill.Set(frame, reg, dev);
     }
 
-    /// <summary>取消滚动拼接：停表、收起取景层与预览卡、关控制条、丢弃已拼接的内容（不落盘、不进剪贴板）。
+    /// <summary>取消滚动拼接：停表、还原注轮借走的光标、收起取景层与预览卡、关控制条、丢弃已拼接的内容（不落盘、不进剪贴板）。
     /// 退出必须清 <c>HotkeyManager.ScrollActive</c>，否则全局 Esc 会被一直吞掉（控制条 <c>Closed</c> 另有兜底）。</summary>
     public void ScrollCancel()
     {
         Services.HotkeyManager.ScrollActive = false;
         _scrollTimer?.Stop(); _scrollTimer = null;
+        RestoreAutoCursor();
         CloseScrollStageAndPreview();
         var bar = _scrollBar; _scrollBar = null; _scrollAcc = null; _scrollPrevB = null; _scrollSegs = 0; _scrollAuto = false;
         bar?.CloseSelf();
