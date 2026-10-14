@@ -102,7 +102,7 @@ public sealed partial class EditorWindow : Window
         ShowSnack("识别文字…");
         try
         {
-            var frame = _seq.Frames[_index];
+            var frame = Cur();
             var outcome = await FrameCapture.Core.OcrService.RecognizeAsync(frame);
             if (_userClosed) return; // 识别期间关窗：跳过提示
             switch (outcome.Status)

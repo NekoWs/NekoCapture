@@ -111,11 +111,29 @@ public sealed partial class EditorWindow
     double _zoom = 1.0, _panX, _panY;
     readonly FrameCapture.Core.CropState _crop = new();
     readonly FrameCapture.Core.ActionOrder _order = new();
+
+    // 当前帧缓存：录制产物的帧逐帧落盘，每次索引器访问都要 Seek+ReadExactly 整帧并新分配像素数组。
+    // 鼠标拖动期间同一帧会被反复取用，而帧内容不可变、_seq 终身不变，故按帧号缓存即可。
+    FrameCapture.Capture.CapturedFrame? _curFrame;
+    int _curFrameIndex = -1;
+
+    /// <summary>取当前帧，按 <c>_index</c> 缓存。翻页自动重取；同一帧内重复取用不触碰磁盘。</summary>
+    /// <returns>当前帧。帧像素数组在多次调用间共享——帧内容只读，不得写入返回值的 <c>Bgra</c>。</returns>
+    FrameCapture.Capture.CapturedFrame Cur()
+    {
+        if (_curFrameIndex != _index || _curFrame == null)
+        {
+            _curFrame = _seq.Frames[_index];
+            _curFrameIndex = _index;
+        }
+        return _curFrame;
+    }
+
     void UpdateImgRect()
     {
         // 用 _viewGrid 尺寸：视图容器任何状态都被布局且有尺寸，Image 任何状态都要跟随
         double cw = _viewGrid.ActualWidth, ch = _viewGrid.ActualHeight;
-        var f = _seq.Frames[_index];
+        var f = Cur();
         var (fw, fh) = CropPx(f.W, f.H); // 裁剪子区像素尺寸：适配/钳制都以"可见区"为准
         double sFit = FrameCapture.Core.ZoomMath.FitScale(cw, ch, fw, fh);
         double s = sFit * _zoom;
@@ -156,7 +174,7 @@ public sealed partial class EditorWindow
 
     void SetZoom(double newZoom, double cx, double cy)
     {
-        var f = _seq.Frames[_index];
+        var f = Cur();
         var (fw, fh) = CropPx(f.W, f.H);
         var (z, px, py) = FrameCapture.Core.ZoomMath.ZoomAt(_zoom, _panX, _panY, newZoom, cx, cy,
             _viewGrid.ActualWidth, _viewGrid.ActualHeight, fw, fh);
@@ -169,7 +187,7 @@ public sealed partial class EditorWindow
     void ZoomFit() => SetZoom(FrameCapture.Core.ZoomMath.MinZoom, _viewGrid.ActualWidth / 2, _viewGrid.ActualHeight / 2);
     void ZoomOneToOne()
     {
-        var f = _seq.Frames[_index];
+        var f = Cur();
         var (fw, fh) = CropPx(f.W, f.H);
         double sFit = FrameCapture.Core.ZoomMath.FitScale(_viewGrid.ActualWidth, _viewGrid.ActualHeight, fw, fh);
         SetZoom(FrameCapture.Core.ZoomMath.OneToOneZoom(sFit), _viewGrid.ActualWidth / 2, _viewGrid.ActualHeight / 2);
@@ -194,7 +212,7 @@ public sealed partial class EditorWindow
     {
         if (!_panning) return;
         var p = e.GetPosition(_viewGrid);
-        var f = _seq.Frames[_index];
+        var f = Cur();
         var (fw, fh) = CropPx(f.W, f.H);
         double sFit = FrameCapture.Core.ZoomMath.FitScale(_viewGrid.ActualWidth, _viewGrid.ActualHeight, fw, fh);
         var (x, y) = FrameCapture.Core.ZoomMath.PanBy(_panPressX, _panPressY, p.X - _panPress.X, p.Y - _panPress.Y,
@@ -294,7 +312,7 @@ public sealed partial class EditorWindow
     {
         UpdateImgRect();
         if (_imgRect.Width < 4 || _imgRect.Height < 4) return;
-        var f = _seq.Frames[_index];
+        var f = Cur();
         var n0 = Norm(a); var n1 = Norm(b); // 视口→全帧归一化（缩放/平移/已裁剪状态自动卷入）
         // 最小 48 帧像素折算为归一化比例（宽高各按自身维度）
         if (!_crop.Push(n0.X, n0.Y, n1.X, n1.Y, 48.0 / f.W, 48.0 / f.H)) return;

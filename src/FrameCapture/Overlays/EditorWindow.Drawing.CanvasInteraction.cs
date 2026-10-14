@@ -189,7 +189,7 @@ public sealed partial class EditorWindow
                 double x = Math.Min(_pressPos.X, p.X), y = Math.Min(_pressPos.Y, p.Y);
                 // 预览位图 = 当前拖框在帧像素上的区域马赛克（块对齐框原点，与烘焙一致）；拖框中不进缓存
                 var m0 = Norm(new Point(x, y)); var m1 = Norm(new Point(x + w, y + h));
-                var mf = _seq.Frames[_index];
+                var mf = Cur();
                 int rx = (int)Math.Round(m0.X * mf.W), ry = (int)Math.Round(m0.Y * mf.H);
                 int rw = Math.Max(1, (int)Math.Round((m1.X - m0.X) * mf.W)), rh = Math.Max(1, (int)Math.Round((m1.Y - m0.Y) * mf.H));
                 mr.Fill = MosaicBrush(GetMosaicRect(_index, CurWidth, rx, ry, rw, rh, cache: false), new Rect(0, 0, 1, 1), new Rect(0, 0, Math.Max(1, w), Math.Max(1, h))); // 元素本地坐标系

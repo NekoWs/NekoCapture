@@ -105,7 +105,7 @@ public sealed partial class EditorWindow
     void OpenTextInput(Point pos, Annotation? editing = null)
     {
         if (_textInput != null) CommitTextInput();
-        var f = _seq.Frames[_index];
+        var f = Cur();
         // 与上屏 TextBlock 完全同式的字号：clamp 下限一致，预览与上屏才不错位
         double disp = FrameCapture.Core.AnnFont.BakePx(editing?.Thickness ?? CurWidth, f.W, f.H) * Math.Max(0.05, _imgRect.Width / Math.Max(1, f.W));
         var box = new TextBox
@@ -194,7 +194,7 @@ public sealed partial class EditorWindow
     (bool Ok, int Rx, int Ry, int Rw, int Rh) MosaicPx(Annotation a)
     {
         if (a.Points.Count < 2) return (false, 0, 0, 0, 0);
-        var f = _seq.Frames[_index];
+        var f = Cur();
         int rx = (int)Math.Round(Math.Clamp(Math.Min(a.Points[0].X, a.Points[1].X), 0f, 1f) * f.W);
         int ry = (int)Math.Round(Math.Clamp(Math.Min(a.Points[0].Y, a.Points[1].Y), 0f, 1f) * f.H);
         int rw = (int)Math.Round(Math.Clamp(Math.Abs(a.Points[1].X - a.Points[0].X), 0f, 1f) * f.W);
@@ -307,7 +307,7 @@ public sealed partial class EditorWindow
     double DispStroke(float thickness)
     {
         // 与烘焙严格同式：thickness × min(帧W,帧H)/1080（帧像素）× 当前显示倍率 → 任何缩放下所见即所烘焙
-        var f = _seq.Frames[_index];
+        var f = Cur();
         double eff = _imgRect.Width / Math.Max(1, f.W);
         return Math.Max(1.2, thickness * Math.Min(f.W, f.H) / 1080.0 * eff);
     }
@@ -429,7 +429,7 @@ public sealed partial class EditorWindow
                 }
                 case AnnKind.Text when pts.Count > 0 && !string.IsNullOrEmpty(a.Text):
                 {
-                    var f = _seq.Frames[_index];
+                    var f = Cur();
                     double fs = FrameCapture.Core.AnnFont.BakePx(a.Thickness, f.W, f.H) * Math.Max(0.05, _imgRect.Width / Math.Max(1, f.W));
                     var tb = new TextBlock
                     {
@@ -445,7 +445,7 @@ public sealed partial class EditorWindow
                 }
                 case AnnKind.Number when pts.Count > 0 && !string.IsNullOrEmpty(a.Text):
                 {
-                    var f = _seq.Frames[_index];
+                    var f = Cur();
                     double fs = Math.Clamp(FrameCapture.Core.AnnFont.BakePx(a.Thickness, f.W, f.H) * Math.Max(0.05, _imgRect.Width / Math.Max(1, f.W)), 8, 400);
                     double d = FrameCapture.Core.NumberBadge.Diameter(fs);
                     var grid = new Grid { Width = d, Height = d };
