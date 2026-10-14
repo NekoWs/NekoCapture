@@ -73,7 +73,26 @@ public static class ScrollStitch
     /// <param name="cols">每行抽样的列数（等距取点），越大越准也越慢。</param>
     /// <param name="thresh">单行平均灰度差阈值（0–255 尺度）：同内容行 ≈0，错位行 ≫ 此值。</param>
     /// <returns>重叠行数，范围 0..min(accH,bH)；0 = 没找到可靠重叠，调用方按「整帧都是新内容」处理。</returns>
-    public static int FindOverlap(byte[] acc, int w, int accH, byte[] b, int bH, int cols = 64, double thresh = 16.0)
+    public static int FindOverlap(byte[] acc, int w, int accH, byte[] b, int bH, int cols = 64, double thresh = 16.0) =>
+        Overlap(acc, w, accH, b, bH, cols, thresh, exactOnly: false);
+
+    /// <summary>
+    /// 只认「有信息行<b>全部</b>匹配」的高置信重叠：≥80% 兜底与关掉平坦行过滤的兜底趟都不启用，凑不出全匹配就返回 0。
+    /// 滚动<b>途中</b>抓到的帧走这个口径——过渡帧可能只与累积底部部分吻合，按可疑重叠追加会跳过整段新内容，
+    /// 宁可不拼这一拍、等下一帧。停稳后的帧用 <see cref="FindOverlap"/>，容差趟与兜底照常生效。
+    /// </summary>
+    /// <param name="acc">已累积长图，BGRA 行主序。</param>
+    /// <param name="w">两帧共同宽度（像素），须 &gt;0。</param>
+    /// <param name="accH">acc 的行数。</param>
+    /// <param name="b">滚动后再截的一帧，BGRA 行主序，宽度须与 acc 相同。</param>
+    /// <param name="bH">b 的行数。</param>
+    /// <param name="cols">每行抽样的列数（等距取点），越大越准也越慢。</param>
+    /// <param name="thresh">单行平均灰度差阈值（0–255 尺度）。</param>
+    /// <returns>全匹配的重叠行数；凑不出全匹配候选时为 0，调用方应跳过这一帧而不是按 0 追加。</returns>
+    public static int FindOverlapExact(byte[] acc, int w, int accH, byte[] b, int bH, int cols = 64, double thresh = 16.0) =>
+        Overlap(acc, w, accH, b, bH, cols, thresh, exactOnly: true);
+
+    static int Overlap(byte[] acc, int w, int accH, byte[] b, int bH, int cols, double thresh, bool exactOnly)
     {
         if (w <= 0 || accH <= 0 || bH <= 0) return 0;
         int win = Math.Min(accH, bH);                 // 重叠不可能超过任一帧高，也界定搜索窗口
@@ -139,14 +158,14 @@ public static class ScrollStitch
                     else if (++bad * 5 > total) break;  // 失配已超两成：全匹配和兜底都够不到了
                 }
                 if (good == total) return ov;         // 有信息行全匹配 → 最大可靠重叠，就是真值
-                if (good * 5 >= total * 4)
+                if (!exactOnly && good * 5 >= total * 4)
                 {
                     if (!filterFlat) return ov;       // 兜底趟按全行口径，首个 ≥80% 即命中
                     if (fallback == 0) fallback = ov; // 过滤趟记下它，继续往下扫等全匹配的真值
                 }
             }
             // 整趟既无全匹配也无 ≥80% 候选（重叠区整段落进无信息行）→ 关掉过滤按全行口径再扫一趟
-            if (filterFlat && fallback == 0) return Scan(tol, false);
+            if (filterFlat && fallback == 0 && !exactOnly) return Scan(tol, false);
             return fallback;
         }
 

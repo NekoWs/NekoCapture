@@ -21,7 +21,8 @@ public sealed partial class CaptureController : IDisposable
         _scrollAfterSelect = true;
     }
 
-    /// <summary>选区确认后进入步进拼接循环：先抓基准帧，之后每 280ms 抓一帧，等滚动停稳再按重叠行数追加。
+    /// <summary>选区确认后进入步进拼接循环：先抓基准帧，之后每 280ms 抓一帧按重叠行数追加——
+    /// 滚动途中就在长，不必等手停下来。停稳帧走完整口径，滚动途中的帧只认全匹配的高置信重叠。
     /// 基准帧抓不到（区域已被关掉）就直接放弃，不进入循环也不留任何浮层——取景层与预览卡在基准帧之后才创建。</summary>
     void StartScrollLoop(RectI region, string device)
     {
@@ -126,31 +127,39 @@ public sealed partial class CaptureController : IDisposable
         if (_scrollAcc == null || _scrollBar == null) return;
         var b = LiveCapture.Grab(_scrollRegion);
         if (b == null) return;
-        // 稳定判定：本帧与上一帧一致（上一帧底部完全包含本帧）才算滚动停稳，避免拼接滚动中途的过渡帧
-        // 自动滚动注的那一步没落定，画面必然还在动，同样卡在这里返回——这一步不拼上就不发下一步
+        // 稳定判定：本帧与上一帧一致（上一帧底部完全包含本帧）才算滚动停稳。停稳与否决定找重叠的口径：
+        // 停稳帧走完整口径（容差趟、兜底照常），滚动途中的帧只认「有信息行全匹配」的高置信重叠。
         bool stable = _scrollPrevB != null &&
             FrameCapture.Core.ScrollStitch.FindOverlap(_scrollPrevB, _scrollW, _scrollPrevB.Length / (_scrollW * 4), b.Bgra, b.H) >= b.H;
         _scrollPrevB = b.Bgra;
-        if (!stable)
+        if (!stable && _scrollAuto && _autoWaitSettle && ++_autoStuckTicks >= SettleMaxTicks)
         {
-            // 注进去的那一步迟迟不落定：页面一直在动（视频、闪烁光标、惯性滚动）时既不发轮也不拼，沉默下去等于卡死
-            if (_scrollAuto && _autoWaitSettle && ++_autoStuckTicks >= SettleMaxTicks)
-                StopAuto("画面一直在变化、判定不了停稳，自动滚动已停止");
+            // 注进去的那一步迟迟没有下文：页面一直在动（视频、闪烁光标、惯性滚动）又一帧都拼不上时，沉默下去等于卡死
+            StopAuto("画面一直在变化、判定不了停稳，自动滚动已停止");
             return;
         }
-        _autoWaitSettle = false;   // 已停稳：注过的那一步落定，本帧可用于拼接判定
-        _autoStuckTicks = 0;
-        int ov = FrameCapture.Core.ScrollStitch.FindOverlap(_scrollAcc, _scrollW, _scrollH, b.Bgra, b.H);
-        if (ov >= b.H) { AutoObserve(ScrollAutoObservation.NoNewContent); return; }   // 画面没再滚（本帧已含于累积底部）
-        if (ov <= 0) { _scrollBar.FlashHint("滚动太快、找不到重叠——请少滚一点"); AutoObserve(ScrollAutoObservation.NoOverlap); return; }   // 滚过头
+        if (stable) { _autoWaitSettle = false; _autoStuckTicks = 0; }   // 已停稳：注过的那一步落定
+        int ov = stable
+            ? FrameCapture.Core.ScrollStitch.FindOverlap(_scrollAcc, _scrollW, _scrollH, b.Bgra, b.H)
+            : FrameCapture.Core.ScrollStitch.FindOverlapExact(_scrollAcc, _scrollW, _scrollH, b.Bgra, b.H);
+        if (ov >= b.H) { if (stable) AutoObserve(ScrollAutoObservation.NoNewContent); return; }   // 画面没再滚（本帧已含于累积底部）
+        // 「滚太快」只有停稳帧才够格下结论：滚动途中凑不出全匹配是常态，一路提示会响成一片
+        if (ov <= 0)
+        {
+            if (stable) { _scrollBar.FlashHint("滚动太快、找不到重叠——请少滚一点"); AutoObserve(ScrollAutoObservation.NoOverlap); }
+            return;
+        }
         int newRows = b.H - ov;
-        if (newRows < 3) { AutoObserve(ScrollAutoObservation.TinyStep); return; } // 抖动级微滚，忽略
+        // 停稳帧 3 行起拼；滚动途中 12 行起拼——Append 每次重抄整张长图，为几行蠕动重抄会让长图越滚越卡。
+        // acc 没长，newRows 就一直在攒，慢滚照样会在攒够那一拍拼上。
+        if (newRows < (stable ? 3 : 12)) { if (stable) AutoObserve(ScrollAutoObservation.TinyStep); return; }
         _scrollAcc = FrameCapture.Core.ScrollStitch.Append(_scrollAcc, _scrollW, _scrollH, b.Bgra, b.H, ov);
         _scrollH = _scrollAcc.Length / (_scrollW * 4);
         _scrollSegs++;
         _scrollBar.SetProgress(_scrollSegs, _scrollH);
         _scrollPreview?.SetImage(_scrollAcc, _scrollW, _scrollH);
-        FrameCapture.Core.Trace.Log($"scroll append ov={ov} new={newRows} h={_scrollH}");
+        _autoStuckTicks = 0;   // 拼上了就是进展，停稳等待从头计
+        FrameCapture.Core.Trace.Log($"scroll append ov={ov} new={newRows} h={_scrollH} stable={stable}");
         AutoObserve(ScrollAutoObservation.Appended);
     }
 

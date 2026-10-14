@@ -1930,6 +1930,46 @@ static class SelfTest
                 }
                 Chk("T119g-scroll-stitch 文字页重叠精确不丢行", tWrong == 0 && tLost == 0 && taccH == tBottom + 1 && tBad < 0,
                     $"错步={tWrong} 丢行={tLost} 期望高={tBottom + 1} 实际高={taccH} 首个错行={tBad}");
+
+                // 滚动途中的帧走高置信口径（FindOverlapExact）。它与完整口径的分歧点必须锁死：
+                // 将来谁把兜底加回这条路径，滚动中的实时拼接就会重新丢行，而这两条断言会先红。
+                int eWrong = 0; var eGot = new System.Text.StringBuilder();
+                for (int k = 0; k < 4; k++)
+                {
+                    int etop = (k + 1) * TStep;
+                    int ev = FrameCapture.Core.ScrollStitch.FindOverlapExact(Cut(tdoc, TW, 0, TF), TW, TF, Cut(tdoc, TW, etop, TF), TF);
+                    int etrue = Math.Max(0, TF - etop);   // 末步已滚过累积帧底部，两帧无公共行，0 才是正解
+                    if (ev != etrue) eWrong++;
+                    eGot.Append($"{ev}/{etrue} ");
+                }
+                Chk("T169a-途中帧高置信口径干净帧取到真值", eWrong == 0, $"取值/真值={eGot}");
+                // 重叠区里掺进一成对不上号的行（滚动途中的混合帧）：完整口径按 ≥80% 兜底给出重叠，
+                // 高置信口径必须返回 0——按可疑重叠追加会跳过整段新内容，宁可不拼这一帧
+                {
+                    var mb = Cut(tdoc, TW, TStep, TF);
+                    var mrnd = new Random(7);
+                    for (int y = 0; y < TF - TStep; y += 10)
+                        for (int x = 0; x < TW; x++)
+                        {
+                            int o = (y * TW + x) * 4;
+                            mb[o] = (byte)mrnd.Next(256); mb[o + 1] = (byte)mrnd.Next(256); mb[o + 2] = (byte)mrnd.Next(256);
+                        }
+                    int loose = FrameCapture.Core.ScrollStitch.FindOverlap(Cut(tdoc, TW, 0, TF), TW, TF, mb, TF);
+                    int tight = FrameCapture.Core.ScrollStitch.FindOverlapExact(Cut(tdoc, TW, 0, TF), TW, TF, mb, TF);
+                    Chk("T169b-途中帧不认八成兜底只认全匹配", loose > 0 && tight == 0, $"完整口径={loose} 高置信口径={tight}");
+                }
+                // 重叠区整段落进无信息行（滚过一大片空白）：完整口径关掉平坦行过滤再扫一趟拿到大重叠，
+                // 高置信口径没有证据可用，返回 0 跳过这一帧，等下一帧再说
+                {
+                    var blank = new byte[TD * TW * 4];
+                    for (int i = 0; i < blank.Length; i += 4) { blank[i] = 250; blank[i + 1] = 250; blank[i + 2] = 250; blank[i + 3] = 255; }
+                    for (int y = 0; y < 300; y++) Buffer.BlockCopy(tdoc, y * TW * 4, blank, y * TW * 4, TW * 4);
+                    var bacc = Cut(blank, TW, 200, TF);
+                    var bb = Cut(blank, TW, 400, TF);
+                    int bloose = FrameCapture.Core.ScrollStitch.FindOverlap(bacc, TW, TF, bb, TF);
+                    int btight = FrameCapture.Core.ScrollStitch.FindOverlapExact(bacc, TW, TF, bb, TF);
+                    Chk("T169c-大片空白无证据时途中口径不猜", bloose > 0 && btight == 0, $"完整口径={bloose} 高置信口径={btight}");
+                }
             }
             // SendInput 注入原语的 x64 结构体布局：尺寸算错时系统按 cbSize 读输入数组，畸形输入会让它读越界内存。
             // 这条断言锁住布局，改结构体的人第一时间在这里撞回来。
