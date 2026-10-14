@@ -357,14 +357,17 @@ public static partial class Fluent
     /// step 取 <c>Motion.StaggerMs</c> 与整段预算算出的间隔中较小者：项数少时错位明显，
     /// 项数多时自动收窄，整段压在 budgetMs 内——几十行的列表不会拖成秒级。</summary>
     /// <param name="items">按期望出现顺序排列的元素，null 项跳过且不占时序；
-    /// 每项的 Opacity 与 RenderTransform 被接管，已挂 TransformGroup 的项只淡入不位移。</param>
+    /// 每项的 Opacity 与 RenderTransform 被接管，已有变换的项被包进 TransformGroup 只加位移子变换，
+    /// 收束后原变换归位。</param>
     /// <param name="risePx">单项入场的纵向位移（逻辑像素），≤0 表示不纵向抬升。</param>
     /// <param name="riseX">单项入场的横向位移（逻辑像素），给翻页这类有方向的切换留方向感；
     /// 与 <paramref name="risePx"/> 同时为 0 表示只淡入。</param>
     /// <param name="itemMs">单项时长（ms）；≤0 表示用 <c>Motion.EnterMs</c>。</param>
     /// <param name="budgetMs">整段入场预算（ms）；≤0 表示用 <c>Motion.StaggerMs × 3</c>。</param>
+    /// <param name="leadMs">整段起跳前的等待（ms）。用于让逐项入场排在窗口入场之后：
+    /// 元素在等待期内即被动画顶住为全透明，不会出现「先整块可见再瞬间清空」的帧。</param>
     public static void CascadeIn(IReadOnlyList<FrameworkElement?> items, double risePx = 8, double riseX = 0,
-        int itemMs = -1, int budgetMs = -1)
+        int itemMs = -1, int budgetMs = -1, int leadMs = 0)
     {
         int n = 0;
         for (int i = 0; i < items.Count; i++) if (items[i] is not null) n++;
@@ -374,16 +377,19 @@ public static partial class Fluent
         // 预算比单项还短时无空间错位：退化成整段同时淡入，不产生负延迟
         double step = n > 1 ? Math.Max(0, Math.Min(Motion.StaggerMs, (double)(budgetMs - itemMs) / (n - 1))) : 0;
         var dur = new Duration(TimeSpan.FromMilliseconds(itemMs));
+        int lead = Math.Max(0, leadMs);
         int k = 0;
         for (int i = 0; i < items.Count; i++)
         {
             var el = items[i];
             if (el is null) continue;
-            var begin = TimeSpan.FromMilliseconds(step * k);
+            var begin = TimeSpan.FromMilliseconds(lead + step * k);
             k++;
             el.BeginAnimation(UIElement.OpacityProperty, null);
             el.Opacity = 0;
-            var fade = new DoubleAnimation(1, dur)
+            // From 显式给 0：leadMs 期间动画尚未进入活动期，默认 FillBehavior 会把起始值顶住，
+            // 属性从第一帧起就归动画所有——期间任何对 Opacity 的本地赋值都盖不过它。
+            var fade = new DoubleAnimation(0, 1, dur)
             { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }, BeginTime = begin };
             fade.Freeze();
             el.BeginAnimation(UIElement.OpacityProperty, fade);
@@ -437,11 +443,16 @@ public static partial class Fluent
     /// <param name="body">承载行的面板，只取其直接子元素。</param>
     /// <param name="risePx">每项纵向位移（逻辑像素）。</param>
     /// <param name="riseX">每项横向位移（逻辑像素）。</param>
-    public static void CascadeRows(Panel body, double risePx = 8, double riseX = 0)
+    /// <param name="itemMs">单项时长，&lt;=0 取 <see cref="Motion.EnterMs"/>。</param>
+    /// <param name="budgetMs">整段错位预算，&lt;=0 取 <see cref="Motion.StaggerMs"/> 的三倍。
+    /// 项数越多，预算越决定错位的疏密：预算不足会退化成整段同时淡入。</param>
+    /// <param name="leadMs">整段起跳前的等待，见 <see cref="CascadeIn"/>。</param>
+    public static void CascadeRows(Panel body, double risePx = 8, double riseX = 0,
+        int itemMs = -1, int budgetMs = -1, int leadMs = 0)
     {
         var rows = new List<FrameworkElement?>(body.Children.Count);
         foreach (var c in body.Children) rows.Add(c as FrameworkElement);
-        CascadeIn(rows, risePx, riseX);
+        CascadeIn(rows, risePx, riseX, itemMs, budgetMs, leadMs);
     }
 
     /// <summary>本类创建的位移动画对象登记表。清零时只摘自己造的那个，

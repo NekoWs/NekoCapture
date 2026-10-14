@@ -99,6 +99,48 @@ static class SelfTest
         return 0;
     }
 
+    /// <summary>取证模式：真实编辑器窗口的工具条逐项落定，按帧渲染到 <c>&lt;prefix&gt;-NN.png</c>。
+    /// 逐帧由进程内时钟驱动，不与外部截图器抢时序。</summary>
+    /// <param name="outPrefix">输出文件前缀。</param>
+    /// <returns>恒为 0。</returns>
+    static int EditorWave(string outPrefix)
+    {
+        var app = new Application();
+        var seq = new CapturedSequence
+        {
+            Frames = new List<CapturedFrame> { MovingSquare(520, 300, 0, 3) },
+            Region = new RectI(0, 0, 520, 300),
+            MonitorBounds = new RectI(0, 0, 1920, 1080),
+        };
+        var win = new FrameCapture.Overlays.EditorWindow(new SettingsService(), seq);
+        var NP = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+        var T = typeof(FrameCapture.Overlays.EditorWindow);
+        var strip = (System.Windows.FrameworkElement?)T.GetField("_toolPanel", NP)!.GetValue(win)
+                    ?? (System.Windows.FrameworkElement?)T.GetField("_toolsBar", NP)!.GetValue(win);
+        var barDbg = (System.Windows.Controls.Panel?)T.GetField("_toolsBar", NP)!.GetValue(win);
+        var btnDbg = barDbg!.Children.OfType<System.Windows.Controls.Button>().ToList();
+        var rootVis = (System.Windows.Media.Visual)win.Content;
+        win.Show();
+        PumpMs(40);
+        Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(outPrefix + "-00.png"))!);
+        int n = 0;
+        for (int i = 0; i < 30; i++)
+        {
+            PumpMs(25);
+            if (i % 6 == 0 || i == 29)
+                Console.WriteLine($"  f{i:D2} 首={btnDbg[0].Opacity:N2} 末={btnDbg[^1].Opacity:N2} 窗不透明={win.Opacity:N2}");
+            int w = (int)Math.Ceiling(Math.Max(1, win.ActualWidth)), h = (int)Math.Ceiling(Math.Max(1, win.ActualHeight));
+            var rtb = new System.Windows.Media.Imaging.RenderTargetBitmap(w, h, 96, 96, System.Windows.Media.PixelFormats.Pbgra32);
+            rtb.Render(rootVis);
+            var enc = new System.Windows.Media.Imaging.PngBitmapEncoder();
+            enc.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(rtb));
+            using (var f = File.Create($"{outPrefix}-{i:D2}.png")) enc.Save(f);
+            n++;
+        }
+        Console.WriteLine($"editorwave {outPrefix} {n} 帧 {win.ActualWidth:N0}x{win.ActualHeight:N0}");
+        win.Close();
+        return 0;
+    }
     static int RenderPick(string outPath)
     {
         var app = new Application();
@@ -246,6 +288,7 @@ static class SelfTest
         if (args.Length >= 2 && args[0] == "renderhelp") return RenderHelp(args[1], args.Length >= 3 && int.TryParse(args[2], out var hs) ? hs : 0);
         if (args.Length == 2 && args[0] == "sbprobe") return SbProbe(args[1]);
         if (args.Length == 2 && args[0] == "renderpick") return RenderPick(args[1]);
+        if (args.Length == 2 && args[0] == "editorwave") return EditorWave(args[1]);
         if (args.Length == 2 && args[0] == "renderslider") return RenderSlider(args[1]);
         if (args.Length == 3 && args[0] == "stitch") return StitchMode(args[1], args[2]);
         string tmp = Path.Combine(Path.GetTempPath(), "FrameCapture", "selftest");
@@ -724,6 +767,40 @@ static class SelfTest
             winM.Close();
         }
         catch (Exception e) { Chk("T176-mica-backdrop", false, e.Message); }
+        // 编辑器工具条逐项落定：窗口入场走完才起波，左端先动右端后动，走完全部复位且 hover 缩放仍可用
+        try
+        {
+            var stW = new SettingsService();
+            var seqW = new CapturedSequence
+            {
+                Frames = new List<CapturedFrame> { MovingSquare(160, 90, 0, 1) },
+                Region = new RectI(0, 0, 160, 90),
+                MonitorBounds = new RectI(0, 0, 1920, 1080),
+            };
+            var winW = new FrameCapture.Overlays.EditorWindow(stW, seqW);
+            var barW = (System.Windows.Controls.StackPanel?)typeof(FrameCapture.Overlays.EditorWindow)
+                .GetField("_toolsBar", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
+                .GetValue(winW);
+            var btnW = barW!.Children.OfType<System.Windows.Controls.Button>().ToList();
+            Chk("T178a-toolbar-items", btnW.Count > 4, $"工具条按钮数={btnW.Count}");
+            winW.Show();
+            PumpMs(Fluent.Motion.EditorEnterMs + 40);
+            bool ordered = true;
+            for (int i = 1; i < btnW.Count; i++) if (btnW[i].Opacity > btnW[i - 1].Opacity + 0.02) ordered = false;
+            Chk("T178b-wave-left-to-right",
+                ordered && btnW[^1].Opacity < 0.05 && btnW[0].Opacity > btnW[^1].Opacity,
+                $"首={btnW[0].Opacity:N2} 末={btnW[^1].Opacity:N2} 错位单调={ordered}");
+            PumpMs(Fluent.Motion.SpringMs + Fluent.Motion.StaggerMs + 300);
+            var bad = btnW.FirstOrDefault(b => b.Opacity < 0.999
+                || (b.RenderTransform != null && !b.RenderTransform.Value.IsIdentity));
+            Chk("T178c-toolbar-settled", bad == null,
+                bad == null ? "全部复位" : $"残留 透明度={bad.Opacity:N2} 变换={bad.RenderTransform?.GetType().Name}");
+            Chk("T178d-hover-scale-intact",
+                btnW.All(b => b.RenderTransform is null or System.Windows.Media.ScaleTransform),
+                string.Join(",", btnW.Select(b => b.RenderTransform?.GetType().Name ?? "null").Distinct()));
+            winW.Close();
+        }
+        catch (Exception e) { Chk("T178-editor-toolbar-wave", false, e.Message); }
 
         // 全局 ToolTip/菜单样式可解析（守主题相关 XAML）
         try

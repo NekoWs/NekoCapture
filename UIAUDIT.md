@@ -112,7 +112,8 @@ B1 主题化悬浮条 → C1/C2 状态语义 → A1/A2 入退场 → A3-A5 → B
 - [x] **设置窗 Mica 背板**（含 Win10 黑窗护栏 `Fluent.MicaSupported`）：`Fluent.MicaBackdrop`（`DWMWA_SYSTEMBACKDROP_TYPE`=2，22000 退 `DWMWA_MICA_EFFECT`，更早静默跳过；分层窗跳过）。`GlassFrameThickness=-1` 让位给背板，窗口与内容根底色改透明，`DWMWA_USE_IMMERSIVE_DARK_MODE` 随应用主题同步。断言 `T176a/b`（DWM 回读材质与色调）；浅色定稿 `test-out/mica-light.png` 可见壁纸渐变渗入。
 - [ ] **背板推广到其余非分层窗**：编辑器、贴图窗、安装器（`src/Setup` 已共享 `Fluent.cs` 且 shim 已补齐常量）。编辑器画布四周需保持中性暗底，不能照搬设置窗的透明化做法。
 - [ ] **窗级淡入淡出在真实屏幕上不可见**：`PreTransparent` 释放 alpha 时直接给满，WPF 的窗口 `Opacity` 动画被盖住。浅色 25ms 连拍打开与关闭均一帧到位（248.0 → 桌面 75.4）。行级动画不受影响。待定方向：窗级透明度只走 WPF 单一通道，或接受窗级瞬时出现并删掉注释里的淡入承诺。
-- [ ] **其余界面同规则推广**：编辑器工具栏、贴图窗、托盘菜单的载入与状态切换按同一令牌补齐
+- [x] **编辑器工具条逐项落定**：`CascadeRows(_toolsBar, risePx: 6, itemMs: HoverMs, budgetMs: SpringMs+StaggerMs, leadMs: EditorEnterMs)`。`CascadeIn` 新增 `leadMs`（延迟靠 `BeginTime` 前置期，不靠手动压 Opacity——手动压会被 `SetGhost` 这类 `BeginAnimation` 抢写）。断言 `T178a-d`；逐帧取证 `test-out/wave-dark2.png` + `editorwave` 模式。
+- [ ] **其余界面同规则推广**：贴图窗、托盘菜单、编辑器播放条（`_playPanel` 与工具条同批出现，可并入同一波）的载入与状态切换按同一令牌补齐
 - [x] **`SettingsWindow.cs` 内 8 处裸时长**已收敛到 `Fluent.Motion`：行显隐 `EnterMs`/`ExitMs`，导航胶囊位移与换色 `StateMs`（与开关滑块同速，胶囊 300→150ms 属有意的节奏统一），翻页淡出 `ExitMs`。
 ### 已知边界（非 bug）
 - D5 选区吸附/拖框态需真鼠标人工核验（自动化边界外）

@@ -2349,3 +2349,10 @@ status: done
   - **验证**：SelfTest **470 → 472**。全链 0 错误 / 0 非 NU1900 警告 / `PASS=472 FAIL=0` / LINT PASS / GUARDRAIL PASS。`src/Setup` 通过 glob 共享 `Fluent.cs` 且自带 `Win32Shim.cs`，新常量两处都要补，否则安装器编译不过。
   - **跨版本护栏（同轮补）**：透明底色只对「有背板可透」的窗口成立。Win10（TFM 下限 19041）拿不到背板，非分层窗会把透明画成纯黑，设置窗变黑块。新增 `Fluent.MicaSupported`（内部版本 ≥22000）与 `MicaBackdrop` 的布尔返回，调用方据此在透明与平涂 `WindowBg` 之间二选一；`T177a/b` 锁判定与返回。SelfTest **472 → 474**。
   - **升 TFM 买不到视觉**：区分大小写扫描本机 `Microsoft.WindowsDesktop.App.Ref` 的 8.0.24 与 10.0.11 两套引用程序集（ref 只含公开 API），`Backdrop`/`Mica`/`Acrylic`/`UIElementEffect`/`DesktopWindowTarget`/`SystemBackdrop` **一个都不存在**。WPF 至今没有公开背板 API，DWM 互调是唯一路径，因此 .NET 8 → 10 升级不会带来任何材质收益。
+**编辑器工具条逐项落定（UI 质感轮七）**
+  - **动机**：编辑器是全站最大的表面，此前整窗一次性淡入（`FadeIn` 240ms + 14px 抬起），二十多枚工具图标同时出现，重而不糊。改成窗口入场走完后再来一趟 6px 位移 + 左→右错位的落定波，幅度克制到只是"逐位归位"。
+  - **时序**：`CascadeRows(_toolsBar, risePx: 6, itemMs: Motion.HoverMs, budgetMs: Motion.SpringMs + Motion.StaggerMs, leadMs: Motion.EditorEnterMs)`。`CascadeIn` 新增 `leadMs`（整段起跳前的等待，落在每项 `BeginTime` 上），`CascadeRows` 透传；`DoubleAnimation` 的 `From` 显式给 0，前置期内由默认 `FillBehavior` 顶住。
+  - **踩到的真缺陷**：起波靠手动压 `Opacity = 0` + 定时器时，撤销/重做从第一帧就孤亮——`RefreshUndo()` 的 `SetGhost` 用 `BeginAnimation` 写 Opacity，动画盖过本地值，压下去的 0 被顶回。改成 `leadMs` 后动画从挂上那刻就拥有该属性，等待期没有可被抢写的窗口。逐帧数字：起波前三段亮度完全相同（孤岛消失），随后左 f7 → 撤销区 f9~f10 → 右 f11 依次落定，f12 后稳定。
+  - **取证方式**：SelfTest 新增 `editorwave <前缀>` 模式，进程内按 25ms 步进渲染真实编辑器窗口 30 帧（不与外部截图器抢时序），并打印首/末按钮 Opacity 与窗口 Opacity。明暗双主题各 30 帧：暗色 `test-out/wave-dark2.png`（30 帧带时间标注堆叠），明色帧在 `test-out/wave4/`。窗口 Opacity 与工具条 Opacity 分离可见——f00 窗口已 0.5~0.6 不透明而工具条仍全透明，证明没有"先整块可见再清空"的闪烁帧。
+  - **顺带**：`CascadeIn` 的 XML 文档里"已挂 TransformGroup 的项只淡入不位移"与逐项入场加固后的实现不符，按注释即事实修正。
+  - **验证**：SelfTest **474 → 478**（`T178a` 工具条项数、`T178b` 左→右单调且右端未起步、`T178c` 走完全部复位、`T178d` hover 缩放变换未被入场吃掉）。全链 0 错误 / 0 非 NU1900 警告 / `PASS=478 FAIL=0` / LINT PASS / GUARDRAIL PASS。
