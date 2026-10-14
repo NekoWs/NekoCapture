@@ -108,7 +108,7 @@ static class SelfTest
         var app = new Application();
         var seq = new CapturedSequence
         {
-            Frames = new List<CapturedFrame> { MovingSquare(520, 300, 0, 3) },
+            Frames = new List<CapturedFrame> { MovingSquare(520, 300, 0, 3), MovingSquare(520, 300, 1, 3) },   // 两帧才有多帧播放条
             Region = new RectI(0, 0, 520, 300),
             MonitorBounds = new RectI(0, 0, 1920, 1080),
         };
@@ -119,6 +119,8 @@ static class SelfTest
                     ?? (System.Windows.FrameworkElement?)T.GetField("_toolsBar", NP)!.GetValue(win);
         var barDbg = (System.Windows.Controls.Panel?)T.GetField("_toolsBar", NP)!.GetValue(win);
         var btnDbg = barDbg!.Children.OfType<System.Windows.Controls.Button>().ToList();
+        var playPanelDbg = (System.Windows.Controls.Border?)T.GetField("_playPanel", NP)!.GetValue(win);
+        var playDbg = (playPanelDbg?.Child as System.Windows.Controls.Panel)?.Children.OfType<System.Windows.UIElement>().FirstOrDefault();
         var rootVis = (System.Windows.Media.Visual)win.Content;
         win.Show();
         PumpMs(40);
@@ -128,7 +130,7 @@ static class SelfTest
         {
             PumpMs(25);
             if (i % 6 == 0 || i == 29)
-                Console.WriteLine($"  f{i:D2} 首={btnDbg[0].Opacity:N2} 末={btnDbg[^1].Opacity:N2} 窗不透明={win.Opacity:N2}");
+                Console.WriteLine($"  f{i:D2} 播放首组={playDbg?.Opacity ?? -1:N2} 工具首={btnDbg[0].Opacity:N2} 工具末={btnDbg[^1].Opacity:N2}");
             int w = (int)Math.Ceiling(Math.Max(1, win.ActualWidth)), h = (int)Math.Ceiling(Math.Max(1, win.ActualHeight));
             var rtb = new System.Windows.Media.Imaging.RenderTargetBitmap(w, h, 96, 96, System.Windows.Media.PixelFormats.Pbgra32);
             rtb.Render(rootVis);
@@ -784,7 +786,7 @@ static class SelfTest
             var btnW = barW!.Children.OfType<System.Windows.Controls.Button>().ToList();
             Chk("T178a-toolbar-items", btnW.Count > 4, $"工具条按钮数={btnW.Count}");
             winW.Show();
-            PumpMs(Fluent.Motion.EditorEnterMs + 40);
+            PumpMs(Fluent.Motion.EditorEnterMs + Fluent.Motion.StaggerMs + 40);   // 工具条排在播放条之后起波
             bool ordered = true;
             for (int i = 1; i < btnW.Count; i++) if (btnW[i].Opacity > btnW[i - 1].Opacity + 0.02) ordered = false;
             Chk("T178b-wave-left-to-right",
@@ -801,6 +803,38 @@ static class SelfTest
             winW.Close();
         }
         catch (Exception e) { Chk("T178-editor-toolbar-wave", false, e.Message); }
+        // 播放条在上、工具条在下：上排已在动时下排仍须全透明，两排按阅读顺序前后错开一波
+        try
+        {
+            var stP = new SettingsService();
+            var seqP = new CapturedSequence
+            {
+                Frames = new List<CapturedFrame> { MovingSquare(160, 90, 0, 2), MovingSquare(160, 90, 1, 2) },
+                Region = new RectI(0, 0, 160, 90),
+                MonitorBounds = new RectI(0, 0, 1920, 1080),
+            };
+            var winP = new FrameCapture.Overlays.EditorWindow(stP, seqP);
+            var NPP = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+            // 播放条按列组接管：动画挂在 Grid 的直接子元素上，按钮自身 Opacity 始终为 1，
+            // 探按钮会让断言在「播放条完全没动」时也成立。
+            var playPanelP = (System.Windows.Controls.Border?)typeof(FrameCapture.Overlays.EditorWindow)
+                .GetField("_playPanel", NPP)!.GetValue(winP);
+            var playGrp = (playPanelP?.Child as System.Windows.Controls.Panel)?.Children
+                .OfType<System.Windows.UIElement>().FirstOrDefault();
+            var barP = (System.Windows.Controls.StackPanel?)typeof(FrameCapture.Overlays.EditorWindow)
+                .GetField("_toolsBar", NPP)!.GetValue(winP);
+            var firstTool = barP!.Children.OfType<System.Windows.Controls.Button>().First();
+            Chk("T179a-multiframe-parts", playGrp != null, $"播放首组={(playGrp == null ? "缺失" : "存在")}");
+            winP.Show();
+            PumpMs(Fluent.Motion.EditorEnterMs + 60);
+            Chk("T179b-play-before-tools", playGrp!.Opacity > 0.05 && playGrp.Opacity < 0.99 && firstTool.Opacity < 0.05,
+                $"播放首组={playGrp.Opacity:N2} 工具首项={firstTool.Opacity:N2}");
+            PumpMs(Fluent.Motion.SpringMs + Fluent.Motion.StaggerMs + 300);
+            Chk("T179c-both-rows-settled", playGrp.Opacity > 0.999 && firstTool.Opacity > 0.999,
+                $"播放首组={playGrp.Opacity:N2} 工具首项={firstTool.Opacity:N2}");
+            winP.Close();
+        }
+        catch (Exception e) { Chk("T179-play-row-order", false, e.Message); }
 
         // 全局 ToolTip/菜单样式可解析（守主题相关 XAML）
         try

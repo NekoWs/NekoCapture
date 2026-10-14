@@ -90,13 +90,19 @@ public sealed partial class EditorWindow : Window
         // 工具条逐项落定：编辑器是全站最大的表面，整条工具栏跟窗口同时出现会显得笨重。
         // leadMs 把整段排在窗口入场走完之后；等待期内元素已被动画顶住为全透明，
         // 既不会出现「先整块可见再瞬间清空」的帧，也不会被 RefreshUndo 这类本地 Opacity 赋值抢走。
+        // 播放条在上、工具条在下，两排按阅读顺序前后错开一波，避免下排波动而上排静止。
         ContentRendered += (_, _) =>
         {
-            if (_toolsCascaded || _toolsBar == null) return;
+            if (_toolsCascaded) return;
             _toolsCascaded = true;
+            if (_playPanel?.Child is Panel play)
+                Fluent.CascadeRows(play, risePx: 6, itemMs: Fluent.Motion.HoverMs,
+                    budgetMs: Fluent.Motion.SpringMs + Fluent.Motion.StaggerMs,
+                    leadMs: Fluent.Motion.EditorEnterMs);
+            if (_toolsBar == null) return;
             Fluent.CascadeRows(_toolsBar, risePx: 6, itemMs: Fluent.Motion.HoverMs,
                 budgetMs: Fluent.Motion.SpringMs + Fluent.Motion.StaggerMs,
-                leadMs: Fluent.Motion.EditorEnterMs);
+                leadMs: Fluent.Motion.EditorEnterMs + Fluent.Motion.StaggerMs);
         };
         Background = new SolidColorBrush(DarkBg);
         MouseLeftButtonDown += (_, e) => { if (e.ButtonState == MouseButtonState.Pressed) { try { DragMove(); } catch { } } };

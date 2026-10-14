@@ -2356,3 +2356,10 @@ status: done
   - **取证方式**：SelfTest 新增 `editorwave <前缀>` 模式，进程内按 25ms 步进渲染真实编辑器窗口 30 帧（不与外部截图器抢时序），并打印首/末按钮 Opacity 与窗口 Opacity。明暗双主题各 30 帧：暗色 `test-out/wave-dark2.png`（30 帧带时间标注堆叠），明色帧在 `test-out/wave4/`。窗口 Opacity 与工具条 Opacity 分离可见——f00 窗口已 0.5~0.6 不透明而工具条仍全透明，证明没有"先整块可见再清空"的闪烁帧。
   - **顺带**：`CascadeIn` 的 XML 文档里"已挂 TransformGroup 的项只淡入不位移"与逐项入场加固后的实现不符，按注释即事实修正。
   - **验证**：SelfTest **474 → 478**（`T178a` 工具条项数、`T178b` 左→右单调且右端未起步、`T178c` 走完全部复位、`T178d` hover 缩放变换未被入场吃掉）。全链 0 错误 / 0 非 NU1900 警告 / `PASS=478 FAIL=0` / LINT PASS / GUARDRAIL PASS。
+**编辑器两排工具按阅读顺序错开落定（UI 质感轮八）**
+  - **动机**：上一轮只给工具条补了逐项落定，多帧捕获时上方的播放条仍随窗口静止出现——下排在波动、上排是座孤岛。现在播放条先、工具条后，两排各自左→右，中间错开一个 `Motion.StaggerMs`。
+  - **实现**：`_playPanel?.Child`（四列 Grid）走 `CascadeRows(..., leadMs: Motion.EditorEnterMs)`，工具条走 `leadMs: Motion.EditorEnterMs + Motion.StaggerMs`。播放条以列为单位落定（走带键 → 时间轴 → 计数 → 动作），与工具条把色板/线宽子面板当单项处理的粒度一致。
+  - **踩到的假阳性**：`T179b` 最初探 `_bPlay` 按钮的 Opacity，实现还没生效它就绿了——`CascadeRows` 接管的是 Grid 的直接子元素（列组容器），按钮是后代，Opacity 恒为 1。改为探列组容器并加"尚未落定"上界（`> 0.05 且 < 0.99`）后，元素不入场就必然失败。教训已进 DECISIONS。
+  - **取证方式**：`editorwave` 造两帧序列（单帧不构建播放条），打点改打被接管的列组容器。暗色：f00 两排皆 0 → f06 播放首组 0.76 而工具排仍 0.00 → f12 工具排左端 1.00 右端 0.00 → f18 全落定。明色同形（f06 播放首组 0.68）。逐帧拼图 `test-out/rows-dark.png`、`test-out/rows-light.png`（30 帧带时间标注，可见 f00–f04 两排皆空、无孤岛）。
+  - **像素判据的边界**：两排亮度带在起波期被窗口淡入的公共漂移一起抬起，排间 110ms 的偏移在像素上分不出来；时序判据以进程内 Opacity 打点为准，帧图只用于"有没有孤岛/形态对不对"。
+  - **验证**：SelfTest **478 → 481**（`T179a` 多帧部件齐备、`T179b` 上排在飞下排未起步、`T179c` 两排均复位）。`T178b` 的采样点跟随时序推到 `EditorEnterMs + StaggerMs + 40`，断言内容未动。全链 0 错误 / 0 非 NU1900 警告 / `PASS=481 FAIL=0` / LINT PASS / GUARDRAIL PASS。
