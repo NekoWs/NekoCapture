@@ -265,7 +265,7 @@ public static class GifEncoder
     }
 
     // 误差缓冲按帧复用（LOH 分配，逐帧 new 会造成 GC 抖动）
-    [ThreadStatic] private static float[] _errBuf;
+    [ThreadStatic] private static float[]? _errBuf;
     private static float[] ErrBuf(int total)
     {
         var b = _errBuf;

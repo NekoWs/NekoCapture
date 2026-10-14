@@ -14,7 +14,6 @@ using System.Drawing.Imaging;
 [DllImport("user32.dll")] static extern void keybd_event(byte vk, byte scan, uint flags, nint extra);
 [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
 [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(nint h, out int pid);
-[DllImport("user32.dll")] static extern bool SetCursorPos(int x, int y);
 [DllImport("user32.dll")] static extern uint MapVirtualKeyW(uint vk, uint mapType);
 [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern bool PostMessageW(nint h, uint msg, uint wParam, uint lParam);
 [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern nint FindWindowExW(nint parent, nint after, string? cls, string? title);
@@ -109,7 +108,7 @@ switch (mode)
         uint vk = Vk(args[2]);
         uint scan = MapVirtualKeyW(vk, 0);
         uint cscan = MapVirtualKeyW(0x11, 0); // VK_CONTROL
-        const uint WM_KEYDOWN = 0x0100, WM_KEYUP = 0x0101, WM_MOD = 0x0020; // lParam bit5=上下文码占位
+        const uint WM_KEYDOWN = 0x0100, WM_KEYUP = 0x0101;
         PostMessageW(h, WM_KEYDOWN, 0x11, cscan | 1 << 24);
         await Task.Delay(40);
         PostMessageW(h, WM_KEYDOWN, vk, scan | 1 << 24);
@@ -148,8 +147,9 @@ switch (mode)
     case "rclick": // rclick x y —— 右键单击（绝对物理坐标）
     {
         int x = int.Parse(args[1]), y = int.Parse(args[2]);
-        int ax = x * 65535 / (System.Windows.Forms.Screen.PrimaryScreen.Bounds.Width - 1);
-        int ay = y * 65535 / (System.Windows.Forms.Screen.PrimaryScreen.Bounds.Height - 1);
+        var scr = System.Windows.Forms.Screen.PrimaryScreen ?? throw new InvalidOperationException("no primary screen");
+        int ax = x * 65535 / (scr.Bounds.Width - 1);
+        int ay = y * 65535 / (scr.Bounds.Height - 1);
         mouse_event(0x01 | 0x8000, (uint)ax, (uint)ay, 0, 0);
         await Task.Delay(60);
         mouse_event(0x08, 0, 0, 0, 0); // RIGHTDOWN
@@ -166,8 +166,9 @@ switch (mode)
         // 绝对坐标走 mouse_event（与真实鼠标同管线，OS 拖拽循环不吃指针加速失真；SetCursorPos 会让拖窗位移超调）
         void AbsMove(int x, int y)
         {
-            int ax = x * 65535 / (System.Windows.Forms.Screen.PrimaryScreen.Bounds.Width - 1);
-            int ay = y * 65535 / (System.Windows.Forms.Screen.PrimaryScreen.Bounds.Height - 1);
+            var scr = System.Windows.Forms.Screen.PrimaryScreen ?? throw new InvalidOperationException("no primary screen");
+            int ax = x * 65535 / (scr.Bounds.Width - 1);
+            int ay = y * 65535 / (scr.Bounds.Height - 1);
             mouse_event(0x01 | 0x8000, (uint)ax, (uint)ay, 0, 0); // MOVE|ABSOLUTE
         }
         AbsMove(x1, y1);
@@ -187,8 +188,9 @@ switch (mode)
     {
         int x = int.Parse(args[1]), y = int.Parse(args[2]);
         int clicks = args.Length > 3 ? int.Parse(args[3]) : 3;
-        int ax = x * 65535 / (System.Windows.Forms.Screen.PrimaryScreen.Bounds.Width - 1);
-        int ay = y * 65535 / (System.Windows.Forms.Screen.PrimaryScreen.Bounds.Height - 1);
+        var scr = System.Windows.Forms.Screen.PrimaryScreen ?? throw new InvalidOperationException("no primary screen");
+        int ax = x * 65535 / (scr.Bounds.Width - 1);
+        int ay = y * 65535 / (scr.Bounds.Height - 1);
         mouse_event(0x01 | 0x8000, (uint)ax, (uint)ay, 0, 0); // MOVE|ABSOLUTE
         await Task.Delay(80);
         int step = clicks >= 0 ? -120 : 120;   // 负 delta=向下滚，正=向上

@@ -289,8 +289,6 @@ static class SelfTest
                 else if (kind == AnnKind.Freehand) { a.Points.Add((0.3f, 0.3f)); a.Points.Add((0.5f, 0.6f)); a.Points.Add((0.7f, 0.4f)); }
                 else { a.Points.Add((0.3f, 0.3f)); a.Points.Add((0.7f, 0.7f)); }
                 var outF = Bake.Apply([Solid(80, 80, 0, 0, 0)], [a])[0];
-                bool changed = false;
-                for (int i = 2; i < outF.Bgra.Length; i += 4) if (outF.Bgra[i] > 150) { changed = true; break; } // 蓝通道为0的纯黄才计数？
                 // 黄色 #FFFF00: BGRA=(0,255,255)；查蓝通道应保持低、绿通道高
                 bool yellow = false;
                 for (int i = 0; i < outF.Bgra.Length; i += 4)
@@ -2465,7 +2463,7 @@ static class SelfTest
         // 编译与 XamlReader.Parse 都不报（SelectionBoxItem 嵌套模板坑）——这里真正 Measure 兜底。
         {
             var pal = new GEdit.EditorPalette();
-            string comboErr = null, listErr = null;
+            string? comboErr = null, listErr = null;
             try {
                 var cb = new System.Windows.Controls.ComboBox();
                 GEdit.EditorStyles.ApplyCombo(cb, pal);
@@ -2742,7 +2740,7 @@ static class SelfTest
             var win = new Window { Content = sv, Left = -3000, Top = -3000, Width = 140, Height = 100, ShowInTaskbar = false, ShowActivated = false, WindowStyle = WindowStyle.None };
             win.Show();
             win.UpdateLayout();
-            System.Windows.Controls.Primitives.ScrollBar sb = null;
+            System.Windows.Controls.Primitives.ScrollBar? sb = null;
             void WalkSb(DependencyObject o)
             {
                 if (sb != null) return;

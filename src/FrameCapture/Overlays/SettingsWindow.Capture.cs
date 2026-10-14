@@ -221,7 +221,7 @@ public sealed partial class SettingsWindow : Window
     {
         var g = Row();
         g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); // 控件列
-        g.Children.Add(Icon("\uE767", "静态截图完成时的听觉确认。关闭=静音；轻弹=内置柔和「嘀」；自定义…=选一个 ogg/wav 文件（wav 最稳，ogg 需系统解码器，播不了会自动回退轻弹）。随时可「试听」"));
+        g.Children.Add(IconText("\uE767", "静态截图完成时的听觉确认。关闭=静音；轻弹=内置柔和「嘀」；自定义…=选一个 ogg/wav 文件（wav 最稳，ogg 需系统解码器，播不了会自动回退轻弹）。随时可「试听」"));
         var lbl = new TextBlock
         {
             Text = "截图提示音",

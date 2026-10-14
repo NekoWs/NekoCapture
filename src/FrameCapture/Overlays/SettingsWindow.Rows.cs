@@ -26,7 +26,7 @@ public sealed partial class SettingsWindow : Window
         head.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         head.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         head.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        head.Children.Add(Icon(glyph, tip));
+        head.Children.Add(IconText(glyph, tip));
         var lbl = new TextBlock
         {
             Text = label,
@@ -78,7 +78,7 @@ public sealed partial class SettingsWindow : Window
     {
         var g = Row();
         g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); // 开关列
-        g.Children.Add(Icon(glyph, tip));
+        g.Children.Add(IconText(glyph, tip));
         var lbl = new TextBlock
         {
             Text = label,
@@ -159,7 +159,7 @@ public sealed partial class SettingsWindow : Window
     {
         var g = Row();
         g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); // 更改列
-        g.Children.Add(Icon("\uE838", "保存文件夹：自动保存副本存到这里，编辑器/贴图「另存为」对话框也默认打开这里"));
+        g.Children.Add(IconText("\uE838", "保存文件夹：自动保存副本存到这里，编辑器/贴图「另存为」对话框也默认打开这里"));
         var stack = new StackPanel
         {
             Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center,
@@ -310,7 +310,7 @@ public sealed partial class SettingsWindow : Window
         p.Children.Add(card);
     }
 
-    static TextBlock Icon(string glyph, string tip) => new()
+    static TextBlock IconText(string glyph, string tip) => new()
     {
         Text = glyph,
         FontFamily = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets, Segoe UI Symbol"),
@@ -331,7 +331,7 @@ public sealed partial class SettingsWindow : Window
     {
         var g = Row();
         g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); // 芯片列
-        g.Children.Add(Icon(glyph, iconTip));
+        g.Children.Add(IconText(glyph, iconTip));
         var lbl = new TextBlock
         {
             Text = label,

@@ -16,10 +16,13 @@
     <Version>0.9.0</Version>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <!-- 进程 DPI 感知由 app.manifest 的 PerMonitorV2 决定，捕获坐标换算依赖它；托盘虽用 WinForms
+         但不经源生成器启动路径，WFAC010 建议的 ApplicationConfiguration 在这里没有对应物 -->
+    <NoWarn>$(NoWarn);WFAC010</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- 使用说明随包发布（R37：曾长期陈旧于 10-03 版） -->
+    <!-- 使用说明随包发布，改 README.txt 即改交付物 -->
     <None Include="..\..\README.txt" Link="README.txt" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 

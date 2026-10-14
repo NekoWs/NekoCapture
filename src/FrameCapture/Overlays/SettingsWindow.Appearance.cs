@@ -45,7 +45,7 @@ public sealed partial class SettingsWindow : Window
     {
         var g = Row();
         g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); // 色片列
-        g.Children.Add(Icon("\uE790", "强调色：全应用高亮色（编辑器选中、开关、滑杆、进度）"));
+        g.Children.Add(IconText("\uE790", "强调色：全应用高亮色（编辑器选中、开关、滑杆、进度）"));
         var lbl = new TextBlock
         {
             Text = "强调色",

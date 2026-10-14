@@ -8,5 +8,8 @@
     <Platforms>x64</Platforms>
     <PlatformTarget>x64</PlatformTarget>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- 进程 DPI 感知由 app.manifest 声明，绝对坐标换算依赖它；本程序不经 WinForms 源生成器
+         启动路径，WFAC010 建议的 ApplicationConfiguration 在这里没有对应物 -->
+    <NoWarn>$(NoWarn);WFAC010</NoWarn>
   </PropertyGroup>
 </Project>
