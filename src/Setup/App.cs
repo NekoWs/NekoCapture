@@ -10,16 +10,13 @@ namespace FrameCapture.Setup;
 /// <summary>
 /// 引导器入口。命令行形态：
 /// 无参数 = 界面；<c>--install</c> = 提权后执行安装；
-/// <c>--uninstall</c> = 卸载（先确认再提权，内部再派生临时副本以删掉安装目录里那份）；
-/// <c>--confirmed</c> = 确认已问过；<c>--purge</c> = 等某进程退出后删掉一个文件。
+/// <c>--uninstall</c> = 卸载（内部再派生临时副本以删掉安装目录里那份）；
+/// <c>--purge</c> = 等某进程退出后删掉一个文件。
 /// </summary>
 internal static class App
 {
     /// <summary>卸载开关，控制面板里的 UninstallString 指向它。</summary>
     internal const string ArgUninstall = "--uninstall";
-
-    /// <summary>卸载确认已在未提权窗口问过的标记，提权实例据此跳过重复追问。</summary>
-    internal const string ArgConfirmed = "--confirmed";
 
     /// <summary>自删除开关，形如 <c>--purge &lt;等待退出的进程 id&gt; "&lt;要删除的文件&gt;"</c>。</summary>
     internal const string ArgPurge = "--purge";
@@ -38,16 +35,16 @@ internal static class App
 
         if (args.Length >= 2 && args[0] == "--preview")
         {
-            // 出图核对界面：建窗但不显示，取内容离屏渲染
-            Preview.Render(args[1], SetupWindow.Mode.Idle);
+            // 出图核对界面：建窗但不显示，取内容离屏渲染。
+            // 不显示就不会走 ContentRendered 里的自动动作，核对卸载界面不必真的去要管理员权限。
+            var mode = args.Length >= 3 && args[2] == "uninstall"
+                ? SetupWindow.Mode.Uninstall
+                : SetupWindow.Mode.Idle;
+            Preview.Render(args[1], mode);
             return;
         }
         if (Array.IndexOf(args, "--install") >= 0) { app.Run(new SetupWindow(SetupWindow.Mode.Install)); return; }
-        if (Array.IndexOf(args, ArgUninstall) >= 0)
-        {
-            app.Run(new SetupWindow(SetupWindow.Mode.Uninstall, Array.IndexOf(args, ArgConfirmed) >= 0));
-            return;
-        }
+        if (Array.IndexOf(args, ArgUninstall) >= 0) { app.Run(new SetupWindow(SetupWindow.Mode.Uninstall)); return; }
         app.Run(new SetupWindow(SetupWindow.Mode.Idle));
     }
 

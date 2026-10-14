@@ -644,3 +644,15 @@ WPF 那一层没有可画的区域，只剩 DWM 圆角裁出来的一块黑。`C
 **现在靠什么防回归**：探针先调 `SetProcessDPIAware` 再枚举，`DllImport` 一律带 `CharSet.Unicode`。
 判空之前先做一次已知存在的对照：枚举总数应远大于 0、标题应能读出完整中文——
 读不通说明探针瞎了，不是窗口没了。
+
+## 高度随内容走的窗口，读 Height 当画布尺寸拿到的是 NaN
+
+**现象**：`--preview` 出图核对开关画出来的 PNG 只有几 KB，打开是一条空白。
+
+**根因**：安装器窗口的高度改成随内容走（`SizeToContent = Height`）之后，`Window.Height` 是
+`Double.NaN`——它不再是「窗口有多高」的答案。`Preview.Render` 拿 `(int)w.Height` 当画布高度，
+NaN 转 int 得 0，`RenderTargetBitmap` 按 0 高去画，PNG 文件照样写得出，里面什么都没有。
+
+**现在靠什么防回归**：`Preview.Render` 按窗口自己的方式量一次——`Measure(width, PositiveInfinity)`
+之后取 `DesiredSize.Height`。凡把窗口尺寸当画布尺寸用的地方都不能直接读 `Width`/`Height`；
+出图先看字节数，几 KB 的 PNG 基本等于画了个空。

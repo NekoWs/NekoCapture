@@ -35,15 +35,12 @@ internal sealed class SetupWindow : Window
     private bool _busy;
     private bool _launchOnFinish;   // 收尾态点主按钮是否顺带启动主程序：卸载完程序已不在，不能启动
     readonly bool _mica;   // 背板在场才透明，缺席必须平涂，否则安装器变成黑窗
-    readonly bool _confirmed;       // 卸载确认已在未提权的那一版窗口里问过，提权实例据此跳过重复追问
 
     /// <summary>建窗并按模式准备首屏。</summary>
     /// <param name="mode">启动后的行为。</param>
-    /// <param name="confirmed">卸载是否已确认过：true = 直接干活，false = 先问一句再要管理员权限。</param>
-    internal SetupWindow(Mode mode, bool confirmed = false)
+    internal SetupWindow(Mode mode)
     {
         _mode = mode;
-        _confirmed = confirmed;
         var uninstall = mode == Mode.Uninstall;
         Title = uninstall ? "FrameCapture 卸载" : "FrameCapture 安装";
         Width = 560;
@@ -62,8 +59,7 @@ internal sealed class SetupWindow : Window
         Fluent.FadeIn(this);
 
         RefreshRuntimeCard();
-        // ContentRendered 而不是 Loaded：首帧画完、窗口落位之后才动手。
-        // 确认框按 CenterOwner 居中于本窗，窗口还在落位过程中居中就是错的。
+        // ContentRendered 而不是 Loaded：首帧画完再动手，提权请求与进度文字都排在窗口画出来之后
         ContentRendered += (_, _) =>
         {
             if (_mode == Mode.Install) StartInstall();
@@ -140,6 +136,8 @@ internal sealed class SetupWindow : Window
         var buttons = new StackPanel
         {
             Orientation = Orientation.Horizontal,
+            // 靠右：主按钮落在最右下角，那是鼠标离开窗口前的自然位置，也是 Windows 对话框的惯例落点
+            HorizontalAlignment = HorizontalAlignment.Right,
             Margin = new Thickness(0, 18, 0, 0),
         };
         primary = Fluent.RoundButton(uninstall ? "卸载" : "安装", Theme.Accent, Theme.WindowBg, 22, true);
@@ -258,31 +256,22 @@ internal sealed class SetupWindow : Window
     }
 
     /// <summary>
-    /// 卸载。确认问在未提权的那一版窗口里，问完才要管理员权限——用户不该在管理员窗口里被二次追问。
+    /// 卸载。不多问一句：入口本身就是意图表达——控制面板里点「卸载」，或双击带 <c>--uninstall</c> 的快捷方式。
     /// 自身要跑到临时副本上，才能删掉安装目录里那份自己。
     /// </summary>
     private async void StartUninstall()
     {
         if (_busy) return;
 
-        if (!_confirmed)
+        if (!App.Elevated)
         {
-            if (!ConfirmDialog.Ask(this, "真的要卸载 FrameCapture 吗？",
-                    "删除程序文件、开始菜单快捷方式、开机自启与个人设置"))
+            if (!App.RelaunchElevated(App.ArgUninstall))
             {
-                Close();
+                Log("已取消：卸载需要管理员权限");
                 return;
             }
-            if (!App.Elevated)
-            {
-                if (!App.RelaunchElevated(App.ArgUninstall + " " + App.ArgConfirmed))
-                {
-                    Log("已取消：卸载需要管理员权限");
-                    return;
-                }
-                Close();
-                return;
-            }
+            Close();
+            return;
         }
 
         _busy = true;
@@ -302,7 +291,7 @@ internal sealed class SetupWindow : Window
                     EnterFinished("关闭", launch: false);
                     return;
                 }
-                Process.Start(new ProcessStartInfo(copy, App.ArgUninstall + " " + App.ArgConfirmed) { UseShellExecute = false });
+                Process.Start(new ProcessStartInfo(copy, App.ArgUninstall) { UseShellExecute = false });
                 Close();
                 return;
             }

@@ -17,9 +17,11 @@ internal static class Preview
     {
         var w = new SetupWindow(mode);
         var width = (int)w.Width;
-        var height = (int)w.Height;
         var content = (FrameworkElement)w.Content;
-        content.Measure(new Size(width, height));
+        // 窗口高度由内容决定（SizeToContent），这里按同样的方式量一次：
+        // 直接读 w.Height 拿到的是 NaN，转成 int 就是 0，画布塌成一条线。
+        content.Measure(new Size(width, double.PositiveInfinity));
+        var height = (int)System.Math.Ceiling(content.DesiredSize.Height);
         content.Arrange(new Rect(0, 0, width, height));
         content.UpdateLayout();
 
