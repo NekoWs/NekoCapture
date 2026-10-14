@@ -525,6 +525,59 @@ static class SelfTest
         }
         catch (Exception e) { Chk("T170-toggle-slide", false, e.Message); }
 
+        // 逐项错位入场：时序必须真的错开、整段压在预算内、收束后不留位移变换。
+        // 步长算错有两种表现且都不报错：全为 0 等于整屏同时闪一下（没错位），
+        // 恒等于 StaggerMs 则几十行列表拖成秒级。
+        try
+        {
+            var panel = new System.Windows.Controls.StackPanel();
+            var rows = new List<System.Windows.FrameworkElement>();
+            for (int i = 0; i < 9; i++)
+            {
+                var b = new System.Windows.Controls.Border
+                {
+                    Width = 60, Height = 10,
+                    Background = new System.Windows.Media.SolidColorBrush(Theme.CardBg),
+                };
+                panel.Children.Add(b);
+                rows.Add(b);
+            }
+            var win = new Window
+            {
+                Title = "SelfTest Cascade", Width = 120, Height = 220, ShowInTaskbar = false,
+                WindowStartupLocation = WindowStartupLocation.Manual, Left = 150, Top = 150, Topmost = true,
+                Content = panel,
+            };
+            win.Show();
+            var loaded = new System.Windows.Threading.DispatcherFrame();
+            win.Dispatcher.BeginInvoke(() => { loaded.Continue = false; }, System.Windows.Threading.DispatcherPriority.Loaded);
+            System.Windows.Threading.Dispatcher.PushFrame(loaded);
+
+            Fluent.CascadeIn(rows);
+            PumpMs(60);   // 首项已走 60ms，末项按 9 项算出的步长还没起跳
+            double firstMid = rows[0].Opacity, lastMid = rows[^1].Opacity;
+            PumpMs(Fluent.Motion.EnterMs + Fluent.Motion.StaggerMs * 3 + 150);
+            double firstEnd = rows[0].Opacity, lastEnd = rows[^1].Opacity;
+            Chk("T171a-cascade-staggers", firstMid > 0.2 && lastMid < 0.05 && firstEnd > 0.98 && lastEnd > 0.98,
+                $"60ms 时 首项={firstMid:0.###} 末项={lastMid:0.###} → 收束 首={firstEnd:0.###} 末={lastEnd:0.###}");
+            Chk("T171b-cascade-clears-transform",
+                rows.All(r => r.RenderTransform is not System.Windows.Media.TranslateTransform),
+                "位移归零后撤掉变换，不挡后续缩放");
+
+            // 单项时长与预算解耦：预算比单项还短时不允许出现负延迟，退化成同时淡入
+            var solo = new List<System.Windows.FrameworkElement>
+            {
+                new System.Windows.Controls.Border { Width = 20, Height = 6 },
+                new System.Windows.Controls.Border { Width = 20, Height = 6 },
+            };
+            Fluent.CascadeIn(solo, itemMs: 190, budgetMs: 100);
+            PumpMs(40);
+            Chk("T171c-cascade-tight-budget", solo.All(r => r.Opacity > 0.02),
+                $"预算 100 < 单项 190 时两项同时起跳：{solo[0].Opacity:0.###} / {solo[1].Opacity:0.###}");
+            win.Close();
+        }
+        catch (Exception e) { Chk("T171-cascade-in", false, e.Message); }
+
         // 全局 ToolTip/菜单样式可解析（守主题相关 XAML）
         try
         {

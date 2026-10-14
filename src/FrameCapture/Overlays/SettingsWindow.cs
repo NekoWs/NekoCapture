@@ -364,6 +364,24 @@ public sealed partial class SettingsWindow : Window
             el.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(to, TimeSpan.FromMilliseconds(200)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
         }
         ScrollViewer? scroller = null;   // 前向声明：ShowCat 切类别时需复位滚动（实际构造在下方右栏装配处）
+        // 逐项入场的清零出口：撤掉 CascadeIn 挂上的动画与位移，恢复完全可见
+        static void ResetRows(StackPanel body)
+        {
+            foreach (var c in body.Children)
+            {
+                if (c is not FrameworkElement fe) continue;
+                fe.BeginAnimation(UIElement.OpacityProperty, null);
+                fe.Opacity = 1;
+                if (fe.RenderTransform is TranslateTransform) fe.RenderTransform = null;
+            }
+        }
+        // 逐项错位入场：把面板的直接子元素按顺序交给 CascadeIn
+        static void CascadeRows(StackPanel body)
+        {
+            var rows = new List<FrameworkElement?>(body.Children.Count);
+            foreach (var c in body.Children) rows.Add(c as FrameworkElement);
+            Fluent.CascadeIn(rows);
+        }
         void ShowCat(int idx, bool animate)
         {
             int prev = _cat;
@@ -396,16 +414,17 @@ public sealed partial class SettingsWindow : Window
             incoming.RenderTransform = null;
             if (animate)
             {
-                var tt = new TranslateTransform(0, 12);
-                incoming.RenderTransform = tt;
+                // 容器只淡入、位移交给行的逐项错位：两层同时位移会叠成明显跳动
                 incoming.Opacity = 0;
                 incoming.BeginAnimation(UIElement.OpacityProperty,
                     new DoubleAnimation(1, TimeSpan.FromMilliseconds(Fluent.Motion.EnterMs)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
-                var slide = new DoubleAnimation(12, 0, TimeSpan.FromMilliseconds(Fluent.Motion.EnterMs)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } };
-                slide.Completed += (_, __) => { if (incoming.RenderTransform == tt) incoming.RenderTransform = null; };
-                tt.BeginAnimation(TranslateTransform.YProperty, slide);
+                CascadeRows(incoming);
             }
-            else incoming.Opacity = 1;
+            else
+            {
+                incoming.Opacity = 1;
+                ResetRows(incoming);   // 主题重建等不走动画的路径：把可能在飞的逐项入场清零，避免停在半透明
+            }
             contentHeader.Text = cats[idx].Name;
             // 标题随正文一起淡入（改文本时置 0 再淡入，避免文字瞬切的「跳字」）
             if (animate)
@@ -487,11 +506,15 @@ public sealed partial class SettingsWindow : Window
         Grid.SetColumn(navHost, 0); Grid.SetColumn(divider, 1); Grid.SetColumn(rightPanel, 2);
         body.Children.Add(navHost); body.Children.Add(divider); body.Children.Add(rightPanel);
 
-        ShowCat(Math.Clamp(_restoreCat, 0, cats.Count - 1), false);   // 重建时停在原类别，首帧不播动画
+        ShowCat(Math.Clamp(_restoreCat, 0, cats.Count - 1), false);   // 重建时停在原类别
 
         dock.Children.Add(body);   // LastChildFill 填满标题栏以下区域
         root.Child = dock;
         Content = root;
+
+        // 逐项入场：等首帧渲染完再起，构造期起的动画会在窗口可见前就播完，等于没播。
+        // 窗口级淡入与首帧压黑由构造函数里的 PopupEnter 负责，此处只负责行的错位，两层各管一段。
+        ContentRendered += (_, _) => CascadeRows(cats[_cat].Body);
 
         // 窗级 Esc 关窗、F1 打开帮助。
         PreviewKeyDown += (_, e) =>

@@ -303,6 +303,48 @@ public static partial class Fluent
         st.BeginAnimation(ScaleTransform.ScaleXProperty, a);
         st.BeginAnimation(ScaleTransform.ScaleYProperty, a);
     }
+
+    /// <summary>逐项错位入场：每项淡入 + 自下方 risePx 抬起，第 i 项延后 i*step 起，用于列表/设置项的载入。
+    /// step 取 <c>Motion.StaggerMs</c> 与整段预算算出的间隔中较小者：项数少时错位明显，
+    /// 项数多时自动收窄，整段压在 budgetMs 内——几十行的列表不会拖成秒级。</summary>
+    /// <param name="items">按期望出现顺序排列的元素，null 项跳过且不占时序；
+    /// 每项的 Opacity 与 RenderTransform 被接管，已挂 TransformGroup 的项只淡入不位移。</param>
+    /// <param name="risePx">单项入场位移（逻辑像素），≤0 表示只淡入。</param>
+    /// <param name="itemMs">单项时长（ms）；≤0 表示用 <c>Motion.EnterMs</c>。</param>
+    /// <param name="budgetMs">整段入场预算（ms）；≤0 表示用 <c>Motion.StaggerMs × 3</c>。</param>
+    public static void CascadeIn(IReadOnlyList<FrameworkElement?> items, double risePx = 8, int itemMs = -1, int budgetMs = -1)
+    {
+        int n = 0;
+        for (int i = 0; i < items.Count; i++) if (items[i] is not null) n++;
+        if (n == 0) return;
+        itemMs = itemMs > 0 ? itemMs : Motion.EnterMs;
+        budgetMs = budgetMs > 0 ? budgetMs : Motion.StaggerMs * 3;
+        // 预算比单项还短时无空间错位：退化成整段同时淡入，不产生负延迟
+        double step = n > 1 ? Math.Max(0, Math.Min(Motion.StaggerMs, (double)(budgetMs - itemMs) / (n - 1))) : 0;
+        var dur = new Duration(TimeSpan.FromMilliseconds(itemMs));
+        int k = 0;
+        for (int i = 0; i < items.Count; i++)
+        {
+            var el = items[i];
+            if (el is null) continue;
+            var begin = TimeSpan.FromMilliseconds(step * k);
+            k++;
+            el.BeginAnimation(UIElement.OpacityProperty, null);
+            el.Opacity = 0;
+            var fade = new DoubleAnimation(1, dur)
+            { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }, BeginTime = begin };
+            fade.Freeze();
+            el.BeginAnimation(UIElement.OpacityProperty, fade);
+            if (risePx <= 0 || el.RenderTransform is TransformGroup) continue;
+            var tt = new TranslateTransform(0, risePx);
+            el.RenderTransform = tt;
+            var rise = new DoubleAnimation(0, dur)
+            { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }, BeginTime = begin };
+            // 位移归零后撤掉变换：留着 TranslateTransform 会让后续挂缩放的代码以为已有变换而跳过
+            rise.Completed += (_, __) => { if (el.RenderTransform == tt) el.RenderTransform = null; };
+            tt.BeginAnimation(TranslateTransform.YProperty, rise);
+        }
+    }
     #endregion
 
 }

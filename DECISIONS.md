@@ -408,3 +408,11 @@
 - **跑法**：`qodana scan --within-docker=false -l qodana-dotnet`（CLI 装在 WinGet Links，不在 PATH；
   `qodana-cdnet` 不支持原生模式）。2023.2 起的 linter 要 `QODANA_TOKEN`，本机三个作用域都没有——
   Rider 里那次跑通用的是 IDE 自己的授权，产物落在 `%TEMP%\qodana_output\qodana.sarif.json`。
+## 临时脚本里的 P/Invoke 必须显式声明 CharSet=Unicode
+
+`DllImport` 默认 `CharSet.Ansi`。用它声明 `FindWindowW`/`GetWindowTextW` 这类 `W` 后缀函数，字符串按
+ANSI 单字节封送、被目标函数按 UTF-16 解释：查找永不命中，读回的标题只剩首字符
+（`"FrameCapture Settings"` 读回 `"F"`，类名 `HwndWrapper[…]` 读回 `"H"`）。症状是"窗口不存在"，
+而窗口其实正常显示在屏幕上，排查方向会被整个带偏到应用侧。判别办法：同一标题交给封送正确的独立
+进程（`tools/UICap`）查一次，它查得到而脚本查不到，即为封送问题而非应用问题。
+临时脚本中的窗口枚举/查找一律写 `[DllImport("user32.dll", CharSet = CharSet.Unicode)]`。
