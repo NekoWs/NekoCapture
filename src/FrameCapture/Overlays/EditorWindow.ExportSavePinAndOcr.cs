@@ -27,8 +27,8 @@ public sealed partial class EditorWindow : Window
         {
             Trace.Log($"gif encoded bytes={gif!.Length} frames={seq.Frames.Count}");
             ClipboardService.SetCapture(seq, gif, idx);
-            FrameCapture.Services.SaveService.MaybeSaveArtifact(seq, gif); // 自动保存副本：单帧 PNG / 多帧按 RecordFormat（视频后台编码；关=零副作用）
-            FrameCapture.Core.Fluent.CloseWithFade(this);
+            SaveService.MaybeSaveArtifact(seq, gif); // 自动保存副本：单帧 PNG / 多帧按 RecordFormat（视频后台编码；关=零副作用）
+            Fluent.CloseWithFade(this);
         });
     }
 
@@ -38,19 +38,19 @@ public sealed partial class EditorWindow : Window
     {
         int idx = Math.Clamp(_index, 0, _seq.Frames.Count - 1);
         var frame = _seq.Frames[idx];
-        var anns = new List<FrameCapture.Drawing.Annotation>(_anns.Items);
+        var anns = new List<Drawing.Annotation>(_anns.Items);
         var frames = new List<CapturedFrame> { frame };
         var outAnns = anns;
         var region = _seq.Region;
         if (_crop.IsCropped)
         {
             int fw = frame.W, fh = frame.H;
-            var (cx, cy, cw, ch) = FrameCapture.Core.CropState.ToPixelOf(_crop.Current, fw, fh);
-            frames = FrameCapture.Drawing.Bake.Crop(frames, cx, cy, cw, ch);
-            outAnns = FrameCapture.Core.CropRemap.Remap(anns, (double)cx / fw, (double)cy / fh, (double)cw / fw, (double)ch / fh);
+            var (cx, cy, cw, ch) = CropState.ToPixelOf(_crop.Current, fw, fh);
+            frames = Drawing.Bake.Crop(frames, cx, cy, cw, ch);
+            outAnns = CropRemap.Remap(anns, (double)cx / fw, (double)cy / fh, (double)cw / fw, (double)ch / fh);
             region = new RectI(region.X + cx, region.Y + cy, cw, ch);
         }
-        var baked = FrameCapture.Drawing.Bake.Apply(frames, outAnns);
+        var baked = Drawing.Bake.Apply(frames, outAnns);
         return (baked.Count > 0 ? baked[0] : null, region);
     }
 
@@ -61,7 +61,7 @@ public sealed partial class EditorWindow : Window
         if (f == null) return;
         var w = new PinWindow(f, region);
         w.Show();
-        FrameCapture.Core.Trace.Log($"pin frame {f.W}x{f.H} at {region.X},{region.Y}");
+        Trace.Log($"pin frame {f.W}x{f.H} at {region.X},{region.Y}");
     }
 
     /// <summary>预览底部轻提示：淡入显示 msg，约 1.8s 后淡出。OCR/复制等即时反馈用。</summary>
@@ -71,7 +71,7 @@ public sealed partial class EditorWindow : Window
         _snackText.Text = msg;
         _snack.Visibility = Visibility.Visible;
         _snack.BeginAnimation(OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(
-            1.0, TimeSpan.FromMilliseconds(FrameCapture.Core.Fluent.Motion.HoverMs))
+            1.0, TimeSpan.FromMilliseconds(Fluent.Motion.HoverMs))
         { EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut } });
         if (_snackTimer == null)
         {
@@ -98,36 +98,36 @@ public sealed partial class EditorWindow : Window
         try
         {
             var frame = Cur();
-            var outcome = await FrameCapture.Core.OcrService.RecognizeAsync(frame);
+            var outcome = await OcrService.RecognizeAsync(frame);
             if (_userClosed) return; // 识别期间关窗：跳过提示
             switch (outcome.Status)
             {
-                case FrameCapture.Core.OcrStatus.Success:
-                    var text = FrameCapture.Core.OcrService.Normalize(outcome.Text);
+                case OcrStatus.Success:
+                    var text = OcrService.Normalize(outcome.Text);
                     // 预览优先：开结果窗时以「预览选取」为主，不自动写剪贴板（要哪段选哪段 / 点复制全部）；
                     // 关结果窗才走快速路径——直接复制 + 轻提示。
                     if (_settings.Current.OcrShowResult)
                         OcrResultWindow.Show(text);
                     else
                     {
-                        try { System.Windows.Clipboard.SetText(text); } catch { }
-                        ShowSnack(FrameCapture.Core.OcrService.Feedback(FrameCapture.Core.OcrStatus.Success, text.Length));
+                        try { Clipboard.SetText(text); } catch { }
+                        ShowSnack(OcrService.Feedback(OcrStatus.Success, text.Length));
                     }
-                    FrameCapture.Core.Trace.Log($"ocr ok {text.Length} chars");
+                    Trace.Log($"ocr ok {text.Length} chars");
                     break;
-                case FrameCapture.Core.OcrStatus.NoEngine:
-                    ShowSnack(FrameCapture.Core.OcrService.Feedback(FrameCapture.Core.OcrStatus.NoEngine, 0));
-                    FrameCapture.Core.Trace.Log("ocr no-engine");
+                case OcrStatus.NoEngine:
+                    ShowSnack(OcrService.Feedback(OcrStatus.NoEngine, 0));
+                    Trace.Log("ocr no-engine");
                     break;
                 default:
-                    ShowSnack(FrameCapture.Core.OcrService.Feedback(FrameCapture.Core.OcrStatus.Empty, 0));
-                    FrameCapture.Core.Trace.Log("ocr empty");
+                    ShowSnack(OcrService.Feedback(OcrStatus.Empty, 0));
+                    Trace.Log("ocr empty");
                     break;
             }
         }
         catch (Exception ex)
         {
-            FrameCapture.Core.Trace.Log($"ocr failed: {ex.Message}");
+            Trace.Log($"ocr failed: {ex.Message}");
             if (!_userClosed) ShowSnack("识别失败");
         }
         finally { _ocrBusy = false; }
@@ -139,7 +139,7 @@ public sealed partial class EditorWindow : Window
         foreach (var b in _okBtns)
         {
             b.BeginAnimation(OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(busy ? 0.55 : 1.0,
-                new System.Windows.Duration(TimeSpan.FromMilliseconds(FrameCapture.Core.Fluent.Motion.HoverMs)))
+                new Duration(TimeSpan.FromMilliseconds(Fluent.Motion.HoverMs)))
             { EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut } });
         }
     }
@@ -148,7 +148,7 @@ public sealed partial class EditorWindow : Window
     /// 导出录制。videoFmt==null → GIF（onDone 收字节）；否则 ffmpeg 编码到 outPath（onDone 收 null）。
     /// 子集/裁剪/烘焙两路共用，只在末步分派编码器。
     /// </summary>
-    void StartEncode(FrameCapture.Encoding.VideoFormat? videoFmt, string? outPath, Action<CapturedSequence, byte[]?> onDone)
+    void StartEncode(VideoFormat? videoFmt, string? outPath, Action<CapturedSequence, byte[]?> onDone)
     {
         if (_encoding) return;
         try
@@ -159,34 +159,34 @@ public sealed partial class EditorWindow : Window
             IReadOnlyList<CapturedFrame> subset = _seq.Frames is FrameSpoolList spl
                 ? spl.Slice(a, b - a + 1)
                 : _seq.Frames.Skip(a).Take(b - a + 1).ToList();
-            var anns = new List<FrameCapture.Drawing.Annotation>(_anns.Items);
+            var anns = new List<Drawing.Annotation>(_anns.Items);
             var region = _seq.Region; var monBounds = _seq.MonitorBounds; var monDev = _seq.MonitorDevice;
             int fps = _fps;
             var cropSnap = _crop.Current; bool cropOn = _crop.IsCropped; // UI 线程快照，后台只读
-            string verb = videoFmt == null ? "GIF" : videoFmt == FrameCapture.Encoding.VideoFormat.Mp4 ? "MP4" : "WebM";
+            string verb = videoFmt == null ? "GIF" : videoFmt == VideoFormat.Mp4 ? "MP4" : "WebM";
 
             _encoding = true;
             SetOkBusy(true);
             _commitCts = new CancellationTokenSource();
             var ct = _commitCts.Token;
             _hud.Text = $"导出 {verb}…";
-            System.Threading.Tasks.Task.Run(() =>
+            Task.Run(() =>
             {
                 // 测试专用（与 FC_TEST_NO_FG 同约定）：FC_TEST_ENCODE_FAIL=1 令编码任务必然抛错，
                 // 使"导出失败"HUD 终态可确定性触达并做双主题像素取证（UIAUDIT D9）。正常用户环境永不置位。
-                if (System.Environment.GetEnvironmentVariable("FC_TEST_ENCODE_FAIL") == "1")
-                    throw new System.InvalidOperationException("forced encode failure (FC_TEST_ENCODE_FAIL=1)");
+                if (Environment.GetEnvironmentVariable("FC_TEST_ENCODE_FAIL") == "1")
+                    throw new InvalidOperationException("forced encode failure (FC_TEST_ENCODE_FAIL=1)");
                 // 裁剪=视图状态：导出瞬间一次性折算（像素级等价：先裁剪后烘焙 ≡ 先烘焙后裁剪）
                 var frames = subset; var outAnns = anns; var outRegion = region;
                 if (cropOn && frames.Count > 0)
                 {
                     int fw = frames[0].W, fh = frames[0].H;
-                    var (cx, cy, cw, ch) = FrameCapture.Core.CropState.ToPixelOf(cropSnap, fw, fh);
-                    frames = FrameCapture.Drawing.Bake.Crop(frames, cx, cy, cw, ch);
-                    outAnns = FrameCapture.Core.CropRemap.Remap(anns, (double)cx / fw, (double)cy / fh, (double)cw / fw, (double)ch / fh);
+                    var (cx, cy, cw, ch) = CropState.ToPixelOf(cropSnap, fw, fh);
+                    frames = Drawing.Bake.Crop(frames, cx, cy, cw, ch);
+                    outAnns = CropRemap.Remap(anns, (double)cx / fw, (double)cy / fh, (double)cw / fw, (double)ch / fh);
                     outRegion = new RectI(region.X + cx, region.Y + cy, cw, ch);
                 }
-                var baked = FrameCapture.Drawing.Bake.Apply(frames, outAnns);
+                var baked = Drawing.Bake.Apply(frames, outAnns);
                 var seq = new CapturedSequence
                 {
                     Frames = baked,
@@ -200,11 +200,11 @@ public sealed partial class EditorWindow : Window
                     byte[] gif = GifEncoder.Encode(baked, ComputeDelays(baked, fps), true, prog, ct);
                     return (seq, gif: (byte[]?)gif);
                 }
-                string ff = FrameCapture.Encoding.FfmpegLocator.Find()
-                    ?? throw new System.InvalidOperationException("未找到 ffmpeg，无法导出视频");
+                string ff = FfmpegLocator.Find()
+                    ?? throw new InvalidOperationException("未找到 ffmpeg，无法导出视频");
                 // 用帧时间戳推实际帧率：静态段少帧 → 低 fps，但总时长与录制一致（播放速度正确）
-                double vfps = FrameCapture.Encoding.VideoEncoder.FpsFromFrames(baked);
-                FrameCapture.Encoding.VideoEncoder.Encode(baked, ff, outPath!, videoFmt.Value, vfps, prog, ct);
+                double vfps = VideoEncoder.FpsFromFrames(baked);
+                VideoEncoder.Encode(baked, ff, outPath!, videoFmt.Value, vfps, prog, ct);
                 return (seq, gif: (byte[]?)null);
             }, ct).ContinueWith(t =>
             {
@@ -219,11 +219,11 @@ public sealed partial class EditorWindow : Window
                 if (t.IsFaulted)
                 {
                     Trace.Log($"encode failed: {t.Exception}");
-                    _hud.Text = t.Exception?.InnerException is System.InvalidOperationException ? "未找到 ffmpeg" : "导出失败";
+                    _hud.Text = t.Exception?.InnerException is InvalidOperationException ? "未找到 ffmpeg" : "导出失败";
                     return;
                 }
                 onDone(t.Result.seq, t.Result.gif);
-            }, System.Threading.Tasks.TaskScheduler.FromCurrentSynchronizationContext());
+            }, TaskScheduler.FromCurrentSynchronizationContext());
         }
         catch (Exception ex)
         {
@@ -266,29 +266,29 @@ public sealed partial class EditorWindow : Window
         IReadOnlyList<CapturedFrame> subset = _seq.Frames is FrameSpoolList spl
             ? spl.Slice(a, count)
             : _seq.Frames.Skip(a).Take(count).ToList();
-        var idxs = FrameCapture.Encoding.AgentStrip.SampleIndices(count, frames, every);
+        var idxs = AgentStrip.SampleIndices(count, frames, every);
         var sampled = idxs.Select(i => subset[i]).ToList();
-        var anns = new List<FrameCapture.Drawing.Annotation>(_anns.Items);
+        var anns = new List<Drawing.Annotation>(_anns.Items);
         var cropSnap = _crop.Current; bool cropOn = _crop.IsCropped;
 
         _encoding = true; SetOkBusy(true);
         ShowSnack("生成胶片条…");
         try
         {
-            var baked = await System.Threading.Tasks.Task.Run(() =>
+            var baked = await Task.Run(() =>
             {
                 IReadOnlyList<CapturedFrame> fs = sampled; var outAnns = anns;
                 if (cropOn && fs.Count > 0)
                 {
                     int fw = fs[0].W, fh = fs[0].H;
-                    var (cx, cy, cw, ch) = FrameCapture.Core.CropState.ToPixelOf(cropSnap, fw, fh);
-                    fs = FrameCapture.Drawing.Bake.Crop(fs, cx, cy, cw, ch);
-                    outAnns = FrameCapture.Core.CropRemap.Remap(anns, (double)cx / fw, (double)cy / fh, (double)cw / fw, (double)ch / fh);
+                    var (cx, cy, cw, ch) = CropState.ToPixelOf(cropSnap, fw, fh);
+                    fs = Drawing.Bake.Crop(fs, cx, cy, cw, ch);
+                    outAnns = CropRemap.Remap(anns, (double)cx / fw, (double)cy / fh, (double)cw / fw, (double)ch / fh);
                 }
-                return FrameCapture.Drawing.Bake.Apply(fs, outAnns);
+                return Drawing.Bake.Apply(fs, outAnns);
             });
-            var img = FrameCapture.Encoding.AgentStrip.Render(baked, idxs);
-            try { System.Windows.Clipboard.SetImage(img); ShowSnack($"胶片条已复制（{idxs.Count} 帧）"); }
+            var img = AgentStrip.Render(baked, idxs);
+            try { Clipboard.SetImage(img); ShowSnack($"胶片条已复制（{idxs.Count} 帧）"); }
             catch { ShowSnack("剪贴板被占用，生成失败"); }
             Trace.Log($"filmstrip {idxs.Count}/{count} frames every={every}");
         }
@@ -312,7 +312,7 @@ public sealed partial class EditorWindow : Window
         if (_encoding) return;
         // 测试专用（与 FC_TEST_ENCODE_FAIL 同约定）：置 FC_TEST_EXPORT=<路径> 则跳过存盘对话框，
         // 直接按扩展名导出，使「录制→编辑器→ffmpeg 落盘」全链路可确定性 e2e + ffprobe 核对。正常用户环境永不置位。
-        string? testExport = System.Environment.GetEnvironmentVariable("FC_TEST_EXPORT");
+        string? testExport = Environment.GetEnvironmentVariable("FC_TEST_EXPORT");
         if (!string.IsNullOrEmpty(testExport)) { DispatchSave(testExport); return; }
         var def = _settings.Current.RecordFormat;
         string defName = def switch
@@ -331,15 +331,15 @@ public sealed partial class EditorWindow : Window
     /// <summary>按扩展名分派导出：.mp4/.webm 走 ffmpeg，其余走 GIF。</summary>
     void DispatchSave(string path)
     {
-        string ext = System.IO.Path.GetExtension(path).ToLowerInvariant();
+        string ext = Path.GetExtension(path).ToLowerInvariant();
         if (ext is ".mp4" or ".webm")
         {
-            if (FrameCapture.Encoding.FfmpegLocator.Find() == null)
+            if (FfmpegLocator.Find() == null)
             {
                 _hud.Text = "未找到 ffmpeg，无法导出视频 — 安装方法见帮助（按 F1）";
                 return;
             }
-            var fmt = ext == ".mp4" ? FrameCapture.Encoding.VideoFormat.Mp4 : FrameCapture.Encoding.VideoFormat.WebM;
+            var fmt = ext == ".mp4" ? VideoFormat.Mp4 : VideoFormat.WebM;
             path = EnsureExt(path, ext);
             StartEncode(fmt, path, (_, _) =>
             {
@@ -376,9 +376,9 @@ public sealed partial class EditorWindow : Window
         if (_crop.IsCropped && combined.W > 0 && _frameW > 0)
         {
             var (cx, cy, cw, ch) = _crop.ToPixel(_frameW, _frameH);
-            anns = FrameCapture.Core.CropRemap.Remap(anns, (double)cx / _frameW, (double)cy / _frameH, (double)cw / _frameW, (double)ch / _frameH);
+            anns = CropRemap.Remap(anns, (double)cx / _frameW, (double)cy / _frameH, (double)cw / _frameW, (double)ch / _frameH);
         }
-        var baked = FrameCapture.Drawing.Bake.Apply(new[] { combined }, anns)[0];
+        var baked = Drawing.Bake.Apply(new[] { combined }, anns)[0];
         BgraImage.SavePng(baked, EnsureExt(dlg.FileName, ".png"));
     }
 
@@ -395,7 +395,7 @@ public sealed partial class EditorWindow : Window
         public LazyCropList(IReadOnlyList<CapturedFrame> s, int x, int y, int w, int h) { _src = s; _x = x; _y = y; _w = w; _h = h; }
         public int Count => _src.Count;
         /// <summary>索引器：访问到哪帧才裁哪帧，不整段物化。</summary>
-        public CapturedFrame this[int i] => FrameCapture.Drawing.Bake.CropFrame(_src[i], _x, _y, _w, _h);
+        public CapturedFrame this[int i] => Drawing.Bake.CropFrame(_src[i], _x, _y, _w, _h);
         /// <summary>按索引顺序枚举，逐帧现裁。</summary>
         /// <returns>逐个产出裁剪帧的枚举器；裁剪结果不缓存。</returns>
         public IEnumerator<CapturedFrame> GetEnumerator() { for (int i = 0; i < Count; i++) yield return this[i]; }
@@ -408,7 +408,7 @@ public sealed partial class EditorWindow : Window
     static Microsoft.Win32.SaveFileDialog NewSaveDialog(string filter, string defaultName)
     {
         // 默认目录与「自动保存副本」保持一致：尊重用户自定义 AutoSavePath，非法/未设则回退 Pictures\FrameCapture
-        string dir = FrameCapture.Services.SaveService.ResolveFolder();
+        string dir = SaveService.ResolveFolder();
         return new() { Filter = filter, FileName = defaultName, InitialDirectory = dir };
     }
 }

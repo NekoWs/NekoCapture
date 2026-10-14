@@ -84,8 +84,8 @@ public sealed partial class EditorWindow : Window
         Topmost = _settings.Current.EditorTopmost;
         Deactivated += (_, _) => { if (IsLoaded && Topmost) { Topmost = false; Topmost = true; } };
         Title = "FrameCapture Editor";
-        FrameCapture.Core.Fluent.BorderlessNative(this); // 真无框：消 DWM 非客户区白条，原生圆角+阴影
-        FrameCapture.Core.Fluent.FadeIn(this, FrameCapture.Core.Fluent.Motion.EditorEnterMs, 14, offscreenFirstFrame: true);
+        Fluent.BorderlessNative(this); // 真无框：消 DWM 非客户区白条，原生圆角+阴影
+        Fluent.FadeIn(this, Fluent.Motion.EditorEnterMs, 14, offscreenFirstFrame: true);
         Background = new SolidColorBrush(DarkBg);
         MouseLeftButtonDown += (_, e) => { if (e.ButtonState == MouseButtonState.Pressed) { try { DragMove(); } catch { } } };
 
@@ -136,7 +136,7 @@ public sealed partial class EditorWindow : Window
         Closed += (_, _) => Theme.Changed -= Editor_OnTheme;
         Closed += (_, _) => SaveEditorPrefs(); // 关闭时记住标注设置（✓/✕/Esc 三条路径都经此）
         Show(0);
-        System.Windows.Input.InputMethod.SetIsInputMethodEnabled(this, false);
+        InputMethod.SetIsInputMethodEnabled(this, false);
         PreviewKeyDown += OnKeyDown;
         Closed += (_, _) =>
         {
@@ -191,10 +191,10 @@ public sealed partial class EditorWindow : Window
             row.Children.Add(kt); row.Children.Add(vt);
             sp.Children.Add(row);
         }
-        var ok = FrameCapture.Core.Fluent.IconButton("知道了", "开始使用", 84, 12.5);
-        ok.ClearValue(System.Windows.Controls.Control.FontFamilyProperty); // 文字按钮：回到继承的 UI 字体（IconButton 默认是图标字体）
+        var ok = Fluent.IconButton("知道了", "开始使用", 84, 12.5);
+        ok.ClearValue(Control.FontFamilyProperty); // 文字按钮：回到继承的 UI 字体（IconButton 默认是图标字体）
         ok.Height = 30;
-        FrameCapture.Core.Fluent.HighlightBtn(ok, true);
+        Fluent.HighlightBtn(ok, true);
         ok.HorizontalAlignment = HorizontalAlignment.Right;
         ok.Margin = new Thickness(0, 14, 0, 0);
         ok.Click += (_, _) => CloseGuide();
@@ -221,9 +221,9 @@ public sealed partial class EditorWindow : Window
         System.Windows.Controls.Panel.SetZIndex(_guide, 99);
         _root.Children.Add(_guide);
         _guide.BeginAnimation(OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(0, 1,
-            new System.Windows.Duration(TimeSpan.FromMilliseconds(220)))
+            new Duration(TimeSpan.FromMilliseconds(220)))
         { EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut } });
-        FrameCapture.Core.Trace.Log("editor guide shown");
+        Trace.Log("editor guide shown");
     }
 
     void CloseGuide()
@@ -232,9 +232,9 @@ public sealed partial class EditorWindow : Window
         var g = _guide;
         _guide = null;
         _settings.Mutate(s => s.EditorGuideShown = true);
-        FrameCapture.Core.Trace.Log("editor guide closed");
+        Trace.Log("editor guide closed");
         var fade = new System.Windows.Media.Animation.DoubleAnimation(1, 0,
-            new System.Windows.Duration(TimeSpan.FromMilliseconds(160)))
+            new Duration(TimeSpan.FromMilliseconds(160)))
         { EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseIn } };
         fade.Completed += (_, _) => _root?.Children.Remove(g);
         g.BeginAnimation(OpacityProperty, fade);
@@ -247,7 +247,7 @@ public sealed partial class EditorWindow : Window
         _userClosed = true;
         _playTimer.Stop(); // 停播放表，避免释放 spool 后定时器再读已关文件
         ClosedByUser?.Invoke();
-        FrameCapture.Core.Fluent.CloseWithFade(this);
+        Fluent.CloseWithFade(this);
     }
     #endregion
 

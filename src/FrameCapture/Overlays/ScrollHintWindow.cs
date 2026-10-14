@@ -158,7 +158,7 @@ public sealed class ScrollHintWindow : Window
         };
 
         Closed += (_, _) => { if (ReferenceEquals(Current, this)) Current = null; };
-        FrameCapture.Core.Trace.Log("scroll bar shown");
+        Trace.Log("scroll bar shown");
         Fluent.FadeIn(this, Fluent.Motion.EnterMs, 8, offscreenFirstFrame: true);
     }
 

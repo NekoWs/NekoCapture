@@ -111,7 +111,7 @@ public static partial class Fluent
         {
             var dur = new Duration(TimeSpan.FromMilliseconds(Motion.EnterMs));
             var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
-            w.BeginAnimation(System.Windows.UIElement.OpacityProperty, new DoubleAnimation(1, dur) { EasingFunction = ease });
+            w.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(1, dur) { EasingFunction = ease });
             if (w.Content is FrameworkElement fe && fe.RenderTransform == null)
             {
                 fe.RenderTransformOrigin = new Point(0.5, 0.5);
@@ -139,9 +139,9 @@ public static partial class Fluent
         var ease = new CubicEase { EasingMode = EasingMode.EaseIn };
         var a = new DoubleAnimation(cur, 0.0, dur) { EasingFunction = ease };
         a.Completed += (_, _) => { _fadingOut.Remove(w); w.Close(); };
-        w.BeginAnimation(System.Windows.UIElement.OpacityProperty, null);
+        w.BeginAnimation(UIElement.OpacityProperty, null);
         w.Opacity = cur;
-        w.BeginAnimation(System.Windows.UIElement.OpacityProperty, a);
+        w.BeginAnimation(UIElement.OpacityProperty, a);
         if (w.Content is FrameworkElement fe)
         {
             if (fe.RenderTransform is ScaleTransform st)
@@ -216,10 +216,10 @@ public static partial class Fluent
                     EventHandler step = null!;
                     step = (_, _) =>
                     {
-                        System.Windows.Media.CompositionTarget.Rendering -= step;
+                        CompositionTarget.Rendering -= step;
                         Start();
                     };
-                    System.Windows.Media.CompositionTarget.Rendering += step;
+                    CompositionTarget.Rendering += step;
                 };
             }
             if (w.IsInitialized) Park(); else w.SourceInitialized += (_, _) => Park();

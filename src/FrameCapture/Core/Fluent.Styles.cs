@@ -14,7 +14,7 @@ public static partial class Fluent
     /// 启动时与每次主题切换后都要重跑一次：样式里的颜色是生成时烘死的，不随主题自动更新。</summary>
     public static void ApplyGlobalStyles()
     {
-        var app = System.Windows.Application.Current;
+        var app = Application.Current;
         if (app == null) return;
         app.Resources[typeof(System.Windows.Controls.ToolTip)] = ToolTipStyle();
         app.Resources[typeof(ScrollBar)] = ScrollBarStyle();

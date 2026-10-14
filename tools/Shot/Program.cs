@@ -328,7 +328,7 @@ switch (mode)
         if (dlg == 0) { Console.WriteLine("dlg-not-found"); return; }
         nint edit = FindWindowExW(dlg, 0, "Edit", null);
         if (edit == 0) edit = FindWindowExW(dlg, 0, "ComboBoxEx32", null);
-        if (edit != 0) PostMessageW(edit, 0x000C /*WM_SETTEXT*/, 0, (uint)System.Runtime.InteropServices.Marshal.StringToHGlobalUni(args[2]));
+        if (edit != 0) PostMessageW(edit, 0x000C /*WM_SETTEXT*/, 0, (uint)Marshal.StringToHGlobalUni(args[2]));
         await Task.Delay(200);
         nint btn = FindWindowExW(dlg, 0, "Button", null); // 第一个按钮=保存
         while (btn != 0)

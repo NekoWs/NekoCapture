@@ -122,7 +122,7 @@ public sealed class EditorPalette
     /// <returns>Accent 的相对亮度低于 0.35 时返回纯白，否则纯黑；只依赖 <see cref="Accent"/>。</returns>
     public Color OnAccent()
     {
-        static double L(double c) { c /= 255.0; return c <= 0.03928 ? c / 12.92 : System.Math.Pow((c + 0.055) / 1.055, 2.4); }
+        static double L(double c) { c /= 255.0; return c <= 0.03928 ? c / 12.92 : Math.Pow((c + 0.055) / 1.055, 2.4); }
         double lum = 0.2126 * L(Accent.R) + 0.7152 * L(Accent.G) + 0.0722 * L(Accent.B);
         return lum < 0.35 ? Colors.White : Colors.Black;
     }

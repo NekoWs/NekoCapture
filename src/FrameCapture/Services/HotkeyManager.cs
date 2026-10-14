@@ -79,7 +79,7 @@ public sealed class HotkeyManager : IDisposable
         _proc = HookProc;
         _hook = Win32.SetWindowsHookExW(Win32.WH_KEYBOARD_LL, _proc,
             Win32.GetModuleHandleW(null), 0);
-        FrameCapture.Core.Trace.Log($"Install hook={_hook}");
+        Core.Trace.Log($"Install hook={_hook}");
         if (_hook == IntPtr.Zero)
         {
             _proc = null;
@@ -111,7 +111,7 @@ public sealed class HotkeyManager : IDisposable
             // 钩子回调内绝不抛出
         }
         double ms = (Stopwatch.GetTimestamp() - t0) * 1000.0 / Stopwatch.Frequency;
-        if (ms > HookSlowWarnMs) FrameCapture.Core.Trace.Log($"hook slow {ms:F0}ms");
+        if (ms > HookSlowWarnMs) Core.Trace.Log($"hook slow {ms:F0}ms");
         return swallow ? 1 : Win32.CallNextHookEx(_hook, nCode, wParam, lParam);
     }
 
@@ -124,7 +124,7 @@ public sealed class HotkeyManager : IDisposable
         bool isDown = (info.flags & Win32.LLKHF_UP) == 0;
         // 隐私：绝不记录用户按键（全局钩子可见所有键击）。仅调试注入链路时设 FC_TRACE_KEYS=1 才逐键记录。
         if (TraceKeys)
-            FrameCapture.Core.Trace.Log($"hook key={info.vkCode} down={isDown} installed={Installed}");
+            Core.Trace.Log($"hook key={info.vkCode} down={isDown} installed={Installed}");
 
         // 手势引擎喂键（唯一的全局触发路径）。手势层关闭时 KeySink=null，零开销。
         // Paused 时不喂：用户暂停全局热键=要求不拦截任何键，手势层同样避让。
@@ -150,7 +150,7 @@ public sealed class HotkeyManager : IDisposable
 
         // 独占吞键：手势命中「带具体键的组合键」→ 吞掉本键，前台程序收不到（QQ 式全局独占）。
         // 放在滚动/浮窗判定之后：那两类是会话级优先；且手势只绑具体键(A/R)，不会误吞 Esc/Enter。
-        if (gestureSwallow) { FrameCapture.Core.Trace.Log("gesture swallow"); return true; }
+        if (gestureSwallow) { Core.Trace.Log("gesture swallow"); return true; }
         return false;
     }
 

@@ -10,7 +10,7 @@ namespace FrameCapture.Capture;
 /// </summary>
 internal static class WgcNative
 {
-    static readonly Guid IidGraphicsCaptureItemInterop = new("3628E81B-3CAC-4C60-B7F4-23CE0E0C3356"); // um/Windows.Graphics.Capture.Interop.h
+    static readonly Guid IidGraphicsCaptureItemInterop = new("3628E81B-3CAC-4C60-B7F4-23CE0E0C3356"); // um/Interop.h
 
     [ComImport, Guid("3628E81B-3CAC-4C60-B7F4-23CE0E0C3356"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
     private interface IGraphicsCaptureItemInterop

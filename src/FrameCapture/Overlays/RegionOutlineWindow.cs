@@ -161,12 +161,12 @@ public sealed class RegionOutlineWindow : Window
         if (hwnd == IntPtr.Zero) return false;
         if (!Win32.SetWindowDisplayAffinity(hwnd, Win32.WDA_EXCLUDEFROMCAPTURE))
         {
-            FrameCapture.Core.Trace.Log("outline: SetWindowDisplayAffinity failed err="
+            Core.Trace.Log("outline: SetWindowDisplayAffinity failed err="
                 + System.Runtime.InteropServices.Marshal.GetLastWin32Error());
             return false;
         }
         _captureExcluded = true;
-        FrameCapture.Core.Trace.Log("outline: capture-excluded via WDA_EXCLUDEFROMCAPTURE");
+        Core.Trace.Log("outline: capture-excluded via WDA_EXCLUDEFROMCAPTURE");
         return true;
     }
 
@@ -185,7 +185,7 @@ public sealed class RegionOutlineWindow : Window
 
     static Color AccentCol(byte a)
     {
-        var c = FrameCapture.Core.Theme.Accent;
+        var c = Core.Theme.Accent;
         return Color.FromArgb(a, c.R, c.G, c.B);
     }
 
@@ -212,11 +212,11 @@ public sealed class RegionOutlineWindow : Window
         _recBadge.Opacity = 0;
         _recBadge.BeginAnimation(OpacityProperty,
             new System.Windows.Media.Animation.DoubleAnimation(1,
-                new System.Windows.Duration(TimeSpan.FromMilliseconds(FrameCapture.Core.Fluent.Motion.EnterMs)))
+                new Duration(TimeSpan.FromMilliseconds(Core.Fluent.Motion.EnterMs)))
             { EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut } });
         // 红点 1s 呼吸脉冲（录制进行感）
         var pulse = new System.Windows.Media.Animation.DoubleAnimation(1, 0.35,
-            new System.Windows.Duration(TimeSpan.FromSeconds(1)))
+            new Duration(TimeSpan.FromSeconds(1)))
         { AutoReverse = true, RepeatBehavior = System.Windows.Media.Animation.RepeatBehavior.Forever };
         _recDot.BeginAnimation(OpacityProperty, pulse);
     }
@@ -291,11 +291,11 @@ public sealed class RegionOutlineWindow : Window
         _border.BorderBrush = b;
         _border.BorderThickness = new Thickness(3);
         var ca = new System.Windows.Media.Animation.ColorAnimation(AccentCol(0x60),
-            new System.Windows.Duration(TimeSpan.FromMilliseconds(450)))
+            new Duration(TimeSpan.FromMilliseconds(450)))
         { EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut } };
-        b.BeginAnimation(System.Windows.Media.SolidColorBrush.ColorProperty, ca);
+        b.BeginAnimation(SolidColorBrush.ColorProperty, ca);
         var ta = new System.Windows.Media.Animation.ThicknessAnimation(new Thickness(2),
-            new System.Windows.Duration(TimeSpan.FromMilliseconds(450)))
+            new Duration(TimeSpan.FromMilliseconds(450)))
         { EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut } };
         _border.BeginAnimation(Border.BorderThicknessProperty, ta);
     }

@@ -28,7 +28,7 @@ public sealed partial class EditorWindow
             };
             _colorPop = new Popup
             {
-                Child = FrameCapture.Core.Fluent.PopupCard(_colorView),
+                Child = Core.Fluent.PopupCard(_colorView),
                 Placement = PlacementMode.Top,
                 StaysOpen = false,
                 AllowsTransparency = true,
@@ -39,7 +39,7 @@ public sealed partial class EditorWindow
             {
                 if (!_pkDirty || _customColor == null) return;
                 var c = _customColor.Value;
-                _settings.Mutate(s => s.CustomColors = FrameCapture.Core.CustomPick.RememberColor(s.CustomColors, FrameCapture.Core.HexColor.Format(c)));
+                _settings.Mutate(s => s.CustomColors = Core.CustomPick.RememberColor(s.CustomColors, Core.HexColor.Format(c)));
                 RebuildRecentSwatches();
                 RestyleSelected(CurColor, null); // 选中项随取色即时改色（单条撤销）
             };

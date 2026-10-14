@@ -4,11 +4,11 @@ using System.Windows;
 namespace FrameCapture;
 
 /// <summary>应用入口：单实例、全局快捷键、托盘常驻。</summary>
-public partial class App : System.Windows.Application
+public partial class App : Application
 {
     public static App Instance { get; private set; } = null!;
 
-    private System.Threading.Mutex? _mutex;
+    private Mutex? _mutex;
     private bool _ownsMutex;
     private MsgSink? _msgSink;
 
@@ -28,9 +28,9 @@ public partial class App : System.Windows.Application
     [System.Runtime.InteropServices.DllImport("user32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
     static extern uint RegisterWindowMessageW(string lpString);
     [System.Runtime.InteropServices.DllImport("user32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
-    static extern System.IntPtr FindWindowExW(System.IntPtr parent, System.IntPtr childAfter, string? cls, string? window);
+    static extern IntPtr FindWindowExW(IntPtr parent, IntPtr childAfter, string? cls, string? window);
     [System.Runtime.InteropServices.DllImport("user32.dll")]
-    static extern bool PostMessageW(System.IntPtr h, uint msg, System.IntPtr w, System.IntPtr l);
+    static extern bool PostMessageW(IntPtr h, uint msg, IntPtr w, IntPtr l);
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -38,7 +38,7 @@ public partial class App : System.Windows.Application
         base.OnStartup(e);
 
         // 单实例
-        _mutex = new System.Threading.Mutex(true, @"Local\FrameCapture.SingleInstance", out bool owned);
+        _mutex = new Mutex(true, @"Local\FrameCapture.SingleInstance", out bool owned);
         if (!owned)
         {
             // 已有实例：--settings/--help 转发给它再退——从快捷方式再开一次必须看得见效果，不能静默退出。
@@ -147,7 +147,7 @@ public partial class App : System.Windows.Application
         if (spi >= 0)
         {
             string spOut = spi + 1 < e.Args.Length ? e.Args[spi + 1]
-                : System.IO.Path.Combine(System.IO.Path.GetTempPath(), "FrameCapture", "scrollpreview.png");
+                : Path.Combine(Path.GetTempPath(), "FrameCapture", "scrollpreview.png");
             Dispatcher.BeginInvoke(() => ShowScrollPreviewScene(spOut),
                 System.Windows.Threading.DispatcherPriority.ApplicationIdle);
         }
@@ -158,19 +158,19 @@ public partial class App : System.Windows.Application
         {
             string title = wi + 1 < e.Args.Length ? e.Args[wi + 1] : "";
             string outp = wi + 2 < e.Args.Length ? e.Args[wi + 2]
-                : System.IO.Path.Combine(System.IO.Path.GetTempPath(), "FrameCapture", "wincap.png");
+                : Path.Combine(Path.GetTempPath(), "FrameCapture", "wincap.png");
             bool shadow = !e.Args.Any(a => string.Equals(a, "--noshadow", StringComparison.OrdinalIgnoreCase));
             Dispatcher.BeginInvoke(() =>
             {
                 try
                 {
                     IntPtr h = FindWindowByTitle(title);
-                    if (h == IntPtr.Zero) { FrameCapture.Core.Trace.Log($"wincap: no window '{title}'"); return; }
+                    if (h == IntPtr.Zero) { Core.Trace.Log($"wincap: no window '{title}'"); return; }
                     var (f, reg) = Capture.WindowCapture.Grab(h, shadow);
                     Services.BgraImage.SavePng(f, outp);
-                    FrameCapture.Core.Trace.Log($"wincap saved {outp} {f.W}x{f.H} reg={reg}");
+                    Core.Trace.Log($"wincap saved {outp} {f.W}x{f.H} reg={reg}");
                 }
-                catch (Exception ex) { FrameCapture.Core.Trace.Log("wincap fail: " + ex); }
+                catch (Exception ex) { Core.Trace.Log("wincap fail: " + ex); }
             }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
         }
         // 调试/e2e：定格 vs 实时取证。先抓全屏定格帧并裁出区域 R（＝定格截图会得到的内容），
@@ -180,7 +180,7 @@ public partial class App : System.Windows.Application
         if (ffi >= 0)
         {
             string outp = ffi + 1 < e.Args.Length ? e.Args[ffi + 1]
-                : System.IO.Path.Combine(System.IO.Path.GetTempPath(), "FrameCapture", "freezetest.png");
+                : Path.Combine(Path.GetTempPath(), "FrameCapture", "freezetest.png");
             Dispatcher.BeginInvoke(() =>
             {
                 try
@@ -188,10 +188,10 @@ public partial class App : System.Windows.Application
                     var mons = Capture.Monitors.All();
                     var mon = mons.FirstOrDefault(m => m.IsPrimary) ?? mons[0];
                     var full = Capture.LiveCapture.Grab(mon.Bounds);
-                    if (full == null) { FrameCapture.Core.Trace.Log("freezetest: grab full null"); return; }
+                    if (full == null) { Core.Trace.Log("freezetest: grab full null"); return; }
                     var R = new Capture.RectI(mon.Bounds.X + 240, mon.Bounds.Y + 240, 360, 240);
                     var frozenCrop = Services.BgraImage.Crop(full, R.X - mon.Bounds.X, R.Y - mon.Bounds.Y, R.W, R.H);
-                    if (frozenCrop == null) { FrameCapture.Core.Trace.Log("freezetest: crop null"); return; }
+                    if (frozenCrop == null) { Core.Trace.Log("freezetest: crop null"); return; }
                     var liveBefore = Capture.LiveCapture.Grab(R);
                     bool staticMatch = liveBefore != null && liveBefore.Bgra.AsSpan().SequenceEqual(frozenCrop.Bgra);
                     using (var w = new System.Windows.Forms.Form
@@ -203,7 +203,7 @@ public partial class App : System.Windows.Application
                     })
                     {
                         w.Show();
-                        System.Threading.Thread.Sleep(220);
+                        Thread.Sleep(220);
                         var liveAfter = Capture.LiveCapture.Grab(R);
                         w.Close();
                         bool changed = liveAfter != null && !liveAfter.Bgra.AsSpan().SequenceEqual(frozenCrop.Bgra);
@@ -215,10 +215,10 @@ public partial class App : System.Windows.Application
                             for (int y = 0; y < liveAfter.H; y++)
                                 Buffer.BlockCopy(liveAfter.Bgra, y * liveAfter.W * 4, comp, y * stride * 4 + (cw + gap) * 4, liveAfter.W * 4);
                         Services.BgraImage.SavePng(new Capture.CapturedFrame { Bgra = comp, W = stride, H = chh, TimeMs = 0 }, outp);
-                        FrameCapture.Core.Trace.Log($"freezetest saved {outp} staticMatch={staticMatch} changed={changed}");
+                        Core.Trace.Log($"freezetest saved {outp} staticMatch={staticMatch} changed={changed}");
                     }
                 }
-                catch (Exception ex) { FrameCapture.Core.Trace.Log("freezetest fail: " + ex); }
+                catch (Exception ex) { Core.Trace.Log("freezetest fail: " + ex); }
             }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
         }
     }
@@ -304,7 +304,7 @@ public partial class App : System.Windows.Application
             () => Dispatcher.BeginInvoke(() => Services.AppHost.Current.Tray.TogglePause()),
             () => Dispatcher.BeginInvoke(() => Services.AppHost.Current.Controller.OcrStoredStill()),
             () => Dispatcher.BeginInvoke(() => Services.GestureEditorHost.ShowOrFocus())); }
-        catch (System.Exception ex) { LogCrash(ex, "MsgSink"); }
+        catch (Exception ex) { LogCrash(ex, "MsgSink"); }
     }
 
     /// <summary>真正的 message-only 窗（HWND_MESSAGE 父）：不可见、不进任务栏、绝不抢前台。
@@ -360,8 +360,8 @@ public partial class App : System.Windows.Application
         if (name == null) return;
         try
         {
-            var sink = FindWindowExW(HWND_MESSAGE, System.IntPtr.Zero, null, SinkName);
-            if (sink != System.IntPtr.Zero) PostMessageW(sink, RegisterWindowMessageW(name), System.IntPtr.Zero, System.IntPtr.Zero);
+            var sink = FindWindowExW(HWND_MESSAGE, IntPtr.Zero, null, SinkName);
+            if (sink != IntPtr.Zero) PostMessageW(sink, RegisterWindowMessageW(name), IntPtr.Zero, IntPtr.Zero);
         }
         catch { }
     }

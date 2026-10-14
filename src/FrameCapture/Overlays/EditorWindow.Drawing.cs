@@ -24,7 +24,7 @@ public sealed partial class EditorWindow
         "N" => Tool.Number,
         _ => throw new InvalidOperationException($"工具目录键 {k} 未接 Tool 枚举"),
     };
-    static readonly Tool[] ToolOrder = FrameCapture.Core.ToolCatalog.Tools.Select(t => FromKey(t.Key)).ToArray();
+    static readonly Tool[] ToolOrder = Core.ToolCatalog.Tools.Select(t => FromKey(t.Key)).ToArray();
     static readonly Color[] Swatches =
     {
         Color.FromRgb(0xE8, 0x11, 0x23), Color.FromRgb(0xFF, 0xB9, 0x00),
@@ -36,11 +36,11 @@ public sealed partial class EditorWindow
     float _customWidth = 6f;
     Color? _customColor;
     Color CurColor => _colorIdx < Swatches.Length ? Swatches[_colorIdx] : _customColor ?? Swatches[0];
-    float CurWidth => FrameCapture.Core.CustomPick.Width(_widthIdx, Widths, _customWidth);
+    float CurWidth => Core.CustomPick.Width(_widthIdx, Widths, _customWidth);
 
     Canvas _canvas = new();
     Grid _viewGrid = new();
-    readonly FrameCapture.Core.UndoRedo<Annotation> _anns = new();
+    readonly Core.UndoRedo<Annotation> _anns = new();
     Tool _tool = Tool.Browse;
     int _colorIdx = 0, _widthIdx = 1;
     readonly List<Button> _toolBtns = new();
@@ -54,13 +54,13 @@ public sealed partial class EditorWindow
     bool _dragging;
 
     // 时间轴范围
-    readonly FrameCapture.Core.RangeDragState _rd = new();
+    readonly Core.RangeDragState _rd = new();
     // Background 必须非 null（透明即可）：null 时画布空白区不参与命中测试，轨道点选/拖动会失效
     Canvas _rangeCanvas = new()
     {
         Height = 26,
         Cursor = Cursors.IBeam,
-        Background = System.Windows.Media.Brushes.Transparent,
+        Background = Brushes.Transparent,
         ToolTip = "拖拽选择要导出的片段 · 单击跳转 · 拖两端把手微调 · [ / ] 设入/出点 · Backspace 清除",
     };
     bool _tlHover;
@@ -106,17 +106,17 @@ public sealed partial class EditorWindow
     // 帧内容在 canvas 中的显示矩形（裁剪子区 × 适配 × 缩放 + 平移）——标注命中/绘制、Image 布局、导出折算共用这一事实源
     Rect _imgRect;
     double _zoom = 1.0, _panX, _panY;
-    readonly FrameCapture.Core.CropState _crop = new();
-    readonly FrameCapture.Core.ActionOrder _order = new();
+    readonly Core.CropState _crop = new();
+    readonly Core.ActionOrder _order = new();
 
     // 当前帧缓存：录制产物的帧逐帧落盘，每次索引器访问都要 Seek+ReadExactly 整帧并新分配像素数组。
     // 鼠标拖动期间同一帧会被反复取用，而帧内容不可变、_seq 终身不变，故按帧号缓存即可。
-    FrameCapture.Capture.CapturedFrame? _curFrame;
+    Capture.CapturedFrame? _curFrame;
     int _curFrameIndex = -1;
 
     /// <summary>取当前帧，按 <c>_index</c> 缓存。翻页自动重取；同一帧内重复取用不触碰磁盘。</summary>
     /// <returns>当前帧。帧像素数组在多次调用间共享——帧内容只读，不得写入返回值的 <c>Bgra</c>。</returns>
-    FrameCapture.Capture.CapturedFrame Cur()
+    Capture.CapturedFrame Cur()
     {
         if (_curFrameIndex != _index || _curFrame == null)
         {
@@ -132,13 +132,13 @@ public sealed partial class EditorWindow
         double cw = _viewGrid.ActualWidth, ch = _viewGrid.ActualHeight;
         var f = Cur();
         var (fw, fh) = CropPx(f.W, f.H); // 裁剪子区像素尺寸：适配/钳制都以"可见区"为准
-        double sFit = FrameCapture.Core.ZoomMath.FitScale(cw, ch, fw, fh);
+        double sFit = Core.ZoomMath.FitScale(cw, ch, fw, fh);
         double s = sFit * _zoom;
-        var (px, py) = FrameCapture.Core.ZoomMath.ClampPan(_panX, _panY, cw, ch, fw * s, fh * s);
+        var (px, py) = Core.ZoomMath.ClampPan(_panX, _panY, cw, ch, fw * s, fh * s);
         _panX = px; _panY = py; // 视口变小后自动回钳
         // 全帧显示矩形：其"裁剪子区"中心恰落在视口中心 + pan（pan=裁剪内容中心相对视口中心偏移，与 ZoomMath 约定一致）
         var c = _crop.Current;
-        var (rx, ry, rw, rh) = FrameCapture.Core.ZoomMath.CropViewRect(cw, ch, f.W, f.H, c.X, c.Y, c.W, c.H, s, px, py);
+        var (rx, ry, rw, rh) = Core.ZoomMath.CropViewRect(cw, ch, f.W, f.H, c.X, c.Y, c.W, c.H, s, px, py);
         _imgRect = new Rect(rx, ry, rw, rh);
         ApplyImageView();
     }
@@ -173,21 +173,21 @@ public sealed partial class EditorWindow
     {
         var f = Cur();
         var (fw, fh) = CropPx(f.W, f.H);
-        var (z, px, py) = FrameCapture.Core.ZoomMath.ZoomAt(_zoom, _panX, _panY, newZoom, cx, cy,
+        var (z, px, py) = Core.ZoomMath.ZoomAt(_zoom, _panX, _panY, newZoom, cx, cy,
             _viewGrid.ActualWidth, _viewGrid.ActualHeight, fw, fh);
         if (Math.Abs(z - _zoom) < 1e-9 && Math.Abs(px - _panX) < 1e-9 && Math.Abs(py - _panY) < 1e-9) return;
         _zoom = z; _panX = px; _panY = py;
         UpdateImgRect(); RedrawAnns(); Show(_index);
-        FrameCapture.Core.Trace.Log($"editor zoom={_zoom:F2} pan={_panX:F0},{_panY:F0}");
+        Core.Trace.Log($"editor zoom={_zoom:F2} pan={_panX:F0},{_panY:F0}");
     }
     void ZoomStep(double factor) => SetZoom(_zoom * factor, _viewGrid.ActualWidth / 2, _viewGrid.ActualHeight / 2);
-    void ZoomFit() => SetZoom(FrameCapture.Core.ZoomMath.MinZoom, _viewGrid.ActualWidth / 2, _viewGrid.ActualHeight / 2);
+    void ZoomFit() => SetZoom(Core.ZoomMath.MinZoom, _viewGrid.ActualWidth / 2, _viewGrid.ActualHeight / 2);
     void ZoomOneToOne()
     {
         var f = Cur();
         var (fw, fh) = CropPx(f.W, f.H);
-        double sFit = FrameCapture.Core.ZoomMath.FitScale(_viewGrid.ActualWidth, _viewGrid.ActualHeight, fw, fh);
-        SetZoom(FrameCapture.Core.ZoomMath.OneToOneZoom(sFit), _viewGrid.ActualWidth / 2, _viewGrid.ActualHeight / 2);
+        double sFit = Core.ZoomMath.FitScale(_viewGrid.ActualWidth, _viewGrid.ActualHeight, fw, fh);
+        SetZoom(Core.ZoomMath.OneToOneZoom(sFit), _viewGrid.ActualWidth / 2, _viewGrid.ActualHeight / 2);
     }
 
     bool _panning;
@@ -202,7 +202,7 @@ public sealed partial class EditorWindow
         _panPress = e.GetPosition(_viewGrid);
         _panPressX = _panX; _panPressY = _panY;
         _viewGrid.CaptureMouse();
-        Cursor = System.Windows.Input.Cursors.SizeAll;
+        Cursor = Cursors.SizeAll;
         e.Handled = true;
     }
     void Pan_Move(object sender, MouseEventArgs e)
@@ -211,8 +211,8 @@ public sealed partial class EditorWindow
         var p = e.GetPosition(_viewGrid);
         var f = Cur();
         var (fw, fh) = CropPx(f.W, f.H);
-        double sFit = FrameCapture.Core.ZoomMath.FitScale(_viewGrid.ActualWidth, _viewGrid.ActualHeight, fw, fh);
-        var (x, y) = FrameCapture.Core.ZoomMath.PanBy(_panPressX, _panPressY, p.X - _panPress.X, p.Y - _panPress.Y,
+        double sFit = Core.ZoomMath.FitScale(_viewGrid.ActualWidth, _viewGrid.ActualHeight, fw, fh);
+        var (x, y) = Core.ZoomMath.PanBy(_panPressX, _panPressY, p.X - _panPress.X, p.Y - _panPress.Y,
             _viewGrid.ActualWidth, _viewGrid.ActualHeight, fw * sFit * _zoom, fh * sFit * _zoom);
         _panX = x; _panY = y;
         UpdateImgRect(); RedrawAnns();
@@ -236,7 +236,7 @@ public sealed partial class EditorWindow
     void SetTool(Tool t)
     {
         // 再点当前工具=回到浏览态（与线宽/颜色的单选切换同一语义，纯逻辑见 ToolToggle）
-        _tool = FrameCapture.Core.ToolToggle.Select(_tool, t, Tool.Browse);
+        _tool = Core.ToolToggle.Select(_tool, t, Tool.Browse);
         _sel = null; // 换工具即丢选中（选中只属于选中工具）
         _canvas.IsHitTestVisible = _tool != Tool.Browse;   // 浏览态画布不可命中（标注仍显示、平移穿透），绘制态可命中
         _canvas.Cursor = _tool switch { Tool.Browse or Tool.Select => Cursors.Arrow, Tool.Text => Cursors.IBeam, _ => Cursors.Cross };
@@ -245,7 +245,7 @@ public sealed partial class EditorWindow
         UpdateFontStepper();
     }
 
-    void Highlight(Button b, bool on) => FrameCapture.Core.Fluent.HighlightBtn(b, on);
+    void Highlight(Button b, bool on) => Core.Fluent.HighlightBtn(b, on);
     #endregion
 
     #region 记住上次的工具/颜色/粗细
@@ -278,7 +278,7 @@ public sealed partial class EditorWindow
     /// <summary>把任意颜色落到色板：命中预设槽位则选中它，否则进自定义槽位（保留 alpha）。</summary>
     void ApplyColor(Color col)
     {
-        int idx = FrameCapture.Core.EditorPrefs.ColorSlot(col.A, col.R, col.G, col.B,
+        int idx = Core.EditorPrefs.ColorSlot(col.A, col.R, col.G, col.B,
             Swatches.Select(c => (c.A, c.R, c.G, c.B)).ToArray());
         if (idx >= 0) _colorIdx = idx;
         else { _customColor = col; _colorIdx = Swatches.Length; }
@@ -288,7 +288,7 @@ public sealed partial class EditorWindow
     /// <summary>把任意线宽落到宽度槽位：命中预设（细/中/粗）则选中它，否则进自定义槽位。</summary>
     void ApplyWidth(float w)
     {
-        int idx = FrameCapture.Core.EditorPrefs.WidthSlot(w, Widths);
+        int idx = Core.EditorPrefs.WidthSlot(w, Widths);
         if (idx >= 0) _widthIdx = idx;
         else { _customWidth = w; _widthIdx = Widths.Length; }
         RefreshWidths();
@@ -300,7 +300,7 @@ public sealed partial class EditorWindow
         try { col = (Color)ColorConverter.ConvertFromString(hex); return true; } catch { return false; }
     }
 
-    static Color Acc => FrameCapture.Core.Theme.Accent;
+    static Color Acc => Core.Theme.Accent;
     #endregion
 
     #region 裁剪
@@ -314,25 +314,25 @@ public sealed partial class EditorWindow
         // 最小 48 帧像素折算为归一化比例（宽高各按自身维度）
         if (!_crop.Push(n0.X, n0.Y, n1.X, n1.Y, 48.0 / f.W, 48.0 / f.H)) return;
         _order.CropPushed();
-        _zoom = FrameCapture.Core.ZoomMath.MinZoom; _panX = 0; _panY = 0;   // 裁剪后回到「适配 + 居中」：防小裁剪停在放大/偏移态飞出视口、中键拖不回
+        _zoom = Core.ZoomMath.MinZoom; _panX = 0; _panY = 0;   // 裁剪后回到「适配 + 居中」：防小裁剪停在放大/偏移态飞出视口、中键拖不回
         UpdateImgRect(); RedrawAnns(); Show(_index); RefreshUndo();
         var (cx, cy, cw, ch) = _crop.ToPixel(f.W, f.H);
-        FrameCapture.Core.Trace.Log($"editor crop depth={_crop.Depth} px={cx},{cy} {cw}x{ch}");
+        Core.Trace.Log($"editor crop depth={_crop.Depth} px={cx},{cy} {cw}x{ch}");
     }
 
     /// <summary>单帧导出（保存帧/复制帧）：所见即所得——裁剪→重映射→烘焙，与 GIF 确定同管线。</summary>
-    FrameCapture.Capture.CapturedFrame ExportFrame(int index)
+    Capture.CapturedFrame ExportFrame(int index)
     {
         var f = _seq.Frames[index];
-        var frames = new List<FrameCapture.Capture.CapturedFrame> { f };
+        var frames = new List<Capture.CapturedFrame> { f };
         var anns = _anns.Items.ToList();
         if (_crop.IsCropped)
         {
             var (cx, cy, cw, ch) = _crop.ToPixel(f.W, f.H);
-            frames = FrameCapture.Drawing.Bake.Crop(frames, cx, cy, cw, ch);
-            anns = FrameCapture.Core.CropRemap.Remap(anns, (double)cx / f.W, (double)cy / f.H, (double)cw / f.W, (double)ch / f.H);
+            frames = Bake.Crop(frames, cx, cy, cw, ch);
+            anns = Core.CropRemap.Remap(anns, (double)cx / f.W, (double)cy / f.H, (double)cw / f.W, (double)ch / f.H);
         }
-        return FrameCapture.Drawing.Bake.Apply(frames, anns)[0];
+        return Bake.Apply(frames, anns)[0];
     }
     #endregion
 
@@ -370,7 +370,7 @@ public sealed partial class EditorWindow
             var (a, b) = TrimRange;
             bool near = _rd.A >= 0 && _seq.Frames.Count > 1 &&
                 (Math.Abs(x - _rd.FrameX(a)) <= 10 || Math.Abs(x - _rd.FrameX(b)) <= 10);
-            _rangeCanvas.Cursor = near ? System.Windows.Input.Cursors.SizeWE : Cursors.IBeam;
+            _rangeCanvas.Cursor = near ? Cursors.SizeWE : Cursors.IBeam;
             return;
         }
         int idx = Core.RangeDragState.XToIdx(x, _rangeCanvas.ActualWidth, _seq.Frames.Count);
@@ -397,9 +397,9 @@ public sealed partial class EditorWindow
         e.Handled = true;
     }
 
-    static System.Windows.Shapes.Rectangle TlBar(double x, double y, double w, double h, double r, Color col)
+    static Rectangle TlBar(double x, double y, double w, double h, double r, Color col)
     {
-        var rect = new System.Windows.Shapes.Rectangle { Width = Math.Max(0.5, w), Height = h, RadiusX = r, RadiusY = r, Fill = new SolidColorBrush(col) };
+        var rect = new Rectangle { Width = Math.Max(0.5, w), Height = h, RadiusX = r, RadiusY = r, Fill = new SolidColorBrush(col) };
         Canvas.SetLeft(rect, x); Canvas.SetTop(rect, y);
         return rect;
     }
@@ -441,7 +441,7 @@ public sealed partial class EditorWindow
         double ty = ch - 5;
         c.Children.Add(TlBar(0, ty, cw, 4, 2, Theme.TrackBg));
         double xm = _index / (n - 1.0) * cw;
-        if (xm > 1) c.Children.Add(TlBar(0, ty, xm, 4, 2, FrameCapture.Core.Theme.Accent));
+        if (xm > 1) c.Children.Add(TlBar(0, ty, xm, 4, 2, Core.Theme.Accent));
 
         // 裁剪范围：范围外整列压暗，两端强调色把手（通高，PR 入/出点感）
         var (a, b) = TrimRange;
@@ -450,8 +450,8 @@ public sealed partial class EditorWindow
             double xa = a * px, xb = b * px;
             if (xa > 1) c.Children.Add(TlBar(0, 0, xa, ch, 0, Color.FromArgb(0x99, 0x0A, 0x0A, 0x0C)));
             if (cw - xb > 1) c.Children.Add(TlBar(xb, 0, cw - xb, ch, 0, Color.FromArgb(0x99, 0x0A, 0x0A, 0x0C)));
-            c.Children.Add(TlBar(xa - 1.5, 2, 3, ch - 4, 1.5, FrameCapture.Core.Theme.Accent));
-            c.Children.Add(TlBar(xb - 1.5, 2, 3, ch - 4, 1.5, FrameCapture.Core.Theme.Accent));
+            c.Children.Add(TlBar(xa - 1.5, 2, 3, ch - 4, 1.5, Core.Theme.Accent));
+            c.Children.Add(TlBar(xb - 1.5, 2, 3, ch - 4, 1.5, Core.Theme.Accent));
         }
         // 首尾端线常驻：提示"两端可拖出全范围"的把手位；线内缘精确贴 x=0 / x=cw。
         // 设了裁剪范围时由强调色把手接管，不叠加。
@@ -481,7 +481,7 @@ public sealed partial class EditorWindow
         // 浅色主题下白色会隐身，跟 Theme.Text 走；旋钮描边用面板底色做"悬浮"留白环
         var ph = Color.FromArgb(0xFF, Theme.Text.R, Theme.Text.G, Theme.Text.B);
         c.Children.Add(TlBar(xm - 0.75, 7, 1.5, ch - 7, 0.75, ph));
-        var knob = new System.Windows.Shapes.Ellipse
+        var knob = new Ellipse
         {
             Width = 8,
             Height = 8,

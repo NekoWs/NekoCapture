@@ -114,7 +114,7 @@ public sealed class Annotation
                 if (P.Length > 0 && !string.IsNullOrEmpty(Text))
                 {
                     g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAlias;
-                    float fontPx = (float)FrameCapture.Core.AnnFont.BakePx(Thickness, w, h);
+                    float fontPx = (float)Core.AnnFont.BakePx(Thickness, w, h);
                     using var fnt = new Font("Microsoft YaHei UI", fontPx, FontStyle.Bold, GraphicsUnit.Pixel);
                     g.DrawString(Text, fnt, brush, P[0].X, P[0].Y);
                 }
@@ -124,8 +124,8 @@ public sealed class Annotation
                 {
                     g.SmoothingMode = SmoothingMode.AntiAlias;
                     g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAlias;
-                    float fontPx = (float)FrameCapture.Core.AnnFont.BakePx(Thickness, w, h);
-                    float d = (float)FrameCapture.Core.NumberBadge.Diameter(fontPx);
+                    float fontPx = (float)Core.AnnFont.BakePx(Thickness, w, h);
+                    float d = (float)Core.NumberBadge.Diameter(fontPx);
                     float cx = P[0].X, cy = P[0].Y;
                     g.FillEllipse(brush, cx - d / 2, cy - d / 2, d, d);
                     using var fnt = new Font("Microsoft YaHei UI", fontPx, FontStyle.Bold, GraphicsUnit.Pixel);
@@ -188,7 +188,7 @@ public static class Bake
                     int mw = (int)Math.Round(Math.Abs(a.Points[1].X - a.Points[0].X) * f.W);
                     int mh = (int)Math.Round(Math.Abs(a.Points[1].Y - a.Points[0].Y) * f.H);
                     Services.BgraImage.MosaicInPlace(copy, f.W, f.H, mx, my, mw, mh,
-                        FrameCapture.Core.MosaicBlock.Px(a.Thickness, f.W, f.H));
+                        Core.MosaicBlock.Px(a.Thickness, f.W, f.H));
                 }
             var gch = System.Runtime.InteropServices.GCHandle.Alloc(copy, System.Runtime.InteropServices.GCHandleType.Pinned);
             try

@@ -26,7 +26,7 @@ public sealed class AppHost
     /// 启动顺序的硬约束见 <see cref="InstallHotkeys"/>。</remarks>
     public void Startup()
     {
-        FrameCapture.Core.Trace.Log("Startup begin");
+        Trace.Log("Startup begin");
         Capture.FrameSpool.CleanupStale(); // 清理上次崩溃/强杀残留的磁盘暂存帧文件（>24h）
         Settings = new SettingsService();
         Theme.Apply(Settings.Current.Theme, Settings.Current.Accent);
@@ -58,7 +58,7 @@ public sealed class AppHost
             };
             t.Start();
         }
-        FrameCapture.Core.Trace.Log("Startup done");
+        Trace.Log("Startup done");
     }
 
     /// <summary>按 键盘钩子 → 手势 → 托盘 → 控制器 的顺序释放。每步独立吞异常：一步失败不拖累其余释放。</summary>
@@ -102,7 +102,7 @@ public sealed class AppHost
                 var s = Settings.Current;
                 Theme.Apply(s.Theme, s.Accent);
                 InstallHotkeys();
-                FrameCapture.Core.Trace.Log($"settings reloaded: gestures={s.Gestures.Enabled}/{s.Gestures.Bindings.Count}");
+                Trace.Log($"settings reloaded: gestures={s.Gestures.Enabled}/{s.Gestures.Bindings.Count}");
             };
             _settingsWatcher = new System.IO.FileSystemWatcher(System.IO.Path.GetDirectoryName(SettingsService.FilePath)!, "settings.json")
             { NotifyFilter = System.IO.NotifyFilters.LastWrite, EnableRaisingEvents = true };
@@ -139,12 +139,12 @@ public sealed class AppHost
             var exe = Environment.ProcessPath ?? System.Reflection.Assembly.GetExecutingAssembly().Location;
             System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(exe)
             { UseShellExecute = true, Verb = "runas" });
-            FrameCapture.Core.Trace.Log("relaunch requested: elevated");
+            Trace.Log("relaunch requested: elevated");
             Shutdown();
             System.Windows.Application.Current?.Shutdown();
         }
         catch (System.ComponentModel.Win32Exception) { /* 用户取消了 UAC */ }
-        catch (Exception ex) { FrameCapture.Core.Trace.Log($"elevate failed: {ex.GetType().Name}"); }
+        catch (Exception ex) { Trace.Log($"elevate failed: {ex.GetType().Name}"); }
     }
 
     /// <summary>把钩子动作投递到 UI 线程，绝不阻塞。

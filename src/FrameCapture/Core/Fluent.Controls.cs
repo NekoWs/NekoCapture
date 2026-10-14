@@ -346,7 +346,7 @@ public static partial class Fluent
     /// <returns>纯白或纯黑两档之一，保证任何 accent 上图标都可读。</returns>
     public static Color OnAccentColor(Color a)
     {
-        static double L(double c) { c /= 255.0; return c <= 0.03928 ? c / 12.92 : System.Math.Pow((c + 0.055) / 1.055, 2.4); }
+        static double L(double c) { c /= 255.0; return c <= 0.03928 ? c / 12.92 : Math.Pow((c + 0.055) / 1.055, 2.4); }
         double lum = 0.2126 * L(a.R) + 0.7152 * L(a.G) + 0.0722 * L(a.B);
         return lum < 0.35 ? Colors.White : Colors.Black;
     }

@@ -210,7 +210,7 @@ public sealed partial class GestureEditorWindow : Window
         EditorStyles.ApplyList(_list, _pal);
         // 列表项文本换行：长摘要（多动作 / 带「完成后」序列）折行显示，而非按面板宽度裁切
         // 须禁用横向滚动——否则 ScrollViewer 以无限宽测量，TextBlock 永不换行，只出横向滚动条
-        System.Windows.Controls.ScrollViewer.SetHorizontalScrollBarVisibility(_list, System.Windows.Controls.ScrollBarVisibility.Disabled);
+        ScrollViewer.SetHorizontalScrollBarVisibility(_list, ScrollBarVisibility.Disabled);
         _list.SelectionChanged += (_, _) => { if (_suppress) return; _selected = _list.SelectedIndex; PaintRows(); ShowDetail(); };
         left.Children.Add(_list);
         Grid.SetColumn(left, 0);

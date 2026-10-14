@@ -23,16 +23,16 @@ public sealed partial class SettingsWindow : Window
     public SettingsWindow()
     {
         // 覆盖层不需要文本输入：禁用输入法，避免拼音拦截快捷键
-        System.Windows.Input.InputMethod.SetIsInputMethodEnabled(this, false);
+        InputMethod.SetIsInputMethodEnabled(this, false);
         _settings = AppHost.Current.Settings;
         WindowStyle = WindowStyle.None;
         ResizeMode = ResizeMode.CanResize;   // 可拖边缩放（WindowChrome 的 6px 缩放边框）
         // WindowChrome 原生缩放边框 + 原生圆角/阴影（与编辑器同款）；不用 AllowsTransparency——整窗会被推到软件渲染。
-        FrameCapture.Core.Fluent.BorderlessNative(this, resizeBorder: 6);
+        Fluent.BorderlessNative(this, resizeBorder: 6);
         // 标题条 = WindowChrome 原生 CaptionHeight 拖窗区（比 WM_NCHITTEST 钩子更稳，避免与 WindowChrome 命中测试抢序）；
         // 关闭按钮在 Build 里标 IsHitTestVisibleInChrome 让位给 WPF 命中。
         var chrome = System.Windows.Shell.WindowChrome.GetWindowChrome(this);
-        if (chrome != null) chrome.CaptionHeight = FrameCapture.Core.Fluent.TitleBarHeight;
+        if (chrome != null) chrome.CaptionHeight = Fluent.TitleBarHeight;
         Background = new SolidColorBrush(Theme.WindowBg);
         SizeToContent = SizeToContent.Manual;   // 分页后每页很短，固定舒适尺寸起步，可拖边缩放
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
@@ -43,7 +43,7 @@ public sealed partial class SettingsWindow : Window
         Title = "FrameCapture Settings";
         // 拖窗区只有标题条那一条（CaptionHeight = Fluent.TitleBarHeight）：整窗背景不承担拖拽——
         // 整窗拖拽会被 ScrollContentPresenter 吞掉命中（滚动画布里拖不动），还会与标题栏的拖拽双路径叠加出现位移超调。
-        FrameCapture.Core.Fluent.PopupEnter(this);
+        Fluent.PopupEnter(this);
     }
 
     /// <summary>
@@ -83,8 +83,8 @@ public sealed partial class SettingsWindow : Window
         var dock = new DockPanel { LastChildFill = true };
 
         #region 标题栏：图标 + 标题 + 关闭（共享件 Fluent.TitleBar）
-        var (bar, closeBtn) = FrameCapture.Core.Fluent.TitleBar("\uE7A8", "设置");
-        closeBtn.Click += (_, _) => FrameCapture.Core.Fluent.CloseWithFade(this);
+        var (bar, closeBtn) = Fluent.TitleBar("\uE7A8", "设置");
+        closeBtn.Click += (_, _) => Fluent.CloseWithFade(this);
         // 关闭按钮落在原生 CaptionHeight 拖窗区内，须显式让位给 WPF 命中，否则点它会拖窗而非关闭
         System.Windows.Shell.WindowChrome.SetIsHitTestVisibleInChrome(closeBtn, true);
         DockPanel.SetDock(bar, Dock.Top);
@@ -151,7 +151,7 @@ public sealed partial class SettingsWindow : Window
                        b.Chord + (suf.Length > 0 ? " " + suf : ""));
             }
         keyCard.Child = keyStack;
-        FrameCapture.Core.Fluent.Elevate(keyCard, blur: 24, depth: 6);
+        Fluent.Elevate(keyCard, blur: 24, depth: 6);
         panel.Children.Add(keyCard);
         #endregion
 
@@ -164,16 +164,16 @@ public sealed partial class SettingsWindow : Window
             BorderBrush = new SolidColorBrush(Theme.Stroke),
             Background = new SolidColorBrush(Theme.CardBg),
             Padding = new Thickness(12, 9, 12, 9),
-            Cursor = System.Windows.Input.Cursors.Hand,
+            Cursor = Cursors.Hand,
         };
         var geIcon = new TextBlock { Text = "\uE713", FontFamily = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets, Segoe UI Symbol"), FontSize = 15, Foreground = new SolidColorBrush(Theme.Accent), VerticalAlignment = VerticalAlignment.Center };
-        var geRow = new StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal };
+        var geRow = new StackPanel { Orientation = Orientation.Horizontal };
         geRow.Children.Add(geIcon);
         geRow.Children.Add(new TextBlock { Text = "   打开手势配置器…", Foreground = new SolidColorBrush(Theme.Text), FontSize = 13, VerticalAlignment = VerticalAlignment.Center });
         geBtn.Child = geRow;
-        FrameCapture.Core.Fluent.Elevate(geBtn, blur: 24, depth: 6);
+        Fluent.Elevate(geBtn, blur: 24, depth: 6);
         Fluent.ChipHover(geBtn);   // 悬停只改底色带过渡，不上浮、不缩放（与普通按钮同语言）
-        geBtn.MouseLeftButtonUp += (_, _) => FrameCapture.Services.GestureEditorHost.ShowOrFocus();
+        geBtn.MouseLeftButtonUp += (_, _) => GestureEditorHost.ShowOrFocus();
         panel.Children.Add(geBtn);
         #endregion
 
@@ -200,15 +200,15 @@ public sealed partial class SettingsWindow : Window
             if (vis)
             {
                 pregrabRow.Visibility = Visibility.Visible;
-                pregrabRow.BeginAnimation(OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(1.0,
-                    new System.Windows.Duration(TimeSpan.FromMilliseconds(200)))
-                { EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut } });
+                pregrabRow.BeginAnimation(OpacityProperty, new DoubleAnimation(1.0,
+                    new Duration(TimeSpan.FromMilliseconds(200)))
+                { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
             }
             else
             {
-                var fade = new System.Windows.Media.Animation.DoubleAnimation(0.0,
-                    new System.Windows.Duration(TimeSpan.FromMilliseconds(160)))
-                { EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseIn } };
+                var fade = new DoubleAnimation(0.0,
+                    new Duration(TimeSpan.FromMilliseconds(160)))
+                { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseIn } };
                 fade.Completed += (_, _) => pregrabRow.Visibility = Visibility.Collapsed;
                 pregrabRow.BeginAnimation(OpacityProperty, fade);
             }
@@ -241,22 +241,22 @@ public sealed partial class SettingsWindow : Window
             if (vis)
             {
                 fpsRow.Visibility = Visibility.Visible;
-                fpsRow.BeginAnimation(OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(1.0,
-                    new System.Windows.Duration(TimeSpan.FromMilliseconds(200)))
-                { EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut } });
+                fpsRow.BeginAnimation(OpacityProperty, new DoubleAnimation(1.0,
+                    new Duration(TimeSpan.FromMilliseconds(200)))
+                { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
             }
             else
             {
-                var fade = new System.Windows.Media.Animation.DoubleAnimation(0.0,
-                    new System.Windows.Duration(TimeSpan.FromMilliseconds(160)))
-                { EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseIn } };
+                var fade = new DoubleAnimation(0.0,
+                    new Duration(TimeSpan.FromMilliseconds(160)))
+                { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseIn } };
                 fade.Completed += (_, _) => fpsRow.Visibility = Visibility.Collapsed;
                 fpsRow.BeginAnimation(OpacityProperty, fade);
             }
         }
         if (_settings.Current.FollowMonitorRefresh) { fpsRow.Opacity = 0; fpsRow.Visibility = Visibility.Collapsed; }
         panel.Children.Add(fpsRow);
-        int hz = Core.DisplayRefresh.RateOf(FrameCapture.Capture.Monitors.All().FirstOrDefault(m => m.IsPrimary)?.DeviceName);
+        int hz = Core.DisplayRefresh.RateOf(Capture.Monitors.All().FirstOrDefault(m => m.IsPrimary)?.DeviceName);
         panel.Children.Add(ToggleRow("\uE7F4", "跟随显示器刷新率录满",
             (hz > 0 ? $"开启后录制帧率自动取当前录制显示器的刷新率（本机主屏检测到 {hz}Hz → 录满 {hz}fps），上面的手动帧率随之隐藏。"
                     : "开启后录制帧率自动取当前录制显示器的刷新率（本机暂未检测到主屏刷新率，录制时按实际显示器实时检测），上面的手动帧率随之隐藏。")
@@ -400,8 +400,8 @@ public sealed partial class SettingsWindow : Window
                 incoming.RenderTransform = tt;
                 incoming.Opacity = 0;
                 incoming.BeginAnimation(UIElement.OpacityProperty,
-                    new DoubleAnimation(1, TimeSpan.FromMilliseconds(FrameCapture.Core.Fluent.Motion.EnterMs)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
-                var slide = new DoubleAnimation(12, 0, TimeSpan.FromMilliseconds(FrameCapture.Core.Fluent.Motion.EnterMs)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } };
+                    new DoubleAnimation(1, TimeSpan.FromMilliseconds(Fluent.Motion.EnterMs)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
+                var slide = new DoubleAnimation(12, 0, TimeSpan.FromMilliseconds(Fluent.Motion.EnterMs)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } };
                 slide.Completed += (_, __) => { if (incoming.RenderTransform == tt) incoming.RenderTransform = null; };
                 tt.BeginAnimation(TranslateTransform.YProperty, slide);
             }
@@ -410,7 +410,7 @@ public sealed partial class SettingsWindow : Window
             // 标题随正文一起淡入（改文本时置 0 再淡入，避免文字瞬切的「跳字」）
             if (animate)
                 contentHeader.BeginAnimation(UIElement.OpacityProperty,
-                    new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(FrameCapture.Core.Fluent.Motion.EnterMs)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
+                    new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(Fluent.Motion.EnterMs)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
             else contentHeader.Opacity = 1;
             var acc = Theme.Accent;
             for (int i = 0; i < navItems.Count; i++)
@@ -436,7 +436,7 @@ public sealed partial class SettingsWindow : Window
             int captured = i;
             var icon = new TextBlock { Text = cats[i].Glyph, FontFamily = iconFont, FontSize = 15, Foreground = new SolidColorBrush(Theme.TextDim), VerticalAlignment = VerticalAlignment.Center, Width = 22, TextAlignment = TextAlignment.Center };
             var label = new TextBlock { Text = cats[i].Name, FontSize = 13, Foreground = new SolidColorBrush(Theme.Text), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0, 0, 0) };
-            var row = new StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal, Margin = new Thickness(13, 0, 10, 0) };
+            var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(13, 0, 10, 0) };
             row.Children.Add(icon); row.Children.Add(label);
             var accent = new Border { CornerRadius = new CornerRadius(6), Background = new SolidColorBrush(Color.FromArgb(0x26, Theme.Accent.R, Theme.Accent.G, Theme.Accent.B)), Opacity = 0 };
             var cell = new Grid();
@@ -496,8 +496,8 @@ public sealed partial class SettingsWindow : Window
         // 窗级 Esc 关窗、F1 打开帮助。
         PreviewKeyDown += (_, e) =>
         {
-            if (e.Key == Key.Escape) FrameCapture.Core.Fluent.CloseWithFade(this);
-            else if (e.Key == Key.F1) { FrameCapture.Overlays.HelpWindow.ShowOrFocus(); e.Handled = true; }
+            if (e.Key == Key.Escape) Fluent.CloseWithFade(this);
+            else if (e.Key == Key.F1) { HelpWindow.ShowOrFocus(); e.Handled = true; }
         };
         SourceInitialized += (_, _) =>
         {

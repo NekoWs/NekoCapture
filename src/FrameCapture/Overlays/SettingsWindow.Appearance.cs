@@ -84,11 +84,11 @@ public sealed partial class SettingsWindow : Window
                     previewed = c;
                     Theme.Accent = Color.FromRgb(c.R, c.G, c.B);
                     chip.Background = new SolidColorBrush(Theme.Accent); // 色片实时跟色，所见即所得
-                    FrameCapture.Core.Fluent.ApplyGlobalStyles();
+                    Fluent.ApplyGlobalStyles();
                 };
                 _accentPop = new Popup
                 {
-                    Child = FrameCapture.Core.Fluent.PopupCard(_accentView),
+                    Child = Fluent.PopupCard(_accentView),
                     Placement = PlacementMode.Top,
                     AllowsTransparency = true,
                     PopupAnimation = PopupAnimation.Fade,
@@ -99,20 +99,20 @@ public sealed partial class SettingsWindow : Window
                     var hex = $"#{c.R:X2}{c.G:X2}{c.B:X2}";
                     _settings.Mutate(s => s.Accent = hex);
                     Theme.Apply(_settings.Current.Theme, hex);
-                    FrameCapture.Core.Fluent.ApplyGlobalStyles();
+                    Fluent.ApplyGlobalStyles();
                     RebuildInPlace(); // 本窗静态刷色需重建才跟上
                 };
             }
             _accentView!.Color = Theme.Accent;
             _accentPop.PlacementTarget = chip;
-            FrameCapture.Core.Fluent.OpenPopSticky(_accentPop, this);
+            Fluent.OpenPopSticky(_accentPop, this);
         }
         chip.MouseLeftButtonDown += (_, e) => { Open(); e.Handled = true; };
         chip.MouseRightButtonUp += (_, _) =>
         {
             _settings.Mutate(s => s.Accent = "");
             Theme.Apply(_settings.Current.Theme, "");
-            FrameCapture.Core.Fluent.ApplyGlobalStyles();
+            Fluent.ApplyGlobalStyles();
             RebuildInPlace();
         };
         chip.KeyDown += (_, e) => { if (e.Key is Key.Space or Key.Enter) { Open(); e.Handled = true; } };
@@ -156,33 +156,33 @@ public sealed partial class SettingsWindow : Window
             var localText = (TextBlock)chip.Child;
             Color chipBase = captured == cur ? Theme.Accent : Theme.Hover;
             Color chipHover = captured == cur
-                ? System.Windows.Media.Color.FromArgb(0xFF, 0x6A, 0xD0, 0xFF)
-                : (Theme.IsDark ? System.Windows.Media.Color.FromArgb(0x3A, 0xFF, 0xFF, 0xFF) : System.Windows.Media.Color.FromArgb(0x4A, 0x00, 0x00, 0x00));
+                ? Color.FromArgb(0xFF, 0x6A, 0xD0, 0xFF)
+                : (Theme.IsDark ? Color.FromArgb(0x3A, 0xFF, 0xFF, 0xFF) : Color.FromArgb(0x4A, 0x00, 0x00, 0x00));
             localChip.MouseEnter += (_, _) =>
             {
-                if (localChip.Background is System.Windows.Media.SolidColorBrush bg0)
+                if (localChip.Background is SolidColorBrush bg0)
                 {
                     var anim = new System.Windows.Media.Animation.ColorAnimation(chipHover, new Duration(TimeSpan.FromMilliseconds(120)));
-                    var holder = new System.Windows.Media.SolidColorBrush(bg0.Color);
+                    var holder = new SolidColorBrush(bg0.Color);
                     localChip.Background = holder;
-                    holder.BeginAnimation(System.Windows.Media.SolidColorBrush.ColorProperty, anim);
+                    holder.BeginAnimation(SolidColorBrush.ColorProperty, anim);
                 }
             };
             localChip.MouseLeave += (_, _) =>
             {
-                if (localChip.Background is System.Windows.Media.SolidColorBrush bg1)
+                if (localChip.Background is SolidColorBrush bg1)
                 {
                     var anim = new System.Windows.Media.Animation.ColorAnimation(chipBase, new Duration(TimeSpan.FromMilliseconds(160)));
-                    var holder = new System.Windows.Media.SolidColorBrush(bg1.Color);
+                    var holder = new SolidColorBrush(bg1.Color);
                     localChip.Background = holder;
-                    holder.BeginAnimation(System.Windows.Media.SolidColorBrush.ColorProperty, anim);
+                    holder.BeginAnimation(SolidColorBrush.ColorProperty, anim);
                 }
             };
             void ApplyTheme()
             {
                 _settings.Mutate(s => s.Theme = captured);
                 Theme.Apply(captured, _settings.Current.Accent);
-                FrameCapture.Core.Fluent.ApplyGlobalStyles();
+                Fluent.ApplyGlobalStyles();
                 // 无缝过渡：本窗淡出的同时，同位置淡入新窗（Theme.Changed 已让其他窗口即时换色）
                 RebuildInPlace();
             }

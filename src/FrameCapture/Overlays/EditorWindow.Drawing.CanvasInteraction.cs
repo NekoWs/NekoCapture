@@ -47,10 +47,10 @@ public sealed partial class EditorWindow
             var np = e.GetPosition(_canvas);
             var nc = CurColor;
             var a = MakeAnn(AnnKind.Number, Color.FromArgb(255, nc.R, nc.G, nc.B), CurWidth, new[] { Norm(np) });
-            a.Text = FrameCapture.Core.NumberBadge.Next(
+            a.Text = Core.NumberBadge.Next(
                 _anns.Items.Where(x => x.Kind == AnnKind.Number).Select(x => x.Text)).ToString();
             CommitAnn(a);
-            FrameCapture.Core.Trace.Log($"editor number #{a.Text}");
+            Core.Trace.Log($"editor number #{a.Text}");
             return;
         }
         _canvas.CaptureMouse();
@@ -89,7 +89,7 @@ public sealed partial class EditorWindow
                 _pending = MakeAnn(AnnKind.Highlight, color, ht, new[] { n });
                 _preview = new Polyline
                 {
-                    Stroke = ToWpf(Color.FromArgb(FrameCapture.Drawing.Annotation.HighlightAlpha, c0.R, c0.G, c0.B)),
+                    Stroke = ToWpf(Color.FromArgb(Annotation.HighlightAlpha, c0.R, c0.G, c0.B)),
                     StrokeThickness = DispStroke(ht),
                     StrokeLineJoin = PenLineJoin.Round,
                     StrokeStartLineCap = PenLineCap.Flat,
@@ -203,9 +203,9 @@ public sealed partial class EditorWindow
     {
         if ((Keyboard.Modifiers & ModifierKeys.Shift) == 0) return p;
         if (_tool is Tool.Rect or Tool.Ellipse)
-        { var (x, y) = FrameCapture.Core.ShapeConstraint.Square(_pressPos.X, _pressPos.Y, p.X, p.Y); return new Point(x, y); }
+        { var (x, y) = Core.ShapeConstraint.Square(_pressPos.X, _pressPos.Y, p.X, p.Y); return new Point(x, y); }
         if (_tool is Tool.Line or Tool.Arrow)
-        { var (x, y) = FrameCapture.Core.ShapeConstraint.Angle45(_pressPos.X, _pressPos.Y, p.X, p.Y); return new Point(x, y); }
+        { var (x, y) = Core.ShapeConstraint.Angle45(_pressPos.X, _pressPos.Y, p.X, p.Y); return new Point(x, y); }
         return p;
     }
 
@@ -231,7 +231,7 @@ public sealed partial class EditorWindow
                     foreach (var pt1 in scaled) m.Points.Add(pt1);
                     if (_anns.Replace(ann, m)) { _order.AnnAdded(); RefreshUndo(); }
                     _sel = m;
-                    FrameCapture.Core.Trace.Log($"editor ann resize kind={ann.Kind}");
+                    Core.Trace.Log($"editor ann resize kind={ann.Kind}");
                 }
             }
             RedrawAnns();
@@ -253,7 +253,7 @@ public sealed partial class EditorWindow
                                   (float)Math.Clamp(pt.Y + dy / Math.Max(1, _imgRect.Height), 0f, 1f)));
                 if (_anns.Replace(moved, m)) { _order.AnnAdded(); RefreshUndo(); }
                 _sel = m;
-                FrameCapture.Core.Trace.Log($"editor ann move kind={moved.Kind} d=({dx:F0},{dy:F0})");
+                Core.Trace.Log($"editor ann move kind={moved.Kind} d=({dx:F0},{dy:F0})");
             }
             RedrawAnns();
             e.Handled = true;
@@ -382,7 +382,7 @@ public sealed partial class EditorWindow
         _resizeOrigBox = NormBox(_sel.Points);
         _resizeDrag = true;   // 关键：Canvas_Move 的缩放分支以 _resizeDrag 为门，漏设则拖角无反应
         _canvas.CaptureMouse();
-        FrameCapture.Core.Trace.Log($"editor resize start corner={hitC}");
+        Core.Trace.Log($"editor resize start corner={hitC}");
         return true;
     }
 
@@ -417,8 +417,8 @@ public sealed partial class EditorWindow
             if (d2 <= best) { best = d2; hitC = i; }
         }
         // TL/BR 对角 → ↖↘；TR/BL → ↗↙
-        _canvas.Cursor = hitC == 0 || hitC == 2 ? System.Windows.Input.Cursors.SizeNWSE
-                       : hitC == 1 || hitC == 3 ? System.Windows.Input.Cursors.SizeNESW : null;
+        _canvas.Cursor = hitC == 0 || hitC == 2 ? Cursors.SizeNWSE
+                       : hitC == 1 || hitC == 3 ? Cursors.SizeNESW : null;
     }
 
     /// <summary>标注的画布坐标包围盒：文字用元素实测；其余由归一化点折算（Line/Path 几何在元素内部，GetLeft 不可靠）。</summary>
@@ -460,7 +460,7 @@ public sealed partial class EditorWindow
     {
         if (_sel == null) return;
         if (_anns.Remove(_sel)) { _order.AnnAdded(); RefreshUndo(); }
-        FrameCapture.Core.Trace.Log($"editor ann delete kind={_sel.Kind}");
+        Core.Trace.Log($"editor ann delete kind={_sel.Kind}");
         _sel = null;
         RedrawAnns();
     }
@@ -481,7 +481,7 @@ public sealed partial class EditorWindow
         if (_anns.Replace(s, e))
         {
             _order.AnnAdded(); RefreshUndo(); _sel = e; RedrawAnns();
-            FrameCapture.Core.Trace.Log($"editor restyle kind={s.Kind} color={colorChanged} w={widthChanged}");
+            Core.Trace.Log($"editor restyle kind={s.Kind} color={colorChanged} w={widthChanged}");
         }
     }
     #endregion

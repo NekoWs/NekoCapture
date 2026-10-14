@@ -10,9 +10,9 @@ public sealed partial class CaptureController : IDisposable
 {
     /// <summary>把窗口推到前台并拿键盘焦点。后台进程直发 SetForegroundWindow 会被前台锁拒绝
     /// （注入按键也不授予前台权限），用 AttachThreadInput 经典链绕开；最后兜底 SwitchToThisWindow。</summary>
-    private static void ForegroundNow(System.IntPtr h)
+    private static void ForegroundNow(IntPtr h)
     {
-        if (h == System.IntPtr.Zero) return;
+        if (h == IntPtr.Zero) return;
         Native.Win32.BringWindowToTop(h);
         if (Native.Win32.SetForegroundWindow(h)) return;
         IntPtr fg = Native.Win32.GetForegroundWindow();
@@ -31,7 +31,7 @@ public sealed partial class CaptureController : IDisposable
         {
             Native.Win32.SwitchToThisWindow(h, true);
             if (Native.Win32.GetForegroundWindow() != h)
-                FrameCapture.Core.Trace.Log($"foreground denied hwnd={h}");
+                Core.Trace.Log($"foreground denied hwnd={h}");
         }
     }
 
@@ -56,7 +56,7 @@ public sealed partial class CaptureController : IDisposable
                 if (!w.IsLoaded) return;
                 if (Native.Win32.GetForegroundWindow() != h)
                 {
-                    FrameCapture.Core.Trace.Log("foreground re-steal detected, retry");
+                    Core.Trace.Log("foreground re-steal detected, retry");
                     ForegroundNow(h);
                 }
                 if (--tries > 0 && w.IsLoaded)

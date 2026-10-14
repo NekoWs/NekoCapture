@@ -279,14 +279,14 @@ public sealed partial class RegionPickerWindow : Window
             Height = _monitorPhys.H / sy;
 
             // 挖洞遮罩：用 Path 奇偶填充
-            _spotPath = new System.Windows.Shapes.Path
+            _spotPath = new Path
             {
                 Fill = new SolidColorBrush(Color.FromArgb(0x60, 0, 0, 0)),
                 Data = BuildMask(new Rect(0, 0, Width, Height), null),
             };
             // 洞内补一层 alpha=1 的填充：分层窗 alpha=0 的像素鼠标会穿透到下面窗口，
             // 导致吸附/框选高亮区内目标窗口仍可交互、无法拖选。alpha=1 肉眼不可辨但可命中。
-            _holeFill = new System.Windows.Shapes.Path
+            _holeFill = new Path
             {
                 Fill = new SolidColorBrush(Color.FromArgb(0x01, 0, 0, 0)),
                 IsHitTestVisible = true,
@@ -309,7 +309,7 @@ public sealed partial class RegionPickerWindow : Window
                 FontSize = 12,
                 Foreground = new SolidColorBrush(Color.FromRgb(0x4C, 0xC2, 0xFF)),
             };
-            _badge = new System.Windows.Controls.Border
+            _badge = new Border
             {
                 CornerRadius = new CornerRadius(6),
                 Background = new SolidColorBrush(Color.FromArgb(0xE6, 0x1B, 0x1B, 0x1B)),
@@ -345,7 +345,7 @@ public sealed partial class RegionPickerWindow : Window
                     Margin = new Thickness(0, 3, 0, 0),
                 };
                 // 取色行：色块 + #RRGGBB（按 C 复制）
-                _loupeSwatch = new System.Windows.Controls.Border
+                _loupeSwatch = new Border
                 {
                     Width = 14, Height = 14, CornerRadius = new CornerRadius(3),
                     BorderBrush = new SolidColorBrush(Color.FromArgb(0x80, 0xFF, 0xFF, 0xFF)),
@@ -372,7 +372,7 @@ public sealed partial class RegionPickerWindow : Window
                 loupeStack.Children.Add(loupeGrid);
                 loupeStack.Children.Add(_loupeInfo);
                 loupeStack.Children.Add(colorRow);
-                _loupe = new System.Windows.Controls.Border
+                _loupe = new Border
                 {
                     Background = new SolidColorBrush(Color.FromArgb(0xE6, 0x1B, 0x1B, 0x1B)),
                     BorderBrush = new SolidColorBrush(Color.FromArgb(0x80, 0x4C, 0xC2, 0xFF)),
@@ -436,7 +436,7 @@ public sealed partial class RegionPickerWindow : Window
     private Core.ElementHit? _curElem;
     private bool _drillLock;      // Tab 上钻后锁定选中的父容器：光标微动不会被 hover 吸附抢回子控件
     private Point _drillAnchor;   // 锁定时的光标 DIP 位置，移动超过阈值才解锁恢复常规吸附
-    private System.Windows.Controls.Border _hint = null!;
+    private Border _hint = null!;
 
     private void OnDown(object sender, MouseButtonEventArgs e)
     {

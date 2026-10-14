@@ -26,7 +26,7 @@ public sealed partial class SettingsWindow : Window
             ("rgb", "RGB", "rgb(r, g, b)（直接贴进 CSS）"),
             ("hsl", "HSL", "hsl(h, s%, l%)（调色/设计常用）"),
         };
-        var chipList = new System.Collections.Generic.List<(Border chip, string id)>();
+        var chipList = new List<(Border chip, string id)>();
         foreach (var (id, text, tip) in opts)
         {
             string captured = id;
@@ -58,7 +58,7 @@ public sealed partial class SettingsWindow : Window
             (5, "5秒", "从容：够展开下拉/悬停"),
             (10, "10秒", "充裕：够摆好几个界面元素"),
         };
-        var chipList = new System.Collections.Generic.List<(Border chip, int secs)>();
+        var chipList = new List<(Border chip, int secs)>();
         // 预设 5 档之外还有「自定义」输入框：1–120 秒任意值都调得了；文字居中，与悬浮窗时长同款交互
         var box = new TextBox
         {
@@ -66,7 +66,7 @@ public sealed partial class SettingsWindow : Window
             Width = 30,
             FontSize = 12.5,
             TextAlignment = TextAlignment.Center,
-            Background = System.Windows.Media.Brushes.Transparent,
+            Background = Brushes.Transparent,
             BorderThickness = new Thickness(0),
             Foreground = new SolidColorBrush(Theme.Text),
             CaretBrush = new SolidColorBrush(Theme.Accent),
@@ -140,7 +140,7 @@ public sealed partial class SettingsWindow : Window
             (2, "2秒", "利落：来得及看一眼"),
             (5, "5秒", "从容：够移动鼠标去点"),
         };
-        var chipList = new System.Collections.Generic.List<(Border chip, double secs)>();
+        var chipList = new List<(Border chip, double secs)>();
         string Fmt(double v) => v.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
         var box = new TextBox
         {
@@ -148,7 +148,7 @@ public sealed partial class SettingsWindow : Window
             Width = 34,
             FontSize = 12.5,
             TextAlignment = TextAlignment.Center,   // 数字居中：34px 窄框里贴边数字像被裁了一半
-            Background = System.Windows.Media.Brushes.Transparent,
+            Background = Brushes.Transparent,
             BorderThickness = new Thickness(0),
             Foreground = new SolidColorBrush(Theme.Text),
             CaretBrush = new SolidColorBrush(Theme.Accent),
@@ -249,7 +249,7 @@ public sealed partial class SettingsWindow : Window
             ToolTip = "点一下试听当前提示音（选「自定义…」后也会立刻放一声让你确认）",
             Focusable = true,
         };
-        void DoPreview() => FrameCapture.Core.CaptureSound.Play(
+        void DoPreview() => CaptureSound.Play(
             _settings.Current.CaptureSound ? _settings.Current.CustomSoundPath : "");
         preview.MouseLeftButtonDown += (_, e) => { DoPreview(); e.Handled = true; };
         preview.KeyDown += (_, e) => { if (e.Key is Key.Space or Key.Enter) { DoPreview(); e.Handled = true; } };
@@ -284,7 +284,7 @@ public sealed partial class SettingsWindow : Window
                 if (dlg.ShowDialog(this) == true)
                 {
                     _settings.Mutate(s => { s.CaptureSound = true; s.CustomSoundPath = dlg.FileName; });
-                    FrameCapture.Core.CaptureSound.Play(dlg.FileName);   // 选完立刻放一声确认效果
+                    CaptureSound.Play(dlg.FileName);   // 选完立刻放一声确认效果
                 }
                 else { suppress = true; combo.SelectedIndex = last; suppress = false; }   // 取消→回退原选项
             }

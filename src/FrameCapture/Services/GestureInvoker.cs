@@ -38,7 +38,7 @@ sealed class GestureInvoker : GC.IActionInvoker
     {
         var c = _host.Controller;
         bool result = InvokeCore(actionName, c);
-        FrameCapture.Core.Trace.Log($"gesture act {actionName} ok={result} state={c.State}");
+        Trace.Log($"gesture act {actionName} ok={result} state={c.State}");
         return result;
     }
 

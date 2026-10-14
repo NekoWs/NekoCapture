@@ -15,13 +15,13 @@ public sealed partial class EditorWindow
 {
     #region 裁剪引导层：框外压暗 + 三分网格 + 「松开应用」
 
-    System.Windows.Shapes.Path? _cropMask, _cropGrid;
+    Path? _cropMask, _cropGrid;
     Border? _cropHint;
 
     void StartCropGuide()
     {
-        _cropMask = new System.Windows.Shapes.Path { Fill = new SolidColorBrush(Color.FromArgb(0x73, 0, 0, 0)), IsHitTestVisible = false };
-        _cropGrid = new System.Windows.Shapes.Path
+        _cropMask = new Path { Fill = new SolidColorBrush(Color.FromArgb(0x73, 0, 0, 0)), IsHitTestVisible = false };
+        _cropGrid = new Path
         {
             Stroke = new SolidColorBrush(Color.FromArgb(0x99, 0xFF, 0xFF, 0xFF)),
             StrokeThickness = 1, IsHitTestVisible = false,
@@ -32,7 +32,7 @@ public sealed partial class EditorWindow
             CornerRadius = new CornerRadius(4),
             Padding = new Thickness(7, 2, 7, 3),
             IsHitTestVisible = false,
-            Child = new TextBlock { Text = "松开应用裁剪", FontSize = 11, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(FrameCapture.Core.Fluent.OnAccentColor(Acc)) }, // 前景随强调色明暗自适应，浅色强调色下转黑可读
+            Child = new TextBlock { Text = "松开应用裁剪", FontSize = 11, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(Core.Fluent.OnAccentColor(Acc)) }, // 前景随强调色明暗自适应，浅色强调色下转黑可读
         };
         _canvas.Children.Add(_cropMask);
         _canvas.Children.Add(_cropGrid);
@@ -66,7 +66,7 @@ public sealed partial class EditorWindow
         _cropGrid.Data = grid;
         // 气泡尺寸未测量前用估算值（CropGuide 纯逻辑负责翻转/钳边决策）
         double hw = _cropHint.ActualWidth > 4 ? _cropHint.ActualWidth : 92, hh = _cropHint.ActualHeight > 4 ? _cropHint.ActualHeight : 22;
-        var (hx, hy) = FrameCapture.Core.CropGuide.HintPos(x, y, w, h, hw, hh, cw, ch);
+        var (hx, hy) = Core.CropGuide.HintPos(x, y, w, h, hw, hh, cw, ch);
         Canvas.SetLeft(_cropHint, hx); Canvas.SetTop(_cropHint, hy);
     }
 
@@ -104,14 +104,14 @@ public sealed partial class EditorWindow
         if (_textInput != null) CommitTextInput();
         var f = Cur();
         // 与上屏 TextBlock 完全同式的字号：clamp 下限一致，预览与上屏才不错位
-        double disp = FrameCapture.Core.AnnFont.BakePx(editing?.Thickness ?? CurWidth, f.W, f.H) * Math.Max(0.05, _imgRect.Width / Math.Max(1, f.W));
+        double disp = Core.AnnFont.BakePx(editing?.Thickness ?? CurWidth, f.W, f.H) * Math.Max(0.05, _imgRect.Width / Math.Max(1, f.W));
         var box = new TextBox
         {
             MinWidth = 120, MaxWidth = 640,
             FontSize = Math.Clamp(disp, 8, 400),
             FontWeight = FontWeights.Bold,
             Foreground = new SolidColorBrush(editing != null
-                ? System.Windows.Media.Color.FromArgb(editing.Color.A, editing.Color.R, editing.Color.G, editing.Color.B)
+                ? Color.FromArgb(editing.Color.A, editing.Color.R, editing.Color.G, editing.Color.B)
                 : CurColor),
             Background = new SolidColorBrush(Color.FromArgb(0x40, 0, 0, 0)),
             BorderBrush = new SolidColorBrush(Acc),
@@ -138,7 +138,7 @@ public sealed partial class EditorWindow
         RedrawAnns();          // 先重绘（此时 _textEditing 已置，原字被跳过）再把输入框叠上去
         _canvas.Children.Add(box);
         box.Focus();
-        System.Windows.Input.Keyboard.Focus(box);
+        Keyboard.Focus(box);
     }
 
     void CommitTextInput()
@@ -159,7 +159,7 @@ public sealed partial class EditorWindow
                 foreach (var p in editing.Points) e.Points.Add(p);
                 e.Text = txt;
                 if (_anns.Replace(editing, e)) { _order.AnnAdded(); RefreshUndo(); }
-                FrameCapture.Core.Trace.Log($"editor text edit len={txt.Length}");
+                Core.Trace.Log($"editor text edit len={txt.Length}");
             }
             RedrawAnns();
             return;
@@ -170,7 +170,7 @@ public sealed partial class EditorWindow
         var a = MakeAnn(AnnKind.Text, Color.FromArgb(255, c0.R, c0.G, c0.B), CurWidth, new[] { n });
         a.Text = txt;
         CommitAnn(a);
-        FrameCapture.Core.Trace.Log($"editor text ann len={txt.Length}");
+        Core.Trace.Log($"editor text ann len={txt.Length}");
     }
 
     void CancelTextInput()
@@ -185,7 +185,7 @@ public sealed partial class EditorWindow
     #region 马赛克：拖框实时块均值预览，与烘焙共用 MosaicInPlace
 
     readonly Dictionary<(int, float, int, int, int, int), BitmapSource> _mosaicCache = new();
-    readonly List<(System.Windows.Shapes.Rectangle el, Annotation a)> _mosaicEls = new();
+    readonly List<(Rectangle el, Annotation a)> _mosaicEls = new();
 
     /// <summary>标注矩形的帧像素矩形（钳进画布）。</summary>
     (bool Ok, int Rx, int Ry, int Rw, int Rh) MosaicPx(Annotation a)
@@ -214,8 +214,8 @@ public sealed partial class EditorWindow
         var buf = new byte[rw * rh * 4];
         for (int row = 0; row < rh; row++)
             Buffer.BlockCopy(f.Bgra, ((ry + row) * f.W + rx) * 4, buf, row * rw * 4, rw * 4);
-        FrameCapture.Services.BgraImage.MosaicInPlace(buf, rw, rh, 0, 0, rw, rh,
-            FrameCapture.Core.MosaicBlock.Px(thickness, f.W, f.H));
+        Services.BgraImage.MosaicInPlace(buf, rw, rh, 0, 0, rw, rh,
+            Core.MosaicBlock.Px(thickness, f.W, f.H));
         var src = BitmapSource.Create(rw, rh, 96, 96, PixelFormats.Bgra32, null, buf, rw * 4);
         src.Freeze();
         if (cache)
@@ -252,7 +252,7 @@ public sealed partial class EditorWindow
         var n0 = Norm(a); var n1 = Norm(b);
         var ann = MakeAnn(AnnKind.Mosaic, Color.FromArgb(255, 0, 0, 0), CurWidth, new[] { n0, n1 });
         CommitAnn(ann);
-        FrameCapture.Core.Trace.Log("editor mosaic ann");
+        Core.Trace.Log("editor mosaic ann");
     }
 
     Annotation MakeAnn(AnnKind k, Color c, float w, IEnumerable<Point> normPts)
@@ -276,7 +276,7 @@ public sealed partial class EditorWindow
         {
             _crop.RedoCrop(); _order.CropRedone();
             UpdateImgRect(); RedrawAnns(); Show(_index); RefreshUndo();
-            FrameCapture.Core.Trace.Log($"editor crop redo depth={_crop.Depth}");
+            Core.Trace.Log($"editor crop redo depth={_crop.Depth}");
             return;
         }
         if (_anns.Redo(out _)) { _order.AnnStepped(); DropSelIfGone(); RedrawAnns(); RefreshUndo(); }
@@ -288,7 +288,7 @@ public sealed partial class EditorWindow
         {
             _crop.Pop(); _order.CropUndone();
             UpdateImgRect(); RedrawAnns(); Show(_index); RefreshUndo();
-            FrameCapture.Core.Trace.Log($"editor crop undo depth={_crop.Depth}");
+            Core.Trace.Log($"editor crop undo depth={_crop.Depth}");
             return;
         }
         if (!_anns.CanUndo) return;
@@ -336,7 +336,7 @@ public sealed partial class EditorWindow
             if (ReferenceEquals(a, _textEditing)) continue;   // 正在编辑的文字：只留输入框，隐藏原字，避免与输入框重叠
             double s = Math.Max(1, Math.Min(_imgRect.Width, _imgRect.Height));
             double stroke = Math.Max(1.2, a.Thickness * s / 1080.0);
-            var wpfCol = new SolidColorBrush(System.Windows.Media.Color.FromArgb(a.Color.A, a.Color.R, a.Color.G, a.Color.B));
+            var wpfCol = new SolidColorBrush(Color.FromArgb(a.Color.A, a.Color.R, a.Color.G, a.Color.B));
             Point P(double nx, double ny) => new(_imgRect.X + nx * _imgRect.Width, _imgRect.Y + ny * _imgRect.Height);
             var pts = a.Points.Select(p => P(p.X, p.Y)).ToList();
             switch (a.Kind)
@@ -404,7 +404,7 @@ public sealed partial class EditorWindow
                 }
                 case AnnKind.Highlight when pts.Count >= 2:
                 {
-                    var hlCol = System.Windows.Media.Color.FromArgb(FrameCapture.Drawing.Annotation.HighlightAlpha, a.Color.R, a.Color.G, a.Color.B);
+                    var hlCol = Color.FromArgb(Annotation.HighlightAlpha, a.Color.R, a.Color.G, a.Color.B);
                     var el = new Polyline { Points = new PointCollection(pts), Stroke = new SolidColorBrush(hlCol), StrokeThickness = stroke, StrokeLineJoin = PenLineJoin.Round, StrokeStartLineCap = PenLineCap.Flat, StrokeEndLineCap = PenLineCap.Flat };
                     _canvas.Children.Add(el);
                     _annEls.Add((el, a));
@@ -427,7 +427,7 @@ public sealed partial class EditorWindow
                 case AnnKind.Text when pts.Count > 0 && !string.IsNullOrEmpty(a.Text):
                 {
                     var f = Cur();
-                    double fs = FrameCapture.Core.AnnFont.BakePx(a.Thickness, f.W, f.H) * Math.Max(0.05, _imgRect.Width / Math.Max(1, f.W));
+                    double fs = Core.AnnFont.BakePx(a.Thickness, f.W, f.H) * Math.Max(0.05, _imgRect.Width / Math.Max(1, f.W));
                     var tb = new TextBlock
                     {
                         Text = a.Text,
@@ -443,13 +443,13 @@ public sealed partial class EditorWindow
                 case AnnKind.Number when pts.Count > 0 && !string.IsNullOrEmpty(a.Text):
                 {
                     var f = Cur();
-                    double fs = Math.Clamp(FrameCapture.Core.AnnFont.BakePx(a.Thickness, f.W, f.H) * Math.Max(0.05, _imgRect.Width / Math.Max(1, f.W)), 8, 400);
-                    double d = FrameCapture.Core.NumberBadge.Diameter(fs);
+                    double fs = Math.Clamp(Core.AnnFont.BakePx(a.Thickness, f.W, f.H) * Math.Max(0.05, _imgRect.Width / Math.Max(1, f.W)), 8, 400);
+                    double d = Core.NumberBadge.Diameter(fs);
                     var grid = new Grid { Width = d, Height = d };
                     grid.Children.Add(new Ellipse { Fill = wpfCol });
                     grid.Children.Add(new TextBlock
                     {
-                        Text = a.Text, FontSize = fs, FontWeight = FontWeights.Bold, Foreground = new SolidColorBrush(FrameCapture.Core.NumberBadge.NumberOnLightCircle(a.Color.R, a.Color.G, a.Color.B) ? System.Windows.Media.Colors.Black : System.Windows.Media.Colors.White),
+                        Text = a.Text, FontSize = fs, FontWeight = FontWeights.Bold, Foreground = new SolidColorBrush(Core.NumberBadge.NumberOnLightCircle(a.Color.R, a.Color.G, a.Color.B) ? Colors.Black : Colors.White),
                         HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
                     });
                     Canvas.SetLeft(grid, pts[0].X - d / 2); Canvas.SetTop(grid, pts[0].Y - d / 2);

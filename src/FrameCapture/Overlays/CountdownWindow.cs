@@ -141,7 +141,7 @@ public sealed class CountdownWindow : Window
         };
 
         Closed += (_, _) => { if (ReferenceEquals(Current, this)) Current = null; };
-        FrameCapture.Core.Trace.Log("countdown shown");
+        Trace.Log("countdown shown");
         Fluent.FadeIn(this, Fluent.Motion.EnterMs, 8, offscreenFirstFrame: true);
     }
 

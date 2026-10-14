@@ -17,7 +17,7 @@ public sealed partial class EditorWindow : Window
     #region 布局
 
     Button IconBtn(string glyph, string tip, double size = 28) =>
-        FrameCapture.Core.Fluent.IconButton(glyph, tip, size, 13);
+        Fluent.IconButton(glyph, tip, size, 13);
 
     // 文字按钮（非图标字体）：字号步进器 A−/A+ 用，走同一 IconButton 模板保持悬停/按压手感一致
     Button TextSizeBtn(string text, string tip)
@@ -27,7 +27,7 @@ public sealed partial class EditorWindow : Window
             Content = text, ToolTip = tip, Width = 26, Height = 26, Margin = new Thickness(1),
             FontFamily = new FontFamily("Segoe UI"), FontSize = 12, FontWeight = FontWeights.Bold,
             Foreground = new SolidColorBrush(Theme.Text), Background = Brushes.Transparent,
-            BorderBrush = Brushes.Transparent, Template = FrameCapture.Core.Fluent.IconButtonTemplate(),
+            BorderBrush = Brushes.Transparent, Template = Fluent.IconButtonTemplate(),
             Focusable = false,
         };
         return b;
@@ -105,15 +105,15 @@ public sealed partial class EditorWindow : Window
 
     void Editor_OnTheme()
     {
-        var bg = Background as System.Windows.Media.SolidColorBrush;
+        var bg = Background as SolidColorBrush;
         if (bg != null)
         {
             var anim = new System.Windows.Media.Animation.ColorAnimation(Theme.WindowBg, TimeSpan.FromMilliseconds(FrameCapture.Core.Fluent.Motion.ThemeMs));
-            var holder = new System.Windows.Media.SolidColorBrush(bg.Color);
+            var holder = new SolidColorBrush(bg.Color);
             Background = holder;
-            holder.BeginAnimation(System.Windows.Media.SolidColorBrush.ColorProperty, anim);
+            holder.BeginAnimation(SolidColorBrush.ColorProperty, anim);
         }
-        _hud.Foreground = new System.Windows.Media.SolidColorBrush(Theme.Text);
+        _hud.Foreground = new SolidColorBrush(Theme.Text);
         // 选中语言随行：工具/线宽的前景色随主题（选中项反白、未选中项 Theme.Text），否则换肤后文字不可读
         for (int i = 0; i < _toolBtns.Count; i++)
             Highlight(_toolBtns[i], ToolOrder[i] == _tool);
@@ -121,8 +121,8 @@ public sealed partial class EditorWindow : Window
         foreach (var p in new[] { _playPanel, _toolPanel })
             if (p != null)
             {
-                p.Background = new System.Windows.Media.SolidColorBrush(Theme.PanelBg);
-                p.BorderBrush = new System.Windows.Media.SolidColorBrush(Color.FromArgb(0x66, Theme.Stroke.R, Theme.Stroke.G, Theme.Stroke.B));
+                p.Background = new SolidColorBrush(Theme.PanelBg);
+                p.BorderBrush = new SolidColorBrush(Color.FromArgb(0x66, Theme.Stroke.R, Theme.Stroke.G, Theme.Stroke.B));
             }
         DrawRange();
     }
@@ -177,11 +177,11 @@ public sealed partial class EditorWindow : Window
             var bStrip = IconBtn("\uE8B9", "生成胶片条（抽帧拼成一张逐帧图 → 剪贴板）"); bStrip.Click += (_, _) => GenerateFilmStrip();
             foreach (var b in new[] { bSaveFrame, bCopyFrame, bPinFrame, bOcrFrame, bSaveGif, bAfter, bStrip }) actions.Children.Add(b);
             actions.Children.Add(Sep());
-            var bCancel = IconBtn("\uE711", "取消 (Esc)"); bCancel.Click += (_, _) => FrameCapture.Core.Fluent.CloseWithFade(this);
+            var bCancel = IconBtn("\uE711", "取消 (Esc)"); bCancel.Click += (_, _) => Fluent.CloseWithFade(this);
             var bOk = IconBtn("\uF78C", "确定：GIF 写入剪贴板 (Enter)"); bOk.Click += (_, _) => Commit();
             actions.Children.Add(bCancel);
             actions.Children.Add(bOk);
-            FrameCapture.Core.Fluent.HighlightBtn(bOk, true);
+            Fluent.HighlightBtn(bOk, true);
             _okBtns.Add(bOk); // 主按钮：accent 实心
             Grid.SetColumn(actions, 3);
             g.Children.Add(actions);
@@ -201,22 +201,22 @@ public sealed partial class EditorWindow : Window
             var bPinF = PinBtn();
             var bOcrF = OcrBtn();
             var bOkF = IconBtn("\uF78C", "确定：写入剪贴板 (Enter)"); bOkF.Click += (_, _) => Commit();
-            var bX = IconBtn("\uE711", "取消 (Esc)"); bX.Click += (_, _) => FrameCapture.Core.Fluent.CloseWithFade(this);
+            var bX = IconBtn("\uE711", "取消 (Esc)"); bX.Click += (_, _) => Fluent.CloseWithFade(this);
             foreach (var b in new[] { bSaveF, bCopyF, bPinF, bOcrF, bOkF, bX }) tools.Children.Add(b);
-            FrameCapture.Core.Fluent.HighlightBtn(bOkF, true);
+            Fluent.HighlightBtn(bOkF, true);
             _okBtns.Add(bOkF); // 主按钮：accent 实心
         }
         tools.Children.Add(Sep());
         // 编辑器总在最前：置顶箭头 E898（向上箭头带顶栏，GlyphProbe 已验证），开关态靠高亮底色区分，与「钉到屏幕」图钉是两枚字形
         var bPin = IconBtn("\uE898", "总在最前");
-        FrameCapture.Core.Fluent.HighlightBtn(bPin, _settings.Current.EditorTopmost);
+        Fluent.HighlightBtn(bPin, _settings.Current.EditorTopmost);
         bPin.Click += (_, _) =>
         {
             bool on = !Topmost;
             Topmost = on;
             _settings.Mutate(s => s.EditorTopmost = on);
-            FrameCapture.Core.Fluent.HighlightBtn(bPin, on);
-            FrameCapture.Core.Trace.Log("editor topmost=" + on);
+            Fluent.HighlightBtn(bPin, on);
+            Trace.Log("editor topmost=" + on);
         };
         tools.Children.Add(bPin);
         var bSet = IconBtn("\uE713", "设置"); bSet.Click += (_, _) => SettingsWindow.ShowOrFocus();
@@ -276,7 +276,7 @@ public sealed partial class EditorWindow : Window
         for (int i = 0; i < ToolOrder.Length; i++)
         {
             var tool = ToolOrder[i];
-            var b = IconBtn(FrameCapture.Core.ToolCatalog.Tools[i].Glyph, FrameCapture.Core.ToolCatalog.Tools[i].Tip);
+            var b = IconBtn(ToolCatalog.Tools[i].Glyph, ToolCatalog.Tools[i].Tip);
             b.PreviewMouseLeftButtonDown += (sender2, e2) => { e2.Handled = true; SetTool(tool); };
             _toolBtns.Add(b);
             bar.Children.Add(b);
@@ -304,7 +304,7 @@ public sealed partial class EditorWindow : Window
                 Cursor = Cursors.Hand,
                 ToolTip = "颜色",
             };
-            FrameCapture.Core.Fluent.ChipHover(bd);
+            Fluent.ChipHover(bd);
             bd.MouseLeftButtonDown += (sender2, e2) => { _colorIdx = idx; RefreshSwatches(); RestyleSelected(CurColor, null); e2.Handled = true; };
             _swatchBtns.Add(bd);
             bar.Children.Add(bd);
@@ -377,7 +377,7 @@ public sealed partial class EditorWindow : Window
         if (b == null || b.IsEnabled == on) return;
         b.IsEnabled = on;
         b.BeginAnimation(OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(on ? 1.0 : 0.35,
-            new System.Windows.Duration(TimeSpan.FromMilliseconds(FrameCapture.Core.Fluent.Motion.HoverMs)))
+            new Duration(TimeSpan.FromMilliseconds(Fluent.Motion.HoverMs)))
         { EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut } });
     }
 
@@ -386,14 +386,14 @@ public sealed partial class EditorWindow : Window
         for (int i = 0; i < _swatchBtns.Count; i++)
             _swatchBtns[i].BorderBrush = i == _colorIdx ? new SolidColorBrush(Acc) : Brushes.Transparent;
         // 自定义槽位选中 = 调色板反白（与宽度/工具同一选中语言）
-        if (_paletteBtn != null) FrameCapture.Core.Fluent.HighlightBtn(_paletteBtn, _colorIdx == Swatches.Length);
+        if (_paletteBtn != null) Fluent.HighlightBtn(_paletteBtn, _colorIdx == Swatches.Length);
     }
 
     void RefreshWidths()
     {
         // 与绘制工具同一选中语言：accent 实心 + 反白图标（初值在 BuildToolsBar 尾部即刷新，默认宽度可见高亮）
         for (int i = 0; i < _widthBtns.Count; i++)
-            FrameCapture.Core.Fluent.HighlightBtn(_widthBtns[i], i == _widthIdx);
+            Fluent.HighlightBtn(_widthBtns[i], i == _widthIdx);
         UpdateFontStepper();
     }
     #endregion
@@ -431,7 +431,7 @@ public sealed partial class EditorWindow : Window
                 CornerRadius = new CornerRadius(10), Background = Brushes.Transparent,
                 Cursor = Cursors.Hand, ToolTip = $"最近用色 {hex}",
             };
-            FrameCapture.Core.Fluent.ChipHover(bd);
+            Fluent.ChipHover(bd);
             string h = hex;
             bd.MouseLeftButtonDown += (sender2, e2) =>
             {
@@ -452,7 +452,7 @@ public sealed partial class EditorWindow : Window
         if (_widthPop == null)
         {
             _widthSlider = new Slider { Minimum = 1, Maximum = 24, IsSnapToTickEnabled = true, TickFrequency = 1, Width = 150 };
-            FrameCapture.Core.Fluent.StyleSlider(_widthSlider);
+            Fluent.StyleSlider(_widthSlider);
             _widthVal = new TextBlock { FontFamily = new FontFamily("Segoe UI"), FontSize = 11, Foreground = new SolidColorBrush(Theme.Text), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 0, 0) };
             _widthPreview = new System.Windows.Shapes.Ellipse { Fill = new SolidColorBrush(Theme.Text), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0, 0, 0) };
             _widthSlider.ValueChanged += (_, e) =>
@@ -466,7 +466,7 @@ public sealed partial class EditorWindow : Window
             var head = new StackPanel { Orientation = Orientation.Horizontal, Children = { _widthSlider, _widthVal, _widthPreview } };
             _widthPop = new Popup
             {
-                Child = FrameCapture.Core.Fluent.PopupCard(head, new Thickness(12, 9, 12, 9)),
+                Child = Fluent.PopupCard(head, new Thickness(12, 9, 12, 9)),
                 // Popup 从 PlacementTarget（图标按钮）继承 FontFamily=图标字体 → 数字会变豆腐，_widthVal 显式复位
                 PlacementTarget = anchor,
                 Placement = PlacementMode.Top,
@@ -487,7 +487,7 @@ public sealed partial class EditorWindow : Window
     }
 
     // OpenPopSticky 已上收 Fluent，设置窗调色板共用
-    static void OpenPopSticky(Popup pop, UIElement hostEl) => FrameCapture.Core.Fluent.OpenPopSticky(pop, hostEl);
+    static void OpenPopSticky(Popup pop, UIElement hostEl) => Fluent.OpenPopSticky(pop, hostEl);
     #endregion
 
 }

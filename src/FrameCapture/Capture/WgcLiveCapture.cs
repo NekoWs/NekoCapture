@@ -123,7 +123,7 @@ public sealed class WgcLiveCapture : IDisposable
         // 自己按间隔轮询会把帧率天花板压在 60fps。目标帧率≥刷新率时全保（录满），否则按时间节流丢帧。
         int refresh = DisplayRefresh.RateOf(monitor.DeviceName);
         _keepAll = refresh > 0 && _targetFps >= refresh;
-        FrameCapture.Core.Trace.Log($"wgc fps={_targetFps} refresh={refresh} keepAll={_keepAll} interval={_intervalMs:F2}ms");
+        Trace.Log($"wgc fps={_targetFps} refresh={refresh} keepAll={_keepAll} interval={_intervalMs:F2}ms");
         _pool.FrameArrived += OnFrameArrived;
 
         _session.StartCapture();
@@ -153,7 +153,7 @@ public sealed class WgcLiveCapture : IDisposable
             catch (Exception ex)
             {
                 LastLoopError = ex.ToString();
-                FrameCapture.Core.Trace.Log($"wgc frame: {ex.Message.Split('\n')[0]}");
+                Trace.Log($"wgc frame: {ex.Message.Split('\n')[0]}");
                 _running = false; // 触发回退语义：停止本后端
             }
         }
@@ -214,16 +214,16 @@ public sealed class WgcLiveCapture : IDisposable
             if (actual)
             {
                 // 官方文档：未获 Borderless 授权时 put 会"成功"但值被忽略 —— 回读仍为 true。
-                FrameCapture.Core.Trace.Log("wgc system border kept: OS ignored IsBorderRequired=false (no Borderless grant)");
+                Trace.Log("wgc system border kept: OS ignored IsBorderRequired=false (no Borderless grant)");
                 return false;
             }
             SystemBorderSuppressed = true;
-            FrameCapture.Core.Trace.Log("wgc system border suppressed (IsBorderRequired=false, readback confirms)");
+            Trace.Log("wgc system border suppressed (IsBorderRequired=false, readback confirms)");
             return true;
         }
         catch (Exception ex)
         {
-            FrameCapture.Core.Trace.Log(
+            Trace.Log(
                 "wgc system border kept: " + ex.GetType().Name + " hr=0x" + (ex.HResult & 0xFFFFFFFF).ToString("X8")
                 + " " + ex.Message.Split('\n')[0]);
             return false;

@@ -46,7 +46,7 @@ public sealed class GestureService : IDisposable
         _exclusive = on && cfg!.Exclusive;
         var bindings = on ? cfg!.ToBindings() : new List<GC.GestureBinding>();
         _engine.SetBindings(bindings);
-        FrameCapture.Core.Trace.Log($"gesture apply on={on} excl={_exclusive} n={bindings.Count} [" +
+        Trace.Log($"gesture apply on={on} excl={_exclusive} n={bindings.Count} [" +
             string.Join(", ", bindings.Select(b => $"mods={b.Chord.Mods} key={b.Chord.Key}/{b.Trigger}/oc={b.OnComplete.Count}")) + "]");
         bool hasMouse = bindings.Any(b => IsMouse(b.Trigger));
         // Tick 泵：鼠标连击/长按消歧需要，键盘「按住到阈值触发 Hold」也需要。
@@ -78,7 +78,7 @@ public sealed class GestureService : IDisposable
         _mouseProc = MouseProc;
         _mouseHook = Win32.SetWindowsHookExW(Win32.WH_MOUSE_LL, _mouseProc, Win32.GetModuleHandleW(null), 0);
         _mouseInstalled = _mouseHook != IntPtr.Zero;
-        FrameCapture.Core.Trace.Log($"gesture mouse hook={_mouseHook}");
+        Trace.Log($"gesture mouse hook={_mouseHook}");
     }
     void UninstallMouseHook()
     {

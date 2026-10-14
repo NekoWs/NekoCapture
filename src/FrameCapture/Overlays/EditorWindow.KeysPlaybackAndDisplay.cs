@@ -84,20 +84,20 @@ public sealed partial class EditorWindow : Window
                 if (_colorPop is { IsOpen: true }) { _colorPop.IsOpen = false; e.Handled = true; return; }
                 if (_widthPop is { IsOpen: true }) { _widthPop.IsOpen = false; e.Handled = true; return; }
                 // 分层语义：导出中=取消；有选中=先取消选中；绘制态=先退出工具，误触 Esc 绝不丢整次捕获；浏览态=关闭
-                switch (FrameCapture.Core.EscStep.Select(_encoding, _tool != Tool.Browse, _sel != null))
+                switch (EscStep.Select(_encoding, _tool != Tool.Browse, _sel != null))
                 {
-                    case FrameCapture.Core.EscAction.CancelEncode: _commitCts?.Cancel(); break;
-                    case FrameCapture.Core.EscAction.ClearSelection:
+                    case EscAction.CancelEncode: _commitCts?.Cancel(); break;
+                    case EscAction.ClearSelection:
                         SetSelection(null);
-                        FrameCapture.Core.Trace.Log("editor esc→deselect");
+                        Trace.Log("editor esc→deselect");
                         e.Handled = true;
                         break;
                     case EscAction.ExitTool:
                         CancelPendingStroke(); SetTool(Tool.Browse);
-                        FrameCapture.Core.Trace.Log("editor esc→browse");
+                        Trace.Log("editor esc→browse");
                         e.Handled = true;
                         break;
-                    default: FrameCapture.Core.Fluent.CloseWithFade(this); break;
+                    default: Fluent.CloseWithFade(this); break;
                 }
                 break;
             case Key.Enter: Commit(); break;

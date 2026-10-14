@@ -201,13 +201,13 @@ public sealed class HelpWindow : Window
         {
             // 翻页轻推：正文从右侧 12px 滑入 + 淡入（CubicEase，不用过冲——固定高度容器里过冲会被裁）
             var host = (UIElement)_body;
-            var tt = new System.Windows.Media.TranslateTransform(12, 0);
+            var tt = new TranslateTransform(12, 0);
             host.RenderTransform = tt;
             host.Opacity = 0;
             var d = new Duration(TimeSpan.FromMilliseconds(200));
             var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
             host.BeginAnimation(OpacityProperty, new DoubleAnimation(1, d) { EasingFunction = ease });
-            tt.BeginAnimation(System.Windows.Media.TranslateTransform.XProperty, new DoubleAnimation(0, d) { EasingFunction = ease });
+            tt.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(0, d) { EasingFunction = ease });
         }
     }
         #endregion

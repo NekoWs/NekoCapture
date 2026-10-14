@@ -60,7 +60,7 @@ public sealed partial class SettingsWindow : Window
             SmallChange = tick,
             LargeChange = tick * 2,
         };
-        FrameCapture.Core.Fluent.StyleSlider(sl);
+        Fluent.StyleSlider(sl);
         sl.ValueChanged += (_, e) =>
         {
             hud.Text = fmt(e.NewValue);
@@ -114,7 +114,7 @@ public sealed partial class SettingsWindow : Window
             StrokeThickness = 1,
             HorizontalAlignment = HorizontalAlignment.Left,
             Margin = new Thickness(4, 0, 4, 0),
-            RenderTransform = new System.Windows.Media.TranslateTransform(initial ? 20 : 0, 0),
+            RenderTransform = new TranslateTransform(initial ? 20 : 0, 0),
         };
         Grid.SetColumn(track, 2);
         track.Child = knob;
@@ -122,7 +122,7 @@ public sealed partial class SettingsWindow : Window
         void Flip()
         {
             on = !on;
-            FrameCapture.Core.Fluent.SlideToggle(knob, track, on, 20);
+            Fluent.SlideToggle(knob, track, on, 20);
             onChange(on);
         }
         track.MouseLeftButtonDown += (_, e) => { Flip(); e.Handled = true; };
@@ -134,18 +134,18 @@ public sealed partial class SettingsWindow : Window
         track.LostKeyboardFocus += (_, _) => { track.BorderBrush = new SolidColorBrush(on ? Theme.Accent : Theme.Stroke); };
         track.MouseEnter += (_, _) =>
         {
-            if (track.BorderBrush is System.Windows.Media.SolidColorBrush bb && bb.CanFreeze)
+            if (track.BorderBrush is SolidColorBrush bb && bb.CanFreeze)
             {
-                var h = new System.Windows.Media.SolidColorBrush(bb.Color);
+                var h = new SolidColorBrush(bb.Color);
                 track.BorderBrush = h;
-                h.Color = System.Windows.Media.Color.FromArgb((byte)Math.Min(255, bb.Color.A + 0x60), bb.Color.R, bb.Color.G, bb.Color.B);
+                h.Color = Color.FromArgb((byte)Math.Min(255, bb.Color.A + 0x60), bb.Color.R, bb.Color.G, bb.Color.B);
             }
         };
         track.MouseLeave += (_, _) =>
         {
-            if (track.BorderBrush is System.Windows.Media.SolidColorBrush bb && bb.CanFreeze)
+            if (track.BorderBrush is SolidColorBrush bb && bb.CanFreeze)
             {
-                var h = new System.Windows.Media.SolidColorBrush(bb.Color);
+                var h = new SolidColorBrush(bb.Color);
                 track.BorderBrush = h;
                 h.Color = on ? Theme.Accent : Theme.Stroke;
             }
@@ -194,7 +194,7 @@ public sealed partial class SettingsWindow : Window
         Grid.SetColumn(browse, 2);
         g.Children.Add(browse);
         // 文字链接 hover 才显下划线（默认干净、悬停才提示可点），比常驻下划线更克制
-        browse.MouseEnter += (_, _) => browse.TextDecorations = System.Windows.TextDecorations.Underline;
+        browse.MouseEnter += (_, _) => browse.TextDecorations = TextDecorations.Underline;
         browse.MouseLeave += (_, _) => browse.TextDecorations = null;
         void Open()
         {
