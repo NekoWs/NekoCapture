@@ -263,7 +263,7 @@ public static partial class Fluent
     {
         var inner = new Border
         {
-            Background = new SolidColorBrush(Theme.PanelBg),
+            Background = new SolidColorBrush(Theme.PanelBgSolid),
             BorderBrush = new SolidColorBrush(Theme.Stroke),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(8),

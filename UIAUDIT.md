@@ -106,7 +106,7 @@ B1 主题化悬浮条 → C1/C2 状态语义 → A1/A2 入退场 → A3-A5 → B
 ### 载入与状态切换动效
 - [x] **设置窗逐项错位入场**：`Fluent.CascadeIn`（首个消费 `Motion.StaggerMs` 的动效）。打开与切类别时各行淡入 + 8px 抬起、自上而下依次起跳，整段压在 330ms 内；容器不再同时位移。断言 `T171a/b/c`，逐帧量化上下带落差约 150ms，明暗双主题定稿见 `test-out/cascade3/`。
 - [x] **帮助窗翻页逐项入场**：整块推 12px 改为每行淡入 + 顺翻页方向 10px 收拢（`CascadeIn` 新增 `riseX` 横向分量），逐行入场下沉为 `Fluent.CascadeRows`/`ResetCascade` 供两窗共用。断言 `T172a/b/c`，翻页逐帧上下带依次到位。
-- [ ] **分层窗 5% 透桌面**：`Theme.WindowBg` alpha `0xF2`，在 `AllowsTransparency=true` 的窗上压在繁忙桌面上会浮出背后文字（帮助窗定稿图实证，`tools/Shot` 全屏路径复核非截图伪影）。波及帮助窗、OCR 结果窗、胶片条对话框、外观取色弹层。待定：改不透明，还是补真模糊背板。
+- [x] **分层窗与弹出层不再透桌面**：`Theme.WindowBgSolid`/`PanelBgSolid`（源色强制 alpha，RGB 不漂移）用于帮助窗、OCR 结果窗、胶片条、`PopupCard` 共 5 处；分层表面背后无模糊背板，任何 alpha 都是直接透桌面。断言 `T173a/b`；明暗双主题空白带标准差 0.00，均值精确等于 `0x20`/`0xF9`。
 - [ ] **其余界面同规则推广**：编辑器工具栏、贴图窗、托盘菜单的载入与状态切换按同一令牌补齐
 - [ ] **`SettingsWindow.cs` 内 8 处裸时长**收敛到 `Fluent.Motion` 令牌（硬约束，单独一轮做，避免与动效改动混在一个提交里）
 ### 已知边界（非 bug）

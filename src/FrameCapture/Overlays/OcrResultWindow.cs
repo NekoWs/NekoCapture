@@ -46,7 +46,7 @@ public sealed class OcrResultWindow : Window
         var root = new Border
         {
             CornerRadius = new CornerRadius(12),
-            Background = new SolidColorBrush(Theme.WindowBg),
+            Background = new SolidColorBrush(Theme.WindowBgSolid),
             BorderBrush = new SolidColorBrush(Theme.Stroke),
             BorderThickness = new Thickness(1),
             Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 24, ShadowDepth = 2, Opacity = 0.5 },
@@ -123,7 +123,7 @@ public sealed class OcrResultWindow : Window
             TextWrapping = TextWrapping.Wrap,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            Background = new SolidColorBrush(Theme.PanelBg),
+            Background = new SolidColorBrush(Theme.PanelBgSolid),
             Foreground = new SolidColorBrush(Theme.Text),
             CaretBrush = new SolidColorBrush(Theme.Text),
             BorderThickness = new Thickness(1),

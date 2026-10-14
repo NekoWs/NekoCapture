@@ -50,6 +50,19 @@ public static class Theme
     public static Color WindowBg => IsDark ? C(0xF2, 0x20, 0x20, 0x20) : C(0xF2, 0xF9, 0xF9, 0xF9);
     public static Color PanelBg => IsDark ? C(0xE6, 0x2B, 0x2B, 0x2B) : C(0xE6, 0xFF, 0xFF, 0xFF);
     public static Color ChromeBg => IsDark ? C(0xD9, 0x1C, 0x1C, 0x1C) : C(0xD9, 0xEB, 0xEB, 0xEB);
+
+    /// <summary>把 alpha 拉满、RGB 原样保留，供没有模糊背板的分层表面使用。</summary>
+    /// <param name="c">源色，只取 RGB。</param>
+    /// <returns>同 RGB、alpha 为 0xFF 的颜色。</returns>
+    public static Color Opaque(Color c) => Color.FromArgb(0xFF, c.R, c.G, c.B);
+
+    /// <summary>分层窗（<c>AllowsTransparency</c>）的窗口底色：与 <see cref="WindowBg"/> 同色但不透明。
+    /// 分层窗背后没有模糊背板，任何 alpha 都是直接透出桌面内容，压在文字密集的桌面上会浮出背后文字。</summary>
+    public static Color WindowBgSolid => Opaque(WindowBg);
+
+    /// <summary>分层窗与弹出层的面板底色：与 <see cref="PanelBg"/> 同色但不透明，理由同
+    /// <see cref="WindowBgSolid"/>。</summary>
+    public static Color PanelBgSolid => Opaque(PanelBg);
     public static Color Text => IsDark ? C(0xFF, 0xFF, 0xFF, 0xFF) : C(0xFF, 0x1A, 0x1A, 0x1A);
     public static Color TextDim => IsDark ? C(0xB3, 0xC0, 0xC0, 0xC0) : C(0xB3, 0x60, 0x60, 0x60);
     public static Color Stroke => IsDark ? C(0x55, 0xFF, 0xFF, 0xFF) : C(0x55, 0x00, 0x00, 0x00);

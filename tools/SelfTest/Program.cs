@@ -618,6 +618,23 @@ static class SelfTest
             winX.Close();
         }
         catch (Exception e) { Chk("T172-cascade-side", false, e.Message); }
+        // 分层窗与弹出层的底色必须不透明：背后没有模糊背板，任何 alpha 都是直接透出桌面内容，
+        // 压在文字密集的桌面上会浮出背后文字。变体只许改 alpha，RGB 必须跟源色一致。
+        try
+        {
+            var card = Fluent.PopupCard(new System.Windows.Controls.TextBlock { Text = "x" });
+            var inner = card.Child as System.Windows.Controls.Border;
+            byte a = inner?.Background is System.Windows.Media.SolidColorBrush sb ? sb.Color.A : (byte)0;
+            Chk("T173a-popupcard-fill-opaque", a == 0xFF, $"弹出层面板 alpha=0x{a:X2}");
+            Chk("T173b-solid-variants-track-source",
+                Theme.WindowBgSolid.A == 0xFF && Theme.PanelBgSolid.A == 0xFF
+                && Theme.WindowBgSolid.R == Theme.WindowBg.R && Theme.WindowBgSolid.G == Theme.WindowBg.G
+                && Theme.WindowBgSolid.B == Theme.WindowBg.B
+                && Theme.PanelBgSolid.R == Theme.PanelBg.R && Theme.PanelBgSolid.G == Theme.PanelBg.G
+                && Theme.PanelBgSolid.B == Theme.PanelBg.B,
+                $"WindowBg 0x{Theme.WindowBg.A:X2}→0xFF  PanelBg 0x{Theme.PanelBg.A:X2}→0xFF，RGB 未变");
+        }
+        catch (Exception e) { Chk("T173-layered-opaque", false, e.Message); }
 
         // 全局 ToolTip/菜单样式可解析（守主题相关 XAML）
         try

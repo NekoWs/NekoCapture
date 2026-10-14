@@ -79,7 +79,7 @@ public sealed class HelpWindow : Window
         var root = new Border
         {
             CornerRadius = new CornerRadius(12),
-            Background = new SolidColorBrush(Theme.WindowBg),
+            Background = new SolidColorBrush(Theme.WindowBgSolid),
             BorderBrush = new SolidColorBrush(Theme.Stroke),
             BorderThickness = new Thickness(1),
             Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 24, ShadowDepth = 2, Opacity = Theme.IsDark ? 0.5 : 0.15 },
