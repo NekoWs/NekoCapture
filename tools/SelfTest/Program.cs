@@ -913,6 +913,47 @@ static class SelfTest
         }
         catch (Exception e) { Chk("T184-detail-cascade", false, e.Message); }
 
+        // 轻提示：抬起淡入 → 淡出走完收起；显示中再次触发只换文字续期，不把刚看清的一行字压回全透明
+        try
+        {
+            var stN = new SettingsService();
+            var seqN = new CapturedSequence
+            {
+                Frames = new List<CapturedFrame> { MovingSquare(520, 300, 0, 3), MovingSquare(520, 300, 1, 3) },
+                Region = new RectI(0, 0, 520, 300),
+                MonitorBounds = new RectI(0, 0, 1920, 1080),
+            };
+            var winN = new FrameCapture.Overlays.EditorWindow(stN, seqN);
+            var NPn = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+            var Tn = typeof(FrameCapture.Overlays.EditorWindow);
+            var snackN = (System.Windows.Controls.Border?)Tn.GetField("_snack", NPn)!.GetValue(winN);
+            var showN = Tn.GetMethod("ShowSnack", NPn)!;
+            winN.Show();
+            PumpMs(Fluent.Motion.EditorEnterMs + 260);
+            Chk("T187a-snack-hidden-before", snackN!.Visibility == System.Windows.Visibility.Collapsed, snackN.Visibility.ToString());
+            showN.Invoke(winN, new object[] { "已复制到剪贴板" });
+            PumpMs(40);
+            var shiftN = snackN.RenderTransform as System.Windows.Media.TranslateTransform;
+            Chk("T187b-snack-rises-in",
+                snackN.Visibility == System.Windows.Visibility.Visible
+                && snackN.Opacity > 0.02 && snackN.Opacity < 0.99 && shiftN != null && shiftN.Value.OffsetY > 0.05,
+                $"透明度={snackN.Opacity:N2} 位移={shiftN?.Value.OffsetY:N1}");
+            PumpMs(Fluent.Motion.HoverMs + 80);
+            double fullN = snackN.Opacity;
+            showN.Invoke(winN, new object[] { "识别完成" });
+            PumpMs(30);
+            Chk("T187c-snack-retrigger-no-replay", fullN > 0.999 && snackN.Opacity > fullN - 0.02,
+                $"满显示={fullN:N3} 再次触发后={snackN.Opacity:N3}");
+            PumpMs(1800 + Fluent.Motion.DissolveMs + 300);
+            Chk("T187d-snack-collapses-after",
+                snackN.Visibility == System.Windows.Visibility.Collapsed
+                && snackN.Opacity < 0.001 && snackN.RenderTransform == null,
+                $"可见性={snackN.Visibility} 透明度={snackN.Opacity:N3} 变换={snackN.RenderTransform?.GetType().Name ?? "无"}");
+            winN.Close();
+            PumpMs(200);
+        }
+        catch (Exception e) { Chk("T187-snack-motion", false, e.Message); }
+
         // 悬停提示只放名称与快捷键：说明性文字（全角括号、全角冒号、多段子句）不该出现在 tooltip 里
         try
         {

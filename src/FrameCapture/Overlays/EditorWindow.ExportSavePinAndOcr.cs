@@ -64,30 +64,48 @@ public sealed partial class EditorWindow : Window
         Trace.Log($"pin frame {f.W}x{f.H} at {region.X},{region.Y}");
     }
 
-    /// <summary>预览底部轻提示：淡入显示 msg，约 1.8s 后淡出。OCR/复制等即时反馈用。</summary>
+    /// <summary>预览底部轻提示：从下方 6px 抬起淡入，约 1.8s 后淡出并收起。OCR/复制等即时反馈用。
+    /// 提示条已在显示中时只换文字并续期，不重播入场——重播会把刚看清的一行字压回全透明再抬一次。</summary>
     void ShowSnack(string msg)
     {
         if (_snack == null || _snackText == null) return;
         _snackText.Text = msg;
-        _snack.Visibility = Visibility.Visible;
-        _snack.BeginAnimation(OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(
-            1.0, TimeSpan.FromMilliseconds(Fluent.Motion.HoverMs))
-        { EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut } });
+        if (!(_snack.Visibility == Visibility.Visible && _snack.Opacity > 0.5))
+        {
+            var dur = new System.Windows.Duration(TimeSpan.FromMilliseconds(Fluent.Motion.HoverMs));
+            var ease = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut };
+            _snack.Visibility = Visibility.Visible;
+            _snackShift = new System.Windows.Media.TranslateTransform(0, 6);
+            _snack.RenderTransform = _snackShift;
+            _snack.BeginAnimation(OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(0, 1, dur) { EasingFunction = ease });
+            _snackShift.BeginAnimation(System.Windows.Media.TranslateTransform.YProperty,
+                new System.Windows.Media.Animation.DoubleAnimation(0, dur) { EasingFunction = ease });
+        }
+        int gen = ++_snackGen;   // 本次显示的世代，淡出回调只收自己那一代
         if (_snackTimer == null)
         {
             _snackTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1800) };
             _snackTimer.Tick += (_, _) =>
             {
                 _snackTimer!.Stop();
-                _snack!.BeginAnimation(OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(
+                int closing = _snackGen;
+                var fade = new System.Windows.Media.Animation.DoubleAnimation(
                     0.0, TimeSpan.FromMilliseconds(Fluent.Motion.DissolveMs))
-                { EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseIn } });
+                { EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseIn } };
+                // 淡出走完才收起：留着 Visible 的透明浮层会让下一次显示被当成「仍在显示中」而只换文字不动画
+                fade.Completed += (_, __) =>
+                {
+                    if (_snack == null || closing != _snackGen) return;   // 期间又提示过一次，交给那一次收尾
+                    _snack.RenderTransform = null;
+                    _snackShift = null;
+                    _snack.Visibility = Visibility.Collapsed;
+                };
+                _snack!.BeginAnimation(OpacityProperty, fade);
             };
         }
         _snackTimer.Stop();
         _snackTimer.Start();
     }
-
     /// <summary>识别当前帧文字（Windows 内置 OCR）→ 纯文本写剪贴板 → 轻提示。
     /// 帧像素在首个 await 前同步拷贝，故与关窗/释放 spool 无竞态；无语言包优雅降级不抛。</summary>
     async void OcrCurrentFrame()

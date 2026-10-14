@@ -37,6 +37,8 @@ public sealed partial class EditorWindow : Window
     private Border? _snack;
     private TextBlock? _snackText;
     private System.Windows.Threading.DispatcherTimer? _snackTimer;
+    private int _snackGen;   // 轻提示世代：淡出回调只收自己那一次，期间新提示不受牵连
+    private System.Windows.Media.TranslateTransform? _snackShift;   // 轻提示入场位移，收起时摘掉
 
     private int _index;
     private bool _playing;
