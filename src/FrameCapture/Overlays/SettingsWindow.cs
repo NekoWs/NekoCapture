@@ -321,6 +321,8 @@ public sealed partial class SettingsWindow : Window
                 _settings.Mutate(s => s.RunAtStartup = v);
                 try { StartupService.Apply(v); } catch { }
             }));
+        panel.Children.Add(ToggleRow("\uE946", "启动气泡提示", "启动完成后在屏幕右下角弹一条「FrameCapture 已启动」，确认它真的在后台待命了。关掉后启动静默进托盘，只剩托盘图标",
+            _settings.Current.StartupToast, v => _settings.Mutate(s => s.StartupToast = v)));
 
         Cardify(panel); // 系统页行归入卡片
         #endregion

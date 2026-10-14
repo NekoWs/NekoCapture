@@ -22,20 +22,34 @@ internal sealed class SetupWindow : Window
     private readonly Border _card = new();
     private readonly TextBlock _cardText = new();
     private readonly TextBlock _log = new();
+    /// <summary>日志的可视窗口。预留带只有 76 高，进度写到后面必须滚到底，最新一行才看得见。</summary>
+    private readonly ScrollViewer _logBox = new()
+    {
+        VerticalScrollBarVisibility = ScrollBarVisibility.Hidden,
+        Height = 76,
+        Margin = new Thickness(2, 14, 0, 0),
+    };
     private readonly Button _primary;
     private readonly Button _secondary;
     private Mode _mode;
     private bool _busy;
+    private bool _launchOnFinish;   // 收尾态点主按钮是否顺带启动主程序：卸载完程序已不在，不能启动
     readonly bool _mica;   // 背板在场才透明，缺席必须平涂，否则安装器变成黑窗
+    readonly bool _confirmed;       // 卸载确认已在未提权的那一版窗口里问过，提权实例据此跳过重复追问
 
     /// <summary>建窗并按模式准备首屏。</summary>
     /// <param name="mode">启动后的行为。</param>
-    internal SetupWindow(Mode mode)
+    /// <param name="confirmed">卸载是否已确认过：true = 直接干活，false = 先问一句再要管理员权限。</param>
+    internal SetupWindow(Mode mode, bool confirmed = false)
     {
         _mode = mode;
-        Title = "FrameCapture 安装";
+        _confirmed = confirmed;
+        var uninstall = mode == Mode.Uninstall;
+        Title = uninstall ? "FrameCapture 卸载" : "FrameCapture 安装";
         Width = 560;
-        Height = 336;
+        // 高度跟着内容走：缺运行时的那台机器上多一张卡片，装好了的机器不留一截空白。
+        // 宽度固定，进度区高度固定，因此装/卸过程中不会再变。
+        SizeToContent = SizeToContent.Height;
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
         WindowStyle = WindowStyle.None;
         ResizeMode = ResizeMode.NoResize;
@@ -43,12 +57,14 @@ internal sealed class SetupWindow : Window
         Fluent.BorderlessNative(this);
         _mica = Fluent.MicaBackdrop(this);
         Background = _mica ? Brushes.Transparent : new SolidColorBrush(Theme.WindowBg);
-        Content = BuildBody(out var closeBtn, out _primary, out _secondary);
+        Content = BuildBody(mode == Mode.Uninstall, out var closeBtn, out _primary, out _secondary);
         Fluent.InstallCaptionDrag(this, closeBtn);
         Fluent.FadeIn(this);
 
         RefreshRuntimeCard();
-        Loaded += (_, _) =>
+        // ContentRendered 而不是 Loaded：首帧画完、窗口落位之后才动手。
+        // 确认框按 CenterOwner 居中于本窗，窗口还在落位过程中居中就是错的。
+        ContentRendered += (_, _) =>
         {
             if (_mode == Mode.Install) StartInstall();
             else if (_mode == Mode.Uninstall) StartUninstall();
@@ -56,11 +72,12 @@ internal sealed class SetupWindow : Window
     }
 
     /// <summary>组装标题栏、状态卡片、日志区与按钮。</summary>
+    /// <param name="uninstall">true = 卸载形态的措辞（标题与「将删除」一行），false = 安装形态。</param>
     /// <param name="closeBtn">标题栏关闭按钮，供拖拽辅助函数排除命中。</param>
     /// <param name="primary">主按钮，交回构造函数做字段赋值。</param>
     /// <param name="secondary">次按钮，交回构造函数做字段赋值。</param>
     /// <returns>窗口根元素。</returns>
-    private FrameworkElement BuildBody(out Button closeBtn, out Button primary, out Button secondary)
+    private FrameworkElement BuildBody(bool uninstall, out Button closeBtn, out Button primary, out Button secondary)
     {
         var root = new Grid();
         root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(40) });
@@ -86,16 +103,20 @@ internal sealed class SetupWindow : Window
         var body = new StackPanel { Margin = new Thickness(28, 22, 28, 20) };
         body.Children.Add(new TextBlock
         {
-            Text = "安装 FrameCapture",
+            Text = uninstall ? "卸载 FrameCapture" : "安装 FrameCapture",
             FontSize = 26,
             FontWeight = FontWeights.SemiBold,
             Foreground = new SolidColorBrush(Theme.Text),
         });
+        // 路径按本机 Program Files 现算：写死 C: 会在 Program Files 被重定向的机器上说谎
         body.Children.Add(new TextBlock
         {
-            Text = @"目标位置  C:\Program Files\FrameCapture（所有用户可用）",
+            Text = uninstall
+                ? "将删除  " + InstallEngine.InstallDir + "、开始菜单快捷方式、开机自启与个人设置"
+                : "目标位置  " + InstallEngine.InstallDir + "（所有用户可用）",
             FontSize = 12,
             Margin = new Thickness(0, 6, 0, 16),
+            TextWrapping = TextWrapping.Wrap,
             Foreground = new SolidColorBrush(Theme.TextDim),
         });
 
@@ -109,19 +130,19 @@ internal sealed class SetupWindow : Window
 
         _log.FontSize = 12;
         _log.TextWrapping = TextWrapping.Wrap;
-        _log.Margin = new Thickness(2, 14, 0, 0);
-        // 固定高度而非 MaxHeight：进度文字出现时窗口不跳高，预留带就摆在卡片与按钮之间
-        _log.Height = 76;
-        _log.VerticalAlignment = VerticalAlignment.Top;
         _log.Foreground = new SolidColorBrush(Theme.TextDim);
-        body.Children.Add(_log);
+        _logBox.Content = _log;
+        // 固定高度而非 MaxHeight：进度文字逐行追加时窗口不跳高。没有进度时整块收起，
+        // 免得决策页中间空出一截——卡片也只在缺运行时的那台机器上才占位。
+        _logBox.Visibility = Visibility.Collapsed;
+        body.Children.Add(_logBox);
 
         var buttons = new StackPanel
         {
             Orientation = Orientation.Horizontal,
             Margin = new Thickness(0, 18, 0, 0),
         };
-        primary = Fluent.RoundButton("安装", Theme.Accent, Theme.WindowBg, 22, true);
+        primary = Fluent.RoundButton(uninstall ? "卸载" : "安装", Theme.Accent, Theme.WindowBg, 22, true);
         primary.Click += (_, _) => OnPrimary();
         buttons.Children.Add(primary);
 
@@ -136,25 +157,28 @@ internal sealed class SetupWindow : Window
         return root;
     }
 
-    /// <summary>按本机运行时状态刷新卡片文案与主按钮措辞。</summary>
+    /// <summary>
+    /// 运行时够用就不占版面：卡片只在缺运行时时出现，主按钮同时换成「下载并安装」，
+    /// 点下去就能看见这一趟会顺带装 .NET。卸载形态永远不出卡片。
+    /// </summary>
     private void RefreshRuntimeCard()
     {
-        var ok = DotnetRuntime.Satisfied(out var found);
-        if (ok)
+        if (_mode == Mode.Uninstall || DotnetRuntime.Satisfied(out var found))
         {
-            _cardText.Text = "已检测到 .NET Desktop Runtime " + found;
-            _cardText.Foreground = new SolidColorBrush(Theme.Text);
+            _card.Visibility = Visibility.Collapsed;
+            if (_mode == Mode.Idle) _primary.Content = "安装";
+            return;
         }
-        else
-        {
-            _cardText.Text = found == null
-                ? "未检测到 .NET Desktop Runtime，安装时会从微软官网下载（约 56 MB）"
-                : "已装的 .NET Desktop Runtime " + found + " 版本过低，安装时会下载所需版本";
-            _cardText.Foreground = new SolidColorBrush(Theme.Accent);
-        }
+
+        _cardText.Text = found == null
+            ? "缺少 .NET Desktop Runtime，需要从微软官网下载（约 56 MB）"
+            : "已装的 .NET Desktop Runtime " + found + " 版本过低，需要下载所需版本";
+        _cardText.Foreground = new SolidColorBrush(Theme.Accent);
+        _card.Visibility = Visibility.Visible;
+        if (_mode == Mode.Idle) _primary.Content = "下载并安装";
     }
 
-    /// <summary>主按钮：空闲态申请提权续跑，提权态直接干活。</summary>
+    /// <summary>主按钮：空闲态申请提权续跑，提权态直接干活，收尾态负责打开与关闭。</summary>
     private void OnPrimary()
     {
         if (_busy) return;
@@ -170,7 +194,11 @@ internal sealed class SetupWindow : Window
             Close();
             return;
         }
-        if (_mode == Mode.Finished) { LaunchApp(); Close(); }
+        if (_mode == Mode.Finished)
+        {
+            if (_launchOnFinish) LaunchApp();
+            Close();
+        }
     }
 
     /// <summary>提权实例：先补运行时，再落文件与登记。</summary>
@@ -179,6 +207,9 @@ internal sealed class SetupWindow : Window
         if (_busy) return;
         _busy = true;
         _primary.IsEnabled = false;
+        _secondary.IsEnabled = false;   // 半途关窗会留下装了一半的目录，进度期间不给退出入口
+        // 走到这一步，运行时要么已就位、要么正由下面的下载补上——那条提示的使命已经结束
+        _card.Visibility = Visibility.Collapsed;
         try
         {
             if (!DotnetRuntime.Satisfied(out _))
@@ -196,8 +227,7 @@ internal sealed class SetupWindow : Window
                 if (!got)
                 {
                     Log("下载失败。手动下载后重试：" + RuntimeSetup.DownloadPage);
-                    _primary.IsEnabled = true;
-                    _busy = false;
+                    BackToIdle();
                     return;
                 }
                 Log("正在安装运行时…");
@@ -206,11 +236,9 @@ internal sealed class SetupWindow : Window
                 if (code != 0 && code != 3010)
                 {
                     Log("运行时安装失败，退出码 " + code + "。可手动安装：" + RuntimeSetup.DownloadPage);
-                    _primary.IsEnabled = true;
-                    _busy = false;
+                    BackToIdle();
                     return;
                 }
-                RefreshRuntimeCard();
             }
 
             Log("正在安装主程序…");
@@ -218,61 +246,120 @@ internal sealed class SetupWindow : Window
             if (ok)
             {
                 Log("安装完成");
-                _primary.IsEnabled = true;
-                _primary.Content = "启动 FrameCapture";
-                _mode = Mode.Finished;
+                EnterFinished("打开 FrameCapture", launch: true);
             }
-            else
-            {
-                _primary.IsEnabled = true;
-                _busy = false;
-            }
+            else BackToIdle();
         }
         catch (Exception ex)
         {
             Log("失败：" + ex.Message);
-            _primary.IsEnabled = true;
-            _busy = false;
+            BackToIdle();
         }
     }
 
-    /// <summary>提权实例：卸载。自身在临时副本上运行，才能删掉安装目录里那份。</summary>
+    /// <summary>
+    /// 卸载。确认问在未提权的那一版窗口里，问完才要管理员权限——用户不该在管理员窗口里被二次追问。
+    /// 自身要跑到临时副本上，才能删掉安装目录里那份自己。
+    /// </summary>
     private async void StartUninstall()
     {
         if (_busy) return;
-        _busy = true;
-        _primary.IsEnabled = false;
-        _primary.Content = "卸载";
-        try
+
+        if (!_confirmed)
         {
-            if (!App.Elevated)
+            if (!ConfirmDialog.Ask(this, "真的要卸载 FrameCapture 吗？",
+                    "删除程序文件、开始菜单快捷方式、开机自启与个人设置"))
             {
-                if (!App.RelaunchElevated("--uninstall")) { Log("已取消：卸载需要管理员权限"); return; }
                 Close();
                 return;
             }
+            if (!App.Elevated)
+            {
+                if (!App.RelaunchElevated(App.ArgUninstall + " " + App.ArgConfirmed))
+                {
+                    Log("已取消：卸载需要管理员权限");
+                    return;
+                }
+                Close();
+                return;
+            }
+        }
 
+        _busy = true;
+        _primary.IsEnabled = false;
+        _secondary.IsEnabled = false;
+        _primary.Content = "卸载";
+        try
+        {
             var inside = Path.GetDirectoryName(Process.GetCurrentProcess().MainModule?.FileName)
                          == InstallEngine.InstallDir;
             if (inside)
             {
                 var copy = App.CopySelfToTemp();
-                if (copy == null) { Log("无法准备卸载副本"); return; }
-                Process.Start(new ProcessStartInfo(copy, "--uninstall --from-temp") { UseShellExecute = false });
+                if (copy == null)
+                {
+                    Log("无法准备卸载副本");
+                    EnterFinished("关闭", launch: false);
+                    return;
+                }
+                Process.Start(new ProcessStartInfo(copy, App.ArgUninstall + " " + App.ArgConfirmed) { UseShellExecute = false });
                 Close();
                 return;
             }
 
             var ok = await Task.Run(() => InstallEngine.Uninstall(new Progress<string>(Log)));
-            _primary.IsEnabled = true;
-            _primary.Content = ok ? "完成" : "关闭";
-            if (ok) _mode = Mode.Finished;
+            if (ok) ScheduleSelfDelete();
+            EnterFinished(ok ? "完成" : "关闭", launch: false);
         }
         catch (Exception ex)
         {
             Log("失败：" + ex.Message);
-            _primary.IsEnabled = true;
+            EnterFinished("关闭", launch: false);
         }
+    }
+
+    /// <summary>回到可重试状态：两条按钮重新可点，运行时卡片按当前状态决定要不要亮出来。</summary>
+    private void BackToIdle()
+    {
+        _busy = false;
+        _primary.IsEnabled = true;
+        _secondary.IsEnabled = true;
+        RefreshRuntimeCard();
+    }
+
+    /// <summary>
+    /// 收尾态：解除忙碌、两条按钮都可点。次按钮措辞换成「完成」——活已经干完，此时「取消」没有可取消的东西。
+    /// </summary>
+    /// <param name="primaryText">主按钮文案。</param>
+    /// <param name="launch">点主按钮是否顺带启动主程序；卸载完程序已不在，只能关闭。</param>
+    private void EnterFinished(string primaryText, bool launch)
+    {
+        _mode = Mode.Finished;
+        _busy = false;
+        _launchOnFinish = launch;
+        _primary.IsEnabled = true;
+        _primary.Content = primaryText;
+        _secondary.Content = "完成";
+        _secondary.IsEnabled = true;
+        // 卸载完主按钮本身就是「完成」，再挂一条同义的次按钮只是多一个鼠标落点
+        _secondary.Visibility = launch ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    /// <summary>卸载成功后清掉自己这份临时副本：正在运行的 exe 删不掉自己，交给一个等它退出的后台进程。</summary>
+    private static void ScheduleSelfDelete()
+    {
+        var self = Process.GetCurrentProcess().MainModule?.FileName;
+        if (string.IsNullOrEmpty(self) || !File.Exists(self)) return;
+        // 只清临时目录里那份副本：安装目录那份随目录一起删，用户下载目录里的引导器归用户自己处置
+        var temp = Path.GetTempPath().TrimEnd(Path.DirectorySeparatorChar);
+        if (!string.Equals(Path.GetDirectoryName(self), temp, StringComparison.OrdinalIgnoreCase)) return;
+        try
+        {
+            Process.Start(new ProcessStartInfo(self,
+                App.ArgPurge + " " + Process.GetCurrentProcess().Id + " \"" + self + "\"")
+            { UseShellExecute = false, CreateNoWindow = true });
+        }
+        catch { /* 副本留在临时目录，交给系统清理临时文件 */ }
     }
 
     /// <summary>启动装好的主程序。经 explorer 转一手，避免主程序继承安装器的管理员令牌。</summary>
@@ -287,7 +374,14 @@ internal sealed class SetupWindow : Window
     /// <param name="text">要显示的一行。</param>
     private void Log(string text)
     {
-        Dispatcher.Invoke(() => _log.Text = (_log.Text.Length == 0 ? "" : _log.Text + "\n") + text);
+        Dispatcher.Invoke(() =>
+        {
+            _logBox.Visibility = Visibility.Visible;
+            _log.Text = (_log.Text.Length == 0 ? "" : _log.Text + "\n") + text;
+            // 先量一次再滚：刚赋的 Text 还没进布局，直接 ScrollToEnd 滚的是上一行的位置
+            _logBox.UpdateLayout();
+            _logBox.ScrollToEnd();
+        });
     }
 
     /// <summary>程序集版本，三段，与 csproj 的 Version 同源。</summary>

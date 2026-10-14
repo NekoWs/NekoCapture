@@ -10,15 +10,28 @@ namespace FrameCapture.Setup;
 /// <summary>
 /// 引导器入口。命令行形态：
 /// 无参数 = 界面；<c>--install</c> = 提权后执行安装；
-/// <c>--uninstall</c> = 提权后卸载（内部再派生 <c>--from-temp</c> 以删掉自己那份）。
+/// <c>--uninstall</c> = 卸载（先确认再提权，内部再派生临时副本以删掉安装目录里那份）；
+/// <c>--confirmed</c> = 确认已问过；<c>--purge</c> = 等某进程退出后删掉一个文件。
 /// </summary>
 internal static class App
 {
+    /// <summary>卸载开关，控制面板里的 UninstallString 指向它。</summary>
+    internal const string ArgUninstall = "--uninstall";
+
+    /// <summary>卸载确认已在未提权窗口问过的标记，提权实例据此跳过重复追问。</summary>
+    internal const string ArgConfirmed = "--confirmed";
+
+    /// <summary>自删除开关，形如 <c>--purge &lt;等待退出的进程 id&gt; "&lt;要删除的文件&gt;"</c>。</summary>
+    internal const string ArgPurge = "--purge";
+
     /// <summary>进程入口。</summary>
     /// <param name="args">命令行参数。</param>
     [STAThread]
     private static void Main(string[] args)
     {
+        // 自删除排在最前：这个形态只负责等另一个进程退出、删一个文件，不该拉起样式与窗口
+        if (args.Length >= 3 && args[0] == ArgPurge) { Purge(args[1], args[2]); return; }
+
         var app = new Application { ShutdownMode = ShutdownMode.OnMainWindowClose };
         Fluent.ApplyGlobalStyles();
         Theme.Apply(ThemeModeFromRegistry(), "#4CC2FF");
@@ -30,8 +43,35 @@ internal static class App
             return;
         }
         if (Array.IndexOf(args, "--install") >= 0) { app.Run(new SetupWindow(SetupWindow.Mode.Install)); return; }
-        if (Array.IndexOf(args, "--uninstall") >= 0) { app.Run(new SetupWindow(SetupWindow.Mode.Uninstall)); return; }
+        if (Array.IndexOf(args, ArgUninstall) >= 0)
+        {
+            app.Run(new SetupWindow(SetupWindow.Mode.Uninstall, Array.IndexOf(args, ArgConfirmed) >= 0));
+            return;
+        }
         app.Run(new SetupWindow(SetupWindow.Mode.Idle));
+    }
+
+    /// <summary>等一个进程退出后删掉一个文件。正在运行的 exe 删不掉自己，只能由另一个进程代删。</summary>
+    /// <param name="pid">要等其退出的进程 id；进程已不在时立刻动手。</param>
+    /// <param name="file">要删除的文件全路径。</param>
+    private static void Purge(string pid, string file)
+    {
+        try
+        {
+            if (int.TryParse(pid, out var id))
+            {
+                try { using var p = Process.GetProcessById(id); p.WaitForExit(60000); }
+                catch (ArgumentException) { /* 已经退了，直接删 */ }
+            }
+            // 进程退出到文件句柄真正释放之间有一小段窗口，删不动就短促重试
+            for (var i = 0; i < 40 && File.Exists(file); i++)
+            {
+                try { File.Delete(file); return; }
+                catch (IOException) { System.Threading.Thread.Sleep(250); }
+                catch (UnauthorizedAccessException) { return; }
+            }
+        }
+        catch { /* 删不掉就留在临时目录，交给系统清理临时文件 */ }
     }
 
     /// <summary>跟随系统深浅偏好，与主程序读同一个注册表值。</summary>

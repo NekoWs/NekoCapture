@@ -134,7 +134,7 @@ internal static class InstallEngine
 
     /// <summary>执行卸载。调用方负责提权，且需从临时副本运行以删掉自己那份。</summary>
     /// <param name="log">进度与结果文本。</param>
-    /// <returns>true = 目录、快捷方式与登记项都已清除。</returns>
+    /// <returns>true = 程序目录、快捷方式、开机自启、个人设置与登记项都已清除。</returns>
     internal static bool Uninstall(IProgress<string> log)
     {
         try
@@ -147,6 +147,12 @@ internal static class InstallEngine
 
             log.Report("正在删除快捷方式");
             TryDeleteDir(StartMenuDir);
+
+            // 设置与错误日志由主程序自己建，卸载要连它一起清才留不下痕迹。
+            // 取的是当前用户的环境变量：别人账户下的同名目录动不了，也不该动。
+            log.Report("正在清除个人设置");
+            TryDeleteDir(Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), AppFolder));
 
             // 自启值是主程序自己写的，卸载器必须清掉，否则「启动时运行」留一条指向空路径的死值
             log.Report("正在清除开机自启");

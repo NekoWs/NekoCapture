@@ -607,3 +607,40 @@ Win32 那条通道则完全写不进去。
 会返回 0，那等于悄悄关掉全部 Win11 特性，必须有断言盯着。`T177a` 的基准也从谎报的那个 API 换成 Rtl 值，
 否则等于把「引导器看不见 Win11 特性」钉成正确行为。
 跨 TFM 编译的共享源文件里，任何能力判断都不能依赖运行时的自述版本。
+
+## 浮窗外壳属性由 BorderlessOverlay 独占，调用方覆盖任何一项都会画成黑块
+
+**现象**：新写的提示气泡落点、圆角、描边全对，卡片内容却是一片纯黑——文字与图标都没画出来。
+
+**根因**：`Fluent.BorderlessOverlay` 把 `SizeToContent` 设成 `WidthAndHeight`，窗口尺寸由卡片量出来；
+调用方又补了一行 `SizeToContent = Height`。WindowChrome 的窗口尺寸与客户区对不上，
+WPF 那一层没有可画的区域，只剩 DWM 圆角裁出来的一块黑。`CaptureToast` 正常，
+恰恰是因为它除了 `BorderlessOverlay` 什么都没再设。
+
+**现在靠什么防回归**：`NoticeToast` 与 `CaptureToast` 同构——外壳属性一律交给 `BorderlessOverlay`，
+调用方只设 `Title`、落点与内容。新浮窗出黑块，先拿它的构造函数与 `CaptureToast` 对 diff，
+多出来的那一行就是原因。
+
+## 确认框等首帧画完再弹，CenterOwner 量的是当时的窗口位置
+
+**现象**：卸载确认框跑到屏幕上方，主窗口压根没出现在截图里。
+
+**根因**：确认框挂在 `Loaded`。那一刻 WPF 还没把主窗挪到最终位置，
+`WindowStartupLocation.CenterOwner` 按 owner 当时的矩形算中心，算出来就是错的；
+主窗随后落位，对话框留在原地。
+
+**现在靠什么防回归**：安装与卸载的自动动作统一挂在 `ContentRendered`——首帧画完、窗口落位之后。
+凡是依赖窗口落位的计算（居中于 owner、按 `ActualWidth` 排版）都适用这条。
+
+## 截图审查的探针要声明 Unicode 与 DPI 感知，这两处默认值都是静默失效
+
+**现象**：探针报告「屏幕上没有任何标题含 FrameCapture 的窗口」，而气泡就挂在右下角；
+补上 DPI 感知再跑，裁出来的图又对错了位置。
+
+**根因**：两处默认值。`Add-Type` 里的 `GetWindowTextW` 没写 `CharSet.Unicode`，宽字符标题按 ANSI
+封送，第一个字符后撞上 0x00，`ToString()` 截断成一个字母——匹配永远落空，看着像窗口不存在。
+探针进程 DPI 未感知，`GetWindowRect` 回给的是 96DPI 虚拟化坐标，拿去裁 150% 缩放的物理截图必然错位。
+
+**现在靠什么防回归**：探针先调 `SetProcessDPIAware` 再枚举，`DllImport` 一律带 `CharSet.Unicode`。
+判空之前先做一次已知存在的对照：枚举总数应远大于 0、标题应能读出完整中文——
+读不通说明探针瞎了，不是窗口没了。

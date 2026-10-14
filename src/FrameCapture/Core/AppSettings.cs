@@ -116,6 +116,11 @@ public sealed class AppSettings
     /// <summary>开机自启。</summary>
     public bool RunAtStartup { get; set; }
 
+    /// <summary>启动气泡提示（默认开）：启动完成后在屏幕右下角弹一条「FrameCapture 已启动」，
+    /// 给一个「它真的在后台待命了」的确定感——本程序启动后没有主窗口，缺这一下容易被当成没启动成功。
+    /// 关掉后启动静默进托盘，只剩图标。</summary>
+    public bool StartupToast { get; set; } = true;
+
     /// <summary>选区放大镜（默认开）：拖框/悬停选区时，光标旁显示高倍像素放大镜 + 坐标/尺寸读数，
     /// 便于像素级精确选区。关闭则不抓快照、不显示放大镜。</summary>
     public bool PickerMagnifier { get; set; } = true;

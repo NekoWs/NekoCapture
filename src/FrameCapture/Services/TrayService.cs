@@ -54,13 +54,12 @@ public sealed class TrayService : IDisposable
     /// <summary>让托盘图标可见。构造时故意不可见，宿主装配完再调本方法——避免图标先出现、菜单还点不动的窗口期。</summary>
     public void Show() => _icon.Visible = true;
 
-    /// <summary>托盘气泡提示：tray 动作的轻量反馈（如「剪贴板里没有图片」）。失败静默。</summary>
-    /// <param name="msg">气泡正文，单行短文本；显示 2.5 秒后自动消失，不阻塞调用。</param>
-    public void Notify(string msg)
-    {
-        try { _icon.ShowBalloonTip(2500, "FrameCapture", msg, WinForms.ToolTipIcon.Info); }
-        catch { }
-    }
+    /// <summary>
+    /// 提示气泡：托盘动作的轻量反馈（如「剪贴板里没有图片」）。走 <see cref="Overlays.NoticeToast"/>，
+    /// 与截屏浮窗同一套样式、圆角与动效；系统托盘气泡的样式不受主题控制，也不在程序自己的掌控里。
+    /// </summary>
+    /// <param name="msg">气泡正文，单行短文本；停留 4 秒后自动消失，不阻塞调用。</param>
+    public void Notify(string msg) => Dispatch(() => Overlays.NoticeToast.Show(msg));
 
     /// <summary>切换「暂停全局热键」。托盘菜单项与 `--pause-toggle` IPC 共用；返回切换后的状态。</summary>
     /// <returns>切换后的暂停态：true = 已暂停（钩子不喂手势、不吞任何键），false = 恢复正常工作。</returns>
