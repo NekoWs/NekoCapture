@@ -23,6 +23,11 @@ public sealed class LiveCapture : IDisposable
     /// <value>在名为 LiveCapture 的后台线程上同步调用，回调方不得做耗时操作，需要 UI 副作用要自己投递。</value>
     public event Action<CapturedFrame>? FrameSampled;
 
+    /// <summary>捕获线程因写帧失败而中止时触发（在捕获线程上）。磁盘写满、文件句柄失效都会走到这里。
+    /// 订阅方据此收尾；已采到的帧不丢弃，由订阅方决定怎么交付。</summary>
+    /// <value>在捕获线程上同步调用，需要 UI 副作用的订阅方自己投递；订阅方抛出的异常被吞掉。</value>
+    public event Action<Exception>? Faulted;
+
     /// <summary>目标显示器，<see cref="Start"/> 时记下，<see cref="Stop"/> 之后仍保留最后一次的值。</summary>
     /// <value>从未启动过时为 null。</value>
     public MonitorInfo? TargetMonitor { get; private set; }
@@ -75,7 +80,14 @@ public sealed class LiveCapture : IDisposable
                 grabbed++;
                 f.TimeMs = _clock.ElapsedMilliseconds;
                 lock (_gate) _latest = f;
-                FrameSampled?.Invoke(f);
+                try { FrameSampled?.Invoke(f); }
+                catch (Exception ex)
+                {
+                    // 写帧失败若不拦，后台线程异常会终止整个进程，录到现在的帧全丢
+                    FrameCapture.Core.Trace.Log($"loop fault {ex.GetType().Name}: {ex.Message}");
+                    _running = false;
+                    try { Faulted?.Invoke(ex); } catch { }
+                }
             }
             else failed++;
             if ((grabbed + failed) % 30 == 1)

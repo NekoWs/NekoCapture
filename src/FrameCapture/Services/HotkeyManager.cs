@@ -66,6 +66,10 @@ public sealed class HotkeyManager : IDisposable
     /// <summary>慢回调看门狗阈值（ms）：钩子回调占着全系统输入链，超过即记 trace。</summary>
     const double HookSlowWarnMs = 50;
 
+    // 逐键 trace 开关：进程启动时读一次，键鼠钩子回调里不做环境块查找（回调超时会被系统静默摘钩）。
+    // 隐私：默认关闭，绝不记录用户按键——仅调试注入链路时设 FC_TRACE_KEYS=1 才逐键记录。
+    static readonly bool TraceKeys = Environment.GetEnvironmentVariable("FC_TRACE_KEYS") == "1";
+
     /// <summary>装全局低级键盘钩子。钩子承载三件事：手势喂键（<see cref="KeySink"/>）、滚动截图 Esc 全局取消、
     /// 截图浮窗 Enter/Esc。<c>KeySink=null</c> 时不装——滚动/浮窗会话只在手势触发时才活跃，无 KeySink 即无会话需求。
     /// 幂等：内部先卸后装。装失败抛 <see cref="System.ComponentModel.Win32Exception"/>，由调用方决定怎么呈现。</summary>
@@ -120,7 +124,7 @@ public sealed class HotkeyManager : IDisposable
         uint vk = info.vkCode;
         bool isDown = (info.flags & Win32.LLKHF_UP) == 0;
         // 隐私：绝不记录用户按键（全局钩子可见所有键击）。仅调试注入链路时设 FC_TRACE_KEYS=1 才逐键记录。
-        if (Environment.GetEnvironmentVariable("FC_TRACE_KEYS") == "1")
+        if (TraceKeys)
             FrameCapture.Core.Trace.Log($"hook key={info.vkCode} down={isDown} installed={Installed}");
 
         // 手势引擎喂键（唯一的全局触发路径）。手势层关闭时 KeySink=null，零开销。

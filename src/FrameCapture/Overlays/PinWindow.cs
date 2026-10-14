@@ -34,6 +34,8 @@ public sealed class PinWindow : Window
     Border _card;   // 入场「落图」缩放动画挂这（RenderTransform 空闲，Rotate 转的是帧数据非变换）
     readonly TextBlock _snackText;
     DispatcherTimer? _snackTimer;
+    DispatcherTimer? _refreshTimer; // 「更新内容」的 200ms 延迟定时器，关窗时要停掉
+    bool _closed;                   // 窗口已关闭：在途的刷新 Tick 不得再 Show()
     // 贴图显示时是否抢焦点。默认 true（编辑器 Ctrl+P / 剪贴板贴图，用户正盯着它）；
     // 「截图后=贴图」传 false——贴图静默出现不抢焦点，符合"钉住参考后继续原应用操作"意图，点击时才激活（Snipaste 式）。
     readonly bool _activateOnShow;
@@ -212,7 +214,7 @@ public sealed class PinWindow : Window
         };
 
         Loaded += (_, _) => _open.Add(this);
-        Closed += (_, _) => _open.Remove(this);
+        Closed += (_, _) => { _open.Remove(this); _closed = true; _refreshTimer?.Stop(); }; // 关窗后刷新不得再复活本窗
 
         // 入场=淡入 + 卡片从 0.82 缩放「落图」带轻微回弹（BackEase），像把图钉到桌面
         ContentRendered += (_, _) =>
@@ -308,15 +310,18 @@ public sealed class PinWindow : Window
     }
 
     /// <summary>原地重抓源区域刷新贴图内容（Snipaste F3 式）——盯梢会变的区域（进度条、数值、直播画面）
-    /// 不必重新截图。先隐藏本贴图避免把自己截进新帧（反馈循环），短暂延迟让隐藏生效，再按当前旋转角度重放。</summary>
+    /// 不必重新截图。先隐藏本贴图避免把自己截进新帧（反馈循环），短暂延迟让隐藏生效，再按当前旋转角度重放。
+    /// 延迟期间窗口被关闭（Esc / 关闭全部贴图）则本次刷新作废：对已关闭的窗调 Show 会抛。</summary>
     void Refresh()
     {
         if (_srcRegion.W < 1 || _srcRegion.H < 1) { Flash("无法更新"); return; }
         Hide(); // 先离场，否则置顶贴图会被自己截进新帧
         var t = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) };
+        _refreshTimer = t;
         t.Tick += (_, _) =>
         {
             t.Stop();
+            if (_closed) return;
             var f = LiveCapture.Grab(_srcRegion);
             if (f != null && f.W > 0 && f.H > 0)
             {

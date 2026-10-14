@@ -70,7 +70,7 @@ public sealed class WgcLiveCapture : IDisposable
     /// 越界不在本方法报错，而是首帧拷贝时抛异常并停掉本后端。</param>
     /// <param name="fps">目标帧率，先钳到 AppSettings 上下限；不低于显示器刷新率时全保不丢帧。</param>
     /// <param name="includeCursor">帧里是否画鼠标指针；系统不支持该开关时按系统默认。</param>
-    /// <exception cref="TimeoutException">初始化线程 5s 内没有返回。</exception>
+    /// <exception cref="TimeoutException">初始化线程 5s 内没有返回。该线程是后台线程，被弃在 WinRT 调用里也不会拖住进程退出。</exception>
     public void Start(MonitorInfo monitor, RectI region, int fps, bool includeCursor = true)
     {
         Stop();
@@ -88,7 +88,7 @@ public sealed class WgcLiveCapture : IDisposable
             try { Init(monitor); }
             catch (Exception e) { initErr = e; }
             finally { done.Set(); }
-        }) { IsBackground = false, Name = "WgcInit" };
+        }) { IsBackground = true, Name = "WgcInit" }; // 后台线程：初始化卡在 WinRT 里时也不能拖住进程退出
         initThread.Start();
         if (!done.Wait(5000))
             throw new TimeoutException("wgc init timeout");

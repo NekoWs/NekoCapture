@@ -71,6 +71,12 @@ public sealed partial class CaptureController : IDisposable
         _settings = settings;
         // 只订阅一次：避免多次捕获累积 handler，导致同一帧重复入仓
         _live.FrameSampled += f => _spool?.Add(f);
+        // 捕获线程写帧失败（磁盘满、句柄失效）会中止捕获线程并在这里回调，同样只订阅一次
+        _live.Faulted += _ => System.Windows.Application.Current?.Dispatcher.BeginInvoke(() =>
+        {
+            // 捕获线程触发 → 回 UI 线程停录；已录内容照常进编辑器，绝不静默丢帧
+            if (State == Phase.Capturing) FinishCapture();
+        });
         _recBadgeTimer = new System.Windows.Threading.DispatcherTimer();
         _recBadgeTimer.Tick += (_, _) =>
         {
