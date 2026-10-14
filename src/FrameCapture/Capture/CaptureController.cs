@@ -49,6 +49,9 @@ public sealed partial class CaptureController : IDisposable
     // 滚动截图——选区后自动检测滚动并拼接（目标窗保持焦点，用户只管滚）
     private bool _scrollAfterSelect;
     private Overlays.ScrollHintWindow? _scrollBar;
+    private Overlays.ScrollStageWindow? _scrollStage;       // 取景层：范围外压暗 + 范围描边，鼠标穿透
+    private Overlays.ScrollPreviewWindow? _scrollPreview;   // 选区右侧的已拼接长图实时预览
+    private bool _scrollAuto;   // 「自动滚动」开关：控制条按钮翻转它，本类不注入任何滚动
     private byte[]? _scrollAcc;
     private int _scrollW, _scrollH, _scrollSegs;
     private RectI _scrollRegion;

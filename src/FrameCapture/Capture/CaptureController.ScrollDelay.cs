@@ -22,14 +22,23 @@ public sealed partial class CaptureController : IDisposable
     }
 
     /// <summary>选区确认后进入步进拼接循环：先抓基准帧，之后每 280ms 抓一帧，等滚动停稳再按重叠行数追加。
-    /// 基准帧抓不到（区域已被关掉）就直接放弃，不进入循环也不留控制条。</summary>
+    /// 基准帧抓不到（区域已被关掉）就直接放弃，不进入循环也不留任何浮层——取景层与预览卡在基准帧之后才创建。</summary>
     void StartScrollLoop(RectI region, string device)
     {
         var f = LiveCapture.Grab(region);
         if (f == null) { FrameCapture.Core.Trace.Log("scroll: first grab null"); return; }
         _scrollAcc = f.Bgra; _scrollW = f.W; _scrollH = f.H; _scrollRegion = region; _scrollDevice = device; _scrollSegs = 1;
-        _scrollPrevB = null;
-        _scrollBar = new Overlays.ScrollHintWindow(region, device) { OnDone = ScrollDone, OnCancel = ScrollCancel };
+        _scrollPrevB = null; _scrollAuto = false;
+        // 三层自下而上：取景层 → 预览卡 → 控制条。三者同为 Topmost，Show 顺序决定 Z 序，控制条必须在最上
+        _scrollStage = new Overlays.ScrollStageWindow(region, device);
+        _scrollStage.Show();
+        _scrollPreview = new Overlays.ScrollPreviewWindow(region, device);
+        _scrollPreview.SetImage(_scrollAcc, _scrollW, _scrollH);   // 基准帧就上屏：进流程第一眼就有预览
+        _scrollPreview.Show();
+        _scrollBar = new Overlays.ScrollHintWindow(region, device)
+        {
+            OnDone = ScrollDone, OnCancel = ScrollCancel, OnToggleAutoScroll = ScrollToggleAuto,
+        };
         _scrollBar.SetProgress(1, _scrollH);
         _scrollBar.Show();   // ShowActivated=false：不抢焦点，目标窗继续接收滚动
         // 会话期间全局吞 Esc 取消；标志绑定控制条生命周期，Closed 兜底清零，绝不泄漏成"全局 Esc 失灵"
@@ -40,6 +49,14 @@ public sealed partial class CaptureController : IDisposable
         _scrollTimer.Tick += (_, _) => ScrollTick();
         _scrollTimer.Start();
         FrameCapture.Core.Trace.Log($"scroll loop start {region.W}x{region.H}");
+    }
+
+    /// <summary>「自动滚动」按钮：翻转开关并把按钮文案/配色交给控制条。这里不注入任何滚动。</summary>
+    void ScrollToggleAuto()
+    {
+        _scrollAuto = !_scrollAuto;
+        _scrollBar?.SetAutoScrolling(_scrollAuto);
+        FrameCapture.Core.Trace.Log($"scroll auto={_scrollAuto}");
     }
 
     void ScrollTick()
@@ -61,15 +78,26 @@ public sealed partial class CaptureController : IDisposable
         _scrollH = _scrollAcc.Length / (_scrollW * 4);
         _scrollSegs++;
         _scrollBar.SetProgress(_scrollSegs, _scrollH);
+        _scrollPreview?.SetImage(_scrollAcc, _scrollW, _scrollH);
         FrameCapture.Core.Trace.Log($"scroll append ov={ov} new={newRows} h={_scrollH}");
+    }
+
+    /// <summary>收起取景层与预览卡并清字段。完成与取消两条退出路径都走这里——漏一条就是关不掉的压暗遮罩。</summary>
+    void CloseScrollStageAndPreview()
+    {
+        var stage = _scrollStage; _scrollStage = null;
+        var prev = _scrollPreview; _scrollPreview = null;
+        stage?.CloseSelf();
+        prev?.CloseSelf();
     }
 
     void ScrollDone()
     {
         Services.HotkeyManager.ScrollActive = false;
         _scrollTimer?.Stop(); _scrollTimer = null;
+        CloseScrollStageAndPreview();
         var acc = _scrollAcc; var bar = _scrollBar;
-        _scrollAcc = null; _scrollBar = null; _scrollPrevB = null;
+        _scrollAcc = null; _scrollBar = null; _scrollPrevB = null; _scrollAuto = false;
         if (acc == null) { bar?.CloseSelf(); return; }
         var frame = new CapturedFrame { Bgra = acc, W = _scrollW, H = _scrollH, TimeMs = 0 };
         var reg = _scrollRegion; var dev = _scrollDevice; int segs = _scrollSegs; _scrollSegs = 0;
@@ -97,13 +125,14 @@ public sealed partial class CaptureController : IDisposable
         _lastStill.Set(frame, reg, dev);
     }
 
-    /// <summary>取消滚动拼接：停表、关控制条、丢弃已拼接的内容（不落盘、不进剪贴板）。
+    /// <summary>取消滚动拼接：停表、收起取景层与预览卡、关控制条、丢弃已拼接的内容（不落盘、不进剪贴板）。
     /// 退出必须清 <c>HotkeyManager.ScrollActive</c>，否则全局 Esc 会被一直吞掉（控制条 <c>Closed</c> 另有兜底）。</summary>
     public void ScrollCancel()
     {
         Services.HotkeyManager.ScrollActive = false;
         _scrollTimer?.Stop(); _scrollTimer = null;
-        var bar = _scrollBar; _scrollBar = null; _scrollAcc = null; _scrollPrevB = null; _scrollSegs = 0;
+        CloseScrollStageAndPreview();
+        var bar = _scrollBar; _scrollBar = null; _scrollAcc = null; _scrollPrevB = null; _scrollSegs = 0; _scrollAuto = false;
         bar?.CloseSelf();
         FrameCapture.Core.Trace.Log("scroll cancel");
     }

@@ -142,6 +142,16 @@ public partial class App : System.Windows.Application
         if (e.Args.Any(a => string.Equals(a, "--picker", StringComparison.OrdinalIgnoreCase)))
             Dispatcher.BeginInvoke(() => Services.AppHost.Current.Controller.BeginScopeSelection(),
                 System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+        // 调试/e2e：摆出滚动截图的取景层 + 实时预览 + 控制条（喂一张合成长图，不启动真实滚动捕获），
+        // 供 UICap desk 截图审查。FrameCapture.exe --scrollpreview <合成长图输出png>
+        int spi = Array.FindIndex(e.Args, a => string.Equals(a, "--scrollpreview", StringComparison.OrdinalIgnoreCase));
+        if (spi >= 0)
+        {
+            string spOut = spi + 1 < e.Args.Length ? e.Args[spi + 1]
+                : System.IO.Path.Combine(System.IO.Path.GetTempPath(), "FrameCapture", "scrollpreview.png");
+            Dispatcher.BeginInvoke(() => ShowScrollPreviewScene(spOut),
+                System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+        }
         // 调试/e2e：按标题子串截取一个窗口（WGC 本体 + 可选投影），存 PNG，便于取证 alpha/圆角/投影。
         // FrameCapture.exe --wincap <标题子串> <输出png路径> [--noshadow]
         int wi = Array.FindIndex(e.Args, a => string.Equals(a, "--wincap", StringComparison.OrdinalIgnoreCase));
@@ -212,6 +222,59 @@ public partial class App : System.Windows.Application
                 catch (Exception ex) { FrameCapture.Core.Trace.Log("freezetest fail: " + ex); }
             }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
         }
+    }
+
+    /// <summary>摆出滚动截图三件套（取景层 / 实时预览卡 / 控制条）并喂一张合成长图，供截图审查；不启动真实滚动捕获。</summary>
+    /// <param name="outp">合成长图的落盘路径，用来与预览卡片逐行对照。</param>
+    static void ShowScrollPreviewScene(string outp)
+    {
+        try
+        {
+            Native.Win32.GetCursorPos(out var pt);
+            var mon = Capture.Monitors.Nearest(pt.X, pt.Y);
+            int rw = Math.Min(900, mon.Bounds.W - 40), rh = Math.Min(520, mon.Bounds.H - 40);
+            var region = new Capture.RectI(mon.Bounds.X + (mon.Bounds.W - rw) / 2,
+                mon.Bounds.Y + (mon.Bounds.H - rh) / 2, rw, rh);
+            const int accH = 6000;
+            var acc = new byte[(long)rw * accH * 4];
+            for (int i = 0; i < acc.Length; i += 4) { acc[i] = 255; acc[i + 1] = 255; acc[i + 2] = 255; acc[i + 3] = 255; }
+            // 白底 + 每 22 行一条深色文字带（带宽随段号变化）：缩放对不对，一眼可辨
+            for (int y = 0, k = 0; y < accH; y += 22, k++)
+            {
+                int xEnd = rw - 24 - (k % 9) * 60;
+                for (int yy = y; yy < Math.Min(y + 8, accH); yy++)
+                    for (int x = 24; x < xEnd; x++)
+                    {
+                        int o = (yy * rw + x) * 4;
+                        acc[o] = 0x33; acc[o + 1] = 0x36; acc[o + 2] = 0x3A; acc[o + 3] = 255;
+                    }
+            }
+            // 末 4 行铺强调色：预览底部看得见这条色带，说明抽样取到了最后一行
+            var ac = Core.Theme.Accent;
+            for (int yy = accH - 4; yy < accH; yy++)
+                for (int x = 0; x < rw; x++)
+                {
+                    int o = (yy * rw + x) * 4;
+                    acc[o] = ac.B; acc[o + 1] = ac.G; acc[o + 2] = ac.R; acc[o + 3] = 255;
+                }
+            Services.BgraImage.SavePng(new Capture.CapturedFrame { Bgra = acc, W = rw, H = accH, TimeMs = 0 }, outp);
+
+            // 与真实会话同一顺序：取景层 → 预览卡 → 控制条（同为 Topmost，Show 顺序决定 Z 序）
+            var stage = new Overlays.ScrollStageWindow(region, mon.DeviceName);
+            stage.Show();
+            var preview = new Overlays.ScrollPreviewWindow(region, mon.DeviceName);
+            preview.SetImage(acc, rw, accH);
+            preview.Show();
+            var bar = new Overlays.ScrollHintWindow(region, mon.DeviceName);
+            bool auto = false;
+            bar.OnDone = bar.OnCancel = () => { stage.CloseSelf(); preview.CloseSelf(); bar.CloseSelf(); };
+            bar.OnToggleAutoScroll = () => { auto = !auto; bar.SetAutoScrolling(auto); };
+            bar.SetProgress(1, accH);
+            Overlays.ScrollHintWindow.Current = bar;
+            bar.Show();
+            Core.Trace.Log($"scrollpreview shown region={region} accH={accH} out={outp}");
+        }
+        catch (Exception ex) { Core.Trace.Log("scrollpreview fail: " + ex); }
     }
 
     /// <summary>按标题子串（不区分大小写）找第一个可见顶层窗（调试/e2e 用）。</summary>

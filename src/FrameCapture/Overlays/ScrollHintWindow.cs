@@ -12,7 +12,7 @@ namespace FrameCapture.Overlays;
 
 /// <summary>
 /// 滚动截图控制条：选区后常驻，用户只管滚动目标窗口，后台定时器自动找重叠拼接；
-/// 本条只做进度显示 + 完成/取消。WDA_EXCLUDEFROMCAPTURE 排除，绝不入镜。
+/// 本条只做进度显示 + 自动滚动开关 + 完成/取消。WDA_EXCLUDEFROMCAPTURE 排除，绝不入镜。
 /// 关键手感：ShowActivated=false **不抢焦点**——目标窗口保持焦点，滚轮/键盘滚动照常生效
 /// （若本条抢了焦点，关闭「悬停滚动」的系统里滚轮会落到本条、目标窗纹丝不动）。
 /// </summary>
@@ -22,13 +22,20 @@ public sealed class ScrollHintWindow : Window
     /// 由按钮点击或 Enter/Esc 在 UI 线程触发；<c>CloseSelf</c> 不会调用它们。</value>
     public Action? OnDone, OnCancel;
 
+    /// <value>「自动滚动」按钮的点击回调；未挂时点按钮无副作用。
+    /// 本类只负责按钮状态与提示行，滚动本身由挂上来的控制器决定。</value>
+    public Action? OnToggleAutoScroll;
+
     readonly TextBlock _progress;
     readonly TextBlock _hint;
+    readonly Button _auto;
     bool _closing;
+    bool _autoOn;   // 「自动滚动」开关态：决定提示行文案，拼接进度刷新时据此复位
     int _lastSegs = 1;   // 与构造里初始「已拼接 1 段」对齐，首帧不弹，之后每拼接一段弹一下
 
     const string DefaultHint = "滚动目标窗口，自动拼接 · 点「完成」结束";
-    const double W = 372;      // DIP 宽（估算落点用；实际 SizeToContent）
+    const string AutoHint = "自动滚动中 · 到底自动停止";
+    const double W = 458;      // DIP 宽（估算落点用；实际 SizeToContent）
     const double EstH = 96;    // 估算高（落点用）
 
     /// <value>当前显示中的控制条，无则 null；<c>Closed</c> 时自行清零。</value>
@@ -106,16 +113,22 @@ public sealed class ScrollHintWindow : Window
         };
         root.Children.Add(_hint);
 
-        // 按钮行：完成（强调）· 取消
+        // 按钮行：自动滚动（开关）· 完成（强调）· 取消
         var btns = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 12, 0, 0) };
         // 完成按钮前景随强调色明暗自适应（浅强调色→黑字，深→白字），同 OCR 窗 OnAccentColor，避免浅底白字不可读
         var done = MakeBtn("完成", Theme.Accent, Fluent.OnAccentColor(Theme.Accent));
         done.Click += (_, _) => OnDone?.Invoke();
         var cancel = MakeBtn("取消", Theme.Hover, Theme.TextDim);
         cancel.Click += (_, _) => OnCancel?.Invoke();
+        // 开关按钮的关态与「取消」同色，开态换强调底——配色与文案一起由 SetAutoScrolling 决定
+        _auto = MakeBtn("自动滚动", Theme.Hover, Theme.TextDim);
+        _auto.Click += (_, _) => OnToggleAutoScroll?.Invoke();
         // 悬停只改底色带过渡，不缩放——缩放会让一排小按钮互相挤动
         Fluent.Springy(done);
         Fluent.Springy(cancel);
+        Fluent.Springy(_auto);
+        btns.Children.Add(_auto);
+        btns.Children.Add(new Border { Width = 8 });
         btns.Children.Add(done);
         btns.Children.Add(new Border { Width = 8 });
         btns.Children.Add(cancel);
@@ -150,16 +163,29 @@ public sealed class ScrollHintWindow : Window
         Fluent.FadeIn(this, Fluent.Motion.EnterMs, 8, offscreenFirstFrame: true);
     }
 
-    /// <summary>刷新进度：段数与拼接后总高，并把提示行复位为默认文案（清掉 <see cref="FlashHint"/> 的提醒）。
+    /// <summary>刷新进度：段数与拼接后总高，并把提示行复位到当前开关态的文案（清掉 <see cref="FlashHint"/> 的提醒）。
     /// 段数变化才让数字弹一下，刷同一值不动画。</summary>
     /// <param name="segments">已拼接段数，从 1 起（基准帧算第 1 段）。</param>
     /// <param name="heightPx">拼接后位图的总高，物理像素。</param>
     public void SetProgress(int segments, int heightPx)
     {
         _progress.Text = $"已拼接 {segments} 段 · 高 {heightPx} px";
-        _hint.Text = DefaultHint;
+        _hint.Text = _autoOn ? AutoHint : DefaultHint;
         _hint.Foreground = new SolidColorBrush(Theme.TextDim);
         if (segments != _lastSegs) { _lastSegs = segments; PopProgress(); }
+    }
+
+    /// <summary>切换「自动滚动」的按钮文案、配色与提示行。底色与文案同拍换、不做颜色过渡——
+    /// 文案没法动画，半淡的底色和已经换掉的文案对不齐。</summary>
+    /// <param name="on">开＝「停止自动滚动」+ 强调底，关＝「自动滚动」+ 次级底。</param>
+    public void SetAutoScrolling(bool on)
+    {
+        _autoOn = on;
+        _auto.Content = on ? "停止自动滚动" : "自动滚动";
+        _auto.Background = new SolidColorBrush(on ? Theme.Accent : Theme.Hover);
+        _auto.Foreground = new SolidColorBrush(on ? Fluent.OnAccentColor(Theme.Accent) : Theme.TextDim);
+        _hint.Text = on ? AutoHint : DefaultHint;
+        _hint.Foreground = new SolidColorBrush(Theme.TextDim);
     }
 
     /// <summary>每成功拼接一段，进度数字弹一下（0.72→1.0 BackEase 过冲，右缘锚定不撞标题）——滚动拼接时的「QQ 弹弹」即时反馈，同倒计时数字弹入。</summary>
