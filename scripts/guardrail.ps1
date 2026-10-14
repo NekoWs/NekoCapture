@@ -1,8 +1,8 @@
 # E 回归护栏（UIAUDIT.md E 条目）：一条命令跑完整闸门——
 #   构建 0 error → SelfTest 全过（≥基线数）→ 注入可达性探针 → 全套 e2e（捕获链路/热键/点按语义/焦点安全/状态机 fuzz）
 # 语义：SKIP（反外挂拦截注入）≠ FAIL；缺 PASS 标记一律按 FAIL（不信任无结果的运行）。
-# 用法: pwsh -NoProfile -File scripts/guardrail.ps1 [-SkipE2e] [-MinSelfTestPass 75]
-param([switch]$SkipE2e, [int]$MinSelfTestPass = 75)
+# 用法: pwsh -NoProfile -File scripts/guardrail.ps1 [-SkipE2e] [-MinSelfTestPass 481]
+param([switch]$SkipE2e, [int]$MinSelfTestPass = 481)
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 . (Join-Path $PSScriptRoot "lib-hotkey.ps1")
@@ -28,6 +28,15 @@ if ($lm.Success) {
     Add-Result "lint:comments" $(if ($lf -eq 0) { "PASS" } else { "FAIL" }) "FAIL=$lf WARN=$lw"
     if ($lf -gt 0) { Say (& pwsh -NoProfile -File (Join-Path $PSScriptRoot "lint-comments.ps1") 2>&1 | Out-String) }
 } else { Add-Result "lint:comments" "FAIL" "扫描器无输出" }
+
+# 0b) 动效令牌护栏（GOAL.md：动效必须引用 Fluent.Motion 令牌）
+$motionOut = & pwsh -NoProfile -File (Join-Path $PSScriptRoot "lint-motion-tokens.ps1") -Quiet 2>&1 | Out-String
+$mm = [regex]::Match($motionOut, 'LINT-MOTION (\w+)\s+FAIL=(\d+)')
+if ($mm.Success) {
+    $mf = [int]$mm.Groups[2].Value
+    Add-Result "lint:motion-tokens" $(if ($mf -eq 0) { "PASS" } else { "FAIL" }) "FAIL=$mf"
+    if ($mf -gt 0) { Say (& pwsh -NoProfile -File (Join-Path $PSScriptRoot "lint-motion-tokens.ps1") 2>&1 | Out-String) }
+} else { Add-Result "lint:motion-tokens" "FAIL" "扫描器无输出" }
 
 # 1) 杀掉运行中的实例（否则 MSB3027 会让构建静默失败）
 $hadUserInstance = [bool](Get-Process FrameCapture -EA SilentlyContinue)

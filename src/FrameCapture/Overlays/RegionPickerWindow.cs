@@ -184,7 +184,7 @@ public sealed partial class RegionPickerWindow : Window
             if (_freeze) { StartFreezeSnapshot(); if (_windowCapture && _pregrabMax > 0) StartWindowPregrab(); }
             // 分层窗（AllowsTransparency）没有黑首帧问题，绝不能屏外停放：
             // 本窗 Left/Top 在 Loaded 才赋值，Park 抓到的 home=NaN，回写 NaN 会让系统级联位兜底（实测偏移 266,266，提示被推出屏外）
-            Core.Fluent.FadeIn(this, 120);
+            Core.Fluent.FadeIn(this, Core.Fluent.Motion.QuickMs);
         };
         {
             var swOpen = System.Diagnostics.Stopwatch.StartNew();

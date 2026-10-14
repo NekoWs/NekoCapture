@@ -270,7 +270,7 @@ public sealed class RegionOutlineWindow : Window
             _fadeTimer.Tick += (_, _) =>
             {
                 _fadeTimer!.Stop();
-                var a = new System.Windows.Media.Animation.DoubleAnimation(0, new System.Windows.Duration(TimeSpan.FromMilliseconds(350)))
+                var a = new System.Windows.Media.Animation.DoubleAnimation(0, new System.Windows.Duration(TimeSpan.FromMilliseconds(Core.Fluent.Motion.DissolveMs)))
                 { EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseInOut } };
                 a.Completed += (_, _) => Dispatcher.Invoke(Hide);
                 BeginAnimation(OpacityProperty, a);
@@ -285,17 +285,17 @@ public sealed class RegionOutlineWindow : Window
     /// <remarks>淡色常态由本动画落到；下一次 <see cref="ShowNoActivate"/> 会经 ResetBorder 复位到 0xC0 / 2px。</remarks>
     public void Flash()
     {
-        // 亮起后 450ms cubic-out 连续回落到常态，中途不分档，避免看到"跳一下"
+        // 亮起后按 FlashMs 单向往落到常态，cubic-out 中途不分档，避免看到"跳一下"
         _flashTimer.Stop();
         var b = new SolidColorBrush(AccentCol(0xFF));
         _border.BorderBrush = b;
         _border.BorderThickness = new Thickness(3);
         var ca = new System.Windows.Media.Animation.ColorAnimation(AccentCol(0x60),
-            new Duration(TimeSpan.FromMilliseconds(450)))
+            new Duration(TimeSpan.FromMilliseconds(Core.Fluent.Motion.FlashMs)))
         { EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut } };
         b.BeginAnimation(SolidColorBrush.ColorProperty, ca);
         var ta = new System.Windows.Media.Animation.ThicknessAnimation(new Thickness(2),
-            new Duration(TimeSpan.FromMilliseconds(450)))
+            new Duration(TimeSpan.FromMilliseconds(Core.Fluent.Motion.FlashMs)))
         { EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut } };
         _border.BeginAnimation(Border.BorderThicknessProperty, ta);
     }

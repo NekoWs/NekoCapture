@@ -41,9 +41,9 @@ public static partial class Fluent
         b.RenderTransform = new ScaleTransform(1, 1);
         // 弹性手感：hover 轻微放大、按下明显回缩、松手用 BackEase 过冲弹回——比纯 CubicEase 更有生命力
         b.MouseEnter += (_, _) => AnimateScale(b, 1.08, Motion.HoverMs, Spring(0.4));
-        b.PreviewMouseLeftButtonDown += (_, _) => AnimateScale(b, 0.9, 70);
+        b.PreviewMouseLeftButtonDown += (_, _) => AnimateScale(b, 0.9, Motion.PressMs);
         b.MouseUp += (_, _) => AnimateScale(b, 1.08, Motion.SpringMs, Spring(0.7));
-        b.MouseLeave += (_, _) => AnimateScale(b, 1, 120);
+        b.MouseLeave += (_, _) => AnimateScale(b, 1, Motion.QuickMs);
         return b;
     }
 

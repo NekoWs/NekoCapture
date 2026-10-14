@@ -124,7 +124,7 @@ public sealed partial class GestureEditorWindow : Window
         _chordBox.MouseLeftButtonDown += (_, _) => BeginCapture();
         _chordBox.KeyDown += (_, e) => { if (!_capturing && e.Key is Key.Space or Key.Enter) { BeginCapture(); e.Handled = true; } };
         // hover 与键盘焦点共用一套描边刷新：聚焦或悬停任一成立即转 accent，140ms 颜色过渡
-        void RefreshChordBorder() { if (!_capturing) AnimateColor(_chordStroke, (_chordHover || _chordFocus) ? _pal.Accent : _pal.Stroke, 140); }
+        void RefreshChordBorder() { if (!_capturing) AnimateColor(_chordStroke, (_chordHover || _chordFocus) ? _pal.Accent : _pal.Stroke, Motion.HoverMs); }
         _chordBox.MouseEnter += (_, _) => { _chordHover = true; RefreshChordBorder(); };
         _chordBox.MouseLeave += (_, _) => { _chordHover = false; RefreshChordBorder(); };
         _chordBox.GotKeyboardFocus += (_, _) => { _chordFocus = true; RefreshChordBorder(); };
@@ -260,7 +260,7 @@ public sealed partial class GestureEditorWindow : Window
         _chordText.Text = _capturing ? "按下新键…（Esc 取消）" : (string.IsNullOrEmpty(s) ? "点击设置" : s);
         _chordText.Foreground = _pal.B(_capturing ? _pal.Accent : _pal.Text);
         if (_chordStroke != null)
-            AnimateColor(_chordStroke, _capturing || _chordHover || _chordFocus ? _pal.Accent : _pal.Stroke, 140);
+            AnimateColor(_chordStroke, _capturing || _chordHover || _chordFocus ? _pal.Accent : _pal.Stroke, Motion.HoverMs);
     }
     #endregion
 

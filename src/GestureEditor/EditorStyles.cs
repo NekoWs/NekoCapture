@@ -71,7 +71,7 @@ public static class EditorStyles
                 var st = new ScaleTransform(0.94, 0.94);
                 dd.RenderTransformOrigin = new Point(0, 0);
                 dd.RenderTransform = st;
-                var a = new DoubleAnimation(0.94, 1.0, new Duration(TimeSpan.FromMilliseconds(200)))
+                var a = new DoubleAnimation(0.94, 1.0, new Duration(TimeSpan.FromMilliseconds(Motion.EnterMs)))
                 { EasingFunction = new BackEase { Amplitude = 0.45, EasingMode = EasingMode.EaseOut } };
                 st.BeginAnimation(ScaleTransform.ScaleXProperty, a);
                 st.BeginAnimation(ScaleTransform.ScaleYProperty, a);

@@ -114,8 +114,9 @@ B1 主题化悬浮条 → C1/C2 状态语义 → A1/A2 入退场 → A3-A5 → B
 - [ ] **窗级淡入淡出在真实屏幕上不可见**：`PreTransparent` 释放 alpha 时直接给满，WPF 的窗口 `Opacity` 动画被盖住。浅色 25ms 连拍打开与关闭均一帧到位（248.0 → 桌面 75.4）。行级动画不受影响。待定方向：窗级透明度只走 WPF 单一通道，或接受窗级瞬时出现并删掉注释里的淡入承诺。
 - [x] **编辑器工具条逐项落定**：`CascadeRows(_toolsBar, risePx: 6, itemMs: HoverMs, budgetMs: SpringMs+StaggerMs, leadMs: EditorEnterMs)`。`CascadeIn` 新增 `leadMs`（延迟靠 `BeginTime` 前置期，不靠手动压 Opacity——手动压会被 `SetGhost` 这类 `BeginAnimation` 抢写）。断言 `T178a-d`；逐帧取证 `test-out/wave-dark2.png` + `editorwave` 模式。
 - [x] **编辑器播放条并入同一波**：播放条（四列 Grid）先、工具条后，错开一个 `Motion.StaggerMs`，两排各自左→右。断言 `T179a-c` 探被接管的列组容器（探按钮会假阳性，见 DECISIONS）；逐帧 `test-out/rows-dark.png` / `rows-light.png`。
-- [ ] **其余界面同规则推广**：贴图窗、托盘菜单的载入与状态切换按同一令牌补齐
+- [x] **其余界面同规则推广**：贴图窗淡入/0.94→1.0 弹入/退场与提示条、选区层淡入、捕获描边余晖全部改引令牌。托盘菜单是 WinForms 原生下拉，开合由系统「菜单显示动画」设定，不是本程序可控的动画表面。
 - [x] **`SettingsWindow.cs` 内 8 处裸时长**已收敛到 `Fluent.Motion`：行显隐 `EnterMs`/`ExitMs`，导航胶囊位移与换色 `StateMs`（与开关滑块同速，胶囊 300→150ms 属有意的节奏统一），翻页淡出 `ExitMs`。
+- [x] **全站动效时长令牌化 + 护栏**：28 处裸时长收进令牌——宿主 15 处引 `Fluent.Motion`，自包含库 `GestureEditor`（只依赖 GestureCore，不能反向引用宿主）新增本库 `Motion` 逐项对齐宿主数值。补 `PressMs/QuickMs/DissolveMs/FlashMs` 四个令牌承接按压下沉、即时过渡、提示退场、描边余晖四种既有节奏；hover 淡入 110 / 淡出 160 这类同义不同值统一为 `HoverMs`/`StateMs`。`scripts/lint-motion-tokens.ps1` 挂 guardrail 第 0 关：只认动画上下文，`DispatcherTimer.Interval` 这类逻辑定时器不在射程。
 ### 已知边界（非 bug）
 - D5 选区吸附/拖框态需真鼠标人工核验（自动化边界外）
 - 选区窗/悬浮 toast/编辑器实机：沙箱内合成热键触发不了（手势层低级钩子按安全惯例忽略注入输入；护栏 e2e 的应用内捕获正常）→ 已代码级复核 + R74/R77/R78 历史目视核验

@@ -74,7 +74,7 @@ public sealed class CaptureToast : Window
         card.MouseEnter += (_, _) => borderBrush.BeginAnimation(SolidColorBrush.ColorProperty,
             new ColorAnimation(Theme.Accent, new Duration(TimeSpan.FromMilliseconds(Fluent.Motion.HoverMs))));
         card.MouseLeave += (_, _) => borderBrush.BeginAnimation(SolidColorBrush.ColorProperty,
-            new ColorAnimation(strokeCol, new Duration(TimeSpan.FromMilliseconds(160))));
+            new ColorAnimation(strokeCol, new Duration(TimeSpan.FromMilliseconds(Fluent.Motion.StateMs))));
 
         var grid = new Grid();
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });

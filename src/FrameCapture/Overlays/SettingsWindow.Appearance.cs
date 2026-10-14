@@ -162,7 +162,7 @@ public sealed partial class SettingsWindow : Window
             {
                 if (localChip.Background is SolidColorBrush bg0)
                 {
-                    var anim = new System.Windows.Media.Animation.ColorAnimation(chipHover, new Duration(TimeSpan.FromMilliseconds(120)));
+                    var anim = new System.Windows.Media.Animation.ColorAnimation(chipHover, new Duration(TimeSpan.FromMilliseconds(Fluent.Motion.QuickMs)));
                     var holder = new SolidColorBrush(bg0.Color);
                     localChip.Background = holder;
                     holder.BeginAnimation(SolidColorBrush.ColorProperty, anim);
@@ -172,7 +172,7 @@ public sealed partial class SettingsWindow : Window
             {
                 if (localChip.Background is SolidColorBrush bg1)
                 {
-                    var anim = new System.Windows.Media.Animation.ColorAnimation(chipBase, new Duration(TimeSpan.FromMilliseconds(160)));
+                    var anim = new System.Windows.Media.Animation.ColorAnimation(chipBase, new Duration(TimeSpan.FromMilliseconds(Fluent.Motion.StateMs)));
                     var holder = new SolidColorBrush(bg1.Color);
                     localChip.Background = holder;
                     holder.BeginAnimation(SolidColorBrush.ColorProperty, anim);

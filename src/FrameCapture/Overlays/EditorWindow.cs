@@ -239,7 +239,7 @@ public sealed partial class EditorWindow : Window
         System.Windows.Controls.Panel.SetZIndex(_guide, 99);
         _root.Children.Add(_guide);
         _guide.BeginAnimation(OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(0, 1,
-            new Duration(TimeSpan.FromMilliseconds(220)))
+            new Duration(TimeSpan.FromMilliseconds(Fluent.Motion.EditorEnterMs)))
         { EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut } });
         Trace.Log("editor guide shown");
     }
@@ -252,7 +252,7 @@ public sealed partial class EditorWindow : Window
         _settings.Mutate(s => s.EditorGuideShown = true);
         Trace.Log("editor guide closed");
         var fade = new System.Windows.Media.Animation.DoubleAnimation(1, 0,
-            new Duration(TimeSpan.FromMilliseconds(160)))
+            new Duration(TimeSpan.FromMilliseconds(Fluent.Motion.StateMs)))
         { EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseIn } };
         fade.Completed += (_, _) => _root?.Children.Remove(g);
         g.BeginAnimation(OpacityProperty, fade);

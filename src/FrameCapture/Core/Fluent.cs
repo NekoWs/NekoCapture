@@ -30,6 +30,10 @@ public static partial class Fluent
         public const int StateMs = 150;      // 状态切换（开关/选中），与 Exit 同速
         public const int ThemeMs = 260;      // 主题交叉淡入
         public const int SpringMs = 260;     // 弹性回弹（松手/入场的 settling，BackEase 过冲）
+        public const int PressMs = 70;       // 按压下沉：必须短于 hover，按压要跟手
+        public const int QuickMs = 120;      // 即时短程过渡：按了就要看到的淡入/回位
+        public const int DissolveMs = 320;   // 瞬时提示退场：非交互响应，慢一点才不抢注意力
+        public const int FlashMs = 450;      // 捕获完成描边余晖的单向往落（不分档，避免看到跳变）
     }
 
     /// <summary>弹性缓动工厂：BackEase 过冲回弹，用于松手/入场的「弹一下」手感。

@@ -80,7 +80,7 @@ public sealed partial class EditorWindow : Window
             {
                 _snackTimer!.Stop();
                 _snack!.BeginAnimation(OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(
-                    0.0, TimeSpan.FromMilliseconds(320))
+                    0.0, TimeSpan.FromMilliseconds(Fluent.Motion.DissolveMs))
                 { EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseIn } });
             };
         }

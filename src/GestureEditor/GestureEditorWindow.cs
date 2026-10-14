@@ -93,8 +93,7 @@ public sealed partial class GestureEditorWindow : Window
         SetupMotion();
     }
 
-    #region 入场/退场动效（自包含，不引用宿主 Fluent）
-    const int EnterMs = 190, ExitMs = 150;   // 对齐宿主 Fluent.Motion.EnterMs/ExitMs
+    #region 入场/退场动效（时长取自本库 Motion）
     bool _closing;
     /// <summary>淡入 + 轻微缩放进场，淡出后再真关。时长与缓动对齐宿主 Fluent.Motion。</summary>
     void SetupMotion()
@@ -114,7 +113,7 @@ public sealed partial class GestureEditorWindow : Window
         ContentRendered += (_, _) =>
         {
             released = true;
-            var dur = new Duration(TimeSpan.FromMilliseconds(EnterMs));
+            var dur = new Duration(TimeSpan.FromMilliseconds(Motion.EnterMs));
             var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
             BeginAnimation(OpacityProperty, new DoubleAnimation(1, dur) { EasingFunction = ease });
             if (Content is FrameworkElement fe && fe.RenderTransform == null)
@@ -133,7 +132,7 @@ public sealed partial class GestureEditorWindow : Window
             e.Cancel = true;
             _closing = true;
             var cur = Opacity;
-            var a = new DoubleAnimation(cur, 0.0, new Duration(TimeSpan.FromMilliseconds(ExitMs))) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseIn } };
+            var a = new DoubleAnimation(cur, 0.0, new Duration(TimeSpan.FromMilliseconds(Motion.ExitMs))) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseIn } };
             a.Completed += (_, _) => Close();
             BeginAnimation(OpacityProperty, null);
             Opacity = cur;
@@ -242,7 +241,7 @@ public sealed partial class GestureEditorWindow : Window
             set(nb);
             cur = nb;
         }
-        AnimateColor(cur, to, 140);
+        AnimateColor(cur, to, Motion.HoverMs);
     }
     #endregion
 
@@ -294,7 +293,7 @@ public sealed partial class GestureEditorWindow : Window
         var stroke = new SolidColorBrush(_pal.Stroke);
         var border = new Border { CornerRadius = new CornerRadius(6), BorderThickness = new Thickness(1), BorderBrush = stroke, Background = _pal.B(_pal.CardBg), Padding = new Thickness(8, 6, 8, 6), Child = t, Focusable = false };
         bool hov = false, foc = false;
-        void Target() => AnimateColor(stroke, hov || foc ? _pal.Accent : _pal.Stroke, 140);
+        void Target() => AnimateColor(stroke, hov || foc ? _pal.Accent : _pal.Stroke, Motion.HoverMs);
         border.MouseEnter += (_, _) => { hov = true; Target(); };
         border.MouseLeave += (_, _) => { hov = false; Target(); };
         t.GotKeyboardFocus += (_, _) => { foc = true; Target(); };
@@ -323,10 +322,10 @@ public sealed partial class GestureEditorWindow : Window
         // 迷你按钮带边框 + 悬停底色过渡：底色与所在卡片同色（视觉透明），靠描边和 hover 提亮才看得见
         var stroke = new SolidColorBrush(_pal.Stroke); b.BorderBrush = stroke;
         var brush = new SolidColorBrush(_pal.CardBg); b.Background = brush;   // 与所在卡片同色=视觉透明
-        b.MouseEnter += (_, _) => { AnimateColor(brush, Blend(_pal.CardBg, _pal.Hover), 140); AnimateColor(stroke, _pal.Accent, 140); };
-        b.MouseLeave += (_, _) => { AnimateColor(brush, _pal.CardBg, 160); AnimateColor(stroke, _pal.Stroke, 160); };
-        b.PreviewMouseLeftButtonDown += (_, _) => AnimateColor(brush, Blend(_pal.CardBg, _pal.Press), 70);
-        b.PreviewMouseLeftButtonUp += (_, _) => AnimateColor(brush, Blend(_pal.CardBg, _pal.Hover), 120);
+        b.MouseEnter += (_, _) => { AnimateColor(brush, Blend(_pal.CardBg, _pal.Hover), Motion.HoverMs); AnimateColor(stroke, _pal.Accent, Motion.HoverMs); };
+        b.MouseLeave += (_, _) => { AnimateColor(brush, _pal.CardBg, Motion.StateMs); AnimateColor(stroke, _pal.Stroke, Motion.StateMs); };
+        b.PreviewMouseLeftButtonDown += (_, _) => AnimateColor(brush, Blend(_pal.CardBg, _pal.Press), Motion.PressMs);
+        b.PreviewMouseLeftButtonUp += (_, _) => AnimateColor(brush, Blend(_pal.CardBg, _pal.Hover), Motion.QuickMs);
         b.Click += (_, _) => onClick();
         return b;
     }
@@ -364,10 +363,10 @@ public sealed partial class GestureEditorWindow : Window
         var brush = new SolidColorBrush(baseC); b.Background = brush;
         var hover = Blend(baseC, _pal.Hover);
         var press = Blend(baseC, _pal.Press);
-        b.MouseEnter += (_, _) => AnimateColor(brush, hover, 140);
-        b.MouseLeave += (_, _) => AnimateColor(brush, baseC, 160);
-        b.PreviewMouseLeftButtonDown += (_, _) => AnimateColor(brush, press, 70);
-        b.PreviewMouseLeftButtonUp += (_, _) => AnimateColor(brush, hover, 120);
+        b.MouseEnter += (_, _) => AnimateColor(brush, hover, Motion.HoverMs);
+        b.MouseLeave += (_, _) => AnimateColor(brush, baseC, Motion.StateMs);
+        b.PreviewMouseLeftButtonDown += (_, _) => AnimateColor(brush, press, Motion.PressMs);
+        b.PreviewMouseLeftButtonUp += (_, _) => AnimateColor(brush, hover, Motion.QuickMs);
     }
 
     static void AnimateColor(SolidColorBrush br, Color to, int ms) =>
@@ -427,7 +426,7 @@ public sealed partial class GestureEditorWindow : Window
             // 150ms + BackEase 0.5 轻回弹 = 设置窗开关同一节奏；本库不引用宿主 Fluent，数值各自写明。
             // 起点取实时值：中途连点从当下位置接着走，不跳回初始位。
             knobT.BeginAnimation(TranslateTransform.XProperty,
-                new DoubleAnimation(knobT.X, on ? 20 : 0, new Duration(TimeSpan.FromMilliseconds(150)))
+                new DoubleAnimation(knobT.X, on ? 20 : 0, new Duration(TimeSpan.FromMilliseconds(Motion.StateMs)))
                 { EasingFunction = new BackEase { Amplitude = 0.5, EasingMode = EasingMode.EaseOut } });
             onToggle(on);
         }

@@ -509,3 +509,27 @@ Mica 是低对比度材质，桌面暗时输出也就暗，与 `0x20` 平涂在�
 并要求它同时满足「已起步」和「尚未落定」（`> 0.05` 且 `< 0.99`）。
 只写下界会让"完全没动"也通过；补上界之后，元素不入场就必然失败。
 取证打点同样打这一层，避免用按钮读数给未生效的实现背书。
+## 批量正则替换代码文本会静默损坏语法，判据只有编译
+
+**现象**：把全站动效时长批量换成令牌，两处损坏都躲过了肉眼复查——
+`AnimateScale(b, 0.9Motion.PressMs)`、`_pal.StrokeMotion.HoverMs`（参数分隔逗号被模式吃掉，替换串没回填），
+以及 `Duration(TimeSpan.FromMilliseconds(, Motion.EnterMs))`（给助手模式写的逗号回填套到了 `Duration` 模式上，那里本没有逗号要回填）。
+
+**根因**：正则「匹配即消费」，被消费的标点不会自动出现在结果里；两种上下文共用同一个 MatchEvaluator，
+一种需要的回填在另一种里就是多余字符。样例只在脑内推演、没有真跑过替换。
+
+**现在靠什么防回归**：批量文本替换先对样例串跑一遍、打印结果再落盘；同一份 evaluator 服务多种模式时逐模式验证；
+落盘后立刻编译，0 error 是唯一可信判据（本轮 12 处损坏全靠编译器抓出，grep 只找到其中 2 处，因为通配路径 `src\**\*.cs` 不递归）。
+扫描一律用 `Get-ChildItem -Recurse`，不用 `**` 通配。
+
+## P/Invoke 默认 ANSI 编组，W 系列函数对 WPF 窗静默失灵
+
+**现象**：截图器用 `FindWindowW(null, "FrameCapture Settings")` 恒返回 0，`GetWindowTextW` 只回一个字符；
+同一时刻 `EnumWindows` 明明能读到完整标题。
+
+**根因**：`DllImport` 未指定 `CharSet` 时按 ANSI 编组 `string`，而 `*W` 导出按 UTF-16 读参数，
+两侧对不上；单字符是宽字符缓冲区被按 ANSI 回读的结果。
+
+**现在靠什么防回归**：调 `*W` 导出一律显式 `CharSet = CharSet.Unicode`。
+WPF 窗还有一条独立坑：`FindWindowW` 即便编组正确也可能查不到，取窗统一走 `EnumWindows` + 标题比对。
+高 DPI 屏截图前调 `SetProcessDpiAwarenessContext(-4)`，否则拿到虚拟化坐标，截出来是缩放过的糊图。

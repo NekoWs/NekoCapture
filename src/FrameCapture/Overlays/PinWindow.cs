@@ -219,7 +219,7 @@ public sealed class PinWindow : Window
         // 入场=淡入 + 卡片从 0.82 缩放「落图」带轻微回弹（BackEase），像把图钉到桌面
         ContentRendered += (_, _) =>
         {
-            Core.Fluent.FadeIn(this, 140);
+            Core.Fluent.FadeIn(this, Core.Fluent.Motion.HoverMs);
             PlayDrop();
             // 淡入后 200ms 记一次 Opacity：贴图停在 Opacity=0 时整窗隐形且无任何报错，只能靠这条日志归因
             var t = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) };
@@ -251,7 +251,7 @@ public sealed class PinWindow : Window
         var st = new ScaleTransform(0.94, 0.94);
         _card.RenderTransform = st;
         var ease = new BackEase { EasingMode = EasingMode.EaseOut, Amplitude = 0.25 };
-        var dur = new Duration(TimeSpan.FromMilliseconds(180));
+        var dur = new Duration(TimeSpan.FromMilliseconds(Core.Fluent.Motion.EnterMs));
         var sx = new DoubleAnimation(0.94, 1.0, dur) { EasingFunction = ease };
         var sy = new DoubleAnimation(0.94, 1.0, dur) { EasingFunction = ease };
         st.BeginAnimation(ScaleTransform.ScaleXProperty, sx);
@@ -266,7 +266,7 @@ public sealed class PinWindow : Window
         if (_closingOut) return;
         _closingOut = true;
         CommitOpacity();
-        var dur = new Duration(TimeSpan.FromMilliseconds(120));
+        var dur = new Duration(TimeSpan.FromMilliseconds(Core.Fluent.Motion.QuickMs));
         var ease = new CircleEase { EasingMode = EasingMode.EaseIn };
         BeginAnimation(OpacityProperty, new DoubleAnimation(0, dur) { EasingFunction = ease });
         if (_card != null)
