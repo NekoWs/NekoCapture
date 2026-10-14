@@ -69,6 +69,10 @@ if ($okBuild) {
 
 # 3) 注入可达性探针 + 4) e2e
 if (-not $SkipE2e -and $okBuild) {
+    # e2e 会改用户设置（主题、热键、手势配置都写在 settings.json），跑完按原字节还回去：
+    # 验证链不该在用户机器上留下可见的状态变化，也不该让下一轮从上一轮改写的主题起跑。
+    $cfgFile = Join-Path $env:APPDATA 'FrameCapture\settings.json'
+    $cfgBak = if (Test-Path $cfgFile) { [IO.File]::ReadAllBytes($cfgFile) } else { $null }
     $capHk = Get-FcCaptureHotkey
     $blocked = $false
     $probe = Start-Process $exe -PassThru; Start-Sleep 1.5
@@ -107,6 +111,8 @@ if (-not $SkipE2e -and $okBuild) {
         Add-Result $t.n $status $note
         if ($o -match "capture_hotkey|restored_capture") { Say ($o -split "`n" | Select-String "hotkey=" | Out-String).Trim() }
     }
+    if ($null -ne $cfgBak) { [IO.File]::WriteAllBytes($cfgFile, $cfgBak); Say "  用户设置已还原（e2e 期间被改写）" }
+    elseif (Test-Path $cfgFile) { Remove-Item $cfgFile -Force; Say "  用户设置已还原（e2e 期间新建）" }
 } elseif ($SkipE2e) { foreach ($t in @("editor-keys","hotkey","tap-semantics","focus-safety","fuzz")) { Add-Result "e2e:$t" "SKIP" "-SkipE2e" } }
 
 # 5) 恢复稳态：护栏开始前用户实例在跑，就跑一个新的回来
