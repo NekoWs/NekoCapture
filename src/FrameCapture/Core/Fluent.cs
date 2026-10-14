@@ -112,7 +112,7 @@ public static partial class Fluent
             var dur = new Duration(TimeSpan.FromMilliseconds(Motion.EnterMs));
             var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
             w.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(1, dur) { EasingFunction = ease });
-            if (w.Content is FrameworkElement fe && fe.RenderTransform == null)
+            if (w.Content is FrameworkElement fe && HasNoTransform(fe))
             {
                 fe.RenderTransformOrigin = new Point(0.5, 0.5);
                 var st = new ScaleTransform(0.96, 0.96);
@@ -122,6 +122,14 @@ public static partial class Fluent
             }
         };
     }
+
+    /// <summary>元素当前是否还没有自己的有效变换。
+    /// <c>UIElement.RenderTransform</c> 的默认值是单位 <c>MatrixTransform</c> 而不是 null，
+    /// 只判 null 会让「空闲才挂入场缩放」这类判断永远不成立。</summary>
+    /// <param name="el">待判元素。</param>
+    /// <returns>true = 尚无有效变换，可以直接挂新变换。</returns>
+    public static bool HasNoTransform(FrameworkElement el)
+        => el.RenderTransform is null or MatrixTransform { Value: { IsIdentity: true } };
 
     static readonly HashSet<Window> _fadingOut = new();
 
@@ -338,12 +346,33 @@ public static partial class Fluent
             { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }, BeginTime = begin };
             fade.Freeze();
             el.BeginAnimation(UIElement.OpacityProperty, fade);
-            if (risePx <= 0 && riseX == 0 || el.RenderTransform is TransformGroup) continue;
+            if (risePx <= 0 && riseX == 0) continue;
+            // 已有 RenderTransform 的元素不能覆盖：图标按钮自带 ScaleTransform 供 hover 缩放，
+            // 缩放动画遇到非 ScaleTransform 会静默 return，覆盖期间悬停没反应，收束置 null 则永久没反应。
+            // 套一层 TransformGroup 只驱动位移子变换，收束时摘掉自己、把原对象放回原位。
+            var prior = el.RenderTransform;
             var tt = new TranslateTransform(riseX, risePx);
-            el.RenderTransform = tt;
+            CascadeShifts.Add(tt, new object());   // 登记为本类所造，清零时只摘它
+            TransformGroup? group = null;
+            if (prior is null) el.RenderTransform = tt;
+            else
+            {
+                group = new TransformGroup();
+                group.Children.Add(prior);
+                group.Children.Add(tt);
+                el.RenderTransform = group;
+            }
             // 位移归零后撤掉变换：留着 TranslateTransform 会让后续挂缩放的代码以为已有变换而跳过。
             // 清理挂在真正启动的那条动画上——只挂纵向会让纯横向位移的调用永远撤不掉变换。
-            void ClearTransform() { if (el.RenderTransform == tt) el.RenderTransform = null; }
+            void ClearTransform()
+            {
+                if (ReferenceEquals(el.RenderTransform, tt)) { el.RenderTransform = null; return; }
+                if (group is not null && ReferenceEquals(el.RenderTransform, group))
+                {
+                    group.Children.Remove(tt);
+                    el.RenderTransform = group.Children.Count == 1 ? group.Children[0] : group;
+                }
+            }
             if (risePx > 0)
             {
                 var rise = new DoubleAnimation(0, dur)
@@ -374,8 +403,14 @@ public static partial class Fluent
         CascadeIn(rows, risePx, riseX);
     }
 
+    /// <summary>本类创建的位移动画对象登记表。清零时只摘自己造的那个，
+    /// 不动调用方挂在行上的合法位移；随对象回收自动失效，不构成引用泄漏。</summary>
+    static readonly System.Runtime.CompilerServices.ConditionalWeakTable<TranslateTransform, object> CascadeShifts = new();
+
     /// <summary>逐项入场的清零出口：撤掉 <see cref="CascadeIn"/> 挂上的动画与位移，恢复完全可见。
-    /// 不走动画的重建路径（主题重建、翻页不带动画）必须调它，否则可能在飞的行会停在半透明。</summary>
+    /// 不走动画的重建路径（主题重建、翻页不带动画）必须调它，否则可能在飞的行会停在半透明。
+    /// 包在 <see cref="TransformGroup"/> 里的位移也会被摘掉，原变换放回原位——
+    /// 残留的 TransformGroup 会让只认 ScaleTransform 的缩放动画永久失效。</summary>
     /// <param name="body">承载行的面板。</param>
     public static void ResetCascade(Panel body)
     {
@@ -384,7 +419,17 @@ public static partial class Fluent
             if (c is not FrameworkElement fe) continue;
             fe.BeginAnimation(UIElement.OpacityProperty, null);
             fe.Opacity = 1;
-            if (fe.RenderTransform is TranslateTransform) fe.RenderTransform = null;
+            if (fe.RenderTransform is TranslateTransform bare)
+            {
+                if (CascadeShifts.TryGetValue(bare, out _)) fe.RenderTransform = null;
+            }
+            else if (fe.RenderTransform is TransformGroup g)
+            {
+                for (int i = g.Children.Count - 1; i >= 0; i--)
+                    if (g.Children[i] is TranslateTransform ct && CascadeShifts.TryGetValue(ct, out _))
+                        g.Children.RemoveAt(i);
+                if (g.Children.Count == 1) fe.RenderTransform = g.Children[0];
+            }
         }
     }
     #endregion

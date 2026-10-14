@@ -434,3 +434,28 @@ ANSI 单字节封送、被目标函数按 UTF-16 解释：查找永不命中，�
 `T173a` 守 `PopupCard` 面板 alpha、`T173b` 守变体与源色的 RGB 一致。
 判据：窗口空白带像素标准差应为 0；均值应精确等于令牌色值（暗色 `0x20`=32、浅色 `0xF9`=249），
 被桌面拉偏即为仍在透。
+
+## `RenderTransform` 的默认值是单位 `MatrixTransform`，不是 null
+
+**现象**：逐项入场给普通 `Border` 行套 `TransformGroup` 的分支每次都命中，「元素没有自己的变换」那条快路径从未执行。
+更严重的是紧凑弹窗 0.96→1 的内容放大与配套的退场 0.97 缩放静默失效——文档注释承诺了它们，实现里的判断却恒为假。
+
+**根因**：`UIElement.RenderTransformProperty` 的默认值是共享的单位 `MatrixTransform`。探针实测 `new Border()` 未进任何视觉树，
+`RenderTransform` 就已经是 `MatrixTransform`。因此 `el.RenderTransform == null` 对任何元素都为假，
+`is not ScaleTransform` 这类守卫也据此把空闲元素判成「已有变换」。
+
+**现在靠什么防回归**：判「变换空闲」统一走 `Fluent.HasNoTransform`（单位 `MatrixTransform` 计为无变换）。
+`T175a` 锁该判定，`T175b` 锁紧凑弹窗入场确实挂上 `ScaleTransform` 并跑到位。
+逐项入场的收束断言只锁可见效果（合成矩阵位移为零），不锁变换的具体类型——包装形态是实现细节，写进断言就会挡住正确的实现。
+
+## 覆盖 `RenderTransform` 会让只认 `ScaleTransform` 的缩放动画永久失效
+
+**现象**：图标按钮在逐项入场期间 hover 没有缩放，入场结束把 `RenderTransform` 置 null 后 hover 永久失灵。
+
+**根因**：图标按钮构造时自带 `ScaleTransform` 供 hover 缩放，而缩放动画的守卫是「不是 `ScaleTransform` 就 return」。
+覆盖 `RenderTransform` 后守卫静默失败：既不报错也没有日志，只是动画再也不动。套一层 `TransformGroup` 同样致命——
+守卫要的是 `ScaleTransform` 本身，不是包含它的容器。
+
+**现在靠什么防回归**：`CascadeIn` 把位移子变换放进 `TransformGroup`，收束时摘掉自己、把原对象放回原位；
+`ResetCascade` 靠 `ConditionalWeakTable` 登记只摘自己造的位移子变换。
+`T174a` 锁入场中仍含原 `ScaleTransform`，`T174b` 锁收束后 `ReferenceEquals` 原对象，`T174c` 锁 `ResetCascade` 后原对象仍在。

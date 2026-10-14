@@ -561,8 +561,8 @@ static class SelfTest
             Chk("T171a-cascade-staggers", firstMid > 0.2 && lastMid < 0.05 && firstEnd > 0.98 && lastEnd > 0.98,
                 $"60ms 时 首项={firstMid:0.###} 末项={lastMid:0.###} → 收束 首={firstEnd:0.###} 末={lastEnd:0.###}");
             Chk("T171b-cascade-clears-transform",
-                rows.All(r => r.RenderTransform is not System.Windows.Media.TranslateTransform),
-                "位移归零后撤掉变换，不挡后续缩放");
+                rows.All(r => r.RenderTransform is null || r.RenderTransform.Value.IsIdentity),
+                $"收束后不得有有效位移：残留={string.Join(",", rows.Select(r => r.RenderTransform?.GetType().Name ?? "null").Distinct())} 新建Border变换={(new System.Windows.Controls.Border().RenderTransform?.GetType().Name ?? "null")}");
 
             // 单项时长与预算解耦：预算比单项还短时不允许出现负延迟，退化成同时淡入
             var solo = new List<System.Windows.FrameworkElement>
@@ -598,14 +598,14 @@ static class SelfTest
             // 起跳位必须在调用返回时就已写上：立刻读，不依赖泵帧时机
             Fluent.CascadeRows(hostX, risePx: 6, riseX: -10);
             var fe0 = (System.Windows.FrameworkElement)hostX.Children[0];
-            var ttX = fe0.RenderTransform as System.Windows.Media.TranslateTransform;
-            Chk("T172a-cascade-side-offset", ttX is { X: -10, Y: 6 } && fe0.Opacity < 0.01,
-                $"起跳 X={ttX?.X:0.###} Y={ttX?.Y:0.###} 透明度={fe0.Opacity:0.###}");
+            // 断言合成矩阵而非变换的具体形状：裸 TranslateTransform 与包进 TransformGroup 都要给出同样的位移
+            var m0 = fe0.RenderTransform.Value;
+            Chk("T172a-cascade-side-offset", m0.OffsetX == -10 && m0.OffsetY == 6 && fe0.Opacity < 0.01,
+                $"起跳 X={m0.OffsetX:0.###} Y={m0.OffsetY:0.###} 透明度={fe0.Opacity:0.###} 形状={fe0.RenderTransform?.GetType().Name ?? "null"} 新Border变换={(new System.Windows.Controls.Border().RenderTransform is null ? "null" : "非null")}");
             PumpMs(Fluent.Motion.EnterMs + Fluent.Motion.StaggerMs * 3 + 150);
             Chk("T172b-cascade-side-settles",
-                hostX.Children.OfType<System.Windows.FrameworkElement>()
-                    .All(r => r.RenderTransform is not System.Windows.Media.TranslateTransform && r.Opacity > 0.98),
-                "双向分量归零并撤变换");
+                hostX.Children.OfType<System.Windows.FrameworkElement>().All(r => (r.RenderTransform is null || r.RenderTransform.Value.IsIdentity) && r.Opacity > 0.98),
+                $"双向分量归零后变换应完全撤掉：{string.Join(",", hostX.Children.OfType<System.Windows.FrameworkElement>().Select(r => r.RenderTransform?.GetType().Name ?? "null").Distinct())}");
 
             // 纯横向：纵向不抬升，清理只能靠横向那条动画的 Completed
             var hostH = new System.Windows.Controls.StackPanel();
@@ -613,8 +613,8 @@ static class SelfTest
             Fluent.CascadeRows(hostH, risePx: 0, riseX: 12);
             PumpMs(Fluent.Motion.EnterMs + Fluent.Motion.StaggerMs * 3 + 150);
             var feH = (System.Windows.FrameworkElement)hostH.Children[0];
-            Chk("T172c-cascade-side-only-clears", feH.RenderTransform is not System.Windows.Media.TranslateTransform,
-                $"纯横向收束后变换 = {(feH.RenderTransform is null ? "已撤" : "残留")}");
+            Chk("T172c-cascade-side-only-clears", feH.RenderTransform is null || feH.RenderTransform.Value.IsIdentity,
+                $"新建Border变换={(new System.Windows.Controls.Border().RenderTransform?.GetType().Name ?? "null")} 纯横向收束后变换 = {feH.RenderTransform?.GetType().Name ?? "已撤"} 矩阵位移={feH.RenderTransform?.Value.OffsetX ?? 0:0.###},{feH.RenderTransform?.Value.OffsetY ?? 0:0.###}");
             winX.Close();
         }
         catch (Exception e) { Chk("T172-cascade-side", false, e.Message); }
@@ -635,6 +635,67 @@ static class SelfTest
                 $"WindowBg 0x{Theme.WindowBg.A:X2}→0xFF  PanelBg 0x{Theme.PanelBg.A:X2}→0xFF，RGB 未变");
         }
         catch (Exception e) { Chk("T173-layered-opaque", false, e.Message); }
+        // 图标按钮自带 ScaleTransform 供 hover 缩放，而缩放动画只认 ScaleTransform、遇到别的静默 return。
+        // 逐项入场必须把原变换放回原位：覆盖成 TranslateTransform 会让悬停没反应，收束置 null 是永久没反应，
+        // 残留一个包了层的 TransformGroup 同样致命。
+        try
+        {
+            var hostS = new System.Windows.Controls.StackPanel();
+            var btn = new System.Windows.Controls.Button { Width = 30, Height = 30 };
+            var scale = new System.Windows.Media.ScaleTransform(1, 1);
+            btn.RenderTransform = scale;
+            hostS.Children.Add(btn);
+            var winS = new Window
+            {
+                Title = "SelfTest CascadePreserve", Width = 120, Height = 120, ShowInTaskbar = false,
+                WindowStartupLocation = WindowStartupLocation.Manual, Left = 170, Top = 170, Topmost = true,
+                Content = hostS,
+            };
+            winS.Show();
+            var ldS = new System.Windows.Threading.DispatcherFrame();
+            winS.Dispatcher.BeginInvoke(() => { ldS.Continue = false; }, System.Windows.Threading.DispatcherPriority.Loaded);
+            System.Windows.Threading.Dispatcher.PushFrame(ldS);
+
+            Fluent.CascadeRows(hostS, risePx: 8);
+            var during = btn.RenderTransform as System.Windows.Media.TransformGroup;
+            Chk("T174a-cascade-wraps-existing",
+                during is not null && during.Children.Contains(scale) && btn.Opacity < 0.01,
+                $"入场中 = {(during is null ? btn.RenderTransform?.GetType().Name ?? "null" : "TransformGroup")} 透明度={btn.Opacity:0.###}");
+            PumpMs(Fluent.Motion.EnterMs + Fluent.Motion.StaggerMs * 3 + 150);
+            Chk("T174b-cascade-restores-transform", ReferenceEquals(btn.RenderTransform, scale),
+                $"收束后变换 = {(ReferenceEquals(btn.RenderTransform, scale) ? "原 ScaleTransform 归位" : btn.RenderTransform?.GetType().Name ?? "null")}");
+
+            // 不走动画的重建路径：包了层的位移也要摘干净，原变换留在原位
+            Fluent.CascadeRows(hostS, risePx: 8);
+            Fluent.ResetCascade(hostS);
+            Chk("T174c-reset-unwraps-keeps-source",
+                ReferenceEquals(btn.RenderTransform, scale) && btn.Opacity > 0.99,
+                $"清零后 = {(ReferenceEquals(btn.RenderTransform, scale) ? "原 ScaleTransform 归位" : btn.RenderTransform?.GetType().Name ?? "null")} 透明度={btn.Opacity:0.###}");
+            winS.Close();
+        }
+        catch (Exception e) { Chk("T174-cascade-transform-preserve", false, e.Message); }
+        // RenderTransform 的默认值是单位 MatrixTransform 而非 null：只判 null 的入场缩放判断永远不成立，
+        // 设置窗的 0.96→1 入场放大与配套的退场 0.97 会一起静默失效。
+        try
+        {
+            var rootE = new System.Windows.Controls.Grid { Width = 60, Height = 60 };
+            var winE = new Window
+            {
+                Title = "SelfTest PopupEnter", Width = 90, Height = 90, ShowInTaskbar = false,
+                WindowStartupLocation = WindowStartupLocation.Manual, Left = 210, Top = 210, Topmost = true,
+                Content = rootE,
+            };
+            Chk("T175a-identity-transform-detects", Fluent.HasNoTransform(rootE),
+                $"默认变换 = {rootE.RenderTransform?.GetType().Name ?? "null"}");
+            Fluent.PopupEnter(winE);
+            winE.Show();
+            PumpMs(Fluent.Motion.EnterMs + 220);
+            var stE = rootE.RenderTransform as System.Windows.Media.ScaleTransform;
+            Chk("T175b-popupenter-scales-in", stE is not null && stE.ScaleX > 0.98 && stE.ScaleY > 0.98,
+                $"入场后变换 = {rootE.RenderTransform?.GetType().Name ?? "null"} ScaleX={stE?.ScaleX:0.###}");
+            winE.Close();
+        }
+        catch (Exception e) { Chk("T175-popupenter-scale", false, e.Message); }
 
         // 全局 ToolTip/菜单样式可解析（守主题相关 XAML）
         try

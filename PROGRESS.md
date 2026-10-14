@@ -2333,3 +2333,10 @@ status: done
 - **为什么导航胶囊用 `StateMs`**：`Fluent.Controls.cs:321` 的开关滑块位移用的就是 `StateMs`，而胶囊是「指示条移到选中项」——同一件事的类比，两处必须同速，否则开关和导航的选中反馈节奏不一致。代价是胶囊从 300ms 收到 150ms（更跟手），换色 220→150、翻页淡出 110→150 同理，属于有意的节奏统一，不是等价替换。
 - **验证**：SelfTest 保持 **465**（本轮无数值断言变化，改的是时长）。实机驱动真实分类切换：导航项 `Focusable=true` 且响应 Space/Enter，用 `Shot.exe keyw` 发 Tab×3 + Enter（PostMessage 到自家窗口，非 OS 级鼠标自动化）。逐帧首带：f.028 前稳定 45.0 → f.029 起淡出 → f.031 48.7 上升 → f.033 起 **52.0 平台**，与切换后定稿图首带均值 **52.0 精确相等** → 收束干净，无行停在半透明。
 - **工具坑**：`UICap burstregion` 输出的帧尺寸与 `region` 不同（本次 1140×990 vs 更小），按 `region` 坐标写死的采样带会越界导致除零。连拍采样要按帧高换算或先探帧尺寸。
+
+**逐项入场不得吃掉元素既有变换（UI 质感轮五）**
+  - **要防的破坏**：图标按钮构造时自带 `ScaleTransform` 供 hover 缩放（`Fluent.Controls.cs:41`），缩放动画的守卫是「不是 `ScaleTransform` 就静默 return」。逐项入场直接覆盖 `RenderTransform` → 入场期间悬停无反应，收束置 null 则**永久**无反应。现在 `CascadeIn` 把位移子变换套进 `TransformGroup`，收束时摘掉自己、把原对象放回原位；`ResetCascade` 靠 `ConditionalWeakTable` 登记只摘自己造的位移。断言 `T174a/b/c`：入场中含原 `ScaleTransform`、收束后 `ReferenceEquals` 原对象、`ResetCascade` 后原对象仍在。
+  - **逼出的根因**：探针显示 `new Border()` 未进任何树就有 `MatrixTransform`——`UIElement.RenderTransformProperty` 的默认值是**单位 `MatrixTransform` 而非 null**。于是 `Fluent.cs` 里 `fe.RenderTransform == null` 恒为假，紧凑弹窗 0.96→1 内容放大从未执行，`CloseWithFade` 依赖它的 0.97 缩放退场同样落空，而文档注释承诺了这两处。新增 `Fluent.HasNoTransform`（单位 `MatrixTransform` 视为无变换）替换该判断。
+  - **断言从形状换成行为**：`T171b/T172b/T172c` 原判「不是 `TranslateTransform`」，包装成 `TransformGroup` 后会蒙混过关（加固后确实一度全绿但断言已失效）。改判合成矩阵 `OffsetX/OffsetY` 为零或 `Value.IsIdentity`；`T172a` 起跳位改判矩阵 `OffsetX=-10, OffsetY=6`，在调用返回时立刻读，不依赖泵帧时机。
+  - **取证边界（本轮最重要的负面结论）**：窗级透明度动画在真实屏幕上量不到斜坡。浅色主题 `burstdesk` 25ms 连拍——打开：d.003 桌面 119.7 → d.005 满窗 248.0；Esc 关闭：d.001 248.0 → d.002 57.0 → d.003 桌面 75.4，两次都是一帧到位。`PreTransparent` 释放 alpha 时直接给满，WPF 的 `Opacity` 动画被盖住。故本轮窗级改动的证据是断言 `T175a/b` 而非逐帧；行级动画在窗口内部合成、屏幕上可见，前几轮逐帧证据不受影响。已记 UIAUDIT 待办。
+  - **验证**：SelfTest **465 → 470**（+`T174a/b/c`、`T175a/b`）。全链 0 错误 / 0 非 NU1900 警告 / `PASS=470 FAIL=0` / LINT PASS / GUARDRAIL PASS。
