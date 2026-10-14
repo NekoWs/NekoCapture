@@ -2328,3 +2328,8 @@ status: done
 - **发现路径**：帮助窗定稿图正文区浮出背后 GUI 的文字。先用 `tools/Shot` 全屏 GDI 截图再按窗口矩形裁剪（独立于 `UICap` 的截图路径）复核，同样存在 → 排除截图伪影，是真实渲染。根因 `Theme.WindowBg` alpha `0xF2`（95%）、`PanelBg` alpha `0xE6`（90%），而帮助窗/OCR 结果窗/胶片条是 `AllowsTransparency=true` 的分层窗、`Fluent.PopupCard` 是 `AllowsTransparency=true` 的 Popup：分层表面背后没有模糊背板，alpha 就是直接透桌面。设置窗非分层窗故同色值不透——按窗口排查会漏，得按「这个表面是不是分层」筛。
 - **改法**：`Theme` 新增 `Opaque(Color)` 与 `WindowBgSolid`/`PanelBgSolid`（由源色强制 alpha 得到，RGB 无从漂移），帮助窗与 OCR 结果窗的根底、OCR 文本框、胶片条卡片、`PopupCard` 面板共 5 处改用不透明变体。非分层窗一律不动，避免全站色偏。
 - **验证**：SelfTest **463 → 465**（`T173a` 守 `PopupCard` 面板 alpha=0xFF、`T173b` 守两个变体 alpha 拉满且 RGB 与源色逐通道相等）。视觉：帮助窗明暗双主题定稿 `test-out/help2/after-dark.png` / `after-light.png`，空白带像素标准差 **0.00**（改前浮字），均值暗色 **32.0**=`0x20`、浅色 **249.0**=`0xF9`，与令牌色值精确相等（改前暗色 31.1，被桌面拉偏）；独立全屏路径裁剪同样标准差 0.00。图片字节数 67884 → 35436，噪声消失可量化。
+**设置窗动效时长全部归到 Motion 令牌（UI 质感轮四）**
+- **收口硬约束**：`SettingsWindow.cs` 里 8 处裸时长清零（该文件从 8 处 → 0 处）。映射按语义而非数值：行显隐淡入 200→`EnterMs`(190)、淡出 160→`ExitMs`(150)、导航胶囊位移 300→`StateMs`(150)、导航图标/文字换色 220→`StateMs`、导航项透明度 200→`StateMs`、翻页淡出 110→`ExitMs`。
+- **为什么导航胶囊用 `StateMs`**：`Fluent.Controls.cs:321` 的开关滑块位移用的就是 `StateMs`，而胶囊是「指示条移到选中项」——同一件事的类比，两处必须同速，否则开关和导航的选中反馈节奏不一致。代价是胶囊从 300ms 收到 150ms（更跟手），换色 220→150、翻页淡出 110→150 同理，属于有意的节奏统一，不是等价替换。
+- **验证**：SelfTest 保持 **465**（本轮无数值断言变化，改的是时长）。实机驱动真实分类切换：导航项 `Focusable=true` 且响应 Space/Enter，用 `Shot.exe keyw` 发 Tab×3 + Enter（PostMessage 到自家窗口，非 OS 级鼠标自动化）。逐帧首带：f.028 前稳定 45.0 → f.029 起淡出 → f.031 48.7 上升 → f.033 起 **52.0 平台**，与切换后定稿图首带均值 **52.0 精确相等** → 收束干净，无行停在半透明。
+- **工具坑**：`UICap burstregion` 输出的帧尺寸与 `region` 不同（本次 1140×990 vs 更小），按 `region` 坐标写死的采样带会越界导致除零。连拍采样要按帧高换算或先探帧尺寸。

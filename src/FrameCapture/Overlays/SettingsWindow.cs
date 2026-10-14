@@ -201,13 +201,13 @@ public sealed partial class SettingsWindow : Window
             {
                 pregrabRow.Visibility = Visibility.Visible;
                 pregrabRow.BeginAnimation(OpacityProperty, new DoubleAnimation(1.0,
-                    new Duration(TimeSpan.FromMilliseconds(200)))
+                    new Duration(TimeSpan.FromMilliseconds(Fluent.Motion.EnterMs)))
                 { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
             }
             else
             {
                 var fade = new DoubleAnimation(0.0,
-                    new Duration(TimeSpan.FromMilliseconds(160)))
+                    new Duration(TimeSpan.FromMilliseconds(Fluent.Motion.ExitMs)))
                 { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseIn } };
                 fade.Completed += (_, _) => pregrabRow.Visibility = Visibility.Collapsed;
                 pregrabRow.BeginAnimation(OpacityProperty, fade);
@@ -242,13 +242,13 @@ public sealed partial class SettingsWindow : Window
             {
                 fpsRow.Visibility = Visibility.Visible;
                 fpsRow.BeginAnimation(OpacityProperty, new DoubleAnimation(1.0,
-                    new Duration(TimeSpan.FromMilliseconds(200)))
+                    new Duration(TimeSpan.FromMilliseconds(Fluent.Motion.EnterMs)))
                 { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
             }
             else
             {
                 var fade = new DoubleAnimation(0.0,
-                    new Duration(TimeSpan.FromMilliseconds(160)))
+                    new Duration(TimeSpan.FromMilliseconds(Fluent.Motion.ExitMs)))
                 { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseIn } };
                 fade.Completed += (_, _) => fpsRow.Visibility = Visibility.Collapsed;
                 fpsRow.BeginAnimation(OpacityProperty, fade);
@@ -347,21 +347,21 @@ public sealed partial class SettingsWindow : Window
             // 单调缓动、绝不过冲：弹性缓动（ElasticEase）会滑过目标行再回弹，视觉上冲出选项卡边框。
             // CubicEase EaseOut 平滑滑入即停，全程落在首末选项卡之间，不越界。
             var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
-            selBar.BeginAnimation(Canvas.TopProperty, new DoubleAnimation(barTop, TimeSpan.FromMilliseconds(300)) { EasingFunction = ease });
+            selBar.BeginAnimation(Canvas.TopProperty, new DoubleAnimation(barTop, TimeSpan.FromMilliseconds(Fluent.Motion.StateMs)) { EasingFunction = ease });
         }
         void AnimColor(TextBlock tb, Color to, bool animate)
         {
             if (tb.Foreground is SolidColorBrush b)
             {
                 if (!animate) { b.Color = to; return; }
-                b.BeginAnimation(SolidColorBrush.ColorProperty, new ColorAnimation(to, TimeSpan.FromMilliseconds(220)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
+                b.BeginAnimation(SolidColorBrush.ColorProperty, new ColorAnimation(to, TimeSpan.FromMilliseconds(Fluent.Motion.StateMs)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
             }
             else tb.Foreground = new SolidColorBrush(to);
         }
         void AnimOpacity(UIElement el, double to, bool animate)
         {
             if (!animate) { el.Opacity = to; return; }
-            el.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(to, TimeSpan.FromMilliseconds(200)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
+            el.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(to, TimeSpan.FromMilliseconds(Fluent.Motion.StateMs)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
         }
         ScrollViewer? scroller = null;   // 前向声明：ShowCat 切类别时需复位滚动（实际构造在下方右栏装配处）
         void ShowCat(int idx, bool animate)
@@ -385,7 +385,7 @@ public sealed partial class SettingsWindow : Window
                 var outgoing = cats[prev].Body;
                 outgoing.BeginAnimation(UIElement.OpacityProperty, null);
                 int capturedPrev = prev;
-                var fo = new DoubleAnimation(0, TimeSpan.FromMilliseconds(110)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseIn } };
+                var fo = new DoubleAnimation(0, TimeSpan.FromMilliseconds(Fluent.Motion.ExitMs)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseIn } };
                 fo.Completed += (_, __) => { if (_cat != capturedPrev) outgoing.Visibility = Visibility.Collapsed; };
                 outgoing.BeginAnimation(UIElement.OpacityProperty, fo);
             }
