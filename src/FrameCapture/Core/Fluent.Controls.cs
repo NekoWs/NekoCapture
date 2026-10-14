@@ -354,6 +354,13 @@ public static partial class Fluent
         return lum < 0.35 ? Colors.White : Colors.Black;
     }
 
+    /// <summary>强调色文字的落点色：只有亮色主题把强调色本身当文字色——压在浅底上读得清。
+    /// 暗色主题下强调色当正文色会随配色失读（深紫压在 #2D2D2D 上只有 3.3:1，浅蓝却够用，
+    /// 同一条规则罩不住两种配色），一律退回主题正文色。
+    /// 压在强调色实心底上的文字走 <see cref="OnAccentColor"/>（按底色亮度取黑白），两者不可混用。</summary>
+    /// <returns>亮色主题为当前强调色，暗色主题为 <see cref="Theme.Text"/>。</returns>
+    public static Color AccentText() => Theme.IsDark ? Theme.Text : Theme.Accent;
+
     /// <summary>工具按钮选中态：accent 实心 + 反白图标（与 ✓ 主按钮同一语言）。底色与图标同步淡变。</summary>
     /// <param name="b">目标按钮；Background / Foreground 被换成本方法持有的可动画画刷。</param>
     /// <param name="on">选中与否；反白色由 <see cref="OnAccentColor"/> 按 accent 亮度决定。</param>

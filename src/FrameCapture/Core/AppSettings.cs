@@ -86,6 +86,10 @@ public sealed class AppSettings
     /// 省去每次重选。关闭则每次打开回到默认（浏览 / 红 / 中）。关闭时不读写下面三项。</summary>
     public bool RememberEditorTools { get; set; } = true;
 
+    /// <summary>编辑器底部两排图标的逐项入场动效（默认开）。关闭后工具栏随窗口直接以常态出现，
+    /// 不挂任何位移动画。</summary>
+    public bool EditorToolbarAnim { get; set; } = true;
+
     /// <summary>上次编辑器选中的工具（Tool 枚举名）；空 = 默认浏览。</summary>
     public string LastTool { get; set; } = "";
 

@@ -867,14 +867,26 @@ static class SelfTest
                 .GetField("_toolsBar", NPP)!.GetValue(winP);
             var firstTool = barP!.Children.OfType<System.Windows.Controls.Button>().First();
             Chk("T179a-multiframe-parts", playGrp != null, $"播放首组={(playGrp == null ? "缺失" : "存在")}");
+            // 两排都在窗口出现的那一刻起波，上排的全透明窗口不足一个采样周期，轮询抓不到落点。
+            // 改挂 Opacity 属性变化回调：各自第一次越过 0.05 的时刻即起波时刻。
+            // 上排必须先起波，且与下排拉开至少半个错位间隔——两排同时波动就是错的。
+            int playUp = -1, toolUp = -1;
+            long t0P = 0;
+            var ddp = System.ComponentModel.DependencyPropertyDescriptor
+                .FromProperty(UIElement.OpacityProperty, typeof(UIElement))!;
+            void OnPlayUp(object? s, EventArgs e) { if (playUp < 0 && playGrp!.Opacity > 0.05) playUp = (int)(Environment.TickCount64 - t0P); }
+            void OnToolUp(object? s, EventArgs e) { if (toolUp < 0 && firstTool.Opacity > 0.05) toolUp = (int)(Environment.TickCount64 - t0P); }
+            ddp.AddValueChanged(playGrp, OnPlayUp);
+            ddp.AddValueChanged(firstTool, OnToolUp);
+            t0P = Environment.TickCount64;
             winP.Show();
-            // 两步锚在「上排刚起波」，避开背板在场时首帧渲染后移造成的采样落空。
-            int heldP = 0;
-            while (playGrp!.Opacity > 0.05 && heldP < 3000) { PumpMs(10); heldP += 10; }
-            int leadP = 0;
-            while (playGrp.Opacity <= 0.05 && leadP < 3000) { PumpMs(10); leadP += 10; }
-            Chk("T179b-play-before-tools", playGrp.Opacity > 0.05 && playGrp.Opacity < 0.99 && firstTool.Opacity < 0.05,
-                $"播放首组={playGrp.Opacity:N2} 工具首项={firstTool.Opacity:N2} 接管={heldP}ms 起波={leadP}ms");
+            int tP = 0;
+            while (tP < 3000 && (playUp < 0 || toolUp < 0)) { PumpMs(10); tP += 10; }
+            ddp.RemoveValueChanged(playGrp, OnPlayUp);
+            ddp.RemoveValueChanged(firstTool, OnToolUp);
+            Chk("T179b-play-before-tools",
+                playUp >= 0 && toolUp >= 0 && toolUp - playUp >= 40,
+                $"播放起波={playUp}ms 工具起波={toolUp}ms 拉开={(playUp >= 0 && toolUp >= 0 ? toolUp - playUp : 0)}ms");
             PumpMs(Fluent.Motion.SpringMs + Fluent.Motion.StaggerMs + 300);
             Chk("T179c-both-rows-settled", playGrp.Opacity > 0.999 && firstTool.Opacity > 0.999,
                 $"播放首组={playGrp.Opacity:N2} 工具首项={firstTool.Opacity:N2}");

@@ -135,7 +135,7 @@ public sealed partial class SettingsWindow : Window
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             var lb = new TextBlock { Text = label, Foreground = new SolidColorBrush(Theme.TextDim), FontSize = 12.5, VerticalAlignment = VerticalAlignment.Center };
-            var kv = new TextBlock { Text = key, Foreground = new SolidColorBrush(Theme.Accent), FontSize = 13, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center };
+            var kv = new TextBlock { Text = key, Foreground = new SolidColorBrush(Fluent.AccentText()), FontSize = 13, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center };
             Grid.SetColumn(lb, 0); Grid.SetColumn(kv, 1);
             row.Children.Add(lb); row.Children.Add(kv);
             keyStack.Children.Add(row);
@@ -170,7 +170,7 @@ public sealed partial class SettingsWindow : Window
             Padding = new Thickness(12, 9, 12, 9),
             Cursor = Cursors.Hand,
         };
-        var geIcon = new TextBlock { Text = "\uE713", FontFamily = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets, Segoe UI Symbol"), FontSize = 15, Foreground = new SolidColorBrush(Theme.Accent), VerticalAlignment = VerticalAlignment.Center };
+        var geIcon = new TextBlock { Text = "\uE713", FontFamily = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets, Segoe UI Symbol"), FontSize = 15, Foreground = new SolidColorBrush(Fluent.AccentText()), VerticalAlignment = VerticalAlignment.Center };
         var geRow = new StackPanel { Orientation = Orientation.Horizontal };
         geRow.Children.Add(geIcon);
         geRow.Children.Add(new TextBlock { Text = "   打开手势配置器…", Foreground = new SolidColorBrush(Theme.Text), FontSize = 13, VerticalAlignment = VerticalAlignment.Center });
@@ -289,6 +289,8 @@ public sealed partial class SettingsWindow : Window
 
         #region 编辑器
         panel = Cat("编辑器", "\uE70F");
+        panel.Children.Add(ToggleRow("\uE8A9", "底部工具栏入场动效", "打开编辑器时，底部两排图标逐项落定，视线跟着落到工具上。关闭后工具栏随窗口直接出现，一个动画都不放",
+            _settings.Current.EditorToolbarAnim, v => _settings.Mutate(s => s.EditorToolbarAnim = v)));
         panel.Children.Add(ToggleRow("\uEDD7", "记住上次的工具/颜色/粗细", "关闭编辑器时记住你最后用的标注工具、颜色和线宽，下次打开直接是它们，省去每次重选。关闭后每次打开都回到默认（浏览 / 红 / 中）",
             _settings.Current.RememberEditorTools, v => _settings.Mutate(s => s.RememberEditorTools = v)));
         panel.Children.Add(ToggleRow("\uE8C1", "识别文字后显示结果窗", "「识别文字」成功后弹出结果窗预览：可查看/编辑识别文本、鼠标悬停部分选中复制、一键复制全部——预览即选取入口，此时不再自动写剪贴板（要哪段选哪段）。关闭则退回快速路径：直接写剪贴板 + 轻提示，不弹窗",
@@ -419,7 +421,7 @@ public sealed partial class SettingsWindow : Window
                 contentHeader.BeginAnimation(UIElement.OpacityProperty,
                     new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(Fluent.Motion.EnterMs)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
             else contentHeader.Opacity = 1;
-            var acc = Theme.Accent;
+            var acc = Fluent.AccentText();
             for (int i = 0; i < navItems.Count; i++)
             {
                 bool on = i == idx;

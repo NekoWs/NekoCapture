@@ -191,7 +191,7 @@ public sealed partial class SettingsWindow : Window
         g.Children.Add(stack);
         var browse = new TextBlock
         {
-            Text = "更改", FontSize = 12, Foreground = new SolidColorBrush(Theme.Accent),
+            Text = "更改", FontSize = 12, Foreground = new SolidColorBrush(Fluent.AccentText()),
             VerticalAlignment = VerticalAlignment.Center, Cursor = Cursors.Hand, Margin = new Thickness(12, 0, 6, 0),
         };
         Grid.SetColumn(browse, 2);
