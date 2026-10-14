@@ -62,6 +62,8 @@ public sealed partial class CaptureController : IDisposable
     private bool _autoWaitSettle;   // 已注入一步、正等它落定；落定前不做拼接判定
     private int _autoNoNew;         // 连续「停稳且画面没变」次数，数满判到底
     private int _autoNotch = ScrollAutoPolicy.NotchStart;   // 当前步长（滚轮格数）
+    private int _autoStuckTicks;    // 已注一步却迟迟等不到停稳的连续拍数，数满判定这页滚不动
+    private const int SettleMaxTicks = 12;   // 停稳等待上限，×280ms ≈ 3.4s：页面一直在动时不能无限沉默
     private bool _autoCursorSaved;  // 光标是否为注轮移进了选区，退出路径据此还原
     private Native.Win32.POINT _autoCursorHome;   // 注轮前的光标位置，物理像素
 

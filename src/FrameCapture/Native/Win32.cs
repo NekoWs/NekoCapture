@@ -186,8 +186,8 @@ internal static class Win32
     /// <summary>x64 下原生 INPUT 的字节数：type(4) + 对齐填充(4) + MOUSEINPUT(32)。</summary>
     public const int SIZEOF_INPUT = 40;
 
-    /// <value>当前运行时算出的 INPUT 尺寸是否与原生一致。false 表示结构体布局对不上，注入必须整个停用。</value>
-    public static bool InputLayoutOk { get; } = Marshal.SizeOf<INPUT>() == SIZEOF_INPUT;
+    /// <value>当前运行时算出的 INPUT 布局是否与原生一致。false 表示结构体对不上，注入必须整个停用。</value>
+    public static bool InputLayoutOk { get; } = InputLayout.Ok;
 
     /// <summary>
     /// MOUSEINPUT 的托管映射，字段顺序与 WinUser.h 一致：x64 下 32 字节，dwExtraInfo 是 IntPtr，前面补 4 字节对齐填充。

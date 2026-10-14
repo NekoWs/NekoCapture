@@ -29,7 +29,7 @@ public sealed partial class CaptureController : IDisposable
         if (f == null) { FrameCapture.Core.Trace.Log("scroll: first grab null"); return; }
         _scrollAcc = f.Bgra; _scrollW = f.W; _scrollH = f.H; _scrollRegion = region; _scrollDevice = device; _scrollSegs = 1;
         _scrollPrevB = null; _scrollAuto = false;
-        _autoWaitSettle = false; _autoNoNew = 0; _autoNotch = ScrollAutoPolicy.NotchStart;
+        _autoWaitSettle = false; _autoNoNew = 0; _autoNotch = ScrollAutoPolicy.NotchStart; _autoStuckTicks = 0;
         // 三层自下而上：取景层 → 预览卡 → 控制条。三者同为 Topmost，Show 顺序决定 Z 序，控制条必须在最上
         _scrollStage = new Overlays.ScrollStageWindow(region, device);
         _scrollStage.Show();
@@ -81,7 +81,19 @@ public sealed partial class CaptureController : IDisposable
     void AutoStep()
     {
         _autoWaitSettle = true;
-        if (!Native.Win32.Wheel(_autoNotch)) FrameCapture.Core.Trace.Log($"scroll wheel refused notch={_autoNotch}");
+        _autoStuckTicks = 0;
+        // 注入被拒（目标窗以更高完整性级别运行等）时画面永远不会动，再等下去只会报出"已到底"这种假结论，当场说明并退出
+        if (!Native.Win32.Wheel(_autoNotch)) StopAuto("这个窗口不接受滚轮注入，请手动滚动");
+    }
+
+    /// <summary>退出自动滚动：会话本身继续，只停注轮。光标留在选区内，想接着手滚一段再出图也顺手。</summary>
+    /// <param name="why">上屏的一句原因，同时进 trace。</param>
+    void StopAuto(string why)
+    {
+        _scrollAuto = false;
+        _scrollBar?.SetAutoScrolling(false);   // 先复位按钮文案再刷提示，顺序反了会被 SetAutoScrolling 覆盖
+        _scrollBar?.FlashHint(why);
+        FrameCapture.Core.Trace.Log($"scroll auto stop: {why}");
     }
 
     /// <summary>把本帧的拼接判定结果交给步进策略：该发下一步就发，判到底就停。手动滚动时不参与。</summary>
@@ -94,10 +106,7 @@ public sealed partial class CaptureController : IDisposable
         if (d.Stop)
         {
             // 到底：只停注入、不停会话。光标留在选区内，用户想接着手动滚一段再出图也顺手
-            _scrollAuto = false;
-            _scrollBar.SetAutoScrolling(false);   // 先复位按钮文案，再刷提示，顺序反了会被 SetAutoScrolling 覆盖
-            _scrollBar.FlashHint("已到内容底部，点「完成」出图");
-            FrameCapture.Core.Trace.Log("scroll auto stop: bottom");
+            StopAuto("已到内容底部，点「完成」出图");
             return;
         }
         if (d.Inject) AutoStep();
@@ -122,8 +131,15 @@ public sealed partial class CaptureController : IDisposable
         bool stable = _scrollPrevB != null &&
             FrameCapture.Core.ScrollStitch.FindOverlap(_scrollPrevB, _scrollW, _scrollPrevB.Length / (_scrollW * 4), b.Bgra, b.H) >= b.H;
         _scrollPrevB = b.Bgra;
-        if (!stable) return;
+        if (!stable)
+        {
+            // 注进去的那一步迟迟不落定：页面一直在动（视频、闪烁光标、惯性滚动）时既不发轮也不拼，沉默下去等于卡死
+            if (_scrollAuto && _autoWaitSettle && ++_autoStuckTicks >= SettleMaxTicks)
+                StopAuto("画面一直在变化、判定不了停稳，自动滚动已停止");
+            return;
+        }
         _autoWaitSettle = false;   // 已停稳：注过的那一步落定，本帧可用于拼接判定
+        _autoStuckTicks = 0;
         int ov = FrameCapture.Core.ScrollStitch.FindOverlap(_scrollAcc, _scrollW, _scrollH, b.Bgra, b.H);
         if (ov >= b.H) { AutoObserve(ScrollAutoObservation.NoNewContent); return; }   // 画面没再滚（本帧已含于累积底部）
         if (ov <= 0) { _scrollBar.FlashHint("滚动太快、找不到重叠——请少滚一点"); AutoObserve(ScrollAutoObservation.NoOverlap); return; }   // 滚过头

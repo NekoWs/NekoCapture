@@ -1934,12 +1934,12 @@ static class SelfTest
             // SendInput 注入原语的 x64 结构体布局：尺寸算错时系统按 cbSize 读输入数组，畸形输入会让它读越界内存。
             // 这条断言锁住布局，改结构体的人第一时间在这里撞回来。
             {
-                int szIn = System.Runtime.InteropServices.Marshal.SizeOf<FrameCapture.Native.Win32.INPUT>();
-                int szMi = System.Runtime.InteropServices.Marshal.SizeOf<FrameCapture.Native.Win32.MOUSEINPUT>();
-                long offMi = System.Runtime.InteropServices.Marshal.OffsetOf<FrameCapture.Native.Win32.INPUT>("mi").ToInt64();
+                int szIn = FrameCapture.Native.InputLayout.SizeOfInput;
+                int szMi = FrameCapture.Native.InputLayout.SizeOfMouseInput;
+                int offMi = FrameCapture.Native.InputLayout.MouseOffset;
                 Chk("T168a-INPUT x64 布局 40 字节 mi@8",
-                    szIn == 40 && offMi == 8 && szMi == 32 && FrameCapture.Native.Win32.InputLayoutOk,
-                    $"sizeof(INPUT)={szIn} offsetof(INPUT.mi)={offMi} sizeof(MOUSEINPUT)={szMi} InputLayoutOk={FrameCapture.Native.Win32.InputLayoutOk}");
+                    szIn == 40 && offMi == 8 && szMi == 32 && FrameCapture.Native.InputLayout.Ok,
+                    $"sizeof(INPUT)={szIn} offsetof(INPUT.mi)={offMi} sizeof(MOUSEINPUT)={szMi} Ok={FrameCapture.Native.InputLayout.Ok}");
             }
             // 自动滚动步进策略（ScrollAutoPolicy 纯函数）：发一步 → 等这一步落定 → 再发下一步。
             // 连续两帧一致才算停稳，按固定节拍连续注轮会让画面永远在动、一段都拼不上，节奏全靠这套决定撑住。
