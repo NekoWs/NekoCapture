@@ -426,41 +426,40 @@
 
 **批次末（R157）**：护栏 PASS（下限 405，FAIL=0 SKIP=1）；SelfTest 405；用户 4 条自定义手势完好；重发布 staging → zip 69.7MB → 重启出厂实例。附带修 `test-tap-semantics.ps1` 场景间未隔离（`keyw`/PostMessage 关不掉 WPF 窗致场景3 复用旧编辑器）——干净 HEAD 同样复现，确认非本次改动引入，加场景间 `Restart-App` 隔离后 PASS（hold600=9 帧、hold1300=47 帧）。
 
-## 注释全量优化轮 — 代码侧遗留（本轮只改注释，以下按约束一律未动）
+## 代码清洁轮 — 已完成与明确不做
 
-> 来源：按 `docs/COMMENT-STYLE.md` 全量重写注释时逐条核出的"注释承诺 ≠ 代码实现"。
-> 注释已按代码事实改写；下面这些是要动代码的活，按严重度排。
+> 约束：**不改现有行为**。每步 build 0 error、SelfTest 恒 `PASS=435 FAIL=0`、`lint-comments FAIL=0`。
+> 产物等价性用黄金输出证明：`test-out/gif-golden.ps1`（4 组 GIF sha256）、`test-out/stitch-golden.ps1`（10 步 ov + sha256），
+> 基线同名 `-baseline.txt`。`test-out/` 在 `.gitignore` 内，这些脚本属本地暂存、未入库，重跑前先确认还在。
 
-### A 会导致用户可见故障
-- [ ] **`CaptureSound.Play(customPath)` 解码失败静默**：`MediaPlayer.Open` 之后的解码失败是异步的、没有回调，
-      用户选了坏 wav/ogg/mp3 就是**完全无声且无提示**。注释原承诺"解码失败回退嘀声"，实现做不到。
-      需要：预解码探测或 `MediaFailed` 挂接 + 回退系统嘀声。
-- [ ] **`BgraImage.SampleIndices` 整数除零窗口**：`samples=1 且 count>1` 时分母 `(samples-1)` 为 0。
-      文档已写明前置条件 ≥2，但代码无护栏。
-- [ ] **`BgraImage.Afterimage` 签名非空却可返回 null**：采样帧尺寸与首帧全不一致时 `lastOut!` 为 null。
-      要么护栏（尺寸全不匹配即返回首帧），要么签名改可空并让调用方处理。
-- [ ] **`Theme.UserPreferenceDark` 三条失败路径默认值不一致**：键缺失/值非 int → `false`（浅色），
-      抛异常 → `true`（深色）。同一个"读不到"该给同一个默认。
+### 已完成
 
-### B 死代码 / 无人使用（接线或删除，二选一）
-- [ ] `GestureService.ClaimsKey` 无任何调用方（原文档称供 AppHost 去重，AppHost 已不注册自有热键）。
-- [ ] `CaptureController.FinishCapture` 的 `holdMs` 形参：3 个调用点全传 `-1`，钩子时间戳从未流入，
-      按住时长实际只来自 `_captureClock`。
-- [ ] `RegionOutlineWindow._flashTimer`（600ms 回落）只有创建与 `Stop()`，**无 `Start()`**；`Flash()` 走 450ms 动画。
-- [ ] `Fluent.Springy` / `Fluent.ChipHover` 的 `hover`/`press`/`scale` 参数被实现完全忽略（`=> BgHover(el)`），
-      调用点仍传 `1.05/0.94` 等数值 —— 要么实现弹性，要么删参数（现在会误导读代码的人）。
-- [ ] `ScrollHintWindow.Current` / `CountdownWindow.Current` 全仓只有赋值、无读取。
-- [ ] `EditorWindow.Drawing.RemapAnnsForExport` 无调用方。
-- [ ] `Win32.GetDisplayNameW` / `DISPLAY_DEVICE_PATH_SIZE` 无调用点（设备名实际走 WinForms `Screen.DeviceName`）。
-- [ ] `DIB_RGB_COLORS_` 与 `DIB_RGB_COLORS` 同值重复且无引用；
-      `DWMWA_WINDOW_ROUNDED_CORNER_PREFERENCE` 与 `DWMWA_WINDOW_CORNER_PREFERENCE` 同值 33，二者留一。
-- [ ] `GifEncoder.Encode` 局部函数 `LE32` 未使用（CS8321）；`ColorBox._errBuf` 可空性告警（CS8618）。
-- [ ] `GestureEngine.OnMouseDown/OnMouseUp` 的 `button` 参数完全未用 —— 现在不区分鼠标键，是有意还是漏了？
-- [ ] `GestureEditorWindow.MakeToggle` 的 `(on ? "  " : "  ")` 两分支字面量完全相同（疑似漏改的全角空格占位）。
-- [ ] `CaptureController.Dispose()` 不释放 `_wgc`、不关 `_picker` / `_editor`。
+| 批次 | 内容 | 净行数 |
+|---|---|---|
+| 死代码 | 11 个零引用 `public`/`internal` 成员 + 5 个只写不读私有成员 + 2 个编译器报的死变量/死局部函数 + `Win32` 12 项无人调用的 P/Invoke 与常量 + 4 个未使用参数（连带 11 处调用点） | −173 |
+| 跨文件重复 | `Fluent.BorderlessOverlay`（4 窗 × 8 行）、`Monitors.DpiScaleOf`（3 处）、`Fluent.RoundedButtonTemplate`（2 份按 `hoverFade` 参数化，保留悬停差异） | −20 |
+| 设置页重复 | `ChipRow` / `Chip` / `WireChip` / `RefreshChips`：5 处标签块 + 4 处芯片循环 | −77 |
+| 按钮工厂 | `Fluent.RoundButton`：两处 `MakeBtn` 只差 `padX` 与 `hoverFade` | −7 |
+| 潜在缺陷 | 捕获线程回调加护栏（新增 `LiveCapture.Faulted`，复用磁盘满自动停录链路）；贴图刷新不再对已关闭窗口 `Show()`；`WgcInit` 改后台线程；`FC_TRACE_KEYS` 改静态只读 | +27 |
+| GIF 编码器 | median-cut 跨度在 `ColorBox` 构造时算一次；8MB 最近色查找表改 `[ThreadStatic]` + 世代戳复用 | +37 |
+| 编辑器取帧 | `Cur()` 按帧号缓存当前帧，12 处 `_seq.Frames[_index]` 走缓存 | +18 |
+| 滚动拼接 | `FindOverlap` 只建 `acc` 底部 `win+1` 行签名，整段捕获 O(n²) → O(n) | +11 |
 
-### C 契约与文案
-- [ ] `WindowEnum` 只排除发起选取的**单个 hwnd**，不是"跳过自己的进程"——若要排除本进程全部窗口需改实现。
-- [ ] `AgentStrip.Generate` 在 `src` 内无调用点，仅 SelfTest 使用：确认是否作为产品能力保留。
-- [ ] 设置页两处用户可见文案曾把内部编号与变更叙述写给用户（"R161 修复：此前要等…"），本轮已删；
-      后续新增设置项注意**开发笔记不要进产品文案**。
+量化收益：4K×30 GIF 编码 9520 → 9085ms；`accH=40000` 单次 `FindOverlap` 10.6 → 2.6ms；
+编辑器单次取帧 1.97ms / 7.91MB，鼠标拖动每步省 2 次整帧回盘与 2 个 8MB LOH 分配。
+零引用 `public`/`internal` 成员 **11 → 0**；≥8 行跨文件重复块 **33 组 → 3 组**。
+
+### 明确不做（附理由，别当遗漏反复重查）
+
+- **`ScrollStitch.Append` 的整块复制**：契约是「返回新平坦缓冲」，改累积分块要动 `CaptureController.ScrollDelay` 的 `_scrollAcc` 状态模型与 `ScrollDone` 的取用方式。
+- **`CountdownWindow` / `ScrollHintWindow` 的 `CloseSelf` 三行守卫**：只有 3 行，抽 helper 要传 `ref bool` 字段，可读性反而下降。
+- **浮窗 `SourceInitialized` 的 HWND 钩子前导**（ScrollHintWindow / WelcomeToast / CaptureToast）：前 6 行相同，但 `AddHook` 回调体各不相同（Esc / Esc+Enter / 带业务分支），抽公共前导要把回调体降成委托参数，窗口过程钩子的调试成本明显上升。
+- **`GraphicsCaptureItem` 不 `Dispose`**：本仓 WinRT 投影里它**不实现** `IDisposable`（编译不过）。对象由 `FromAbi` 包成 CsWinRT 包装，手工 `Marshal.Release` 会与包装器终结器双重释放。
+- **`TrayService` 的 `GetHicon()` 句柄**：一次性泄漏 1 个 GDI 句柄。`Icon.FromHandle` 不接管句柄，正确修法要 Clone + `DestroyIcon`，改坏了托盘图标直接不可见，收益/风险不划算。
+- **`EditorWindow.SizeChanged` 重绘两遍**：`UpdateImgRect()` 内部已 `RedrawAnns()`，外层又调一次。重绘幂等，去掉要改 `UpdateImgRect` 的返回契约。
+- **`WgcNative.cs` 空 `Closed` handler**：注释称订阅一次即满足 WGC 投影要求，不动真格跑 WGC 无法证伪，保留。
+- **`PinWindow.Flash()` 每次新建 `DispatcherTimer`**：1.6s 后自释，无累积。
+- **`GestureEngine.OnMouseDown/OnMouseUp` 的 `button` 参数**：GestureCore 刻意做成宿主无关的可复用类库，签名属于库 API，删参是 API 破坏。
+- **编辑器拖拽时重建整棵标注视觉树**（`ToolsAndRendering` 四角缩放、`KeysPlaybackAndDisplay` 每帧重建刻度尺）：改成增量更新是真实收益，但视觉树重建对 WPF 布局是幂等的，改坏了表现为**肉眼可见的错位**而 SelfTest 抓不到。需要一套截图比对基线才敢动。
+- **上一节 A 类 4 条与 B 类剩余各条**（`CaptureSound` 解码静默、`SampleIndices` 除零、`Afterimage` 返回 null、`UserPreferenceDark` 默认值不一致、`FinishCapture.holdMs` 死形参、`_flashTimer` 无 `Start()`、`MakeToggle` 两分支相同、`CaptureController.Dispose` 不完整、`WindowEnum` 排除范围、`AgentStrip.Generate`）：
+  这些**修它本身就是改行为**——补护栏等于新增失败分支、删形参等于改签名、补 `Dispose` 等于改退出时序、统一默认值等于改变读到坏配置时的主题归属。与本轮「不影响现有行为」的硬约束直接冲突，留待单独一轮逐条确认预期后再动。
