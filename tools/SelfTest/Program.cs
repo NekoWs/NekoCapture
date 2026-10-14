@@ -2803,6 +2803,60 @@ static class SelfTest
             Chk("T166w2-pregraborder", o1ok && o2ok && o3ok && o4.Count == 0 && o5ok,
                 $"o1={o1.Count} o2={o2.Count} o3={o3.Count} o4={o4.Count} o5={o5.Count}");
         }
+        #region 滚动预览长图降采样（纯函数）
+        {
+            // T167w1 不缩小＝逐字节原样：宽高都在上限内时不抽样，输出与源完全一致
+            var small = new byte[7 * 5 * 4];
+            for (int i = 0; i < small.Length; i++) small[i] = (byte)(i * 37 + 11);
+            var id1 = FrameCapture.Overlays.ScrollPreviewWindow.Thumbnail(small, 7, 5, 7, 5);
+            var id2 = FrameCapture.Overlays.ScrollPreviewWindow.Thumbnail(small, 7, 5, 99, 99);
+            bool idOk = id1.W == 7 && id1.H == 5 && id1.Bgra.AsSpan().SequenceEqual(small)
+                     && id2.W == 7 && id2.H == 5 && id2.Bgra.AsSpan().SequenceEqual(small);
+            Chk("T167w1-thumb-same", idOk, $"id1={id1.W}x{id1.H} id2={id2.W}x{id2.H}");
+
+            // T167w2 超长图：输出宽/高不越上限，抽样行严格递增（B=列号低 8 位，(R,G)=行号）
+            int w = 300, h = 1200;
+            var longImg = new byte[w * h * 4];
+            for (int y = 0; y < h; y++)
+                for (int x = 0; x < w; x++)
+                {
+                    int o = (y * w + x) * 4;
+                    longImg[o] = (byte)(x & 0xFF);
+                    longImg[o + 1] = (byte)(y & 0xFF);
+                    longImg[o + 2] = (byte)(y >> 8);
+                    longImg[o + 3] = 255;
+                }
+            var th = FrameCapture.Overlays.ScrollPreviewWindow.Thumbnail(longImg, w, h, 64, 50);
+            int RowOf(int r) => th.Bgra[r * th.W * 4 + 1] | (th.Bgra[r * th.W * 4 + 2] << 8);
+            bool asc = true;
+            for (int r = 1; r < th.H; r++) if (RowOf(r) <= RowOf(r - 1)) asc = false;
+            Chk("T167w2-thumb-bounds", th.W <= 64 && th.H <= 50 && asc, $"out={th.W}x{th.H} asc={asc}");
+
+            // T167w3 首行/末行/末列必被抽到：刚拼上去的内容一定看得见
+            int firstRow = RowOf(0), lastRow = RowOf(th.H - 1);
+            int lastCol = th.Bgra[((th.H - 1) * th.W + th.W - 1) * 4];
+            Chk("T167w3-thumb-edges", firstRow == 0 && lastRow == h - 1 && lastCol == ((w - 1) & 0xFF),
+                $"first={firstRow} last={lastRow} lastCol={lastCol}");
+
+            // T167w4 退化入参：空数组 + 0×0，绝不抛
+            bool deg = true;
+            try
+            {
+                var f = FrameCapture.Overlays.ScrollPreviewWindow.Thumbnail;
+                var one = new byte[4];
+                deg &= f(null!, 10, 10, 5, 5).Bgra.Length == 0;
+                deg &= f(one, 0, 1, 5, 5).Bgra.Length == 0;
+                deg &= f(one, 1, 0, 5, 5).Bgra.Length == 0;
+                deg &= f(one, 1, 1, 0, 5).Bgra.Length == 0;
+                deg &= f(one, 1, 1, 5, 0).Bgra.Length == 0;
+                deg &= f(one, 4, 4, 5, 5).Bgra.Length == 0;   // 长度不足 w*h*4
+                deg &= f(one, 1, 1, 5, 5) is { W: 1, H: 1 };
+            }
+            catch { deg = false; }
+            Chk("T167w4-thumb-degenerate", deg);
+        }
+        #endregion
+
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");
         return fail == 0 ? 0 : 1;
     }
