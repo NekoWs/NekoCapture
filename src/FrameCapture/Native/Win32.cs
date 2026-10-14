@@ -327,6 +327,20 @@ internal static class Win32
     public const int DWMWA_WINDOW_CORNER_PREFERENCE = 33;
     public const int DWMWCP_ROUND = 2;
 
+    /// <summary>背板材质与标题条明暗的属性号。
+    /// <c>DWMWA_SYSTEMBACKDROP_TYPE</c> 自 Win11 22621 起提供，更早的 22000 只有
+    /// <c>DWMWA_MICA_EFFECT</c> 这个布尔开关；两者都失败即当前系统无背板。</summary>
+    public const int DWMWA_USE_IMMERSIVE_DARK_MODE = 20;
+    public const int DWMWA_SYSTEMBACKDROP_TYPE = 38;
+    public const int DWMWA_MICA_EFFECT = 1029;
+    /// <summary>背板材质取值。MAINWINDOW 即 Mica，TRANSIENTWINDOW 即 Acrylic，
+    /// TABULARWINDOW 为 25H2 的多标签背板。</summary>
+    public const int DWMSBT_NONE = 0;
+    public const int DWMSBT_AUTO = 1;
+    public const int DWMSBT_MAINWINDOW = 2;
+    public const int DWMSBT_TRANSIENTWINDOW = 3;
+    public const int DWMSBT_TABULARWINDOW = 4;
+
     /// <summary>改位置、尺寸、Z 序与显示状态，按 uFlags 逐项生效。</summary>
     /// <param name="hWnd">目标窗口句柄。</param>
     /// <param name="hWndInsertAfter">Z 序插入点，取 HWND_TOPMOST 或 IntPtr.Zero。</param>

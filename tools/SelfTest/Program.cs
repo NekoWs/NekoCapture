@@ -696,6 +696,30 @@ static class SelfTest
             winE.Close();
         }
         catch (Exception e) { Chk("T175-popupenter-scale", false, e.Message); }
+        // 背板材质由 DWM 合成，不属于窗口 DC：PrintWindow 类截图拍不到，暗壁纸下也与平涂底色无异。
+        // 唯一确定的判据是向 DWM 回读它实际登记的材质与色调。
+        try
+        {
+            var winM = new Window
+            {
+                Title = "SelfTest Mica", Width = 200, Height = 140, ShowInTaskbar = false,
+                WindowStartupLocation = WindowStartupLocation.Manual, Left = 230, Top = 230,
+                WindowStyle = WindowStyle.None,
+            };
+            Fluent.BorderlessNative(winM);
+            Fluent.MicaBackdrop(winM);
+            winM.Show();
+            PumpMs(260);
+            var hwndM = new System.Windows.Interop.WindowInteropHelper(winM).Handle;
+            // 属性号与取值与生产侧常量同值：38=SYSTEMBACKDROP_TYPE 20=USE_IMMERSIVE_DARK_MODE 2=Mica
+            int hrB = DwmProbe.DwmGetWindowAttribute(hwndM, 38, out uint gotB, 4);
+            Chk("T176a-backdrop-is-mica", hrB == 0 && gotB == 2u, $"回读 hr={hrB} 材质={gotB}");
+            int hrD = DwmProbe.DwmGetWindowAttribute(hwndM, 20, out uint gotD, 4);
+            Chk("T176b-tint-follows-theme", hrD == 0 && gotD == (Theme.IsDark ? 1u : 0u),
+                $"回读 hr={hrD} 暗色={gotD} 主题暗={Theme.IsDark}");
+            winM.Close();
+        }
+        catch (Exception e) { Chk("T176-mica-backdrop", false, e.Message); }
 
         // 全局 ToolTip/菜单样式可解析（守主题相关 XAML）
         try
@@ -3245,4 +3269,10 @@ sealed class TestNamer : GestureCore.IKeyNamer
     public string Name(int key) => key switch { 0x41 => "A", 0x52 => "R", 0x75 => "F6", _ => "#" + key };
         #endregion
 
+}
+/// <summary>背板回读用的最小 DWM 声明。生产侧的 Win32 是 internal，测试不为此放宽可见性。</summary>
+static class DwmProbe
+{
+    [System.Runtime.InteropServices.DllImport("dwmapi.dll")]
+    public static extern int DwmGetWindowAttribute(IntPtr hwnd, int attr, out uint value, int cb);
 }

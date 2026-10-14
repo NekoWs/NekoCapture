@@ -2340,3 +2340,10 @@ status: done
   - **断言从形状换成行为**：`T171b/T172b/T172c` 原判「不是 `TranslateTransform`」，包装成 `TransformGroup` 后会蒙混过关（加固后确实一度全绿但断言已失效）。改判合成矩阵 `OffsetX/OffsetY` 为零或 `Value.IsIdentity`；`T172a` 起跳位改判矩阵 `OffsetX=-10, OffsetY=6`，在调用返回时立刻读，不依赖泵帧时机。
   - **取证边界（本轮最重要的负面结论）**：窗级透明度动画在真实屏幕上量不到斜坡。浅色主题 `burstdesk` 25ms 连拍——打开：d.003 桌面 119.7 → d.005 满窗 248.0；Esc 关闭：d.001 248.0 → d.002 57.0 → d.003 桌面 75.4，两次都是一帧到位。`PreTransparent` 释放 alpha 时直接给满，WPF 的 `Opacity` 动画被盖住。故本轮窗级改动的证据是断言 `T175a/b` 而非逐帧；行级动画在窗口内部合成、屏幕上可见，前几轮逐帧证据不受影响。已记 UIAUDIT 待办。
   - **验证**：SelfTest **465 → 470**（+`T174a/b/c`、`T175a/b`）。全链 0 错误 / 0 非 NU1900 警告 / `PASS=470 FAIL=0` / LINT PASS / GUARDRAIL PASS。
+**设置窗接入 Win11 Mica 背板（UI 质感轮六）**
+  - **为什么值得做**：设置窗是 `WindowStyle=None` + `WindowChrome` + 原生圆角阴影的**非分层窗**，正是 Mica 的适用形态；此前窗口体是 `WindowBg` 的 95% 平涂，背后是什么完全无关。Mica 让桌面壁纸的模糊色调渗进窗口，是 Win11 原生对话框的表面材质。
+  - **实现**：`Fluent.MicaBackdrop(Window)`——`DWMWA_SYSTEMBACKDROP_TYPE=2`（22621+），返回非 0 时退到 22000 的 `DWMWA_MICA_EFFECT` 布尔开关，再不支持即静默跳过、窗口按自身底色显示。分层窗直接跳过：分层表面背后没有 DWM 背板。同时把 `WindowChrome.GlassFrameThickness` 设为 `-1`——WPF 只在玻璃框覆盖的区域内把像素让给背板，`Thickness(0)` 等于整窗自绘不透明，背板设了也看不见。
+  - **色调跟应用主题**：`DWMWA_USE_IMMERSIVE_DARK_MODE` 按 `Theme.IsDark` 设置并挂 `Theme.Changed` 同步（`Closed` 时摘钩子）。应用选浅色就出浅色 Mica，与系统的主题设置无关；否则应用与背板会一个深一个浅。
+  - **底色必须让位**：窗口 `Background` 与内容根 `Border` 的 `WindowBg` 填充都改成透明——铺任何底色都会把背板盖成平涂。卡片仍是 `CardBg` 不透明，正文直接坐在 Mica 上，与 WinUI 对话框一致。
+  - **取证踩的坑**：`UICap region` 走 PrintWindow，背板不属于窗口 DC，拍出来与设背板前完全相同；暗壁纸下真实屏幕截图也与平涂 `0x20` 几乎重合。确定判据是向 DWM **回读**属性：`T176a` 材质=2、`T176b` 色调随主题。视觉证据取浅色主题 `test-out/mica-light.png`——壁纸的粉紫→淡蓝渐变明显渗入窗体，文字与卡片可读性完好；暗色 `test-out/mica-real.png` 只作可读性核对。
+  - **验证**：SelfTest **470 → 472**。全链 0 错误 / 0 非 NU1900 警告 / `PASS=472 FAIL=0` / LINT PASS / GUARDRAIL PASS。`src/Setup` 通过 glob 共享 `Fluent.cs` 且自带 `Win32Shim.cs`，新常量两处都要补，否则安装器编译不过。

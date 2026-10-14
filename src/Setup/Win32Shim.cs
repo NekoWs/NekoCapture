@@ -27,6 +27,20 @@ internal static class Win32
     /// <summary>圆角偏好取值：使用系统默认圆角。</summary>
     public const int DWMWCP_ROUND = 2;
 
+    /// <summary>DWM 属性编号：背板材质与标题栏明暗。
+    /// <c>DWMWA_SYSTEMBACKDROP_TYPE</c> 自 Win11 22621 起提供，更早的 22000 只有
+    /// <c>DWMWA_MICA_EFFECT</c> 这个布尔开关；两者都失败即当前系统无背板。</summary>
+    public const int DWMWA_USE_IMMERSIVE_DARK_MODE = 20;
+    public const int DWMWA_SYSTEMBACKDROP_TYPE = 38;
+    public const int DWMWA_MICA_EFFECT = 1029;
+
+    /// <summary>背板材质取值。MAINWINDOW 即 Mica，TRANSIENTWINDOW 即 Acrylic。</summary>
+    public const int DWMSBT_NONE = 0;
+    public const int DWMSBT_AUTO = 1;
+    public const int DWMSBT_MAINWINDOW = 2;
+    public const int DWMSBT_TRANSIENTWINDOW = 3;
+    public const int DWMSBT_TABULARWINDOW = 4;
+
     /// <summary>读窗口 32 位属性。<b>只用于 GWL_STYLE / GWL_EXSTYLE 这类 32 位索引</b>：
     /// 64 位下指针型索引（GWLP_WNDPROC 等）必须走 GetWindowLongPtr，用这份会截断。</summary>
     /// <param name="hWnd">目标窗口句柄。</param>

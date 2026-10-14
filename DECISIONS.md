@@ -459,3 +459,15 @@ ANSI 单字节封送、被目标函数按 UTF-16 解释：查找永不命中，�
 **现在靠什么防回归**：`CascadeIn` 把位移子变换放进 `TransformGroup`，收束时摘掉自己、把原对象放回原位；
 `ResetCascade` 靠 `ConditionalWeakTable` 登记只摘自己造的位移子变换。
 `T174a` 锁入场中仍含原 `ScaleTransform`，`T174b` 锁收束后 `ReferenceEquals` 原对象，`T174c` 锁 `ResetCascade` 后原对象仍在。
+## DWM 背板不进窗口 DC，判据只能是 DWM 回读
+
+**现象**：给窗口设了 Mica 背板，`UICap region`（PrintWindow）截出来的图与设背板前一模一样；
+换成真实屏幕截图，暗壁纸下窗口体仍是一片平涂暗色，肉眼无法区分「背板生效」与「平涂底色」。
+
+**根因**：背板由 DWM 在窗口表面**之下**合成，不属于窗口 DC，PrintWindow 类抓取拿不到它。
+Mica 是低对比度材质，桌面暗时输出也就暗，与 `0x20` 平涂在数值上几乎重合——像素判据在这个场景没有判别力。
+
+**现在靠什么防回归**：`T176a` 向 DWM 回读 `DWMWA_SYSTEMBACKDROP_TYPE` 确认登记的材质是 Mica，
+`T176b` 回读 `DWMWA_USE_IMMERSIVE_DARK_MODE` 确认色调跟随应用主题而非系统主题。
+视觉侧改用浅色主题取证：壁纸亮度足够时 Mica 的渐变渗入肉眼可辨，暗色主题只作可读性核对。
+测试侧的 DWM 声明在 SelfTest 内自带一份，生产侧 `Win32` 保持 internal。
