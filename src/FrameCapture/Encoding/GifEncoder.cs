@@ -200,8 +200,7 @@ public static class GifEncoder
         // 无抖动的中位切割在暗渐变上出明显带状纹（逐帧审查 GIF 产物发现）；
         // 误差全为 0 的平坦区直接跳过传播，文字边缘不引入噪点。
         // 7bit 键缓存：6bit 的 4 宽桶会把误差反馈量化成 4px 周期竖纹（真实帧 3x 放大抓到）
-        var cache = new int[2097152];
-        Array.Fill(cache, -1);
+        var cache = NnCache(out int gen);
         var indices = new byte[total];
         var errBuf = ErrBuf(total);
         for (int y = 0; y < h; y++)
@@ -217,8 +216,14 @@ public static class GifEncoder
                 int g = Clamp255(bgra[o + 1] + (int)Math.Round(errBuf[pe + 1]));
                 int b3 = Clamp255(bgra[o] + (int)Math.Round(errBuf[pe + 2]));
                 int key = (r >> 1 << 14) | (g >> 1 << 7) | (b3 >> 1);
-                int idx = cache[key];
-                if (idx < 0)
+                int hit = cache[key];
+                int idx;
+                // 命中条件：项内世代与本次一致。低 8 位是调色板索引（n ≤ 256），高位是世代戳
+                if (hit >= 0 && (hit >> 8) == gen)
+                {
+                    idx = hit & 0xFF;
+                }
+                else
                 {
                     int bestI = 0, bestD = int.MaxValue;
                     for (int i = 0; i < n; i++)
@@ -228,7 +233,7 @@ public static class GifEncoder
                         if (d < bestD) { bestD = d; bestI = i; }
                     }
                     idx = bestI;
-                    cache[key] = idx;
+                    cache[key] = (gen << 8) | idx;
                 }
                 int er = r - palette[idx * 3], eg = g - palette[idx * 3 + 1], eb = b3 - palette[idx * 3 + 2];
                 indices[p] = (byte)idx;
@@ -269,35 +274,67 @@ public static class GifEncoder
         return b;
     }
 
+    /// <summary>最近色查找表：按线程复用，免掉每帧 8MB 的 LOH 分配。</summary>
+    [ThreadStatic] private static int[]? _nnCache;
+    /// <summary>缓存世代戳：每次 Quantize 递增，写入值高位带世代，跨帧自动失效。</summary>
+    [ThreadStatic] private static int _nnGen;
+
+    // 取本线程的查找表并开启新世代：整表只在首次分配时清零，之后靠世代戳区分帧
+    private static int[] NnCache(out int gen)
+    {
+        var c = _nnCache;
+        if (c == null)
+        {
+            c = new int[2097152];
+            Array.Fill(c, -1);
+            _nnCache = c;
+            _nnGen = 1;
+        }
+        else if (++_nnGen == 1 << 23)
+        {
+            // 世代再进一位就要溢出符号位：整表清零后从 1 重新计数
+            Array.Fill(c, -1);
+            _nnGen = 1;
+        }
+        gen = _nnGen;
+        return c;
+    }
+
     sealed class ColorBox
     {
         public List<(int Key, int Count)> Colors { get; }
         public long TotalCount { get; }
-        /// <summary>建一个色桶，顺带累计该桶覆盖的样本像素总数。</summary>
+        // 跨度与分裂轴只由 Colors 决定，构造时算一次；median-cut 每轮选桶只读这两个字段
+        private readonly int _span;
+        private readonly int _spanAxis;
+        /// <summary>建一个色桶：累计样本像素总数，并算好三通道跨度与跨度最大的轴。</summary>
         /// <param name="colors">桶内条目：6bit 归约色键 + 该键的样本像素数。</param>
         public ColorBox(List<(int Key, int Count)> colors)
         {
             Colors = colors;
-            long t = 0; foreach (var (_, c) in colors) t += c;
-            TotalCount = t;
-        }
-        /// <summary>取该桶在三通道上跨度最大的一轴及其跨度，供 median-cut 决定往哪切。</summary>
-        /// <param name="axis">输出分裂轴：0=R、1=G、2=B，对应 6bit 归约键的通道序。</param>
-        /// <returns>该轴跨度（0–63）。并列时按 R、G、B 的优先序取轴，同一输入结果确定。</returns>
-        public int Span(out int axis)
-        {
+            long t = 0;
             int maxR = 0, minR = 63, maxG = 0, minG = 63, maxB = 0, minB = 63;
-            foreach (var (key, _) in Colors)
+            foreach (var (key, c) in colors)
             {
+                t += c;
                 int r = key >> 12 & 63, g = key >> 6 & 63, b = key & 63;
                 if (r > maxR) maxR = r; if (r < minR) minR = r;
                 if (g > maxG) maxG = g; if (g < minG) minG = g;
                 if (b > maxB) maxB = b; if (b < minB) minB = b;
             }
+            TotalCount = t;
             int spanR = maxR - minR, spanG = maxG - minG, spanB = maxB - minB;
-            if (spanR >= spanG && spanR >= spanB) { axis = 0; return spanR; }
-            if (spanG >= spanB) { axis = 1; return spanG; }
-            axis = 2; return spanB;
+            if (spanR >= spanG && spanR >= spanB) { _spanAxis = 0; _span = spanR; }
+            else if (spanG >= spanB) { _spanAxis = 1; _span = spanG; }
+            else { _spanAxis = 2; _span = spanB; }
+        }
+        /// <summary>取该桶在三通道上跨度最大的一轴及其跨度，供 median-cut 决定往哪切。</summary>
+        /// <param name="axis">输出分裂轴：0=R、1=G、2=B，对应 6bit 归约键的通道序。</param>
+        /// <returns>该轴跨度（非空桶 0–63）。并列时按 R、G、B 的优先序取轴，同一输入结果确定。</returns>
+        public int Span(out int axis)
+        {
+            axis = _spanAxis;
+            return _span;
         }
     }
     #endregion
