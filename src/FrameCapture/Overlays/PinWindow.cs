@@ -45,7 +45,7 @@ public sealed class PinWindow : Window
     double _grabDX, _grabDY;   // 光标相对贴图左上角的抓取偏移（DIP），拖动时贴图不"跳"到光标下
     double _rawLeft, _rawTop;  // 未吸附的逻辑位置（磁吸作为显示偏移叠加其上，避免与光标互相拉扯）
     // 拖动实时磁吸：拖拽起点预计算的本屏参考边（DIP，带垂直跨度），左/右、上/下分开（同类边对同类边）
-    System.Collections.Generic.List<FrameCapture.Core.PinSnap.Edge>
+    List<Core.PinSnap.Edge>
         _snapXL = null!, _snapXR = null!, _snapYT = null!, _snapYB = null!;
     string? _snapScr;
 
@@ -160,7 +160,7 @@ public sealed class PinWindow : Window
             var d = VisualTreeHelper.GetDpi(this);
             _rawLeft = pt.X / d.DpiScaleX - _grabDX;
             _rawTop = pt.Y / d.DpiScaleY - _grabDY;
-            if (FrameCapture.Core.SettingsService.Shared?.Current.PinSnapEdges == true)
+            if (Core.SettingsService.Shared?.Current.PinSnapEdges == true)
             {
                 // 实时磁吸（Slick Window Arrangement 手感）：临近屏幕边/窗口边/其他贴图边即吸附对齐。
                 // 关键＝只有垂直跨度真正重叠的同类边才吸（杜绝「到处吸附」）；无滞回也不抖（重叠判定天然稳定）。
@@ -168,9 +168,9 @@ public sealed class PinWindow : Window
                 if (_snapScr == null ||
                     System.Windows.Forms.Screen.FromPoint(new System.Drawing.Point((int)ccx, (int)ccy)).DeviceName != _snapScr)
                     BuildSnapLines();   // 仅跨屏时重建（罕见），同屏零枚举
-                double md = FrameCapture.Core.PinSnap.MagnetDist(Width, Height);
-                Left = FrameCapture.Core.PinSnap.Magnet(_rawLeft, _rawLeft + Width, _rawTop, _rawTop + Height, _snapXL, _snapXR, md);
-                Top = FrameCapture.Core.PinSnap.Magnet(_rawTop, _rawTop + Height, Left, Left + Width, _snapYT, _snapYB, md);
+                double md = Core.PinSnap.MagnetDist(Width, Height);
+                Left = Core.PinSnap.Magnet(_rawLeft, _rawLeft + Width, _rawTop, _rawTop + Height, _snapXL, _snapXR, md);
+                Top = Core.PinSnap.Magnet(_rawTop, _rawTop + Height, Left, Left + Width, _snapYT, _snapYB, md);
             }
             else { Left = _rawLeft; Top = _rawTop; }
         };
@@ -191,13 +191,13 @@ public sealed class PinWindow : Window
                 // 先提交淡入动画的可见值再清动画：清动画后 WPF 回退到基础值 0，
                 // 不先提交则 Next(0,±) 一律夹到下限 0.2——首滚突跳 0.2、之后向下滚恒 0.2「无效果」。
                 CommitOpacity();
-                Opacity = FrameCapture.Core.PinOpacity.Next(Opacity, e.Delta);
+                Opacity = Core.PinOpacity.Next(Opacity, e.Delta);
                 e.Handled = true;
                 return;
             }
             double old = _scale;
-            _scale = FrameCapture.Core.PinZoom.Next(_scale, e.Delta);
-            if (System.Math.Abs(_scale - old) < 1e-9) return;
+            _scale = Core.PinZoom.Next(_scale, e.Delta);
+            if (Math.Abs(_scale - old) < 1e-9) return;
             double cx = Left + Width / 2, cy = Top + Height / 2; // 以中心为锚，缩放不漂移
             ApplyScale();
             Left = cx - Width / 2; Top = cy - Height / 2;
@@ -219,11 +219,11 @@ public sealed class PinWindow : Window
         // 入场=淡入 + 卡片从 0.82 缩放「落图」带轻微回弹（BackEase），像把图钉到桌面
         ContentRendered += (_, _) =>
         {
-            FrameCapture.Core.Fluent.FadeIn(this, 140);
+            Core.Fluent.FadeIn(this, 140);
             PlayDrop();
             // 淡入后 200ms 记一次 Opacity：贴图停在 Opacity=0 时整窗隐形且无任何报错，只能靠这条日志归因
             var t = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) };
-            t.Tick += (_, __) => { t.Stop(); FrameCapture.Core.Trace.Log($"pin shown opacity={Opacity:F2}"); };
+            t.Tick += (_, __) => { t.Stop(); Core.Trace.Log($"pin shown opacity={Opacity:F2}"); };
             t.Start();
         };
         SourceInitialized += (_, _) =>
@@ -279,7 +279,7 @@ public sealed class PinWindow : Window
             st.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(0.96, dur) { EasingFunction = ease });
             st.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(0.96, dur) { EasingFunction = ease });
         }
-        var t = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(130) };
+        var t = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(130) };
         t.Tick += (_, __) => { t.Stop(); Close(); };
         t.Start();
     }
@@ -296,7 +296,7 @@ public sealed class PinWindow : Window
     void Rotate()
     {
         _rotSteps = (_rotSteps + 1) % 4; // 记录角度，刷新后重放
-        _frame = FrameCapture.Core.PinRotate.Rotate90Cw(_frame);
+        _frame = Core.PinRotate.Rotate90Cw(_frame);
         var src = BgraImage.ToSource(_frame);
         src.Freeze();
         _img.Source = src;
@@ -306,7 +306,7 @@ public sealed class PinWindow : Window
         double cx = Left + Width / 2, cy = Top + Height / 2;
         ApplyScale();
         Left = cx - Width / 2; Top = cy - Height / 2;
-        FrameCapture.Core.Trace.Log($"pin-rotate → {_frame.W}x{_frame.H}");
+        Core.Trace.Log($"pin-rotate → {_frame.W}x{_frame.H}");
     }
 
     /// <summary>原地重抓源区域刷新贴图内容（Snipaste F3 式）——盯梢会变的区域（进度条、数值、直播画面）
@@ -325,7 +325,7 @@ public sealed class PinWindow : Window
             var f = LiveCapture.Grab(_srcRegion);
             if (f != null && f.W > 0 && f.H > 0)
             {
-                if (_rotSteps != 0) f = FrameCapture.Core.PinRotate.Rotate(f, _rotSteps);
+                if (_rotSteps != 0) f = Core.PinRotate.Rotate(f, _rotSteps);
                 _frame = f;
                 var src = BgraImage.ToSource(f); src.Freeze();
                 _img.Source = src;
@@ -335,7 +335,7 @@ public sealed class PinWindow : Window
                 ApplyScale();
                 Left = cx - Width / 2; Top = cy - Height / 2;
                 Flash("已更新");
-                FrameCapture.Core.Trace.Log($"pin-refresh {f.W}x{f.H}");
+                Core.Trace.Log($"pin-refresh {f.W}x{f.H}");
             }
             else Flash("更新失败");
             Show();
@@ -348,14 +348,14 @@ public sealed class PinWindow : Window
     {
         ClipboardService.SetFrame(_frame);
         Flash("已复制");
-        FrameCapture.Core.Trace.Log("pin-copy");
+        Core.Trace.Log("pin-copy");
     }
 
     /// <summary>把贴图当前帧（含旋转后状态）另存为 PNG；弹保存框，取消则不留任何文件与提示。</summary>
     void SaveAs()
     {
         // 默认目录与「自动保存副本」一致：尊重自定义 AutoSavePath，回退 Pictures\FrameCapture
-        string dir = FrameCapture.Services.SaveService.ResolveFolder();
+        string dir = SaveService.ResolveFolder();
         var dlg = new Microsoft.Win32.SaveFileDialog
         {
             Filter = "PNG 图片|*.png",
@@ -365,7 +365,7 @@ public sealed class PinWindow : Window
         if (dlg.ShowDialog(this) != true) return;
         string path = dlg.FileName;
         if (!path.EndsWith(".png", StringComparison.OrdinalIgnoreCase)) path += ".png";
-        try { BgraImage.SavePng(_frame, path); Flash("已保存"); FrameCapture.Core.Trace.Log($"pin-save {path}"); }
+        try { BgraImage.SavePng(_frame, path); Flash("已保存"); Core.Trace.Log($"pin-save {path}"); }
         catch { Flash("保存失败"); }
     }
 
@@ -386,16 +386,16 @@ public sealed class PinWindow : Window
             var wa = scr.WorkingArea;
             double cl = wa.X / d.DpiScaleX, ct = wa.Y / d.DpiScaleY, cr = wa.Right / d.DpiScaleX, cb = wa.Bottom / d.DpiScaleY;
             // 屏幕工作区四边：左/上边可被本贴图左/上边吸，右/下边可被本贴图右/下边吸
-            _snapXL.Add(new FrameCapture.Core.PinSnap.Edge(cl, ct, cb));
-            _snapXR.Add(new FrameCapture.Core.PinSnap.Edge(cr, ct, cb));
-            _snapYT.Add(new FrameCapture.Core.PinSnap.Edge(ct, cl, cr));
-            _snapYB.Add(new FrameCapture.Core.PinSnap.Edge(cb, cl, cr));
+            _snapXL.Add(new Core.PinSnap.Edge(cl, ct, cb));
+            _snapXR.Add(new Core.PinSnap.Edge(cr, ct, cb));
+            _snapYT.Add(new Core.PinSnap.Edge(ct, cl, cr));
+            _snapYB.Add(new Core.PinSnap.Edge(cb, cl, cr));
             void AddRect(double l, double t, double r, double b)
             {
-                _snapXL.Add(new FrameCapture.Core.PinSnap.Edge(l, t, b));
-                _snapXR.Add(new FrameCapture.Core.PinSnap.Edge(r, t, b));
-                _snapYT.Add(new FrameCapture.Core.PinSnap.Edge(t, l, r));
-                _snapYB.Add(new FrameCapture.Core.PinSnap.Edge(b, l, r));
+                _snapXL.Add(new Core.PinSnap.Edge(l, t, b));
+                _snapXR.Add(new Core.PinSnap.Edge(r, t, b));
+                _snapYT.Add(new Core.PinSnap.Edge(t, l, r));
+                _snapYB.Add(new Core.PinSnap.Edge(b, l, r));
             }
             foreach (var p in _open)
             {
@@ -424,11 +424,11 @@ public sealed class PinWindow : Window
     /// <summary>把窗口一条边 [lo,hi]@pos 减去更靠上（wins[0..above-1]，Z 序更靠前）窗口在该边线上的覆盖区间，
     /// 只把可见子段加入目标边列表。vertical=true 表示竖边（x=pos，跨度沿 Y，用窗口 L/R 判是否盖住该竖线）。</summary>
     static void AddVisible(double pos, double lo, double hi,
-        System.Collections.Generic.List<FrameCapture.Core.PinSnap.Edge> target, bool vertical,
-        System.Collections.Generic.List<(double L, double T, double R, double B)> wins, int above)
+        List<Core.PinSnap.Edge> target, bool vertical,
+        List<(double L, double T, double R, double B)> wins, int above)
     {
         if (hi <= lo) return;
-        var covered = new System.Collections.Generic.List<(double a, double b)>();
+        var covered = new List<(double a, double b)>();
         for (int j = 0; j < above; j++)
         {
             var a = wins[j];
@@ -437,20 +437,20 @@ public sealed class PinWindow : Window
             else { if (!(a.T <= pos && pos < a.B)) continue; c0 = Math.Max(lo, a.L); c1 = Math.Min(hi, a.R); }
             if (c1 > c0) covered.Add((c0, c1));
         }
-        foreach (var (s0, s1) in FrameCapture.Core.PinSnap.VisibleSegments(lo, hi, covered))
-            target.Add(new FrameCapture.Core.PinSnap.Edge(pos, s0, s1));
+        foreach (var (s0, s1) in Core.PinSnap.VisibleSegments(lo, hi, covered))
+            target.Add(new Core.PinSnap.Edge(pos, s0, s1));
     }
 
     List<(double L, double T, double R, double B)> BuildWinGuides()
     {
-        var list = new System.Collections.Generic.List<(double, double, double, double)>();
+        var list = new List<(double, double, double, double)>();
         try
         {
             var d = VisualTreeHelper.GetDpi(this);
             // 排除自己——否则拖拽起点快照会把本贴图此刻的边当参考边，拖起来"吸回自己起点"＝莫名其妙。
             var self = new System.Windows.Interop.WindowInteropHelper(this).Handle;
             // 保持 EnumWindows 的 Z 序（上→下），供 BuildSnapLines 做遮挡裁剪：只把"看得见的边"当参考。
-            foreach (var (_, b, _) in FrameCapture.Native.WindowEnum.ListTopmostCandidates(self, skipIconic: true))
+            foreach (var (_, b, _) in WindowEnum.ListTopmostCandidates(self, skipIconic: true))
                 list.Add((b.X / d.DpiScaleX, b.Y / d.DpiScaleY, (b.X + b.W) / d.DpiScaleX, (b.Y + b.H) / d.DpiScaleY));
         }
         catch { /* 枚举失败不影响贴图/屏幕边吸附 */ }
@@ -464,12 +464,12 @@ public sealed class PinWindow : Window
         Flash("识别文字…");
         try
         {
-            var outcome = await FrameCapture.Core.OcrService.RecognizeAsync(_frame);
-            if (outcome.Status == FrameCapture.Core.OcrStatus.Success)
+            var outcome = await Core.OcrService.RecognizeAsync(_frame);
+            if (outcome.Status == Core.OcrStatus.Success)
             {
-                var text = FrameCapture.Core.OcrService.Normalize(outcome.Text);
+                var text = Core.OcrService.Normalize(outcome.Text);
                 // 预览优先：开结果窗时以「预览选取」为主，不自动写剪贴板；关结果窗才走快速复制路径。
-                if (FrameCapture.Core.SettingsService.Shared?.Current.OcrShowResult == true)
+                if (Core.SettingsService.Shared?.Current.OcrShowResult == true)
                 {
                     HideSnack();
                     OcrResultWindow.Show(text);
@@ -477,19 +477,19 @@ public sealed class PinWindow : Window
                 else
                 {
                     try { Clipboard.SetText(text); } catch { }
-                    Flash(FrameCapture.Core.OcrService.Feedback(FrameCapture.Core.OcrStatus.Success, text.Length));
+                    Flash(Core.OcrService.Feedback(Core.OcrStatus.Success, text.Length));
                 }
-                FrameCapture.Core.Trace.Log($"pin ocr ok {text.Length} chars");
+                Core.Trace.Log($"pin ocr ok {text.Length} chars");
             }
             else
             {
-                Flash(FrameCapture.Core.OcrService.Feedback(outcome.Status, 0));
-                FrameCapture.Core.Trace.Log($"pin ocr {outcome.Status}");
+                Flash(Core.OcrService.Feedback(outcome.Status, 0));
+                Core.Trace.Log($"pin ocr {outcome.Status}");
             }
         }
         catch (Exception ex)
         {
-            FrameCapture.Core.Trace.Log($"pin ocr failed: {ex.Message}");
+            Core.Trace.Log($"pin ocr failed: {ex.Message}");
             Flash("识别失败");
         }
     }
@@ -501,13 +501,13 @@ public sealed class PinWindow : Window
         _snackText.Text = msg;
         _snack.Visibility = Visibility.Visible;
         _snack.BeginAnimation(OpacityProperty, new DoubleAnimation(1,
-            new Duration(TimeSpan.FromMilliseconds(FrameCapture.Core.Fluent.Motion.HoverMs)))
+            new Duration(TimeSpan.FromMilliseconds(Core.Fluent.Motion.HoverMs)))
         { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
         _snackTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1600) };
         _snackTimer.Tick += (_, _) =>
         {
             _snackTimer!.Stop();
-            var fade = new DoubleAnimation(0, new Duration(TimeSpan.FromMilliseconds(FrameCapture.Core.Fluent.Motion.ExitMs)))
+            var fade = new DoubleAnimation(0, new Duration(TimeSpan.FromMilliseconds(Core.Fluent.Motion.ExitMs)))
             { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseIn } };
             fade.Completed += (_, _) => _snack.Visibility = Visibility.Collapsed;
             _snack.BeginAnimation(OpacityProperty, fade);
@@ -524,7 +524,7 @@ public sealed class PinWindow : Window
 
     void ShowMenu()
     {
-        var menu = new ContextMenu { Resources = FrameCapture.Core.Fluent.MenuResources() }; // 套用共享 Fluent 菜单样式：裸 ContextMenu 走系统默认样式，与全局观感不符
+        var menu = new ContextMenu { Resources = Core.Fluent.MenuResources() }; // 套用共享 Fluent 菜单样式：裸 ContextMenu 走系统默认样式，与全局观感不符
         var copy = new MenuItem { Header = "复制", InputGestureText = "Ctrl+C" };
         copy.Click += (_, _) => Copy();
         var saveAs = new MenuItem { Header = "另存为…", InputGestureText = "Ctrl+S" };

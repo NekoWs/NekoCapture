@@ -111,11 +111,11 @@ public sealed class ColorPickView : StackPanel
 
     void SetState(Color c)
     {
-        (_h, _s, _v) = FrameCapture.Core.Hsv.FromRgb(c.R, c.G, c.B);
+        (_h, _s, _v) = Core.Hsv.FromRgb(c.R, c.G, c.B);
         _a = c.A / 255.0;
     }
 
-    (byte r, byte g, byte b) Rgb() => FrameCapture.Core.Hsv.ToRgb(_h, _s, _v);
+    (byte r, byte g, byte b) Rgb() => Core.Hsv.ToRgb(_h, _s, _v);
 
     void Fire() => Changed?.Invoke(Color);
 
@@ -130,7 +130,7 @@ public sealed class ColorPickView : StackPanel
 
     void CommitHex()
     {
-        var got = FrameCapture.Core.HexColor.Parse(_hexBox.Text);
+        var got = Core.HexColor.Parse(_hexBox.Text);
         if (got == null) { Sync(); return; } // 非法输入：回弹当前色
         SetState(got.Value);
         Sync(); Fire();
@@ -149,7 +149,7 @@ public sealed class ColorPickView : StackPanel
         _alphaThumb.Margin = new Thickness(0, Math.Clamp((1 - _a) * (_alphaThumb.Parent is FrameworkElement ap ? ap.ActualHeight : 120), 0, 117), 0, 0);
         _previewRect.Fill = new SolidColorBrush(Color.FromArgb((byte)Math.Round(_a * 255), r, g, b));
 
-        var hex = FrameCapture.Core.HexColor.Format(Color.FromArgb((byte)Math.Round(_a * 255), r, g, b));
+        var hex = Core.HexColor.Format(Color.FromArgb((byte)Math.Round(_a * 255), r, g, b));
         SetTextUnlessFocused(_hexBox, hex);
         SetTextUnlessFocused(_rBox, r.ToString());
         SetTextUnlessFocused(_gBox, g.ToString());

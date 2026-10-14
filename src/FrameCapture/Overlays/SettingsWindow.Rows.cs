@@ -224,7 +224,7 @@ public sealed partial class SettingsWindow : Window
         var chips = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
         Grid.SetColumn(chips, 2);
         var cur = _settings.Current.RecordFormat;
-        bool hasFf = FrameCapture.Encoding.FfmpegLocator.Find() != null;
+        bool hasFf = Encoding.FfmpegLocator.Find() != null;
         string ffNote = hasFf ? "（已检测到 ffmpeg）" : "（未检测到 ffmpeg，装 FFmpeg 后可选）";
         var opts = new (RecordFormat id, string text, string tip)[]
         {
@@ -232,7 +232,7 @@ public sealed partial class SettingsWindow : Window
             (RecordFormat.Mp4, "MP4", "兼容性最好的视频格式（libx264），微信/浏览器/剪辑软件通吃 " + ffNote),
             (RecordFormat.WebM, "WebM", "开源视频格式（VP9），同画质体积更小，网页/上传首选 " + ffNote),
         };
-        var chipList = new System.Collections.Generic.List<(Border chip, RecordFormat id)>();
+        var chipList = new List<(Border chip, RecordFormat id)>();
         foreach (var (id, text, tip) in opts)
         {
             RecordFormat captured = id;
@@ -251,7 +251,7 @@ public sealed partial class SettingsWindow : Window
         // 用绘制的小圆点而非字形，规避未验证字形；只读、开设置时算一次
         var status = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(32, 3, 0, 0) };
         var dotColor = hasFf ? Color.FromRgb(0x4C, 0xAF, 0x50) : Color.FromRgb(0xD1, 0x8B, 0x00);
-        status.Children.Add(new System.Windows.Shapes.Ellipse
+        status.Children.Add(new Ellipse
         {
             Width = 7,
             Height = 7,
@@ -292,7 +292,7 @@ public sealed partial class SettingsWindow : Window
     {
         if (p.Children.Count == 0) return;
         var inner = new StackPanel();
-        var kids = new System.Collections.Generic.List<UIElement>();
+        var kids = new List<UIElement>();
         foreach (UIElement k in p.Children) kids.Add(k);
         p.Children.Clear();
         foreach (var k in kids) inner.Children.Add(k);
@@ -306,7 +306,7 @@ public sealed partial class SettingsWindow : Window
             Padding = new Thickness(12, 6, 12, 6),
             Child = inner,
         };
-        FrameCapture.Core.Fluent.Elevate(card, blur: 24, depth: 6);
+        Fluent.Elevate(card, blur: 24, depth: 6);
         p.Children.Add(card);
     }
 
@@ -383,7 +383,7 @@ public sealed partial class SettingsWindow : Window
     /// <param name="chips">本行全部芯片及其标识值。</param>
     /// <param name="selected">新的选中标识值。</param>
     /// <returns>是否存在命中项——调用方据此决定「自定义」输入框要不要高亮。</returns>
-    static bool RefreshChips<T>(System.Collections.Generic.IReadOnlyList<(Border chip, T id)> chips, T selected)
+    static bool RefreshChips<T>(IReadOnlyList<(Border chip, T id)> chips, T selected)
     {
         bool anySel = false;
         foreach (var (c, cid) in chips)

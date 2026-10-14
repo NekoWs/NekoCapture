@@ -11,7 +11,7 @@ public sealed class TrayService : IDisposable
     private readonly AppHost _host;
     private readonly WinForms.NotifyIcon _icon;
     private System.Windows.Window? _menuAnchor;
-    private System.Windows.Controls.ContextMenu? _menu;
+    private ContextMenu? _menu;
 
     /// <summary>建托盘图标并订阅设置变更以刷新悬停提示。图标此刻 <c>Visible=false</c>，由 <see cref="Show"/> 点亮。</summary>
     /// <param name="host">宿主，用于把菜单项动作转给 <see cref="CaptureController"/> 与设置服务；须已完成装配。</param>
@@ -179,9 +179,9 @@ public sealed class TrayService : IDisposable
         app.Dispatcher.Invoke(a);
     }
 
-    void OpenSettings() => FrameCapture.Overlays.SettingsWindow.ShowOrFocus();
+    void OpenSettings() => Overlays.SettingsWindow.ShowOrFocus();
 
-    void OpenHelp() => FrameCapture.Overlays.HelpWindow.ShowOrFocus();
+    void OpenHelp() => Overlays.HelpWindow.ShowOrFocus();
 
     static Icon MakeIcon()
     {

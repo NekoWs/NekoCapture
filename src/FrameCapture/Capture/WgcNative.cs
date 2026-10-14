@@ -91,7 +91,7 @@ internal static class WgcNative
                                        levelsHandle.IsAllocated ? levelsHandle.AddrOfPinnedObject() : IntPtr.Zero,
                                        (uint)levels.Length, SDK_VERSION, out IntPtr d3d0, out _, out IntPtr ctx0);
                 if (hr == 0) { d3d = d3d0; ctx = ctx0; break; }
-                FrameCapture.Core.Trace.Log($"D3D11CreateDevice dt={dt} hr=0x{hr:X8}");
+                Core.Trace.Log($"D3D11CreateDevice dt={dt} hr=0x{hr:X8}");
             }
         }
         finally { levelsHandle.Free(); }

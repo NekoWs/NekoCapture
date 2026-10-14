@@ -16,7 +16,7 @@ public static class Memory
             GC.Collect();
             GC.WaitForPendingFinalizers();
             GC.Collect();
-            FrameCapture.Native.Win32.TrimWorkingSet();
+            Native.Win32.TrimWorkingSet();
         }
         catch { }
     }

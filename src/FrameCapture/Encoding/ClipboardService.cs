@@ -38,7 +38,7 @@ public static class ClipboardService
             }
             catch (System.Runtime.InteropServices.COMException)
             {
-                System.Threading.Thread.Sleep(80); // 目标应用占用剪贴板，重试
+                Thread.Sleep(80); // 目标应用占用剪贴板，重试
             }
         }
     }
@@ -86,7 +86,7 @@ public static class ClipboardService
                 else Clipboard.SetImage((System.Windows.Media.Imaging.BitmapSource)payload);
                 return;
             }
-            catch (System.Runtime.InteropServices.COMException) { System.Threading.Thread.Sleep(80); }
+            catch (System.Runtime.InteropServices.COMException) { Thread.Sleep(80); }
         }
     }
 

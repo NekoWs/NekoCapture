@@ -161,7 +161,7 @@ public sealed partial class CaptureController : IDisposable
             colorFormat: Core.ColorFormat.Parse(_settings.Current.ColorCopyFormat), windowCapture: _settings.Current.WindowCaptureEnabled,
             freeze: _settings.Current.FreezeOnSelect, pregrabMax: _settings.Current.FreezePregrabMaxWindows,
             windowShadow: _settings.Current.WindowCaptureShadow);
-        FrameCapture.Core.Trace.Log($"picker ctor done dt={swOpen.ElapsedMilliseconds}ms magnifier={_settings.Current.PickerMagnifier}");
+        Trace.Log($"picker ctor done dt={swOpen.ElapsedMilliseconds}ms magnifier={_settings.Current.PickerMagnifier}");
         _picker.Result += (region, hwnd) =>
         {
             var pk = _picker; // 定格帧/预抓缓存挂在选区窗上，先留引用（下面 _picker 置空、窗随即关闭）
@@ -222,7 +222,7 @@ public sealed partial class CaptureController : IDisposable
                                 var (wf, wreg) = WindowCapture.Grab(hwnd, _settings.Current.WindowCaptureShadow);
                                 f = wf; capReg = wreg; winCap = true;
                             }
-                            catch (Exception ex) { FrameCapture.Core.Trace.Log($"winCap fail→region: {ex.Message}"); f = null; }
+                            catch (Exception ex) { Trace.Log($"winCap fail→region: {ex.Message}"); f = null; }
                         }
                     }
                     if (f == null && _settings.Current.FreezeOnSelect && pk != null && pk.FrozenFrame is { } ff)
@@ -251,7 +251,7 @@ public sealed partial class CaptureController : IDisposable
         _picker.Show();
         // 选区窗不调 ForceForeground：它是非激活窗，抢前台会把焦点从目标窗（如浏览器）夺走，
         // Z 序/前台一变，选区里就截到别的软件。Topmost + ReassertTop 已保证视觉置顶，键走全局钩子代收。
-        FrameCapture.Core.Trace.Log($"picker Show returned dt={swOpen.ElapsedMilliseconds}ms");
+        Trace.Log($"picker Show returned dt={swOpen.ElapsedMilliseconds}ms");
     }
     #endregion
 
@@ -268,14 +268,14 @@ public sealed partial class CaptureController : IDisposable
         _pendingRegion = region;
         _prevFg = Native.Win32.GetForegroundWindow();
         // 前台是自家窗口（如从托盘再次触发）则无需归还，避免焦点乒乓
-        if (_prevFg != System.IntPtr.Zero && Native.Win32.GetWindowThreadProcessId(_prevFg, out uint fgp) == Native.Win32.GetCurrentThreadId())
-            _prevFg = System.IntPtr.Zero;
+        if (_prevFg != IntPtr.Zero && Native.Win32.GetWindowThreadProcessId(_prevFg, out uint fgp) == Native.Win32.GetCurrentThreadId())
+            _prevFg = IntPtr.Zero;
 
         _spool = new FrameSpool();  // 帧逐帧落盘，不驻留内存（容量护栏见 FrameSpool）
         _spool.DiskLow += free => System.Windows.Application.Current?.Dispatcher.BeginInvoke(() =>
         {
             // 捕获线程触发 → 回 UI 线程停录；已录内容照常进编辑器，绝不静默丢帧
-            FrameCapture.Core.Trace.Log($"disk low {free >> 20}MB → auto-stop");
+            Trace.Log($"disk low {free >> 20}MB → auto-stop");
             if (State == Phase.Capturing) FinishCapture();
         });
         var monitor = Monitors.ByDevice(region.DeviceName) ?? Monitors.Nearest(region.Bounds.X, region.Bounds.Y);
@@ -299,13 +299,13 @@ public sealed partial class CaptureController : IDisposable
                 _wgc.FrameSampled += f => _spool?.Add(f);
                 _wgc.Start(monitor, region.Bounds, fps, _settings.Current.RecordIncludeCursor);
                 wgcOk = true;
-                FrameCapture.Core.Trace.Log("capture backend=wgc");
+                Trace.Log("capture backend=wgc");
             }
             catch (Exception ex)
             {
                 _wgc?.Dispose();
                 _wgc = null;
-                FrameCapture.Core.Trace.Log("wgc init failed: " + ex.Message.Split('\n')[0] + " → 回退 GDI");
+                Trace.Log("wgc init failed: " + ex.Message.Split('\n')[0] + " → 回退 GDI");
             }
         }
         if (!wgcOk)
@@ -313,7 +313,7 @@ public sealed partial class CaptureController : IDisposable
             try
             {
                 _live.Start(monitor, region.Bounds, fps);
-                FrameCapture.Core.Trace.Log("capture backend=gdi");
+                Trace.Log("capture backend=gdi");
             }
             catch
             {
@@ -357,7 +357,7 @@ public sealed partial class CaptureController : IDisposable
 
     private void FinishCapture(long holdMs = -1, bool openEditor = true)
     {
-        FrameCapture.Core.Trace.Log("FinishCapture");
+        Trace.Log("FinishCapture");
         _recBadgeTimer?.Stop();
         // 徽标与轮廓的退场延后到产物就绪（见 RetireCaptureOutline）：录制路径期间先挂「处理中…」，
         // 免得连按两下结束后、编辑器构造那段 UI 冻结期界面空着像没反应。
@@ -374,7 +374,7 @@ public sealed partial class CaptureController : IDisposable
         _spool = null;
         IReadOnlyList<CapturedFrame> frames = spoolList ?? (IReadOnlyList<CapturedFrame>)new List<CapturedFrame>();
         if (durMs > 50)
-            FrameCapture.Core.Trace.Log($"wgc stats kept={frames.Count} delivered={wgcDelivered} keptThrottle={wgcKept} missed={wgcMissed} dur={durMs:F0}ms fps={frames.Count / (durMs / 1000.0):F1}");
+            Trace.Log($"wgc stats kept={frames.Count} delivered={wgcDelivered} keptThrottle={wgcKept} missed={wgcMissed} dur={durMs:F0}ms fps={frames.Count / (durMs / 1000.0):F1}");
         if (frames.Count == 0)
         {
             // WGC 脏区语义在极短/全静止场景理论可为 0 帧：GDI 补抓一帧兜底，保证“点按必有产物”
@@ -384,7 +384,7 @@ public sealed partial class CaptureController : IDisposable
                 try
                 {
                     var one = LiveCapture.Grab(reg);
-                    if (one != null) { frames = new List<CapturedFrame> { one }; FrameCapture.Core.Trace.Log("zero-frame safety net (gdi grab)"); }
+                    if (one != null) { frames = new List<CapturedFrame> { one }; Trace.Log("zero-frame safety net (gdi grab)"); }
                 }
                 catch { }
             }
@@ -407,7 +407,7 @@ public sealed partial class CaptureController : IDisposable
 
         // 产物先暂存内存。开编辑器时所有权归编辑器（_lastSequence 置空，免下次误回收）；
         // 不开编辑器时记为「上次录制」供 edit.lastvideo 取用，并释放上一条从未进编辑器的产物（含 spool 文件）。
-        if (!ReferenceEquals(_lastSequence, seq)) (_lastSequence?.Frames as System.IDisposable)?.Dispose();
+        if (!ReferenceEquals(_lastSequence, seq)) (_lastSequence?.Frames as IDisposable)?.Dispose();
         if (openEditor)
         {
             // 编辑器构造 + 首帧解码是 UI 线程同步重活会冻结界面：先把 REC 徽标转「处理中…」并强制刷一帧，
@@ -440,21 +440,21 @@ public sealed partial class CaptureController : IDisposable
     void OpenEditor(CapturedSequence seq)
     {
         State = Phase.Editing;
-        FrameCapture.Core.Trace.Log($"open editor frames={seq.Frames.Count}");
+        Trace.Log($"open editor frames={seq.Frames.Count}");
         _editor = new EditorWindow(_settings, seq);
         _editor.ClosedByUser += () =>
         {
             _editor = null;
             State = Phase.Idle;
             // 磁盘暂存帧列表随编辑器释放（删 spool 文件）
-            (seq.Frames as System.IDisposable)?.Dispose();
+            (seq.Frames as IDisposable)?.Dispose();
             // 焦点归还给捕获前正在使用的窗口
-            try { if (_prevFg != System.IntPtr.Zero && Native.Win32.IsWindow(_prevFg)) ForegroundNow(_prevFg); } catch { }
-            _prevFg = System.IntPtr.Zero;
+            try { if (_prevFg != IntPtr.Zero && Native.Win32.IsWindow(_prevFg)) ForegroundNow(_prevFg); } catch { }
+            _prevFg = IntPtr.Zero;
             // 编辑器位图 LRU（封顶约 600MB）此刻已成垃圾，但 .NET 不把页交还 OS、工作集虚高。
             // 等窗口拆完（ApplicationIdle）再主动全代 GC + 裁工作集，等价用户手动 MemReduct，回到干净基线。
             System.Windows.Application.Current?.Dispatcher.BeginInvoke(
-                () => FrameCapture.Core.Memory.Reclaim(),
+                () => Memory.Reclaim(),
                 System.Windows.Threading.DispatcherPriority.ApplicationIdle);
         };
         _editor.Show();
@@ -476,7 +476,7 @@ public sealed partial class CaptureController : IDisposable
         _outline ??= new RegionOutlineWindow();
         _outline.SetRegion(region);
         _outline.ShowNoActivate();
-        FrameCapture.Core.Trace.Log($"outline: persistent show {region}");
+        Trace.Log($"outline: persistent show {region}");
     }
 
     void FlashOutline(RectI region)
@@ -485,13 +485,13 @@ public sealed partial class CaptureController : IDisposable
         _outline.SetRegion(region);
         _outline.ShowNoActivate();
         _outline.Flash();
-        FrameCapture.Core.Trace.Log($"outline: flash {region}");
+        Trace.Log($"outline: flash {region}");
     }
 
     void HideOutline()
     {
         _outline?.HideSilently();
-        FrameCapture.Core.Trace.Log("outline: hide");
+        Trace.Log("outline: hide");
     }
 
     /// <summary>
@@ -504,7 +504,7 @@ public sealed partial class CaptureController : IDisposable
         _outline.SetRegion(region);
         _outline.ShowNoActivate();
         _outline.Flash(); // 起录给一次强调，随后由动画回落常态
-        FrameCapture.Core.Trace.Log("recording scope outline shown req=" + region);
+        Trace.Log("recording scope outline shown req=" + region);
     }
 
     void CloseEditor()
@@ -526,7 +526,7 @@ public sealed partial class CaptureController : IDisposable
     {
         RestoreAutoCursor();
         _lastStill.Clear(); // 释放保留帧（最大可达数十 MB）
-        (_lastSequence?.Frames as System.IDisposable)?.Dispose(); // 留在内存、从未进编辑器的录制产物
+        (_lastSequence?.Frames as IDisposable)?.Dispose(); // 留在内存、从未进编辑器的录制产物
         _lastSequence = null;
         _live.Dispose();
     }

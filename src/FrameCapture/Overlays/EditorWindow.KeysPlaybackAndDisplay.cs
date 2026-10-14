@@ -92,7 +92,7 @@ public sealed partial class EditorWindow : Window
                         FrameCapture.Core.Trace.Log("editor esc→deselect");
                         e.Handled = true;
                         break;
-                    case FrameCapture.Core.EscAction.ExitTool:
+                    case EscAction.ExitTool:
                         CancelPendingStroke(); SetTool(Tool.Browse);
                         FrameCapture.Core.Trace.Log("editor esc→browse");
                         e.Handled = true;

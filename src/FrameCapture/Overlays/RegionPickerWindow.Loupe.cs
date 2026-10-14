@@ -17,17 +17,17 @@ public sealed partial class RegionPickerWindow : Window
 {
     private Core.ColorCopyFormat _colorFormat; // 按 C 复制颜色时的文本形式；按 F 可循环切换（Hex→RGB→HSL）
     private (int r, int g, int b)? _lastRgb; // 放大镜中心最近一次像素色，供 F 切换格式后就地刷新读数
-    private System.Windows.Controls.Border? _loupe;
+    private Border? _loupe;
     private Image? _loupeImg;
     private Rectangle? _loupeMarker;
-    private System.Windows.Controls.Border? _loupeSwatch;
+    private Border? _loupeSwatch;
     private TextBlock? _loupeHex;
     private TextBlock? _loupeInfo;
     private string _loupeHexText = ""; // 当前放大镜中心像素 #RRGGBB，供 C 键复制
     private const int LoupeSpan = 15;   // 放大镜取源边长（源像素）
     private const double LoupeSize = 150; // 放大镜显示边长（DIP）
     private Rectangle _spotStroke = null!;
-    private System.Windows.Controls.Border _badge = null!;
+    private Border _badge = null!;
     private TextBlock _badgeText = null!;
 
     #region 选区交互：按键代收、放大镜、命中与收尾（非激活窗收不到键）
@@ -53,7 +53,7 @@ public sealed partial class RegionPickerWindow : Window
                     var t = _loupeHexText;
                     Dispatcher.BeginInvoke(() =>
                     {
-                        try { System.Windows.Clipboard.SetText(t); } catch { }
+                        try { Clipboard.SetText(t); } catch { }
                         if (_loupeHex != null) _loupeHex.Text = "已复制 " + t;
                     });
                 }
@@ -153,7 +153,7 @@ public sealed partial class RegionPickerWindow : Window
             if (size < 2) return;
             var g = LiveCapture.Grab(new RectI(_monitorPhys.X + cx, _monitorPhys.Y + cy, size, size));
             if (g == null) return;
-            _loupeImg.Source = FrameCapture.Services.BgraImage.ToSource(g);
+            _loupeImg.Source = Services.BgraImage.ToSource(g);
             srcBgra = g.Bgra; srcW = g.W; px = sx - cx; py = sy - cy; // 取色用裁片内坐标
         }
 

@@ -235,7 +235,7 @@ internal static class Win32
     {
         if (!InputLayoutOk)
         {
-            FrameCapture.Core.Trace.Log($"wheel refused: sizeof(INPUT)={Marshal.SizeOf<INPUT>()} expect {SIZEOF_INPUT}");
+            Core.Trace.Log($"wheel refused: sizeof(INPUT)={Marshal.SizeOf<INPUT>()} expect {SIZEOF_INPUT}");
             return false;
         }
         var input = new INPUT

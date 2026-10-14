@@ -19,8 +19,8 @@ public sealed partial class RegionPickerWindow : Window
     private readonly RectI _monitorPhys;
     private readonly Canvas _canvas;
     private readonly Rectangle _prev = new(); // 上次选区虚线框：_existing 非空才画出，Enter 即确认它
-    private System.Windows.Shapes.Path? _spotPath;
-    private System.Windows.Shapes.Path? _holeFill;
+    private Path? _spotPath;
+    private Path? _holeFill;
     private int _dragX1, _dragY1;   // 拖框起点：物理像素、虚拟桌面绝对坐标
     private bool _dragging;
     private bool _finished;
@@ -35,7 +35,7 @@ public sealed partial class RegionPickerWindow : Window
     private byte[]? _snapBgra; // 快照原始 BGRA（取光标下像素颜色用）
     private int _snapW;
     private CapturedFrame? _snapFrame;  // 定格全屏帧（裁选区用，物理 BGRA）
-    private System.Windows.Controls.Image? _freezeBg; // 定格背景图（让屏幕看起来定格）
+    private Image? _freezeBg; // 定格背景图（让屏幕看起来定格）
     // 定格时后台预抓的窗口干净画面缓存（HWND → 帧+区域）；点窗口命中即用，避免实时抓（定格+干净）
     private readonly System.Collections.Concurrent.ConcurrentDictionary<IntPtr, (CapturedFrame Frame, RectI Region)> _winCache = new();
 
@@ -61,12 +61,12 @@ public sealed partial class RegionPickerWindow : Window
     void StartFreezeSnapshot()
     {
         var mon = _monitorPhys;
-        _ = System.Threading.Tasks.Task.Run(() =>
+        _ = Task.Run(() =>
         {
             var f = LiveCapture.Grab(mon);
             if (f == null) return;
             System.Windows.Media.Imaging.BitmapSource src;
-            try { src = FrameCapture.Services.BgraImage.ToSource(f); }
+            try { src = Services.BgraImage.ToSource(f); }
             catch { return; }
             try
             {
@@ -88,7 +88,7 @@ public sealed partial class RegionPickerWindow : Window
     {
         var self = new System.Windows.Interop.WindowInteropHelper(this).Handle;
         int max = _pregrabMax; bool shadow = _windowShadow; var mon = _monitorPhys;
-        _ = System.Threading.Tasks.Task.Run(() =>
+        _ = Task.Run(() =>
         {
             try
             {
@@ -155,7 +155,7 @@ public sealed partial class RegionPickerWindow : Window
     public RegionPickerWindow(MonitorInfo monitor, RectI? existing, bool snapContent = false, string? teachTip = null, bool magnifier = false, Core.ColorCopyFormat colorFormat = Core.ColorCopyFormat.Hex, bool windowCapture = false, bool freeze = false, int pregrabMax = 0, bool windowShadow = false)
     {
         // 覆盖层不需要文本输入：禁用输入法，避免拼音拦截快捷键
-        System.Windows.Input.InputMethod.SetIsInputMethodEnabled(this, false);
+        InputMethod.SetIsInputMethodEnabled(this, false);
         _monitor = monitor;
         _snapContent = snapContent;
         _windowCapture = windowCapture;
@@ -184,13 +184,13 @@ public sealed partial class RegionPickerWindow : Window
             if (_freeze) { StartFreezeSnapshot(); if (_windowCapture && _pregrabMax > 0) StartWindowPregrab(); }
             // 分层窗（AllowsTransparency）没有黑首帧问题，绝不能屏外停放：
             // 本窗 Left/Top 在 Loaded 才赋值，Park 抓到的 home=NaN，回写 NaN 会让系统级联位兜底（实测偏移 266,266，提示被推出屏外）
-            FrameCapture.Core.Fluent.FadeIn(this, 120);
+            Core.Fluent.FadeIn(this, 120);
         };
         {
             var swOpen = System.Diagnostics.Stopwatch.StartNew();
             ContentRendered += (_, _) => Core.Trace.Log($"picker first frame rendered dt={swOpen.ElapsedMilliseconds}ms");
         }
-        FrameCapture.Core.Fluent.BorderlessNative(this, 0); // 全屏覆盖层：消除 DWM 非客户区白条，无需边缘调整
+        Core.Fluent.BorderlessNative(this, 0); // 全屏覆盖层：消除 DWM 非客户区白条，无需边缘调整
         WindowStyle = WindowStyle.None;
         ResizeMode = ResizeMode.NoResize;
         Title = "FrameCapture Region"; // 与 SourceInitialized 里 SetWindowText 一致，自动化可定位
@@ -247,7 +247,7 @@ public sealed partial class RegionPickerWindow : Window
                     Text = teachTip,
                     FontSize = 13,
                     FontWeight = FontWeights.SemiBold,
-                    Foreground = new SolidColorBrush(FrameCapture.Core.Theme.Accent),
+                    Foreground = new SolidColorBrush(Core.Theme.Accent),
                     HorizontalAlignment = HorizontalAlignment.Center,
                     Margin = new Thickness(0, 3, 0, 0),
                 });

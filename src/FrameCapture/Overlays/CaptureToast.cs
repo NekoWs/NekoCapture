@@ -120,7 +120,7 @@ public sealed class CaptureToast : Window
         Grid.SetColumn(texts, 1);
         grid.Children.Add(texts);
 
-        var close = FrameCapture.Core.Fluent.IconButton("\uE711", "关闭", 26, 12,
+        var close = Fluent.IconButton("\uE711", "关闭", 26, 12,
             new SolidColorBrush(Theme.TextDim));
         close.Cursor = System.Windows.Input.Cursors.Arrow;
         close.VerticalAlignment = VerticalAlignment.Top;
@@ -132,13 +132,13 @@ public sealed class CaptureToast : Window
         card.MouseLeftButtonUp += (_, e) =>
         {
             if (e.Source is DependencyObject d && ReferenceEquals(d, close)) return;
-            FrameCapture.Core.Trace.Log("toast→edit");
+            Trace.Log("toast→edit");
             onEdit();
             Dismiss();
         };
         Content = card;
         // 「QQ 弹弹」入场：卡片从 0.85 弹性放大到 1（BackEase 过冲），叠加 FadeIn 的淡入+上浮
-        ContentRendered += (_, _) => FrameCapture.Core.Fluent.PopIn(card);
+        ContentRendered += (_, _) => Fluent.PopIn(card);
 
         // 键盘等价（Enter/Esc）：浮窗不抢焦点，WPF 焦点路由收不到键——直接在 HWND 层处理消息
         SourceInitialized += (_, _) =>
@@ -154,7 +154,7 @@ public sealed class CaptureToast : Window
 
         // 全局钩子代收 Enter/Esc（浮窗不抢焦点，只能这样）；生命周期绑定本浮窗，Closed 清零，绝不泄漏成「全局 Enter 失灵」。
         Services.HotkeyManager.ToastActive = true;
-        Services.HotkeyManager.ToastEnter = () => Dispatcher.BeginInvoke(() => { FrameCapture.Core.Trace.Log("toast→edit(key)"); onEdit(); Dismiss(); });
+        Services.HotkeyManager.ToastEnter = () => Dispatcher.BeginInvoke(() => { Trace.Log("toast→edit(key)"); onEdit(); Dismiss(); });
         Services.HotkeyManager.ToastEsc = () => Dispatcher.BeginInvoke(Dismiss);
 
         // 存在时间可自定义（ToastSeconds，0=常驻不自动消失）。悬停暂停计时、移开重数满时长。
@@ -178,8 +178,8 @@ public sealed class CaptureToast : Window
             }
         };
 
-        FrameCapture.Core.Trace.Log("toast shown");
-        FrameCapture.Core.Fluent.FadeIn(this, FrameCapture.Core.Fluent.Motion.EnterMs, 8, offscreenFirstFrame: true);
+        Trace.Log("toast shown");
+        Fluent.FadeIn(this, Fluent.Motion.EnterMs, 8, offscreenFirstFrame: true);
     }
 
     void Dismiss()
@@ -187,7 +187,7 @@ public sealed class CaptureToast : Window
         if (_closing) return;
         _closing = true;
         _dismiss.Stop();
-        FrameCapture.Core.Fluent.CloseWithFade(this);
+        Fluent.CloseWithFade(this);
     }
 
     static BitmapSource Thumbnail(CapturedFrame f, double maxW, double maxH)

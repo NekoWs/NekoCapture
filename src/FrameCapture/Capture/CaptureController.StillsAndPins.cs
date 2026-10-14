@@ -14,7 +14,7 @@ public sealed partial class CaptureController : IDisposable
     /// <summary>QQ 式「选区截图」——选一块区域，选完立即截一帧静态图（与 AutoCaptureOnSelect 开关无关）。</summary>
     public void BeginCaptureSelection()
     {
-        FrameCapture.Core.Trace.Log("capture-selection→picker");
+        Trace.Log("capture-selection→picker");
         _sessionAfter = _pendingAfter; _pendingAfter = "";   // 捕获本条手势的截图后
         BeginScopeSelection();
         _captureAfterSelect = true;
@@ -23,7 +23,7 @@ public sealed partial class CaptureController : IDisposable
     /// <summary>QQ 式「选区录制」——选一块区域，选完立即对该区域起录。</summary>
     public void BeginRecordSelection()
     {
-        FrameCapture.Core.Trace.Log("record-selection→picker");
+        Trace.Log("record-selection→picker");
         BeginScopeSelection();
         _recordAfterSelect = true;
     }
@@ -34,7 +34,7 @@ public sealed partial class CaptureController : IDisposable
     {
         if (State == Phase.Capturing)
         {
-            FrameCapture.Core.Trace.Log("record-toggle→stop");
+            Trace.Log("record-toggle→stop");
             FinishCapture(-1, openEditor: false);
             return;
         }
@@ -50,8 +50,8 @@ public sealed partial class CaptureController : IDisposable
         _sessionAfter = _pendingAfter; _pendingAfter = "";   // 捕获本条手势的截图后
         var region = FullMonitorAtCursor();
         var f = LiveCapture.Grab(region.Bounds);
-        if (f == null) { FrameCapture.Core.Trace.Log("instant still: grab null"); return; }
-        FrameCapture.Core.Trace.Log($"instant still grab {f.W}x{f.H}");
+        if (f == null) { Trace.Log("instant still: grab null"); return; }
+        Trace.Log($"instant still grab {f.W}x{f.H}");
         DispatchStill(f, region.Bounds, region.DeviceName);
     }
 
@@ -63,8 +63,8 @@ public sealed partial class CaptureController : IDisposable
         _sessionAfter = _pendingAfter; _pendingAfter = "";   // 捕获本条手势的截图后（托盘触发时 _pendingAfter 已空=默认弹提示）
         var region = StoredRegion() ?? FullMonitorAtCursor();
         var f = LiveCapture.Grab(region.Bounds);
-        if (f == null) { FrameCapture.Core.Trace.Log("stored still: grab null"); return; }
-        FrameCapture.Core.Trace.Log($"stored still grab {f.W}x{f.H}");
+        if (f == null) { Trace.Log("stored still: grab null"); return; }
+        Trace.Log($"stored still grab {f.W}x{f.H}");
         DispatchStill(f, region.Bounds, region.DeviceName);
     }
 
@@ -76,7 +76,7 @@ public sealed partial class CaptureController : IDisposable
         if (State != Phase.Idle) return;
         var region = StoredRegion() ?? FullMonitorAtCursor();
         var f = LiveCapture.Grab(region.Bounds);
-        if (f == null) { FrameCapture.Core.Trace.Log("ocr-still: grab null"); return; }
+        if (f == null) { Trace.Log("ocr-still: grab null"); return; }
         try
         {
             var outcome = await OcrService.RecognizeAsync(f);
@@ -85,26 +85,26 @@ public sealed partial class CaptureController : IDisposable
             {
                 case OcrRoute.ResultWindow:
                     OcrResultWindow.Show(text);
-                    FrameCapture.Core.Trace.Log($"ocr-still ok {text.Length}");
+                    Trace.Log($"ocr-still ok {text.Length}");
                     break;
                 case OcrRoute.CopyThenConfirm:
                     try { System.Windows.Clipboard.SetText(text); } catch { }
                     OcrResultWindow.ShowMessage(OcrService.Feedback(OcrStatus.Success, text.Length));
-                    FrameCapture.Core.Trace.Log($"ocr-still copied {text.Length}");
+                    Trace.Log($"ocr-still copied {text.Length}");
                     break;
                 case OcrRoute.NoEngineHint:
                     OcrResultWindow.ShowMessage(OcrService.Feedback(OcrStatus.NoEngine, 0));
-                    FrameCapture.Core.Trace.Log("ocr-still no-engine");
+                    Trace.Log("ocr-still no-engine");
                     break;
                 default:
                     OcrResultWindow.ShowMessage(OcrService.Feedback(OcrStatus.Empty, 0));
-                    FrameCapture.Core.Trace.Log("ocr-still empty");
+                    Trace.Log("ocr-still empty");
                     break;
             }
         }
         catch (Exception ex)
         {
-            FrameCapture.Core.Trace.Log($"ocr-still failed: {ex.Message}");
+            Trace.Log($"ocr-still failed: {ex.Message}");
             OcrResultWindow.ShowMessage("识别失败");
         }
     }
@@ -117,16 +117,16 @@ public sealed partial class CaptureController : IDisposable
     {
         System.Windows.Media.Imaging.BitmapSource? img = null;
         try { if (System.Windows.Clipboard.ContainsImage()) img = System.Windows.Clipboard.GetImage(); }
-        catch (Exception ex) { FrameCapture.Core.Trace.Log($"pin-clip: clipboard err {ex.GetType().Name}"); }
-        var f = FrameCapture.Services.BgraImage.FromSource(img);
-        if (f == null) { FrameCapture.Core.Trace.Log("pin-clip: no image"); return false; }
+        catch (Exception ex) { Trace.Log($"pin-clip: clipboard err {ex.GetType().Name}"); }
+        var f = BgraImage.FromSource(img);
+        if (f == null) { Trace.Log("pin-clip: no image"); return false; }
         Native.Win32.GetCursorPos(out var pt);
         var mon = Capture.Monitors.Nearest(pt.X, pt.Y);
         int x = Math.Max(mon.Bounds.X, Math.Min(pt.X - f.W / 2, mon.Bounds.X + mon.Bounds.W - f.W));
         int y = Math.Max(mon.Bounds.Y, Math.Min(pt.Y - f.H / 2, mon.Bounds.Y + mon.Bounds.H - f.H));
         var w = new Overlays.PinWindow(f, new Capture.RectI(x, y, f.W, f.H));
         w.Show();
-        FrameCapture.Core.Trace.Log($"pin-clip {f.W}x{f.H} at {x},{y}");
+        Trace.Log($"pin-clip {f.W}x{f.H} at {x},{y}");
         return true;
     }
 
@@ -136,7 +136,7 @@ public sealed partial class CaptureController : IDisposable
     {
         var w = new Overlays.PinWindow(f, reg, activateOnShow: false);
         w.Show();
-        FrameCapture.Core.Trace.Log($"pin-at {f.W}x{f.H} @ {reg.X},{reg.Y}");
+        Trace.Log($"pin-at {f.W}x{f.H} @ {reg.X},{reg.Y}");
     }
 
     /// <summary>已存的捕获范围（物理像素、虚拟桌面绝对坐标），每次选区确认时写进设置。
@@ -167,8 +167,8 @@ public sealed partial class CaptureController : IDisposable
     {
         if (State != Phase.Idle) return; // 编辑器/录制/选取占用中：浮窗点击不重入
         var fg = Native.Win32.GetForegroundWindow();
-        _prevFg = fg != System.IntPtr.Zero && Native.Win32.GetWindowThreadProcessId(fg, out uint fgp) != Native.Win32.GetCurrentThreadId()
-            ? fg : System.IntPtr.Zero;
+        _prevFg = fg != IntPtr.Zero && Native.Win32.GetWindowThreadProcessId(fg, out uint fgp) != Native.Win32.GetCurrentThreadId()
+            ? fg : IntPtr.Zero;
         var monitor = Monitors.ByDevice(device);
         OpenEditor(new CapturedSequence
         {
@@ -189,20 +189,20 @@ public sealed partial class CaptureController : IDisposable
     void DispatchStill(CapturedFrame f, RectI reg, string device, bool windowCapture = false)
     {
         var pth = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "FrameCapture", $"capture-{DateTime.Now:HHmmss}.png");
-        try { FrameCapture.Services.BgraImage.SavePng(f, pth); } catch { }
-        FrameCapture.Encoding.ClipboardService.SetFrame(f, includePng: windowCapture);
-        FrameCapture.Services.SaveService.MaybeSavePng(f); // 自动保存副本（关=零副作用）
-        FrameCapture.Core.Trace.Log($"still saved {pth} {f.W}x{f.H}");
-        if (_settings.Current.CaptureSound) FrameCapture.Core.CaptureSound.Play(_settings.Current.CustomSoundPath); // 提示音（关=零副作用）
+        try { BgraImage.SavePng(f, pth); } catch { }
+        Encoding.ClipboardService.SetFrame(f, includePng: windowCapture);
+        SaveService.MaybeSavePng(f); // 自动保存副本（关=零副作用）
+        Trace.Log($"still saved {pth} {f.W}x{f.H}");
+        if (_settings.Current.CaptureSound) CaptureSound.Play(_settings.Current.CustomSoundPath); // 提示音（关=零副作用）
         // 截图后行为：弹提示浮窗 / 直接进编辑器 / 只复制 / 贴图——四态覆盖不同人群
-        switch (FrameCapture.Core.AfterCapture.Resolve(_sessionAfter))
+        switch (AfterCapture.Resolve(_sessionAfter))
         {
-            case FrameCapture.Core.AfterCaptureAction.Editor:
+            case AfterCaptureAction.Editor:
                 OpenEditorForFrame(f, reg, device);
                 break;
-            case FrameCapture.Core.AfterCaptureAction.Copy:
+            case AfterCaptureAction.Copy:
                 break; // 只复制（上面已 SetFrame），下方轮廓闪一下作反馈
-            case FrameCapture.Core.AfterCaptureAction.Pin:
+            case AfterCaptureAction.Pin:
                 PinFrameAt(f, reg); // 截图后直接原地钉屏（Snipaste 式）
                 break;
             default:

@@ -85,7 +85,7 @@ public static class SaveService
             string ext = vfmt == VideoFormat.Mp4 ? "mp4" : "webm";
             var vpath = Path.Combine(dir, UniqueName(dir, Stamp(), ext));
             var frames = seq.Frames; // 已烘焙、内存态，闭包持有，独立于 spool
-            System.Threading.Tasks.Task.Run(() =>
+            Task.Run(() =>
             {
                 string tmp = Path.Combine(Path.GetTempPath(), $"fc_autosave_{Guid.NewGuid():N}.{ext}");
                 try
@@ -104,8 +104,8 @@ public static class SaveService
             {
                 // 后台编码闭包持有的整段烘焙帧（长录制可达 GB）此刻已随任务委托释放，
                 // 主动全代 GC + 裁工作集，避免"录完视频内存一直虚高、要手动 MemReduct 才回落"。
-                FrameCapture.Core.Memory.Reclaim();
-            }, System.Threading.Tasks.TaskScheduler.Default);
+                Memory.Reclaim();
+            }, TaskScheduler.Default);
         }
         catch (Exception ex) { Trace.Log($"autosave failed: {ex.Message}"); }
     }

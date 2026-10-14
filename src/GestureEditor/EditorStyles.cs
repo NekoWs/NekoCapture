@@ -219,7 +219,7 @@ public static class EditorStyles
     </Trigger>
   </Style.Triggers>
 </Style>");
-        st.Setters.Add(new System.Windows.Setter(SlimProperty, true));
+        st.Setters.Add(new Setter(SlimProperty, true));
         return st;
     }
 }

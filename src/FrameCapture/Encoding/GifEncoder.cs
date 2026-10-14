@@ -25,7 +25,7 @@ public static class GifEncoder
     {
         if (frames.Count == 0) throw new ArgumentException("no frames");
         // 厘秒重采样：60fps 直存会整体提速 1.2×；重采样保总时长（Core.GifTiming 纯逻辑，断言）
-        var (keep, qDelays) = FrameCapture.Core.GifTiming.Resample(delaysMs);
+        var (keep, qDelays) = Core.GifTiming.Resample(delaysMs);
         if (keep.Count < frames.Count)
         {
             var kf = new List<CapturedFrame>(keep.Count);
@@ -68,13 +68,13 @@ public static class GifEncoder
         int done = 0;
         if (n > 3 && Environment.ProcessorCount > 1)
         {
-            System.Threading.Tasks.Parallel.For(0, n,
-                new System.Threading.Tasks.ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount, CancellationToken = ct },
+            Parallel.For(0, n,
+                new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount, CancellationToken = ct },
                 fi =>
                 {
                     ct.ThrowIfCancellationRequested();
                     parts[fi] = EncodeOne(frames[fi], delaysMs[fi]);
-                    int d = System.Threading.Interlocked.Increment(ref done);
+                    int d = Interlocked.Increment(ref done);
                     progress?.Report(d);
                 });
         }

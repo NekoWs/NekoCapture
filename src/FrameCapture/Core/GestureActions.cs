@@ -75,8 +75,8 @@ public static class GestureActions
         new(GestureEdit, "手势配置器", "打开可视化手势/键位配置器（增删改绑定、实时校验、保存即生效）"),
     };
 
-    static readonly System.Collections.Generic.HashSet<string> Names =
-        new(System.Linq.Enumerable.Select(All, a => a.Name));
+    static readonly HashSet<string> Names =
+        new(Enumerable.Select(All, a => a.Name));
 
     /// <summary>名字是否在本词汇表里。</summary>
     /// <param name="name">待校验的动作名，区分大小写。</param>

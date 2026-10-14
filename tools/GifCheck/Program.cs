@@ -3,7 +3,7 @@ using System.IO;
 using System.Windows.Media.Imaging;
 
 string path = args[0];
-var dec = new System.Windows.Media.Imaging.GifBitmapDecoder(new Uri(path), BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.Default);
+var dec = new GifBitmapDecoder(new Uri(path), BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.Default);
 var frames = dec.Frames;
 Console.WriteLine($"frames={frames.Count} size={frames[0].PixelWidth}x{frames[0].PixelHeight}");
 try { Console.WriteLine("meta-loop=" + (dec.Metadata?.GetQuery("/app/{DC6D5EF9-0C18-4624-A3D2-4CE43E1EC589}/LoopCount"))); } catch { }

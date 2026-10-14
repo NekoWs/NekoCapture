@@ -102,7 +102,7 @@ public static class ToolToggle
     /// <param name="off">取消后回到的「无选中」值。</param>
     /// <returns>点的与当前项相同则回到 off，否则就是点的那项。</returns>
     public static T Select<T>(T current, T tapped, T off) where T : struct
-        => System.Collections.Generic.EqualityComparer<T>.Default.Equals(current, tapped) ? off : tapped;
+        => EqualityComparer<T>.Default.Equals(current, tapped) ? off : tapped;
 }
 
 /// <summary>范围选择窗口的窗口吸附命中（纯逻辑）。</summary>

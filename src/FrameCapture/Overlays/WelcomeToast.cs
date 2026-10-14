@@ -75,7 +75,7 @@ public sealed class WelcomeToast : Window
             FontFamily = new FontFamily("Segoe UI"),
             VerticalAlignment = VerticalAlignment.Center,
         });
-        var close = FrameCapture.Core.Fluent.IconButton("\uE711", "关闭 (Esc)", 26, 12,
+        var close = Fluent.IconButton("\uE711", "关闭 (Esc)", 26, 12,
             new SolidColorBrush(Theme.TextDim));
         close.Click += (_, _) => Dismiss();
         Grid.SetColumn(close, 1);
@@ -110,14 +110,14 @@ public sealed class WelcomeToast : Window
             Margin = new Thickness(0, 12, 0, 0),
             Template = RoundedBtnTemplate(),
         };
-        help.Click += (_, _) => { FrameCapture.Core.Trace.Log("welcome→help"); HelpWindow.ShowOrFocus(); Dismiss(); };
+        help.Click += (_, _) => { Trace.Log("welcome→help"); HelpWindow.ShowOrFocus(); Dismiss(); };
         Fluent.Springy(help);   // 悬停只改底色带过渡，不缩放（与滚动控制条按钮同款反馈）
         root.Children.Add(help);
 
         card.Child = root;
         Content = card;
         // 「QQ 弹弹」入场：与 CaptureToast 同款弹性放大登场
-        ContentRendered += (_, _) => FrameCapture.Core.Fluent.PopIn(card);
+        ContentRendered += (_, _) => Fluent.PopIn(card);
 
         // 键盘等价：浮窗不抢焦点，WPF 焦点路由收不到键——直接在 HWND 层处理 Esc
         SourceInitialized += (_, _) =>
@@ -149,8 +149,8 @@ public sealed class WelcomeToast : Window
 
         Closed += (_, _) => { _dismiss.Stop(); if (ReferenceEquals(_current, this)) _current = null; };
 
-        FrameCapture.Core.Trace.Log("welcome shown");
-        FrameCapture.Core.Fluent.FadeIn(this, FrameCapture.Core.Fluent.Motion.EnterMs, 8, offscreenFirstFrame: true);
+        Trace.Log("welcome shown");
+        Fluent.FadeIn(this, Fluent.Motion.EnterMs, 8, offscreenFirstFrame: true);
     }
 
     static FrameworkElement HotkeyLine(string label, string key)
@@ -202,6 +202,6 @@ public sealed class WelcomeToast : Window
         if (_closing) return;
         _closing = true;
         _dismiss.Stop();
-        FrameCapture.Core.Fluent.CloseWithFade(this);
+        Fluent.CloseWithFade(this);
     }
 }

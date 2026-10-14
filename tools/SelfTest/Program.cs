@@ -33,14 +33,14 @@ static class SelfTest
     static int SbProbe(string outPath)
     {
         var app = new Application();
-        FrameCapture.Core.Fluent.ApplyGlobalStyles();
+        Fluent.ApplyGlobalStyles();
         var sv = new System.Windows.Controls.ScrollViewer { Width = 100, Height = 60, VerticalScrollBarVisibility = System.Windows.Controls.ScrollBarVisibility.Visible };
         sv.Content = new System.Windows.Controls.Border { Width = 90, Height = 400, Background = System.Windows.Media.Brushes.Red };
         var win = new Window { Content = sv, Left = -3000, Top = -3000, Width = 140, Height = 100, ShowInTaskbar = false, ShowActivated = false, WindowStyle = WindowStyle.None };
         win.Show();
         win.UpdateLayout();
         System.Windows.Controls.Primitives.ScrollBar? found = null;
-        void Walk(System.Windows.DependencyObject o)
+        void Walk(DependencyObject o)
         {
             if (found != null) return;
             if (o is System.Windows.Controls.Primitives.ScrollBar sb && sb.Orientation == System.Windows.Controls.Orientation.Vertical) { found = sb; return; }
@@ -84,7 +84,7 @@ static class SelfTest
         var w = FrameCapture.Overlays.HelpWindow.CreateForCapture();
         // 按真实固定窗口尺寸 measure/arrange：短页垂直居中、底部翻页条固定——正是用户点名的布局验证点
         double W = w.Width, H = w.Height;
-        var root = (System.Windows.UIElement)w.Content;
+        var root = (UIElement)w.Content;
         root.Measure(new System.Windows.Size(W, H));
         root.Arrange(new Rect(0, 0, W, H));
         root.UpdateLayout();
@@ -106,8 +106,8 @@ static class SelfTest
         var view = new FrameCapture.Overlays.ColorPickView { Color = System.Windows.Media.Color.FromArgb(0x80, 0xE8, 0x4C, 0x3D) };
         var root = new System.Windows.Controls.Border
         {
-            Background = new System.Windows.Media.SolidColorBrush(FrameCapture.Core.Theme.PanelBg),
-            BorderBrush = new System.Windows.Media.SolidColorBrush(FrameCapture.Core.Theme.Stroke),
+            Background = new System.Windows.Media.SolidColorBrush(Theme.PanelBg),
+            BorderBrush = new System.Windows.Media.SolidColorBrush(Theme.Stroke),
             BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(8),
             Padding = new Thickness(12, 10, 12, 10), Child = view,
         };
@@ -132,11 +132,11 @@ static class SelfTest
     {
         var app = new Application();
         // 滑条取证：放大 3 倍看填充线与圆钮接缝是否露底色缝
-        var panel = new System.Windows.Controls.StackPanel { Background = new System.Windows.Media.SolidColorBrush(FrameCapture.Core.Theme.PanelBg) };
+        var panel = new System.Windows.Controls.StackPanel { Background = new System.Windows.Media.SolidColorBrush(Theme.PanelBg) };
         foreach (double v in new double[] { 0, 35, 100 })
         {
             var sl = new System.Windows.Controls.Slider { Minimum = 0, Maximum = 100, Value = v, Width = 300, Margin = new Thickness(10) };
-            FrameCapture.Core.Fluent.StyleSlider(sl);
+            Fluent.StyleSlider(sl);
             panel.Children.Add(sl);
         }
         panel.Measure(new System.Windows.Size(340, 200));
@@ -159,33 +159,33 @@ static class SelfTest
         var (a, aw, ah) = LoadBgra(pathA);
         var (b, bw, bh) = LoadBgra(pathB);
         if (aw != bw) { Console.WriteLine($"width mismatch {aw} vs {bw}"); return 1; }
-        int ov = FrameCapture.Core.ScrollStitch.FindOverlap(a, aw, ah, b, bh);
-        var merged = FrameCapture.Core.ScrollStitch.Append(a, aw, ah, b, bh, ov);
+        int ov = ScrollStitch.FindOverlap(a, aw, ah, b, bh);
+        var merged = ScrollStitch.Append(a, aw, ah, b, bh, ov);
         int mh = merged.Length / (aw * 4);
         Console.WriteLine($"A {aw}x{ah}  B {bw}x{bh}  overlap={ov}  merged={aw}x{mh}");
-        using var bmp = new System.Drawing.Bitmap(aw, mh, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
-        var data = bmp.LockBits(new System.Drawing.Rectangle(0, 0, aw, mh), System.Drawing.Imaging.ImageLockMode.WriteOnly, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+        using var bmp = new Bitmap(aw, mh, PixelFormat.Format32bppArgb);
+        var data = bmp.LockBits(new Rectangle(0, 0, aw, mh), ImageLockMode.WriteOnly, PixelFormat.Format32bppArgb);
         for (int y = 0; y < mh; y++)
             System.Runtime.InteropServices.Marshal.Copy(merged, y * aw * 4, IntPtr.Add(data.Scan0, y * data.Stride), aw * 4);
         bmp.UnlockBits(data);
         string outPath = Path.Combine(Path.GetDirectoryName(Path.GetFullPath(pathA))!, "stitched.png");
-        bmp.Save(outPath, System.Drawing.Imaging.ImageFormat.Png);
+        bmp.Save(outPath, ImageFormat.Png);
         Console.WriteLine($"saved {outPath}");
         return 0;
     }
 
     static (byte[], int, int) LoadBgra(string path)
     {
-        using var bmp = new System.Drawing.Bitmap(path);
+        using var bmp = new Bitmap(path);
         int w = bmp.Width, h = bmp.Height;
-        var data = bmp.LockBits(new System.Drawing.Rectangle(0, 0, w, h), System.Drawing.Imaging.ImageLockMode.ReadOnly, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+        var data = bmp.LockBits(new Rectangle(0, 0, w, h), ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
         var buf = new byte[data.Stride * h];
         System.Runtime.InteropServices.Marshal.Copy(data.Scan0, buf, 0, buf.Length);
         bmp.UnlockBits(data);
         if (data.Stride != w * 4)   // 裁掉行对齐填充，成紧凑 w*4*h
         {
             var tight = new byte[w * h * 4];
-            for (int y = 0; y < h; y++) System.Buffer.BlockCopy(buf, y * data.Stride, tight, y * w * 4, w * 4);
+            for (int y = 0; y < h; y++) Buffer.BlockCopy(buf, y * data.Stride, tight, y * w * 4, w * 4);
             buf = tight;
         }
         return (buf, w, h);
@@ -343,13 +343,13 @@ static class SelfTest
         // 快捷键解析
         try
         {
-            var s1 = FrameCapture.Core.HotkeySpec.Parse("Ctrl+Shift+R");
+            var s1 = HotkeySpec.Parse("Ctrl+Shift+R");
             Chk("T5a-parse-ctrl-shift-r", s1 != null && s1.Ctrl && s1.Shift && s1.Key == System.Windows.Forms.Keys.R);
-            var s2 = FrameCapture.Core.HotkeySpec.Parse("F5");
+            var s2 = HotkeySpec.Parse("F5");
             Chk("T5b-parse-bare-fkey", s2 != null && s2.Key == System.Windows.Forms.Keys.F5 && !s2.Ctrl);
-            Chk("T5c-parse-bare-letter-null", FrameCapture.Core.HotkeySpec.Parse("A") == null);
-            Chk("T5d-parse-empty-null", FrameCapture.Core.HotkeySpec.Parse("") == null);
-            Chk("T5e-roundtrip", s1 != null && FrameCapture.Core.HotkeySpec.Parse(s1.ToString())?.ToString() == s1.ToString());
+            Chk("T5c-parse-bare-letter-null", HotkeySpec.Parse("A") == null);
+            Chk("T5d-parse-empty-null", HotkeySpec.Parse("") == null);
+            Chk("T5e-roundtrip", s1 != null && HotkeySpec.Parse(s1.ToString())?.ToString() == s1.ToString());
         }
         catch (Exception e) { Chk("T5-hotkey", false, e.Message); }
 
@@ -392,18 +392,18 @@ static class SelfTest
         try
         {
             double Lum(System.Windows.Media.Color c) => 0.299 * c.R + 0.587 * c.G + 0.114 * c.B;
-            FrameCapture.Core.Theme.Apply("dark", "#4CC2FF");
-            double dBg = Lum(FrameCapture.Core.Theme.WindowBg), dTx = Lum(FrameCapture.Core.Theme.Text);
+            Theme.Apply("dark", "#4CC2FF");
+            double dBg = Lum(Theme.WindowBg), dTx = Lum(Theme.Text);
             Chk("T8a-dark-palette", dBg < 60 && dTx > 180, $"bg={dBg:F0} text={dTx:F0}");
             Chk("T8b-dark-contrast", Math.Abs(dTx - dBg) > 120);
-            FrameCapture.Core.Theme.Apply("light", "#4CC2FF");
-            double lBg = Lum(FrameCapture.Core.Theme.WindowBg), lTx = Lum(FrameCapture.Core.Theme.Text);
+            Theme.Apply("light", "#4CC2FF");
+            double lBg = Lum(Theme.WindowBg), lTx = Lum(Theme.Text);
             Chk("T8c-light-palette", lBg > 190 && lTx < 80, $"bg={lBg:F0} text={lTx:F0}");
             Chk("T8d-light-contrast", Math.Abs(lTx - lBg) > 120);
-            Chk("T8e-accent-applied", FrameCapture.Core.Theme.Accent.B > 200 && FrameCapture.Core.Theme.Accent.R < 120);
-            FrameCapture.Core.Theme.Apply("system", "#4CC2FF");
+            Chk("T8e-accent-applied", Theme.Accent.B > 200 && Theme.Accent.R < 120);
+            Theme.Apply("system", "#4CC2FF");
             Chk("T8f-system-no-crash", true);
-            FrameCapture.Core.Theme.Apply("dark", "#4CC2FF");
+            Theme.Apply("dark", "#4CC2FF");
         }
         catch (Exception e) { Chk("T8-theme", false, e.Message); }
 
@@ -446,7 +446,7 @@ static class SelfTest
                 '\uE71A','\uE7F4','\uE916','\uEC4A','\uE823','\uE8FD','\uE8B9','\uE7E8','\uE793','\uE706','\uE708','\uE770',
             };
             var ff = new System.Windows.Media.FontFamily("Segoe Fluent Icons");
-            var tfc = new System.Windows.Media.Typeface(ff, System.Windows.FontStyles.Normal, System.Windows.FontWeights.Normal, System.Windows.FontStretches.Normal);
+            var tfc = new System.Windows.Media.Typeface(ff, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal);
             bool ok = tfc.TryGetGlyphTypeface(out var gt) && gt != null;
             bool all = true;
             foreach (var ch in uiGlyphs)
@@ -456,7 +456,7 @@ static class SelfTest
             // 目录字形动态锁：工具目录里每个 Glyph 必须在字体里真实存在且有宽度——
             // 静态清单会漏新工具（加 V 时就漏了），目录本身才是该锁的对象
             bool catOk = true;
-            foreach (var t in FrameCapture.Core.ToolCatalog.Tools)
+            foreach (var t in ToolCatalog.Tools)
             {
                 char g = t.Glyph[0];
                 if (!(ok && gt!.CharacterToGlyphMap.ContainsKey(g) && gt.AdvanceWidths[gt.CharacterToGlyphMap[g]] > 0.08))
@@ -469,9 +469,9 @@ static class SelfTest
         // Fluent 模板可解析（守 XAML 命名空间/触发器语法）
         try
         {
-            var tplA = FrameCapture.Core.Fluent.IconButtonTemplate();
+            var tplA = Fluent.IconButtonTemplate();
             var sl = new System.Windows.Controls.Slider();
-            FrameCapture.Core.Fluent.StyleSlider(sl);
+            Fluent.StyleSlider(sl);
             Chk("T11-fluent-templates", tplA != null && sl.Template != null, "parse");
         }
         catch (Exception e) { Chk("T11-fluent-templates", false, e.Message); }
@@ -479,9 +479,9 @@ static class SelfTest
         // 全局 ToolTip/菜单样式可解析（守主题相关 XAML）
         try
         {
-            var tt = FrameCapture.Core.Fluent.ToolTipStyle();
-            var sb = FrameCapture.Core.Fluent.ScrollBarStyle();
-            var dict = FrameCapture.Core.Fluent.MenuResources();
+            var tt = Fluent.ToolTipStyle();
+            var sb = Fluent.ScrollBarStyle();
+            var dict = Fluent.MenuResources();
             Chk("T12-global-styles", tt != null && sb != null && dict != null && dict.Count >= 3, "parse");
         }
         catch (Exception e) { Chk("T12-global-styles", false, e.Message); }
@@ -505,7 +505,7 @@ static class SelfTest
             anns.Add(new Annotation { Kind = AnnKind.Dot, Color = cols[2], Thickness = 7 });
             anns[5].Points.Add((0.75f, 0.9f));
             var img = Bake.Apply([Solid(200, 100, 0, 0, 0)], anns)[0];
-            int Count(System.Func<byte, byte, byte, bool> m)
+            int Count(Func<byte, byte, byte, bool> m)
             {
                 int n = 0;
                 for (int i = 0; i < img.Bgra.Length; i += 4)
@@ -577,7 +577,7 @@ static class SelfTest
         // timeline 拖范围状态机（原 UI 内逻辑下沉，人工清单缩小）
         try
         {
-            var rd = new FrameCapture.Core.RangeDragState { Count = 16, Width = 1000 };
+            var rd = new RangeDragState { Count = 16, Width = 1000 };
             rd.Down(rd.FrameX(3)); rd.Move(rd.FrameX(7)); rd.Up();
             Chk("T16a-drag-new", rd.A == 3 && rd.B == 7 && rd.Effective == (3, 7), $"A={rd.A} B={rd.B}");
             rd.Down(rd.FrameX(5)); rd.Up();
@@ -594,9 +594,9 @@ static class SelfTest
             rd.A = rd.B = -1;
             rd.Down(rd.FrameX(10)); rd.Move(rd.FrameX(4)); rd.Up();
             Chk("T16g-reverse-drag", rd.A == 4 && rd.B == 10, $"A={rd.A} B={rd.B}");
-            Chk("T16h-idx-clamp", FrameCapture.Core.RangeDragState.XToIdx(-50, 1000, 16) == 0
-                && FrameCapture.Core.RangeDragState.XToIdx(1500, 1000, 16) == 15);
-            var one = new FrameCapture.Core.RangeDragState { Count = 1, Width = 100 };
+            Chk("T16h-idx-clamp", RangeDragState.XToIdx(-50, 1000, 16) == 0
+                && RangeDragState.XToIdx(1500, 1000, 16) == 15);
+            var one = new RangeDragState { Count = 1, Width = 100 };
             one.Down(50); one.Up();
             Chk("T16i-single-frame-noop", one.A == -1 && one.Mode == 0);
         }
@@ -611,13 +611,13 @@ static class SelfTest
                 new RectI(10, 10, 3, 3),         // 过小应跳过
                 new RectI(0, 0, 1000, 1000),     // 背景大窗
             };
-            var hit = FrameCapture.Core.SnapPick.Pick(cands, 150, 150);
+            var hit = SnapPick.Pick(cands, 150, 150);
             Chk("T17a-topmost-hit", hit?.Equals(cands[0]) == true, $"{hit}");
-            var hit2 = FrameCapture.Core.SnapPick.Pick(cands, 800, 800);
+            var hit2 = SnapPick.Pick(cands, 800, 800);
             Chk("T17b-background", hit2?.Equals(cands[2]) == true, $"{hit2}");
-            var hit3 = FrameCapture.Core.SnapPick.Pick(cands, 11, 11);
+            var hit3 = SnapPick.Pick(cands, 11, 11);
             Chk("T17c-skip-tiny", hit3?.Equals(cands[2]) == true, $"{hit3}");
-            Chk("T17d-miss-null", FrameCapture.Core.SnapPick.Pick(cands, 1500, 1500) == null);
+            Chk("T17d-miss-null", SnapPick.Pick(cands, 1500, 1500) == null);
         }
         catch (Exception e) { Chk("T17-snap", false, e.Message); }
 
@@ -662,7 +662,7 @@ static class SelfTest
             using var msr = new MemoryStream();
             foreach (byte b in par) msr.WriteByte(b);
             bool ok = par.Length > 100 && par[0] == 'G';
-            var csc = new System.Threading.Tasks.TaskCompletionSource<int>();
+            var csc = new TaskCompletionSource<int>();
             var cts = new CancellationTokenSource();
             cts.Cancel();
             bool cancelled = false;
@@ -676,7 +676,7 @@ static class SelfTest
         // UndoRedo：新增清空重做栈；撤销/重做往返；裁剪清空语义
         try
         {
-            var h = new FrameCapture.Core.UndoRedo<string>();
+            var h = new UndoRedo<string>();
             h.Add("a"); h.Add("b");
             Chk("T19a-undo", h.Undo(out var u1) && u1 == "b" && h.Count == 1 && h.CanRedo);
             h.Add("c");
@@ -692,9 +692,9 @@ static class SelfTest
         // WGC（Windows.Graphics.Capture）后端：设备/项创建 + 真实取帧
         try
         {
-            var mons = FrameCapture.Capture.Monitors.All();
+            var mons = Monitors.All();
             var mon = mons.First(m => m.IsPrimary) ?? mons[0];
-            var reg = new FrameCapture.Capture.RectI(mon.Bounds.X + 4, mon.Bounds.Y + 4, 256, 192);
+            var reg = new RectI(mon.Bounds.X + 4, mon.Bounds.Y + 4, 256, 192);
             // WGC 仅在捕获区域内容变化时产帧：用一个持续重绘的小窗制造屏幕更新
             using var probeForm = new System.Windows.Forms.Form
             {
@@ -712,7 +712,7 @@ static class SelfTest
             probeTimer.Tick += (_, _) => { probeLabel.Text = (++probeTick).ToString(); };
             probeForm.Show();
             probeTimer.Start();
-            using var wgc = new FrameCapture.Capture.WgcLiveCapture();
+            using var wgc = new WgcLiveCapture();
             int n = 0; int fw = 0, fh = 0; bool badFmt = false;
             wgc.FrameSampled += f =>
             {
@@ -720,19 +720,19 @@ static class SelfTest
                 fw = f.W; fh = f.H;
                 Interlocked.Increment(ref n);
             };
-            for (int i = 0; i < 20 && probeTick < 2; i++) System.Threading.Thread.Sleep(50); // 等窗口先画起来
+            for (int i = 0; i < 20 && probeTick < 2; i++) Thread.Sleep(50); // 等窗口先画起来
             wgc.Start(mon, reg, 30);
-            var sw0 = System.Diagnostics.Stopwatch.StartNew();
+            var sw0 = Stopwatch.StartNew();
             while (n < 3 && sw0.ElapsedMilliseconds < 3000) Thread.Sleep(50);
             wgc.Stop();
             Chk("T20a-wgc-frames", n >= 3 && !badFmt && fw == reg.W && fh == reg.H, $"n={n} {fw}x{fh} badFmt={badFmt} missed={wgc.FramesMissed} err={wgc.LastLoopError?.Split('\n')[0]}");
             int after = n; Thread.Sleep(200);
             Chk("T20b-wgc-stopped", n == after);
-            using var wgc2 = new FrameCapture.Capture.WgcLiveCapture();
+            using var wgc2 = new WgcLiveCapture();
             int n2 = 0;
             wgc2.FrameSampled += _ => Interlocked.Increment(ref n2);
             wgc2.Start(mon, reg, 30);
-            var sw1 = System.Diagnostics.Stopwatch.StartNew();
+            var sw1 = Stopwatch.StartNew();
             while (n2 < 1 && sw1.ElapsedMilliseconds < 3000) Thread.Sleep(50);
             wgc2.Stop();
             probeTimer.Stop();
@@ -743,25 +743,25 @@ static class SelfTest
             // 我们的 WGC 只能整显示器捕获，系统边框必然全屏、与所选录制范围无关，所以范围轮廓
             // 由自家绘制。这里断言这个"关边框"的动作在支持的系统上真的成功了
             // （Win10 没有 IGraphicsCaptureSession3，SystemBorderSuppressed 保持 null→跳过，不算失败）。
-            var canBorderless = System.OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22000);
+            var canBorderless = OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22000);
             Chk("T73-wgc-borderless", wgc2.SystemBorderSuppressed == true || !canBorderless,
                 $"suppressed={wgc2.SystemBorderSuppressed} canBorderless={canBorderless}");
 
             // 轮廓窗"在屏可见但不进捕获"的机制前提：WDA_EXCLUDEFROMCAPTURE(0x11) 必须真的能被设置成功，
             // 否则 RegionOutlineWindow 会静默变成"看不见"（那就等于录制期间没有任何范围提示）。
             {
-                var probeWin = new System.Windows.Window
+                var probeWin = new Window
                 {
                     Title = "SelfTest DisplayAffinity",
                     Width = 200, Height = 120, ShowInTaskbar = false, ShowActivated = false,
-                    WindowStartupLocation = System.Windows.WindowStartupLocation.Manual,
+                    WindowStartupLocation = WindowStartupLocation.Manual,
                     Left = -4000, Top = -4000, Topmost = true,
                     AllowsTransparency = true, Background = System.Windows.Media.Brushes.Transparent,
-                    WindowStyle = System.Windows.WindowStyle.None,
+                    WindowStyle = WindowStyle.None,
                     Content = new System.Windows.Controls.Border
                     {
                         BorderBrush = System.Windows.Media.Brushes.DodgerBlue,
-                        BorderThickness = new System.Windows.Thickness(2),
+                        BorderThickness = new Thickness(2),
                     },
                 };
                 var h = new System.Windows.Interop.WindowInteropHelper(probeWin).EnsureHandle();
@@ -775,7 +775,7 @@ static class SelfTest
 
         // 时间轴裁剪端点直设与钳位（A<=B-1、B>=A+1、至少 2 帧）
         {
-            var rd = new FrameCapture.Core.RangeDragState { Count = 10, Width = 300 };
+            var rd = new RangeDragState { Count = 10, Width = 300 };
             var dflt = rd.Effective;
             rd.SetB(4); rd.SetA(2);
             var got = rd.Effective;
@@ -790,35 +790,35 @@ static class SelfTest
         {
             int fired = 0;
             Action th = () => fired++;
-            FrameCapture.Core.Theme.Changed += th;
+            Theme.Changed += th;
             try
             {
-                FrameCapture.Core.Theme.Apply("dark", "#4CC2FF");
+                Theme.Apply("dark", "#4CC2FF");
                 int base0 = fired;
-                FrameCapture.Core.Theme.Apply("dark", "#4CC2FF");
+                Theme.Apply("dark", "#4CC2FF");
                 bool noDup = fired == base0;
-                FrameCapture.Core.Theme.Apply("light", "#4CC2FF");
+                Theme.Apply("light", "#4CC2FF");
                 bool darkFlip = fired == base0 + 1;
-                FrameCapture.Core.Theme.Apply("light", "#FF0000");
+                Theme.Apply("light", "#FF0000");
                 bool accFlip = fired == base0 + 2;
                 Chk("T69-theme-changed", noDup && darkFlip && accFlip, $"fired={fired - base0}");
             }
             finally
             {
-                FrameCapture.Core.Theme.Changed -= th;
-                FrameCapture.Core.Theme.Apply("dark", "#4CC2FF");
+                Theme.Changed -= th;
+                Theme.Apply("dark", "#4CC2FF");
             }
         }
 
         // 时间轴坐标与帧号映射：边界与单调性
         {
-            var rd = new FrameCapture.Core.RangeDragState { Count = 20, Width = 380 };
-            int first = FrameCapture.Core.RangeDragState.XToIdx(0, 380, 20), last = FrameCapture.Core.RangeDragState.XToIdx(380, 380, 20),
-                over = FrameCapture.Core.RangeDragState.XToIdx(9999, 380, 20);
+            var rd = new RangeDragState { Count = 20, Width = 380 };
+            int first = RangeDragState.XToIdx(0, 380, 20), last = RangeDragState.XToIdx(380, 380, 20),
+                over = RangeDragState.XToIdx(9999, 380, 20);
             bool mono = true; int prev = -1;
             for (double x = 0; x <= 380; x += 5)
             {
-                int i = FrameCapture.Core.RangeDragState.XToIdx(x, 380, 20);
+                int i = RangeDragState.XToIdx(x, 380, 20);
                 if (i < prev) { mono = false; break; }
                 prev = i;
             }
@@ -828,17 +828,17 @@ static class SelfTest
         // ElementSnap：UIA 控件级吸附——命中的是文本框边界而非整窗
         try
         {
-            var win = new System.Windows.Window
+            var win = new Window
             {
                 Title = "SelfTest ElementSnap",
                 Width = 320, Height = 240,
-                WindowStartupLocation = System.Windows.WindowStartupLocation.Manual,
+                WindowStartupLocation = WindowStartupLocation.Manual,
                 Left = 150, Top = 150,
                 Topmost = true,
                 Content = new System.Windows.Controls.TextBox
                 {
                     Text = "snap me", Width = 140, Height = 26,
-                    Margin = new System.Windows.Thickness(20),
+                    Margin = new Thickness(20),
                 },
             };
             win.Show();
@@ -850,13 +850,13 @@ static class SelfTest
             var tl = tb.PointToScreen(new System.Windows.Point(0, 0));
             var br = tb.PointToScreen(new System.Windows.Point(tb.ActualWidth, tb.ActualHeight));
             int cx = (int)((tl.X + br.X) / 2), cy = (int)((tl.Y + br.Y) / 2);
-            var hit = FrameCapture.Core.ElementSnap.At(cx, cy, IntPtr.Zero);
+            var hit = ElementSnap.At(cx, cy, IntPtr.Zero);
             Chk("T71a-uia-hit", hit != null);
             Chk("T71b-uia-rect", hit != null &&
                 Math.Abs(hit.Rect.X - tl.X) <= 4 && Math.Abs(hit.Rect.Y - tl.Y) <= 4 &&
                 Math.Abs(hit.Rect.W - (br.X - tl.X)) <= 4 && Math.Abs(hit.Rect.H - (br.Y - tl.Y)) <= 4,
                 hit == null ? "null" : $"{hit.Rect} vs tb {tl.X},{tl.Y} {(int)(br.X - tl.X)}x{(int)(br.Y - tl.Y)}");
-            var up = hit != null ? FrameCapture.Core.ElementSnap.Parent(hit) : null;
+            var up = hit != null ? ElementSnap.Parent(hit) : null;
             Chk("T71c-uia-parent", up != null && up.Rect.W * up.Rect.H >= hit!.Rect.W * hit.Rect.H);
             win.Close();
         }
@@ -864,13 +864,13 @@ static class SelfTest
 
         // C1 选中态语义：工具单选切换（再点=取消）+ accent 反白对比色（纯逻辑）
         {
-            var a = FrameCapture.Core.ToolToggle.Select(System.DayOfWeek.Sunday, System.DayOfWeek.Monday, System.DayOfWeek.Sunday);
-            var b = FrameCapture.Core.ToolToggle.Select(a, System.DayOfWeek.Monday, System.DayOfWeek.Sunday);   // 再点当前 → 取消
-            var c = FrameCapture.Core.ToolToggle.Select(System.DayOfWeek.Saturday, System.DayOfWeek.Sunday, System.DayOfWeek.Sunday); // 直选"浏览"透传
-            Chk("T72a-tool-toggle", a == System.DayOfWeek.Monday && b == System.DayOfWeek.Sunday && c == System.DayOfWeek.Sunday,
+            var a = ToolToggle.Select(DayOfWeek.Sunday, DayOfWeek.Monday, DayOfWeek.Sunday);
+            var b = ToolToggle.Select(a, DayOfWeek.Monday, DayOfWeek.Sunday);   // 再点当前 → 取消
+            var c = ToolToggle.Select(DayOfWeek.Saturday, DayOfWeek.Sunday, DayOfWeek.Sunday); // 直选"浏览"透传
+            Chk("T72a-tool-toggle", a == DayOfWeek.Monday && b == DayOfWeek.Sunday && c == DayOfWeek.Sunday,
                 $"a={a} b={b} c={c}");
-            var onLight = FrameCapture.Core.Fluent.OnAccentColor(System.Windows.Media.Color.FromRgb(0x4C, 0xC2, 0xFF));
-            var onDark = FrameCapture.Core.Fluent.OnAccentColor(System.Windows.Media.Color.FromRgb(0x2B, 0x3A, 0x8F));
+            var onLight = Fluent.OnAccentColor(System.Windows.Media.Color.FromRgb(0x4C, 0xC2, 0xFF));
+            var onDark = Fluent.OnAccentColor(System.Windows.Media.Color.FromRgb(0x2B, 0x3A, 0x8F));
             Chk("T72b-onaccent", onLight == System.Windows.Media.Colors.Black && onDark == System.Windows.Media.Colors.White,
                 $"light={onLight} dark={onDark}");
         }
@@ -879,41 +879,41 @@ static class SelfTest
         // 回归护栏 = "只有 StartCapture 允许隐藏范围轮廓"：编辑器开着再按捕获键等失败分支
         // 一律不得触碰常显轮廓，否则轮廓被永久弄没且无任何报错。
         {
-            var idle = FrameCapture.Core.CaptureGuards.OnCaptureHotkey(false, false, false);
-            var cap = FrameCapture.Core.CaptureGuards.OnCaptureHotkey(true, false, false);
-            var sel = FrameCapture.Core.CaptureGuards.OnCaptureHotkey(false, true, false);
-            var edi = FrameCapture.Core.CaptureGuards.OnCaptureHotkey(false, false, true);
+            var idle = CaptureGuards.OnCaptureHotkey(false, false, false);
+            var cap = CaptureGuards.OnCaptureHotkey(true, false, false);
+            var sel = CaptureGuards.OnCaptureHotkey(false, true, false);
+            var edi = CaptureGuards.OnCaptureHotkey(false, false, true);
             Chk("T75a-capture-intent",
-                idle == FrameCapture.Core.CaptureGuards.CaptureIntent.StartCapture &&
-                cap == FrameCapture.Core.CaptureGuards.CaptureIntent.Ignore &&
-                sel == FrameCapture.Core.CaptureGuards.CaptureIntent.Ignore &&
-                edi == FrameCapture.Core.CaptureGuards.CaptureIntent.RefocusEditor,
+                idle == CaptureGuards.CaptureIntent.StartCapture &&
+                cap == CaptureGuards.CaptureIntent.Ignore &&
+                sel == CaptureGuards.CaptureIntent.Ignore &&
+                edi == CaptureGuards.CaptureIntent.RefocusEditor,
                 $"idle={idle} cap={cap} sel={sel} edi={edi}");
             // 不变量：非起录意图一律不得隐藏轮廓
             bool onlyStartHides =
-                !FrameCapture.Core.CaptureGuards.MayHideOutline(FrameCapture.Core.CaptureGuards.CaptureIntent.Ignore) &&
-                !FrameCapture.Core.CaptureGuards.MayHideOutline(FrameCapture.Core.CaptureGuards.CaptureIntent.RefocusEditor) &&
-                FrameCapture.Core.CaptureGuards.MayHideOutline(FrameCapture.Core.CaptureGuards.CaptureIntent.StartCapture);
+                !CaptureGuards.MayHideOutline(CaptureGuards.CaptureIntent.Ignore) &&
+                !CaptureGuards.MayHideOutline(CaptureGuards.CaptureIntent.RefocusEditor) &&
+                CaptureGuards.MayHideOutline(CaptureGuards.CaptureIntent.StartCapture);
             Chk("T75b-outline-hide-invariant", onlyStartHides);
             // 选取热键：录制中不打断；选取窗活着=顶前；窗没了(Alt+F4)=复位重开
-            var s1 = FrameCapture.Core.CaptureGuards.OnScopeHotkey(true, false, false);
-            var s2 = FrameCapture.Core.CaptureGuards.OnScopeHotkey(false, true, true);
-            var s3 = FrameCapture.Core.CaptureGuards.OnScopeHotkey(false, true, false);
-            var s4 = FrameCapture.Core.CaptureGuards.OnScopeHotkey(false, false, false);
+            var s1 = CaptureGuards.OnScopeHotkey(true, false, false);
+            var s2 = CaptureGuards.OnScopeHotkey(false, true, true);
+            var s3 = CaptureGuards.OnScopeHotkey(false, true, false);
+            var s4 = CaptureGuards.OnScopeHotkey(false, false, false);
             Chk("T75c-scope-intent",
-                s1 == FrameCapture.Core.CaptureGuards.ScopeIntent.Ignore &&
-                s2 == FrameCapture.Core.CaptureGuards.ScopeIntent.RefocusPicker &&
-                s3 == FrameCapture.Core.CaptureGuards.ScopeIntent.StartSelection &&
-                s4 == FrameCapture.Core.CaptureGuards.ScopeIntent.StartSelection,
+                s1 == CaptureGuards.ScopeIntent.Ignore &&
+                s2 == CaptureGuards.ScopeIntent.RefocusPicker &&
+                s3 == CaptureGuards.ScopeIntent.StartSelection &&
+                s4 == CaptureGuards.ScopeIntent.StartSelection,
                 $"s1={s1} s2={s2} s3={s3} s4={s4}");
             // 录制结束后的轮廓去向：常显+有已存范围=留在屏上；否则淡出
-            var o1 = FrameCapture.Core.CaptureGuards.OnCaptureFinished(true, true);
-            var o2 = FrameCapture.Core.CaptureGuards.OnCaptureFinished(true, false);
-            var o3 = FrameCapture.Core.CaptureGuards.OnCaptureFinished(false, true);
+            var o1 = CaptureGuards.OnCaptureFinished(true, true);
+            var o2 = CaptureGuards.OnCaptureFinished(true, false);
+            var o3 = CaptureGuards.OnCaptureFinished(false, true);
             Chk("T75d-outline-after-capture",
-                o1 == FrameCapture.Core.CaptureGuards.AfterCaptureOutline.KeepPersistent &&
-                o2 == FrameCapture.Core.CaptureGuards.AfterCaptureOutline.FadeOut &&
-                o3 == FrameCapture.Core.CaptureGuards.AfterCaptureOutline.FadeOut,
+                o1 == CaptureGuards.AfterCaptureOutline.KeepPersistent &&
+                o2 == CaptureGuards.AfterCaptureOutline.FadeOut &&
+                o3 == CaptureGuards.AfterCaptureOutline.FadeOut,
                 $"o1={o1} o2={o2} o3={o3}");
         }
 
@@ -938,7 +938,7 @@ static class SelfTest
                 var dotOut = new Annotation { Kind = AnnKind.Dot, Color = Color.Lime, Thickness = 4 };
                 dotOut.Points.Add((0.9f, 0.9f)); // 框外
                 var input = new[] { dotIn, lineCross, dotOut };
-                var kept = FrameCapture.Core.CropRemap.Remap(input, 0.25, 0.25, 0.5, 0.5);
+                var kept = CropRemap.Remap(input, 0.25, 0.25, 0.5, 0.5);
                 bool mapOk = kept.Count == 1 && kept[0].Kind == AnnKind.Dot
                     && Math.Abs(kept[0].Points[0].X - 0.5f) < 1e-5 && Math.Abs(kept[0].Points[0].Y - 0.5f) < 1e-5;
                 Chk("T78a-crop-remap-coords", mapOk, "框内标注保留且坐标 (0.5,0.5)→裁剪框 (0.5,0.5)");
@@ -1169,15 +1169,15 @@ static class SelfTest
             }
             // GIF 厘秒重采样——60fps 不提速、30fps 不丢帧、总时长守恒、延迟全为 ≥2cs 的整十毫秒
             {
-                var (k60, d60) = FrameCapture.Core.GifTiming.Resample(Enumerable.Repeat(16, 60).ToList());
+                var (k60, d60) = GifTiming.Resample(Enumerable.Repeat(16, 60).ToList());
                 int t60 = d60.Sum();
                 Chk("T87a-60fps-duration", k60.Count >= 45 && k60.Count <= 55 && Math.Abs(t60 - 960) <= 5 * k60.Count
                     && d60.All(d => d >= 20 && d % 10 == 0) && k60[^1] == 59,
                     $"60fps: keep={k60.Count} total={t60}ms（目标 960±{5 * k60.Count}）min={d60.Min()}");
-                var (k30, d30) = FrameCapture.Core.GifTiming.Resample(Enumerable.Repeat(33, 30).ToList());
+                var (k30, d30) = GifTiming.Resample(Enumerable.Repeat(33, 30).ToList());
                 Chk("T87b-30fps-kept-all", k30.Count == 30 && Math.Abs(d30.Sum() - 990) <= 150 && d30.All(d => d >= 20),
                     $"30fps: keep={k30.Count} total={d30.Sum()}ms");
-                var (k1, d1) = FrameCapture.Core.GifTiming.Resample(new List<int> { 16 });
+                var (k1, d1) = GifTiming.Resample(new List<int> { 16 });
                 Chk("T87c-single-frame", k1.Count == 1 && k1[0] == 0 && d1[0] == 20, $"单帧 keep={k1.Count} d={d1[0]}");
                 // 端到端：60 帧 16ms 编码 → WinForms 解码帧数 = 重采样后帧数（总时长守恒，GIF 不提速）
                 int W = 32, H = 32;
@@ -1191,7 +1191,7 @@ static class SelfTest
                 }
                 var gif = GifEncoder.Encode(fr, Enumerable.Repeat(16, 60).ToList(), true);
                 using var ms = new MemoryStream(gif);
-                using var img = System.Drawing.Image.FromStream(ms);
+                using var img = Image.FromStream(ms);
                 var fd = img.FrameDimensionsList[0];
                 int n = img.GetFrameCount(FrameDimension.Time);
                 Chk("T87d-gif-framecount", n == k60.Count, $"GIF 解码 {n} 帧 = 重采样 {k60.Count} 帧");
@@ -1199,79 +1199,79 @@ static class SelfTest
             // 截屏浮窗落点——大区域贴内侧右下；小区域贴外下缘；越界翻转/钳进工作区
             {
                 var work = new RectI(0, 0, 3840, 2100);
-                var big = FrameCapture.Core.ToastPlace.Place(new RectI(100, 100, 1200, 800), work, 300, 84);
+                var big = ToastPlace.Place(new RectI(100, 100, 1200, 800), work, 300, 84);
                 Chk("T88a-inside-bottom-right", big.X == 988 && big.Y == 804, $"大区域 → {big}（期望 988,804）");
-                var small = FrameCapture.Core.ToastPlace.Place(new RectI(2000, 300, 100, 60), work, 300, 84);
+                var small = ToastPlace.Place(new RectI(2000, 300, 100, 60), work, 300, 84);
                 Chk("T88b-below-region", small.X == 1800 && small.Y == 370, $"小区域 → {small}（期望 1800,370）");
-                var lowEdge = FrameCapture.Core.ToastPlace.Place(new RectI(2000, 2000, 100, 60), work, 300, 84);
+                var lowEdge = ToastPlace.Place(new RectI(2000, 2000, 100, 60), work, 300, 84);
                 Chk("T88c-flip-above", lowEdge.Y == 1906, $"贴底小区域 → {lowEdge}（期望翻上 y=1906）");
-                var corner = FrameCapture.Core.ToastPlace.Place(new RectI(0, 0, 100, 60), work, 300, 84);
+                var corner = ToastPlace.Place(new RectI(0, 0, 100, 60), work, 300, 84);
                 Chk("T88d-clamp-workarea", corner.X == 4 && corner.Y == 70, $"左上角小区域 → {corner}（x 钳 4）");
                 bool inside = true;
                 foreach (var r in new[] { new RectI(-1920, -100, 800, 500), new RectI(3700, 2050, 120, 40), new RectI(50, 50, 3740, 2000) })
                 {
-                    var p = FrameCapture.Core.ToastPlace.Place(r, work, 300, 84);
+                    var p = ToastPlace.Place(r, work, 300, 84);
                     if (p.X < work.X || p.Y < work.Y || p.Right > work.Right || p.Bottom > work.Bottom) inside = false;
                 }
                 Chk("T88e-always-in-workarea", inside, "多区域（含负坐标/贴边）浮窗恒在工作区内");
             }
             {
                 // 裁剪拖框引导
-                var r1 = FrameCapture.Core.CropGuide.Rect(300, 400, 100, 120);
+                var r1 = CropGuide.Rect(300, 400, 100, 120);
                 Chk("T89a-rect-anydir", r1 == (100.0, 120.0, 200.0, 280.0), $"左上→右下反向拖 → {r1}");
-                var r2 = FrameCapture.Core.CropGuide.Rect(100, 120, 300, 400);
+                var r2 = CropGuide.Rect(100, 120, 300, 400);
                 Chk("T89b-rect-same", r2 == r1, "两方向拖框同一矩形");
-                var h1 = FrameCapture.Core.CropGuide.HintPos(100, 100, 200, 150, 120, 24, 800, 600);
+                var h1 = CropGuide.HintPos(100, 100, 200, 150, 120, 24, 800, 600);
                 Chk("T89c-hint-below", h1.Y == 258 && h1.X == 140, $"默认框下居中 → {h1}");
-                var h2 = FrameCapture.Core.CropGuide.HintPos(100, 400, 200, 180, 120, 24, 800, 600);
+                var h2 = CropGuide.HintPos(100, 400, 200, 180, 120, 24, 800, 600);
                 Chk("T89d-hint-flip-up", h2.Y == 368, $"下方放不下翻上方 → {h2}");
-                var h3 = FrameCapture.Core.CropGuide.HintPos(700, 100, 90, 50, 120, 24, 800, 600);
+                var h3 = CropGuide.HintPos(700, 100, 90, 50, 120, 24, 800, 600);
                 Chk("T89e-hint-clamp-x", h3.X == 676 && h3.Y == 158, $"贴右缘横向钳边 → {h3}");
             }
             {
                 // 文字标注：字号公式 + 裁剪保文本
-                Chk("T90a-font-frame", FrameCapture.Core.AnnFont.FramePx(3) == 22 && FrameCapture.Core.AnnFont.FramePx(10) == 50, "细=22 粗=50 @1080p");
-                Chk("T90b-font-1080", Math.Abs(FrameCapture.Core.AnnFont.BakePx(3, 1920, 1080) - 22) < 1e-9, "1080p 帧 = 基准");
-                Chk("T90c-font-half", Math.Abs(FrameCapture.Core.AnnFont.BakePx(3, 960, 540) - 11) < 1e-9, "半分辨率等比缩 → 11px");
-                Chk("T90d-font-floor", FrameCapture.Core.AnnFont.BakePx(1, 100, 100) == 10, "小帧下限 10px 防不可读");
-                var ta = new FrameCapture.Drawing.Annotation { Kind = FrameCapture.Drawing.AnnKind.Text, Thickness = 6 };
+                Chk("T90a-font-frame", AnnFont.FramePx(3) == 22 && AnnFont.FramePx(10) == 50, "细=22 粗=50 @1080p");
+                Chk("T90b-font-1080", Math.Abs(AnnFont.BakePx(3, 1920, 1080) - 22) < 1e-9, "1080p 帧 = 基准");
+                Chk("T90c-font-half", Math.Abs(AnnFont.BakePx(3, 960, 540) - 11) < 1e-9, "半分辨率等比缩 → 11px");
+                Chk("T90d-font-floor", AnnFont.BakePx(1, 100, 100) == 10, "小帧下限 10px 防不可读");
+                var ta = new Annotation { Kind = AnnKind.Text, Thickness = 6 };
                 ta.Points.Add((0.5f, 0.5f)); ta.Text = "你好 世界";
-                var keptT = FrameCapture.Core.CropRemap.Remap(new[] { ta }, 0.25, 0.25, 0.5, 0.5);
+                var keptT = CropRemap.Remap(new[] { ta }, 0.25, 0.25, 0.5, 0.5);
                 Chk("T90e-remap-keeps-text", keptT.Count == 1 && keptT[0].Text == "你好 世界" && Math.Abs(keptT[0].Points[0].X - 0.5) < 1e-6,
                     $"裁剪重映射保留文字与坐标 → {keptT.Count}");
             }
             {
                 // 马赛克：块粒度公式 + 块均值正确性 + 越界钳制
-                Chk("T91a-block-1080", FrameCapture.Core.MosaicBlock.Px(3, 1920, 1080) == 6 && FrameCapture.Core.MosaicBlock.Px(10, 1920, 1080) == 20, "细=6 粗=20 @1080p");
-                Chk("T91b-block-floor", FrameCapture.Core.MosaicBlock.Px(1, 200, 200) == 4, "小帧下限 4px");
+                Chk("T91a-block-1080", MosaicBlock.Px(3, 1920, 1080) == 6 && MosaicBlock.Px(10, 1920, 1080) == 20, "细=6 粗=20 @1080p");
+                Chk("T91b-block-floor", MosaicBlock.Px(1, 200, 200) == 4, "小帧下限 4px");
                 // 4x4 图，块 2：左上块 (10,10,10)×2 + (30,30,30)×2 → 均值 20
                 var buf = new byte[4 * 4 * 4];
                 void Put(int px, int py, byte v) { int i = (py * 4 + px) * 4; buf[i] = v; buf[i + 1] = v; buf[i + 2] = v; buf[i + 3] = 255; }
                 for (int py = 0; py < 2; py++) for (int px = 0; px < 2; px++) Put(px, py, (px + py) % 2 == 0 ? (byte)10 : (byte)30);
-                FrameCapture.Services.BgraImage.MosaicInPlace(buf, 4, 4, 0, 0, 2, 2, 2);
+                BgraImage.MosaicInPlace(buf, 4, 4, 0, 0, 2, 2, 2);
                 Chk("T91c-mean", buf[0] == 20 && buf[4] == 20 && buf[16] == 20 && buf[20] == 20, $"块内全等于均值 20 → {buf[0]},{buf[4]},{buf[16]},{buf[20]}");
                 Chk("T91d-untouched", buf[(3 * 4 + 3) * 4] == 0, "区域外像素不动");
                 void Put2(int px, int py, byte v) { int i = (py * 4 + px) * 4; buf[i] = v; buf[i + 1] = v; buf[i + 2] = v; buf[i + 3] = 255; }
                 Put2(2, 2, 100); // 其余 (2,3)(3,2)(3,3) 为 0 → 右下块均值 25
-                FrameCapture.Services.BgraImage.MosaicInPlace(buf, 4, 4, 2, 2, 99, 99, 2); // 越界钳到 2x2
+                BgraImage.MosaicInPlace(buf, 4, 4, 2, 2, 99, 99, 2); // 越界钳到 2x2
                 Chk("T91e-clamp", buf[(2 * 4 + 2) * 4] == 25 && buf[(3 * 4 + 3) * 4] == 25, $"越界矩形钳进画布 → 右下块均值 25,{buf[(2 * 4 + 2) * 4]},{buf[(3 * 4 + 3) * 4]}");
             }
             {
                 // 工具目录：单一数据源防漂移——加新工具漏帮助/漏字形/键位撞车当场红
-                var tools = FrameCapture.Core.ToolCatalog.Tools;
+                var tools = ToolCatalog.Tools;
                 Chk("T92a-count", tools.Length == 11, $"十一个绘制工具 → {tools.Length}");
                 var keys = tools.Select(t => t.Key).ToList();
                 Chk("T92b-keys", keys.Distinct().Count() == 11 && keys.Select(k => k[0]).OrderBy(c => c).SequenceEqual("ACHLMNOPRTV"), "键位 V/L/R/O/A/P/H/T/M/C/N 唯一且齐全");
                 Chk("T92c-glyphs", tools.All(t => t.Glyph.Length == 1 && t.Glyph[0] >= 0xE000 && t.Glyph[0] <= 0xF8FF) && tools.Select(t => t.Glyph).Distinct().Count() == 11,
                     "字形均为私有区码位且互不重复（GlyphProbe 定稿）");
                 Chk("T92d-tips", tools.All(t => t.Tip.Contains(t.Key) && t.Help.Length >= 8), "工具条提示含快捷键、帮助说明非占位");
-                Chk("T92e-heading", FrameCapture.Core.ToolCatalog.HelpHeading.Contains(FrameCapture.Core.ToolCatalog.ExitKey), "退出键 X 写进帮助小节标题");
+                Chk("T92e-heading", ToolCatalog.HelpHeading.Contains(ToolCatalog.ExitKey), "退出键 X 写进帮助小节标题");
                 Chk("T92f-sym", tools.All(t => t.Sym.Length == 1 && !(t.Sym[0] >= 0xE000 && t.Sym[0] <= 0xF8FF)),
                     "帮助符号是普通 Unicode（默认字体可渲染，图标字形进帮助窗=豆腐块）");
             }
             {
                 // 操作栈：编辑可撤销/重做、顺序保持、操作时序 LIFO——文字再编辑与对象化编辑的地基
-                var h = new FrameCapture.Core.UndoRedo<string>();
+                var h = new UndoRedo<string>();
                 var a = "A"; var b = "B"; var b2 = "B'";
                 h.Add(a); h.Add(b);
                 Chk("T93a-replace", h.Replace(b, b2) && h.Items.SequenceEqual(new[] { a, b2 }) && h.Count == 2, "Replace 原位换新对象");
@@ -1279,7 +1279,7 @@ static class SelfTest
                     "撤销编辑=原位还原旧对象");
                 Chk("T93c-redo-edit", h.Redo(out var it2) && ReferenceEquals(it2, b2) && h.Items.SequenceEqual(new[] { a, b2 }), "重做编辑=原位再换");
                 // 时序：Add A → Add B → Edit A→A'；撤销次序必须是 Edit、B、A（不是列表尾序）
-                var h2 = new FrameCapture.Core.UndoRedo<string>();
+                var h2 = new UndoRedo<string>();
                 var a0 = "A"; var b0 = "B"; var a1 = "A'";
                 h2.Add(a0); h2.Add(b0); h2.Replace(a0, a1);
                 h2.Undo(out _, out var r1);
@@ -1298,14 +1298,14 @@ static class SelfTest
                 var rnd = new Random(7);
                 rnd.NextBytes(full);
                 var fullCopy = (byte[])full.Clone();
-                FrameCapture.Services.BgraImage.MosaicInPlace(fullCopy, w, h, rx, ry, rw, rh, blk);
+                BgraImage.MosaicInPlace(fullCopy, w, h, rx, ry, rw, rh, blk);
                 var region = new byte[rw * rh * 4];
                 for (int row = 0; row < rh; row++)
                     Buffer.BlockCopy(fullCopy, ((ry + row) * w + rx) * 4, region, row * rw * 4, rw * 4);
                 var regCopy = new byte[rw * rh * 4];
                 for (int row = 0; row < rh; row++)
                     Buffer.BlockCopy(full, ((ry + row) * w + rx) * 4, regCopy, row * rw * 4, rw * 4);
-                FrameCapture.Services.BgraImage.MosaicInPlace(regCopy, rw, rh, 0, 0, rw, rh, blk);
+                BgraImage.MosaicInPlace(regCopy, rw, rh, 0, 0, rw, rh, blk);
                 Chk("T94a-region-eq-bake", region.SequenceEqual(regCopy), "区域提取马赛克 ≡ 整帧 rect 马赛克（逐字节）");
                 var ann = new Annotation { Kind = AnnKind.Mosaic, Thickness = 6 };
                 ann.Points.Add((0.1f, 0.2f)); ann.Points.Add((0.5f, 0.6f));
@@ -1321,7 +1321,7 @@ static class SelfTest
             }
             {
                 // 删除操作（选中工具）：原位删除、原位放回、与 Add/Edit 混排 LIFO
-                var h = new FrameCapture.Core.UndoRedo<string>();
+                var h = new UndoRedo<string>();
                 var a = "A"; var b = "B"; var c = "C";
                 h.Add(a); h.Add(b); h.Add(c);
                 Chk("T95a-remove", h.Remove(b) && h.Items.SequenceEqual(new[] { a, c }), "删除后剩 A,C");
@@ -1349,7 +1349,7 @@ static class SelfTest
             }
             {
                 // 调色板数学：HSV 双向 + HEX 解析/格式化——自绘 RGBA 调色板的正确性地基
-                static (byte, byte, byte) Rgb(double h, double s, double v) => FrameCapture.Core.Hsv.ToRgb(h, s, v);
+                static (byte, byte, byte) Rgb(double h, double s, double v) => Hsv.ToRgb(h, s, v);
                 Chk("T97a-hsv-known",
                     Rgb(0, 1, 1) == (255, 0, 0) && Rgb(120, 1, 1) == (0, 255, 0) && Rgb(240, 1, 1) == (0, 0, 255)
                     && Rgb(0, 0, 1) == (255, 255, 255) && Rgb(0, 1, 0) == (0, 0, 0) && Rgb(60, 1, 1) == (255, 255, 0),
@@ -1359,24 +1359,24 @@ static class SelfTest
                 for (int i = 0; i < 400; i++)
                 {
                     byte r0 = (byte)rnd.Next(256), g0 = (byte)rnd.Next(256), b0 = (byte)rnd.Next(256);
-                    var (h, s, v) = FrameCapture.Core.Hsv.FromRgb(r0, g0, b0);
-                    var (r1, g1, b1) = FrameCapture.Core.Hsv.ToRgb(h, s, v);
+                    var (h, s, v) = Hsv.FromRgb(r0, g0, b0);
+                    var (r1, g1, b1) = Hsv.ToRgb(h, s, v);
                     if (Math.Abs(r0 - r1) > 1 || Math.Abs(g0 - g1) > 1 || Math.Abs(b0 - b1) > 1) { rt = false; break; }
                 }
                 Chk("T97b-hsv-roundtrip", rt, "400 随机色 HSV→RGB 往返误差 ≤1");
                 Chk("T97c-hex-parse",
-                    FrameCapture.Core.HexColor.Parse("#f0a") is { R: 255, G: 0, B: 170, A: 255 }
-                    && FrameCapture.Core.HexColor.Parse("#112233") is { R: 0x11, G: 0x22, B: 0x33, A: 255 }
-                    && FrameCapture.Core.HexColor.Parse("#11223380") is { R: 0x11, G: 0x22, B: 0x33, A: 0x80 }
-                    && FrameCapture.Core.HexColor.Parse("112233") is { R: 0x11 }
-                    && FrameCapture.Core.HexColor.Parse("#12345") == null && FrameCapture.Core.HexColor.Parse("#gggggg") == null
-                    && FrameCapture.Core.HexColor.Parse(null) == null,
+                    HexColor.Parse("#f0a") is { R: 255, G: 0, B: 170, A: 255 }
+                    && HexColor.Parse("#112233") is { R: 0x11, G: 0x22, B: 0x33, A: 255 }
+                    && HexColor.Parse("#11223380") is { R: 0x11, G: 0x22, B: 0x33, A: 0x80 }
+                    && HexColor.Parse("112233") is { R: 0x11 }
+                    && HexColor.Parse("#12345") == null && HexColor.Parse("#gggggg") == null
+                    && HexColor.Parse(null) == null,
                     "#RGB/#RRGGBB/#RRGGBBAA/无# 可解析，坏输入返回 null");
                 var cA = System.Windows.Media.Color.FromRgb(0x11, 0x22, 0x33);
                 var cT = System.Windows.Media.Color.FromArgb(0x80, 0x11, 0x22, 0x33);
                 Chk("T97d-hex-format",
-                    FrameCapture.Core.HexColor.Format(cA) == "#112233" && FrameCapture.Core.HexColor.Format(cT) == "#11223380"
-                    && FrameCapture.Core.HexColor.Parse(FrameCapture.Core.HexColor.Format(cT)) is { A: 0x80 },
+                    HexColor.Format(cA) == "#112233" && HexColor.Format(cT) == "#11223380"
+                    && HexColor.Parse(HexColor.Format(cT)) is { A: 0x80 },
                     "A=255 省略 AA；带透明出 8 位；格式↔解析闭环");
             }
             {
@@ -1441,19 +1441,19 @@ static class SelfTest
                 var svDir = Path.Combine(dir, "autosave-" + Guid.NewGuid().ToString("N"));
                 Directory.CreateDirectory(svDir);
                 Chk("T101a-unique-free",
-                    FrameCapture.Services.SaveService.UniqueName(svDir, "FrameCapture x", "png") == "FrameCapture x.png",
+                    SaveService.UniqueName(svDir, "FrameCapture x", "png") == "FrameCapture x.png",
                     "无冲突 → 原名");
                 File.WriteAllBytes(Path.Combine(svDir, "FrameCapture x.png"), new byte[] { 1 });
                 Chk("T101b-unique-2",
-                    FrameCapture.Services.SaveService.UniqueName(svDir, "FrameCapture x", "png") == "FrameCapture x (2).png",
+                    SaveService.UniqueName(svDir, "FrameCapture x", "png") == "FrameCapture x (2).png",
                     "同名占用 → (2)");
                 File.WriteAllBytes(Path.Combine(svDir, "FrameCapture x.gif"), new byte[] { 1 });
                 File.WriteAllBytes(Path.Combine(svDir, "FrameCapture x (2).gif"), new byte[] { 1 });
                 Chk("T101c-unique-3",
-                    FrameCapture.Services.SaveService.UniqueName(svDir, "FrameCapture x", "gif") == "FrameCapture x (3).gif",
+                    SaveService.UniqueName(svDir, "FrameCapture x", "gif") == "FrameCapture x (3).gif",
                     "同名+（2）占用 → (3)");
                 // SelfTest 不建 SettingsService（Shared=null）→ 自动保存视为关闭：目录回退默认、写盘零副作用
-                var resolved = FrameCapture.Services.SaveService.ResolveFolder();
+                var resolved = SaveService.ResolveFolder();
                 Chk("T101d-folder-fallback",
                     resolved == Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), "FrameCapture")
                     && Directory.Exists(resolved),
@@ -1461,9 +1461,9 @@ static class SelfTest
                 int before = Directory.GetFiles(resolved).Length;
                 var oneSeq = new CapturedSequence { Frames = new List<CapturedFrame> { f0 }, Region = default, MonitorBounds = default };
                 var twoSeq = new CapturedSequence { Frames = new List<CapturedFrame> { f0, f1 }, Region = default, MonitorBounds = default };
-                FrameCapture.Services.SaveService.MaybeSaveArtifact(oneSeq, new byte[] { 1, 2, 3 });
-                FrameCapture.Services.SaveService.MaybeSaveArtifact(twoSeq, new byte[] { 1, 2, 3 });
-                FrameCapture.Services.SaveService.MaybeSavePng(f0);
+                SaveService.MaybeSaveArtifact(oneSeq, new byte[] { 1, 2, 3 });
+                SaveService.MaybeSaveArtifact(twoSeq, new byte[] { 1, 2, 3 });
+                SaveService.MaybeSavePng(f0);
                 Chk("T101e-off-noop", Directory.GetFiles(resolved).Length == before,
                     "关闭状态（Shared=null）→ 零落盘，绝不影响捕获");
                 try { Directory.Delete(svDir, true); } catch { }
@@ -1477,123 +1477,123 @@ static class SelfTest
                     (255, 0x10, 0x89, 0x3E), (255, 0x00, 0x78, 0xD4), (255, 0xFF, 0xFF, 0xFF),
                 };
                 var ws = new float[] { 3f, 6f, 10f };
-                Chk("T102a-color-hit", FrameCapture.Core.EditorPrefs.ColorSlot(255, 0x10, 0x89, 0x3E, sw) == 2, "颜色命中预设 → 下标 2");
-                Chk("T102b-color-custom", FrameCapture.Core.EditorPrefs.ColorSlot(255, 0x12, 0x34, 0x56, sw) == -1, "非预设色 → 自定义 -1");
-                Chk("T102c-color-alpha", FrameCapture.Core.EditorPrefs.ColorSlot(128, 0xE8, 0x11, 0x23, sw) == -1, "同 RGB 不同 alpha → 不误判成不透明预设");
-                Chk("T102d-width-hit", FrameCapture.Core.EditorPrefs.WidthSlot(6f, ws) == 1, "线宽命中预设 → 下标 1");
-                Chk("T102e-width-custom", FrameCapture.Core.EditorPrefs.WidthSlot(7.5f, ws) == -1, "非预设宽 → 自定义 -1");
-                Chk("T102f-hex", FrameCapture.Core.EditorPrefs.ToHex(255, 0xE8, 0x11, 0x23) == "#FFE81123", "颜色 → #AARRGGBB");
+                Chk("T102a-color-hit", EditorPrefs.ColorSlot(255, 0x10, 0x89, 0x3E, sw) == 2, "颜色命中预设 → 下标 2");
+                Chk("T102b-color-custom", EditorPrefs.ColorSlot(255, 0x12, 0x34, 0x56, sw) == -1, "非预设色 → 自定义 -1");
+                Chk("T102c-color-alpha", EditorPrefs.ColorSlot(128, 0xE8, 0x11, 0x23, sw) == -1, "同 RGB 不同 alpha → 不误判成不透明预设");
+                Chk("T102d-width-hit", EditorPrefs.WidthSlot(6f, ws) == 1, "线宽命中预设 → 下标 1");
+                Chk("T102e-width-custom", EditorPrefs.WidthSlot(7.5f, ws) == -1, "非预设宽 → 自定义 -1");
+                Chk("T102f-hex", EditorPrefs.ToHex(255, 0xE8, 0x11, 0x23) == "#FFE81123", "颜色 → #AARRGGBB");
             }
 
             // 钉图滚轮缩放（，PinZoom 纯决策）
             {
-                Chk("T103a-zoom-in", System.Math.Abs(FrameCapture.Core.PinZoom.Next(1.0, 1) - 1.1) < 1e-9, "delta>0 → ×1.1 放大");
-                Chk("T103b-zoom-out", System.Math.Abs(FrameCapture.Core.PinZoom.Next(1.0, -1) - 1.0 / 1.1) < 1e-9, "delta<0 → ÷1.1 缩小");
-                Chk("T103c-zoom-max", FrameCapture.Core.PinZoom.Next(6.0, 1) == 6.0, "已到上限再放大 → 锁死 6.0");
-                Chk("T103d-zoom-min", FrameCapture.Core.PinZoom.Next(0.1, -1) == 0.1, "已到下限再缩小 → 锁死 0.1");
-                Chk("T103e-zoom-zero", FrameCapture.Core.PinZoom.Next(2.5, 0) == 2.5, "delta=0 → 不变");
+                Chk("T103a-zoom-in", Math.Abs(PinZoom.Next(1.0, 1) - 1.1) < 1e-9, "delta>0 → ×1.1 放大");
+                Chk("T103b-zoom-out", Math.Abs(PinZoom.Next(1.0, -1) - 1.0 / 1.1) < 1e-9, "delta<0 → ÷1.1 缩小");
+                Chk("T103c-zoom-max", PinZoom.Next(6.0, 1) == 6.0, "已到上限再放大 → 锁死 6.0");
+                Chk("T103d-zoom-min", PinZoom.Next(0.1, -1) == 0.1, "已到下限再缩小 → 锁死 0.1");
+                Chk("T103e-zoom-zero", PinZoom.Next(2.5, 0) == 2.5, "delta=0 → 不变");
             }
 
             // 贴图不透明度滚轮（，PinOpacity 纯决策）
             {
-                Chk("T104a-op-up", System.Math.Abs(FrameCapture.Core.PinOpacity.Next(0.5, 1) - 0.6) < 1e-9, "delta>0 → +0.1 更不透明");
-                Chk("T104b-op-down", System.Math.Abs(FrameCapture.Core.PinOpacity.Next(0.5, -1) - 0.4) < 1e-9, "delta<0 → −0.1 更透明");
-                Chk("T104c-op-max", FrameCapture.Core.PinOpacity.Next(1.0, 1) == 1.0, "已全不透明再增 → 锁死 1.0");
-                Chk("T104d-op-min", FrameCapture.Core.PinOpacity.Next(0.2, -1) == 0.2, "已到最透明再减 → 锁死 0.2");
-                Chk("T104e-op-zero", FrameCapture.Core.PinOpacity.Next(0.7, 0) == 0.7, "delta=0 → 不变");
+                Chk("T104a-op-up", Math.Abs(PinOpacity.Next(0.5, 1) - 0.6) < 1e-9, "delta>0 → +0.1 更不透明");
+                Chk("T104b-op-down", Math.Abs(PinOpacity.Next(0.5, -1) - 0.4) < 1e-9, "delta<0 → −0.1 更透明");
+                Chk("T104c-op-max", PinOpacity.Next(1.0, 1) == 1.0, "已全不透明再增 → 锁死 1.0");
+                Chk("T104d-op-min", PinOpacity.Next(0.2, -1) == 0.2, "已到最透明再减 → 锁死 0.2");
+                Chk("T104e-op-zero", PinOpacity.Next(0.7, 0) == 0.7, "delta=0 → 不变");
             }
 
             // OCR 结果分类（，OcrService.Classify 纯决策）
             {
-                Chk("T105a-ocr-text", FrameCapture.Core.OcrService.Classify("hello 世界") == FrameCapture.Core.OcrStatus.Success, "有文字 → Success");
-                Chk("T105b-ocr-empty", FrameCapture.Core.OcrService.Classify("") == FrameCapture.Core.OcrStatus.Empty, "空串 → Empty");
-                Chk("T105c-ocr-ws", FrameCapture.Core.OcrService.Classify("  \n\t ") == FrameCapture.Core.OcrStatus.Empty, "全空白 → Empty");
-                Chk("T105d-ocr-padded", FrameCapture.Core.OcrService.Classify("  有字  ") == FrameCapture.Core.OcrStatus.Success, "带空白有字 → Success");
+                Chk("T105a-ocr-text", OcrService.Classify("hello 世界") == OcrStatus.Success, "有文字 → Success");
+                Chk("T105b-ocr-empty", OcrService.Classify("") == OcrStatus.Empty, "空串 → Empty");
+                Chk("T105c-ocr-ws", OcrService.Classify("  \n\t ") == OcrStatus.Empty, "全空白 → Empty");
+                Chk("T105d-ocr-padded", OcrService.Classify("  有字  ") == OcrStatus.Success, "带空白有字 → Success");
             }
 
             // 选区放大镜几何（，MagnifierMath 纯决策）
             {
-                var c1 = FrameCapture.Core.MagnifierMath.Crop(100, 100, 1000, 1000, 15);
+                var c1 = MagnifierMath.Crop(100, 100, 1000, 1000, 15);
                 Chk("T106a-crop-center", c1 == (93, 93, 15), "中心 → 居中 15×15");
-                var c2 = FrameCapture.Core.MagnifierMath.Crop(2, 2, 1000, 1000, 15);
+                var c2 = MagnifierMath.Crop(2, 2, 1000, 1000, 15);
                 Chk("T106b-crop-left", c2 == (0, 0, 15), "近左上 → 夹到 0,0");
-                var c3 = FrameCapture.Core.MagnifierMath.Crop(998, 998, 1000, 1000, 15);
+                var c3 = MagnifierMath.Crop(998, 998, 1000, 1000, 15);
                 Chk("T106c-crop-right", c3 == (985, 985, 15), "近右下 → 夹到 snap-span");
-                var c4 = FrameCapture.Core.MagnifierMath.Crop(5, 5, 10, 10, 15);
+                var c4 = MagnifierMath.Crop(5, 5, 10, 10, 15);
                 Chk("T106d-crop-small", c4 == (0, 0, 10), "快照小于 span → 退化整幅");
-                var p1 = FrameCapture.Core.MagnifierMath.Place(100, 100, 150, 180, 1000, 1000, 18);
+                var p1 = MagnifierMath.Place(100, 100, 150, 180, 1000, 1000, 18);
                 Chk("T106e-place-br", p1 == (118, 118), "默认贴右下");
-                var p2 = FrameCapture.Core.MagnifierMath.Place(950, 100, 150, 180, 1000, 1000, 18);
+                var p2 = MagnifierMath.Place(950, 100, 150, 180, 1000, 1000, 18);
                 Chk("T106f-place-flipx", p2 == (782, 118), "越右边 → 翻左");
-                var p3 = FrameCapture.Core.MagnifierMath.Place(100, 950, 150, 180, 1000, 1000, 18);
+                var p3 = MagnifierMath.Place(100, 950, 150, 180, 1000, 1000, 18);
                 Chk("T106g-place-flipy", p3 == (118, 752), "越下边 → 翻上");
             }
 
             // 放大镜取色（，MagnifierMath.PixelRgb/Hex 纯决策）
             {
                 var buf = new byte[] { 10, 20, 30, 255, 40, 50, 60, 255 }; // 2px BGRA
-                Chk("T107a-rgb-p0", FrameCapture.Core.MagnifierMath.PixelRgb(buf, 2, 0, 0) == (30, 20, 10), "像素0 → R,G,B");
-                Chk("T107b-rgb-p1", FrameCapture.Core.MagnifierMath.PixelRgb(buf, 2, 1, 0) == (60, 50, 40), "像素1 → R,G,B");
-                Chk("T107c-rgb-oob", FrameCapture.Core.MagnifierMath.PixelRgb(buf, 2, 0, 1) == (0, 0, 0), "越界 → 0,0,0");
-                Chk("T107d-rgb-neg", FrameCapture.Core.MagnifierMath.PixelRgb(buf, 2, -1, 0) == (0, 0, 0), "负坐标 → 0,0,0");
-                Chk("T107e-hex", FrameCapture.Core.MagnifierMath.Hex(255, 128, 0) == "#FF8000", "RGB→#RRGGBB 大写");
-                Chk("T107f-hex-clamp", FrameCapture.Core.MagnifierMath.Hex(300, -5, 16) == "#FF0010", "越界分量夹到 0–255");
+                Chk("T107a-rgb-p0", MagnifierMath.PixelRgb(buf, 2, 0, 0) == (30, 20, 10), "像素0 → R,G,B");
+                Chk("T107b-rgb-p1", MagnifierMath.PixelRgb(buf, 2, 1, 0) == (60, 50, 40), "像素1 → R,G,B");
+                Chk("T107c-rgb-oob", MagnifierMath.PixelRgb(buf, 2, 0, 1) == (0, 0, 0), "越界 → 0,0,0");
+                Chk("T107d-rgb-neg", MagnifierMath.PixelRgb(buf, 2, -1, 0) == (0, 0, 0), "负坐标 → 0,0,0");
+                Chk("T107e-hex", MagnifierMath.Hex(255, 128, 0) == "#FF8000", "RGB→#RRGGBB 大写");
+                Chk("T107f-hex-clamp", MagnifierMath.Hex(300, -5, 16) == "#FF0010", "越界分量夹到 0–255");
             }
 
             // OCR 文本清理（，OcrService.Normalize 纯决策）
             {
-                Chk("T108a-collapse-blank", FrameCapture.Core.OcrService.Normalize("a\n\n\n\nb") == "a\n\nb", "连续空行压成一个");
-                Chk("T108b-trim-end", FrameCapture.Core.OcrService.Normalize("  x  \n  y  ") == "  x\n  y", "去行尾空白留缩进");
-                Chk("T108c-empty", FrameCapture.Core.OcrService.Normalize("") == "", "空 → 空");
-                Chk("T108d-single", FrameCapture.Core.OcrService.Normalize("one") == "one", "单行原样");
-                Chk("T108e-allblank", FrameCapture.Core.OcrService.Normalize("\n\n\n") == "", "全空行 → 空");
-                Chk("T108f-crlf", FrameCapture.Core.OcrService.Normalize("a\r\nb\r\nc") == "a\nb\nc", "CRLF→LF");
+                Chk("T108a-collapse-blank", OcrService.Normalize("a\n\n\n\nb") == "a\n\nb", "连续空行压成一个");
+                Chk("T108b-trim-end", OcrService.Normalize("  x  \n  y  ") == "  x\n  y", "去行尾空白留缩进");
+                Chk("T108c-empty", OcrService.Normalize("") == "", "空 → 空");
+                Chk("T108d-single", OcrService.Normalize("one") == "one", "单行原样");
+                Chk("T108e-allblank", OcrService.Normalize("\n\n\n") == "", "全空行 → 空");
+                Chk("T108f-crlf", OcrService.Normalize("a\r\nb\r\nc") == "a\nb\nc", "CRLF→LF");
             }
 
             // 序号编号（，NumberBadge 纯决策）
             {
-                Chk("T109a-first", FrameCapture.Core.NumberBadge.Next(new string[0]) == 1, "无 → 1");
-                Chk("T109b-seq", FrameCapture.Core.NumberBadge.Next(new[] { "1", "2", "3" }) == 4, "1,2,3 → 4");
-                Chk("T109c-gap", FrameCapture.Core.NumberBadge.Next(new[] { "1", "3" }) == 4, "删中间不补洞 → max+1");
-                Chk("T109d-rollback", FrameCapture.Core.NumberBadge.Next(new[] { "2", "3" }) == 4, "删 1 后仍 4（撤销回退靠重算）");
-                Chk("T109e-nonnum", FrameCapture.Core.NumberBadge.Next(new[] { "x", "5" }) == 6, "非数字忽略");
-                Chk("T109f-diam", FrameCapture.Core.NumberBadge.Diameter(20) == 40, "直径=字号×2");
-                Chk("T109g-lightcircle", FrameCapture.Core.NumberBadge.NumberOnLightCircle(0xFF, 0xB9, 0x00) && FrameCapture.Core.NumberBadge.NumberOnLightCircle(0xFF, 0xFF, 0xFF), "琥珀#FFB900/白圆圈→黑编号");
-                Chk("T109h-darkcircle", !FrameCapture.Core.NumberBadge.NumberOnLightCircle(0xE8, 0x11, 0x23) && !FrameCapture.Core.NumberBadge.NumberOnLightCircle(0, 0, 0), "红#E81123/黑圆圈→白编号");
+                Chk("T109a-first", NumberBadge.Next(new string[0]) == 1, "无 → 1");
+                Chk("T109b-seq", NumberBadge.Next(new[] { "1", "2", "3" }) == 4, "1,2,3 → 4");
+                Chk("T109c-gap", NumberBadge.Next(new[] { "1", "3" }) == 4, "删中间不补洞 → max+1");
+                Chk("T109d-rollback", NumberBadge.Next(new[] { "2", "3" }) == 4, "删 1 后仍 4（撤销回退靠重算）");
+                Chk("T109e-nonnum", NumberBadge.Next(new[] { "x", "5" }) == 6, "非数字忽略");
+                Chk("T109f-diam", NumberBadge.Diameter(20) == 40, "直径=字号×2");
+                Chk("T109g-lightcircle", NumberBadge.NumberOnLightCircle(0xFF, 0xB9, 0x00) && NumberBadge.NumberOnLightCircle(0xFF, 0xFF, 0xFF), "琥珀#FFB900/白圆圈→黑编号");
+                Chk("T109h-darkcircle", !NumberBadge.NumberOnLightCircle(0xE8, 0x11, 0x23) && !NumberBadge.NumberOnLightCircle(0, 0, 0), "红#E81123/黑圆圈→白编号");
             }
 
             // 贴图磁边（，PinSnap 纯决策）
             {
-                var s1 = FrameCapture.Core.PinSnap.Snap(5, 500, 200, 100, 0, 0, 1920, 1080, 12);
+                var s1 = PinSnap.Snap(5, 500, 200, 100, 0, 0, 1920, 1080, 12);
                 Chk("T110a-left", s1.Left == 0 && s1.Top == 500, "左边距 5<阈值 → 吸左");
-                var s2 = FrameCapture.Core.PinSnap.Snap(1730, 500, 200, 100, 0, 0, 1920, 1080, 12);
+                var s2 = PinSnap.Snap(1730, 500, 200, 100, 0, 0, 1920, 1080, 12);
                 Chk("T110b-right", s2.Left == 1720 && s2.Top == 500, "右边距 10<阈值 → 吸右");
-                var s3 = FrameCapture.Core.PinSnap.Snap(500, 3, 200, 100, 0, 0, 1920, 1080, 12);
+                var s3 = PinSnap.Snap(500, 3, 200, 100, 0, 0, 1920, 1080, 12);
                 Chk("T110c-top", s3.Left == 500 && s3.Top == 0, "上边距 3<阈值 → 吸上");
-                var s4 = FrameCapture.Core.PinSnap.Snap(500, 985, 200, 100, 0, 0, 1920, 1080, 12);
+                var s4 = PinSnap.Snap(500, 985, 200, 100, 0, 0, 1920, 1080, 12);
                 Chk("T110d-bottom", s4.Left == 500 && s4.Top == 980, "下边距 5<阈值 → 吸下");
-                var s5 = FrameCapture.Core.PinSnap.Snap(500, 500, 200, 100, 0, 0, 1920, 1080, 12);
+                var s5 = PinSnap.Snap(500, 500, 200, 100, 0, 0, 1920, 1080, 12);
                 Chk("T110e-none", s5.Left == 500 && s5.Top == 500, "远离边缘 → 不动");
-                Chk("T110f-thresh", FrameCapture.Core.PinSnap.Threshold(200, 100) == 16
-                    && FrameCapture.Core.PinSnap.Threshold(1000, 800) == 40
-                    && FrameCapture.Core.PinSnap.Threshold(300, 300) == 24, "阈值=短边8%夹16–40（R161 参考线扩到所有窗口后调低，贴边才吸不乱跳）");
+                Chk("T110f-thresh", PinSnap.Threshold(200, 100) == 16
+                    && PinSnap.Threshold(1000, 800) == 40
+                    && PinSnap.Threshold(300, 300) == 24, "阈值=短边8%夹16–40（R161 参考线扩到所有窗口后调低，贴边才吸不乱跳）");
             }
 
             // OCR 反馈文案（，编辑器/贴图共用措辞）
             {
-                Chk("T111a-success", FrameCapture.Core.OcrService.Feedback(FrameCapture.Core.OcrStatus.Success, 42) == "已识别 42 字 · 已复制", "成功带字数");
-                Chk("T111b-noengine", FrameCapture.Core.OcrService.Feedback(FrameCapture.Core.OcrStatus.NoEngine, 0).Contains("语言包"), "无引擎→装语言包指引");
-                Chk("T111c-empty", FrameCapture.Core.OcrService.Feedback(FrameCapture.Core.OcrStatus.Empty, 0) == "未识别到文字", "空→未识别");
+                Chk("T111a-success", OcrService.Feedback(OcrStatus.Success, 42) == "已识别 42 字 · 已复制", "成功带字数");
+                Chk("T111b-noengine", OcrService.Feedback(OcrStatus.NoEngine, 0).Contains("语言包"), "无引擎→装语言包指引");
+                Chk("T111c-empty", OcrService.Feedback(OcrStatus.Empty, 0) == "未识别到文字", "空→未识别");
             }
 
             // 标注改样式副本（，WithStyle 纯函数）
             {
-                var red = System.Drawing.Color.FromArgb(255, 0xE7, 0x48, 0x4C);
-                var blue = System.Drawing.Color.FromArgb(255, 0, 0, 255);
-                var b0 = new FrameCapture.Drawing.Annotation { Kind = FrameCapture.Drawing.AnnKind.Arrow, Color = red, Thickness = 4 };
+                var red = Color.FromArgb(255, 0xE7, 0x48, 0x4C);
+                var blue = Color.FromArgb(255, 0, 0, 255);
+                var b0 = new Annotation { Kind = AnnKind.Arrow, Color = red, Thickness = 4 };
                 b0.Points.Add((0.1f, 0.2f)); b0.Points.Add((0.5f, 0.6f)); b0.Text = "hi";
                 var c1 = b0.WithStyle(blue, null);
-                Chk("T112a-color", c1.Color.B == 255 && c1.Thickness == 4 && c1.Kind == FrameCapture.Drawing.AnnKind.Arrow && c1.Points.Count == 2, "改色保留粗细/几何");
+                Chk("T112a-color", c1.Color.B == 255 && c1.Thickness == 4 && c1.Kind == AnnKind.Arrow && c1.Points.Count == 2, "改色保留粗细/几何");
                 var c2 = b0.WithStyle(null, 10);
                 Chk("T112b-width", c2.Color.R == 0xE7 && c2.Thickness == 10, "改粗细保留色");
                 var c3 = b0.WithStyle(blue, 10);
@@ -1605,61 +1605,61 @@ static class SelfTest
             {
                 var e = Array.Empty<double>();
                 // 左边贴屏幕边（xEdge 接受 left 锚点）
-                var a1 = FrameCapture.Core.PinSnap.SnapToLines(105, 500, 200, 100, new[] { 100.0 }, e, e, e, 12);
+                var a1 = PinSnap.SnapToLines(105, 500, 200, 100, new[] { 100.0 }, e, e, e, 12);
                 Chk("T113a-edge-left", a1.Left == 100 && a1.Top == 500, "left 距屏幕边 5<阈值 → 吸左");
                 // 右边贴屏幕边（xEdge 接受 right 锚点）
-                var a2 = FrameCapture.Core.PinSnap.SnapToLines(105, 500, 200, 100, new[] { 300.0 }, e, e, e, 12);
+                var a2 = PinSnap.SnapToLines(105, 500, 200, 100, new[] { 300.0 }, e, e, e, 12);
                 Chk("T113b-edge-right", a2.Left == 100, "right(305) 距屏幕边 300 差 5 → 右对齐到 300");
                 // 只有边贴边：center/中线锚点不参与吸附
-                var a3 = FrameCapture.Core.PinSnap.SnapToLines(105, 500, 200, 100, e, new[] { 200.0 }, e, e, 12);
+                var a3 = PinSnap.SnapToLines(105, 500, 200, 100, e, new[] { 200.0 }, e, e, 12);
                 Chk("T113c-no-center", a3.Left == 105, "center(205) 距线 200 差 5 也不再吸（R162 只认边）");
                 // 关键：屏幕边不接受 center 锚点（否则半张图出屏）
-                var a4 = FrameCapture.Core.PinSnap.SnapToLines(105, 500, 200, 100, new[] { 205.0 }, e, e, e, 12);
+                var a4 = PinSnap.SnapToLines(105, 500, 200, 100, new[] { 205.0 }, e, e, e, 12);
                 Chk("T113d-edge-no-center", a4.Left == 105, "center 恰在屏幕边线上也不吸（屏幕边只认左右边）");
                 // 超阈值不动
-                var a5 = FrameCapture.Core.PinSnap.SnapToLines(105, 500, 200, 100, new[] { 50.0 }, e, e, e, 12);
+                var a5 = PinSnap.SnapToLines(105, 500, 200, 100, new[] { 50.0 }, e, e, e, 12);
                 Chk("T113e-far", a5.Left == 105 && a5.Top == 500, "参考线超阈值 → 不动");
                 // y 轴中线同样不吸附
-                var a6 = FrameCapture.Core.PinSnap.SnapToLines(500, 305, 200, 100, e, e, e, new[] { 350.0 }, 12);
+                var a6 = PinSnap.SnapToLines(500, 305, 200, 100, e, e, e, new[] { 350.0 }, 12);
                 Chk("T113f-no-middle", a6.Top == 305, "middle(355) 距线 350 差 5 也不再吸（R162 只认边）");
                 // 空参考线 → 原样
-                var a7 = FrameCapture.Core.PinSnap.SnapToLines(123, 456, 200, 100, e, e, e, e, 12);
+                var a7 = PinSnap.SnapToLines(123, 456, 200, 100, e, e, e, e, 12);
                 Chk("T113g-empty", a7.Left == 123 && a7.Top == 456, "无参考线 → 原样");
                 // x/y 各轴独立取最近
-                var a8 = FrameCapture.Core.PinSnap.SnapToLines(105, 505, 200, 100, new[] { 100.0 }, new[] { 302.0 }, new[] { 700.0 }, e, 12);
+                var a8 = PinSnap.SnapToLines(105, 505, 200, 100, new[] { 100.0 }, new[] { 302.0 }, new[] { 700.0 }, e, 12);
                 Chk("T113h-axes", a8.Left == 102 && a8.Top == 505, "x 取最近(right→302 差3)，y 超阈值不动");
             }
 
             // 拖动实时磁吸（，Slick Window Arrangement 手感：重叠才吸 + 同类边对同类边）
             {
-                var en = Array.Empty<FrameCapture.Core.PinSnap.Edge>();
+                var en = Array.Empty<PinSnap.Edge>();
                 // 贴图 left=105 right=305 top=500 bottom=600，阈值 12
                 // a：近边(左)贴同类近边(左)，垂直跨度重叠 → 吸到 100
-                var m1 = FrameCapture.Core.PinSnap.Magnet(105, 305, 500, 600, new[] { new FrameCapture.Core.PinSnap.Edge(100, 480, 620) }, en, 12);
+                var m1 = PinSnap.Magnet(105, 305, 500, 600, new[] { new PinSnap.Edge(100, 480, 620) }, en, 12);
                 Chk("T163a-near-overlap", m1 == 100, "左边距左参考边 5<阈值且垂直重叠 → 吸左");
                 // b：垂直跨度不重叠 → 绝不吸（杜绝「到处吸附」的核心）
-                var m2 = FrameCapture.Core.PinSnap.Magnet(105, 305, 500, 600, new[] { new FrameCapture.Core.PinSnap.Edge(100, 700, 800) }, en, 12);
+                var m2 = PinSnap.Magnet(105, 305, 500, 600, new[] { new PinSnap.Edge(100, 700, 800) }, en, 12);
                 Chk("T163b-no-overlap", m2 == 105, "距离够近但垂直跨度不重叠 → 不吸（到处吸附的根因）");
                 // c：远边(右)贴同类远边(右)，重叠 → 右对齐到 300（left 随之 100）
-                var m3 = FrameCapture.Core.PinSnap.Magnet(105, 305, 500, 600, en, new[] { new FrameCapture.Core.PinSnap.Edge(300, 480, 620) }, 12);
+                var m3 = PinSnap.Magnet(105, 305, 500, 600, en, new[] { new PinSnap.Edge(300, 480, 620) }, 12);
                 Chk("T163c-far-overlap", m3 == 100, "右边距右参考边 5 → 右对齐，left=100");
                 // d：同类边对同类边——近边不吸远边列表里的线（左参考边放进 farTargets 不生效）
-                var m4 = FrameCapture.Core.PinSnap.Magnet(105, 305, 500, 600, en, new[] { new FrameCapture.Core.PinSnap.Edge(100, 480, 620) }, 12);
+                var m4 = PinSnap.Magnet(105, 305, 500, 600, en, new[] { new PinSnap.Edge(100, 480, 620) }, 12);
                 Chk("T163d-like-to-like", m4 == 105, "左参考边只在 farTargets → 左边不吸（同类边对同类边）");
                 // e：超阈值不动
-                var m5 = FrameCapture.Core.PinSnap.Magnet(105, 305, 500, 600, new[] { new FrameCapture.Core.PinSnap.Edge(80, 480, 620) }, en, 12);
+                var m5 = PinSnap.Magnet(105, 305, 500, 600, new[] { new PinSnap.Edge(80, 480, 620) }, en, 12);
                 Chk("T163e-far", m5 == 105, "近边距参考边 25>阈值 → 不动");
                 // f：多条重叠近边取最近
-                var m6 = FrameCapture.Core.PinSnap.Magnet(105, 305, 500, 600, new[] { new FrameCapture.Core.PinSnap.Edge(100, 480, 620), new FrameCapture.Core.PinSnap.Edge(108, 480, 620) }, en, 12);
+                var m6 = PinSnap.Magnet(105, 305, 500, 600, new[] { new PinSnap.Edge(100, 480, 620), new PinSnap.Edge(108, 480, 620) }, en, 12);
                 Chk("T163f-nearest", m6 == 108, "两条重叠近边 100/108 → 取更近的 108");
                 // g：边界相切（span1==Span0）不算重叠
-                var m7 = FrameCapture.Core.PinSnap.Magnet(105, 305, 500, 600, new[] { new FrameCapture.Core.PinSnap.Edge(100, 600, 700) }, en, 12);
+                var m7 = PinSnap.Magnet(105, 305, 500, 600, new[] { new PinSnap.Edge(100, 600, 700) }, en, 12);
                 Chk("T163g-tangent", m7 == 105, "跨度仅相切(600==600)不算重叠 → 不吸");
             }
 
             // 磁吸遮挡裁剪（，只吸"看得见的边"：被更靠上窗口盖住的边段剔除）
             {
-                var vs = FrameCapture.Core.PinSnap.VisibleSegments;
+                var vs = PinSnap.VisibleSegments;
                 var a1 = vs(100, 200, Array.Empty<(double, double)>());
                 Chk("T164a-empty", a1.Count == 1 && a1[0].s0 == 100 && a1[0].s1 == 200, "无覆盖 → 整段可见");
                 var a2 = vs(100, 200, new[] { (90.0, 210.0) });
@@ -1679,7 +1679,7 @@ static class SelfTest
             // 编辑器浏览态标注仍显示（取消选中所有工具后标注不凭空消失）
             try
             {
-                var settings = new FrameCapture.Core.SettingsService();
+                var settings = new SettingsService();
                 var f = MovingSquare(160, 90, 0, 1);
                 var seq = new CapturedSequence { Frames = new List<CapturedFrame> { f }, Region = new RectI(0, 0, 160, 90), MonitorBounds = new RectI(0, 0, 1920, 1080) };
                 var win = new FrameCapture.Overlays.EditorWindow(settings, seq);
@@ -1692,23 +1692,23 @@ static class SelfTest
                 var toolType = T.GetNestedType("Tool", System.Reflection.BindingFlags.NonPublic)!;
                 object rectTool = Enum.Parse(toolType, "Rect");
                 // 往模型加一条矩形标注（走 UndoRedo<Annotation>.Add）
-                var ann = new FrameCapture.Drawing.Annotation
+                var ann = new Annotation
                 {
-                    Kind = FrameCapture.Drawing.AnnKind.Rect,
-                    Color = System.Drawing.Color.FromArgb(255, 255, 0, 0),
+                    Kind = AnnKind.Rect,
+                    Color = Color.FromArgb(255, 255, 0, 0),
                     Thickness = 3,
                 };
                 ann.Points.Add((0.2f, 0.2f)); ann.Points.Add((0.7f, 0.7f));
-                anns.GetType().GetMethod("Add", new[] { typeof(FrameCapture.Drawing.Annotation) })!.Invoke(anns, new object[] { ann });
+                anns.GetType().GetMethod("Add", new[] { typeof(Annotation) })!.Invoke(anns, new object[] { ann });
                 // 选中矩形工具：画布可见、可命中、标注已画
                 setTool.Invoke(win, new object[] { rectTool });
                 redraw.Invoke(win, null);
-                Chk("T165a-draw", canvas.Visibility == System.Windows.Visibility.Visible && canvas.IsHitTestVisible && canvas.Children.Count >= 1,
+                Chk("T165a-draw", canvas.Visibility == Visibility.Visible && canvas.IsHitTestVisible && canvas.Children.Count >= 1,
                     "绘制态：画布可见+可命中+有标注");
                 // 再点同一工具 = 退回浏览态（取消选中所有工具）：画布保持 Visible，只关命中测试
                 setTool.Invoke(win, new object[] { rectTool });
                 redraw.Invoke(win, null);
-                Chk("T165b-browse-visible", canvas.Visibility == System.Windows.Visibility.Visible, "浏览态：画布不再 Collapsed（旧 bug 根因）");
+                Chk("T165b-browse-visible", canvas.Visibility == Visibility.Visible, "浏览态：画布不再 Collapsed（旧 bug 根因）");
                 Chk("T165c-ann-kept", canvas.Children.Count >= 1, "取消选中工具后标注仍显示（不再凭空消失）");
                 Chk("T165d-no-hittest", !canvas.IsHitTestVisible, "浏览态画布不可命中（平移/缩放穿透到 _viewGrid）");
                 try { win.Close(); } catch { }
@@ -1717,14 +1717,14 @@ static class SelfTest
 
             // 最近静态截图保留（，LastStill 状态持有）
             {
-                var ls = new FrameCapture.Capture.LastStill();
+                var ls = new LastStill();
                 Chk("T114a-empty", ls.Empty && !ls.TryGet(out _, out _, out _), "初始为空 → TryGet false");
-                var f1 = new FrameCapture.Capture.CapturedFrame { Bgra = new byte[4], W = 1, H = 1 };
-                var f2 = new FrameCapture.Capture.CapturedFrame { Bgra = new byte[8], W = 2, H = 1 };
-                ls.Set(f1, new FrameCapture.Capture.RectI(10, 20, 30, 40), "DEV1");
+                var f1 = new CapturedFrame { Bgra = new byte[4], W = 1, H = 1 };
+                var f2 = new CapturedFrame { Bgra = new byte[8], W = 2, H = 1 };
+                ls.Set(f1, new RectI(10, 20, 30, 40), "DEV1");
                 var ok1 = ls.TryGet(out var gf, out var gr, out var gd);
                 Chk("T114b-set", ok1 && !ls.Empty && ReferenceEquals(gf, f1) && gr.X == 10 && gr.W == 30 && gd == "DEV1", "Set 后取出帧/区域/设备一致");
-                ls.Set(f2, new FrameCapture.Capture.RectI(1, 2, 3, 4), "DEV2");
+                ls.Set(f2, new RectI(1, 2, 3, 4), "DEV2");
                 var ok2 = ls.TryGet(out var gf2, out var gr2, out var gd2);
                 Chk("T114c-overwrite", ok2 && ReferenceEquals(gf2, f2) && gr2.X == 1 && gd2 == "DEV2", "再次 Set 覆盖为最新一帧");
                 ls.Clear();
@@ -1733,39 +1733,39 @@ static class SelfTest
 
             // 贴图旋转（，PinRotate 纯函数）
             {
-                static FrameCapture.Capture.CapturedFrame Mk(int w, int h)
+                static CapturedFrame Mk(int w, int h)
                 {
                     var b = new byte[w * h * 4];
                     for (int i = 0; i < w * h; i++) b[i * 4] = (byte)(i + 1); // B 通道 = 像素序号+1
-                    return new FrameCapture.Capture.CapturedFrame { Bgra = b, W = w, H = h };
+                    return new CapturedFrame { Bgra = b, W = w, H = h };
                 }
-                static int B(FrameCapture.Capture.CapturedFrame f, int x, int y) => f.Bgra[(y * f.W + x) * 4];
-                static bool Same(FrameCapture.Capture.CapturedFrame a, FrameCapture.Capture.CapturedFrame b)
+                static int B(CapturedFrame f, int x, int y) => f.Bgra[(y * f.W + x) * 4];
+                static bool Same(CapturedFrame a, CapturedFrame b)
                 {
                     if (a.W != b.W || a.H != b.H || a.Bgra.Length != b.Bgra.Length) return false;
                     for (int i = 0; i < a.Bgra.Length; i++) if (a.Bgra[i] != b.Bgra[i]) return false;
                     return true;
                 }
-                var r1 = FrameCapture.Core.PinRotate.Rotate90Cw(Mk(2, 1));
+                var r1 = PinRotate.Rotate90Cw(Mk(2, 1));
                 Chk("T115a-h2v", r1.W == 1 && r1.H == 2 && B(r1, 0, 0) == 1 && B(r1, 0, 1) == 2, "横 2x1 [A B] → 竖 1x2 A上B下");
-                var r2 = FrameCapture.Core.PinRotate.Rotate90Cw(Mk(2, 2));
+                var r2 = PinRotate.Rotate90Cw(Mk(2, 2));
                 Chk("T115b-2x2", r2.W == 2 && r2.H == 2 && B(r2, 0, 0) == 3 && B(r2, 1, 0) == 1 && B(r2, 0, 1) == 4 && B(r2, 1, 1) == 2, "2x2 顺时针：上行→右列");
                 var orig = Mk(3, 2);
-                Chk("T115c-identity4", Same(FrameCapture.Core.PinRotate.Rotate(orig, 4), orig), "转 4 次回原图");
-                Chk("T115d-steps", ReferenceEquals(FrameCapture.Core.PinRotate.Rotate(orig, 0), orig)
-                    && Same(FrameCapture.Core.PinRotate.Rotate(orig, 5), FrameCapture.Core.PinRotate.Rotate(orig, 1))
-                    && Same(FrameCapture.Core.PinRotate.Rotate(orig, -1), FrameCapture.Core.PinRotate.Rotate(orig, 3)), "steps=0 同实例；5≡1、-1≡3");
+                Chk("T115c-identity4", Same(PinRotate.Rotate(orig, 4), orig), "转 4 次回原图");
+                Chk("T115d-steps", ReferenceEquals(PinRotate.Rotate(orig, 0), orig)
+                    && Same(PinRotate.Rotate(orig, 5), PinRotate.Rotate(orig, 1))
+                    && Same(PinRotate.Rotate(orig, -1), PinRotate.Rotate(orig, 3)), "steps=0 同实例；5≡1、-1≡3");
             }
             // 截图后行为解析（，AfterCapture 纯函数）
             {
-                Chk("T116a-editor", FrameCapture.Core.AfterCapture.Resolve("editor") == FrameCapture.Core.AfterCaptureAction.Editor, "editor→Editor");
-                Chk("T116b-copy", FrameCapture.Core.AfterCapture.Resolve("copy") == FrameCapture.Core.AfterCaptureAction.Copy, "copy→Copy");
-                Chk("T116c-toast", FrameCapture.Core.AfterCapture.Resolve("toast") == FrameCapture.Core.AfterCaptureAction.Toast, "toast→Toast");
-                Chk("T116d-dirty", FrameCapture.Core.AfterCapture.Resolve(null) == FrameCapture.Core.AfterCaptureAction.Toast
-                    && FrameCapture.Core.AfterCapture.Resolve("") == FrameCapture.Core.AfterCaptureAction.Toast
-                    && FrameCapture.Core.AfterCapture.Resolve("Editor") == FrameCapture.Core.AfterCaptureAction.Toast
-                    && FrameCapture.Core.AfterCapture.Resolve("garbage") == FrameCapture.Core.AfterCaptureAction.Toast, "null/空/大小写/脏值→回落 Toast");
-                Chk("T116e-pin", FrameCapture.Core.AfterCapture.Resolve("pin") == FrameCapture.Core.AfterCaptureAction.Pin, "R117 pin→Pin");
+                Chk("T116a-editor", AfterCapture.Resolve("editor") == AfterCaptureAction.Editor, "editor→Editor");
+                Chk("T116b-copy", AfterCapture.Resolve("copy") == AfterCaptureAction.Copy, "copy→Copy");
+                Chk("T116c-toast", AfterCapture.Resolve("toast") == AfterCaptureAction.Toast, "toast→Toast");
+                Chk("T116d-dirty", AfterCapture.Resolve(null) == AfterCaptureAction.Toast
+                    && AfterCapture.Resolve("") == AfterCaptureAction.Toast
+                    && AfterCapture.Resolve("Editor") == AfterCaptureAction.Toast
+                    && AfterCapture.Resolve("garbage") == AfterCaptureAction.Toast, "null/空/大小写/脏值→回落 Toast");
+                Chk("T116e-pin", AfterCapture.Resolve("pin") == AfterCaptureAction.Pin, "R117 pin→Pin");
             }
             // 荧光笔半透明烘焙：盖在白底上应透出白（半透明），而非不透明纯色
             {
@@ -1785,8 +1785,8 @@ static class SelfTest
             }
             // 截图提示音合成（，CaptureSound 纯函数）：WAV 头合法 + 时长 + 峰值安全 + 有声音且衰减
             {
-                var s = FrameCapture.Core.CaptureSound.Samples();
-                var wav = FrameCapture.Core.CaptureSound.MakeWav(s);
+                var s = CaptureSound.Samples();
+                var wav = CaptureSound.MakeWav(s);
                 bool riff = wav.Length > 44 && wav[0] == 'R' && wav[1] == 'I' && wav[2] == 'F' && wav[3] == 'F'
                     && wav[8] == 'W' && wav[9] == 'A' && wav[10] == 'V' && wav[11] == 'E'
                     && wav[12] == 'f' && wav[13] == 'm' && wav[14] == 't' && wav[15] == ' '
@@ -1830,15 +1830,15 @@ static class SelfTest
                 int W = 8;
                 var acc = Frame(W, 0, 100);        // 文档行 0..99
                 var bOv = Frame(W, 60, 100);       // 文档行 60..159 → 与 acc 底部重叠 40 行
-                int ov = FrameCapture.Core.ScrollStitch.FindOverlap(acc, W, 100, bOv, 100);
+                int ov = ScrollStitch.FindOverlap(acc, W, 100, bOv, 100);
                 Chk("T119a-overlap", ov == 40, $"重叠应 40，实得 {ov}");
-                var merged = FrameCapture.Core.ScrollStitch.Append(acc, W, 100, bOv, 100, ov);
+                var merged = ScrollStitch.Append(acc, W, 100, bOv, 100, ov);
                 int newH = merged.Length / (W * 4);
                 byte RowGray(byte[] buf, int row) => buf[(row * W) * 4];   // 该行第 0 列 B 通道=灰度
                 Chk("T119b-append", newH == 160 && RowGray(merged, 100) == Gray(100) && RowGray(merged, 159) == Gray(159),
                     $"拼接高 {newH} 期望 160，行100={RowGray(merged, 100)} 期望 {Gray(100)}，行159={RowGray(merged, 159)} 期望 {Gray(159)}");
                 var bNo = ConstFrame(W, 100, (byte)((acc[(99 * W) * 4] + 128) & 0xFF)); // 常量帧，与 acc 末行差 128、且各行灰度各异 → 无重叠
-                int ovNo = FrameCapture.Core.ScrollStitch.FindOverlap(acc, W, 100, bNo, 100);
+                int ovNo = ScrollStitch.FindOverlap(acc, W, 100, bNo, 100);
                 Chk("T119c-no-overlap", ovNo == 0, $"无重叠应 0，实得 {ovNo}");
                 var bNoise = (byte[])bOv.Clone();   // 每像素 ±3 抖动，仍应找到重叠 40
                 var rng = new Random(1234);
@@ -1849,7 +1849,7 @@ static class SelfTest
                     bNoise[i + 1] = (byte)Math.Clamp(bNoise[i + 1] + d, 0, 255);
                     bNoise[i + 2] = (byte)Math.Clamp(bNoise[i + 2] + d, 0, 255);
                 }
-                int ovN = FrameCapture.Core.ScrollStitch.FindOverlap(acc, W, 100, bNoise, 100);
+                int ovN = ScrollStitch.FindOverlap(acc, W, 100, bNoise, 100);
                 Chk("T119d-noise-tolerant", ovN == 40, $"抗噪重叠应 40，实得 {ovN}");
                 // 重叠区含个别离群行（平滑滚动重采样/闪烁光标行）：判定若退化为累积均值+提前退出会误判 0，
                 // 逐行独立抽样、多数匹配应仍判 40（防个别离群行造成「滚动太快」误报）
@@ -1859,7 +1859,7 @@ static class SelfTest
                     byte g = (byte)(Gray(9000 + rr) ^ 0xFF);
                     for (int x = 0; x < W; x++) { int p = (rr * W + x) * 4; bOutlier[p] = g; bOutlier[p + 1] = g; bOutlier[p + 2] = g; }
                 }
-                int ovO = FrameCapture.Core.ScrollStitch.FindOverlap(acc, W, 100, bOutlier, 100);
+                int ovO = ScrollStitch.FindOverlap(acc, W, 100, bOutlier, 100);
                 Chk("T119e-outlier-tolerant", ovO == 40, $"含离群行的重叠应仍判 40，实得 {ovO}");
                 // ±1px 垂直抖动（平滑/分数滚动取整，奇数行整体下移 1px）：只比对应行则半数行差超阈
                 // → 误判 0 → 拼接出现重复内容带「重叠」；容差趟应仍判 40（防假「重叠」带）
@@ -1869,7 +1869,7 @@ static class SelfTest
                     byte g = Gray(60 + r + (r % 2));
                     for (int x = 0; x < W; x++) { int p = (r * W + x) * 4; bJit[p] = g; bJit[p + 1] = g; bJit[p + 2] = g; bJit[p + 3] = 255; }
                 }
-                int ovJ = FrameCapture.Core.ScrollStitch.FindOverlap(acc, W, 100, bJit, 100);
+                int ovJ = ScrollStitch.FindOverlap(acc, W, 100, bJit, 100);
                 Chk("T119f-jitter-tolerant", ovJ == 40, $"±1px 抖动的重叠应判 40，实得 {ovJ}");
             }
             // 文字版式页拼接（ScrollStitch 纯函数）：绝大多数行整幅同色（纯背景），签名极差 0，
@@ -1909,11 +1909,11 @@ static class SelfTest
                 {
                     int ttop = (k + 1) * TStep;
                     var tb = Cut(tdoc, TW, ttop, TF);
-                    int tov = FrameCapture.Core.ScrollStitch.FindOverlap(tacc, TW, taccH, tb, TF);
+                    int tov = ScrollStitch.FindOverlap(tacc, TW, taccH, tb, TF);
                     int ttruth = tBottom + 1 - ttop;
                     if (tov != ttruth) tWrong++;
                     if (tov > ttruth) tLost += tov - ttruth;
-                    tacc = FrameCapture.Core.ScrollStitch.Append(tacc, TW, taccH, tb, TF, tov);
+                    tacc = ScrollStitch.Append(tacc, TW, taccH, tb, TF, tov);
                     taccH = tacc.Length / (TW * 4);
                     tBottom = ttop + TF - 1;
                 }
@@ -1937,7 +1937,7 @@ static class SelfTest
                 for (int k = 0; k < 4; k++)
                 {
                     int etop = (k + 1) * TStep;
-                    int ev = FrameCapture.Core.ScrollStitch.FindOverlapExact(Cut(tdoc, TW, 0, TF), TW, TF, Cut(tdoc, TW, etop, TF), TF);
+                    int ev = ScrollStitch.FindOverlapExact(Cut(tdoc, TW, 0, TF), TW, TF, Cut(tdoc, TW, etop, TF), TF);
                     int etrue = Math.Max(0, TF - etop);   // 末步已滚过累积帧底部，两帧无公共行，0 才是正解
                     if (ev != etrue) eWrong++;
                     eGot.Append($"{ev}/{etrue} ");
@@ -1954,8 +1954,8 @@ static class SelfTest
                             int o = (y * TW + x) * 4;
                             mb[o] = (byte)mrnd.Next(256); mb[o + 1] = (byte)mrnd.Next(256); mb[o + 2] = (byte)mrnd.Next(256);
                         }
-                    int loose = FrameCapture.Core.ScrollStitch.FindOverlap(Cut(tdoc, TW, 0, TF), TW, TF, mb, TF);
-                    int tight = FrameCapture.Core.ScrollStitch.FindOverlapExact(Cut(tdoc, TW, 0, TF), TW, TF, mb, TF);
+                    int loose = ScrollStitch.FindOverlap(Cut(tdoc, TW, 0, TF), TW, TF, mb, TF);
+                    int tight = ScrollStitch.FindOverlapExact(Cut(tdoc, TW, 0, TF), TW, TF, mb, TF);
                     Chk("T169b-途中帧不认八成兜底只认全匹配", loose > 0 && tight == 0, $"完整口径={loose} 高置信口径={tight}");
                 }
                 // 重叠区整段落进无信息行（滚过一大片空白）：完整口径关掉平坦行过滤再扫一趟拿到大重叠，
@@ -1966,8 +1966,8 @@ static class SelfTest
                     for (int y = 0; y < 300; y++) Buffer.BlockCopy(tdoc, y * TW * 4, blank, y * TW * 4, TW * 4);
                     var bacc = Cut(blank, TW, 200, TF);
                     var bb = Cut(blank, TW, 400, TF);
-                    int bloose = FrameCapture.Core.ScrollStitch.FindOverlap(bacc, TW, TF, bb, TF);
-                    int btight = FrameCapture.Core.ScrollStitch.FindOverlapExact(bacc, TW, TF, bb, TF);
+                    int bloose = ScrollStitch.FindOverlap(bacc, TW, TF, bb, TF);
+                    int btight = ScrollStitch.FindOverlapExact(bacc, TW, TF, bb, TF);
                     Chk("T169c-大片空白无证据时途中口径不猜", bloose > 0 && btight == 0, $"完整口径={bloose} 高置信口径={btight}");
                 }
             }
@@ -2033,38 +2033,38 @@ static class SelfTest
 
             // 取色复制格式（，ColorFormat 纯函数）：HEX/RGB/HSL 文本 + 分量夹取 + 设置串解析往返
             {
-                var Hex = FrameCapture.Core.ColorCopyFormat.Hex;
-                var Rgb = FrameCapture.Core.ColorCopyFormat.Rgb;
-                var Hsl = FrameCapture.Core.ColorCopyFormat.Hsl;
-                string Fmt(int r, int g, int b, FrameCapture.Core.ColorCopyFormat f) => FrameCapture.Core.ColorFormat.Format(r, g, b, f);
+                var Hex = ColorCopyFormat.Hex;
+                var Rgb = ColorCopyFormat.Rgb;
+                var Hsl = ColorCopyFormat.Hsl;
+                string Fmt(int r, int g, int b, ColorCopyFormat f) => ColorFormat.Format(r, g, b, f);
                 Chk("T120a-hex", Fmt(255, 128, 0, Hex) == "#FF8000", Fmt(255, 128, 0, Hex));
                 Chk("T120b-rgb", Fmt(255, 128, 0, Rgb) == "rgb(255, 128, 0)", Fmt(255, 128, 0, Rgb));
                 Chk("T120c-hsl-orange", Fmt(255, 128, 0, Hsl) == "hsl(30, 100%, 50%)", Fmt(255, 128, 0, Hsl));
                 Chk("T120d-hsl-gray", Fmt(128, 128, 128, Hsl) == "hsl(0, 0%, 50%)", Fmt(128, 128, 128, Hsl));
                 Chk("T120e-hsl-white", Fmt(255, 255, 255, Hsl) == "hsl(0, 0%, 100%)", Fmt(255, 255, 255, Hsl));
                 Chk("T120f-clamp", Fmt(300, -5, 128, Hex) == "#FF0080", Fmt(300, -5, 128, Hex));
-                Chk("T120g-parse", FrameCapture.Core.ColorFormat.Parse("RGB") == Rgb && FrameCapture.Core.ColorFormat.Parse("hsl") == Hsl
-                    && FrameCapture.Core.ColorFormat.Parse("garbage") == Hex && FrameCapture.Core.ColorFormat.Parse(null) == Hex, "解析含大小写/未知回退 Hex");
-                Chk("T120h-tosetting", FrameCapture.Core.ColorFormat.ToSetting(Hsl) == "hsl" && FrameCapture.Core.ColorFormat.ToSetting(Hex) == "hex", "枚举↔设置串往返");
+                Chk("T120g-parse", ColorFormat.Parse("RGB") == Rgb && ColorFormat.Parse("hsl") == Hsl
+                    && ColorFormat.Parse("garbage") == Hex && ColorFormat.Parse(null) == Hex, "解析含大小写/未知回退 Hex");
+                Chk("T120h-tosetting", ColorFormat.ToSetting(Hsl) == "hsl" && ColorFormat.ToSetting(Hex) == "hex", "枚举↔设置串往返");
             }
             // 剪贴板图片建帧（，BgraImage.FromSource）：ToSource↔FromSource 往返无损 + 非 Bgra32 转换 + 空值
             {
-                var f0 = new FrameCapture.Capture.CapturedFrame
+                var f0 = new CapturedFrame
                 {
                     Bgra = new byte[] { 10, 20, 30, 255, 40, 50, 60, 128, 70, 80, 90, 0, 100, 110, 120, 255 },
                     W = 2, H = 2, TimeMs = 0,
                 };
-                var src = FrameCapture.Services.BgraImage.ToSource(f0);
-                var back = FrameCapture.Services.BgraImage.FromSource(src);
+                var src = BgraImage.ToSource(f0);
+                var back = BgraImage.FromSource(src);
                 Chk("T121a-roundtrip", back != null && back.W == 2 && back.H == 2 && back.Bgra.SequenceEqual(f0.Bgra),
                     "ToSource→FromSource BGRA 逐字节往返");
                 // 非 Bgra32 源（Bgr32，alpha 位被忽略）→ 转 Bgra32 后 alpha=255、BGR 分量不变
                 var bgr = System.Windows.Media.Imaging.BitmapSource.Create(1, 1, 96, 96,
                     System.Windows.Media.PixelFormats.Bgr32, null, new byte[] { 10, 20, 30, 0 }, 4);
-                var conv = FrameCapture.Services.BgraImage.FromSource(bgr);
+                var conv = BgraImage.FromSource(bgr);
                 Chk("T121b-bgr32", conv != null && conv.Bgra[0] == 10 && conv.Bgra[1] == 20 && conv.Bgra[2] == 30 && conv.Bgra[3] == 255,
                     conv == null ? "null" : $"BGR→BGRA {conv.Bgra[0]},{conv.Bgra[1]},{conv.Bgra[2]},{conv.Bgra[3]}");
-                Chk("T121c-null", FrameCapture.Services.BgraImage.FromSource(null) == null, "null → null");
+                Chk("T121c-null", BgraImage.FromSource(null) == null, "null → null");
             }
             // 暂停全局热键语义由 HotkeyManager「Paused 时不喂 KeySink」实现（见 HotkeyManager.HandleKey），
             // 属宿主接线，无独立纯逻辑可测。
@@ -2117,7 +2117,7 @@ static class SelfTest
                 Chk("T126e-drop-early", !FpsThrottle.ShouldKeep(1005, 1000, 16.7, false), "未到间隔丢帧（5ms<16.7）");
                 Chk("T126f-keep-due", FpsThrottle.ShouldKeep(1017, 1000, 16.7, false), "到间隔保帧（17≥16.7-0.5）");
                 Chk("T126g-refresh-null", DisplayRefresh.RateOf(null) == 0 && DisplayRefresh.RateOf("") == 0, "空设备名返回 0 不抛");
-                int hz = DisplayRefresh.RateOf(FrameCapture.Capture.Monitors.All().FirstOrDefault(m => m.IsPrimary)?.DeviceName);
+                int hz = DisplayRefresh.RateOf(Monitors.All().FirstOrDefault(m => m.IsPrimary)?.DeviceName);
                 Chk("T126h-refresh-real", hz > 0, $"本机主屏刷新率检测 → {hz}Hz");
             }
 
@@ -2190,7 +2190,7 @@ static class SelfTest
             {
                 var big = new byte[64 << 20]; // 64MB：制造一次 LOH 分配，Reclaim 应能回收并裁工作集
                 big[0] = 1;
-                FrameCapture.Core.Memory.Reclaim();
+                Memory.Reclaim();
                 GC.KeepAlive(big);
             }
             catch { ok = false; }
@@ -2363,11 +2363,11 @@ static class SelfTest
         // 无 KeySink（手势关闭）时不装钩子，零开销。
         {
             bool sinkInstalled;
-            var hk = new FrameCapture.Services.HotkeyManager();
+            var hk = new HotkeyManager();
             try { hk.KeySink = (vk, down, mods, time) => false; hk.Install(); sinkInstalled = hk.Installed; }
             finally { hk.Dispose(); }
             bool idleNotInstalled;
-            var hk2 = new FrameCapture.Services.HotkeyManager();
+            var hk2 = new HotkeyManager();
             try { hk2.Install(); idleNotInstalled = hk2.Installed; }
             finally { hk2.Dispose(); }
             Chk("T134a-hook-for-keysink", sinkInstalled, "有手势 KeySink 时装钩子（否则手势永不触发）");
@@ -2473,7 +2473,7 @@ static class SelfTest
                 cb.Items.Add(new System.Windows.Controls.ComboBoxItem { Content = "B" });
                 cb.SelectedIndex = 0;
                 cb.Measure(new System.Windows.Size(200, 30));
-                cb.Arrange(new System.Windows.Rect(0, 0, 200, 30));
+                cb.Arrange(new Rect(0, 0, 200, 30));
             } catch (Exception ex) { comboErr = ex.Message; }
             try {
                 var lb = new System.Windows.Controls.ListBox();
@@ -2481,36 +2481,36 @@ static class SelfTest
                 lb.Items.Add(new System.Windows.Controls.ListBoxItem { Content = "A" });
                 lb.SelectedIndex = 0;
                 lb.Measure(new System.Windows.Size(200, 60));
-                lb.Arrange(new System.Windows.Rect(0, 0, 200, 60));
+                lb.Arrange(new Rect(0, 0, 200, 60));
             } catch (Exception ex) { listErr = ex.Message; }
             Chk("T139a-combo-template-measures", comboErr == null, "ComboBox 配色模板可套可 measure（深色下拉可读）" + (comboErr != null ? " 异常:" + comboErr : ""));
             Chk("T139b-list-item-style-measures", listErr == null, "ListBox 条目样式可套可 measure" + (listErr != null ? " 异常:" + listErr : ""));
         }
         // 文字字号映射（C3）：线宽挡位→帧像素字号，单调递增，锚定 细3/中6/粗10 = 22/34/50px @1080p
         {
-            double f3 = FrameCapture.Core.AnnFont.FramePx(3), f6 = FrameCapture.Core.AnnFont.FramePx(6), f10 = FrameCapture.Core.AnnFont.FramePx(10);
+            double f3 = AnnFont.FramePx(3), f6 = AnnFont.FramePx(6), f10 = AnnFont.FramePx(10);
             Chk("T140a-font-anchor-values", Math.Abs(f3 - 22) < 1e-3 && Math.Abs(f6 - 34) < 1e-3 && Math.Abs(f10 - 50) < 1e-3, $"字号锚定 细{f3}/中{f6}/粗{f10} = 22/34/50");
-            Chk("T140b-font-monotonic", f3 < f6 && f6 < f10 && FrameCapture.Core.AnnFont.FramePx(24) > f10, "字号随线宽单调递增（A+ 变大）");
+            Chk("T140b-font-monotonic", f3 < f6 && f6 < f10 && AnnFont.FramePx(24) > f10, "字号随线宽单调递增（A+ 变大）");
         }
         // 启用/禁用（A1）：禁用绑定不校验、不进引擎
         {
             var cat = new TestCatalog(); var nm = new TestNamer();
             var offDoc = new GEdit.GestureDoc { Bindings = { new GEdit.BindingEdit { Id = "off", Enabled = false, Mods = GE.ModifierKeys.None, Key = 0, Actions = new List<string>() } } };
             Chk("T141a-disabled-not-validated", GEdit.GestureValidation.Validate(offDoc, cat, nm).Count == 0, "禁用绑定不产生校验问题（不挡保存）");
-            var cfg = new FrameCapture.Core.GestureConfig();
-            cfg.Bindings.Add(new FrameCapture.Core.GestureBindingDto { Id = "off", Enabled = false, Chord = "F6", Actions = new[] { "capture.frame" } });
-            cfg.Bindings.Add(new FrameCapture.Core.GestureBindingDto { Id = "on", Enabled = true, Chord = "F7", Actions = new[] { "scope.select" } });
+            var cfg = new GestureConfig();
+            cfg.Bindings.Add(new GestureBindingDto { Id = "off", Enabled = false, Chord = "F6", Actions = new[] { "capture.frame" } });
+            cfg.Bindings.Add(new GestureBindingDto { Id = "on", Enabled = true, Chord = "F7", Actions = new[] { "scope.select" } });
             var bs = cfg.ToBindings();
             Chk("T141b-disabled-excluded-from-engine", bs.Count == 1 && bs[0].Id == "on", "禁用绑定不进引擎、启用保留");
         }
         // 动作目录拆分/改名（A2）：选区/开始/停止/同键起停 齐全 + 即时截图语义=全屏
         {
-            bool split = FrameCapture.Core.GestureActions.IsValid("scope.select")
-                && FrameCapture.Core.GestureActions.IsValid("record.start")
-                && FrameCapture.Core.GestureActions.IsValid("record.stop")
-                && FrameCapture.Core.GestureActions.IsValid("record.toggle");
+            bool split = GestureActions.IsValid("scope.select")
+                && GestureActions.IsValid("record.start")
+                && GestureActions.IsValid("record.stop")
+                && GestureActions.IsValid("record.toggle");
             Chk("T142a-record-actions-split", split, "选区/开始录制/停止录制/开始停止(同键) 四动作齐全");
-            var cf = FrameCapture.Core.GestureActions.All.First(a => a.Name == "capture.frame");
+            var cf = GestureActions.All.First(a => a.Name == "capture.frame");
             Chk("T142b-instant-is-fullscreen", cf.Label.Contains("全屏"), $"即时截图改名含「全屏」：{cf.Label}");
         }
         // 完成后序列（A3）：主序列成功后跑 OnComplete；主序列失败则不跑
@@ -2531,15 +2531,15 @@ static class SelfTest
         }
         // 录制动作无默认行为：停止/同键起停不自动开编辑器；开编辑器是独立动作、配在完成后序列
         {
-            Chk("T144a-edit-lastvideo-exists", FrameCapture.Core.GestureActions.IsValid("edit.lastvideo"),
+            Chk("T144a-edit-lastvideo-exists", GestureActions.IsValid("edit.lastvideo"),
                 "新增『打开编辑器（上次录制）』动作");
-            var rs = FrameCapture.Core.GestureActions.All.First(a => a.Name == "record.stop");
+            var rs = GestureActions.All.First(a => a.Name == "record.stop");
             Chk("T144b-record-stop-no-default-editor", rs.Description.Contains("不进编辑器"),
                 $"停止录制文案明确不进编辑器：{rs.Description}");
-            var rt = FrameCapture.Core.GestureActions.All.First(a => a.Name == "record.toggle");
+            var rt = GestureActions.All.First(a => a.Name == "record.toggle");
             Chk("T144c-record-toggle-no-default-editor", rt.Description.Contains("不进编辑器"),
                 $"同键起停文案明确不进编辑器：{rt.Description}");
-            var lv = FrameCapture.Core.GestureActions.All.First(a => a.Name == "edit.lastvideo");
+            var lv = GestureActions.All.First(a => a.Name == "edit.lastvideo");
             Chk("T144d-edit-lastvideo-guides-oncomplete", lv.Description.Contains("完成后序列"),
                 $"打开编辑器动作文案引导配到完成后序列：{lv.Description}");
         }
@@ -2620,7 +2620,7 @@ static class SelfTest
         }
         // 默认手势集播种：捕获键 轻点截图+按住录制，选区键 组合键选区；一次性、尊重已有绑定。
         {
-            var set = FrameCapture.Core.GestureConfig.DefaultTapHoldSet("Ctrl+Shift+G", "Ctrl+Shift+R");
+            var set = GestureConfig.DefaultTapHoldSet("Ctrl+Shift+G", "Ctrl+Shift+R");
             Chk("T147a-default-set-shape",
                 set.Count == 4
                 && set.Any(b => b.Trigger == "Tap" && b.Actions.Contains("capture.selection"))
@@ -2632,17 +2632,17 @@ static class SelfTest
                 set.Where(b => b.Trigger is "Tap" or "Hold" or "HoldRelease").All(b => b.LongPressMs == 250),
                 "tap/hold 三条按住阈值=250ms");
 
-            var cfg = new FrameCapture.Core.GestureConfig();
+            var cfg = new GestureConfig();
             cfg.SeedIfNeeded("Ctrl+Shift+G", "Ctrl+Shift+R");
             Chk("T147c-seed-empty", cfg.Bindings.Count == 4 && cfg.Enabled && cfg.Seeded, "空配置播种默认集并启用、置 Seeded");
 
-            var cfg2 = new FrameCapture.Core.GestureConfig();
-            cfg2.Bindings.Add(new FrameCapture.Core.GestureBindingDto { Id = "mine", Chord = "F6", Trigger = "Chord", Actions = new[] { "capture.frame" } });
+            var cfg2 = new GestureConfig();
+            cfg2.Bindings.Add(new GestureBindingDto { Id = "mine", Chord = "F6", Trigger = "Chord", Actions = new[] { "capture.frame" } });
             cfg2.SeedIfNeeded("Ctrl+Shift+G", "Ctrl+Shift+R");
             Chk("T147d-seed-respects-existing", cfg2.Bindings.Count == 1 && cfg2.Bindings[0].Id == "mine" && cfg2.Seeded,
                 "已有绑定不被覆盖，仅补置 Seeded");
 
-            var cfg3 = new FrameCapture.Core.GestureConfig { Seeded = true };   // 已播种（用户曾清空绑定）
+            var cfg3 = new GestureConfig { Seeded = true };   // 已播种（用户曾清空绑定）
             cfg3.SeedIfNeeded("Ctrl+Shift+G", "Ctrl+Shift+R");
             Chk("T147e-seed-idempotent", cfg3.Bindings.Count == 0, "已播种后清空绑定不再重新塞回");
         }
@@ -2650,27 +2650,27 @@ static class SelfTest
         // 手势「识别文字」结果路由（，OcrService.Route 纯决策；编辑器与范围 OCR 共用）
         {
             Chk("T148a-success-window",
-                FrameCapture.Core.OcrService.Route(FrameCapture.Core.OcrStatus.Success, true) == FrameCapture.Core.OcrRoute.ResultWindow,
+                OcrService.Route(OcrStatus.Success, true) == OcrRoute.ResultWindow,
                 "Success + 显示结果窗 → 开结果窗");
             Chk("T148b-success-copy",
-                FrameCapture.Core.OcrService.Route(FrameCapture.Core.OcrStatus.Success, false) == FrameCapture.Core.OcrRoute.CopyThenConfirm,
+                OcrService.Route(OcrStatus.Success, false) == OcrRoute.CopyThenConfirm,
                 "Success + 关结果窗 → 复制并轻确认");
             Chk("T148c-noengine-ignores-show",
-                FrameCapture.Core.OcrService.Route(FrameCapture.Core.OcrStatus.NoEngine, true) == FrameCapture.Core.OcrRoute.NoEngineHint
-                && FrameCapture.Core.OcrService.Route(FrameCapture.Core.OcrStatus.NoEngine, false) == FrameCapture.Core.OcrRoute.NoEngineHint,
+                OcrService.Route(OcrStatus.NoEngine, true) == OcrRoute.NoEngineHint
+                && OcrService.Route(OcrStatus.NoEngine, false) == OcrRoute.NoEngineHint,
                 "NoEngine → 无引擎提示（与是否显示结果窗无关）");
             Chk("T148d-empty-ignores-show",
-                FrameCapture.Core.OcrService.Route(FrameCapture.Core.OcrStatus.Empty, true) == FrameCapture.Core.OcrRoute.EmptyHint
-                && FrameCapture.Core.OcrService.Route(FrameCapture.Core.OcrStatus.Empty, false) == FrameCapture.Core.OcrRoute.EmptyHint,
+                OcrService.Route(OcrStatus.Empty, true) == OcrRoute.EmptyHint
+                && OcrService.Route(OcrStatus.Empty, false) == OcrRoute.EmptyHint,
                 "Empty → 未识别提示（与是否显示结果窗无关）");
-            Chk("T148e-ocr-action-registered", FrameCapture.Core.GestureActions.IsValid("ocr.selection"),
+            Chk("T148e-ocr-action-registered", GestureActions.IsValid("ocr.selection"),
                 "ocr.selection 动作仍注册（手势可绑定，且 GestureInvoker 已接线非死动作）");
         }
 
         // 帮助窗键位反映用户真实绑定（，GestureConfig.DescribeKeysFor/TriggerLabel 纯决策）
         {
-            var GC = new FrameCapture.Core.GestureConfig();
-            GC.Bindings = new System.Collections.Generic.List<FrameCapture.Core.GestureBindingDto>
+            var GC = new GestureConfig();
+            GC.Bindings = new List<GestureBindingDto>
             {
                 new() { Id = "r", Enabled = true, Chord = "Ctrl+Alt+R", Trigger = "Chord", Actions = new[] { "record.toggle" } },
                 new() { Id = "a", Enabled = true, Chord = "Ctrl+Alt+A", Trigger = "Chord", Actions = new[] { "capture.selection" } },
@@ -2679,43 +2679,43 @@ static class SelfTest
                 new() { Id = "off", Enabled = false, Chord = "Ctrl+Alt+X", Trigger = "Chord", Actions = new[] { "capture.selection" } },
             };
             Chk("T149a-scope-unbound",
-                GC.DescribeKeysFor(FrameCapture.Core.GestureActions.ScopeSelect) == "未绑定",
+                GC.DescribeKeysFor(GestureActions.ScopeSelect) == "未绑定",
                 "无选区绑定 → 未绑定（不再回落显示没绑定的死键 Ctrl+Shift+R）");
-            var rec = GC.DescribeKeysFor(FrameCapture.Core.GestureActions.RecordToggle, FrameCapture.Core.GestureActions.RecordStart, FrameCapture.Core.GestureActions.RecordStop);
+            var rec = GC.DescribeKeysFor(GestureActions.RecordToggle, GestureActions.RecordStart, GestureActions.RecordStop);
             Chk("T149b-record-grouped", rec == "Ctrl+Alt+R，F2 按下/松开",
                 "录制键按组合键分组、合并触发后缀，实得 " + rec);
             Chk("T149c-capture-chord-nosuffix",
-                GC.DescribeKeysFor(FrameCapture.Core.GestureActions.CaptureSelection, FrameCapture.Core.GestureActions.CaptureFrame) == "Ctrl+Alt+A",
+                GC.DescribeKeysFor(GestureActions.CaptureSelection, GestureActions.CaptureFrame) == "Ctrl+Alt+A",
                 "Chord 触发无后缀 + 禁用绑定排除 → Ctrl+Alt+A");
-            var def = new FrameCapture.Core.GestureConfig { Bindings = FrameCapture.Core.GestureConfig.DefaultTapHoldSet("Ctrl+Shift+G", "Ctrl+Shift+R") };
+            var def = new GestureConfig { Bindings = GestureConfig.DefaultTapHoldSet("Ctrl+Shift+G", "Ctrl+Shift+R") };
             Chk("T149d-default-taphold",
-                def.DescribeKeysFor(FrameCapture.Core.GestureActions.CaptureSelection) == "Ctrl+Shift+G 轻点"
-                && def.DescribeKeysFor(FrameCapture.Core.GestureActions.RecordStart, FrameCapture.Core.GestureActions.RecordStop) == "Ctrl+Shift+G 按住/松手",
+                def.DescribeKeysFor(GestureActions.CaptureSelection) == "Ctrl+Shift+G 轻点"
+                && def.DescribeKeysFor(GestureActions.RecordStart, GestureActions.RecordStop) == "Ctrl+Shift+G 按住/松手",
                 "默认集：截图=轻点、录制=按住/松手");
             Chk("T149e-trigger-label",
-                FrameCapture.Core.GestureConfig.TriggerLabel("Tap") == "轻点"
-                && FrameCapture.Core.GestureConfig.TriggerLabel("Chord") == ""
-                && FrameCapture.Core.GestureConfig.TriggerLabel("HoldRelease") == "松手"
-                && FrameCapture.Core.GestureConfig.TriggerLabel("DoubleClick") == "双击",
+                GestureConfig.TriggerLabel("Tap") == "轻点"
+                && GestureConfig.TriggerLabel("Chord") == ""
+                && GestureConfig.TriggerLabel("HoldRelease") == "松手"
+                && GestureConfig.TriggerLabel("DoubleClick") == "双击",
                 "触发后缀：轻点/空/松手/双击");
         }
 
         // 设置窗「当前生效键位」用动作短标签（，GestureActions.LabelOf 纯查找）
         {
             Chk("T150a-label-known",
-                FrameCapture.Core.GestureActions.LabelOf("capture.selection") == "选区截图"
-                && FrameCapture.Core.GestureActions.LabelOf("record.toggle") == "开始/停止录制"
-                && FrameCapture.Core.GestureActions.LabelOf("ocr.selection") == "识别文字",
+                GestureActions.LabelOf("capture.selection") == "选区截图"
+                && GestureActions.LabelOf("record.toggle") == "开始/停止录制"
+                && GestureActions.LabelOf("ocr.selection") == "识别文字",
                 "已知动作 → 中文短名");
             Chk("T150b-label-unknown-passthrough",
-                FrameCapture.Core.GestureActions.LabelOf("future.xyz") == "future.xyz"
-                && FrameCapture.Core.GestureActions.LabelOf(null) == "",
+                GestureActions.LabelOf("future.xyz") == "future.xyz"
+                && GestureActions.LabelOf(null) == "",
                 "未知名原样返回（前向兼容不崩）/ null → 空串");
         }
 
         // 手势配置器触发下拉标签两两不同（，GestureEditorWindow.TriggerLabel 纯函数）
         {
-            var kinds = System.Enum.GetValues<GE.TriggerKind>();
+            var kinds = Enum.GetValues<GE.TriggerKind>();
             var labels = kinds.Select(k => GEdit.GestureEditorWindow.TriggerLabel(k)).ToList();
             Chk("T151-trigger-labels-distinct",
                 labels.All(s => !string.IsNullOrEmpty(s)) && labels.Distinct().Count() == kinds.Length,
@@ -2724,8 +2724,8 @@ static class SelfTest
         // 配置器(lib)触发标签须含宿主(host GestureConfig)核心词，防两份独立 TriggerLabel 漂移；
         // 用户在配置器与设置/帮助看到同一触发方式应同核心词（KeyUp 宿主词为「松开」，配置器写「抬起」即漂移）
         {
-            var drift = System.Enum.GetValues<GE.TriggerKind>()
-                .Select(k => (k, lib: GEdit.GestureEditorWindow.TriggerLabel(k), host: FrameCapture.Core.GestureConfig.TriggerLabel(k.ToString())))
+            var drift = Enum.GetValues<GE.TriggerKind>()
+                .Select(k => (k, lib: GEdit.GestureEditorWindow.TriggerLabel(k), host: GestureConfig.TriggerLabel(k.ToString())))
                 .Where(x => x.host.Length > 0 && !x.lib.Contains(x.host))
                 .Select(x => $"{x.k}:配置器「{x.lib}」不含宿主「{x.host}」")
                 .ToList();
@@ -2736,14 +2736,14 @@ static class SelfTest
         // MinWidth=17.33 经 DynamicResource 以直值泄漏到模板内 ScrollBar，样式 Setter 压不住，须附加属性归零）
         {
             var app = new Application();
-            FrameCapture.Core.Fluent.ApplyGlobalStyles();
+            Fluent.ApplyGlobalStyles();
             var sv = new System.Windows.Controls.ScrollViewer { Width = 100, Height = 60, VerticalScrollBarVisibility = System.Windows.Controls.ScrollBarVisibility.Visible };
             sv.Content = new System.Windows.Controls.Border { Width = 90, Height = 400 };
             var win = new Window { Content = sv, Left = -3000, Top = -3000, Width = 140, Height = 100, ShowInTaskbar = false, ShowActivated = false, WindowStyle = WindowStyle.None };
             win.Show();
             win.UpdateLayout();
             System.Windows.Controls.Primitives.ScrollBar sb = null;
-            void WalkSb(System.Windows.DependencyObject o)
+            void WalkSb(DependencyObject o)
             {
                 if (sb != null) return;
                 if (o is System.Windows.Controls.Primitives.ScrollBar s && s.Orientation == System.Windows.Controls.Orientation.Vertical) { sb = s; return; }
@@ -2757,11 +2757,11 @@ static class SelfTest
         }
         // accent 反白 = WCAG 相对亮度 <0.35→白（若用 0.299/0.587/0.114 加权，#7F75FF 会被判成黑字）
         {
-            var purple = FrameCapture.Core.Fluent.OnAccentColor(System.Windows.Media.Color.FromRgb(0x7F, 0x75, 0xFF));
-            var orange = FrameCapture.Core.Fluent.OnAccentColor(System.Windows.Media.Color.FromRgb(0xFF, 0x8C, 0x00));
-            var teal = FrameCapture.Core.Fluent.OnAccentColor(System.Windows.Media.Color.FromRgb(0x00, 0xB2, 0x94));
-            var white = FrameCapture.Core.Fluent.OnAccentColor(System.Windows.Media.Color.FromRgb(0xFF, 0xFF, 0xFF));
-            var black = FrameCapture.Core.Fluent.OnAccentColor(System.Windows.Media.Color.FromRgb(0x00, 0x00, 0x00));
+            var purple = Fluent.OnAccentColor(System.Windows.Media.Color.FromRgb(0x7F, 0x75, 0xFF));
+            var orange = Fluent.OnAccentColor(System.Windows.Media.Color.FromRgb(0xFF, 0x8C, 0x00));
+            var teal = Fluent.OnAccentColor(System.Windows.Media.Color.FromRgb(0x00, 0xB2, 0x94));
+            var white = Fluent.OnAccentColor(System.Windows.Media.Color.FromRgb(0xFF, 0xFF, 0xFF));
+            var black = Fluent.OnAccentColor(System.Windows.Media.Color.FromRgb(0x00, 0x00, 0x00));
             Chk("T162b-onaccent-wcag",
                 purple == System.Windows.Media.Colors.White && orange == System.Windows.Media.Colors.Black
                 && teal == System.Windows.Media.Colors.White && white == System.Windows.Media.Colors.Black
@@ -2946,7 +2946,7 @@ static class SelfTest
             foreach (var (sw, sh) in new[] { (300, 1200), (1200, 300) })
             {
                 var ar = FrameCapture.Overlays.ScrollPreviewWindow.Thumbnail(longImg, sw, sh, 64, 50);
-                double dev = System.Math.Abs((double)ar.W / ar.H / ((double)sw / sh) - 1);
+                double dev = Math.Abs((double)ar.W / ar.H / ((double)sw / sh) - 1);
                 arOk &= dev < 0.10 && ar.W <= 64 && ar.H <= 50;
                 arLog.Append($"{sw}x{sh}->{ar.W}x{ar.H} dev={dev:P1} ");
             }

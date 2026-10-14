@@ -15,7 +15,7 @@ public sealed partial class CaptureController : IDisposable
     /// <summary>托盘/入口调用：复用选区流程选一块要滚的区域，选完进入步进拼接循环。</summary>
     public void BeginScrollCapture()
     {
-        FrameCapture.Core.Trace.Log("scroll capture→picker");
+        Trace.Log("scroll capture→picker");
         _sessionAfter = _pendingAfter; _pendingAfter = "";   // 捕获本条手势的截图后
         BeginScopeSelection();
         _scrollAfterSelect = true;
@@ -27,7 +27,7 @@ public sealed partial class CaptureController : IDisposable
     void StartScrollLoop(RectI region, string device)
     {
         var f = LiveCapture.Grab(region);
-        if (f == null) { FrameCapture.Core.Trace.Log("scroll: first grab null"); return; }
+        if (f == null) { Trace.Log("scroll: first grab null"); return; }
         _scrollAcc = f.Bgra; _scrollW = f.W; _scrollH = f.H; _scrollRegion = region; _scrollDevice = device; _scrollSegs = 1;
         _scrollPrevB = null; _scrollAuto = false;
         _autoWaitSettle = false; _autoNoNew = 0; _autoNotch = ScrollAutoPolicy.NotchStart; _autoStuckTicks = 0;
@@ -50,7 +50,7 @@ public sealed partial class CaptureController : IDisposable
         _scrollTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(280) };
         _scrollTimer.Tick += (_, _) => ScrollTick();
         _scrollTimer.Start();
-        FrameCapture.Core.Trace.Log($"scroll loop start {region.W}x{region.H}");
+        Trace.Log($"scroll loop start {region.W}x{region.H}");
     }
 
     /// <summary>「自动滚动」按钮：开＝把光标移进选区中心、由 ScrollTick 按步进注轮；关＝还原光标并交还滚动控制权。
@@ -63,7 +63,7 @@ public sealed partial class CaptureController : IDisposable
             _scrollAuto = false; _autoWaitSettle = false; _autoNoNew = 0;
             _scrollBar.SetAutoScrolling(false);
             RestoreAutoCursor();
-            FrameCapture.Core.Trace.Log("scroll auto off");
+            Trace.Log("scroll auto off");
             return;
         }
         if (!Native.Win32.InputLayoutOk) { _scrollBar.FlashHint("此环境无法注入滚轮，请手动滚动"); return; }
@@ -75,7 +75,7 @@ public sealed partial class CaptureController : IDisposable
         _scrollBar.SetAutoScrolling(true);
         _scrollBar.FlashHint("自动滚动中：光标已移入选区，停止或结束后移回原位");
         AutoStep();   // 立刻发第一步，不等下一个空拍
-        FrameCapture.Core.Trace.Log($"scroll auto on notch={_autoNotch}");
+        Trace.Log($"scroll auto on notch={_autoNotch}");
     }
 
     /// <summary>注入一步滚轮并进入「等这一步落定」：这一步落定后 ScrollTick 才继续判定，等待期间既不发轮也不拼接。</summary>
@@ -94,7 +94,7 @@ public sealed partial class CaptureController : IDisposable
         _scrollAuto = false;
         _scrollBar?.SetAutoScrolling(false);   // 先复位按钮文案再刷提示，顺序反了会被 SetAutoScrolling 覆盖
         _scrollBar?.FlashHint(why);
-        FrameCapture.Core.Trace.Log($"scroll auto stop: {why}");
+        Trace.Log($"scroll auto stop: {why}");
     }
 
     /// <summary>把本帧的拼接判定结果交给步进策略：该发下一步就发，判到底就停。手动滚动时不参与。</summary>
@@ -119,7 +119,7 @@ public sealed partial class CaptureController : IDisposable
         if (!_autoCursorSaved) return;
         _autoCursorSaved = false;
         Native.Win32.SetCursorPos(_autoCursorHome.X, _autoCursorHome.Y);
-        FrameCapture.Core.Trace.Log("scroll auto cursor restored");
+        Trace.Log("scroll auto cursor restored");
     }
 
     void ScrollTick()
@@ -130,7 +130,7 @@ public sealed partial class CaptureController : IDisposable
         // 稳定判定：本帧与上一帧一致（上一帧底部完全包含本帧）才算滚动停稳。停稳与否决定找重叠的口径：
         // 停稳帧走完整口径（容差趟、兜底照常），滚动途中的帧只认「有信息行全匹配」的高置信重叠。
         bool stable = _scrollPrevB != null &&
-            FrameCapture.Core.ScrollStitch.FindOverlap(_scrollPrevB, _scrollW, _scrollPrevB.Length / (_scrollW * 4), b.Bgra, b.H) >= b.H;
+            ScrollStitch.FindOverlap(_scrollPrevB, _scrollW, _scrollPrevB.Length / (_scrollW * 4), b.Bgra, b.H) >= b.H;
         _scrollPrevB = b.Bgra;
         if (!stable && _scrollAuto && _autoWaitSettle && ++_autoStuckTicks >= SettleMaxTicks)
         {
@@ -140,8 +140,8 @@ public sealed partial class CaptureController : IDisposable
         }
         if (stable) { _autoWaitSettle = false; _autoStuckTicks = 0; }   // 已停稳：注过的那一步落定
         int ov = stable
-            ? FrameCapture.Core.ScrollStitch.FindOverlap(_scrollAcc, _scrollW, _scrollH, b.Bgra, b.H)
-            : FrameCapture.Core.ScrollStitch.FindOverlapExact(_scrollAcc, _scrollW, _scrollH, b.Bgra, b.H);
+            ? ScrollStitch.FindOverlap(_scrollAcc, _scrollW, _scrollH, b.Bgra, b.H)
+            : ScrollStitch.FindOverlapExact(_scrollAcc, _scrollW, _scrollH, b.Bgra, b.H);
         if (ov >= b.H) { if (stable) AutoObserve(ScrollAutoObservation.NoNewContent); return; }   // 画面没再滚（本帧已含于累积底部）
         // 「滚太快」只有停稳帧才够格下结论：滚动途中凑不出全匹配是常态，一路提示会响成一片
         if (ov <= 0)
@@ -153,13 +153,13 @@ public sealed partial class CaptureController : IDisposable
         // 停稳帧 3 行起拼；滚动途中 12 行起拼——Append 每次重抄整张长图，为几行蠕动重抄会让长图越滚越卡。
         // acc 没长，newRows 就一直在攒，慢滚照样会在攒够那一拍拼上。
         if (newRows < (stable ? 3 : 12)) { if (stable) AutoObserve(ScrollAutoObservation.TinyStep); return; }
-        _scrollAcc = FrameCapture.Core.ScrollStitch.Append(_scrollAcc, _scrollW, _scrollH, b.Bgra, b.H, ov);
+        _scrollAcc = ScrollStitch.Append(_scrollAcc, _scrollW, _scrollH, b.Bgra, b.H, ov);
         _scrollH = _scrollAcc.Length / (_scrollW * 4);
         _scrollSegs++;
         _scrollBar.SetProgress(_scrollSegs, _scrollH);
         _scrollPreview?.SetImage(_scrollAcc, _scrollW, _scrollH);
         _autoStuckTicks = 0;   // 拼上了就是进展，停稳等待从头计
-        FrameCapture.Core.Trace.Log($"scroll append ov={ov} new={newRows} h={_scrollH} stable={stable}");
+        Trace.Log($"scroll append ov={ov} new={newRows} h={_scrollH} stable={stable}");
         AutoObserve(ScrollAutoObservation.Appended);
     }
 
@@ -185,19 +185,19 @@ public sealed partial class CaptureController : IDisposable
         var reg = _scrollRegion; var dev = _scrollDevice; int segs = _scrollSegs; _scrollSegs = 0;
         bar?.CloseSelf();
         var pth = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "FrameCapture", $"scroll-{DateTime.Now:HHmmss}.png");
-        try { FrameCapture.Services.BgraImage.SavePng(frame, pth); } catch { }
-        FrameCapture.Encoding.ClipboardService.SetFrame(frame);
-        FrameCapture.Services.SaveService.MaybeSavePng(frame);
-        if (_settings.Current.CaptureSound) FrameCapture.Core.CaptureSound.Play(_settings.Current.CustomSoundPath);
-        FrameCapture.Core.Trace.Log($"scroll done {frame.W}x{frame.H} segs={segs} {pth}");
-        switch (FrameCapture.Core.AfterCapture.Resolve(_sessionAfter))
+        try { BgraImage.SavePng(frame, pth); } catch { }
+        Encoding.ClipboardService.SetFrame(frame);
+        SaveService.MaybeSavePng(frame);
+        if (_settings.Current.CaptureSound) CaptureSound.Play(_settings.Current.CustomSoundPath);
+        Trace.Log($"scroll done {frame.W}x{frame.H} segs={segs} {pth}");
+        switch (AfterCapture.Resolve(_sessionAfter))
         {
-            case FrameCapture.Core.AfterCaptureAction.Editor:
+            case AfterCaptureAction.Editor:
                 OpenEditorForFrame(frame, reg, dev);
                 break;
-            case FrameCapture.Core.AfterCaptureAction.Copy:
+            case AfterCaptureAction.Copy:
                 break;
-            case FrameCapture.Core.AfterCaptureAction.Pin:
+            case AfterCaptureAction.Pin:
                 PinFrameAt(frame, reg);
                 break;
             default:
@@ -217,7 +217,7 @@ public sealed partial class CaptureController : IDisposable
         CloseScrollStageAndPreview();
         var bar = _scrollBar; _scrollBar = null; _scrollAcc = null; _scrollPrevB = null; _scrollSegs = 0; _scrollAuto = false;
         bar?.CloseSelf();
-        FrameCapture.Core.Trace.Log("scroll cancel");
+        Trace.Log("scroll cancel");
     }
     #endregion
 
@@ -226,12 +226,12 @@ public sealed partial class CaptureController : IDisposable
     /// 独立于点按/录制状态机——只借完成路径，不碰 Phase，避免与按住录制的模式交互。</summary>
     public void BeginDelayedCapture()
     {
-        if (_delayWindow != null) { FrameCapture.Core.Trace.Log("delay: already running, ignore"); return; }
+        if (_delayWindow != null) { Trace.Log("delay: already running, ignore"); return; }
         _sessionAfter = _pendingAfter; _pendingAfter = "";   // 捕获本条手势的截图后
         int secs = Math.Clamp(_settings.Current.DelayCaptureSeconds, 0, 60);
         var region = StoredRegion() ?? FullMonitorAtCursor();
         string label = StoredRegion() != null ? $"范围 {region.Bounds.W}×{region.Bounds.H}" : "全屏";
-        FrameCapture.Core.Trace.Log($"delay capture start {secs}s {region.Bounds.W}x{region.Bounds.H}");
+        Trace.Log($"delay capture start {secs}s {region.Bounds.W}x{region.Bounds.H}");
         if (secs <= 0) { DelayFire(region); return; }   // 0 秒＝立即截，不弹倒计时
         _delayLeft = secs;
         _delayWindow = new Overlays.CountdownWindow(label, region.DeviceName) { OnCancel = DelayCancel };
@@ -278,7 +278,7 @@ public sealed partial class CaptureController : IDisposable
         _delayTimer?.Stop(); _delayTimer = null;
         var win = _delayWindow; _delayWindow = null;
         win?.CloseSelf();
-        FrameCapture.Core.Trace.Log("delay cancel");
+        Trace.Log("delay cancel");
     }
 
     void DelayFire(ScreenRegion region)
@@ -286,19 +286,19 @@ public sealed partial class CaptureController : IDisposable
         HideDelayOutline();   // 收起倒计时范围高亮（轮廓本就不入镜，这里只是收尾）
         var reg = region.Bounds; var dev = region.DeviceName;
         var f = LiveCapture.Grab(reg);
-        if (f == null) { FrameCapture.Core.Trace.Log("delay: grab null"); return; }
-        FrameCapture.Encoding.ClipboardService.SetFrame(f);
-        FrameCapture.Services.SaveService.MaybeSavePng(f);
-        if (_settings.Current.CaptureSound) FrameCapture.Core.CaptureSound.Play(_settings.Current.CustomSoundPath);
-        FrameCapture.Core.Trace.Log($"delay fire {f.W}x{f.H}");
-        switch (FrameCapture.Core.AfterCapture.Resolve(_sessionAfter))
+        if (f == null) { Trace.Log("delay: grab null"); return; }
+        Encoding.ClipboardService.SetFrame(f);
+        SaveService.MaybeSavePng(f);
+        if (_settings.Current.CaptureSound) CaptureSound.Play(_settings.Current.CustomSoundPath);
+        Trace.Log($"delay fire {f.W}x{f.H}");
+        switch (AfterCapture.Resolve(_sessionAfter))
         {
-            case FrameCapture.Core.AfterCaptureAction.Editor:
+            case AfterCaptureAction.Editor:
                 OpenEditorForFrame(f, reg, dev);
                 break;
-            case FrameCapture.Core.AfterCaptureAction.Copy:
+            case AfterCaptureAction.Copy:
                 break;
-            case FrameCapture.Core.AfterCaptureAction.Pin:
+            case AfterCaptureAction.Pin:
                 PinFrameAt(f, reg);
                 break;
             default:

@@ -210,7 +210,7 @@ static int BurstDesk(double sec, int intervalMs, string prefix)
     {
         using var bmp = GrabDesk(0, 0, w, h);
         bmp.Save($"{prefix}.{i:000}.png", ImageFormat.Png);
-        System.Threading.Thread.Sleep(intervalMs);
+        Thread.Sleep(intervalMs);
     }
     Console.WriteLine($"burstdesk {n} frames");
     return 0;
