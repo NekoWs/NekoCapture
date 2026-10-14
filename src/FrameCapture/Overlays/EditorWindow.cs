@@ -48,6 +48,7 @@ public sealed partial class EditorWindow : Window
     private Border? _playPanel, _toolPanel;
     private StackPanel? _toolsBar; // 底部工具条，用于让 MinWidth 跟随其实际宽度（防窄图裁切两端工具）
     private bool _toolsCascaded;   // 工具条逐项落定只播一次
+    readonly bool _mica;           // 背板在场停靠面板才透明，缺席必须平涂，否则黑面板
 
     /// <summary>
     /// 构造编辑器窗口：帧元数据抽入平行数组、位图缓存上限按帧字节自适应、搭建布局并恢复标注设置。
@@ -86,6 +87,7 @@ public sealed partial class EditorWindow : Window
         Deactivated += (_, _) => { if (IsLoaded && Topmost) { Topmost = false; Topmost = true; } };
         Title = "FrameCapture Editor";
         Fluent.BorderlessNative(this); // 真无框：消 DWM 非客户区白条，原生圆角+阴影
+        _mica = Fluent.MicaBackdrop(this);
         Fluent.FadeIn(this, Fluent.Motion.EditorEnterMs, 14, offscreenFirstFrame: true);
         // 工具条逐项落定：编辑器是全站最大的表面，整条工具栏跟窗口同时出现会显得笨重。
         // leadMs 把整段排在窗口入场走完之后；等待期内元素已被动画顶住为全透明，
@@ -104,7 +106,8 @@ public sealed partial class EditorWindow : Window
                 budgetMs: Fluent.Motion.SpringMs + Fluent.Motion.StaggerMs,
                 leadMs: Fluent.Motion.EditorEnterMs + Fluent.Motion.StaggerMs);
         };
-        Background = new SolidColorBrush(DarkBg);
+        // 窗底交给背板：画布四周的中性暗底由 viewHost 自己涂，停靠面板透明才透出 Mica。
+        Background = _mica ? Brushes.Transparent : new SolidColorBrush(DarkBg);
         MouseLeftButtonDown += (_, e) => { if (e.ButtonState == MouseButtonState.Pressed) { try { DragMove(); } catch { } } };
 
         var mon = Monitors.ByDevice(seq.MonitorDevice) ?? Monitors.Nearest(seq.Region.X, seq.Region.Y);

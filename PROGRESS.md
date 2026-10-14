@@ -2379,3 +2379,11 @@ status: done
     - **同一构建的 A/B**：把生产改动 stash 掉重编译（确认 dll 时间戳已换，第一次因进程占用导致 MSB3027 复制失败、A/B 无效），原始代码的退场同样是平滑斜坡。暗色 4.69→4.47→4.29→3.64→2.45→0.78→消失，浅色 4.34→4.24→4.11→3.98→3.65→2.36→1.23→消失，`PROBE PASS` 递减 5 阶。**生产代码零改动**，`Fluent.cs`/`Win32.cs`/`Win32Shim.cs` 全部回到未修改状态。
     - **顺带查清**：`PopupEnter` 里 `w.Opacity = 0` 的基础值靠窗口 Opacity 动画的 `FillBehavior.HoldEnd` 抬回；把动画换成别的机制而不处理这个基础值，整窗会永久隐形（本轮踩过，屏采与 `PrintWindow` 双通道确认是真空白，不是截图伪影）。
     - **验证**：SelfTest **481 → 487**（`T180a-d` 入场半程/走完、退场半程/真关窗；`T181a/b` 钉住「WPF 窗不是 Win32 分层窗」这条通道边界，测试侧自带 P/Invoke，不为测试放宽生产侧可见性）。guardrail 地板 481→487。全链 0 错误 / 0 非 NU1900 警告 / `PASS=487 FAIL=0` / LINT-COMMENTS PASS / LINT-MOTION PASS / GUARDRAIL PASS（FAIL=0 SKIP=1 共 12 项）。
+  **编辑器接上 Mica 背板，画布四周保持中性暗底（UI 质感轮十一）**
+    - **动机**：UIAUDIT「背板推广到其余非分层窗」。本轮做编辑器（面积最大、约束最多的一条），并把贴图窗与安装器分别定性。
+    - **改动**：`EditorWindow` 加 `readonly bool _mica`，`Fluent.MicaBackdrop(this)` 必须排在 `BorderlessNative` 之后（后者把 `GlassFrameThickness` 设回 0，顺序反了背板让位失败）。窗底与两条停靠面板按 `_mica` 走透明/平涂；`Editor_OnTheme` 在背板在场时不再把 `WindowBg` 动画上窗底——那层平涂会把背板整个盖掉，色调同步已由 `MicaBackdrop` 挂在 `Theme.Changed` 上。`viewHost` 的 `0x141414` 一字未动，这是「不能照搬设置窗」那条约束的落点。
+    - **取证**：`PrintWindow` 拍不到 DWM 背板，只能 `CopyFromScreen` 整窗。浅色停靠条 210–224、暗色 66–101，蓝通道最高且随位置漂移（壁纸渗入）；画布四周两主题都精确 20.1（不透明中性暗底）。截图 `test-out/editor-mica-light.png` / `editor-mica-dark.png`。
+    - **踩坑一**：接背板后 `T178b` 报「工具条整排没起波」。整段入场锚在 `ContentRendered` 而非 `Show()`，背板让首帧合成多等一次，固定 `EditorEnterMs+StaggerMs+40` 那 40ms 余量被吃光。改成两步锚定（先等被压住、再等抬起来，各 3s 上限），断言内容一字未改。第一次只改「等透明度大于 0.02」直接反向翻车——级联接管前透明度本来就是 1。详见 DECISIONS。
+    - **踩坑二**：`SelfTest editorwave` 只 `new Application()` 不走 `AppHost`，从不 `Theme.Apply`，所以「浅色」截图其实是暗色，两张图数值逐位相同才发现。补上 `Theme.Apply(Current.Theme, Current.Accent)`；跨主题取证先核对同一取样点两主题必须不同。详见 DECISIONS。
+    - **定性**：贴图窗 `PinWindow` 是 `AllowsTransparency=true` 分层窗，`MicaBackdrop` 对它返回 false，且工具条浮在截图上而非桌面——不改，理由写进 UIAUDIT。安装器具备接入条件但 `Preview.cs` 是离屏渲染，DWM 背板不进离屏位图，取证路不通，留作独立一条。
+    - **验证**：SelfTest **487 → 489**（`T182a` DWM 回读材质=2 且窗底透明与能力一致；`T182b` 画布四周底色 alpha=255）。guardrail 地板 487→489。全链 0 错误 / 0 非 NU1900 警告 / `PASS=489 FAIL=0` / LINT-COMMENTS PASS / LINT-MOTION PASS / GUARDRAIL PASS（FAIL=0 SKIP=1 共 12 项）。

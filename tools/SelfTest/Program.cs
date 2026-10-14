@@ -112,7 +112,10 @@ static class SelfTest
             Region = new RectI(0, 0, 520, 300),
             MonitorBounds = new RectI(0, 0, 1920, 1080),
         };
-        var win = new FrameCapture.Overlays.EditorWindow(new SettingsService(), seq);
+        var stWave = new SettingsService();
+        // 应用主题：本模式只 new Application()，不走 AppHost，不套主题就永远拍成暗色。
+        Theme.Apply(stWave.Current.Theme, stWave.Current.Accent);
+        var win = new FrameCapture.Overlays.EditorWindow(stWave, seq);
         var NP = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
         var T = typeof(FrameCapture.Overlays.EditorWindow);
         var strip = (System.Windows.FrameworkElement?)T.GetField("_toolPanel", NP)!.GetValue(win)
@@ -786,12 +789,18 @@ static class SelfTest
             var btnW = barW!.Children.OfType<System.Windows.Controls.Button>().ToList();
             Chk("T178a-toolbar-items", btnW.Count > 4, $"工具条按钮数={btnW.Count}");
             winW.Show();
-            PumpMs(Fluent.Motion.EditorEnterMs + Fluent.Motion.StaggerMs + 40);   // 工具条排在播放条之后起波
+            // 采样点锚在「首项刚起波」：整段入场以 ContentRendered 为锚，Mica 背板在场时首帧渲染更晚，
+            // Show 后固定时长会早于起波时刻。级联接管时 Opacity 仍是 1，接管后才压到 0 再抬升，
+            // 故先等被压住、再等抬起来；两步都设上限，等不到即失败。
+            int held = 0;
+            while (btnW[0].Opacity > 0.05 && held < 3000) { PumpMs(10); held += 10; }
+            int lead = 0;
+            while (btnW[0].Opacity <= 0.02 && lead < 3000) { PumpMs(10); lead += 10; }
             bool ordered = true;
             for (int i = 1; i < btnW.Count; i++) if (btnW[i].Opacity > btnW[i - 1].Opacity + 0.02) ordered = false;
             Chk("T178b-wave-left-to-right",
                 ordered && btnW[^1].Opacity < 0.05 && btnW[0].Opacity > btnW[^1].Opacity,
-                $"首={btnW[0].Opacity:N2} 末={btnW[^1].Opacity:N2} 错位单调={ordered}");
+                $"首={btnW[0].Opacity:N2} 末={btnW[^1].Opacity:N2} 错位单调={ordered} 接管={held}ms 起波={lead}ms");
             PumpMs(Fluent.Motion.SpringMs + Fluent.Motion.StaggerMs + 300);
             var bad = btnW.FirstOrDefault(b => b.Opacity < 0.999
                 || (b.RenderTransform != null && !b.RenderTransform.Value.IsIdentity));
@@ -826,15 +835,50 @@ static class SelfTest
             var firstTool = barP!.Children.OfType<System.Windows.Controls.Button>().First();
             Chk("T179a-multiframe-parts", playGrp != null, $"播放首组={(playGrp == null ? "缺失" : "存在")}");
             winP.Show();
-            PumpMs(Fluent.Motion.EditorEnterMs + 60);
-            Chk("T179b-play-before-tools", playGrp!.Opacity > 0.05 && playGrp.Opacity < 0.99 && firstTool.Opacity < 0.05,
-                $"播放首组={playGrp.Opacity:N2} 工具首项={firstTool.Opacity:N2}");
+            // 两步锚在「上排刚起波」，避开背板在场时首帧渲染后移造成的采样落空。
+            int heldP = 0;
+            while (playGrp!.Opacity > 0.05 && heldP < 3000) { PumpMs(10); heldP += 10; }
+            int leadP = 0;
+            while (playGrp.Opacity <= 0.05 && leadP < 3000) { PumpMs(10); leadP += 10; }
+            Chk("T179b-play-before-tools", playGrp.Opacity > 0.05 && playGrp.Opacity < 0.99 && firstTool.Opacity < 0.05,
+                $"播放首组={playGrp.Opacity:N2} 工具首项={firstTool.Opacity:N2} 接管={heldP}ms 起波={leadP}ms");
             PumpMs(Fluent.Motion.SpringMs + Fluent.Motion.StaggerMs + 300);
             Chk("T179c-both-rows-settled", playGrp.Opacity > 0.999 && firstTool.Opacity > 0.999,
                 $"播放首组={playGrp.Opacity:N2} 工具首项={firstTool.Opacity:N2}");
             winP.Close();
         }
         catch (Exception e) { Chk("T179-play-row-order", false, e.Message); }
+
+        // 编辑器背板：窗底让给 Mica，画布四周的中性暗底必须自己涂满——背板渗进画布会污染取色与裁切判断。
+        try
+        {
+            var stM = new SettingsService();
+            var seqM = new CapturedSequence
+            {
+                Frames = new List<CapturedFrame> { MovingSquare(320, 180, 0, 2), MovingSquare(320, 180, 1, 2) },
+                Region = new RectI(0, 0, 320, 180),
+                MonitorBounds = new RectI(0, 0, 1920, 1080),
+            };
+            var winM = new FrameCapture.Overlays.EditorWindow(stM, seqM);
+            winM.Show();
+            PumpMs(260);
+            bool mica = Fluent.MicaSupported;
+            var hwndM = new System.Windows.Interop.WindowInteropHelper(winM).Handle;
+            int hrM = DwmProbe.DwmGetWindowAttribute(hwndM, 38, out uint gotM, 4);
+            bool seeThrough = winM.Background == System.Windows.Media.Brushes.Transparent;
+            Chk("T182a-editor-backdrop-is-mica",
+                (!mica || (hrM == 0 && gotM == 2u)) && seeThrough == mica,
+                $"材质回读 hr={hrM}/{gotM} 能力={mica} 窗底透明={seeThrough}");
+            var NPm = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+            var gridM = (System.Windows.Controls.Grid)typeof(FrameCapture.Overlays.EditorWindow)
+                .GetField("_viewGrid", NPm)!.GetValue(winM)!;
+            var hostM = System.Windows.Media.VisualTreeHelper.GetParent(gridM) as System.Windows.Controls.Border;
+            var hostBg = hostM?.Background as System.Windows.Media.SolidColorBrush;
+            Chk("T182b-canvas-surround-opaque", hostBg != null && hostBg.Color.A == 255,
+                $"画布四周底色={(hostBg?.Color.ToString() ?? "无")}");
+            winM.Close();
+        }
+        catch (Exception e) { Chk("T182-editor-mica", false, e.Message); }
 
         // 窗级淡入淡出确实在跑：动画中途读窗口 Opacity 必须停在半程，走完必须到 1、退场必须真关窗。
         // 屏幕侧的可见性由 scripts/probe-window-fade.ps1 高速屏采取证（采样率不足会把斜坡量成阶跃）。

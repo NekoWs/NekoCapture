@@ -96,7 +96,7 @@ public sealed partial class EditorWindow : Window
 
     Border Panel(FrameworkElement child) => new()
     {
-        Background = new SolidColorBrush(Theme.PanelBg),
+        Background = _mica ? Brushes.Transparent : new SolidColorBrush(Theme.PanelBg),
         BorderBrush = new SolidColorBrush(Color.FromArgb(0x66, Theme.Stroke.R, Theme.Stroke.G, Theme.Stroke.B)),
         BorderThickness = new Thickness(0, 1, 0, 0),
         Padding = new Thickness(8, 2, 8, 2),
@@ -105,7 +105,9 @@ public sealed partial class EditorWindow : Window
 
     void Editor_OnTheme()
     {
-        var bg = Background as SolidColorBrush;
+        // 背板在场时窗底保持透明：把 WindowBg 动画上去等于用一层平涂盖掉 Mica。
+        // 背板色调由 Fluent.MicaBackdrop 挂在 Theme.Changed 上同步，这里无需参与。
+        var bg = _mica ? null : Background as SolidColorBrush;
         if (bg != null)
         {
             var anim = new System.Windows.Media.Animation.ColorAnimation(Theme.WindowBg, TimeSpan.FromMilliseconds(FrameCapture.Core.Fluent.Motion.ThemeMs));
@@ -121,7 +123,7 @@ public sealed partial class EditorWindow : Window
         foreach (var p in new[] { _playPanel, _toolPanel })
             if (p != null)
             {
-                p.Background = new SolidColorBrush(Theme.PanelBg);
+                p.Background = _mica ? Brushes.Transparent : new SolidColorBrush(Theme.PanelBg);
                 p.BorderBrush = new SolidColorBrush(Color.FromArgb(0x66, Theme.Stroke.R, Theme.Stroke.G, Theme.Stroke.B));
             }
         DrawRange();
