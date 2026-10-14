@@ -2424,3 +2424,35 @@ status: done
     - **修法**：e2e 段开头按字节快照该文件，段尾原样写回；文件原本不存在则删掉护栏期间新建的那份。快照用字节而非 JSON 往返，避免格式化差异污染对照。
     - **验证**：实跑 `GUARDRAIL PASS (FAIL=0 SKIP=1 共 12 项)`，并打印「用户设置已还原（e2e 期间被改写）」——这行本身证明 e2e 确实改写过。`Theme` 跑前跑后都是 `system`。
     - **边界**：整份文件并非逐字节还原。护栏第 5 步「恢复稳态」会拉起一个新的 FrameCapture 实例，该实例按自身运行状态又存了一次设置（`LastTool` 一类运行期字段），这是应用正常行为。逐字节一致这条只在 e2e 段边界内成立，不宣称覆盖整个护栏生命周期。
+
+## 20:30 截止时的确切收口（动效质感轮，轮十二至轮十七）
+
+**最后状态**：HEAD `140c843`，工作树干净。最后一次全链验证 = 20:12 那次护栏（含编译与 SelfTest）：
+编译 0 error、**SelfTest PASS=500 FAIL=0**、LINT-COMMENTS FAIL=0 WARN=3、LINT-MOTION FAIL=0、
+**GUARDRAIL PASS (FAIL=0 SKIP=1 共 12 项)**。SKIP 是 focus-safety——前台是反外挂游戏时注入被拦，按设计记 SKIP 不记 FAIL。
+SelfTest 地板从 478 一路提到 **500**（`scripts/guardrail.ps1` 与 GOAL.md 两处同步）。
+
+**这六轮交付的动效与护栏**（每轮一个连贯改动，各自带断言与明/暗双主题取证）：
+- `df2b7c7` 编辑器工具条逐项落定，`CascadeIn` 加 `leadMs` 延迟起步
+- `7bf0fb4` 全站动效时长收进 `Fluent.Motion` 令牌 + lint 护栏（动效不许再写裸毫秒数）
+- `d42943a` 播放条与工具条按阅读顺序错开；修掉 T179 的假阳性探针
+- `b9814e2` / `ed6b37f` 编辑器与安装器接上 Mica 背板，能力门控走 `RtlGetVersion`
+- `9186b65` 手势配置窗详情区逐项错位入场
+- `9c25861` 滚动截图三层浮层按 `StaggerMs` 依次落位（`Fluent.FadeIn` 新增 `leadMs`）
+- `551356e` 编辑器悬停提示只留名称与快捷键 + `T186a` 持续约束
+- `54cd67b` 编辑器轻提示抬起入场 + 按 `_snackGen` 世代收起
+- `140c843` 护栏跑完还原用户设置（验证链不再污染自己的取证环境）
+
+**动图取证工具**（在 gitignore 的 `test-out/` 下，未入库）：`gifshot.ps1` 以「窗口首次上屏」为零点
+在内存里密集连拍并按真实经过时间打帧标；`makegif.py` 拼成 90ms/帧、末帧停 900ms 的循环动图。
+产物 `cascade-dark.gif` / `cascade-light.gif`（手势配置窗载入，明暗各一条）。
+关键取证边界已写进 UIAUDIT：`RenderTargetBitmap` 拍不到窗口级 `Opacity`；SelfTest 只泵分发循环
+不跑 `Application.Run()`，窗口有真实透明度却不进屏幕组合——所以淡入类动效必须真实屏采或生产进程验证。
+
+**未完成的确切一项**：UIAUDIT L30「D5 选区层（吸附态/拖框态）」。它需要真实鼠标悬停与拖框，
+仓库硬约束禁止 OS 级鼠标自动化，自动化路径到此为止；遮罩 + 虚线态已由 pick/pk2 覆盖。
+建议下阶段二选一：人工配合跑一次验收，或把它从动效清单移到「人工验收项」单列。
+UIAUDIT 其余 60 条已全部勾选并带证据。
+
+**仍挂着的非动效事项**：`PresetQQ → PresetScopeFirst`（`0ba167a`）等用户否决；上 GitHub 前补 GPL2 `LICENSE`；
+MSI 安装器已放弃、安装/卸载路径未实测；Qodana 清理暂停，等 Rider 重扫出 sarif 再对 1555 条基线做差。
