@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using System.Windows.Shapes;
 using FrameCapture.Core;
 using FrameCapture.Native;
@@ -77,6 +78,11 @@ public sealed partial class SettingsWindow : Window
     FrameworkElement ToggleRow(string glyph, string label, string tip, bool initial, Action<bool> onChange)
     {
         var g = Row();
+        // 整行可点，与手势编辑器开关同一命中范围：Grid 底色为 null 时空白处不参与命中测试，
+        // 透明画刷不画任何像素，只把图标与文字之间的空隙也变成可点区。
+        g.Background = Brushes.Transparent;
+        g.Cursor = Cursors.Hand;
+        g.ToolTip = tip;
         g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); // 开关列
         g.Children.Add(IconText(glyph, tip));
         var lbl = new TextBlock
@@ -100,8 +106,6 @@ public sealed partial class SettingsWindow : Window
             BorderThickness = new Thickness(1),
             HorizontalAlignment = HorizontalAlignment.Right,
             VerticalAlignment = VerticalAlignment.Center,
-            Cursor = Cursors.Hand,
-            ToolTip = tip,
             Focusable = true, // 键盘可达——Tab 聚焦、空格/Enter 切换
         };
         var knob = new Ellipse
@@ -119,37 +123,36 @@ public sealed partial class SettingsWindow : Window
         Grid.SetColumn(track, 2);
         track.Child = knob;
         bool on = initial;
+        bool focused = false, hovered = false;
         void Flip()
         {
             on = !on;
             Fluent.SlideToggle(knob, track, on, 20);
             onChange(on);
         }
-        track.MouseLeftButtonDown += (_, e) => { Flip(); e.Handled = true; };
+        // 命中区在整行：点在轨道上时事件冒泡到这里，轨道自身不挂处理器，一次点击只翻转一次
+        g.MouseLeftButtonDown += (_, e) => { Flip(); e.Handled = true; };
         track.KeyDown += (_, e) =>
         {
             if (e.Key is Key.Space or Key.Enter) { Flip(); e.Handled = true; }
         };
-        track.GotKeyboardFocus += (_, _) => { track.BorderBrush = new SolidColorBrush(Theme.Accent); };
-        track.LostKeyboardFocus += (_, _) => { track.BorderBrush = new SolidColorBrush(on ? Theme.Accent : Theme.Stroke); };
-        track.MouseEnter += (_, _) =>
+        // 描边三态：聚焦或开启取 Accent；悬停把 Stroke 的 alpha 提一档（Stroke=0x55 半透明，加亮才看得出来）。
+        // 悬停挂在整行而非轨道：命中区已经扩到整行，反馈范围必须跟着走。
+        void SetStroke()
         {
-            if (track.BorderBrush is SolidColorBrush bb && bb.CanFreeze)
-            {
-                var h = new SolidColorBrush(bb.Color);
-                track.BorderBrush = h;
-                h.Color = Color.FromArgb((byte)Math.Min(255, bb.Color.A + 0x60), bb.Color.R, bb.Color.G, bb.Color.B);
-            }
-        };
-        track.MouseLeave += (_, _) =>
-        {
-            if (track.BorderBrush is SolidColorBrush bb && bb.CanFreeze)
-            {
-                var h = new SolidColorBrush(bb.Color);
-                track.BorderBrush = h;
-                h.Color = on ? Theme.Accent : Theme.Stroke;
-            }
-        };
+            Color s = Theme.Stroke;
+            Color t = focused || on ? Theme.Accent
+                : hovered ? Color.FromArgb((byte)Math.Min(255, s.A + 0x60), s.R, s.G, s.B)
+                : s;
+            var b = new SolidColorBrush(track.BorderBrush is SolidColorBrush cur ? cur.Color : t);
+            track.BorderBrush = b;
+            b.BeginAnimation(SolidColorBrush.ColorProperty,
+                new ColorAnimation(t, new Duration(TimeSpan.FromMilliseconds(Fluent.Motion.HoverMs))));
+        }
+        track.GotKeyboardFocus += (_, _) => { focused = true; SetStroke(); };
+        track.LostKeyboardFocus += (_, _) => { focused = false; SetStroke(); };
+        g.MouseEnter += (_, _) => { hovered = true; SetStroke(); };
+        g.MouseLeave += (_, _) => { hovered = false; SetStroke(); };
         g.Children.Add(track);
         return g;
     }

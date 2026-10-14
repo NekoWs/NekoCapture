@@ -391,8 +391,9 @@ public sealed partial class GestureEditorWindow : Window
     /// <param name="initial">初始状态。</param>
     StackPanel MakeToggle(string text, Action<bool> onToggle, out TextBlock state, bool initial)
     {
-        var sp = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 20, 0), Cursor = Cursors.Hand };
-        bool on = initial, focused = false;
+        // 透明底色只为拿到整行命中区：null 底色的 Panel 在子元素间隙上不参与命中测试，点空隙会漏
+        var sp = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 20, 0), Background = Brushes.Transparent, Cursor = Cursors.Hand };
+        bool on = initial, focused = false, hovered = false;
         var track = new Border
         {
             Width = 40, Height = 20, CornerRadius = new CornerRadius(10),
@@ -407,9 +408,17 @@ public sealed partial class GestureEditorWindow : Window
         var knobT = new TranslateTransform { X = on ? 20 : 0 };
         knob.RenderTransform = knobT;
         var inner = new Grid(); inner.Children.Add(knob); track.Child = inner;
-        state = new TextBlock { Text = (on ? "  " : "  ") + text, Foreground = _pal.B(_pal.Text), VerticalAlignment = VerticalAlignment.Center };
+        state = new TextBlock { Text = "  " + text, Foreground = _pal.B(_pal.Text), VerticalAlignment = VerticalAlignment.Center };
         sp.Children.Add(track); sp.Children.Add(state);
-        void SetBorder() => AnimBrush(track.BorderBrush as SolidColorBrush, focused || on ? _pal.Accent : _pal.Stroke, br => track.BorderBrush = br);
+        // 描边三态与设置窗开关同款：聚焦或开启取 Accent，悬停把 Stroke 的 alpha 提一档（Stroke 半透明）
+        void SetBorder()
+        {
+            Color s = _pal.Stroke;
+            Color t = focused || on ? _pal.Accent
+                : hovered ? Color.FromArgb((byte)Math.Min(255, s.A + 0x60), s.R, s.G, s.B)
+                : s;
+            AnimBrush(track.BorderBrush as SolidColorBrush, t, br => track.BorderBrush = br);
+        }
         void Flip()
         {
             on = !on;
@@ -426,6 +435,9 @@ public sealed partial class GestureEditorWindow : Window
         track.KeyDown += (_, e) => { if (e.Key is Key.Space or Key.Enter) { Flip(); e.Handled = true; } };
         track.GotKeyboardFocus += (_, _) => { focused = true; SetBorder(); };
         track.LostKeyboardFocus += (_, _) => { focused = false; SetBorder(); };
+        // 悬停挂在整行：命中区是整行，反馈范围跟着走（与设置窗开关同款）
+        sp.MouseEnter += (_, _) => { hovered = true; SetBorder(); };
+        sp.MouseLeave += (_, _) => { hovered = false; SetBorder(); };
         return sp;
     }
     #endregion
