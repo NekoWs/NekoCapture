@@ -707,7 +707,7 @@ static class SelfTest
                 WindowStyle = WindowStyle.None,
             };
             Fluent.BorderlessNative(winM);
-            Fluent.MicaBackdrop(winM);
+            bool micaOn = Fluent.MicaBackdrop(winM);
             winM.Show();
             PumpMs(260);
             var hwndM = new System.Windows.Interop.WindowInteropHelper(winM).Handle;
@@ -717,6 +717,10 @@ static class SelfTest
             int hrD = DwmProbe.DwmGetWindowAttribute(hwndM, 20, out uint gotD, 4);
             Chk("T176b-tint-follows-theme", hrD == 0 && gotD == (Theme.IsDark ? 1u : 0u),
                 $"回读 hr={hrD} 暗色={gotD} 主题暗={Theme.IsDark}");
+            Chk("T177a-mica-gate", Fluent.MicaSupported == (Environment.OSVersion.Version.Build >= 22000),
+                $"MicaSupported={Fluent.MicaSupported} 内部版本={Environment.OSVersion.Version.Build}");
+            Chk("T177b-backdrop-return-matches-gate", micaOn == Fluent.MicaSupported,
+                $"返回={micaOn} 能力={Fluent.MicaSupported}");
             winM.Close();
         }
         catch (Exception e) { Chk("T176-mica-backdrop", false, e.Message); }

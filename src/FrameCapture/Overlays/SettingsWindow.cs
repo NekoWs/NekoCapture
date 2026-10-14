@@ -13,6 +13,7 @@ namespace FrameCapture.Overlays;
 public sealed partial class SettingsWindow : Window
 {
     readonly SettingsService _settings;
+    readonly bool _mica;   // 背板在场才透明，缺席必须平涂
     int _cat;           // 当前分页索引
     int _restoreCat;    // 重建（改主题/强调色）时要恢复的分页索引
 
@@ -29,13 +30,14 @@ public sealed partial class SettingsWindow : Window
         ResizeMode = ResizeMode.CanResize;   // 可拖边缩放（WindowChrome 的 6px 缩放边框）
         // WindowChrome 原生缩放边框 + 原生圆角/阴影（与编辑器同款）；不用 AllowsTransparency——整窗会被推到软件渲染。
         Fluent.BorderlessNative(this, resizeBorder: 6);
-        Fluent.MicaBackdrop(this);
+        _mica = Fluent.MicaBackdrop(this);
         // 标题条 = WindowChrome 原生 CaptionHeight 拖窗区（比 WM_NCHITTEST 钩子更稳，避免与 WindowChrome 命中测试抢序）；
         // 关闭按钮在 Build 里标 IsHitTestVisibleInChrome 让位给 WPF 命中。
         var chrome = System.Windows.Shell.WindowChrome.GetWindowChrome(this);
         if (chrome != null) chrome.CaptionHeight = Fluent.TitleBarHeight;
-        // 窗口底保持透明：Mica 只在窗口自己不画像素的地方显形，铺任何底色都会把它盖成平涂
-        Background = System.Windows.Media.Brushes.Transparent;
+        // 背板在场时窗口底必须透明：Mica 只在窗口自己不画像素的地方显形，铺任何底色都会把它盖成平涂。
+        // 背板缺席时相反——非分层窗没有可透的背板，透明会被画成纯黑。
+        Background = _mica ? Brushes.Transparent : new SolidColorBrush(Theme.WindowBg);
         SizeToContent = SizeToContent.Manual;   // 分页后每页很短，固定舒适尺寸起步，可拖边缩放
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
         Width = 760; Height = Math.Min(660, SystemParameters.WorkArea.Height - 120);
@@ -77,7 +79,7 @@ public sealed partial class SettingsWindow : Window
         var root = new Border
         {
             CornerRadius = new CornerRadius(8),
-            Background = System.Windows.Media.Brushes.Transparent,   // 让位给 Mica 背板
+            Background = _mica ? Brushes.Transparent : new SolidColorBrush(Theme.WindowBg),
             BorderBrush = new SolidColorBrush(Theme.Stroke),
             BorderThickness = new Thickness(1),
             // 阴影交给 WindowChrome 的原生 DWM 阴影（自绘 DropShadow 与原生缩放窗叠加会重影、发虚）

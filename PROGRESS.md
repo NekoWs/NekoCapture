@@ -2347,3 +2347,5 @@ status: done
   - **底色必须让位**：窗口 `Background` 与内容根 `Border` 的 `WindowBg` 填充都改成透明——铺任何底色都会把背板盖成平涂。卡片仍是 `CardBg` 不透明，正文直接坐在 Mica 上，与 WinUI 对话框一致。
   - **取证踩的坑**：`UICap region` 走 PrintWindow，背板不属于窗口 DC，拍出来与设背板前完全相同；暗壁纸下真实屏幕截图也与平涂 `0x20` 几乎重合。确定判据是向 DWM **回读**属性：`T176a` 材质=2、`T176b` 色调随主题。视觉证据取浅色主题 `test-out/mica-light.png`——壁纸的粉紫→淡蓝渐变明显渗入窗体，文字与卡片可读性完好；暗色 `test-out/mica-real.png` 只作可读性核对。
   - **验证**：SelfTest **470 → 472**。全链 0 错误 / 0 非 NU1900 警告 / `PASS=472 FAIL=0` / LINT PASS / GUARDRAIL PASS。`src/Setup` 通过 glob 共享 `Fluent.cs` 且自带 `Win32Shim.cs`，新常量两处都要补，否则安装器编译不过。
+  - **跨版本护栏（同轮补）**：透明底色只对「有背板可透」的窗口成立。Win10（TFM 下限 19041）拿不到背板，非分层窗会把透明画成纯黑，设置窗变黑块。新增 `Fluent.MicaSupported`（内部版本 ≥22000）与 `MicaBackdrop` 的布尔返回，调用方据此在透明与平涂 `WindowBg` 之间二选一；`T177a/b` 锁判定与返回。SelfTest **472 → 474**。
+  - **升 TFM 买不到视觉**：区分大小写扫描本机 `Microsoft.WindowsDesktop.App.Ref` 的 8.0.24 与 10.0.11 两套引用程序集（ref 只含公开 API），`Backdrop`/`Mica`/`Acrylic`/`UIElementEffect`/`DesktopWindowTarget`/`SystemBackdrop` **一个都不存在**。WPF 至今没有公开背板 API，DWM 互调是唯一路径，因此 .NET 8 → 10 升级不会带来任何材质收益。

@@ -62,14 +62,20 @@ public static partial class Fluent
         };
     }
 
+    /// <summary>当前系统是否可能提供 Mica 背板。Mica 自 Win11 22000 起存在，
+    /// 22621 起才有 <c>DWMWA_SYSTEMBACKDROP_TYPE</c> 可按材质指定。</summary>
+    public static bool MicaSupported { get; } = Environment.OSVersion.Version.Build >= 22000;
+
     /// <summary>Win11 的 Mica 背板：桌面壁纸的模糊色调渗进窗口，替代平涂半透明底。
     /// 分层窗（<c>AllowsTransparency</c>）背后没有 DWM 背板，直接跳过；
     /// 系统不支持时属性返回非 0，窗口按自身底色显示，与不设背板一致。</summary>
-    /// <param name="w">目标窗口；须先由 <see cref="BorderlessNative"/> 挂上 WindowChrome，
-    /// 且窗口底色与内容根底色保持透明，否则背板被自身填充盖死。</param>
-    public static void MicaBackdrop(Window w)
+    /// <param name="w">目标窗口；须先由 <see cref="BorderlessNative"/> 挂上 WindowChrome。
+    /// 底色只在 <see cref="MicaSupported"/> 为真时才该透明——背板缺席时非分层窗会把透明画成纯黑。</param>
+    /// <returns>true = 当前系统具备背板，调用方应把窗口与内容根底色设为透明；
+    /// false = 保持自身底色，否则会黑窗。</returns>
+    public static bool MicaBackdrop(Window w)
     {
-        if (w.AllowsTransparency) return;
+        if (w.AllowsTransparency || !MicaSupported) return false;
         // 玻璃框铺满客户区：WPF 只在玻璃框覆盖的区域内把像素让给 DWM 背板，Thickness(0) 等于整窗自绘不透明
         var chrome = System.Windows.Shell.WindowChrome.GetWindowChrome(w);
         if (chrome != null) chrome.GlassFrameThickness = new Thickness(-1);
@@ -94,6 +100,7 @@ public static partial class Fluent
         };
         Theme.Changed += ApplyTint;
         w.Closed += (_, _) => Theme.Changed -= ApplyTint;
+        return true;
     }
 
     static void SetAlphaZero(IntPtr hwnd)

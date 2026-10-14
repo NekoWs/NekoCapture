@@ -109,7 +109,7 @@ B1 主题化悬浮条 → C1/C2 状态语义 → A1/A2 入退场 → A3-A5 → B
 - [x] **分层窗与弹出层不再透桌面**：`Theme.WindowBgSolid`/`PanelBgSolid`（源色强制 alpha，RGB 不漂移）用于帮助窗、OCR 结果窗、胶片条、`PopupCard` 共 5 处；分层表面背后无模糊背板，任何 alpha 都是直接透桌面。断言 `T173a/b`；明暗双主题空白带标准差 0.00，均值精确等于 `0x20`/`0xF9`。
 - [x] **逐项入场不破坏元素既有变换**：`CascadeIn` 把位移子变换套进 `TransformGroup`、收束摘回原对象，`ResetCascade` 只摘自己登记的位移（`ConditionalWeakTable` 标记）。图标按钮的 hover 缩放全程有效——覆盖 `RenderTransform` 会让只认 `ScaleTransform` 的缩放动画永久失灵。断言 `T174a/b/c`。
 - [x] **`RenderTransform` 默认是单位 `MatrixTransform`**：判「变换空闲」统一走 `Fluent.HasNoTransform`；紧凑弹窗 0.96→1 入场放大与配套的 0.97 缩放退场从恒假的 `== null` 判断里解放出来。断言 `T175a/b`。
-- [x] **设置窗 Mica 背板**：`Fluent.MicaBackdrop`（`DWMWA_SYSTEMBACKDROP_TYPE`=2，22000 退 `DWMWA_MICA_EFFECT`，更早静默跳过；分层窗跳过）。`GlassFrameThickness=-1` 让位给背板，窗口与内容根底色改透明，`DWMWA_USE_IMMERSIVE_DARK_MODE` 随应用主题同步。断言 `T176a/b`（DWM 回读材质与色调）；浅色定稿 `test-out/mica-light.png` 可见壁纸渐变渗入。
+- [x] **设置窗 Mica 背板**（含 Win10 黑窗护栏 `Fluent.MicaSupported`）：`Fluent.MicaBackdrop`（`DWMWA_SYSTEMBACKDROP_TYPE`=2，22000 退 `DWMWA_MICA_EFFECT`，更早静默跳过；分层窗跳过）。`GlassFrameThickness=-1` 让位给背板，窗口与内容根底色改透明，`DWMWA_USE_IMMERSIVE_DARK_MODE` 随应用主题同步。断言 `T176a/b`（DWM 回读材质与色调）；浅色定稿 `test-out/mica-light.png` 可见壁纸渐变渗入。
 - [ ] **背板推广到其余非分层窗**：编辑器、贴图窗、安装器（`src/Setup` 已共享 `Fluent.cs` 且 shim 已补齐常量）。编辑器画布四周需保持中性暗底，不能照搬设置窗的透明化做法。
 - [ ] **窗级淡入淡出在真实屏幕上不可见**：`PreTransparent` 释放 alpha 时直接给满，WPF 的窗口 `Opacity` 动画被盖住。浅色 25ms 连拍打开与关闭均一帧到位（248.0 → 桌面 75.4）。行级动画不受影响。待定方向：窗级透明度只走 WPF 单一通道，或接受窗级瞬时出现并删掉注释里的淡入承诺。
 - [ ] **其余界面同规则推广**：编辑器工具栏、贴图窗、托盘菜单的载入与状态切换按同一令牌补齐
