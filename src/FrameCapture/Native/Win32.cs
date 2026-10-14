@@ -167,6 +167,92 @@ internal static class Win32
 
     /// <summary>MonitorFrom* 的 flags 取值：无命中时返回 0 / 主屏 / 最近屏。</summary>
     public const uint MONITOR_DEFAULTTONULL = 0, MONITOR_DEFAULTTOPRIMARY = 1, MONITOR_DEFAULTTONEAREST = 2;
+
+    /// <summary>把光标移到指定位置。</summary>
+    /// <param name="x">目标 X，物理像素、虚拟桌面绝对坐标。</param>
+    /// <param name="y">目标 Y，同上。</param>
+    /// <returns>true = 已移动；false = 目标落在虚拟桌面外，或此刻有程序锁定光标。</returns>
+    [DllImport("user32.dll")]
+    public static extern bool SetCursorPos(int x, int y);
+    #endregion
+
+    #region 滚轮注入
+    /// <summary>SendInput 的 INPUT.type 取值：0 = 鼠标事件。</summary>
+    public const uint INPUT_MOUSE = 0;
+    /// <summary>MOUSEINPUT.dwFlags 位：本次是滚轮事件，增量取 mouseData。</summary>
+    public const uint MOUSEEVENTF_WHEEL = 0x0800;
+    /// <summary>一格滚轮的固定增量（WinUser.h 的 WHEEL_DELTA）。</summary>
+    public const int WHEEL_DELTA = 120;
+    /// <summary>x64 下原生 INPUT 的字节数：type(4) + 对齐填充(4) + MOUSEINPUT(32)。</summary>
+    public const int SIZEOF_INPUT = 40;
+
+    /// <value>当前运行时算出的 INPUT 尺寸是否与原生一致。false 表示结构体布局对不上，注入必须整个停用。</value>
+    public static bool InputLayoutOk { get; } = Marshal.SizeOf<INPUT>() == SIZEOF_INPUT;
+
+    /// <summary>
+    /// MOUSEINPUT 的托管映射，字段顺序与 WinUser.h 一致：x64 下 32 字节，dwExtraInfo 是 IntPtr，前面补 4 字节对齐填充。
+    /// 它是 INPUT 那个联合里最大的成员，只声明它就够，不需要 Explicit 联合。
+    /// </summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct MOUSEINPUT
+    {
+        /// <summary>横向坐标或增量（物理像素）；滚轮事件不用，填 0。</summary>
+        public int dx;
+        /// <summary>纵向坐标或增量（物理像素）；滚轮事件不用，填 0。</summary>
+        public int dy;
+        /// <summary>滚轮增量：一格 = <see cref="WHEEL_DELTA"/>，负值向下滚。其余鼠标事件按位含义见 WinUser.h。</summary>
+        public uint mouseData;
+        /// <summary>MOUSEEVENTF_* 位组合。</summary>
+        public uint dwFlags;
+        /// <summary>事件时间戳（毫秒）；填 0 = 由系统填当前时间。</summary>
+        public uint time;
+        /// <summary>随事件透传的附加信息，低级鼠标钩子可读；本仓填 IntPtr.Zero。</summary>
+        public IntPtr dwExtraInfo;
+    }
+
+    /// <summary>SendInput 的一条输入：x64 下 type 之后 mi 落在偏移 8，合计 40 字节，与原生 INPUT 一致。</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct INPUT
+    {
+        /// <summary>输入类型，取 INPUT_* 常量；0 = 鼠标。</summary>
+        public uint type;
+        /// <summary>鼠标输入，联合里最大的成员。</summary>
+        public MOUSEINPUT mi;
+    }
+
+    /// <summary>把输入插进调用线程的输入流，与真实硬件输入走同一分发通道。</summary>
+    /// <param name="nInputs">pInputs 指向的数组长度。</param>
+    /// <param name="pInputs">首条输入。</param>
+    /// <param name="cbSize">单条输入的字节数，<b>必须等于原生 sizeof(INPUT)</b>：填小了系统按这个宽度读，会读越界内存。</param>
+    /// <returns>实际插入的条数；0 = 被拒（cbSize 不符、被 UIPI 拦住高完整性窗口、锁屏或安全桌面）。</returns>
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern uint SendInput(uint nInputs, ref INPUT pInputs, int cbSize);
+
+    /// <summary>向光标所在窗口注入 notches 格滚轮。结构体尺寸对不上时直接拒绝，宁可不滚也不发畸形输入。</summary>
+    /// <param name="notches">滚轮格数：正数向上、负数向下，一格 = <see cref="WHEEL_DELTA"/> 单位。</param>
+    /// <returns>true = 系统已收下这条输入；false = 尺寸自检没过，或 SendInput 一条都没收下。</returns>
+    public static bool Wheel(int notches)
+    {
+        if (!InputLayoutOk)
+        {
+            FrameCapture.Core.Trace.Log($"wheel refused: sizeof(INPUT)={Marshal.SizeOf<INPUT>()} expect {SIZEOF_INPUT}");
+            return false;
+        }
+        var input = new INPUT
+        {
+            type = INPUT_MOUSE,
+            mi = new MOUSEINPUT
+            {
+                dx = 0,
+                dy = 0,
+                mouseData = unchecked((uint)(-WHEEL_DELTA * notches)),
+                dwFlags = MOUSEEVENTF_WHEEL,
+                time = 0,
+                dwExtraInfo = IntPtr.Zero,
+            },
+        };
+        return SendInput(1, ref input, Marshal.SizeOf<INPUT>()) == 1;
+    }
     #endregion
 
     #region 窗口枚举（范围吸附）
