@@ -854,6 +854,37 @@ static class SelfTest
         }
         catch (Exception e) { Chk("T179-play-row-order", false, e.Message); }
 
+        // 手势配置器详情区：切一条绑定就是一次状态切换，新内容逐项错位进场，不整块闪现
+        try
+        {
+            var winG = new GEdit.GestureEditorWindow(new TestCatalog(), new TestStore(), new TestNamer(), new GEdit.EditorPalette());
+            var detG = (System.Windows.Controls.StackPanel?)typeof(GEdit.GestureEditorWindow)
+                .GetField("_detail", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(winG);
+            var rowsG = detG!.Children.OfType<System.Windows.UIElement>().ToList();
+            Chk("T184a-detail-rows-built", rowsG.Count >= 4, $"详情行数={rowsG.Count}");
+            winG.Show();
+            // 采样点锚在「首行刚起波」：整段入场以 ContentRendered 为锚，且后排被顶在 0，
+            // Show 后固定时长会早于起波时刻。接管时 Opacity 仍是 1，接管后才压到 0 再抬升。
+            int heldG = 0;
+            while (rowsG[0].Opacity > 0.05 && heldG < 3000) { PumpMs(10); heldG += 10; }
+            int leadG = 0;
+            while (rowsG[0].Opacity <= 0.02 && leadG < 3000) { PumpMs(10); leadG += 10; }
+            PumpMs(60);
+            bool orderedG = true;
+            for (int i = 1; i < rowsG.Count; i++) if (rowsG[i].Opacity > rowsG[i - 1].Opacity + 0.02) orderedG = false;
+            Chk("T184b-detail-cascade-staggered",
+                orderedG && rowsG[^1].Opacity < 0.05 && rowsG[0].Opacity > rowsG[^1].Opacity,
+                $"首={rowsG[0].Opacity:N2} 末={rowsG[^1].Opacity:N2} 错位单调={orderedG} 接管={heldG}ms 起波={leadG}ms");
+            PumpMs(GEdit.Motion.EnterMs + GEdit.Motion.StaggerMs * 3 + 400);
+            var badG = rowsG.FirstOrDefault(u => u.Opacity < 0.999
+                || (u.RenderTransform != null && !u.RenderTransform.Value.IsIdentity));
+            Chk("T184c-detail-cascade-settles", badG == null,
+                badG == null ? "全部复位" : $"残留 透明度={badG.Opacity:N2} 变换={badG.RenderTransform?.GetType().Name}");
+            winG.Close();
+            PumpMs(400);
+        }
+        catch (Exception e) { Chk("T184-detail-cascade", false, e.Message); }
+
         // 编辑器背板：窗底让给 Mica，画布四周的中性暗底必须自己涂满——背板渗进画布会污染取色与裁切判断。
         try
         {
@@ -3486,6 +3517,24 @@ sealed class GestureProbe : GestureCore.IActionInvoker
     public List<string> Bindings = new();   // 记录 BeginBinding 收到的绑定 Id
     public bool Invoke(string actionName) { Log.Add(actionName); return !Fail.Contains(actionName); }
     public void BeginBinding(GestureCore.GestureBinding b) { Bindings.Add(b.Id); }
+}
+
+/// <summary>测试配置仓：给配置器一份含两条绑定的内存配置，Save 只换内存副本不落盘。</summary>
+sealed class TestStore : GestureEditor.IGestureConfigStore
+{
+    static GestureEditor.BindingEdit Row(string id, int key) => new()
+    {
+        Id = id, Key = key, Actions = new List<string> { "capture.frame" }
+    };
+
+    GestureEditor.GestureDoc _doc = new()
+    {
+        Enabled = true,
+        Bindings = new List<GestureEditor.BindingEdit> { Row("a", 0x41), Row("b", 0x52) }
+    };
+
+    public GestureEditor.GestureDoc Load() => _doc;
+    public void Save(GestureEditor.GestureDoc doc) => _doc = doc;
 }
 
 /// <summary>GestureEditor 校验测试用的最小动作清单（宿主无关，只认两个合法动作名）。</summary>

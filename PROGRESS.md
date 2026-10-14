@@ -2395,3 +2395,10 @@ status: done
     - **护栏**：`Win32.cs` 被探针顶到 721 行触发 §10（700 行上限），拆成 `Native/OsVersion.cs` + `Setup/OsVersionShim.cs`。中途用行号区间删代码算错边界，删错一段直接 `git checkout --` 还原，比修补快。
     - **取证工具**：`test-out/setupshot2.ps1`（读真实窗口 DWM 属性 38/20/33 + 屏采整窗 + Esc 关自己的窗）。属性必须在窗口稳定后复读，刚出现那一刻 DWM 可能还没应用。
     - **验证**：SelfTest **489 → 490**（`T183a` 探针读数不低于 Win10 下限；`T177a` 基准换成 Rtl 值）。guardrail 地板 489→490。全链 0 错误 / 0 非 NU1900 警告 / `PASS=490 FAIL=0` / LINT-COMMENTS PASS 文件=132 / LINT-MOTION PASS / GUARDRAIL PASS。
+  **手势配置窗详情区逐项错位入场（UI 质感轮十三）**
+    - **动机**：全站只剩手势配置窗（`--gesture`）的载入还是整块闪现。它是独立库 `GestureEditor`，反向不引用宿主，所以既没有背板也没有分层入场。
+    - **定性**：背板对它**不适用**——为了让 `Window.Opacity` 动画真正驱动屏幕合成，本库强制 `WS_EX_LAYERED`（`Native.cs` 写明了原因），分层窗背后没有 DWM 背板。与贴图窗同类，记进 UIAUDIT 免得下轮再试。
+    - **改动**：新增 `GestureEditor/Cascade.cs`（自带一份分层入场，语义对齐宿主 `CascadeIn`：`From=0` 把后排顶在全透明、`TransformGroup` 只驱动自己那条位移、落位摘掉自己、`Reset` 是不走动画路径的清零出口）。`Motion.cs` 补 `StaggerMs=110` 对齐宿主。`ShowDetail` 拆成 `ShowDetail`（决定走不走入场）+ `FillDetail`（重建内容）：窗口已上屏时逐项错位，构造期交给 `ContentRendered` 的统一入场（`leadMs=QuickMs`，排在窗口本体淡入之后）。
+    - **取证**：`T184a/b/c`（详情行数 ≥ 4、采样时刻错位单调且末行仍为 0、落位后透明度与变换全部复位）。逐帧 `test-out/gshot.ps1` 明暗各 4 帧：暗色详情区均值 29.4→34.6→41.7 稳定在 41.6，浅色 251.3→248.3→247.9；`gedit-t200-dark.png` 里「完成后序列」往下依次变淡到几乎不可见，上半截已落位——错位直接看得见。
+    - **踩坑**：`Cascade.In` 初版只 `BeginAnimation` 带未来 `BeginTime`，后排不会提前归 0，采样时反而「后排在 1、首行在半程」，单调性判反。照宿主补上 `BeginAnimation(null)` + `Opacity = 0` 预压才对——延迟靠 `From=0` 的前置期顶住，不靠事后压。
+    - **验证**：SelfTest **490 → 493**。guardrail 地板 490→493。全链 0 错误 / 0 非 NU1900 警告 / `PASS=493 FAIL=0` / LINT-COMMENTS PASS 文件=133 / LINT-MOTION PASS / GUARDRAIL PASS。

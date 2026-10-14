@@ -13,4 +13,5 @@ public static class Motion
     public const int StateMs = 150;    // 状态切换（开关/选中）
     public const int PressMs = 70;     // 按压下沉：必须短于 hover，按压要跟手
     public const int QuickMs = 120;    // 即时短程过渡：按了就要看到的淡入/回位
+    public const int StaggerMs = 110;  // 分层错位间隔：逐项入场的行距
 }
