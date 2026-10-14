@@ -577,6 +577,47 @@ static class SelfTest
             win.Close();
         }
         catch (Exception e) { Chk("T171-cascade-in", false, e.Message); }
+        // 翻页用的横向分量：必须真从侧向收拢到 0；纯横向（不抬升）也要撤掉变换，
+        // 清理回调挂错动画时这一格会静默留下永久 TranslateTransform。
+        try
+        {
+            var hostX = new System.Windows.Controls.StackPanel();
+            for (int i = 0; i < 4; i++)
+                hostX.Children.Add(new System.Windows.Controls.Border { Width = 40, Height = 8 });
+            var winX = new Window
+            {
+                Title = "SelfTest CascadeSide", Width = 120, Height = 160, ShowInTaskbar = false,
+                WindowStartupLocation = WindowStartupLocation.Manual, Left = 150, Top = 150, Topmost = true,
+                Content = hostX,
+            };
+            winX.Show();
+            var ldX = new System.Windows.Threading.DispatcherFrame();
+            winX.Dispatcher.BeginInvoke(() => { ldX.Continue = false; }, System.Windows.Threading.DispatcherPriority.Loaded);
+            System.Windows.Threading.Dispatcher.PushFrame(ldX);
+
+            // 起跳位必须在调用返回时就已写上：立刻读，不依赖泵帧时机
+            Fluent.CascadeRows(hostX, risePx: 6, riseX: -10);
+            var fe0 = (System.Windows.FrameworkElement)hostX.Children[0];
+            var ttX = fe0.RenderTransform as System.Windows.Media.TranslateTransform;
+            Chk("T172a-cascade-side-offset", ttX is { X: -10, Y: 6 } && fe0.Opacity < 0.01,
+                $"起跳 X={ttX?.X:0.###} Y={ttX?.Y:0.###} 透明度={fe0.Opacity:0.###}");
+            PumpMs(Fluent.Motion.EnterMs + Fluent.Motion.StaggerMs * 3 + 150);
+            Chk("T172b-cascade-side-settles",
+                hostX.Children.OfType<System.Windows.FrameworkElement>()
+                    .All(r => r.RenderTransform is not System.Windows.Media.TranslateTransform && r.Opacity > 0.98),
+                "双向分量归零并撤变换");
+
+            // 纯横向：纵向不抬升，清理只能靠横向那条动画的 Completed
+            var hostH = new System.Windows.Controls.StackPanel();
+            hostH.Children.Add(new System.Windows.Controls.Border { Width = 40, Height = 8 });
+            Fluent.CascadeRows(hostH, risePx: 0, riseX: 12);
+            PumpMs(Fluent.Motion.EnterMs + Fluent.Motion.StaggerMs * 3 + 150);
+            var feH = (System.Windows.FrameworkElement)hostH.Children[0];
+            Chk("T172c-cascade-side-only-clears", feH.RenderTransform is not System.Windows.Media.TranslateTransform,
+                $"纯横向收束后变换 = {(feH.RenderTransform is null ? "已撤" : "残留")}");
+            winX.Close();
+        }
+        catch (Exception e) { Chk("T172-cascade-side", false, e.Message); }
 
         // 全局 ToolTip/菜单样式可解析（守主题相关 XAML）
         try

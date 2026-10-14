@@ -309,10 +309,13 @@ public static partial class Fluent
     /// 项数多时自动收窄，整段压在 budgetMs 内——几十行的列表不会拖成秒级。</summary>
     /// <param name="items">按期望出现顺序排列的元素，null 项跳过且不占时序；
     /// 每项的 Opacity 与 RenderTransform 被接管，已挂 TransformGroup 的项只淡入不位移。</param>
-    /// <param name="risePx">单项入场位移（逻辑像素），≤0 表示只淡入。</param>
+    /// <param name="risePx">单项入场的纵向位移（逻辑像素），≤0 表示不纵向抬升。</param>
+    /// <param name="riseX">单项入场的横向位移（逻辑像素），给翻页这类有方向的切换留方向感；
+    /// 与 <paramref name="risePx"/> 同时为 0 表示只淡入。</param>
     /// <param name="itemMs">单项时长（ms）；≤0 表示用 <c>Motion.EnterMs</c>。</param>
     /// <param name="budgetMs">整段入场预算（ms）；≤0 表示用 <c>Motion.StaggerMs × 3</c>。</param>
-    public static void CascadeIn(IReadOnlyList<FrameworkElement?> items, double risePx = 8, int itemMs = -1, int budgetMs = -1)
+    public static void CascadeIn(IReadOnlyList<FrameworkElement?> items, double risePx = 8, double riseX = 0,
+        int itemMs = -1, int budgetMs = -1)
     {
         int n = 0;
         for (int i = 0; i < items.Count; i++) if (items[i] is not null) n++;
@@ -335,14 +338,53 @@ public static partial class Fluent
             { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }, BeginTime = begin };
             fade.Freeze();
             el.BeginAnimation(UIElement.OpacityProperty, fade);
-            if (risePx <= 0 || el.RenderTransform is TransformGroup) continue;
-            var tt = new TranslateTransform(0, risePx);
+            if (risePx <= 0 && riseX == 0 || el.RenderTransform is TransformGroup) continue;
+            var tt = new TranslateTransform(riseX, risePx);
             el.RenderTransform = tt;
-            var rise = new DoubleAnimation(0, dur)
-            { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }, BeginTime = begin };
-            // 位移归零后撤掉变换：留着 TranslateTransform 会让后续挂缩放的代码以为已有变换而跳过
-            rise.Completed += (_, __) => { if (el.RenderTransform == tt) el.RenderTransform = null; };
-            tt.BeginAnimation(TranslateTransform.YProperty, rise);
+            // 位移归零后撤掉变换：留着 TranslateTransform 会让后续挂缩放的代码以为已有变换而跳过。
+            // 清理挂在真正启动的那条动画上——只挂纵向会让纯横向位移的调用永远撤不掉变换。
+            void ClearTransform() { if (el.RenderTransform == tt) el.RenderTransform = null; }
+            if (risePx > 0)
+            {
+                var rise = new DoubleAnimation(0, dur)
+                { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }, BeginTime = begin };
+                rise.Completed += (_, __) => ClearTransform();
+                rise.Freeze();   // 回调必须赶在冻结前挂上：冻结后挂事件按「修改」处理
+                tt.BeginAnimation(TranslateTransform.YProperty, rise);
+            }
+            if (riseX != 0)
+            {
+                var side = new DoubleAnimation(0, dur)
+                { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }, BeginTime = begin };
+                side.Completed += (_, __) => ClearTransform();
+                side.Freeze();
+                tt.BeginAnimation(TranslateTransform.XProperty, side);
+            }
+        }
+    }
+
+    /// <summary>面板直接子元素的逐项错位入场：列表、设置项、教程步骤的载入。</summary>
+    /// <param name="body">承载行的面板，只取其直接子元素。</param>
+    /// <param name="risePx">每项纵向位移（逻辑像素）。</param>
+    /// <param name="riseX">每项横向位移（逻辑像素）。</param>
+    public static void CascadeRows(Panel body, double risePx = 8, double riseX = 0)
+    {
+        var rows = new List<FrameworkElement?>(body.Children.Count);
+        foreach (var c in body.Children) rows.Add(c as FrameworkElement);
+        CascadeIn(rows, risePx, riseX);
+    }
+
+    /// <summary>逐项入场的清零出口：撤掉 <see cref="CascadeIn"/> 挂上的动画与位移，恢复完全可见。
+    /// 不走动画的重建路径（主题重建、翻页不带动画）必须调它，否则可能在飞的行会停在半透明。</summary>
+    /// <param name="body">承载行的面板。</param>
+    public static void ResetCascade(Panel body)
+    {
+        foreach (var c in body.Children)
+        {
+            if (c is not FrameworkElement fe) continue;
+            fe.BeginAnimation(UIElement.OpacityProperty, null);
+            fe.Opacity = 1;
+            if (fe.RenderTransform is TranslateTransform) fe.RenderTransform = null;
         }
     }
     #endregion

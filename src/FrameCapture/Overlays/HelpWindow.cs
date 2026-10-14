@@ -157,6 +157,8 @@ public sealed class HelpWindow : Window
             else if (e.Key == Key.Right) { Go(+1); e.Handled = true; }
         };
         Fluent.PopupEnter(this);
+        // 打开帮助窗的载入：等首帧渲染完再起逐项入场，构造期起的动画会在窗口可见前播完
+        ContentRendered += (_, _) => Fluent.CascadeRows(_body, risePx: 6);
         Fluent.InstallCaptionDrag(this, closeBtn);
         SourceInitialized += (_, _) =>
         {
@@ -182,10 +184,10 @@ public sealed class HelpWindow : Window
         }
         _step = n;
         _lastStep = n;
-        ShowStep(animate: true);
+        ShowStep(animate: true, dir);
     }
 
-    void ShowStep(bool animate)
+    void ShowStep(bool animate, int dir = 0)
     {
         var (icon, title, sub, body) = _steps[_step];
         _bigIcon.Text = icon;
@@ -199,15 +201,13 @@ public sealed class HelpWindow : Window
         if (_nextBtn.Child is TextBlock tb) tb.Text = _step == _steps.Count - 1 ? "完成 \u2713" : "下一页 \u2192";
         if (animate)
         {
-            // 翻页轻推：正文从右侧 12px 滑入 + 淡入（CubicEase，不用过冲——固定高度容器里过冲会被裁）
-            var host = (UIElement)_body;
-            var tt = new TranslateTransform(12, 0);
-            host.RenderTransform = tt;
-            host.Opacity = 0;
-            var d = new Duration(TimeSpan.FromMilliseconds(200));
-            var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
-            host.BeginAnimation(OpacityProperty, new DoubleAnimation(1, d) { EasingFunction = ease });
-            tt.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(0, d) { EasingFunction = ease });
+            // 翻页：整块位移比逐行浮现重得多，整块淡入还会盖掉步骤标题的节奏。
+            // 每行淡入 + 顺翻页方向 10px 收拢：方向感留在行上，幅度压在克制区间内。
+            Fluent.CascadeRows(_body, risePx: 6, riseX: dir >= 0 ? 10 : -10);
+        }
+        else
+        {
+            Fluent.ResetCascade(_body);   // 不走动画的重建路径：把可能在飞的行清零，避免停在半透明
         }
     }
         #endregion
