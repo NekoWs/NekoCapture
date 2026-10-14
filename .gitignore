@@ -13,9 +13,6 @@ shot.png
 test-out/
 release/
 
-# WiX 扩展本地缓存与中间产物
-.wix/
-
 # misc
 DomainServer.*
 .DS_Store

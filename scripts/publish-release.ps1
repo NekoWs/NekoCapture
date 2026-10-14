@@ -2,9 +2,9 @@
 .SYNOPSIS
     一键产出 FrameCapture 发行安装包。
 .DESCRIPTION
-    读 csproj 版本号 → 验证当前代码 → 发布两种运行时形态 → 各编一个 per-machine MSI → 报体积与 SHA256。
+    读 csproj 版本号 → 验证当前代码 → 发布两种运行时形态 → 产出引导器 exe 与离线 zip → 报体积与 SHA256。
     版本号唯一来源是 src/FrameCapture/FrameCapture.csproj 的 <Version>，脚本不另存一份。
-    工具链钉在 WiX v5（见 dotnet-tools.json，rollForward=false）：v6 起官方二进制挂 OSMF 维护费 EULA。
+    引导器是 .NET Framework 4.8 工程，产物是免前置的单 exe；主程序需要 .NET 8 的原因是 WGC 捕获与 OCR。
 .EXAMPLE
     pwsh -NoProfile -File scripts/publish-release.ps1
     pwsh -NoProfile -File scripts/publish-release.ps1 -Publisher "你的名字" -Flavor self
@@ -23,12 +23,12 @@ Set-Location $root
 
 function Step($msg) { Write-Host "`n=== $msg ===" -ForegroundColor Cyan }
 
-# 版本号：MSI 只吃 major.minor.build 且每段 <= 65535，四段版本号在这里就拦下
+# 版本号：程序集版本每段必须 <= 65535 且最多四段，不合规矩在这里就拦下
 $csproj = 'src\FrameCapture\FrameCapture.csproj'
 $verLine = Select-String -Path $csproj -Pattern '<Version>([^<]+)</Version>' | Select-Object -First 1
 if (-not $verLine) { throw "$csproj 里没有 <Version>" }
 $Version = $verLine.Matches[0].Groups[1].Value
-if ($Version -notmatch '^\d+\.\d+(\.\d+)?$') { throw "版本号 $Version 不是 MSI 能接受的 major.minor[.build]" }
+if ($Version -notmatch '^\d+\.\d+(\.\d+)?$') { throw "版本号 $Version 不是可用的 major.minor[.build]" }
 $parts = $Version.Split('.')
 foreach ($p in $parts) { if ([int]$p -gt 65535) { throw "版本号 $Version 的段 $p 超出 65535" } }
 if ($parts.Count -eq 2) { $Version = "$Version.0" }
@@ -80,20 +80,12 @@ foreach ($proj in @(Get-ChildItem $root\src -Directory)) {
 }
 Write-Host "  已清理 $cleaned 个 Release 目录"
 
-# 工具链：本地工具按 dotnet-tools.json 钉版本还原，UI 扩展缺了才补
-Step '工具链'
-dotnet tool restore | Out-Null
-$wixVer = (Get-Content dotnet-tools.json -Raw | ConvertFrom-Json).tools.wix.version
-$extRef = "WixToolset.UI.wixext/$wixVer"
-$cached = dotnet wix extension list -g 2>&1 | Out-String
-if ($cached -notmatch "WixToolset\.UI\.wixext\s+$([regex]::Escape($wixVer))") {
-    Write-Host "  缓存 UI 扩展 $extRef"
-    dotnet wix extension add -g $extRef | Out-Null
-} else { Write-Host "  UI 扩展已就位" }
-Write-Host "  WiX $(dotnet wix --version)"
-
+# 引导器是 .NET Framework 4.8 工程，不需要任何外部打包工具链：
+# 载荷以 zip 形式内嵌进 exe，运行时自己解到 Program Files。
 $icon = Join-Path $root 'assets\FrameCapture.ico'
 if (-not (Test-Path $icon)) { throw "缺少图标 $icon，先跑 python scripts/make-icon.py" }
+$setupProj = Join-Path $root 'src\Setup\Setup.csproj'
+if (-not (Test-Path $setupProj)) { throw "缺少引导器工程 $setupProj" }
 
 New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
 
@@ -113,29 +105,52 @@ foreach ($v in $variants) {
     $rawSize = (Get-ChildItem $stage -Recurse -File | Measure-Object Length -Sum).Sum
     Write-Host ("  发布目录 {0:N1} MB / {1} 个文件" -f ($rawSize / 1MB), @(Get-ChildItem $stage -Recurse -File).Count)
 
-    $msi = Join-Path $OutDir "FrameCapture-$Version-x64-$($v.Suffix).msi"
-    if (Test-Path $msi) { Remove-Item $msi -Force }
-    $w = dotnet wix build packaging\FrameCapture.wxs `
-         -d "PublishDir=$(Resolve-Path $stage)" `
-         -d "Version=$Version" `
-         -d "Icon=$icon" `
-         -d "Publisher=$Publisher" `
-         -ext $extRef `
-         -intermediatefolder (Join-Path $OutDir "wixobj\$($v.Key)") `
-         -o $msi 2>&1 | Out-String
-    $w -split "`n" | ForEach-Object{ $_.Trim() } | Where-Object{ $_ } | ForEach-Object{ Write-Host "  $_" }
-    if (-not (Test-Path $msi)) { throw "WiX 未产出 $msi" }
+    if ($v.Key -eq 'fd') {
+        # 框架依赖形态是发行主体：载荷内嵌进引导器，用户只下一个 exe
+        Step '打包引导器载荷'
+        $zip = Join-Path $OutDir 'payload.zip'
+        if (Test-Path $zip) { Remove-Item $zip -Force }
+        Add-Type -AssemblyName System.IO.Compression.FileSystem
+        [IO.Compression.ZipFile]::CreateFromDirectory($stage, $zip, 'Optimal', $false)
+        Write-Host ("  载荷 {0:N1} MB / {1} 个文件 → {2:N1} MB" -f `
+            ($rawSize / 1MB), @(Get-ChildItem $stage -Recurse -File).Count, ((Get-Item $zip).Length / 1MB))
+
+        Step '构建引导器'
+        # 必须传绝对路径：EmbeddedResource 的 Include 按工程目录解析，相对路径会被拼到 src\Setup 下
+        $sb = dotnet build $setupProj -c Release -p:PayloadZip="$(Resolve-Path $zip)" -p:Company=$Publisher `
+              -v q --nologo 2>&1 | Out-String
+        $serr = @($sb -split "`n" | ForEach-Object{ $_.Trim() } | Where-Object{ $_ -match ': error' })
+        if ($serr.Count) { $serr | ForEach-Object{ Write-Host "  $_" -ForegroundColor Red }; throw '引导器构建失败' }
+        $built = Join-Path $root 'src\Setup\bin\Release\net48\FrameCapture-Setup.exe'
+        if (-not (Test-Path $built)) { throw "引导器未产出 $built" }
+
+        $setupOut = Join-Path $OutDir "FrameCapture-Setup-$Version-x64.exe"
+        if (Test-Path $setupOut) { Remove-Item $setupOut -Force }
+        Copy-Item $built $setupOut
+        Remove-Item $zip -Force
+        $artifact = $setupOut
+    } else {
+        # 离线包：给不能联网装运行时的机器，体积大但开箱即用
+        Step '打包离线包'
+        $offline = Join-Path $OutDir "FrameCapture-$Version-x64-offline.zip"
+        if (Test-Path $offline) { Remove-Item $offline -Force }
+        Add-Type -AssemblyName System.IO.Compression.FileSystem
+        [IO.Compression.ZipFile]::CreateFromDirectory($stage, $offline, 'Optimal', $false)
+        Write-Host ("  离线包 {0:N1} MB / {1} 个文件 → {2:N1} MB" -f `
+            ($rawSize / 1MB), @(Get-ChildItem $stage -Recurse -File).Count, ((Get-Item $offline).Length / 1MB))
+        $artifact = $offline
+    }
 
     $results += [pscustomobject]@{
-        包     = Split-Path $msi -Leaf
-        体积MB = [math]::Round((Get-Item $msi).Length / 1MB, 1)
-        SHA256 = (Get-FileHash $msi -Algorithm SHA256).Hash.Substring(0, 16).ToLower()
+        包     = Split-Path $artifact -Leaf
+        体积MB = [math]::Round((Get-Item $artifact).Length / 1MB, 1)
+        SHA256 = (Get-FileHash $artifact -Algorithm SHA256).Hash.Substring(0, 16).ToLower()
     }
 }
 
 Step '产物'
 $results | Format-Table -AutoSize | Out-String -Width 200 | ForEach-Object{ $_ -split "`n" } | Where-Object{ $_.Trim() } | ForEach-Object{ "  $_" }
-Write-Host "  完整哈希：Get-FileHash release\*.msi -Algorithm SHA256"
+Write-Host "  完整哈希：Get-FileHash release\FrameCapture-*.exe, release\FrameCapture-*.zip -Algorithm SHA256"
 if ($wasRunning) {
     $exe = 'src\FrameCapture\bin\x64\Debug\net8.0-windows10.0.19041.0\FrameCapture.exe'
     if (Test-Path $exe) { Start-Process (Join-Path $root $exe); Write-Host '  已把开发实例重新拉起' }

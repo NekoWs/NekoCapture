@@ -7,6 +7,9 @@
     <Project Path="src/GestureEditor/GestureEditor.csproj">
       <Platform Project="x64" />
     </Project>
+    <Project Path="src/Setup/Setup.csproj">
+      <Platform Project="x64" />
+    </Project>
   </Folder>
   <Folder Name="/tools/">
     <Project Path="tools/GifCheck/GifCheck.csproj">

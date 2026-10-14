@@ -1,90 +1,112 @@
-# 发行打包
+# 发行
 
-> 一条命令产出 Windows 安装包。产物落 `release/`（已 gitignore），提交里只有配方：
-> `packaging/FrameCapture.wxs` + `scripts/publish-release.ps1` + `scripts/make-icon.py` + `assets/FrameCapture.ico`。
-
-## 一键出包
+## 一键构建
 
 ```powershell
-pwsh -NoProfile -File scripts/publish-release.ps1
-```
-
-默认先跑完整验证链（编译 → SelfTest 断言 → 护栏），任一不过就**不出包**——发布包里塞进坏构建
-比晚一天发版严重。只重打包时加 `-SkipVerify`。
-
-```powershell
-# 发布者名会显示在「应用和功能」的「发行者」栏，发行前换成你自己的
+pwsh -NoProfile -File scripts/publish-release.ps1                     # 两个产物都出
 pwsh -NoProfile -File scripts/publish-release.ps1 -Publisher "你的名字"
-
-# 只出一种形态
-pwsh -NoProfile -File scripts/publish-release.ps1 -Flavor self   # 或 fd
+pwsh -NoProfile -File scripts/publish-release.ps1 -Flavor fd          # 只出引导器
+pwsh -NoProfile -File scripts/publish-release.ps1 -SkipVerify         # 只重打包
 ```
 
-## 两个包怎么选
+脚本顺序：读版本号 → 编译 + SelfTest + 护栏（任一不过就不出包）→ 清 Release 中间产物 →
+发布 → 打包 → 报体积与 SHA256。
 
-| 包 | 体积 | 用户前置条件 |
+发布前必须清 Release 中间产物：apphost 由 CreateAppHost 生成后带自己的图标，改
+`<ApplicationIcon>` 不会让它重新生成，增量发布出来的 exe 会沿用中间产物里那枚
+（实测 148 KB 无图标 / 186 KB 有图标）。图标进不进包取决于构建缓存，这种不确定性不能带到发行物里。
+
+## 产物
+
+| 文件 | 体积 | 用途 |
 |---|---|---|
-| `FrameCapture-<ver>-x64-self-contained.msi` | 57.8 MB | 无，双击即装 |
-| `FrameCapture-<ver>-x64-framework-dependent.msi` | 5.3 MB | 需先装 .NET 8 Desktop Runtime |
+| `FrameCapture-Setup-<ver>-x64.exe` | ~6.9 MB | **主发行物**。双击即用，缺运行时时自己从微软官网下载 |
+| `FrameCapture-<ver>-x64-offline.zip` | ~69.8 MB | 不能联网的机器。解压即用，不需要装 .NET |
 
-两个包共用同一 `UpgradeCode`，装另一个时会先干净卸掉已装的，不会留下两份文件。
+引导器里内嵌的是框架依赖载荷（12 个文件，25.2 MB → 压成 6.8 MB）。运行时安装器约 55.9 MB，
+只在目标机确实缺运行时才下载——内置一份等于让所有人多下一趟。
 
-框架依赖包缺运行时时的表现是 Windows 标准的「要运行此应用，你需要 .NET」对话框（带下载按钮），
-不是崩溃。包内**不做运行时检测**：MSI 的注册表搜索只能查固定版本号，而 .NET 有 roll-forward，
-按 8.0 查会在只装了 .NET 10 的机器上误报缺运行时。
+## 引导器为什么是 .NET Framework 4.8
 
-## 不变量
+引导器要在**任何**能跑主程序的机器上双击就起，因此它自己不能有任何前置。
+Windows 10 2004（build 19041，正是主程序 TFM 下限）起系统自带 .NET Framework 4.8，
+所以 4.8 的引导器零前置。
 
-- **版本号唯一来源**是 `src/FrameCapture/FrameCapture.csproj` 的 `<Version>`。脚本读它，不另存一份。
-  MSI 只吃 `major.minor[.build]` 且每段 ≤ 65535，四段版本号会在脚本里被拦下。
-- **`UpgradeCode` = `D13E621E-E92C-43F2-87F6-6C4076F366D9`，对外发行后永不能改。**
-  它标识「这是同一个产品」；改了以后升级不会替换旧版，而是变成两份并存安装。
-  `ProductCode` 由 WiX 按 版本+UpgradeCode+语言 稳定生成，不手写。
-- **工具链钉在 WiX v5**（`dotnet-tools.json`，`rollForward: false`）。
-  WiX v6 起官方二进制发布挂 OSMF 维护费 EULA：产生收入的用户按 <20 人 $10/月起收费。
-  v5 及更早是纯 MIT，无 EULA。`rollForward: false` 挡住将来自动升到 v7 后构建直接 WIX7015 崩掉。
-  首次在新机器上出包需要联网还原工具与 UI 扩展（脚本会自动补 `WixToolset.UI.wixext`）。
+主程序需要 .NET 8 的理由只有两个，都在捕获侧：`Windows.Graphics.Capture`（WGC）与
+`Windows.Media.Ocr`。UI 侧一行都没用到高版本特性——`Core/Theme.cs`、`Core/Fluent*.cs`
+只用 `System.Windows` / `Controls` / `Controls.Primitives` / `Media` / `Media.Animation`，
+这五个命名空间在 4.8 里同名同签名。引导器用 `<Compile Include>` 直接链这四个文件，
+**不存在第二份样式定义**，改主程序配色会同步到安装界面。
 
-## 图标
+参照：PCL2（Meloong-Git/PCL）`Plain Craft Launcher 2.vbproj` 是
+`<TargetFrameworkVersion>v4.8</TargetFrameworkVersion>`，全仓 `net8`/`netcoreapp` 零命中。
+那种动画手感跟运行时版本无关。
 
-`assets/FrameCapture.ico` 由 `python scripts/make-icon.py` 生成（10/16/20/24/32/40/48/64/96/128/256 多尺寸），
-exe、开始菜单快捷方式、「应用和功能」共用同一份源图。改设计改脚本里的常量重跑即可，
-预览图落在 `test-out/icon-preview.png`（浅底/深底各排一列，用来判断 16px 是否还认得出）。
+工程配置要点：
+
+- `net48` + `UseWPF` + `PlatformTarget x64`（32 位进程写 Program Files 与注册表会被 WOW64 重定向）
+- `ImplicitUsings=disable` + 本地 `GlobalUsings.cs`：WinForms 的隐式集会把
+  `System.Drawing` / `System.Windows.Forms` 灌进来，与 WPF 的 `Button`/`Color`/`Brush` 撞名
+- 链入的源文件依赖主项目的隐式 using，故 `LangVersion=latest`（4.8 默认 7.3 不够）
+- 主程序那份 `Native/Win32.cs` 有 40 KB 且连锁依赖日志器，引导器改用 `Win32Shim.cs`，
+  只声明圆角与分层窗口这 10 个符号，签名与主程序逐字一致
+- `<Version>` 由 MSBuild 从 `FrameCapture.csproj` 正则读出，两处版本不会分叉
+- `-p:PayloadZip` 必须传绝对路径：`EmbeddedResource` 的 Include 按工程目录解析
+
+## 版本号
+
+唯一来源是 `src/FrameCapture/FrameCapture.csproj` 的 `<Version>`。发布脚本与引导器工程都从那里读。
+
+## RollForward
+
+`FrameCapture.csproj` 有 `<RollForward>Major</RollForward>`。默认 `Minor` 只在同大版本内滚动，
+会把「只装了 .NET 9/10」的机器判成缺运行时，既让用户多下一个包又没必要。
+引导器的检测因此按 `major >= 8` 判定，与 runtimeconfig 的口径一致。
+
+## 安装与卸载各做了什么
+
+安装（一次 UAC，之后所有账户可用）：
+
+1. 结束运行中的主程序
+2. 已装目录整体移到临时目录作回滚点
+3. 解内嵌载荷到 `C:\Program Files\FrameCapture`
+4. 把引导器自身复制为 `FrameCapture-Setup.exe` 作卸载入口
+5. 写 `HKLM\...\Uninstall\FrameCapture`，建开始菜单快捷方式
+6. 任一步失败则把回滚点搬回原位
+
+卸载（`--uninstall`）：结束进程 → 删程序目录 → 删快捷方式 → **删 `HKCU\...\Run\FrameCapture`
+自启值** → 删卸载登记项。卸载器先把自己复制到临时目录再执行，才能删掉安装目录里那份自己。
 
 ## 已验证 / 未验证
 
-打包环境没有管理员权限，因此**没有做过一次真实的安装/卸载**。已做到的是：
+已验证：
 
-- 用 Windows Installer COM 读包内数据库：`ALLUSERS=1`（全体用户，装 Program Files，弹一次 UAC）、
-  文件数与发布目录一致（自包含 250 / 框架依赖 12）、组件数 = 文件数 + 1 个快捷方式、
-  图标已内嵌、快捷方式 Target = `[INSTALLFOLDER]FrameCapture.exe`、两个包同 UpgradeCode 不同 ProductCode。
-- `msiexec /a`（管理员提取，只解文件不写系统）退出码 0，12 个文件正确解到 `PFiles64\FrameCapture\`。
+- 引导器编译 0 错 0 警；离屏渲染出图核对界面（`FrameCapture-Setup.exe --preview <png>`）
+- 运行时检测：本机探到 `10.0.11`，与磁盘 `shared\Microsoft.WindowsDesktop.App` 实际内容一致
+- 下载链路：真实连微软 CDN 限量下载 4 MB，TLS 握手、301 跟随、流式进度、取消后清理半截文件均正常
+- 内嵌载荷：资源名 `FrameCapture.Setup.payload.zip`，12 条目无子目录，含带图标的 `FrameCapture.exe`
+- 图标：引导器与主程序 exe 图标字节哈希相同
+- 主程序验证链未受影响：`RESULT PASS=457 FAIL=0`、`GUARDRAIL PASS`、`LINT-COMMENTS PASS FAIL=0 WARN=3`
 
-**首次对外发行前，请在一台干净机器上真装一次、再卸载一次。**
+**未验证：真实的安装与卸载。** 需要管理员权限，本环境无管理员且批准提示被禁用。
+发行前请在一台干净机器上手动跑一遍：安装、卸载、以及「故意只装 .NET 6」触发运行时下载这条路径。
 
-## 已知残留
+载荷里含 `FrameCapture.pdb`（151 KB）。留着是为了用户报障时能拿到带行号的堆栈；
+介意体积就在打包前剔掉。
 
-卸载**不会**删除开机自启值 `HKCU\Software\Microsoft\Windows\CurrentVersion\Run\FrameCapture`。
-Windows Installer 的 Registry 表只能创建值、没有删除动作，`RemoveRegistryValue` 编译后不落任何表
-（已实测），删它只能靠自定义操作——而自定义操作一旦失败会让整个卸载报错，代价远大于收益。
+## 发行前要定的三件事
 
-只有「开过自启、又卸载」的用户会留下这一条，且它指向已删除的路径，Windows 静默跳过，无报错无弹窗。
-手动清理：
+1. **发布者名**：`-Publisher` 传值，会写进控制面板的 Publisher 字段。默认 `FrameCapture`。
+2. **代码签名**：未签名。SmartScreen 会拦「未知发布者」，用户要点「仍要运行」。
+   签名证书有年费；个人项目通常选择不签，接受这个提示。
+3. **源码提供方式**：若采用 GPL2，随二进制发行必须同时提供源码或书面要约。
+   上传 GitHub 并在 README 指过去即可满足。捆绑的 .NET 运行时是 MIT，与 GPL2 不冲突。
+   **不要捆绑 ffmpeg**（GPL/LGPL），主程序按 `Core/VideoEncoder.cs` 的约定运行时探测它。
 
-```powershell
-Remove-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name FrameCapture
-```
+## 为什么不是 MSI
 
-用户自己在设置里关掉「开机自启」也会删掉它（`Services/StartupService.cs`）。
+自写引导器换来三样：6.9 MB 的单 exe、缺运行时时按需下载、卸载能删掉 HKCU 自启值
+（Windows Installer 的 Registry 表只能创建值、没有删除动作，`RemoveRegistryValue` 编译后不落任何表）。
 
-## 发行前还需要你决定的三件事
-
-1. **发布者名**：脚本默认 `FrameCapture`，是占位值。
-2. **代码签名**：未签名的 MSI 在别的机器上会吃 SmartScreen 蓝条「Windows 已保护你的电脑 → 更多信息 → 仍要运行」。
-   要消掉需要代码签名证书（OV 约 ¥1500/年，EV 更贵但立刻消除信誉警告），签完用
-   `signtool sign /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 release\*.msi`。
-   个人项目常选「不签名，在发布页写清楚怎么绕过」，那是合理取舍，但要在下载页说明。
-3. **许可证**：仓库里没有 LICENSE 文件。若按 GPL2 开源，分发二进制就必须同时提供完整对应源码
-   或书面源码要约（README 里放仓库地址即可）；自包含包里的 .NET 运行时是 MIT，与 GPL2 兼容。
-   **不要往安装包里塞 ffmpeg**——仓库「不捆绑 ffmpeg（体积 + 许可）」是既定决策，
-   见 `Core/VideoEncoder.cs`，塞进去会把 GPL/LGPL 义务引进来。
+代价要认：失去 GPO/SCCM 静默分发，失去 Windows Installer 的事务回滚与被占用文件的重启后替换。
+现在的替代是杀进程 + 临时目录备份回滚 + 失败时保留原版本。
