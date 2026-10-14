@@ -2456,3 +2456,34 @@ UIAUDIT 其余 60 条已全部勾选并带证据。
 
 **仍挂着的非动效事项**：`PresetQQ → PresetScopeFirst`（`0ba167a`）等用户否决；上 GitHub 前补 GPL2 `LICENSE`；
 MSI 安装器已放弃、安装/卸载路径未实测；Qodana 清理暂停，等 Rider 重扫出 sarif 再对 1555 条基线做差。
+
+## 宣传网页（site/，纯静态）
+
+`site/` 是 FrameCapture 的宣传页：无构建步骤，浏览器直接打开 `index.html`（`file://` 即可，
+脚本一律传统 `<script>`，绕开 `file://` 下 ES Module 的 CORS 限制）。
+
+**与工具同源的设计令牌。** 配色逐条取自 `Core/Theme.cs`（含 alpha 语义：Chrome `0xD9` 最透、
+Window `0xF2` 近不透、Card 全不透明），时长逐条取自 `Core/Fluent.cs` 的 `Motion` 常量，
+圆角沿用窗 12 / 控件 10 / 正圆色块 13，图标只用 Segoe Fluent Icons 的 PUA 码位——
+与工具内同一套字形，非 Windows 访客拿不到该字体，所以图标一律只做装饰、旁边必有文字。
+
+**文件划分。** CSS 五份：`tokens`（令牌）/ `base`（重置、排版、Mica 式氛围背板）/ `layout`（骨架与断点）/
+`components`（按钮、键帽、卡片、窗口模型、选区、标签页、令牌表）/ `motion`（关键帧与状态过渡）。
+JS 七份：`tokens`（`FC.Motion` 数字形式 + `prefers-reduced-motion` 实时读取）/ `theme` / `reveal` /
+`hero` / `tabs` / `pointer` / `main`。
+
+**动效清单。** 首屏把图标里的「四角取景框 + 中心点」演成一次真实捕获：四角按 `Stagger` 依次落位、
+中心点 `Spring` 弹入、选区 `Enter` 撑开、描边闪光 `Flash` 单向往落、轻提示 `Hover` 抬起 `Dissolve` 退场。
+滚动入场抬 6px 用 `Enter`，同组逐项错位 `Stagger`；主题切换走 View Transitions 圆形扩散 `Theme`；
+悬停 `Hover`、按压 `Press`（短于悬停）；卡片镜面高光与 4° 倾斜、氛围光跟随光标，全部节流到一帧一次。
+
+**降级与兜底。** `prefers-reduced-motion` 下时长全部塌成 1ms、位移取消、内容一律可见；
+观察器或脚本失效时，视口内内容在兜底时限后仍会显示——动效可以没有，内容不能没有。
+`?static=1` 静态模式停在终态，供打印、抓取与截图比对。
+
+**验证。** 7 份 JS 全部 `node --check` 通过；CSS 括号平衡；`index.html` 引用的 13 个资源全部存在。
+真实 Edge 窗口连拍三帧抓到取景框逐角落位、轻提示抬起、轻提示停留三个不同阶段，动效确实在推进。
+`--dump-dom` 冒烟：`body.is-ready` 已置位（7 份脚本跑完未抛错）、31 个 `data-reveal` 全部入场、
+标题两行揭幕、进度条注入、取景框与选区就位、标签页接管 `tabIndex`。
+明暗两版整页截图与 500/900 窄屏截图留存 `test-out/site/`；溢出探针显示各视口 `scrollWidth == clientWidth`，
+唯一越界元素是 `.ambient__glow`，它在 `overflow:hidden` 的固定层内，不产生横向滚动。

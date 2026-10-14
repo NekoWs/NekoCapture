@@ -1,0 +1,125 @@
+/* tokens.css — 设计令牌
+   配色逐条对应 src/FrameCapture/Core/Theme.cs，时长逐条对应 Core/Fluent.cs 的 Motion 常量。
+   改这里必须同步改那两个文件，否则网页与桌面端会开始长得不一样。 */
+
+:root {
+  /* ── 强调色：Theme.Accent 默认值 ───────────────────── */
+  --accent: #4cc2ff;
+  --accent-ink: #04121c;          /* 强调色实心药丸上的反白文字，取深色保证对比 */
+  --accent-soft: 76 194 255;      /* rgb 分量，供 alpha 组合复用 */
+
+  /* ── 圆角：窗 12 / 控件 10 / 正圆色块 13 ───────────── */
+  --r-window: 12px;
+  --r-control: 10px;
+  --r-round: 13px;
+  --r-pill: 999px;
+
+  /* ── Motion 令牌（毫秒，与 C# 常量同名同值）───────── */
+  --enter: 190ms;
+  --editor-enter: 240ms;
+  --exit: 150ms;
+  --stagger: 110ms;
+  --hover: 110ms;
+  --state: 150ms;
+  --theme: 260ms;
+  --spring: 260ms;
+  --press: 70ms;
+  --quick: 120ms;
+  --dissolve: 320ms;
+  --flash: 450ms;
+
+  /* ── 缓动：对应 CubicEase EaseOut / EaseIn 与 BackEase 过冲 ── */
+  --ease-enter: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-exit: cubic-bezier(0.4, 0, 1, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* ── 幅度：入场只抬 6px，缩放 0.94→1.0 ─────────────── */
+  --rise: 6px;
+  --scale-from: 0.94;
+
+  /* ── 度量 ─────────────────────────────────────────── */
+  --gap: clamp(16px, 2.2vw, 28px);
+  --maxw: 1180px;
+  --bar-h: 60px;
+
+  /* ── 字体：正文 Segoe UI，图标只用 Segoe Fluent Icons 的 PUA 字形 ── */
+  --font-text: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-display: "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "Cascadia Mono", "Consolas", ui-monospace, monospace;
+  --font-icon: "Segoe Fluent Icons", "Segoe MDL2 Assets", var(--font-text);
+}
+
+/* ── 深色：Theme.cs 的 alpha 直接换算（0xF2≈.949 / 0xE6≈.902 / 0xD9≈.851）── */
+:root,
+[data-theme="dark"] {
+  --win: rgba(32, 32, 32, 0.949);        /* WindowBg  0xF2 202020 */
+  --panel: rgba(43, 43, 43, 0.902);      /* PanelBg   0xE6 2B2B2B */
+  --chrome: rgba(28, 28, 28, 0.851);     /* ChromeBg  0xD9 1C1C1C */
+  --card: #2d2d2d;                       /* CardBg    2D2D2D     */
+  --text: #ffffff;
+  --text-dim: rgba(192, 192, 192, 0.702);
+  --stroke: rgba(255, 255, 255, 0.333);  /* Stroke    0x55       */
+  --stroke-soft: rgba(255, 255, 255, 0.10);
+  --hover-bg: rgba(255, 255, 255, 0.133);/* Hover     0x22       */
+  --press-bg: rgba(255, 255, 255, 0.082);/* Press     0x15       */
+  --track: rgba(255, 255, 255, 0.20);    /* TrackBg   0x33       */
+
+  --page: #161616;
+  --page-2: #1b1b1b;
+  --shadow: 0 24px 60px -20px rgba(0, 0, 0, 0.72);
+  --shadow-soft: 0 2px 18px -6px rgba(0, 0, 0, 0.6);
+  --glow-a: rgba(76, 194, 255, 0.16);
+  --glow-b: rgba(120, 92, 255, 0.12);
+  --noise: 0.055;
+  --veil: rgba(0, 0, 0, 0.55);
+  color-scheme: dark;
+}
+
+/* ── 浅色：Theme.cs 的浅色分支 ───────────────────────── */
+[data-theme="light"] {
+  --win: rgba(249, 249, 249, 0.949);
+  --panel: rgba(255, 255, 255, 0.902);
+  --chrome: rgba(235, 235, 235, 0.851);
+  --card: #ffffff;
+  --text: #1a1a1a;
+  --text-dim: rgba(96, 96, 96, 0.702);
+  --stroke: rgba(0, 0, 0, 0.333);
+  --stroke-soft: rgba(0, 0, 0, 0.10);
+  --hover-bg: rgba(0, 0, 0, 0.20);
+  --press-bg: rgba(0, 0, 0, 0.133);
+  --track: rgba(0, 0, 0, 0.20);
+
+  --page: #f3f3f3;
+  --page-2: #ececec;
+  --shadow: 0 24px 56px -22px rgba(0, 0, 0, 0.28);
+  --shadow-soft: 0 2px 14px -6px rgba(0, 0, 0, 0.18);
+  /* 浅色下光晕要压得很低：工具本体是干净的 #F3F3F3，页面不能染成淡紫 */
+  --glow-a: rgba(76, 194, 255, 0.15);
+  --glow-b: rgba(120, 92, 255, 0.08);
+  --noise: 0.03;
+  --veil: rgba(0, 0, 0, 0.34);
+  color-scheme: light;
+}
+
+/* 强调色可换：与设置里的「强调色」同一件事，由 js/theme.js 写入 */
+[data-accent] {
+  --accent: var(--accent-live, #4cc2ff);
+}
+
+/* 降低动效偏好，以及 ?static=1 静态模式：时长全部塌成 1ms，
+   布局与可读性不受影响，带 forwards 的动画会立刻落到终态。 */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --enter: 1ms; --editor-enter: 1ms; --exit: 1ms; --stagger: 1ms;
+    --hover: 1ms; --state: 1ms; --theme: 1ms; --spring: 1ms;
+    --press: 1ms; --quick: 1ms; --dissolve: 1ms; --flash: 1ms;
+    --rise: 0px; --scale-from: 1;
+  }
+}
+
+html.is-static {
+  --enter: 1ms; --editor-enter: 1ms; --exit: 1ms; --stagger: 1ms;
+  --hover: 1ms; --state: 1ms; --theme: 1ms; --spring: 1ms;
+  --press: 1ms; --quick: 1ms; --dissolve: 1ms; --flash: 1ms;
+  --rise: 0px; --scale-from: 1;
+}

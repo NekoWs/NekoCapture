@@ -1,0 +1,208 @@
+/* motion.css — 关键帧与状态过渡。时长一律用 tokens.css 的 Motion 令牌，不写裸毫秒数。 */
+
+/* ── 滚动入场：抬 6px + 淡入，退场比入场快 ─────────────── */
+[data-reveal] {
+  opacity: 0;
+  transform: translate3d(0, var(--rise), 0);
+  transition:
+    opacity var(--enter) var(--ease-enter) var(--delay, 0ms),
+    transform var(--enter) var(--ease-enter) var(--delay, 0ms);
+  will-change: opacity, transform;
+}
+
+[data-reveal].is-in {
+  opacity: 1;
+  transform: none;
+}
+
+/* 大表面（首屏舞台、演示框）慢半拍，对应 EditorEnterMs */
+[data-reveal][data-slow] { transition-duration: var(--editor-enter); }
+
+/* ── 标题逐行揭幕：遮罩从下往上掀 ─────────────────────── */
+.hero__title .line {
+  display: block;
+  clip-path: inset(0 0 105% 0);
+  transform: translate3d(0, 0.42em, 0);
+  transition:
+    clip-path var(--editor-enter) var(--ease-enter) var(--delay, 0ms),
+    transform var(--editor-enter) var(--ease-enter) var(--delay, 0ms),
+    opacity var(--editor-enter) var(--ease-enter) var(--delay, 0ms);
+}
+
+.hero__title .line.is-in {
+  clip-path: inset(-12% -12% -18% 0);
+  transform: none;
+}
+
+/* 强调词下划：入场落定后再画，避免和入场抢注意力 */
+.hero__title em::after {
+  content: "";
+  position: absolute;
+  left: 0; right: 0; bottom: 0.06em;
+  height: 0.07em;
+  border-radius: 2px;
+  background: var(--accent);
+  opacity: 0.55;
+  transform: scaleX(0);
+  transform-origin: 0 50%;
+  transition: transform var(--spring) var(--ease-spring) 420ms;
+}
+
+.hero__title em.is-underline::after { transform: scaleX(1); }
+
+/* ── 首屏捕获序列：JS 依次加类，时长全部来自令牌 ───────── */
+
+/* 1) 取景框四角按 StaggerMs 依次落位，中心点最后弹入 */
+.reticle.is-in .reticle__c {
+  animation: corner-in var(--enter) var(--ease-spring) forwards;
+}
+
+.reticle.is-in .reticle__c--tr { animation-delay: var(--stagger); }
+.reticle.is-in .reticle__c--bl { animation-delay: calc(var(--stagger) * 2); }
+.reticle.is-in .reticle__c--br { animation-delay: calc(var(--stagger) * 3); }
+
+.reticle.is-in .reticle__dot {
+  animation: dot-pop var(--spring) var(--ease-spring) calc(var(--stagger) * 4) forwards;
+}
+
+.reticle.is-out .reticle__c,
+.reticle.is-out .reticle__dot {
+  animation: fade-out var(--exit) var(--ease-exit) forwards;
+}
+
+/* 2) 选区从左上角撑开，尺寸标签与把手随后出现 */
+.sel.is-open {
+  animation: sel-open var(--enter) var(--ease-enter) forwards;
+}
+
+.sel.is-open .sel__size { animation: fade-in var(--quick) var(--ease-enter) var(--enter) forwards; }
+.sel.is-open .sel__handle { animation: fade-in var(--quick) var(--ease-enter) var(--enter) forwards; }
+
+/* 3) 捕获确认：描边闪光单向衰减，不回头 */
+.sel.is-flash .sel__flash { animation: flash-decay var(--flash) var(--ease-exit) forwards; }
+.sel.is-flash { border-color: transparent; }
+
+/* 4) 轻提示抬起淡入，停留后淡出并收起 */
+.snack.is-in { animation: snack-in var(--hover) var(--ease-enter) forwards; }
+.snack.is-out { animation: snack-out var(--dissolve) var(--ease-in, var(--ease-exit)) forwards; }
+
+/* 舞台窗口自身的入场：0.94→1.0 + 抬 6px */
+.win--stage {
+  animation: win-in var(--editor-enter) var(--ease-enter) both;
+}
+
+@keyframes win-in {
+  from { opacity: 0; transform: translate3d(0, var(--rise), 0) scale(var(--scale-from)); }
+  to   { opacity: 1; transform: none; }
+}
+
+@keyframes corner-in {
+  from { opacity: 0; transform: scale(1.5); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+@keyframes dot-pop {
+  0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.2); }
+  70%  { opacity: 1; transform: translate(-50%, -50%) scale(1.18); }
+  100% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+
+@keyframes sel-open {
+  from { opacity: 1; width: 0; height: 0; }
+  to   { opacity: 1; width: 74%; height: 62%; }
+}
+
+@keyframes flash-decay {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+
+@keyframes snack-in {
+  from { opacity: 0; transform: translate3d(-50%, var(--rise), 0); }
+  to   { opacity: 1; transform: translate3d(-50%, 0, 0); }
+}
+
+@keyframes snack-out {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes fade-out { from { opacity: 1; } to { opacity: 0; } }
+
+/* ── 错位阶梯：每行延迟 = 序号 × StaggerMs ─────────────── */
+.ladder__row {
+  opacity: 0;
+  transform: translate3d(0, var(--rise), 0);
+}
+
+.ladder.is-in .ladder__row {
+  animation: row-in var(--enter) var(--ease-enter) forwards;
+  animation-delay: calc(var(--i) * var(--stagger));
+}
+
+@keyframes row-in {
+  from { opacity: 0; transform: translate3d(0, var(--rise), 0); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* ── 面板切换：新面板从下方 6px 落位，退场干脆 ─────────── */
+.panel.is-on { animation: panel-in var(--state) var(--ease-enter) both; }
+
+@keyframes panel-in {
+  from { opacity: 0; transform: translate3d(0, var(--rise), 0); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* ── 呼吸与脉冲 ───────────────────────────────────────── */
+@keyframes pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(var(--accent-soft) / 0.55); }
+  70%  { box-shadow: 0 0 0 9px rgba(var(--accent-soft) / 0); }
+  100% { box-shadow: 0 0 0 0 rgba(var(--accent-soft) / 0); }
+}
+
+@keyframes breathe {
+  from { transform: scale(1); opacity: 0.75; }
+  to   { transform: scale(1.16); opacity: 1; }
+}
+
+/* ── 主题切换：从按钮位置圆形扩散（支持 View Transitions 的浏览器）── */
+@keyframes vt-forward { from { clip-path: circle(0 at var(--ox, 92%) var(--oy, 8%)); } to { clip-path: circle(150% at var(--ox, 92%) var(--oy, 8%)); } }
+@keyframes vt-backward { from { clip-path: circle(150% at var(--ox, 92%) var(--oy, 8%)); } to { clip-path: circle(0 at var(--ox, 92%) var(--oy, 8%)); } }
+
+::view-transition-old(root) { animation: none; }
+::view-transition-new(root) { animation: vt-forward var(--theme) var(--ease-enter); }
+
+/* 主题切换瞬间冻结所有过渡，避免每个元素各自淡一遍（那是脏，不是动效） */
+.theme-flip *, .theme-flip *::before, .theme-flip *::after {
+  transition: none !important;
+}
+
+/* ── 降低动效：全部塌成静态，内容一律可见 ─────────────── */
+@media (prefers-reduced-motion: reduce) {
+  [data-reveal],
+  .hero__title .line {
+    opacity: 1 !important;
+    transform: none !important;
+    clip-path: none !important;
+    transition: none !important;
+  }
+
+  .win--stage,
+  .reticle.is-in .reticle__c,
+  .reticle.is-in .reticle__dot,
+  .sel.is-open, .sel.is-open .sel__size, .sel.is-open .sel__handle,
+  .ladder.is-in .ladder__row,
+  .panel.is-on,
+  .dl__reticle i,
+  .dot-live,
+  .ambient__glow {
+    animation: none !important;
+  }
+
+  .reticle .reticle__c, .reticle .reticle__dot { opacity: 1; }
+  .sel { width: 74%; height: 62%; opacity: 1; }
+  .sel .sel__size, .sel .sel__handle { opacity: 1; }
+  .ladder__row { opacity: 1; transform: none; }
+  html { scroll-behavior: auto; }
+}
