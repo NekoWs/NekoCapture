@@ -47,7 +47,9 @@ public sealed class ScrollHintWindow : Window
     /// </summary>
     /// <param name="region">要滚的选区，物理像素、虚拟桌面绝对坐标；控制条贴其上方居中，放不下则落回区域上沿内侧。</param>
     /// <param name="monitorDevice">选区所在显示器 device name；按设备取不到时按区域坐标就近回退。</param>
-    public ScrollHintWindow(RectI region, string monitorDevice)
+    /// <param name="entranceLeadMs">入场起跳前的等待（ms）。滚动流程的三层浮层同刻 Show，
+    /// 由调用方给出各自的错位量，让它们按取景层 → 预览卡 → 控制条的顺序依次落位。</param>
+    public ScrollHintWindow(RectI region, string monitorDevice, int entranceLeadMs = 0)
     {
         Title = "FrameCapture Scroll";
         Fluent.BorderlessOverlay(this);   // 不抢焦点：目标窗口继续接收滚轮/键盘滚动
@@ -159,7 +161,7 @@ public sealed class ScrollHintWindow : Window
 
         Closed += (_, _) => { if (ReferenceEquals(Current, this)) Current = null; };
         Trace.Log("scroll bar shown");
-        Fluent.FadeIn(this, Fluent.Motion.EnterMs, 8, offscreenFirstFrame: true);
+        Fluent.FadeIn(this, Fluent.Motion.EnterMs, 8, offscreenFirstFrame: true, leadMs: entranceLeadMs);
     }
 
     /// <summary>刷新进度：段数与拼接后总高，并把提示行复位到当前开关态的文案（清掉 <see cref="FlashHint"/> 的提醒）。

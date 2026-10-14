@@ -220,9 +220,12 @@ public static partial class Fluent
     /// 内容已挂 TransformGroup 时跳过，不覆盖调用方自己的变换。</param>
     /// <param name="offscreenFirstFrame">true = 先把窗口挪到 -32000 渲染首帧再回位，黑相永远发生在屏幕外；
     /// 代价是回位瞬间要再压一次 alpha 并等下一渲染帧放行。</param>
-    public static void FadeIn(Window w, int ms = 160, double risePx = 0, bool offscreenFirstFrame = false)
+    /// <param name="leadMs">淡入起跳前的等待（ms）。多个浮层同刻 Show 时用它排出先后，
+    /// 等待期内窗口停在 <c>Opacity = 0</c>，屏幕上什么都看不见。0 = 立即起跳。</param>
+    public static void FadeIn(Window w, int ms = 160, double risePx = 0, bool offscreenFirstFrame = false, int leadMs = 0)
     {
         w.Opacity = 0;
+        var lead = TimeSpan.FromMilliseconds(Math.Max(0, leadMs));
         // 分层窗（AllowsTransparency）自创建即 per-pixel alpha，首帧前没有黑/白闪；
         // 且 DWM 合成下 WPF 不调 UpdateLayeredWindow——手工 SetLayeredWindowAttributes(alpha=0)
         // 永远不会被 WPF 清掉，用了就是整窗永久隐形。本分支绝不碰 Win32 分层属性。
@@ -230,7 +233,7 @@ public static partial class Fluent
         {
             void StartFade() => w.BeginAnimation(UIElement.OpacityProperty,
                 new DoubleAnimation(1, new Duration(TimeSpan.FromMilliseconds(ms)))
-                { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
+                { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }, BeginTime = lead });
             // ContentRendered 只在首次渲染后触发一次：此刻内容已渲染（IsLoaded，例如 PinWindow 在自己的
             // ContentRendered 回调里才调 FadeIn）时再订阅永不触发，淡入不启动、Opacity 永久卡 0 → 整窗隐形。
             // 故此刻直接起淡入；Show 前调用的窗口 IsLoaded=false，仍走订阅路径。
@@ -243,14 +246,14 @@ public static partial class Fluent
         {
             releasePre();
             var dur = new Duration(TimeSpan.FromMilliseconds(ms));
-            var a = new DoubleAnimation(1, dur) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } };
+            var a = new DoubleAnimation(1, dur) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }, BeginTime = lead };
             w.BeginAnimation(UIElement.OpacityProperty, a);
             if (risePx > 0 && w.Content is FrameworkElement fe && fe.RenderTransform is not TransformGroup)
             {
                 var tt = new TranslateTransform(0, risePx);
                 fe.RenderTransform = tt;
                 tt.BeginAnimation(TranslateTransform.YProperty,
-                    new DoubleAnimation(0, dur) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
+                    new DoubleAnimation(0, dur) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }, BeginTime = lead });
             }
         }
         if (offscreenFirstFrame)

@@ -32,12 +32,13 @@ public sealed partial class CaptureController : IDisposable
         _scrollPrevB = null; _scrollAuto = false;
         _autoWaitSettle = false; _autoNoNew = 0; _autoNotch = ScrollAutoPolicy.NotchStart; _autoStuckTicks = 0;
         // 三层自下而上：取景层 → 预览卡 → 控制条。三者同为 Topmost，Show 顺序决定 Z 序，控制条必须在最上
+        // 同刻 Show，入场按 StaggerMs 依次错开：三件事一起出现读起来是「卡了一下」，依次落位才读得出层次
         _scrollStage = new Overlays.ScrollStageWindow(region, device);
         _scrollStage.Show();
-        _scrollPreview = new Overlays.ScrollPreviewWindow(region, device);
+        _scrollPreview = new Overlays.ScrollPreviewWindow(region, device, Core.Fluent.Motion.StaggerMs);
         _scrollPreview.SetImage(_scrollAcc, _scrollW, _scrollH);   // 基准帧就上屏：进流程第一眼就有预览
         _scrollPreview.Show();
-        _scrollBar = new Overlays.ScrollHintWindow(region, device)
+        _scrollBar = new Overlays.ScrollHintWindow(region, device, Core.Fluent.Motion.StaggerMs * 2)
         {
             OnDone = ScrollDone, OnCancel = ScrollCancel, OnToggleAutoScroll = ScrollToggleAuto,
         };

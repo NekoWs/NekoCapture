@@ -1,8 +1,8 @@
 # E 回归护栏（UIAUDIT.md E 条目）：一条命令跑完整闸门——
 #   构建 0 error → SelfTest 全过（≥基线数）→ 注入可达性探针 → 全套 e2e（捕获链路/热键/点按语义/焦点安全/状态机 fuzz）
 # 语义：SKIP（反外挂拦截注入）≠ FAIL；缺 PASS 标记一律按 FAIL（不信任无结果的运行）。
-# 用法: pwsh -NoProfile -File scripts/guardrail.ps1 [-SkipE2e] [-MinSelfTestPass 493]
-param([switch]$SkipE2e, [int]$MinSelfTestPass = 493)
+# 用法: pwsh -NoProfile -File scripts/guardrail.ps1 [-SkipE2e] [-MinSelfTestPass 495]
+param([switch]$SkipE2e, [int]$MinSelfTestPass = 495)
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 . (Join-Path $PSScriptRoot "lib-hotkey.ps1")

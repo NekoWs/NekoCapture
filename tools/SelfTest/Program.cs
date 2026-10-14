@@ -146,6 +146,33 @@ static class SelfTest
         win.Close();
         return 0;
     }
+    /// <summary>滚动截图三层浮层的入场取证模式：三层同刻 Show，按 StaggerMs 依次落位，撑住窗口等外部屏采。
+    /// 动效在窗口级 Opacity 上，RenderTargetBitmap 拍不到（它只渲染内容视觉），必须从屏幕合成结果里取。</summary>
+    /// <param name="outPrefix">日志前缀，仅用于回显。</param>
+    /// <returns>恒为 0。</returns>
+    static int ScrollWave(string outPrefix)
+    {
+        var app = new Application();
+        var stWave = new SettingsService();
+        // 应用主题：本模式只 new Application()，不走 AppHost，不套主题就永远拍成暗色。
+        Theme.Apply(stWave.Current.Theme, stWave.Current.Accent);
+        var reg = new RectI(240, 220, 460, 320);
+        var stg = new FrameCapture.Overlays.ScrollStageWindow(reg, "");
+        var prv = new FrameCapture.Overlays.ScrollPreviewWindow(reg, "", Fluent.Motion.StaggerMs);
+        var bar = new FrameCapture.Overlays.ScrollHintWindow(reg, "", Fluent.Motion.StaggerMs * 2);
+        stg.Show(); prv.Show(); bar.Show();
+        Console.WriteLine($"scrollwave {outPrefix} 已上屏");
+        for (int i = 0; i < 120; i++)
+        {
+            PumpMs(25);
+            if (i % 4 == 0)
+                Console.WriteLine($"  f{i:D2} 取景层={stg.Opacity:N2} 预览卡={prv.Opacity:N2} 控制条={bar.Opacity:N2}");
+        }
+        stg.Close(); prv.Close(); bar.Close();
+        PumpMs(200);
+        return 0;
+    }
+
     static int RenderPick(string outPath)
     {
         var app = new Application();
@@ -294,6 +321,7 @@ static class SelfTest
         if (args.Length == 2 && args[0] == "sbprobe") return SbProbe(args[1]);
         if (args.Length == 2 && args[0] == "renderpick") return RenderPick(args[1]);
         if (args.Length == 2 && args[0] == "editorwave") return EditorWave(args[1]);
+        if (args.Length == 2 && args[0] == "scrollwave") return ScrollWave(args[1]);
         if (args.Length == 2 && args[0] == "renderslider") return RenderSlider(args[1]);
         if (args.Length == 3 && args[0] == "stitch") return StitchMode(args[1], args[2]);
         string tmp = Path.Combine(Path.GetTempPath(), "FrameCapture", "selftest");
@@ -884,6 +912,28 @@ static class SelfTest
             PumpMs(400);
         }
         catch (Exception e) { Chk("T184-detail-cascade", false, e.Message); }
+
+        // 滚动截图的三层浮层：同刻 Show，入场按 StaggerMs 依次落位，不三件事一起弹出来
+        try
+        {
+            var regS = new RectI(240, 220, 460, 320);
+            var stg = new FrameCapture.Overlays.ScrollStageWindow(regS, "");
+            var prv = new FrameCapture.Overlays.ScrollPreviewWindow(regS, "", Fluent.Motion.StaggerMs);
+            var bar = new FrameCapture.Overlays.ScrollHintWindow(regS, "", Fluent.Motion.StaggerMs * 2);
+            stg.Show(); prv.Show(); bar.Show();
+            int leadS = 0;
+            while (stg.Opacity <= 0.02 && leadS < 3000) { PumpMs(10); leadS += 10; }
+            Chk("T185b-scroll-layers-staggered",
+                stg.Opacity > 0.05 && prv.Opacity < 0.02 && bar.Opacity < 0.02,
+                $"取景层={stg.Opacity:N2} 预览卡={prv.Opacity:N2} 控制条={bar.Opacity:N2} 起波={leadS}ms");
+            PumpMs(Fluent.Motion.StaggerMs * 2 + Fluent.Motion.EnterMs + 500);
+            Chk("T185c-scroll-layers-settled",
+                stg.Opacity > 0.999 && prv.Opacity > 0.999 && bar.Opacity > 0.999,
+                $"落位 取景层={stg.Opacity:N2} 预览卡={prv.Opacity:N2} 控制条={bar.Opacity:N2}");
+            stg.Close(); prv.Close(); bar.Close();
+            PumpMs(300);
+        }
+        catch (Exception e) { Chk("T185-scroll-layer-stagger", false, e.Message); }
 
         // 编辑器背板：窗底让给 Mica，画布四周的中性暗底必须自己涂满——背板渗进画布会污染取色与裁切判断。
         try

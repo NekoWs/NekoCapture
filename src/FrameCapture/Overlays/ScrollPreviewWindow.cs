@@ -33,7 +33,9 @@ public sealed class ScrollPreviewWindow : Window
     /// </summary>
     /// <param name="region">滚动选区，物理像素、虚拟桌面绝对坐标；面板贴着它的外侧放。</param>
     /// <param name="monitorDevice">选区所在显示器 device name；按设备取不到时按区域坐标就近回退。</param>
-    public ScrollPreviewWindow(RectI region, string monitorDevice)
+    /// <param name="entranceLeadMs">入场起跳前的等待（ms）。滚动流程的三层浮层同刻 Show，
+    /// 由调用方给出各自的错位量，让它们按取景层 → 预览卡 → 控制条的顺序依次落位。</param>
+    public ScrollPreviewWindow(RectI region, string monitorDevice, int entranceLeadMs = 0)
     {
         Title = "FrameCapture Scroll Preview";
         Fluent.BorderlessOverlay(this);
@@ -134,7 +136,7 @@ public sealed class ScrollPreviewWindow : Window
                 Win32.SetWindowDisplayAffinity(h, Win32.WDA_EXCLUDEFROMCAPTURE);
         };
 
-        Fluent.FadeIn(this, Fluent.Motion.EnterMs, 8, offscreenFirstFrame: true);
+        Fluent.FadeIn(this, Fluent.Motion.EnterMs, 8, offscreenFirstFrame: true, leadMs: entranceLeadMs);
         Trace.Log($"scroll preview shown well={_maxW}x{_maxH}");
     }
 
