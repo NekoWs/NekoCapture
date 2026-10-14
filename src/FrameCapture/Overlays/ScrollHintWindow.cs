@@ -44,24 +44,11 @@ public sealed class ScrollHintWindow : Window
     public ScrollHintWindow(RectI region, string monitorDevice)
     {
         Title = "FrameCapture Scroll";
-        Fluent.BorderlessNative(this, resizeBorder: 0);
-        ShowActivated = false;   // 不抢焦点：目标窗口继续接收滚轮/键盘滚动
-        ShowInTaskbar = false;
-        Topmost = true;
-        WindowStyle = WindowStyle.None;
-        ResizeMode = ResizeMode.NoResize;
-        SizeToContent = SizeToContent.WidthAndHeight;
-        Background = Brushes.Transparent;
+        Fluent.BorderlessOverlay(this);   // 不抢焦点：目标窗口继续接收滚轮/键盘滚动
 
         // 落点：区域顶部居中，优先置于区域**上方**（不遮挡要滚动的内容）；上方放不下则贴区域上沿（WDA 排除，不入镜）
         var mon = Monitors.ByDevice(monitorDevice) ?? Monitors.Nearest(region.X, region.Y);
-        double sx = 1.0, sy = 1.0;
-        try
-        {
-            Win32.GetDpiForMonitor(mon.ResolveHMonitor(), Win32.DPI_EFFECTIVE, out uint dx, out uint dy);
-            if (dx > 0 && dy > 0) { sx = dx / 96.0; sy = dy / 96.0; }
-        }
-        catch { }
+        var (sx, sy) = Monitors.DpiScaleOf(mon);
         int barW = (int)(W * sx), barH = (int)(EstH * sy);
         int left = region.X + region.W / 2 - barW / 2;
         int top = region.Y - barH - 10;
@@ -214,22 +201,7 @@ public sealed class ScrollHintWindow : Window
             BorderThickness = new Thickness(0),
             Padding = new Thickness(14, 6, 14, 6),
             Cursor = System.Windows.Input.Cursors.Hand,
-            Template = RoundedBtnTemplate(),
+            Template = Fluent.RoundedButtonTemplate(hoverFade: false),
         };
-    }
-
-    static ControlTemplate RoundedBtnTemplate()
-    {
-        var t = new ControlTemplate(typeof(Button));
-        var border = new FrameworkElementFactory(typeof(Border));
-        border.SetValue(Border.BackgroundProperty, new TemplateBindingExtension(Control.BackgroundProperty));
-        border.SetValue(Border.CornerRadiusProperty, new CornerRadius(7));
-        border.SetValue(Border.PaddingProperty, new TemplateBindingExtension(Control.PaddingProperty));
-        var cp = new FrameworkElementFactory(typeof(ContentPresenter));
-        cp.SetValue(ContentPresenter.HorizontalAlignmentProperty, HorizontalAlignment.Center);
-        cp.SetValue(ContentPresenter.VerticalAlignmentProperty, VerticalAlignment.Center);
-        border.AppendChild(cp);
-        t.VisualTree = border;
-        return t;
     }
 }

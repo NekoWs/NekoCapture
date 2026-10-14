@@ -54,6 +54,22 @@ public static class Monitors
                    ?? new MonitorInfo("DISPLAY1", new RectI(0, 0, 1920, 1080), true);
     }
 
+    /// <summary>取该显示器的有效 DPI 缩放倍率（96 DPI = 1.0）。取不到或异常时返回 1.0——
+    /// 布局宁可按 100% 排，也不能因一次 DPI 查询失败而抛到 UI 线程。</summary>
+    /// <param name="monitor">目标显示器。</param>
+    /// <returns>横竖缩放倍率，均 &gt;= 1.0 之外的正常值；查询失败时为 (1.0, 1.0)。</returns>
+    public static (double Sx, double Sy) DpiScaleOf(MonitorInfo monitor)
+    {
+        double sx = 1.0, sy = 1.0;
+        try
+        {
+            Win32.GetDpiForMonitor(monitor.ResolveHMonitor(), Win32.DPI_EFFECTIVE, out uint dx, out uint dy);
+            if (dx > 0 && dy > 0) { sx = dx / 96.0; sy = dy / 96.0; }
+        }
+        catch { }
+        return (sx, sy);
+    }
+
     static long DistanceSq(RectI b, int x, int y)
     {
         long dx = Math.Max(b.X - x, Math.Max(x - b.Right, 0));

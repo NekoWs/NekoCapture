@@ -41,14 +41,7 @@ public sealed class WelcomeToast : Window
     WelcomeToast(string captureHotkey, string scopeHotkey)
     {
         Title = "FrameCapture Welcome";
-        FrameCapture.Core.Fluent.BorderlessNative(this, resizeBorder: 0);
-        ShowActivated = false;
-        ShowInTaskbar = false;
-        Topmost = true;
-        WindowStyle = WindowStyle.None;
-        ResizeMode = ResizeMode.NoResize;
-        SizeToContent = SizeToContent.WidthAndHeight;
-        Background = Brushes.Transparent;
+        Fluent.BorderlessOverlay(this);
 
         // 落点：主屏工作区右下角（靠托盘图标，让用户把「图标在这」和「怎么开始」联系起来）。
         // SystemParameters.WorkArea 已是 DIP 且排除任务栏，直接用作 Left/Top，无需 DPI 换算。

@@ -180,6 +180,24 @@ public static partial class Fluent
     }
     #endregion
 
+    #region 无边框浮窗外壳：不抢焦点 + 置顶 + 按内容自适应
+
+    /// <summary>无边框浮窗的公共外壳：原生无边框 + 不抢焦点 + 不占任务栏 + 置顶 + 不可调尺寸 + 按内容自适应 + 透明底。
+    /// 不抢焦点是刻意的——浮窗出现时目标窗口必须继续接收键盘与滚轮，否则用户正在操作的界面会断。</summary>
+    /// <param name="w">待配置的浮窗；属性按固定顺序赋值，<c>BorderlessNative</c> 必须最先。</param>
+    public static void BorderlessOverlay(Window w)
+    {
+        BorderlessNative(w, resizeBorder: 0);
+        w.ShowActivated = false;
+        w.ShowInTaskbar = false;
+        w.Topmost = true;
+        w.WindowStyle = WindowStyle.None;
+        w.ResizeMode = ResizeMode.NoResize;
+        w.SizeToContent = SizeToContent.WidthAndHeight;
+        w.Background = Brushes.Transparent;
+    }
+    #endregion
+
     #region 滑杆：细轨道 + 圆形滑块（悬停放大、光晕）
 
     /// <summary>细轨道 + 圆形滑块的滑杆样式，配色取主题默认（TrackBg / Accent）。</summary>
@@ -406,6 +424,31 @@ public static partial class Fluent
         };
         el.PreviewMouseLeftButtonDown += (_, _) => { if (hasBase) An(Blend(baseColor, Theme.Press), 70); };
         el.MouseUp += (_, _) => { if (hasBase) An(Blend(baseColor, Theme.Hover), 120); };
+    }
+
+    /// <summary>圆角按钮模板：底色/内衬走 TemplateBinding，内容居中，可选悬停淡出。</summary>
+    /// <param name="hoverFade">true = 悬停时整钮淡到 0.88；false = 悬停无变化。两种都要保留：
+    /// 倒计时钮要淡出反馈，滚动控制条的钮淡出会与其所在浮窗的透明度叠加。</param>
+    /// <returns>可直接赋给 <c>Button.Template</c> 的模板。</returns>
+    public static ControlTemplate RoundedButtonTemplate(bool hoverFade)
+    {
+        var t = new ControlTemplate(typeof(Button));
+        var border = new FrameworkElementFactory(typeof(Border));
+        border.SetValue(Border.BackgroundProperty, new TemplateBindingExtension(Control.BackgroundProperty));
+        border.SetValue(Border.CornerRadiusProperty, new CornerRadius(7));
+        border.SetValue(Border.PaddingProperty, new TemplateBindingExtension(Control.PaddingProperty));
+        var cp = new FrameworkElementFactory(typeof(ContentPresenter));
+        cp.SetValue(ContentPresenter.HorizontalAlignmentProperty, HorizontalAlignment.Center);
+        cp.SetValue(ContentPresenter.VerticalAlignmentProperty, VerticalAlignment.Center);
+        border.AppendChild(cp);
+        t.VisualTree = border;
+        if (hoverFade)
+        {
+            var hover = new Trigger { Property = UIElement.IsMouseOverProperty, Value = true };
+            hover.Setters.Add(new Setter(UIElement.OpacityProperty, 0.88));
+            t.Triggers.Add(hover);
+        }
+        return t;
     }
     #endregion
 

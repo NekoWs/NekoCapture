@@ -49,24 +49,11 @@ public sealed class CaptureToast : Window
     CaptureToast(CapturedFrame frame, RectI region, string monitorDevice, Action onEdit)
     {
         Title = "FrameCapture Toast";
-        FrameCapture.Core.Fluent.BorderlessNative(this, resizeBorder: 0);
-        ShowActivated = false;
-        ShowInTaskbar = false;
-        Topmost = true;
-        WindowStyle = WindowStyle.None;
-        ResizeMode = ResizeMode.NoResize;
-        SizeToContent = SizeToContent.WidthAndHeight;
-        Background = Brushes.Transparent;
+        Fluent.BorderlessOverlay(this);
 
         // 落点：物理像素决策 → 该显示器 DPI 换算 DIP（Show 前定好，无首帧闪烁）
         var mon = Monitors.ByDevice(monitorDevice) ?? Monitors.Nearest(region.X, region.Y);
-        double sx = 1.0, sy = 1.0;
-        try
-        {
-            Win32.GetDpiForMonitor(mon.ResolveHMonitor(), Win32.DPI_EFFECTIVE, out uint dx, out uint dy);
-            if (dx > 0 && dy > 0) { sx = dx / 96.0; sy = dy / 96.0; }
-        }
-        catch { }
+        var (sx, sy) = Monitors.DpiScaleOf(mon);
         var work = new RectI(mon.Bounds.X, mon.Bounds.Y, mon.Bounds.W, mon.Bounds.H);
         var pos = ToastPlace.Place(region, work, (int)(W * sx), (int)(EstH * sy));
         Left = pos.X / sx; Top = pos.Y / sy;
