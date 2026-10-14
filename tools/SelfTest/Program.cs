@@ -13,6 +13,8 @@ using System.Windows;
 
 using GE = GestureCore;
 using GEdit = GestureEditor;
+using SAP = FrameCapture.Core.ScrollAutoPolicy;
+using SAO = FrameCapture.Core.ScrollAutoObservation;
 
 static class SelfTest
 {
@@ -1928,6 +1930,65 @@ static class SelfTest
                 }
                 Chk("T119g-scroll-stitch 文字页重叠精确不丢行", tWrong == 0 && tLost == 0 && taccH == tBottom + 1 && tBad < 0,
                     $"错步={tWrong} 丢行={tLost} 期望高={tBottom + 1} 实际高={taccH} 首个错行={tBad}");
+            }
+            // SendInput 注入原语的 x64 结构体布局：尺寸算错时系统按 cbSize 读输入数组，畸形输入会让它读越界内存。
+            // 这条断言锁住布局，改结构体的人第一时间在这里撞回来。
+            {
+                int szIn = System.Runtime.InteropServices.Marshal.SizeOf<FrameCapture.Native.Win32.INPUT>();
+                int szMi = System.Runtime.InteropServices.Marshal.SizeOf<FrameCapture.Native.Win32.MOUSEINPUT>();
+                long offMi = System.Runtime.InteropServices.Marshal.OffsetOf<FrameCapture.Native.Win32.INPUT>("mi").ToInt64();
+                Chk("T168a-INPUT x64 布局 40 字节 mi@8",
+                    szIn == 40 && offMi == 8 && szMi == 32 && FrameCapture.Native.Win32.InputLayoutOk,
+                    $"sizeof(INPUT)={szIn} offsetof(INPUT.mi)={offMi} sizeof(MOUSEINPUT)={szMi} InputLayoutOk={FrameCapture.Native.Win32.InputLayoutOk}");
+            }
+            // 自动滚动步进策略（ScrollAutoPolicy 纯函数）：发一步 → 等这一步落定 → 再发下一步。
+            // 连续两帧一致才算停稳，按固定节拍连续注轮会让画面永远在动、一段都拼不上，节奏全靠这套决定撑住。
+            // 只喂观测序列，不注入任何真实滚轮。
+            {
+                var a = SAP.Next(false, 0, SAP.NotchStart, SAO.Appended);
+                Chk("T168b-拼上一段就接着发下一步", a.Inject && !a.Stop && a.Waiting && a.NoNew == 0 && a.Notch == 2,
+                    $"inject={a.Inject} stop={a.Stop} waiting={a.Waiting} noNew={a.NoNew} notch={a.Notch}");
+                var u = SAP.Next(true, 1, 3, SAO.Unsettled);
+                Chk("T168c-那一步没落定就沉默且状态不动", !u.Inject && !u.Stop && u.Waiting && u.NoNew == 1 && u.Notch == 3,
+                    $"inject={u.Inject} waiting={u.Waiting} noNew={u.NoNew} notch={u.Notch}");
+                var um = SAP.Next(false, 0, 2, SAO.Unsettled);
+                Chk("T168d-用户手动滚动时策略不代发滚轮", !um.Inject && !um.Stop && !um.Waiting,
+                    $"inject={um.Inject} stop={um.Stop} waiting={um.Waiting}");
+                // 注轮之后先撞上「还在动」的帧：这一拍必须沉默，落定那拍才拼上并发下一步
+                var w = SAP.Next(true, 0, 2, SAO.Unsettled);
+                var s = SAP.Next(w.Waiting, w.NoNew, w.Notch, SAO.Appended);
+                Chk("T168e-注轮后先沉默一拍再拼接再发", !w.Inject && w.Waiting && s.Inject && s.Waiting && s.NoNew == 0,
+                    $"unsettled inject={w.Inject} appended inject={s.Inject} noNew={s.NoNew}");
+                // 连续 BottomStreak 次「停稳且画面没变」才认到底，中间每拍仍按同步长发一步（惯性滚动、懒加载会先空几拍）
+                int k = 0, stopAt = 0;
+                bool stopped = false;
+                for (int i = 1; i <= SAP.BottomStreak + 1 && !stopped; i++)
+                {
+                    var d = SAP.Next(true, k, 2, SAO.NoNewContent);
+                    k = d.NoNew;
+                    if (d.Stop) { stopped = true; stopAt = i; break; }
+                    if (!d.Inject || !d.Waiting || d.Notch != 2) { stopAt = -i; break; }
+                }
+                Chk("T168f-连续四次画面没变才判到底", stopped && stopAt == SAP.BottomStreak && k == SAP.BottomStreak,
+                    $"stopped={stopped} 第 {stopAt} 次停（期望 {SAP.BottomStreak}） noNew={k}");
+                var e = SAP.Next(false, SAP.BottomStreak, 2, SAO.NoNewContent);
+                Chk("T168g-到底后不再注轮", !e.Inject && e.Stop && !e.Waiting,
+                    $"inject={e.Inject} stop={e.Stop} waiting={e.Waiting}");
+                var o = SAP.Next(true, 3, 4, SAO.NoOverlap);
+                Chk("T168h-滚过头减半重试且不记到底", o.Inject && o.Waiting && !o.Stop && o.Notch == 2 && o.NoNew == 0,
+                    $"notch={o.Notch} noNew={o.NoNew}（重试这一步不算到底）");
+                var o1 = SAP.Next(true, 0, SAP.NotchMin, SAO.NoOverlap);
+                Chk("T168i-减半重试不跌出下限", o1.Inject && o1.Notch == SAP.NotchMin, $"notch={o1.Notch}");
+                var t = SAP.Next(true, 2, 2, SAO.TinyStep);
+                Chk("T168j-一步太小加大一档重试", t.Inject && t.Waiting && !t.Stop && t.Notch == 3 && t.NoNew == 2,
+                    $"notch={t.Notch} noNew={t.NoNew}");
+                // 步长恒在 1..6：连发 TinyStep 顶到上限、连发 NoOverlap 触到下限，越界入参也被夹回来
+                int hi = SAP.NotchStart, lo = SAP.NotchStart;
+                for (int i = 0; i < 12; i++) { hi = SAP.Next(true, 0, hi, SAO.TinyStep).Notch; lo = SAP.Next(true, 0, lo, SAO.NoOverlap).Notch; }
+                var c = SAP.Next(false, -3, 99, SAO.Appended);
+                Chk("T168k-步长恒在 1..6 且越界入参被夹住",
+                    hi == SAP.NotchMax && lo == SAP.NotchMin && c.Notch == SAP.NotchMax && c.NoNew == 0,
+                    $"顶={hi}（期望 {SAP.NotchMax}） 底={lo}（期望 {SAP.NotchMin}） 越界入参 99→{c.Notch} noNew={c.NoNew}");
             }
 
             // 取色复制格式（，ColorFormat 纯函数）：HEX/RGB/HSL 文本 + 分量夹取 + 设置串解析往返
