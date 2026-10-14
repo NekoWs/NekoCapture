@@ -2373,7 +2373,7 @@ static class SelfTest
 
             var qq = GestureConfig.PresetQQ("Ctrl+Shift+G", "Ctrl+Shift+R");
             Chk("T131d-qq-preset", qq.Count == 2 && qq.All(x => x.Actions[0] == GestureActions.ScopeSelect),
-                "QQ 预设：两键均→选取范围（配合选完自动截图）");
+                "选区优先预设：两键均→选取范围（配合选完自动截图）");
 
             var cfg = new GestureConfig { Enabled = true, Bindings = GestureConfig.PresetHoldToRecord("F6", "F7") };
             var json = System.Text.Json.JsonSerializer.Serialize(cfg);

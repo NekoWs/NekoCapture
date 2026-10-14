@@ -232,7 +232,7 @@ public sealed partial class SettingsWindow : Window
         var opts = new (RecordFormat id, string text, string tip)[]
         {
             (RecordFormat.Gif, "GIF", "通用动图，任何地方都能放；受格式封顶约 50fps、体积大"),
-            (RecordFormat.Mp4, "MP4", "兼容性最好的视频格式（libx264），微信/浏览器/剪辑软件通吃 " + ffNote),
+            (RecordFormat.Mp4, "MP4", "兼容性最好的视频格式（libx264），浏览器/剪辑软件/社交平台通吃 " + ffNote),
             (RecordFormat.WebM, "WebM", "开源视频格式（VP9），同画质体积更小，网页/上传首选 " + ffNote),
         };
         var chipList = new List<(Border chip, RecordFormat id)>();

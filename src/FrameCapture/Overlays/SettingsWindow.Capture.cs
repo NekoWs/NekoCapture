@@ -22,7 +22,7 @@ public sealed partial class SettingsWindow : Window
         string cur = _settings.Current.ColorCopyFormat;
         var opts = new[]
         {
-            ("hex", "HEX", "#RRGGBB（QQ 同款，通用）"),
+            ("hex", "HEX", "#RRGGBB（通用格式）"),
             ("rgb", "RGB", "rgb(r, g, b)（直接贴进 CSS）"),
             ("hsl", "HSL", "hsl(h, s%, l%)（调色/设计常用）"),
         };
@@ -302,7 +302,7 @@ public sealed partial class SettingsWindow : Window
     static string SoundTip(int i) => i switch
     {
         0 => "静音：截图完成不放声音",
-        1 => "内置柔和「嘀」声（QQ 式听觉确认）",
+        1 => "内置柔和「嘀」声（听觉确认）",
         _ => "自定义提示音文件（ogg/wav）；点击可重新选择",
     };
 
