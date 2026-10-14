@@ -1,8 +1,29 @@
 <Solution>
   <Folder Name="/src/">
-    <Project Path="src/FrameCapture/FrameCapture.csproj" />
+    <Project Path="src/FrameCapture/FrameCapture.csproj">
+      <Platform Project="x64" />
+    </Project>
+    <Project Path="src/GestureCore/GestureCore.csproj" />
+    <Project Path="src/GestureEditor/GestureEditor.csproj">
+      <Platform Project="x64" />
+    </Project>
   </Folder>
   <Folder Name="/tools/">
-    <Project Path="tools/SelfTest/SelfTest.csproj" />
+    <Project Path="tools/GifCheck/GifCheck.csproj">
+      <Platform Project="x64" />
+    </Project>
+    <Project Path="tools/GlyphProbe/GlyphProbe.csproj" />
+    <Project Path="tools/OcrProbe/OcrProbe.csproj" />
+    <Project Path="tools/SelfTest/SelfTest.csproj">
+      <Platform Project="x64" />
+    </Project>
+    <Project Path="tools/Shot/Shot.csproj">
+      <Platform Project="x64" />
+    </Project>
+    <Project Path="tools/SliderProbe/SliderProbe.csproj" />
+    <Project Path="tools/UICap/UICap.csproj" />
+    <Project Path="tools/UiProbe/UiProbe.csproj">
+      <Platform Project="x64" />
+    </Project>
   </Folder>
 </Solution>

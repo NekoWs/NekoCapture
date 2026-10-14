@@ -29,7 +29,8 @@ foreach (var f2 in frames)
 {
     try
     {
-        var d = f2.Metadata?.GetQuery("/delay");
+        // 帧元数据的静态类型是 ImageMetadata，取查询串要落到 BitmapMetadata 上
+        var d = (f2.Metadata as BitmapMetadata)?.GetQuery("/delay");
         Console.Write($"d={d} ");
     }
     catch (Exception ex) { Console.Write("dx " + ex.GetType().Name + " "); }
