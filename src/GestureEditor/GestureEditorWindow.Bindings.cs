@@ -271,7 +271,7 @@ public sealed partial class GestureEditorWindow : Window
         if (_selected < 0 || _selected >= _doc.Bindings.Count) return;
         var b = _doc.Bindings[_selected];
         var s = b.Chord.Format(_namer);
-        _chordText.Text = _capturing ? "按下新键…（Esc 取消）" : (string.IsNullOrEmpty(s) ? "点击设置" : s);
+        _chordText.Text = _capturing ? "按下新键 · Esc 取消" : (string.IsNullOrEmpty(s) ? "点击设置" : s);
         _chordText.Foreground = _pal.B(_capturing ? _pal.Accent : _pal.Text);
         if (_chordStroke != null)
             AnimateColor(_chordStroke, _capturing || _chordHover || _chordFocus ? _pal.Accent : _pal.Stroke, Motion.HoverMs);

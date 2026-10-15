@@ -45,7 +45,7 @@ public sealed partial class SettingsWindow : Window
     {
         var g = Row();
         g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); // 色片列
-        g.Children.Add(IconText("\uE790", "强调色：全应用高亮色（编辑器选中、开关、滑杆、进度）"));
+        g.Children.Add(IconText("\uE790", "强调色：编辑器选中、开关、滑杆、进度都用它"));
         var lbl = new TextBlock
         {
             Text = "强调色",
@@ -68,7 +68,7 @@ public sealed partial class SettingsWindow : Window
             VerticalAlignment = VerticalAlignment.Center,
             Cursor = Cursors.Hand,
             Focusable = true,
-            ToolTip = "点击自定义强调色（与编辑器调色板同款）；右键恢复跟随系统",
+            ToolTip = "点击自定义强调色，取色器与编辑器同款；右键恢复跟随系统",
         };
         Grid.SetColumn(chip, 2);
         Fluent.ChipHover(chip);   // 悬停只改底色带过渡，不缩放
@@ -128,7 +128,7 @@ public sealed partial class SettingsWindow : Window
 
     FrameworkElement ThemeRow()
     {
-        var g = ChipRow("\uE793", "主题（跟随系统 / 浅色 / 深色）", "外观主题");
+        var g = ChipRow("\uE793", "主题", "外观主题");
         var chips = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
         Grid.SetColumn(chips, 2);
         string cur = _settings.Current.Theme;

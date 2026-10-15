@@ -46,7 +46,7 @@ public static class GestureValidation
 
             var k = ((int)b.Mods, b.Key, b.Trigger);
             if (!seen.Add(k))
-                list.Add(new BindingProblem(b.Id, $"组合键+触发与另一条重复（{b.Chord.Format(namer)}）：会按优先级顺延，确认是有意为之", false));
+                list.Add(new BindingProblem(b.Id, $"组合键 {b.Chord.Format(namer)} 与另一条重复：会按优先级顺延，确认是有意为之", false));
         }
         return list;
     }

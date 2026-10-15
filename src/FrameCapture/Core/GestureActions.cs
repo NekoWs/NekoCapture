@@ -57,22 +57,22 @@ public static class GestureActions
     /// <summary>全部可用动作（顺序即建议展示顺序）。GestureInvoker 必须覆盖每一个，否则该动作视为未实现（执行失败）。</summary>
     public static readonly GestureAction[] All =
     {
-        new(CaptureFrame, "全屏即时截图", "按下立即抓光标所在屏幕全屏当下这一帧（无选区、无延时、不抢焦点，适合游戏）", true),
-        new(ScopeSelect, "选区", "进入交互式选区（选一块区域）", true),
+        new(CaptureFrame, "全屏即时截图", "按下立即抓光标所在屏幕的当下这一帧，不走选区、不带延时、不抢焦点，适合游戏", true),
+        new(ScopeSelect, "选区", "拖框选一块区域", true),
         new(CaptureSelection, "选区截图", "先选一块区域，选完立即截静态图", true),
-        new(RecordStart, "开始录制", "对当前范围开始录制（录到停止为止）"),
-        new(RecordStop, "停止录制", "停止录制（产物留在内存，不进编辑器；要进编辑器请在「完成后序列」加『打开编辑器』）"),
-        new(RecordToggle, "开始/停止录制", "空闲→选区起录；录制中→停止（不进编辑器，进编辑器请在完成后序列加『打开编辑器』）"),
-        new(RecordSelection, "选区录制", "先选一块区域，选完立即录制该区域（只起录，不含停止）"),
+        new(RecordStart, "开始录制", "对当前范围开始录制，直到收到停止"),
+        new(RecordStop, "停止录制", "停止录制，产物留在内存不进编辑器；要进编辑器请在「完成后序列」加『打开编辑器』"),
+        new(RecordToggle, "开始/停止录制", "空闲→选区起录；录制中→停止。不进编辑器，要进编辑器请在完成后序列加『打开编辑器』"),
+        new(RecordSelection, "选区录制", "先选一块区域，选完立即起录该区域，停止另配一条"),
         new(ScrollCapture, "滚动截图", "对当前范围做滚动长截图", true),
-        new(DelayedCapture, "延时截图", "倒数数秒后截当前范围（抓一动就没的菜单/悬停）", true),
+        new(DelayedCapture, "延时截图", "倒数数秒后截当前范围，用来抓一点就消失的菜单和悬停", true),
         new(EditLastStill, "编辑上次截图", "打开标注编辑器编辑上一次静图"),
-        new(EditLastVideo, "打开编辑器", "打开视频编辑器编辑上一次录制（常配在『完成后序列』，让停止录制后再进编辑器）"),
+        new(EditLastVideo, "打开编辑器", "打开视频编辑器编辑上一次录制，常配在『完成后序列』，让停止录制后再进编辑器"),
         new(OcrSelection, "识别文字", "对当前范围做 OCR：开「识别后显示结果窗」则弹可编辑结果窗，否则直接复制文本", true),
         new(PinSelection, "贴图当前选区", "把当前范围钉成贴图"),
         new(SettingsOpen, "打开设置", "打开设置窗口"),
         new(HelpOpen, "打开帮助", "打开使用说明窗口"),
-        new(GestureEdit, "手势配置器", "打开可视化手势/键位配置器（增删改绑定、实时校验、保存即生效）"),
+        new(GestureEdit, "手势配置器", "打开可视化键位配置器，增删改绑定、实时校验、保存即生效"),
     };
 
     static readonly HashSet<string> Names =

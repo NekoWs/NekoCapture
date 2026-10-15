@@ -60,7 +60,7 @@ public static class OcrService
     public static string Feedback(OcrStatus status, int textLen) => status switch
     {
         OcrStatus.Success => $"已识别 {textLen} 字 · 已复制",
-        OcrStatus.NoEngine => "未安装 OCR 语言包（设置 › 时间和语言 › 语音）",
+        OcrStatus.NoEngine => "未安装 OCR 语言包，请到 设置 › 时间和语言 › 语音 添加",
         _ => "未识别到文字",
     };
 

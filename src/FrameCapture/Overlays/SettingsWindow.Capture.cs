@@ -22,9 +22,9 @@ public sealed partial class SettingsWindow : Window
         string cur = _settings.Current.ColorCopyFormat;
         var opts = new[]
         {
-            ("hex", "HEX", "#RRGGBB（通用格式）"),
-            ("rgb", "RGB", "rgb(r, g, b)（直接贴进 CSS）"),
-            ("hsl", "HSL", "hsl(h, s%, l%)（调色/设计常用）"),
+            ("hex", "HEX", "#RRGGBB 通用格式"),
+            ("rgb", "RGB", "rgb(r, g, b) 可直接贴进 CSS"),
+            ("hsl", "HSL", "hsl(h, s%, l%) 调色和设计常用"),
         };
         var chipList = new List<(Border chip, string id)>();
         foreach (var (id, text, tip) in opts)
@@ -83,7 +83,7 @@ public sealed partial class SettingsWindow : Window
             BorderBrush = new SolidColorBrush(Theme.Stroke),
             BorderThickness = new Thickness(1),
             Child = new StackPanel { Orientation = Orientation.Horizontal, Children = { box, unit } },
-            ToolTip = "自定义：输入任意秒数（1–120），回车或移开焦点生效",
+            ToolTip = "自定义：输入 1–120 任意秒数，回车或移开焦点生效",
             Cursor = Cursors.Hand,
         };
         customBox.MouseLeftButtonUp += (_, _) => { box.Focus(); box.SelectAll(); };
@@ -165,7 +165,7 @@ public sealed partial class SettingsWindow : Window
             BorderBrush = new SolidColorBrush(Theme.Stroke),
             BorderThickness = new Thickness(1),
             Child = new StackPanel { Orientation = Orientation.Horizontal, Children = { box, unit } },
-            ToolTip = "自定义：输入任意秒数（0.5–60，0=常驻），回车或移开焦点生效",
+            ToolTip = "自定义：输入 0.5–60 任意秒数，0 为常驻，回车或移开焦点生效",
             Cursor = Cursors.Hand,
         };
         customBox.MouseLeftButtonUp += (_, _) => { box.Focus(); box.SelectAll(); };
@@ -221,7 +221,7 @@ public sealed partial class SettingsWindow : Window
     {
         var g = Row();
         g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); // 控件列
-        g.Children.Add(IconText("\uE767", "静态截图完成时的听觉确认。关闭=静音；轻弹=内置柔和「嘀」；自定义…=选一个 ogg/wav 文件（wav 最稳，ogg 需系统解码器，播不了会自动回退轻弹）。随时可「试听」"));
+        g.Children.Add(IconText("\uE767", "静态截图完成时的听觉确认。关闭=静音；轻弹=内置柔和「嘀」；自定义…=选一个 ogg 或 wav 文件，wav 最稳，ogg 需系统解码器，播不了会自动回退轻弹。随时可「试听」"));
         var lbl = new TextBlock
         {
             Text = "截图提示音",
@@ -246,7 +246,7 @@ public sealed partial class SettingsWindow : Window
             Background = new SolidColorBrush(Theme.Hover),
             Child = new TextBlock { Text = "试听", FontSize = 12.5, Foreground = new SolidColorBrush(Theme.Text), VerticalAlignment = VerticalAlignment.Center },
             Cursor = Cursors.Hand,
-            ToolTip = "点一下试听当前提示音（选「自定义…」后也会立刻放一声让你确认）",
+            ToolTip = "点一下试听当前提示音，选「自定义…」后也会立刻放一声让你确认",
             Focusable = true,
         };
         void DoPreview() => CaptureSound.Play(
@@ -277,7 +277,7 @@ public sealed partial class SettingsWindow : Window
             {
                 var dlg = new Microsoft.Win32.OpenFileDialog
                 {
-                    Title = "选择提示音（ogg / wav）",
+                    Title = "选择提示音",
                     Filter = "提示音 (*.ogg;*.wav)|*.ogg;*.wav|所有文件 (*.*)|*.*",
                     CheckFileExists = true,
                 };
@@ -302,8 +302,8 @@ public sealed partial class SettingsWindow : Window
     static string SoundTip(int i) => i switch
     {
         0 => "静音：截图完成不放声音",
-        1 => "内置柔和「嘀」声（听觉确认）",
-        _ => "自定义提示音文件（ogg/wav）；点击可重新选择",
+        1 => "内置柔和「嘀」声，作听觉确认",
+        _ => "自定义提示音文件 ogg / wav，点击可重新选择",
     };
 
     /// <summary>手势编辑器同款下拉/输入样式的配色（lib 不引用宿主，配色由宿主注入）。</summary>

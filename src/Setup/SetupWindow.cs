@@ -197,7 +197,7 @@ internal sealed class SetupWindow : Window
         }
 
         _cardText.Text = found == null
-            ? "缺少 .NET Desktop Runtime，需要从微软官网下载（约 56 MB）"
+            ? "缺少 .NET Desktop Runtime，需要从微软官网下载约 56 MB"
             : "已装的 .NET Desktop Runtime " + found + " 版本过低，需要下载所需版本";
         _cardText.Foreground = new SolidColorBrush(Theme.Accent);
         _card.Visibility = Visibility.Visible;
@@ -212,7 +212,7 @@ internal sealed class SetupWindow : Window
         if (uninstall) return "将删除  " + InstallEngine.InstallDir + "、开始菜单快捷方式、开机自启与个人设置";
         var machineWide = string.Equals(InstallEngine.InstallDir, InstallEngine.DefaultInstallDir,
             StringComparison.OrdinalIgnoreCase);
-        return "目标位置  " + InstallEngine.InstallDir + (machineWide ? "（所有用户可用）" : "");
+        return "目标位置  " + InstallEngine.InstallDir + (machineWide ? " · 所有用户可用" : "");
     }
 
     /// <summary>换安装位置。挑的位置装不了就在同一行写明白，界面那行始终说真话。</summary>

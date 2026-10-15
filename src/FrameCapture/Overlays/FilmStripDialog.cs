@@ -57,15 +57,15 @@ public sealed class FilmStripDialog : Window
         root.Children.Add(new TextBlock { Text = "生成胶片条", FontSize = 15, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(Theme.Text) });
         root.Children.Add(new TextBlock
         {
-            Text = $"从当前录制（含裁剪/标注，共 {totalFrames} 帧）抽样拼成一张逐帧图，确定后复制到剪贴板",
+            Text = $"从当前录制抽样拼成一张逐帧图，含裁剪与标注，共 {totalFrames} 帧，确定后复制到剪贴板",
             FontSize = 12, Foreground = new SolidColorBrush(Theme.TextDim),
             Margin = new Thickness(0, 3, 0, 12), TextWrapping = TextWrapping.Wrap,
         });
 
         var fBox = NumBox(frames.ToString());
         var nBox = NumBox(everyN.ToString());
-        root.Children.Add(ParamRow("抽帧数", fBox, "帧（2–48：步长取完还多则均匀稀释到此数）"));
-        root.Children.Add(ParamRow("每 N 帧取一次", nBox, "帧（1 = 逐帧取；2 = 隔帧取）"));
+        root.Children.Add(ParamRow("抽帧数", fBox, "帧 · 2–48，步长取完还多则均匀稀释到此数"));
+        root.Children.Add(ParamRow("每 N 帧取一次", nBox, "帧 · 1 逐帧取，2 隔帧取"));
 
         var btns = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 14, 0, 0) };
         var cancel = ChipBtn("取消", accent: false);

@@ -306,7 +306,7 @@ public sealed partial class EditorWindow : Window
                 return Drawing.Bake.Apply(fs, outAnns);
             });
             var img = AgentStrip.Render(baked, idxs);
-            try { Clipboard.SetImage(img); ShowSnack($"胶片条已复制（{idxs.Count} 帧）"); }
+            try { Clipboard.SetImage(img); ShowSnack($"胶片条已复制 · {idxs.Count} 帧"); }
             catch { ShowSnack("剪贴板被占用，生成失败"); }
             Trace.Log($"filmstrip {idxs.Count}/{count} frames every={every}");
         }
@@ -354,7 +354,7 @@ public sealed partial class EditorWindow : Window
         {
             if (FfmpegLocator.Find() == null)
             {
-                _hud.Text = "未找到 ffmpeg，无法导出视频 — 安装方法见帮助（按 F1）";
+                _hud.Text = "未找到 ffmpeg，无法导出视频 — 安装方法见帮助，按 F1";
                 return;
             }
             var fmt = ext == ".mp4" ? VideoFormat.Mp4 : VideoFormat.WebM;

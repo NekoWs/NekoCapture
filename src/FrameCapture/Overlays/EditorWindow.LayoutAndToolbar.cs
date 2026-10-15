@@ -145,7 +145,7 @@ public sealed partial class EditorWindow : Window
             int fps = _fps;
             var bPrevSec = IconBtn("\uF8AC", "上一秒 (Shift+←)"); bPrevSec.Click += (_, _) => Step(-fps);
             var bPrev = IconBtn("\uF08D", "上一帧 (←)"); bPrev.Click += (_, _) => Step(-1);
-            _bPlay = IconBtn("\uF5B0", "播放/暂停 (空格)"); _bPlay.Click += (_, _) => TogglePlay();
+            _bPlay = IconBtn("\uF5B0", "播放/暂停 · 空格"); _bPlay.Click += (_, _) => TogglePlay();
             var bNext = IconBtn("\uF08F", "下一帧 (→)"); bNext.Click += (_, _) => Step(+1);
             var bNextSec = IconBtn("\uF8AD", "下一秒 (Shift+→)"); bNextSec.Click += (_, _) => Step(+fps);
             foreach (var b in new FrameworkElement[] { bPrevSec, bPrev, _bPlay, bNext, bNextSec }) transport.Children.Add(b);

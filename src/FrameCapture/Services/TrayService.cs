@@ -43,7 +43,7 @@ public sealed class TrayService : IDisposable
         var s = _host.Settings.Current;
         if (Services.HotkeyManager.Paused) // 暂停态一眼可见，避免用户以为热键失灵
         {
-            _icon.Text = "FrameCapture · 已暂停（热键让位其他软件）";
+            _icon.Text = "FrameCapture · 已暂停，热键让位其他软件";
             return;
         }
         string region = s.RegionW >= 16 ? $"范围 {s.RegionW}×{s.RegionH} · {s.Fps}fps" : "未设范围 · 双击图标设置";
@@ -99,11 +99,11 @@ public sealed class TrayService : IDisposable
         if (_host.Controller.HasLastStill)
             Item("编辑上次截图", () => _host.Controller.EditLastStill());
         Item("滚动截图", () => _host.Controller.BeginScrollCapture());
-        Item($"延时截图（{_host.Settings.Current.DelayCaptureSeconds} 秒）", () => _host.Controller.BeginDelayedCapture());
+        Item("延时截图", () => _host.Controller.BeginDelayedCapture());
         Item("从剪贴板贴图", () =>
         {
             if (!_host.Controller.PinFromClipboard())
-                Notify("剪贴板里没有图片——先复制一张图片（截图/图片文件/网页图）再试");
+                Notify("剪贴板里没有图片——先复制一张截图、图片或网页图再试");
         });
         // 开了自动保存后，用户常想知道文件落到哪——直接打开保存目录
         if (_host.Settings.Current.AutoSaveCopy)

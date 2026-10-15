@@ -273,7 +273,7 @@ public sealed class HelpWindow : Window
         {
             ("\uE945", "快速上手", "定范围 → 触发 → 复制。", p =>
             {
-                KV(p, KeysFor(GestureActions.ScopeSelect), "设置捕获范围（拖框或点窗口）");
+                KV(p, KeysFor(GestureActions.ScopeSelect), "设置捕获范围 · 拖框或点窗口");
                 KV(p, KeysFor(GestureActions.CaptureFrame, GestureActions.CaptureSelection), "截图：截完自动进剪贴板");
                 KV(p, KeysFor(GestureActions.RecordToggle, GestureActions.RecordStart, GestureActions.RecordStop), "录制：按住起录，松手停");
                 KV(p, "Enter / Esc", "编辑器里：确定复制 / 取消");
@@ -301,7 +301,7 @@ public sealed class HelpWindow : Window
 
             ("\uE714", "录制", "按住录，松手成片。", p =>
             {
-                KV(p, "按住 / 松开", "起录 / 停止（REC 红徽标=正在录）");
+                KV(p, "按住 / 松开", "起录 / 停止 · REC 红徽标表示正在录");
                 KV(p, "帧率", "手动 10–240；开「跟随显示器刷新率」自动录满高刷");
                 KV(p, "格式", "GIF 通用；MP4 / WebM 需 ffmpeg");
                 KV(p, "录完", "自动进编辑器预览，Enter 复制成片");
@@ -310,7 +310,7 @@ public sealed class HelpWindow : Window
 
             ("\uE70F", "编辑器", "看、剪、标、复制。", p =>
             {
-                KV(p, "空格 / ←→", "播放暂停 / 逐帧（Shift 一秒）");
+                KV(p, "空格 / ←→", "播放暂停 / 逐帧 · Shift 走一秒");
                 KV(p, "Ctrl+滚轮", "缩放；1:1 看像素");
                 KV(p, "[ 和 ]", "掐头 / 去尾，只导出要的一段");
                 KV(p, "Enter / Esc", "确定复制成片 / 取消");
@@ -325,7 +325,7 @@ public sealed class HelpWindow : Window
                 KV(p, "Ctrl+P", "编辑器里把当前帧钉到屏幕");
                 KV(p, "滚轮 / +/-", "缩放贴图 / 调透明度");
                 KV(p, "拖动", "「贴图窗口吸附」：贴齐屏幕边、其他贴图、任意窗口边");
-                KV(p, "Esc / 右键", "关闭 / 菜单（存盘、识字、复制）");
+                KV(p, "Esc / 右键", "关闭 / 右键菜单存盘、识字、复制");
                 Note(p, "吸附开关在设置「贴图」页。");
             }),
 
@@ -363,7 +363,7 @@ public sealed class HelpWindow : Window
             g.Children.Add(sym); g.Children.Add(name); g.Children.Add(help);
             p.Children.Add(g);
         }
-        p.Children.Add(new TextBlock { Text = $"再按一次工具键或 {ToolCatalog.ExitKey} 退出绘制；滚轮调粗细（文字调字号）；Alt 吸色。", FontSize = 11.5, Foreground = new SolidColorBrush(Theme.TextDim), Margin = new Thickness(2, 6, 0, 0), TextWrapping = TextWrapping.Wrap });
+        p.Children.Add(new TextBlock { Text = $"再按一次工具键或 {ToolCatalog.ExitKey} 退出绘制；滚轮调粗细，文字工具调字号；Alt 吸色。", FontSize = 11.5, Foreground = new SolidColorBrush(Theme.TextDim), Margin = new Thickness(2, 6, 0, 0), TextWrapping = TextWrapping.Wrap });
     }
     #endregion
 
