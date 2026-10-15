@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
 using GestureCore;
@@ -38,10 +39,25 @@ public sealed partial class GestureEditorWindow : Window
 
     BindingRow BuildRow(BindingEdit b)
     {
-        var head = new TextBlock { FontSize = 12.5, FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap };
+        var head = new WrapPanel();
+        TextElement.SetFontWeight(head, FontWeights.SemiBold);
+        TextElement.SetForeground(head, _pal.B(_pal.Text));
         var body = new TextBlock { FontSize = 11.5, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 0) };
-        var chord = b.Chord.Format(_namer);
-        head.Text = (string.IsNullOrEmpty(chord) ? "未设键" : chord) + " · " + TriggerLabel(b.Trigger);
+        head.Children.Add(Keycaps.Row(b.Chord.Format(_namer), new KeycapTheme
+        {
+            Ghost = true,
+            Text = _pal.Text,
+            Stroke = _pal.Stroke,
+            Plus = _pal.TextDim,
+            Size = 12,
+        }, "未设键"));
+        head.Children.Add(new TextBlock
+        {
+            Text = "· " + TriggerLabel(b.Trigger),
+            FontSize = 12.5,
+            Margin = new Thickness(6, 0, 0, 0),
+            VerticalAlignment = VerticalAlignment.Center,
+        });
         var acts = b.Actions.Count == 0 ? "无动作" : string.Join(" → ", b.Actions.Select(ActionLabel));
         if (b.OnComplete.Count > 0) acts += "  ⟶ 完成后: " + string.Join(" → ", b.OnComplete.Select(ActionLabel));
         body.Text = acts;
@@ -63,7 +79,7 @@ public sealed partial class GestureEditorWindow : Window
             r.Enabled = !has || _doc.Bindings[i].Enabled;
             AnimBrush(r.Card.Background as SolidColorBrush, sel ? _pal.Accent : _pal.CardBg, br => r.Card.Background = br);
             AnimBrush(r.Card.BorderBrush as SolidColorBrush, r.Problem ? Danger : (sel ? _pal.Accent : _pal.Stroke), br => r.Card.BorderBrush = br);
-            AnimBrush(r.Head.Foreground as SolidColorBrush, sel ? _pal.OnAccent() : (r.Enabled ? _pal.Text : _pal.TextDim), br => r.Head.Foreground = br);
+            AnimBrush(TextElement.GetForeground(r.Head) as SolidColorBrush, sel ? _pal.OnAccent() : (r.Enabled ? _pal.Text : _pal.TextDim), br => TextElement.SetForeground(r.Head, br));
             AnimBrush(r.Body.Foreground as SolidColorBrush, sel ? _pal.OnAccent() : _pal.TextDim, br => r.Body.Foreground = br);
             r.Body.Opacity = r.Enabled || sel ? 1.0 : 0.6;
         }
@@ -129,7 +145,8 @@ public sealed partial class GestureEditorWindow : Window
         _chordStroke = new SolidColorBrush(_pal.Stroke); _chordBox.BorderBrush = _chordStroke;
         _chordHover = _chordFocus = false;
         _chordText = new TextBlock { Foreground = _pal.B(_pal.Text), FontSize = 14 };
-        _chordBox.Child = _chordText;
+        _chordHost = new Grid();
+        _chordBox.Child = _chordHost;
         UpdateChordText();
         _chordBox.MouseLeftButtonDown += (_, _) => BeginCapture();
         _chordBox.KeyDown += (_, e) => { if (!_capturing && e.Key is Key.Space or Key.Enter) { BeginCapture(); e.Handled = true; } };
@@ -265,14 +282,37 @@ public sealed partial class GestureEditorWindow : Window
         _afterSec.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
     }
 
-    /// <summary>回显当前组合键：捕获中显示等待提示并转 accent，未设键显示占位文案，描边随捕获/悬停/聚焦转 accent。</summary>
+    /// <summary>回显当前组合键：已设键渲染成键帽排，捕获中显示等待提示并转 accent，未设键显示占位文案，
+    /// 描边随捕获/悬停/聚焦转 accent。</summary>
     void UpdateChordText()
     {
         if (_selected < 0 || _selected >= _doc.Bindings.Count) return;
         var b = _doc.Bindings[_selected];
         var s = b.Chord.Format(_namer);
-        _chordText.Text = _capturing ? "按下新键 · Esc 取消" : (string.IsNullOrEmpty(s) ? "点击设置" : s);
-        _chordText.Foreground = _pal.B(_capturing ? _pal.Accent : _pal.Text);
+        _chordHost.Children.Clear();
+        if (_capturing)
+        {
+            _chordText.Text = "按下新键 · Esc 解绑";
+            _chordText.Foreground = _pal.B(_pal.Accent);
+            _chordHost.Children.Add(_chordText);
+        }
+        else if (string.IsNullOrEmpty(s))
+        {
+            _chordText.Text = "点击设置";
+            _chordText.Foreground = _pal.B(_pal.TextDim);
+            _chordHost.Children.Add(_chordText);
+        }
+        else
+        {
+            _chordHost.Children.Add(Keycaps.Row(s, new KeycapTheme
+            {
+                Face = Keycaps.Lift(_pal.CardBg, _pal.Hover),
+                Text = _pal.Text,
+                Stroke = _pal.Stroke,
+                Plus = _pal.TextDim,
+                Size = 13,
+            }));
+        }
         if (_chordStroke != null)
             AnimateColor(_chordStroke, _capturing || _chordHover || _chordFocus ? _pal.Accent : _pal.Stroke, Motion.HoverMs);
     }
@@ -300,7 +340,7 @@ public sealed partial class GestureEditorWindow : Window
     }
 
     /// <summary>录键态下整段吞掉按键，按「修饰键 + 一个主键」判定是否录成：
-    /// Esc 取消；纯修饰键不算录成，继续等主键；F1–F24 允许裸按且强制清空修饰键；
+    /// Esc 解绑这条绑定；纯修饰键不算录成，继续等主键；F1–F24 允许裸按且强制清空修饰键；
     /// 其余键必须带至少一个修饰键，否则等于把普通输入劫持成热键。录成即写入选中绑定并退出捕获。
     /// 非录键态只拦 Esc：取消关闭，走 Closing 的淡出退场，与「取消」钮同一路径。</summary>
     /// <param name="e">预览按键事件；录键态下一律置 Handled，不让按键冒泡到其它控件。</param>
@@ -309,7 +349,19 @@ public sealed partial class GestureEditorWindow : Window
         if (_capturing)
         {
             e.Handled = true;
-            if (e.Key == Key.Escape) { EndCapture(); return; }
+            if (e.Key == Key.Escape)
+            {
+                // Esc 解绑：清空这条绑定的主键与修饰键，保存后这条动作不占任何键
+                if (_selected >= 0 && _selected < _doc.Bindings.Count)
+                {
+                    var un = _doc.Bindings[_selected];
+                    un.Mods = GcMods.None;
+                    un.Key = 0;
+                }
+                EndCapture();
+                RefreshList(); ShowDetail(); RefreshValidation();
+                return;
+            }
             if (e.Key is Key.LeftCtrl or Key.RightCtrl or Key.LeftShift or Key.RightShift
                 or Key.LeftAlt or Key.RightAlt or Key.LWin or Key.RWin) return; // 等主键
             var mods = e.KeyboardDevice.Modifiers;

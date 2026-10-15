@@ -6,6 +6,7 @@ using System.Windows.Media.Animation;
 using FrameCapture.Core;
 using FrameCapture.Native;
 using FrameCapture.Services;
+using GE = GestureEditor;
 
 namespace FrameCapture.Overlays;
 
@@ -129,15 +130,32 @@ public sealed partial class SettingsWindow : Window
             Padding = new Thickness(12, 10, 12, 10),
         };
         var keyStack = new StackPanel();
-        void KeyRow(string label, string key)
+        var capTheme = new GE.KeycapTheme
         {
-            var row = new Grid { Margin = new Thickness(0, 2, 0, 2) };
+            Face = Fluent.KeycapFace(),
+            Text = Theme.Text,
+            Stroke = Theme.Stroke,
+            Plus = Theme.TextDim,
+        };
+        void KeyRow(string label, string chord, string trigger)
+        {
+            var row = new Grid { Margin = new Thickness(0, 3, 0, 3) };
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            var lb = new TextBlock { Text = label, Foreground = new SolidColorBrush(Theme.TextDim), FontSize = 12.5, VerticalAlignment = VerticalAlignment.Center };
-            var kv = new TextBlock { Text = key, Foreground = new SolidColorBrush(Fluent.AccentText()), FontSize = 13, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center };
-            Grid.SetColumn(lb, 0); Grid.SetColumn(kv, 1);
-            row.Children.Add(lb); row.Children.Add(kv);
+            var lb = new TextBlock { Text = label, Foreground = new SolidColorBrush(Theme.TextDim), FontSize = 12.5, VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.Wrap };
+            var right = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+            right.Children.Add(GE.Keycaps.Row(chord, capTheme, "未设键"));
+            if (trigger.Length > 0)
+                right.Children.Add(new TextBlock
+                {
+                    Text = trigger,
+                    FontSize = 12,
+                    Foreground = new SolidColorBrush(Theme.TextDim),
+                    Margin = new Thickness(7, 0, 0, 0),
+                    VerticalAlignment = VerticalAlignment.Center,
+                });
+            Grid.SetColumn(lb, 0); Grid.SetColumn(right, 1);
+            row.Children.Add(lb); row.Children.Add(right);
             keyStack.Children.Add(row);
         }
         // 逐条列出用户真实绑定（动作→键）：手势可自定义，固定「截图键/选区键」两槽会漏掉录制键，
@@ -146,14 +164,10 @@ public sealed partial class SettingsWindow : Window
             .Where(b => b.Enabled && b.Actions.Length > 0 && HotkeySpec.Parse(b.Chord) != null)
             .ToList();
         if (active.Count == 0)
-            KeyRow("键位", "未配置");
+            KeyRow("键位", "", "");
         else
             foreach (var b in active)
-            {
-                var suf = GestureConfig.TriggerLabel(b.Trigger);
-                KeyRow(string.Join("·", b.Actions.Select(GestureActions.LabelOf)),
-                       b.Chord + (suf.Length > 0 ? " " + suf : ""));
-            }
+                KeyRow(string.Join("·", b.Actions.Select(GestureActions.LabelOf)), b.Chord, GestureConfig.TriggerLabel(b.Trigger));
         keyCard.Child = keyStack;
         Fluent.Elevate(keyCard, blur: 24, depth: 6);
         panel.Children.Add(keyCard);

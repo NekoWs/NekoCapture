@@ -37,6 +37,7 @@ public sealed partial class GestureEditorWindow : Window
     Button _saveBtn = null!;
     Border _chordBox = null!;
     TextBlock _chordText = null!;
+    Grid _chordHost = null!;   // 录键框内容位：键帽排与提示文字在这里换进换出
 
     // 列表卡片化（选中/问题红框/禁用置灰逐行自绘）+「截图后」条件显示 + 输入框/按钮过渡动画
     static readonly Color Danger = Color.FromRgb(0xFF, 0x6B, 0x6B);
@@ -46,11 +47,12 @@ public sealed partial class GestureEditorWindow : Window
     SolidColorBrush _chordStroke = null!;
     bool _chordHover, _chordFocus;
 
-    /// <summary>左侧一条绑定的卡片行——选中=accent 底+明度自适应字色，问题=红框，禁用=muted 灰字。</summary>
+    /// <summary>左侧一条绑定的卡片行——选中=accent 底+明度自适应字色，问题=红框，禁用=muted 灰字。
+    /// Head 是容器：键帽排与触发方式文字共用一个继承下来的字色，三态切换只需动画这一个属性。</summary>
     sealed class BindingRow
     {
         public Border Card = null!;
-        public TextBlock Head = null!;
+        public Panel Head = null!;
         public TextBlock Body = null!;
         public bool Problem, Enabled = true;
     }
@@ -58,7 +60,7 @@ public sealed partial class GestureEditorWindow : Window
     /// <summary>开始捕获组合键时触发：宿主必须在此暂停全局键盘钩子，否则要录的组合键会被宿主自己的钩子吞掉。</summary>
     public event Action? ChordCaptureBegan;
 
-    /// <summary>组合键捕获结束（录成新键或 Esc 取消）时触发：宿主在此恢复全局键盘钩子。</summary>
+    /// <summary>组合键捕获结束（录成新键或 Esc 解绑）时触发：宿主在此恢复全局键盘钩子。</summary>
     public event Action? ChordCaptureEnded;
 
     /// <summary>构造配置器窗口：读入配置、按注入配色搭出全部界面，并直接展示首条绑定的详情。
