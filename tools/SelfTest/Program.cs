@@ -870,26 +870,35 @@ static class SelfTest
             Chk("T179a-multiframe-parts", playGrp != null, $"播放首组={(playGrp == null ? "缺失" : "存在")}");
             // 取不到时拿一个游离元素兜底：下面的断言照样报红，但不让整轮自测崩在空引用上
             UIElement grp = playGrp ?? new UIElement();
-            // 两排都在窗口出现的那一刻起波，上排的全透明窗口不足一个采样周期，轮询抓不到落点。
-            // 改挂 Opacity 属性变化回调：各自第一次越过 0.05 的时刻即起波时刻。
-            // 上排必须先起波，且与下排拉开至少半个错位间隔——两排同时波动就是错的。
-            int playUp = -1, toolUp = -1;
+            // 起波时刻挂 Opacity 属性变化回调：轮询抓不到窗口出现那一刻的越过。
+            // 断言落在落点上——两排整段落定必须压在窗口淡入（EditorEnterMs）之内。
+            // 淡入结束还有一排在路上，看上去就是「窗口先闪出来、内容慢慢展现」。
+            int waveUp = -1;
             long t0P = 0;
             var ddp = System.ComponentModel.DependencyPropertyDescriptor
                 .FromProperty(UIElement.OpacityProperty, typeof(UIElement))!;
-            void OnPlayUp(object? s, EventArgs e) { if (playUp < 0 && grp.Opacity > 0.05) playUp = (int)(Environment.TickCount64 - t0P); }
-            void OnToolUp(object? s, EventArgs e) { if (toolUp < 0 && firstTool.Opacity > 0.05) toolUp = (int)(Environment.TickCount64 - t0P); }
-            ddp.AddValueChanged(grp, OnPlayUp);
-            ddp.AddValueChanged(firstTool, OnToolUp);
+            void OnWaveUp(object? s, EventArgs e)
+            {
+                if (waveUp < 0 && (grp.Opacity > 0.05 || firstTool.Opacity > 0.05)) waveUp = (int)(Environment.TickCount64 - t0P);
+            }
+            ddp.AddValueChanged(grp, OnWaveUp);
+            ddp.AddValueChanged(firstTool, OnWaveUp);
             t0P = Environment.TickCount64;
             winP.Show();
             int tP = 0;
-            while (tP < 3000 && (playUp < 0 || toolUp < 0)) { PumpMs(10); tP += 10; }
-            ddp.RemoveValueChanged(grp, OnPlayUp);
-            ddp.RemoveValueChanged(firstTool, OnToolUp);
-            Chk("T179b-play-before-tools",
-                playUp >= 0 && toolUp >= 0 && toolUp - playUp >= 40,
-                $"播放起波={playUp}ms 工具起波={toolUp}ms 拉开={(playUp >= 0 && toolUp >= 0 ? toolUp - playUp : 0)}ms");
+            while (tP < 3000 && waveUp < 0) { PumpMs(10); tP += 10; }
+            long tSettle0 = Environment.TickCount64;
+            int settle = -1;
+            while (settle < 0 && Environment.TickCount64 - tSettle0 < 3000)
+            {
+                if (grp.Opacity > 0.999 && firstTool.Opacity > 0.999) settle = (int)(Environment.TickCount64 - tSettle0);
+                else PumpMs(10);
+            }
+            ddp.RemoveValueChanged(grp, OnWaveUp);
+            ddp.RemoveValueChanged(firstTool, OnWaveUp);
+            Chk("T179b-rows-settle-inside-fade",
+                waveUp >= 0 && settle >= 0 && settle <= Fluent.Motion.EditorEnterMs,
+                $"起波={waveUp}ms 落定={settle}ms 窗口淡入={Fluent.Motion.EditorEnterMs}ms");
             PumpMs(Fluent.Motion.SpringMs + Fluent.Motion.StaggerMs + 300);
             Chk("T179c-both-rows-settled", grp.Opacity > 0.999 && firstTool.Opacity > 0.999,
                 $"播放首组={grp.Opacity:N2} 工具首项={firstTool.Opacity:N2}");
@@ -906,23 +915,29 @@ static class SelfTest
             var rowsG = detG!.Children.OfType<System.Windows.UIElement>().ToList();
             Chk("T184a-detail-rows-built", rowsG.Count >= 4, $"详情行数={rowsG.Count}");
             winG.Show();
-            // 采样点锚在「首行刚起波」：整段入场以 ContentRendered 为锚，且后排被顶在 0，
-            // Show 后固定时长会早于起波时刻。接管时 Opacity 仍是 1，接管后才压到 0 再抬升。
-            int heldG = 0;
-            while (rowsG[0].Opacity > 0.05 && heldG < 3000) { PumpMs(10); heldG += 10; }
-            int leadG = 0;
-            while (rowsG[0].Opacity <= 0.02 && leadG < 3000) { PumpMs(10); leadG += 10; }
+            // 打开这一帧详情区必须完整：整窗淡入覆盖详情区，行不该还在半透明。
+            int visG = 0;
+            while (winG.Opacity <= 0.05 && visG < 3000) { PumpMs(10); visG += 10; }
             PumpMs(60);
-            bool orderedG = true;
-            for (int i = 1; i < rowsG.Count; i++) if (rowsG[i].Opacity > rowsG[i - 1].Opacity + 0.02) orderedG = false;
-            Chk("T184b-detail-cascade-staggered",
-                orderedG && rowsG[^1].Opacity < 0.05 && rowsG[0].Opacity > rowsG[^1].Opacity,
-                $"首={rowsG[0].Opacity:N2} 末={rowsG[^1].Opacity:N2} 错位单调={orderedG} 接管={heldG}ms 起波={leadG}ms");
+            var openG = rowsG.FirstOrDefault(u => u.Opacity < 0.999);
+            Chk("T184b-detail-complete-on-open", openG == null,
+                $"窗口可见={visG}ms 首={rowsG[0].Opacity:N2} 末={rowsG[^1].Opacity:N2} 未落定={(openG == null ? 0 : 1)}");
             PumpMs(GEdit.Motion.EnterMs + GEdit.Motion.StaggerMs * 3 + 400);
             var badG = rowsG.FirstOrDefault(u => u.Opacity < 0.999
                 || (u.RenderTransform != null && !u.RenderTransform.Value.IsIdentity));
             Chk("T184c-detail-cascade-settles", badG == null,
                 badG == null ? "全部复位" : $"残留 透明度={badG.Opacity:N2} 变换={badG.RenderTransform?.GetType().Name}");
+            // 在已开窗内切换绑定仍逐项错位：那是一次状态切换，需要「新内容进场」的信号。
+            // ShowDetail 整段重建行，采样必须重建之后再取一次。
+            typeof(GEdit.GestureEditorWindow).GetMethod("ShowDetail",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.Invoke(winG, null);
+            PumpMs(30);
+            var rowsS = detG!.Children.OfType<System.Windows.UIElement>().ToList();
+            bool orderedG = true;
+            for (int i = 1; i < rowsS.Count; i++) if (rowsS[i].Opacity > rowsS[i - 1].Opacity + 0.02) orderedG = false;
+            Chk("T184d-switch-still-staggers",
+                orderedG && rowsS.Count > 1 && rowsS[^1].Opacity < 0.05 && rowsS[0].Opacity > rowsS[^1].Opacity,
+                $"首={rowsS[0].Opacity:N2} 末={rowsS[^1].Opacity:N2} 错位单调={orderedG} 行数={rowsS.Count}");
             winG.Close();
             PumpMs(400);
         }

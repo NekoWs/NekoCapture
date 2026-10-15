@@ -117,8 +117,8 @@ public sealed partial class GestureEditorWindow : Window
     #region 详情
     /// <summary>重建右侧详情表单：整段清空后按选中绑定重新搭一遍，控件在闭包里直接捕获这条绑定。
     /// 不做增量同步——切换选中或改键后一律重建：每个控件的闭包与它编辑的那条绑定同源，不会错位。</summary>
-    /// <summary>重建详情区，并决定这次重建走不走入场：切换绑定是一次状态切换，新内容逐项错位进场；
-    /// 构造期那次交给窗口 ContentRendered 的统一入场，避免在屏外就把动画跑完。</summary>
+    /// <summary>重建详情区，并决定这次重建走不走入场：在已开窗内切换绑定是一次状态切换，
+    /// 新内容逐项错位进场；构造期那一次交给窗口入场的整窗淡入，首帧就是完整内容。</summary>
     void ShowDetail()
     {
         FillDetail();
