@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using Windows.Graphics;
 using Windows.Graphics.Capture;
 using Windows.Graphics.DirectX;
 
@@ -7,7 +8,9 @@ using FrameCapture.Core;
 namespace FrameCapture.Capture;
 
 /// <summary>
-/// 基于 Windows.Graphics.Capture（WGC）的显示器实时捕获。
+/// 基于 Windows.Graphics.Capture（WGC）的实时捕获，两种模式：
+/// <see cref="Start"/> 按显示器整帧捕获再裁出区域；<see cref="StartWindow"/> 按窗口本体捕获，
+/// 帧即窗口（含 DWM 边框与 Win11 圆角），别的窗口盖上来不会进画面。
 /// 失败（无 D3D11/策略禁用等）时由调用方捕获异常回退 GDI（LiveCapture）。
 /// API 面与 LiveCapture 对齐：Start / Stop / FrameSampled。
 /// </summary>
@@ -38,6 +41,15 @@ public sealed class WgcLiveCapture : IDisposable
     private IntPtr _deviceAbi; // IDirect3DDevice 的 IUnknown 引用
     private RectI _region;
     private RectI _monOrigin;
+    // 窗口模式：帧即窗口本体，没有区域裁剪。画布取首帧尺寸并全程固定——
+    // GIF 的逻辑屏幕描述符只写首帧宽高，中途改尺寸会让产物错位。
+    private bool _windowMode;
+    private int _canvasW, _canvasH;
+    private SizeInt32 _poolSize;
+    private string _refreshDevice = "";
+    /// <summary>窗口模式首帧定下的画布尺寸；未起或区域模式为 0。</summary>
+    /// <value>(宽, 高) 物理像素。产物里每一帧都是这个尺寸。</value>
+    public (int W, int H) CanvasSize => (_canvasW, _canvasH);
     private Windows.Graphics.DirectX.Direct3D11.IDirect3DDevice? _device;
     private double _intervalMs = 33;
     private int _targetFps = 30;
@@ -94,6 +106,66 @@ public sealed class WgcLiveCapture : IDisposable
             throw initErr;
     }
 
+    /// <summary>按窗口本体起录。帧就是这一个窗口：别的窗口盖在它上面、它被挪到屏幕另一处，画面里都只有它。
+    /// WinRT 初始化放在独立 MTA 线程：WPF UI(STA) 线程上直接激活会死锁。</summary>
+    /// <param name="hwnd">目标窗口句柄，须非零。窗口销毁后本后端停止产帧。</param>
+    /// <param name="monitor">窗口所在显示器，只用来取刷新率决定「录满还是节流」。</param>
+    /// <param name="fps">目标帧率，先钳到 AppSettings 上下限。</param>
+    /// <param name="includeCursor">帧里是否画鼠标指针；系统不支持该开关时按系统默认。</param>
+    /// <exception cref="ArgumentException"><paramref name="hwnd"/> 为 0。</exception>
+    /// <exception cref="TimeoutException">初始化线程 5s 内没有返回。</exception>
+    public void StartWindow(IntPtr hwnd, MonitorInfo monitor, int fps, bool includeCursor = true)
+    {
+        Stop();
+        if (hwnd == IntPtr.Zero) throw new ArgumentException("hwnd=0");
+        _windowMode = true;
+        _targetFps = Math.Clamp(fps, AppSettings.FpsMin, AppSettings.FpsMax);
+        _includeCursor = includeCursor;
+        _intervalMs = FpsThrottle.IntervalMs(_targetFps);
+        _lastKeptMs = -1;
+        _canvasW = _canvasH = 0; // 首帧定画布
+        _refreshDevice = monitor.DeviceName;
+
+        Exception? initErr = null;
+        using var done = new ManualResetEventSlim();
+        var initThread = new Thread(() =>
+        {
+            try { InitWindow(hwnd); }
+            catch (Exception e) { initErr = e; }
+            finally { Wake.Set(done); }
+        }) { IsBackground = true, Name = "WgcInit" }; // 后台线程：初始化卡在 WinRT 里时也不能拖住进程退出
+        initThread.Start();
+        if (!done.Wait(5000))
+            throw new TimeoutException("wgc init timeout");
+        if (initErr != null)
+            throw initErr;
+    }
+
+    private void InitWindow(IntPtr hwnd)
+    {
+        _deviceAbi = WgcNative.CreateDirect3DDevice();
+        _item = WgcNative.CreateItemForWindow(hwnd);
+
+        var insp = new WinRT.IInspectable(WinRT.ComWrappersSupport.GetObjectReferenceForInterface(_deviceAbi));
+        _device = WinRT.CastExtensions.As<Windows.Graphics.DirectX.Direct3D11.IDirect3DDevice>(insp);
+        _poolSize = _item.Size;
+        _pool = Direct3D11CaptureFramePool.CreateFreeThreaded(
+            _device, DirectXPixelFormat.B8G8R8A8UIntNormalized, 3, _poolSize);
+        _session = _pool.CreateCaptureSession(_item);
+        try { _session.IsCursorCaptureEnabled = _includeCursor; } catch { } // 系统不支持该开关时抛，忽略即保持系统默认
+        if (!TrySuppressSystemBorder()) { /* 已记录原因 */ }
+
+        int refresh = DisplayRefresh.RateOf(_refreshDevice);
+        _keepAll = refresh > 0 && _targetFps >= refresh;
+        Trace.Log($"wgc window fps={_targetFps} refresh={refresh} keepAll={_keepAll} item={_poolSize.Width}x{_poolSize.Height}");
+        _pool.FrameArrived += OnFrameArrived;
+
+        _session.StartCapture();
+
+        _running = true;
+        _clock = System.Diagnostics.Stopwatch.StartNew();
+    }
+
     private void Init(MonitorInfo monitor)
     {
         IntPtr hmon = monitor.ResolveHMonitor();
@@ -107,8 +179,9 @@ public sealed class WgcLiveCapture : IDisposable
 
         var insp = new WinRT.IInspectable(WinRT.ComWrappersSupport.GetObjectReferenceForInterface(_deviceAbi));
         _device = WinRT.CastExtensions.As<Windows.Graphics.DirectX.Direct3D11.IDirect3DDevice>(insp);
+        _poolSize = _item.Size;
         _pool = Direct3D11CaptureFramePool.CreateFreeThreaded(
-            _device, DirectXPixelFormat.B8G8R8A8UIntNormalized, 3, _item.Size);
+            _device, DirectXPixelFormat.B8G8R8A8UIntNormalized, 3, _poolSize);
         _session = _pool.CreateCaptureSession(_item);
         try { _session.IsCursorCaptureEnabled = _includeCursor; } catch { } // 系统不支持该开关时抛，忽略即保持系统默认
 
@@ -149,35 +222,50 @@ public sealed class WgcLiveCapture : IDisposable
             _lastKeptMs = now;
             Interlocked.Increment(ref _keptThrottle);
 
-            try { CopyAndEmit(frame); }
+            SizeInt32? resized = null;
+            try { resized = CopyAndEmit(frame); }
             catch (Exception ex)
             {
                 LastLoopError = ex.ToString();
                 Trace.Log($"wgc frame: {ex.Message.Split('\n')[0]}");
                 _running = false; // 触发回退语义：停止本后端
             }
+
+            // 窗口被拉伸/最大化：帧尺寸变了，池按新尺寸重建，否则新尺寸的帧进不来。
+            // 本帧已按画布裁切进产物，产物尺寸全程一致。
+            if (resized is { } sz) RecreatePool(sz);
         }
     }
 
-    private void CopyAndEmit(Direct3D11CaptureFrame frame)
+    private SizeInt32? CopyAndEmit(Direct3D11CaptureFrame frame)
     {
         // 实测：无拷贝时 WGC 投递仍 ~47fps（见 PROGRESS），拷贝不是瓶颈，故不做 staging 优化。
-        CopyViaSoftwareBitmap(frame);
+        return CopyViaSoftwareBitmap(frame);
     }
 
-    private void Emit(byte[] bgra)
+    private void Emit(byte[] bgra, int w, int h)
     {
         double t = _clock.ElapsedMilliseconds;
-        FrameSampled?.Invoke(new CapturedFrame { Bgra = bgra, W = _region.W, H = _region.H, TimeMs = t });
+        FrameSampled?.Invoke(new CapturedFrame { Bgra = bgra, W = w, H = h, TimeMs = t });
     }
 
-    private void CopyViaSoftwareBitmap(Direct3D11CaptureFrame frame)
+    private SizeInt32? CopyViaSoftwareBitmap(Direct3D11CaptureFrame frame)
     {
         using var sb = Windows.Graphics.Imaging.SoftwareBitmap.CreateCopyFromSurfaceAsync(frame.Surface).GetAwaiter().GetResult();
         if (sb.BitmapPixelFormat != Windows.Graphics.Imaging.BitmapPixelFormat.Bgra8)
             throw new NotSupportedException($"pixel format {sb.BitmapPixelFormat}");
 
         int fw = sb.PixelWidth, fh = sb.PixelHeight;
+        using var bb = sb.LockBuffer(Windows.Graphics.Imaging.BitmapBufferAccessMode.Read);
+        using var reference = bb.CreateReference();
+        IntPtr data = WgcNative.ReferenceBytes(reference);
+
+        if (_windowMode)
+        {
+            CopyWindowFrame(data, fw, fh);
+            return fw == _poolSize.Width && fh == _poolSize.Height ? null : new SizeInt32(fw, fh);
+        }
+
         // region 为虚拟桌面绝对坐标，转监视器内坐标（帧覆盖整个监视器）
         int rx = _region.X - _monOrigin.X, ry = _region.Y - _monOrigin.Y;
         if (rx < 0 || ry < 0 || rx + _region.W > fw || ry + _region.H > fh)
@@ -185,14 +273,43 @@ public sealed class WgcLiveCapture : IDisposable
 
         int stride = fw * 4; // SoftwareBitmap(Bgra8) 单平面连续
         var bgra = new byte[_region.W * 4 * _region.H];
-        using var bb = sb.LockBuffer(Windows.Graphics.Imaging.BitmapBufferAccessMode.Read);
-        using var reference = bb.CreateReference();
-        IntPtr data = WgcNative.ReferenceBytes(reference);
         int rowBytes = _region.W * 4;
         for (int y = 0; y < _region.H; y++)
             Marshal.Copy(data + (ry + y) * stride + rx * 4, bgra, y * rowBytes, rowBytes);
 
-        Emit(bgra);
+        Emit(bgra, _region.W, _region.H);
+        return null;
+    }
+
+    /// <summary>窗口模式：整帧拷进首帧定下的画布（窗口拉大就裁掉超出部分，缩小则留一圈白边），
+    /// 再把透明处拍平到白色——GIF / MP4 没有透明通道，圆角与镂空处的 alpha 直接编码会成黑块。</summary>
+    /// <param name="data">帧缓冲首字节指针，归 WGC 所有、只读。</param>
+    /// <param name="fw">帧宽（像素），随窗口尺寸变。</param>
+    /// <param name="fh">帧高（像素）。</param>
+    private void CopyWindowFrame(IntPtr data, int fw, int fh)
+    {
+        if (_canvasW == 0) { _canvasW = fw; _canvasH = fh; }
+        int cw = _canvasW, ch = _canvasH;
+        int copyW = Math.Min(fw, cw), copyH = Math.Min(fh, ch);
+        var bgra = new byte[cw * 4 * ch];
+        int rowBytes = copyW * 4;
+        for (int y = 0; y < copyH; y++)
+            Marshal.Copy(data + y * fw * 4, bgra, y * cw * 4, rowBytes);
+        WindowCapture.FlattenOverWhite(bgra, cw, ch);
+        Emit(bgra, cw, ch);
+    }
+
+    /// <summary>按新帧尺寸重建帧池；画布不变，产物尺寸因此不受窗口缩放影响。</summary>
+    /// <param name="size">新的帧尺寸（物理像素），来自实际投递的帧。</param>
+    private void RecreatePool(SizeInt32 size)
+    {
+        try
+        {
+            _pool?.Recreate(_device, DirectXPixelFormat.B8G8R8A8UIntNormalized, 3, size);
+            _poolSize = size;
+            Trace.Log($"wgc window pool={size.Width}x{size.Height} canvas={_canvasW}x{_canvasH}");
+        }
+        catch (Exception ex) { Trace.Log("wgc pool recreate: " + ex.Message.Split('\n')[0]); }
     }
 
     /// <summary>系统提示边框是否已被关闭。</summary>
@@ -234,6 +351,9 @@ public sealed class WgcLiveCapture : IDisposable
     public void Stop()
     {
         _running = false;
+        _windowMode = false;
+        _canvasW = _canvasH = 0;
+        _poolSize = default;
         // 先等在途的 FrameArrived 拷贝结束（持 _frameGate），再退订并释放池——避免回调正用 surface 时被 Dispose。
         lock (_frameGate)
         {

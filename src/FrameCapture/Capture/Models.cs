@@ -51,7 +51,38 @@ public struct RectI : IEquatable<RectI>
 /// <param name="DeviceName">显示器设备名，用来把矩形解释回正确的那块屏。</param>
 /// <param name="Bounds">物理像素、虚拟桌面绝对坐标，通常落在该显示器的范围内。</param>
 /// <returns>按给定值构造的不可变记录。</returns>
-public sealed record ScreenRegion(string DeviceName, RectI Bounds);
+public sealed record ScreenRegion(string DeviceName, RectI Bounds)
+{
+    /// <summary>没有锁定窗口的选取结果形态，给只吃 <see cref="Selection"/> 的调用方。</summary>
+    /// <returns>设备名与矩形照搬、窗口句柄为空的选取结果。</returns>
+    public Selection ToSelection() => new(DeviceName, Bounds, IntPtr.Zero);
+}
+
+/// <summary>
+/// 一次选取跑完交出的参数：范围矩形、点中并吸附到的窗口、所在显示器。截图、录制、滚动长图都只读它。
+/// 「锁定到窗口」是选取本身的一种状态——选区里点的是窗口就是这种状态，与后面要做什么无关；
+/// 各功能拿它先过自己的开关（<see cref="WithWindowHonor"/>），开关关着就退化成普通矩形选取。
+/// </summary>
+/// <param name="DeviceName">范围所在显示器的设备名。</param>
+/// <param name="Bounds">物理像素、虚拟桌面绝对坐标。锁定窗口时是选取那一刻窗口的屏幕外接矩形，
+/// 取不到窗口本体就拿它当录制/截取范围。</param>
+/// <param name="Window">窗口句柄；<see cref="IntPtr.Zero"/> = 拖框或全屏，没锁定到窗口。</param>
+/// <returns>按给定值构造的不可变结构。</returns>
+public readonly record struct Selection(string DeviceName, RectI Bounds, IntPtr Window)
+{
+    /// <summary>是否锁定到了某个窗口本体。</summary>
+    /// <value>句柄非零为 true。截图与录制都以此决定走不走「按窗口本体」那条路。</value>
+    public bool LockedToWindow => Window != IntPtr.Zero;
+
+    /// <summary>范围形态，交给只认矩形的消费方。</summary>
+    /// <value>由本参数的设备名与矩形组成。</value>
+    public ScreenRegion Region => new(DeviceName, Bounds);
+
+    /// <summary>按调用方自己的开关决定认不认这个窗口。</summary>
+    /// <param name="honorWindow">该功能是否启用「按窗口本体」捕获。</param>
+    /// <returns>开关开着原样返回；关着则句柄作废，只剩矩形。</returns>
+    public Selection WithWindowHonor(bool honorWindow) => honorWindow ? this : this with { Window = IntPtr.Zero };
+}
 
 /// <summary>单帧：紧凑 BGRA（无 padding，长度 = W*H*4）。</summary>
 public sealed class CapturedFrame

@@ -123,6 +123,28 @@ public static class WindowCapture
         }
     }
 
+    /// <summary>把非全不透明像素拍平到白色（预乘 alpha 加白底：dst = src + (255 − a)），alpha 一律置 255。
+    /// 不透明像素原样不动，常态下这只是一趟 alpha 扫描。窗口本体的透明处不止圆角：
+    /// 半透明桌宠、镂空覆盖窗整片都可能是 alpha，故全帧走一遍，产物里不留任何透明像素。
+    /// GIF / MP4 没有透明通道，透明处直接编码会得到黑角。</summary>
+    /// <param name="bgra">行主序 BGRA 缓冲，就地修改；长度须等于 w*h*4。</param>
+    /// <param name="w">宽（像素）。</param>
+    /// <param name="h">高（像素）。</param>
+    public static void FlattenOverWhite(byte[] bgra, int w, int h)
+    {
+        int n = w * h;
+        for (int i = 0, p = 0; p < n; p++, i += 4)
+        {
+            byte a = bgra[i + 3];
+            if (a == 255) continue;
+            int inv = 255 - a;
+            bgra[i] = (byte)Math.Min(255, bgra[i] + inv);
+            bgra[i + 1] = (byte)Math.Min(255, bgra[i + 1] + inv);
+            bgra[i + 2] = (byte)Math.Min(255, bgra[i + 2] + inv);
+            bgra[i + 3] = 255;
+        }
+    }
+
     /// <summary>按本体 alpha 轮廓**合成**柔和投影：取本体 alpha 当覆盖率 → 3 次盒式模糊（≈高斯）→
     /// 黑色 × 覆盖率 × strength 写进 dst（dst 其余保持透明）。绝不读屏幕，故背景文字/深色桌面都不会渗进来。
     /// 轮廓含圆角（本体圆角处 alpha=0），阴影自然贴合圆角。</summary>

@@ -100,6 +100,85 @@ static class SelfTest
         return 0;
     }
 
+    /// <summary>取证模式：真实设置窗口停在指定类别，离屏渲染成 PNG。
+    /// 切类别靠给左侧列表项抛一个 Enter 键事件，与用户点它走同一个 ShowCat。</summary>
+    /// <param name="outPath">输出 PNG 路径。</param>
+    /// <param name="catName">类别名：快捷键 / 截图 / 录制 / 产物 / 编辑器 / 贴图 / 外观 / 系统。</param>
+    /// <returns>恒为 0。</returns>
+    static int RenderSettings(string outPath, string catName)
+    {
+        var app = new Application();
+        // 设置窗读 AppHost.Current.Settings；本模式只 new Application()，不走 AppHost.Startup，
+        // 这里只挂一个只读的 SettingsService 并套上主题，不注册热键、不碰托盘。
+        var svc = new FrameCapture.Core.SettingsService();
+        typeof(FrameCapture.Services.AppHost).GetProperty("Settings")!
+            .SetValue(FrameCapture.Services.AppHost.Current, svc);
+        FrameCapture.Core.Theme.Apply(svc.Current.Theme, svc.Current.Accent);
+        FrameCapture.Core.Fluent.ApplyGlobalStyles();
+        var w = new FrameCapture.Overlays.SettingsWindow();
+        // Build 与构造分开（ShowOrFocus 先 Build 再 Show），离屏渲染同样要先建内容
+        typeof(FrameCapture.Overlays.SettingsWindow)
+            .GetMethod("Build", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
+            .Invoke(w, null);
+        double W = w.Width, H = w.Height;
+        var root = (UIElement)w.Content;
+        // 键事件要有 PresentationSource，未 Show 的窗没有——把窗挪到屏幕外真开一下，只为拿到输入源。
+        // Mica 在场时窗口底是透明的，拍出来会没底色，这里按窗口底色平涂。
+        w.WindowStartupLocation = WindowStartupLocation.Manual;
+        w.Left = -20000; w.Top = -20000;
+        w.Background = new System.Windows.Media.SolidColorBrush(FrameCapture.Core.Theme.WindowBg);
+        w.Show();
+        PumpMs(400);
+        var src = PresentationSource.FromVisual(w);
+        void Layout()
+        {
+            root.Measure(new System.Windows.Size(W, H));
+            root.Arrange(new Rect(0, 0, W, H));
+            root.UpdateLayout();
+        }
+        Layout();
+        var nav = FindNavText(root, catName) as System.Windows.UIElement;
+        if (nav != null && src != null)
+        {
+            // 类别项的 KeyDown 认 Enter/Space，与鼠标点一下走同一个 ShowCat
+            nav.RaiseEvent(new System.Windows.Input.KeyEventArgs(
+                System.Windows.Input.Keyboard.PrimaryDevice, src, 0, System.Windows.Input.Key.Enter)
+            { RoutedEvent = System.Windows.Input.Keyboard.KeyDownEvent, Source = nav });
+            PumpMs(500); // 切类别的淡入淡出走完再拍
+        }
+        Layout();
+        int ww = (int)Math.Ceiling(W), hh = (int)Math.Ceiling(H);
+        var rtb = new System.Windows.Media.Imaging.RenderTargetBitmap(ww, hh, 96, 96, System.Windows.Media.PixelFormats.Pbgra32);
+        rtb.Render(root);
+        var enc = new System.Windows.Media.Imaging.PngBitmapEncoder();
+        enc.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(rtb));
+        Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(outPath))!);
+        using (var f = File.Create(outPath)) enc.Save(f);
+        // 不调 w.Close()：关窗回调要去重装热键，本模式没有 HotkeyManager；进程退出自然带走窗口。
+        Console.WriteLine($"saved {outPath} {ww}x{hh} nav={(nav != null)} src={(src != null)}");
+        return 0;
+    }
+
+    /// <summary>在视觉树里找左侧类别项：Border 内 Grid 里那条 StackPanel 带同名文字。</summary>
+    /// <param name="node">起点节点。</param>
+    /// <param name="text">类别名。</param>
+    /// <returns>命中的 Border；没有则 null。</returns>
+    static System.Windows.DependencyObject? FindNavText(System.Windows.DependencyObject node, string text)
+    {
+        if (node is System.Windows.Controls.Border b && b.Child is System.Windows.Controls.Grid g)
+            foreach (var ch in g.Children)
+                if (ch is System.Windows.Controls.StackPanel sp)
+                    foreach (var c2 in sp.Children)
+                        if (c2 is System.Windows.Controls.TextBlock tb && tb.Text == text) return b;
+        int n = System.Windows.Media.VisualTreeHelper.GetChildrenCount(node);
+        for (int i = 0; i < n; i++)
+        {
+            var r = FindNavText(System.Windows.Media.VisualTreeHelper.GetChild(node, i), text);
+            if (r != null) return r;
+        }
+        return null;
+    }
+
     /// <summary>取证模式：真实编辑器窗口的工具条逐项落定，按帧渲染到 <c>&lt;prefix&gt;-NN.png</c>。
     /// 逐帧由进程内时钟驱动，不与外部截图器抢时序。</summary>
     /// <param name="outPrefix">输出文件前缀。</param>
@@ -324,6 +403,13 @@ static class SelfTest
         if (args.Length == 2 && args[0] == "editorwave") return EditorWave(args[1]);
         if (args.Length == 2 && args[0] == "scrollwave") return ScrollWave(args[1]);
         if (args.Length == 2 && args[0] == "renderslider") return RenderSlider(args[1]);
+        // 类别名走命令行会被控制台代码页搅乱，这里按索引取
+        if (args.Length >= 2 && args[0] == "rendersettings")
+        {
+            string[] catNames = { "快捷键", "截图", "录制", "产物", "编辑器", "贴图", "外观", "系统" };
+            int ci = args.Length >= 3 && int.TryParse(args[2], out var sc) ? sc : 0;
+            return RenderSettings(args[1], catNames[Math.Clamp(ci, 0, catNames.Length - 1)]);
+        }
         if (args.Length == 3 && args[0] == "stitch") return StitchMode(args[1], args[2]);
         string tmp = Path.Combine(Path.GetTempPath(), "FrameCapture", "selftest");
         Directory.CreateDirectory(tmp);
@@ -1409,6 +1495,119 @@ static class SelfTest
             var canBorderless = OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22000);
             Chk("T73-wgc-borderless", wgc2.SystemBorderSuppressed == true || !canBorderless,
                 $"suppressed={wgc2.SystemBorderSuppressed} canBorderless={canBorderless}");
+
+            // 按窗口本体录制：帧就是这一个窗口，别的窗盖上来也不进画面。
+            {
+                using var target = new System.Windows.Forms.Form
+                {
+                    FormBorderStyle = System.Windows.Forms.FormBorderStyle.FixedToolWindow,
+                    StartPosition = System.Windows.Forms.FormStartPosition.Manual,
+                    Location = new System.Drawing.Point(mon.Bounds.X + 140, mon.Bounds.Y + 140),
+                    Size = new System.Drawing.Size(360, 260),
+                    BackColor = System.Drawing.Color.FromArgb(0x12, 0x34, 0x56),
+                    ShowInTaskbar = false,
+                    Text = "FC-WGC-WINTARGET",
+                };
+                var tickLbl = new System.Windows.Forms.Label
+                {
+                    Dock = System.Windows.Forms.DockStyle.Fill,
+                    TextAlign = System.Drawing.ContentAlignment.MiddleCenter,
+                    BackColor = target.BackColor,
+                    ForeColor = System.Drawing.Color.White,
+                    Text = "0",
+                };
+                target.Controls.Add(tickLbl);
+                using var tickTimer = new System.Windows.Forms.Timer { Interval = 60 };
+                int tk = 0;
+                tickTimer.Tick += (_, _) => { tickLbl.Text = (++tk).ToString(); };
+                target.Show();
+                tickTimer.Start();
+                // WGC 只在被捕获窗内容变化时产帧：目标窗靠 Timer 重绘制造变化，
+                // 而 Timer 走消息，等帧期间必须泵消息——Thread.Sleep 会把它冻住，一帧也等不到。
+                for (int i = 0; i < 20 && tk < 2; i++) PumpMs(50); // 等窗口先画起来
+
+                using var wgcWin = new WgcLiveCapture();
+                CapturedFrame? lastWin = null;
+                var winFrames = new List<CapturedFrame>();
+                int nWin = 0;
+                wgcWin.FrameSampled += f => { lock (winFrames) { if (winFrames.Count < 24) winFrames.Add(f); } lastWin = f; Interlocked.Increment(ref nWin); };
+                wgcWin.StartWindow(target.Handle, mon, 20, false);
+                var swWin = Stopwatch.StartNew();
+                while (nWin < 2 && swWin.ElapsedMilliseconds < 3000) PumpMs(50);
+                Chk("T189d-window-frames", nWin >= 2 && lastWin != null,
+                    $"n={nWin} err={wgcWin.LastLoopError?.Split('\n')[0]}");
+
+                var f0 = lastWin;
+                Chk("T189e-window-size",
+                    f0 != null && Math.Abs(f0.W - target.Width) <= 24 && Math.Abs(f0.H - target.Height) <= 24,
+                    $"帧={f0?.W}x{f0?.H} 窗={target.Width}x{target.Height}");
+
+                // 纯绿不透明窗压住目标左半边，再等几帧：产物里那块仍是目标本色，绿不进画面
+                using var occl = new System.Windows.Forms.Form
+                {
+                    FormBorderStyle = System.Windows.Forms.FormBorderStyle.None,
+                    StartPosition = System.Windows.Forms.FormStartPosition.Manual,
+                    Location = new System.Drawing.Point(target.Left + 2, target.Top + 30),
+                    Size = new System.Drawing.Size(120, 150),
+                    BackColor = System.Drawing.Color.Lime,
+                    TopMost = true,
+                    ShowInTaskbar = false,
+                };
+                occl.Show();
+                int beforeOcc = nWin;
+                var swOcc = Stopwatch.StartNew();
+                while (nWin < beforeOcc + 3 && swOcc.ElapsedMilliseconds < 3000) PumpMs(50);
+                wgcWin.Stop(); // Stop 等在途回调结束，之后读 lastWin 安全
+                var fOcc = lastWin;
+                bool occClean = false;
+                string occDetail = "无帧";
+                if (fOcc != null)
+                {
+                    int ox = 60, oy = fOcc.H / 2; // 遮挡窗盖住帧内 x∈[2,122]、y∈[30,180]
+                    int oi = (oy * fOcc.W + ox) * 4;
+                    byte ob = fOcc.Bgra[oi], og = fOcc.Bgra[oi + 1], orr = fOcc.Bgra[oi + 2];
+                    occClean = og < 0x80 && ob > 0x40; // 目标本色 (18,52,86)；纯绿是 g=255
+                    occDetail = $"({orr},{og},{ob})";
+                }
+                Chk("T189f-window-occlusion", occClean, $"遮挡处像素={occDetail} n={nWin}");
+
+                // 产物不留透明像素：边带拍平过，GIF / MP4 不会编出黑角
+                bool allOpaque = true;
+                if (fOcc == null) allOpaque = false;
+                else for (int i = 3; i < fOcc.Bgra.Length; i += 4)
+                        if (fOcc.Bgra[i] != 255) { allOpaque = false; break; }
+                Chk("T189g-window-opaque", allOpaque, fOcc == null ? "无帧" : $"{fOcc.W}x{fOcc.H}");
+
+                // 取证：遮挡期间采到的帧编成 GIF 与末帧 PNG 存 test-out，肉眼核对成片里只有目标窗
+                {
+                    string dir = Path.Combine(Directory.GetCurrentDirectory(), "test-out");
+                    CapturedFrame[] shots;
+                    lock (winFrames) shots = winFrames.ToArray();
+                    if (shots.Length > 1 && Directory.Exists(dir))
+                        try
+                        {
+                            var delays = new List<int>();
+                            for (int i = 0; i < shots.Length; i++) delays.Add(50);
+                            File.WriteAllBytes(Path.Combine(dir, "r99-windowrec.gif"), GifEncoder.Encode(shots, delays));
+                            BgraImage.SavePng(shots[shots.Length - 1], Path.Combine(dir, "r99-windowrec.png"));
+                        }
+                        catch (Exception ex) { FrameCapture.Core.Trace.Log("selftest window-rec artifact: " + ex.Message); }
+                }
+                // 选取状态本身：点中窗口 = LockedToWindow；各功能的开关只决定认不认这个窗口
+                var selWin = new Selection(@"\\.\DISPLAY1", new RectI(4, 8, 10, 10), new IntPtr(0x1234));
+                var selRect = selWin with { Window = IntPtr.Zero };
+                Chk("T189h-selection-window-state",
+                    selWin.LockedToWindow
+                    && selWin.WithWindowHonor(true).Window == new IntPtr(0x1234)
+                    && !selWin.WithWindowHonor(false).LockedToWindow
+                    && selWin.WithWindowHonor(false).Bounds.Equals(new RectI(4, 8, 10, 10))
+                    && !selRect.LockedToWindow
+                    && selWin.Region.Bounds.Equals(selWin.Bounds),
+                    "选中窗口是选取状态；开关关 → 句柄作废只剩矩形");
+                tickTimer.Stop();
+                occl.Close();
+                target.Close();
+            }
 
             // 轮廓窗"在屏可见但不进捕获"的机制前提：WDA_EXCLUDEFROMCAPTURE(0x11) 必须真的能被设置成功，
             // 否则 RegionOutlineWindow 会静默变成"看不见"（那就等于录制期间没有任何范围提示）。
@@ -3546,6 +3745,24 @@ static class SelfTest
             bool ringBlack = outb[(20 * ow + 13) * 4] == 0;                            // 阴影是黑色（非背景色渗入）
             Chk("T165w7-composite", centerOpaque && cornerTransparent && farTransparent && ringSemi && ringBlack,
                 $"center={OA(20,20)} corner={OA(15,15)} far={OA(0,0)} ring={OA(13,20)}");
+        }
+
+        // 透明处拍平到白：录制产物没有透明通道，透明像素必须落成不透明
+        {
+            var fb = new byte[8 * 8 * 4];
+            for (int i = 0; i < fb.Length; i += 4) { fb[i] = 10; fb[i + 1] = 20; fb[i + 2] = 30; fb[i + 3] = 128; }
+            fb[(4 * 8 + 0) * 4 + 3] = 255; // 一个不透明像素：应原样不动
+            WindowCapture.FlattenOverWhite(fb, 8, 8);
+            int core = (4 * 8 + 0) * 4;
+            int edge = 0;
+            Chk("T189a-flatten-keeps-opaque", fb[core] == 10 && fb[core + 1] == 20 && fb[core + 2] == 30 && fb[core + 3] == 255,
+                $"core=({fb[core]},{fb[core + 1]},{fb[core + 2]},{fb[core + 3]})");
+            Chk("T189b-flatten-semi-blends", fb[edge] == 137 && fb[edge + 1] == 147 && fb[edge + 2] == 157 && fb[edge + 3] == 255,
+                $"edge=({fb[edge]},{fb[edge + 1]},{fb[edge + 2]},{fb[edge + 3]})");
+            var full = new byte[4 * 4 * 4]; // 全透明（预乘下 rgb 也是 0）→ 应拍成纯白
+            WindowCapture.FlattenOverWhite(full, 4, 4);
+            Chk("T189c-flatten-clear-to-white", full[0] == 255 && full[1] == 255 && full[2] == 255 && full[3] == 255,
+                $"px=({full[0]},{full[1]},{full[2]},{full[3]})");
         }
         #endregion
 

@@ -64,6 +64,12 @@ public sealed class AppSettings
     /// 外缘柔和渐隐到透明，看上去悬浮在桌面上。关掉则只截窗口本体（圆角透明、无投影）。</summary>
     public bool WindowCaptureShadow { get; set; } = true;
 
+    /// <summary>点击窗口时录制该窗口（默认开）：录制选区里点一个吸附到的窗口，录的是该窗口本体而非屏幕矩形——
+    /// 别的窗口盖上来、窗口挪位置都不会进画面，成片只有这一个窗口。
+    /// GIF / MP4 没有透明通道，圆角等透明处拍平到白色。关掉则按屏幕矩形录。
+    /// WGC 按窗口取帧失败时自动回退区域录制。</summary>
+    public bool RecordWindowClean { get; set; } = true;
+
     /// <summary>截图完成后的行为：toast=弹缩略浮窗可一键进编辑器（默认，兼顾确认与标注）；
     /// editor=复制后直接打开标注编辑器；copy=只复制不弹窗不开编辑器（最快，轮廓闪一下作反馈）。
     /// 三态覆盖「要确认」「要标注」「只要剪贴板」三类人群，非法值回落 toast。</summary>

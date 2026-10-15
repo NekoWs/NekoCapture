@@ -23,7 +23,9 @@ public sealed partial class CaptureController : IDisposable
     private EditorWindow? _editor;
     private System.Diagnostics.Stopwatch? _captureClock;
     private int _captureFps;   // 本次捕获实际帧率（跟随刷新率时=刷新率），随 seq 交给编辑器算时间轴
-    private ScreenRegion? _pendingRegion;
+    /// <summary>本次捕获的范围与锁定状态：选区录制时由选区窗交来（可能锁定到某个窗口本体），
+    /// 热键直接起录时按存好的范围或光标所在屏现造一个。起录时改写成本次实际捕获范围，供收尾开编辑器用。</summary>
+    private Selection? _pendingSel;
     /// <summary>点按总是先显示选区：本次选区确认后立即截一帧静态图。</summary>
     private bool _captureAfterSelect;
     /// <summary>「选区录制」——本次选区确认后立即对该区域起录。</summary>
@@ -160,7 +162,8 @@ public sealed partial class CaptureController : IDisposable
         // ShowLastRegion 关=干净屏选区（不传 existing 矩形），此时 Enter「确认上次选区」随之无意义
         _picker = new RegionPickerWindow(monitor, existing: _settings.Current.ShowLastRegion ? StoredRegion()?.Bounds : null,
             snapContent: _settings.Current.SnapContentArea, magnifier: _settings.Current.PickerMagnifier,
-            colorFormat: Core.ColorFormat.Parse(_settings.Current.ColorCopyFormat), windowCapture: _settings.Current.WindowCaptureEnabled,
+            colorFormat: Core.ColorFormat.Parse(_settings.Current.ColorCopyFormat),
+            windowCapture: _settings.Current.WindowCaptureEnabled || _settings.Current.RecordWindowClean,
             freeze: _settings.Current.FreezeOnSelect, pregrabMax: _settings.Current.FreezePregrabMaxWindows,
             windowShadow: _settings.Current.WindowCaptureShadow);
         Trace.Log($"picker ctor done dt={swOpen.ElapsedMilliseconds}ms magnifier={_settings.Current.PickerMagnifier}");
@@ -172,6 +175,9 @@ public sealed partial class CaptureController : IDisposable
             bool stillAfterSelect = _settings.Current.AutoCaptureOnSelect || _captureAfterSelect;
             _captureAfterSelect = false;
             if (region is null) return;
+            // 选区跑完就交出这一份参数：矩形 + 点中的窗口 + 所在屏。后面截图还是录制都读它，
+            // 各自用 WithWindowHonor 过一遍自己的开关，不再各存各的临时状态。
+            var sel = new Selection(monitor.DeviceName, region.Value, hwnd);
             _settings.Mutate(s =>
             {
                 s.RegionMonitorId = monitor.DeviceName;
@@ -191,8 +197,10 @@ public sealed partial class CaptureController : IDisposable
             }
             if (_recordAfterSelect)
             {
-                // 选区录制：区域已由上方 Mutate 存好（RegionX/Y/W/H），选区窗已 WDA 排除，只留一拍让 Close 走完即对该区域起录。
+                // 选区录制：区域已由上方 Mutate 存好（RegionX/Y/W/H），选区窗已 WDA 排除，选区窗关闭后起录。
+                // 锁定到窗口且「只录窗口」开着 → 起录时录该窗口本体；存好的矩形仍是取不到窗口时的回退范围。
                 _recordAfterSelect = false;
+                _pendingSel = sel.WithWindowHonor(_settings.Current.RecordWindowClean);
                 HideOutline();
                 var rt = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(PickerExitMs) };
                 rt.Tick += (_, _) => { rt.Stop(); BeginCaptureCore(); };
@@ -213,15 +221,17 @@ public sealed partial class CaptureController : IDisposable
                     CapturedFrame? f = null;
                     RectI capReg = region.Value;
                     bool winCap = false;
-                    if (hwnd != IntPtr.Zero && _settings.Current.WindowCaptureEnabled)
+                    // 同一个选取状态，过「干净窗口截图」开关：认窗口就截窗口本体，不认就按矩形截
+                    var winSel = sel.WithWindowHonor(_settings.Current.WindowCaptureEnabled);
+                    if (winSel.LockedToWindow)
                     {
-                        if (pk != null && pk.TryGetCachedWindow(hwnd, out var cf, out var cr))
+                        if (pk != null && pk.TryGetCachedWindow(winSel.Window, out var cf, out var cr))
                         { f = cf; capReg = cr; winCap = true; } // 定格瞬间预抓的干净窗口（定格+干净圆角+投影）
                         else
                         {
                             try
                             {
-                                var (wf, wreg) = WindowCapture.Grab(hwnd, _settings.Current.WindowCaptureShadow);
+                                var (wf, wreg) = WindowCapture.Grab(winSel.Window, _settings.Current.WindowCaptureShadow);
                                 f = wf; capReg = wreg; winCap = true;
                             }
                             catch (Exception ex) { Trace.Log($"winCap fail→region: {ex.Message}"); f = null; }
@@ -266,8 +276,9 @@ public sealed partial class CaptureController : IDisposable
     {
         HideOutline(); // 轮廓绝不能入镜：仅真正起录时隐藏
 
-        ScreenRegion region = StoredRegion() ?? FullMonitorAtCursor();
-        _pendingRegion = region;
+        // 选区录制带着选区交来的状态（可能锁定到某个窗口本体）；热键直接起录则按存好的范围现造一个。
+        Selection sel = _pendingSel ?? (StoredRegion() ?? FullMonitorAtCursor()).ToSelection();
+        _pendingSel = sel;
         _prevFg = Native.Win32.GetForegroundWindow();
         // 前台是自家窗口（如从托盘再次触发）则无需归还，避免焦点乒乓
         if (_prevFg != IntPtr.Zero && Native.Win32.GetWindowThreadProcessId(_prevFg, out uint fgp) == Native.Win32.GetCurrentThreadId())
@@ -280,7 +291,7 @@ public sealed partial class CaptureController : IDisposable
             Trace.Log($"disk low {free >> 20}MB → auto-stop");
             if (State == Phase.Capturing) FinishCapture();
         });
-        var monitor = Monitors.ByDevice(region.DeviceName) ?? Monitors.Nearest(region.Bounds.X, region.Bounds.Y);
+        var monitor = Monitors.ByDevice(sel.DeviceName) ?? Monitors.Nearest(sel.Bounds.X, sel.Bounds.Y);
 
         _captureClock = System.Diagnostics.Stopwatch.StartNew();
 
@@ -295,26 +306,20 @@ public sealed partial class CaptureController : IDisposable
         bool wgcOk = false;
         if (_settings.Current.UseWgc)
         {
+            // 锁定到窗口就先录窗口本体；起不来就退回录这块矩形，用户至少拿到覆盖那片区域的成片。
+            // try 包住调用本身：投影程序集取不到时，异常在编译被调方法的那一刻抛出，落在被调方法自己的 catch 之外。
             try
             {
-                _wgc = new WgcLiveCapture();
-                _wgc.FrameSampled += f => _spool?.Add(f);
-                _wgc.Start(monitor, region.Bounds, fps, _settings.Current.RecordIncludeCursor);
-                wgcOk = true;
-                Trace.Log("capture backend=wgc");
+                if (sel.LockedToWindow) wgcOk = TryStartWgc(sel, monitor, fps);
+                if (!wgcOk) wgcOk = TryStartWgc(sel.WithWindowHonor(false), monitor, fps);
             }
-            catch (Exception ex)
-            {
-                _wgc?.Dispose();
-                _wgc = null;
-                Trace.Log("wgc init failed: " + ex.Message.Split('\n')[0] + " → 回退 GDI");
-            }
+            catch (Exception ex) { Trace.Log("wgc unavailable: " + ex.Message.Split('\n')[0] + " → 回退 GDI"); }
         }
         if (!wgcOk)
         {
             try
             {
-                _live.Start(monitor, region.Bounds, fps);
+                _live.Start(monitor, sel.Bounds, fps);
                 Trace.Log("capture backend=gdi");
             }
             catch
@@ -331,10 +336,44 @@ public sealed partial class CaptureController : IDisposable
         // 该窗以 WDA_EXCLUDEFROMCAPTURE 排除，不会进产物；关掉开关即完全不提示。
         if (_settings.Current.ShowRecordingBorder)
         {
-            ShowCaptureScope(region.Bounds);
+            ShowCaptureScope(sel.Bounds);
             // 起录后延迟点亮 REC 徽标——"正在录"从隐性约定变成看得见的状态
             _recBadgeTimer!.Interval = TimeSpan.FromMilliseconds(RecBadgeDelayMs);
             _recBadgeTimer.Start();
+        }
+    }
+
+    /// <summary>
+    /// 起 WGC 采集后端：句柄非零按窗口本体录，否则按这块矩形录。
+    /// WinRT 类型只出现在本方法内，且本方法不被内联——起不来的异常因此不会污染 BeginCaptureCore 的编译，
+    /// 调用方还能在 catch 里退回矩形 / GDI。
+    /// </summary>
+    /// <param name="sel">本次捕获的范围与锁定状态。</param>
+    /// <param name="monitor">范围所在显示器。</param>
+    /// <param name="fps">目标帧率。</param>
+    /// <returns>true = WGC 已在产帧；false = 起不来，调用方按矩形或 GDI 继续。</returns>
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+    bool TryStartWgc(Selection sel, MonitorInfo monitor, int fps)
+    {
+        bool byWindow = sel.LockedToWindow;
+        WgcLiveCapture? w = null;
+        try
+        {
+            w = new WgcLiveCapture();
+            w.FrameSampled += f => _spool?.Add(f);
+            if (byWindow) w.StartWindow(sel.Window, monitor, fps, _settings.Current.RecordIncludeCursor);
+            else w.Start(monitor, sel.Bounds, fps, _settings.Current.RecordIncludeCursor);
+            _wgc = w;
+            Trace.Log(byWindow ? "capture backend=wgc-window" : "capture backend=wgc");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            try { w?.Dispose(); } catch { }
+            _wgc = null;
+            Trace.Log((byWindow ? "wgc window init failed: " : "wgc init failed: ") + ex.Message.Split('\n')[0]
+                + (byWindow ? " → 按区域录" : " → 回退 GDI"));
+            return false;
         }
     }
 
@@ -380,7 +419,7 @@ public sealed partial class CaptureController : IDisposable
         if (frames.Count == 0)
         {
             // WGC 脏区语义在极短/全静止场景理论可为 0 帧：GDI 补抓一帧兜底，保证“点按必有产物”
-            var reg = _pendingRegion?.Bounds ?? default;
+            var reg = _pendingSel?.Bounds ?? default;
             if (reg.W > 0 && reg.H > 0)
             {
                 try
@@ -395,7 +434,7 @@ public sealed partial class CaptureController : IDisposable
 
         // 点按/长按的判定在手势引擎（Tap→截图动作、Hold/HoldRelease→录制）；
         // 走到这里就是「真录制」收尾：产物一律按录制走，没有「点按→单帧」分支。
-        var region = _pendingRegion ?? new ScreenRegion("", frames[0].W > 0 ? new RectI(0, 0, frames[0].W, frames[0].H) : default);
+        var region = _pendingSel?.Region ?? new ScreenRegion("", frames[0].W > 0 ? new RectI(0, 0, frames[0].W, frames[0].H) : default);
         var monitor = Monitors.ByDevice(region.DeviceName);
         var seq = new CapturedSequence
         {
