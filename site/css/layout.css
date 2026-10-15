@@ -364,6 +364,47 @@
 .specs dd { margin: 0; }
 .specs code { font-size: 12.5px; }
 
+/* ── 常见问题 ─────────────────────────────────────────── */
+.faq {
+  max-width: 880px;
+  border-top: 1px solid var(--stroke-soft);
+}
+
+.faq details { border-bottom: 1px solid var(--stroke-soft); }
+
+.faq summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 18px 2px;
+  cursor: pointer;
+  list-style: none;
+  font-size: 16px;
+  color: var(--text);
+}
+
+.faq summary::-webkit-details-marker { display: none; }
+
+.faq summary::after {
+  content: "+";
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 17px;
+  color: var(--text-dim);
+  transition: transform var(--state) var(--ease-enter),
+              color var(--state) var(--ease-enter);
+}
+
+.faq details[open] summary::after { transform: rotate(45deg); color: var(--accent); }
+.faq summary:hover { color: var(--accent); }
+
+.faq p {
+  margin: 0 0 20px;
+  max-width: 70ch;
+  font-size: 15px;
+  color: var(--text-dim);
+}
+
 /* ── 页脚 ─────────────────────────────────────────────── */
 .foot {
   max-width: var(--maxw);

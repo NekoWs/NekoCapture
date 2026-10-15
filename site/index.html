@@ -46,6 +46,7 @@
     <a href="#demo">界面</a>
     <a href="#keys">快捷键</a>
     <a href="#requirements">系统要求</a>
+    <a href="#faq">常见问题</a>
   </nav>
   <div class="topbar__end">
     <button class="iconbtn" id="themeToggle" type="button" aria-label="切换明暗主题" title="切换明暗主题">
@@ -318,6 +319,39 @@
       <div><dt>卸载</dt><dd>系统「设置 → 应用」里卸，或跑安装器的卸载入口</dd></div>
       <div><dt>数据</dt><dd>配置在 <code>%APPDATA%\FrameCapture</code>，删掉即回到全新状态</dd></div>
     </dl>
+  </section>
+
+  <!-- ── 常见问题 ─────────────────────────────────────── -->
+  <section class="section" id="faq">
+    <header class="section__head">
+      <h2 data-reveal>常见问题</h2>
+    </header>
+    <div class="faq" data-reveal>
+      <details name="faq">
+        <summary>会上传到服务器吗？</summary>
+        <p>不会。捕获、编码、识字全在本机进程里完成，没有账号、没有遥测、没有网络请求。文字识别调用系统自带的 OCR 语言包。</p>
+      </details>
+      <details name="faq">
+        <summary>需要管理员权限吗？</summary>
+        <p>只有安装那一步需要，要写程序目录和卸载注册表项。装完日常运行是普通权限，收在托盘里。</p>
+      </details>
+      <details name="faq">
+        <summary>热键跟别的软件撞了怎么办？</summary>
+        <p>在手势配置里改，默认只占 <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>A</kbd> 与 <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>R</kbd> 两条。独占吞键打开时按键不再传给后台，关掉则照常传递。</p>
+      </details>
+      <details name="faq">
+        <summary>录制有长度限制吗？</summary>
+        <p>帧按到达顺序落盘，不驻留内存，长度只受磁盘限制。产物导出 GIF、MP4、WebM 三种。</p>
+      </details>
+      <details name="faq">
+        <summary>多显示器和高缩放能用吗？</summary>
+        <p>每个显示器独立选区，按物理像素采集。150% 缩放下不会糊，副屏拖到主屏边上照样能框。</p>
+      </details>
+      <details name="faq">
+        <summary>卸载干净吗？</summary>
+        <p>卸载器删程序目录与注册表项。配置和已保存的产物由你自己留着，删掉 <code>%APPDATA%\FrameCapture</code> 就回到全新状态。</p>
+      </details>
+    </div>
   </section>
 </main>
 
