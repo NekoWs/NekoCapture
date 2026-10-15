@@ -9,12 +9,15 @@
     pwsh -NoProfile -File scripts/publish-release.ps1
     pwsh -NoProfile -File scripts/publish-release.ps1 -Publisher "你的名字" -Flavor self
     pwsh -NoProfile -File scripts/publish-release.ps1 -SkipVerify   # 只重打包，不重跑验证
+    pwsh -NoProfile -File scripts/publish-release.ps1 -AllowInjection   # 人不在电脑旁时，连焦点安全一起跑
 #>
 param(
     [string]$Publisher = 'FrameCapture',
     [ValidateSet('both', 'self', 'fd')] [string]$Flavor = 'both',
     [string]$OutDir = 'release',
-    [switch]$SkipVerify
+    [switch]$SkipVerify,
+    # 焦点安全是唯一会注入 OS 级按键的回归项，默认跳过；确认无人使用电脑时再显式打开。
+    [switch]$AllowInjection
 )
 
 $ErrorActionPreference = 'Stop'
@@ -56,7 +59,10 @@ if (-not $SkipVerify) {
     Write-Host "  $($line.Trim())"
     if ($line -notmatch 'FAIL=0') { throw '断言未全绿，不出包' }
 
-    $g = pwsh -NoProfile -File scripts/guardrail.ps1 2>&1 | Out-String
+    # 护栏默认路径零 OS 级输入，用户在场也能跑完；焦点安全那一项要注入，只有 -AllowInjection 才带上。
+    $gArgs = @('-NoProfile', '-File', 'scripts/guardrail.ps1')
+    if ($AllowInjection) { $gArgs += '-AllowInjection' }
+    $g = & pwsh @gArgs 2>&1 | Out-String
     $gLast = ($g -split "`n" | Where-Object{ $_.Trim() } | Select-Object -Last 1)
     Write-Host "  $($gLast.Trim())"
     if ($gLast -notmatch 'PASS') { throw '护栏未通过，不出包' }
