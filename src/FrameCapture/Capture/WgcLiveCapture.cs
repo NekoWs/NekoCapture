@@ -60,6 +60,7 @@ public sealed class WgcLiveCapture : IDisposable
     private long _frameLost;
     private long _delivered;   // 诊断：TryGetNextFrame 成功数（= WGC 投递率，与拷贝无关）
     private long _keptThrottle; // 诊断：过节流数（= 采样率）
+    private long _emptyFrames;  // 诊断：窗口模式收到的 0 宽高空帧数
     /// <summary>取帧线程最后一次异常（null=正常）。测试/诊断用。</summary>
     /// <value>异常完整文本；只在拷贝/解码抛异常时写入，下一次异常覆盖它。</value>
     public string? LastLoopError { get; private set; }
@@ -72,6 +73,9 @@ public sealed class WgcLiveCapture : IDisposable
     /// <summary>通过帧率节流、真正交给 <see cref="FrameSampled"/> 的帧数。</summary>
     /// <value>即实际采样率；与 <see cref="Delivered"/> 的差就是被节流丢掉的部分。线程安全读。</value>
     public long KeptThrottle => Interlocked.Read(ref _keptThrottle);
+    /// <summary>窗口模式下收到的 0 宽高空帧数。</summary>
+    /// <value>这类帧不画进产物也不定画布；它一直涨说明目标窗始终没画出内容。线程安全读。</value>
+    public long EmptyFrames => Interlocked.Read(ref _emptyFrames);
 
     /// <summary>启动捕获。region 为虚拟桌面物理像素区域（必须位于 monitor 内）。
     /// WinRT 初始化放在独立 MTA 线程：WPF UI(STA) 线程上直接激活会死锁。</summary>
@@ -245,6 +249,9 @@ public sealed class WgcLiveCapture : IDisposable
 
     private void Emit(byte[] bgra, int w, int h)
     {
+        // 产物契约是 Bgra 长度恒等于 W*H*4：0 宽高或长度对不上的帧不进事件，
+        // 否则按 W*H 取像素的下游（暂存、编码、遮挡判定）一律越界。
+        if (w < 1 || h < 1 || bgra.Length != (long)w * h * 4) { Interlocked.Increment(ref _emptyFrames); return; }
         double t = _clock.ElapsedMilliseconds;
         FrameSampled?.Invoke(new CapturedFrame { Bgra = bgra, W = w, H = h, TimeMs = t });
     }
@@ -262,6 +269,9 @@ public sealed class WgcLiveCapture : IDisposable
 
         if (_windowMode)
         {
+            // 窗口正在创建或重排时 WGC 会递来 0 宽高的空帧：它不是画面，
+            // 既不能拿它定画布，也不能进产物——按 W*H 取像素的下游一律越界。
+            if (fw < 1 || fh < 1) { Interlocked.Increment(ref _emptyFrames); return null; }
             CopyWindowFrame(data, fw, fh);
             return fw == _poolSize.Width && fh == _poolSize.Height ? null : new SizeInt32(fw, fh);
         }
@@ -290,6 +300,8 @@ public sealed class WgcLiveCapture : IDisposable
     {
         if (_canvasW == 0) { _canvasW = fw; _canvasH = fh; }
         int cw = _canvasW, ch = _canvasH;
+        // Stop 把画布清零与取帧线程并发：清零那一瞬间这一帧已经没有落脚处，丢掉比产出一张 0×0 帧好
+        if (cw < 1 || ch < 1) { Interlocked.Increment(ref _emptyFrames); return; }
         int copyW = Math.Min(fw, cw), copyH = Math.Min(fh, ch);
         var bgra = new byte[cw * 4 * ch];
         int rowBytes = copyW * 4;

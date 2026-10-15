@@ -73,6 +73,149 @@ static class SelfTest
         return 0;
     }
 
+    /// <summary>取多行文本的第一行，用于把堆栈或异常里的位置压进一行诊断信息。</summary>
+    /// <param name="s">可能为空、可能多行的文本。</param>
+    /// <returns>第一行去掉首尾空白；输入为空时返回空串。</returns>
+    static string FirstLine(string? s) => string.IsNullOrEmpty(s) ? "" : s.Split('\n')[0].Trim();
+
+    /// <summary>
+    /// 合成一张「截下来的屏幕」：深色桌面上一个文本窗口，正文按界面语言排中文或英文。
+    /// 编辑器与贴图离屏拍图共用——测试图不该是一坨渐变，读者要一眼看出这是截来的画面。
+    /// </summary>
+    /// <param name="w">画面宽（像素）。</param>
+    /// <param name="h">画面高（像素）。</param>
+    /// <returns>按行紧排的 BGRA 字节，长度 w*h*4。</returns>
+    static byte[] MockScreen(int w, int h)
+    {
+        bool en = FrameCapture.Core.Loc.IsEnglish;
+        var dv = new System.Windows.Media.DrawingVisual();
+        using (var dc = dv.RenderOpen())
+        {
+            dc.DrawRectangle(new System.Windows.Media.LinearGradientBrush(
+                System.Windows.Media.Color.FromRgb(22, 24, 28), System.Windows.Media.Color.FromRgb(43, 46, 54), 40), null, new Rect(0, 0, w, h));
+            var card = new Rect(w * 0.07, h * 0.09, w * 0.86, h * 0.82);
+            dc.DrawRoundedRectangle(new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(31, 33, 38)),
+                new System.Windows.Media.Pen(new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(62, 66, 74)), 1), card, 9, 9);
+            dc.DrawRoundedRectangle(new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(41, 44, 50)), null,
+                new Rect(card.X, card.Y, card.Width, 32), 9, 9);
+            dc.DrawRectangle(new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(41, 44, 50)), null,
+                new Rect(card.X, card.Y + 18, card.Width, 14));
+            var dim = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(150, 156, 166));
+            var text = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(226, 229, 234));
+            var accent = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(96, 168, 232));
+            double px = 1.0;
+            System.Windows.Media.FormattedText Ft(string s, double size, System.Windows.Media.Brush b, bool bold) => new System.Windows.Media.FormattedText(s,
+                System.Globalization.CultureInfo.CurrentCulture, FlowDirection.LeftToRight,
+                new System.Windows.Media.Typeface(new System.Windows.Media.FontFamily("Segoe UI, Microsoft YaHei"), System.Windows.FontStyles.Normal,
+                    bold ? System.Windows.FontWeights.SemiBold : System.Windows.FontWeights.Normal, System.Windows.FontStretches.Normal),
+                size, b, px);
+
+            var title = Ft(en ? "scratchpad.txt" : "随手记.txt", 12.5, dim, false);
+            dc.DrawText(title, new System.Windows.Point(card.X + 14, card.Y + 8));
+            string[] head = en
+                ? new[] { "Capture   Ctrl+Alt+A    drag a box, release to shoot",
+                          "Record    Ctrl+Alt+R    hold to start, release for the clip",
+                          "Pin       Ctrl+P        nail it to the screen" }
+                : new[] { "截图   Ctrl+Alt+A   拖框选区，松手即截",
+                          "录制   Ctrl+Alt+R   按住起录，松手成片",
+                          "贴图   Ctrl+P       钉在屏幕上，比切窗口快" };
+            string[] body = en
+                ? new[] { "In the editor", "Save  Ctrl+S     Export  Ctrl+E",
+                          "Open  Ctrl+O     Text    Ctrl+H", "Frame  <-  ->     Shift steps a second" }
+                : new[] { "编辑器窗口内", "保存  Ctrl+S     导出  Ctrl+E",
+                          "打开  Ctrl+O     识字  Ctrl+H", "逐帧  <-  ->     Shift 一次一秒" };
+            double y = card.Y + 56;
+            dc.DrawText(Ft(en ? "FrameCapture notes" : "FrameCapture 随手记", 15, text, true),
+                new System.Windows.Point(card.X + 16, y));
+            y += 34;
+            foreach (string line in head) { dc.DrawText(Ft(line, 12.5, text, false), new System.Windows.Point(card.X + 16, y)); y += 21; }
+            y += 14;
+            foreach (string line in body)
+            {
+                dc.DrawText(Ft(line, 12.5, line == body[0] ? accent : text, line == body[0]),
+                    new System.Windows.Point(card.X + 16, y));
+                y += 21;
+            }
+            y += 14;
+            dc.DrawText(Ft(en ? "Everything is produced on this machine, nothing leaves it."
+                              : "所有产物都在本机生成，不联网。", 12.5, dim, false),
+                new System.Windows.Point(card.X + 16, y));
+        }
+        var shot = new System.Windows.Media.Imaging.RenderTargetBitmap(w, h, 96, 96, System.Windows.Media.PixelFormats.Pbgra32);
+        shot.Render(dv);
+        var bytes = new byte[w * h * 4];
+        shot.CopyPixels(bytes, w * 4, 0);
+        return bytes;
+    }
+
+    /// <summary>
+    /// 离屏拍一张贴图窗：贴图窗只有画面加一圈描边，四周透明，
+    /// 合成到深色桌面底上才看得出「钉在屏幕上的那块图」。
+    /// </summary>
+    /// <param name="outPath">输出 PNG 路径。</param>
+    /// <param name="scale">像素与 DPI 的同倍放大，读图用。</param>
+    /// <returns>恒为 0；渲染结果由打印行报告。</returns>
+    static int RenderPin(string outPath, double scale)
+    {
+        var app = new Application();
+        var svc = new FrameCapture.Core.SettingsService();
+        typeof(FrameCapture.Services.AppHost).GetProperty("Settings")!
+            .SetValue(FrameCapture.Services.AppHost.Current, svc);
+        FrameCapture.Core.Theme.Apply(svc.Current.Theme, svc.Current.Accent);
+        FrameCapture.Core.Fluent.ApplyGlobalStyles();
+        string lang = Environment.GetEnvironmentVariable("FC_LANG") ?? "";
+        FrameCapture.Core.Loc.Apply(lang == "" ? svc.Current.UiLanguage : lang);
+
+        const int pw = 640, ph = 400;
+        var frame = new FrameCapture.Capture.CapturedFrame
+        { Bgra = MockScreen(pw, ph), W = pw, H = ph, TimeMs = 0 };
+        var w = new FrameCapture.Overlays.PinWindow(frame, new FrameCapture.Capture.RectI(240, 180, pw, ph), false);
+        w.WindowStartupLocation = WindowStartupLocation.Manual;
+        w.Left = -20000; w.Top = -20000;
+        w.Show();
+        w.Dispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.Loaded);
+        w.Opacity = 1;
+        // 贴图窗把画面像素按显示器缩放换算成 DIP，离屏拍图要的是确定的像素尺寸：
+        // 让画面等比填满窗口，窗口尺寸由拍图这边说了算，换一台不同缩放的机器拍出来一模一样
+        void PinImagesToFill(DependencyObject node)
+        {
+            if (node is System.Windows.Controls.Image im)
+            { im.Width = double.NaN; im.Height = double.NaN; im.Stretch = System.Windows.Media.Stretch.Uniform; }
+            int n = System.Windows.Media.VisualTreeHelper.GetChildrenCount(node);
+            for (int i = 0; i < n; i++) PinImagesToFill(System.Windows.Media.VisualTreeHelper.GetChild(node, i));
+        }
+        w.UpdateLayout();
+        PinImagesToFill(w);
+        w.Width = pw; w.Height = ph;
+        var root = (UIElement)w.Content;
+        root.Measure(new System.Windows.Size(pw, ph));
+        root.Arrange(new Rect(0, 0, pw, ph));
+        root.UpdateLayout();
+        int iw = pw, ih = ph;
+        var pin = new System.Windows.Media.Imaging.RenderTargetBitmap(iw, ih, 96, 96, System.Windows.Media.PixelFormats.Pbgra32);
+        pin.Render(root);
+
+        int ww = (int)Math.Ceiling((iw + 120) * scale), hh = (int)Math.Ceiling((ih + 90) * scale);
+        // 坐标已经乘过 scale，这里再按 dpi 放大一次就是双重放大：合成层固定 96dpi
+        var back = new System.Windows.Media.DrawingVisual();
+        using (var dc = back.RenderOpen())
+        {
+            dc.DrawRectangle(new System.Windows.Media.LinearGradientBrush(
+                System.Windows.Media.Color.FromRgb(18, 19, 23), System.Windows.Media.Color.FromRgb(38, 41, 48), 35), null, new Rect(0, 0, ww, hh));
+            var at = new Rect(60 * scale, 45 * scale, iw * scale, ih * scale);
+            dc.DrawRoundedRectangle(new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(10, 11, 13)), null,
+                new Rect(at.X + 5 * scale, at.Y + 9 * scale, at.Width, at.Height), 4, 4);
+            dc.DrawImage(pin, at);
+        }
+        var rtb = new System.Windows.Media.Imaging.RenderTargetBitmap(ww, hh, 96, 96, System.Windows.Media.PixelFormats.Pbgra32);
+        rtb.Render(back);
+        var enc = new System.Windows.Media.Imaging.PngBitmapEncoder();
+        enc.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(rtb));
+        Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(outPath))!);
+        using (var fs = File.Create(outPath)) enc.Save(fs);
+        Console.WriteLine($"saved {outPath} {ww}x{hh} lang={(FrameCapture.Core.Loc.IsEnglish ? "en" : "zh")}");
+        return 0;
+    }
     static int RenderHelp(string outPath) => RenderHelp(outPath, 0, 1);
     static int RenderHelp(string outPath, int step, double scale)    {
         var app = new Application();
@@ -226,7 +369,7 @@ static class SelfTest
             ? s : 1;
 
     /// <summary>离屏渲染编辑器窗口：合成一段三帧捕获序列喂给它，工具条、时间轴、HUD 都是真实装配，
-    /// 拍出来的就是用户按下截图后看到的那一窗。帧内容是渐变加一块亮面板，画布不至于全黑。</summary>
+    /// 拍出来的就是用户按下截图后看到的那一窗。帧内容是合成的屏幕画面，画布不至于全黑。</summary>
     /// <param name="outPath">输出 PNG 路径。</param>
     /// <param name="scale">渲染倍率，1 表示 96dpi 原尺寸。</param>
     /// <param name="guide">true 时把首次打开的上手引导一并拍进去；false 时确保引导已关掉。</param>
@@ -241,25 +384,10 @@ static class SelfTest
         FrameCapture.Core.Fluent.ApplyGlobalStyles();
         string lang = Environment.GetEnvironmentVariable("FC_LANG") ?? "";
         FrameCapture.Core.Loc.Apply(lang == "" ? svc.Current.UiLanguage : lang);
-
         const int fw = 900, fh = 520;
         var frames = new List<FrameCapture.Capture.CapturedFrame>();
         for (int i = 0; i < 3; i++)
-        {
-            var px = new byte[fw * fh * 4];
-            for (int y = 0; y < fh; y++)
-                for (int x = 0; x < fw; x++)
-                {
-                    int o = (y * fw + x) * 4;
-                    int v = 28 + x * 90 / fw + y * 40 / fh;
-                    bool panel = x > fw / 3 && x < fw * 4 / 5 && y > fh / 5 && y < fh * 3 / 4;
-                    px[o] = (byte)(panel ? Math.Min(255, v + 70) : v);
-                    px[o + 1] = (byte)(panel ? Math.Min(255, v + 78) : v + 12);
-                    px[o + 2] = (byte)(panel ? Math.Min(255, v + 92) : v + 26);
-                    px[o + 3] = 255;
-                }
-            frames.Add(new FrameCapture.Capture.CapturedFrame { Bgra = px, W = fw, H = fh, TimeMs = i * 33.3 });
-        }
+            frames.Add(new FrameCapture.Capture.CapturedFrame { Bgra = MockScreen(fw, fh), W = fw, H = fh, TimeMs = i * 33.3 });
         var seq = new FrameCapture.Capture.CapturedSequence
         {
             Frames = frames,
@@ -647,7 +775,8 @@ static class SelfTest
     {
         Console.OutputEncoding = System.Text.Encoding.UTF8;
         // 离屏渲染帮助窗取证：独立进程、不 Show、不注册热键，不打断正在运行的实例
-        if (args.Length >= 2 && args[0] == "renderhelp") return RenderHelp(args[1], args.Length >= 3 && int.TryParse(args[2], out var hs) ? hs : 0, ScaleArg(args));
+        if (args.Length >= 2 && args[0] == "renderpin") return RenderPin(args[1], ScaleArg(args));
+                if (args.Length >= 2 && args[0] == "renderhelp") return RenderHelp(args[1], args.Length >= 3 && int.TryParse(args[2], out var hs) ? hs : 0, ScaleArg(args));
         if (args.Length == 2 && args[0] == "sbprobe") return SbProbe(args[1]);
         if (args.Length == 2 && args[0] == "renderpick") return RenderPick(args[1]);
         if (args.Length == 2 && args[0] == "editorwave") return EditorWave(args[1]);
@@ -1163,18 +1292,29 @@ static class SelfTest
             var btnW = barW!.Children.OfType<System.Windows.Controls.Button>().ToList();
             Chk("T178a-toolbar-items", btnW.Count > 4, $"工具条按钮数={btnW.Count}");
             winW.Show();
-            // 采样点锚在「首项刚起波」：整段入场以 ContentRendered 为锚，Mica 背板在场时首帧渲染更晚，
-            // Show 后固定时长会早于起波时刻。级联接管时 Opacity 仍是 1，接管后才压到 0 再抬升，
-            // 故先等被压住、再等抬起来；两步都设上限，等不到即失败。
-            int held = 0;
-            while (btnW[0].Opacity > 0.05 && held < 3000) { PumpMs(10); held += 10; }
-            int lead = 0;
-            while (btnW[0].Opacity <= 0.02 && lead < 3000) { PumpMs(10); lead += 10; }
-            bool ordered = true;
-            for (int i = 1; i < btnW.Count; i++) if (btnW[i].Opacity > btnW[i - 1].Opacity + 0.02) ordered = false;
+            // 采样不押固定时长：整段入场以 ContentRendered 为锚，Mica 背板在场或机器忙时首帧渲染更晚，
+            // Show 后等固定时长会整段错过「首项已抬、末项未起」的那一瞬间。
+            // 从 Show 起持续泵消息，把这一瞬间的透明度差取到最大再判定——比的是左右顺序，不是绝对时刻。
+            double bestGap = -1, bestFirst = 0, bestLast = 0;
+            bool bestOrdered = false;
+            int sampledMs = 0;
+            var swWave = Stopwatch.StartNew();
+            while (swWave.ElapsedMilliseconds < 6000)
+            {
+                double first = btnW[0].Opacity, last = btnW[^1].Opacity;
+                if (first - last > bestGap)
+                {
+                    bestGap = first - last; bestFirst = first; bestLast = last; sampledMs = (int)swWave.ElapsedMilliseconds;
+                    bool ord = true;
+                    for (int i = 1; i < btnW.Count; i++) if (btnW[i].Opacity > btnW[i - 1].Opacity + 0.02) ord = false;
+                    bestOrdered = ord;
+                    if (bestOrdered && bestLast < 0.05 && bestFirst > 0.5) break;
+                }
+                PumpMs(5);
+            }
             Chk("T178b-wave-left-to-right",
-                ordered && btnW[^1].Opacity < 0.05 && btnW[0].Opacity > btnW[^1].Opacity,
-                $"首={btnW[0].Opacity:N2} 末={btnW[^1].Opacity:N2} 错位单调={ordered} 接管={held}ms 起波={lead}ms");
+                bestOrdered && bestLast < 0.05 && bestFirst > bestLast,
+                $"首={bestFirst:N2} 末={bestLast:N2} 错位单调={bestOrdered} 采样于={sampledMs}ms");
             PumpMs(Fluent.Motion.SpringMs + Fluent.Motion.StaggerMs + 300);
             var bad = btnW.FirstOrDefault(b => b.Opacity < 0.999
                 || (b.RenderTransform != null && !b.RenderTransform.Value.IsIdentity));
@@ -1784,12 +1924,18 @@ static class SelfTest
                 CapturedFrame? lastWin = null;
                 var winFrames = new List<CapturedFrame>();
                 int nWin = 0;
-                wgcWin.FrameSampled += f => { lock (winFrames) { if (winFrames.Count < 24) winFrames.Add(f); } lastWin = f; Interlocked.Increment(ref nWin); };
+                int badWin = 0; // 尺寸与缓冲不一致的帧：0 宽高的空帧、或 W*H*4 对不上 Bgra 长度
+                wgcWin.FrameSampled += f =>
+                {
+                    if (f.W < 1 || f.H < 1 || f.Bgra.Length != (long)f.W * f.H * 4) Interlocked.Increment(ref badWin);
+                    lock (winFrames) { if (winFrames.Count < 24) winFrames.Add(f); }
+                    lastWin = f; Interlocked.Increment(ref nWin);
+                };
                 wgcWin.StartWindow(target.Handle, mon, 20, false);
                 var swWin = Stopwatch.StartNew();
                 while (nWin < 2 && swWin.ElapsedMilliseconds < 3000) PumpMs(50);
-                Chk("T189d-window-frames", nWin >= 2 && lastWin != null,
-                    $"n={nWin} err={wgcWin.LastLoopError?.Split('\n')[0]}");
+                Chk("T189d-window-frames", nWin >= 2 && lastWin != null && badWin == 0,
+                    $"n={nWin} bad={badWin} empty={wgcWin.EmptyFrames} err={FirstLine(wgcWin.LastLoopError)}");
 
                 var f0 = lastWin;
                 Chk("T189e-window-size",
@@ -1815,7 +1961,8 @@ static class SelfTest
                 var fOcc = lastWin;
                 bool occClean = false;
                 string occDetail = "无帧";
-                if (fOcc != null)
+                // 取样点必须落在缓冲内：帧尺寸与缓冲长度对不上时按"没采到"计，断言照样不过
+                if (fOcc != null && fOcc.Bgra.Length >= (fOcc.H / 2 * fOcc.W + 60) * 4 + 3)
                 {
                     int ox = 60, oy = fOcc.H / 2; // 遮挡窗盖住帧内 x∈[2,122]、y∈[30,180]
                     int oi = (oy * fOcc.W + ox) * 4;
@@ -1823,7 +1970,8 @@ static class SelfTest
                     occClean = og < 0x80 && ob > 0x40; // 目标本色 (18,52,86)；纯绿是 g=255
                     occDetail = $"({orr},{og},{ob})";
                 }
-                Chk("T189f-window-occlusion", occClean, $"遮挡处像素={occDetail} n={nWin}");
+                else if (fOcc != null) occDetail = $"缓冲不足 {fOcc.W}x{fOcc.H}/{fOcc.Bgra.Length}";
+                Chk("T189f-window-occlusion", occClean, $"遮挡处像素={occDetail} n={nWin} bad={badWin} empty={wgcWin.EmptyFrames}");
 
                 // 产物不留透明像素：边带拍平过，GIF / MP4 不会编出黑角
                 bool allOpaque = true;
@@ -1887,7 +2035,7 @@ static class SelfTest
                 probeWin.Close();
             }
         }
-        catch (Exception e) { Chk("T20-wgc-backend", false, e.Message); }
+        catch (Exception e) { Chk("T20-wgc-backend", false, e.GetType().Name + " " + e.Message + " @" + FirstLine(e.StackTrace)); }
 
         // 时间轴裁剪端点直设与钳位（A<=B-1、B>=A+1、至少 2 帧）
         {
