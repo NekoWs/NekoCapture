@@ -49,7 +49,7 @@ public sealed partial class SettingsWindow : Window
         Grid.SetColumn(chips, 2);
         string cur = _settings.Current.UiLanguage;
         foreach (var (id, label) in new[]
-                 { (Loc.PrefSystem, Loc.T("系统默认")), (Loc.PrefZh, "中文"), (Loc.PrefEn, "English") })
+                 { (Loc.PrefSystem, Loc.T("系统默认")), (Loc.PrefZh, "中文"), (Loc.PrefEn, "English") }) // copyok 语言名用本语言自称，两种界面下都显示「中文 / English」
         {
             string captured = id;
             var chip = new Border

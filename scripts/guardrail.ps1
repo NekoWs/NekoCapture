@@ -47,6 +47,15 @@ if ($cm.Success) {
     if ($cf -gt 0) { Say (& pwsh -NoProfile -File (Join-Path $PSScriptRoot "lint-copy-parens.ps1") 2>&1 | Out-String) }
 } else { Add-Result "lint:copy-parens" "FAIL" "扫描器无输出" }
 
+# 0d) 取词覆盖护栏（已迁移文件里新增中文必须挂 Loc，防半中半英的窗口回来）
+$i18nOut = & pwsh -NoProfile -File (Join-Path $PSScriptRoot "lint-i18n-coverage.ps1") -Quiet 2>&1 | Out-String
+$im = [regex]::Match($i18nOut, 'LINT-I18N (\w+)(?:\s+FAIL=(\d+))?')
+if ($im.Success) {
+    $if_ = if ($im.Groups[2].Success) { [int]$im.Groups[2].Value } else { 999 }
+    Add-Result "lint:i18n-coverage" $(if ($im.Groups[1].Value -eq 'PASS' -and $if_ -eq 0) { "PASS" } else { "FAIL" }) ($i18nOut -split "`n")[0].Trim()
+    if ($if_ -gt 0) { Say (& pwsh -NoProfile -File (Join-Path $PSScriptRoot "lint-i18n-coverage.ps1") 2>&1 | Out-String) }
+} else { Add-Result "lint:i18n-coverage" "FAIL" "扫描器无输出" }
+
 # 1) 杀掉运行中的实例（否则 MSB3027 会让构建静默失败）
 $hadUserInstance = [bool](Get-Process FrameCapture -EA SilentlyContinue)
 Get-Process FrameCapture -EA SilentlyContinue | Stop-Process -Force
