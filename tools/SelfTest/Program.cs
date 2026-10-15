@@ -155,8 +155,9 @@ static class SelfTest
     /// 切类别靠给左侧列表项抛一个 Enter 键事件，与用户点它走同一个 ShowCat。</summary>
     /// <param name="outPath">输出 PNG 路径。</param>
     /// <param name="catName">类别名：快捷键 / 截图 / 录制 / 产物 / 编辑器 / 贴图 / 外观 / 系统。</param>
+    /// <param name="scale">渲染倍率，1 表示 96dpi 原尺寸；宣传页按 1.5 出图。</param>
     /// <returns>恒为 0。</returns>
-    static int RenderSettings(string outPath, string catName)
+    static int RenderSettings(string outPath, string catName, double scale = 1)
     {
         var app = new Application();
         // 设置窗读 AppHost.Current.Settings；本模式只 new Application()，不走 AppHost.Startup，
@@ -202,8 +203,8 @@ static class SelfTest
             PumpMs(500); // 切类别的淡入淡出走完再拍
         }
         Layout();
-        int ww = (int)Math.Ceiling(W), hh = (int)Math.Ceiling(H);
-        var rtb = new System.Windows.Media.Imaging.RenderTargetBitmap(ww, hh, 96, 96, System.Windows.Media.PixelFormats.Pbgra32);
+        int ww = (int)Math.Ceiling(W * scale), hh = (int)Math.Ceiling(H * scale);
+        var rtb = new System.Windows.Media.Imaging.RenderTargetBitmap(ww, hh, 96 * scale, 96 * scale, System.Windows.Media.PixelFormats.Pbgra32);
         rtb.Render(root);
         var enc = new System.Windows.Media.Imaging.PngBitmapEncoder();
         enc.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(rtb));
@@ -214,11 +215,21 @@ static class SelfTest
         return 0;
     }
 
+    /// <summary>渲染倍率：命令行最后一个参数写成 <c>@1.5</c> 就是 150%——宣传页的界面截图按 150% 出图，
+    /// 位图 DPI 同步放大，字与图标都是矢量重绘，不是把 96dpi 的图放大重采样。</summary>
+    /// <param name="args">命令行参数；最后一个形如 <c>@1.5</c> 的参数是倍率。</param>
+    /// <returns>解析出的倍率；没写、写坏、或不是最后一个参数时返回 1。</returns>
+    static double ScaleArg(string[] args) =>
+        args.Length > 0 && args[^1].StartsWith("@", StringComparison.Ordinal)
+        && double.TryParse(args[^1][1..], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var s) && s > 0
+            ? s : 1;
+
     /// <summary>离屏渲染手势配置器：库自己不认识语言与主题，这里按宿主同一套注入取词函数与配色，
     /// 拍出来的就是用户真实看到的那一窗。选中第一条绑定，让详情面板也进画面。</summary>
     /// <param name="outPath">输出 PNG 路径。</param>
+    /// <param name="scale">渲染倍率，1 表示 96dpi 原尺寸。</param>
     /// <returns>恒为 0；渲染结果由打印行报告。</returns>
-    static int RenderGestures(string outPath)
+    static int RenderGestures(string outPath, double scale = 1)
     {
         var app = new Application();
         var svc = new FrameCapture.Core.SettingsService();
@@ -250,8 +261,8 @@ static class SelfTest
         root.Measure(new System.Windows.Size(W, H));
         root.Arrange(new Rect(0, 0, W, H));
         root.UpdateLayout();
-        int ww = (int)Math.Ceiling(W), hh = (int)Math.Ceiling(H);
-        var rtb = new System.Windows.Media.Imaging.RenderTargetBitmap(ww, hh, 96, 96, System.Windows.Media.PixelFormats.Pbgra32);
+        int ww = (int)Math.Ceiling(W * scale), hh = (int)Math.Ceiling(H * scale);
+        var rtb = new System.Windows.Media.Imaging.RenderTargetBitmap(ww, hh, 96 * scale, 96 * scale, System.Windows.Media.PixelFormats.Pbgra32);
         rtb.Render(root);
         var enc = new System.Windows.Media.Imaging.PngBitmapEncoder();
         enc.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(rtb));
@@ -568,9 +579,9 @@ static class SelfTest
         {
             string[] catNames = { "快捷键", "截图", "录制", "产物", "编辑器", "贴图", "外观", "系统" };
             int ci = args.Length >= 3 && int.TryParse(args[2], out var sc) ? sc : 0;
-            return RenderSettings(args[1], catNames[Math.Clamp(ci, 0, catNames.Length - 1)]);
+            return RenderSettings(args[1], catNames[Math.Clamp(ci, 0, catNames.Length - 1)], ScaleArg(args));
         }
-        if (args.Length >= 2 && args[0] == "rendergestures") return RenderGestures(args[1]);
+        if (args.Length >= 2 && args[0] == "rendergestures") return RenderGestures(args[1], ScaleArg(args));
         if (args.Length == 3 && args[0] == "stitch") return StitchMode(args[1], args[2]);
         string tmp = Path.Combine(Path.GetTempPath(), "FrameCapture", "selftest");
         Directory.CreateDirectory(tmp);
