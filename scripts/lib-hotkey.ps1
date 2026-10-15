@@ -100,6 +100,8 @@ function Set-FcTestGestureConfig {
     $gestures = [pscustomobject]@{ Enabled=$true; Exclusive=$true; Bindings=$bindings; Seeded=$true }
     # 注意：app 的 JsonSerializer 大小写敏感，属性名须 PascalCase（"Gestures"），否则整段被忽略→回退默认播种集。
     $s | Add-Member -Force Gestures $gestures
+    # 首启引导会吞掉进编辑器后的头几次按键：测试直投按键测的是键位本身，先把引导记成已看过
+    $s | Add-Member -Force EditorGuideShown $true
     if ($RegionW -gt 0) {   # 固定捕获区域（缩放/编辑器类测试需大区域，避免 End=1:1 变无操作）
         $s | Add-Member -Force RegionX $RegionX
         $s | Add-Member -Force RegionY $RegionY

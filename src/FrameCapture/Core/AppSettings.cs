@@ -102,8 +102,9 @@ public sealed class AppSettings
     /// <summary>编辑器首次上手引导是否已看过：置真后引导永久静默。</summary>
     public bool EditorGuideShown { get; set; } = false;
 
-    /// <summary>编辑器命令的自定义键位：命令 Id → 键位串，空串 = 这条命令不占键。
-    /// 备用键位存在 <c>Id + ".alt"</c> 下。表里没有的 Id 取 <see cref="EditorCommands"/> 的默认键位。</summary>
+    /// <summary>编辑器命令的自定义键位：命令 Id → 这条命令的全部按法，用 <c>|</c> 分隔，顺序即分派顺序。
+    /// 空串 = 这条命令一个键都不占；表里没有的 Id 取 <see cref="EditorCommands"/> 的默认按法。
+    /// 与默认按法完全一致时不写条目，字典里只留真正的偏离。</summary>
     public Dictionary<string, string> EditorKeys { get; set; } = new();
 
     /// <summary>首次启动欢迎卡是否已弹过：置真后欢迎卡永久静默。</summary>

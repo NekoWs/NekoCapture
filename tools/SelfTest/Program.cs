@@ -3692,9 +3692,9 @@ static class SelfTest
                 && OrderOk(ModifierKeys.None, Key.Delete, "delete-object") && OrderOk(ModifierKeys.None, Key.Back, "delete-object"),
                 $"del={(map.TryGetValue((ModifierKeys.None, Key.Delete), out var dl) ? string.Join(",", dl) : "-")}");
 
-            // 解绑：三个按法全清空后命令退出分派表，同键上的其他命令照常
+            // 解绑：按法清空后命令退出分派表，同键上的其他命令照常
             var unbound = new AppSettings();
-            foreach (var k in new[] { "undo", "undo.1", "undo.2" }) unbound.EditorKeys[k] = "";
+            EditorCommands.WriteBindings(unbound, EditorCommands.Find("undo")!, Array.Empty<string>());
             var umap = EditorCommands.BuildMap(unbound);
             Chk("T188h-unbind", !umap.ContainsKey((ModifierKeys.Control, Key.Z))
                 && !umap.ContainsKey((ModifierKeys.Control, Key.U))
@@ -3702,15 +3702,15 @@ static class SelfTest
                 && HasIn(umap, ModifierKeys.None, Key.Delete, "delete-object"),
                 $"del={string.Join(",", umap.TryGetValue((ModifierKeys.None, Key.Delete), out var ul) ? ul : new List<string>())}");
 
-            // 改键：新键位进表、默认键位让位，每个按法各自独立可改
+            // 改键：新键位进表、默认键位让位，其余按法不受影响
             var remap = new AppSettings();
-            remap.EditorKeys["undo"] = "Ctrl+V";
-            remap.EditorKeys["undo.1"] = "";
+            var undoCmd = EditorCommands.Find("undo")!;
+            EditorCommands.WriteBindings(remap, undoCmd, new[] { "Ctrl+V", "Delete" });
             var rmap = EditorCommands.BuildMap(remap);
             Chk("T188i-remap", HasIn(rmap, ModifierKeys.Control, Key.V, "undo") && !rmap.ContainsKey((ModifierKeys.Control, Key.Z))
                 && !HasIn(rmap, ModifierKeys.Control, Key.U, "undo")
                 && HasIn(rmap, ModifierKeys.None, Key.Delete, "undo")
-                && EditorCommands.IsCustomized(remap, EditorCommands.Find("undo")!)
+                && EditorCommands.IsCustomized(remap, undoCmd)
                 && !EditorCommands.IsCustomized(remap, EditorCommands.Find("redo")!));
 
             // 出厂键位互不冲突：两条无条件命令抢同一个键，用户按下去只会有一条生效，另一条形同虚设
@@ -3725,6 +3725,40 @@ static class SelfTest
             var c2 = EditorCommands.Conflicts(conf);
             Chk("T188k-user-conflict", c2.Count == 1 && c2[0].Ids.Contains("undo") && c2[0].Ids.Contains("tool.V"),
                 string.Join(";", c2.Select(c => c.Chord + "=" + string.Join("/", c.Ids))));
+
+            // 加按法：单键命令也能往上加，加出来的每个按法各自进表；重复与空串不留
+            var added = new AppSettings();
+            var selCmd = EditorCommands.Find("tool.V")!;
+            EditorCommands.WriteBindings(added, selCmd, new[] { "V", "Ctrl+V", "", "Alt+V", "V" });
+            var amap = EditorCommands.BuildMap(added);
+            Chk("T188l-add-binding",
+                EditorCommands.BindingsFor(added, selCmd).SequenceEqual(new[] { "V", "Ctrl+V", "Alt+V" })
+                && added.EditorKeys["tool.V"] == "V|Ctrl+V|Alt+V"
+                && HasIn(amap, ModifierKeys.None, Key.V, "tool.V")
+                && HasIn(amap, ModifierKeys.Control, Key.V, "tool.V")
+                && HasIn(amap, ModifierKeys.Alt, Key.V, "tool.V"),
+                added.EditorKeys.TryGetValue("tool.V", out var av) ? av : "-");
+
+            // 按法改回出厂那份：配置里不留条目，恢复默认键位时不会被自己写过的值绊住
+            var back = new AppSettings();
+            EditorCommands.WriteBindings(back, selCmd, new[] { "V", "Ctrl+V" });
+            EditorCommands.WriteBindings(back, selCmd, selCmd.Chords);
+            Chk("T188m-default-not-stored", !back.EditorKeys.ContainsKey("tool.V")
+                && !EditorCommands.IsCustomized(back, selCmd)
+                && EditorCommands.BindingsFor(back, selCmd).SequenceEqual(selCmd.Chords));
+
+            // 一条命令挂满按法：每个都进表，顺序按列表走，多到溢出也不会有按法被丢掉
+            var many = new AppSettings();
+            var manyCmd = EditorCommands.Find("save-frame")!;
+            EditorCommands.WriteBindings(many, manyCmd, new[] { "Ctrl+S", "Ctrl+F", "F12", "Ctrl+Shift+S", "Alt+F12" });
+            var mmap = EditorCommands.BuildMap(many);
+            Chk("T188n-many-bindings",
+                HasIn(mmap, ModifierKeys.Control, Key.S, "save-frame")
+                && HasIn(mmap, ModifierKeys.Control, Key.F, "save-frame")
+                && HasIn(mmap, ModifierKeys.None, Key.F12, "save-frame")
+                && HasIn(mmap, ModifierKeys.Control | ModifierKeys.Shift, Key.S, "save-frame")
+                && HasIn(mmap, ModifierKeys.Alt, Key.F12, "save-frame")
+                && EditorCommands.BindingsFor(many, manyCmd).Count == 5);
 
             static bool HasIn(Dictionary<(ModifierKeys Mods, Key Key), List<string>> m, ModifierKeys k, Key key, string id)
                 => m.TryGetValue((k, key), out var l) && l.Contains(id);

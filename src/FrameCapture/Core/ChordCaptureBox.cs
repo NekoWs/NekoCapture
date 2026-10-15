@@ -21,6 +21,9 @@ public sealed class ChordCaptureBox : Border
     /// <summary>键位改定：参数是新的键位串，空串表示解绑。</summary>
     public event Action<string>? Picked;
 
+    /// <summary>录入中途失焦：既没改键也没解绑，这一笔不算。新加的键位框据此把自己收回去。</summary>
+    public event Action? Cancelled;
+
     /// <summary>当前键位串，空串表示这条命令不占键。</summary>
     /// <value>赋值后立即重画。</value>
     public string Chord
@@ -56,11 +59,12 @@ public sealed class ChordCaptureBox : Border
             if (!_capturing && e.Key is Key.Space or Key.Enter) { BeginCapture(); e.Handled = true; }
         };
         PreviewKeyDown += OnPreviewKeyDown;
-        LostFocus += (_, _) => EndCapture();
+        LostFocus += (_, _) => CancelIfCapturing();
         Render();
     }
 
-    void BeginCapture()
+    /// <summary>进入录入态：等一个主键，边框转强调色。设置页的加号按钮用它让新键位框一出来就在等键。</summary>
+    public void BeginCapture()
     {
         _capturing = true;
         Focus();
@@ -72,6 +76,15 @@ public sealed class ChordCaptureBox : Border
         if (!_capturing) return;
         _capturing = false;
         Render();
+    }
+
+    /// <summary>录入态下丢了焦点：这一笔作废，既不落键也不解绑。</summary>
+    void CancelIfCapturing()
+    {
+        if (!_capturing) return;
+        _capturing = false;
+        Render();
+        Cancelled?.Invoke();
     }
 
     void OnPreviewKeyDown(object sender, KeyEventArgs e)

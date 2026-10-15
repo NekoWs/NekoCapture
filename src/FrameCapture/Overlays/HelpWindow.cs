@@ -267,13 +267,14 @@ public sealed class HelpWindow : Window
 
     /// <summary>编辑器命令的当前键位。键位可在设置里改，帮助里的键位跟着设置走，不写死。</summary>
     /// <param name="ids">命令 Id，可给多条，显示时用斜杠分隔。</param>
-    /// <returns>键位串，如 <c>Space / ← / →</c>；解绑或认不出的命令显示「未设键」。</returns>
+    /// <returns>每条命令取它当前第一个按法，如 <c>Space / ← / →</c>；一个按法都没留的命令显示「未设键」。</returns>
     static string EditorKeysFor(params string[] ids)
     {
         var s = SettingsService.Shared?.Current;
         if (s == null) return "未设键";
         return string.Join(" / ", ids.Select(id =>
-            EditorCommands.Find(id) is { } c && EditorChord.Parse(EditorCommands.ChordFor(s, c)) is { } ec
+            EditorCommands.Find(id) is { } c
+            && EditorChord.Parse(EditorCommands.BindingsFor(s, c).FirstOrDefault() ?? "") is { } ec
                 ? string.Join("+", ec.Tokens())
                 : "未设键"));
     }

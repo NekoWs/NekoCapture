@@ -6,8 +6,8 @@ namespace FrameCapture.Core;
 /// <param name="Id">稳定标识，写进 <see cref="AppSettings.EditorKeys"/>；改名会丢用户配置，只增不改。</param>
 /// <param name="Name">设置页与帮助窗里显示的动作名。</param>
 /// <param name="Group">设置页里的分组标题。</param>
-/// <param name="Chords">默认键位串，按分派顺序排；空串表示这一槽不占键。一条命令可以有多个按法，
-/// 每个按法在设置页里各自独立可改。</param>
+/// <param name="Chords">出厂默认的那组按法，按分派顺序排。用户在设置页里加或减之后，生效的是
+/// <see cref="EditorCommands.BindingsFor"/> 取到的那份。</param>
 /// <param name="NeedsSelection">只有在画布上选中了对象时才成立的命令。这类命令在分派时先问一遍，
 /// 问不中就交给同一个键上的其他命令——<c>Delete</c> 同时挂着「删除选中对象」和「撤销」就是这个情形。</param>
 /// <returns>按给定值构造的不可变记录。</returns>
@@ -23,18 +23,10 @@ public sealed record EditorCommand(string Id, string Name, string Group, string[
     /// <param name="needsSelection">是否只在有选中对象时成立。</param>
     public EditorCommand(string id, string name, string group, string chord, string? alt = null, string? alt2 = null, bool needsSelection = false)
         : this(id, name, group,
-            new[] { chord }.Concat(new[] { alt, alt2 }.Where(s => !string.IsNullOrEmpty(s))).ToArray(), needsSelection)
+            new[] { chord }.Concat(new[] { alt, alt2 }.Where(s => !string.IsNullOrEmpty(s)).Select(s => s!)).ToArray(),
+            needsSelection)
     {
     }
-
-    /// <summary>第 <paramref name="slot"/> 个按法在设置里存于哪个键。</summary>
-    /// <param name="slot">槽位，0 是主键位。</param>
-    /// <returns>配置字典里的键：主键位用命令 Id，其余槽位用 <c>Id.1</c>、<c>Id.2</c>。</returns>
-    public string SettingKey(int slot) => slot == 0 ? Id : Id + "." + slot;
-
-    /// <summary>这条命令有几个按法槽位。</summary>
-    /// <value>默认键位的个数，至少一个。</value>
-    public int Slots => Chords.Length;
 }
 
 /// <summary>
@@ -101,25 +93,38 @@ public static class EditorCommands
     /// <returns>找到的命令；Id 不在表里返回 null。</returns>
     public static EditorCommand? Find(string id) => All.FirstOrDefault(c => c.Id == id);
 
-    /// <summary>这条命令第 slot 个按法当前生效的键位串。</summary>
+    /// <summary>这条命令当前生效的按法列表。</summary>
     /// <param name="s">用户设置。</param>
     /// <param name="c">命令。</param>
-    /// <param name="slot">按法槽位，0 是主键位。</param>
-    /// <returns>用户改过取用户值，空串表示解绑；没改过取默认值，超出默认按法个数时为空串。</returns>
-    public static string ChordFor(AppSettings s, EditorCommand c, int slot = 0) =>
-        s.EditorKeys.TryGetValue(c.SettingKey(slot), out var v) ? v
-            : slot < c.Chords.Length ? c.Chords[slot] : "";
+    /// <returns>用户动过取用户那份，一条也没有就是空表；没动过取默认按法。</returns>
+    public static List<string> BindingsFor(AppSettings s, EditorCommand c)
+    {
+        if (!s.EditorKeys.TryGetValue(c.Id, out var v)) return c.Chords.ToList();
+        return v.Length == 0
+            ? new List<string>()
+            : v.Split('|', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+    }
+
+    /// <summary>把一条命令的按法列表写回设置。要在 <see cref="SettingsService.Mutate"/> 里调用。</summary>
+    /// <param name="s">要写入的设置。</param>
+    /// <param name="c">命令。</param>
+    /// <param name="chords">按法串，顺序即分派顺序；空串与重复的按法会被丢掉。</param>
+    public static void WriteBindings(AppSettings s, EditorCommand c, IEnumerable<string> chords)
+    {
+        var kept = new List<string>();
+        foreach (var ch in chords)
+            if (ch.Length > 0 && !kept.Contains(ch)) kept.Add(ch);
+        // 与默认一致就不留配置项：字典里只留真正的偏离，恢复默认键位时不会被自己写过的值绊住
+        if (kept.SequenceEqual(c.Chords)) s.EditorKeys.Remove(c.Id);
+        else s.EditorKeys[c.Id] = string.Join("|", kept);
+    }
 
     /// <summary>这条命令是否被用户动过——设置页据此决定「恢复」按钮是否出现。</summary>
     /// <param name="s">用户设置。</param>
     /// <param name="c">命令。</param>
-    /// <returns>任一按法槽位与默认值不同则为真。</returns>
-    public static bool IsCustomized(AppSettings s, EditorCommand c)
-    {
-        for (int i = 0; i < c.Slots; i++)
-            if (ChordFor(s, c, i) != c.Chords[i]) return true;
-        return false;
-    }
+    /// <returns>当前按法列表与默认按法不完全一致则为真。</returns>
+    public static bool IsCustomized(AppSettings s, EditorCommand c) =>
+        !BindingsFor(s, c).SequenceEqual(c.Chords);
 
     /// <summary>把全部命令的生效键位摊成一张分派表。</summary>
     /// <param name="s">用户设置。</param>
@@ -129,9 +134,9 @@ public static class EditorCommands
     {
         var map = new Dictionary<(ModifierKeys, Key), List<string>>();
         foreach (var c in All.Where(c => c.NeedsSelection).Concat(All.Where(c => !c.NeedsSelection)))
-            for (int slot = 0; slot < c.Slots; slot++)
+            foreach (var raw in BindingsFor(s, c))
             {
-                var ch = EditorChord.Parse(ChordFor(s, c, slot));
+                var ch = EditorChord.Parse(raw);
                 if (ch == null) continue;
                 var key = (ch.Value.Mods, ch.Value.Key);
                 if (!map.TryGetValue(key, out var ids)) map[key] = ids = new List<string>();
@@ -148,9 +153,9 @@ public static class EditorCommands
     {
         var byChord = new Dictionary<string, List<string>>();
         foreach (var c in All.Where(c => !c.NeedsSelection))
-            for (int slot = 0; slot < c.Slots; slot++)
+            foreach (var raw in BindingsFor(s, c))
             {
-                var ch = EditorChord.Parse(ChordFor(s, c, slot));
+                var ch = EditorChord.Parse(raw);
                 if (ch == null) continue;
                 var key = ch.Value.ToString();
                 if (!byChord.TryGetValue(key, out var ids)) byChord[key] = ids = new List<string>();
