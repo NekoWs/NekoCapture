@@ -4,10 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>FrameCapture — Windows 截图与录屏工具</title>
-<meta name="description" content="FrameCapture：Windows 截图与录屏。拖框选区、窗口吸附、滚动长图、GIF / MP4 录制、标注、贴图、文字识别。默认 Ctrl+Alt+A 截图、Ctrl+Alt+R 录制，全程在本机完成。">
+<meta name="description" content="FrameCapture：Windows 截图与录屏。截完直接进剪贴板，粘走就能用；窗口截图按窗口本体捕获，圆角透明、投影合成，不把屏幕背景截进去。GIF / MP4 录制、标注、贴图、文字识别，全程在本机完成。">
 <meta property="og:type" content="website">
 <meta property="og:title" content="FrameCapture — Windows 截图与录屏工具">
-<meta property="og:description" content="选区、窗口、滚动长图截图，GIF / MP4 / WebM 录制，逐帧编辑器与标注，贴图，文字识别。两个全局热键就能干活，全程在本机完成。">
+<meta property="og:description" content="截完就在剪贴板里：截图带透明通道，录完按 Enter 出 GIF，文件、位图、动图三种形态一起进剪贴板。窗口截图按窗口本体捕获，投影是合成的，不混进屏幕背景。">
 <meta property="og:image" content="assets/shots/editor.png">
 <meta property="og:image:alt" content="FrameCapture 编辑器：一张记事本截图摊在画布上，底部是整条标注工具条">
 <meta name="twitter:card" content="summary_large_image">
@@ -76,10 +76,10 @@
       <p class="eyebrow" data-reveal>Windows 10 / 11 · x64 · 0.9 预览版</p>
       <h1 class="hero__title">
         <span class="line" data-reveal>Windows 截图与录屏，</span>
-        <span class="line" data-reveal><em>热键按下就完成。</em></span>
+        <span class="line" data-reveal><em>截完就在剪贴板里。</em></span>
       </h1>
       <p class="lede" data-reveal>
-        拖框选区、窗口吸附、滚动长图、GIF / MP4 录制、标注、贴图、文字识别。全局热键默认两条：<b>Ctrl+Alt+A</b> 截图、<b>Ctrl+Alt+R</b> 录制，其余键位设置里改。
+        截图当场进剪贴板，<b>粘到微信、PPT、文档就能用</b>。窗口截图按窗口本体捕获，圆角处透明、投影是合成的，不会把屏幕背景一起截进去。
       </p>
       <div class="cta" data-reveal>
         <a class="btn btn--primary btn--lg" href="#download">
@@ -110,15 +110,15 @@
     <ol class="flow__list">
       <li class="flow__step" data-reveal data-stagger>
         <h3>定范围</h3>
-        <p>全屏、窗口、区域、滚动长图。吸附到窗口边界，也吸附到内容边缘。</p>
+        <p>全屏、窗口、区域、滚动长图。虚线框随光标改尺寸，吸附到窗口边界与内容边缘。</p>
       </li>
       <li class="flow__step" data-reveal data-stagger>
-        <h3>触发</h3>
+        <h3>截或录</h3>
         <p>一个热键，或按住拖一下。录制按住录、松手成片。</p>
       </li>
       <li class="flow__step" data-reveal data-stagger>
-        <h3>交付</h3>
-        <p>截完进剪贴板、弹提示、直接进编辑器还是原地贴图，每条手势自己定。</p>
+        <h3>粘走</h3>
+        <p>截图当场进剪贴板，录完按 Enter 出 GIF。弹提示、进编辑器、原地贴图，每条手势自己定。</p>
       </li>
     </ol>
   </section>
@@ -132,23 +132,23 @@
 
     <div class="cards">
       <article class="card" data-reveal data-stagger>
-        <span class="card__ico" aria-hidden="true">&#xE7A8;</span>
-        <h3>捕获范围</h3>
-        <p>窗口、区域、指定屏幕。虚线框随光标改尺寸，松手即截。</p>
-        <span class="combo"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Alt</kbd><span class="plus">+</span><kbd>A</kbd></span>
+        <span class="card__ico" aria-hidden="true">&#xE8C8;</span>
+        <h3>一键复制</h3>
+        <p>截图当场进剪贴板；录完按 Enter，GIF 文件与当前帧位图一起进去——接文件的应用拿到动图，只要图片的应用拿到静帧。</p>
+        <span class="card__tag">默认开启</span>
       </article>
 
       <article class="card" data-reveal data-stagger>
         <span class="card__ico" aria-hidden="true">&#xE7B5;</span>
-        <h3>截图</h3>
-        <p>选完那一下就已经截好。鼠标指针、窗口阴影各自可开关。</p>
-        <span class="card__tag">选完即截</span>
+        <h3>干净窗口截图</h3>
+        <p>按窗口本体捕获，Win11 圆角处透明，浏览器和 GPU 合成窗口也拍得干净。投影按轮廓合成，不抓屏幕背景。</p>
+        <span class="card__tag">带透明通道</span>
       </article>
 
       <article class="card" data-reveal data-stagger>
         <span class="card__ico" aria-hidden="true">&#xE714;</span>
         <h3>录制</h3>
-        <p>按一下起录，再按一下停。导出 MP4 / WebM / GIF，帧率跟显示器刷新率。</p>
+        <p>按一下起录，再按一下停。指针入不入画可开关，帧率跟显示器刷新率。</p>
         <span class="combo"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Alt</kbd><span class="plus">+</span><kbd>R</kbd></span>
       </article>
 
@@ -310,18 +310,18 @@
     <div class="dl" data-reveal>
       <h2>下载</h2>
       <p>
-        装完待在托盘，两个热键就能干活。0.9 预览版，先自己用一段时间再定发布节奏。
+        装完待在托盘，截完就能粘走。0.9 预览版，先自己用一段时间再定发布节奏。
       </p>
       <div class="cta">
         <a class="btn btn--primary btn--lg" id="dlBtn" href="../release/FrameCapture-Setup-0.9.0-x64.exe" download>
           <span class="ico" aria-hidden="true">&#xE896;</span> FrameCapture-Setup-0.9.0-x64.exe
         </a>
-        <a class="btn btn--ghost btn--lg" href="#keys">
-          <span class="ico" aria-hidden="true">&#xE8C1;</span> 先看快捷键
+        <a class="btn btn--ghost btn--lg" href="#capabilities">
+          <span class="ico" aria-hidden="true">&#xE7F4;</span> 先看功能
         </a>
       </div>
       <dl class="specs dl__scope">
-        <div><dt>这一版能用</dt><dd>选区 / 窗口 / 滚动长图截图，GIF · MP4 · WebM 录制，编辑器逐帧与标注，贴图，文字识别，手势自定义。</dd></div>
+        <div><dt>这一版能用</dt><dd>截图与录屏一键复制，干净窗口截图，滚动长图，GIF · MP4 · WebM 录制，逐帧标注，贴图，文字识别，手势自定义。</dd></div>
         <div><dt>这一版没有</dt><dd>代码签名、自动更新、公开下载通道。0.9 先把工具本身跑稳。</dd></div>
       </dl>
       <p class="dl__hint" id="dlHint">这个链接指向仓库 <code>release/</code> 下当前构建产物。</p>
@@ -349,6 +349,14 @@
       <h2 data-reveal>常见问题</h2>
     </header>
     <div class="faq" data-reveal>
+      <details name="faq">
+        <summary>截完的东西都在哪？</summary>
+        <p>默认直接进剪贴板，粘走就能用。要留档就在设置里开自动保存：单帧存 PNG，多帧按你选的格式存 GIF / MP4 / WebM。</p>
+      </details>
+      <details name="faq">
+        <summary>窗口截图为什么圆角是透明的？</summary>
+        <p>按窗口本体捕获，不去抓它后面的屏幕。圆角外是真透明，投影也是按窗口轮廓合成的，所以窗口压着别的软件时，边上一圈不会混进背景文字。</p>
+      </details>
       <details name="faq">
         <summary>会上传到服务器吗？</summary>
         <p>不会。捕获、编码、识字都在本机进程里完成，没有账号，也不发网络请求。文字识别用系统自带的 OCR 语言包。</p>
