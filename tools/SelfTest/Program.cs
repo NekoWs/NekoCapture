@@ -297,13 +297,13 @@ static class SelfTest
     /// <summary>取证模式：真实设置窗口停在指定类别，离屏渲染成 PNG。
     /// 切类别靠给左侧列表项抛一个 Enter 键事件，与用户点它走同一个 ShowCat。</summary>
     /// <param name="outPath">输出 PNG 路径。</param>
-    /// <param name="catName">类别名：快捷键 / 截图 / 录制 / 产物 / 编辑器 / 贴图 / 外观 / 系统。</param>
+    /// <param name="catName">类别文案：快捷键 / 截图 / 录制 / 产物 / 编辑器 / 贴图 / 外观 / 系统。</param>
     /// <param name="scale">渲染倍率，1 表示 96dpi 原尺寸；宣传页按 1.5 出图。</param>
     /// <param name="openAt">展开第几条快捷键再拍，-1 表示全部折叠。</param>
     /// <param name="advanced">true = 完成后与失败时按高级形态铺开。</param>
     /// <param name="clash">true = 再挂一条与第一条同键同触发的绑定，拍撞车那条的描边。</param>
     /// <returns>恒为 0。</returns>
-    static int RenderSettings(string outPath, string catName, double scale = 1, int openAt = -1, bool advanced = false, bool clash = false)
+    static int RenderSettings(string outPath, Str catName, double scale = 1, int openAt = -1, bool advanced = false, bool clash = false)
     {
         var app = new Application();
         // 设置窗读 AppHost.Current.Settings；本模式只 new Application()，不走 AppHost.Startup，
@@ -360,7 +360,7 @@ static class SelfTest
         }
         Layout();
         // 导航项显示的是当前语言的文案，查找也要用取词后的名字
-        var nav = FindNavText(root, FrameCapture.Core.Loc.T(catName)) as System.Windows.UIElement;
+        var nav = FindNavText(root, Loc.T(catName)) as System.Windows.UIElement;
         if (nav != null && src != null)
         {
             // 类别项的 KeyDown 认 Enter/Space，与鼠标点一下走同一个 ShowCat
@@ -760,7 +760,7 @@ static class SelfTest
             return RenderPicker(args[1], args.Length < 3 || args[2] != "layered");
         if (args.Length >= 2 && args[0] == "rendersettings")
         {
-            string[] catNames = { "快捷键", "截图", "录制", "产物", "编辑器", "贴图", "外观", "系统" };
+            Str[] catNames = { K.Settings.Hotkeys, K.Common.Capture, K.Common.Recording, K.Settings.Output, K.Common.Editor, K.Common.Pin, K.Common.Appearance, K.Settings.System };
             int ci = args.Length >= 3 && int.TryParse(args[2], out var sc) ? sc : 0;
             return RenderSettings(args[1], catNames[Math.Clamp(ci, 0, catNames.Length - 1)], ScaleArg(args),
                 args.Contains("open2") ? 1 : args.Contains("open") ? 0 : -1, args.Contains("adv"), args.Contains("clash"));
@@ -2464,9 +2464,10 @@ static class SelfTest
                 Chk("T92b-keys", keys.Distinct().Count() == 11 && keys.Select(k => k[0]).OrderBy(c => c).SequenceEqual("ACHLMNOPRTV"), "键位 V/L/R/O/A/P/H/T/M/C/N 唯一且齐全");
                 Chk("T92c-glyphs", tools.All(t => t.Glyph.Length == 1 && t.Glyph[0] >= 0xE000 && t.Glyph[0] <= 0xF8FF) && tools.Select(t => t.Glyph).Distinct().Count() == 11,
                     "字形均为私有区码位且互不重复（GlyphProbe 定稿）");
-                Chk("T92d-tips", tools.All(t => t.Tip.Length >= 2 && !t.Tip.Contains('(') && !t.Tip.Contains('（') && t.Help.Length >= 8),
-                    "工具条提示只说动作名、不带括注；键位由 Key 单列，帮助窗排「名称 + 键」");
-                Chk("T92e-heading", Loc.F("编辑器 · 绘图 — 再点当前工具或 {0} 退出绘制", ToolCatalog.ExitKey).Contains(ToolCatalog.ExitKey),
+                Chk("T92d-tips", tools.All(t => t.Tip.Zh.Length >= 2 && !t.Tip.Zh.Contains('(') && !t.Tip.Zh.Contains('（')
+                        && t.Tip.En.Length >= 2 && !t.Tip.En.Contains('(') && t.Help.Zh.Length >= 8),
+                    "工具条提示只说动作名、两种语言都不带括注；键位由 Key 单列，帮助窗排「名称 + 键」");
+                Chk("T92e-heading", Loc.F(K.Help.EditorDrawingClickTheCurrent, ToolCatalog.ExitKey).Contains(ToolCatalog.ExitKey),
                     "退出键 X 作为格式参数写进帮助小节标题");
                 Chk("T92f-sym", tools.All(t => t.Sym.Length == 1 && !(t.Sym[0] >= 0xE000 && t.Sym[0] <= 0xF8FF)),
                     "帮助符号是普通 Unicode（默认字体可渲染，图标字形进帮助窗=豆腐块）");
@@ -3951,10 +3952,10 @@ static class SelfTest
                 && th.DescribeKeysFor(GestureActions.RecordStart, GestureActions.RecordStop) == "Ctrl+Shift+G 按住/松手",
                 "同一个键挂三种触发方式互不覆盖：轻点截图、按住起录、松手停录");
             Chk("T149e-trigger-label",
-                GestureConfig.TriggerLabel("Tap") == "轻点"
-                && GestureConfig.TriggerLabel("Chord") == ""
-                && GestureConfig.TriggerLabel("HoldRelease") == "松手"
-                && GestureConfig.TriggerLabel("DoubleClick") == "双击",
+                GestureConfig.TriggerLabel("Tap").Zh == "轻点"
+                && GestureConfig.TriggerLabel("Chord").Zh == ""
+                && GestureConfig.TriggerLabel("HoldRelease").Zh == "松手"
+                && GestureConfig.TriggerLabel("DoubleClick").Zh == "双击",
                 "触发后缀：轻点/空/松手/双击");
         }
 
@@ -4061,12 +4062,14 @@ static class SelfTest
             var names = Enum.GetNames<GE.TriggerKind>();
             var labels = names.Where(n => n != "Chord").Select(GestureConfig.TriggerLabel).ToList();
             Chk("T193a-trigger-labels-distinct",
-                labels.All(s => !string.IsNullOrEmpty(s)) && labels.Distinct().Count() == labels.Count
-                && GestureConfig.TriggerLabel("Chord") == "",
-                $"除 Chord 外 {labels.Count} 个触发后缀两两不同非空，Chord 返回空串");
+                labels.All(s => !string.IsNullOrEmpty(s.Zh) && !string.IsNullOrEmpty(s.En))
+                && labels.Select(s => s.Zh).Distinct().Count() == labels.Count
+                && labels.Select(s => s.En).Distinct().Count() == labels.Count
+                && GestureConfig.TriggerLabel("Chord").Zh == "" && GestureConfig.TriggerLabel("Chord").En == "",
+                $"除 Chord 外 {labels.Count} 个触发后缀两两不同且两种语言都非空，Chord 两列都空");
             Chk("T193b-unknown-trigger-empty",
-                GestureConfig.TriggerLabel("NoSuchTrigger") == "" && GestureConfig.TriggerLabel(null!) == "",
-                "未知触发名与 null 都返回空串（配置里写了认不出的触发不会崩）");
+                GestureConfig.TriggerLabel("NoSuchTrigger").Zh == "" && GestureConfig.TriggerLabel(null!).Zh == "",
+                "未知触发名与 null 都返回空文案（配置里写了认不出的触发不会崩）");
         }
 
         // 快捷键行的展开动效：正文从 0 长高、逐行淡入、走完放开限高；完成后与失败时只在高级形态里长出来
@@ -4546,83 +4549,77 @@ static class SelfTest
         #region 界面文案取词
 
         {
-            // 中文是源语言：没登记的原文原样返回，英文态也不能把读者丢给一个空字符串
-            string missing = "这句没有登记在任何分区";
+            // 取词机制：中文列是源语言；英文列空着就退回中文——护栏把「缺英文」当缺陷，理由就在这条退回
+            var sample = K.Tray.Exit;
             Loc.Apply(Loc.PrefZh);
-            Chk("T189a-zh-passthrough", Loc.T(missing) == missing && !Loc.IsEnglish);
+            Chk("T189a-zh-returns-source", Loc.T(sample) == "退出" && !Loc.IsEnglish);
             Loc.Apply(Loc.PrefEn);
-            Chk("T189b-en-fallback", Loc.T(missing) == missing && Loc.IsEnglish);
-            Chk("T189c-en-hit", Loc.T("退出") == "Exit" && Loc.T("设置…") == "Settings…");
-            Chk("T189d-en-format", Loc.F("范围 {0}×{1} · {2}fps", 800, 600, 24) == "Region 800×600 · 24 fps");
-            // 参数顺序由表里的英文值决定，调用侧只按中文原文的占位符顺序填参
+            Chk("T189b-en-returns-translation", Loc.T(sample) == "Exit" && Loc.IsEnglish);
+            Chk("T189c-en-blank-falls-back", Loc.T(new Str("test.blank", "只有中文", "")) == "只有中文");
+            Chk("T189d-en-format", Loc.F(K.Tray.RegionFps, 800, 600, 24) == "Region 800×600 · 24 fps");
+            // 参数顺序由表里的英文值决定，调用侧只按占位符填参
             Chk("T189e-format-arg-order",
-                Loc.F("已拼接 {0} 段 · 高 {1} px", 3, 1080) == "3 segments stitched · 1080 px tall");
+                Loc.F(K.Capture.SegmentsStitchedPxTall, 3, 1080) == "3 segments stitched · 1080 px tall");
             Loc.Apply(Loc.PrefZh);
-            Chk("T189f-zh-format", Loc.F("已拼接 {0} 段 · 高 {1} px", 3, 1080) == "已拼接 3 段 · 高 1080 px");
+            Chk("T189f-zh-format", Loc.F(K.Capture.SegmentsStitchedPxTall, 3, 1080) == "已拼接 3 段 · 高 1080 px");
             // system 档看界面文化，不看线程区域格式；认不出的取值按 system 处理
             bool sysEn = !System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName
                 .Equals("zh", StringComparison.OrdinalIgnoreCase);
             Chk("T189g-system-follows-ui-culture", Loc.Apply(Loc.PrefSystem) == sysEn);
             Chk("T189h-unknown-pref-is-system", Loc.Apply("klingon") == sysEn);
-            // 表的健康度：译名必须是英文、非空、不带括号标注、与原文不同；同一句中文不许两种译法
-            var tbl = StringsEn.Table;
-            var cjk = tbl.Where(kv => kv.Value.Any(c => c >= 0x4E00 && c <= 0x9FFF)).Select(kv => kv.Key).ToList();
-            var blank = tbl.Where(kv => string.IsNullOrWhiteSpace(kv.Value)).Select(kv => kv.Key).ToList();
+            // 表的健康度：英文列必须是英文、非空、与中文不同、不带括号标注；id 与中文列都不许有两句共用
+            static List<(string Owner, string Name, Str S)> AllStrings()
+            {
+                var k = typeof(Str).Assembly.GetType("FrameCapture.Core.K")!;
+                var list = new List<(string, string, Str)>();
+                foreach (var c in k.GetNestedTypes())
+                    foreach (var f in c.GetFields(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static))
+                        if (f.FieldType == typeof(Str))
+                            list.Add((c.Name, f.Name, (Str)f.GetValue(null)!));
+                return list;
+            }
+            var all = AllStrings();
+            var tbl = all.Where(s => s.S.Id != "core.empty").Select(s => s.S).ToList();
+            var cjk = tbl.Where(s => s.En.Any(c => c >= 0x4E00 && c <= 0x9FFF)).Select(s => s.Id).ToList();
+            var blank = tbl.Where(s => string.IsNullOrWhiteSpace(s.En)).Select(s => s.Id).ToList();
             // 括号只许留给记法或占位符：白名单与 scripts/lint-copy-parens.ps1 同源，rgb(r, g, b) 与 {0} 不算括注
             var notation = new HashSet<string> { "x86", "*.ogg;*.wav", "*.*", "r, g, b", "h, s%, l%", "FC_TEST_ENCODE_FAIL=1" };
             var parenRe = new System.Text.RegularExpressions.Regex("[（(]([^（()）]{1,60})[）)]");
             bool NotationOnly(string s) => parenRe.Matches(s).Cast<System.Text.RegularExpressions.Match>()
                 .All(m => notation.Contains(m.Groups[1].Value) || m.Groups[1].Value.StartsWith("{", StringComparison.Ordinal));
-            var paren = tbl.Where(kv => !NotationOnly(kv.Value)).Select(kv => kv.Key).ToList();
+            var paren = tbl.Where(s => !NotationOnly(s.En)).Select(s => s.Id).ToList();
             // 原样登记的条目等于没翻：切到英文后那行还是中文，看不出也翻不了
-            var same = tbl.Where(kv => kv.Value == kv.Key).Select(kv => kv.Key).ToList();
+            var same = tbl.Where(s => s.En == s.Zh).Select(s => s.Id).ToList();
+            var dupId = tbl.GroupBy(s => s.Id).Where(g => g.Count() > 1).Select(g => g.Key).ToList();
+            var dupZh = tbl.GroupBy(s => s.Zh).Where(g => g.Count() > 1).Select(g => g.Key).ToList();
             Chk("T189i-table-hygiene",
-                cjk.Count == 0 && blank.Count == 0 && paren.Count == 0 && same.Count == 0 && StringsEn.Conflicts.Count == 0,
-                $"cjk={cjk.Count} blank={blank.Count} paren={paren.Count} same={same.Count} conflict={StringsEn.Conflicts.Count}"
-                + (StringsEn.Conflicts.Count == 0 ? "" : " [" + string.Join(" | ", StringsEn.Conflicts.Take(4)) + "]"));
+                cjk.Count == 0 && blank.Count == 0 && paren.Count == 0 && same.Count == 0 && dupId.Count == 0 && dupZh.Count == 0,
+                $"条数={tbl.Count} cjk={cjk.Count} blank={blank.Count} paren={paren.Count} same={same.Count} 重id={dupId.Count} 重中文={dupZh.Count}"
+                + (dupId.Count + dupZh.Count == 0 ? "" : " [" + string.Join(" | ", dupId.Concat(dupZh).Take(4)) + "]"));
             // 落盘值由 Normalize 收口：写坏的语言退回跟随系统
             var langSet = new AppSettings { UiLanguage = "fr" };
             langSet.Normalize();
             Chk("T189j-lang-normalize", langSet.UiLanguage == "system");
-            // 已迁移窗口的取词覆盖：这些串一旦漏挂 Loc，切到英文就露出中文，逐条钉住每个已改完的窗口
+            // 每个界面都在真的取词：某一面整面没换词，英文下就是整窗中文
             Loc.Apply(Loc.PrefEn);
-            var covered = new[]
-            {
-                "设置捕获范围", "自动保存副本", "点击窗口时截取完整窗口", "只录窗口",
-                "识别文字…", "不透明度", "静音", "悬浮窗存在时间", "跟随显示器刷新率录满",
-                "启用快捷键", "添加快捷键", "完成后", "失败时", "松手", "未绑定",
-                "欢迎用 FrameCapture 编辑器", "总在最前", "帮助与快捷键", "松开应用裁剪", "RGBA 调色板",
-                "  裁剪 {0}×{1}", "未找到 ffmpeg，无法导出视频 — 安装方法见帮助，按 F1",
-                "拖框选择 · 悬停点击吸附窗口 · Esc 取消", "延时截图", "按新键 · Esc 解绑", "复制全部",
-                "未安装 OCR 语言包，请到 设置 › 时间和语言 › 语音 添加", "此环境无法注入滚轮，请手动滚动",
-                "删除这条快捷键", "已到内容底部，点「完成」出图",
-                "使用指南", "快速上手", "定范围 → 触发 → 复制。", "贴图右键", "键位", "更多玩法",
-            };
-            var leaked = covered.Where(k => Loc.T(k) == k).ToList();
-            Chk("T189k-covered-surfaces", leaked.Count == 0, $"leaked={string.Join(',', leaked)}");
-            // 键表原文（// lockeys）返回中文、读取处才取词：Loc.T(变量) 的取值全来自这些表。
-            // 逐条要求英文下真的换了词——漏一条，帮助窗「绘图」那一页就整栏露中文。
-            var untran = ToolCatalog.Tools
-                .SelectMany(t => new[] { t.Tip, t.Help })
-                .Concat(EditorCommands.All.SelectMany(c => new[] { c.Name, c.Group }))
-                .Concat(EditorCommands.Groups)
-                .Concat(new[] { "按下", "松开", "轻点", "按住", "松手", "长按", "双击", "三击", "单击" })
-                .Where(s => !string.IsNullOrEmpty(s) && Loc.T(s) == s)
-                .Distinct().ToList();
-            // 动作目录的 Label/Description 自己就是取词后的结果，再取一次词必然原样返回：这里直接看成品里还有没有汉字
-            var stillZh = GestureActions.All
-                .SelectMany(a => new[] { a.Label, a.Description })
+            var silent = all.GroupBy(s => s.Owner).Where(g => !g.Any(s => Loc.T(s.S) != s.S.Zh)).Select(g => g.Key).ToList();
+            Chk("T189k-every-surface-translated", silent.Count == 0, $"整面没换词={string.Join(',', silent)}");
+            // 目录里的文案直接进界面显示：工具提示、命令名、分组标题、动作名、触发后缀，英文下带汉字就是漏翻
+            var stillZh = ToolCatalog.Tools.SelectMany(t => new[] { Loc.T(t.Tip), Loc.T(t.Help) })
+                .Concat(EditorCommands.All.SelectMany(c => new[] { Loc.T(c.Name), Loc.T(c.Group) }))
+                .Concat(EditorCommands.Groups.Select(Loc.T))
+                .Concat(GestureActions.All.SelectMany(a => new[] { a.Label, a.Description }))
                 .Where(s => s.Any(c => c >= 0x4E00 && c <= 0x9FFF))
                 .Distinct().ToList();
-            Chk("T189q-key-tables-translated", untran.Count == 0 && stillZh.Count == 0,
-                $"未译={string.Join(" | ", untran.Take(3))} 动作仍中文={string.Join(" | ", stillZh.Take(3))}");
+            Chk("T189q-catalogs-render-in-language", stillZh.Count == 0,
+                $"英文下仍带汉字={string.Join(" | ", stillZh.Take(3))}");
             // 合成词：中文把挡位名并进「细笔画」，英文是「Thin stroke」——两段各自取词后还要拼得对
             Chk("T189o-composed-stroke-labels-in-en",
-                Loc.F("{0}笔画", Loc.T("细")) == "Thin stroke" && Loc.F("{0}笔画", Loc.T("粗")) == "Bold stroke",
-                Loc.F("{0}笔画", Loc.T("中")));
+                Loc.F(K.Editor.Stroke, Loc.T(K.Editor.Thin)) == "Thin stroke" && Loc.F(K.Editor.Stroke, Loc.T(K.Editor.Bold)) == "Bold stroke",
+                Loc.F(K.Editor.Stroke, Loc.T(K.Editor.Medium)));
             // 带参串在英文里也要拼得出来：占位符顺序由译文决定，不是照抄中文
-            Chk("T189l-arg-format-in-en", Loc.F("关闭全部贴图 ({0})", 3) == "Close all pins (3)",
-                Loc.F("关闭全部贴图 ({0})", 3));
+            Chk("T189l-arg-format-in-en", Loc.F(K.Pin.CloseAllPins, 3) == "Close all pins (3)",
+                Loc.F(K.Pin.CloseAllPins, 3));
             // 动作词汇表整表必须翻完：配置器下拉、快捷键页、帮助窗都读它，漏一条就是半中半英。
             // 判据取「切到英文后还带汉字」——缺译时取词原样返回中文，正好落进这个条件。
             var untranslated = GestureActions.All
