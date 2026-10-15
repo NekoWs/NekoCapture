@@ -363,8 +363,10 @@ static class SelfTest
         {
             var boxes = new List<System.Windows.DependencyObject>();
             CollectTyped(root, typeof(FrameCapture.Core.ChordCaptureBox), boxes);
+            // 键位框 → 行的列容器 → 挂着展开处理器的行首胶囊
             var head = openAt < boxes.Count
-                ? System.Windows.Media.VisualTreeHelper.GetParent(boxes[openAt])
+                ? System.Windows.Media.VisualTreeHelper.GetParent(
+                    System.Windows.Media.VisualTreeHelper.GetParent(boxes[openAt]))
                 : null;
             // 打在行容器上：行首箭头是行的后代，事件从后代冒泡上来要过完整的命中路径，
             // 离屏窗没有真实输入设备，直接打在挂处理器的那一层最可靠。
@@ -4185,6 +4187,91 @@ static class SelfTest
                 "改过动作的出厂条与非出厂 Id 不动；用户自己写的完成后保留");
         }
 
+        // 快捷键行的展开动效：正文从 0 长高、逐行淡入、走完放开限高；完成后与失败时只在高级形态里长出来
+        try
+        {
+            var appHot = System.Windows.Application.Current ?? new System.Windows.Application();
+            var svcHot = new FrameCapture.Core.SettingsService();
+            typeof(FrameCapture.Services.AppHost).GetProperty("Settings")!
+                .SetValue(FrameCapture.Services.AppHost.Current, svcHot);
+            FrameCapture.Core.Theme.Apply("dark", svcHot.Current.Accent);
+            FrameCapture.Core.Fluent.ApplyGlobalStyles();
+            FrameCapture.Core.Loc.Apply("zh");
+            var winHot = new FrameCapture.Overlays.SettingsWindow
+            {
+                WindowStartupLocation = WindowStartupLocation.Manual,
+                Left = -20000,
+                Top = -20000,
+                ShowActivated = false,
+                ShowInTaskbar = false,
+            };
+            typeof(FrameCapture.Overlays.SettingsWindow)
+                .GetMethod("Build", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
+                .Invoke(winHot, null);
+            winHot.Show();
+            PumpMs(400);
+            var hotRoot = (UIElement)winHot.Content;
+            var hotBoxes = new List<System.Windows.DependencyObject>();
+            CollectTyped(hotRoot, typeof(FrameCapture.Core.ChordCaptureBox), hotBoxes);
+            // 键位框 → 行首的列容器 → 挂着展开处理器的胶囊：这一击打在挂处理器的那一层
+            var pill = (System.Windows.UIElement)System.Windows.Media.VisualTreeHelper
+                .GetParent(System.Windows.Media.VisualTreeHelper.GetParent(hotBoxes[0]))!;
+            var stack = (System.Windows.Controls.Panel)System.Windows.Media.VisualTreeHelper.GetParent(pill)!;
+            var body = (System.Windows.Controls.Border)stack.Children[1];
+            var rows = (System.Windows.Controls.Panel)body.Child;
+            Chk("T191a-collapsed-body-clipped",
+                body.Visibility == Visibility.Collapsed && body.MaxHeight == 0,
+                "折叠时正文不可见且限高 0");
+            pill.RaiseEvent(new System.Windows.Input.MouseButtonEventArgs(
+                System.Windows.Input.Mouse.PrimaryDevice, 0, System.Windows.Input.MouseButton.Left)
+            { RoutedEvent = System.Windows.UIElement.MouseLeftButtonUpEvent, Source = pill });
+            bool fading = rows.Children.Cast<UIElement>().Any(c => c.Opacity < 0.5);
+            Chk("T191b-expand-grows-from-zero",
+                body.Visibility == Visibility.Visible && body.MaxHeight == 0 && fading,
+                $"展开当场：正文可见、限高从 0 起、有行还在淡入（淡入中的行数 {rows.Children.Cast<UIElement>().Count(c => c.Opacity < 0.5)}）");
+            PumpMs(500);
+            Chk("T191c-expand-releases-cap",
+                double.IsPositiveInfinity(body.MaxHeight) && body.ActualHeight > 60
+                && rows.Children.Cast<UIElement>().All(c => c.Opacity > 0.99),
+                $"动画走完：限高放开、正文有高度、行全部到位（实测高 {body.ActualHeight:F0}）");
+            Chk("T191d-simple-hides-override",
+                OverrideRows().All(r => r.Visibility == Visibility.Collapsed),
+                "简单形态里完成后与失败时整行收起");
+            var seg = FindGlyphText(hotRoot, "高级") as System.Windows.UIElement;
+            seg!.RaiseEvent(new System.Windows.Input.MouseButtonEventArgs(
+                System.Windows.Input.Mouse.PrimaryDevice, 0, System.Windows.Input.MouseButton.Left)
+            { RoutedEvent = System.Windows.UIElement.MouseLeftButtonUpEvent, Source = seg });
+            PumpMs(500);
+            var borders = new List<System.Windows.DependencyObject>();
+            CollectTyped(hotRoot, typeof(System.Windows.Controls.Border), borders);
+            var hi = borders.Cast<System.Windows.Controls.Border>().FirstOrDefault(b =>
+                !b.IsHitTestVisible && b.RenderTransform is System.Windows.Media.TranslateTransform);
+            double slide = hi == null ? -1 : ((System.Windows.Media.TranslateTransform)hi.RenderTransform!).X;
+            Chk("T191e-advanced-reveals-and-slides",
+                OverrideRows().All(r => r.Visibility == Visibility.Visible && r.ActualHeight > 20) && slide > 50,
+                $"切到高级：两行长出来，高亮块滑到第二段（X={slide:F0}）");
+            // 收起整行再展开：限高放开之后再来一次，动画仍从 0 起
+            pill.RaiseEvent(new System.Windows.Input.MouseButtonEventArgs(
+                System.Windows.Input.Mouse.PrimaryDevice, 0, System.Windows.Input.MouseButton.Left)
+            { RoutedEvent = System.Windows.UIElement.MouseLeftButtonUpEvent, Source = pill });
+            PumpMs(400);
+            pill.RaiseEvent(new System.Windows.Input.MouseButtonEventArgs(
+                System.Windows.Input.Mouse.PrimaryDevice, 0, System.Windows.Input.MouseButton.Left)
+            { RoutedEvent = System.Windows.UIElement.MouseLeftButtonUpEvent, Source = pill });
+            Chk("T191f-collapse-then-expand",
+                body.Visibility == Visibility.Visible && body.MaxHeight == 0,
+                "收起再展开：正文重新从 0 长高");
+            PumpMs(500);
+
+            // 收起态在视觉树里仍留着子节点，判断「有没有露出来」只能看行自己的可见性
+            List<System.Windows.FrameworkElement> OverrideRows() => new()
+            {
+                (System.Windows.FrameworkElement)rows.Children[rows.Children.Count - 2],
+                (System.Windows.FrameworkElement)rows.Children[rows.Children.Count - 1],
+            };
+        }
+        catch (Exception e) { Chk("T191-hotkey-expand-animation", false, e.Message); }
+
         // 手势配置器触发下拉标签两两不同（，GestureEditorWindow.TriggerLabel 纯函数）
         {
             var kinds = Enum.GetValues<GE.TriggerKind>();
@@ -4207,7 +4294,8 @@ static class SelfTest
         // 细滚动条全局样式真正生效（，用户「基本没变」根因：主题 ScrollBar 样式的
         // MinWidth=17.33 经 DynamicResource 以直值泄漏到模板内 ScrollBar，样式 Setter 压不住，须附加属性归零）
         {
-            var app = new Application();
+            // 一个 AppDomain 只能有一个 Application：有用例先建好了就接着用，不重复 new
+            var app = System.Windows.Application.Current ?? new Application();
             Fluent.ApplyGlobalStyles();
             var sv = new System.Windows.Controls.ScrollViewer { Width = 100, Height = 60, VerticalScrollBarVisibility = System.Windows.Controls.ScrollBarVisibility.Visible };
             sv.Content = new System.Windows.Controls.Border { Width = 90, Height = 400 };

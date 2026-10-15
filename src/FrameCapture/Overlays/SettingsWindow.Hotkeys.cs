@@ -16,7 +16,9 @@ namespace FrameCapture.Overlays;
 /// 设置窗的快捷键页：一条快捷键一行，折叠时只有名字与键帽，展开后逐步可改。
 /// 每次改动当场写盘并热重载引擎与键盘钩子，页面上没有「保存」按钮。
 /// 一条快捷键就是 <c>[选区]? → 动作 → 动作…</c>：「选区」只能排在第一步，它是整条序列唯一等待用户的地方，
-/// 后面的动作等范围落地才执行。「完成后」「失败时」是可选覆盖，不填就走产品的默认落点。
+/// 后面的动作等范围落地才执行。「完成后」「失败时」是可选覆盖，不填就走产品的默认落点，
+/// 简单形态根本不出现，切到高级才长出来。
+/// 行首那颗胶囊是这条快捷键的全部入口：名字、删除、启用开关、键位。
 /// </summary>
 public sealed partial class SettingsWindow : Window
 {
@@ -24,9 +26,9 @@ public sealed partial class SettingsWindow : Window
     /// <value>由行首的点击维护；删除展开中的那条时清空。</value>
     string _hotOpen = "";
 
-    /// <summary>「完成后」「失败时」是否处于高级形态：简单形态只显示落点，高级形态铺出可编辑的序列。
+    /// <summary>「完成后」「失败时」是否处于高级形态：简单形态这两行不出现，高级形态才长出来。
     /// 整页一个开关，切语言或重建列表不重置。</summary>
-    /// <value>默认 false，即折叠到只显示默认落点。</value>
+    /// <value>默认 false。</value>
     bool _hotAdvanced;
 
     /// <summary>快捷键行的容器，重建时清空重铺。</summary>
@@ -143,7 +145,8 @@ public sealed partial class SettingsWindow : Window
             Dispatcher.BeginInvoke(new Action(box.BeginCapture), System.Windows.Threading.DispatcherPriority.Loaded);
     }
 
-    /// <summary>一条快捷键的一行：折叠态是「名字 + 键帽」，展开态补上启用、名字、触发方式与三段序列。</summary>
+    /// <summary>一条快捷键的一行。折叠态是那颗胶囊：名字、删除、启用开关、键位；
+    /// 展开态在胶囊下面长出正文，高度动画走完再放开限高。</summary>
     /// <param name="b">这条绑定，就地改它再落盘。</param>
     /// <returns>行容器，可直接放进列表。</returns>
     FrameworkElement HotkeyRow(GestureBindingDto b)
@@ -156,8 +159,9 @@ public sealed partial class SettingsWindow : Window
             FontSize = 11,
             Foreground = new SolidColorBrush(Theme.TextDim),
             VerticalAlignment = VerticalAlignment.Center,
-            Width = 20,
+            Width = 18,
             TextAlignment = TextAlignment.Center,
+            Margin = new Thickness(0, 0, 10, 0),
         };
         var name = new TextBlock
         {
@@ -179,19 +183,48 @@ public sealed partial class SettingsWindow : Window
         var box = NewChordBox(b);
         _hotBoxes[b.Id] = box;
 
-        var head = new Grid { Margin = new Thickness(4, 7, 4, 7), Cursor = Cursors.Hand };
+        // 关掉的这条压淡：只压名字、触发后缀与键帽，开关本身保持全亮，否则看不出是谁被关掉。
+        void PaintEnabled()
+        {
+            double o = b.Enabled ? 1 : 0.55;
+            name.Opacity = o;
+            suffix.Opacity = o;
+            box.Opacity = o;
+        }
+        PaintEnabled();
+
+        var head = new Grid();
         head.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         head.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         head.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         head.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        Grid.SetColumn(chevron, 0); Grid.SetColumn(name, 1); Grid.SetColumn(suffix, 2); Grid.SetColumn(box, 3);
-        head.Children.Add(chevron); head.Children.Add(name); head.Children.Add(suffix); head.Children.Add(box);
+        head.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        head.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        var del = DeleteIconButton(b);
+        var sw = EnableSwitch(b, PaintEnabled);
+        Grid.SetColumn(chevron, 0); Grid.SetColumn(name, 1); Grid.SetColumn(suffix, 2);
+        Grid.SetColumn(del, 3); Grid.SetColumn(sw, 4); Grid.SetColumn(box, 5);
+        head.Children.Add(chevron); head.Children.Add(name); head.Children.Add(suffix);
+        head.Children.Add(del); head.Children.Add(sw); head.Children.Add(box);
+
+        // 名字与键帽坐在有底色有描边的胶囊上：文字直接浮在卡片里会没有落点，视觉中心也稳不住。
+        var pill = new Border
+        {
+            CornerRadius = new CornerRadius(6),
+            Background = new SolidColorBrush(Theme.Hover),
+            BorderBrush = new SolidColorBrush(Theme.Stroke),
+            BorderThickness = new Thickness(1),
+            Padding = new Thickness(10, 7, 8, 7),
+            Cursor = Cursors.Hand,
+            Child = head,
+        };
 
         var body = HotkeyBody(b, () => name.Text = HotkeyDisplayName(b));
+        body.MaxHeight = open ? double.PositiveInfinity : 0;
         body.Visibility = open ? Visibility.Visible : Visibility.Collapsed;
 
         var stack = new StackPanel();
-        stack.Children.Add(head);
+        stack.Children.Add(pill);
         stack.Children.Add(body);
         var row = new Border
         {
@@ -199,24 +232,17 @@ public sealed partial class SettingsWindow : Window
             Margin = new Thickness(0, 1, 0, 1),
             Background = Brushes.Transparent,
             Child = stack,
-            Opacity = b.Enabled ? 1 : 0.55,   // 关掉的整行压淡，折叠态也看得出它不触发
         };
-        // 整行可点展开；点在键位框上时不跟着展开——那一击是去改键的。
-        head.MouseLeftButtonUp += (_, e) =>
+        // 整条胶囊可点展开；点在键位框上时不跟着展开——那一击是去改键的。
+        pill.MouseLeftButtonUp += (_, e) =>
         {
             if (InBox(e.OriginalSource as DependencyObject)) return;
             open = !open;
             _hotOpen = open ? b.Id : "";
             chevron.Text = open ? "\uE70E" : "\uE70D";
-            if (open)
-            {
-                body.Visibility = Visibility.Visible;
-                body.Opacity = 0;
-                body.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(1,
-                    new Duration(TimeSpan.FromMilliseconds(Fluent.Motion.EnterMs)))
-                { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
-            }
-            else body.Visibility = Visibility.Collapsed;
+            double w = Math.Max(240, row.ActualWidth - 28);
+            if (open) PlayExpand(body, (Panel)body.Child, w);
+            else PlayCollapse(body);
             e.Handled = true;
         };
         return row;
@@ -241,39 +267,38 @@ public sealed partial class SettingsWindow : Window
         return box;
     }
 
-    /// <summary>展开态的内容：启用、名字、触发方式、触发时，以及按简单/高级铺开的完成后与失败时。</summary>
+    /// <summary>展开态的正文：名字、触发方式、触发时，其下是简单/高级切换，
+    /// 完成后与失败时只在高级形态里出现。</summary>
     /// <param name="b">这条绑定。</param>
     /// <param name="onName">名字改动时同步折叠行标题。</param>
-    /// <returns>尚未展开的正文容器。</returns>
-    FrameworkElement HotkeyBody(GestureBindingDto b, Action onName)
+    /// <returns>正文容器，收起状态由调用方定。</returns>
+    Border HotkeyBody(GestureBindingDto b, Action onName)
     {
-        var body = new StackPanel { Margin = new Thickness(24, 0, 4, 8) };
+        var rows = new StackPanel();
+        var body = new Border
+        {
+            ClipToBounds = true,
+            Margin = new Thickness(24, 2, 4, 8),
+            Child = rows,
+        };
+        double Width() => Math.Max(240, body.ActualWidth);
 
-        body.Children.Add(ToggleRow("\uE7B5", Loc.T("启用这条"),
-            Loc.T("关掉即保留配置但不触发，无需删除"), b.Enabled, v =>
-            {
-                b.Enabled = v;
-                CommitHotkeys();
-                RebuildHotkeys();   // 折叠行的淡与不淡跟着状态走
-            }));
-
-        body.Children.Add(NameRow(b, onName));
-        body.Children.Add(TriggerRow(b));
+        rows.Children.Add(NameRow(b, onName));
+        rows.Children.Add(TriggerRow(b));
 
         string[] chain = b.Actions;
-        body.Children.Add(ChainRow(Loc.T("触发时"),
+        rows.Children.Add(ChainRow(Loc.T("触发时"),
             () => chain,
             i => ActionCatalog(step: true, first: i == 0),
             list => { chain = list; b.Actions = list; CommitHotkeys(); }));
 
-        var switchRow = AdvancedSwitch();
-        string[] done = b.OnComplete, fail = b.OnFail;
-        body.Children.Add(OverrideRow(Loc.T("完成后"), () => done, Loc.T("默认 · 弹提示"),
-            list => { done = list; b.OnComplete = list; CommitHotkeys(); }, switchRow));
-        body.Children.Add(OverrideRow(Loc.T("失败时"), () => fail, Loc.T("默认 · 什么都不做"),
-            list => { fail = list; b.OnFail = list; CommitHotkeys(); }, null));
+        rows.Children.Add(AdvancedSwitch());
 
-        body.Children.Add(DeleteButton(b));
+        string[] done = b.OnComplete, fail = b.OnFail;
+        rows.Children.Add(OverrideRow(Loc.T("完成后"), () => done, Loc.T("默认 · 弹提示"),
+            list => { done = list; b.OnComplete = list; CommitHotkeys(); }, Width));
+        rows.Children.Add(OverrideRow(Loc.T("失败时"), () => fail, Loc.T("默认 · 什么都不做"),
+            list => { fail = list; b.OnFail = list; CommitHotkeys(); }, Width));
         return body;
     }
 
@@ -359,15 +384,16 @@ public sealed partial class SettingsWindow : Window
         LabeledRow(label, new ChainEditor(get, candidates, set).Root,
             Loc.T("按顺序执行；点芯片换这一步，点加号在后面加一步"));
 
-    /// <summary>「完成后」「失败时」一行：简单形态只显示落点，高级形态铺出可编辑的序列。</summary>
+    /// <summary>「完成后」「失败时」一行：简单形态整行不出现，高级形态整行长出来，
+    /// 长出来之后显示的是可编辑的序列。</summary>
     /// <param name="label">行标签。</param>
     /// <param name="get">取当前覆盖序列，空数组表示不覆盖。</param>
     /// <param name="defaultText">不覆盖时显示的默认落点。</param>
     /// <param name="set">改定后的写回动作，内部负责落盘。</param>
-    /// <param name="trailing">行尾控件，只有「完成后」行带简单/高级开关；传 null 则行尾留空。</param>
+    /// <param name="width">这一行的排版宽度，长出来要先按它量出目标高度。</param>
     /// <returns>一行容器。</returns>
     FrameworkElement OverrideRow(string label, Func<string[]> get, string defaultText,
-        Action<string[]> set, FrameworkElement? trailing)
+        Action<string[]> set, Func<double> width)
     {
         var summary = new TextBlock
         {
@@ -390,18 +416,7 @@ public sealed partial class SettingsWindow : Window
         host.Children.Add(summary);
         host.Children.Add(editor.Root);
 
-        void ApplyMode()
-        {
-            summary.Visibility = _hotAdvanced ? Visibility.Collapsed : Visibility.Visible;
-            editor.Root.Visibility = _hotAdvanced ? Visibility.Visible : Visibility.Collapsed;
-            editor.Render();
-            Paint();
-        }
-        _hotModeSync.Add(ApplyMode);
-        ApplyMode();
-
         var g = Row();
-        g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });   // 行尾控件列
         var lbl = new TextBlock
         {
             Text = label,
@@ -413,79 +428,29 @@ public sealed partial class SettingsWindow : Window
         Grid.SetColumn(host, 1);
         g.Children.Add(lbl);
         g.Children.Add(host);
-        if (trailing != null)
-        {
-            trailing.VerticalAlignment = VerticalAlignment.Top;
-            trailing.Margin = new Thickness(10, 3, 0, 0);
-            Grid.SetColumn(trailing, 2);
-            g.Children.Add(trailing);
-        }
         g.Margin = new Thickness(0, 5, 0, 5);
-        return g;
-    }
 
-    /// <summary>简单/高级切换：两枚芯片一组，选中那枚用强调色底 + 反白字。切的是完成后与失败时的形态。</summary>
-    /// <returns>切换控件。</returns>
-    FrameworkElement AdvancedSwitch()
-    {
-        var row = new StackPanel { Orientation = Orientation.Horizontal };
-        var chips = new List<(Border chip, bool adv)>
+        void ApplyMode()
         {
-            (Chip(Loc.T("简单"), Loc.T("只显示默认落点，用不到的不必展开"), !_hotAdvanced), false),
-            (Chip(Loc.T("高级"), Loc.T("逐条编辑完成后与失败时要跑的动作"), _hotAdvanced), true),
-        };
-        void Pick(bool to)
-        {
-            _hotAdvanced = to;
-            RefreshChips(chips, to);
-            foreach (var sync in _hotModeSync) sync();
-        }
-        foreach (var (chip, adv) in chips) WireChip(chip, () => Pick(adv));
-        row.Children.Add(chips[0].chip);
-        row.Children.Add(chips[1].chip);
-        _hotModeSync.Add(() => RefreshChips(chips, _hotAdvanced));
-        return row;
-    }
-
-    /// <summary>正文末尾的「删除这条快捷键」：图标取强调色，文字取正文色——浅色主题下强调色是亮蓝，
-    /// 整句都用它会糊在卡片上。</summary>
-    /// <param name="b">这条绑定。</param>
-    /// <returns>按钮控件。</returns>
-    FrameworkElement DeleteButton(GestureBindingDto b)
-    {
-        var btn = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            Margin = new Thickness(0, 8, 0, 0),
-            Cursor = Cursors.Hand,
-            Children =
+            if (_hotAdvanced)
             {
-                new TextBlock
+                if (g.Visibility != Visibility.Visible)
                 {
-                    Text = "\uE74D",
-                    FontFamily = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets, Segoe UI Symbol"),
-                    FontSize = 12,
-                    Foreground = new SolidColorBrush(Fluent.AccentText()),
-                    VerticalAlignment = VerticalAlignment.Center,
-                    Margin = new Thickness(0, 0, 7, 0),
-                },
-                new TextBlock
-                {
-                    Text = Loc.T("删除这条快捷键"),
-                    FontSize = 12.5,
-                    Foreground = new SolidColorBrush(Theme.Text),
-                    VerticalAlignment = VerticalAlignment.Center,
-                },
-            },
-        };
-        btn.MouseLeftButtonUp += (_, _) =>
-        {
-            _settings.Mutate(s => s.Gestures.Bindings.RemoveAll(x => ReferenceEquals(x, b)));
-            AppHost.Current.InstallHotkeys();
-            if (_hotOpen == b.Id) _hotOpen = "";
-            RebuildHotkeys();
-        };
-        return btn;
+                    if (g.IsLoaded) RevealRow(g, width());
+                    else { g.MaxHeight = double.PositiveInfinity; g.Visibility = Visibility.Visible; }
+                }
+            }
+            else if (g.Visibility == Visibility.Visible)
+            {
+                if (g.IsLoaded) PlayCollapse(g);
+                else { g.BeginAnimation(MaxHeightProperty, null); g.MaxHeight = 0; g.Visibility = Visibility.Collapsed; }
+            }
+            editor.Render();
+            Paint();
+        }
+        _hotModeSync.Add(ApplyMode);
+        ApplyMode();
+        return g;
     }
 
     /// <summary>一行的通用骨架：左侧固定标签 + 右侧内容。</summary>
