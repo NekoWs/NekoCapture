@@ -682,3 +682,58 @@ NaN 转 int 得 0，`RenderTargetBitmap` 按 0 高去画，PNG 文件照样写�
 `DependencyPropertyDescriptor.AddValueChanged` 监听 Opacity，记录各自第一次越过 0.05 的时刻，
 断言两者之差 ≥ 40ms。回调由属性变化驱动，不依赖采样密度，`leadMs` 怎么调都量得到。
 写时序断言先问一句：锚点是「用户看得见的先后」，还是「实现顺手留下的空窗」。
+
+## WinRT 投影程序集由 SDK 运行时包供给，HintPath 拷来的 dll 不在 TPA 里
+
+- **不变量 / 契约**：`FrameCapture.csproj` 只声明 `TargetFramework=net8.0-windows10.0.19041.0` 与
+  `<WindowsSdkPackageVersion>`，`WinRT.Runtime.dll` / `Microsoft.Windows.SDK.NET.dll` 由运行时包供给，
+  deps.json 里必须能看到 `runtimepack.Microsoft.Windows.SDK.NET.Ref`。
+  分配带 WinRT 字段的方法，投影程序集在**被调方法被 JIT 的那一刻**解析，异常落在那个方法自己的
+  try/catch 之外；要接住它必须在**调用点**包 try/catch（`BeginCaptureCore` 里的 WGC 分支就是这么写的），
+  `[MethodImpl(MethodImplOptions.NoInlining)]` 只负责把抛出点挪进被调方法。
+- **曾经的错误**：csproj 用 `<Reference>` + `<HintPath>` 从 SDK 目录把两个 dll 拷进输出目录。文件在场、
+  deps.json 里没有 → 不在 TPA → 按名字 `Assembly.Load` 抛 `FileNotFoundException`（只有 `LoadFrom(path)` 能加载，
+  而 WinRT 激活器按名字加载）。后果是**静默降级**：干净窗口截图退化成矩形截图、窗口录制退化成 GDI，
+  日志只有 `winCap fail→region` 与 `capture backend=gdi`，产物仍是一张正常的图，用户分辨不出。
+  更阴的一层：SelfTest 自己的 TFM 就带运行时包，它的进程 TPA 命中，WGC 用例全绿——
+  **证据来自健康的进程，缺陷只在真正的应用进程里发生**。
+- **护栏**：WGC 相关断言必须在应用进程里跑（e2e 起真进程），只在 SelfTest 里 new 一个 `WgcLiveCapture`
+  不算证据。任何"从 SDK 目录拷 dll 到输出目录"都按同类缺陷处理。
+
+## 全屏选区窗不做分层透明窗，定格帧在建窗前抓好
+
+- **不变量 / 契约**：`FreezeOnSelect` 开着时，整屏定格帧由 `CaptureController` 在 `new RegionPickerWindow`
+  **之前**抓好交进构造函数，本窗因此是**不透明**全屏窗（`AllowsTransparency=false`，窗底就是那一帧）。
+  定格关的路径没有现成帧，仍是分层透明窗 + Show 之后异步抓，那条路不铺整屏图。
+  两条路的键盘输入都走全局钩子，本窗永不激活，抓帧时机因此不受焦点影响；
+  残留浮窗一律 `WDA_EXCLUDEFROMCAPTURE`，抓帧拍不进去。
+- **曾经的错误**：`AllowsTransparency=true` 是分层窗，WPF 对它做软件合成——整屏每一帧在 CPU 上过一遍，
+  还要多份整屏缓冲（3840×2160 一份 BGRA 就 33.2 MB）。定格画面铺满整屏时这份代价按整屏算，
+  与用户框了多大选区无关；低配机打开瞬间发涩。实测选区窗峰值私有内存 421 MB（分层+定格）
+  / 232 MB（分层无定格）/ 空闲 94 MB。
+- **护栏**：要看选区窗自己画了什么，用 `SelfTest.exe renderpicker <out.png>` 离屏渲染可视树——
+  它带 `WDA_EXCLUDEFROMCAPTURE`，屏幕截图与 PrintWindow 都拍不到它（拍出来是纯黑，那不是缺陷）。
+  实测首帧 122 ms → 113 ms 且首帧即完整画面，GDI 句柄 1641 → 1135。
+  **整屏像素表面两种窗都要付，这一改不省那块内存**，别把它当内存优化宣传。
+
+## 内存取证看 PrivateMemorySize64，工作集会被系统裁到几 MB
+
+- **不变量 / 契约**：内存结论只从 `scripts/probe-memory.ps1` 出，它逐点取工作集与私有字节。
+  托管与未托管要分开算：`GC.GetTotalMemory(false)` 是托管那半边，剩下的才是 WPF/DWM 的表面。
+- **曾经的错误**：用工作集判断"关窗后内存有没有回落"，读数 2 MB，据此得出"收放自如"；
+  同期私有内存 320 MB，一分钟后再测还是 320 MB。工作集是物理页驻留量，GUI 进程空闲后系统把页裁掉，
+  它不代表进程占了多少内存。另一层误判：`GC.Collect` + LOH 压缩把托管堆从 101 MB 压回 2 MB，
+  私有内存不动——剩下的是未托管表面，LOH 压缩与 `GC.Collect` 都治不到它，
+  于是"再补一次 GC"这类改动白做。
+- **护栏**：选区瞬时数组（定格帧、预抓窗口画面）走 `ReclaimAfterClose`，关闭两秒后一次整堆压缩，
+  只治托管那半边；预抓另有 128 MB 预算，按 Z 序从高到低抓到预算用完为止，没缓存到的窗口实时抓兜底。
+  按数量封顶在大屏上等于放行几百 MB，预算必须按字节算。
+
+## 整屏范围轮廓是分层窗，4K 整屏录制时按整屏付费（已知未处理）
+
+- **不变量 / 契约**：录制中的范围轮廓必须常显且不入镜（`WDA_EXCLUDEFROMCAPTURE`），这条不动。
+- **实测的代价**：4K 整屏录制的 5 秒窗口内，进程 CPU 时间轮廓开 2.72 s、轮廓关 2.31 s
+  （两段分别录到 97 / 86 帧），差值约 8 个百分点的一个核。差值与 REC 文字刷新无关：
+  分层窗挂在最上层，DWM 每帧都要把它整屏混一遍，脏矩形只影响 WPF 重绘范围，省不掉 DWM 那一份。
+- **方向**：要省这笔钱，是整屏范围时不铺整屏窗（只留一小块录制标记），不是降低 REC 文字刷新率。
+  小屏按面积付费，1366×768 约为 4K 的十四分之一，因此它只在高分屏上值得动手。
