@@ -2,14 +2,15 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
-using GE = GestureEditor;
 
 namespace FrameCapture.Core;
 
 /// <summary>
 /// 键位录入框：点一下，按下新键即改键，按 Esc 取消这个键位。
-/// 与手势配置器的组合键框同一套形态——常态显示键帽，录入态显示提示，边框在录入态转成强调色。
+/// 常态显示键帽，录入态显示提示，边框在录入态转成强调色。
 /// 录入期间吞掉所有按键，窗口自己的 Esc 关闭与 Tab 焦点移动都不会被触发。
+/// 绑的是全局热键时，宿主订阅 <see cref="CaptureBegan"/> 在录入期间暂停全局钩子，
+/// 否则正要录的那个组合键会被自家钩子先吞掉。
 /// </summary>
 public sealed class ChordCaptureBox : Border
 {
@@ -23,6 +24,12 @@ public sealed class ChordCaptureBox : Border
 
     /// <summary>录入中途失焦：既没改键也没解绑，这一笔不算。新加的键位框据此把自己收回去。</summary>
     public event Action? Cancelled;
+
+    /// <summary>进入录入态。全局热键的宿主借此暂停键盘钩子。</summary>
+    public event Action? CaptureBegan;
+
+    /// <summary>离开录入态，无论改键、解绑还是失焦。与 <see cref="CaptureBegan"/> 成对。</summary>
+    public event Action? CaptureEnded;
 
     /// <summary>当前键位串，空串表示这条命令不占键。</summary>
     /// <value>赋值后立即重画。</value>
@@ -66,7 +73,9 @@ public sealed class ChordCaptureBox : Border
     /// <summary>进入录入态：等一个主键，边框转强调色。设置页的加号按钮用它让新键位框一出来就在等键。</summary>
     public void BeginCapture()
     {
+        if (_capturing) return;
         _capturing = true;
+        CaptureBegan?.Invoke();
         Focus();
         Render();
     }
@@ -75,6 +84,7 @@ public sealed class ChordCaptureBox : Border
     {
         if (!_capturing) return;
         _capturing = false;
+        CaptureEnded?.Invoke();
         Render();
     }
 
@@ -82,8 +92,7 @@ public sealed class ChordCaptureBox : Border
     void CancelIfCapturing()
     {
         if (!_capturing) return;
-        _capturing = false;
-        Render();
+        EndCapture();
         Cancelled?.Invoke();
     }
 
@@ -131,7 +140,7 @@ public sealed class ChordCaptureBox : Border
         {
             // 走 token 而不是切串：主键是加号时，串里的加号分不清分隔符与键名
             var toks = EditorChord.Parse(_chord) is { } ec ? ec.Tokens() : new[] { _chord };
-            _host.Children.Add(GE.Keycaps.Row(toks, new GE.KeycapTheme
+            _host.Children.Add(Keycaps.Row(toks, new KeycapTheme
             {
                 Face = Fluent.KeycapFace(),
                 Text = Theme.Text,

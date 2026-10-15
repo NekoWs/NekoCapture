@@ -6,7 +6,6 @@ using System.Windows.Media.Animation;
 using FrameCapture.Core;
 using FrameCapture.Native;
 using FrameCapture.Services;
-using GE = GestureEditor;
 
 namespace FrameCapture.Overlays;
 
@@ -107,93 +106,8 @@ public sealed partial class SettingsWindow : Window
         StackPanel panel = Cat(Loc.T("快捷键"), "\uE765");
         #endregion
 
-        #region 快捷键页说明：全局键位在这里只读，编辑器键位在下方逐条可改
-        panel.Children.Add(new TextBlock
-        {
-            Foreground = new SolidColorBrush(Theme.TextDim),
-            FontSize = 12.5,
-            Margin = new Thickness(2, 2, 0, 6),
-            TextWrapping = TextWrapping.Wrap,
-            Text = Loc.T("全局键位如下，增删改请打开下方手势配置器。"),
-        });
-        #endregion
-
-        #region 当前生效键位（从手势绑定推导，免开配置器即可一眼看到截图/选区键）
-        var gk = _settings.Current.Gestures;
-        var keyCard = new Border
-        {
-            Margin = new Thickness(0, 2, 0, 2),
-            CornerRadius = new CornerRadius(6),
-            BorderThickness = new Thickness(1),
-            BorderBrush = new SolidColorBrush(Theme.Stroke),
-            Background = new SolidColorBrush(Theme.CardBg),
-            Padding = new Thickness(12, 10, 12, 10),
-        };
-        var keyStack = new StackPanel();
-        var capTheme = new GE.KeycapTheme
-        {
-            Face = Fluent.KeycapFace(),
-            Text = Theme.Text,
-            Stroke = Theme.Stroke,
-            Dim = Theme.TextDim,
-        };
-        void KeyRow(string label, string chord, string trigger)
-        {
-            var row = new Grid { Margin = new Thickness(0, 3, 0, 3) };
-            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            var lb = new TextBlock { Text = label, Foreground = new SolidColorBrush(Theme.TextDim), FontSize = 12.5, VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.Wrap };
-            var right = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-            right.Children.Add(GE.Keycaps.Row(chord, capTheme, Loc.T("未设键")));
-            if (trigger.Length > 0)
-                right.Children.Add(new TextBlock
-                {
-                    Text = trigger,
-                    FontSize = 12,
-                    Foreground = new SolidColorBrush(Theme.TextDim),
-                    Margin = new Thickness(7, 0, 0, 0),
-                    VerticalAlignment = VerticalAlignment.Center,
-                });
-            Grid.SetColumn(lb, 0); Grid.SetColumn(right, 1);
-            row.Children.Add(lb); row.Children.Add(right);
-            keyStack.Children.Add(row);
-        }
-        // 逐条列出用户真实绑定（动作→键）：手势可自定义，固定「截图键/选区键」两槽会漏掉录制键，
-        // 且没绑定的槽位会显示成一个按了没反应的死键。
-        var active = gk.Bindings
-            .Where(b => b.Enabled && b.Actions.Length > 0 && HotkeySpec.Parse(b.Chord) != null)
-            .ToList();
-        if (active.Count == 0)
-            KeyRow(Loc.T("键位"), "", "");
-        else
-            foreach (var b in active)
-                KeyRow(string.Join("·", b.Actions.Select(GestureActions.LabelOf)), b.Chord, Loc.T(GestureConfig.TriggerLabel(b.Trigger)));
-        keyCard.Child = keyStack;
-        Fluent.Elevate(keyCard, blur: 24, depth: 6);
-        panel.Children.Add(keyCard);
-        #endregion
-
-        #region 手势配置器入口：可视化增删改键位绑定，保存即热重载生效
-        var geBtn = new Border
-        {
-            Margin = new Thickness(0, 8, 0, 2),
-            CornerRadius = new CornerRadius(6),
-            BorderThickness = new Thickness(1),
-            BorderBrush = new SolidColorBrush(Theme.Stroke),
-            Background = new SolidColorBrush(Theme.CardBg),
-            Padding = new Thickness(12, 9, 12, 9),
-            Cursor = Cursors.Hand,
-        };
-        var geIcon = new TextBlock { Text = "\uE713", FontFamily = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets, Segoe UI Symbol"), FontSize = 15, Foreground = new SolidColorBrush(Fluent.AccentText()), VerticalAlignment = VerticalAlignment.Center };
-        var geRow = new StackPanel { Orientation = Orientation.Horizontal };
-        geRow.Children.Add(geIcon);
-        geRow.Children.Add(new TextBlock { Text = Loc.T("   打开手势配置器…"), Foreground = new SolidColorBrush(Theme.Text), FontSize = 13, VerticalAlignment = VerticalAlignment.Center });
-        geBtn.Child = geRow;
-        Fluent.Elevate(geBtn, blur: 24, depth: 6);
-        Fluent.ChipHover(geBtn);   // 悬停只改底色带过渡，不上浮、不缩放（与普通按钮同语言）
-        geBtn.MouseLeftButtonUp += (_, _) => GestureEditorHost.ShowOrFocus();
-        panel.Children.Add(geBtn);
-        #endregion
+        // 快捷键页：总开关 + 逐条可编辑的快捷键，装配在 SettingsWindow.Hotkeys.cs
+        BuildHotkeys(panel);
 
         // 编辑器键位一节：一条命令一行，装配在 SettingsWindow.Keys.cs
         BuildEditorKeys(panel);

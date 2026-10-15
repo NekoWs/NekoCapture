@@ -261,7 +261,7 @@ public sealed partial class SettingsWindow : Window
         // 开关+固定音 → 三选下拉「关闭 / 轻弹 / 自定义…」。选「自定义…」弹文件选择窗（ogg/wav）；
         // 取消则回退上一个选项，绝不出现「选了自定义却没文件」的悬空态。
         var combo = new ComboBox { Width = 118, VerticalAlignment = VerticalAlignment.Center };
-        GestureEditor.EditorStyles.ApplyCombo(combo, EditorPal());
+        Fluent.StyleCombo(combo);
         combo.Items.Add(Loc.T("静音"));
         combo.Items.Add(Loc.T("轻弹"));
         combo.Items.Add(Loc.T("自定义…"));
@@ -304,14 +304,5 @@ public sealed partial class SettingsWindow : Window
         0 => Loc.T("静音：截图完成不放声音"),
         1 => Loc.T("内置柔和「嘀」声，作听觉确认"),
         _ => Loc.T("自定义提示音文件 ogg / wav，点击可重新选择"),
-    };
-
-    /// <summary>手势编辑器同款下拉/输入样式的配色（lib 不引用宿主，配色由宿主注入）。</summary>
-    static GestureEditor.EditorPalette EditorPal() => new()
-    {
-        WindowBg = Theme.WindowBg, PanelBg = Theme.PanelBg, CardBg = Theme.CardBg,
-        Text = Theme.Text, TextDim = Theme.TextDim, Stroke = Theme.Stroke,
-        Accent = Theme.Accent, Hover = Theme.Hover, Press = Theme.Press, TrackBg = Theme.TrackBg,
-        IsDark = Theme.IsDark,
     };
 }

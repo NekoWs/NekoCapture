@@ -301,7 +301,7 @@ static class SelfTest
     /// <param name="catName">类别名：快捷键 / 截图 / 录制 / 产物 / 编辑器 / 贴图 / 外观 / 系统。</param>
     /// <param name="scale">渲染倍率，1 表示 96dpi 原尺寸；宣传页按 1.5 出图。</param>
     /// <returns>恒为 0。</returns>
-    static int RenderSettings(string outPath, string catName, double scale = 1)
+    static int RenderSettings(string outPath, string catName, double scale = 1, bool openRow = false, bool advanced = false)
     {
         var app = new Application();
         // 设置窗读 AppHost.Current.Settings；本模式只 new Application()，不走 AppHost.Startup，
@@ -310,11 +310,20 @@ static class SelfTest
         typeof(FrameCapture.Services.AppHost).GetProperty("Settings")!
             .SetValue(FrameCapture.Services.AppHost.Current, svc);
         FrameCapture.Core.Theme.Apply(svc.Current.Theme, svc.Current.Accent);
+        // 设计审查专用：FC_THEME 覆盖主题，拍深浅两套界面不必先改用户配置（与 AppHost 同一套规则）
+        string ftheme = Environment.GetEnvironmentVariable("FC_THEME") ?? "";
+        if (ftheme == "light" || ftheme == "dark")
+            FrameCapture.Core.Theme.Apply(ftheme, svc.Current.Accent);
         FrameCapture.Core.Fluent.ApplyGlobalStyles();
         // 界面语言与 AppHost 同一套规则：先按配置，FC_LANG 可覆盖——拍双语界面不必先改用户配置
         string lang = Environment.GetEnvironmentVariable("FC_LANG") ?? "";
         FrameCapture.Core.Loc.Apply(lang == "" ? svc.Current.UiLanguage : lang);
         var w = new FrameCapture.Overlays.SettingsWindow();
+        // 「adv」：先把完成后/失败时切到高级形态再建内容——行的形态在建行时按这个开关铺一次。
+        if (advanced)
+            typeof(FrameCapture.Overlays.SettingsWindow)
+                .GetField("_hotAdvanced", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
+                .SetValue(w, true);
         // Build 与构造分开（ShowOrFocus 先 Build 再 Show），离屏渲染同样要先建内容
         typeof(FrameCapture.Overlays.SettingsWindow)
             .GetMethod("Build", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
@@ -347,6 +356,27 @@ static class SelfTest
             PumpMs(500); // 切类别的淡入淡出走完再拍
         }
         Layout();
+        // 「open」：把第一条快捷键展开再拍——折叠态与展开态是两套版面，只拍折叠态看不到序列编辑区。
+        // 行首箭头与下拉框模板里的箭头同字形，先定位键位框、回到它所在的行，才打得准这一击。
+        bool opened = false;
+        if (openRow && src != null)
+        {
+            var box = FindTyped(root, typeof(FrameCapture.Core.ChordCaptureBox));
+            var head = box == null ? null : System.Windows.Media.VisualTreeHelper.GetParent(box);
+            // 打在行容器上：行首箭头是行的后代，事件从后代冒泡上来要过完整的命中路径，
+            // 离屏窗没有真实输入设备，直接打在挂处理器的那一层最可靠。
+            var target = head as System.Windows.UIElement;
+            if (target != null)
+            {
+                target.RaiseEvent(new System.Windows.Input.MouseButtonEventArgs(
+                    System.Windows.Input.Mouse.PrimaryDevice, 0, System.Windows.Input.MouseButton.Left)
+                { RoutedEvent = System.Windows.UIElement.MouseLeftButtonUpEvent, Source = target });
+                PumpMs(400);
+                // 展开成功的标志：行首的向下箭头换成了向上箭头
+                opened = FindGlyphText(root, "\uE70E") != null;
+            }
+        }
+        Layout();
         int ww = (int)Math.Ceiling(W * scale), hh = (int)Math.Ceiling(H * scale);
         var rtb = new System.Windows.Media.Imaging.RenderTargetBitmap(ww, hh, 96 * scale, 96 * scale, System.Windows.Media.PixelFormats.Pbgra32);
         rtb.Render(root);
@@ -355,7 +385,7 @@ static class SelfTest
         Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(outPath))!);
         using (var f = File.Create(outPath)) enc.Save(f);
         // 不调 w.Close()：关窗回调要去重装热键，本模式没有 HotkeyManager；进程退出自然带走窗口。
-        Console.WriteLine($"saved {outPath} {ww}x{hh} nav={(nav != null)} src={(src != null)}");
+        Console.WriteLine($"saved {outPath} {ww}x{hh} nav={(nav != null)} src={(src != null)} open={(opened)}");
         return 0;
     }
 
@@ -552,6 +582,38 @@ static class SelfTest
         for (int i = 0; i < n; i++)
         {
             var r = FindNavText(System.Windows.Media.VisualTreeHelper.GetChild(node, i), text);
+            if (r != null) return r;
+        }
+        return null;
+    }
+
+    /// <summary>在视觉树里找第一个该类型的节点。</summary>
+    /// <param name="node">起点节点。</param>
+    /// <param name="type">要找的类型。</param>
+    /// <returns>命中的节点；没有则 null。</returns>
+    static System.Windows.DependencyObject? FindTyped(System.Windows.DependencyObject node, Type type)
+    {
+        if (type.IsInstanceOfType(node)) return node;
+        int n = System.Windows.Media.VisualTreeHelper.GetChildrenCount(node);
+        for (int i = 0; i < n; i++)
+        {
+            var r = FindTyped(System.Windows.Media.VisualTreeHelper.GetChild(node, i), type);
+            if (r != null) return r;
+        }
+        return null;
+    }
+
+    /// <summary>在视觉树里找第一个显示该文字的元素，用于把事件打在指定的行首图标上。</summary>
+    /// <param name="node">起点节点。</param>
+    /// <param name="text">要匹配的文字，通常是单个 PUA 字形。</param>
+    /// <returns>命中的 TextBlock；没有则 null。</returns>
+    static System.Windows.DependencyObject? FindGlyphText(System.Windows.DependencyObject node, string text)
+    {
+        if (node is System.Windows.Controls.TextBlock tb && tb.Text == text) return tb;
+        int n = System.Windows.Media.VisualTreeHelper.GetChildrenCount(node);
+        for (int i = 0; i < n; i++)
+        {
+            var r = FindGlyphText(System.Windows.Media.VisualTreeHelper.GetChild(node, i), text);
             if (r != null) return r;
         }
         return null;
@@ -789,7 +851,8 @@ static class SelfTest
         {
             string[] catNames = { "快捷键", "截图", "录制", "产物", "编辑器", "贴图", "外观", "系统" };
             int ci = args.Length >= 3 && int.TryParse(args[2], out var sc) ? sc : 0;
-            return RenderSettings(args[1], catNames[Math.Clamp(ci, 0, catNames.Length - 1)], ScaleArg(args));
+            return RenderSettings(args[1], catNames[Math.Clamp(ci, 0, catNames.Length - 1)], ScaleArg(args),
+                args.Contains("open"), args.Contains("adv"));
         }
         if (args.Length >= 2 && args[0] == "rendergestures") return RenderGestures(args[1], ScaleArg(args));
     if (args.Length >= 2 && args[0] == "rendereditor") return RenderEditor(args[1], ScaleArg(args), args.Contains("guide"));
@@ -4090,6 +4153,36 @@ static class SelfTest
                 GestureActions.LabelOf("future.xyz") == "future.xyz"
                 && GestureActions.LabelOf(null) == "",
                 "未知名原样返回（前向兼容不崩）/ null → 空串");
+        }
+
+        // 出厂默认两条补齐成「先选区，后执行」：只认出厂 Id 与出厂形状，用户改过的不碰，重复调用无副作用
+        {
+            var cfg = new GestureConfig();
+            cfg.Bindings.Add(new GestureBindingDto { Id = "default.capture", Chord = "Ctrl+Alt+A", Actions = new[] { "scope.select" } });
+            cfg.Bindings.Add(new GestureBindingDto { Id = "default.record", Chord = "Ctrl+Alt+R", Actions = new[] { "record.toggle" } });
+            cfg.UpgradeStockDefaults();
+            Chk("T190a-stock-capture-gains-verb",
+                cfg.Bindings[0].Actions.SequenceEqual(new[] { "scope.select", "capture.stored" }),
+                "截图那条补上「截图」这一步：" + string.Join(",", cfg.Bindings[0].Actions));
+            Chk("T190b-stock-record-gains-oncomplete",
+                cfg.Bindings[1].Actions.SequenceEqual(new[] { "record.toggle" })
+                && cfg.Bindings[1].OnComplete.SequenceEqual(new[] { "edit.lastvideo" }),
+                "录制那条只在完成后补「打开编辑器」，主动作不变");
+            cfg.UpgradeStockDefaults();
+            Chk("T190c-upgrade-idempotent",
+                cfg.Bindings[0].Actions.Length == 2 && cfg.Bindings[1].OnComplete.Length == 1,
+                "再跑一次不重复追加");
+
+            var mine = new GestureConfig();
+            mine.Bindings.Add(new GestureBindingDto { Id = "default.capture", Chord = "F6", Actions = new[] { "scope.select", "ocr.selection" } });
+            mine.Bindings.Add(new GestureBindingDto { Id = "user.abc", Chord = "Ctrl+Alt+A", Actions = new[] { "scope.select" } });
+            mine.Bindings.Add(new GestureBindingDto { Id = "default.record", Chord = "Ctrl+Alt+R", Actions = new[] { "record.toggle" }, OnComplete = new[] { "copy.clipboard" } });
+            mine.UpgradeStockDefaults();
+            Chk("T190d-user-shapes-untouched",
+                mine.Bindings[0].Actions.Length == 2 && mine.Bindings[0].Actions[1] == "ocr.selection"
+                && mine.Bindings[1].Actions.Length == 1
+                && mine.Bindings[2].OnComplete.SequenceEqual(new[] { "copy.clipboard" }),
+                "改过的出厂条与非出厂 Id 一律不动");
         }
 
         // 手势配置器触发下拉标签两两不同（，GestureEditorWindow.TriggerLabel 纯函数）

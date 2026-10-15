@@ -171,6 +171,22 @@ public sealed class GestureConfig
         Seeded = true;
     }
 
+    /// <summary>把出厂默认的两条绑定补齐成「先选区，后执行」的形态：
+    /// 截图那条只有「选区」一步、录制那条只有「开始/停止录制」一步且完成后为空——这两种形状各自补上缺失的那一步。
+    /// 只认 <c>default.capture</c> / <c>default.record</c> 这两个出厂 Id，用户自己建的或改过的不命中；
+    /// 补齐后的形状多了一步，条件落空，重复调用没有副作用。</summary>
+    public void UpgradeStockDefaults()
+    {
+        foreach (var b in Bindings)
+        {
+            if (b.Id == "default.capture" && b.Actions.Length == 1 && b.Actions[0] == GestureActions.ScopeSelect)
+                b.Actions = new[] { GestureActions.ScopeSelect, GestureActions.CaptureStored };
+            else if (b.Id == "default.record" && b.Actions.Length == 1 && b.Actions[0] == GestureActions.RecordToggle
+                     && b.OnComplete.Length == 0)
+                b.OnComplete = new[] { GestureActions.EditLastVideo };
+        }
+    }
+
     /// <summary>「截图」键位文案（欢迎卡/启动气泡用）：对当前范围截图与整帧即时截图都算截图，
     /// 按绑定顺序取第一个启用的。</summary>
     /// <returns>键位文案；一条都没绑时为「未绑定」。</returns>

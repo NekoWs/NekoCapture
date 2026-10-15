@@ -211,6 +211,7 @@ public sealed class AppSettings
         if (UiLanguage is not ("system" or "zh" or "en")) UiLanguage = "system";
         Gestures ??= new GestureConfig();
         Gestures.SeedIfNeeded(GestureConfig.DefaultCaptureKey, GestureConfig.DefaultRecordKey);   // 一次性：空配置播种 QQ 键位（截图 / 录制）
+        Gestures.UpgradeStockDefaults();   // 出厂默认的两条补齐成「先选区，后执行」，用户改过的不碰
         ToastSeconds = ToastSeconds <= 0 ? 0 : Math.Clamp(ToastSeconds, 0.5, 60);
         FreezePregrabMaxWindows = Math.Clamp(FreezePregrabMaxWindows, 0, 16);
         if (RegionW < 16 || RegionH < 16)

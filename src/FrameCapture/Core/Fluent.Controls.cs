@@ -342,7 +342,7 @@ public static partial class Fluent
             bb.BeginAnimation(SolidColorBrush.ColorProperty, new ColorAnimation(on ? Theme.Accent : Theme.Stroke, new Duration(TimeSpan.FromMilliseconds(Motion.StateMs))));
         }
         // 滑钮落在哪块底色上就反着走：开态轨道是 accent 实心，恒白滑钮压在浅色 accent 上只有 1.3:1，
-        // 看着像没开；关态轨道是 TrackBg，白色照旧。状态本身仍只靠轨道底色表达。
+        // 看着像没开；关态轨道是 TrackBg，滑钮保持白色。状态本身仍只靠轨道底色表达。
         if (knob is System.Windows.Shapes.Shape sh && sh.Fill is SolidColorBrush fillOld)
         {
             var fill = new SolidColorBrush(fillOld.Color);
