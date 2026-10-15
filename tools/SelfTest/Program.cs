@@ -4300,10 +4300,21 @@ static class SelfTest
                 "启用手势层", "独占吞键", "完成后序列", "松手", "手势层当前关闭", "未绑定",
                 "欢迎用 FrameCapture 编辑器", "总在最前", "帮助与快捷键", "松开应用裁剪", "RGBA 调色板",
                 "  裁剪 {0}×{1}", "未找到 ffmpeg，无法导出视频 — 安装方法见帮助，按 F1",
+                "拖框选择 · 悬停点击吸附窗口 · Esc 取消", "延时截图", "按新键 · Esc 解绑", "复制全部",
+                "未安装 OCR 语言包，请到 设置 › 时间和语言 › 语音 添加", "此环境无法注入滚轮，请手动滚动",
+                "组合键为空：请设置一个组合键", "已到内容底部，点「完成」出图",
             };
             var leaked = covered.Where(k => Loc.T(k) == k).ToList();
             Chk("T189k-covered-surfaces", leaked.Count == 0, $"leaked={string.Join(',', leaked)}");
             // 合成词：中文把挡位名并进「细笔画」，英文是「Thin stroke」——两段各自取词后还要拼得对
+            // 校验文案由库经注入的取词函数产出：带参模板必须先整句取词再填参数，英文语序和中文不同
+            var vdoc = new GEdit.GestureDoc { Bindings =
+                { new GEdit.BindingEdit { Mods = GE.ModifierKeys.Control, Key = 0x41, Actions = new List<string> { "no.such" } } } };
+            var vmsgs = GEdit.GestureValidation.Validate(vdoc, new TestCatalog(), new TestNamer(), Loc.T)
+                .Select(p => p.Message).ToList();
+            Chk("T189p-validation-messages-in-en",
+                vmsgs.All(m => !m.Any(c => c >= 0x4E00 && c <= 0x9FFF)) && vmsgs.Any(m => m.Contains("Unknown action")),
+                string.Join(" | ", vmsgs));
             Chk("T189o-composed-stroke-labels-in-en",
                 Loc.F("{0}笔画", Loc.T("细")) == "Thin stroke" && Loc.F("{0}笔画", Loc.T("粗")) == "Bold stroke",
                 Loc.F("{0}笔画", Loc.T("中")));

@@ -16,7 +16,7 @@ public sealed class ChordCaptureBox : Border
     readonly Grid _host = new();
     bool _capturing;
     string _chord = "";
-    string _emptyHint = "点击设置";
+    string _emptyHint = Loc.T("点击设置");
 
     /// <summary>键位改定：参数是新的键位串，空串表示解绑。</summary>
     public event Action<string>? Picked;
@@ -111,7 +111,7 @@ public sealed class ChordCaptureBox : Border
         {
             _host.Children.Add(new TextBlock
             {
-                Text = "按新键 · Esc 解绑",
+                Text = Loc.T("按新键 · Esc 解绑"),
                 FontSize = 12,
                 Foreground = new SolidColorBrush(Fluent.AccentText()),
                 VerticalAlignment = VerticalAlignment.Center,

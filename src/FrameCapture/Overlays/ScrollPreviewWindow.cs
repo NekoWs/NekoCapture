@@ -80,7 +80,7 @@ public sealed class ScrollPreviewWindow : Window
         head.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         head.Children.Add(new TextBlock
         {
-            Text = "预览",
+            Text = Loc.T("预览"),
             FontSize = 13.5,
             FontWeight = FontWeights.Bold,
             Foreground = new SolidColorBrush(Theme.Text),

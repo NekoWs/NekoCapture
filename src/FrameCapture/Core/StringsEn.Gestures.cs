@@ -97,5 +97,14 @@ static partial class StringsEn
         ("手势配置器", "Gesture Configurator"),
         ("打开可视化键位配置器，增删改绑定、实时校验、保存即生效",
             "Opens the visual key configurator to add, remove, and edit bindings with live validation; saving applies immediately"),
+        // 校验文案：库里的纯函数按注入的取词函数出词，带参的先取整句模板再填参数
+        ("组合键为空：请设置一个组合键", "The chord is empty: set a chord"),
+        ("未选择任何动作", "No action selected"),
+        ("未知动作「{0}」", "Unknown action “{0}”"),
+        ("完成后序列含未知动作「{0}」", "The after-capture sequence has an unknown action “{0}”"),
+        ("双击间隔应在 50–2000ms", "Double-click interval should be 50–2000 ms"),
+        ("长按阈值应在 100–5000ms", "Long-press threshold should be 100–5000 ms"),
+        ("组合键 {0} 与另一条重复：会按优先级顺延，确认是有意为之",
+            "Chord {0} duplicates another binding: it falls back by priority, make sure that is intended"),
     };
 }

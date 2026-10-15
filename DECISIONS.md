@@ -786,3 +786,17 @@ NaN 转 int 得 0，`RenderTargetBitmap` 按 0 高去画，PNG 文件照样写�
   返回取词键的行标 `// lockeys`（与 `// copyok` 区分：前者是「这行的中文就是要翻的键，翻在读取处」）。
   `T189n-trigger-words-distinct-in-en` 锁住英文下十个触发词同样两两不同——「松开」和「松手」译成一个词，
   键位后缀就分不出来了。
+
+## 安装器共用的 Core 源文件不认识语言，取词交给调用方
+
+- **现象**：`Fluent.TitleBar` 的关闭按钮提示在函数内部包了一层 `Loc.T`，宿主编译一路绿灯，
+  护栏最后一关 `build:Setup` 才报 `CS0103 当前上下文中不存在名称"Loc"`。
+- **根因**：`src/Setup/Setup.csproj`（net48）用 `<Compile Include="..\FrameCapture\Core\...">` 直接共享
+  `Theme.cs`、`Fluent.cs`、`Fluent.Controls.cs`、`Fluent.Styles.cs` 四个源文件，那边没有 `Loc` 也没有译表。
+  共用文件里出现取词调用，等于要求安装器也带一套界面语言。
+- **决定**：
+  - 共用文件继续不认识语言。`TitleBar` 的 `closeTip` 保持中文默认值并标 `// lockeys`，
+    取词发生在调用方：设置窗与识别结果窗各自传 `Loc.T("关闭")`。控件工厂负责排版，不负责语言。
+  - 安装器自身不在双语范围内（安装界面跟随系统语言是另一件事），共享的只是配色与控件外观。
+- **护栏**：`scripts/lint-i18n-coverage.ps1` 从 `Setup.csproj` 读出共享源文件清单，逐个扫 `Loc.T(`/`Loc.F(`，
+  命中即 FAIL——这条错误在护栏最后一关才暴露，把它提前到第 0 关。

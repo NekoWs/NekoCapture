@@ -400,7 +400,7 @@ public sealed partial class GestureEditorWindow : Window
     /// <summary>重跑整份配置的校验：错误级问题禁用保存按钮；全部问题（含提示级）按绑定 Id 落到对应卡片红框。</summary>
     void RefreshValidation()
     {
-        var problems = GestureValidation.Validate(_doc, _catalog, _namer);
+        var problems = GestureValidation.Validate(_doc, _catalog, _namer, T);
         bool errs = GestureValidation.HasErrors(problems);
         _saveBtn.IsEnabled = !errs;
         // 有问题的那条绑定整卡红框标出，无问题即静默：底部只留最多三条去重后的文案，不做「配置有效」回执。
@@ -415,7 +415,7 @@ public sealed partial class GestureEditorWindow : Window
         }
         else
         {
-            _valText.Text = string.Join("；", problems.Select(p => p.Message).Distinct().Take(3));
+            _valText.Text = string.Join(T("；"), problems.Select(p => p.Message).Distinct().Take(3));
             _valText.Foreground = _pal.B(errs ? Danger : _pal.TextDim);
         }
     }
@@ -423,7 +423,7 @@ public sealed partial class GestureEditorWindow : Window
     /// <summary>保存并关窗。落盘前再校验一次：校验是保存的唯一闸门，有错误级问题就什么都不写。</summary>
     void Save()
     {
-        var problems = GestureValidation.Validate(_doc, _catalog, _namer);
+        var problems = GestureValidation.Validate(_doc, _catalog, _namer, T);
         if (GestureValidation.HasErrors(problems)) return;
         _store.Save(_doc);
         Close();

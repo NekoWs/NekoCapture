@@ -88,7 +88,7 @@ public sealed partial class SettingsWindow : Window
         var dock = new DockPanel { LastChildFill = true };
 
         #region 标题栏：图标 + 标题 + 关闭（共享件 Fluent.TitleBar）
-        var (bar, closeBtn) = Fluent.TitleBar("\uE7A8", Loc.T("设置"));
+        var (bar, closeBtn) = Fluent.TitleBar("\uE7A8", Loc.T("设置"), Loc.T("关闭"));
         closeBtn.Click += (_, _) => Fluent.CloseWithFade(this);
         // 关闭按钮落在原生 CaptionHeight 拖窗区内，须显式让位给 WPF 命中，否则点它会拖窗而非关闭
         System.Windows.Shell.WindowChrome.SetIsHitTestVisibleInChrome(closeBtn, true);

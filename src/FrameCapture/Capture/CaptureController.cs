@@ -475,7 +475,7 @@ public sealed partial class CaptureController : IDisposable
     void RetireCaptureOutline()
     {
         _outline?.StopRecBadge();
-        _outline?.SetBorderVisible(true); // 免按住录制的"只徽标"模式复位，别把无边框带给下次
+        _outline?.SetBorderVisible(true); // 免按住录制的徽标模式复位，别把无边框带给下次
         if (Core.CaptureGuards.OnCaptureFinished(_settings.Current.AlwaysShowRegionOutline, StoredRegion() != null)
             == Core.CaptureGuards.AfterCaptureOutline.KeepPersistent)
             ShowOutlineIfStored();

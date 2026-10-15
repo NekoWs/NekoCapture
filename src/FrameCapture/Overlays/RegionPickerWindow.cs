@@ -5,6 +5,7 @@ using System.Windows.Media;
 using System.Windows.Shapes;
 using FrameCapture.Capture;
 using FrameCapture.Native;
+using Loc = FrameCapture.Core.Loc;
 
 namespace FrameCapture.Overlays;
 
@@ -303,8 +304,8 @@ public sealed partial class RegionPickerWindow : Window
         _hint.Child = new TextBlock
         {
             Text = _existing != null
-                ? "拖框选择 · 悬停点击吸附窗口 · Enter 确认上次选区 · Esc 取消"
-                : "拖框选择 · 悬停点击吸附窗口 · Esc 取消",
+                ? Loc.T("拖框选择 · 悬停点击吸附窗口 · Enter 确认上次选区 · Esc 取消")
+                : Loc.T("拖框选择 · 悬停点击吸附窗口 · Esc 取消"),
             FontSize = 13,
             Foreground = new SolidColorBrush(Color.FromArgb(0xE6, 0xFF, 0xFF, 0xFF)),
         };
@@ -326,7 +327,7 @@ public sealed partial class RegionPickerWindow : Window
             _topTimer.Stop();
             _winCache.Clear(); // 释放预抓窗口缓存
             Services.HotkeyManager.PickerActive = false;
-            Services.HotkeyManager.PickerKey = null; // 清零全局键拦截，绝不泄漏成"全局键失灵"
+            Services.HotkeyManager.PickerKey = null; // 清零全局键拦截，绝不泄漏成失灵后无人重挂
             var sf = _snapFrame;
             ReclaimAfterClose((sf != null ? (long)sf.W * sf.H * 4 : 0) + System.Threading.Interlocked.Read(ref _pregrabBytes));
         };

@@ -72,7 +72,7 @@ public sealed class CountdownWindow : Window
         head.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         head.Children.Add(new TextBlock
         {
-            Text = "延时截图",
+            Text = Loc.T("延时截图"),
             FontSize = 15,
             FontWeight = FontWeights.Bold,
             Foreground = new SolidColorBrush(Theme.Text),
@@ -107,7 +107,7 @@ public sealed class CountdownWindow : Window
 
         var hint = new TextBlock
         {
-            Text = "趁这几秒打开要截的菜单 / 悬停提示…",
+            Text = Loc.T("趁这几秒打开要截的菜单 / 悬停提示…"),
             FontSize = 11.5,
             Foreground = new SolidColorBrush(Theme.TextDim),
             FontFamily = new FontFamily("Segoe UI"),
@@ -124,7 +124,7 @@ public sealed class CountdownWindow : Window
             HorizontalAlignment = HorizontalAlignment.Center,
             Margin = new Thickness(0, 12, 0, 0),
         };
-        var cancel = MakeBtn("取消", Theme.Hover, Theme.Text);
+        var cancel = MakeBtn(Loc.T("取消"), Theme.Hover, Theme.Text);
         cancel.Click += (_, _) => OnCancel?.Invoke();
         btns.Children.Add(cancel);
         root.Children.Add(btns);

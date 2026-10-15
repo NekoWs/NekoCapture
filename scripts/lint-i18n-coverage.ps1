@@ -6,6 +6,7 @@
 # 豁免：StringsEn.*.cs（中文键就是源语言本身）、Trace/Debug/Console 行与 throw 行（日志与异常消息不进译表）、
 # 行尾 // copyok（这行的文案本就不用翻）、行尾 // lockeys（这行的中文是取词的键，取词在读取处）、
 # 行尾 // locpending（等下一批整窗迁移，计数报出来）。
+# 另外盯住安装器共用的 Core 源文件：那边没有 Loc，引用即 FAIL。
 param([switch]$Quiet)
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
@@ -33,6 +34,8 @@ foreach ($f in Get-ChildItem -Path $dirs -Recurse -Include *.cs) {
         foreach ($l in $lines) {
             if ($l -match '^\s*(///|//|\*)') { continue }
             if ($l -match $reNonUi) { continue }
+            # 中文是取词的键、取词发生在读取处：整窗没迁移也一样不算界面文案
+            if ($l -match '//\s*lockeys') { $keyLines++; continue }
             $n += @($reLiteral.Matches($l) | Where-Object { $reCjk.IsMatch($_.Value) }).Count
         }
         if ($n -gt 0) { $pending += [pscustomobject]@{ File = $f.Name; Count = $n } }
@@ -53,6 +56,25 @@ foreach ($f in Get-ChildItem -Path $dirs -Recurse -Include *.cs) {
             if (-not $reCjk.IsMatch($m.Value)) { continue }
             $rel = $f.FullName.Substring($root.Length + 1)
             if (-not $Quiet) { Write-Host "  FAIL $rel`:$($i + 1)  $($m.Value)" }
+            $fail++
+        }
+    }
+}
+
+# 安装器（net48）与宿主共用几个 Core 源文件，那边没有 Loc：这些文件里出现取词调用会让 Setup 编译失败，
+# 而 Setup 只在护栏最后一关才编，等到那时才发现等于把错误留给下一轮。
+$setupProj = Join-Path $root 'src\Setup\Setup.csproj'
+if (Test-Path $setupProj) {
+    $shared = Select-String -Path $setupProj -Pattern '<Compile Include="\.\.\\(FrameCapture\\[^"]+)"' |
+        ForEach-Object { $_.Matches[0].Groups[1].Value }
+    foreach ($rel in $shared) {
+        $f = Join-Path $root (Join-Path 'src' $rel)
+        if (-not (Test-Path $f)) { continue }
+        $lines = Get-Content $f -Encoding UTF8
+        for ($i = 0; $i -lt $lines.Count; $i++) {
+            if ($lines[$i] -match '^\s*(///|//|\*)') { continue }
+            if ($lines[$i] -notmatch '(?<![\w.])Loc\.(T|F)\(') { continue }
+            if (-not $Quiet) { Write-Host "  FAIL $rel`:$($i + 1)  安装器共用文件引用了 Loc——取词交给调用方" }
             $fail++
         }
     }
