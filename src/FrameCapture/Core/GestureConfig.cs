@@ -190,6 +190,25 @@ public sealed class GestureConfig
         }
     }
 
+    /// <summary>哪些启用中的绑定在「组合键 + 触发方式」上撞了车：同一个键位触发上挂着多条，
+    /// 引擎按优先级与顺序只走第一条，排在后面的永远不触发。非法或空组合键压根不进引擎，不参与判定。</summary>
+    /// <returns>撞车绑定的 Id 集合——只收排在后面那几条，第一条照常触发、不标；没有撞车时为空集。</returns>
+    public HashSet<string> ConflictIds()
+    {
+        var seen = new HashSet<string>();
+        var clash = new HashSet<string>();
+        foreach (var b in Bindings)
+        {
+            if (!b.Enabled) continue;
+            var spec = HotkeySpec.Parse(b.Chord);
+            if (spec == null) continue;
+            // 组合键按解析结果比，不按字符串比：Ctrl+Alt+A 与 ALT+CTRL+A 是同一个键。
+            string key = $"{spec.Ctrl}|{spec.Alt}|{spec.Shift}|{spec.Win}|{spec.VirtualKey}|{b.Trigger}";
+            if (!seen.Add(key)) clash.Add(b.Id);
+        }
+        return clash;
+    }
+
     /// <summary>「截图」键位文案（欢迎卡/启动气泡用）：对当前范围截图与整帧即时截图都算截图，
     /// 按绑定顺序取第一个启用的。</summary>
     /// <returns>键位文案；一条都没绑时为「未绑定」。</returns>

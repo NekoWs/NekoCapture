@@ -94,6 +94,8 @@ static partial class StringsEn
         ("同一个组合键可以配多条不同触发：组合键即按即触发，轻点与按住用来让一个键分出两件事",
             "One key combination can carry several triggers: a shortcut fires the moment it is pressed, while tap and hold split one key into two jobs."),
         ("删除这条快捷键", "Delete this hotkey"),
+        ("同一个组合键与触发方式上挂着多条快捷键，只有排在前面那条会触发",
+            "Another hotkey already uses this shortcut and trigger — only the first one in the list fires."),
         ("编辑器窗口里的键位。点一下键位框，再按下新键即改；按 Esc 取消这个键位，加号再加一个按法。改完立即生效。",
             "Keys for the editor window. Click a key box, then press a new key to rebind it; press Esc to clear that key, or the plus sign to add another way to press it. Changes apply immediately."),
         ("恢复", "Reset"),

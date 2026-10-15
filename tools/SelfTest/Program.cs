@@ -300,8 +300,11 @@ static class SelfTest
     /// <param name="outPath">输出 PNG 路径。</param>
     /// <param name="catName">类别名：快捷键 / 截图 / 录制 / 产物 / 编辑器 / 贴图 / 外观 / 系统。</param>
     /// <param name="scale">渲染倍率，1 表示 96dpi 原尺寸；宣传页按 1.5 出图。</param>
+    /// <param name="openAt">展开第几条快捷键再拍，-1 表示全部折叠。</param>
+    /// <param name="advanced">true = 完成后与失败时按高级形态铺开。</param>
+    /// <param name="clash">true = 再挂一条与第一条同键同触发的绑定，拍撞车那条的描边。</param>
     /// <returns>恒为 0。</returns>
-    static int RenderSettings(string outPath, string catName, double scale = 1, int openAt = -1, bool advanced = false)
+    static int RenderSettings(string outPath, string catName, double scale = 1, int openAt = -1, bool advanced = false, bool clash = false)
     {
         var app = new Application();
         // 设置窗读 AppHost.Current.Settings；本模式只 new Application()，不走 AppHost.Startup，
@@ -318,6 +321,18 @@ static class SelfTest
         // 界面语言与 AppHost 同一套规则：先按配置，FC_LANG 可覆盖——拍双语界面不必先改用户配置
         string lang = Environment.GetEnvironmentVariable("FC_LANG") ?? "";
         FrameCapture.Core.Loc.Apply(lang == "" ? svc.Current.UiLanguage : lang);
+        // 「clash」：再挂一条与第一条同键同触发的绑定，只为拍撞车那条的描边——只改内存里的配置，不落盘。
+        if (clash && svc.Current.Gestures.Bindings.Count > 0)
+        {
+            var first = svc.Current.Gestures.Bindings[0];
+            svc.Current.Gestures.Bindings.Add(new FrameCapture.Core.GestureBindingDto
+            {
+                Id = "render.clash",
+                Chord = first.Chord,
+                Trigger = first.Trigger,
+                Actions = new[] { "ocr.selection" },
+            });
+        }
         var w = new FrameCapture.Overlays.SettingsWindow();
         // 「adv」：先把完成后/失败时切到高级形态再建内容——行的形态在建行时按这个开关铺一次。
         if (advanced)
@@ -853,7 +868,7 @@ static class SelfTest
             string[] catNames = { "快捷键", "截图", "录制", "产物", "编辑器", "贴图", "外观", "系统" };
             int ci = args.Length >= 3 && int.TryParse(args[2], out var sc) ? sc : 0;
             return RenderSettings(args[1], catNames[Math.Clamp(ci, 0, catNames.Length - 1)], ScaleArg(args),
-                args.Contains("open2") ? 1 : args.Contains("open") ? 0 : -1, args.Contains("adv"));
+                args.Contains("open2") ? 1 : args.Contains("open") ? 0 : -1, args.Contains("adv"), args.Contains("clash"));
         }
         if (args.Length >= 2 && args[0] == "rendergestures") return RenderGestures(args[1], ScaleArg(args));
     if (args.Length >= 2 && args[0] == "rendereditor") return RenderEditor(args[1], ScaleArg(args), args.Contains("guide"));
@@ -4187,6 +4202,43 @@ static class SelfTest
                 "改过动作的出厂条与非出厂 Id 不动；用户自己写的完成后保留");
         }
 
+        // 同一个组合键+触发上挂了两条：引擎按优先级与顺序只走第一条，后面那条永远不响——快捷键页靠它把那条描边发红
+        {
+            var cfg = new GestureConfig();
+            cfg.Bindings.Add(new GestureBindingDto { Id = "a", Chord = "Ctrl+Alt+A", Actions = new[] { "capture.stored" } });
+            cfg.Bindings.Add(new GestureBindingDto { Id = "b", Chord = "Ctrl+Alt+A", Actions = new[] { "ocr.selection" } });
+            Chk("T192a-conflict-marks-the-later-one",
+                cfg.ConflictIds().SequenceEqual(new[] { "b" }),
+                "撞车只标排在后面那条：" + string.Join(",", cfg.ConflictIds()));
+            cfg.Bindings[1].Trigger = "Hold";
+            Chk("T192b-different-trigger-no-conflict", cfg.ConflictIds().Count == 0,
+                "同一个键配不同触发不算撞车（轻点截图、按住录制是合法用法）");
+            cfg.Bindings[1].Trigger = "Chord";
+            cfg.Bindings[1].Enabled = false;
+            Chk("T192c-disabled-not-in-conflict", cfg.ConflictIds().Count == 0, "关掉的那条压根不进引擎，不报撞车");
+            cfg.Bindings[1].Enabled = true;
+            cfg.Bindings[1].Chord = "ALT+CTRL+A";
+            Chk("T192d-conflict-compares-parsed-chord",
+                cfg.ConflictIds().SequenceEqual(new[] { "b" }), "修饰键顺序与大小写不同也是同一个键");
+            var empty = new GestureConfig();
+            empty.Bindings.Add(new GestureBindingDto { Id = "x", Chord = "", Actions = new[] { "capture.stored" } });
+            empty.Bindings.Add(new GestureBindingDto { Id = "y", Chord = "", Actions = new[] { "ocr.selection" } });
+            Chk("T192e-empty-chord-not-in-conflict", empty.ConflictIds().Count == 0, "没按键的条目不报撞车");
+        }
+
+        // 触发后缀只有一个实现（GestureConfig.TriggerLabel），供设置下拉、帮助窗与折叠行后缀共用
+        {
+            var names = Enum.GetNames<GE.TriggerKind>();
+            var labels = names.Where(n => n != "Chord").Select(GestureConfig.TriggerLabel).ToList();
+            Chk("T193a-trigger-labels-distinct",
+                labels.All(s => !string.IsNullOrEmpty(s)) && labels.Distinct().Count() == labels.Count
+                && GestureConfig.TriggerLabel("Chord") == "",
+                $"除 Chord 外 {labels.Count} 个触发后缀两两不同非空，Chord 返回空串");
+            Chk("T193b-unknown-trigger-empty",
+                GestureConfig.TriggerLabel("NoSuchTrigger") == "" && GestureConfig.TriggerLabel(null!) == "",
+                "未知触发名与 null 都返回空串（配置里写了认不出的触发不会崩）");
+        }
+
         // 快捷键行的展开动效：正文从 0 长高、逐行淡入、走完放开限高；完成后与失败时只在高级形态里长出来
         try
         {
@@ -4234,6 +4286,15 @@ static class SelfTest
                 double.IsPositiveInfinity(body.MaxHeight) && body.ActualHeight > 60
                 && rows.Children.Cast<UIElement>().All(c => c.Opacity > 0.99),
                 $"动画走完：限高放开、正文有高度、行全部到位（实测高 {body.ActualHeight:F0}）");
+            var combos = new List<System.Windows.DependencyObject>();
+            CollectTyped(hotRoot, typeof(System.Windows.Controls.ComboBox), combos);
+            var trig = combos.Cast<System.Windows.Controls.ComboBox>().FirstOrDefault(c => c.Items.Count > 4);
+            var trigItems = trig == null
+                ? new List<string>()
+                : trig.Items.Cast<System.Windows.Controls.ComboBoxItem>().Select(i => (string)i.Content).ToList();
+            Chk("T193c-trigger-combo-covers-all-kinds",
+                trigItems.Count == Enum.GetValues<GE.TriggerKind>().Length && trigItems.Distinct().Count() == trigItems.Count,
+                $"触发方式下拉 {trigItems.Count} 项覆盖全部触发且两两不同名：{string.Join("/", trigItems)}");
             Chk("T191d-simple-hides-override",
                 OverrideRows().All(r => r.Visibility == Visibility.Collapsed),
                 "简单形态里完成后与失败时整行收起");

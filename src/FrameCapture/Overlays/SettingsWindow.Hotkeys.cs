@@ -40,6 +40,9 @@ public sealed partial class SettingsWindow : Window
     /// <summary>把界面上的一小块按 <see cref="_hotAdvanced"/> 重铺的回调，简单/高级切换时统一走一遍。</summary>
     readonly List<Action> _hotModeSync = new();
 
+    /// <summary>每行重画「撞车」描边的回调：改组合键、改触发、增删条目之后都要重新比一遍。</summary>
+    readonly List<Action> _hotClashSync = new();
+
     /// <summary>开始录入组合键那一刻键盘钩子的状态，录入结束原样还回去。</summary>
     bool _hotHookWasPaused;
 
@@ -80,6 +83,7 @@ public sealed partial class SettingsWindow : Window
         _hotList.Children.Clear();
         _hotBoxes.Clear();
         _hotModeSync.Clear();
+        _hotClashSync.Clear();
         foreach (var b in _settings.Current.Gestures.Bindings)
             _hotList.Children.Add(HotkeyRow(b));
         _hotList.Children.Add(AddHotkeyButton());
@@ -218,6 +222,20 @@ public sealed partial class SettingsWindow : Window
             Cursor = Cursors.Hand,
             Child = head,
         };
+        // 撞了车的那条描边发红：同一个组合键与触发上挂着多条，引擎按优先级与顺序只走第一条，这条永远不响。
+        var pillStroke = (SolidColorBrush)pill.BorderBrush;
+        void PaintClash()
+        {
+            bool hit = _settings.Current.Gestures.ConflictIds().Contains(b.Id);
+            pill.ToolTip = hit
+                ? Loc.T("同一个组合键与触发方式上挂着多条快捷键，只有排在前面那条会触发")
+                : null;
+            pillStroke.BeginAnimation(SolidColorBrush.ColorProperty, new ColorAnimation(
+                hit ? Theme.Danger : Theme.Stroke,
+                new Duration(TimeSpan.FromMilliseconds(Fluent.Motion.StateMs))));
+        }
+        _hotClashSync.Add(PaintClash);
+        PaintClash();
 
         var body = HotkeyBody(b, () => name.Text = HotkeyDisplayName(b));
         body.MaxHeight = open ? double.PositiveInfinity : 0;
@@ -503,12 +521,14 @@ public sealed partial class SettingsWindow : Window
     }
 
     /// <summary>把当前快捷键配置写盘，并让引擎与键盘钩子当场重载。
-    /// 自写盘会被文件 watcher 因 RecentlySelfWritten 跳过，不自己触发就要等下次启动才生效。</summary>
+    /// 自写盘会被文件 watcher 因 RecentlySelfWritten 跳过，不自己触发就要等下次启动才生效。
+    /// 改完顺手重画一遍撞车描边：撞不撞车取决于别的条目现在长什么样，只有整表比一次才知道。</summary>
     void CommitHotkeys()
     {
         var cfg = _settings.Current.Gestures;
         _settings.Mutate(s => s.Gestures = cfg);
         AppHost.Current.InstallHotkeys();
+        foreach (var f in _hotClashSync) f();
     }
 
     /// <summary>事件源是否落在某个键位录入框内部，用于把这一击让给录入框而不是整行。</summary>
