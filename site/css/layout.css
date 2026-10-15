@@ -130,7 +130,7 @@
 
 .hero__title em {
   font-style: normal;
-  color: var(--accent);
+  color: var(--accent-text);
 }
 
 .lede {
@@ -395,8 +395,8 @@
               color var(--state) var(--ease-enter);
 }
 
-.faq details[open] summary::after { transform: rotate(45deg); color: var(--accent); }
-.faq summary:hover { color: var(--accent); }
+.faq details[open] summary::after { transform: rotate(45deg); color: var(--accent-text); }
+.faq summary:hover { color: var(--accent-text); }
 
 .faq p {
   margin: 0 0 20px;

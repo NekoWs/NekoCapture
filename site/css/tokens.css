@@ -5,6 +5,7 @@
 :root {
   /* ── 强调色：Theme.Accent 默认值 ───────────────────── */
   --accent: #4cc2ff;
+  --accent-text: var(--accent);   /* 强调色用在文字上时的可读版本 */
   --accent-ink: #04121c;          /* 强调色实心药丸上的反白文字，取深色保证对比 */
   --accent-soft: 76 194 255;      /* rgb 分量，供 alpha 组合复用 */
 
@@ -98,6 +99,8 @@
   --glow-b: rgba(120, 92, 255, 0.08);
   --noise: 0.03;
   --veil: rgba(0, 0, 0, 0.34);
+  /* #4CC2FF 落在 #F3F3F3 上只有 1.9:1，标题那一级字号必须换深一档 */
+  --accent-text: #0a7ec2;
   color-scheme: light;
 }
 
