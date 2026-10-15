@@ -25,33 +25,33 @@ public static class GestureValidation
     public static List<BindingProblem> Validate(GestureDoc doc, IActionCatalog catalog, IKeyNamer namer,
         Func<string, string>? loc = null)
     {
-        Func<string, string> L = loc ?? (s => s);
+        Func<string, string> T = loc ?? (s => s);
         var list = new List<BindingProblem>();
         var seen = new HashSet<(int mods, int key, TriggerKind trig)>();
         foreach (var b in doc.Bindings)
         {
             if (!b.Enabled) continue;   // 禁用的绑定不参与触发 → 不校验、不挡保存
             if (b.Key == 0 && b.Mods == ModifierKeys.None)
-                list.Add(new BindingProblem(b.Id, L("组合键为空：请设置一个组合键"), true));
+                list.Add(new BindingProblem(b.Id, T("组合键为空：请设置一个组合键"), true));
 
             if (b.Actions.Count == 0)
-                list.Add(new BindingProblem(b.Id, L("未选择任何动作"), true));
+                list.Add(new BindingProblem(b.Id, T("未选择任何动作"), true));
             foreach (var a in b.Actions)
                 if (!catalog.IsValid(a))
-                    list.Add(new BindingProblem(b.Id, string.Format(L("未知动作「{0}」"), a), true));
+                    list.Add(new BindingProblem(b.Id, string.Format(T("未知动作「{0}」"), a), true));
             foreach (var a in b.OnComplete)
                 if (!catalog.IsValid(a))
-                    list.Add(new BindingProblem(b.Id, string.Format(L("完成后序列含未知动作「{0}」"), a), true));
+                    list.Add(new BindingProblem(b.Id, string.Format(T("完成后序列含未知动作「{0}」"), a), true));
 
             if (b.DoubleClickMs < 50 || b.DoubleClickMs > 2000)
-                list.Add(new BindingProblem(b.Id, L("双击间隔应在 50–2000ms"), false));
+                list.Add(new BindingProblem(b.Id, T("双击间隔应在 50–2000ms"), false));
             if (b.LongPressMs < 100 || b.LongPressMs > 5000)
-                list.Add(new BindingProblem(b.Id, L("长按阈值应在 100–5000ms"), false));
+                list.Add(new BindingProblem(b.Id, T("长按阈值应在 100–5000ms"), false));
 
             var k = ((int)b.Mods, b.Key, b.Trigger);
             if (!seen.Add(k))
                 list.Add(new BindingProblem(b.Id,
-                    string.Format(L("组合键 {0} 与另一条重复：会按优先级顺延，确认是有意为之"), b.Chord.Format(namer)),
+                    string.Format(T("组合键 {0} 与另一条重复：会按优先级顺延，确认是有意为之"), b.Chord.Format(namer)),
                     false));
         }
         return list;

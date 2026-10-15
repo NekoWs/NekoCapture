@@ -34,6 +34,7 @@ foreach ($f in Get-ChildItem -Path $dirs -Recurse -Include *.cs) {
         foreach ($l in $lines) {
             if ($l -match '^\s*(///|//|\*)') { continue }
             if ($l -match $reNonUi) { continue }
+            if ($l -match '//\s*copyok') { continue }
             # 中文是取词的键、取词发生在读取处：整窗没迁移也一样不算界面文案
             if ($l -match '//\s*lockeys') { $keyLines++; continue }
             $n += @($reLiteral.Matches($l) | Where-Object { $reCjk.IsMatch($_.Value) }).Count
@@ -56,6 +57,32 @@ foreach ($f in Get-ChildItem -Path $dirs -Recurse -Include *.cs) {
             if (-not $reCjk.IsMatch($m.Value)) { continue }
             $rel = $f.FullName.Substring($root.Length + 1)
             if (-not $Quiet) { Write-Host "  FAIL $rel`:$($i + 1)  $($m.Value)" }
+            $fail++
+        }
+    }
+}
+
+# 挂了取词却没登记译名 = 英文下静默回退中文：界面看着"迁移过了"，切语言却什么都不变。
+# 因此取词调用里的每个中文键都必须在译表里出现（Loc.T(变量) 这种非字面量参数扫不到，交给整窗迁移时人工过）。
+$regPath = Join-Path $root 'src\FrameCapture\Core'
+$registered = @{}
+foreach ($sf in Get-ChildItem $regPath -Filter 'StringsEn.*.cs') {
+    foreach ($m in [regex]::Matches((Get-Content $sf.FullName -Raw -Encoding UTF8), '\(\s*"((?:\\.|[^"\\])*)"\s*,\s*')) {
+        $registered[$m.Groups[1].Value] = $true
+    }
+}
+$reKeyArg = [regex]'(?:Loc\.(?:T|F)|(?<![\w.])T)\(\s*"((?:\\.|[^"\\])*)"'
+foreach ($f in Get-ChildItem -Path $dirs -Recurse -Include *.cs) {
+    if ($f.Name -like 'StringsEn.*') { continue }
+    $i = 0
+    foreach ($l in (Get-Content $f.FullName -Encoding UTF8)) {
+        $i++
+        if ($l -match '^\s*(///|//|\*)') { continue }
+        foreach ($m in $reKeyArg.Matches($l)) {
+            $k = $m.Groups[1].Value
+            if (-not $reCjk.IsMatch($k)) { continue }
+            if ($registered.ContainsKey($k)) { continue }
+            if (-not $Quiet) { Write-Host "  FAIL $($f.Name)`:$i  取词键未登记译名：$k" }
             $fail++
         }
     }

@@ -73,11 +73,12 @@ static class SelfTest
         return 0;
     }
 
-    static int RenderHelp(string outPath)    {
-        return RenderHelp(outPath, 0);
-    }
-    static int RenderHelp(string outPath, int step)    {
+    static int RenderHelp(string outPath) => RenderHelp(outPath, 0, 1);
+    static int RenderHelp(string outPath, int step, double scale)    {
         var app = new Application();
+        // 界面语言与宿主同一套规则：FC_LANG 覆盖配置，拍双语界面不必先改用户配置
+        string lang = Environment.GetEnvironmentVariable("FC_LANG") ?? "";
+        if (lang != "") FrameCapture.Core.Loc.Apply(lang);
         // 反射设静态 _lastStep，让窗口停在指定步（长页/短页分别取证）
         typeof(FrameCapture.Overlays.HelpWindow)
             .GetField("_lastStep", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!
@@ -89,14 +90,14 @@ static class SelfTest
         root.Measure(new System.Windows.Size(W, H));
         root.Arrange(new Rect(0, 0, W, H));
         root.UpdateLayout();
-        int ww = (int)Math.Ceiling(W), hh = (int)Math.Ceiling(H);
-        var rtb = new System.Windows.Media.Imaging.RenderTargetBitmap(ww, hh, 96, 96, System.Windows.Media.PixelFormats.Pbgra32);
+        int ww = (int)Math.Ceiling(W * scale), hh = (int)Math.Ceiling(H * scale);
+        var rtb = new System.Windows.Media.Imaging.RenderTargetBitmap(ww, hh, 96 * scale, 96 * scale, System.Windows.Media.PixelFormats.Pbgra32);
         rtb.Render(root);
         var enc = new System.Windows.Media.Imaging.PngBitmapEncoder();
         enc.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(rtb));
         Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(outPath))!);
         using (var f = File.Create(outPath)) enc.Save(f);
-        Console.WriteLine($"saved {outPath} {ww}x{hh}");
+        Console.WriteLine($"saved {outPath} {ww}x{hh} lang={(FrameCapture.Core.Loc.IsEnglish ? "en" : "zh")}");
         return 0;
     }
 
@@ -527,7 +528,7 @@ static class SelfTest
         enc.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(rtb));
         Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(outPath))!);
         using (var f = File.Create(outPath)) enc.Save(f);
-        Console.WriteLine($"saved {outPath} {ww}x{hh}");
+        Console.WriteLine($"saved {outPath} {ww}x{hh} lang={(FrameCapture.Core.Loc.IsEnglish ? "en" : "zh")}");
         return 0;
     }
 
@@ -646,7 +647,7 @@ static class SelfTest
     {
         Console.OutputEncoding = System.Text.Encoding.UTF8;
         // 离屏渲染帮助窗取证：独立进程、不 Show、不注册热键，不打断正在运行的实例
-        if (args.Length >= 2 && args[0] == "renderhelp") return RenderHelp(args[1], args.Length >= 3 && int.TryParse(args[2], out var hs) ? hs : 0);
+        if (args.Length >= 2 && args[0] == "renderhelp") return RenderHelp(args[1], args.Length >= 3 && int.TryParse(args[2], out var hs) ? hs : 0, ScaleArg(args));
         if (args.Length == 2 && args[0] == "sbprobe") return SbProbe(args[1]);
         if (args.Length == 2 && args[0] == "renderpick") return RenderPick(args[1]);
         if (args.Length == 2 && args[0] == "editorwave") return EditorWave(args[1]);
@@ -4303,10 +4304,10 @@ static class SelfTest
                 "拖框选择 · 悬停点击吸附窗口 · Esc 取消", "延时截图", "按新键 · Esc 解绑", "复制全部",
                 "未安装 OCR 语言包，请到 设置 › 时间和语言 › 语音 添加", "此环境无法注入滚轮，请手动滚动",
                 "组合键为空：请设置一个组合键", "已到内容底部，点「完成」出图",
+                "使用指南", "快速上手", "定范围 → 触发 → 复制。", "贴图右键", "键位", "更多玩法",
             };
             var leaked = covered.Where(k => Loc.T(k) == k).ToList();
             Chk("T189k-covered-surfaces", leaked.Count == 0, $"leaked={string.Join(',', leaked)}");
-            // 合成词：中文把挡位名并进「细笔画」，英文是「Thin stroke」——两段各自取词后还要拼得对
             // 校验文案由库经注入的取词函数产出：带参模板必须先整句取词再填参数，英文语序和中文不同
             var vdoc = new GEdit.GestureDoc { Bindings =
                 { new GEdit.BindingEdit { Mods = GE.ModifierKeys.Control, Key = 0x41, Actions = new List<string> { "no.such" } } } };
@@ -4315,6 +4316,7 @@ static class SelfTest
             Chk("T189p-validation-messages-in-en",
                 vmsgs.All(m => !m.Any(c => c >= 0x4E00 && c <= 0x9FFF)) && vmsgs.Any(m => m.Contains("Unknown action")),
                 string.Join(" | ", vmsgs));
+            // 合成词：中文把挡位名并进「细笔画」，英文是「Thin stroke」——两段各自取词后还要拼得对
             Chk("T189o-composed-stroke-labels-in-en",
                 Loc.F("{0}笔画", Loc.T("细")) == "Thin stroke" && Loc.F("{0}笔画", Loc.T("粗")) == "Bold stroke",
                 Loc.F("{0}笔画", Loc.T("中")));

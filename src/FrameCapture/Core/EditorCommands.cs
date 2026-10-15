@@ -36,7 +36,7 @@ public sealed record EditorCommand(string Id, string Name, string Group, string[
 public static class EditorCommands
 {
     /// <summary>分组标题，设置页按这个顺序分段。</summary>
-    public static readonly string[] Groups = { "绘制工具", "编辑", "导出", "视图", "播放", "时间轴裁剪", "窗口" };
+    public static readonly string[] Groups = { "绘制工具", "编辑", "导出", "视图", "播放", "时间轴裁剪", "窗口" }; // lockeys
 
     /// <summary>全部命令。绘制工具一节由 <see cref="ToolCatalog"/> 生成，工具与键位不会两处各写一遍。</summary>
     public static readonly EditorCommand[] All = Build();
@@ -45,45 +45,45 @@ public static class EditorCommands
     {
         var list = new List<EditorCommand>
         {
-            new("tool.X", ToolCatalog.ExitName, "绘制工具", "X"),
+            new("tool.X", ToolCatalog.ExitName, "绘制工具", "X"), // lockeys
         };
-        list.AddRange(ToolCatalog.Tools.Select(t => new EditorCommand("tool." + t.Key, t.Tip, "绘制工具", t.Key)));
+        list.AddRange(ToolCatalog.Tools.Select(t => new EditorCommand("tool." + t.Key, t.Tip, "绘制工具", t.Key))); // lockeys
         list.AddRange(new[]
         {
-            new EditorCommand("delete-object", "删除选中对象", "编辑", new[] { "Delete", "Backspace" }, NeedsSelection: true),
-            new EditorCommand("undo", "撤销", "编辑", "Ctrl+Z", "Ctrl+U", "Delete"),
-            new EditorCommand("redo", "重做", "编辑", "Ctrl+Y", "Y"),
-            new EditorCommand("color-custom", "取色与自定义颜色", "编辑", "K"),
-            new EditorCommand("width-popup", "线宽选择", "编辑", "W"),
+            new EditorCommand("delete-object", "删除选中对象", "编辑", new[] { "Delete", "Backspace" }, NeedsSelection: true), // lockeys
+            new EditorCommand("undo", "撤销", "编辑", "Ctrl+Z", "Ctrl+U", "Delete"), // lockeys
+            new EditorCommand("redo", "重做", "编辑", "Ctrl+Y", "Y"), // lockeys
+            new EditorCommand("color-custom", "取色与自定义颜色", "编辑", "K"), // lockeys
+            new EditorCommand("width-popup", "线宽选择", "编辑", "W"), // lockeys
 
-            new EditorCommand("save-frame", "保存当前帧", "导出", "Ctrl+S"),
-            new EditorCommand("copy-frame", "复制当前帧", "导出", "Ctrl+C"),
-            new EditorCommand("pin-frame", "钉到屏幕", "导出", "Ctrl+P"),
-            new EditorCommand("ocr", "识别文字", "导出", "Ctrl+O"),
-            new EditorCommand("save-recording", "导出录制", "导出", "Ctrl+E"),
-            new EditorCommand("save-afterimage", "保存视觉暂留合成图", "导出", "Ctrl+H"),
+            new EditorCommand("save-frame", "保存当前帧", "导出", "Ctrl+S"), // lockeys
+            new EditorCommand("copy-frame", "复制当前帧", "导出", "Ctrl+C"), // lockeys
+            new EditorCommand("pin-frame", "钉到屏幕", "导出", "Ctrl+P"), // lockeys
+            new EditorCommand("ocr", "识别文字", "导出", "Ctrl+O"), // lockeys
+            new EditorCommand("save-recording", "导出录制", "导出", "Ctrl+E"), // lockeys
+            new EditorCommand("save-afterimage", "保存视觉暂留合成图", "导出", "Ctrl+H"), // lockeys
 
-            new EditorCommand("zoom-in", "放大", "视图", "Ctrl++", "PgUp"),
-            new EditorCommand("zoom-out", "缩小", "视图", "Ctrl+-", "PgDn"),
-            new EditorCommand("zoom-fit", "适配窗口", "视图", "Ctrl+0", "Home"),
-            new EditorCommand("zoom-one", "逐像素 1:1", "视图", "Ctrl+1", "End"),
+            new EditorCommand("zoom-in", "放大", "视图", "Ctrl++", "PgUp"), // lockeys
+            new EditorCommand("zoom-out", "缩小", "视图", "Ctrl+-", "PgDn"), // lockeys
+            new EditorCommand("zoom-fit", "适配窗口", "视图", "Ctrl+0", "Home"), // lockeys
+            new EditorCommand("zoom-one", "逐像素 1:1", "视图", "Ctrl+1", "End"), // lockeys
 
-            new EditorCommand("play-toggle", "播放 / 暂停", "播放", "Space"),
-            new EditorCommand("frame-prev", "上一帧", "播放", "Left"),
-            new EditorCommand("frame-next", "下一帧", "播放", "Right"),
-            new EditorCommand("sec-prev", "往前一秒", "播放", "Shift+Left"),
-            new EditorCommand("sec-next", "往后一秒", "播放", "Shift+Right"),
-            new EditorCommand("speed-up", "播放加速", "播放", "+"),
-            new EditorCommand("speed-down", "播放减速", "播放", "-"),
-            new EditorCommand("speed-reset", "播放常速", "播放", "0"),
+            new EditorCommand("play-toggle", "播放 / 暂停", "播放", "Space"), // lockeys
+            new EditorCommand("frame-prev", "上一帧", "播放", "Left"), // lockeys
+            new EditorCommand("frame-next", "下一帧", "播放", "Right"), // lockeys
+            new EditorCommand("sec-prev", "往前一秒", "播放", "Shift+Left"), // lockeys
+            new EditorCommand("sec-next", "往后一秒", "播放", "Shift+Right"), // lockeys
+            new EditorCommand("speed-up", "播放加速", "播放", "+"), // lockeys
+            new EditorCommand("speed-down", "播放减速", "播放", "-"), // lockeys
+            new EditorCommand("speed-reset", "播放常速", "播放", "0"), // lockeys
 
-            new EditorCommand("trim-a", "裁剪起点设为当前帧", "时间轴裁剪", "["),
-            new EditorCommand("trim-b", "裁剪终点设为当前帧", "时间轴裁剪", "]"),
-            new EditorCommand("trim-clear", "清除裁剪区间", "时间轴裁剪", "Backspace"),
+            new EditorCommand("trim-a", "裁剪起点设为当前帧", "时间轴裁剪", "["), // lockeys
+            new EditorCommand("trim-b", "裁剪终点设为当前帧", "时间轴裁剪", "]"), // lockeys
+            new EditorCommand("trim-clear", "清除裁剪区间", "时间轴裁剪", "Backspace"), // lockeys
 
-            new EditorCommand("commit", "确定并复制", "窗口", "Enter"),
-            new EditorCommand("close", "取消并关闭", "窗口", "Esc"),
-            new EditorCommand("help", "帮助", "窗口", "F1"),
+            new EditorCommand("commit", "确定并复制", "窗口", "Enter"), // lockeys
+            new EditorCommand("close", "取消并关闭", "窗口", "Esc"), // lockeys
+            new EditorCommand("help", "帮助", "窗口", "F1"), // lockeys
         });
         return list.ToArray();
     }

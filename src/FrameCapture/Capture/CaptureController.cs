@@ -377,8 +377,8 @@ public sealed partial class CaptureController : IDisposable
         {
             try { w?.Dispose(); } catch { }
             _wgc = null;
-            Trace.Log((byWindow ? "wgc window init failed: " : "wgc init failed: ") + ex.Message.Split('\n')[0]
-                + (byWindow ? " → 按区域录" : " → 回退 GDI"));
+            Trace.Log((byWindow ? "wgc window init failed: " : "wgc init failed: ") + ex.Message.Split('\n')[0] // copyok
+                + (byWindow ? " → 按区域录" : " → 回退 GDI")); // copyok
             return false;
         }
     }

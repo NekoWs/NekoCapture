@@ -72,6 +72,7 @@ static partial class StringsEn
         ("恢复", "Reset"),
         ("全部恢复默认键位", "Restore all default keys"),
         ("与{0}同键 {1}", "Shares a key with {0} — {1}"),
+        ("键位", "Shortcut"),
         ("、", ", "),
         ("；", "; "),
         ("「{0}」", "“{0}”"),
