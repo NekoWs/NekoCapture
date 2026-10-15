@@ -15,6 +15,13 @@ public sealed partial class EditorWindow : Window
 
     #region 按键分派与播放/帧显示
 
+    /// <summary>键位 → 命令的分派表，由 <see cref="EditorCommands.BuildMap"/> 按当前设置生成；
+    /// null 表示设置改过、下一次按键前重建。</summary>
+    Dictionary<(ModifierKeys Mods, Key Key), List<string>>? _keyMap;
+
+    /// <summary>设置变更：丢掉分派表，下一次按键按新键位重建。</summary>
+    void Editor_OnKeysChanged() => _keyMap = null;
+
     void OnKeyDown(object sender, KeyEventArgs e)
     {
         Trace.Log($"editor key={e.KeyboardDevice.Modifiers}+{e.Key}");
@@ -27,95 +34,103 @@ public sealed partial class EditorWindow : Window
         }
         // 文字输入中：编辑快捷键全部让位（Enter 上屏 / Esc 取消由输入框自理，不落到确定/放弃上）
         if (_textInput != null) return;
-        int fps = _fps;
         var mods = e.KeyboardDevice.Modifiers;
-        if (mods == ModifierKeys.Control && (e.Key == Key.Z || e.Key == Key.U)) { UndoAnn(); return; }
-        if (mods == ModifierKeys.Control && e.Key == Key.Y) { RedoAnn(); return; }
-        // 底部工具快捷键
-        if (mods == ModifierKeys.Control)
+        // Alt 组合在 WPF 里报成 Key.System，真身在 SystemKey 里，不还原就永远命不中键位表
+        var key = e.Key == Key.System ? e.SystemKey : e.Key;
+        _keyMap ??= EditorCommands.BuildMap(_settings.Current);
+        if (!_keyMap.TryGetValue((mods, key), out var ids)) return;
+        foreach (var id in ids)
+            if (Run(id, e)) { e.Handled = true; return; }
+    }
+
+    /// <summary>执行一条编辑器命令。命令与键位解耦：键位由设置页配置，这里只认命令 Id。</summary>
+    /// <param name="id">命令 Id，取自 <see cref="EditorCommands"/>。</param>
+    /// <param name="e">触发本次分派的按键事件。</param>
+    /// <returns>命令成立并已执行返回真；条件不成立返回假，同一个键位上的下一条命令接着试。</returns>
+    bool Run(string id, KeyEventArgs e)
+    {
+        switch (id)
         {
-            switch (e.Key)
-            {
-                case Key.S: SaveFrame(); return;
-                case Key.C: ClipboardService.SetFrame(ExportFrame(_index)); return;
-                case Key.P: PinCurrentFrame(); return; // 钉到屏幕
-                case Key.O: OcrCurrentFrame(); return; // 识别文字
-                case Key.E: SaveRecording(); return;
-                case Key.H: SaveAfterimage(); return;
-                // 视图缩放（浏览器惯例）：Ctrl +/− 以中心放大缩小，Ctrl+0 适配，Ctrl+1 逐像素 1:1
-                case Key.OemPlus or Key.Add: ZoomStep(1.25); return;
-                case Key.OemMinus or Key.Subtract: ZoomStep(1 / 1.25); return;
-                case Key.D0 or Key.NumPad0: ZoomFit(); return;
-                case Key.D1 or Key.NumPad1: ZoomOneToOne(); return;
-            }
-        }
-        if (mods == ModifierKeys.None)
-        {
-            switch (e.Key)
-            {
-                case Key.X: SetTool(Tool.Browse); return;
-                case Key.V: SetTool(Tool.Select); return;
-                case Key.L: SetTool(Tool.Line); return;
-                case Key.R: SetTool(Tool.Rect); return;
-                case Key.O: SetTool(Tool.Ellipse); return;
-                case Key.A: SetTool(Tool.Arrow); return;
-                case Key.P: SetTool(Tool.Freehand); return;
-                case Key.H: SetTool(Tool.Highlight); return;
-                case Key.T: SetTool(Tool.Text); return;
-                case Key.M: SetTool(Tool.Mosaic); return;
-                case Key.C: SetTool(Tool.Crop); return;
-                case Key.N: SetTool(Tool.Number); return;
-                // 选中工具下 Delete/Backspace=删对象（优先于全局语义：Delete 撤销 / Backspace 清范围）
-                case Key.Delete when _tool == Tool.Select && _sel != null: DeleteSelected(); return;
-                case Key.Back when _tool == Tool.Select && _sel != null: DeleteSelected(); return;
-                case Key.Delete: UndoAnn(); return;
-                case Key.K: PickCustomColor(); return;
-                case Key.W: if (_widthMoreBtn != null) ShowWidthPopup(_widthMoreBtn); return;
-                // 时间轴裁剪键盘化：端点=当前帧，钳位保证至少 2 帧；Backspace 清除
-                case Key.OemOpenBrackets: _rd.Count = _seq.Frames.Count; _rd.SetA(_index); Show(_index); e.Handled = true; return;
-                case Key.OemCloseBrackets: _rd.Count = _seq.Frames.Count; _rd.SetB(_index); Show(_index); e.Handled = true; return;
-                case Key.Back: _rd.A = _rd.B = -1; Show(_index); e.Handled = true; return;
-            }
-        }
-        switch (e.Key)
-        {
-            case Key.Escape:
-                // 弹层打开时：Esc 只收弹层（分层语义的第一层）
-                if (_colorPop is { IsOpen: true }) { _colorPop.IsOpen = false; e.Handled = true; return; }
-                if (_widthPop is { IsOpen: true }) { _widthPop.IsOpen = false; e.Handled = true; return; }
-                // 分层语义：导出中=取消；有选中=先取消选中；绘制态=先退出工具，误触 Esc 绝不丢整次捕获；浏览态=关闭
-                switch (EscStep.Select(_encoding, _tool != Tool.Browse, _sel != null))
+            // 选中工具下 Delete/Backspace=删对象：这条只在有选中时成立，落空就交给同键的撤销 / 清裁剪
+            case "delete-object":
+                if (!(_tool == Tool.Select && _sel != null)) return false;
+                DeleteSelected();
+                return true;
+            case "undo": UndoAnn(); return true;
+            case "redo": RedoAnn(); return true;
+            case "color-custom": PickCustomColor(); return true;
+            case "width-popup": if (_widthMoreBtn == null) return false; ShowWidthPopup(_widthMoreBtn); return true;
+
+            case "save-frame": SaveFrame(); return true;
+            case "copy-frame": ClipboardService.SetFrame(ExportFrame(_index)); return true;
+            case "pin-frame": PinCurrentFrame(); return true;
+            case "ocr": OcrCurrentFrame(); return true;
+            case "save-recording": SaveRecording(); return true;
+            case "save-afterimage": SaveAfterimage(); return true;
+
+            case "zoom-in": ZoomStep(1.25); return true;
+            case "zoom-out": ZoomStep(1 / 1.25); return true;
+            case "zoom-fit": ZoomFit(); return true;
+            case "zoom-one": ZoomOneToOne(); return true;
+
+            case "play-toggle": TogglePlay(); return true;
+            case "frame-prev": Step(-1); return true;
+            case "frame-next": Step(+1); return true;
+            case "sec-prev": Step(-_fps); return true;
+            case "sec-next": Step(+_fps); return true;
+            case "speed-up": SetSpeed(_speed * 2); return true;
+            case "speed-down": SetSpeed(_speed / 2); return true;
+            case "speed-reset": SetSpeed(1.0); return true;
+
+            // 时间轴裁剪：端点=当前帧，钳位保证至少 2 帧
+            case "trim-a": _rd.Count = _seq.Frames.Count; _rd.SetA(_index); Show(_index); return true;
+            case "trim-b": _rd.Count = _seq.Frames.Count; _rd.SetB(_index); Show(_index); return true;
+            case "trim-clear": _rd.A = _rd.B = -1; Show(_index); return true;
+
+            case "commit": Commit(); return true;
+            case "help": HelpWindow.ShowOrFocus(); return true;
+            case "close": return CloseStep();
+            default:
+                if (id.StartsWith("tool.", StringComparison.Ordinal) && ToolByKey(id[5..]) is { } t)
                 {
-                    case EscAction.CancelEncode: _commitCts?.Cancel(); break;
-                    case EscAction.ClearSelection:
-                        SetSelection(null);
-                        Trace.Log("editor esc→deselect");
-                        e.Handled = true;
-                        break;
-                    case EscAction.ExitTool:
-                        CancelPendingStroke(); SetTool(Tool.Browse);
-                        Trace.Log("editor esc→browse");
-                        e.Handled = true;
-                        break;
-                    default: Fluent.CloseWithFade(this); break;
+                    SetTool(t);
+                    return true;
                 }
-                break;
-            case Key.Enter: Commit(); break;
-            case Key.F1: HelpWindow.ShowOrFocus(); e.Handled = true; break;
-            case Key.Space: TogglePlay(); e.Handled = true; break;
-            case Key.Left when e.KeyboardDevice.Modifiers == ModifierKeys.Shift: Step(-fps); break;
-            case Key.Right when e.KeyboardDevice.Modifiers == ModifierKeys.Shift: Step(+fps); break;
-            case Key.Left: Step(-1); break;
-            case Key.Right: Step(+1); break;
-            case Key.Y: RedoAnn(); e.Handled = true; break;
-            // 缩放裸键（与 Ctrl 惯例并存）：PageUp/Down 放大缩小，Home 适配，End 逐像素 1:1
-            case Key.PageUp: ZoomStep(1.25); e.Handled = true; break;
-            case Key.PageDown: ZoomStep(1 / 1.25); e.Handled = true; break;
-            case Key.Home: ZoomFit(); e.Handled = true; break;
-            case Key.End: ZoomOneToOne(); e.Handled = true; break;
-            case Key.OemPlus or Key.Add: SetSpeed(_speed * 2); e.Handled = true; break;
-            case Key.OemMinus or Key.Subtract: SetSpeed(_speed / 2); e.Handled = true; break;
-            case Key.D0 or Key.Multiply: SetSpeed(1.0); e.Handled = true; break;
+                return false;
+        }
+    }
+
+    /// <summary>工具键位字母 → 工具枚举：目录里的字母与这里的枚举一一对应，加新工具两处都要有。</summary>
+    /// <param name="k">键位字母，<c>X</c> 是浏览态。</param>
+    /// <returns>对应工具；字母不在表里返回 null。</returns>
+    static Tool? ToolByKey(string k) => k switch
+    {
+        "X" => Tool.Browse, "V" => Tool.Select, "L" => Tool.Line, "R" => Tool.Rect,
+        "O" => Tool.Ellipse, "A" => Tool.Arrow, "P" => Tool.Freehand, "H" => Tool.Highlight,
+        "T" => Tool.Text, "M" => Tool.Mosaic, "C" => Tool.Crop, "N" => Tool.Number,
+        _ => null,
+    };
+
+    /// <summary>Esc 的分层语义：弹层 → 导出中 → 有选中 → 绘制态 → 浏览态关闭，逐层落定，
+    /// 误触 Esc 绝不丢整次捕获。</summary>
+    /// <returns>恒为真：这条命令总会在某一层落定。</returns>
+    bool CloseStep()
+    {
+        // 弹层打开时：Esc 只收弹层（分层语义的第一层）
+        if (_colorPop is { IsOpen: true }) { _colorPop.IsOpen = false; return true; }
+        if (_widthPop is { IsOpen: true }) { _widthPop.IsOpen = false; return true; }
+        switch (EscStep.Select(_encoding, _tool != Tool.Browse, _sel != null))
+        {
+            case EscAction.CancelEncode: _commitCts?.Cancel(); return true;
+            case EscAction.ClearSelection:
+                SetSelection(null);
+                Trace.Log("editor esc→deselect");
+                return true;
+            case EscAction.ExitTool:
+                CancelPendingStroke(); SetTool(Tool.Browse);
+                Trace.Log("editor esc→browse");
+                return true;
+            default: Fluent.CloseWithFade(this); return true;
         }
     }
 

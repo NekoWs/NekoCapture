@@ -264,6 +264,19 @@ public sealed class HelpWindow : Window
         var g = SettingsService.Shared?.Current?.Gestures;
         return g == null ? "未绑定" : g.DescribeKeysFor(actions);
     }
+
+    /// <summary>编辑器命令的当前键位。键位可在设置里改，帮助里的键位跟着设置走，不写死。</summary>
+    /// <param name="ids">命令 Id，可给多条，显示时用斜杠分隔。</param>
+    /// <returns>键位串，如 <c>Space / ← / →</c>；解绑或认不出的命令显示「未设键」。</returns>
+    static string EditorKeysFor(params string[] ids)
+    {
+        var s = SettingsService.Shared?.Current;
+        if (s == null) return "未设键";
+        return string.Join(" / ", ids.Select(id =>
+            EditorCommands.Find(id) is { } c && EditorChord.Parse(EditorCommands.ChordFor(s, c)) is { } ec
+                ? string.Join("+", ec.Tokens())
+                : "未设键"));
+    }
     #endregion
 
     #region 步骤内容（一步只讲一件事，细节进气泡）
@@ -276,8 +289,8 @@ public sealed class HelpWindow : Window
                 KV(p, KeysFor(GestureActions.ScopeSelect), "设置捕获范围 · 拖框或点窗口");
                 KV(p, KeysFor(GestureActions.CaptureFrame, GestureActions.CaptureSelection), "截图：截完自动进剪贴板");
                 KV(p, KeysFor(GestureActions.RecordToggle, GestureActions.RecordStart, GestureActions.RecordStop), "录制：按住起录，松手停");
-                KV(p, "Enter / Esc", "编辑器里：确定复制 / 取消");
-                KV(p, "F1", "随时回到本指南");
+                KV(p, EditorKeysFor("commit", "close"), "编辑器里：确定复制 / 取消");
+                KV(p, EditorKeysFor("help"), "随时回到本指南");
                 Note(p, "键位都是默认值，可在「手势配置器」里改成自己的习惯。");
             }),
 
@@ -310,11 +323,11 @@ public sealed class HelpWindow : Window
 
             ("\uE70F", "编辑器", "看、剪、标、复制。", p =>
             {
-                KV(p, "空格 / ←→", "播放暂停 / 逐帧 · Shift 走一秒");
+                KV(p, EditorKeysFor("play-toggle", "frame-prev", "frame-next"), "播放暂停 / 逐帧 · Shift 走一秒");
                 KV(p, "Ctrl+滚轮", "缩放；1:1 看像素");
-                KV(p, "[ 和 ]", "掐头 / 去尾，只导出要的一段");
-                KV(p, "Enter / Esc", "确定复制成片 / 取消");
-                KV(p, "Ctrl+S / E", "存当前帧 PNG / 导出 MP4·WebM·GIF");
+                KV(p, EditorKeysFor("trim-a", "trim-b"), "掐头 / 去尾，只导出要的一段");
+                KV(p, EditorKeysFor("commit", "close"), "确定复制成片 / 取消");
+                KV(p, EditorKeysFor("save-frame", "save-recording"), "存当前帧 PNG / 导出 MP4·WebM·GIF");
                 Note(p, "Ctrl+H 视觉暂留合成图；「生成胶片条」抽帧拼成一张逐帧图直接复制，喂 AI 最好用。");
             }),
 
@@ -322,7 +335,7 @@ public sealed class HelpWindow : Window
 
             ("\uE718", "贴图", "把图钉在屏幕上。", p =>
             {
-                KV(p, "Ctrl+P", "编辑器里把当前帧钉到屏幕");
+                KV(p, EditorKeysFor("pin-frame"), "编辑器里把当前帧钉到屏幕");
                 KV(p, "滚轮 / +/-", "缩放贴图 / 调透明度");
                 KV(p, "拖动", "「贴图窗口吸附」：贴齐屏幕边、其他贴图、任意窗口边");
                 KV(p, "Esc / 右键", "关闭 / 右键菜单存盘、识字、复制");
@@ -331,7 +344,7 @@ public sealed class HelpWindow : Window
 
             ("\uE8C1", "识别文字", "图里的字，变文本。", p =>
             {
-                KV(p, "Ctrl+O", "识别当前帧 → 结果窗：选哪段复制哪段");
+                KV(p, EditorKeysFor("ocr"), "识别当前帧 → 结果窗：选哪段复制哪段");
                 KV(p, "贴图右键", "也能对贴图识字");
                 Note(p, "用 Windows 内置 OCR，离线可用；关「显示结果窗」则直接全文进剪贴板。");
             }),
@@ -340,7 +353,7 @@ public sealed class HelpWindow : Window
             {
                 KV(p, "延时截图", "托盘触发后倒数几秒再截——摆好菜单/悬停再入镜，支持自定义秒数");
                 KV(p, "滚动截图", "长网页/长对话自动拼接成一张");
-                KV(p, "手势配置器", "所有键位的家：改键、改触发、改截图后");
+                KV(p, "键位设置", "全局键在手势配置器改，编辑器里的键在设置 · 快捷键直接改");
                 KV(p, "托盘菜单", "暂停手势 / 清除范围 / 设置…");
                 KV(p, "外观", "主题跟随系统，强调色可自定义");
                 Note(p, "本页只是地图，细节都在各处的悬停气泡里——指到哪读到哪。");
@@ -357,13 +370,14 @@ public sealed class HelpWindow : Window
             g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(112) });
             g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             var sym = new TextBlock { Text = t.Sym, FontSize = 14, Foreground = new SolidColorBrush(Theme.Accent), VerticalAlignment = VerticalAlignment.Center };
-            var name = new TextBlock { Text = $"{t.Tip} {t.Key}", FontSize = 12.5, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(Theme.Text), VerticalAlignment = VerticalAlignment.Center };
+            var key = EditorKeysFor("tool." + t.Key);
+            var name = new TextBlock { Text = key == "未设键" ? t.Tip : $"{t.Tip} {key}", FontSize = 12.5, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(Theme.Text), VerticalAlignment = VerticalAlignment.Center };
             var help = new TextBlock { Text = t.Help, FontSize = 12, Foreground = new SolidColorBrush(Theme.TextDim), TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center };
             Grid.SetColumn(sym, 0); Grid.SetColumn(name, 1); Grid.SetColumn(help, 2);
             g.Children.Add(sym); g.Children.Add(name); g.Children.Add(help);
             p.Children.Add(g);
         }
-        p.Children.Add(new TextBlock { Text = $"再按一次工具键或 {ToolCatalog.ExitKey} 退出绘制；滚轮调粗细，文字工具调字号；Alt 吸色。", FontSize = 11.5, Foreground = new SolidColorBrush(Theme.TextDim), Margin = new Thickness(2, 6, 0, 0), TextWrapping = TextWrapping.Wrap });
+        p.Children.Add(new TextBlock { Text = $"再按一次工具键或 {EditorKeysFor("tool.X")} 退出绘制；滚轮调粗细，文字工具调字号；Alt 吸色。", FontSize = 11.5, Foreground = new SolidColorBrush(Theme.TextDim), Margin = new Thickness(2, 6, 0, 0), TextWrapping = TextWrapping.Wrap });
     }
     #endregion
 

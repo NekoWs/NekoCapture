@@ -10,6 +10,7 @@ using FrameCapture.Drawing;
 using FrameCapture.Encoding;
 using FrameCapture.Services;
 using System.Windows;
+using System.Windows.Input;
 
 using GE = GestureCore;
 using GEdit = GestureEditor;
@@ -3636,6 +3637,97 @@ static class SelfTest
             }
             catch { deg = false; }
             Chk("T167w4-thumb-degenerate", deg);
+        }
+        #endregion
+
+        #region 编辑器键位表：键位解析、命令表完整性、分派表与撞键判定
+        {
+            // 键位串往返：写出来的串必须能原样读回去，设置里存的和界面上显示的是同一份
+            string[] round = { "Ctrl+Z", "Ctrl+U", "Shift+Left", "Space", "Enter", "Esc", "Del", "Backspace", "PgUp", "PgDn", "Home", "End", "F1", "0", "1", "+", "-", "[", "]", "Ctrl++", "Ctrl+-", "Ctrl+0", "Ctrl+Alt+Shift+Win+F12" };
+            var rtBad = round.Where(s => EditorChord.Parse(s)?.ToString() != s).ToList();
+            Chk("T188a-chord-roundtrip", rtBad.Count == 0, string.Join(",", rtBad));
+
+            // 同一个物理键的多种报法归一：布局与小键盘状态决定 WPF 报哪个枚举名，不归一会出现同键不同串
+            bool canon = EditorChord.Parse("Ctrl+OemPlus") == EditorChord.Parse("Ctrl++")
+                && EditorChord.Parse("Ctrl+NumPad0") == EditorChord.Parse("Ctrl+0")
+                && EditorChord.Parse("0") == EditorChord.Parse("*")
+                && EditorChord.Parse("esc") == EditorChord.Parse("Escape")
+                && EditorChord.Parse("pagedown") == EditorChord.Parse("PgDn");
+            Chk("T188b-chord-canonical", canon);
+
+            // 拒收：没有主键、两个主键、只按修饰键都不是键位
+            bool rej = EditorChord.Parse(null) == null && EditorChord.Parse("") == null
+                && EditorChord.Parse("Ctrl+") == null && EditorChord.Parse("Ctrl+Shift") == null
+                && EditorChord.Parse("A+B") == null && EditorChord.Parse("nonsense") == null;
+            Chk("T188c-chord-rejects", rej);
+
+            // 主键是加号时不能靠切串渲染：Ctrl++ 切开会剩两个空 token
+            var plusToks = EditorChord.Parse("Ctrl++")!.Value.Tokens();
+            Chk("T188d-tokens-plus", plusToks.SequenceEqual(new[] { "Ctrl", "+" }), string.Join("|", plusToks));
+
+            // 命令表：Id 唯一、分组都在分组表里、默认键位串要么空要么解析得动
+            var ids = EditorCommands.All.Select(c => c.Id).ToList();
+            var badGroup = EditorCommands.All.Where(c => !EditorCommands.Groups.Contains(c.Group)).Select(c => c.Id).ToList();
+            var badChord = EditorCommands.All
+                .Where(c => c.Chords.Any(ch => ch.Length > 0 && EditorChord.Parse(ch) == null))
+                .Select(c => c.Id).ToList();
+            Chk("T188e-table-integrity", ids.Distinct().Count() == ids.Count && badGroup.Count == 0 && badChord.Count == 0,
+                $"ids={ids.Count} dup={ids.Count - ids.Distinct().Count()} badGroup={string.Join(",", badGroup)} badChord={string.Join(",", badChord)}");
+
+            // 工具键位由目录生成：目录加一条工具，命令表里就得有一条，否则那个工具按了没反应
+            var toolMissing = ToolCatalog.Tools.Select(t => "tool." + t.Key)
+                .Concat(new[] { "tool." + ToolCatalog.ExitKey })
+                .Where(id => EditorCommands.Find(id) == null).ToList();
+            Chk("T188f-tools-covered", toolMissing.Count == 0, string.Join(",", toolMissing));
+
+            // 默认分派表：Ctrl+Z 撤销；Delete 与 Backspace 上「删选中」排在无条件命令前，落空才轮到撤销 / 清裁剪
+            var map = EditorCommands.BuildMap(new AppSettings());
+            bool Has(ModifierKeys m, Key k, string id) => map.TryGetValue((m, k), out var l) && l.Contains(id);
+            bool OrderOk(ModifierKeys m, Key k, string first) => map.TryGetValue((m, k), out var l) && l[0] == first;
+            Chk("T188g-map-defaults",
+                Has(ModifierKeys.Control, Key.Z, "undo") && Has(ModifierKeys.None, Key.Delete, "undo")
+                && Has(ModifierKeys.None, Key.Back, "trim-clear") && Has(ModifierKeys.Control, Key.Add, "zoom-in")
+                && Has(ModifierKeys.None, Key.Add, "speed-up") && Has(ModifierKeys.None, Key.D0, "speed-reset")
+                && Has(ModifierKeys.Control, Key.D0, "zoom-fit") && Has(ModifierKeys.Shift, Key.Left, "sec-prev")
+                && OrderOk(ModifierKeys.None, Key.Delete, "delete-object") && OrderOk(ModifierKeys.None, Key.Back, "delete-object"),
+                $"del={(map.TryGetValue((ModifierKeys.None, Key.Delete), out var dl) ? string.Join(",", dl) : "-")}");
+
+            // 解绑：三个按法全清空后命令退出分派表，同键上的其他命令照常
+            var unbound = new AppSettings();
+            foreach (var k in new[] { "undo", "undo.1", "undo.2" }) unbound.EditorKeys[k] = "";
+            var umap = EditorCommands.BuildMap(unbound);
+            Chk("T188h-unbind", !umap.ContainsKey((ModifierKeys.Control, Key.Z))
+                && !umap.ContainsKey((ModifierKeys.Control, Key.U))
+                && !HasIn(umap, ModifierKeys.None, Key.Delete, "undo")
+                && HasIn(umap, ModifierKeys.None, Key.Delete, "delete-object"),
+                $"del={string.Join(",", umap.TryGetValue((ModifierKeys.None, Key.Delete), out var ul) ? ul : new List<string>())}");
+
+            // 改键：新键位进表、默认键位让位，每个按法各自独立可改
+            var remap = new AppSettings();
+            remap.EditorKeys["undo"] = "Ctrl+V";
+            remap.EditorKeys["undo.1"] = "";
+            var rmap = EditorCommands.BuildMap(remap);
+            Chk("T188i-remap", HasIn(rmap, ModifierKeys.Control, Key.V, "undo") && !rmap.ContainsKey((ModifierKeys.Control, Key.Z))
+                && !HasIn(rmap, ModifierKeys.Control, Key.U, "undo")
+                && HasIn(rmap, ModifierKeys.None, Key.Delete, "undo")
+                && EditorCommands.IsCustomized(remap, EditorCommands.Find("undo")!)
+                && !EditorCommands.IsCustomized(remap, EditorCommands.Find("redo")!));
+
+            // 出厂键位互不冲突：两条无条件命令抢同一个键，用户按下去只会有一条生效，另一条形同虚设
+            var clash = EditorCommands.Conflicts(new AppSettings());
+            Chk("T188j-default-no-conflict", clash.Count == 0,
+                string.Join(";", clash.Select(c => c.Chord + "=" + string.Join("/", c.Ids))));
+
+            // 用户改出冲突要报得出来：两条无条件命令同键即撞
+            var conf = new AppSettings();
+            conf.EditorKeys["undo"] = "Ctrl+V";
+            conf.EditorKeys["tool.V"] = "Ctrl+V";
+            var c2 = EditorCommands.Conflicts(conf);
+            Chk("T188k-user-conflict", c2.Count == 1 && c2[0].Ids.Contains("undo") && c2[0].Ids.Contains("tool.V"),
+                string.Join(";", c2.Select(c => c.Chord + "=" + string.Join("/", c.Ids))));
+
+            static bool HasIn(Dictionary<(ModifierKeys Mods, Key Key), List<string>> m, ModifierKeys k, Key key, string id)
+                => m.TryGetValue((k, key), out var l) && l.Contains(id);
         }
         #endregion
 

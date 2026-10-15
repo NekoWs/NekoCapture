@@ -39,6 +39,9 @@ public static class ToolCatalog
     /// <summary>退出绘制态的快捷键。</summary>
     public const string ExitKey = "X";
 
+    /// <summary><see cref="ExitKey"/> 切回的状态名，设置页键位表与帮助窗用。</summary>
+    public const string ExitName = "浏览 / 退出绘制";
+
     /// <summary>帮助窗「绘图」小节标题（与目录同处维护，避免文案两头跑）。</summary>
     public static string HelpHeading => $"编辑器 · 绘图 — 再点当前工具或 {ExitKey} 退出绘制";
 }

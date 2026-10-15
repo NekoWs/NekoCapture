@@ -16,8 +16,8 @@ public sealed class KeycapTheme
     /// <summary>键帽描边，取分隔线色。</summary>
     public Color Stroke;
 
-    /// <summary>键与键之间那个「+」的颜色，取次要文字色。</summary>
-    public Color Plus;
+    /// <summary>次要文字色：未设键时的占位文案用它。</summary>
+    public Color Dim;
 
     /// <summary>键帽字号，默认 12。</summary>
     public double Size = 12;
@@ -28,7 +28,8 @@ public sealed class KeycapTheme
 }
 
 /// <summary>
-/// 组合键的键帽渲染：每个键一枚圆角小片，片之间夹一个细「+」，底边描边加粗一档做出按键的厚度感。
+/// 组合键的键帽渲染：每个键一枚圆角小片，片与片之间留一点缝，底边描边加粗一档做出按键的厚度感。
+/// 键与键之间不画「+」——键帽本身已经说明「同时按下」，中间再夹符号只会把一排键帽切碎。
 /// 设置窗口与手势配置器共用这一份，键位显示在两处保持同一形状。
 /// </summary>
 public static class Keycaps
@@ -50,17 +51,27 @@ public static class Keycaps
     }
 
     /// <summary>把组合键串渲染成一排键帽。</summary>
-    /// <param name="chord">组合键串，形如 <c>Ctrl+Alt+A</c>；空串走 <paramref name="emptyHint"/>。</param>
+    /// <param name="chord">组合键串，形如 <c>Ctrl+Alt+A</c>；空串走 <paramref name="emptyHint"/>。
+    /// 主键本身就是加号的键位请用 <see cref="Row(IReadOnlyList{string}, KeycapTheme, string)"/> 直接给 token，
+    /// 串里分不出「分隔用的加号」和「当键用的加号」。</param>
     /// <param name="t">配色与字号。</param>
     /// <param name="emptyHint">未设键时的占位文案；传 null 则返回空面板。</param>
     /// <returns>横向排列的键帽面板，可直接塞进 Grid 或 StackPanel。</returns>
-    public static FrameworkElement Row(string? chord, KeycapTheme t, string? emptyHint = null)
+    public static FrameworkElement Row(string? chord, KeycapTheme t, string? emptyHint = null) =>
+        Row(string.IsNullOrWhiteSpace(chord)
+            ? Array.Empty<string>()
+            : chord.Split('+', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
+            t, emptyHint);
+
+    /// <summary>把已经拆好的键名渲染成一排键帽。</summary>
+    /// <param name="tokens">键名序列，按显示顺序；空序列走 <paramref name="emptyHint"/>。</param>
+    /// <param name="t">配色与字号。</param>
+    /// <param name="emptyHint">没有键名时的占位文案；传 null 则返回空面板。</param>
+    /// <returns>横向排列的键帽面板。</returns>
+    public static FrameworkElement Row(IReadOnlyList<string> tokens, KeycapTheme t, string? emptyHint = null)
     {
         var sp = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-        var tokens = string.IsNullOrWhiteSpace(chord)
-            ? Array.Empty<string>()
-            : chord.Split('+', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        if (tokens.Length == 0)
+        if (tokens.Count == 0)
         {
             if (emptyHint != null)
             {
@@ -70,34 +81,24 @@ public static class Keycaps
                     FontSize = t.Size,
                     VerticalAlignment = VerticalAlignment.Center,
                 };
-                if (!t.Ghost) hint.Foreground = new SolidColorBrush(t.Plus);
+                // 幽灵形态不设色：显式赋 null 是「用空画刷画」= 什么都不画，只有不赋值才走继承
+                if (!t.Ghost) hint.Foreground = new SolidColorBrush(t.Dim);
                 sp.Children.Add(hint);
             }
             return sp;
         }
-        for (int i = 0; i < tokens.Length; i++)
-        {
-            if (i > 0)
-            {
-                var plus = new TextBlock
-                {
-                    Text = "+",
-                    FontSize = t.Size,
-                    Margin = new Thickness(4, 0, 4, 0),
-                    VerticalAlignment = VerticalAlignment.Center,
-                };
-                // 幽灵形态连「+」都不设色：显式赋 null 是「用空画刷画」= 什么都不画，只有不赋值才走继承
-                if (!t.Ghost) plus.Foreground = new SolidColorBrush(t.Plus);
-                sp.Children.Add(plus);
-            }
-            sp.Children.Add(Chip(tokens[i], t));
-        }
+        for (int i = 0; i < tokens.Count; i++)
+            sp.Children.Add(Chip(tokens[i], t, i > 0 ? 5 : 0));
         return sp;
     }
 
     /// <summary>一枚键帽：圆角、描边、底边加粗，内容居中且不小于一个字母键的宽度。
     /// 幽灵形态不设自己的颜色，字色由所在容器继承，描边绑到同一个字色上并按四成不透明度压淡。</summary>
-    static Border Chip(string token, KeycapTheme t)
+    /// <param name="token">键帽里显示的文字。</param>
+    /// <param name="t">配色与字号。</param>
+    /// <param name="gapLeft">与前一枚键帽之间的缝隙。</param>
+    /// <returns>键帽控件。</returns>
+    static Border Chip(string token, KeycapTheme t, double gapLeft)
     {
         var label = new TextBlock
         {
@@ -113,6 +114,7 @@ public static class Keycaps
             CornerRadius = new CornerRadius(6),
             MinWidth = 24,
             Padding = new Thickness(7, 2, 7, 2),
+            Margin = new Thickness(gapLeft, 0, 0, 0),
             VerticalAlignment = VerticalAlignment.Center,
             BorderThickness = new Thickness(1, 1, 1, 2),
             Child = label,

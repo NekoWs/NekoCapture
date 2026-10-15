@@ -9,6 +9,7 @@ using System.Drawing.Imaging;
 [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern nint FindWindowW(string? cls, string title);
 [DllImport("user32.dll")] static extern bool SetForegroundWindow(nint h);
 [DllImport("user32.dll")] static extern bool BringWindowToTop(nint h);
+[DllImport("user32.dll")] static extern bool MoveWindow(nint h, int x, int y, int w, int ht, bool repaint);
 [DllImport("kernel32.dll")] static extern uint GetCurrentThreadId();
 [DllImport("user32.dll")] static extern bool AttachThreadInput(int a, int b, bool attach);
 [DllImport("user32.dll")] static extern void keybd_event(byte vk, byte scan, uint flags, nint extra);
@@ -64,6 +65,16 @@ switch (mode)
         await Task.Delay(150);
         int pid; GetWindowThreadProcessId(GetForegroundWindow(), out pid);
         Console.WriteLine($"activate {(long)h} setfg={ok} nowpid={pid}");
+        break;
+    }
+    case "resize": // resize <标题> <宽> <高> [x] [y] —— 只改窗口尺寸与位置（物理像素），用于把长页面截全
+    {
+        nint h = FindWindowW(null, args[1]);
+        if (h == 0) { Console.WriteLine("window-not-found"); return; }
+        int w = int.Parse(args[2]), ht = int.Parse(args[3]);
+        int x = args.Length > 4 ? int.Parse(args[4]) : 0, y = args.Length > 5 ? int.Parse(args[5]) : 0;
+        bool ok = MoveWindow(h, x, y, w, ht, true);
+        Console.WriteLine($"resize {(long)h} {w}x{ht} @({x},{y}) ok={ok}");
         break;
     }
     case "commit":

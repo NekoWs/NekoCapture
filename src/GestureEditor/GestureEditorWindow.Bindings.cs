@@ -48,7 +48,7 @@ public sealed partial class GestureEditorWindow : Window
             Ghost = true,
             Text = _pal.Text,
             Stroke = _pal.Stroke,
-            Plus = _pal.TextDim,
+            Dim = _pal.TextDim,
             Size = 12,
         }, "未设键"));
         head.Children.Add(new TextBlock
@@ -309,7 +309,7 @@ public sealed partial class GestureEditorWindow : Window
                 Face = Keycaps.Lift(_pal.CardBg, _pal.Hover),
                 Text = _pal.Text,
                 Stroke = _pal.Stroke,
-                Plus = _pal.TextDim,
+                Dim = _pal.TextDim,
                 Size = 13,
             }));
         }

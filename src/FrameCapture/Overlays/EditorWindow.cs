@@ -157,6 +157,9 @@ public sealed partial class EditorWindow : Window
         if (!_settings.Current.EditorGuideShown) ShowGuide(); // 首次打开：一次性上手引导
         Theme.Changed += Editor_OnTheme;
         Closed += (_, _) => Theme.Changed -= Editor_OnTheme;
+        // 键位表随设置热重载：设置页改完键位，开着的编辑器下一次按键就用新表
+        _settings.Changed += Editor_OnKeysChanged;
+        Closed += (_, _) => _settings.Changed -= Editor_OnKeysChanged;
         Closed += (_, _) => SaveEditorPrefs(); // 关闭时记住标注设置（✓/✕/Esc 三条路径都经此）
         Show(0);
         InputMethod.SetIsInputMethodEnabled(this, false);
