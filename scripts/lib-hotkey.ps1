@@ -137,3 +137,18 @@ function Wait-FcModifiersUp {
     $t0 = Get-Date
     while ([FcMods.Kb]::AnyDown() -and ((Get-Date) - $t0).TotalSeconds -lt $TimeoutSec) { Start-Sleep -Milliseconds 120 }
 }
+# 合成一次组合键的按下与抬起：二次实例把参数转发给主实例的消息专用窗（HWND_MESSAGE），
+# 由它喂进手势引擎的 KeySink——与低级键盘钩子同一个入口，只是不产生 OS 级输入。
+# 用户正用电脑时也能跑完整链路，按键不会落到前台的其他软件上。
+# 前提：主实例以 FC_TEST_NO_FG=1 启动（发行进程不接受合成键）。
+function Invoke-FcSynthetic {
+    param([string]$Exe, [string]$Spec, [int]$HoldMs)
+    Start-Process $Exe -ArgumentList @('--synthetic', $Spec, "$HoldMs") -WindowStyle Hidden | Out-Null
+}
+
+# 以测试形态拉起主实例：FC_TEST_NO_FG=1 让它不抢前台，并允许受理 --synthetic 合成键。
+function Start-FcTestApp {
+    param([string]$Exe)
+    $env:FC_TEST_NO_FG = "1"
+    return Start-Process $Exe -PassThru
+}

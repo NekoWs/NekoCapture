@@ -25,6 +25,8 @@ public partial class App : Application
     const string MsgPinClip = "FrameCapture_PinClip";
     const string MsgPauseToggle = "FrameCapture_PauseToggle";
     const string MsgOcr = "FrameCapture_Ocr";
+    /// <summary>合成一次组合键的按下与抬起。wParam = 主键 VK | 修饰键位 <<8，lParam = 按住毫秒数。</summary>
+    const string MsgSynthetic = "FrameCapture_Synthetic";
 
     [System.Runtime.InteropServices.DllImport("user32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
     static extern uint RegisterWindowMessageW(string lpString);
@@ -326,72 +328,123 @@ public partial class App : Application
         return found;
     }
 
+    /// <summary>二次实例转发的命令表：命令行开关 ↔ 注册消息名。转发与受理共用这一张表，
+    /// 不会出现「主实例收得到、二次实例却转不出去」的半条命令。</summary>
+    static readonly (string Flag, string Msg)[] Forwarded =
+    {
+        ("--settings", MsgOpenSettings), ("--help", MsgOpenHelp), ("--edit-last", MsgEditLast),
+        ("--scroll", MsgScroll), ("--delay", MsgDelay), ("--pin-clip", MsgPinClip),
+        ("--pause-toggle", MsgPauseToggle), ("--ocr", MsgOcr), ("--synthetic", MsgSynthetic),
+    };
+
     void StartMessageSink()
     {
-        try { _msgSink = new MsgSink(
-            () => Dispatcher.BeginInvoke(() => Overlays.SettingsWindow.ShowOrFocus()),
-            () => Dispatcher.BeginInvoke(() => Overlays.HelpWindow.ShowOrFocus()),
-            () => Dispatcher.BeginInvoke(() => Services.AppHost.Current.Controller.EditLastStill()),
-            () => Dispatcher.BeginInvoke(() => Services.AppHost.Current.Controller.BeginScrollCapture()),
-            () => Dispatcher.BeginInvoke(() => Services.AppHost.Current.Controller.BeginDelayedCapture()),
-            () => Dispatcher.BeginInvoke(() => Services.AppHost.Current.Controller.PinFromClipboard()),
-            () => Dispatcher.BeginInvoke(() => Services.AppHost.Current.Tray.TogglePause()),
-            () => Dispatcher.BeginInvoke(() => Services.AppHost.Current.Controller.OcrStoredStill())); }
+        void OnUi(Action a) => Dispatcher.BeginInvoke(a);
+        try
+        {
+            _msgSink = new MsgSink(new (string, Action<IntPtr, IntPtr>)[]
+            {
+                (MsgOpenSettings, (_, _) => OnUi(() => Overlays.SettingsWindow.ShowOrFocus())),
+                (MsgOpenHelp,     (_, _) => OnUi(() => Overlays.HelpWindow.ShowOrFocus())),
+                (MsgEditLast,     (_, _) => OnUi(() => Services.AppHost.Current.Controller.EditLastStill())),
+                (MsgScroll,       (_, _) => OnUi(() => Services.AppHost.Current.Controller.BeginScrollCapture())),
+                (MsgDelay,        (_, _) => OnUi(() => Services.AppHost.Current.Controller.BeginDelayedCapture())),
+                (MsgPinClip,      (_, _) => OnUi(() => Services.AppHost.Current.Controller.PinFromClipboard())),
+                (MsgPauseToggle,  (_, _) => OnUi(() => Services.AppHost.Current.Tray.TogglePause())),
+                (MsgOcr,          (_, _) => OnUi(() => Services.AppHost.Current.Controller.OcrStoredStill())),
+                (MsgSynthetic,    SynthesizeChord),
+            });
+        }
         catch (Exception ex) { LogCrash(ex, "MsgSink"); }
+    }
+
+    /// <summary>把一次组合键的按下与抬起喂给手势引擎：与低级键盘钩子同一个 <c>KeySink</c> 入口，
+    /// 区别只在于不产生 OS 级输入——回归测试因此能在用户正用电脑时跑完整链路，
+    /// 也不会把按键落到前台的其他软件上。按住时长交给 <see cref="Task.Delay(int)"/>：
+    /// UI 线程必须空出来跑引擎的 Tick 泵，否则「按住到阈值触发 Hold」永远不会命中。</summary>
+    /// <param name="w">主键 VK（低 8 位）与修饰键位（左移 8 位）的打包值。</param>
+    /// <param name="l">按住毫秒数。</param>
+    void SynthesizeChord(IntPtr w, IntPtr l)
+    {
+        // 只在测试专用开关下受理：用户环境永不置位 FC_TEST_NO_FG，发行出去的进程不接受任何合成键。
+        if (Environment.GetEnvironmentVariable("FC_TEST_NO_FG") != "1") { Core.Trace.Log("sink→synthetic refused"); return; }
+        var sink = Services.AppHost.Current.Hotkeys.KeySink;
+        if (sink == null || Services.HotkeyManager.Paused) return;
+        uint vk = (uint)(w.ToInt64() & 0xFF);
+        var mods = (GestureCore.ModifierKeys)((w.ToInt64() >> 8) & 0xF);
+        int holdMs = Math.Max(0, (int)l.ToInt64());
+        // 时间戳与钩子同源：KBDLLHOOKSTRUCT.time 就是 GetTickCount 毫秒，引擎只取差值判定时长。
+        sink(vk, true, mods, Environment.TickCount);
+        _ = Task.Delay(holdMs).ContinueWith(_ => Dispatcher.BeginInvoke(() =>
+            Services.AppHost.Current.Hotkeys.KeySink?.Invoke(vk, false, mods, Environment.TickCount)));
     }
 
     /// <summary>真正的 message-only 窗（HWND_MESSAGE 父）：不可见、不进任务栏、绝不抢前台。
     /// WPF 的 HwndSource 不支持 HWND_MESSAGE 父——会建成带 WS_VISIBLE|WS_OVERLAPPEDWINDOW
     /// 的顶层窗，启动瞬间即抢走前台焦点（GetForegroundWindow 直接变成它）。故用 WinForms NativeWindow
-    /// 直接建消息专用窗，仅用于接收二次实例转发的"打开设置/帮助"。</summary>
+    /// 直接建消息专用窗，仅用于接收二次实例转发的命令。
+    /// 命令按 <see cref="Forwarded"/> 里的消息名建表，参数经 WParam/LParam 传入。</summary>
     sealed class MsgSink : System.Windows.Forms.NativeWindow
     {
-        readonly Action _onSettings, _onHelp, _onEditLast, _onScroll, _onDelay, _onPinClip, _onPauseToggle, _onOcr;
-        readonly uint _mSet, _mHelp, _mEditLast, _mScroll, _mDelay, _mPinClip, _mPauseToggle, _mOcr;
-        public MsgSink(Action onSettings, Action onHelp, Action onEditLast, Action onScroll, Action onDelay, Action onPinClip, Action onPauseToggle, Action onOcr)
+        readonly Dictionary<uint, (string Name, Action<IntPtr, IntPtr> On)> _byMsg = new();
+        public MsgSink((string Name, Action<IntPtr, IntPtr> On)[] commands)
         {
-            _onSettings = onSettings; _onHelp = onHelp; _onEditLast = onEditLast; _onScroll = onScroll; _onDelay = onDelay; _onPinClip = onPinClip; _onPauseToggle = onPauseToggle; _onOcr = onOcr;
-            _mSet = RegisterWindowMessageW(MsgOpenSettings);
-            _mHelp = RegisterWindowMessageW(MsgOpenHelp);
-            _mEditLast = RegisterWindowMessageW(MsgEditLast);
-            _mScroll = RegisterWindowMessageW(MsgScroll);
-            _mDelay = RegisterWindowMessageW(MsgDelay);
-            _mPinClip = RegisterWindowMessageW(MsgPinClip);
-            _mPauseToggle = RegisterWindowMessageW(MsgPauseToggle);
-            _mOcr = RegisterWindowMessageW(MsgOcr);
+            foreach (var c in commands) _byMsg[RegisterWindowMessageW(c.Name)] = c;
             CreateHandle(new System.Windows.Forms.CreateParams { Caption = SinkName, Parent = HWND_MESSAGE, Style = 0 });
-            Core.Trace.Log($"sink created hwnd={Handle}");
+            Core.Trace.Log($"sink created hwnd={Handle} cmds={commands.Length}");
         }
         protected override void WndProc(ref System.Windows.Forms.Message m)
         {
-            if (m.Msg == _mSet) { Core.Trace.Log("sink→open settings"); _onSettings(); }
-            else if (m.Msg == _mHelp) { Core.Trace.Log("sink→open help"); _onHelp(); }
-            else if (m.Msg == _mEditLast) { Core.Trace.Log("sink→edit last"); _onEditLast(); }
-            else if (m.Msg == _mScroll) { Core.Trace.Log("sink→scroll capture"); _onScroll(); }
-            else if (m.Msg == _mDelay) { Core.Trace.Log("sink→delay capture"); _onDelay(); }
-            else if (m.Msg == _mPinClip) { Core.Trace.Log("sink→pin clipboard"); _onPinClip(); }
-            else if (m.Msg == _mPauseToggle) { Core.Trace.Log("sink→pause toggle"); _onPauseToggle(); }
-            else if (m.Msg == _mOcr) { Core.Trace.Log("sink→ocr range"); _onOcr(); }
+            if (_byMsg.TryGetValue((uint)m.Msg, out var c))
+            {
+                Core.Trace.Log($"sink→{c.Name} w={m.WParam} l={m.LParam}");
+                // 一条命令失败不该带走消息循环：这里抛出去就是整个进程没了。
+                try { c.On(m.WParam, m.LParam); }
+                catch (Exception ex) { Core.Trace.Log("sink cmd fail: " + ex); }
+            }
             base.WndProc(ref m);
         }
     }
 
     static void ForwardToPrimary(string[] args)
     {
-        string? name =
-            args.Any(a => string.Equals(a, "--settings", StringComparison.OrdinalIgnoreCase)) ? MsgOpenSettings :
-            args.Any(a => string.Equals(a, "--help", StringComparison.OrdinalIgnoreCase)) ? MsgOpenHelp :
-            args.Any(a => string.Equals(a, "--edit-last", StringComparison.OrdinalIgnoreCase)) ? MsgEditLast :
-            args.Any(a => string.Equals(a, "--scroll", StringComparison.OrdinalIgnoreCase)) ? MsgScroll :
-            args.Any(a => string.Equals(a, "--delay", StringComparison.OrdinalIgnoreCase)) ? MsgDelay :
-            args.Any(a => string.Equals(a, "--pin-clip", StringComparison.OrdinalIgnoreCase)) ? MsgPinClip :
-            args.Any(a => string.Equals(a, "--pause-toggle", StringComparison.OrdinalIgnoreCase)) ? MsgPauseToggle :
-            args.Any(a => string.Equals(a, "--ocr", StringComparison.OrdinalIgnoreCase)) ? MsgOcr : null;
-        if (name == null) return;
+        foreach (var (flag, msg) in Forwarded)
+        {
+            if (!args.Any(a => string.Equals(a, flag, StringComparison.OrdinalIgnoreCase))) continue;
+            IntPtr w = IntPtr.Zero, l = IntPtr.Zero;
+            if (msg == MsgSynthetic && !TryEncodeChord(args, out w, out l)) return;
+            PostToSink(msg, w, l);
+            return;
+        }
+    }
+
+    /// <summary>把 <c>--synthetic "&lt;组合键&gt;" &lt;按住毫秒&gt;</c> 编码成消息参数：
+    /// wParam = VK | 修饰键位 <<8（位值与 <see cref="GestureCore.ModifierKeys"/> 一致），lParam = 毫秒。
+    /// 解不出来就不转发——注错键比不注更糟，宁可让测试因「什么都没发生」而红。</summary>
+    /// <param name="args">二次实例的命令行参数。</param>
+    /// <param name="w">打包后的主键与修饰键。</param>
+    /// <param name="l">按住毫秒数。</param>
+    /// <returns>规格与时长都合法才为 true。</returns>
+    static bool TryEncodeChord(string[] args, out IntPtr w, out IntPtr l)
+    {
+        w = l = IntPtr.Zero;
+        int i = Array.FindIndex(args, a => string.Equals(a, "--synthetic", StringComparison.OrdinalIgnoreCase));
+        if (i < 0 || i + 2 >= args.Length) return false;
+        var spec = Core.HotkeySpec.Parse(args[i + 1]);
+        if (spec == null || spec.KeyIsModifier) return false;
+        if (!int.TryParse(args[i + 2], out int holdMs) || holdMs < 0) return false;
+        int mods = (spec.Ctrl ? 1 : 0) | (spec.Alt ? 2 : 0) | (spec.Shift ? 4 : 0) | (spec.Win ? 8 : 0);
+        w = new IntPtr((int)spec.VirtualKey | (mods << 8));
+        l = new IntPtr(holdMs);
+        return true;
+    }
+
+    static void PostToSink(string msg, IntPtr w, IntPtr l)
+    {
         try
         {
             var sink = FindWindowExW(HWND_MESSAGE, IntPtr.Zero, null, SinkName);
-            if (sink != IntPtr.Zero) PostMessageW(sink, RegisterWindowMessageW(name), IntPtr.Zero, IntPtr.Zero);
+            if (sink != IntPtr.Zero) PostMessageW(sink, RegisterWindowMessageW(msg), w, l);
         }
         catch { }
     }
