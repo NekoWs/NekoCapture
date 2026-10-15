@@ -112,8 +112,8 @@ public sealed partial class SettingsWindow : Window
         {
             Width = 12,
             Height = 12,
-            // 滑块恒白 + 极淡描边：开关状态只靠轨道底色表达，滑块不参与状态配色
-            Fill = new SolidColorBrush(Colors.White),
+            // 滑钮开态反白、关态恒白：开关状态主要靠轨道底色表达，滑钮只负责在 accent 实底上仍看得见
+            Fill = new SolidColorBrush(initial ? Fluent.OnAccentColor(Theme.Accent) : Colors.White),
             Stroke = new SolidColorBrush(Color.FromArgb(0x26, 0, 0, 0)),
             StrokeThickness = 1,
             HorizontalAlignment = HorizontalAlignment.Left,

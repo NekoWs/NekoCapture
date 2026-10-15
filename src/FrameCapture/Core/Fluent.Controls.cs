@@ -138,6 +138,10 @@ public static partial class Fluent
         Grid.SetColumn(title1, 1);
         grid.Children.Add(title1);
         var close = IconButton("\uE711", closeTip, 32, 14);
+        // 关闭按钮上下各留一档：32 方的按钮加 2px 外边距正好等于 36 的条带高，悬停高亮会顶到条带上下沿。
+        // 收窄到 28 并居中，高亮块四周留出空隙，与 Windows 标题栏按钮的留白一致。
+        close.Height = 28;
+        close.VerticalAlignment = VerticalAlignment.Center;
         Grid.SetColumn(close, 2);
         grid.Children.Add(close);
         bar.Child = grid;
@@ -303,8 +307,10 @@ public static partial class Fluent
 
     #region 开关：滑钮平滑滑动 + 轨道渐变色
 
-    /// <summary>开关的一次状态切换：滑钮滑到目标位（BackEase 轻回弹），轨道底色与描边同步淡变。</summary>
-    /// <param name="knob">滑钮；无 RenderTransform 时本方法补一个 TranslateTransform。</param>
+    /// <summary>开关的一次状态切换：滑钮滑到目标位（BackEase 轻回弹），轨道底色与描边同步淡变，
+    /// 滑钮在开态的 accent 实底上反白、关态回到白色。</summary>
+    /// <param name="knob">滑钮；无 RenderTransform 时本方法补一个 TranslateTransform。
+    /// 底色是 <see cref="System.Windows.Shapes.Shape"/> 时本方法一并动画它的 Fill。</param>
     /// <param name="track">轨道；底色与描边必须是 SolidColorBrush 才会做颜色动画。</param>
     /// <param name="on">目标状态。</param>
     /// <param name="travel">滑钮行程（逻辑像素），由调用方按轨道宽与钮宽算出。</param>
@@ -335,8 +341,15 @@ public static partial class Fluent
             track.BorderBrush = bb;
             bb.BeginAnimation(SolidColorBrush.ColorProperty, new ColorAnimation(on ? Theme.Accent : Theme.Stroke, new Duration(TimeSpan.FromMilliseconds(Motion.StateMs))));
         }
-        // 滑块恒白，不随状态在 accent 反白 / Theme.Text 之间跳——亮色主题下 Theme.Text=黑，
-        // 关态黑滑块看着像没做适配；状态只靠轨道底色表达。
+        // 滑钮落在哪块底色上就反着走：开态轨道是 accent 实心，恒白滑钮压在浅色 accent 上只有 1.3:1，
+        // 看着像没开；关态轨道是 TrackBg，白色照旧。状态本身仍只靠轨道底色表达。
+        if (knob is System.Windows.Shapes.Shape sh && sh.Fill is SolidColorBrush fillOld)
+        {
+            var fill = new SolidColorBrush(fillOld.Color);
+            sh.Fill = fill;
+            fill.BeginAnimation(SolidColorBrush.ColorProperty,
+                new ColorAnimation(on ? OnAccentColor(Theme.Accent) : Colors.White, new Duration(TimeSpan.FromMilliseconds(Motion.StateMs))));
+        }
     }
     #endregion
 
