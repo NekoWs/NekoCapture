@@ -4,8 +4,12 @@
 # 机制（全部在自动化边界内）：对自家 NotifyIcon 隐藏窗 PostMessage 托盘回调消息
 #       （.NET(8+) WinForms NotifyIcon.WndProc：msg=WM_USER+1024=0x800，鼠标事件码在 lParam——
 #        见 dotnet/winforms NotifyIcon.cs WM_TRAYMOUSEMESSAGE；旧文档的 WM_USER+102 是 .NET Framework 时代的值）
-#       → MouseUp(Right) → ShowMenu 在光标处弹出 Fluent 菜单；随后按弹窗窗口矩形裁切桌面 BitBlt 存 PNG。
+#       → MouseUp(Right) → ShowMenu 在光标处弹出 Fluent 菜单；随后对弹窗 HWND 调 PrintWindow 存 PNG。
 #       绝不使用 OS 级鼠标自动化。
+# 为什么不能用桌面 BitBlt：菜单窗是 WPF 分层窗（AllowsTransparency），屏幕 DC 的 BitBlt 不含分层窗内容，
+#       截回来是一整块桌面背景，看起来像"菜单是空白的"。PrintWindow 带 PW_RENDERFULLCONTENT 才拿到内容。
+# 为什么要折算矩形：宿主进程对 DPI 无感知时 GetWindowRect 返回按缩放折算过的虚拟坐标，
+#       按它开位图就截掉右下——窄文案（中文）看着完整，宽文案（英文）每项都被切一刀。
 # 用法: pwsh -NoProfile -File scripts/cap-tray-menu.ps1 -Theme dark|light [-OutPng test-out/uiaudit/d8-tray-menu-dark.png]
 # 前置：本脚本会杀掉运行中的 FrameCapture 并以 FC_THEME=<Theme> 重启一个（测试态）；结束后实例仍在运行。
 param(
@@ -38,12 +42,12 @@ public class T
     [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out RECT r);
     [DllImport("user32.dll")] public static extern bool GetCursorPos(out POINT p);
     [DllImport("user32.dll")] public static extern bool PostMessageW(IntPtr h, uint msg, IntPtr w, IntPtr l);
-    [DllImport("user32.dll")] public static extern IntPtr GetDC(IntPtr h);
-    [DllImport("user32.dll")] public static extern int ReleaseDC(IntPtr h, IntPtr dc);
-    [DllImport("user32.dll")] public static extern int GetSystemMetrics(int idx);
-    [DllImport("gdi32.dll")] public static extern IntPtr BitBlt(IntPtr d, int x, int y, int w, int h, IntPtr s, int sx, int sy, uint op);
+    [DllImport("user32.dll")] public static extern bool PrintWindow(IntPtr h, IntPtr hdc, uint flags);
+    [DllImport("user32.dll")] public static extern uint GetDpiForWindow(IntPtr h);
+    [DllImport("user32.dll")] public static extern IntPtr GetThreadDpiAwarenessContext();
+    [DllImport("user32.dll")] public static extern int GetAwarenessFromDpiAwarenessContext(IntPtr c);
     const uint WM_USER = 0x0400, WM_TRAYMOUSEMESSAGE = WM_USER + 1024 /* 0x0800 */,
-               WM_RBUTTONDOWN = 0x0204, WM_RBUTTONUP = 0x0205, SRCCOPY = 0xCC0020;
+               WM_RBUTTONDOWN = 0x0204, WM_RBUTTONUP = 0x0205;
     [StructLayout(LayoutKind.Sequential)] public struct RECT { public int Left, Top, Right, Bottom; }
     [StructLayout(LayoutKind.Sequential)] public struct POINT { public int X, Y; }
 
@@ -70,10 +74,10 @@ public class T
     }
 
     // 自家进程可见、无标题、尺寸像菜单的顶层窗（WPF Popup 宿主窗），取面积最大者
-    public static long gArea; public static RECT gBest;
+    public static long gArea; public static RECT gBest; public static IntPtr gHwnd;
     public static bool FindMenuPopup(uint pid)
     {
-        gArea = 0;
+        gArea = 0; gHwnd = IntPtr.Zero;
         bool any = false;
         EnumWindows((h, l) =>
         {
@@ -86,7 +90,7 @@ public class T
             int w = r.Right - r.Left, hh = r.Bottom - r.Top;
             if (w < 60 || hh < 60) return true; // 排除 1x1 锚点窗与 0 尺寸隐藏窗
             long area = (long)w * hh;
-            if (area > gArea) { gArea = area; gBest = r; any = true; }
+            if (area > gArea) { gArea = area; gBest = r; gHwnd = h; any = true; }
             return true;
         }, IntPtr.Zero);
         return any;
@@ -99,20 +103,38 @@ public class T
         PostMessageW(hwnd, WM_TRAYMOUSEMESSAGE, IntPtr.Zero, (IntPtr)WM_RBUTTONUP);
     }
 
-    public static void CropScreen(int x, int y, int w, int h, string outPath)
+    // 弹窗的真实物理矩形：进程无 DPI 感知时 GetWindowRect 给的是折算过的虚拟坐标，直接开位图会截掉右下
+    public static RECT PhysicalRect(IntPtr h)
     {
+        RECT r; GetWindowRect(h, out r);
+        if (GetAwarenessFromDpiAwarenessContext(GetThreadDpiAwarenessContext()) != 0) return r;
+        uint dpi = GetDpiForWindow(h);
+        if (dpi == 0 || dpi == 96) return r;
+        double k = dpi / 96.0;
+        RECT o = r;
+        o.Left = (int)Math.Round(r.Left * k); o.Top = (int)Math.Round(r.Top * k);
+        o.Right = (int)Math.Round(r.Right * k); o.Bottom = (int)Math.Round(r.Bottom * k);
+        return o;
+    }
+
+    // PW_RENDERFULLCONTENT = 2：WPF 经 DirectComposition 呈现，不带这个标志 PrintWindow 画不出内容
+    public static bool Grab(IntPtr hwnd, string outPath)
+    {
+        RECT r = PhysicalRect(hwnd);
+        int w = r.Right - r.Left, h = r.Bottom - r.Top;
+        if (w < 8 || h < 8) return false;
         using (var bmp = new Bitmap(w, h, PixelFormat.Format32bppArgb))
         {
-            IntPtr sdc = GetDC(IntPtr.Zero);
             using (var g = Graphics.FromImage(bmp))
             {
                 IntPtr hdc = g.GetHdc();
-                BitBlt(hdc, 0, 0, w, h, sdc, x, y, SRCCOPY);
+                bool ok = PrintWindow(hwnd, hdc, 2);
                 g.ReleaseHdc(hdc);
+                if (!ok) return false;
             }
-            ReleaseDC(IntPtr.Zero, sdc);
             bmp.Save(outPath, ImageFormat.Png);
         }
+        return true;
     }
 }
 }
@@ -141,18 +163,17 @@ $cur = New-Object FcTray.T+POINT
 [void][FcTray.T]::GetCursorPos([ref]$cur)
 foreach ($hw in $hits) { [FcTray.T]::PostRightClick($hw) }
 Write-Host "posted WM_RBUTTONDOWN/UP -> $($hits.Count) hidden WinForms hwnd(s) cursor=($($cur.X),$($cur.Y))"
-Start-Sleep -Milliseconds 700   # 菜单弹出 + 渲染
-
-if (-not [FcTray.T]::FindMenuPopup([uint32]$p.Id)) {
-    Write-Host "TRAY-CAP FAIL: 菜单弹窗未出现——检查 FC_THEME 实例是否正常启动"; exit 1
-}
-$rc = [FcTray.T]::gBest
-$pad = 28
-$swPix = [FcTray.T]::GetSystemMetrics(0); $shPix = [FcTray.T]::GetSystemMetrics(1)
-$x = [Math]::Max(0, $rc.Left - $pad); $y = [Math]::Max(0, $rc.Top - $pad)
-$rr = [Math]::Min($swPix, $rc.Right + $pad); $bb = [Math]::Min($shPix, $rc.Bottom + $pad)
-$w = $rr - $x; $h = $bb - $y
+# 菜单弹出后逐次尝试：分层窗的内容要等 WPF 画完第一帧才拿得到，入场动画也在跑
 New-Item -ItemType Directory -Force -Path (Split-Path $OutPng) | Out-Null
-[FcTray.T]::CropScreen($x, $y, $w, $h, $OutPng)
-Write-Host "TRAY-CAP PASS saved $OutPng ${w}x${h} @($x,$y) menu=$($rc.Left),$($rc.Top),$($rc.Right),$($rc.Bottom)"
+$saved = $false
+foreach ($delay in 250, 500, 900, 1500) {
+    Start-Sleep -Milliseconds $delay
+    if (-not [FcTray.T]::FindMenuPopup([uint32]$p.Id)) { continue }
+    if ([FcTray.T]::Grab([FcTray.T]::gHwnd, $OutPng)) {
+        $r = [FcTray.T]::PhysicalRect([FcTray.T]::gHwnd)
+        Write-Host "TRAY-CAP PASS saved $OutPng $($r.Right-$r.Left)x$($r.Bottom-$r.Top) after ${delay}ms"
+        $saved = $true; break
+    }
+}
+if (-not $saved) { Write-Host "TRAY-CAP FAIL: 菜单弹窗未出现或 PrintWindow 未取到内容"; exit 1 }
 exit 0
