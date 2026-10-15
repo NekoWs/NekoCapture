@@ -189,43 +189,27 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--gap);
   list-style: none;
+  counter-reset: step;
   margin: 0;
   padding: 0;
 }
 
 .flow__step {
-  position: relative;
-  padding: 26px 24px 28px;
-  border-radius: var(--r-window);
-  border: 1px solid var(--stroke-soft);
-  background: linear-gradient(180deg, var(--panel), transparent 140%);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  overflow: hidden;
-}
-
-.flow__step::before {
-  content: "";
-  position: absolute;
-  inset: 0 0 auto;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(var(--accent-soft) / 0.5), transparent);
-  opacity: 0.7;
-}
-
-.flow__n {
-  display: inline-grid;
-  place-items: center;
-  width: 30px; height: 30px;
-  border-radius: var(--r-round);
-  background: var(--accent);
-  color: var(--accent-ink);
-  font-weight: 700;
-  font-size: 14px;
-  margin-bottom: 14px;
+  counter-increment: step;
+  padding-top: 18px;
+  border-top: 1px solid var(--stroke-soft);
 }
 
 .flow__step h3 { font-size: 18px; margin-bottom: 6px; }
+.flow__step h3::before {
+  content: "0" counter(step);
+  display: block;
+  margin-bottom: 10px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: var(--text-dim);
+}
 .flow__step p { color: var(--text-dim); font-size: 14.5px; }
 
 /* ── 通用区块 ─────────────────────────────────────────── */

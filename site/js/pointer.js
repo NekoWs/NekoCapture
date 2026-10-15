@@ -1,37 +1,8 @@
 /* pointer.js — 光标与滚动带来的反馈
-   卡片镜面高光与轻微倾斜、氛围光跟随、滚动进度、顶栏加深、导航当前项。
-   全部节流到一帧一次；减少动效偏好下倾斜直接关掉。 */
+   氛围光跟随、滚动进度、顶栏加深、导航当前项。全部节流到一帧一次。 */
 window.FC = window.FC || {};
 
 FC.pointer = (function () {
-  var MAX_TILT = 4;   // 度。再大就变成"玩具卡片"，不是 Fluent
-
-  function tiltCards() {
-    if (FC.reduced) { return; }
-    var cards = document.querySelectorAll('[data-tilt]');
-
-    Array.prototype.forEach.call(cards, function (card) {
-      var move = FC.perFrame(function (e) {
-        var r = card.getBoundingClientRect();
-        var x = (e.clientX - r.left) / r.width;
-        var y = (e.clientY - r.top) / r.height;
-        card.style.setProperty('--mx', (x * 100).toFixed(1) + '%');
-        card.style.setProperty('--my', (y * 100).toFixed(1) + '%');
-        card.style.transform =
-          'perspective(900px) rotateX(' + ((0.5 - y) * MAX_TILT).toFixed(2) + 'deg)' +
-          ' rotateY(' + ((x - 0.5) * MAX_TILT).toFixed(2) + 'deg)' +
-          ' translateZ(0)';
-      });
-
-      card.addEventListener('pointermove', move);
-      card.addEventListener('pointerleave', function () {
-        card.style.transform = '';
-        card.style.setProperty('--mx', '50%');
-        card.style.setProperty('--my', '0%');
-      });
-    });
-  }
-
   function ambient() {
     var layer = document.querySelector('.ambient');
     if (!layer) { return; }
@@ -88,7 +59,6 @@ FC.pointer = (function () {
   }
 
   function init() {
-    tiltCards();
     ambient();
     progress();
     navActive();
