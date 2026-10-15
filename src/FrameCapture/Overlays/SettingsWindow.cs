@@ -107,14 +107,14 @@ public sealed partial class SettingsWindow : Window
         StackPanel panel = Cat("快捷键", "\uE765");
         #endregion
 
-        #region 快捷键页说明：键位统一由手势配置器管理
+        #region 快捷键页说明：全局键位在这里只读，编辑器键位在下方逐条可改
         panel.Children.Add(new TextBlock
         {
             Foreground = new SolidColorBrush(Theme.TextDim),
             FontSize = 12.5,
             Margin = new Thickness(2, 2, 0, 6),
             TextWrapping = TextWrapping.Wrap,
-            Text = "当前生效的键位如下，增删改请打开下方手势配置器。",
+            Text = "全局键位如下，增删改请打开下方手势配置器。",
         });
         #endregion
 
