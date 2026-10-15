@@ -189,16 +189,16 @@ public sealed partial class EditorWindow : Window
         if (_crop.IsCropped)
         {
             var (cqW, cqH) = CropPx(_frameW, _frameH);
-            cropTxt = $"  裁剪 {cqW:0}×{cqH:0}";
+            cropTxt = Loc.F("  裁剪 {0}×{1}", (int)Math.Round(cqW), (int)Math.Round(cqH));
         }
         var (ta, tb2) = TrimRange;
         // 含两端闭区间 [a,b]：1-based 显示须 tb+1；全范围=未裁剪不显示（tb2<count-1 才算裁过）
-        string trimTxt = _rd.A >= 0 && tb2 > ta && (ta > 0 || tb2 < _seq.Frames.Count - 1) ? $"  导出 {ta + 1}–{tb2 + 1}" : "";
+        string trimTxt = _rd.A >= 0 && tb2 > ta && (ta > 0 || tb2 < _seq.Frames.Count - 1) ? Loc.F("  导出 {0}–{1}", ta + 1, tb2 + 1) : "";
         // 计数区：帧号 + 当前帧时刻 / 总时长（末帧时刻，与刻度/播放同基准）；总时长让用户一眼看到录制长度
         _hud.Text = $"{_index + 1}/{_seq.Frames.Count}  {_index / (double)fps:0.00}s / {(_seq.Frames.Count - 1) / (double)fps:0.00}s"
             + (_speed != 1.0 ? $"  ×{_speed:0.###}" : "")
             + zoomTxt + cropTxt + trimTxt
-            + (_seq.DroppedFrames > 0 ? $"  ⚠内存预算已丢 {_seq.DroppedFrames} 帧" : "");
+            + (_seq.DroppedFrames > 0 ? Loc.F("  ⚠内存预算已丢 {0} 帧", _seq.DroppedFrames) : "");
         DrawRange();
     }
     #endregion

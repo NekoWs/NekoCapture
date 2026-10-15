@@ -5,6 +5,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Shapes;
 using FrameCapture.Drawing;
+using Loc = FrameCapture.Core.Loc;
 
 namespace FrameCapture.Overlays;
 
@@ -32,7 +33,7 @@ public sealed partial class EditorWindow
             CornerRadius = new CornerRadius(4),
             Padding = new Thickness(7, 2, 7, 3),
             IsHitTestVisible = false,
-            Child = new TextBlock { Text = "松开应用裁剪", FontSize = 11, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(Core.Fluent.OnAccentColor(Acc)) }, // 前景随强调色明暗自适应，浅色强调色下转黑可读
+            Child = new TextBlock { Text = Loc.T("松开应用裁剪"), FontSize = 11, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(Core.Fluent.OnAccentColor(Acc)) }, // 前景随强调色明暗自适应，浅色强调色下转黑可读
         };
         _canvas.Children.Add(_cropMask);
         _canvas.Children.Add(_cropGrid);

@@ -224,6 +224,86 @@ static class SelfTest
         && double.TryParse(args[^1][1..], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var s) && s > 0
             ? s : 1;
 
+    /// <summary>离屏渲染编辑器窗口：合成一段三帧捕获序列喂给它，工具条、时间轴、HUD 都是真实装配，
+    /// 拍出来的就是用户按下截图后看到的那一窗。帧内容是渐变加一块亮面板，画布不至于全黑。</summary>
+    /// <param name="outPath">输出 PNG 路径。</param>
+    /// <param name="scale">渲染倍率，1 表示 96dpi 原尺寸。</param>
+    /// <param name="guide">true 时把首次打开的上手引导一并拍进去；false 时确保引导已关掉。</param>
+    /// <returns>恒为 0；渲染结果由打印行报告。</returns>
+    static int RenderEditor(string outPath, double scale, bool guide)
+    {
+        var app = new Application();
+        var svc = new FrameCapture.Core.SettingsService();
+        typeof(FrameCapture.Services.AppHost).GetProperty("Settings")!
+            .SetValue(FrameCapture.Services.AppHost.Current, svc);
+        FrameCapture.Core.Theme.Apply(svc.Current.Theme, svc.Current.Accent);
+        FrameCapture.Core.Fluent.ApplyGlobalStyles();
+        string lang = Environment.GetEnvironmentVariable("FC_LANG") ?? "";
+        FrameCapture.Core.Loc.Apply(lang == "" ? svc.Current.UiLanguage : lang);
+
+        const int fw = 900, fh = 520;
+        var frames = new List<FrameCapture.Capture.CapturedFrame>();
+        for (int i = 0; i < 3; i++)
+        {
+            var px = new byte[fw * fh * 4];
+            for (int y = 0; y < fh; y++)
+                for (int x = 0; x < fw; x++)
+                {
+                    int o = (y * fw + x) * 4;
+                    int v = 28 + x * 90 / fw + y * 40 / fh;
+                    bool panel = x > fw / 3 && x < fw * 4 / 5 && y > fh / 5 && y < fh * 3 / 4;
+                    px[o] = (byte)(panel ? Math.Min(255, v + 70) : v);
+                    px[o + 1] = (byte)(panel ? Math.Min(255, v + 78) : v + 12);
+                    px[o + 2] = (byte)(panel ? Math.Min(255, v + 92) : v + 26);
+                    px[o + 3] = 255;
+                }
+            frames.Add(new FrameCapture.Capture.CapturedFrame { Bgra = px, W = fw, H = fh, TimeMs = i * 33.3 });
+        }
+        var seq = new FrameCapture.Capture.CapturedSequence
+        {
+            Frames = frames,
+            Region = new FrameCapture.Capture.RectI(0, 0, fw, fh),
+            MonitorBounds = new FrameCapture.Capture.RectI(0, 0, 1920, 1080),
+            Fps = 30,
+        };
+        var w = new FrameCapture.Overlays.EditorWindow(svc, seq);
+        w.WindowStartupLocation = WindowStartupLocation.Manual;
+        w.Left = -20000; w.Top = -20000;
+        // Mica 在场时窗口底是透明的，离屏拍图按窗口底色平涂才有底
+        w.Background = new System.Windows.Media.SolidColorBrush(FrameCapture.Core.Theme.WindowBg);
+        w.Show();
+        // 淡入动画会把窗口留在半透明：排空 dispatcher 再把不透明度钉死，拍出来才是常态样子
+        w.Dispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.Loaded);
+        w.Opacity = 1;
+        var flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+        var t = typeof(FrameCapture.Overlays.EditorWindow);
+        if (guide) t.GetMethod("ShowGuide", flags)?.Invoke(w, null);
+        else
+        {
+            // CloseGuide 走淡出动画，紧接着拍图会把还在场上的引导一起拍进来；直接从视觉树摘掉
+            if (t.GetField("_guide", flags)?.GetValue(w) is System.Windows.FrameworkElement g
+                && g.Parent is System.Windows.Controls.Panel host)
+            {
+                host.Children.Remove(g);
+                t.GetField("_guide", flags)!.SetValue(w, null);
+            }
+        }
+        double W = w.ActualWidth, H = w.ActualHeight;
+        var root = (UIElement)w.Content;
+        root.Measure(new System.Windows.Size(W, H));
+        root.Arrange(new Rect(0, 0, W, H));
+        root.UpdateLayout();
+        int ww = (int)Math.Ceiling(W * scale), hh = (int)Math.Ceiling(H * scale);
+        var rtb = new System.Windows.Media.Imaging.RenderTargetBitmap(ww, hh, 96 * scale, 96 * scale, System.Windows.Media.PixelFormats.Pbgra32);
+        rtb.Render(root);
+        var enc = new System.Windows.Media.Imaging.PngBitmapEncoder();
+        enc.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(rtb));
+        Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(outPath))!);
+        using (var f = File.Create(outPath)) enc.Save(f);
+        Console.WriteLine($"saved {outPath} {ww}x{hh} lang={(FrameCapture.Core.Loc.IsEnglish ? "en" : "zh")} guide={guide}");
+        return 0;
+    }
+
     /// <summary>离屏渲染手势配置器：库自己不认识语言与主题，这里按宿主同一套注入取词函数与配色，
     /// 拍出来的就是用户真实看到的那一窗。选中第一条绑定，让详情面板也进画面。</summary>
     /// <param name="outPath">输出 PNG 路径。</param>
@@ -582,6 +662,7 @@ static class SelfTest
             return RenderSettings(args[1], catNames[Math.Clamp(ci, 0, catNames.Length - 1)], ScaleArg(args));
         }
         if (args.Length >= 2 && args[0] == "rendergestures") return RenderGestures(args[1], ScaleArg(args));
+    if (args.Length >= 2 && args[0] == "rendereditor") return RenderEditor(args[1], ScaleArg(args), args.Contains("guide"));
         if (args.Length == 3 && args[0] == "stitch") return StitchMode(args[1], args[2]);
         string tmp = Path.Combine(Path.GetTempPath(), "FrameCapture", "selftest");
         Directory.CreateDirectory(tmp);
@@ -4217,9 +4298,15 @@ static class SelfTest
                 "设置捕获范围", "自动保存副本", "点击窗口时截取完整窗口", "只录窗口",
                 "识别文字…", "不透明度", "静音", "悬浮窗存在时间", "跟随显示器刷新率录满",
                 "启用手势层", "独占吞键", "完成后序列", "松手", "手势层当前关闭", "未绑定",
+                "欢迎用 FrameCapture 编辑器", "总在最前", "帮助与快捷键", "松开应用裁剪", "RGBA 调色板",
+                "  裁剪 {0}×{1}", "未找到 ffmpeg，无法导出视频 — 安装方法见帮助，按 F1",
             };
             var leaked = covered.Where(k => Loc.T(k) == k).ToList();
             Chk("T189k-covered-surfaces", leaked.Count == 0, $"leaked={string.Join(',', leaked)}");
+            // 合成词：中文把挡位名并进「细笔画」，英文是「Thin stroke」——两段各自取词后还要拼得对
+            Chk("T189o-composed-stroke-labels-in-en",
+                Loc.F("{0}笔画", Loc.T("细")) == "Thin stroke" && Loc.F("{0}笔画", Loc.T("粗")) == "Bold stroke",
+                Loc.F("{0}笔画", Loc.T("中")));
             // 带参串在英文里也要拼得出来：占位符顺序由译文决定，不是照抄中文
             Chk("T189l-arg-format-in-en", Loc.F("关闭全部贴图 ({0})", 3) == "Close all pins (3)",
                 Loc.F("关闭全部贴图 ({0})", 3));

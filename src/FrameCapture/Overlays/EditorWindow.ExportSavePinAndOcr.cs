@@ -112,7 +112,7 @@ public sealed partial class EditorWindow : Window
     {
         if (_ocrBusy || _seq.Frames.Count == 0) return;
         _ocrBusy = true;
-        ShowSnack("识别文字…");
+        ShowSnack(Loc.T("识别文字…"));
         try
         {
             var frame = Cur();
@@ -146,7 +146,7 @@ public sealed partial class EditorWindow : Window
         catch (Exception ex)
         {
             Trace.Log($"ocr failed: {ex.Message}");
-            if (!_userClosed) ShowSnack("识别失败");
+            if (!_userClosed) ShowSnack(Loc.T("识别失败"));
         }
         finally { _ocrBusy = false; }
     }
@@ -187,7 +187,7 @@ public sealed partial class EditorWindow : Window
             SetOkBusy(true);
             _commitCts = new CancellationTokenSource();
             var ct = _commitCts.Token;
-            _hud.Text = $"导出 {verb}…";
+            _hud.Text = Loc.F("导出 {0}…", verb);
             Task.Run(() =>
             {
                 // 测试专用（与 FC_TEST_NO_FG 同约定）：FC_TEST_ENCODE_FAIL=1 令编码任务必然抛错，
@@ -212,7 +212,7 @@ public sealed partial class EditorWindow : Window
                     MonitorBounds = monBounds,
                     MonitorDevice = monDev,
                 };
-                var prog = new Progress<int>(d => Dispatcher.BeginInvoke(() => _hud.Text = $"导出 {verb}… {d}/{baked.Count}"));
+                var prog = new Progress<int>(d => Dispatcher.BeginInvoke(() => _hud.Text = Loc.F("导出 {0}… {1}/{2}", verb, d, baked.Count)));
                 if (videoFmt == null)
                 {
                     byte[] gif = GifEncoder.Encode(baked, ComputeDelays(baked, fps), true, prog, ct);
@@ -237,7 +237,7 @@ public sealed partial class EditorWindow : Window
                 if (t.IsFaulted)
                 {
                     Trace.Log($"encode failed: {t.Exception}");
-                    _hud.Text = t.Exception?.InnerException is InvalidOperationException ? "未找到 ffmpeg" : "导出失败";
+                    _hud.Text = t.Exception?.InnerException is InvalidOperationException ? Loc.T("未找到 ffmpeg") : Loc.T("导出失败");
                     return;
                 }
                 onDone(t.Result.seq, t.Result.gif);
@@ -290,7 +290,7 @@ public sealed partial class EditorWindow : Window
         var cropSnap = _crop.Current; bool cropOn = _crop.IsCropped;
 
         _encoding = true; SetOkBusy(true);
-        ShowSnack("生成胶片条…");
+        ShowSnack(Loc.T("生成胶片条…"));
         try
         {
             var baked = await Task.Run(() =>
@@ -306,21 +306,21 @@ public sealed partial class EditorWindow : Window
                 return Drawing.Bake.Apply(fs, outAnns);
             });
             var img = AgentStrip.Render(baked, idxs);
-            try { Clipboard.SetImage(img); ShowSnack($"胶片条已复制 · {idxs.Count} 帧"); }
-            catch { ShowSnack("剪贴板被占用，生成失败"); }
+            try { Clipboard.SetImage(img); ShowSnack(Loc.F("胶片条已复制 · {0} 帧", idxs.Count)); }
+            catch { ShowSnack(Loc.T("剪贴板被占用，生成失败")); }
             Trace.Log($"filmstrip {idxs.Count}/{count} frames every={every}");
         }
         catch (Exception ex)
         {
             Trace.Log("filmstrip: " + ex.Message);
-            ShowSnack("生成胶片条失败");
+            ShowSnack(Loc.T("生成胶片条失败"));
         }
         finally { _encoding = false; SetOkBusy(false); }
     }
 
     void SaveFrame()
     {
-        var dlg = NewSaveDialog("PNG 图片|*.png", $"frame-{_times[_index] / 1000.0:0.0}.png");
+        var dlg = NewSaveDialog(Loc.T("PNG 图片|*.png"), $"frame-{_times[_index] / 1000.0:0.0}.png");
         if (dlg.ShowDialog(this) != true) return;
         BgraImage.SavePng(ExportFrame(_index), EnsureExt(dlg.FileName, ".png"));
     }
@@ -339,7 +339,7 @@ public sealed partial class EditorWindow : Window
             RecordFormat.WebM => "capture.webm",
             _ => "capture.gif",
         };
-        var dlg = NewSaveDialog("MP4 视频|*.mp4|WebM 视频|*.webm|GIF 动图|*.gif", defName);
+        var dlg = NewSaveDialog(Loc.T("MP4 视频|*.mp4|WebM 视频|*.webm|GIF 动图|*.gif"), defName);
         // 类型下拉默认选中当前「录制格式」，与默认文件名扩展一致（否则总停在首项 MP4，与 capture.gif 打架）
         dlg.FilterIndex = def switch { RecordFormat.Mp4 => 1, RecordFormat.WebM => 2, _ => 3 };
         if (dlg.ShowDialog(this) != true) return;
@@ -354,14 +354,14 @@ public sealed partial class EditorWindow : Window
         {
             if (FfmpegLocator.Find() == null)
             {
-                _hud.Text = "未找到 ffmpeg，无法导出视频 — 安装方法见帮助，按 F1";
+                _hud.Text = Loc.T("未找到 ffmpeg，无法导出视频 — 安装方法见帮助，按 F1");
                 return;
             }
             var fmt = ext == ".mp4" ? VideoFormat.Mp4 : VideoFormat.WebM;
             path = EnsureExt(path, ext);
             StartEncode(fmt, path, (_, _) =>
             {
-                _hud.Text = $"已导出 {System.IO.Path.GetFileName(path)}";
+                _hud.Text = Loc.F("已导出 {0}", System.IO.Path.GetFileName(path));
                 Trace.Log($"video saved {path}");
             });
         }
@@ -371,7 +371,7 @@ public sealed partial class EditorWindow : Window
             StartEncode(null, null, (_, gif) =>
             {
                 try { File.WriteAllBytes(path, gif!); Trace.Log($"gif saved {path} {gif!.Length}B"); }
-                catch (Exception ex) { Trace.Log($"gif save failed: {ex.Message}"); _hud.Text = "保存失败"; }
+                catch (Exception ex) { Trace.Log($"gif save failed: {ex.Message}"); _hud.Text = Loc.T("保存失败"); }
                 Show(_index);
             });
         }
@@ -379,7 +379,7 @@ public sealed partial class EditorWindow : Window
 
     void SaveAfterimage()
     {
-        var dlg = NewSaveDialog("PNG 图片|*.png", "afterimage.png");
+        var dlg = NewSaveDialog(Loc.T("PNG 图片|*.png"), "afterimage.png");
         if (dlg.ShowDialog(this) != true) return;
         // 残影只稀疏采样 5 帧：用惰性裁剪投影，绝不全段物化（长录制全量转内存必 OOM）
         IReadOnlyList<CapturedFrame> src = _seq.Frames;

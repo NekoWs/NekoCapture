@@ -3,7 +3,7 @@
 # 判定：一个 .cs 文件里出现过 Loc.T(/Loc.F(（宿主）或 T(（GestureEditor 库，取词函数由宿主注入）
 # 就算「已迁移」；这类文件里带中文的字符串字面量必须就是那次取词调用的参数，否则英文下会露出中文。
 # 整文件还没动过的先跳过，只在末尾报数。
-# 豁免：StringsEn.*.cs（中文键就是源语言本身）、Trace/Debug/Console 行（日志不进译表）、
+# 豁免：StringsEn.*.cs（中文键就是源语言本身）、Trace/Debug/Console 行与 throw 行（日志与异常消息不进译表）、
 # 行尾 // copyok（这行的文案本就不用翻）、行尾 // lockeys（这行的中文是取词的键，取词在读取处）、
 # 行尾 // locpending（等下一批整窗迁移，计数报出来）。
 param([switch]$Quiet)
@@ -20,6 +20,8 @@ $reCall = [regex]'Loc\.(T|F)\(|(?<![\w.])T\('
 $reCallArg = [regex]'(Loc\.(T|F)|(?<![\w.])T)\(\s*@?"(?:\\.|[^"\\])*"'
 $reLiteral = [regex]'"(?:\\.|[^"\\])*"'
 $reCjk = [regex]'[\u4e00-\u9fff]'
+# 不进译表的行：日志与异常消息（AGENTS 文案第 7 条）
+$reNonUi = 'Trace\.(Log|Fail|Warn)|Debug\.Write|Console\.Write|\bthrow\b'
 
 $dirs = @('src\FrameCapture', 'src\GestureEditor') | ForEach-Object { Join-Path $root $_ }
 foreach ($f in Get-ChildItem -Path $dirs -Recurse -Include *.cs) {
@@ -30,7 +32,7 @@ foreach ($f in Get-ChildItem -Path $dirs -Recurse -Include *.cs) {
         $n = 0
         foreach ($l in $lines) {
             if ($l -match '^\s*(///|//|\*)') { continue }
-            if ($l -match 'Trace\.(Log|Fail|Warn)|Debug\.Write|Console\.Write') { continue }
+            if ($l -match $reNonUi) { continue }
             $n += @($reLiteral.Matches($l) | Where-Object { $reCjk.IsMatch($_.Value) }).Count
         }
         if ($n -gt 0) { $pending += [pscustomobject]@{ File = $f.Name; Count = $n } }
@@ -40,7 +42,7 @@ foreach ($f in Get-ChildItem -Path $dirs -Recurse -Include *.cs) {
     for ($i = 0; $i -lt $lines.Count; $i++) {
         $l = $lines[$i]
         if ($l -match '^\s*(///|//|\*)') { continue }
-        if ($l -match 'Trace\.(Log|Fail|Warn)|Debug\.Write|Console\.Write') { continue }
+        if ($l -match $reNonUi) { continue }
         if ($l -match '//\s*copyok') { continue }
         if ($l -match '//\s*lockeys') { $keyLines++; continue }
         if ($l -match '//\s*locpending') { $locPending++; continue }

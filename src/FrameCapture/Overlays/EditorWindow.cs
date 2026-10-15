@@ -187,15 +187,15 @@ public sealed partial class EditorWindow : Window
         if (_root == null) return;
         var rows = new (string K, string V)[]
         {
-            ("标注", "底部工具条选 线/矩形 R/圆 O/箭头/手绘/文字 T/马赛克 M，再点同一工具退出绘制；选中 V 可点选已画标注拖动/删除"),
-            ("裁剪", "裁剪工具拖框，框外压暗并显示网格提示，松开即应用；Ctrl+Z 可撤销"),
-            ("确定/取消", "Enter 写入剪贴板 · Esc 关闭 · 图钉=总在最前"),
-            ("更多", "F1 完整帮助，任意按钮悬停有说明"),
+            (Loc.T("标注"), Loc.T("底部工具条选 线/矩形 R/圆 O/箭头/手绘/文字 T/马赛克 M，再点同一工具退出绘制；选中 V 可点选已画标注拖动/删除")),
+            (Loc.T("裁剪"), Loc.T("裁剪工具拖框，框外压暗并显示网格提示，松开即应用；Ctrl+Z 可撤销")),
+            (Loc.T("确定/取消"), Loc.T("Enter 写入剪贴板 · Esc 关闭 · 图钉=总在最前")),
+            (Loc.T("更多"), Loc.T("F1 完整帮助，任意按钮悬停有说明")),
         };
         var sp = new StackPanel();
         sp.Children.Add(new TextBlock
         {
-            Text = "欢迎用 FrameCapture 编辑器",
+            Text = Loc.T("欢迎用 FrameCapture 编辑器"),
             FontSize = 16, FontWeight = FontWeights.SemiBold,
             Foreground = new SolidColorBrush(Theme.Text),
             Margin = new Thickness(0, 0, 0, 10),
@@ -203,9 +203,10 @@ public sealed partial class EditorWindow : Window
         foreach (var (k, v) in rows)
         {
             var row = new Grid { Margin = new Thickness(0, 3, 0, 3) };
-            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(78) });
+            // 名字列按内容自适应：写死的宽度只量过中文，换成英文「Confirm / cancel」就会被切掉
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            var kt = new TextBlock { Text = k, FontSize = 12.5, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(Acc) };
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            var kt = new TextBlock { Text = k, FontSize = 12.5, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(Acc), Margin = new Thickness(0, 0, 10, 0) };
             var vt = new TextBlock
             {
                 Text = v, FontSize = 12.5, TextWrapping = TextWrapping.Wrap,
@@ -215,7 +216,7 @@ public sealed partial class EditorWindow : Window
             row.Children.Add(kt); row.Children.Add(vt);
             sp.Children.Add(row);
         }
-        var ok = Fluent.IconButton("知道了", "开始使用", 84, 12.5);
+        var ok = Fluent.IconButton(Loc.T("知道了"), Loc.T("开始使用"), 84, 12.5);
         ok.ClearValue(Control.FontFamilyProperty); // 文字按钮：回到继承的 UI 字体（IconButton 默认是图标字体）
         ok.Height = 30;
         Fluent.HighlightBtn(ok, true);
