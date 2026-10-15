@@ -182,31 +182,56 @@ public sealed partial class CaptureController : IDisposable
         });
     }
 
-    /// <summary>调试/e2e：把一张 PNG 当作刚截好的静图开进编辑器，版面审查不必走真实捕获链路。</summary>
+    /// <summary>把一张 PNG 读成单帧，供调试入口当捕获产物用。</summary>
     /// <param name="path">PNG 路径。读不到或解码失败只记日志，不打扰用户。</param>
-    public void OpenEditorWithPng(string path)
+    /// <returns>解好的帧；路径无效、图为空或解码失败返回 null。</returns>
+    static CapturedFrame? FrameFromPng(string path)
     {
-        if (State != Phase.Idle) return; // 编辑器/录制/选取占用中：不重入
-        if (string.IsNullOrEmpty(path) || !File.Exists(path)) { Trace.Log($"editor png: 找不到 {path}"); return; }
+        if (string.IsNullOrEmpty(path) || !File.Exists(path)) { Trace.Log($"png: 找不到 {path}"); return null; }
         try
         {
             var decoded = BitmapFrame.Create(new Uri(path), BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.OnLoad);
             var bgra = new FormatConvertedBitmap(decoded, PixelFormats.Bgra32, null, 0);
             int w = bgra.PixelWidth, h = bgra.PixelHeight;
-            if (w <= 0 || h <= 0) { Trace.Log($"editor png: 空图 {path}"); return; }
+            if (w <= 0 || h <= 0) { Trace.Log($"png: 空图 {path}"); return null; }
             var px = new byte[w * 4 * h];
             bgra.CopyPixels(px, w * 4, 0);
-            var mon = Monitors.All().FirstOrDefault(m => m.IsPrimary) ?? Monitors.All().FirstOrDefault();
-            var bounds = mon?.Bounds ?? new RectI(0, 0, w, h);
-            OpenEditor(new CapturedSequence
-            {
-                Frames = new List<CapturedFrame> { new() { Bgra = px, W = w, H = h } },
-                Region = new RectI(bounds.X, bounds.Y, w, h),
-                MonitorBounds = bounds,
-                MonitorDevice = mon?.DeviceName ?? "",
-            });
+            return new CapturedFrame { Bgra = px, W = w, H = h };
         }
-        catch (Exception ex) { Trace.Log("editor png fail: " + ex); }
+        catch (Exception ex) { Trace.Log("png fail: " + ex); return null; }
+    }
+
+    /// <summary>主屏，取不到时退到任意一台；调试入口用它给合成帧编一个合理的捕获位置。</summary>
+    /// <returns>主显示器信息；一块屏都没有时返回 null。</returns>
+    static MonitorInfo? PrimaryMonitor()
+        => Monitors.All().FirstOrDefault(m => m.IsPrimary) ?? Monitors.All().FirstOrDefault();
+
+    /// <summary>调试/e2e：把一张 PNG 当作刚截好的静图开进编辑器，版面审查不必走真实捕获链路。</summary>
+    /// <param name="path">PNG 路径。</param>
+    public void OpenEditorWithPng(string path)
+    {
+        if (State != Phase.Idle) return; // 编辑器/录制/选取占用中：不重入
+        var f = FrameFromPng(path);
+        if (f == null) return;
+        var mon = PrimaryMonitor();
+        var bounds = mon?.Bounds ?? new RectI(0, 0, f.W, f.H);
+        OpenEditor(new CapturedSequence
+        {
+            Frames = new List<CapturedFrame> { f },
+            Region = new RectI(bounds.X, bounds.Y, f.W, f.H),
+            MonitorBounds = bounds,
+            MonitorDevice = mon?.DeviceName ?? "",
+        });
+    }
+
+    /// <summary>调试/e2e：把一张 PNG 钉成贴图，贴图窗口的版面审查不必走真实捕获链路。</summary>
+    /// <param name="path">PNG 路径。钉在主屏正中，与真实「原地贴图」同一出口。</param>
+    public void PinWithPng(string path)
+    {
+        var f = FrameFromPng(path);
+        if (f == null) return;
+        var b = PrimaryMonitor()?.Bounds ?? new RectI(0, 0, f.W, f.H);
+        PinFrameAt(f, new RectI(b.X + (b.W - f.W) / 2, b.Y + (b.H - f.H) / 2, f.W, f.H));
     }
 
     /// <summary>单帧静图完成后的统一处理：按本条手势的开关决定写不写剪贴板 + 自动保存副本 + 提示音
