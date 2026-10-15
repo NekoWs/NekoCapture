@@ -350,6 +350,10 @@
         <p>只有安装那一步需要，要写程序目录和卸载注册表项。装完日常运行是普通权限，收在托盘里。</p>
       </details>
       <details name="faq">
+        <summary>装的时候 Windows 会拦一下吗？</summary>
+        <p>会。安装包没有代码签名，SmartScreen 会提示未知发布者，点「仍要运行」就继续。预览版没买证书，这是明说的取舍。</p>
+      </details>
+      <details name="faq">
         <summary>热键跟别的软件撞了怎么办？</summary>
         <p>在手势配置里改，默认只占 <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>A</kbd> 与 <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>R</kbd> 两条。独占吞键打开时按键不再传给后台，关掉则照常传递。</p>
       </details>
@@ -360,6 +364,10 @@
       <details name="faq">
         <summary>多显示器和高缩放能用吗？</summary>
         <p>每个显示器独立选区，按物理像素采集。150% 缩放下不会糊，副屏拖到主屏边上照样能框。</p>
+      </details>
+      <details name="faq">
+        <summary>会自动更新吗？</summary>
+        <p>不会，也没有后台更新进程。升级就是再装一次，配置在 <code>%APPDATA%\FrameCapture</code>，重装不动它。</p>
       </details>
       <details name="faq">
         <summary>卸载干净吗？</summary>
