@@ -31,11 +31,14 @@
   flex: 0 0 auto;
 }
 
+.mark-def { display: none; }
+
 .brand__mark {
   width: 28px; height: 28px;
-  border-radius: var(--r-control);
-  box-shadow: 0 0 0 1px var(--stroke-soft), 0 4px 12px -6px rgba(0, 0, 0, 0.7);
+  color: var(--accent-text);   /* 浅色主题下强调色文字版，标记跟着主题走 */
 }
+
+.foot__mark { color: var(--accent-text); }
 
 .brand__name {
   font-family: var(--font-display);
@@ -419,7 +422,6 @@
   border-top: 1px solid var(--stroke-soft);
 }
 
-.foot__mark { border-radius: 6px; }
 .foot__spacer { flex: 1 1 auto; }
 .foot__theme code { font-size: 12px; }
 

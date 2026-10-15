@@ -40,9 +40,10 @@
   <div class="ambient__noise"></div>
 </div>
 
+<svg class="mark-def" aria-hidden="true"><symbol id="fc-mark" viewBox="0 0 1024 1024"><path d="M400 150H150v250M624 150h250v250M150 624v250h250M624 874h250V624" fill="none" stroke="currentColor" stroke-width="96" stroke-linejoin="round"/><circle cx="512" cy="512" r="150" fill="currentColor"/></symbol></svg>
 <header class="topbar" id="topbar">
   <a class="brand" href="#top">
-    <img class="brand__mark" src="assets/FrameCapture-256.png" alt="" width="28" height="28">
+    <svg class="brand__mark" aria-hidden="true" width="28" height="28"><use href="#fc-mark"/></svg>
     <span class="brand__name">FrameCapture</span>
     <span class="brand__ver">0.9 预览</span>
   </a>
@@ -379,7 +380,7 @@
 </main>
 
 <footer class="foot">
-  <img class="foot__mark" src="assets/FrameCapture-256.png" alt="" width="22" height="22">
+  <svg class="foot__mark" aria-hidden="true" width="22" height="22"><use href="#fc-mark"/></svg>
   <span>FrameCapture · 本地运行的截图与录制工具</span>
   <span class="foot__spacer"></span>
   <span class="foot__theme">0.9 预览版</span>

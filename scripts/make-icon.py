@@ -1,41 +1,22 @@
-"""生成 FrameCapture 应用图标：取景框四角 + 快门点，Fluent 强调色落在深色圆角砖上。
+"""生成 FrameCapture 应用图标：取景框四角 + 中心快门点，强调色直接落在透明底上。
 
+强调色 #4CC2FF 与 Theme.Accent 同值；深浅两种桌面都靠描边本身立形。
 多尺寸 .ico 一次生成，exe / 开始菜单 / 「应用和功能」共用同一份源图。
-小尺寸靠加大描边与中心点保证可读，不做逐尺寸重绘。
+小尺寸靠加粗描边与放大中心点保证可读，不做逐尺寸重绘。
+同一份图同时写 assets/ 与 site/assets/，网页 favicon 与 exe 图标同源不分叉。
+托盘图标（Services/TrayService.cs）按本文件的比例常量绘制，两处改一处要同步另一处。
 """
 from PIL import Image, ImageDraw
 
 S = 1024                      # 源图边长，所有尺寸由它等比降采样
 ACCENT = (76, 194, 255, 255)  # Fluent 强调色 #4CC2FF，与 Theme.Accent 同值
-BG_TOP = (27, 30, 35, 255)    # 砖面顶部，贴近 Theme 深色 ChromeBg
-BG_BOT = (38, 43, 51, 255)
-TILE_R = 208                  # 圆角半径（源图坐标系）
-TILE_EDGE = (255, 255, 255, 46)  # 砖面边线：深色桌面上砖面与背景几乎同色，靠这条才分得开
-TILE_EDGE_W = 6               # 边线线宽（源图坐标系）
-INSET = 150                   # 取景框四角到砖边的距离
+INSET = 150                   # 取景框四角到画布边的距离
 ARM = 250                     # 每条角标的臂长
 STROKE = 96                   # 角标描边粗细
 DOT_R = 150                   # 中心快门点半径
 
-
-def tile():
-    """深色圆角砖，纵向微渐变。"""
-    img = Image.new("RGBA", (S, S), (0, 0, 0, 0))
-    grad = Image.new("RGBA", (S, S))
-    gd = ImageDraw.Draw(grad)
-    for y in range(S):
-        t = y / (S - 1)
-        c = tuple(int(BG_TOP[i] + (BG_BOT[i] - BG_TOP[i]) * t) for i in range(3)) + (255,)
-        gd.line([(0, y), (S, y)], fill=c)
-    mask = Image.new("L", (S, S), 0)
-    ImageDraw.Draw(mask).rounded_rectangle([0, 0, S - 1, S - 1], TILE_R, fill=255)
-    img.paste(grad, (0, 0), mask)
-    # 边线向内收半个线宽，否则外缘被画布裁掉半像素、四角发暗
-    w = TILE_EDGE_W
-    o = w // 2
-    ImageDraw.Draw(img).rounded_rectangle(
-        [o, o, S - 1 - o, S - 1 - o], TILE_R - o, outline=TILE_EDGE, width=w)
-    return img
+# 供托盘图标换算的比例（占源图边长的百分比）
+RATIOS = dict(inset=INSET / S, arm=ARM / S, stroke=STROKE / S, dot=2 * DOT_R / S)
 
 
 def corners(d):
@@ -47,7 +28,7 @@ def corners(d):
 
 
 def draw_icon():
-    img = tile()
+    img = Image.new("RGBA", (S, S), (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
     corners(d)
     c = S // 2
@@ -83,9 +64,12 @@ def preview(src, path):
 if __name__ == "__main__":
     import os
     os.makedirs("assets", exist_ok=True)
+    os.makedirs("site/assets", exist_ok=True)
     icon = draw_icon()
     icon.save("assets/FrameCapture.ico",
               format="ICO", sizes=[(s, s) for s in SIZES], bitmap_sizes=[(s, s) for s in SIZES])
     icon.save("assets/FrameCapture-256.png")
+    icon.save("site/assets/FrameCapture-256.png")
     preview(icon, "test-out/icon-preview.png")
-    print("written assets/FrameCapture.ico  sizes=" + ",".join(map(str, SIZES)))
+    print("written assets/FrameCapture.ico + 两份 PNG  sizes=" + ",".join(map(str, SIZES)))
+    print("ratios " + " ".join(f"{k}={v:.4f}" for k, v in RATIOS.items()))
