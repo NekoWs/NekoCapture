@@ -1,3 +1,6 @@
+using System.IO;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using FrameCapture.Capture;
 using FrameCapture.Core;
 using FrameCapture.Overlays;
@@ -177,6 +180,33 @@ public sealed partial class CaptureController : IDisposable
             MonitorBounds = monitor?.Bounds ?? region,
             MonitorDevice = device,
         });
+    }
+
+    /// <summary>调试/e2e：把一张 PNG 当作刚截好的静图开进编辑器，版面审查不必走真实捕获链路。</summary>
+    /// <param name="path">PNG 路径。读不到或解码失败只记日志，不打扰用户。</param>
+    public void OpenEditorWithPng(string path)
+    {
+        if (State != Phase.Idle) return; // 编辑器/录制/选取占用中：不重入
+        if (string.IsNullOrEmpty(path) || !File.Exists(path)) { Trace.Log($"editor png: 找不到 {path}"); return; }
+        try
+        {
+            var decoded = BitmapFrame.Create(new Uri(path), BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.OnLoad);
+            var bgra = new FormatConvertedBitmap(decoded, PixelFormats.Bgra32, null, 0);
+            int w = bgra.PixelWidth, h = bgra.PixelHeight;
+            if (w <= 0 || h <= 0) { Trace.Log($"editor png: 空图 {path}"); return; }
+            var px = new byte[w * 4 * h];
+            bgra.CopyPixels(px, w * 4, 0);
+            var mon = Monitors.All().FirstOrDefault(m => m.IsPrimary) ?? Monitors.All().FirstOrDefault();
+            var bounds = mon?.Bounds ?? new RectI(0, 0, w, h);
+            OpenEditor(new CapturedSequence
+            {
+                Frames = new List<CapturedFrame> { new() { Bgra = px, W = w, H = h } },
+                Region = new RectI(bounds.X, bounds.Y, w, h),
+                MonitorBounds = bounds,
+                MonitorDevice = mon?.DeviceName ?? "",
+            });
+        }
+        catch (Exception ex) { Trace.Log("editor png fail: " + ex); }
     }
 
     /// <summary>单帧静图完成后的统一处理：按本条手势的开关决定写不写剪贴板 + 自动保存副本 + 提示音

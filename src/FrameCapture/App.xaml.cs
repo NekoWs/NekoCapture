@@ -160,6 +160,15 @@ public partial class App : Application
         if (e.Args.Any(a => string.Equals(a, "--picker", StringComparison.OrdinalIgnoreCase)))
             Dispatcher.BeginInvoke(() => Services.AppHost.Current.Controller.BeginScopeSelection(),
                 System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+        // 调试/e2e：以一张 PNG 当静图产物直接开编辑器，供 UICap 审查编辑器版面（不走真实捕获链路）。
+        // FrameCapture.exe --editor <png 路径>
+        int edi = Array.FindIndex(e.Args, a => string.Equals(a, "--editor", StringComparison.OrdinalIgnoreCase));
+        if (edi >= 0)
+        {
+            string png = edi + 1 < e.Args.Length ? e.Args[edi + 1] : "";
+            Dispatcher.BeginInvoke(() => Services.AppHost.Current.Controller.OpenEditorWithPng(png),
+                System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+        }
         // 调试/e2e：摆出滚动截图的取景层 + 实时预览 + 控制条（喂一张合成长图，不启动真实滚动捕获），
         // 供 UICap desk 截图审查。FrameCapture.exe --scrollpreview <合成长图输出png>
         int spi = Array.FindIndex(e.Args, a => string.Equals(a, "--scrollpreview", StringComparison.OrdinalIgnoreCase));
