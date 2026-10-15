@@ -30,15 +30,15 @@ public sealed class WelcomeToast : Window
     /// 本方法不写设置——是否记为「已看过」（FirstRunHintShown）由调用方决定。
     /// </summary>
     /// <param name="captureHotkey">「截图」键位的展示文案，原样上屏，不做二次解析。</param>
-    /// <param name="scopeHotkey">「选区」键位的展示文案，原样上屏。</param>
-    public static void Show(string captureHotkey, string scopeHotkey)
+    /// <param name="recordHotkey">「录制」键位的展示文案，原样上屏。</param>
+    public static void Show(string captureHotkey, string recordHotkey)
     {
         _current?.Close();
-        _current = new WelcomeToast(captureHotkey, scopeHotkey);
+        _current = new WelcomeToast(captureHotkey, recordHotkey);
         _current.Show(); // ShowActivated=false：不打断用户当前输入
     }
 
-    WelcomeToast(string captureHotkey, string scopeHotkey)
+    WelcomeToast(string captureHotkey, string recordHotkey)
     {
         Title = "FrameCapture Welcome";
         Fluent.BorderlessOverlay(this);
@@ -84,11 +84,11 @@ public sealed class WelcomeToast : Window
 
         // 两个热键：标签（暗）+ 键位（强调色加粗），一眼看清「按什么」
         root.Children.Add(HotkeyLine("截图", captureHotkey));
-        root.Children.Add(HotkeyLine("选区", scopeHotkey));
+        root.Children.Add(HotkeyLine("录制", recordHotkey));
 
         root.Children.Add(new TextBlock
         {
-            Text = "长按截图键 = 录屏 · 双击贴图关闭 · 右键贴图 / 托盘查看更多",
+            Text = "选完区域即截图 · 录制键再按一下停止 · 双击贴图关闭 · 右键贴图 / 托盘查看更多",
             FontSize = 11.5,
             Foreground = new SolidColorBrush(Theme.TextDim),
             FontFamily = new FontFamily("Segoe UI"),

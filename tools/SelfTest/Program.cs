@@ -867,6 +867,8 @@ static class SelfTest
                 .GetField("_toolsBar", NPP)!.GetValue(winP);
             var firstTool = barP!.Children.OfType<System.Windows.Controls.Button>().First();
             Chk("T179a-multiframe-parts", playGrp != null, $"播放首组={(playGrp == null ? "缺失" : "存在")}");
+            // 取不到时拿一个游离元素兜底：下面的断言照样报红，但不让整轮自测崩在空引用上
+            UIElement grp = playGrp ?? new UIElement();
             // 两排都在窗口出现的那一刻起波，上排的全透明窗口不足一个采样周期，轮询抓不到落点。
             // 改挂 Opacity 属性变化回调：各自第一次越过 0.05 的时刻即起波时刻。
             // 上排必须先起波，且与下排拉开至少半个错位间隔——两排同时波动就是错的。
@@ -874,22 +876,22 @@ static class SelfTest
             long t0P = 0;
             var ddp = System.ComponentModel.DependencyPropertyDescriptor
                 .FromProperty(UIElement.OpacityProperty, typeof(UIElement))!;
-            void OnPlayUp(object? s, EventArgs e) { if (playUp < 0 && playGrp!.Opacity > 0.05) playUp = (int)(Environment.TickCount64 - t0P); }
+            void OnPlayUp(object? s, EventArgs e) { if (playUp < 0 && grp.Opacity > 0.05) playUp = (int)(Environment.TickCount64 - t0P); }
             void OnToolUp(object? s, EventArgs e) { if (toolUp < 0 && firstTool.Opacity > 0.05) toolUp = (int)(Environment.TickCount64 - t0P); }
-            ddp.AddValueChanged(playGrp, OnPlayUp);
+            ddp.AddValueChanged(grp, OnPlayUp);
             ddp.AddValueChanged(firstTool, OnToolUp);
             t0P = Environment.TickCount64;
             winP.Show();
             int tP = 0;
             while (tP < 3000 && (playUp < 0 || toolUp < 0)) { PumpMs(10); tP += 10; }
-            ddp.RemoveValueChanged(playGrp, OnPlayUp);
+            ddp.RemoveValueChanged(grp, OnPlayUp);
             ddp.RemoveValueChanged(firstTool, OnToolUp);
             Chk("T179b-play-before-tools",
                 playUp >= 0 && toolUp >= 0 && toolUp - playUp >= 40,
                 $"播放起波={playUp}ms 工具起波={toolUp}ms 拉开={(playUp >= 0 && toolUp >= 0 ? toolUp - playUp : 0)}ms");
             PumpMs(Fluent.Motion.SpringMs + Fluent.Motion.StaggerMs + 300);
-            Chk("T179c-both-rows-settled", playGrp.Opacity > 0.999 && firstTool.Opacity > 0.999,
-                $"播放首组={playGrp.Opacity:N2} 工具首项={firstTool.Opacity:N2}");
+            Chk("T179c-both-rows-settled", grp.Opacity > 0.999 && firstTool.Opacity > 0.999,
+                $"播放首组={grp.Opacity:N2} 工具首项={firstTool.Opacity:N2}");
             winP.Close();
         }
         catch (Exception e) { Chk("T179-play-row-order", false, e.Message); }
@@ -3263,7 +3265,7 @@ static class SelfTest
             bool swUp = eng.OnKeyUp(F6, GE.ModifierKeys.None, 100);
             Chk("T146f-claim-swallow", swDown && swRepeat && swUp, $"tap/hold 键按下+重复+抬起全吞（前台收不到），实得 down={swDown} rep={swRepeat} up={swUp}");
         }
-        // 默认手势集播种：捕获键 轻点截图+按住录制，选区键 组合键选区；一次性、尊重已有绑定。
+        // 默认手势集播种：QQ 键位——截图键组合键进选区、录制键组合键切换；一次性、尊重已有绑定。
         {
             var set = GestureConfig.DefaultTapHoldSet("Ctrl+Shift+G", "Ctrl+Shift+R");
             Chk("T147a-default-set-shape",
@@ -3278,8 +3280,15 @@ static class SelfTest
                 "tap/hold 三条按住阈值=250ms");
 
             var cfg = new GestureConfig();
-            cfg.SeedIfNeeded("Ctrl+Shift+G", "Ctrl+Shift+R");
-            Chk("T147c-seed-empty", cfg.Bindings.Count == 4 && cfg.Enabled && cfg.Seeded, "空配置播种默认集并启用、置 Seeded");
+            cfg.SeedIfNeeded(GestureConfig.DefaultCaptureKey, GestureConfig.DefaultRecordKey);
+            Chk("T147c-seed-empty",
+                cfg.Bindings.Count == 2 && cfg.Enabled && cfg.Seeded
+                && cfg.Bindings.Any(b => b.Chord == GestureConfig.DefaultCaptureKey && b.Trigger == "Chord" && b.Actions.Contains("scope.select"))
+                && cfg.Bindings.Any(b => b.Chord == GestureConfig.DefaultRecordKey && b.Trigger == "Chord" && b.Actions.Contains("record.toggle")),
+                $"播种=QQ 键位（{GestureConfig.DefaultCaptureKey} 进选区 / {GestureConfig.DefaultRecordKey} 录制切换），实得 {cfg.Bindings.Count} 条");
+            Chk("T147f-qq-set-skips-bad-chord",
+                GestureConfig.DefaultQqSet("Ctrl+Alt+A", "不 是 键").Count == 1,
+                "录制键串解析不出来时只播截图那一条");
 
             var cfg2 = new GestureConfig();
             cfg2.Bindings.Add(new GestureBindingDto { Id = "mine", Chord = "F6", Trigger = "Chord", Actions = new[] { "capture.frame" } });

@@ -92,11 +92,7 @@ public sealed partial class CaptureController : IDisposable
         _recBadgeTimer.Tick += (_, _) =>
         {
             _recBadgeTimer!.Stop();
-            if (State == Phase.Capturing)
-            {
-                _outline?.StartRecBadge();
-                if (!_settings.Current.RecHintShown) _settings.Mutate(s => s.RecHintShown = true); // 教过一次就收
-            }
+            if (State == Phase.Capturing) _outline?.StartRecBadge();
         };
     }
 
@@ -152,12 +148,9 @@ public sealed partial class CaptureController : IDisposable
         Overlays.CaptureToast.DismissCurrent();
         HideOutline();
         var swOpen = System.Diagnostics.Stopwatch.StartNew();
-        // 首次教学：RecHintShown=false 时在选区提示里点破"按住=录制"；起录过一次即永久关闭该提示
-        string? teachTip = _settings.Current.RecHintShown ? null
-            : "提示：按住 = 录制 GIF（点按 = 截图）";
         // ShowLastRegion 关=干净屏选区（不传 existing 矩形），此时 Enter「确认上次选区」随之无意义
         _picker = new RegionPickerWindow(monitor, existing: _settings.Current.ShowLastRegion ? StoredRegion()?.Bounds : null,
-            snapContent: _settings.Current.SnapContentArea, teachTip: teachTip, magnifier: _settings.Current.PickerMagnifier,
+            snapContent: _settings.Current.SnapContentArea, magnifier: _settings.Current.PickerMagnifier,
             colorFormat: Core.ColorFormat.Parse(_settings.Current.ColorCopyFormat), windowCapture: _settings.Current.WindowCaptureEnabled,
             freeze: _settings.Current.FreezeOnSelect, pregrabMax: _settings.Current.FreezePregrabMaxWindows,
             windowShadow: _settings.Current.WindowCaptureShadow);

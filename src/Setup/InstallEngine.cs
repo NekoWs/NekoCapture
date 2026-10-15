@@ -30,8 +30,84 @@ internal static class InstallEngine
 
     private const string RunValue = "FrameCapture";
 
-    /// <summary>安装目标目录。</summary>
-    internal static string InstallDir => Path.Combine(DotnetRuntime.ProgramFilesRoot, AppFolder);
+    /// <summary>默认安装目录：64 位 Program Files 下的程序目录。</summary>
+    internal static string DefaultInstallDir => Path.Combine(DotnetRuntime.ProgramFilesRoot, AppFolder);
+
+    /// <summary>本次要装到 / 要从哪里卸掉的目录。用户在安装界面里换过位置就是换过的那个。</summary>
+    internal static string InstallDir { get; set; } = DefaultInstallDir;
+
+    /// <summary>卸载时定位程序目录：以登记项里写下的 InstallLocation 为准——装在哪由用户定，
+    /// 只有登记知道。读不到（登记被手工删过、老包没写）才按默认目录处理。</summary>
+    /// <returns>登记过的目录，取不到时为 <see cref="DefaultInstallDir"/>。</returns>
+    internal static string RecordedInstallDir()
+    {
+        try
+        {
+            using var k = Registry.LocalMachine.OpenSubKey(UninstallKey);
+            if (k?.GetValue("InstallLocation") is string s && !string.IsNullOrWhiteSpace(s)) return s;
+        }
+        catch { /* 注册表读不动就按默认目录走，最坏是少删一个空目录 */ }
+        return DefaultInstallDir;
+    }
+
+    /// <summary>把用户挑的位置收敛成可安装的路径。只拦真会出事的那几条，其余交给安装本身报错。</summary>
+    /// <param name="dir">候选目录，允许相对写法与尾随分隔符。</param>
+    /// <param name="full">规范化后的绝对路径；不可用时为 <see cref="DefaultInstallDir"/>。</param>
+    /// <param name="why">不可用的原因，一句话，可直接上屏。</param>
+    /// <returns>true = 可以装到这里。</returns>
+    internal static bool TryTarget(string? dir, out string full, out string why)
+    {
+        full = DefaultInstallDir;
+        why = "";
+        if (string.IsNullOrWhiteSpace(dir)) { why = "没有填写位置"; return false; }
+
+        string p;
+        try { p = Path.GetFullPath(dir); }
+        catch (Exception) { why = "路径写法不合法"; return false; }
+
+        p = p.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        var root = Path.GetPathRoot(p);
+        if (p.Length == 0 || string.Equals(p, root?.TrimEnd(Path.DirectorySeparatorChar), StringComparison.OrdinalIgnoreCase))
+        { why = "不能直接装到磁盘根目录，请在盘下建一个子文件夹"; return false; }
+        if (p.Length > 240) { why = "路径太长，程序里的文件会放不下"; return false; }
+
+        foreach (var bad in new[]
+                 {
+                     Environment.GetFolderPath(Environment.SpecialFolder.Windows),
+                     Path.GetTempPath(),
+                 })
+            if (Within(p, bad)) { why = "这里装着系统或临时文件，换一个位置"; return false; }
+        if (string.Equals(p, DotnetRuntime.ProgramFilesRoot, StringComparison.OrdinalIgnoreCase))
+        { why = "要装到 Program Files 下面的一个子文件夹里"; return false; }
+
+        // 目录里已有东西时只认「这里就是 FrameCapture」：安装会把整个目录搬走再删掉备份，
+        // 指到用户的资料文件夹上就是一场灾难。
+        if (Directory.Exists(p) && !File.Exists(Path.Combine(p, AppName + ".exe")) && DirHasAnyEntry(p))
+        { why = "这个文件夹里已有别的文件，请换一个空文件夹"; return false; }
+
+        full = p;
+        return true;
+    }
+
+    /// <summary>a 是否就是 b，或者在 b 里面。</summary>
+    /// <param name="a">待判路径，已规范化且无尾随分隔符。</param>
+    /// <param name="b">参照目录。</param>
+    /// <returns>true = 两者是同一个目录或有包含关系。</returns>
+    private static bool Within(string a, string b)
+    {
+        var t = b.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        return t.Length > 0 && (string.Equals(a, t, StringComparison.OrdinalIgnoreCase)
+            || a.StartsWith(t + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>目录里是否有任何文件或子目录。</summary>
+    /// <param name="dir">目标目录。</param>
+    /// <returns>true = 非空；读不动（没权限、被占用）按非空处理，宁可拒装不可误删。</returns>
+    private static bool DirHasAnyEntry(string dir)
+    {
+        try { return Directory.EnumerateFileSystemEntries(dir).Any(); }
+        catch (Exception) { return true; }
+    }
 
     /// <summary>开始菜单程序组目录。</summary>
     internal static string StartMenuDir => Path.Combine(
@@ -139,10 +215,13 @@ internal static class InstallEngine
     {
         try
         {
+            // 装在哪由用户定，只有登记知道：先按登记定位，再动手删
+            InstallDir = RecordedInstallDir();
+
             log.Report("正在结束运行中的主程序");
             KillApp();
 
-            log.Report("正在删除程序目录");
+            log.Report("正在删除程序目录 " + InstallDir);
             TryDeleteDir(InstallDir);
 
             log.Report("正在删除快捷方式");
@@ -198,7 +277,10 @@ internal static class InstallEngine
     {
         var self = Process.GetCurrentProcess().MainModule?.FileName;
         if (string.IsNullOrEmpty(self) || !File.Exists(self)) return;
-        File.Copy(self, Path.Combine(InstallDir, UninstallEntryName), true);
+        var dest = Path.Combine(InstallDir, UninstallEntryName);
+        // 引导器就放在目标目录里跑的情况：把文件复制到自己身上只会抛一场
+        if (string.Equals(Path.GetFullPath(self), Path.GetFullPath(dest), StringComparison.OrdinalIgnoreCase)) return;
+        File.Copy(self, dest, true);
     }
 
     /// <summary>发行者名，取自工程的 Company 特性，发行脚本可用 -p:Company 覆盖。</summary>

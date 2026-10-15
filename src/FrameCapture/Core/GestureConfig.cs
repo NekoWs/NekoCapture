@@ -166,10 +166,27 @@ public sealed class GestureConfig
         return list;
     }
 
-    /// <summary>默认捕获键：播种与全新配置的唯一事实源，设置页与帮助窗都经它取值。</summary>
-    public const string DefaultCaptureKey = "Ctrl+Shift+G";
-    /// <summary>默认选区键：与 <see cref="DefaultCaptureKey"/> 同为唯一事实源。</summary>
-    public const string DefaultScopeKey = "Ctrl+Shift+R";
+    /// <summary>默认截图键：与 QQ 截图一致，按一下进选区、选完即截图。播种与全新配置的唯一事实源，
+    /// 设置页与帮助窗都经它取值。</summary>
+    public const string DefaultCaptureKey = "Ctrl+Alt+A";
+
+    /// <summary>默认录制键：与 QQ 一致，按一下起录、再按一下停。</summary>
+    public const string DefaultRecordKey = "Ctrl+Alt+R";
+
+    /// <summary>默认「QQ 键位」集：截图键进选区（配合 <c>AutoCaptureOnSelect</c> 选完自动截图），
+    /// 录制键按一下起录、再按一下停。两条都是 Chord——组合键本身即触发，没有轻点与按住的歧义。</summary>
+    /// <param name="captureKey">截图键串；非法则跳过该条。</param>
+    /// <param name="recordKey">录制键串；非法则跳过该条。</param>
+    /// <returns>0～2 条绑定，Id 为 <c>default.capture</c> / <c>default.record</c>。</returns>
+    public static List<GestureBindingDto> DefaultQqSet(string captureKey, string recordKey)
+    {
+        var list = new List<GestureBindingDto>();
+        if (HotkeySpec.Parse(captureKey) != null)
+            list.Add(B("default.capture", captureKey, "Chord", new[] { GestureActions.ScopeSelect }));
+        if (HotkeySpec.Parse(recordKey) != null)
+            list.Add(B("default.record", recordKey, "Chord", new[] { GestureActions.RecordToggle }));
+        return list;
+    }
 
     /// <summary>默认「轻点截图 + 按住录制」集：捕获键轻点→选区截图、按住→起录、松手→停止；
     /// 选区键组合键→选区。按住阈值 250ms 写在三条 tap/hold 绑定的 <c>LongPressMs</c> 上，三条必须同值。</summary>
@@ -191,44 +208,31 @@ public sealed class GestureConfig
         return list;
     }
 
-    /// <summary>一次性播种：未播种且当前无任何绑定 → 灌入默认 tap/hold 集并启用；随后置 <see cref="Seeded"/>。
-    /// 已有绑定的用户（含自定义）不受影响，只补置 Seeded。</summary>
-    /// <param name="captureKey">播种用的捕获键串，通常传 <see cref="DefaultCaptureKey"/>。</param>
-    /// <param name="scopeKey">播种用的选区键串，通常传 <see cref="DefaultScopeKey"/>。</param>
-    public void SeedIfNeeded(string captureKey, string scopeKey)
+    /// <summary>一次性播种：未播种且当前无任何绑定 → 灌入 <see cref="DefaultQqSet"/> 并启用；
+    /// 随后置 <see cref="Seeded"/>。已有绑定的用户（含自定义）不受影响，只补置 Seeded。</summary>
+    /// <param name="captureKey">播种用的截图键串，通常传 <see cref="DefaultCaptureKey"/>。</param>
+    /// <param name="recordKey">播种用的录制键串，通常传 <see cref="DefaultRecordKey"/>。</param>
+    public void SeedIfNeeded(string captureKey, string recordKey)
     {
         if (Seeded) return;
         if (Bindings.Count == 0)
         {
-            Bindings = DefaultTapHoldSet(captureKey, scopeKey);
+            Bindings = DefaultQqSet(captureKey, recordKey);
             Enabled = true;
         }
         Seeded = true;
     }
 
-    /// <summary>主捕获键文本（供欢迎卡/帮助展示）：取首个启用的 tap/hold 绑定的组合键；
-    /// 退化取首个含截图动作的启用绑定；都没有则默认键。</summary>
-    /// <returns>组合键串，形如 <c>Ctrl+Shift+G</c>。永不返回空串，最差回落到 <see cref="DefaultCaptureKey"/>。</returns>
+    /// <summary>「截图」键位文案（欢迎卡/启动气泡用）：选区截图与整帧截图都算截图，
+    /// 按绑定顺序取第一个启用的。默认键位下截图就是进选区，因此 <c>scope.select</c> 排在最前。</summary>
+    /// <returns>键位文案；一条都没绑时为「未绑定」。</returns>
     public string CaptureKeyText()
-    {
-        foreach (var b in Bindings)
-            if (b.Enabled && (b.Trigger is "Tap" or "Hold" or "HoldRelease") && HotkeySpec.Parse(b.Chord) != null)
-                return b.Chord;
-        foreach (var b in Bindings)
-            if (b.Enabled && b.Actions.Contains(GestureActions.CaptureSelection) && HotkeySpec.Parse(b.Chord) != null)
-                return b.Chord;
-        return DefaultCaptureKey;
-    }
+        => DescribeKeysFor(GestureActions.ScopeSelect, GestureActions.CaptureSelection, GestureActions.CaptureFrame);
 
-    /// <summary>主选区键文本：取首个含选区动作的启用绑定；无则默认键。</summary>
-    /// <returns>组合键串；无匹配时回落 <see cref="DefaultScopeKey"/>，该键此时可能并未绑定任何动作。</returns>
-    public string ScopeKeyText()
-    {
-        foreach (var b in Bindings)
-            if (b.Enabled && b.Actions.Contains(GestureActions.ScopeSelect) && HotkeySpec.Parse(b.Chord) != null)
-                return b.Chord;
-        return DefaultScopeKey;
-    }
+    /// <summary>「录制」键位文案：按一下切换、按下起录松开停录，两种写法都算录制键。</summary>
+    /// <returns>键位文案；一条都没绑时为「未绑定」。</returns>
+    public string RecordKeyText()
+        => DescribeKeysFor(GestureActions.RecordToggle, GestureActions.RecordStart, GestureActions.RecordStop);
 
     /// <summary>触发方式 → 中文后缀（供帮助/展示反映真实手感）。Chord 及未知返回空串——组合键本身即触发，无需后缀。</summary>
     /// <param name="trigger"><c>GestureCore.TriggerKind</c> 的名字；未知名字与 Chord 一样返回空串。</param>

@@ -9,12 +9,18 @@ namespace FrameCapture.Setup;
 
 /// <summary>
 /// 引导器入口。命令行形态：
-/// 无参数 = 界面；<c>--install</c> = 提权后执行安装；
+/// 无参数 = 界面；<c>--install</c> = 提权后执行安装，可跟 <c>--dir "&lt;目录&gt;"</c> 指定安装位置；
 /// <c>--uninstall</c> = 卸载（内部再派生临时副本以删掉安装目录里那份）；
 /// <c>--purge</c> = 等某进程退出后删掉一个文件。
 /// </summary>
 internal static class App
 {
+    /// <summary>安装开关，提权实例带着它跑完整安装。</summary>
+    internal const string ArgInstall = "--install";
+
+    /// <summary>安装位置开关，形如 <c>--dir "D:\Apps\FrameCapture"</c>；缺省装到 Program Files。</summary>
+    internal const string ArgDir = "--dir";
+
     /// <summary>卸载开关，控制面板里的 UninstallString 指向它。</summary>
     internal const string ArgUninstall = "--uninstall";
 
@@ -33,6 +39,9 @@ internal static class App
         Fluent.ApplyGlobalStyles();
         Theme.Apply(ThemeModeFromRegistry(), "#4CC2FF");
 
+        // 安装位置对每种形态都生效：预览要出的就是同一张界面
+        if (InstallEngine.TryTarget(ValueAfter(args, ArgDir), out var target, out _)) InstallEngine.InstallDir = target;
+
         if (args.Length >= 2 && args[0] == "--preview")
         {
             // 出图核对界面：建窗但不显示，取内容离屏渲染。
@@ -43,9 +52,25 @@ internal static class App
             Preview.Render(args[1], mode);
             return;
         }
-        if (Array.IndexOf(args, "--install") >= 0) { app.Run(new SetupWindow(SetupWindow.Mode.Install)); return; }
-        if (Array.IndexOf(args, ArgUninstall) >= 0) { app.Run(new SetupWindow(SetupWindow.Mode.Uninstall)); return; }
+        if (Array.IndexOf(args, ArgInstall) >= 0) { app.Run(new SetupWindow(SetupWindow.Mode.Install)); return; }
+        if (Array.IndexOf(args, ArgUninstall) >= 0)
+        {
+            // 卸载要找的是登记过的那个目录：装在哪由用户定，只有注册表知道
+            InstallEngine.InstallDir = InstallEngine.RecordedInstallDir();
+            app.Run(new SetupWindow(SetupWindow.Mode.Uninstall));
+            return;
+        }
         app.Run(new SetupWindow(SetupWindow.Mode.Idle));
+    }
+
+    /// <summary>取某个开关后面紧跟的那个值。</summary>
+    /// <param name="args">命令行参数。</param>
+    /// <param name="flag">开关名。</param>
+    /// <returns>紧跟其后的那个参数；开关缺席或排在末尾时为 null。</returns>
+    private static string? ValueAfter(string[] args, string flag)
+    {
+        var i = Array.IndexOf(args, flag);
+        return i >= 0 && i + 1 < args.Length ? args[i + 1] : null;
     }
 
     /// <summary>等一个进程退出后删掉一个文件。正在运行的 exe 删不掉自己，只能由另一个进程代删。</summary>

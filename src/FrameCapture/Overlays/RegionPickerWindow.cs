@@ -145,14 +145,13 @@ public sealed partial class RegionPickerWindow : Window
     /// <param name="monitor">要覆盖的显示器；选区、定格帧与预抓候选都限定在它的物理范围内。</param>
     /// <param name="existing">上次选区（物理像素、虚拟桌面绝对坐标），画出虚线框并允许 Enter 确认；null = 干净屏选区。</param>
     /// <param name="snapContent">true = 吸附优先取 UIA 控件矩形（不含标题栏/边框），取不到才回退窗口矩形。</param>
-    /// <param name="teachTip">提示条第二行的教学文案；null = 只显示一行。</param>
     /// <param name="magnifier">true = 建放大镜（光标旁像素窗 + 坐标/尺寸读数 + 取色行）。</param>
     /// <param name="colorFormat">按 C 复制像素色的文本形式；按 F 循环切换并写回设置。</param>
     /// <param name="windowCapture">true = 点吸附到的窗口时走真·窗口截图（带 alpha），而非按矩形截区域。</param>
     /// <param name="freeze">true = 开框瞬间定格整屏，背景/放大镜/裁选区共用这一帧。</param>
     /// <param name="pregrabMax">定格模式下后台预抓「完整可见」窗口干净画面的数量上限；0 = 不预抓，且只在 <c>freeze</c> 为 true 时才启动。</param>
     /// <param name="windowShadow">预抓的窗口画面是否带合成投影。</param>
-    public RegionPickerWindow(MonitorInfo monitor, RectI? existing, bool snapContent = false, string? teachTip = null, bool magnifier = false, Core.ColorCopyFormat colorFormat = Core.ColorCopyFormat.Hex, bool windowCapture = false, bool freeze = false, int pregrabMax = 0, bool windowShadow = false)
+    public RegionPickerWindow(MonitorInfo monitor, RectI? existing, bool snapContent = false, bool magnifier = false, Core.ColorCopyFormat colorFormat = Core.ColorCopyFormat.Hex, bool windowCapture = false, bool freeze = false, int pregrabMax = 0, bool windowShadow = false)
     {
         // 覆盖层不需要文本输入：禁用输入法，避免拼音拦截快捷键
         InputMethod.SetIsInputMethodEnabled(this, false);
@@ -231,28 +230,15 @@ public sealed partial class RegionPickerWindow : Window
             IsHitTestVisible = false,
             Opacity = 0,
         };
+        // 提示条只有一行：操作口径本身，不带教学副行
+        _hint.Child = new TextBlock
         {
-            var hintPanel = new StackPanel();
-            hintPanel.Children.Add(new TextBlock
-            {
-                Text = _existing != null
-                    ? "拖框选择 · 悬停点击吸附窗口 · Enter 确认上次选区 · Esc 取消"
-                    : "拖框选择 · 悬停点击吸附窗口 · Esc 取消",
-                FontSize = 13,
-                Foreground = new SolidColorBrush(Color.FromArgb(0xE6, 0xFF, 0xFF, 0xFF)),
-            });
-            if (teachTip != null)
-                hintPanel.Children.Add(new TextBlock
-                {
-                    Text = teachTip,
-                    FontSize = 13,
-                    FontWeight = FontWeights.SemiBold,
-                    Foreground = new SolidColorBrush(Core.Theme.Accent),
-                    HorizontalAlignment = HorizontalAlignment.Center,
-                    Margin = new Thickness(0, 3, 0, 0),
-                });
-            _hint.Child = hintPanel;
-        }
+            Text = _existing != null
+                ? "拖框选择 · 悬停点击吸附窗口 · Enter 确认上次选区 · Esc 取消"
+                : "拖框选择 · 悬停点击吸附窗口 · Esc 取消",
+            FontSize = 13,
+            Foreground = new SolidColorBrush(Color.FromArgb(0xE6, 0xFF, 0xFF, 0xFF)),
+        };
         var rootGrid = new Grid();
         if (_freeze)
         {

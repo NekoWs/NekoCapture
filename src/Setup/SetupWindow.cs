@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
 using FrameCapture.Core;
 
@@ -22,6 +23,10 @@ internal sealed class SetupWindow : Window
     private readonly Border _card = new();
     private readonly TextBlock _cardText = new();
     private readonly TextBlock _log = new();
+    /// <summary>目标位置那一行。换过位置要就地改写，用户得看见自己要装去哪。</summary>
+    private readonly TextBlock _targetText = new();
+    /// <summary>「更改」链接。卸载形态没有可换的东西，因此可空。</summary>
+    private TextBlock? _change;
     /// <summary>日志的可视窗口。预留带只有 76 高，进度写到后面必须滚到底，最新一行才看得见。</summary>
     private readonly ScrollViewer _logBox = new()
     {
@@ -104,17 +109,40 @@ internal sealed class SetupWindow : Window
             FontWeight = FontWeights.SemiBold,
             Foreground = new SolidColorBrush(Theme.Text),
         });
-        // 路径按本机 Program Files 现算：写死 C: 会在 Program Files 被重定向的机器上说谎
-        body.Children.Add(new TextBlock
+        // 路径按本机现算：写死 C: 会在 Program Files 被重定向的机器上说谎。
+        // 安装形态给一个「更改」入口——装到别的盘是常见诉求；卸载形态没有可换的东西。
+        var target = new Grid { Margin = new Thickness(0, 6, 0, 16) };
+        target.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        target.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        _targetText.Text = TargetLine(uninstall);
+        _targetText.FontSize = 12;
+        _targetText.TextWrapping = TextWrapping.Wrap;
+        _targetText.Foreground = new SolidColorBrush(Theme.TextDim);
+        Grid.SetColumn(_targetText, 0);
+        target.Children.Add(_targetText);
+        if (!uninstall)
         {
-            Text = uninstall
-                ? "将删除  " + InstallEngine.InstallDir + "、开始菜单快捷方式、开机自启与个人设置"
-                : "目标位置  " + InstallEngine.InstallDir + "（所有用户可用）",
-            FontSize = 12,
-            Margin = new Thickness(0, 6, 0, 16),
-            TextWrapping = TextWrapping.Wrap,
-            Foreground = new SolidColorBrush(Theme.TextDim),
-        });
+            var change = new TextBlock
+            {
+                Text = "更改",
+                FontSize = 12,
+                Cursor = Cursors.Hand,
+                Margin = new Thickness(14, 0, 0, 0),
+                VerticalAlignment = VerticalAlignment.Top,
+                Foreground = new SolidColorBrush(Fluent.AccentText()),
+            };
+            // 文字链接 hover 才显下划线：默认干净，悬停才提示这里可点
+            var linkStyle = new Style(typeof(TextBlock));
+            var linkHover = new Trigger { Property = UIElement.IsMouseOverProperty, Value = true };
+            linkHover.Setters.Add(new Setter(TextBlock.TextDecorationsProperty, TextDecorations.Underline));
+            linkStyle.Triggers.Add(linkHover);
+            change.Style = linkStyle;
+            change.MouseLeftButtonUp += (_, _) => PickTarget();
+            _change = change;
+            Grid.SetColumn(change, 1);
+            target.Children.Add(change);
+        }
+        body.Children.Add(target);
 
         _cardText.FontSize = 13;
         _card.Background = new SolidColorBrush(Theme.CardBg);
@@ -176,6 +204,32 @@ internal sealed class SetupWindow : Window
         if (_mode == Mode.Idle) _primary.Content = "下载并安装";
     }
 
+    /// <summary>目标位置那一行的文案。卸载形态报的是登记里的目录。</summary>
+    /// <param name="uninstall">true = 卸载形态措辞。</param>
+    /// <returns>一行完整文案。</returns>
+    private static string TargetLine(bool uninstall)
+    {
+        if (uninstall) return "将删除  " + InstallEngine.InstallDir + "、开始菜单快捷方式、开机自启与个人设置";
+        var machineWide = string.Equals(InstallEngine.InstallDir, InstallEngine.DefaultInstallDir,
+            StringComparison.OrdinalIgnoreCase);
+        return "目标位置  " + InstallEngine.InstallDir + (machineWide ? "（所有用户可用）" : "");
+    }
+
+    /// <summary>换安装位置。挑的位置装不了就在同一行写明白，界面那行始终说真话。</summary>
+    private void PickTarget()
+    {
+        if (_busy) return;
+        var picked = FolderPicker.Pick(this, InstallEngine.InstallDir, "选择安装位置", "安装到此处");
+        if (picked == null) return;   // 取消：什么都不改
+        if (!InstallEngine.TryTarget(picked, out var full, out var why))
+        {
+            _targetText.Text = TargetLine(false) + "（装不了：" + why + "）";
+            return;
+        }
+        InstallEngine.InstallDir = full;
+        _targetText.Text = TargetLine(false);
+    }
+
     /// <summary>主按钮：空闲态申请提权续跑，提权态直接干活，收尾态负责打开与关闭。</summary>
     private void OnPrimary()
     {
@@ -183,7 +237,8 @@ internal sealed class SetupWindow : Window
         if (_mode == Mode.Idle)
         {
             if (App.Elevated) { StartInstall(); return; }
-            if (!App.RelaunchElevated("--install"))
+            // 位置随命令行带进提权实例：提权那一趟没有界面可挑
+            if (!App.RelaunchElevated(App.ArgInstall + " " + App.ArgDir + " \"" + InstallEngine.InstallDir + "\""))
             {
                 Log("已取消：安装需要管理员权限");
                 return;
@@ -206,6 +261,7 @@ internal sealed class SetupWindow : Window
         _busy = true;
         _primary.IsEnabled = false;
         _secondary.IsEnabled = false;   // 半途关窗会留下装了一半的目录，进度期间不给退出入口
+        if (_change != null) _change.Visibility = Visibility.Collapsed;   // 位置已定，进度期间锁住这个入口
         // 走到这一步，运行时要么已就位、要么正由下面的下载补上——那条提示的使命已经结束
         _card.Visibility = Visibility.Collapsed;
         try

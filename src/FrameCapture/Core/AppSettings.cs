@@ -72,9 +72,6 @@ public sealed class AppSettings
     /// <summary>按下选区快捷键后是否显示上次选区的虚线框（关=干净屏，Enter 确认上次选区随之失效）。</summary>
     public bool ShowLastRegion { get; set; } = true;
 
-    /// <summary>「按住 = 录制」教学提示是否已展示过：置真后该提示永久静默（首次真正起录时置真）。</summary>
-    public bool RecHintShown { get; set; } = false;
-
     /// <summary>捕获完成后除写剪贴板外，再存一份文件副本到本地目录：截图存 PNG、录制按 RecordFormat 存 MP4/WebM（未装 ffmpeg 回退 GIF）。
     /// 默认关（不意外落盘）；开启后写盘失败只记日志，绝不影响剪贴板主流程。</summary>
     public bool AutoSaveCopy { get; set; } = false;
@@ -204,7 +201,7 @@ public sealed class AppSettings
         if (Theme is not ("system" or "light" or "dark")) Theme = "system";
         if (AfterCapture is not ("toast" or "editor" or "copy" or "pin")) AfterCapture = "toast";
         Gestures ??= new GestureConfig();
-        Gestures.SeedIfNeeded(GestureConfig.DefaultCaptureKey, GestureConfig.DefaultScopeKey);   // 一次性：空配置播种「轻点截图+按住录制」默认集
+        Gestures.SeedIfNeeded(GestureConfig.DefaultCaptureKey, GestureConfig.DefaultRecordKey);   // 一次性：空配置播种 QQ 键位（截图 / 录制）
         ToastSeconds = ToastSeconds <= 0 ? 0 : Math.Clamp(ToastSeconds, 0.5, 60);
         FreezePregrabMaxWindows = Math.Clamp(FreezePregrabMaxWindows, 0, 16);
         if (RegionW < 16 || RegionH < 16)

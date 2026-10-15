@@ -73,7 +73,7 @@ public partial class App : Application
                 var st = Services.AppHost.Current.Settings;
                 if (st.Current.FirstRunHintShown) return;
                 st.Mutate(s => s.FirstRunHintShown = true);
-                Overlays.WelcomeToast.Show(st.Current.Gestures.CaptureKeyText(), st.Current.Gestures.ScopeKeyText());
+                Overlays.WelcomeToast.Show(st.Current.Gestures.CaptureKeyText(), st.Current.Gestures.RecordKeyText());
             }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
         else if (Services.AppHost.Current.Settings.Current.StartupToast)
             // 之后每次启动只报一句「已启动」。本程序没有主窗口，缺这一下容易被当成没启动成功。
@@ -82,7 +82,7 @@ public partial class App : Application
             {
                 var s = Services.AppHost.Current.Settings.Current;
                 Overlays.NoticeToast.Show("FrameCapture 已启动",
-                    $"已在托盘待命 · 截图 {s.Gestures.CaptureKeyText()} · 选区 {s.Gestures.ScopeKeyText()}",
+                    $"已在托盘待命 · 截图 {s.Gestures.CaptureKeyText()} · 录制 {s.Gestures.RecordKeyText()}",
                     "\uE73E");
             }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
 
@@ -145,7 +145,7 @@ public partial class App : Application
             Dispatcher.BeginInvoke(() =>
             {
                 var st = Services.AppHost.Current.Settings;
-                Overlays.WelcomeToast.Show(st.Current.Gestures.CaptureKeyText(), st.Current.Gestures.ScopeKeyText());
+                Overlays.WelcomeToast.Show(st.Current.Gestures.CaptureKeyText(), st.Current.Gestures.RecordKeyText());
             }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
         // 弹一条启动气泡（便于脚本/e2e 调用与截图审查；措辞与真实启动路径同源，热键取当前设置）
         if (e.Args.Any(a => string.Equals(a, "--notice", StringComparison.OrdinalIgnoreCase)))
@@ -153,7 +153,7 @@ public partial class App : Application
             {
                 var s = Services.AppHost.Current.Settings.Current;
                 Overlays.NoticeToast.Show("FrameCapture 已启动",
-                    $"已在托盘待命 · 截图 {s.Gestures.CaptureKeyText()} · 选区 {s.Gestures.ScopeKeyText()}",
+                    $"已在托盘待命 · 截图 {s.Gestures.CaptureKeyText()} · 录制 {s.Gestures.RecordKeyText()}",
                     "\uE73E");
             }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
         // 打开选区窗（截图/选区同一入口，便于脚本/e2e 验证「不抢焦点」与全局键代收）

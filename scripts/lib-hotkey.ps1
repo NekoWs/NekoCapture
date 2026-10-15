@@ -61,8 +61,8 @@ function Get-FcSettings {
     return [pscustomobject]@{}
 }
 
-# R126 B2：旧 CaptureHotkey/ScopeHotkey 字段退役，键位改由手势绑定决定。
-# 从 gestures.bindings 推导主键文本，与 C# 侧 GestureConfig.CaptureKeyText/ScopeKeyText 同规。
+# 键位由手势绑定决定。从 gestures.bindings 推导「截图」键位，与 C# 侧
+# GestureConfig.CaptureKeyText 同规：先认 tap/hold 系列的键，再认截图/选区动作所在的键。
 function Get-FcCaptureHotkey {
     $g = (Get-FcSettings).gestures
     if ($g -and $g.Bindings) {
@@ -70,20 +70,10 @@ function Get-FcCaptureHotkey {
             if ($b.Enabled -and $b.Trigger -in 'Tap','Hold','HoldRelease') { return $b.Chord }
         }
         foreach ($b in $g.Bindings) {
-            if ($b.Enabled -and $b.Actions -contains 'capture.selection') { return $b.Chord }
+            if ($b.Enabled -and ($b.Actions -contains 'capture.selection' -or $b.Actions -contains 'scope.select')) { return $b.Chord }
         }
     }
-    return 'Ctrl+Shift+G'   # 与 GestureConfig.DefaultCaptureKey 一致
-}
-
-function Get-FcScopeHotkey {
-    $g = (Get-FcSettings).gestures
-    if ($g -and $g.Bindings) {
-        foreach ($b in $g.Bindings) {
-            if ($b.Enabled -and $b.Actions -contains 'scope.select') { return $b.Chord }
-        }
-    }
-    return 'Ctrl+Shift+R'   # 与 GestureConfig.DefaultScopeKey 一致
+    return 'Ctrl+Alt+A'   # 与 GestureConfig.DefaultCaptureKey 一致
 }
 
 # R126 B2：e2e 统一测试手势集——把 settings.json 的 gestures 段钉成一套已知绑定，
