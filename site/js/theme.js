@@ -24,7 +24,7 @@ FC.theme = (function () {
     syncGlyph(value);
   }
 
-  /* 图标字形与工具内一致：E706 月亮（当前深色，点击去浅色）、E708 太阳（反之） */
+  /* 图标字形与工具内一致：E706 太阳=浅色、E708 月亮=深色；按钮显示点下去要去的那个主题 */
   function syncGlyph(value) {
     var el = document.querySelector('#themeToggle .iconbtn__glyph');
     if (!el) { return; }
