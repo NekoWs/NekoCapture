@@ -1,5 +1,6 @@
-# 编辑器键盘矩阵（headless：FC_TEST_NO_FG=1 不抢前台；PostMessage 直投自有窗）
-# R126 B2：进入编辑器改走手势——统一测试手势集下按住 Ctrl+Shift+G → 录制 → edit.lastvideo → 编辑器。
+# 编辑器键盘矩阵（headless：FC_TEST_NO_FG=1 不抢前台；键经 --editorkey 直投编辑器分派表）
+# 进入编辑器走合成键——统一测试手势集下按住 Ctrl+Shift+G → 录制 → edit.lastvideo → 编辑器。
+# 全程零 OS 级输入：合成键经消息专用窗喂进引擎的 KeySink，用户正用电脑时也能跑。
 # Enter 后断言剪贴板三格式（CF_HDROP .gif + 位图 + FrameCapture.Gif）。结束一律还原用户设置。
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
@@ -14,22 +15,24 @@ try {
     $env:FC_TEST_NO_FG = "1"
     $p = Start-Process $exe -PassThru  # 子进程继承 $env:FC_TEST_NO_FG
     Start-Sleep 1.5
-    Invoke-FcHotkey $shot $capHk 700 | Out-Null; Start-Sleep 1.8
+    Invoke-FcSynthetic $exe $capHk 700; Start-Sleep 2.2
     $ed0 = & $shot rect "FrameCapture Editor" 2>$null
     Write-Host "title0=[$ed0]"
+    # 合成键经消息通道抵达引擎，不经任何 OS 级注入——没有「被游戏屏蔽」这类外因可怪，
+    # 编辑器没出现就是链路断了，必须红。
     if ($ed0 -match "not-found") {
-        Write-Host "SKIP: 编辑器未出现——游戏/反外挂可能屏蔽注入式按键（hook 无事件），请关闭游戏后重跑"
+        Write-Host "FAIL: 编辑器未出现——合成键未经消息通道抵达引擎（主实例需带 FC_TEST_NO_FG=1 启动）"
         if (!$p.HasExited) { $p.Kill() }
-        exit 0
+        exit 1
     }
     # Space play, Space pause, Right/Left 单帧, Shift+Right 上秒级步进, D/A 工具切换（需无修饰），Enter 提交
-    Wait-FcModifiersUp; & $shot keyw "FrameCapture Editor" 32 2>$null | Out-Null; Start-Sleep 0.4
-    Wait-FcModifiersUp; & $shot keyw "FrameCapture Editor" 39 2>$null | Out-Null; Start-Sleep 0.3
-    Wait-FcModifiersUp; & $shot keyw "FrameCapture Editor" 37 2>$null | Out-Null; Start-Sleep 0.3
+    Invoke-FcEditorKey $exe 32; Start-Sleep 0.4
+    Invoke-FcEditorKey $exe 39; Start-Sleep 0.3
+    Invoke-FcEditorKey $exe 37; Start-Sleep 0.3
     # Enter 前记暂存目录快照：ClipboardService 会把 GIF 落到 %TEMP%\FrameCapture\capture-*.gif
     $stage = Join-Path $env:TEMP "FrameCapture"
     $gifsBefore = @(Get-ChildItem $stage -Filter *.gif -EA SilentlyContinue).Count
-    & $shot keyw "FrameCapture Editor" 13 2>$null | Out-Null; Start-Sleep 2.5
+    Invoke-FcEditorKey $exe 13; Start-Sleep 2.5
     # Enter 提交后：编辑器已关 + 真剪贴板三格式（在杀进程前取证，避免所有权竞态）
     $ed = & $shot rect "FrameCapture Editor" 2>$null
     if ($null -eq ('FcProbe.ClipProbe' -as [type])) {

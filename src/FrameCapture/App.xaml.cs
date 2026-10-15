@@ -27,6 +27,8 @@ public partial class App : Application
     const string MsgOcr = "FrameCapture_Ocr";
     /// <summary>合成一次组合键的按下与抬起。wParam = 主键 VK | 修饰键位 <<8，lParam = 按住毫秒数。</summary>
     const string MsgSynthetic = "FrameCapture_Synthetic";
+    /// <summary>把一次裸键直投当前编辑器的分派表。wParam = 虚拟键码。</summary>
+    const string MsgEditorKey = "FrameCapture_EditorKey";
 
     [System.Runtime.InteropServices.DllImport("user32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
     static extern uint RegisterWindowMessageW(string lpString);
@@ -335,6 +337,7 @@ public partial class App : Application
         ("--settings", MsgOpenSettings), ("--help", MsgOpenHelp), ("--edit-last", MsgEditLast),
         ("--scroll", MsgScroll), ("--delay", MsgDelay), ("--pin-clip", MsgPinClip),
         ("--pause-toggle", MsgPauseToggle), ("--ocr", MsgOcr), ("--synthetic", MsgSynthetic),
+        ("--editorkey", MsgEditorKey),
     };
 
     void StartMessageSink()
@@ -353,6 +356,7 @@ public partial class App : Application
                 (MsgPauseToggle,  (_, _) => OnUi(() => Services.AppHost.Current.Tray.TogglePause())),
                 (MsgOcr,          (_, _) => OnUi(() => Services.AppHost.Current.Controller.OcrStoredStill())),
                 (MsgSynthetic,    SynthesizeChord),
+                (MsgEditorKey,    (w, _) => OnUi(() => FeedEditorKey((int)w.ToInt64()))),
             });
         }
         catch (Exception ex) { LogCrash(ex, "MsgSink"); }
@@ -413,6 +417,7 @@ public partial class App : Application
             if (!args.Any(a => string.Equals(a, flag, StringComparison.OrdinalIgnoreCase))) continue;
             IntPtr w = IntPtr.Zero, l = IntPtr.Zero;
             if (msg == MsgSynthetic && !TryEncodeChord(args, out w, out l)) return;
+            if (msg == MsgEditorKey && !TryEncodeVk(args, out w)) return;
             PostToSink(msg, w, l);
             return;
         }
@@ -437,6 +442,32 @@ public partial class App : Application
         w = new IntPtr((int)spec.VirtualKey | (mods << 8));
         l = new IntPtr(holdMs);
         return true;
+    }
+
+    /// <summary>取 <c>--editorkey &lt;虚拟键码&gt;</c> 的键码。十进制 VK 由测试侧从 Win32 常量直接给出，
+    /// 不在应用侧再维护一份键名表。</summary>
+    /// <param name="args">二次实例的命令行参数。</param>
+    /// <param name="w">虚拟键码。</param>
+    /// <returns>键码合法才为 true。</returns>
+    static bool TryEncodeVk(string[] args, out IntPtr w)
+    {
+        w = IntPtr.Zero;
+        int i = Array.FindIndex(args, a => string.Equals(a, "--editorkey", StringComparison.OrdinalIgnoreCase));
+        if (i < 0 || i + 1 >= args.Length) return false;
+        if (!int.TryParse(args[i + 1], out int vk) || vk <= 0 || vk > 254) return false;
+        w = new IntPtr(vk);
+        return true;
+    }
+
+    /// <summary>把一次裸键直投当前编辑器。只在测试形态下受理：发行进程不接受任何合成键。</summary>
+    /// <param name="vk">Win32 虚拟键码。</param>
+    void FeedEditorKey(int vk)
+    {
+        if (Environment.GetEnvironmentVariable("FC_TEST_NO_FG") != "1") { Core.Trace.Log("sink→editorkey refused"); return; }
+        var key = System.Windows.Input.KeyInterop.KeyFromVirtualKey(vk);
+        if (key == System.Windows.Input.Key.None) { Core.Trace.Log($"sink→editorkey unmapped vk={vk}"); return; }
+        if (!Services.AppHost.Current.Controller.FeedEditorKey(System.Windows.Input.ModifierKeys.None, key))
+            Core.Trace.Log($"sink→editorkey no editor vk={vk}");
     }
 
     static void PostToSink(string msg, IntPtr w, IntPtr l)

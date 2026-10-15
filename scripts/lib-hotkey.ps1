@@ -130,12 +130,36 @@ public static bool AnyDown() {
         if ((GetAsyncKeyState(vk) & 0x8000) != 0) return true;
     return false;
 }
+public static bool AnyInputDown() {
+    foreach (int vk in new[] { 0x01, 0x02, 0x10, 0x11, 0x12, 0x1B, 0x5B, 0x5C })
+        if ((GetAsyncKeyState(vk) & 0x8000) != 0) return true;
+    return false;
+}
 '@
 }
 function Wait-FcModifiersUp {
     param([int]$TimeoutSec = 15)
     $t0 = Get-Date
     while ([FcMods.Kb]::AnyDown() -and ((Get-Date) - $t0).TotalSeconds -lt $TimeoutSec) { Start-Sleep -Milliseconds 120 }
+}
+
+# 安静窗口：连续 -QuietMs 毫秒内没有任何物理按键或鼠标键按下，才算用户暂时没在用电脑。
+# 唯一必须真注入的那一项（焦点安全）用它把关——等不到就返回 false，调用方跳过，绝不硬闯。
+# 判据是物理输入状态本身，不是「前台窗口类名像不像游戏」：后者看不见正在编辑器里打字的人。
+function Wait-FcQuiet {
+    param([int]$TimeoutSec = 25, [int]$QuietMs = 3000)
+    $t0 = Get-Date
+    while (((Get-Date) - $t0).TotalSeconds -lt $TimeoutSec) {
+        $busy = $false
+        $sw = [Diagnostics.Stopwatch]::StartNew()
+        while ($sw.ElapsedMilliseconds -lt $QuietMs) {
+            if ([FcMods.Kb]::AnyInputDown()) { $busy = $true; break }
+            Start-Sleep -Milliseconds 60
+        }
+        if (-not $busy) { return $true }
+        Start-Sleep -Milliseconds 250
+    }
+    return $false
 }
 # 合成一次组合键的按下与抬起：二次实例把参数转发给主实例的消息专用窗（HWND_MESSAGE），
 # 由它喂进手势引擎的 KeySink——与低级键盘钩子同一个入口，只是不产生 OS 级输入。
@@ -151,4 +175,11 @@ function Start-FcTestApp {
     param([string]$Exe)
     $env:FC_TEST_NO_FG = "1"
     return Start-Process $Exe -PassThru
+}
+# 把一次裸键直投编辑器分派表。编辑器窗未激活时 WPF 不会把 PostMessage 的键路由进来，
+# 而激活窗口本身就是一次抢前台——键盘焦点与前台在 Win32 里绑死。这条通道经主实例的
+# 消息专用窗进入，落进与真实按键同一个分派入口。前提同样是主实例带 FC_TEST_NO_FG=1。
+function Invoke-FcEditorKey {
+    param([string]$Exe, [int]$Vk)
+    Start-Process $Exe -ArgumentList @('--editorkey', "$Vk") -WindowStyle Hidden | Out-Null
 }

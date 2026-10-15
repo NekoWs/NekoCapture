@@ -1,7 +1,7 @@
-# R7 缩放回归：手势按住→录制→编辑器→End(1:1)→PageUp×3(放大)→Home(适配)→Esc。
-# R126 B2：进入编辑器走统一测试手势集（按住 Ctrl+Shift+G→edit.lastvideo），并固定大区域。
+# 缩放回归：合成键按住→录制→编辑器→End(1:1)→PageUp×3(放大)→Home(适配)→Esc。
+# 进入编辑器走统一测试手势集（按住 Ctrl+Shift+G→edit.lastvideo），并固定大区域；零 OS 级输入。
 # 断言 = trace 键路由（editor key=None+End/PageUp/Home）+ ≥5 条 editor zoom= 决策行；
-# 截图取证（HUD 应显示 1:1 / 195%）落 test-out/zoom-evidence/。注入被拦截（编辑器未出现）→ SKIP ≠ FAIL。
+# 截图取证（HUD 应显示 1:1 / 195%）落 test-out/zoom-evidence/。
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 . (Join-Path $PSScriptRoot "lib-hotkey.ps1")
@@ -22,20 +22,20 @@ try {
     $env:FC_TEST_NO_FG = "1"
     $p = Start-Process $exe -PassThru
     Start-Sleep 1.5
-    Invoke-FcHotkey $shot $capHk 700 | Out-Null
-    Start-Sleep 2.0
+    Invoke-FcSynthetic $exe $capHk 700
+    Start-Sleep 2.2
     $ed = & $shot rect "FrameCapture Editor" 2>$null
     if ($ed -match "not-found") {
-        Write-Host "ZOOM SKIP: 编辑器未出现（注入被拦截）"
+        Write-Host "ZOOM FAIL: 编辑器未出现——合成键未经消息通道抵达引擎"
         if (!$p.HasExited) { $p.Kill() }
-        exit 0
+        exit 1
     }
-    Wait-FcModifiersUp; & $shot keyw "FrameCapture Editor" 35 2>$null | Out-Null; Start-Sleep 0.6   # End → 1:1
+    Invoke-FcEditorKey $exe 35; Start-Sleep 0.6   # End → 1:1
     if (Test-Path $uicap) { & $uicap region "FrameCapture Editor" "$out\zoom-1to1.png" | Out-Null }
-    1..3 | ForEach-Object { Wait-FcModifiersUp; & $shot keyw "FrameCapture Editor" 33 2>$null | Out-Null; Start-Sleep 0.3 }  # PageUp×3
+    1..3 | ForEach-Object { Invoke-FcEditorKey $exe 33; Start-Sleep 0.3 }  # PageUp×3
     if (Test-Path $uicap) { & $uicap region "FrameCapture Editor" "$out\zoom-in.png" | Out-Null }
-    Wait-FcModifiersUp; & $shot keyw "FrameCapture Editor" 36 2>$null | Out-Null; Start-Sleep 0.6   # Home → 适配
-    Wait-FcModifiersUp; & $shot keyw "FrameCapture Editor" 27 2>$null | Out-Null; Start-Sleep 1.0   # Esc
+    Invoke-FcEditorKey $exe 36; Start-Sleep 0.6   # Home → 适配
+    Invoke-FcEditorKey $exe 27; Start-Sleep 1.0   # Esc
     if (!$p.HasExited) { $p.Kill() }
     $log = ""
     if ((Get-Item $trace).Length -gt $mark) {

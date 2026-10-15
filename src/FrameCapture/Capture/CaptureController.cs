@@ -493,8 +493,8 @@ public sealed partial class CaptureController : IDisposable
             State = Phase.Idle;
             // 磁盘暂存帧列表随编辑器释放（删 spool 文件）
             (seq.Frames as IDisposable)?.Dispose();
-            // 焦点归还给捕获前正在使用的窗口
-            try { if (_prevFg != IntPtr.Zero && Native.Win32.IsWindow(_prevFg)) ForegroundNow(_prevFg); } catch { }
+            // 焦点归还给捕获前正在使用的窗口（测试形态下不做：归还也是一次 SetForegroundWindow）
+            try { if (!TestNoForeground && _prevFg != IntPtr.Zero && Native.Win32.IsWindow(_prevFg)) ForegroundNow(_prevFg); } catch { }
             _prevFg = IntPtr.Zero;
             // 编辑器位图 LRU（封顶约 600MB）此刻已成垃圾，但 .NET 不把页交还 OS、工作集虚高。
             // 等窗口拆完（ApplicationIdle）再主动全代 GC + 裁工作集，等价用户手动 MemReduct，回到干净基线。
@@ -502,8 +502,24 @@ public sealed partial class CaptureController : IDisposable
                 () => Memory.Reclaim(),
                 System.Windows.Threading.DispatcherPriority.ApplicationIdle);
         };
+        // Show 默认 ShowActivated=true，激活本身就是一次抢前台，绕开 ForceForeground 里的开关；
+        // 测试形态下必须一起关掉，否则「不抢前台」只对 Activate 那半边成立。
+        _editor.ShowActivated = !TestNoForeground;
         _editor.Show();
         ForceForeground(_editor);
+    }
+
+    /// <summary>把一次按键直投当前编辑器的分派表。编辑器窗未激活时 WPF 不会路由键盘，
+    /// 测试通道经此进入与真实按键同一个入口。调用方是主实例的消息专用窗，
+    /// 那条路只在 FC_TEST_NO_FG=1 的测试形态下受理命令。</summary>
+    /// <param name="mods">修饰键状态。</param>
+    /// <param name="key">WPF 键。</param>
+    /// <returns>有编辑器在开并已分派返回真。</returns>
+    public bool FeedEditorKey(System.Windows.Input.ModifierKeys mods, System.Windows.Input.Key key)
+    {
+        if (_editor == null) return false;
+        _editor.FeedKeyForTest(mods, key);
+        return true;
     }
     #endregion
 

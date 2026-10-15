@@ -1,9 +1,13 @@
 # E 回归护栏（UIAUDIT.md E 条目）：一条命令跑完整闸门——
-#   静态扫描 → 构建 0 error → SelfTest 全过（≥基线数）→ 产物起得来 → 注入可达性探针 → 全套 e2e
-# 语义：SKIP（反外挂拦截注入）≠ FAIL；缺 PASS 标记一律按 FAIL（不信任无结果的运行）。
+#   静态扫描 → 构建 0 error → SelfTest 全过（≥基线数）→ 产物起得来 → 控制器响应探针 → 全套 e2e
+# 默认路径零 OS 级输入：合成键经主实例的消息专用窗喂进手势引擎，用户正用电脑时也能跑完，
+# 键盘鼠标一下都不动。
+# 焦点安全是唯一例外——它测的就是「全局热键会不会漏字符进前台应用」，不经真实注入测不到，
+# 因此默认 SKIP；要跑请显式加 -AllowInjection，加了之后仍有安静窗口闸兜底。
+# 语义：SKIP（本轮没跑的项）≠ FAIL；缺 PASS 标记一律按 FAIL（不信任无结果的运行）。
 # 静态扫描不依赖构建，与构建并行起跑，SelfTest 期间收结果；三个构建互不写同一个 obj，也并行。
-# 用法: pwsh -NoProfile -File scripts/guardrail.ps1 [-SkipE2e] [-MinSelfTestPass 560]
-param([switch]$SkipE2e, [int]$MinSelfTestPass = 560)
+# 用法: pwsh -NoProfile -File scripts/guardrail.ps1 [-SkipE2e] [-AllowInjection] [-MinSelfTestPass 560]
+param([switch]$SkipE2e, [switch]$AllowInjection, [int]$MinSelfTestPass = 560)
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 . (Join-Path $PSScriptRoot "lib-hotkey.ps1")
@@ -132,7 +136,7 @@ $e2e = @(
     @{ n = "e2e:zoom(1:1/放大/适配 键路由+zoom决策)";             f = "test-zoom.ps1";           mark = "ZOOM" },
     @{ n = "e2e:esc-layers(绘制态Esc不丢捕获)";                   f = "test-esc-layers.ps1";     mark = "ESC-LAYERS" },
     @{ n = "e2e:tap-semantics(手势轻点截图/长按录制)";             f = "test-tap-semantics.ps1";  mark = "TAP-SEMANTICS" },
-    @{ n = "e2e:focus-safety(吞键不漏字符)";                     f = "test-focus-safety.ps1";   mark = "FOCUS-SAFETY" },
+    @{ n = "e2e:focus-safety(吞键不漏字符)";                     f = "test-focus-safety.ps1";   mark = "FOCUS-SAFETY"; gated = $true },
     @{ n = "e2e:fuzz-statemachine(乱键存活)";                    f = "fuzz-statemachine.ps1";   mark = "FUZZ" }
 )
 if ($SkipE2e) {
@@ -143,24 +147,28 @@ if ($SkipE2e) {
     # 验证链不该在用户机器上留下可见的状态变化，也不该让下一轮从上一轮改写的主题起跑。
     $cfgFile = Join-Path $env:APPDATA 'FrameCapture\settings.json'
     $cfgBak = if (Test-Path $cfgFile) { [IO.File]::ReadAllBytes($cfgFile) } else { $null }
-    $capHk = Get-FcCaptureHotkey
-    $blocked = $false
-    $probe = Start-Process $exe -PassThru; Start-Sleep 1.5
-    Invoke-FcHotkey $shot $capHk 200 | Out-Null; Start-Sleep 1.2
-    # 注入可达性：捕获键命中 FC 即会弹窗——轻点走选区窗、长按走录制→编辑器。
-    # 任一 FC 窗出现即证明注入可达；两者都没有才判为被反外挂拦截。
-    $edProbe = & $shot rect "FrameCapture Editor" 2>$null
+
+    # 控制器响应探针：--picker 让主实例走 BeginScopeSelection（与热键命中同一个入口），
+    # 选区窗出现即证明产物起得来、控制器在听。零 OS 级输入，也不抢前台。
+    $t0 = [Diagnostics.Stopwatch]::StartNew()
+    $env:FC_TEST_NO_FG = "1"
+    Start-Process $exe -ArgumentList '--picker' -PassThru | Out-Null
+    Start-Sleep 2.0
     $pkProbe = & $shot rect "FrameCapture Region" 2>$null
-    if ($edProbe -match "not-found" -and $pkProbe -match "not-found") { $blocked = $true }
-    else {
-        if ($edProbe -notmatch "not-found") { & $shot keyw "FrameCapture Editor" 27 2>$null | Out-Null }
-        if ($pkProbe -notmatch "not-found") { & $shot keyw "FrameCapture Region" 27 2>$null | Out-Null }
-        Start-Sleep 0.4
-    }
+    Add-Result "probe:controller-responds" $(if ($pkProbe -notmatch "not-found") { "PASS" } else { "FAIL" }) $pkProbe $t0.Elapsed.TotalSeconds
+    & $shot keyw "FrameCapture Region" 27 2>$null | Out-Null
+    Start-Sleep 0.4
+    Remove-Item Env:\FC_TEST_NO_FG -EA SilentlyContinue
     Get-Process FrameCapture -EA SilentlyContinue | Stop-Process -Force
-    if ($blocked) { Say "  !! 注入探针未命中编辑器——前台疑似反外挂游戏，e2e 全部 SKIP（≠FAIL）" }
+
     foreach ($t in $e2e) {
-        if ($blocked) { Add-Result $t.n "SKIP" "注入被拦截"; continue }
+        # 焦点安全是全套里唯一必须真注入 OS 级按键的一项：注入期间 Ctrl 真的会被按住约 900ms，
+        # 用户此刻滚一下滚轮，浏览器就跟着缩放。安静窗口只保证「过去 3 秒没输入」，
+        # 预测不了下一秒——所以默认不跑，显式 -AllowInjection 才跑，跑了也还要再过一道闸。
+        if ($t.gated) {
+            if (-not $AllowInjection) { Add-Result $t.n "SKIP" "需 -AllowInjection（会注入 OS 级按键）"; continue }
+            if (-not (Wait-FcQuiet -TimeoutSec 25 -QuietMs 3000)) { Add-Result $t.n "SKIP" "用户持续有输入，跳过注入项"; continue }
+        }
         $t0 = [Diagnostics.Stopwatch]::StartNew()
         $r = Wait-Async (Start-Async ("e2e-" + $t.mark) "pwsh" @("-NoProfile", "-File", (Join-Path $PSScriptRoot $t.f)))
         $o = $r.Text

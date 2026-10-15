@@ -24,30 +24,47 @@ public sealed partial class EditorWindow : Window
 
     void OnKeyDown(object sender, KeyEventArgs e)
     {
-        Trace.Log($"editor key={e.KeyboardDevice.Modifiers}+{e.Key}");
+        var mods = e.KeyboardDevice.Modifiers;
+        // Alt 组合在 WPF 里报成 Key.System，真身在 SystemKey 里，不还原就永远命不中键位表
+        var key = e.Key == Key.System ? e.SystemKey : e.Key;
+        DispatchKey(mods, key, e);
+    }
+
+    /// <summary>测试通道：把一次按键直投分派表。编辑器窗未激活时 WPF 不会把 PostMessage 的键
+    /// 路由进来，而激活窗口本身就是一次抢前台——键盘焦点与前台在 Win32 里是绑死的。
+    /// 修饰键由调用方显式给出：真实键盘状态在测试里不可控。</summary>
+    /// <param name="mods">修饰键状态。</param>
+    /// <param name="key">WPF 键。</param>
+    internal void FeedKeyForTest(ModifierKeys mods, Key key) => DispatchKey(mods, key, null);
+
+    /// <summary>键位 → 命令的分派主体。真实按键与测试直投共用这一条，区别只在有没有可标记的
+    /// <see cref="KeyEventArgs"/>。</summary>
+    /// <param name="mods">本次按键的修饰键状态。</param>
+    /// <param name="key">主键（Alt 组合已由调用方从 SystemKey 还原）。</param>
+    /// <param name="e">触发分派的按键事件；测试直投为 null。</param>
+    void DispatchKey(ModifierKeys mods, Key key, KeyEventArgs? e)
+    {
+        Trace.Log($"editor key={mods}+{key}");
         // 首次引导打开时吞掉所有键（Enter/Esc 只关引导，绝不落到"确定/放弃捕获"上）
         if (_guide != null)
         {
-            if (e.Key is Key.Escape or Key.Enter or Key.Space) CloseGuide();
-            e.Handled = true;
+            if (key is Key.Escape or Key.Enter or Key.Space) CloseGuide();
+            if (e != null) e.Handled = true;
             return;
         }
         // 文字输入中：编辑快捷键全部让位（Enter 上屏 / Esc 取消由输入框自理，不落到确定/放弃上）
         if (_textInput != null) return;
-        var mods = e.KeyboardDevice.Modifiers;
-        // Alt 组合在 WPF 里报成 Key.System，真身在 SystemKey 里，不还原就永远命不中键位表
-        var key = e.Key == Key.System ? e.SystemKey : e.Key;
         _keyMap ??= EditorCommands.BuildMap(_settings.Current);
         if (!_keyMap.TryGetValue((mods, key), out var ids)) return;
         foreach (var id in ids)
-            if (Run(id, e)) { e.Handled = true; return; }
+            if (Run(id, e)) { if (e != null) e.Handled = true; return; }
     }
 
     /// <summary>执行一条编辑器命令。命令与键位解耦：键位由设置页配置，这里只认命令 Id。</summary>
     /// <param name="id">命令 Id，取自 <see cref="EditorCommands"/>。</param>
-    /// <param name="e">触发本次分派的按键事件。</param>
+    /// <param name="e">触发本次分派的按键事件；测试直投为 null。</param>
     /// <returns>命令成立并已执行返回真；条件不成立返回假，同一个键位上的下一条命令接着试。</returns>
-    bool Run(string id, KeyEventArgs e)
+    bool Run(string id, KeyEventArgs? e)
     {
         switch (id)
         {

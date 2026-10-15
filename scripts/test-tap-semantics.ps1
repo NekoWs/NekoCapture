@@ -20,7 +20,7 @@ function Last-Frames([int]$before) {
 }
 function Restart-App {
     Get-Process FrameCapture -ErrorAction SilentlyContinue | Stop-Process -Force; Start-Sleep 0.6
-    Start-Process $exe; Start-Sleep 2
+    Start-FcTestApp $exe | Out-Null; Start-Sleep 2
 }
 
 # 钉成统一测试手势集（返回用户原设置原文，末尾还原）
@@ -33,7 +33,7 @@ try {
 
     # 场景1：轻点 80ms（< 250ms 阈值）→ 选区+截图 → 选区窗
     $pk0 = Count-Trace "scoped arm lead=Still"
-    Invoke-FcHotkey $shot $capHk 80 | Out-Null; Start-Sleep 1.6
+    Invoke-FcSynthetic $exe $capHk 80; Start-Sleep 1.8
     $pk1 = Count-Trace "scoped arm lead=Still"
     $pkWin = & $shot rect "FrameCapture Region" 2>$null
     "tap80: picker_trace_delta=$($pk1 - $pk0) win=[$pkWin]"
@@ -45,23 +45,24 @@ try {
     # 会让下一场景 edit.lastvideo 复用旧窗、不再产生「open editor frames=」trace（环境抖动，非产品缺陷）。
     Restart-App
     $n2 = Count-Trace "open editor frames="
-    Invoke-FcHotkey $shot $capHk 600 | Out-Null; Start-Sleep 2.0
+    Invoke-FcSynthetic $exe $capHk 600; Start-Sleep 2.2
     $f2 = Last-Frames $n2
     "hold600: frames=$f2"
-    & $shot keyw "FrameCapture Editor" 27 2>$null | Out-Null; Start-Sleep 0.6
+    Invoke-FcEditorKey $exe 27; Start-Sleep 0.6
     $holdOk = $f2 -gt 1
 
     # 场景3：按住 1300ms → 更长录制，frames 明显多于场景2（阈值语义随按住时长伸缩）
     Restart-App
     $n3 = Count-Trace "open editor frames="
-    Invoke-FcHotkey $shot $capHk 1300 | Out-Null; Start-Sleep 2.2
+    Invoke-FcSynthetic $exe $capHk 1300; Start-Sleep 2.4
     $f3 = Last-Frames $n3
     "hold1300: frames=$f3"
-    & $shot keyw "FrameCapture Editor" 27 2>$null | Out-Null; Start-Sleep 0.6
+    Invoke-FcEditorKey $exe 27; Start-Sleep 0.6
     $longOk = $f3 -gt 1
 }
 finally {
     Get-Process FrameCapture -ErrorAction SilentlyContinue | Stop-Process -Force
+    Remove-Item Env:\FC_TEST_NO_FG -EA SilentlyContinue
     if ($bak) { Set-Content (Join-Path $env:APPDATA "FrameCapture\settings.json") -Value $bak -Encoding UTF8 }
 }
 

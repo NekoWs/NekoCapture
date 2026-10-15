@@ -1,5 +1,5 @@
 # 轮廓生命周期回归（UIAUDIT 本轮：CaptureGuards 决策表）
-# 证明两件事（全在自动化边界内：hkm 热键合成 + 自家窗 keyw + 桌面 BitBlt，无 OS 级鼠标自动化）：
+# 证明两件事（全在自动化边界内：合成键经消息专用窗喂进引擎 + 自家窗 keyw + 桌面 BitBlt，无 OS 级输入）：
 #  1) 常显模式下一次"录制→编辑器"之后，范围轮廓必须回到屏上
 #     （旧版 FinishCapture 无条件 FadeAway，注释谎称"由后续分支重新点亮"）。
 #  2) 编辑器开着再按捕获热键（RefocusEditor 路径），轮廓不得被隐藏
@@ -89,7 +89,7 @@ try {
 
     # ---- 编辑器开着再按捕获热键：RefocusEditor，不得隐藏轮廓（修复点 2）----
     $mark = TraceLen
-    Invoke-FcHotkey $shot $capHk 120 | Out-Null
+    Invoke-FcSynthetic $exe $capHk 120
     Start-Sleep 0.8
     & $uicap desk (Join-Path $outDir "s3-refocus.png") | Out-Null
     $inc = TraceTail $mark
@@ -106,7 +106,7 @@ try {
     if ($ed2 -match "not-found") { $fail += "RefocusEditor 后编辑器不应消失" }
 
     # 收尾：Esc 关编辑器
-    & $shot keyw "FrameCapture Editor" 27 2>$null | Out-Null
+    Invoke-FcEditorKey $exe 27
     Start-Sleep 0.6
 } finally {
     Get-Process FrameCapture -EA SilentlyContinue | Stop-Process -Force

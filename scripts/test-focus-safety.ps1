@@ -1,6 +1,7 @@
 # 焦点安全自检：全局手势键注入期间，自有窗文本框不得被漏入任何字符；捕获照常发生。
-# R126 B2：Shot swallow 内置注入 Ctrl+Shift+G（按住 900ms）——统一测试手势集下该键按住→录制→编辑器。
-# 注意：编辑器弹出会短暂获取前台（约2秒），请确保当前无游戏/前台应用（脚本会自动检测并跳过）。
+# 本项是全套回归里唯一必须真注入 OS 级按键的：它测的就是「全局热键会不会漏字符进前台应用」，
+# 不经真实钩子就测不到这件事。Shot swallow 内置注入 Ctrl+Shift+G（按住 900ms）。
+# 因此它带安静窗口闸：连续 3 秒无物理按键/鼠标键才开跑，等不到就 SKIP——绝不把键打进你正用的软件。
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 . (Join-Path $PSScriptRoot "lib-hotkey.ps1")
@@ -14,16 +15,16 @@ $bak = Set-FcTestGestureConfig   # 钉成统一测试手势集（Ctrl+Shift+G �
 try {
     $p = Start-Process $exe -PassThru
     Start-Sleep 1.5
-    $fgline = & $shot fg 2>$null
-    if ($fgline -match "UnityWndClass|Chrome_WidgetWin") {
-        Write-Host "SKIP: 用户前台窗口在用 ($($fgline -replace 'hwnd=\d+ ',''))，避免抢占焦点"
+    # 安静窗口闸：物理输入状态说了算。前台类名猜不出正在编辑器里打字的人。
+    if (-not (Wait-FcQuiet -TimeoutSec 25 -QuietMs 3000)) {
+        Write-Host "SKIP: 用户持续有输入，跳过本项注入测试（SKIP ≠ FAIL）"
         if (!$p.HasExited) { $p.Kill() }
         exit 0
     }
     $out = & $shot swallow 2>&1 | Out-String
     Start-Sleep 0.8
     $ed = & $shot rect "FrameCapture Editor" 2>$null
-    & $shot keyw "FrameCapture Editor" 27 2>$null | Out-Null
+    Invoke-FcEditorKey $exe 27
     Start-Sleep 0.8
     if (!$p.HasExited) { $p.Kill() }
     $tr = Get-Content (Join-Path $root "src/fc-trace.log") -Tail 40 | Out-String

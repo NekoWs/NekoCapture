@@ -1,6 +1,6 @@
-# R10 Esc 分层回归：手势按住→录制→编辑器→L(进绘制态)→Esc(应只退工具，编辑器仍在 + trace esc→browse)→Esc(关闭)。
-# R12 起 D=点工具已删除，改用 L=直线（语义不变：任意绘制工具进入绘制态）。
-# R126 B2：进入编辑器走统一测试手势集（按住 Ctrl+Shift+G→edit.lastvideo）。注入被拦截 → SKIP ≠ FAIL。
+# Esc 分层回归：合成键按住→录制→编辑器→L(进绘制态)→Esc(应只退工具，编辑器仍在 + trace esc→browse)→Esc(关闭)。
+# L=直线代表任意绘制工具进入绘制态；进入编辑器走统一测试手势集（按住 Ctrl+Shift+G→edit.lastvideo）。
+# 零 OS 级输入：合成键经消息专用窗喂进引擎，编辑器窗全程不被置前台，编辑器键走 --editorkey 直投。
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 . (Join-Path $PSScriptRoot "lib-hotkey.ps1")
@@ -16,19 +16,19 @@ try {
     $env:FC_TEST_NO_FG = "1"
     $p = Start-Process $exe -PassThru
     Start-Sleep 1.5
-    Invoke-FcHotkey $shot $capHk 700 | Out-Null
-    Start-Sleep 2.0
+    Invoke-FcSynthetic $exe $capHk 700
+    Start-Sleep 2.2
     $ed = & $shot rect "FrameCapture Editor" 2>$null
     if ($ed -match "not-found") {
-        Write-Host "ESC-LAYERS SKIP: 编辑器未出现（注入被拦截）"
+        Write-Host "ESC-LAYERS FAIL: 编辑器未出现——合成键未经消息通道抵达引擎"
         if (!$p.HasExited) { $p.Kill() }
-        exit 0
+        exit 1
     }
-    & $shot keyw "FrameCapture Editor" 76 2>$null | Out-Null; Start-Sleep 0.4   # L → 直线工具（绘制态）
-    & $shot keyw "FrameCapture Editor" 27 2>$null | Out-Null; Start-Sleep 0.6   # Esc → 应只退工具
+    Invoke-FcEditorKey $exe 76; Start-Sleep 0.4   # L → 直线工具（绘制态）
+    Invoke-FcEditorKey $exe 27; Start-Sleep 0.6   # Esc → 应只退工具
     $ed2 = & $shot rect "FrameCapture Editor" 2>$null
     $stillOpen = "$ed2" -notmatch "not-found"
-    & $shot keyw "FrameCapture Editor" 27 2>$null | Out-Null; Start-Sleep 1.2   # Esc → 应关闭
+    Invoke-FcEditorKey $exe 27; Start-Sleep 1.2   # Esc → 应关闭
     $ed3 = & $shot rect "FrameCapture Editor" 2>$null
     $closed = "$ed3" -match "not-found"
     if (!$p.HasExited) { $p.Kill() }
