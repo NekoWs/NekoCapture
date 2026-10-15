@@ -65,6 +65,13 @@ $okBuild = Build-Project "app"   (Join-Path $root "src/FrameCapture") $exe
 $okBuild = (Build-Project "Shot" (Join-Path $root "tools/Shot") $shot) -and $okBuild
 $okBuild = (Build-Project "SelfTest" (Join-Path $root "tools/SelfTest") $stExe) -and $okBuild
 
+# 引导器：net48，链主项目的 Theme/Fluent 共享源文件。主项目往那几个文件里加了对
+# 主工程其他项目的依赖，引导器就会编译不过——只有发布脚本会撞见，这里提前拦住。
+$setupOut = dotnet build (Join-Path $root "src/Setup/Setup.csproj") -c Debug -v q --nologo 2>&1 | Out-String
+$setupErr = ([regex]::Matches($setupOut, ': error')).Count
+Add-Result "build:Setup" $(if ($setupErr -eq 0) { "PASS" } else { "FAIL" }) "errors=$setupErr"
+if ($setupErr -ne 0) { Say $setupOut }
+
 # 2) SelfTest
 if ($okBuild) {
     $so = & $stExe 2>&1 | Out-String

@@ -361,10 +361,6 @@ public static partial class Fluent
     /// <returns>亮色主题为当前强调色，暗色主题为 <see cref="Theme.Text"/>。</returns>
     public static Color AccentText() => Theme.IsDark ? Theme.Text : Theme.Accent;
 
-    /// <summary>键帽底色：卡面叠一层 hover，比所在卡片亮一档，键帽才从卡片里立出来。</summary>
-    /// <returns>叠色后的不透明色，深浅主题各自成立。</returns>
-    public static Color KeycapFace() => GestureEditor.Keycaps.Lift(Theme.Opaque(Theme.CardBg), Theme.Hover);
-
     /// <summary>工具按钮选中态：accent 实心 + 反白图标（与 ✓ 主按钮同一语言）。底色与图标同步淡变。</summary>
     /// <param name="b">目标按钮；Background / Foreground 被换成本方法持有的可动画画刷。</param>
     /// <param name="on">选中与否；反白色由 <see cref="OnAccentColor"/> 按 accent 亮度决定。</param>
