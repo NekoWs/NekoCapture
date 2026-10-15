@@ -97,8 +97,9 @@ public sealed partial class SettingsWindow : Window
         {
             CornerRadius = new CornerRadius(6),
             Padding = new Thickness(10, 7, 10, 7),
-            Margin = new Thickness(2, 4, 2, 0),
-            Background = new SolidColorBrush(Theme.Hover),
+            Margin = new Thickness(0, 4, 0, 4),
+            BorderBrush = new SolidColorBrush(Theme.StrokeSoft),
+            BorderThickness = new Thickness(1),
             Cursor = Cursors.Hand,
             Child = new StackPanel
             {
@@ -125,7 +126,7 @@ public sealed partial class SettingsWindow : Window
             },
             ToolTip = Loc.T("新增一条：先给它按一个组合键，再挑要执行的动作"),
         };
-        Fluent.ChipHover(add);
+        HoverFill(add);
         add.MouseLeftButtonUp += (_, _) => AddHotkey();
         return add;
     }
@@ -211,17 +212,18 @@ public sealed partial class SettingsWindow : Window
         head.Children.Add(chevron); head.Children.Add(name); head.Children.Add(suffix);
         head.Children.Add(del); head.Children.Add(sw); head.Children.Add(box);
 
-        // 名字与键帽坐在有底色有描边的胶囊上：文字直接浮在卡片里会没有落点，视觉中心也稳不住。
+        // 名字与键帽坐在一条描了边的胶囊上：文字直接浮在卡片里没有落点。静止时不填底色——
+        // 一列条目各自垫一块灰底会把列表切成格子；指针进来才浮出一点底色，仍然说明这一整条可点。
         var pill = new Border
         {
             CornerRadius = new CornerRadius(6),
-            Background = new SolidColorBrush(Theme.Hover),
-            BorderBrush = new SolidColorBrush(Theme.Stroke),
+            BorderBrush = new SolidColorBrush(Theme.StrokeSoft),
             BorderThickness = new Thickness(1),
             Padding = new Thickness(10, 7, 8, 7),
             Cursor = Cursors.Hand,
             Child = head,
         };
+        HoverFill(pill);
         // 撞了车的那条描边发红：同一个组合键与触发上挂着多条，引擎按优先级与顺序只走第一条，这条永远不响。
         var pillStroke = (SolidColorBrush)pill.BorderBrush;
         void PaintClash()
@@ -231,7 +233,7 @@ public sealed partial class SettingsWindow : Window
                 ? Loc.T("同一个组合键与触发方式上挂着多条快捷键，只有排在前面那条会触发")
                 : null;
             pillStroke.BeginAnimation(SolidColorBrush.ColorProperty, new ColorAnimation(
-                hit ? Theme.Danger : Theme.Stroke,
+                hit ? Theme.Danger : Theme.StrokeSoft,
                 new Duration(TimeSpan.FromMilliseconds(Fluent.Motion.StateMs))));
         }
         _hotClashSync.Add(PaintClash);
@@ -247,7 +249,7 @@ public sealed partial class SettingsWindow : Window
         var row = new Border
         {
             CornerRadius = new CornerRadius(6),
-            Margin = new Thickness(0, 1, 0, 1),
+            Margin = new Thickness(0, 4, 0, 4),
             Background = Brushes.Transparent,
             Child = stack,
         };

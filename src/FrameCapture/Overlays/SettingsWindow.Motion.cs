@@ -7,13 +7,28 @@ using FrameCapture.Core;
 
 namespace FrameCapture.Overlays;
 
-// 本 partial 职责：设置窗里「展开 / 收起」这一类高度动画——容器长出高度，内容逐行滑入。
+// 本 partial 职责：设置窗里「展开 / 收起」这一类高度动画——容器长出高度，内容逐行滑入；
+// 以及成排条目那种「静止透明、悬停才浮底色」的填充。
 /// <summary>
 /// 设置窗的高度动画：容器从 0 长到实测高度，里面的行按固定间隔自上而下逐个滑入，收起时反向收回。
 /// 时长与错位间隔全部取 <see cref="Fluent.Motion"/> 令牌。
 /// </summary>
 public sealed partial class SettingsWindow : Window
 {
+    /// <summary>静止时全透明、指针进来才浮出底色的填充。成排的条目各自垫一块灰底会把列表切成格子，
+    /// 底色于是只在悬停时出现。<see cref="Fluent.ChipHover"/> 走的是「与基色混合」，
+    /// 透明基色混出来仍是透明，这里直接淡到 <see cref="Theme.Hover"/> 本身。</summary>
+    /// <param name="bd">目标框；<c>Background</c> 被换成本方法持有的可动画画刷。</param>
+    static void HoverFill(Border bd)
+    {
+        var bg = new SolidColorBrush(Colors.Transparent);
+        bd.Background = bg;
+        void Tint(Color to) => bg.BeginAnimation(SolidColorBrush.ColorProperty,
+            new ColorAnimation(to, new Duration(TimeSpan.FromMilliseconds(Fluent.Motion.HoverMs))));
+        bd.MouseEnter += (_, _) => Tint(Theme.Hover);
+        bd.MouseLeave += (_, _) => Tint(Colors.Transparent);
+    }
+
     /// <summary>逐行错位的间隔：取分层错位间隔的三分之一，四五行走完仍落在一次入场时长里。</summary>
     /// <value>约 37 毫秒。</value>
     static TimeSpan RowStep => TimeSpan.FromMilliseconds(Fluent.Motion.StaggerMs / 3);
