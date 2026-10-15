@@ -67,14 +67,14 @@ public sealed partial class CaptureController : IDisposable
             Trace.Log("scroll auto off");
             return;
         }
-        if (!Native.Win32.InputLayoutOk) { _scrollBar.FlashHint(Loc.T("此环境无法注入滚轮，请手动滚动")); return; }
+        if (!Native.Win32.InputLayoutOk) { _scrollBar.FlashHint(Loc.T(K.Capture.ThisEnvironmentCanTInject)); return; }
         // 只在开启这一刻存一次原位置，整个自动滚动过程中光标就停在那儿不动；取不到原位置就不还原，免得把光标甩到 (0,0)
         _autoCursorSaved = Native.Win32.GetCursorPos(out var home);
         if (_autoCursorSaved) _autoCursorHome = home;
         Native.Win32.SetCursorPos(_scrollRegion.X + _scrollRegion.W / 2, _scrollRegion.Y + _scrollRegion.H / 2);
         _scrollAuto = true; _autoNoNew = 0; _autoNotch = ScrollAutoPolicy.NotchStart;
         _scrollBar.SetAutoScrolling(true);
-        _scrollBar.FlashHint(Loc.T("自动滚动中：光标已移入选区，停止或结束后移回原位"));
+        _scrollBar.FlashHint(Loc.T(K.Capture.AutoScrollingTheCursorMoved));
         AutoStep();   // 立刻发第一步，不等下一个空拍
         Trace.Log($"scroll auto on notch={_autoNotch}");
     }
@@ -85,7 +85,7 @@ public sealed partial class CaptureController : IDisposable
         _autoWaitSettle = true;
         _autoStuckTicks = 0;
         // 注入被拒（目标窗以更高完整性级别运行等）时画面永远不会动，再等下去只会报出"已到底"这种假结论，当场说明并退出
-        if (!Native.Win32.Wheel(_autoNotch)) StopAuto(Loc.T("这个窗口不接受滚轮注入，请手动滚动"));
+        if (!Native.Win32.Wheel(_autoNotch)) StopAuto(Loc.T(K.Capture.ThisWindowDoesnTAccept));
     }
 
     /// <summary>退出自动滚动：会话本身继续，只停注轮。光标留在选区内，想接着手滚一段再出图也顺手。</summary>
@@ -108,7 +108,7 @@ public sealed partial class CaptureController : IDisposable
         if (d.Stop)
         {
             // 到底：只停注入、不停会话。光标留在选区内，用户想接着手动滚一段再出图也顺手
-            StopAuto(Loc.T("已到内容底部，点「完成」出图"));
+            StopAuto(Loc.T(K.Capture.BottomOfTheContentReached));
             return;
         }
         if (d.Inject) AutoStep();
@@ -136,7 +136,7 @@ public sealed partial class CaptureController : IDisposable
         if (!stable && _scrollAuto && _autoWaitSettle && ++_autoStuckTicks >= SettleMaxTicks)
         {
             // 注进去的那一步迟迟没有下文：页面一直在动（视频、闪烁光标、惯性滚动）又一帧都拼不上时，沉默下去等于卡死
-            StopAuto(Loc.T("画面一直在变化、判定不了停稳，自动滚动已停止"));
+            StopAuto(Loc.T(K.Capture.TheViewKeepsChangingSo));
             return;
         }
         if (stable) { _autoWaitSettle = false; _autoStuckTicks = 0; }   // 已停稳：注过的那一步落定
@@ -147,7 +147,7 @@ public sealed partial class CaptureController : IDisposable
         // 「滚太快」只有停稳帧才够格下结论：滚动途中凑不出全匹配是常态，一路提示会响成一片
         if (ov <= 0)
         {
-            if (stable) { _scrollBar.FlashHint(Loc.T("滚动太快、找不到重叠——请少滚一点")); AutoObserve(ScrollAutoObservation.NoOverlap); }
+            if (stable) { _scrollBar.FlashHint(Loc.T(K.Capture.ScrolledTooFastToFind)); AutoObserve(ScrollAutoObservation.NoOverlap); }
             return;
         }
         int newRows = b.H - ov;
@@ -234,7 +234,7 @@ public sealed partial class CaptureController : IDisposable
         _sessionAfter = _pendingAfter; _pendingAfter = "";   // 捕获本条手势的截图后
         int secs = Math.Clamp(_settings.Current.DelayCaptureSeconds, 0, 60);
         var region = StoredRegion() ?? FullMonitorAtCursor();
-        string label = StoredRegion() != null ? Loc.F("范围 {0}×{1}", region.Bounds.W, region.Bounds.H) : Loc.T("全屏");
+        string label = StoredRegion() != null ? Loc.F(K.Capture.Region, region.Bounds.W, region.Bounds.H) : Loc.T(K.Capture.FullScreen);
         Trace.Log($"delay capture start {secs}s {region.Bounds.W}x{region.Bounds.H}");
         if (secs <= 0) { DelayFire(region); return; }   // 0 秒＝立即截，不弹倒计时
         _delayLeft = secs;

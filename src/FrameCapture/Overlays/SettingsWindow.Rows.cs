@@ -162,14 +162,14 @@ public sealed partial class SettingsWindow : Window
     {
         var g = Row();
         g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); // 更改列
-        g.Children.Add(IconText("\uE838", Loc.T("保存文件夹：自动保存副本存到这里，编辑器/贴图「另存为」对话框也默认打开这里")));
+        g.Children.Add(IconText("\uE838", Loc.T(K.Settings.SaveFolderAutoSavedCopies)));
         var stack = new StackPanel
         {
             Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center,
             Cursor = Cursors.Hand, Background = Brushes.Transparent,
-            ToolTip = Loc.T("点击选择保存文件夹，自动保存副本和导出对话框都用它"),
+            ToolTip = Loc.T(K.Settings.ClickToChooseTheSave),
         };
-        var lbl = new TextBlock { Text = Loc.T("保存位置"), FontSize = 13, Foreground = new SolidColorBrush(Theme.Text), VerticalAlignment = VerticalAlignment.Center };
+        var lbl = new TextBlock { Text = Loc.T(K.Settings.SaveLocation), FontSize = 13, Foreground = new SolidColorBrush(Theme.Text), VerticalAlignment = VerticalAlignment.Center };
         var path = new TextBlock
         {
             FontSize = 12, Foreground = new SolidColorBrush(Theme.TextDim),
@@ -179,7 +179,7 @@ public sealed partial class SettingsWindow : Window
         void Refresh()
         {
             var p = _settings.Current.AutoSavePath;
-            path.Text = string.IsNullOrWhiteSpace(p) ? Loc.T(@"图片\FrameCapture · 默认位置") : p;
+            path.Text = string.IsNullOrWhiteSpace(p) ? Loc.T(K.Settings.PicturesFramecaptureDefaultLocation) : p;
         }
         Refresh();
         stack.Children.Add(lbl);
@@ -191,7 +191,7 @@ public sealed partial class SettingsWindow : Window
         g.Children.Add(stack);
         var browse = new TextBlock
         {
-            Text = Loc.T("更改"), FontSize = 12, Foreground = new SolidColorBrush(Fluent.AccentText()),
+            Text = Loc.T(K.Settings.Change), FontSize = 12, Foreground = new SolidColorBrush(Fluent.AccentText()),
             VerticalAlignment = VerticalAlignment.Center, Cursor = Cursors.Hand, Margin = new Thickness(12, 0, 6, 0),
         };
         Grid.SetColumn(browse, 2);
@@ -202,7 +202,7 @@ public sealed partial class SettingsWindow : Window
         void Open()
         {
             using var dlg = new System.Windows.Forms.FolderBrowserDialog();
-            dlg.Description = Loc.T("选择保存文件夹，自动保存副本和导出对话框都用它");
+            dlg.Description = Loc.T(K.Settings.ChooseTheSaveFolderAuto);
             dlg.UseDescriptionForTitle = true;
             var cur = _settings.Current.AutoSavePath;
             if (!string.IsNullOrWhiteSpace(cur) && System.IO.Directory.Exists(cur)) dlg.SelectedPath = cur;
@@ -223,17 +223,17 @@ public sealed partial class SettingsWindow : Window
 
     FrameworkElement RecordFormatRow()
     {
-        var g = ChipRow("\uE786", Loc.T("录制完成后编辑器「导出录制」默认用的格式。MP4/WebM 需本机装有 ffmpeg，自动探测 PATH 与常见安装目录；未装则视频项会提示安装，GIF 始终可用"), Loc.T("录制格式"));
+        var g = ChipRow("\uE786", Loc.T(K.Settings.TheFormatTheEditorS), Loc.T(K.Settings.RecordingFormat));
         var chips = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
         Grid.SetColumn(chips, 2);
         var cur = _settings.Current.RecordFormat;
         bool hasFf = Encoding.FfmpegLocator.Find() != null;
-        string ffNote = hasFf ? Loc.T(" · 已检测到 ffmpeg") : Loc.T(" · 未检测到 ffmpeg，装 FFmpeg 后可选");
+        string ffNote = hasFf ? Loc.T(K.Settings.FfmpegDetected) : Loc.T(K.Settings.FfmpegNotFoundInstallFfmpeg);
         var opts = new (RecordFormat id, string text, string tip)[]
         {
-            (RecordFormat.Gif, "GIF", Loc.T("通用动图，任何地方都能放；受格式封顶约 50fps、体积大")),
-            (RecordFormat.Mp4, "MP4", Loc.T("兼容性最好的视频格式，用 libx264 编码，浏览器/剪辑软件/社交平台通吃 ") + ffNote),
-            (RecordFormat.WebM, "WebM", Loc.T("开源视频格式，用 VP9 编码，同画质体积更小，网页/上传首选 ") + ffNote),
+            (RecordFormat.Gif, "GIF", Loc.T(K.Settings.AnAnimatedImageThatPlays)),
+            (RecordFormat.Mp4, "MP4", Loc.T(K.Settings.TheMostCompatibleVideoFormat) + ffNote),
+            (RecordFormat.WebM, "WebM", Loc.T(K.Settings.AnOpenVideoFormatEncoded) + ffNote),
         };
         var chipList = new List<(Border chip, RecordFormat id)>();
         foreach (var (id, text, tip) in opts)
@@ -264,8 +264,8 @@ public sealed partial class SettingsWindow : Window
         });
         status.Children.Add(new TextBlock
         {
-            Text = hasFf ? Loc.T("已检测到 ffmpeg · 可导出 MP4 / WebM")
-                         : Loc.T("未检测到 ffmpeg · 导出 MP4/WebM 需先安装，见帮助 F1，GIF 不受影响"),
+            Text = hasFf ? Loc.T(K.Settings.FfmpegDetectedMp4AndWebm)
+                         : Loc.T(K.Settings.FfmpegNotFoundMp4),
             FontSize = 11.5,
             Foreground = new SolidColorBrush(Theme.TextDim),
             VerticalAlignment = VerticalAlignment.Center,

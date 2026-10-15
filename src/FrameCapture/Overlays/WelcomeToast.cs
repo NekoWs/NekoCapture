@@ -68,14 +68,14 @@ public sealed class WelcomeToast : Window
         head.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         head.Children.Add(new TextBlock
         {
-            Text = Loc.T("FrameCapture 已就绪"),
+            Text = Loc.T(K.Capture.FramecaptureIsReady),
             FontSize = 15,
             FontWeight = FontWeights.Bold,
             Foreground = new SolidColorBrush(Theme.Text),
             FontFamily = new FontFamily("Segoe UI"),
             VerticalAlignment = VerticalAlignment.Center,
         });
-        var close = Fluent.IconButton("\uE711", Loc.T("关闭"), 26, 12,
+        var close = Fluent.IconButton("\uE711", Loc.T(K.Common.Close), 26, 12,
             new SolidColorBrush(Theme.TextDim));
         close.Click += (_, _) => Dismiss();
         Grid.SetColumn(close, 1);
@@ -83,12 +83,12 @@ public sealed class WelcomeToast : Window
         root.Children.Add(head);
 
         // 两个热键：标签（暗）+ 键位（强调色加粗），一眼看清「按什么」
-        root.Children.Add(HotkeyLine(Loc.T("截图"), captureHotkey));
-        root.Children.Add(HotkeyLine(Loc.T("录制"), recordHotkey));
+        root.Children.Add(HotkeyLine(Loc.T(K.Common.Capture), captureHotkey));
+        root.Children.Add(HotkeyLine(Loc.T(K.Common.Recording), recordHotkey));
 
         root.Children.Add(new TextBlock
         {
-            Text = Loc.T("选完区域即截图 · 录制键再按一下停止 · 双击贴图关闭 · 右键贴图 / 托盘查看更多"),
+            Text = Loc.T(K.Capture.PickARegionToCapture),
             FontSize = 11.5,
             Foreground = new SolidColorBrush(Theme.TextDim),
             FontFamily = new FontFamily("Segoe UI"),
@@ -99,7 +99,7 @@ public sealed class WelcomeToast : Window
         // 查看帮助入口（打开帮助窗并收起本卡）
         var help = new Button
         {
-            Content = Loc.T("查看帮助与全部快捷键"),
+            Content = Loc.T(K.Capture.SeeTheHelpAndEvery),
             FontSize = 12.5,
             Foreground = new SolidColorBrush(Fluent.OnAccentColor(Theme.Accent)), // 前景随强调色明暗自适应，浅强调色下不致白字不可读
             Background = new SolidColorBrush(Theme.Accent),

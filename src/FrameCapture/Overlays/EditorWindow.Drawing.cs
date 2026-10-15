@@ -6,6 +6,7 @@ using System.Windows.Shapes;
 using FrameCapture.Drawing;
 using Loc = FrameCapture.Core.Loc;
 using Theme = FrameCapture.Core.Theme;
+using K = FrameCapture.Core.K;
 
 namespace FrameCapture.Overlays;
 
@@ -62,7 +63,7 @@ public sealed partial class EditorWindow
         Height = 26,
         Cursor = Cursors.IBeam,
         Background = Brushes.Transparent,
-        ToolTip = Loc.T("拖拽选片段 · [ / ] 设入出点"),
+        ToolTip = Loc.T(K.Editor.DragToPickARange),
     };
     bool _tlHover;
 
@@ -466,7 +467,7 @@ public sealed partial class EditorWindow
             {
                 var hint = new TextBlock
                 {
-                    Text = Loc.T("拖拽选择片段"),
+                    Text = Loc.T(K.Editor.DragToSelectARange),
                     FontSize = 9,
                     FontFamily = new FontFamily("Segoe UI"),
                     Foreground = new SolidColorBrush(Color.FromArgb(0xB0, Theme.TextDim.R, Theme.TextDim.G, Theme.TextDim.B)),

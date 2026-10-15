@@ -27,7 +27,7 @@ public sealed partial class SettingsWindow : Window
             FontSize = 12.5,
             Margin = new Thickness(2, 18, 0, 6),
             TextWrapping = TextWrapping.Wrap,
-            Text = Loc.T("编辑器窗口里的键位。点一下键位框，再按下新键即改；按 Esc 取消这个键位，加号再加一个按法。改完立即生效。"),
+            Text = Loc.T(K.Settings.KeysForTheEditorWindow),
         });
         // 每行注册一个刷新动作：改一条键位可能让别的行冒出撞键提示，整表刷一遍最省事
         var ekRefresh = new List<Action>();
@@ -37,12 +37,13 @@ public sealed partial class SettingsWindow : Window
             foreach (var (chord, ids) in EditorCommands.Conflicts(_settings.Current))
                 if (ids.Contains(c.Id))
                 {
-                    var other = ids.Where(i => i != c.Id).Select(i => EditorCommands.Find(i)?.Name ?? i);
+                    // 认不出的 Id 直接露出标识本身：撞键提示是给人排查的，比空一个名字有用
+                    var other = ids.Where(i => i != c.Id).Select(i => EditorCommands.Find(i) is { } f ? Loc.T(f.Name) : i);
                     // 顿号与书名号是中文里的列举记法，英文换成逗号加弯引号，句子结构整个交给译名
-                    hits.Add(Loc.F("与{0}同键 {1}",
-                        string.Join(Loc.T("、"), other.Select(n => Loc.F("「{0}」", Loc.T(n)))), chord));
+                    hits.Add(Loc.F(K.Settings.SharesAKeyWith,
+                        string.Join(Loc.T(K.Settings.ListSeparator), other.Select(n => Loc.F(K.Settings.QuotedName, n))), chord));
                 }
-            return string.Join(Loc.T("；"), hits.Distinct());
+            return string.Join(Loc.T(K.Settings.Semicolon), hits.Distinct());
         }
         Border MiniButton(string text, Action onClick)
         {
@@ -60,7 +61,7 @@ public sealed partial class SettingsWindow : Window
             b.MouseLeftButtonUp += (_, _) => onClick();
             return b;
         }
-        void EditorKeyGroup(string group)
+        void EditorKeyGroup(Str group)
         {
             var cmds = EditorCommands.All.Where(c => c.Group == group).ToList();
             if (cmds.Count == 0) return;
@@ -104,7 +105,7 @@ public sealed partial class SettingsWindow : Window
                     VerticalAlignment = VerticalAlignment.Center,
                     HorizontalAlignment = HorizontalAlignment.Right,
                 };
-                var reset = MiniButton(Loc.T("恢复"), () =>
+                var reset = MiniButton(Loc.T(K.Settings.Reset), () =>
                 {
                     _settings.Mutate(s => s.EditorKeys.Remove(c.Id));
                     foreach (var f in ekRefresh) f();
@@ -197,7 +198,7 @@ public sealed partial class SettingsWindow : Window
                     {
                         boxes.Children.Add(new TextBlock
                         {
-                            Text = Loc.T("未设键"),
+                            Text = Loc.T(K.Common.NoKey),
                             FontSize = 12.5,
                             Foreground = new SolidColorBrush(Theme.TextDim),
                             VerticalAlignment = VerticalAlignment.Center,
@@ -225,7 +226,7 @@ public sealed partial class SettingsWindow : Window
             panel.Children.Add(card);
         }
         foreach (var g in EditorCommands.Groups) EditorKeyGroup(g);
-        var ekResetAll = MiniButton(Loc.T("全部恢复默认键位"), () =>
+        var ekResetAll = MiniButton(Loc.T(K.Settings.RestoreAllDefaultKeys), () =>
         {
             _settings.Mutate(s => s.EditorKeys.Clear());
             foreach (var f in ekRefresh) f();

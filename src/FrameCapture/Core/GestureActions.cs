@@ -13,21 +13,21 @@ public readonly struct GestureAction
     public string Name { get; }
 
     /// <summary>给人看的短名，按当前界面语言取词。</summary>
-    /// <value>编辑器、帮助与设置窗展示用，不参与持久化；没有译名时就是登记的中文原文。</value>
+    /// <value>编辑器、帮助与设置窗展示用，不参与持久化。</value>
     public string Label => Loc.T(_label);
 
     /// <summary>这个动作做什么的一句话，按当前界面语言取词。</summary>
-    /// <value>设置与帮助里的详细说明；没有译名时就是登记的中文原文。</value>
+    /// <value>设置与帮助里的详细说明。</value>
     public string Description => Loc.T(_desc);
 
     /// <summary>装配一个动作条目，各字段原样保存。</summary>
     /// <param name="name">稳定动作名（英文小写点分）。</param>
-    /// <param name="label">中文短名，也是取词的键。</param>
-    /// <param name="desc">详细说明，也是取词的键。</param>
-    public GestureAction(string name, string label, string desc) { Name = name; _label = label; _desc = desc; }
+    /// <param name="label">短名文案。</param>
+    /// <param name="desc">详细说明文案。</param>
+    public GestureAction(string name, Str label, Str desc) { Name = name; _label = label; _desc = desc; }
 
-    readonly string _label;
-    readonly string _desc;
+    readonly Str _label;
+    readonly Str _desc;
 }
 
 /// <summary>
@@ -56,22 +56,22 @@ public static class GestureActions
     /// <summary>全部可用动作（顺序即建议展示顺序）。GestureInvoker 必须覆盖每一个，否则该动作视为未实现（执行失败）。</summary>
     public static readonly GestureAction[] All =
     {
-        new(ScopeSelect, "选区", "拖框选一块区域，作为这条序列后面动作的范围"), // lockeys
-        new(CaptureStored, "截图", "对当前范围截一张静图；跟在选区后面就是刚圈好的那块"), // lockeys
-        new(CaptureFrame, "全屏即时截图", "按下立即抓光标所在屏幕的当下这一帧，不走选区、不带延时、不抢焦点，适合游戏"), // lockeys
-        new(RecordToggle, "开始/停止录制", "空闲→选区起录；录制中→停止，不自动进编辑器"), // lockeys
-        new(RecordStart, "开始录制", "对当前范围开始录制，直到收到停止"), // lockeys
-        new(RecordStop, "停止录制", "停止录制，产物留在内存，不自动进编辑器"), // lockeys
-        new(ScrollCapture, "滚动截图", "对当前范围做滚动长截图"), // lockeys
-        new(DelayedCapture, "延时截图", "倒数数秒后截当前范围，用来抓一点就消失的菜单和悬停"), // lockeys
-        new(OcrSelection, "识别文字", "对当前范围做 OCR：开「识别后显示结果窗」则弹可编辑结果窗，否则直接复制文本"), // lockeys
-        new(PinSelection, "贴图", "把当前范围钉在屏幕上"), // lockeys
-        new(EditLastStill, "编辑上次截图", "打开标注编辑器编辑上一次静图"), // lockeys
-        new(EditLastVideo, "打开编辑器", "打开视频编辑器编辑上一次录制，常配在完成后，让停止录制后再进编辑器"), // lockeys
-        new(NotifyToast, "提示", "把上一次截图以浮窗弹出来，点它可以进编辑器"), // lockeys
-        new(CopyLast, "复制到剪贴板", "把上一次截图写进剪贴板"), // lockeys
-        new(SettingsOpen, "打开设置", "打开设置窗口"), // lockeys
-        new(HelpOpen, "打开帮助", "打开使用说明窗口"), // lockeys
+        new(ScopeSelect, K.Actions.ScopeSelectLabel, K.Actions.ScopeSelectDesc),
+        new(CaptureStored, K.Common.Capture, K.Actions.CaptureStoredDesc),
+        new(CaptureFrame, K.Actions.CaptureFrameLabel, K.Actions.CaptureFrameDesc),
+        new(RecordToggle, K.Actions.RecordToggleLabel, K.Actions.RecordToggleDesc),
+        new(RecordStart, K.Actions.RecordStartLabel, K.Actions.RecordStartDesc),
+        new(RecordStop, K.Actions.RecordStopLabel, K.Actions.RecordStopDesc),
+        new(ScrollCapture, K.Common.ScrollingCapture, K.Actions.ScrollCaptureDesc),
+        new(DelayedCapture, K.Common.DelayedCapture, K.Actions.DelayedCaptureDesc),
+        new(OcrSelection, K.Common.RecognizeText, K.Actions.OcrSelectionDesc),
+        new(PinSelection, K.Common.Pin, K.Actions.PinSelectionDesc),
+        new(EditLastStill, K.Tray.EditLastScreenshot, K.Actions.EditLastStillDesc),
+        new(EditLastVideo, K.Actions.EditLastVideoLabel, K.Actions.EditLastVideoDesc),
+        new(NotifyToast, K.Actions.NotifyToastLabel, K.Actions.NotifyToastDesc),
+        new(CopyLast, K.Actions.CopyLastLabel, K.Actions.CopyLastDesc),
+        new(SettingsOpen, K.Actions.SettingsOpenLabel, K.Actions.SettingsOpenDesc),
+        new(HelpOpen, K.Actions.HelpOpenLabel, K.Actions.HelpOpenDesc),
     };
 
     static readonly HashSet<string> Names =

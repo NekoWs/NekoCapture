@@ -53,7 +53,7 @@ public sealed class OcrResultWindow : Window
         };
         var dock = new DockPanel { LastChildFill = true };
 
-        var (bar, close) = Fluent.TitleBar("\uE8C1", Loc.T("识别文字"), Loc.T("关闭"));
+        var (bar, close) = Fluent.TitleBar("\uE8C1", Loc.T(K.Common.RecognizeText), Loc.T(K.Common.Close));
         close.Click += (_, _) => Fluent.CloseWithFade(this);
         DockPanel.SetDock(bar, Dock.Top);
         dock.Children.Add(bar);
@@ -87,7 +87,7 @@ public sealed class OcrResultWindow : Window
         bottom.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         var count = new TextBlock
         {
-            Text = Loc.F("{0} 字", text.Length),
+            Text = Loc.F(K.Capture.Characters, text.Length),
             FontSize = 12,
             Foreground = new SolidColorBrush(Theme.TextDim),
             VerticalAlignment = VerticalAlignment.Center,
@@ -104,7 +104,7 @@ public sealed class OcrResultWindow : Window
         };
         var copyLabel = new TextBlock
         {
-            Text = Loc.T("复制全部"),
+            Text = Loc.T(K.Capture.CopyAll),
             FontSize = 13,
             Foreground = new SolidColorBrush(Fluent.OnAccentColor(Theme.Accent)),
             HorizontalAlignment = HorizontalAlignment.Center,
@@ -142,7 +142,7 @@ public sealed class OcrResultWindow : Window
         copyBox.MouseLeftButtonUp += (_, _) =>
         {
             try { Clipboard.SetText(box.Text); } catch { }
-            copyLabel.Text = Loc.T("已复制");
+            copyLabel.Text = Loc.T(K.Common.Copied);
         };
         Loaded += (_, _) => { box.Focus(); box.SelectAll(); box.ScrollToHome(); };
         Fluent.PopupEnter(this);   // 入场淡入（与退场 CloseWithFade 对称；分层窗=淡入，同 HelpWindow）

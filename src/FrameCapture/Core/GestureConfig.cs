@@ -1,4 +1,5 @@
 using GC = GestureCore;
+using K = FrameCapture.Core.K;
 
 namespace FrameCapture.Core;
 
@@ -220,21 +221,21 @@ public sealed class GestureConfig
     public string RecordKeyText()
         => DescribeKeysFor(GestureActions.RecordToggle, GestureActions.RecordStart, GestureActions.RecordStop);
 
-    /// <summary>触发方式 → 中文后缀（供帮助/展示反映真实手感）。Chord 及未知返回空串——组合键本身即触发，无需后缀。</summary>
-    /// <param name="trigger"><c>GestureCore.TriggerKind</c> 的名字；未知名字与 Chord 一样返回空串。</param>
-    /// <returns>可直接拼在组合键后面的后缀（如「按下」「松手」），或空串。</returns>
-    public static string TriggerLabel(string trigger) => trigger switch
+    /// <summary>触发方式 → 后缀文案（供帮助/展示反映真实手感）。Chord 及未知返回 <see cref="Str.Empty"/>——组合键本身即触发，无需后缀。</summary>
+    /// <param name="trigger"><c>GestureCore.TriggerKind</c> 的名字；未知名字与 Chord 一样返回 <see cref="Str.Empty"/>。</param>
+    /// <returns>可直接拼在组合键后面的后缀（如「按下」「松手」）；无后缀时为 <see cref="Str.Empty"/>。</returns>
+    public static Str TriggerLabel(string trigger) => trigger switch
     {
-        "KeyDown" => "按下", // lockeys
-        "KeyUp" => "松开", // lockeys
-        "Tap" => "轻点", // lockeys
-        "Hold" => "按住", // lockeys
-        "HoldRelease" => "松手", // lockeys
-        "LongPress" => "长按", // lockeys
-        "DoubleClick" => "双击", // lockeys
-        "TripleClick" => "三击", // lockeys
-        "Click" => "单击", // lockeys
-        _ => "",
+        "KeyDown" => K.Triggers.TriggerKeydown,
+        "KeyUp" => K.Triggers.TriggerKeyup,
+        "Tap" => K.Triggers.TriggerTap,
+        "Hold" => K.Triggers.TriggerHold,
+        "HoldRelease" => K.Triggers.TriggerHoldrelease,
+        "LongPress" => K.Triggers.TriggerLongpress,
+        "DoubleClick" => K.Triggers.TriggerDoubleclick,
+        "TripleClick" => K.Triggers.TriggerTripleclick,
+        "Click" => K.Triggers.TriggerClick,
+        _ => Str.Empty,
     };
 
     /// <summary>把「绑定了指定动作的启用绑定」渲染成人类可读键位：按组合键分组、合并触发后缀（如 <c>F2 按下/松开</c>），
@@ -253,7 +254,7 @@ public sealed class GestureConfig
             var suf = Loc.T(TriggerLabel(b.Trigger));
             if (suf.Length > 0 && !list.Contains(suf)) list.Add(suf);
         }
-        if (byChord.Count == 0) return Loc.T("未绑定");
-        return string.Join(Loc.T("，"), byChord.Select(kv => kv.Key + (kv.Value.Count == 0 ? "" : " " + string.Join("/", kv.Value))));
+        if (byChord.Count == 0) return Loc.T(K.Common.Unbound);
+        return string.Join(Loc.T(K.Hotkeys.Comma), byChord.Select(kv => kv.Key + (kv.Value.Count == 0 ? "" : " " + string.Join("/", kv.Value))));
     }
 }

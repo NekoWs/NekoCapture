@@ -187,15 +187,15 @@ public sealed partial class EditorWindow : Window
         if (_root == null) return;
         var rows = new (string K, string V)[]
         {
-            (Loc.T("标注"), Loc.T("底部工具条选 线/矩形 R/圆 O/箭头/手绘/文字 T/马赛克 M，再点同一工具退出绘制；选中 V 可点选已画标注拖动/删除")),
-            (Loc.T("裁剪"), Loc.T("裁剪工具拖框，框外压暗并显示网格提示，松开即应用；Ctrl+Z 可撤销")),
-            (Loc.T("确定/取消"), Loc.T("Enter 写入剪贴板 · Esc 关闭 · 图钉=总在最前")),
-            (Loc.T("更多"), Loc.T("F1 完整帮助，任意按钮悬停有说明")),
+            (Loc.T(K.Editor.Annotate), Loc.T(K.Editor.PickATool)),
+            (Loc.T(K.Editor.Crop2), Loc.T(K.Editor.DragWithTheCropTool)),
+            (Loc.T(K.Editor.DoneCancel), Loc.T(K.Editor.EnterCopiesToTheClipboard)),
+            (Loc.T(K.Editor.More), Loc.T(K.Editor.F1OpensTheFullHelp)),
         };
         var sp = new StackPanel();
         sp.Children.Add(new TextBlock
         {
-            Text = Loc.T("欢迎用 FrameCapture 编辑器"),
+            Text = Loc.T(K.Editor.WelcomeToTheFramecaptureEditor),
             FontSize = 16, FontWeight = FontWeights.SemiBold,
             Foreground = new SolidColorBrush(Theme.Text),
             Margin = new Thickness(0, 0, 0, 10),
@@ -216,7 +216,7 @@ public sealed partial class EditorWindow : Window
             row.Children.Add(kt); row.Children.Add(vt);
             sp.Children.Add(row);
         }
-        var ok = Fluent.IconButton(Loc.T("知道了"), Loc.T("开始使用"), 84, 12.5);
+        var ok = Fluent.IconButton(Loc.T(K.Editor.GotIt), Loc.T(K.Editor.StartHere), 84, 12.5);
         ok.ClearValue(Control.FontFamilyProperty); // 文字按钮：回到继承的 UI 字体（IconButton 默认是图标字体）
         ok.Height = 30;
         Fluent.HighlightBtn(ok, true);

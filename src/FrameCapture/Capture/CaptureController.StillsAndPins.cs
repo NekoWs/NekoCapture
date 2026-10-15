@@ -99,7 +99,7 @@ public sealed partial class CaptureController : IDisposable
         catch (Exception ex)
         {
             Trace.Log($"ocr-still failed: {ex.Message}");
-            OcrResultWindow.ShowMessage(Loc.T("识别失败"));
+            OcrResultWindow.ShowMessage(Loc.T(K.Common.RecognitionFailed));
         }
     }
     #region 从剪贴板贴图

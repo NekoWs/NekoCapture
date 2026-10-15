@@ -1,27 +1,28 @@
 using System.Windows.Input;
+using K = FrameCapture.Core.K;
 
 namespace FrameCapture.Core;
 
 /// <summary>编辑器里一条可自定义的命令。</summary>
 /// <param name="Id">稳定标识，写进 <see cref="AppSettings.EditorKeys"/>；改名会丢用户配置，只增不改。</param>
-/// <param name="Name">设置页与帮助窗里显示的动作名。</param>
-/// <param name="Group">设置页里的分组标题。</param>
+/// <param name="Name">设置页与帮助窗里显示的动作名文案。</param>
+/// <param name="Group">设置页里的分组标题文案。</param>
 /// <param name="Chords">出厂默认的那组按法，按分派顺序排。用户在设置页里加或减之后，生效的是
 /// <see cref="EditorCommands.BindingsFor"/> 取到的那份。</param>
 /// <param name="NeedsSelection">只有在画布上选中了对象时才成立的命令。这类命令在分派时先问一遍，
 /// 问不中就交给同一个键上的其他命令——<c>Delete</c> 同时挂着「删除选中对象」和「撤销」就是这个情形。</param>
 /// <returns>按给定值构造的不可变记录。</returns>
-public sealed record EditorCommand(string Id, string Name, string Group, string[] Chords, bool NeedsSelection = false)
+public sealed record EditorCommand(string Id, Str Name, Str Group, string[] Chords, bool NeedsSelection = false)
 {
     /// <summary>写一条命令，最多三个默认按法，后面的槽位省略即无。</summary>
     /// <param name="id">命令标识。</param>
-    /// <param name="name">显示名。</param>
-    /// <param name="group">分组标题。</param>
+    /// <param name="name">显示名文案。</param>
+    /// <param name="group">分组标题文案。</param>
     /// <param name="chord">主键位串。</param>
     /// <param name="alt">第二个按法，可省。</param>
     /// <param name="alt2">第三个按法，可省。</param>
     /// <param name="needsSelection">是否只在有选中对象时成立。</param>
-    public EditorCommand(string id, string name, string group, string chord, string? alt = null, string? alt2 = null, bool needsSelection = false)
+    public EditorCommand(string id, Str name, Str group, string chord, string? alt = null, string? alt2 = null, bool needsSelection = false)
         : this(id, name, group,
             new[] { chord }.Concat(new[] { alt, alt2 }.Where(s => !string.IsNullOrEmpty(s)).Select(s => s!)).ToArray(),
             needsSelection)
@@ -36,7 +37,7 @@ public sealed record EditorCommand(string Id, string Name, string Group, string[
 public static class EditorCommands
 {
     /// <summary>分组标题，设置页按这个顺序分段。</summary>
-    public static readonly string[] Groups = { "绘制工具", "编辑", "导出", "视图", "播放", "时间轴裁剪", "窗口" }; // lockeys
+    public static readonly Str[] Groups = { K.Commands.GroupDrawingtools, K.Commands.GroupEditing, K.Commands.GroupExport, K.Commands.GroupView, K.Commands.GroupPlayback, K.Commands.GroupTimelinetrim, K.Commands.GroupWindow };
 
     /// <summary>全部命令。绘制工具一节由 <see cref="ToolCatalog"/> 生成，工具与键位不会两处各写一遍。</summary>
     public static readonly EditorCommand[] All = Build();
@@ -45,45 +46,45 @@ public static class EditorCommands
     {
         var list = new List<EditorCommand>
         {
-            new("tool.X", ToolCatalog.ExitName, "绘制工具", "X"), // lockeys
+            new("tool.X", ToolCatalog.ExitName, K.Commands.GroupDrawingtools, "X"),
         };
-        list.AddRange(ToolCatalog.Tools.Select(t => new EditorCommand("tool." + t.Key, t.Tip, "绘制工具", t.Key))); // lockeys
+        list.AddRange(ToolCatalog.Tools.Select(t => new EditorCommand("tool." + t.Key, t.Tip, K.Commands.GroupDrawingtools, t.Key)));
         list.AddRange(new[]
         {
-            new EditorCommand("delete-object", "删除选中对象", "编辑", new[] { "Delete", "Backspace" }, NeedsSelection: true), // lockeys
-            new EditorCommand("undo", "撤销", "编辑", "Ctrl+Z", "Ctrl+U", "Delete"), // lockeys
-            new EditorCommand("redo", "重做", "编辑", "Ctrl+Y", "Y"), // lockeys
-            new EditorCommand("color-custom", "取色与自定义颜色", "编辑", "K"), // lockeys
-            new EditorCommand("width-popup", "线宽选择", "编辑", "W"), // lockeys
+            new EditorCommand("delete-object", K.Commands.DeleteObjectName, K.Commands.GroupEditing, new[] { "Delete", "Backspace" }, NeedsSelection: true),
+            new EditorCommand("undo", K.Editor.Undo, K.Commands.GroupEditing, "Ctrl+Z", "Ctrl+U", "Delete"),
+            new EditorCommand("redo", K.Editor.Redo, K.Commands.GroupEditing, "Ctrl+Y", "Y"),
+            new EditorCommand("color-custom", K.Commands.ColorCustomName, K.Commands.GroupEditing, "K"),
+            new EditorCommand("width-popup", K.Commands.WidthPopupName, K.Commands.GroupEditing, "W"),
 
-            new EditorCommand("save-frame", "保存当前帧", "导出", "Ctrl+S"), // lockeys
-            new EditorCommand("copy-frame", "复制当前帧", "导出", "Ctrl+C"), // lockeys
-            new EditorCommand("pin-frame", "钉到屏幕", "导出", "Ctrl+P"), // lockeys
-            new EditorCommand("ocr", "识别文字", "导出", "Ctrl+O"), // lockeys
-            new EditorCommand("save-recording", "导出录制", "导出", "Ctrl+E"), // lockeys
-            new EditorCommand("save-afterimage", "保存视觉暂留合成图", "导出", "Ctrl+H"), // lockeys
+            new EditorCommand("save-frame", K.Editor.SaveCurrentFrame, K.Commands.GroupExport, "Ctrl+S"),
+            new EditorCommand("copy-frame", K.Editor.CopyCurrentFrame, K.Commands.GroupExport, "Ctrl+C"),
+            new EditorCommand("pin-frame", K.Editor.PinToScreen, K.Commands.GroupExport, "Ctrl+P"),
+            new EditorCommand("ocr", K.Common.RecognizeText, K.Commands.GroupExport, "Ctrl+O"),
+            new EditorCommand("save-recording", K.Editor.ExportRecording, K.Commands.GroupExport, "Ctrl+E"),
+            new EditorCommand("save-afterimage", K.Editor.SaveAfterimageComposite, K.Commands.GroupExport, "Ctrl+H"),
 
-            new EditorCommand("zoom-in", "放大", "视图", "Ctrl++", "PgUp"), // lockeys
-            new EditorCommand("zoom-out", "缩小", "视图", "Ctrl+-", "PgDn"), // lockeys
-            new EditorCommand("zoom-fit", "适配窗口", "视图", "Ctrl+0", "Home"), // lockeys
-            new EditorCommand("zoom-one", "逐像素 1:1", "视图", "Ctrl+1", "End"), // lockeys
+            new EditorCommand("zoom-in", K.Commands.ZoomInName, K.Commands.GroupView, "Ctrl++", "PgUp"),
+            new EditorCommand("zoom-out", K.Commands.ZoomOutName, K.Commands.GroupView, "Ctrl+-", "PgDn"),
+            new EditorCommand("zoom-fit", K.Commands.ZoomFitName, K.Commands.GroupView, "Ctrl+0", "Home"),
+            new EditorCommand("zoom-one", K.Commands.ZoomOneName, K.Commands.GroupView, "Ctrl+1", "End"),
 
-            new EditorCommand("play-toggle", "播放 / 暂停", "播放", "Space"), // lockeys
-            new EditorCommand("frame-prev", "上一帧", "播放", "Left"), // lockeys
-            new EditorCommand("frame-next", "下一帧", "播放", "Right"), // lockeys
-            new EditorCommand("sec-prev", "往前一秒", "播放", "Shift+Left"), // lockeys
-            new EditorCommand("sec-next", "往后一秒", "播放", "Shift+Right"), // lockeys
-            new EditorCommand("speed-up", "播放加速", "播放", "+"), // lockeys
-            new EditorCommand("speed-down", "播放减速", "播放", "-"), // lockeys
-            new EditorCommand("speed-reset", "播放常速", "播放", "0"), // lockeys
+            new EditorCommand("play-toggle", K.Commands.PlayToggleName, K.Commands.GroupPlayback, "Space"),
+            new EditorCommand("frame-prev", K.Editor.PreviousFrame, K.Commands.GroupPlayback, "Left"),
+            new EditorCommand("frame-next", K.Editor.NextFrame, K.Commands.GroupPlayback, "Right"),
+            new EditorCommand("sec-prev", K.Commands.SecPrevName, K.Commands.GroupPlayback, "Shift+Left"),
+            new EditorCommand("sec-next", K.Commands.SecNextName, K.Commands.GroupPlayback, "Shift+Right"),
+            new EditorCommand("speed-up", K.Commands.SpeedUpName, K.Commands.GroupPlayback, "+"),
+            new EditorCommand("speed-down", K.Commands.SpeedDownName, K.Commands.GroupPlayback, "-"),
+            new EditorCommand("speed-reset", K.Commands.SpeedResetName, K.Commands.GroupPlayback, "0"),
 
-            new EditorCommand("trim-a", "裁剪起点设为当前帧", "时间轴裁剪", "["), // lockeys
-            new EditorCommand("trim-b", "裁剪终点设为当前帧", "时间轴裁剪", "]"), // lockeys
-            new EditorCommand("trim-clear", "清除裁剪区间", "时间轴裁剪", "Backspace"), // lockeys
+            new EditorCommand("trim-a", K.Commands.TrimAName, K.Commands.GroupTimelinetrim, "["),
+            new EditorCommand("trim-b", K.Commands.TrimBName, K.Commands.GroupTimelinetrim, "]"),
+            new EditorCommand("trim-clear", K.Commands.TrimClearName, K.Commands.GroupTimelinetrim, "Backspace"),
 
-            new EditorCommand("commit", "确定并复制", "窗口", "Enter"), // lockeys
-            new EditorCommand("close", "取消并关闭", "窗口", "Esc"), // lockeys
-            new EditorCommand("help", "帮助", "窗口", "F1"), // lockeys
+            new EditorCommand("commit", K.Commands.CommitName, K.Commands.GroupWindow, "Enter"),
+            new EditorCommand("close", K.Commands.CloseName, K.Commands.GroupWindow, "Esc"),
+            new EditorCommand("help", K.Tray.Help, K.Commands.GroupWindow, "F1"),
         });
         return list.ToArray();
     }

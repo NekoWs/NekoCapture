@@ -44,12 +44,12 @@ public sealed partial class SettingsWindow : Window
     /// <returns>可直接加进分页的整行。</returns>
     FrameworkElement LanguageRow()
     {
-        var g = ChipRow("\uF2B7", Loc.T("界面语言"), Loc.T("界面语言"));
+        var g = ChipRow("\uF2B7", Loc.T(K.Settings.Language), Loc.T(K.Settings.Language));
         var chips = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
         Grid.SetColumn(chips, 2);
         string cur = _settings.Current.UiLanguage;
         foreach (var (id, label) in new[]
-                 { (Loc.PrefSystem, Loc.T("系统默认")), (Loc.PrefZh, "中文"), (Loc.PrefEn, "English") }) // copyok 语言名用本语言自称，两种界面下都显示「中文 / English」
+                 { (Loc.PrefSystem, Loc.T(K.Settings.System2)), (Loc.PrefZh, "中文"), (Loc.PrefEn, "English") }) // copyok 语言名用本语言自称，两种界面下都显示「中文 / English」
         {
             string captured = id;
             var chip = new Border
@@ -93,10 +93,10 @@ public sealed partial class SettingsWindow : Window
     {
         var g = Row();
         g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); // 色片列
-        g.Children.Add(IconText("\uE790", Loc.T("强调色：编辑器选中、开关、滑杆、进度都用它")));
+        g.Children.Add(IconText("\uE790", Loc.T(K.Settings.AccentColorEditorSelectionsSwitches)));
         var lbl = new TextBlock
         {
-            Text = Loc.T("强调色"),
+            Text = Loc.T(K.Settings.Accent),
             FontSize = 13,
             Foreground = new SolidColorBrush(Theme.Text),
             VerticalAlignment = VerticalAlignment.Center,
@@ -116,7 +116,7 @@ public sealed partial class SettingsWindow : Window
             VerticalAlignment = VerticalAlignment.Center,
             Cursor = Cursors.Hand,
             Focusable = true,
-            ToolTip = Loc.T("点击自定义强调色，取色器与编辑器同款；右键恢复跟随系统"),
+            ToolTip = Loc.T(K.Settings.ClickToPickAnAccent),
         };
         Grid.SetColumn(chip, 2);
         Fluent.ChipHover(chip);   // 悬停只改底色带过渡，不缩放
@@ -176,12 +176,12 @@ public sealed partial class SettingsWindow : Window
 
     FrameworkElement ThemeRow()
     {
-        var g = ChipRow("\uE793", Loc.T("主题"), Loc.T("外观主题"));
+        var g = ChipRow("\uE793", Loc.T(K.Settings.Theme), Loc.T(K.Settings.AppearanceTheme));
         var chips = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
         Grid.SetColumn(chips, 2);
         string cur = _settings.Current.Theme;
         foreach (var (id, glyph, tip) in new[]
-                 { ("system", "\uE977", Loc.T("跟随系统")), ("light", "\uE706", Loc.T("浅色")), ("dark", "\uE708", Loc.T("深色")) })
+                 { ("system", "\uE977", Loc.T(K.Settings.FollowSystem)), ("light", "\uE706", Loc.T(K.Settings.Light)), ("dark", "\uE708", Loc.T(K.Settings.Dark)) })
         {
             string captured = id;
             var chip = new Border

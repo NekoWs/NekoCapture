@@ -109,9 +109,9 @@ public static partial class Fluent
     /// 设置窗与帮助窗共用同一件——全盘 UI 对齐同一套密度与视觉语言。</summary>
     /// <param name="glyph">左侧图标的 PUA 字形，取 Accent 色。</param>
     /// <param name="title">标题文字。</param>
-    /// <param name="closeTip">关闭按钮的悬停提示；取词由调用方负责——本文件与安装器共用，不认识语言。</param>
+    /// <param name="closeTip">关闭按钮的悬停提示，由调用方取好词再传进来——本文件与安装器共用，不认识语言。</param>
     /// <returns>条带 Border 与关闭按钮；条带须再经 <see cref="InstallCaptionDrag"/> 才成为原生拖窗区。</returns>
-    public static (Border bar, Button close) TitleBar(string glyph, string title, string closeTip = "关闭") // lockeys
+    public static (Border bar, Button close) TitleBar(string glyph, string title, string closeTip)
     {
         var bar = new Border
         {

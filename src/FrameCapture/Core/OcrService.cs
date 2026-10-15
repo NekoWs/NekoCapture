@@ -3,6 +3,7 @@ using Windows.Globalization;
 using Windows.Graphics.Imaging;
 using Windows.Media.Ocr;
 using FrameCapture.Capture;
+using K = FrameCapture.Core.K;
 
 namespace FrameCapture.Core;
 
@@ -59,9 +60,9 @@ public static class OcrService
     /// <returns>可直接显示的短句，不含状态前缀。</returns>
     public static string Feedback(OcrStatus status, int textLen) => status switch
     {
-        OcrStatus.Success => Loc.F("已识别 {0} 字 · 已复制", textLen),
-        OcrStatus.NoEngine => Loc.T("未安装 OCR 语言包，请到 设置 › 时间和语言 › 语音 添加"),
-        _ => Loc.T("未识别到文字"),
+        OcrStatus.Success => Loc.F(K.Capture.RecognizedCharactersCopied, textLen),
+        OcrStatus.NoEngine => Loc.T(K.Capture.NoOcrLanguagePack),
+        _ => Loc.T(K.Capture.NoTextRecognized),
     };
 
     /// <summary>OCR 结果路由决策（纯函数，供单测）：Success 时按「是否显示结果窗」分流到结果窗或复制+轻确认；

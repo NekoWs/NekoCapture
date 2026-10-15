@@ -6,6 +6,7 @@ using System.Windows.Shapes;
 using FrameCapture.Capture;
 using FrameCapture.Native;
 using Loc = FrameCapture.Core.Loc;
+using K = FrameCapture.Core.K;
 
 namespace FrameCapture.Overlays;
 
@@ -304,8 +305,8 @@ public sealed partial class RegionPickerWindow : Window
         _hint.Child = new TextBlock
         {
             Text = _existing != null
-                ? Loc.T("拖框选择 · 悬停点击吸附窗口 · Enter 确认上次选区 · Esc 取消")
-                : Loc.T("拖框选择 · 悬停点击吸附窗口 · Esc 取消"),
+                ? Loc.T(K.Capture.DragToSelectHover)
+                : Loc.T(K.Capture.DragToSelectHover2),
             FontSize = 13,
             Foreground = new SolidColorBrush(Color.FromArgb(0xE6, 0xFF, 0xFF, 0xFF)),
         };

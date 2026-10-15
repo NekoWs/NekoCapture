@@ -98,7 +98,7 @@ public sealed partial class SettingsWindow : Window
                 Background = new SolidColorBrush(Theme.Hover),
                 Cursor = Cursors.Hand,
                 Child = body,
-                ToolTip = Loc.T("换成别的动作"),
+                ToolTip = Loc.T(K.Settings.SwapThisStepForAnother),
             };
             Fluent.ChipHover(chip);
             return chip;
@@ -142,7 +142,7 @@ public sealed partial class SettingsWindow : Window
                     Foreground = new SolidColorBrush(Theme.TextDim),
                     VerticalAlignment = VerticalAlignment.Center,
                 },
-                ToolTip = Loc.T("在后面加一步"),
+                ToolTip = Loc.T(K.Settings.AddAStepAfterThis),
             };
             Fluent.ChipHover(add);
             add.MouseLeftButtonUp += (_, e) => { OpenPicker(-1); e.Handled = true; };
@@ -169,7 +169,7 @@ public sealed partial class SettingsWindow : Window
                 });
                 _picker.Children.Add(c);
             }
-            var cancel = Chip(Loc.T("取消"), Loc.T("这一步不动"), false);
+            var cancel = Chip(Loc.T(K.Common.Cancel), Loc.T(K.Settings.LeaveThisStepAlone), false);
             WireChip(cancel, () => Close(_get().ToList()));
             _picker.Children.Add(cancel);
             _picker.Visibility = Visibility.Visible;

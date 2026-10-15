@@ -6,6 +6,7 @@ using System.Windows.Shapes;
 using FrameCapture.Capture;
 using FrameCapture.Native;
 using Loc = FrameCapture.Core.Loc;
+using K = FrameCapture.Core.K;
 
 namespace FrameCapture.Overlays;
 
@@ -55,7 +56,7 @@ public sealed partial class RegionPickerWindow : Window
                     Dispatcher.BeginInvoke(() =>
                     {
                         try { Clipboard.SetText(t); } catch { }
-                        if (_loupeHex != null) _loupeHex.Text = Loc.T("已复制 ") + t;
+                        if (_loupeHex != null) _loupeHex.Text = Loc.T(K.Capture.Copied) + t;
                     });
                 }
                 return true;

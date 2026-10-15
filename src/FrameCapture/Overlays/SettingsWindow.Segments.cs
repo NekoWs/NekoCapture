@@ -35,7 +35,7 @@ public sealed partial class SettingsWindow : Window
             Margin = new Thickness(0, 0, 10, 0),
             Cursor = Cursors.Hand,
             Focusable = true,   // 键盘可达——Tab 聚焦、空格/Enter 切换
-            ToolTip = Loc.T("关掉即保留配置但不触发，无需删除"),
+            ToolTip = Loc.T(K.Settings.OffKeepsTheSetupBut),
         };
         var knob = new Ellipse
         {
@@ -90,7 +90,7 @@ public sealed partial class SettingsWindow : Window
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center,
             },
-            ToolTip = Loc.T("删除这条快捷键"),
+            ToolTip = Loc.T(K.Settings.DeleteThisHotkey),
         };
         Fluent.ChipHover(btn);
         btn.MouseLeftButtonUp += (_, e) =>
@@ -124,8 +124,8 @@ public sealed partial class SettingsWindow : Window
             RenderTransform = shift,
             IsHitTestVisible = false,
         };
-        var simple = SegLabel(Loc.T("简单"), Loc.T("只显示默认落点，用不到的不必展开"), seg, false);
-        var adv = SegLabel(Loc.T("高级"), Loc.T("逐条编辑完成后与失败时要跑的动作"), seg, true);
+        var simple = SegLabel(Loc.T(K.Settings.Simple), Loc.T(K.Settings.ShowsOnlyWhereEachCase), seg, false);
+        var adv = SegLabel(Loc.T(K.Settings.Advanced), Loc.T(K.Settings.EditTheStepsThatRun), seg, true);
         var labels = new StackPanel { Orientation = Orientation.Horizontal };
         labels.Children.Add(simple);
         labels.Children.Add(adv);

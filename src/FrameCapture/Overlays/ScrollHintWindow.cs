@@ -33,8 +33,8 @@ public sealed class ScrollHintWindow : Window
     int _lastSegs = 1;   // 与构造里初始「已拼接 1 段」对齐，首帧不弹，之后每拼接一段弹一下
 
     // 提示行按当前语言取词，因此是取值属性而非常量
-    static string DefaultHint => Loc.T("滚动目标窗口，自动拼接 · 点「完成」结束");
-    static string AutoHint => Loc.T("自动滚动中 · 到底自动停止");
+    static string DefaultHint => Loc.T(K.Capture.ScrollTheTargetWindow);
+    static string AutoHint => Loc.T(K.Capture.AutoScrollingStops);
     const double W = 458;      // DIP 宽（估算落点用；实际 SizeToContent）
     const double EstH = 96;    // 估算高（落点用）
 
@@ -84,7 +84,7 @@ public sealed class ScrollHintWindow : Window
         head.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         head.Children.Add(new TextBlock
         {
-            Text = Loc.T("滚动截图"),
+            Text = Loc.T(K.Common.ScrollingCapture),
             FontSize = 15,
             FontWeight = FontWeights.Bold,
             Foreground = new SolidColorBrush(Theme.Text),
@@ -93,7 +93,7 @@ public sealed class ScrollHintWindow : Window
         });
         _progress = new TextBlock
         {
-            Text = Loc.T("已拼接 1 段"),
+            Text = Loc.T(K.Capture.SegmentStitched),
             FontSize = 12.5,
             FontWeight = FontWeights.SemiBold,
             Foreground = new SolidColorBrush(Theme.Accent),
@@ -118,12 +118,12 @@ public sealed class ScrollHintWindow : Window
         // 按钮行：自动滚动（开关）· 完成（强调）· 取消
         var btns = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 12, 0, 0) };
         // 完成按钮前景随强调色明暗自适应（浅强调色→黑字，深→白字），同 OCR 窗 OnAccentColor，避免浅底白字不可读
-        var done = MakeBtn(Loc.T("完成"), Theme.Accent, Fluent.OnAccentColor(Theme.Accent));
+        var done = MakeBtn(Loc.T(K.Capture.Done), Theme.Accent, Fluent.OnAccentColor(Theme.Accent));
         done.Click += (_, _) => OnDone?.Invoke();
-        var cancel = MakeBtn(Loc.T("取消"), Theme.Hover, Theme.TextDim);
+        var cancel = MakeBtn(Loc.T(K.Common.Cancel), Theme.Hover, Theme.TextDim);
         cancel.Click += (_, _) => OnCancel?.Invoke();
         // 开关按钮的关态与「取消」同色，开态换强调底——配色与文案一起由 SetAutoScrolling 决定
-        _auto = MakeBtn(Loc.T("自动滚动"), Theme.Hover, Theme.TextDim);
+        _auto = MakeBtn(Loc.T(K.Capture.AutoScroll), Theme.Hover, Theme.TextDim);
         _auto.Click += (_, _) => OnToggleAutoScroll?.Invoke();
         // 悬停只改底色带过渡，不缩放——缩放会让一排小按钮互相挤动
         Fluent.Springy(done);
@@ -171,7 +171,7 @@ public sealed class ScrollHintWindow : Window
     /// <param name="heightPx">拼接后位图的总高，物理像素。</param>
     public void SetProgress(int segments, int heightPx)
     {
-        _progress.Text = Loc.F("已拼接 {0} 段 · 高 {1} px", segments, heightPx);
+        _progress.Text = Loc.F(K.Capture.SegmentsStitchedPxTall, segments, heightPx);
         _hint.Text = _autoOn ? AutoHint : DefaultHint;
         _hint.Foreground = new SolidColorBrush(Theme.TextDim);
         if (segments != _lastSegs) { _lastSegs = segments; PopProgress(); }
@@ -183,7 +183,7 @@ public sealed class ScrollHintWindow : Window
     public void SetAutoScrolling(bool on)
     {
         _autoOn = on;
-        _auto.Content = on ? Loc.T("停止自动滚动") : Loc.T("自动滚动");
+        _auto.Content = on ? Loc.T(K.Capture.StopAutoScroll) : Loc.T(K.Capture.AutoScroll);
         _auto.Background = new SolidColorBrush(on ? Theme.Accent : Theme.Hover);
         _auto.Foreground = new SolidColorBrush(on ? Fluent.OnAccentColor(Theme.Accent) : Theme.TextDim);
         _hint.Text = on ? AutoHint : DefaultHint;

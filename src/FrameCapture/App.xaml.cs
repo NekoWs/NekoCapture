@@ -1,6 +1,7 @@
 using System.IO;
 using System.Windows;
 using Loc = FrameCapture.Core.Loc;
+using K = FrameCapture.Core.K;
 
 namespace FrameCapture;
 
@@ -81,8 +82,8 @@ public partial class App : Application
             Dispatcher.BeginInvoke(() =>
             {
                 var s = Services.AppHost.Current.Settings.Current;
-                Overlays.NoticeToast.Show(Loc.T("FrameCapture 已启动"),
-                    Loc.F("已在托盘待命 · 截图 {0} · 录制 {1}", s.Gestures.CaptureKeyText(), s.Gestures.RecordKeyText()),
+                Overlays.NoticeToast.Show(Loc.T(K.Tray.FramecaptureIsRunning),
+                    Loc.F(K.Tray.WaitingInTheTrayCapture, s.Gestures.CaptureKeyText(), s.Gestures.RecordKeyText()),
                     "\uE73E");
             }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
 
@@ -148,8 +149,8 @@ public partial class App : Application
             Dispatcher.BeginInvoke(() =>
             {
                 var s = Services.AppHost.Current.Settings.Current;
-                Overlays.NoticeToast.Show(Loc.T("FrameCapture 已启动"),
-                    Loc.F("已在托盘待命 · 截图 {0} · 录制 {1}", s.Gestures.CaptureKeyText(), s.Gestures.RecordKeyText()),
+                Overlays.NoticeToast.Show(Loc.T(K.Tray.FramecaptureIsRunning),
+                    Loc.F(K.Tray.WaitingInTheTrayCapture, s.Gestures.CaptureKeyText(), s.Gestures.RecordKeyText()),
                     "\uE73E");
             }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
         // 打开选区窗（截图/选区同一入口，便于脚本/e2e 验证「不抢焦点」与全局键代收）

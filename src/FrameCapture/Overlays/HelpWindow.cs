@@ -86,7 +86,7 @@ public sealed class HelpWindow : Window
         };
         var dock = new DockPanel { LastChildFill = true };
 
-        var (bar, closeBtn) = Fluent.TitleBar("\uE9CE", Loc.T("使用指南"));
+        var (bar, closeBtn) = Fluent.TitleBar("\uE9CE", Loc.T(K.Help.UsageGuide), Loc.T(K.Common.Close));
         closeBtn.Click += (_, _) => Fluent.CloseWithFade(this);
         DockPanel.SetDock(bar, Dock.Top);
         dock.Children.Add(bar);
@@ -135,8 +135,8 @@ public sealed class HelpWindow : Window
         Grid.SetColumn(_pager, 0);
         foot.Children.Add(_pager);
         var nav = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center };
-        _prevBtn = NavBtn(Loc.T("\u2190 上一页"), on: false, () => Go(-1));
-        _nextBtn = NavBtn(Loc.T("下一页 \u2192"), on: true, () => Go(+1));
+        _prevBtn = NavBtn(Loc.T(K.Help.PrevArrow), on: false, () => Go(-1));
+        _nextBtn = NavBtn(Loc.T(K.Help.NextArrow), on: true, () => Go(+1));
         nav.Children.Add(_prevBtn); nav.Children.Add(_nextBtn);
         Grid.SetColumn(nav, 1);
         foot.Children.Add(nav);
@@ -194,10 +194,10 @@ public sealed class HelpWindow : Window
         _bigSub.Text = sub;
         _body.Children.Clear();
         body(_body);
-        _pager.Text = Loc.F("第 {0} / {1} 步", _step + 1, _steps.Count);
+        _pager.Text = Loc.F(K.Help.Step, _step + 1, _steps.Count);
         SetNavEnabled(_prevBtn, _step > 0);
         // 最后一步：下一页变「完成」
-        if (_nextBtn.Child is TextBlock tb) tb.Text = _step == _steps.Count - 1 ? Loc.T("完成 \u2713") : Loc.T("下一页 \u2192");
+        if (_nextBtn.Child is TextBlock tb) tb.Text = _step == _steps.Count - 1 ? Loc.T(K.Help.DoneCheck) : Loc.T(K.Help.NextArrow);
         if (animate)
         {
             // 翻页：整块位移比逐行浮现重得多，整块淡入还会盖掉步骤标题的节奏。
@@ -261,7 +261,7 @@ public sealed class HelpWindow : Window
     static string KeysFor(params string[] actions)
     {
         var g = SettingsService.Shared?.Current?.Gestures;
-        return g == null ? Loc.T("未绑定") : g.DescribeKeysFor(actions);
+        return g == null ? Loc.T(K.Common.Unbound) : g.DescribeKeysFor(actions);
     }
 
     /// <summary>编辑器命令的当前键位。键位可在设置里改，帮助里的键位跟着设置走，不写死。</summary>
@@ -269,13 +269,20 @@ public sealed class HelpWindow : Window
     /// <returns>每条命令取它当前第一个按法，如 <c>Space / ← / →</c>；一个按法都没留的命令显示「未设键」。</returns>
     static string EditorKeysFor(params string[] ids)
     {
+        var noKey = Loc.T(K.Common.NoKey);
+        return string.Join(" / ", EditorKeyParts(ids).Select(p => p.Length == 0 ? noKey : p));
+    }
+
+    // 每个 id 一段键位文字，没绑键的那段是空串：「没键」是个状态，不是一句拿来比较的文案
+    static List<string> EditorKeyParts(params string[] ids)
+    {
         var s = SettingsService.Shared?.Current;
-        if (s == null) return Loc.T("未设键");
-        return string.Join(" / ", ids.Select(id =>
-            EditorCommands.Find(id) is { } c
+        return ids.Select(id =>
+            s != null
+            && EditorCommands.Find(id) is { } c
             && EditorChord.Parse(EditorCommands.BindingsFor(s, c).FirstOrDefault() ?? "") is { } ec
                 ? string.Join("+", ec.Tokens())
-                : Loc.T("未设键")));
+                : "").ToList();
     }
     #endregion
 
@@ -284,79 +291,79 @@ public sealed class HelpWindow : Window
     {
         _steps = new()
         {
-            ("\uE945", Loc.T("快速上手"), Loc.T("定范围 → 触发 → 复制。"), p =>
+            ("\uE945", Loc.T(K.Help.QuickStart), Loc.T(K.Help.SetARegionTriggerCopy), p =>
             {
-                KV(p, KeysFor(GestureActions.ScopeSelect), Loc.T("设置捕获范围 · 拖框或点窗口"));
-                KV(p, KeysFor(GestureActions.CaptureStored, GestureActions.CaptureFrame), Loc.T("截图：截完自动进剪贴板"));
-                KV(p, KeysFor(GestureActions.RecordToggle, GestureActions.RecordStart, GestureActions.RecordStop), Loc.T("录制：按住起录，松手停"));
-                KV(p, EditorKeysFor("commit", "close"), Loc.T("编辑器里：确定复制 / 取消"));
-                KV(p, EditorKeysFor("help"), Loc.T("随时回到本指南"));
-                Note(p, Loc.T("键位都是默认值，可在「设置 · 快捷键」里改成自己的习惯。"));
+                KV(p, KeysFor(GestureActions.ScopeSelect), Loc.T(K.Help.SetTheCaptureRegionDrag));
+                KV(p, KeysFor(GestureActions.CaptureStored, GestureActions.CaptureFrame), Loc.T(K.Help.CaptureTheShotLands));
+                KV(p, KeysFor(GestureActions.RecordToggle, GestureActions.RecordStart, GestureActions.RecordStop), Loc.T(K.Help.RecordHoldToStartRelease));
+                KV(p, EditorKeysFor("commit", "close"), Loc.T(K.Help.InTheEditorDoneCopies));
+                KV(p, EditorKeysFor("help"), Loc.T(K.Help.ThisGuideIsAlwaysOne));
+                Note(p, Loc.T(K.Help.EveryKeyIsADefault));
             }),
 
-            ("\uE7A8", Loc.T("选捕获范围"), Loc.T("指哪儿，截哪儿。"), p =>
+            ("\uE7A8", Loc.T(K.Help.ChooseTheRegion), Loc.T(K.Help.CaptureExactlyWhatYouPoint), p =>
             {
-                KV(p, Loc.T("拖框"), Loc.T("选任意矩形；滚轮微调、方向键移动"));
-                KV(p, Loc.T("悬停"), Loc.T("自动吸附整窗；Tab 上钻到父容器"));
-                KV(p, "Enter / Esc", Loc.T("确认范围 / 取消"));
-                KV(p, Loc.T("清除范围"), Loc.T("托盘菜单里，恢复「截光标所在屏」"));
-                Note(p, Loc.T("设置里可开「常显捕获范围轮廓」，范围一眼在；「吸附到控件」让悬停吸到按钮/文字级。"));
+                KV(p, Loc.T(K.Help.DragABox), Loc.T(K.Help.AnyRectangleTheWheelResizes));
+                KV(p, Loc.T(K.Help.Hover), Loc.T(K.Help.SnapsToTheWholeWindow));
+                KV(p, "Enter / Esc", Loc.T(K.Help.ConfirmRegionCancel));
+                KV(p, Loc.T(K.Help.ClearTheRegion), Loc.T(K.Help.InTheTrayMenuGoes));
+                Note(p, Loc.T(K.Help.SettingsCanKeepTheRegion));
             }),
 
-            ("\uE7B5", Loc.T("截图"), Loc.T("一次触发，进剪贴板。"), p =>
+            ("\uE7B5", Loc.T(K.Common.Capture), Loc.T(K.Help.OneKeyStraight), p =>
             {
-                KV(p, Loc.T("触发即截"), Loc.T("有范围截范围，没范围截光标所在屏"));
-                KV(p, Loc.T("截图后"), Loc.T("每条快捷键单独设：弹浮窗 / 进编辑器 / 什么都不做 / 贴图；写不写剪贴板是另一条独立开关"));
-                KV(p, Loc.T("悬浮窗"), Loc.T("点它进编辑器；常驻/1/2/5秒/自定义可调"));
-                KV(p, Loc.T("提示音"), Loc.T("关闭 / 轻弹 / 自定义 ogg·wav，可试听"));
-                Note(p, Loc.T("「截图后」在「设置 · 快捷键」每条快捷键的完成后一栏设置；托盘还能「编辑上次截图」。"));
+                KV(p, Loc.T(K.Help.TriggerCaptures), Loc.T(K.Help.WithARegionItCaptures));
+                KV(p, Loc.T(K.Help.AfterCapture), Loc.T(K.Help.SetPerHotkeyFloatingCard));
+                KV(p, Loc.T(K.Help.FloatingCard), Loc.T(K.Help.ClickItToOpen));
+                KV(p, Loc.T(K.Help.Sound), Loc.T(K.Help.OffFlickYourOwnOgg));
+                Note(p, Loc.T(K.Help.AfterCaptureIsSetPer));
             }),
 
-            ("\uE714", Loc.T("录制"), Loc.T("按住录，松手成片。"), p =>
+            ("\uE714", Loc.T(K.Common.Recording), Loc.T(K.Help.HoldToRecordRelease), p =>
             {
-                KV(p, Loc.T("按住 / 松开"), Loc.T("起录 / 停止 · REC 红徽标表示正在录"));
-                KV(p, Loc.T("帧率"), Loc.T("手动 10–240；开「跟随显示器刷新率」自动录满高刷"));
-                KV(p, Loc.T("格式"), Loc.T("GIF 通用；MP4 / WebM 需 ffmpeg"));
-                KV(p, Loc.T("录完"), Loc.T("自动进编辑器预览，Enter 复制成片"));
-                Note(p, Loc.T("录屏边框只提示不入镜；「包含鼠标指针」可关。"));
+                KV(p, Loc.T(K.Help.HoldRelease), Loc.T(K.Help.StartStopTheRedRec));
+                KV(p, Loc.T(K.Help.FrameRate), Loc.T(K.Help.ManualFollowMonitorRefreshRecords));
+                KV(p, Loc.T(K.Help.Format), Loc.T(K.Help.GifPlaysEverywhereMp4Webm));
+                KV(p, Loc.T(K.Help.AfterRecording), Loc.T(K.Help.OpensInTheEditor));
+                Note(p, Loc.T(K.Help.TheRecordingBorder));
             }),
 
-            ("\uE70F", Loc.T("编辑器"), Loc.T("看、剪、标、复制。"), p =>
+            ("\uE70F", Loc.T(K.Common.Editor), Loc.T(K.Help.WatchTrimAnnotateCopy), p =>
             {
-                KV(p, EditorKeysFor("play-toggle", "frame-prev", "frame-next"), Loc.T("播放暂停 / 逐帧 · Shift 走一秒"));
-                KV(p, Loc.T("Ctrl+滚轮"), Loc.T("缩放；1:1 看像素"));
-                KV(p, EditorKeysFor("trim-a", "trim-b"), Loc.T("掐头 / 去尾，只导出要的一段"));
-                KV(p, EditorKeysFor("commit", "close"), Loc.T("确定复制成片 / 取消"));
-                KV(p, EditorKeysFor("save-frame", "save-recording"), Loc.T("存当前帧 PNG / 导出 MP4·WebM·GIF"));
-                Note(p, Loc.T("Ctrl+H 视觉暂留合成图；「生成胶片条」抽帧拼成一张逐帧图直接复制，喂 AI 最好用。"));
+                KV(p, EditorKeysFor("play-toggle", "frame-prev", "frame-next"), Loc.T(K.Help.PlayAndPauseStep));
+                KV(p, Loc.T(K.Help.CtrlWheel), Loc.T(K.Help.ZoomToInspectPixels));
+                KV(p, EditorKeysFor("trim-a", "trim-b"), Loc.T(K.Help.TrimTheHead));
+                KV(p, EditorKeysFor("commit", "close"), Loc.T(K.Help.DoneCopiesTheClipCancel));
+                KV(p, EditorKeysFor("save-frame", "save-recording"), Loc.T(K.Help.SaveTheCurrentFrameAs));
+                Note(p, Loc.T(K.Help.CtrlHBlendsTheFrames));
             }),
 
-            ("\uE71C", Loc.F("编辑器 · 绘图 — 再点当前工具或 {0} 退出绘制", ToolCatalog.ExitKey), Loc.T("左侧竖栏，单键切换。"), p => Tools(p)),
+            ("\uE71C", Loc.F(K.Help.EditorDrawingClickTheCurrent, ToolCatalog.ExitKey), Loc.T(K.Help.TheColumnOnTheLeft), p => Tools(p)),
 
-            ("\uE718", Loc.T("贴图"), Loc.T("把图钉在屏幕上。"), p =>
+            ("\uE718", Loc.T(K.Common.Pin), Loc.T(K.Help.PinAnImageOnto), p =>
             {
-                KV(p, EditorKeysFor("pin-frame"), Loc.T("编辑器里把当前帧钉到屏幕"));
-                KV(p, Loc.T("滚轮 / +/-"), Loc.T("缩放贴图 / 调透明度"));
-                KV(p, Loc.T("拖动"), Loc.T("「贴图窗口吸附」：贴齐屏幕边、其他贴图、任意窗口边"));
-                KV(p, Loc.T("Esc / 右键"), Loc.T("关闭 / 右键菜单存盘、识字、复制"));
-                Note(p, Loc.T("吸附开关在设置「贴图」页。"));
+                KV(p, EditorKeysFor("pin-frame"), Loc.T(K.Help.PinsTheCurrentFrameFrom));
+                KV(p, Loc.T(K.Help.Wheel), Loc.T(K.Help.ZoomThePinChangeOpacity));
+                KV(p, Loc.T(K.Help.Drag), Loc.T(K.Help.PinSnappingLinesThePin));
+                KV(p, Loc.T(K.Help.EscRightClick), Loc.T(K.Help.CloseTheMenuSavesReads));
+                Note(p, Loc.T(K.Help.TheSnappingSwitchLives));
             }),
 
-            ("\uE8C1", Loc.T("识别文字"), Loc.T("图里的字，变文本。"), p =>
+            ("\uE8C1", Loc.T(K.Common.RecognizeText), Loc.T(K.Help.TurnTheText), p =>
             {
-                KV(p, EditorKeysFor("ocr"), Loc.T("识别当前帧 → 结果窗：选哪段复制哪段"));
-                KV(p, Loc.T("贴图右键"), Loc.T("也能对贴图识字"));
-                Note(p, Loc.T("用 Windows 内置 OCR，离线可用；关「显示结果窗」则直接全文进剪贴板。"));
+                KV(p, EditorKeysFor("ocr"), Loc.T(K.Help.RecognizeTheCurrentFrameResults));
+                KV(p, Loc.T(K.Help.RightClickAPin), Loc.T(K.Help.PinsCanBeRead));
+                Note(p, Loc.T(K.Help.UsesTheBuiltInWindows));
             }),
 
-            ("\uE713", Loc.T("更多玩法"), Loc.T("藏在设置和托盘里。"), p =>
+            ("\uE713", Loc.T(K.Help.MoreToTry), Loc.T(K.Help.HiddenInSettings), p =>
             {
-                KV(p, Loc.T("延时截图"), Loc.T("托盘触发后倒数几秒再截——摆好菜单/悬停再入镜，支持自定义秒数"));
-                KV(p, Loc.T("滚动截图"), Loc.T("长网页/长对话自动拼接成一张"));
-                KV(p, Loc.T("键位设置"), Loc.T("全局快捷键与编辑器里的键都在「设置 · 快捷键」这一页改"));
-                KV(p, Loc.T("托盘菜单"), Loc.T("暂停手势 / 清除范围 / 设置…"));
-                KV(p, Loc.T("外观"), Loc.T("主题跟随系统，强调色可自定义"));
-                Note(p, Loc.T("本页只是地图，细节都在各处的悬停气泡里——指到哪读到哪。"));
+                KV(p, Loc.T(K.Common.DelayedCapture), Loc.T(K.Help.CountsDownBeforeShootingSo));
+                KV(p, Loc.T(K.Common.ScrollingCapture), Loc.T(K.Help.StitchesALongPage));
+                KV(p, Loc.T(K.Help.KeySettings), Loc.T(K.Help.GlobalHotkeysAndTheEditor));
+                KV(p, Loc.T(K.Help.TrayMenu), Loc.T(K.Help.PauseGesturesClearRegionSettings));
+                KV(p, Loc.T(K.Common.Appearance), Loc.T(K.Help.TheThemeFollowsTheSystem));
+                Note(p, Loc.T(K.Help.ThisPageIsOnly));
             }),
         };
     }
@@ -370,15 +377,15 @@ public sealed class HelpWindow : Window
             g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(112) });
             g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             var sym = new TextBlock { Text = t.Sym, FontSize = 14, Foreground = new SolidColorBrush(Theme.Accent), VerticalAlignment = VerticalAlignment.Center };
-            var key = EditorKeysFor("tool." + t.Key);
-            // 「未设键」是键位表的哨兵值，比较用原文；显示出来的工具名走取词
-            var name = new TextBlock { Text = key == "未设键" ? Loc.T(t.Tip) : $"{Loc.T(t.Tip)} {key}", FontSize = 12.5, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(Theme.Text), VerticalAlignment = VerticalAlignment.Center }; // lockeys
+            var key = EditorKeyParts("tool." + t.Key)[0];
+            // 没绑键时只写工具名，绑了就带上键位——两种语言下都是这个结构
+            var name = new TextBlock { Text = key.Length == 0 ? Loc.T(t.Tip) : $"{Loc.T(t.Tip)} {key}", FontSize = 12.5, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(Theme.Text), VerticalAlignment = VerticalAlignment.Center };
             var help = new TextBlock { Text = Loc.T(t.Help), FontSize = 12, Foreground = new SolidColorBrush(Theme.TextDim), TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center };
             Grid.SetColumn(sym, 0); Grid.SetColumn(name, 1); Grid.SetColumn(help, 2);
             g.Children.Add(sym); g.Children.Add(name); g.Children.Add(help);
             p.Children.Add(g);
         }
-        p.Children.Add(new TextBlock { Text = Loc.F("再按一次工具键或 {0} 退出绘制；滚轮调粗细，文字工具调字号；Alt 吸色。", EditorKeysFor("tool.X")), FontSize = 11.5, Foreground = new SolidColorBrush(Theme.TextDim), Margin = new Thickness(2, 6, 0, 0), TextWrapping = TextWrapping.Wrap });
+        p.Children.Add(new TextBlock { Text = Loc.F(K.Help.PressTheToolKeyAgain, EditorKeysFor("tool.X")), FontSize = 11.5, Foreground = new SolidColorBrush(Theme.TextDim), Margin = new Thickness(2, 6, 0, 0), TextWrapping = TextWrapping.Wrap });
     }
     #endregion
 

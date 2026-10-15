@@ -36,7 +36,7 @@ public sealed partial class EditorWindow : Window
     // 钉到屏幕按钮用实心图钉 E840（招牌动作配招牌图钉）；「总在最前」用置顶箭头 E898，两枚字形不混淆
     Button PinBtn()
     {
-        var b = IconBtn("\uE840", Loc.T("钉到屏幕"));
+        var b = IconBtn("\uE840", Loc.T(K.Editor.PinToScreen));
         b.Click += (_, _) => PinCurrentFrame();
         return b;
     }
@@ -44,7 +44,7 @@ public sealed partial class EditorWindow : Window
     // 识别文字按钮（E8C1「A字」= 文字识别，与文本工具/复制明显区分）
     Button OcrBtn()
     {
-        var b = IconBtn("\uE8C1", Loc.T("识别文字"));
+        var b = IconBtn("\uE8C1", Loc.T(K.Common.RecognizeText));
         b.Click += (_, _) => OcrCurrentFrame();
         return b;
     }
@@ -143,11 +143,11 @@ public sealed partial class EditorWindow : Window
 
             var transport = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
             int fps = _fps;
-            var bPrevSec = IconBtn("\uF8AC", Loc.T("上一秒")); bPrevSec.Click += (_, _) => Step(-fps);
-            var bPrev = IconBtn("\uF08D", Loc.T("上一帧")); bPrev.Click += (_, _) => Step(-1);
-            _bPlay = IconBtn("\uF5B0", Loc.T("播放/暂停 · 空格")); _bPlay.Click += (_, _) => TogglePlay();
-            var bNext = IconBtn("\uF08F", Loc.T("下一帧")); bNext.Click += (_, _) => Step(+1);
-            var bNextSec = IconBtn("\uF8AD", Loc.T("下一秒")); bNextSec.Click += (_, _) => Step(+fps);
+            var bPrevSec = IconBtn("\uF8AC", Loc.T(K.Editor.BackOneSecond)); bPrevSec.Click += (_, _) => Step(-fps);
+            var bPrev = IconBtn("\uF08D", Loc.T(K.Editor.PreviousFrame)); bPrev.Click += (_, _) => Step(-1);
+            _bPlay = IconBtn("\uF5B0", Loc.T(K.Editor.PlayPauseSpace)); _bPlay.Click += (_, _) => TogglePlay();
+            var bNext = IconBtn("\uF08F", Loc.T(K.Editor.NextFrame)); bNext.Click += (_, _) => Step(+1);
+            var bNextSec = IconBtn("\uF8AD", Loc.T(K.Editor.ForwardOneSecond)); bNextSec.Click += (_, _) => Step(+fps);
             foreach (var b in new FrameworkElement[] { bPrevSec, bPrev, _bPlay, bNext, bNextSec }) transport.Children.Add(b);
             Grid.SetColumn(transport, 0);
             g.Children.Add(transport);
@@ -169,18 +169,18 @@ public sealed partial class EditorWindow : Window
             g.Children.Add(_hud);
 
             var actions = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-            var bSaveFrame = IconBtn("\uE105", Loc.T("保存当前帧")); bSaveFrame.Click += (_, _) => SaveFrame();
-            var bCopyFrame = IconBtn("\uF413", Loc.T("复制当前帧")); bCopyFrame.Click += (_, _) => ClipboardService.SetFrame(ExportFrame(_index));
+            var bSaveFrame = IconBtn("\uE105", Loc.T(K.Editor.SaveCurrentFrame)); bSaveFrame.Click += (_, _) => SaveFrame();
+            var bCopyFrame = IconBtn("\uF413", Loc.T(K.Editor.CopyCurrentFrame)); bCopyFrame.Click += (_, _) => ClipboardService.SetFrame(ExportFrame(_index));
             var bPinFrame = PinBtn();
             var bOcrFrame = OcrBtn();
-            var bSaveGif = IconBtn("\uE116", Loc.T("导出录制")); bSaveGif.Click += (_, _) => SaveRecording();
-            var bAfter = IconBtn("\uE955", Loc.T("保存视觉暂留合成图")); bAfter.Click += (_, _) => SaveAfterimage();
+            var bSaveGif = IconBtn("\uE116", Loc.T(K.Editor.ExportRecording)); bSaveGif.Click += (_, _) => SaveRecording();
+            var bAfter = IconBtn("\uE955", Loc.T(K.Editor.SaveAfterimageComposite)); bAfter.Click += (_, _) => SaveAfterimage();
             // 胶片条是显式功能按钮——小窗问抽帧参数，生成后直接复制剪贴板
-            var bStrip = IconBtn("\uE8B9", Loc.T("生成胶片条")); bStrip.Click += (_, _) => GenerateFilmStrip();
+            var bStrip = IconBtn("\uE8B9", Loc.T(K.Editor.FilmStrip)); bStrip.Click += (_, _) => GenerateFilmStrip();
             foreach (var b in new[] { bSaveFrame, bCopyFrame, bPinFrame, bOcrFrame, bSaveGif, bAfter, bStrip }) actions.Children.Add(b);
             actions.Children.Add(Sep());
-            var bCancel = IconBtn("\uE711", Loc.T("取消")); bCancel.Click += (_, _) => Fluent.CloseWithFade(this);
-            var bOk = IconBtn("\uF78C", Loc.T("确定")); bOk.Click += (_, _) => Commit();
+            var bCancel = IconBtn("\uE711", Loc.T(K.Common.Cancel)); bCancel.Click += (_, _) => Fluent.CloseWithFade(this);
+            var bOk = IconBtn("\uF78C", Loc.T(K.Editor.Done)); bOk.Click += (_, _) => Commit();
             actions.Children.Add(bCancel);
             actions.Children.Add(bOk);
             Fluent.HighlightBtn(bOk, true);
@@ -198,19 +198,19 @@ public sealed partial class EditorWindow : Window
         if (!MultiFrame)
         {
             tools.Children.Add(Sep());
-            var bSaveF = IconBtn("\uE105", Loc.T("保存当前帧")); bSaveF.Click += (_, _) => SaveFrame();
-            var bCopyF = IconBtn("\uF413", Loc.T("复制当前帧")); bCopyF.Click += (_, _) => ClipboardService.SetFrame(ExportFrame(_index));
+            var bSaveF = IconBtn("\uE105", Loc.T(K.Editor.SaveCurrentFrame)); bSaveF.Click += (_, _) => SaveFrame();
+            var bCopyF = IconBtn("\uF413", Loc.T(K.Editor.CopyCurrentFrame)); bCopyF.Click += (_, _) => ClipboardService.SetFrame(ExportFrame(_index));
             var bPinF = PinBtn();
             var bOcrF = OcrBtn();
-            var bOkF = IconBtn("\uF78C", Loc.T("确定")); bOkF.Click += (_, _) => Commit();
-            var bX = IconBtn("\uE711", Loc.T("取消")); bX.Click += (_, _) => Fluent.CloseWithFade(this);
+            var bOkF = IconBtn("\uF78C", Loc.T(K.Editor.Done)); bOkF.Click += (_, _) => Commit();
+            var bX = IconBtn("\uE711", Loc.T(K.Common.Cancel)); bX.Click += (_, _) => Fluent.CloseWithFade(this);
             foreach (var b in new[] { bSaveF, bCopyF, bPinF, bOcrF, bOkF, bX }) tools.Children.Add(b);
             Fluent.HighlightBtn(bOkF, true);
             _okBtns.Add(bOkF); // 主按钮：accent 实心
         }
         tools.Children.Add(Sep());
         // 编辑器总在最前：置顶箭头 E898（向上箭头带顶栏，GlyphProbe 已验证），开关态靠高亮底色区分，与「钉到屏幕」图钉是两枚字形
-        var bPin = IconBtn("\uE898", Loc.T("总在最前"));
+        var bPin = IconBtn("\uE898", Loc.T(K.Editor.AlwaysOnTop));
         Fluent.HighlightBtn(bPin, _settings.Current.EditorTopmost);
         bPin.Click += (_, _) =>
         {
@@ -221,8 +221,8 @@ public sealed partial class EditorWindow : Window
             Trace.Log("editor topmost=" + on);
         };
         tools.Children.Add(bPin);
-        var bSet = IconBtn("\uE713", Loc.T("设置")); bSet.Click += (_, _) => SettingsWindow.ShowOrFocus();
-        var bHelp = IconBtn("\uE9CE", Loc.T("帮助与快捷键")); bHelp.Click += (_, _) => HelpWindow.ShowOrFocus();
+        var bSet = IconBtn("\uE713", Loc.T(K.Common.Settings)); bSet.Click += (_, _) => SettingsWindow.ShowOrFocus();
+        var bHelp = IconBtn("\uE9CE", Loc.T(K.Editor.HelpAndShortcuts)); bHelp.Click += (_, _) => HelpWindow.ShowOrFocus();
         tools.Children.Add(bSet);
         tools.Children.Add(bHelp);
         _toolPanel = Panel(tools);
@@ -304,7 +304,7 @@ public sealed partial class EditorWindow : Window
                 BorderBrush = i == 0 ? new SolidColorBrush(Acc) : Brushes.Transparent,
                 BorderThickness = new Thickness(2),
                 Cursor = Cursors.Hand,
-                ToolTip = Loc.T("颜色"),
+                ToolTip = Loc.T(K.Editor.Color),
             };
             Fluent.ChipHover(bd);
             bd.MouseLeftButtonDown += (sender2, e2) => { _colorIdx = idx; RefreshSwatches(); RestyleSelected(CurColor, null); e2.Handled = true; };
@@ -312,7 +312,7 @@ public sealed partial class EditorWindow : Window
             bar.Children.Add(bd);
         }
         // 自定义颜色：RGBA 调色板弹层入口 + 最近自定义色直接点选
-        var pal = IconBtn("\uE790", Loc.T("RGBA 调色板"));
+        var pal = IconBtn("\uE790", Loc.T(K.Editor.RgbaPalette));
         pal.PreviewMouseLeftButtonDown += (_, e2) => { PickCustomColor(); e2.Handled = true; };
         pal.PreviewKeyDown += (_, ek) => { if (ek.Key is Key.Enter or Key.Space) { PickCustomColor(); ek.Handled = true; } };
         _paletteBtn = pal;
@@ -321,17 +321,17 @@ public sealed partial class EditorWindow : Window
         bar.Children.Add(_recentHost);
         RebuildRecentSwatches();
         bar.Children.Add(new System.Windows.Shapes.Rectangle { Width = 1, Fill = new SolidColorBrush(Color.FromArgb(Theme.Stroke.A, Theme.Stroke.R, Theme.Stroke.G, Theme.Stroke.B)), Margin = new Thickness(8, 6, 8, 6) });
-        foreach (var (w, lbl) in new[] { (0, Loc.T("细")), (1, Loc.T("中")), (2, Loc.T("粗")) }.Select((t, i) => (t.Item1, t.Item2)))
+        foreach (var (w, lbl) in new[] { (0, Loc.T(K.Editor.Thin)), (1, Loc.T(K.Editor.Medium)), (2, Loc.T(K.Editor.Bold)) }.Select((t, i) => (t.Item1, t.Item2)))
         {
             int idx = w;
-            var b = IconBtn("", Loc.F("{0}笔画", lbl), 24);
+            var b = IconBtn("", Loc.F(K.Editor.Stroke, lbl), 24);
             b.FontSize = 8 + idx * 3;
             b.PreviewMouseLeftButtonDown += (sender2, e2) => { _widthIdx = idx; RefreshWidths(); RestyleSelected(null, CurWidth); e2.Handled = true; };
             _widthBtns.Add(b);
             bar.Children.Add(b);
         }
         // 自定义线宽：⋯ 按钮 = 第 4 个宽度槽位，点开滑杆弹层（1..24px）
-        var wMore = IconBtn("\uE712", Loc.T("自定义线宽…"), 24);
+        var wMore = IconBtn("\uE712", Loc.T(K.Editor.CustomStrokeWidth), 24);
         wMore.PreviewMouseLeftButtonDown += (_, e2) => { ShowWidthPopup(wMore); e2.Handled = true; };
         wMore.PreviewKeyDown += (_, ek) => { if (ek.Key is Key.Enter or Key.Space) { ShowWidthPopup(wMore); ek.Handled = true; } };
         _widthMoreBtn = wMore;
@@ -340,19 +340,19 @@ public sealed partial class EditorWindow : Window
         // 字号步进器：仅文字工具/选中文字时可见。A−/A+ 调字号——选中文字=改该文字（可撤销），文字工具下=定下次文字字号。
         _fontGroup = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Visibility = Visibility.Collapsed };
         _fontGroup.Children.Add(new System.Windows.Shapes.Rectangle { Width = 1, Fill = new SolidColorBrush(Color.FromArgb(Theme.Stroke.A, Theme.Stroke.R, Theme.Stroke.G, Theme.Stroke.B)), Margin = new Thickness(8, 6, 8, 6) });
-        var fMinus = TextSizeBtn("A\u2212", Loc.T("字号减小")); fMinus.Click += (_, _) => StepFontSize(-1);
-        var fPlus = TextSizeBtn("A+", Loc.T("字号增大")); fPlus.Click += (_, _) => StepFontSize(+1);
+        var fMinus = TextSizeBtn("A\u2212", Loc.T(K.Editor.SmallerText)); fMinus.Click += (_, _) => StepFontSize(-1);
+        var fPlus = TextSizeBtn("A+", Loc.T(K.Editor.LargerText)); fPlus.Click += (_, _) => StepFontSize(+1);
         _fontLabel = new TextBlock { FontFamily = new FontFamily("Segoe UI"), FontSize = 11, Foreground = new SolidColorBrush(Theme.Text), VerticalAlignment = VerticalAlignment.Center, MinWidth = 36, TextAlignment = TextAlignment.Center };
         _fontGroup.Children.Add(fMinus);
         _fontGroup.Children.Add(_fontLabel);
         _fontGroup.Children.Add(fPlus);
         bar.Children.Add(_fontGroup);
         bar.Children.Add(new System.Windows.Shapes.Rectangle { Width = 1, Fill = new SolidColorBrush(Color.FromArgb(Theme.Stroke.A, Theme.Stroke.R, Theme.Stroke.G, Theme.Stroke.B)), Margin = new Thickness(8, 6, 8, 6) });
-        var undo = IconBtn("", Loc.T("撤销"));
+        var undo = IconBtn("", Loc.T(K.Editor.Undo));
         undo.Click += (_, _) => UndoAnn();
         _undoBtn = undo;
         bar.Children.Add(undo);
-        var redo = IconBtn("", Loc.T("重做"));
+        var redo = IconBtn("", Loc.T(K.Editor.Redo));
         redo.Click += (_, _) => RedoAnn();
         _redoBtn = redo;
         bar.Children.Add(redo);
@@ -371,8 +371,8 @@ public sealed partial class EditorWindow : Window
         SetGhost(_redoBtn, canR);
         // 步数进 tooltip：撤销到哪一步、还能撤几步，悬停即知
         int u = _anns.Count + _order.CropUndoCount, r = _anns.RedoCount + _order.CropRedoCount;
-        if (_undoBtn != null) _undoBtn.ToolTip = canU ? Loc.F("撤销上一笔 · 可撤 {0} 步", u) : Loc.T("撤销");
-        if (_redoBtn != null) _redoBtn.ToolTip = canR ? Loc.F("重做上一笔 · 可重做 {0} 步", r) : Loc.T("重做");
+        if (_undoBtn != null) _undoBtn.ToolTip = canU ? Loc.F(K.Editor.UndoTheLastEditSteps, u) : Loc.T(K.Editor.Undo);
+        if (_redoBtn != null) _redoBtn.ToolTip = canR ? Loc.F(K.Editor.RedoTheLastEditSteps, r) : Loc.T(K.Editor.Redo);
     }
     static void SetGhost(Button? b, bool on)
     {
@@ -431,7 +431,7 @@ public sealed partial class EditorWindow : Window
             {
                 Child = inner, Width = 20, Height = 20, Margin = new Thickness(2, 0, 0, 0),
                 CornerRadius = new CornerRadius(10), Background = Brushes.Transparent,
-                Cursor = Cursors.Hand, ToolTip = Loc.F("最近用色 {0}", hex),
+                Cursor = Cursors.Hand, ToolTip = Loc.F(K.Editor.RecentColor, hex),
             };
             Fluent.ChipHover(bd);
             string h = hex;

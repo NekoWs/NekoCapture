@@ -50,8 +50,8 @@ public sealed partial class SettingsWindow : Window
     /// <param name="panel">本页的内容容器，编辑器键位一节由调用方接在后面。</param>
     void BuildHotkeys(StackPanel panel)
     {
-        panel.Children.Add(ToggleRow("\uE765", Loc.T("启用快捷键"),
-            Loc.T("关掉后快捷键整体不参与：不吞键、不触发，按键照常交给当前窗口"),
+        panel.Children.Add(ToggleRow("\uE765", Loc.T(K.Hotkeys.EnableHotkeys),
+            Loc.T(K.Hotkeys.OffStepsTheWholeHotkey),
             _settings.Current.Gestures.Enabled, v =>
             {
                 _settings.Mutate(s => s.Gestures.Enabled = v);
@@ -117,14 +117,14 @@ public sealed partial class SettingsWindow : Window
                     },
                     new TextBlock
                     {
-                        Text = Loc.T("添加快捷键"),
+                        Text = Loc.T(K.Hotkeys.AddAHotkey),
                         FontSize = 12.5,
                         Foreground = new SolidColorBrush(Theme.Text),
                         VerticalAlignment = VerticalAlignment.Center,
                     },
                 },
             },
-            ToolTip = Loc.T("新增一条：先给它按一个组合键，再挑要执行的动作"),
+            ToolTip = Loc.T(K.Hotkeys.AddsOnePressAKey),
         };
         HoverFill(add);
         add.MouseLeftButtonUp += (_, _) => AddHotkey();
@@ -230,7 +230,7 @@ public sealed partial class SettingsWindow : Window
         {
             bool hit = _settings.Current.Gestures.ConflictIds().Contains(b.Id);
             pill.ToolTip = hit
-                ? Loc.T("同一个组合键与触发方式上挂着多条快捷键，只有排在前面那条会触发")
+                ? Loc.T(K.Hotkeys.AnotherHotkeyAlreadyUsesThis)
                 : null;
             pillStroke.BeginAnimation(SolidColorBrush.ColorProperty, new ColorAnimation(
                 hit ? Theme.Danger : Theme.StrokeSoft,
@@ -277,7 +277,7 @@ public sealed partial class SettingsWindow : Window
         var box = new ChordCaptureBox
         {
             Chord = b.Chord,
-            EmptyHint = Loc.T("点击按键"),
+            EmptyHint = Loc.T(K.Hotkeys.ClickThenPressAKey),
             HorizontalAlignment = HorizontalAlignment.Right,
             Margin = new Thickness(10, 0, 0, 0),
         };
@@ -307,7 +307,7 @@ public sealed partial class SettingsWindow : Window
         rows.Children.Add(TriggerRow(b));
 
         string[] chain = b.Actions;
-        rows.Children.Add(ChainRow(Loc.T("触发时"),
+        rows.Children.Add(ChainRow(Loc.T(K.Hotkeys.OnTrigger),
             () => chain,
             i => ActionCatalog(step: true, first: i == 0),
             list => { chain = list; b.Actions = list; CommitHotkeys(); }));
@@ -315,9 +315,9 @@ public sealed partial class SettingsWindow : Window
         rows.Children.Add(AdvancedSwitch());
 
         string[] done = b.OnComplete, fail = b.OnFail;
-        rows.Children.Add(OverrideRow(Loc.T("完成后"), () => done, Loc.T("默认 · 弹提示"),
+        rows.Children.Add(OverrideRow(Loc.T(K.Hotkeys.OnCompletion), () => done, Loc.T(K.Hotkeys.DefaultToast),
             list => { done = list; b.OnComplete = list; CommitHotkeys(); }, Width));
-        rows.Children.Add(OverrideRow(Loc.T("失败时"), () => fail, Loc.T("默认 · 什么都不做"),
+        rows.Children.Add(OverrideRow(Loc.T(K.Hotkeys.OnFailure), () => fail, Loc.T(K.Hotkeys.DefaultNothing),
             list => { fail = list; b.OnFail = list; CommitHotkeys(); }, Width));
         return body;
     }
@@ -340,7 +340,7 @@ public sealed partial class SettingsWindow : Window
         };
         var hint = new TextBlock
         {
-            Text = Loc.T("留空则按序列自动取名"),
+            Text = Loc.T(K.Hotkeys.LeaveEmptyToNameIt),
             FontSize = 12.5,
             Foreground = new SolidColorBrush(Theme.TextDim),
             IsHitTestVisible = false,
@@ -358,8 +358,8 @@ public sealed partial class SettingsWindow : Window
             onName();
             CommitHotkeys();
         };
-        return LabeledRow(Loc.T("名字"), field,
-            Loc.T("这条快捷键在列表里的名字；留空时按它执行的动作自动显示"));
+        return LabeledRow(Loc.T(K.Hotkeys.Name), field,
+            Loc.T(K.Hotkeys.TheNameThisHotkeyShows));
     }
 
     /// <summary>触发方式行：同一个组合键配多条不同触发，这一列就是那些变化所在。</summary>
@@ -376,7 +376,7 @@ public sealed partial class SettingsWindow : Window
         foreach (var k in kinds)
             combo.Items.Add(new ComboBoxItem
             {
-                Content = k == "Chord" ? Loc.T("组合键") : Loc.T(GestureConfig.TriggerLabel(k)),
+                Content = k == "Chord" ? Loc.T(K.Hotkeys.Shortcut) : Loc.T(GestureConfig.TriggerLabel(k)),
                 Tag = k,
             });
         combo.SelectedIndex = Math.Max(0, Array.IndexOf(kinds, b.Trigger));
@@ -389,8 +389,8 @@ public sealed partial class SettingsWindow : Window
                 RebuildHotkeys();   // 折叠行的触发后缀跟着改
             }
         };
-        return LabeledRow(Loc.T("触发方式"), combo,
-            Loc.T("同一个组合键可以配多条不同触发：组合键即按即触发，轻点与按住用来让一个键分出两件事"));
+        return LabeledRow(Loc.T(K.Hotkeys.Trigger), combo,
+            Loc.T(K.Hotkeys.OneKeyCombinationCanCarry));
     }
 
     /// <summary>「触发时」一行：横向芯片序列，末尾一枚加号。</summary>
@@ -402,7 +402,7 @@ public sealed partial class SettingsWindow : Window
     FrameworkElement ChainRow(string label, Func<string[]> get,
         Func<int, IEnumerable<GestureAction>> candidates, Action<string[]> set) =>
         LabeledRow(label, new ChainEditor(get, candidates, set).Root,
-            Loc.T("按顺序执行；点芯片换这一步，点加号在后面加一步"));
+            Loc.T(K.Hotkeys.RunsInOrderClick));
 
     /// <summary>「完成后」「失败时」一行：简单形态整行不出现，高级形态整行长出来，
     /// 长出来之后显示的是可编辑的序列。</summary>

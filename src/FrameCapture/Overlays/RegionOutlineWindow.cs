@@ -4,6 +4,7 @@ using System.Windows.Media;
 using FrameCapture.Capture;
 using FrameCapture.Native;
 using Loc = FrameCapture.Core.Loc;
+using K = FrameCapture.Core.K;
 
 namespace FrameCapture.Overlays;
 
@@ -242,7 +243,7 @@ public sealed class RegionOutlineWindow : Window
         _recBadge.BeginAnimation(OpacityProperty, null);
         _recBadge.Opacity = 1;
         _recBadge.Visibility = Visibility.Visible;
-        _recText.Text = Loc.T("处理中…");
+        _recText.Text = Loc.T(K.Capture.Working);
     }
 
     /// <summary>边框显隐：免按住录制且用户关了「录制边框」时，窗口只挂 REC 徽标不画框。</summary>

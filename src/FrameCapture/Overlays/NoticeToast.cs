@@ -103,7 +103,7 @@ public sealed class NoticeToast : Window
         Grid.SetColumn(texts, 1);
         grid.Children.Add(texts);
 
-        var close = Fluent.IconButton("\uE711", Loc.T("关闭"), 26, 12, new SolidColorBrush(Theme.TextDim));
+        var close = Fluent.IconButton("\uE711", Loc.T(K.Common.Close), 26, 12, new SolidColorBrush(Theme.TextDim));
         close.VerticalAlignment = VerticalAlignment.Top;
         close.Click += (_, _) => Dismiss();
         Grid.SetColumn(close, 2);
