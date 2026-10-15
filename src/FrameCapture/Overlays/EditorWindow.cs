@@ -91,9 +91,8 @@ public sealed partial class EditorWindow : Window
         Fluent.BorderlessNative(this); // 真无框：消 DWM 非客户区白条，原生圆角+阴影
         _mica = Fluent.MicaBackdrop(this);
         Fluent.FadeIn(this, Fluent.Motion.EditorEnterMs, 14, offscreenFirstFrame: true);
-        // 工具条逐项落定：编辑器是全站最大的表面，整条工具栏跟窗口同时出现会显得笨重。
-        // 窗口一出现两排就开始落定，中间不留空窗；播放条在上、工具条在下，
-        // 按阅读顺序前后错开一波，避免下排波动而上排静止。
+        // 工具条逐项落定，整段压在窗口淡入（EditorEnterMs）之内完成：
+        // 淡入结束那一帧工具条必须已经到位，不能出现「窗口在、工具条还在路上」的空窗。
         // 开关关掉就一个动画都不挂：元素以常态直接可见，没有需要清零的中间态。
         ContentRendered += (_, _) =>
         {
@@ -101,12 +100,11 @@ public sealed partial class EditorWindow : Window
             _toolsCascaded = true;
             if (!_settings.Current.EditorToolbarAnim) return;
             if (_playPanel?.Child is Panel play)
-                Fluent.CascadeRows(play, risePx: 6, itemMs: Fluent.Motion.HoverMs,
-                    budgetMs: Fluent.Motion.SpringMs + Fluent.Motion.StaggerMs);
+                Fluent.CascadeRows(play, risePx: 6, itemMs: Fluent.Motion.PressMs,
+                    budgetMs: Fluent.Motion.QuickMs);
             if (_toolsBar == null) return;
-            Fluent.CascadeRows(_toolsBar, risePx: 6, itemMs: Fluent.Motion.HoverMs,
-                budgetMs: Fluent.Motion.SpringMs + Fluent.Motion.StaggerMs,
-                leadMs: Fluent.Motion.StaggerMs);
+            Fluent.CascadeRows(_toolsBar, risePx: 6, itemMs: Fluent.Motion.PressMs,
+                budgetMs: Fluent.Motion.QuickMs);
         };
         // 窗底交给背板：画布四周的中性暗底由 viewHost 自己涂，停靠面板透明才透出 Mica。
         Background = _mica ? Brushes.Transparent : new SolidColorBrush(DarkBg);

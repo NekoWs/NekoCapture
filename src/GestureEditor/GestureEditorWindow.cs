@@ -126,8 +126,8 @@ public sealed partial class GestureEditorWindow : Window
                 st.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(1, dur) { EasingFunction = ease });
                 st.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(1, dur) { EasingFunction = ease });
             }
-            // 详情区随后落位：窗口本体先站稳，内容再逐项错位进场，两段共用 Motion 令牌
-            Cascade.In(_detail, risePx: 6, leadMs: Motion.QuickMs);
+            // 打开这一帧内容就是完整的：整窗淡入缩放已覆盖详情区。
+            // 逐项错位只留给在已开窗内切换绑定（SelectBinding 里 IsLoaded 那条路径）。
         };
         // 退场：任何关闭路径（关闭钮/Esc/宿主 Close）先淡出再真关；淡出中再来的 Closing 一律放行。
         Closing += (_, e) =>

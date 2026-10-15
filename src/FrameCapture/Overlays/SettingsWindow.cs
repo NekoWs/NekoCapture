@@ -519,9 +519,8 @@ public sealed partial class SettingsWindow : Window
         root.Child = dock;
         Content = root;
 
-        // 逐项入场：等首帧渲染完再起，构造期起的动画会在窗口可见前就播完，等于没播。
-        // 窗口级淡入与首帧压黑由构造函数里的 PopupEnter 负责，此处只负责行的错位，两层各管一段。
-        ContentRendered += (_, _) => Fluent.CascadeRows(cats[_cat].Body);
+        // 首帧一次到位：整窗连同正文由构造函数里的 PopupEnter 同一帧淡入。
+        // 行的逐项错位只用在切类别（ShowCat animate=true）——那里内容确实在变。
 
         // 窗级 Esc 关窗、F1 打开帮助。
         PreviewKeyDown += (_, e) =>

@@ -157,8 +157,7 @@ public sealed class HelpWindow : Window
             else if (e.Key == Key.Right) { Go(+1); e.Handled = true; }
         };
         Fluent.PopupEnter(this);
-        // 打开帮助窗的载入：等首帧渲染完再起逐项入场，构造期起的动画会在窗口可见前播完
-        ContentRendered += (_, _) => Fluent.CascadeRows(_body, risePx: 6);
+        // 载入不逐项错位：整窗一次淡入，首帧就是完整的一页。翻页的逐行落定见 Go。
         Fluent.InstallCaptionDrag(this, closeBtn);
         SourceInitialized += (_, _) =>
         {
