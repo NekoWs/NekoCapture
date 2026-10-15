@@ -253,7 +253,7 @@ public sealed partial class SettingsWindow : Window
 
         #region 录制
         panel = Cat(Loc.T("录制"), "\uE714");
-        var fpsRow = SliderRow("\uEC4A", "录制帧率", "录制时每秒捕获的帧数；开启下方「跟随显示器刷新率」时本项隐藏，由刷新率取代",
+        var fpsRow = SliderRow("\uEC4A", Loc.T("录制帧率"), Loc.T("录制时每秒捕获的帧数；开启下方「跟随显示器刷新率」时本项隐藏，由刷新率取代"),
             AppSettings.FpsMin, AppSettings.FpsMax, 5, _settings.Current.Fps,
             v => $"{v:0} fps", v => _settings.Mutate(s => s.Fps = (int)v));
         // 跟随刷新率开启→手动帧率完全失效，整行淡出隐藏（关闭再淡入恢复），比灰着更诚实、页面更干净
@@ -278,20 +278,20 @@ public sealed partial class SettingsWindow : Window
         if (_settings.Current.FollowMonitorRefresh) { fpsRow.Opacity = 0; fpsRow.Visibility = Visibility.Collapsed; }
         panel.Children.Add(fpsRow);
         int hz = Core.DisplayRefresh.RateOf(Capture.Monitors.All().FirstOrDefault(m => m.IsPrimary)?.DeviceName);
-        panel.Children.Add(ToggleRow("\uE7F4", "跟随显示器刷新率录满",
-            (hz > 0 ? $"开启后录制帧率自动取当前录制显示器的刷新率，本机主屏检测到 {hz}Hz → 录满 {hz}fps，上面的手动帧率随之隐藏。"
-                    : "开启后录制帧率自动取当前录制显示器的刷新率，本机暂未检测到主屏刷新率，录制时按实际显示器实时检测，上面的手动帧率随之隐藏。")
-            + "144 / 165 / 240Hz 这类高刷屏录满才丝滑；MP4/WebM 可录满，GIF 受格式封顶约 50fps",
+        panel.Children.Add(ToggleRow("\uE7F4", Loc.T("跟随显示器刷新率录满"),
+            (hz > 0 ? Loc.F("开启后录制帧率自动取当前录制显示器的刷新率，本机主屏检测到 {0}Hz → 录满 {1}fps，上面的手动帧率随之隐藏。", hz, hz)
+                    : Loc.T("开启后录制帧率自动取当前录制显示器的刷新率，本机暂未检测到主屏刷新率，录制时按实际显示器实时检测，上面的手动帧率随之隐藏。"))
+            + Loc.T("144 / 165 / 240Hz 这类高刷屏录满才丝滑；MP4/WebM 可录满，GIF 受格式封顶约 50fps"),
             _settings.Current.FollowMonitorRefresh,
             v => { _settings.Mutate(s => s.FollowMonitorRefresh = v); SetFpsVisible(!v); })); // 开→帧率行淡出隐藏，关→淡入恢复
         panel.Children.Add(RecordFormatRow());
         // 长按录制没有时长上限——录到用户停为止，帧持续落盘，不受内存与时长约束，因此这里没有可调数值。
         // 唯一护栏是磁盘剩余空间（<1GB 自动停并保留已录内容）。
-        panel.Children.Add(ToggleRow("\uE7C8", "只录窗口", "录制选区里点一个窗口起录时，录的是这个窗口本体而不是那块屏幕矩形：别的窗口盖上来、窗口挪位置都不会进画面，成片里只有它。圆角处按白底拍平，GIF 与 MP4 没有透明通道。关掉则一律按屏幕矩形录",
+        panel.Children.Add(ToggleRow("\uE7C8", Loc.T("只录窗口"), Loc.T("录制选区里点一个窗口起录时，录的是这个窗口本体而不是那块屏幕矩形：别的窗口盖上来、窗口挪位置都不会进画面，成片里只有它。圆角处按白底拍平，GIF 与 MP4 没有透明通道。关掉则一律按屏幕矩形录"),
             _settings.Current.RecordWindowClean, v => _settings.Mutate(s => s.RecordWindowClean = v)));
-        panel.Children.Add(ToggleRow("\uE7C4", "录制时显示范围边框", "录制期间按真实捕获范围高亮描边，只提示、不录进产物。取代 Windows 11 那条绕整屏的黄色系统捕获边框——WGC 只能整显示器捕获，系统边框必然全屏、与所选范围无关",
+        panel.Children.Add(ToggleRow("\uE7C4", Loc.T("录制时显示范围边框"), Loc.T("录制期间按真实捕获范围高亮描边，只提示、不录进产物。取代 Windows 11 那条绕整屏的黄色系统捕获边框——WGC 只能整显示器捕获，系统边框必然全屏、与所选范围无关"),
             _settings.Current.ShowRecordingBorder, v => _settings.Mutate(s => s.ShowRecordingBorder = v)));
-        panel.Children.Add(ToggleRow("\uE8B0", "录制包含鼠标指针", "录出的画面里带上鼠标光标，默认开。关掉后成片干净无光标，适合做教程/演示时后期自己加高亮，或不想让光标乱入",
+        panel.Children.Add(ToggleRow("\uE8B0", Loc.T("录制包含鼠标指针"), Loc.T("录出的画面里带上鼠标光标，默认开。关掉后成片干净无光标，适合做教程/演示时后期自己加高亮，或不想让光标乱入"),
             _settings.Current.RecordIncludeCursor, v => _settings.Mutate(s => s.RecordIncludeCursor = v)));
 
         Cardify(panel); // 录制页行归入卡片

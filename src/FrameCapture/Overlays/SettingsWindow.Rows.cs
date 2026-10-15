@@ -223,17 +223,17 @@ public sealed partial class SettingsWindow : Window
 
     FrameworkElement RecordFormatRow()
     {
-        var g = ChipRow("\uE786", "录制完成后编辑器「导出录制」默认用的格式。MP4/WebM 需本机装有 ffmpeg，自动探测 PATH 与常见安装目录；未装则视频项会提示安装，GIF 始终可用", "录制格式");
+        var g = ChipRow("\uE786", Loc.T("录制完成后编辑器「导出录制」默认用的格式。MP4/WebM 需本机装有 ffmpeg，自动探测 PATH 与常见安装目录；未装则视频项会提示安装，GIF 始终可用"), Loc.T("录制格式"));
         var chips = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
         Grid.SetColumn(chips, 2);
         var cur = _settings.Current.RecordFormat;
         bool hasFf = Encoding.FfmpegLocator.Find() != null;
-        string ffNote = hasFf ? " · 已检测到 ffmpeg" : " · 未检测到 ffmpeg，装 FFmpeg 后可选";
+        string ffNote = hasFf ? Loc.T(" · 已检测到 ffmpeg") : Loc.T(" · 未检测到 ffmpeg，装 FFmpeg 后可选");
         var opts = new (RecordFormat id, string text, string tip)[]
         {
-            (RecordFormat.Gif, "GIF", "通用动图，任何地方都能放；受格式封顶约 50fps、体积大"),
-            (RecordFormat.Mp4, "MP4", "兼容性最好的视频格式，用 libx264 编码，浏览器/剪辑软件/社交平台通吃 " + ffNote),
-            (RecordFormat.WebM, "WebM", "开源视频格式，用 VP9 编码，同画质体积更小，网页/上传首选 " + ffNote),
+            (RecordFormat.Gif, "GIF", Loc.T("通用动图，任何地方都能放；受格式封顶约 50fps、体积大")),
+            (RecordFormat.Mp4, "MP4", Loc.T("兼容性最好的视频格式，用 libx264 编码，浏览器/剪辑软件/社交平台通吃 ") + ffNote),
+            (RecordFormat.WebM, "WebM", Loc.T("开源视频格式，用 VP9 编码，同画质体积更小，网页/上传首选 ") + ffNote),
         };
         var chipList = new List<(Border chip, RecordFormat id)>();
         foreach (var (id, text, tip) in opts)
@@ -264,8 +264,8 @@ public sealed partial class SettingsWindow : Window
         });
         status.Children.Add(new TextBlock
         {
-            Text = hasFf ? "已检测到 ffmpeg · 可导出 MP4 / WebM"
-                         : "未检测到 ffmpeg · 导出 MP4/WebM 需先安装，见帮助 F1，GIF 不受影响",
+            Text = hasFf ? Loc.T("已检测到 ffmpeg · 可导出 MP4 / WebM")
+                         : Loc.T("未检测到 ffmpeg · 导出 MP4/WebM 需先安装，见帮助 F1，GIF 不受影响"),
             FontSize = 11.5,
             Foreground = new SolidColorBrush(Theme.TextDim),
             VerticalAlignment = VerticalAlignment.Center,
