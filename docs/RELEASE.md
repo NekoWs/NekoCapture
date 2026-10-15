@@ -16,6 +16,12 @@ pwsh -NoProfile -File scripts/publish-release.ps1 -SkipVerify         # 只重�
 `<ApplicationIcon>` 不会让它重新生成，增量发布出来的 exe 会沿用中间产物里那枚
 （实测 148 KB 无图标 / 186 KB 有图标）。图标进不进包取决于构建缓存，这种不确定性不能带到发行物里。
 
+引导器链走主项目的 `Theme.cs` 与三份 `Fluent*.cs`，这四个文件里出现对主工程其他项目
+（GestureEditor、GestureCore）的引用，引导器就编译不过：它只带这四个文件。
+主程序单独编译照样通过，所以这类断链只有整解决方案编译才看得见。护栏的 `build:Setup`
+专门编引导器，把它拦在出包之前；需要共享的配色算法放主项目自己的 partial 文件里，
+向导不链那份即可。
+
 ## 产物
 
 | 文件 | 体积 | 用途 |
