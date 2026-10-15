@@ -258,9 +258,8 @@
 /* 两组并排：全局只有两条，编辑器内一长串，宽度按内容分，不让短的一组撑成空框 */
 .keys__grid {
   display: grid;
-  grid-template-columns: minmax(0, 0.72fr) minmax(0, 1.28fr);
-  gap: clamp(16px, 2.4vw, 26px);
-  align-items: start;
+  grid-template-columns: 1fr;
+  gap: 20px;
 }
 
 .keys {
@@ -271,6 +270,15 @@
   overflow: hidden;
   border: 1px solid var(--stroke-soft);
 }
+
+/* 表体分两列排，行与行、列与列之间留 1px 缝，透出页面底色当分隔线。 */
+.keys__cols {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+}
+
+.keys__col { display: grid; gap: 1px; }
 
 .keys__cap {
   padding: 13px 18px;
@@ -410,12 +418,12 @@
 /* ── 断点 ─────────────────────────────────────────────── */
 @media (max-width: 1000px) {
   .hero { grid-template-columns: 1fr; }
-  .keys__grid { grid-template-columns: 1fr; }
   .panel { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 760px) {
   .topnav { display: none; }
+  .keys__cols { grid-template-columns: 1fr; }
   .flow__list { grid-template-columns: 1fr; }
   .brand__ver { display: none; }
 }
