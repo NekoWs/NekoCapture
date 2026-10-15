@@ -200,22 +200,22 @@ public sealed partial class SettingsWindow : Window
 
         #region 截图
         panel = Cat(Loc.T("截图"), "\uE7A8");
-        panel.Children.Add(ToggleRow("\uE7B5", "选区自动截取", "完成选区后立即截取一帧 PNG 静态图，同时复制到剪贴板",
+        panel.Children.Add(ToggleRow("\uE7B5", Loc.T("选区自动截取"), Loc.T("完成选区后立即截取一帧 PNG 静态图，同时复制到剪贴板"),
             _settings.Current.AutoCaptureOnSelect, v => _settings.Mutate(s => s.AutoCaptureOnSelect = v)));
-        panel.Children.Add(ToggleRow("\uE740", "吸附到控件", "悬停自动吸附窗口内的具体控件：输入框、文字、图片、分组容器等，按 Tab 可上钻到父容器。依赖应用无障碍接口，不支持时自动回退整窗吸附",
+        panel.Children.Add(ToggleRow("\uE740", Loc.T("吸附到控件"), Loc.T("悬停自动吸附窗口内的具体控件：输入框、文字、图片、分组容器等，按 Tab 可上钻到父容器。依赖应用无障碍接口，不支持时自动回退整窗吸附"),
             _settings.Current.SnapContentArea, v => _settings.Mutate(s => s.SnapContentArea = v)));
-        panel.Children.Add(ToggleRow("\uE7C8", "点击窗口时截取完整窗口", "选区窗里点一个吸附到的窗口，不再按屏幕矩形抓像素，而是真正截取该窗口本体——Win11 圆角处透明、浏览器/GPU 窗也干净，背景透明。关掉则点窗恢复旧的「按矩形区域截图」。拖框选区域不受影响；目标窗被别的窗遮挡或取帧失败时自动回退区域截图",
+        panel.Children.Add(ToggleRow("\uE7C8", Loc.T("点击窗口时截取完整窗口"), Loc.T("选区窗里点一个吸附到的窗口，不再按屏幕矩形抓像素，而是真正截取该窗口本体——Win11 圆角处透明、浏览器/GPU 窗也干净，背景透明。关掉则点窗恢复旧的「按矩形区域截图」。拖框选区域不受影响；目标窗被别的窗遮挡或取帧失败时自动回退区域截图"),
             _settings.Current.WindowCaptureEnabled, v => _settings.Mutate(s => s.WindowCaptureEnabled = v)));
-        panel.Children.Add(ToggleRow("\uE7B3", "窗口截图包含投影", "在上面开关开启时，额外把窗口边缘的真实投影截进来、外缘柔和渐隐到透明。关掉则只截窗口本体，圆角透明、无投影",
+        panel.Children.Add(ToggleRow("\uE7B3", Loc.T("窗口截图包含投影"), Loc.T("在上面开关开启时，额外把窗口边缘的真实投影截进来、外缘柔和渐隐到透明。关掉则只截窗口本体，圆角透明、无投影"),
             _settings.Current.WindowCaptureShadow, v => _settings.Mutate(s => s.WindowCaptureShadow = v)));
-        panel.Children.Add(ToggleRow("\uE7C4", "显示上次选区", "按下选区快捷键后，用虚线框显示上次的选区位置，按 Enter 直接确认重选同区域；关闭后每次都是干净屏",
+        panel.Children.Add(ToggleRow("\uE7C4", Loc.T("显示上次选区"), Loc.T("按下选区快捷键后，用虚线框显示上次的选区位置，按 Enter 直接确认重选同区域；关闭后每次都是干净屏"),
             _settings.Current.ShowLastRegion, v => _settings.Mutate(s => s.ShowLastRegion = v)));
-        panel.Children.Add(ToggleRow("\uE721", "选区放大镜", "拖框或悬停选区时，光标旁显示高倍像素放大镜、坐标/尺寸读数与光标下像素颜色，按 C 复制颜色、格式见下，便于像素级精确选区/取色；关闭可省一点开销",
+        panel.Children.Add(ToggleRow("\uE721", Loc.T("选区放大镜"), Loc.T("拖框或悬停选区时，光标旁显示高倍像素放大镜、坐标/尺寸读数与光标下像素颜色，按 C 复制颜色、格式见下，便于像素级精确选区/取色；关闭可省一点开销"),
             _settings.Current.PickerMagnifier, v => _settings.Mutate(s => s.PickerMagnifier = v)));
         // 定格画面开关 + 定格时预抓窗口上限（上限仅在定格开时显示，仿「跟随刷新率→隐藏手动帧率」）
-        var pregrabRow = SliderRow("\uE7C8", "定格时预抓窗口数", "「定格画面」与「点击窗口时截取完整窗口」都开着时，定格瞬间后台按 Z 序、当前聚焦窗最优先，预抓这么多「完整可见」窗口的干净画面；点窗口即用缓存＝定格+干净圆角+投影，没缓存好则实时抓兜底。0 = 不预抓，点窗口一律实时抓",
+        var pregrabRow = SliderRow("\uE7C8", Loc.T("定格时预抓窗口数"), Loc.T("「定格画面」与「点击窗口时截取完整窗口」都开着时，定格瞬间后台按 Z 序、当前聚焦窗最优先，预抓这么多「完整可见」窗口的干净画面；点窗口即用缓存＝定格+干净圆角+投影，没缓存好则实时抓兜底。0 = 不预抓，点窗口一律实时抓"),
             0, 16, 1, _settings.Current.FreezePregrabMaxWindows,
-            v => v <= 0 ? "不预抓" : $"{v:0} 个", v => _settings.Mutate(s => s.FreezePregrabMaxWindows = (int)v));
+            v => v <= 0 ? Loc.T("不预抓") : Loc.F("{0} 个", v), v => _settings.Mutate(s => s.FreezePregrabMaxWindows = (int)v));
         void SetPregrabVisible(bool vis)
         {
             if (vis)
@@ -235,15 +235,15 @@ public sealed partial class SettingsWindow : Window
             }
         }
         if (!_settings.Current.FreezeOnSelect) { pregrabRow.Opacity = 0; pregrabRow.Visibility = Visibility.Collapsed; }
-        panel.Children.Add(ToggleRow("\uE7C4", "选区时定格画面", "按下选区热键的瞬间抓一张全屏定格帧，整个选区过程画面看起来就定格了——放大镜读定格帧、拖框/区域截图也裁这张定格帧，不再选完后重新抓屏，所见即所得。关掉则全程实时：屏幕实时可见、放大镜每次移动实时跟画面、截图实时重抓",
+        panel.Children.Add(ToggleRow("\uE7C4", Loc.T("选区时定格画面"), Loc.T("按下选区热键的瞬间抓一张全屏定格帧，整个选区过程画面看起来就定格了——放大镜读定格帧、拖框/区域截图也裁这张定格帧，不再选完后重新抓屏，所见即所得。关掉则全程实时：屏幕实时可见、放大镜每次移动实时跟画面、截图实时重抓"),
             _settings.Current.FreezeOnSelect, v => { _settings.Mutate(s => s.FreezeOnSelect = v); SetPregrabVisible(v); }));
         panel.Children.Add(pregrabRow);
         panel.Children.Add(ColorFormatRow());
-        panel.Children.Add(ToggleRow("\uE71A", "常显捕获范围轮廓", "在屏幕上持续显示当前捕获范围的边框，开/关立刻生效。尚未设置范围时没有可显示的边框——先用托盘「设置捕获范围」",
+        panel.Children.Add(ToggleRow("\uE71A", Loc.T("常显捕获范围轮廓"), Loc.T("在屏幕上持续显示当前捕获范围的边框，开/关立刻生效。尚未设置范围时没有可显示的边框——先用托盘「设置捕获范围」"),
             _settings.Current.AlwaysShowRegionOutline, v => _settings.Mutate(s => s.AlwaysShowRegionOutline = v)));
-        panel.Children.Add(SliderRow("\uE7C4", "截图后边框显示时间", "截完那一下范围边框「亮边闪一下」作确认——这里设它全亮停留多久再淡出。拍完即走调小、想多留一眼确认截对没调大。它与「常显轮廓」和录制边框各自独立",
+        panel.Children.Add(SliderRow("\uE7C4", Loc.T("截图后边框显示时间"), Loc.T("截完那一下范围边框「亮边闪一下」作确认——这里设它全亮停留多久再淡出。拍完即走调小、想多留一眼确认截对没调大。它与「常显轮廓」和录制边框各自独立"),
             0.2, 3.0, 0.1, _settings.Current.OutlineFadeSeconds,
-            v => $"{v:0.0} 秒", v => _settings.Mutate(s => s.OutlineFadeSeconds = v)));
+            v => Loc.F("{0:0.0} 秒", v), v => _settings.Mutate(s => s.OutlineFadeSeconds = v)));
         panel.Children.Add(ToastRow());
         panel.Children.Add(CaptureSoundRow());
         panel.Children.Add(DelayRow());

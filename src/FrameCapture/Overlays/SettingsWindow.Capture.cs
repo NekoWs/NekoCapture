@@ -16,15 +16,15 @@ public sealed partial class SettingsWindow : Window
     // 取色复制格式：选区放大镜按 C 复制颜色时的文本形式，HEX / RGB / HSL 三选
     FrameworkElement ColorFormatRow()
     {
-        var g = ChipRow("\uE790", "选区放大镜按 C 复制颜色时的文本形式：#RRGGBB / rgb(r, g, b) / hsl(h, s%, l%)", "取色格式");
+        var g = ChipRow("\uE790", Loc.T("选区放大镜按 C 复制颜色时的文本形式：#RRGGBB / rgb(r, g, b) / hsl(h, s%, l%)"), Loc.T("取色格式"));
         var chips = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
         Grid.SetColumn(chips, 2);
         string cur = _settings.Current.ColorCopyFormat;
         var opts = new[]
         {
-            ("hex", "HEX", "#RRGGBB 通用格式"),
-            ("rgb", "RGB", "rgb(r, g, b) 可直接贴进 CSS"),
-            ("hsl", "HSL", "hsl(h, s%, l%) 调色和设计常用"),
+            ("hex", "HEX", Loc.T("#RRGGBB 通用格式")),
+            ("rgb", "RGB", Loc.T("rgb(r, g, b) 可直接贴进 CSS")),
+            ("hsl", "HSL", Loc.T("hsl(h, s%, l%) 调色和设计常用")),
         };
         var chipList = new List<(Border chip, string id)>();
         foreach (var (id, text, tip) in opts)
@@ -46,17 +46,17 @@ public sealed partial class SettingsWindow : Window
 
     FrameworkElement DelayRow()
     {
-        var g = ChipRow("\uE916", "托盘「延时截图」触发后倒数这么久再截当前范围，留时间打开右键菜单/悬停提示/下拉框这类一动就消失的界面", "延时截图");
+        var g = ChipRow("\uE916", Loc.T("托盘「延时截图」触发后倒数这么久再截当前范围，留时间打开右键菜单/悬停提示/下拉框这类一动就消失的界面"), Loc.T("延时截图"));
         var chips = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
         Grid.SetColumn(chips, 2);
         int cur = _settings.Current.DelayCaptureSeconds;
         var opts = new (int secs, string text, string tip)[]
         {
-            (0, "关", "不延时，触发即截"),
-            (1, "1秒", "快速：够移一下鼠标"),
-            (3, "3秒", "常用：够打开一个菜单"),
-            (5, "5秒", "从容：够展开下拉/悬停"),
-            (10, "10秒", "充裕：够摆好几个界面元素"),
+            (0, Loc.T("关"), Loc.T("不延时，触发即截")),
+            (1, Loc.T("1秒"), Loc.T("快速：够移一下鼠标")),
+            (3, Loc.T("3秒"), Loc.T("常用：够打开一个菜单")),
+            (5, Loc.T("5秒"), Loc.T("从容：够展开下拉/悬停")),
+            (10, Loc.T("10秒"), Loc.T("充裕：够摆好几个界面元素")),
         };
         var chipList = new List<(Border chip, int secs)>();
         // 预设 5 档之外还有「自定义」输入框：1–120 秒任意值都调得了；文字居中，与悬浮窗时长同款交互
@@ -73,7 +73,7 @@ public sealed partial class SettingsWindow : Window
             VerticalAlignment = VerticalAlignment.Center,
             VerticalContentAlignment = VerticalAlignment.Center,
         };
-        var unit = new TextBlock { Text = "秒", FontSize = 12.5, Foreground = new SolidColorBrush(Theme.TextDim), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(3, 0, 0, 0) };
+        var unit = new TextBlock { Text = Loc.T("秒"), FontSize = 12.5, Foreground = new SolidColorBrush(Theme.TextDim), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(3, 0, 0, 0) };
         var customBox = new Border
         {
             CornerRadius = new CornerRadius(6),
@@ -83,7 +83,7 @@ public sealed partial class SettingsWindow : Window
             BorderBrush = new SolidColorBrush(Theme.Stroke),
             BorderThickness = new Thickness(1),
             Child = new StackPanel { Orientation = Orientation.Horizontal, Children = { box, unit } },
-            ToolTip = "自定义：输入 1–120 任意秒数，回车或移开焦点生效",
+            ToolTip = Loc.T("自定义：输入 1–120 任意秒数，回车或移开焦点生效"),
             Cursor = Cursors.Hand,
         };
         customBox.MouseLeftButtonUp += (_, _) => { box.Focus(); box.SelectAll(); };
@@ -128,17 +128,17 @@ public sealed partial class SettingsWindow : Window
     // 截图后悬浮窗存在时间——文字芯片（常驻/秒数），点击就地更新选中态
     FrameworkElement ToastRow()
     {
-        var g = ChipRow("\uE916", "截完弹出的「已复制」缩略浮窗停留多久自动消失。悬停其上会暂停计时、移开再给满时长。想拍完即走调小、想留着慢慢点进编辑器调大或常驻。", "悬浮窗存在时间");
+        var g = ChipRow("\uE916", Loc.T("截完弹出的「已复制」缩略浮窗停留多久自动消失。悬停其上会暂停计时、移开再给满时长。想拍完即走调小、想留着慢慢点进编辑器调大或常驻。"), Loc.T("悬浮窗存在时间"));
         var chips = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
         Grid.SetColumn(chips, 2);
         double cur = _settings.Current.ToastSeconds;
         // 预设只留 常驻/1秒/2秒/5秒 四档（0 = 常驻单独成档），其余秒数走自定义输入
         var opts = new (double secs, string text, string tip)[]
         {
-            (0, "常驻", "不自动消失，点一下或 Esc 才关"),
-            (1, "1秒", "快闪：确认一下就走"),
-            (2, "2秒", "利落：来得及看一眼"),
-            (5, "5秒", "从容：够移动鼠标去点"),
+            (0, Loc.T("常驻"), Loc.T("不自动消失，点一下或 Esc 才关")),
+            (1, Loc.T("1秒"), Loc.T("快闪：确认一下就走")),
+            (2, Loc.T("2秒"), Loc.T("利落：来得及看一眼")),
+            (5, Loc.T("5秒"), Loc.T("从容：够移动鼠标去点")),
         };
         var chipList = new List<(Border chip, double secs)>();
         string Fmt(double v) => v.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
@@ -155,7 +155,7 @@ public sealed partial class SettingsWindow : Window
             VerticalAlignment = VerticalAlignment.Center,
             VerticalContentAlignment = VerticalAlignment.Center,
         };
-        var unit = new TextBlock { Text = "秒", FontSize = 12.5, Foreground = new SolidColorBrush(Theme.TextDim), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(3, 0, 0, 0) };
+        var unit = new TextBlock { Text = Loc.T("秒"), FontSize = 12.5, Foreground = new SolidColorBrush(Theme.TextDim), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(3, 0, 0, 0) };
         var customBox = new Border
         {
             CornerRadius = new CornerRadius(6),
@@ -165,7 +165,7 @@ public sealed partial class SettingsWindow : Window
             BorderBrush = new SolidColorBrush(Theme.Stroke),
             BorderThickness = new Thickness(1),
             Child = new StackPanel { Orientation = Orientation.Horizontal, Children = { box, unit } },
-            ToolTip = "自定义：输入 0.5–60 任意秒数，0 为常驻，回车或移开焦点生效",
+            ToolTip = Loc.T("自定义：输入 0.5–60 任意秒数，0 为常驻，回车或移开焦点生效"),
             Cursor = Cursors.Hand,
         };
         customBox.MouseLeftButtonUp += (_, _) => { box.Focus(); box.SelectAll(); };
@@ -221,10 +221,10 @@ public sealed partial class SettingsWindow : Window
     {
         var g = Row();
         g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); // 控件列
-        g.Children.Add(IconText("\uE767", "静态截图完成时的听觉确认。关闭=静音；轻弹=内置柔和「嘀」；自定义…=选一个 ogg 或 wav 文件，wav 最稳，ogg 需系统解码器，播不了会自动回退轻弹。随时可「试听」"));
+        g.Children.Add(IconText("\uE767", Loc.T("静态截图完成时的听觉确认。静音=不放声音；轻弹=内置柔和「嘀」；自定义…=选一个 ogg 或 wav 文件，wav 最稳，ogg 需系统解码器，播不了会自动回退轻弹。随时可「试听」")));
         var lbl = new TextBlock
         {
-            Text = "截图提示音",
+            Text = Loc.T("截图提示音"),
             FontSize = 13,
             Foreground = new SolidColorBrush(Theme.Text),
             VerticalAlignment = VerticalAlignment.Center,
@@ -244,9 +244,9 @@ public sealed partial class SettingsWindow : Window
             // 垂直居中——横向 StackPanel 里 Border 被拉满行高，文字贴左上「错位」真凶
             VerticalAlignment = VerticalAlignment.Center,
             Background = new SolidColorBrush(Theme.Hover),
-            Child = new TextBlock { Text = "试听", FontSize = 12.5, Foreground = new SolidColorBrush(Theme.Text), VerticalAlignment = VerticalAlignment.Center },
+            Child = new TextBlock { Text = Loc.T("试听"), FontSize = 12.5, Foreground = new SolidColorBrush(Theme.Text), VerticalAlignment = VerticalAlignment.Center },
             Cursor = Cursors.Hand,
-            ToolTip = "点一下试听当前提示音，选「自定义…」后也会立刻放一声让你确认",
+            ToolTip = Loc.T("点一下试听当前提示音，选「自定义…」后也会立刻放一声让你确认"),
             Focusable = true,
         };
         void DoPreview() => CaptureSound.Play(
@@ -262,9 +262,9 @@ public sealed partial class SettingsWindow : Window
         // 取消则回退上一个选项，绝不出现「选了自定义却没文件」的悬空态。
         var combo = new ComboBox { Width = 118, VerticalAlignment = VerticalAlignment.Center };
         GestureEditor.EditorStyles.ApplyCombo(combo, EditorPal());
-        combo.Items.Add("关闭");
-        combo.Items.Add("轻弹");
-        combo.Items.Add("自定义…");
+        combo.Items.Add(Loc.T("静音"));
+        combo.Items.Add(Loc.T("轻弹"));
+        combo.Items.Add(Loc.T("自定义…"));
         int last = !_settings.Current.CaptureSound ? 0 : (string.IsNullOrWhiteSpace(_settings.Current.CustomSoundPath) ? 1 : 2);
         combo.SelectedIndex = last;
         combo.ToolTip = SoundTip(combo.SelectedIndex);
@@ -277,8 +277,8 @@ public sealed partial class SettingsWindow : Window
             {
                 var dlg = new Microsoft.Win32.OpenFileDialog
                 {
-                    Title = "选择提示音",
-                    Filter = "提示音 (*.ogg;*.wav)|*.ogg;*.wav|所有文件 (*.*)|*.*",
+                    Title = Loc.T("选择提示音"),
+                    Filter = Loc.T("提示音 (*.ogg;*.wav)|*.ogg;*.wav|所有文件 (*.*)|*.*"),
                     CheckFileExists = true,
                 };
                 if (dlg.ShowDialog(this) == true)
@@ -301,9 +301,9 @@ public sealed partial class SettingsWindow : Window
 
     static string SoundTip(int i) => i switch
     {
-        0 => "静音：截图完成不放声音",
-        1 => "内置柔和「嘀」声，作听觉确认",
-        _ => "自定义提示音文件 ogg / wav，点击可重新选择",
+        0 => Loc.T("静音：截图完成不放声音"),
+        1 => Loc.T("内置柔和「嘀」声，作听觉确认"),
+        _ => Loc.T("自定义提示音文件 ogg / wav，点击可重新选择"),
     };
 
     /// <summary>手势编辑器同款下拉/输入样式的配色（lib 不引用宿主，配色由宿主注入）。</summary>

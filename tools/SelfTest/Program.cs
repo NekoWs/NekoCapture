@@ -4079,7 +4079,12 @@ static class SelfTest
             var tbl = StringsEn.Table;
             var cjk = tbl.Where(kv => kv.Value.Any(c => c >= 0x4E00 && c <= 0x9FFF)).Select(kv => kv.Key).ToList();
             var blank = tbl.Where(kv => string.IsNullOrWhiteSpace(kv.Value)).Select(kv => kv.Key).ToList();
-            var paren = tbl.Where(kv => kv.Value.IndexOf('(') >= 0 || kv.Value.IndexOf(')') >= 0).Select(kv => kv.Key).ToList();
+            // 括号只许留给记法，白名单与 scripts/lint-copy-parens.ps1 同源：rgb(r, g, b) 这类不算括注
+            var notation = new HashSet<string> { "x86", "*.ogg;*.wav", "*.*", "r, g, b", "h, s%, l%", "FC_TEST_ENCODE_FAIL=1" };
+            var parenRe = new System.Text.RegularExpressions.Regex("[（(]([^（()）]{1,60})[）)]");
+            var paren = tbl.Where(kv => parenRe.Matches(kv.Value)
+                .Cast<System.Text.RegularExpressions.Match>()
+                .Any(m => !notation.Contains(m.Groups[1].Value))).Select(kv => kv.Key).ToList();
             // 原样登记的条目等于没翻：切到英文后那行还是中文，看不出也翻不了
             var same = tbl.Where(kv => kv.Value == kv.Key).Select(kv => kv.Key).ToList();
             Chk("T189i-table-hygiene",
