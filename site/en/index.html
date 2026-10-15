@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FrameCapture — Screenshot and screen recording for Windows</title>
+<meta name="description" content="FrameCapture for Windows: a capture goes straight to the clipboard, paste it and you are done. Window capture grabs the window itself — transparent rounded corners, composited shadow, never the desktop behind it. GIF and MP4 recording, annotation, pins, text recognition, all finished on your machine.">
+<meta property="og:type" content="website">
+<meta property="og:title" content="FrameCapture — Screenshot and screen recording for Windows">
+<meta property="og:description" content="Captures land in the clipboard: stills carry a transparency channel, a recording gives you a GIF on Enter — file, bitmap and animation all three go in together. Window capture grabs the window itself, and the shadow is composited rather than mixed with the desktop.">
+<meta property="og:image" content="../assets/shots/editor.png">
+<meta property="og:image:alt" content="The FrameCapture editor: a Notepad screenshot laid out on the canvas with the full annotation toolbar along the bottom">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="../assets/FrameCapture-256.png">
+<link rel="alternate" hreflang="zh-CN" href="../">
+<link rel="alternate" hreflang="en" href="./">
+<link rel="alternate" hreflang="x-default" href="../">
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#f3f3f3">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#161616">
+<link rel="stylesheet" href="../css/tokens.css">
+<link rel="stylesheet" href="../css/base.css">
+<link rel="stylesheet" href="../css/layout.css">
+<link rel="stylesheet" href="../css/components.css">
+<link rel="stylesheet" href="../css/motion.css">
+<script>
+  /* Decide theme and static mode before the first paint, otherwise a light system flashes a dark frame.
+     Reads the same localStorage key, same decision as ../js/theme.js. */
+  (function () {
+    var root = document.documentElement;
+    /* The initial hidden state of the reveal animation hangs off .js: if the script never runs, the text stays visible. */
+    root.classList.add('js');
+    if (/[?&]static=1/.test(window.location.search)) { root.classList.add('is-static'); }
+    var saved = null;
+    try { saved = window.localStorage.getItem('fc-theme'); } catch (e) { saved = null; }
+    if (!saved && window.matchMedia) {
+      saved = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    }
+    root.setAttribute('data-theme', saved || 'dark');
+  })();
+</script>
+</head>
+<body>
+<a class="skip" href="#capabilities">Skip to main content</a>
+
+<!-- Site-wide ambience: a Mica-like layered backplate that follows the theme and the cursor -->
+<div class="ambient" aria-hidden="true">
+  <div class="ambient__glow ambient__glow--a"></div>
+  <div class="ambient__glow ambient__glow--b"></div>
+  <div class="ambient__noise"></div>
+</div>
+
+<svg class="mark-def" aria-hidden="true"><symbol id="fc-mark" viewBox="0 0 1024 1024"><path d="M400 150H150v250M624 150h250v250M150 624v250h250M624 874h250V624" fill="none" stroke="currentColor" stroke-width="96" stroke-linejoin="round"/><circle cx="512" cy="512" r="150" fill="currentColor"/></symbol></svg>
+<header class="topbar" id="topbar">
+  <a class="brand" href="#top">
+    <svg class="brand__mark" aria-hidden="true" width="28" height="28"><use href="#fc-mark"/></svg>
+    <span class="brand__name">FrameCapture</span>
+    <span class="brand__ver">0.9 preview</span>
+  </a>
+  <nav class="topnav" aria-label="Main navigation">
+    <a href="#capabilities">Features</a>
+    <a href="#demo">Interface</a>
+    <a href="#keys">Keyboard</a>
+    <a href="#requirements">Requirements</a>
+    <a href="#faq">Questions</a>
+  </nav>
+  <div class="topbar__end">
+    <a class="langbtn" href="../" hreflang="zh-CN" lang="zh-CN">中文</a>
+    <a class="langbtn" href="./" hreflang="en" lang="en" aria-current="true">EN</a>
+    <button class="iconbtn" id="themeToggle" type="button" aria-label="Toggle light and dark theme" title="Toggle light and dark theme">
+      <span class="iconbtn__glyph" data-glyph-dark="&#xE706;" data-glyph-light="&#xE708;">&#xE706;</span>
+    </button>
+    <a class="btn btn--primary" href="#download">Download</a>
+  </div>
+</header>
+
+<main id="top">
+
+  <!-- ── Hero ──────────────────────────────────────────── -->
+  <section class="hero">
+    <div class="hero__copy">
+      <p class="eyebrow" data-reveal>Windows 10 / 11 · x64 · 0.9 preview</p>
+      <h1 class="hero__title">
+        <span class="line" data-reveal>Screenshots and screen recording for Windows,</span>
+        <span class="line" data-reveal><em>straight into the clipboard.</em></span>
+      </h1>
+      <p class="lede" data-reveal>
+        A still lands in the clipboard on the spot, <b>paste it into a chat, a deck or a document and it works</b>. Window capture grabs the window itself: transparent at the rounded corners, a composited shadow, never the desktop behind it.
+      </p>
+      <div class="cta" data-reveal>
+        <a class="btn btn--primary btn--lg" href="#download">
+          <span class="ico" aria-hidden="true">&#xE896;</span> Download the installer
+        </a>
+        <a class="btn btn--ghost btn--lg" href="#demo">
+          <span class="ico" aria-hidden="true">&#xE7F4;</span> See the interface
+        </a>
+      </div>
+      <ul class="trust" data-reveal>
+        <li><span class="ico" aria-hidden="true">&#xE72E;</span> No account · no telemetry</li>
+        <li><span class="ico" aria-hidden="true">&#xE977;</span> Every feature works offline</li>
+        <li><span class="ico" aria-hidden="true">&#xE770;</span> Starting with Windows is your switch</li>
+      </ul>
+    </div>
+
+    <!-- Hero visual: a real screenshot of the editor window -->
+    <div class="hero__stage" data-reveal>
+      <figure class="shot shot--hero">
+        <img fetchpriority="high" src="../assets/shots/editor.png" width="1560" height="1076"
+             alt="The FrameCapture editor: a Notepad screenshot laid out on the canvas with the full annotation toolbar along the bottom">
+      </figure>
+    </div>
+  </section>
+
+  <!-- ── Three steps ───────────────────────────────────── -->
+  <section class="flow" id="flow">
+    <ol class="flow__list">
+      <li class="flow__step" data-reveal data-stagger>
+        <h3>Pick a scope</h3>
+        <p>Full screen, window, region, or a scrolling page. The dashed box resizes with the cursor and snaps to window and content edges.</p>
+      </li>
+      <li class="flow__step" data-reveal data-stagger>
+        <h3>Capture or record</h3>
+        <p>One hotkey, or hold and drag. A recording runs while you hold and becomes a file when you let go.</p>
+      </li>
+      <li class="flow__step" data-reveal data-stagger>
+        <h3>Paste it</h3>
+        <p>Stills go to the clipboard on the spot; a recording gives you a GIF on Enter. Toast, editor, or pinned in place — each gesture decides.</p>
+      </li>
+    </ol>
+  </section>
+
+  <!-- ── Capabilities ──────────────────────────────────── -->
+  <section class="section" id="capabilities">
+    <header class="section__head">
+      <h2 data-reveal>Features</h2>
+      <p data-reveal>Eight actions, every one of them finished on your machine.</p>
+    </header>
+
+    <div class="cards">
+      <article class="card" data-reveal data-stagger>
+        <span class="card__ico" aria-hidden="true">&#xE8C8;</span>
+        <h3>Copy in one step</h3>
+        <p>Stills go straight to the clipboard. A recording hands over the GIF file and the current frame as a bitmap together — apps that take files get the animation, apps that take images get a still.</p>
+        <span class="card__tag">On by default</span>
+      </article>
+
+      <article class="card" data-reveal data-stagger>
+        <span class="card__ico" aria-hidden="true">&#xE7B5;</span>
+        <h3>Clean window capture</h3>
+        <p>Captures the window itself, transparent at Win11's rounded corners, clean on browser and GPU-composited windows. The shadow is composited from the outline instead of grabbing the screen behind. Recording works the same way: click a window in the selection and only that window ends up in the output.</p>
+        <span class="card__tag">Capture and recording</span>
+      </article>
+
+      <article class="card" data-reveal data-stagger>
+        <span class="card__ico" aria-hidden="true">&#xE714;</span>
+        <h3>Recording</h3>
+        <p>Press once to start, press again to stop. Whether the cursor appears is a switch, and the frame rate follows the display refresh rate.</p>
+        <span class="combo"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Alt</kbd><span class="plus">+</span><kbd>R</kbd></span>
+      </article>
+
+      <article class="card" data-reveal data-stagger>
+        <span class="card__ico" aria-hidden="true">&#xE70F;</span>
+        <h3>Editor</h3>
+        <p>Look, trim, annotate, copy. Step frame by frame, set in and out points, drag the handles at both ends to cut the head and the tail.</p>
+        <span class="card__tag">Click the toast to open</span>
+      </article>
+
+      <article class="card" data-reveal data-stagger>
+        <span class="card__ico" aria-hidden="true">&#xE71C;</span>
+        <h3>Drawing tools</h3>
+        <p>Single-key switching: line, rectangle, ellipse, freehand, highlighter, text, mosaic, crop, numbered marker.</p>
+        <span class="card__tag">Shift locks 45°</span>
+      </article>
+
+      <article class="card" data-reveal data-stagger>
+        <span class="card__ico" aria-hidden="true">&#xE718;</span>
+        <h3>Pins</h3>
+        <p>Pin an image onto the screen. Scroll to scale, drag a corner to reshape, opacity is adjustable, always on top.</p>
+        <span class="combo"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>P</kbd></span>
+      </article>
+
+      <article class="card" data-reveal data-stagger>
+        <span class="card__ico" aria-hidden="true">&#xE8C1;</span>
+        <h3>Text recognition</h3>
+        <p>Text in an image becomes text you can copy. Runs on the OCR built into Windows, no network.</p>
+        <span class="combo"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>O</kbd></span>
+      </article>
+
+      <article class="card" data-reveal data-stagger>
+        <span class="card__ico" aria-hidden="true">&#xE74A;</span>
+        <h3>Scrolling capture</h3>
+        <p>Scroll a region and it stitches into one long image, previewing the result as it goes.</p>
+        <span class="card__tag">Stitched live</span>
+      </article>
+    </div>
+    <p class="section__foot" data-reveal>
+      <kbd>Ctrl+P</kbd> and <kbd>Ctrl+O</kbd> are keys inside the editor window. Every one of them can be changed in Settings.
+    </p>
+  </section>
+
+  <!-- ── Interface tabs ────────────────────────────────── -->
+  <section class="section" id="demo">
+    <header class="section__head">
+      <h2 data-reveal>Interface</h2>
+      <p data-reveal>Four windows. Switch the tabs to look at each one.</p>
+    </header>
+
+    <div class="demo" data-reveal>
+      <div class="tabs" role="tablist" aria-label="Interface screenshots">
+        <button class="tab is-on" role="tab" aria-selected="true" aria-controls="p-edit" data-panel="p-edit" type="button">
+          <span class="ico" aria-hidden="true">&#xE70F;</span> Editor
+        </button>
+        <button class="tab" role="tab" aria-selected="false" aria-controls="p-gesture" data-panel="p-gesture" type="button">
+          <span class="ico" aria-hidden="true">&#xE765;</span> Gestures
+        </button>
+        <button class="tab" role="tab" aria-selected="false" aria-controls="p-set" data-panel="p-set" type="button">
+          <span class="ico" aria-hidden="true">&#xE713;</span> Settings
+        </button>
+        <button class="tab" role="tab" aria-selected="false" aria-controls="p-pin" data-panel="p-pin" type="button">
+          <span class="ico" aria-hidden="true">&#xE718;</span> Pins
+        </button>
+      </div>
+
+      <div class="panels">
+        <div class="panel is-on" id="p-edit" role="tabpanel">
+          <figure class="shot">
+            <img loading="lazy" decoding="async" src="../assets/shots/editor.png" width="1560" height="1076"
+                 alt="The FrameCapture editor: a Notepad screenshot laid out on the canvas with the full annotation toolbar along the bottom">
+          </figure>
+          <div class="panel__copy">
+            <h3>Step through frames, trim on the spot</h3>
+            <p>← → step one frame, Shift+← → step a second, [ ] set the in and out points, Space plays.</p>
+          </div>
+        </div>
+
+        <div class="panel" id="p-gesture" role="tabpanel">
+          <figure class="shot">
+            <img loading="lazy" decoding="async" src="../assets/shots/gesture.png" width="1140" height="840"
+                 alt="The gesture configurator: bindings down the left, and on the right the chord, trigger, action sequence and after-capture behaviour for the selected binding">
+          </figure>
+          <div class="panel__copy">
+            <h3>The keys are yours</h3>
+            <p>Four triggers: chord, hold, double press, long press. One gesture can chain several actions, and whether a capture writes the clipboard is set per gesture too.</p>
+          </div>
+        </div>
+
+        <div class="panel" id="p-set" role="tabpanel">
+          <figure class="shot">
+            <img loading="lazy" decoding="async" src="../assets/shots/settings.png" width="1140" height="990"
+                 alt="The FrameCapture settings window: eight groups down the left, and on the right the hotkeys page — global keys plus editor keys you can rebind one by one, each row ending in a plus button">
+          </figure>
+          <div class="panel__copy">
+            <h3>Eight groups, applied as you change them</h3>
+            <p>Hotkeys, Screenshot, Recording, Output, Editor, Pins, Appearance, System.</p>
+          </div>
+        </div>
+
+        <div class="panel" id="p-pin" role="tabpanel">
+          <figure class="shot">
+            <img loading="lazy" decoding="async" src="../assets/shots/pin.png" width="1143" height="553"
+                 alt="A cheat sheet of shortcuts pinned to the screen: no title bar, no border, sitting straight on the desktop">
+          </figure>
+          <div class="panel__copy">
+            <h3>Pinned to the screen beats switching windows</h3>
+            <p>Fill a form against a capture, keep a stretch of code in view, lay a mockup over a screenshot of the implementation and compare. Scroll to scale, Ctrl+scroll for opacity, double-click to close.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Keyboard ──────────────────────────────────────── -->
+  <section class="section" id="keys">
+    <header class="section__head">
+      <h2 data-reveal>Keyboard</h2>
+      <p data-reveal>Two are global, the rest live inside the editor. Both places are editable in Settings, and global keys can be added in the gesture configurator.</p>
+    </header>
+
+    <div class="keys__grid">
+      <div class="keys" data-reveal>
+        <h3 class="keys__cap">Global</h3>
+        <div class="keys__cols">
+          <div class="keys__col">
+            <div class="keys__row"><span>Region capture</span><span class="keys__k"><kbd>Ctrl</kbd><kbd>Alt</kbd><kbd>A</kbd></span></div>
+          </div>
+          <div class="keys__col">
+            <div class="keys__row"><span>Start / stop recording</span><span class="keys__k"><kbd>Ctrl</kbd><kbd>Alt</kbd><kbd>R</kbd></span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="keys" data-reveal>
+        <h3 class="keys__cap">In the editor</h3>
+        <div class="keys__cols">
+          <div class="keys__col">
+            <div class="keys__row"><span>Save frame / export recording</span><span class="keys__k"><kbd>Ctrl</kbd><kbd>S</kbd><kbd>E</kbd></span></div>
+            <div class="keys__row"><span>Copy to clipboard</span><span class="keys__k"><kbd>Ctrl</kbd><kbd>C</kbd></span></div>
+            <div class="keys__row"><span>Pin / recognize text</span><span class="keys__k"><kbd>Ctrl</kbd><kbd>P</kbd><kbd>O</kbd></span></div>
+            <div class="keys__row"><span>Persistence blend</span><span class="keys__k"><kbd>Ctrl</kbd><kbd>H</kbd></span></div>
+            <div class="keys__row"><span>Undo / redo</span><span class="keys__k"><kbd>Ctrl</kbd><kbd>Z</kbd><kbd>Y</kbd></span></div>
+          </div>
+          <div class="keys__col">
+            <div class="keys__row"><span>Zoom in / out / fit / 1:1</span><span class="keys__k"><kbd>Ctrl</kbd><kbd>+</kbd><kbd>−</kbd><kbd>0</kbd><kbd>1</kbd></span></div>
+            <div class="keys__row"><span>Step / play</span><span class="keys__k"><kbd>&#x2190;</kbd><kbd>&#x2192;</kbd><kbd>Space</kbd></span></div>
+            <div class="keys__row"><span>Set in / out point</span><span class="keys__k"><kbd>[</kbd><kbd>]</kbd></span></div>
+            <div class="keys__row"><span>Switch tool</span><span class="keys__k"><kbd>X</kbd><kbd>V</kbd><kbd>L</kbd><kbd>R</kbd><kbd>O</kbd><kbd>A</kbd><kbd>P</kbd><kbd>H</kbd><kbd>T</kbd><kbd>M</kbd><kbd>C</kbd><kbd>N</kbd></span></div>
+            <div class="keys__row"><span>Confirm / step out / help</span><span class="keys__k"><kbd>Enter</kbd><kbd>Esc</kbd><kbd>F1</kbd></span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Download ──────────────────────────────────────── -->
+  <section class="section download" id="download">
+    <div class="dl" data-reveal>
+      <h2>Download</h2>
+      <p>
+        Install it, let it sit in the tray, paste when you are done. 0.9 preview — living with it for a while is what sets the release schedule.
+      </p>
+      <div class="cta">
+        <a class="btn btn--primary btn--lg" id="dlBtn" href="../../release/FrameCapture-Setup-0.9.0-x64.exe" download>
+          <span class="ico" aria-hidden="true">&#xE896;</span> FrameCapture-Setup-0.9.0-x64.exe
+        </a>
+        <a class="btn btn--ghost btn--lg" href="#capabilities">
+          <span class="ico" aria-hidden="true">&#xE7F4;</span> Read the features first
+        </a>
+      </div>
+      <dl class="specs dl__scope">
+        <div><dt>This build does</dt><dd>One-step copy for stills and recordings, clean window capture, long scrolling images, GIF · MP4 · WebM recording, frame-by-frame annotation, pins, text recognition, gestures you define.</dd></div>
+        <div><dt>This build does not</dt><dd>Code signing, automatic updates, a public download channel. 0.9 is about making the tool itself solid.</dd></div>
+      </dl>
+      <p class="dl__hint" id="dlHint">This link points at the current build under <code>release/</code> in the repository.</p>
+    </div>
+  </section>
+
+  <!-- ── Requirements ──────────────────────────────────── -->
+  <section class="section" id="requirements">
+    <header class="section__head">
+      <h2 data-reveal>System requirements</h2>
+    </header>
+    <dl class="specs" data-reveal>
+      <div><dt>System</dt><dd>Windows 10 19041 or newer, x64</dd></div>
+      <div><dt>Installer</dt><dd>6.9 MB, and you choose where it goes</dd></div>
+      <div><dt>Dependencies</dt><dd>The installed build needs the .NET 8 Desktop Runtime; the offline package carries its own</dd></div>
+      <div><dt>Text recognition</dt><dd>Uses the OCR language packs already in Windows, no network</dd></div>
+      <div><dt>Uninstall</dt><dd>From the system Settings under Apps, or the uninstaller entry</dd></div>
+      <div><dt>Data</dt><dd>Configuration lives in <code>%APPDATA%\FrameCapture</code>; delete it and you are back to a clean slate</dd></div>
+    </dl>
+  </section>
+
+  <!-- ── Questions ─────────────────────────────────────── -->
+  <section class="section" id="faq">
+    <header class="section__head">
+      <h2 data-reveal>Questions</h2>
+    </header>
+    <div class="faq" data-reveal>
+      <details name="faq">
+        <summary>Where does a capture end up?</summary>
+        <p>In the clipboard by default, ready to paste. To keep files, turn on auto-save in Settings: single frames go out as PNG, recordings in the format you picked — GIF, MP4 or WebM.</p>
+      </details>
+      <details name="faq">
+        <summary>Why are the rounded corners transparent on a window capture?</summary>
+        <p>It captures the window itself instead of grabbing the screen behind it. Outside the rounded corners is real transparency, and the shadow is composited from the window outline, so when a window sits on top of another app the ring around it never picks up background text.</p>
+      </details>
+      <details name="faq">
+        <summary>Can a recording follow just one window?</summary>
+        <p>Yes. Click a window in the recording selection and it records that window itself — another window covering it, or moving it around, never enters the frame. The setting is called Record window only, and turning it off goes back to recording the screen rectangle.</p>
+      </details>
+      <details name="faq">
+        <summary>Does anything go to a server?</summary>
+        <p>No. Capture, encoding and text recognition all finish inside your own process. There is no account and no network request. Text recognition uses the OCR language packs that ship with Windows.</p>
+      </details>
+      <details name="faq">
+        <summary>Does it need administrator rights?</summary>
+        <p>Only the install step, which writes to the program folder and the uninstall registry entry. Day to day it runs with ordinary rights and sits in the tray.</p>
+      </details>
+      <details name="faq">
+        <summary>Will Windows complain during install?</summary>
+        <p>It will. The installer is not code signed, so SmartScreen warns about an unknown publisher; choose Run anyway to continue. The preview has no certificate.</p>
+      </details>
+      <details name="faq">
+        <summary>What if a hotkey collides with another app?</summary>
+        <p>Global keys change in the gesture configurator, editor keys change in Settings under Hotkeys. By default it takes only <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>A</kbd> and <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>R</kbd>. With exclusive key capture on, keys are not passed through; turn it off and they are.</p>
+      </details>
+      <details name="faq">
+        <summary>Is there a recording length limit?</summary>
+        <p>Frames go to disk in the order they arrive and do not sit in memory, so length is bounded by disk space. Export is GIF, MP4 or WebM.</p>
+      </details>
+      <details name="faq">
+        <summary>Does it work on multiple monitors and high scaling?</summary>
+        <p>Each monitor has its own selection and captures are taken at physical pixels. Nothing blurs at 150% scaling, and a second screen next to the main one can still be framed.</p>
+      </details>
+      <details name="faq">
+        <summary>Will it update itself?</summary>
+        <p>No, and there is no background updater. Upgrading means installing again; configuration lives in <code>%APPDATA%\FrameCapture</code> and a reinstall leaves it alone.</p>
+      </details>
+      <details name="faq">
+        <summary>Does uninstalling leave anything behind?</summary>
+        <p>The uninstaller removes the program folder and the registry entry. Your configuration and saved output stay put; delete <code>%APPDATA%\FrameCapture</code> for a clean slate.</p>
+      </details>
+    </div>
+  </section>
+</main>
+
+<footer class="foot">
+  <svg class="foot__mark" aria-hidden="true" width="22" height="22"><use href="#fc-mark"/></svg>
+  <span>FrameCapture · a screenshot and recording tool that runs on your machine</span>
+  <span class="foot__spacer"></span>
+  <span class="foot__theme">0.9 preview</span>
+</footer>
+
+<script src="../js/tokens.js"></script>
+<script src="../js/theme.js"></script>
+<script src="../js/reveal.js"></script>
+<script src="../js/tabs.js"></script>
+<script src="../js/pointer.js"></script>
+<script src="../js/main.js"></script>
+</body>
+</html>
