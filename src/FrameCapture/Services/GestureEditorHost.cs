@@ -18,7 +18,7 @@ public static class GestureEditorHost
     public static void ShowOrFocus()
     {
         if (_open != null) { _open.Activate(); return; }
-        var w = new GE.GestureEditorWindow(new FrameActionCatalog(), new FrameGestureConfigStore(), new FrameKeyNamer(), BuildPalette());
+        var w = new GE.GestureEditorWindow(new FrameActionCatalog(), new FrameGestureConfigStore(), new FrameKeyNamer(), BuildPalette(), Loc.T);
         bool wasPaused = HotkeyManager.Paused;
         w.ChordCaptureBegan += () => HotkeyManager.Paused = true;
         w.ChordCaptureEnded += () => HotkeyManager.Paused = wasPaused;
@@ -39,11 +39,11 @@ public static class GestureEditorHost
     /// <summary>动作清单：直接暴露 <see cref="GestureActions"/>。新增功能只需在 GestureActions 加一条 + GestureInvoker 接上。</summary>
     sealed class FrameActionCatalog : GE.IActionCatalog
     {
-        static readonly GE.ActionInfo[] All =
+        /// <summary>动作清单，来源是 <see cref="GestureActions.All"/>，每次调用现取一遍名字与说明。</summary>
+        /// <returns>新数组：短名与说明按当前界面语言取词，因此切换语言后重开配置器就是新语言，
+        /// 缓存成字段会把首次打开时的语言冻住。配置器只读，不回写。</returns>
+        public IReadOnlyList<GE.ActionInfo> Actions() =>
             GestureActions.All.Select(a => new GE.ActionInfo(a.Name, a.Label, a.Description, a.IsCapture)).ToArray();
-        /// <summary>动作清单，来源是 <see cref="GestureActions.All"/>，进程内固定不变。</summary>
-        /// <returns>底层数组的只读视图（不复制），每次返回同一实例；配置器只读，不得回写。</returns>
-        public IReadOnlyList<GE.ActionInfo> Actions() => All;
 
         /// <summary>动作名是否为本 app 真实支持的动作。</summary>
         /// <param name="name">动作名，与 <see cref="GestureActions"/> 表内原文逐字比对（区分大小写）。</param>

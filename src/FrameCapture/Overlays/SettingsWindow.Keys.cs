@@ -27,7 +27,7 @@ public sealed partial class SettingsWindow : Window
             FontSize = 12.5,
             Margin = new Thickness(2, 18, 0, 6),
             TextWrapping = TextWrapping.Wrap,
-            Text = "编辑器窗口里的键位。点一下键位框，再按下新键即改；按 Esc 取消这个键位，加号再加一个按法。改完立即生效。",
+            Text = Loc.T("编辑器窗口里的键位。点一下键位框，再按下新键即改；按 Esc 取消这个键位，加号再加一个按法。改完立即生效。"),
         });
         // 每行注册一个刷新动作：改一条键位可能让别的行冒出撞键提示，整表刷一遍最省事
         var ekRefresh = new List<Action>();
@@ -38,9 +38,11 @@ public sealed partial class SettingsWindow : Window
                 if (ids.Contains(c.Id))
                 {
                     var other = ids.Where(i => i != c.Id).Select(i => EditorCommands.Find(i)?.Name ?? i);
-                    hits.Add("与" + string.Join("、", other.Select(n => "「" + n + "」")) + "同键 " + chord);
+                    // 顿号与书名号是中文里的列举记法，英文换成逗号加弯引号，句子结构整个交给译名
+                    hits.Add(Loc.F("与{0}同键 {1}",
+                        string.Join(Loc.T("、"), other.Select(n => Loc.F("「{0}」", Loc.T(n)))), chord));
                 }
-            return string.Join("；", hits.Distinct());
+            return string.Join(Loc.T("；"), hits.Distinct());
         }
         Border MiniButton(string text, Action onClick)
         {
@@ -65,7 +67,7 @@ public sealed partial class SettingsWindow : Window
             var stack = new StackPanel();
             stack.Children.Add(new TextBlock
             {
-                Text = group,
+                Text = Loc.T(group),
                 FontSize = 12,
                 FontWeight = FontWeights.SemiBold,
                 Foreground = new SolidColorBrush(Theme.TextDim),
@@ -83,7 +85,7 @@ public sealed partial class SettingsWindow : Window
                 var nameStack = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
                 nameStack.Children.Add(new TextBlock
                 {
-                    Text = c.Name,
+                    Text = Loc.T(c.Name),
                     FontSize = 12.5,
                     Foreground = new SolidColorBrush(Theme.Text),
                     TextWrapping = TextWrapping.Wrap,
@@ -102,7 +104,7 @@ public sealed partial class SettingsWindow : Window
                     VerticalAlignment = VerticalAlignment.Center,
                     HorizontalAlignment = HorizontalAlignment.Right,
                 };
-                var reset = MiniButton("恢复", () =>
+                var reset = MiniButton(Loc.T("恢复"), () =>
                 {
                     _settings.Mutate(s => s.EditorKeys.Remove(c.Id));
                     foreach (var f in ekRefresh) f();
@@ -195,7 +197,7 @@ public sealed partial class SettingsWindow : Window
                     {
                         boxes.Children.Add(new TextBlock
                         {
-                            Text = "未设键",
+                            Text = Loc.T("未设键"),
                             FontSize = 12.5,
                             Foreground = new SolidColorBrush(Theme.TextDim),
                             VerticalAlignment = VerticalAlignment.Center,
@@ -223,7 +225,7 @@ public sealed partial class SettingsWindow : Window
             panel.Children.Add(card);
         }
         foreach (var g in EditorCommands.Groups) EditorKeyGroup(g);
-        var ekResetAll = MiniButton("全部恢复默认键位", () =>
+        var ekResetAll = MiniButton(Loc.T("全部恢复默认键位"), () =>
         {
             _settings.Mutate(s => s.EditorKeys.Clear());
             foreach (var f in ekRefresh) f();

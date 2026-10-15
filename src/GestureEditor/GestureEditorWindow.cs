@@ -25,6 +25,12 @@ public sealed partial class GestureEditorWindow : Window
     readonly IGestureConfigStore _store;
     readonly IKeyNamer _namer;
     readonly EditorPalette _pal;
+    readonly Func<string, string> _loc;
+
+    /// <summary>界面取词：中文原文换当前语言文案，函数由宿主注入。</summary>
+    /// <param name="zh">界面上的中文原文，同时是宿主译表的键。</param>
+    /// <returns>当前语言的文案；宿主没注入或没有译名时就是 <paramref name="zh"/> 本身。</returns>
+    string T(string zh) => _loc(zh);
 
     GestureDoc _doc;
     int _selected = -1;
@@ -69,9 +75,13 @@ public sealed partial class GestureEditorWindow : Window
     /// <param name="store">配置读写：构造时 Load，仅在保存且无错误时 Save。</param>
     /// <param name="namer">键标识 → 显示名，只用于界面回显，不参与匹配。</param>
     /// <param name="palette">配色，由宿主从自身主题注入；构造期一次性取色，之后改调色板不会回灌已建好的界面。</param>
-    public GestureEditorWindow(IActionCatalog catalog, IGestureConfigStore store, IKeyNamer namer, EditorPalette palette)
+    /// <param name="loc">界面取词：中文原文 → 当前语言文案，由宿主注入自己的语言表；传 null 则原样显示中文。
+    /// 只在搭界面时调用，因此语言切换对下一次打开生效，本窗不就地重建。</param>
+    public GestureEditorWindow(IActionCatalog catalog, IGestureConfigStore store, IKeyNamer namer, EditorPalette palette,
+        Func<string, string>? loc = null)
     {
         _catalog = catalog; _store = store; _namer = namer; _pal = palette;
+        _loc = loc ?? (s => s);
         _doc = store.Load();
 
         InputMethod.SetIsInputMethodEnabled(this, false); // 覆盖层禁输入法，避免拼音拦截按键
@@ -86,7 +96,7 @@ public sealed partial class GestureEditorWindow : Window
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
         Width = 760; Height = 560; MinWidth = 640; MinHeight = 440;
         ShowInTaskbar = true;
-        Title = "手势配置";
+        Title = T("手势配置");
 
         Build();
         RefreshList();
@@ -158,7 +168,7 @@ public sealed partial class GestureEditorWindow : Window
         barGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         barGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         var icon = new TextBlock { Text = "\uE713", FontFamily = new FontFamily(IconFontChain), FontSize = 15, Foreground = _pal.B(_pal.Accent), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 8, 0) };
-        var title = new TextBlock { Text = "手势配置", Foreground = _pal.B(_pal.Text), VerticalAlignment = VerticalAlignment.Center, FontSize = 13, FontWeight = FontWeights.SemiBold };
+        var title = new TextBlock { Text = T("手势配置"), Foreground = _pal.B(_pal.Text), VerticalAlignment = VerticalAlignment.Center, FontSize = 13, FontWeight = FontWeights.SemiBold };
         var closeBtn = new Button { Content = "\uE711", FontFamily = new FontFamily(IconFontChain), Width = 40, Height = 36, Background = Brushes.Transparent, BorderThickness = new Thickness(0), Foreground = _pal.B(_pal.TextDim), Cursor = Cursors.Hand };
         StyleChromeButton(closeBtn);
         closeBtn.Click += (_, _) => Close();
@@ -176,8 +186,8 @@ public sealed partial class GestureEditorWindow : Window
         bottomGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         _valText = new TextBlock { Foreground = _pal.B(_pal.TextDim), VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.Wrap, FontSize = 12 };
         var btns = new StackPanel { Orientation = Orientation.Horizontal };
-        var cancel = MakeButton("取消", ghost: true); cancel.Click += (_, _) => Close();
-        _saveBtn = MakeButton("保存", accent: true); _saveBtn.Click += (_, _) => Save();
+        var cancel = MakeButton(T("取消"), ghost: true); cancel.Click += (_, _) => Close();
+        _saveBtn = MakeButton(T("保存"), accent: true); _saveBtn.Click += (_, _) => Save();
         btns.Children.Add(cancel); btns.Children.Add(_saveBtn);
         Grid.SetColumn(_valText, 0); Grid.SetColumn(btns, 1);
         bottomGrid.Children.Add(_valText); bottomGrid.Children.Add(btns);
@@ -191,8 +201,8 @@ public sealed partial class GestureEditorWindow : Window
         center.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
 
         var toggles = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 12) };
-        toggles.Children.Add(MakeToggle("启用手势层", v => { _doc.Enabled = v; RefreshValidation(); }, out _, _doc.Enabled));
-        toggles.Children.Add(MakeToggle("独占吞键", v => { _doc.Exclusive = v; }, out _, _doc.Exclusive));
+        toggles.Children.Add(MakeToggle(T("启用手势层"), v => { _doc.Enabled = v; RefreshValidation(); }, out _, _doc.Enabled));
+        toggles.Children.Add(MakeToggle(T("独占吞键"), v => { _doc.Exclusive = v; }, out _, _doc.Exclusive));
         Grid.SetRow(toggles, 0);
         center.Children.Add(toggles);
 
@@ -204,8 +214,8 @@ public sealed partial class GestureEditorWindow : Window
         // 左：列表 + 增删
         var left = new DockPanel();
         var listBtns = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 6, 0, 0) };
-        var addBtn = MakeButton("＋ 添加绑定", ghost: true); addBtn.Click += (_, _) => AddBinding();
-        var delBtn = MakeButton("删除", ghost: true); delBtn.Click += (_, _) => DeleteSelected();
+        var addBtn = MakeButton(T("＋ 添加绑定"), ghost: true); addBtn.Click += (_, _) => AddBinding();
+        var delBtn = MakeButton(T("删除"), ghost: true); delBtn.Click += (_, _) => DeleteSelected();
         listBtns.Children.Add(addBtn); listBtns.Children.Add(delBtn);
         DockPanel.SetDock(listBtns, Dock.Bottom);
         left.Children.Add(listBtns);
@@ -260,23 +270,23 @@ public sealed partial class GestureEditorWindow : Window
     /// <returns>两两不同的中文短词；非 <see cref="TriggerKind"/> 入参返回「组合键」。</returns>
     public static string TriggerLabel(object t) => t switch
     {
-        TriggerKind.KeyDown => "按下",
-        TriggerKind.KeyUp => "松开",
-        TriggerKind.Click => "单击",
-        TriggerKind.DoubleClick => "双击",
-        TriggerKind.TripleClick => "三击",
-        TriggerKind.LongPress => "长按",
-        TriggerKind.Tap => "轻点",
-        TriggerKind.Hold => "按住",
-        TriggerKind.HoldRelease => "松手",
-        _ => "组合键",
+        TriggerKind.KeyDown => "按下", // lockeys
+        TriggerKind.KeyUp => "松开", // lockeys
+        TriggerKind.Click => "单击", // lockeys
+        TriggerKind.DoubleClick => "双击", // lockeys
+        TriggerKind.TripleClick => "三击", // lockeys
+        TriggerKind.LongPress => "长按", // lockeys
+        TriggerKind.Tap => "轻点", // lockeys
+        TriggerKind.Hold => "按住", // lockeys
+        TriggerKind.HoldRelease => "松手", // lockeys
+        _ => "组合键", // lockeys
     };
 
     static string FallbackLabel(object f) => f switch
     {
-        FallbackPolicy.SkipStep => "跳过该步",
-        FallbackPolicy.NextBinding => "顺延下一条",
-        _ => "失败即停",
+        FallbackPolicy.SkipStep => "跳过该步", // lockeys
+        FallbackPolicy.NextBinding => "顺延下一条", // lockeys
+        _ => "失败即停", // lockeys
     };
 
     ComboBox MakeCombo(IEnumerable<object> items, Func<object, string> disp, object sel, Action<object> onSel)

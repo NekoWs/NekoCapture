@@ -244,15 +244,15 @@ public sealed class GestureConfig
     /// <returns>可直接拼在组合键后面的后缀（如「按下」「松手」），或空串。</returns>
     public static string TriggerLabel(string trigger) => trigger switch
     {
-        "KeyDown" => "按下",
-        "KeyUp" => "松开",
-        "Tap" => "轻点",
-        "Hold" => "按住",
-        "HoldRelease" => "松手",
-        "LongPress" => "长按",
-        "DoubleClick" => "双击",
-        "TripleClick" => "三击",
-        "Click" => "单击",
+        "KeyDown" => "按下", // lockeys
+        "KeyUp" => "松开", // lockeys
+        "Tap" => "轻点", // lockeys
+        "Hold" => "按住", // lockeys
+        "HoldRelease" => "松手", // lockeys
+        "LongPress" => "长按", // lockeys
+        "DoubleClick" => "双击", // lockeys
+        "TripleClick" => "三击", // lockeys
+        "Click" => "单击", // lockeys
         _ => "",
     };
 
@@ -269,10 +269,10 @@ public sealed class GestureConfig
             if (!b.Enabled || !b.Actions.Any(a => actionNames.Contains(a))) continue;
             if (HotkeySpec.Parse(b.Chord) == null) continue;
             if (!byChord.TryGetValue(b.Chord, out var list)) byChord[b.Chord] = list = new List<string>();
-            var suf = TriggerLabel(b.Trigger);
+            var suf = Loc.T(TriggerLabel(b.Trigger));
             if (suf.Length > 0 && !list.Contains(suf)) list.Add(suf);
         }
-        if (byChord.Count == 0) return "未绑定";
-        return string.Join("，", byChord.Select(kv => kv.Key + (kv.Value.Count == 0 ? "" : " " + string.Join("/", kv.Value))));
+        if (byChord.Count == 0) return Loc.T("未绑定");
+        return string.Join(Loc.T("，"), byChord.Select(kv => kv.Key + (kv.Value.Count == 0 ? "" : " " + string.Join("/", kv.Value))));
     }
 }

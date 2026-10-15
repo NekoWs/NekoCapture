@@ -114,7 +114,7 @@ public sealed partial class SettingsWindow : Window
             FontSize = 12.5,
             Margin = new Thickness(2, 2, 0, 6),
             TextWrapping = TextWrapping.Wrap,
-            Text = "全局键位如下，增删改请打开下方手势配置器。", // locpending 快捷键页与键位表同批迁移
+            Text = Loc.T("全局键位如下，增删改请打开下方手势配置器。"),
         });
         #endregion
 
@@ -144,7 +144,7 @@ public sealed partial class SettingsWindow : Window
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             var lb = new TextBlock { Text = label, Foreground = new SolidColorBrush(Theme.TextDim), FontSize = 12.5, VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.Wrap };
             var right = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-            right.Children.Add(GE.Keycaps.Row(chord, capTheme, "未设键")); // locpending 快捷键页与键位表同批迁移
+            right.Children.Add(GE.Keycaps.Row(chord, capTheme, Loc.T("未设键")));
             if (trigger.Length > 0)
                 right.Children.Add(new TextBlock
                 {
@@ -164,10 +164,10 @@ public sealed partial class SettingsWindow : Window
             .Where(b => b.Enabled && b.Actions.Length > 0 && HotkeySpec.Parse(b.Chord) != null)
             .ToList();
         if (active.Count == 0)
-            KeyRow("键位", "", ""); // locpending 快捷键页与键位表同批迁移
+            KeyRow(Loc.T("键位"), "", "");
         else
             foreach (var b in active)
-                KeyRow(string.Join("·", b.Actions.Select(GestureActions.LabelOf)), b.Chord, GestureConfig.TriggerLabel(b.Trigger));
+                KeyRow(string.Join("·", b.Actions.Select(GestureActions.LabelOf)), b.Chord, Loc.T(GestureConfig.TriggerLabel(b.Trigger)));
         keyCard.Child = keyStack;
         Fluent.Elevate(keyCard, blur: 24, depth: 6);
         panel.Children.Add(keyCard);
@@ -187,7 +187,7 @@ public sealed partial class SettingsWindow : Window
         var geIcon = new TextBlock { Text = "\uE713", FontFamily = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets, Segoe UI Symbol"), FontSize = 15, Foreground = new SolidColorBrush(Fluent.AccentText()), VerticalAlignment = VerticalAlignment.Center };
         var geRow = new StackPanel { Orientation = Orientation.Horizontal };
         geRow.Children.Add(geIcon);
-        geRow.Children.Add(new TextBlock { Text = "   打开手势配置器…", Foreground = new SolidColorBrush(Theme.Text), FontSize = 13, VerticalAlignment = VerticalAlignment.Center }); // locpending 快捷键页与键位表同批迁移
+        geRow.Children.Add(new TextBlock { Text = Loc.T("   打开手势配置器…"), Foreground = new SolidColorBrush(Theme.Text), FontSize = 13, VerticalAlignment = VerticalAlignment.Center });
         geBtn.Child = geRow;
         Fluent.Elevate(geBtn, blur: 24, depth: 6);
         Fluent.ChipHover(geBtn);   // 悬停只改底色带过渡，不上浮、不缩放（与普通按钮同语言）

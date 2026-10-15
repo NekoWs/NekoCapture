@@ -214,6 +214,109 @@ static class SelfTest
         return 0;
     }
 
+    /// <summary>离屏渲染手势配置器：库自己不认识语言与主题，这里按宿主同一套注入取词函数与配色，
+    /// 拍出来的就是用户真实看到的那一窗。选中第一条绑定，让详情面板也进画面。</summary>
+    /// <param name="outPath">输出 PNG 路径。</param>
+    /// <returns>恒为 0；渲染结果由打印行报告。</returns>
+    static int RenderGestures(string outPath)
+    {
+        var app = new Application();
+        var svc = new FrameCapture.Core.SettingsService();
+        FrameCapture.Core.Theme.Apply(svc.Current.Theme, svc.Current.Accent);
+        FrameCapture.Core.Fluent.ApplyGlobalStyles();
+        string lang = Environment.GetEnvironmentVariable("FC_LANG") ?? "";
+        FrameCapture.Core.Loc.Apply(lang == "" ? svc.Current.UiLanguage : lang);
+
+        var pal = new GestureEditor.EditorPalette
+        {
+            WindowBg = FrameCapture.Core.Theme.WindowBg, PanelBg = FrameCapture.Core.Theme.PanelBg,
+            CardBg = FrameCapture.Core.Theme.CardBg, Text = FrameCapture.Core.Theme.Text,
+            TextDim = FrameCapture.Core.Theme.TextDim, Stroke = FrameCapture.Core.Theme.Stroke,
+            Accent = FrameCapture.Core.Theme.Accent, Hover = FrameCapture.Core.Theme.Hover,
+            Press = FrameCapture.Core.Theme.Press, TrackBg = FrameCapture.Core.Theme.TrackBg,
+            IsDark = FrameCapture.Core.Theme.IsDark,
+        };
+        var w = new GestureEditor.GestureEditorWindow(
+            new GestureRenderCatalog(), new GestureRenderStore(), new GestureRenderNamer(), pal,
+            FrameCapture.Core.Loc.T);
+
+        double W = w.Width, H = w.Height;
+        var root = (UIElement)w.Content;
+        w.WindowStartupLocation = WindowStartupLocation.Manual;
+        w.Left = -20000; w.Top = -20000;
+        w.Background = new System.Windows.Media.SolidColorBrush(FrameCapture.Core.Theme.WindowBg);
+        w.Show();
+        PumpMs(400);
+        root.Measure(new System.Windows.Size(W, H));
+        root.Arrange(new Rect(0, 0, W, H));
+        root.UpdateLayout();
+        int ww = (int)Math.Ceiling(W), hh = (int)Math.Ceiling(H);
+        var rtb = new System.Windows.Media.Imaging.RenderTargetBitmap(ww, hh, 96, 96, System.Windows.Media.PixelFormats.Pbgra32);
+        rtb.Render(root);
+        var enc = new System.Windows.Media.Imaging.PngBitmapEncoder();
+        enc.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(rtb));
+        Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(outPath))!);
+        using (var f = File.Create(outPath)) enc.Save(f);
+        Console.WriteLine($"saved {outPath} {ww}x{hh} lang={(FrameCapture.Core.Loc.IsEnglish ? "en" : "zh")}");
+        return 0;
+    }
+
+    /// <summary>渲染用的动作清单：直接取真表，配置器下拉里就是用户会看到的动作名。</summary>
+    sealed class GestureRenderCatalog : GestureEditor.IActionCatalog
+    {
+        /// <summary>动作清单，取词后的短名与说明。</summary>
+        /// <returns>按当前语言取词的 <see cref="FrameCapture.Core.GestureActions"/> 全表。</returns>
+        public IReadOnlyList<GestureEditor.ActionInfo> Actions() =>
+            FrameCapture.Core.GestureActions.All
+                .Select(a => new GestureEditor.ActionInfo(a.Name, a.Label, a.Description, a.IsCapture)).ToArray();
+        /// <summary>动作名是否受支持。</summary>
+        /// <param name="name">动作名。</param>
+        /// <returns>真表里有则 true。</returns>
+        public bool IsValid(string name) => FrameCapture.Core.GestureActions.IsValid(name);
+    }
+
+    /// <summary>渲染用的配置：两条写死的绑定，一条组合键带完成后序列，一条 F2 按下起录。</summary>
+    sealed class GestureRenderStore : GestureEditor.IGestureConfigStore
+    {
+        /// <summary>构造样例文档。</summary>
+        /// <returns>两条启用绑定的文档。</returns>
+        public GestureEditor.GestureDoc Load()
+        {
+            var d = new GestureEditor.GestureDoc { Enabled = true, Exclusive = false };
+            d.Bindings.Add(new GestureEditor.BindingEdit
+            {
+                Id = "a", Enabled = true, Mods = GestureCore.ModifierKeys.Control | GestureCore.ModifierKeys.Alt,
+                Key = 0x52, Trigger = GestureCore.TriggerKind.Chord,
+                Actions = new List<string> { "capture.selection" },
+                OnComplete = new List<string> { "edit.lastvideo" },
+                AfterCapture = "editor", CopyToClipboard = true,
+                Fallback = GestureCore.FallbackPolicy.Stop, Priority = 0, DoubleClickMs = 300, LongPressMs = 550,
+            });
+            d.Bindings.Add(new GestureEditor.BindingEdit
+            {
+                Id = "b", Enabled = true, Mods = GestureCore.ModifierKeys.None, Key = 0x71,
+                Trigger = GestureCore.TriggerKind.KeyDown,
+                Actions = new List<string> { "record.toggle" },
+                OnComplete = new List<string>(), AfterCapture = "", CopyToClipboard = false,
+                Fallback = GestureCore.FallbackPolicy.SkipStep, Priority = 1, DoubleClickMs = 300, LongPressMs = 550,
+            });
+            return d;
+        }
+
+        /// <summary>渲染模式不落盘。</summary>
+        /// <param name="doc">配置器当前文档，被忽略。</param>
+        public void Save(GestureEditor.GestureDoc doc) { }
+    }
+
+    /// <summary>渲染用的键名：VK → 显示名，够覆盖样例里的 R 与 F2。</summary>
+    sealed class GestureRenderNamer : GestureCore.IKeyNamer
+    {
+        /// <summary>虚拟键码 → 键名。</summary>
+        /// <param name="key">Windows 虚拟键码。</param>
+        /// <returns>R / F2；其余返回十进制数字串。</returns>
+        public string Name(int key) => key switch { 0x52 => "R", 0x71 => "F2", _ => key.ToString() };
+    }
+
     /// <summary>在视觉树里找左侧类别项：Border 内 Grid 里那条 StackPanel 带同名文字。</summary>
     /// <param name="node">起点节点。</param>
     /// <param name="text">类别名。</param>
@@ -467,6 +570,7 @@ static class SelfTest
             int ci = args.Length >= 3 && int.TryParse(args[2], out var sc) ? sc : 0;
             return RenderSettings(args[1], catNames[Math.Clamp(ci, 0, catNames.Length - 1)]);
         }
+        if (args.Length >= 2 && args[0] == "rendergestures") return RenderGestures(args[1]);
         if (args.Length == 3 && args[0] == "stitch") return StitchMode(args[1], args[2]);
         string tmp = Path.Combine(Path.GetTempPath(), "FrameCapture", "selftest");
         Directory.CreateDirectory(tmp);
@@ -4089,7 +4193,8 @@ static class SelfTest
             var same = tbl.Where(kv => kv.Value == kv.Key).Select(kv => kv.Key).ToList();
             Chk("T189i-table-hygiene",
                 cjk.Count == 0 && blank.Count == 0 && paren.Count == 0 && same.Count == 0 && StringsEn.Conflicts.Count == 0,
-                $"cjk={cjk.Count} blank={blank.Count} paren={paren.Count} same={same.Count} conflict={StringsEn.Conflicts.Count}");
+                $"cjk={cjk.Count} blank={blank.Count} paren={paren.Count} same={same.Count} conflict={StringsEn.Conflicts.Count}"
+                + (StringsEn.Conflicts.Count == 0 ? "" : " [" + string.Join(" | ", StringsEn.Conflicts.Take(4)) + "]"));
             // 落盘值由 Normalize 收口：写坏的语言退回跟随系统
             var langSet = new AppSettings { UiLanguage = "fr" };
             langSet.Normalize();
@@ -4100,12 +4205,25 @@ static class SelfTest
             {
                 "设置捕获范围", "自动保存副本", "点击窗口时截取完整窗口", "只录窗口",
                 "识别文字…", "不透明度", "静音", "悬浮窗存在时间", "跟随显示器刷新率录满",
+                "启用手势层", "独占吞键", "完成后序列", "松手", "手势层当前关闭", "未绑定",
             };
             var leaked = covered.Where(k => Loc.T(k) == k).ToList();
             Chk("T189k-covered-surfaces", leaked.Count == 0, $"leaked={string.Join(',', leaked)}");
             // 带参串在英文里也要拼得出来：占位符顺序由译文决定，不是照抄中文
             Chk("T189l-arg-format-in-en", Loc.F("关闭全部贴图 ({0})", 3) == "Close all pins (3)",
                 Loc.F("关闭全部贴图 ({0})", 3));
+            // 动作词汇表整表必须翻完：配置器下拉、快捷键页、帮助窗都读它，漏一条就是半中半英。
+            // 判据取「切到英文后还带汉字」——缺译时取词原样返回中文，正好落进这个条件。
+            var untranslated = GestureActions.All
+                .SelectMany(a => new[] { a.Label, a.Description })
+                .Where(s => s.Any(c => c >= 0x4E00 && c <= 0x9FFF)).ToList();
+            Chk("T189m-action-vocabulary", untranslated.Count == 0,
+                $"untranslated={untranslated.Count} [{string.Join(" | ", untranslated.Take(3))}]");
+            // 触发方式在两种语言里都要两两不同：英文若把「松开」「松手」译成同一个词，键位后缀就分不出来了
+            var trigEn = new[] { "KeyDown", "KeyUp", "Tap", "Hold", "HoldRelease", "LongPress", "DoubleClick", "TripleClick", "Click" }
+                .Select(t => Loc.T(GestureConfig.TriggerLabel(t))).ToList();
+            Chk("T189n-trigger-words-distinct-in-en", trigEn.Distinct().Count() == trigEn.Count,
+                string.Join(',', trigEn));
             Loc.Apply(Loc.PrefZh);
         }
 

@@ -771,3 +771,18 @@ NaN 转 int 得 0，`RenderTargetBitmap` 按 0 高去画，PNG 文件照样写�
 - **护栏**：`?hint=1` 强制显示提示条供截图审查（与 `?static=1` 同款审查开关），否则审查环境无法伪造
   `navigator.language`，那条分支就成了测不到的代码。
 
+
+## 手势配置器库不认识语言，取词函数由宿主注入
+
+- **不变量 / 契约**：`GestureEditor` 库不引用 `FrameCapture`，界面取词是构造函数的第五个参数
+  `Func<string,string>? loc`，传 null 就原样显示中文——库单独拿出来用仍然完整。宿主在
+  `GestureEditorHost.ShowOrFocus` 里把 `Loc.T` 递进去，与动作清单、配置读写、键名、配色同一个路子。
+- **只在搭界面时取词**：语言切换对下一次打开生效，本窗不就地重建。配置器是低频窗，
+  为它加一套重建逻辑换不到什么。
+- **动作名与触发方式在库里是静态纯函数**（`TriggerLabel`/`FallbackLabel`/`AfterCaptureLabel`），
+  SelfTest 直接锁它们「十个触发两两不同词」。因此这些函数继续返回中文原文，取词发生在调用处；
+  把 `Loc` 塞进函数内部会让那两条不变量只能按语言各测一遍。
+- **护栏**：`scripts/lint-i18n-coverage.ps1` 现在也扫 `src/GestureEditor`，认注入的 `T(` 为取词调用；
+  返回取词键的行标 `// lockeys`（与 `// copyok` 区分：前者是「这行的中文就是要翻的键，翻在读取处」）。
+  `T189n-trigger-words-distinct-in-en` 锁住英文下十个触发词同样两两不同——「松开」和「松手」译成一个词，
+  键位后缀就分不出来了。

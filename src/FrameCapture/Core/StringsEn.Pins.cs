@@ -11,7 +11,7 @@ static partial class StringsEn
     {
         ("复制", "Copy"),
         ("另存为…", "Save as…"),
-        ("识别文字", "Recognize text"),
+        ("识别文字", "Recognize Text"),
         ("识别文字…", "Recognize text…"),
         ("旋转 90°", "Rotate 90°"),
         ("更新内容", "Refresh content"),

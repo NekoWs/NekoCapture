@@ -50,16 +50,16 @@ public sealed partial class GestureEditorWindow : Window
             Stroke = _pal.Stroke,
             Dim = _pal.TextDim,
             Size = 12,
-        }, "未设键"));
+        }, T("未设键")));
         head.Children.Add(new TextBlock
         {
-            Text = "· " + TriggerLabel(b.Trigger),
+            Text = "· " + T(TriggerLabel(b.Trigger)),
             FontSize = 12.5,
             Margin = new Thickness(6, 0, 0, 0),
             VerticalAlignment = VerticalAlignment.Center,
         });
-        var acts = b.Actions.Count == 0 ? "无动作" : string.Join(" → ", b.Actions.Select(ActionLabel));
-        if (b.OnComplete.Count > 0) acts += "  ⟶ 完成后: " + string.Join(" → ", b.OnComplete.Select(ActionLabel));
+        var acts = b.Actions.Count == 0 ? T("无动作") : string.Join(" → ", b.Actions.Select(ActionLabel));
+        if (b.OnComplete.Count > 0) acts += T("  ⟶ 完成后: ") + string.Join(" → ", b.OnComplete.Select(ActionLabel));
         body.Text = acts;
         var sp = new StackPanel(); sp.Children.Add(head); sp.Children.Add(body);
         var card = new Border { CornerRadius = new CornerRadius(6), BorderThickness = new Thickness(1), Padding = new Thickness(10, 7, 10, 7), Margin = new Thickness(1, 3, 3, 3), Child = sp };
@@ -91,11 +91,11 @@ public sealed partial class GestureEditorWindow : Window
     // 只描述"截完之后打开什么"，写不写剪贴板是另一条独立开关。
     static string AfterCaptureLabel(string v) => v switch
     {
-        "" => "跟随默认",
-        "editor" => "进编辑器",
-        "copy" => "什么都不做",
-        "pin" => "贴图",
-        _ => "弹提示",
+        "" => "跟随默认", // lockeys
+        "editor" => "进编辑器", // lockeys
+        "copy" => "什么都不做", // lockeys
+        "pin" => "贴图", // lockeys
+        _ => "弹提示", // lockeys
     };
 
     void AddBinding()
@@ -131,16 +131,16 @@ public sealed partial class GestureEditorWindow : Window
         _detail.Children.Clear();
         if (_selected < 0 || _selected >= _doc.Bindings.Count)
         {
-            _detail.Children.Add(new TextBlock { Text = "选择左侧一条绑定进行编辑，或点「添加绑定」。", Foreground = _pal.B(_pal.TextDim), Margin = new Thickness(0, 8, 0, 0), TextWrapping = TextWrapping.Wrap });
+            _detail.Children.Add(new TextBlock { Text = T("选择左侧一条绑定进行编辑，或点「添加绑定」。"), Foreground = _pal.B(_pal.TextDim), Margin = new Thickness(0, 8, 0, 0), TextWrapping = TextWrapping.Wrap });
             return;
         }
         var b = _doc.Bindings[_selected];
 
         // 启用/禁用此绑定（A1）：禁用=保留配置但不触发，无需删除
-        _detail.Children.Add(MakeToggle("启用此绑定", v => { b.Enabled = v; RefreshList(); RefreshValidation(); }, out _, b.Enabled));
+        _detail.Children.Add(MakeToggle(T("启用此绑定"), v => { b.Enabled = v; RefreshList(); RefreshValidation(); }, out _, b.Enabled));
 
         // 组合键捕获
-        _detail.Children.Add(Label("组合键"));
+        _detail.Children.Add(Label(T("组合键")));
         _chordBox = new Border { CornerRadius = new CornerRadius(6), BorderThickness = new Thickness(1), Background = _pal.B(_pal.CardBg), Padding = new Thickness(12, 9, 12, 9), Cursor = Cursors.Hand, Focusable = true };
         _chordStroke = new SolidColorBrush(_pal.Stroke); _chordBox.BorderBrush = _chordStroke;
         _chordHover = _chordFocus = false;
@@ -159,8 +159,8 @@ public sealed partial class GestureEditorWindow : Window
         _detail.Children.Add(_chordBox);
 
         // 触发方式
-        _detail.Children.Add(Label("触发方式"));
-        var trig = MakeCombo(Enum.GetValues<TriggerKind>().Cast<object>(), TriggerLabel, b.Trigger, v => { b.Trigger = (TriggerKind)v; RefreshList(); RefreshValidation(); });
+        _detail.Children.Add(Label(T("触发方式")));
+        var trig = MakeCombo(Enum.GetValues<TriggerKind>().Cast<object>(), x => T(TriggerLabel(x)), b.Trigger, v => { b.Trigger = (TriggerKind)v; RefreshList(); RefreshValidation(); });
         _detail.Children.Add(trig);
 
         // 动作序列 + 完成后序列（A3）：同一套列表编辑器，复用于两处
@@ -224,19 +224,19 @@ public sealed partial class GestureEditorWindow : Window
             root.Children.Add(addRow);
             return root;
         }
-        _detail.Children.Add(BuildActionList(b.Actions, "动作序列", "添加动作"));
-        _detail.Children.Add(BuildActionList(b.OnComplete, "完成后序列", "添加完成动作"));
+        _detail.Children.Add(BuildActionList(b.Actions, T("动作序列"), T("添加动作")));
+        _detail.Children.Add(BuildActionList(b.OnComplete, T("完成后序列"), T("添加完成动作")));
 
         // 截图后：本条手势触发截图完成后的落点；空=跟随默认（弹提示）。
         // 序列里没有截图类动作时整段隐藏（录制/编辑器/OCR 之外的手势配它没意义，徒增困惑）。
         // 写不写剪贴板单独一条：贴图、进编辑器都不必覆盖用户剪贴板里原有的东西。
         _afterSec = new StackPanel();
-        _afterSec.Children.Add(Label("截图后"));
+        _afterSec.Children.Add(Label(T("截图后")));
         var afterOpts = new object[] { "", "toast", "editor", "copy", "pin" };
-        _afterSec.Children.Add(MakeCombo(afterOpts, v => AfterCaptureLabel((string)v), b.AfterCapture, v => { b.AfterCapture = (string)v; RefreshList(); }));
-        _afterSec.Children.Add(Label("复制到剪贴板"));
+        _afterSec.Children.Add(MakeCombo(afterOpts, v => T(AfterCaptureLabel((string)v)), b.AfterCapture, v => { b.AfterCapture = (string)v; RefreshList(); }));
+        _afterSec.Children.Add(Label(T("复制到剪贴板")));
         var copyOpts = new object[] { true, false };
-        _afterSec.Children.Add(MakeCombo(copyOpts, v => (bool)v ? "复制" : "不复制", b.CopyToClipboard, v => b.CopyToClipboard = (bool)v));
+        _afterSec.Children.Add(MakeCombo(copyOpts, v => (bool)v ? T("复制") : T("不复制"), b.CopyToClipboard, v => b.CopyToClipboard = (bool)v));
         _detail.Children.Add(_afterSec);
         UpdateAfterSec();
 
@@ -245,9 +245,9 @@ public sealed partial class GestureEditorWindow : Window
         two.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         two.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(12) });
         two.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        var fbCol = new StackPanel(); fbCol.Children.Add(Label("失败策略"));
-        fbCol.Children.Add(MakeCombo(Enum.GetValues<FallbackPolicy>().Cast<object>(), FallbackLabel, b.Fallback, v => b.Fallback = (FallbackPolicy)v));
-        var prCol = new StackPanel(); prCol.Children.Add(Label("优先级"));
+        var fbCol = new StackPanel(); fbCol.Children.Add(Label(T("失败策略")));
+        fbCol.Children.Add(MakeCombo(Enum.GetValues<FallbackPolicy>().Cast<object>(), x => T(FallbackLabel(x)), b.Fallback, v => b.Fallback = (FallbackPolicy)v));
+        var prCol = new StackPanel(); prCol.Children.Add(Label(T("优先级")));
         prCol.Children.Add(MakeNum(b.Priority.ToString(), s => { if (int.TryParse(s, out var p)) b.Priority = p; }));
         Grid.SetColumn(fbCol, 0); Grid.SetColumn(prCol, 2);
         two.Children.Add(fbCol); two.Children.Add(prCol);
@@ -258,9 +258,9 @@ public sealed partial class GestureEditorWindow : Window
         two2.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         two2.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(12) });
         two2.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        var dcCol = new StackPanel(); dcCol.Children.Add(Label("双击间隔 ms"));
+        var dcCol = new StackPanel(); dcCol.Children.Add(Label(T("双击间隔 ms")));
         dcCol.Children.Add(MakeNum(b.DoubleClickMs.ToString(), s => { if (int.TryParse(s, NumberStyles.Integer, CultureInfo.InvariantCulture, out var v)) b.DoubleClickMs = v; RefreshValidation(); }));
-        var lpCol = new StackPanel(); lpCol.Children.Add(Label("长按阈值 ms"));
+        var lpCol = new StackPanel(); lpCol.Children.Add(Label(T("长按阈值 ms")));
         lpCol.Children.Add(MakeNum(b.LongPressMs.ToString(), s => { if (int.TryParse(s, NumberStyles.Integer, CultureInfo.InvariantCulture, out var v)) b.LongPressMs = v; RefreshValidation(); }));
         Grid.SetColumn(dcCol, 0); Grid.SetColumn(lpCol, 2);
         two2.Children.Add(dcCol); two2.Children.Add(lpCol);
@@ -292,13 +292,13 @@ public sealed partial class GestureEditorWindow : Window
         _chordHost.Children.Clear();
         if (_capturing)
         {
-            _chordText.Text = "按下新键 · Esc 解绑";
+            _chordText.Text = T("按下新键 · Esc 解绑");
             _chordText.Foreground = _pal.B(_pal.Accent);
             _chordHost.Children.Add(_chordText);
         }
         else if (string.IsNullOrEmpty(s))
         {
-            _chordText.Text = "点击设置";
+            _chordText.Text = T("点击设置");
             _chordText.Foreground = _pal.B(_pal.TextDim);
             _chordHost.Children.Add(_chordText);
         }
@@ -410,7 +410,7 @@ public sealed partial class GestureEditorWindow : Window
         PaintRows();
         if (problems.Count == 0)
         {
-            _valText.Text = _doc.Enabled ? "" : "手势层当前关闭";
+            _valText.Text = _doc.Enabled ? "" : T("手势层当前关闭");
             _valText.Foreground = _pal.B(_pal.TextDim);
         }
         else
