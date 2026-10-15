@@ -3933,7 +3933,7 @@ static class SelfTest
                 new() { Id = "off", Enabled = false, Chord = "Ctrl+Alt+X", Trigger = "Chord", Actions = new[] { "capture.stored" } },
             };
             Chk("T149a-scope-unbound",
-                GC.DescribeKeysFor(GestureActions.ScopeSelect) == "未绑定",
+                GC.DescribeKeysFor(GestureActions.ScopeSelect) == "未设键",
                 "无选区绑定 → 未绑定（不再回落显示没绑定的死键 Ctrl+Shift+R）");
             var rec = GC.DescribeKeysFor(GestureActions.RecordToggle, GestureActions.RecordStart, GestureActions.RecordStop);
             Chk("T149b-record-grouped", rec == "Ctrl+Alt+R，F2 按下/松开",
@@ -4633,6 +4633,142 @@ static class SelfTest
             Chk("T189n-trigger-words-distinct-in-en", trigEn.Distinct().Count() == trigEn.Count,
                 string.Join(',', trigEn));
             Loc.Apply(Loc.PrefZh);
+        }
+
+        #endregion
+
+        #region 双语排版体检：文字放得下、也不被钉死的高度顶到上沿
+
+        {
+            // 两类只有切语言才看得见的排版缺陷：
+            // ① 容器宽度写死，另一种语言的字更宽 → 裁在盒子边上；
+            // ② TextBlock 显式 Height 比行盒高 + VerticalAlignment=Center → 多出的空隙全落在字下面，字看着偏上。
+            // 逐页扫真实窗口，判据用 FormattedText 现量，不跟任何写死的像素数对赌。
+            static (List<string> Faults, int Seen, bool SawSegmented) LayoutFaults(string lang)
+            {
+                Loc.Apply(lang);
+                var svc = new FrameCapture.Core.SettingsService();
+                typeof(FrameCapture.Services.AppHost).GetProperty("Settings")!
+                    .SetValue(FrameCapture.Services.AppHost.Current, svc);
+                FrameCapture.Core.Theme.Apply("dark", svc.Current.Accent);
+                FrameCapture.Core.Fluent.ApplyGlobalStyles();
+                var win = new FrameCapture.Overlays.SettingsWindow
+                {
+                    WindowStartupLocation = WindowStartupLocation.Manual,
+                    Left = -20000, Top = -20000, ShowActivated = false, ShowInTaskbar = false,
+                };
+                // 高级形态 + 展开第一行：分段控件长在展开后的行里，不展开就扫不到它
+                typeof(FrameCapture.Overlays.SettingsWindow)
+                    .GetField("_hotAdvanced", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
+                    .SetValue(win, true);
+                typeof(FrameCapture.Overlays.SettingsWindow)
+                    .GetMethod("Build", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
+                    .Invoke(win, null);
+                win.Show();
+                PumpMs(350);
+                var root = (UIElement)win.Content;
+                var boxes = new List<System.Windows.DependencyObject>();
+                CollectTyped(root, typeof(FrameCapture.Core.ChordCaptureBox), boxes);
+                if (boxes.Count > 0)
+                {
+                    // 键位框 → 行首列容器 → 挂着展开处理器的行首：点开它，行里的控件才进视觉树
+                    var pill = (System.Windows.UIElement)System.Windows.Media.VisualTreeHelper
+                        .GetParent(System.Windows.Media.VisualTreeHelper.GetParent(boxes[0]))!;
+                    pill.RaiseEvent(new System.Windows.Input.MouseButtonEventArgs(
+                        System.Windows.Input.Mouse.PrimaryDevice, 0, System.Windows.Input.MouseButton.Left)
+                    { RoutedEvent = System.Windows.UIElement.MouseLeftButtonUpEvent, Source = pill });
+                    PumpMs(500);
+                }
+                var faults = new List<string>();
+                int seen = 0;
+                bool sawSeg = false;
+                // 一段单行文字自然要多宽：现量，不跟任何写死的像素数对赌
+                static double Need(System.Windows.Controls.TextBlock t)
+                {
+                    var ft = new System.Windows.Media.FormattedText(t.Text,
+                        System.Globalization.CultureInfo.CurrentCulture, t.FlowDirection,
+                        new System.Windows.Media.Typeface(t.FontFamily, t.FontStyle, t.FontWeight, t.FontStretch),
+                        t.FontSize, System.Windows.Media.Brushes.White, 1.0);
+                    return ft.WidthIncludingTrailingWhitespace + t.Padding.Left + t.Padding.Right;
+                }
+                static bool OneLine(System.Windows.Controls.TextBlock t)
+                    => t.IsVisible && t.ActualWidth > 0 && !string.IsNullOrWhiteSpace(t.Text)
+                       && t.TextWrapping == TextWrapping.NoWrap && t.TextTrimming == TextTrimming.None;
+                void Audit(System.Windows.DependencyObject o)
+                {
+                    if (o is System.Windows.Controls.TextBlock tb && OneLine(tb))
+                    {
+                        seen++;
+                        if (tb.Text == Loc.T(K.Settings.Advanced)) sawSeg = true;
+                        // 显式 Height 比行盒高 + 居中：多出的空隙全落在字下面，字看着偏上
+                        if (!double.IsNaN(tb.Height) && tb.VerticalAlignment == VerticalAlignment.Center)
+                        {
+                            var ft = new System.Windows.Media.FormattedText(tb.Text,
+                                System.Globalization.CultureInfo.CurrentCulture, tb.FlowDirection,
+                                new System.Windows.Media.Typeface(tb.FontFamily, tb.FontStyle, tb.FontWeight, tb.FontStretch),
+                                tb.FontSize, System.Windows.Media.Brushes.White, 1.0);
+                            double line = ft.Height + tb.Padding.Top + tb.Padding.Bottom;
+                            if (tb.Height > line + 1) faults.Add($"钉高「{tb.Text}」{tb.Height:F0} 行盒 {line:F0}");
+                        }
+                    }
+                    // 并排文字的总需求 vs 写死宽度的祖先。
+                    // 单个 TextBlock 永远「刚好够宽」——WPF 把格子宽发给它，裁切发生在轨道那一层，
+                    // 所以判据必须落在「并排几段一共要多少」上。
+                    if (o is System.Windows.Controls.Panel pan && pan.Children.Count >= 2
+                        && (pan is System.Windows.Controls.StackPanel { Orientation: System.Windows.Controls.Orientation.Horizontal }
+                            || pan is System.Windows.Controls.Primitives.UniformGrid))
+                    {
+                        double sum = 0;
+                        string names = "";
+                        foreach (System.Windows.UIElement c in pan.Children)
+                        {
+                            if (c is not System.Windows.Controls.TextBlock t2 || !OneLine(t2)) continue;
+                            sum += Need(t2);
+                            names += (names.Length == 0 ? "" : "+") + t2.Text;
+                        }
+                        if (names.Length > 0 && pan.Children.Count >= 2)
+                        {
+                            double box = double.NaN;
+                            for (var up = System.Windows.Media.VisualTreeHelper.GetParent(o); up != null;
+                                 up = System.Windows.Media.VisualTreeHelper.GetParent(up))
+                            {
+                                if (up is FrameworkElement fe && !double.IsNaN(fe.Width)) { box = fe.Width; break; }
+                            }
+                            if (!double.IsNaN(box) && box + 0.6 < sum)
+                                faults.Add($"并排裁字「{names}」共需 {sum:F0} 容器写死 {box:F0}");
+                        }
+                    }
+                    int n = System.Windows.Media.VisualTreeHelper.GetChildrenCount(o);
+                    for (int i = 0; i < n; i++) Audit(System.Windows.Media.VisualTreeHelper.GetChild(o, i));
+                }
+                Audit(root);
+                // 其余分页逐个切换再扫：每页的行不一样，缺陷也只长在某一页上
+                foreach (var cat in new[] { K.Common.Capture, K.Common.Recording, K.Settings.Output,
+                    K.Common.Editor, K.Common.Pin, K.Common.Appearance, K.Settings.System })
+                {
+                    if (FindNavText(root, Loc.T(cat)) is not System.Windows.UIElement nav) continue;
+                    nav.RaiseEvent(new System.Windows.Input.MouseButtonEventArgs(
+                        System.Windows.Input.Mouse.PrimaryDevice, 0, System.Windows.Input.MouseButton.Left)
+                    { RoutedEvent = System.Windows.UIElement.MouseLeftButtonUpEvent, Source = nav });
+                    PumpMs(160);
+                    Audit(root);
+                }
+                // 只隐藏不 Close：销毁处理器会去装热键，而这个宿主没起完整 AppHost
+                win.Hide();
+                return (faults, seen, sawSeg);
+            }
+            var en = LayoutFaults("en");
+            var zh = LayoutFaults("zh");
+            Loc.Apply(Loc.PrefZh);
+            var clip = en.Faults.Concat(zh.Faults).Where(f => f.Contains("裁字")).ToList();
+            var pin = en.Faults.Concat(zh.Faults).Where(f => f.StartsWith("钉高")).ToList();
+            // 审计要自证看到了那个控件：没扫到它的「零缺陷」是假绿
+            Chk("T195a-text-fits",
+                clip.Count == 0 && en.SawSegmented && zh.SawSegmented && en.Seen > 60 && zh.Seen > 60,
+                $"双语各扫 {en.Seen}/{zh.Seen} 段文字，分段控件 {en.SawSegmented}/{zh.SawSegmented}；"
+                + (clip.Count == 0 ? "无裁字" : $"{clip.Count} 处：" + string.Join(" | ", clip.Take(4))));
+            Chk("T195b-text-not-pinned-high", pin.Count == 0,
+                pin.Count == 0 ? "没有比行盒更高却居中的文字" : $"{pin.Count} 处：" + string.Join(" | ", pin.Take(4)));
         }
 
         #endregion

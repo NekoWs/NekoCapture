@@ -29,7 +29,7 @@ public readonly record struct EditorChord(ModifierKeys Mods, Key Key)
 
     /// <summary>把键位串读成键位：修饰键前缀 <c>Ctrl</c> / <c>Alt</c> / <c>Shift</c> / <c>Win</c>，
     /// 主键认 WPF <see cref="Key"/> 枚举名、<c>+</c> <c>-</c> <c>[</c> <c>]</c> 这类符号，以及 esc / enter / space 等别名。</summary>
-    /// <param name="text">形如 <c>Ctrl+Z</c>、<c>Space</c>、<c>[</c>、<c>Shift+Left</c> 的串；空白视为未绑定。</param>
+    /// <param name="text">形如 <c>Ctrl+Z</c>、<c>Space</c>、<c>[</c>、<c>Shift+Left</c> 的串；空白视为未设键。</param>
     /// <returns>解析出的键位；串里没有主键、出现两个主键、或键名认不出时返回 null。</returns>
     public static EditorChord? Parse(string? text)
     {

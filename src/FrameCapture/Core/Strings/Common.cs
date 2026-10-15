@@ -27,6 +27,5 @@ public static partial class K
         public static readonly Str ScrollingCapture = new("common.scrollingCapture", "滚动截图", "Scrolling Capture");
         public static readonly Str Settings = new("common.settings", "设置", "Settings");
         public static readonly Str StartWithWindows = new("common.startWithWindows", "开机自启", "Start With Windows");
-        public static readonly Str Unbound = new("common.unbound", "未绑定", "Unbound");
     }
 }

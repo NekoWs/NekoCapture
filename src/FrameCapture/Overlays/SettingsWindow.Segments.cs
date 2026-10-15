@@ -1,6 +1,7 @@
 using System;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
@@ -109,8 +110,16 @@ public sealed partial class SettingsWindow : Window
     /// <returns>分段控件。</returns>
     FrameworkElement AdvancedSwitch()
     {
-        // 段宽按两种语言里最长的那段（Advanced）给足：段宽也是高亮块的滑动步长，量窄了字会被正文裁掉。
-        const double seg = 66, h = 26;
+        var simple = SegLabel(Loc.T(K.Settings.Simple), Loc.T(K.Settings.ShowsOnlyWhereEachCase), false);
+        var adv = SegLabel(Loc.T(K.Settings.Advanced), Loc.T(K.Settings.EditTheStepsThatRun), true);
+        // 段宽由两段里较宽的那条量出来：写死一个数，换语言就会把「Advanced」裁在轨道边上。
+        // 66 是最窄一档的呼吸感，中文两段用不满也不塌；量出来更宽就按更宽的给。
+        var labels = new UniformGrid { Rows = 1, Columns = 2 };
+        labels.Children.Add(simple);
+        labels.Children.Add(adv);
+        labels.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        double seg = Math.Max(66, Math.Ceiling(labels.DesiredSize.Width / 2)), h = 26;
+
         var shift = new TranslateTransform(_hotAdvanced ? seg : 0, 0);
         var hi = new Border
         {
@@ -124,11 +133,6 @@ public sealed partial class SettingsWindow : Window
             RenderTransform = shift,
             IsHitTestVisible = false,
         };
-        var simple = SegLabel(Loc.T(K.Settings.Simple), Loc.T(K.Settings.ShowsOnlyWhereEachCase), seg, false);
-        var adv = SegLabel(Loc.T(K.Settings.Advanced), Loc.T(K.Settings.EditTheStepsThatRun), seg, true);
-        var labels = new StackPanel { Orientation = Orientation.Horizontal };
-        labels.Children.Add(simple);
-        labels.Children.Add(adv);
 
         var track = new Grid { Width = seg * 2, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 4, 0, 2) };
         var back = new Border
@@ -164,23 +168,23 @@ public sealed partial class SettingsWindow : Window
         return track;
     }
 
-    /// <summary>分段控件里的一段：固定宽度的可点文字，点它切到这一段代表的形态。</summary>
+    /// <summary>分段控件里的一段：可点文字，左右内边距把文字与段边界隔开，段宽由外层均分给两段。</summary>
     /// <param name="text">段名。</param>
     /// <param name="tip">tooltip，写明这一档管什么。</param>
-    /// <param name="width">段宽，高亮块按同一个宽度滑动。</param>
     /// <param name="mode">这一段代表的形态：false = 简单，true = 高级。</param>
     /// <returns>段文字；点击由调用方接。</returns>
-    TextBlock SegLabel(string text, string tip, double width, bool mode)
+    TextBlock SegLabel(string text, string tip, bool mode)
     {
         bool selected = mode == _hotAdvanced;
         return new TextBlock
         {
             Text = text,
-            Width = width,
             FontSize = 12.5,
+            Padding = new Thickness(12, 0, 12, 0),
             TextAlignment = TextAlignment.Center,
+            // 高度交给文字本身：写死 26 会把行盒顶到分配框上沿，多出来的空隙全落在字下面，
+            // 而 VerticalAlignment 居中的是这个已经和轨道一样高的元素——上下就差了这截。
             VerticalAlignment = VerticalAlignment.Center,
-            Height = 26,
             Foreground = new SolidColorBrush(selected ? Fluent.OnAccentColor(Theme.Accent) : Theme.TextDim),
             Cursor = Cursors.Hand,
             ToolTip = tip,

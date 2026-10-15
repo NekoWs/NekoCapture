@@ -261,7 +261,7 @@ public sealed class HelpWindow : Window
     static string KeysFor(params string[] actions)
     {
         var g = SettingsService.Shared?.Current?.Gestures;
-        return g == null ? Loc.T(K.Common.Unbound) : g.DescribeKeysFor(actions);
+        return g == null ? Loc.T(K.Common.NoKey) : g.DescribeKeysFor(actions);
     }
 
     /// <summary>编辑器命令的当前键位。键位可在设置里改，帮助里的键位跟着设置走，不写死。</summary>

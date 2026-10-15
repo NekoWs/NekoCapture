@@ -212,12 +212,12 @@ public sealed class GestureConfig
 
     /// <summary>「截图」键位文案（欢迎卡/启动气泡用）：对当前范围截图与整帧即时截图都算截图，
     /// 按绑定顺序取第一个启用的。</summary>
-    /// <returns>键位文案；一条都没绑时为「未绑定」。</returns>
+    /// <returns>键位文案；一条都没绑时为「未设键」。</returns>
     public string CaptureKeyText()
         => DescribeKeysFor(GestureActions.CaptureStored, GestureActions.CaptureFrame);
 
     /// <summary>「录制」键位文案：按一下切换、按下起录松开停录，两种写法都算录制键。</summary>
-    /// <returns>键位文案；一条都没绑时为「未绑定」。</returns>
+    /// <returns>键位文案；一条都没绑时为「未设键」。</returns>
     public string RecordKeyText()
         => DescribeKeysFor(GestureActions.RecordToggle, GestureActions.RecordStart, GestureActions.RecordStop);
 
@@ -240,9 +240,9 @@ public sealed class GestureConfig
 
     /// <summary>把「绑定了指定动作的启用绑定」渲染成人类可读键位：按组合键分组、合并触发后缀（如 <c>F2 按下/松开</c>），
     /// 多条以顿号分隔（如 <c>Ctrl+Alt+R，F2 按下/松开</c>）。供帮助窗反映用户真实键位，
-    /// 因此无匹配时返回「未绑定」而不是回落某个默认键——默认键可能压根没绑动作。</summary>
+    /// 因此无匹配时返回「未设键」而不是回落某个默认键——默认键可能压根没绑动作。</summary>
     /// <param name="actionNames">要查的动作名（见 <see cref="GestureActions"/>）；任一动作命中即计入。</param>
-    /// <returns>渲染好的键位串；没有任何启用绑定时为「未绑定」。</returns>
+    /// <returns>渲染好的键位串；没有任何启用绑定时为「未设键」。</returns>
     public string DescribeKeysFor(params string[] actionNames)
     {
         var byChord = new Dictionary<string, List<string>>();
@@ -254,7 +254,7 @@ public sealed class GestureConfig
             var suf = Loc.T(TriggerLabel(b.Trigger));
             if (suf.Length > 0 && !list.Contains(suf)) list.Add(suf);
         }
-        if (byChord.Count == 0) return Loc.T(K.Common.Unbound);
+        if (byChord.Count == 0) return Loc.T(K.Common.NoKey);
         return string.Join(Loc.T(K.Hotkeys.Comma), byChord.Select(kv => kv.Key + (kv.Value.Count == 0 ? "" : " " + string.Join("/", kv.Value))));
     }
 }
