@@ -4,9 +4,6 @@
       <Platform Project="x64" />
     </Project>
     <Project Path="src/GestureCore/GestureCore.csproj" />
-    <Project Path="src/GestureEditor/GestureEditor.csproj">
-      <Platform Project="x64" />
-    </Project>
     <Project Path="src/Setup/Setup.csproj">
       <Platform Project="x64" />
     </Project>
