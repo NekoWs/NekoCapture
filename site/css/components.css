@@ -166,3 +166,20 @@ kbd {
 .panel { display: none; }
 .panel.is-on { display: grid; }
 
+/* ── 跳转链接 ─────────────────────────────────────────── */
+/* 键盘 Tab 的第一站：平时停在视口外，拿到焦点才落下来。 */
+.skip {
+  position: absolute;
+  left: 16px;
+  top: -56px;
+  z-index: 30;
+  padding: 10px 14px;
+  border-radius: var(--r-control);
+  border: 1px solid var(--stroke);
+  background: var(--card);
+  color: var(--text);
+  transition: top var(--state) var(--ease-enter);
+}
+
+.skip:focus { top: 12px; }
+

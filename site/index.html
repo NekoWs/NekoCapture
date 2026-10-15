@@ -29,6 +29,7 @@
 </script>
 </head>
 <body>
+<a class="skip" href="#capabilities">跳到主要内容</a>
 
 <!-- 全站氛围层：Mica 式分层背板，随主题与光标位置变化 -->
 <div class="ambient" aria-hidden="true">
@@ -194,16 +195,16 @@
 
     <div class="demo" data-reveal>
       <div class="tabs" role="tablist" aria-label="界面截图">
-        <button class="tab is-on" role="tab" aria-selected="true" data-panel="p-edit" type="button">
+        <button class="tab is-on" role="tab" aria-selected="true" aria-controls="p-edit" data-panel="p-edit" type="button">
           <span class="ico" aria-hidden="true">&#xE70F;</span> 编辑器
         </button>
-        <button class="tab" role="tab" aria-selected="false" data-panel="p-gesture" type="button">
+        <button class="tab" role="tab" aria-selected="false" aria-controls="p-gesture" data-panel="p-gesture" type="button">
           <span class="ico" aria-hidden="true">&#xE765;</span> 手势配置
         </button>
-        <button class="tab" role="tab" aria-selected="false" data-panel="p-set" type="button">
+        <button class="tab" role="tab" aria-selected="false" aria-controls="p-set" data-panel="p-set" type="button">
           <span class="ico" aria-hidden="true">&#xE713;</span> 设置
         </button>
-        <button class="tab" role="tab" aria-selected="false" data-panel="p-pin" type="button">
+        <button class="tab" role="tab" aria-selected="false" aria-controls="p-pin" data-panel="p-pin" type="button">
           <span class="ico" aria-hidden="true">&#xE718;</span> 贴图
         </button>
       </div>
