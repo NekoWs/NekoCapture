@@ -1,7 +1,8 @@
 /* motion.css — 关键帧与状态过渡。时长一律用 tokens.css 的 Motion 令牌，不写裸毫秒数。 */
 
 /* ── 滚动入场：抬 6px + 淡入，退场比入场快 ─────────────── */
-[data-reveal] {
+/* 藏起来等入场这件事只在脚本在场时成立：脚本没跑，页面就是一篇普通文档，内容全在。 */
+.js [data-reveal] {
   opacity: 0;
   transform: translate3d(0, var(--rise), 0);
   transition:
@@ -10,16 +11,16 @@
   will-change: opacity, transform;
 }
 
-[data-reveal].is-in {
+.js [data-reveal].is-in {
   opacity: 1;
   transform: none;
 }
 
 /* 大表面（首屏舞台、演示框）慢半拍，对应 EditorEnterMs */
-[data-reveal][data-slow] { transition-duration: var(--editor-enter); }
+.js [data-reveal][data-slow] { transition-duration: var(--editor-enter); }
 
 /* ── 标题逐行揭幕：遮罩从下往上掀 ─────────────────────── */
-.hero__title .line {
+.js .hero__title .line {
   display: block;
   clip-path: inset(0 0 105% 0);
   transform: translate3d(0, 0.42em, 0);

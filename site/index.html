@@ -18,6 +18,8 @@
    只读同一个 localStorage 键，判定与 js/theme.js 一致。 */
 (function () {
   var root = document.documentElement;
+  /* 入场动画的初始隐藏挂在 .js 上：脚本没跑，正文照样可见。 */
+  root.classList.add('js');
   if (/[?&]static=1/.test(window.location.search)) { root.classList.add('is-static'); }
   var saved = null;
   try { saved = window.localStorage.getItem('fc-theme'); } catch (e) { saved = null; }
