@@ -172,8 +172,9 @@ public sealed class GestureConfig
     }
 
     /// <summary>把出厂默认的两条绑定补齐成「先选区，后执行」的形态：
-    /// 截图那条只有「选区」一步、录制那条只有「开始/停止录制」一步且完成后为空——这两种形状各自补上缺失的那一步。
-    /// 只认 <c>default.capture</c> / <c>default.record</c> 这两个出厂 Id，用户自己建的或改过的不命中；
+    /// 截图那条只有「选区」一步，录制那条只有「开始/停止录制」一步——各自补上缺的那一步。
+    /// 只认 <c>default.capture</c> / <c>default.record</c> 这两个出厂 Id，用户自己建的绑定不命中；
+    /// 完成后一栏只在空着的时候补默认落点，用户写过的原样保留。
     /// 补齐后的形状多了一步，条件落空，重复调用没有副作用。</summary>
     public void UpgradeStockDefaults()
     {
@@ -181,9 +182,11 @@ public sealed class GestureConfig
         {
             if (b.Id == "default.capture" && b.Actions.Length == 1 && b.Actions[0] == GestureActions.ScopeSelect)
                 b.Actions = new[] { GestureActions.ScopeSelect, GestureActions.CaptureStored };
-            else if (b.Id == "default.record" && b.Actions.Length == 1 && b.Actions[0] == GestureActions.RecordToggle
-                     && b.OnComplete.Length == 0)
-                b.OnComplete = new[] { GestureActions.EditLastVideo };
+            else if (b.Id == "default.record" && b.Actions.Length == 1 && b.Actions[0] == GestureActions.RecordToggle)
+            {
+                b.Actions = new[] { GestureActions.ScopeSelect, GestureActions.RecordToggle };
+                if (b.OnComplete.Length == 0) b.OnComplete = new[] { GestureActions.EditLastVideo };
+            }
         }
     }
 
