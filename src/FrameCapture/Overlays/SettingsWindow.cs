@@ -299,7 +299,7 @@ public sealed partial class SettingsWindow : Window
 
         #region 产物
         panel = Cat(Loc.T("产物"), "\uE74E");
-        panel.Children.Add(ToggleRow("\uE74E", "自动保存副本", "捕获完成后，除复制到剪贴板外，再存一份文件到本地目录：截图存 PNG，录制按上面的「录制格式」存 MP4/WebM，未装 ffmpeg 则回退 GIF。视频在后台编码、文件稍后出现。写盘失败不影响剪贴板，捕获永远成功",
+        panel.Children.Add(ToggleRow("\uE74E", Loc.T("自动保存副本"), Loc.T("捕获完成后，除复制到剪贴板外，再存一份文件到本地目录：截图存 PNG，录制按上面的「录制格式」存 MP4/WebM，未装 ffmpeg 则回退 GIF。视频在后台编码、文件稍后出现。写盘失败不影响剪贴板，捕获永远成功"),
             _settings.Current.AutoSaveCopy, v => _settings.Mutate(s => s.AutoSaveCopy = v)));
         panel.Children.Add(PathRow());
 
@@ -308,11 +308,11 @@ public sealed partial class SettingsWindow : Window
 
         #region 编辑器
         panel = Cat(Loc.T("编辑器"), "\uE70F");
-        panel.Children.Add(ToggleRow("\uE8A9", "底部工具栏入场动效", "打开编辑器时，底部两排图标逐项落定，视线跟着落到工具上。关闭后工具栏随窗口直接出现，一个动画都不放",
+        panel.Children.Add(ToggleRow("\uE8A9", Loc.T("底部工具栏入场动效"), Loc.T("打开编辑器时，底部两排图标逐项落定，视线跟着落到工具上。关闭后工具栏随窗口直接出现，一个动画都不放"),
             _settings.Current.EditorToolbarAnim, v => _settings.Mutate(s => s.EditorToolbarAnim = v)));
-        panel.Children.Add(ToggleRow("\uEDD7", "记住上次的工具/颜色/粗细", "关闭编辑器时记住你最后用的标注工具、颜色和线宽，下次打开直接是它们，省去每次重选。关闭后每次打开都回到默认：浏览 / 红 / 中",
+        panel.Children.Add(ToggleRow("\uEDD7", Loc.T("记住上次的工具/颜色/粗细"), Loc.T("关闭编辑器时记住你最后用的标注工具、颜色和线宽，下次打开直接是它们，省去每次重选。关闭后每次打开都回到默认：浏览 / 红 / 中"),
             _settings.Current.RememberEditorTools, v => _settings.Mutate(s => s.RememberEditorTools = v)));
-        panel.Children.Add(ToggleRow("\uE8C1", "识别文字后显示结果窗", "「识别文字」成功后弹出结果窗预览：可查看/编辑识别文本、鼠标悬停部分选中复制、一键复制全部——预览即选取入口，此时不再自动写剪贴板，要哪段选哪段。关闭则退回快速路径：直接写剪贴板 + 轻提示，不弹窗",
+        panel.Children.Add(ToggleRow("\uE8C1", Loc.T("识别文字后显示结果窗"), Loc.T("「识别文字」成功后弹出结果窗预览：可查看/编辑识别文本、鼠标悬停部分选中复制、一键复制全部——预览即选取入口，此时不再自动写剪贴板，要哪段选哪段。关闭则退回快速路径：直接写剪贴板 + 轻提示，不弹窗"),
             _settings.Current.OcrShowResult, v => _settings.Mutate(s => s.OcrShowResult = v)));
 
         Cardify(panel); // 编辑器页行归入卡片
@@ -320,7 +320,7 @@ public sealed partial class SettingsWindow : Window
 
         #region 贴图
         panel = Cat(Loc.T("贴图"), "\uE718");
-        panel.Children.Add(ToggleRow("\uE718", "贴图窗口吸附", "拖动贴图时实时吸附对齐：贴近所在屏幕边缘则停靠四边/四角；贴近同屏其他贴图、以及浏览器或资源管理器等任何应用窗口的边或中线则与之对齐，把贴图摆齐像吸附网格一样自然。阈值调低为「贴边才吸」，不会隔空乱跳。关闭则松手停在原地",
+        panel.Children.Add(ToggleRow("\uE718", Loc.T("贴图窗口吸附"), Loc.T("拖动贴图时实时吸附对齐：贴近所在屏幕边缘则停靠四边/四角；贴近同屏其他贴图、以及浏览器或资源管理器等任何应用窗口的边或中线则与之对齐，把贴图摆齐像吸附网格一样自然。阈值调低为「贴边才吸」，不会隔空乱跳。关闭则松手停在原地"),
             _settings.Current.PinSnapEdges, v => _settings.Mutate(s => s.PinSnapEdges = v)));
 
         Cardify(panel); // 贴图页行归入卡片
@@ -337,13 +337,13 @@ public sealed partial class SettingsWindow : Window
 
         #region 系统
         panel = Cat(Loc.T("系统"), "\uE713");
-        panel.Children.Add(ToggleRow("\uE7E8", "开机自启", "登录 Windows 时自动启动 FrameCapture",
+        panel.Children.Add(ToggleRow("\uE7E8", Loc.T("开机自启"), Loc.T("登录 Windows 时自动启动 FrameCapture"),
             _settings.Current.RunAtStartup, v =>
             {
                 _settings.Mutate(s => s.RunAtStartup = v);
                 try { StartupService.Apply(v); } catch { }
             }));
-        panel.Children.Add(ToggleRow("\uE946", "启动气泡提示", "启动完成后在屏幕右下角弹一条「FrameCapture 已启动」，确认它真的在后台待命了。关掉后启动静默进托盘，只剩托盘图标",
+        panel.Children.Add(ToggleRow("\uE946", Loc.T("启动气泡提示"), Loc.T("启动完成后在屏幕右下角弹一条「FrameCapture 已启动」，确认它真的在后台待命了。关掉后启动静默进托盘，只剩托盘图标"),
             _settings.Current.StartupToast, v => _settings.Mutate(s => s.StartupToast = v)));
 
         Cardify(panel); // 系统页行归入卡片

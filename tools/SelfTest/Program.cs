@@ -4075,14 +4075,16 @@ static class SelfTest
                 .Equals("zh", StringComparison.OrdinalIgnoreCase);
             Chk("T189g-system-follows-ui-culture", Loc.Apply(Loc.PrefSystem) == sysEn);
             Chk("T189h-unknown-pref-is-system", Loc.Apply("klingon") == sysEn);
-            // 表的健康度：译名必须是英文、非空、不带括号标注；同一句中文不许两种译法
+            // 表的健康度：译名必须是英文、非空、不带括号标注、与原文不同；同一句中文不许两种译法
             var tbl = StringsEn.Table;
             var cjk = tbl.Where(kv => kv.Value.Any(c => c >= 0x4E00 && c <= 0x9FFF)).Select(kv => kv.Key).ToList();
             var blank = tbl.Where(kv => string.IsNullOrWhiteSpace(kv.Value)).Select(kv => kv.Key).ToList();
             var paren = tbl.Where(kv => kv.Value.IndexOf('(') >= 0 || kv.Value.IndexOf(')') >= 0).Select(kv => kv.Key).ToList();
+            // 原样登记的条目等于没翻：切到英文后那行还是中文，看不出也翻不了
+            var same = tbl.Where(kv => kv.Value == kv.Key).Select(kv => kv.Key).ToList();
             Chk("T189i-table-hygiene",
-                cjk.Count == 0 && blank.Count == 0 && paren.Count == 0 && StringsEn.Conflicts.Count == 0,
-                $"cjk={cjk.Count} blank={blank.Count} paren={paren.Count} conflict={StringsEn.Conflicts.Count}");
+                cjk.Count == 0 && blank.Count == 0 && paren.Count == 0 && same.Count == 0 && StringsEn.Conflicts.Count == 0,
+                $"cjk={cjk.Count} blank={blank.Count} paren={paren.Count} same={same.Count} conflict={StringsEn.Conflicts.Count}");
             // 落盘值由 Normalize 收口：写坏的语言退回跟随系统
             var langSet = new AppSettings { UiLanguage = "fr" };
             langSet.Normalize();

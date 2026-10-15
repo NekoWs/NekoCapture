@@ -162,14 +162,14 @@ public sealed partial class SettingsWindow : Window
     {
         var g = Row();
         g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); // 更改列
-        g.Children.Add(IconText("\uE838", "保存文件夹：自动保存副本存到这里，编辑器/贴图「另存为」对话框也默认打开这里"));
+        g.Children.Add(IconText("\uE838", Loc.T("保存文件夹：自动保存副本存到这里，编辑器/贴图「另存为」对话框也默认打开这里")));
         var stack = new StackPanel
         {
             Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center,
             Cursor = Cursors.Hand, Background = Brushes.Transparent,
-            ToolTip = "点击选择保存文件夹，自动保存副本和导出对话框都用它",
+            ToolTip = Loc.T("点击选择保存文件夹，自动保存副本和导出对话框都用它"),
         };
-        var lbl = new TextBlock { Text = "保存位置", FontSize = 13, Foreground = new SolidColorBrush(Theme.Text), VerticalAlignment = VerticalAlignment.Center };
+        var lbl = new TextBlock { Text = Loc.T("保存位置"), FontSize = 13, Foreground = new SolidColorBrush(Theme.Text), VerticalAlignment = VerticalAlignment.Center };
         var path = new TextBlock
         {
             FontSize = 12, Foreground = new SolidColorBrush(Theme.TextDim),
@@ -179,7 +179,7 @@ public sealed partial class SettingsWindow : Window
         void Refresh()
         {
             var p = _settings.Current.AutoSavePath;
-            path.Text = string.IsNullOrWhiteSpace(p) ? @"图片\FrameCapture · 默认位置" : p;
+            path.Text = string.IsNullOrWhiteSpace(p) ? Loc.T(@"图片\FrameCapture · 默认位置") : p;
         }
         Refresh();
         stack.Children.Add(lbl);
@@ -191,7 +191,7 @@ public sealed partial class SettingsWindow : Window
         g.Children.Add(stack);
         var browse = new TextBlock
         {
-            Text = "更改", FontSize = 12, Foreground = new SolidColorBrush(Fluent.AccentText()),
+            Text = Loc.T("更改"), FontSize = 12, Foreground = new SolidColorBrush(Fluent.AccentText()),
             VerticalAlignment = VerticalAlignment.Center, Cursor = Cursors.Hand, Margin = new Thickness(12, 0, 6, 0),
         };
         Grid.SetColumn(browse, 2);
@@ -202,7 +202,7 @@ public sealed partial class SettingsWindow : Window
         void Open()
         {
             using var dlg = new System.Windows.Forms.FolderBrowserDialog();
-            dlg.Description = "选择保存文件夹，自动保存副本和导出对话框都用它";
+            dlg.Description = Loc.T("选择保存文件夹，自动保存副本和导出对话框都用它");
             dlg.UseDescriptionForTitle = true;
             var cur = _settings.Current.AutoSavePath;
             if (!string.IsNullOrWhiteSpace(cur) && System.IO.Directory.Exists(cur)) dlg.SelectedPath = cur;

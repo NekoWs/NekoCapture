@@ -14,7 +14,7 @@ public static partial class StringsEn
     static Dictionary<string, string>? _table;
 
     /// <summary>全部译名分区。新分区必须在这里登记，没登记的分区等于整段没翻译。</summary>
-    static (string Zh, string En)[][] Batches => new (string Zh, string En)[][] { Shell, Settings };
+    static (string Zh, string En)[][] Batches => new (string Zh, string En)[][] { Shell, Settings, Pages };
 
     /// <summary>
     /// 合成后的整张表：首次取用时构建，同一句中文重复登记时保留先登记的那条。
