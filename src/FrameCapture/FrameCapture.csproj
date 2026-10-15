@@ -33,16 +33,10 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- WinRT（C#/WinRT）投影：本机离线，直接钉 NuGet 缓存里的投影程序集 -->
-    <Reference Include="WinRT.Runtime">
-      <HintPath>$(UserProfile)\.nuget\packages\microsoft.windows.sdk.net.ref\10.0.19041.57\lib\net8.0\WinRT.Runtime.dll</HintPath>
-    </Reference>
-    <Reference Include="Microsoft.Windows.SDK.NET">
-      <HintPath>$(UserProfile)\.nuget\packages\microsoft.windows.sdk.net.ref\10.0.19041.57\lib\net8.0\Microsoft.Windows.SDK.NET.dll</HintPath>
-    </Reference>
-  </ItemGroup>
-
-  <ItemGroup>
+    <!-- WinRT（C#/WinRT）投影由 TargetFramework 的 Windows SDK 版本给出：SDK 会把投影程序集
+         登记进 deps.json，运行时才认得 Microsoft.Windows.SDK.NET。
+         用 <Reference>+HintPath 直接钉 NuGet 缓存里那份 dll 只会把文件拷到输出目录，
+         deps.json 里没有它——Assembly.Load 按名字取不到，WGC 整条路静默失效。 -->
     <!-- 可复用「自定义手势/键位」引擎（netstandard2.0 零 UI 依赖，见 src/GestureCore） -->
     <ProjectReference Include="..\GestureCore\GestureCore.csproj" />
     <!-- 可复用「手势配置器」UI 库（只依赖 GestureCore，宿主经 GestureEditorHost 注入，见 src/GestureEditor） -->
