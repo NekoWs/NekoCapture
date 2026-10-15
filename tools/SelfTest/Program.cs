@@ -4079,12 +4079,12 @@ static class SelfTest
             var tbl = StringsEn.Table;
             var cjk = tbl.Where(kv => kv.Value.Any(c => c >= 0x4E00 && c <= 0x9FFF)).Select(kv => kv.Key).ToList();
             var blank = tbl.Where(kv => string.IsNullOrWhiteSpace(kv.Value)).Select(kv => kv.Key).ToList();
-            // 括号只许留给记法，白名单与 scripts/lint-copy-parens.ps1 同源：rgb(r, g, b) 这类不算括注
+            // 括号只许留给记法或占位符：白名单与 scripts/lint-copy-parens.ps1 同源，rgb(r, g, b) 与 {0} 不算括注
             var notation = new HashSet<string> { "x86", "*.ogg;*.wav", "*.*", "r, g, b", "h, s%, l%", "FC_TEST_ENCODE_FAIL=1" };
             var parenRe = new System.Text.RegularExpressions.Regex("[（(]([^（()）]{1,60})[）)]");
-            var paren = tbl.Where(kv => parenRe.Matches(kv.Value)
-                .Cast<System.Text.RegularExpressions.Match>()
-                .Any(m => !notation.Contains(m.Groups[1].Value))).Select(kv => kv.Key).ToList();
+            bool NotationOnly(string s) => parenRe.Matches(s).Cast<System.Text.RegularExpressions.Match>()
+                .All(m => notation.Contains(m.Groups[1].Value) || m.Groups[1].Value.StartsWith("{", StringComparison.Ordinal));
+            var paren = tbl.Where(kv => !NotationOnly(kv.Value)).Select(kv => kv.Key).ToList();
             // 原样登记的条目等于没翻：切到英文后那行还是中文，看不出也翻不了
             var same = tbl.Where(kv => kv.Value == kv.Key).Select(kv => kv.Key).ToList();
             Chk("T189i-table-hygiene",
@@ -4094,6 +4094,18 @@ static class SelfTest
             var langSet = new AppSettings { UiLanguage = "fr" };
             langSet.Normalize();
             Chk("T189j-lang-normalize", langSet.UiLanguage == "system");
+            // 已迁移窗口的取词覆盖：这些串一旦漏挂 Loc，切到英文就露出中文，逐条钉住每个已改完的窗口
+            Loc.Apply(Loc.PrefEn);
+            var covered = new[]
+            {
+                "设置捕获范围", "自动保存副本", "点击窗口时截取完整窗口", "只录窗口",
+                "识别文字…", "不透明度", "静音", "悬浮窗存在时间", "跟随显示器刷新率录满",
+            };
+            var leaked = covered.Where(k => Loc.T(k) == k).ToList();
+            Chk("T189k-covered-surfaces", leaked.Count == 0, $"leaked={string.Join(',', leaked)}");
+            // 带参串在英文里也要拼得出来：占位符顺序由译文决定，不是照抄中文
+            Chk("T189l-arg-format-in-en", Loc.F("关闭全部贴图 ({0})", 3) == "Close all pins (3)",
+                Loc.F("关闭全部贴图 ({0})", 3));
             Loc.Apply(Loc.PrefZh);
         }
 

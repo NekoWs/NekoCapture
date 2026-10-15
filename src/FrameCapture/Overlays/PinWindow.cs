@@ -314,7 +314,7 @@ public sealed class PinWindow : Window
     /// 延迟期间窗口被关闭（Esc / 关闭全部贴图）则本次刷新作废：对已关闭的窗调 Show 会抛。</summary>
     void Refresh()
     {
-        if (_srcRegion.W < 1 || _srcRegion.H < 1) { Flash("无法更新"); return; }
+        if (_srcRegion.W < 1 || _srcRegion.H < 1) { Flash(Core.Loc.T("无法更新")); return; }
         Hide(); // 先离场，否则置顶贴图会被自己截进新帧
         var t = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) };
         _refreshTimer = t;
@@ -334,10 +334,10 @@ public sealed class PinWindow : Window
                 double cx = Left + Width / 2, cy = Top + Height / 2; // 中心锚定，尺寸变化不漂移
                 ApplyScale();
                 Left = cx - Width / 2; Top = cy - Height / 2;
-                Flash("已更新");
+                Flash(Core.Loc.T("已更新"));
                 Core.Trace.Log($"pin-refresh {f.W}x{f.H}");
             }
-            else Flash("更新失败");
+            else Flash(Core.Loc.T("更新失败"));
             Show();
         };
         t.Start();
@@ -347,7 +347,7 @@ public sealed class PinWindow : Window
     void Copy()
     {
         ClipboardService.SetFrame(_frame);
-        Flash("已复制");
+        Flash(Core.Loc.T("已复制"));
         Core.Trace.Log("pin-copy");
     }
 
@@ -358,15 +358,15 @@ public sealed class PinWindow : Window
         string dir = SaveService.ResolveFolder();
         var dlg = new Microsoft.Win32.SaveFileDialog
         {
-            Filter = "PNG 图片|*.png",
+            Filter = Core.Loc.T("PNG 图片|*.png"),
             FileName = $"pin-{DateTime.Now:yyyyMMdd-HHmmss}.png",
             InitialDirectory = dir
         };
         if (dlg.ShowDialog(this) != true) return;
         string path = dlg.FileName;
         if (!path.EndsWith(".png", StringComparison.OrdinalIgnoreCase)) path += ".png";
-        try { BgraImage.SavePng(_frame, path); Flash("已保存"); Core.Trace.Log($"pin-save {path}"); }
-        catch { Flash("保存失败"); }
+        try { BgraImage.SavePng(_frame, path); Flash(Core.Loc.T("已保存")); Core.Trace.Log($"pin-save {path}"); }
+        catch { Flash(Core.Loc.T("保存失败")); }
     }
 
     List<(double L, double T, double R, double B)>? _winGuides;   // DIP，拖拽期间有效
@@ -461,7 +461,7 @@ public sealed class PinWindow : Window
     /// 否则贴图内浮层提示。无语言包/无文字等优雅降级，浮层给出原因。</summary>
     async void OcrFrame()
     {
-        Flash("识别文字…");
+        Flash(Core.Loc.T("识别文字…"));
         try
         {
             var outcome = await Core.OcrService.RecognizeAsync(_frame);
@@ -490,7 +490,7 @@ public sealed class PinWindow : Window
         catch (Exception ex)
         {
             Core.Trace.Log($"pin ocr failed: {ex.Message}");
-            Flash("识别失败");
+            Flash(Core.Loc.T("识别失败"));
         }
     }
 
@@ -525,18 +525,18 @@ public sealed class PinWindow : Window
     void ShowMenu()
     {
         var menu = new ContextMenu { Resources = Core.Fluent.MenuResources() }; // 套用共享 Fluent 菜单样式：裸 ContextMenu 走系统默认样式，与全局观感不符
-        var copy = new MenuItem { Header = "复制", InputGestureText = "Ctrl+C" };
+        var copy = new MenuItem { Header = Core.Loc.T("复制"), InputGestureText = "Ctrl+C" };
         copy.Click += (_, _) => Copy();
-        var saveAs = new MenuItem { Header = "另存为…", InputGestureText = "Ctrl+S" };
+        var saveAs = new MenuItem { Header = Core.Loc.T("另存为…"), InputGestureText = "Ctrl+S" };
         saveAs.Click += (_, _) => SaveAs();
-        var ocr = new MenuItem { Header = "识别文字", InputGestureText = "Ctrl+O" };
+        var ocr = new MenuItem { Header = Core.Loc.T("识别文字"), InputGestureText = "Ctrl+O" };
         ocr.Click += (_, _) => OcrFrame();
-        var rotate = new MenuItem { Header = "旋转 90°", InputGestureText = "R" };
+        var rotate = new MenuItem { Header = Core.Loc.T("旋转 90°"), InputGestureText = "R" };
         rotate.Click += (_, _) => Rotate();
-        var refresh = new MenuItem { Header = "更新内容", InputGestureText = "F3" };
+        var refresh = new MenuItem { Header = Core.Loc.T("更新内容"), InputGestureText = "F3" };
         refresh.Click += (_, _) => Refresh();
         // 不透明度子菜单：预设档位（Ctrl+滚轮可微调）
-        var opacity = new MenuItem { Header = "不透明度" };
+        var opacity = new MenuItem { Header = Core.Loc.T("不透明度") };
         foreach (var pct in new[] { 100, 75, 50, 25 })
         {
             double v = pct / 100.0;
@@ -544,9 +544,9 @@ public sealed class PinWindow : Window
             mi.Click += (_, _) => { CommitOpacity(); Opacity = v; }; // 提交淡入可见值再设绝对档，避免清动画后闪回 0 / 淡入未完成时竞态
             opacity.Items.Add(mi);
         }
-        var close = new MenuItem { Header = "关闭", InputGestureText = "Esc" };
+        var close = new MenuItem { Header = Core.Loc.T("关闭"), InputGestureText = "Esc" };
         close.Click += (_, _) => CloseAnimated();
-        var closeAll = new MenuItem { Header = $"关闭全部贴图 ({_open.Count})" };
+        var closeAll = new MenuItem { Header = Core.Loc.F("关闭全部贴图 ({0})", _open.Count) };
         closeAll.Click += (_, _) => { foreach (var p in _open.ToArray()) p.Close(); };
         menu.Items.Add(copy);
         menu.Items.Add(saveAs);
