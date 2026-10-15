@@ -335,6 +335,14 @@
 .dl .cta { justify-content: center; }
 .dl__hint { margin-top: 20px; font-size: 12.5px; }
 
+/* 卡内的版本范围：左对齐的事实清单，跟卡片的居中排版分开。 */
+.dl__scope {
+  max-width: 780px;
+  margin: 30px auto 0;
+  text-align: left;
+  gap: 0 clamp(24px, 4vw, 48px);
+}
+
 /* ── 系统要求 ─────────────────────────────────────────── */
 /* 两列事实表：左列是项名，右列是值。逐条对齐，比一堆卡片更适合读参数 */
 .specs {
