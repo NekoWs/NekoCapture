@@ -159,14 +159,20 @@ public sealed partial class CaptureController : IDisposable
         Overlays.CaptureToast.DismissCurrent();
         HideOutline();
         var swOpen = System.Diagnostics.Stopwatch.StartNew();
+        // 定格开：先把整屏抓下来再建窗，帧直接当窗底 → 选区窗做成不透明全屏窗，
+        // 不必为「先透明、再等定格帧到位」走 AllowsTransparency 的软件合成。
+        // 抓取本身几十毫秒，换来窗口一出现就是完整画面；残留浮窗都带 WDA_EXCLUDEFROMCAPTURE，拍不进去。
+        CapturedFrame? frozen = _settings.Current.FreezeOnSelect ? LiveCapture.Grab(monitor.Bounds) : null;
+        long grabMs = swOpen.ElapsedMilliseconds;
         // ShowLastRegion 关=干净屏选区（不传 existing 矩形），此时 Enter「确认上次选区」随之无意义
         _picker = new RegionPickerWindow(monitor, existing: _settings.Current.ShowLastRegion ? StoredRegion()?.Bounds : null,
             snapContent: _settings.Current.SnapContentArea, magnifier: _settings.Current.PickerMagnifier,
             colorFormat: Core.ColorFormat.Parse(_settings.Current.ColorCopyFormat),
             windowCapture: _settings.Current.WindowCaptureEnabled || _settings.Current.RecordWindowClean,
             freeze: _settings.Current.FreezeOnSelect, pregrabMax: _settings.Current.FreezePregrabMaxWindows,
-            windowShadow: _settings.Current.WindowCaptureShadow);
-        Trace.Log($"picker ctor done dt={swOpen.ElapsedMilliseconds}ms magnifier={_settings.Current.PickerMagnifier}");
+            windowShadow: _settings.Current.WindowCaptureShadow,
+            frozenScreen: frozen);
+        Trace.Log($"picker ctor done dt={swOpen.ElapsedMilliseconds}ms freezeGrab={grabMs}ms magnifier={_settings.Current.PickerMagnifier}");
         _picker.Result += (region, hwnd) =>
         {
             var pk = _picker; // 定格帧/预抓缓存挂在选区窗上，先留引用（下面 _picker 置空、窗随即关闭）

@@ -29,6 +29,8 @@ public sealed partial class RegionPickerWindow : Window
     private readonly bool _windowCapture; // 点吸附窗口时走「真·窗口截图」
     private readonly bool _magnifier;
     private readonly bool _freeze;       // 选区时定格画面（显示/放大镜/截图都用定格帧）
+    /// <summary>整屏定格帧在建窗时就已到手 → 本窗按不透明全屏窗实现，不做分层透明窗。</summary>
+    private readonly bool _opaqueFreeze;
     private readonly int _pregrabMax;    // 定格时后台预抓「完整可见」窗口干净画面的上限
     private readonly bool _windowShadow; // 预抓的窗口画面是否带合成投影
     private System.Windows.Media.Imaging.BitmapSource? _snap; // 定格全屏快照（定格模式：喂放大镜 + 背景 + 裁选区）
@@ -74,7 +76,7 @@ public sealed partial class RegionPickerWindow : Window
                 {
                     _snap = src; _snapBgra = f.Bgra; _snapW = f.W; _snapFrame = f;
                     if (_freezeBg != null) _freezeBg.Source = src;
-                    Core.Trace.Log($"picker freeze snapshot ready ({mon.W}x{mon.H})");
+                    Core.Trace.Log($"picker freeze snapshot ready ({mon.W}x{mon.H}) heap={GC.GetTotalMemory(false) >> 20}MB");
                 });
             }
             catch { }
@@ -107,13 +109,56 @@ public sealed partial class RegionPickerWindow : Window
                 foreach (var h in order)
                 {
                     if (_finished) return; // 选区已结束，别再抓
-                    try { var (f, r) = WindowCapture.Grab(h, shadow); _winCache[h] = (f, r); }
+                    if (System.Threading.Interlocked.Read(ref _pregrabBytes) >= PregrabBudgetBytes) break;
+                    try
+                    {
+                        var (f, r) = WindowCapture.Grab(h, shadow);
+                        _winCache[h] = (f, r);
+                        System.Threading.Interlocked.Add(ref _pregrabBytes, (long)f.W * f.H * 4);
+                    }
                     catch { }
                 }
-                Core.Trace.Log($"picker pregrab cached={_winCache.Count}/{order.Count}");
+                Core.Trace.Log($"picker pregrab cached={_winCache.Count}/{order.Count} " +
+                    $"bytes={System.Threading.Interlocked.Read(ref _pregrabBytes) >> 20}MB");
             }
             catch (Exception e) { Core.Trace.Log("picker pregrab err " + e.Message); }
         });
+    }
+
+    /// <summary>预抓的内存预算。一片是整窗 BGRA：4K 屏上一个最大化窗口就 33 MB，按数量封顶等于
+    /// 在大屏上放行几百 MB。按 Z 序从高到低抓，预算用完就停——点得着的总是靠上那几个，
+    /// 没缓存到的窗口控制器实时抓兜底，只是慢几十毫秒。</summary>
+    const long PregrabBudgetBytes = 128L << 20;
+
+    /// <summary>本次预抓已占用的像素字节数，后台线程累加，选区关闭时读它决定要不要回收。</summary>
+    private long _pregrabBytes;
+
+    /// <summary>
+    /// 选区关闭后把定格帧与预抓缓存占的大块内存交还操作系统。这些是几十 MB 一片的瞬时数组，
+    /// 放任不管，进程会一直占着这几百 MB 直到 GC 哪天想起来——低配机器上等不到那天。
+    /// 延后两秒在后台线程做：那时结果已派发完，界面也没在动，整堆压缩的停顿没人看见。
+    /// </summary>
+    /// <param name="bigBytes">本次选区瞬时占用的像素字节数，不足 48 MB 不值得为它压缩整堆。</param>
+    private static void ReclaimAfterClose(long bigBytes)
+    {
+        if (bigBytes < 48L << 20) return;
+        System.Threading.Timer? t = null;
+        t = new System.Threading.Timer(_ =>
+        {
+            try
+            {
+                long before = GC.GetTotalMemory(false);
+                System.Runtime.GCSettings.LargeObjectHeapCompactionMode =
+                    System.Runtime.GCLargeObjectHeapCompactionMode.CompactOnce;
+                GC.Collect();
+                GC.WaitForPendingFinalizers();
+                GC.Collect();
+                Core.Trace.Log($"picker memory reclaimed transient={bigBytes >> 20}MB " +
+                    $"heap {before >> 20}→{GC.GetTotalMemory(false) >> 20}MB");
+            }
+            catch { }
+            finally { t?.Dispose(); }
+        }, null, 2000, System.Threading.Timeout.Infinite);
     }
 
     /// <summary>
@@ -151,7 +196,9 @@ public sealed partial class RegionPickerWindow : Window
     /// <param name="freeze">true = 开框瞬间定格整屏，背景/放大镜/裁选区共用这一帧。</param>
     /// <param name="pregrabMax">定格模式下后台预抓「完整可见」窗口干净画面的数量上限；0 = 不预抓，且只在 <c>freeze</c> 为 true 时才启动。</param>
     /// <param name="windowShadow">预抓的窗口画面是否带合成投影。</param>
-    public RegionPickerWindow(MonitorInfo monitor, RectI? existing, bool snapContent = false, bool magnifier = false, Core.ColorCopyFormat colorFormat = Core.ColorCopyFormat.Hex, bool windowCapture = false, bool freeze = false, int pregrabMax = 0, bool windowShadow = false)
+    /// <param name="frozenScreen">建窗前就抓好的整屏定格帧。给了即走不透明全屏窗：帧直接铺成窗底，
+    /// 窗口出现即有内容；null 且 <c>freeze</c> 为 true 则本窗做分层透明，定格帧在 Show 之后异步补。</param>
+    public RegionPickerWindow(MonitorInfo monitor, RectI? existing, bool snapContent = false, bool magnifier = false, Core.ColorCopyFormat colorFormat = Core.ColorCopyFormat.Hex, bool windowCapture = false, bool freeze = false, int pregrabMax = 0, bool windowShadow = false, CapturedFrame? frozenScreen = null)
     {
         // 覆盖层不需要文本输入：禁用输入法，避免拼音拦截快捷键
         InputMethod.SetIsInputMethodEnabled(this, false);
@@ -165,7 +212,16 @@ public sealed partial class RegionPickerWindow : Window
         _colorFormat = colorFormat;
         _monitorPhys = monitor.Bounds;
         _existing = existing;
-        // 全屏快照一律在 Show 之后异步抓（见 SourceInitialized）：打开关键路径上没有 4K BitBlt。
+        // 定格帧在建窗前就到手 → 本窗不必分层透明：整屏已被这一帧盖住，暗化交给遮罩层。
+        // AllowsTransparency 强制软件合成，4K 全屏每一帧都在 CPU 上过一遍；不透明窗走硬件合成，
+        // 且窗口出现即有完整画面，不必先见桌面再等定格帧盖上。整屏像素表面两种窗都要付，省不掉。
+        _opaqueFreeze = freeze && frozenScreen != null;
+        if (frozenScreen != null)
+        {
+            _snapFrame = frozenScreen; _snapBgra = frozenScreen.Bgra; _snapW = frozenScreen.W;
+            try { _snap = Services.BgraImage.ToSource(frozenScreen); } catch { _snap = null; }
+        }
+        // 没有现成定格帧时，全屏快照在 Show 之后异步抓（见 SourceInitialized）：打开关键路径上没有 4K BitBlt。
         // 本窗设了 WDA_EXCLUDEFROMCAPTURE，抓取时即便遮罩已渲染也拍不到本窗，像素颜色仍真实。
 
         SourceInitialized += (_, _) =>
@@ -180,7 +236,11 @@ public sealed partial class RegionPickerWindow : Window
             try { Win32.SetWindowLongW(h, Win32.GWL_EXSTYLE, Win32.GetWindowLongW(h, Win32.GWL_EXSTYLE) | Win32.WS_EX_NOACTIVATE); } catch { }
             // 定格模式开框瞬间抓一张全屏定格帧（喂背景+放大镜+裁选区）；实时模式不抓全屏，
             // 放大镜改每次移动实时小区域重抓（跟画面）。定格+窗口截图都开时，后台按 Z 序预抓可见窗口干净画面。
-            if (_freeze) { StartFreezeSnapshot(); if (_windowCapture && _pregrabMax > 0) StartWindowPregrab(); }
+            if (_freeze)
+            {
+                if (!_opaqueFreeze) StartFreezeSnapshot();
+                if (_windowCapture && _pregrabMax > 0) StartWindowPregrab();
+            }
             // 分层窗（AllowsTransparency）没有黑首帧问题，绝不能屏外停放：
             // 本窗 Left/Top 在 Loaded 才赋值，Park 抓到的 home=NaN，回写 NaN 会让系统级联位兜底（实测偏移 266,266，提示被推出屏外）
             Core.Fluent.FadeIn(this, Core.Fluent.Motion.QuickMs);
@@ -201,8 +261,17 @@ public sealed partial class RegionPickerWindow : Window
         _topTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(400) };
         _topTimer.Tick += (_, _) => { if (IsVisible) ReassertTop(); else _topTimer!.Stop(); };
         Cursor = Cursors.Cross;
-        Background = Brushes.Transparent;
-        AllowsTransparency = true;
+        if (_opaqueFreeze)
+        {
+            // 不透明全屏窗：窗底就是那一帧定格画面，遮罩在其上半透明暗化，无需逐像素透明
+            Background = Brushes.Black;
+            AllowsTransparency = false;
+        }
+        else
+        {
+            Background = Brushes.Transparent;
+            AllowsTransparency = true;
+        }
         WindowStartupLocation = WindowStartupLocation.Manual;
         // 打开即全屏：构造期就按显示器 DPI 定好几何，消除"默认尺寸→Loaded 跳全屏"那一跳的边框闪烁。
         // （本窗 FadeIn 不传 offscreenFirstFrame，不走屏外 Park；Loaded 仍会按可视树 DPI 兜底校正。）
@@ -243,7 +312,8 @@ public sealed partial class RegionPickerWindow : Window
         if (_freeze)
         {
             // 定格背景：铺在最底，快照到位后填 Source → 屏幕看起来就定格；遮罩(_canvas)盖在其上作暗化/挖洞
-            _freezeBg = new Image { Stretch = Stretch.Fill, IsHitTestVisible = false, Opacity = 0 };
+            _freezeBg = new Image { Stretch = Stretch.Fill, IsHitTestVisible = false, Opacity = _opaqueFreeze ? 1 : 0 };
+            if (_opaqueFreeze && _snap is { } s) _freezeBg.Source = s;
             rootGrid.Children.Add(_freezeBg);
         }
         rootGrid.Children.Add(_canvas);
@@ -251,7 +321,15 @@ public sealed partial class RegionPickerWindow : Window
         Content = rootGrid;
 
         Loaded += (_, _) => _topTimer.Start();
-        Closed += (_, _) => { _topTimer.Stop(); _winCache.Clear(); Services.HotkeyManager.PickerActive = false; Services.HotkeyManager.PickerKey = null; }; // 清零全局键拦截，绝不泄漏成"全局键失灵"；释放预抓窗口缓存
+        Closed += (_, _) =>
+        {
+            _topTimer.Stop();
+            _winCache.Clear(); // 释放预抓窗口缓存
+            Services.HotkeyManager.PickerActive = false;
+            Services.HotkeyManager.PickerKey = null; // 清零全局键拦截，绝不泄漏成"全局键失灵"
+            var sf = _snapFrame;
+            ReclaimAfterClose((sf != null ? (long)sf.W * sf.H * 4 : 0) + System.Threading.Interlocked.Read(ref _pregrabBytes));
+        };
 
         Loaded += (_, _) =>
         {
@@ -384,7 +462,7 @@ public sealed partial class RegionPickerWindow : Window
             // 入场：遮罩 150ms 渐显；上次选区虚线滞后错开并轻微放大落位（ArkPV 式分层，不打扰）
             _canvas.Opacity = 0;
             _canvas.BeginAnimation(OpacityProperty, MaskAnim(1, 150, 0));
-            if (_freezeBg != null) _freezeBg.BeginAnimation(OpacityProperty, MaskAnim(1, 150, 0)); // 定格背景与遮罩同步淡入
+            if (_freezeBg != null && !_opaqueFreeze) _freezeBg.BeginAnimation(OpacityProperty, MaskAnim(1, 150, 0)); // 定格背景与遮罩同步淡入
             _hint.BeginAnimation(OpacityProperty, MaskAnim(1, 220, 320)); // 提示滞后入场，不打扰
             if (_existing != null)
             {

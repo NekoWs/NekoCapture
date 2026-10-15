@@ -100,6 +100,57 @@ static class SelfTest
         return 0;
     }
 
+    /// <summary>取证模式：离屏渲染选区窗，看它自己画了什么——定格窗底、遮罩暗化、提示条。
+    /// 选区窗带 WDA_EXCLUDEFROMCAPTURE，任何屏幕截图都拍不到它，只能这样取证。</summary>
+    /// <param name="outPath">输出 PNG 路径。</param>
+    /// <param name="withFrozen">true = 建窗前就交入定格帧（不透明窗那条路）；false = 分层透明窗那条路。</param>
+    /// <returns>恒为 0。</returns>
+    static int RenderPicker(string outPath, bool withFrozen)
+    {
+        var app = new Application();
+        var svc = new FrameCapture.Core.SettingsService();
+        typeof(FrameCapture.Services.AppHost).GetProperty("Settings")!
+            .SetValue(FrameCapture.Services.AppHost.Current, svc);
+        FrameCapture.Core.Theme.Apply(svc.Current.Theme, svc.Current.Accent);
+        FrameCapture.Core.Fluent.ApplyGlobalStyles();
+
+        // 合成一帧"屏幕"：渐变打底 + 一块纯白方块，一眼看出窗底是不是这张图、有没有铺满拉伸
+        int w = 1500, h = 940;
+        var bgra = new byte[w * h * 4];
+        for (int y = 0; y < h; y++)
+            for (int x = 0; x < w; x++)
+            {
+                int i = (y * w + x) * 4;
+                bgra[i] = (byte)(255 - x * 255 / w);
+                bgra[i + 1] = (byte)(y * 255 / h);
+                bgra[i + 2] = 190;
+                bgra[i + 3] = 255;
+            }
+        for (int y = 120; y < 320; y++)
+            for (int x = 120; x < 520; x++)
+            {
+                int i = (y * w + x) * 4;
+                bgra[i] = bgra[i + 1] = bgra[i + 2] = 255; bgra[i + 3] = 255;
+            }
+        var frame = new CapturedFrame { Bgra = bgra, W = w, H = h };
+        var mon = new MonitorInfo(@"\\.\DISPLAY1", new RectI(0, 0, w, h), true);
+        var win = new FrameCapture.Overlays.RegionPickerWindow(mon, null, snapContent: false, magnifier: true,
+            windowCapture: true, freeze: true, pregrabMax: 0, frozenScreen: withFrozen ? frame : null);
+        var root = (UIElement)win.Content;
+        root.Measure(new System.Windows.Size(w, h));
+        root.Arrange(new Rect(0, 0, w, h));
+        root.UpdateLayout();
+        PumpMs(300);
+        var rtb = new System.Windows.Media.Imaging.RenderTargetBitmap(w, h, 96, 96, System.Windows.Media.PixelFormats.Pbgra32);
+        rtb.Render(root);
+        var enc = new System.Windows.Media.Imaging.PngBitmapEncoder();
+        enc.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(rtb));
+        Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(outPath))!);
+        using (var f = File.Create(outPath)) enc.Save(f);
+        Console.WriteLine($"saved {outPath} {w}x{h} frozen={withFrozen} opaque={win.AllowsTransparency == false && withFrozen}");
+        return 0;
+    }
+
     /// <summary>取证模式：真实设置窗口停在指定类别，离屏渲染成 PNG。
     /// 切类别靠给左侧列表项抛一个 Enter 键事件，与用户点它走同一个 ShowCat。</summary>
     /// <param name="outPath">输出 PNG 路径。</param>
@@ -404,6 +455,8 @@ static class SelfTest
         if (args.Length == 2 && args[0] == "scrollwave") return ScrollWave(args[1]);
         if (args.Length == 2 && args[0] == "renderslider") return RenderSlider(args[1]);
         // 类别名走命令行会被控制台代码页搅乱，这里按索引取
+        if (args.Length >= 2 && args[0] == "renderpicker")
+            return RenderPicker(args[1], args.Length < 3 || args[2] != "layered");
         if (args.Length >= 2 && args[0] == "rendersettings")
         {
             string[] catNames = { "快捷键", "截图", "录制", "产物", "编辑器", "贴图", "外观", "系统" };
