@@ -92,15 +92,17 @@
 }
 
 /* ── 首屏 ─────────────────────────────────────────────── */
+/* 居中文案 + 通栏真实截图：截图要够大才看得清界面，左右分栏会把图压成缩略图 */
 .hero {
   max-width: var(--maxw);
   margin: 0 auto;
-  padding: calc(var(--bar-h) + clamp(40px, 9vh, 96px)) clamp(16px, 4vw, 40px) clamp(48px, 8vh, 96px);
+  padding: calc(var(--bar-h) + clamp(40px, 9vh, 88px)) clamp(16px, 4vw, 40px) clamp(48px, 8vh, 96px);
   display: grid;
-  grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr);
-  gap: clamp(28px, 5vw, 64px);
-  align-items: center;
+  justify-items: center;
+  gap: clamp(32px, 5vh, 56px);
 }
+
+.hero__copy { max-width: 760px; text-align: center; }
 
 .eyebrow {
   display: inline-flex;
@@ -117,18 +119,11 @@
   -webkit-backdrop-filter: blur(14px);
 }
 
-.dot-live {
-  width: 7px; height: 7px;
-  border-radius: 50%;
-  background: var(--accent);
-  box-shadow: 0 0 0 0 rgba(var(--accent-soft) / 0.6);
-  animation: pulse 2.6s var(--ease-enter) infinite;
-}
-
 .hero__title {
-  font-size: clamp(40px, 6.4vw, 76px);
-  line-height: 1.04;
+  font-size: clamp(32px, 4.3vw, 50px);
+  line-height: 1.16;
   margin: 22px 0 0;
+  text-wrap: balance;
 }
 
 .hero__title .line { display: block; }
@@ -136,19 +131,19 @@
 .hero__title em {
   font-style: normal;
   color: var(--accent);
-  position: relative;
 }
 
 .lede {
-  margin-top: 20px;
+  margin: 20px auto 0;
   font-size: clamp(15px, 1.35vw, 18px);
   color: var(--text-dim);
-  max-width: 46ch;
+  max-width: 58ch;
 }
 
 .cta {
   display: flex;
   flex-wrap: wrap;
+  justify-content: center;
   gap: 10px;
   margin-top: 30px;
 }
@@ -156,6 +151,7 @@
 .trust {
   display: flex;
   flex-wrap: wrap;
+  justify-content: center;
   gap: 8px 22px;
   list-style: none;
   padding: 0;
@@ -167,31 +163,19 @@
 .trust li { display: flex; align-items: center; gap: 7px; }
 .trust .ico { color: var(--accent); font-size: 15px; }
 
-.hero__stage { min-width: 0; }
+.hero__stage { min-width: 0; width: 100%; max-width: 1120px; }
 
-.stage__timeline {
-  display: flex;
-  gap: 10px;
-  margin-top: 18px;
-  font-size: 12px;
-  color: var(--text-dim);
-}
-
-.stage__timeline .tick {
-  flex: 1;
-  padding: 8px 12px;
-  border-radius: var(--r-control);
+/* 真实窗口截图：圆角与描边跟窗口模型一致，阴影让它浮在背板之上 */
+.shot {
+  margin: 0;
+  border-radius: var(--r-window);
+  overflow: hidden;
   border: 1px solid var(--stroke-soft);
   background: var(--panel);
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
-  transition: border-color var(--state) var(--ease-enter),
-              color var(--state) var(--ease-enter);
+  box-shadow: var(--shadow);
 }
 
-.stage__timeline .tick b { color: var(--text); font-family: var(--font-mono); font-weight: 500; }
-.stage__timeline .tick.is-on { border-color: rgba(var(--accent-soft) / 0.55); color: var(--text); }
+.shot img { display: block; width: 100%; height: auto; }
 
 /* ── 三步 ─────────────────────────────────────────────── */
 .flow {
@@ -277,7 +261,7 @@
 
 .panel {
   display: grid;
-  grid-template-columns: minmax(0, 1.25fr) minmax(0, 0.75fr);
+  grid-template-columns: minmax(0, 1.42fr) minmax(0, 0.58fr);
   gap: clamp(18px, 3vw, 34px);
   padding: clamp(18px, 3vw, 30px);
   align-items: center;
@@ -286,33 +270,31 @@
 .panel__copy h3 { font-size: 20px; margin-bottom: 8px; }
 .panel__copy p { color: var(--text-dim); font-size: 14.5px; }
 
-/* ── 动效区 ───────────────────────────────────────────── */
-.motion {
+/* ── 快捷键 ───────────────────────────────────────────── */
+/* 两组并排：全局只有两条，编辑器内一长串，宽度按内容分，不让短的一组撑成空框 */
+.keys__grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: clamp(20px, 3.4vw, 40px);
+  grid-template-columns: minmax(0, 0.72fr) minmax(0, 1.28fr);
+  gap: clamp(16px, 2.4vw, 26px);
   align-items: start;
 }
 
-.motion__ladder,
-.motion__table {
-  padding: clamp(18px, 2.6vw, 28px);
-  border-radius: var(--r-window);
-  border: 1px solid var(--stroke-soft);
-  background: var(--panel);
-}
-
-.ladder__replay { margin-top: 18px; }
-.motion__note { margin-top: 16px; font-size: 13.5px; color: var(--text-dim); }
-
-/* ── 快捷键 ───────────────────────────────────────────── */
 .keys {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 2px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1px;
   border-radius: var(--r-window);
   overflow: hidden;
   border: 1px solid var(--stroke-soft);
+}
+
+.keys__cap {
+  padding: 13px 18px;
+  background: var(--hover-bg);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: .06em;
+  color: var(--text-dim);
 }
 
 .keys__row {
@@ -327,7 +309,18 @@
 }
 
 .keys__row:hover { background: var(--hover-bg); }
-.keys__k { display: flex; gap: 5px; align-items: center; }
+.keys__k { display: flex; gap: 5px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+
+/* 小节末尾的补充说明：口径澄清用，不抢正文视觉 */
+.section__foot {
+  margin-top: 18px;
+  font-size: 13px;
+  color: var(--text-dim);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
 
 /* ── 下载 ─────────────────────────────────────────────── */
 .download { padding-bottom: clamp(70px, 12vh, 130px); }
@@ -350,6 +343,27 @@
 .dl .cta { justify-content: center; }
 .dl__hint { margin-top: 20px; font-size: 12.5px; }
 
+/* ── 系统要求 ─────────────────────────────────────────── */
+/* 两列事实表：左列是项名，右列是值。逐条对齐，比一堆卡片更适合读参数 */
+.specs {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 0 clamp(24px, 4vw, 56px);
+}
+
+.specs > div {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr);
+  gap: 14px;
+  padding: 13px 0;
+  border-bottom: 1px solid var(--stroke-soft);
+  font-size: 14.5px;
+}
+
+.specs dt { color: var(--text-dim); }
+.specs dd { margin: 0; }
+.specs code { font-size: 12.5px; }
+
 /* ── 页脚 ─────────────────────────────────────────────── */
 .foot {
   max-width: var(--maxw);
@@ -371,7 +385,7 @@
 /* ── 断点 ─────────────────────────────────────────────── */
 @media (max-width: 1000px) {
   .hero { grid-template-columns: 1fr; }
-  .motion { grid-template-columns: 1fr; }
+  .keys__grid { grid-template-columns: 1fr; }
   .panel { grid-template-columns: 1fr; }
 }
 

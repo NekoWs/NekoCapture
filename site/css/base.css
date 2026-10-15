@@ -113,17 +113,6 @@ code {
   pointer-events: none;
 }
 
-.ambient__grid {
-  position: absolute;
-  inset: 0;
-  background-image:
-    linear-gradient(to right, var(--stroke-soft) 1px, transparent 1px),
-    linear-gradient(to bottom, var(--stroke-soft) 1px, transparent 1px);
-  background-size: 64px 64px;
-  mask-image: radial-gradient(110% 80% at 50% 0%, #000 12%, transparent 72%);
-  opacity: 0.5;
-}
-
 .ambient__noise {
   position: absolute;
   inset: 0;

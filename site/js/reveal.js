@@ -28,32 +28,12 @@ FC.reveal = (function () {
     el.classList.add('is-in');
   }
 
-  /* 标题逐行：落定之后再画强调词下划线，两件事不抢注意力 */
+  /* 标题逐行：每行延迟一个 Stagger，读起来是一行一行落下来 */
   function titleLines() {
     var lines = Array.prototype.slice.call(document.querySelectorAll('.hero__title .line'));
     lines.forEach(function (line, i) {
       line.style.setProperty('--delay', (i * FC.Motion.Stagger) + 'ms');
     });
-    if (!lines.length) { return; }
-    lines[lines.length - 1].addEventListener('transitionend', function (e) {
-      var em = lines[lines.length - 1].querySelector('em');
-      if (em && e.propertyName === 'clip-path') { em.classList.add('is-underline'); }
-    });
-  }
-
-  function ladder() {
-    var box = document.querySelector('.ladder');
-    if (!box) { return; }
-    box.classList.add('is-in');
-    var btn = document.getElementById('ladderReplay');
-    if (btn) {
-      btn.addEventListener('click', function () {
-        box.classList.remove('is-in');
-        // 强制回流，让动画从头播而不是接着上次的进度
-        void box.offsetWidth;
-        box.classList.add('is-in');
-      });
-    }
   }
 
   function init() {
@@ -63,8 +43,6 @@ FC.reveal = (function () {
     if (FC.reduced || FC.staticMode || !('IntersectionObserver' in window)) {
       nodes.forEach(show);
       document.querySelectorAll('.hero__title .line').forEach(function (l) { l.classList.add('is-in'); });
-      document.querySelectorAll('.hero__title em').forEach(function (e) { e.classList.add('is-underline'); });
-      ladder();
       return;
     }
 
@@ -91,20 +69,6 @@ FC.reveal = (function () {
 
     var title = document.querySelector('.hero__title');
     if (title) { titleIo.observe(title); }
-
-    var ladderBox = document.querySelector('.ladder');
-    if (ladderBox) {
-      var ladderIo = new IntersectionObserver(function (entries) {
-        entries.forEach(function (entry) {
-          if (!entry.isIntersecting) { return; }
-          ladderBox.classList.add('is-in');
-          ladderIo.unobserve(ladderBox);
-        });
-      }, { threshold: 0.4 });
-      ladderIo.observe(ladderBox);
-    }
-
-    ladder();
 
     /* 兜底：观察器因任何原因没派发（脚本被拦、极端渲染环境、截图器不等），
        视口内的内容也必须可见。动效可以没有，内容不能没有。 */

@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>FrameCapture — 指哪儿，截哪儿</title>
-<meta name="description" content="FrameCapture：Windows 11 原生截图、录制、标注、贴图与文字识别。热键触发，进剪贴板，全程本地。">
+<title>FrameCapture — Windows 截图与录屏工具</title>
+<meta name="description" content="FrameCapture：Windows 截图与录屏。拖框选区、窗口吸附、滚动长图、GIF / MP4 录制、标注、贴图、文字识别。默认 Ctrl+Alt+A 截图、Ctrl+Alt+R 录制，全程在本机完成。">
 <link rel="icon" href="assets/FrameCapture-256.png">
 <link rel="stylesheet" href="css/tokens.css">
 <link rel="stylesheet" href="css/base.css">
@@ -32,7 +32,6 @@
 <div class="ambient" aria-hidden="true">
   <div class="ambient__glow ambient__glow--a"></div>
   <div class="ambient__glow ambient__glow--b"></div>
-  <div class="ambient__grid"></div>
   <div class="ambient__noise"></div>
 </div>
 
@@ -43,17 +42,16 @@
     <span class="brand__ver">0.9 预览</span>
   </a>
   <nav class="topnav" aria-label="主导航">
-    <a href="#capabilities">能力</a>
-    <a href="#flow">三步</a>
-    <a href="#demo">演示</a>
-    <a href="#motion">动效</a>
+    <a href="#capabilities">功能</a>
+    <a href="#demo">界面</a>
     <a href="#keys">快捷键</a>
+    <a href="#requirements">系统要求</a>
   </nav>
   <div class="topbar__end">
     <button class="iconbtn" id="themeToggle" type="button" aria-label="切换明暗主题" title="切换明暗主题">
       <span class="iconbtn__glyph" data-glyph-dark="&#xE706;" data-glyph-light="&#xE708;">&#xE706;</span>
     </button>
-    <a class="btn btn--primary" href="#download">获取</a>
+    <a class="btn btn--primary" href="#download">下载</a>
   </div>
 </header>
 
@@ -62,24 +60,22 @@
   <!-- ── 首屏 ─────────────────────────────────────────── -->
   <section class="hero">
     <div class="hero__copy">
-      <p class="eyebrow" data-reveal>
-        <span class="dot-live" aria-hidden="true"></span>
-        Windows 11 · Fluent · 全程本地
-      </p>
+      <p class="eyebrow" data-reveal>Windows 10 / 11 · x64 · 0.9 预览版</p>
       <h1 class="hero__title">
-        <span class="line" data-reveal>指哪儿，</span>
-        <span class="line" data-reveal><em>截哪儿。</em></span>
+        <span class="line" data-reveal>Windows 截图与录屏，</span>
+        <span class="line" data-reveal><em>热键按下就完成。</em></span>
       </h1>
       <p class="lede" data-reveal>
-        截图、录制、标注、贴图、识字。热键按下的那一下就已经完成——
-        进剪贴板，不上传，不注册，没有后台服务。
+        拖框选区、窗口吸附、滚动长图、GIF / MP4 录制、标注、贴图、文字识别。
+        默认两个全局热键：<b>Ctrl+Alt+A</b> 截图、<b>Ctrl+Alt+R</b> 录制，
+        其余键位在手势配置器里自己定。
       </p>
       <div class="cta" data-reveal>
         <a class="btn btn--primary btn--lg" href="#download">
-          <span class="ico" aria-hidden="true">&#xE896;</span> 获取安装包
+          <span class="ico" aria-hidden="true">&#xE896;</span> 下载安装包
         </a>
-        <a class="btn btn--ghost btn--lg" href="#motion">
-          <span class="ico" aria-hidden="true">&#xE786;</span> 动效是怎么做的
+        <a class="btn btn--ghost btn--lg" href="#demo">
+          <span class="ico" aria-hidden="true">&#xE7F4;</span> 先看界面
         </a>
       </div>
       <ul class="trust" data-reveal>
@@ -89,44 +85,12 @@
       </ul>
     </div>
 
-    <!-- 首屏主视觉：把图标里的「四角取景框 + 中心点」演成一次真实捕获 -->
+    <!-- 首屏主视觉：编辑器窗口的真实截图 -->
     <div class="hero__stage" data-reveal>
-      <div class="win win--stage" id="stageWindow" role="img"
-           aria-label="FrameCapture 捕获过程演示：拖出选区、闪光确认、结果进剪贴板">
-        <div class="win__bar">
-          <span class="win__dots" aria-hidden="true"><i></i><i></i><i></i></span>
-          <span class="win__title">FrameCapture Region</span>
-          <span class="win__acts" aria-hidden="true"><i class="ico">&#xE8BB;</i></span>
-        </div>
-        <div class="stage__scene">
-          <div class="scene__chrome"><i></i><i></i><i></i></div>
-          <div class="scene__rows"><i style="--w:72%"></i><i style="--w:88%"></i><i style="--w:54%"></i><i style="--w:79%"></i><i style="--w:41%"></i></div>
-          <div class="scene__chip"></div>
-        </div>
-
-        <div class="reticle" id="reticle" aria-hidden="true">
-          <i class="reticle__c reticle__c--tl"></i>
-          <i class="reticle__c reticle__c--tr"></i>
-          <i class="reticle__c reticle__c--bl"></i>
-          <i class="reticle__c reticle__c--br"></i>
-          <i class="reticle__dot"></i>
-        </div>
-
-        <div class="sel" id="sel" aria-hidden="true">
-          <span class="sel__flash"></span>
-          <span class="sel__size">824 × 512</span>
-          <span class="sel__handle sel__handle--nw"></span>
-          <span class="sel__handle sel__handle--se"></span>
-        </div>
-
-        <div class="snack" id="snack" aria-hidden="true">已复制到剪贴板</div>
-      </div>
-
-      <div class="stage__timeline" aria-hidden="true">
-        <span class="tick" data-at="0">选区 <b>190ms</b></span>
-        <span class="tick" data-at="1">闪光 <b>450ms</b></span>
-        <span class="tick" data-at="2">提示 <b>110ms</b></span>
-      </div>
+      <figure class="shot shot--hero">
+        <img src="assets/shots/editor.png" width="1560" height="975"
+             alt="FrameCapture 编辑器：左侧是绘制工具竖栏，中间是打开的截图，底部是时间轴与工具条">
+      </figure>
     </div>
   </section>
 
@@ -145,8 +109,8 @@
       </li>
       <li class="flow__step" data-reveal data-stagger>
         <span class="flow__n">3</span>
-        <h3>复制</h3>
-        <p>结果直接进剪贴板。要留档就 Ctrl+S，要发出去就 Enter。</p>
+        <h3>交付</h3>
+        <p>截完进剪贴板、弹提示、直接进编辑器还是原地贴图，每条手势自己定。</p>
       </li>
     </ol>
   </section>
@@ -154,37 +118,37 @@
   <!-- ── 能力 ─────────────────────────────────────────── -->
   <section class="section" id="capabilities">
     <header class="section__head">
-      <h2 data-reveal>八件事，一个工具</h2>
-      <p data-reveal>每件事都只做到「够用就不吵你」。下面是它真正承担的全部。</p>
+      <h2 data-reveal>功能</h2>
+      <p data-reveal>八个动作，都在本机跑完。卡片右下角是它的默认键位或关键参数。</p>
     </header>
 
     <div class="cards">
       <article class="card" data-reveal data-stagger data-tilt>
         <span class="card__ico" aria-hidden="true">&#xE7A8;</span>
         <h3>选捕获范围</h3>
-        <p>指哪儿，截哪儿。窗口、区域、指定屏幕，都能一次到位。</p>
-        <span class="combo"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Shift</kbd><span class="plus">+</span><kbd>R</kbd></span>
+        <p>窗口、区域、指定屏幕。虚线框随光标改尺寸，松手即截。</p>
+        <span class="combo"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Alt</kbd><span class="plus">+</span><kbd>A</kbd></span>
       </article>
 
       <article class="card" data-reveal data-stagger data-tilt>
         <span class="card__ico" aria-hidden="true">&#xE7B5;</span>
         <h3>截图</h3>
-        <p>一次触发，进剪贴板。带鼠标指针，带窗口阴影，随你开关。</p>
-        <span class="combo"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Shift</kbd><span class="plus">+</span><kbd>G</kbd></span>
+        <p>选完区域那一下就已经截好。带鼠标指针、带窗口阴影，各自可开关。</p>
+        <span class="card__tag">选完即截</span>
       </article>
 
       <article class="card" data-reveal data-stagger data-tilt>
         <span class="card__ico" aria-hidden="true">&#xE714;</span>
         <h3>录制</h3>
-        <p>按住录，松手成片。导出 MP4 / WebM / GIF，帧率跟显示器刷新率。</p>
-        <span class="card__tag">240fps</span>
+        <p>按一下起录，再按一下停。导出 MP4 / WebM / GIF，帧率跟显示器刷新率。</p>
+        <span class="combo"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Alt</kbd><span class="plus">+</span><kbd>R</kbd></span>
       </article>
 
       <article class="card" data-reveal data-stagger data-tilt>
         <span class="card__ico" aria-hidden="true">&#xE70F;</span>
         <h3>编辑器</h3>
         <p>看、剪、标、复制。逐帧走、设入出点、时间轴拖两端把手微调。</p>
-        <span class="combo"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>E</kbd></span>
+        <span class="card__tag">点浮窗即进</span>
       </article>
 
       <article class="card" data-reveal data-stagger data-tilt>
@@ -215,132 +179,79 @@
         <span class="card__tag">实时拼接</span>
       </article>
     </div>
+    <p class="section__foot" data-reveal>
+      <kbd>Ctrl</kbd><span class="plus">+</span><kbd>P</kbd>、<kbd>Ctrl</kbd><span class="plus">+</span><kbd>O</kbd> 是编辑器窗口内的键；
+      全局只默认绑 <kbd>Ctrl+Alt+A</kbd> 与 <kbd>Ctrl+Alt+R</kbd> 两条，其余动作可在手势配置器里自己加。
+    </p>
   </section>
 
   <!-- ── 演示切换 ─────────────────────────────────────── -->
   <section class="section" id="demo">
     <header class="section__head">
-      <h2 data-reveal>界面就是这几块</h2>
-      <p data-reveal>切换标签看每一块长什么样。配色、圆角、时长全部取自工具自己的设计令牌。</p>
+      <h2 data-reveal>界面</h2>
+      <p data-reveal>四个窗口，切换标签看每一块。</p>
     </header>
 
     <div class="demo" data-reveal>
-      <div class="tabs" role="tablist" aria-label="界面演示">
-        <button class="tab is-on" role="tab" aria-selected="true" data-panel="p-shot" type="button">
-          <span class="ico" aria-hidden="true">&#xE7B5;</span> 捕获选区
-        </button>
-        <button class="tab" role="tab" aria-selected="false" data-panel="p-edit" type="button">
+      <div class="tabs" role="tablist" aria-label="界面截图">
+        <button class="tab is-on" role="tab" aria-selected="true" data-panel="p-edit" type="button">
           <span class="ico" aria-hidden="true">&#xE70F;</span> 编辑器
         </button>
-        <button class="tab" role="tab" aria-selected="false" data-panel="p-pin" type="button">
-          <span class="ico" aria-hidden="true">&#xE718;</span> 贴图
+        <button class="tab" role="tab" aria-selected="false" data-panel="p-gesture" type="button">
+          <span class="ico" aria-hidden="true">&#xE765;</span> 手势配置
         </button>
         <button class="tab" role="tab" aria-selected="false" data-panel="p-set" type="button">
           <span class="ico" aria-hidden="true">&#xE713;</span> 设置
         </button>
+        <button class="tab" role="tab" aria-selected="false" data-panel="p-pin" type="button">
+          <span class="ico" aria-hidden="true">&#xE718;</span> 贴图
+        </button>
       </div>
 
       <div class="panels">
-        <div class="panel is-on" id="p-shot" role="tabpanel">
-          <div class="mock mock--shot">
-            <div class="mock__veil"></div>
-            <div class="mock__pick"><span></span></div>
-            <div class="mock__hud">区域 824 × 512 · 松开确认</div>
-          </div>
-          <div class="panel__copy">
-            <h3>遮罩压暗整屏，只留你要的那块</h3>
-            <p>虚线描边随光标实时改尺寸；吸附开启时自动贴到窗口与内容边界。Esc 分级退出：先取消选中，再退出绘制，最后关窗。</p>
-          </div>
-        </div>
-
-        <div class="panel" id="p-edit" role="tabpanel">
-          <div class="mock mock--edit">
-            <div class="mock__bar">
-              <i class="ico">&#xE105;</i><i class="ico">&#xF413;</i><i class="ico">&#xE840;</i><i class="ico">&#xE8C1;</i>
-              <i class="sep"></i>
-              <i class="ico">&#xE76B;</i><i class="ico">&#xE768;</i>
-              <i class="sep"></i>
-              <i class="ico">&#xE7A7;</i><i class="ico">&#xE790;</i>
-            </div>
-            <div class="mock__canvas"><div class="mock__anno"></div></div>
-            <div class="mock__timeline"><i class="mock__range"></i><i class="mock__head"></i></div>
-          </div>
+        <div class="panel is-on" id="p-edit" role="tabpanel">
+          <figure class="shot">
+            <img src="assets/shots/editor.png" width="1560" height="975"
+                 alt="FrameCapture 编辑器：左侧绘制工具竖栏，中间是打开的截图，底部是时间轴与工具条">
+          </figure>
           <div class="panel__copy">
             <h3>逐帧走，随手剪</h3>
             <p>← → 走单帧，Shift+← → 走一秒，[ ] 设入出点，空格播放。工具选中态是强调色实心药丸，反白图标。</p>
           </div>
         </div>
 
-        <div class="panel" id="p-pin" role="tabpanel">
-          <div class="mock mock--pin">
-            <div class="mock__pin"><span class="mock__pinbar"><i class="ico">&#xE898;</i><i class="ico">&#xE713;</i><i class="ico">&#xE8BB;</i></span></div>
-          </div>
+        <div class="panel" id="p-gesture" role="tabpanel">
+          <figure class="shot">
+            <img src="assets/shots/gesture.png" width="1140" height="840"
+                 alt="手势配置窗口：左侧是绑定列表，右侧是这条绑定的组合键、触发方式、动作序列与截图后行为">
+          </figure>
           <div class="panel__copy">
-            <h3>钉在屏幕上，比切窗口快</h3>
-            <p>对照着填表、临时记住一段代码、把设计稿压在实现截图上比对。滚轮缩放，Ctrl+滚轮调透明度。</p>
+            <h3>键位是你定的</h3>
+            <p>组合键、按住、双击、长按四种触发；动作与完成后动作各自排成序列；每条手势单独决定截完之后写不写剪贴板。</p>
           </div>
         </div>
 
         <div class="panel" id="p-set" role="tabpanel">
-          <div class="mock mock--set">
-            <div class="mock__setrow"><i></i><b></b></div>
-            <div class="mock__setrow"><i></i><b style="--w:46%"></b></div>
-            <div class="mock__setrow"><i></i><b style="--w:62%"></b></div>
-            <div class="mock__setrow"><i></i><b style="--w:38%"></b></div>
-          </div>
+          <figure class="shot">
+            <img src="assets/shots/settings.png" width="1140" height="990"
+                 alt="FrameCapture 设置窗口：左侧八个分组，右侧是当前生效的快捷键">
+          </figure>
           <div class="panel__copy">
-            <h3>设置项逐项落位</h3>
-            <p>面板打开时条目按 110ms 依次抬起，不是一整块砸出来。开关、下拉、滑杆共用一套控件语言。</p>
+            <h3>八组设置，改完即生效</h3>
+            <p>快捷键、截图、录制、产物、编辑器、贴图、外观、系统。首页那两条键位就是这里显示的实际生效值，不是示意图。</p>
           </div>
         </div>
-      </div>
-    </div>
-  </section>
 
-  <!-- ── 动效 ─────────────────────────────────────────── -->
-  <section class="section" id="motion">
-    <header class="section__head">
-      <h2 data-reveal>动效不是装饰，是令牌</h2>
-      <p data-reveal>
-        页面里每一个时长、每一次错位，都直接来自工具源码 <code>Core/Fluent.cs</code> 的
-        <code>Motion</code> 常量。网页与桌面端共用同一套节奏，所以看起来是同一个产品。
-      </p>
-    </header>
-
-    <div class="motion">
-      <div class="motion__ladder" data-reveal>
-        <div class="ladder">
-          <div class="ladder__row" style="--i:0"><span>启用此绑定</span></div>
-          <div class="ladder__row" style="--i:1"><span>组合键</span></div>
-          <div class="ladder__row" style="--i:2"><span>触发方式</span></div>
-          <div class="ladder__row" style="--i:3"><span>动作序列</span></div>
-          <div class="ladder__row" style="--i:4"><span>完成后序列</span></div>
+        <div class="panel" id="p-pin" role="tabpanel">
+          <figure class="shot">
+            <img src="assets/shots/pin.png" width="980" height="609"
+                 alt="一张贴在屏幕上的贴图，四周是窗口阴影">
+          </figure>
+          <div class="panel__copy">
+            <h3>钉在屏幕上，比切窗口快</h3>
+            <p>对照着填表、临时记住一段代码、把设计稿压在实现截图上比对。滚轮缩放，Ctrl+滚轮调透明度，双击关闭。</p>
+          </div>
         </div>
-        <button class="btn btn--ghost ladder__replay" id="ladderReplay" type="button">
-          <span class="ico" aria-hidden="true">&#xE72C;</span> 重播错位
-        </button>
-      </div>
-
-      <div class="motion__table" data-reveal>
-        <table class="tok">
-          <caption class="sr-only">动效令牌表</caption>
-          <tbody>
-            <tr><th>190<span>ms</span></th><td>Enter</td><td>浮层入场</td></tr>
-            <tr><th>240<span>ms</span></th><td>EditorEnter</td><td>大表面慢半拍</td></tr>
-            <tr><th>150<span>ms</span></th><td>Exit</td><td>退场比入场干脆</td></tr>
-            <tr><th>110<span>ms</span></th><td>Stagger</td><td>逐项错位间隔</td></tr>
-            <tr><th>110<span>ms</span></th><td>Hover</td><td>悬停反馈</td></tr>
-            <tr><th>70<span>ms</span></th><td>Press</td><td>按压必须短于悬停</td></tr>
-            <tr><th>260<span>ms</span></th><td>Spring</td><td>松手回弹带过冲</td></tr>
-            <tr><th>260<span>ms</span></th><td>Theme</td><td>主题交叉淡入</td></tr>
-            <tr><th>320<span>ms</span></th><td>Dissolve</td><td>瞬时提示退场</td></tr>
-            <tr><th>450<span>ms</span></th><td>Flash</td><td>捕获描边余晖</td></tr>
-          </tbody>
-        </table>
-        <p class="motion__note">
-          幅度克制是硬要求：入场只抬 6px，缩放 0.94→1.0。
-          看得出动，看不出吵——这才敢放进录屏里。
-        </p>
       </div>
     </div>
   </section>
@@ -348,42 +259,65 @@
   <!-- ── 快捷键 ───────────────────────────────────────── -->
   <section class="section" id="keys">
     <header class="section__head">
-      <h2 data-reveal>手不用离开键盘</h2>
-      <p data-reveal>全局热键自定义；编辑器内全是单键。</p>
+      <h2 data-reveal>快捷键</h2>
+      <p data-reveal>全局两条，其余在编辑器窗口内。全局键位可在手势配置器里改或加。</p>
     </header>
-    <div class="keys" data-reveal>
-      <div class="keys__row"><span>捕获</span><span class="keys__k"><kbd>Ctrl</kbd><kbd>Shift</kbd><kbd>G</kbd></span></div>
-      <div class="keys__row"><span>选范围</span><span class="keys__k"><kbd>Ctrl</kbd><kbd>Shift</kbd><kbd>R</kbd></span></div>
-      <div class="keys__row"><span>选区截图</span><span class="keys__k"><kbd>Ctrl</kbd><kbd>Alt</kbd><kbd>A</kbd></span></div>
-      <div class="keys__row"><span>保存帧 / 导出</span><span class="keys__k"><kbd>Ctrl</kbd><kbd>S</kbd><kbd>E</kbd></span></div>
-      <div class="keys__row"><span>贴图 / 识字</span><span class="keys__k"><kbd>Ctrl</kbd><kbd>P</kbd><kbd>O</kbd></span></div>
-      <div class="keys__row"><span>视觉暂留合成</span><span class="keys__k"><kbd>Ctrl</kbd><kbd>H</kbd></span></div>
-      <div class="keys__row"><span>逐帧 / 播放</span><span class="keys__k"><kbd>&#x2190;</kbd><kbd>&#x2192;</kbd><kbd>Space</kbd></span></div>
-      <div class="keys__row"><span>帮助</span><span class="keys__k"><kbd>F1</kbd></span></div>
+
+    <div class="keys__grid">
+      <div class="keys" data-reveal>
+        <h3 class="keys__cap">全局</h3>
+        <div class="keys__row"><span>选区截图</span><span class="keys__k"><kbd>Ctrl</kbd><kbd>Alt</kbd><kbd>A</kbd></span></div>
+        <div class="keys__row"><span>录制（再按一下停止）</span><span class="keys__k"><kbd>Ctrl</kbd><kbd>Alt</kbd><kbd>R</kbd></span></div>
+      </div>
+
+      <div class="keys" data-reveal>
+        <h3 class="keys__cap">编辑器内</h3>
+        <div class="keys__row"><span>保存帧 / 导出录制</span><span class="keys__k"><kbd>Ctrl</kbd><kbd>S</kbd><kbd>E</kbd></span></div>
+        <div class="keys__row"><span>复制到剪贴板</span><span class="keys__k"><kbd>Ctrl</kbd><kbd>C</kbd></span></div>
+        <div class="keys__row"><span>贴图 / 识别文字</span><span class="keys__k"><kbd>Ctrl</kbd><kbd>P</kbd><kbd>O</kbd></span></div>
+        <div class="keys__row"><span>视觉暂留合成</span><span class="keys__k"><kbd>Ctrl</kbd><kbd>H</kbd></span></div>
+        <div class="keys__row"><span>撤销 / 重做</span><span class="keys__k"><kbd>Ctrl</kbd><kbd>Z</kbd><kbd>Y</kbd></span></div>
+        <div class="keys__row"><span>放大 / 缩小 / 适配 / 1:1</span><span class="keys__k"><kbd>Ctrl</kbd><kbd>+</kbd><kbd>−</kbd><kbd>0</kbd><kbd>1</kbd></span></div>
+        <div class="keys__row"><span>逐帧 / 播放</span><span class="keys__k"><kbd>&#x2190;</kbd><kbd>&#x2192;</kbd><kbd>Space</kbd></span></div>
+        <div class="keys__row"><span>设入点 / 出点</span><span class="keys__k"><kbd>[</kbd><kbd>]</kbd></span></div>
+        <div class="keys__row"><span>切工具</span><span class="keys__k"><kbd>X</kbd><kbd>V</kbd><kbd>L</kbd><kbd>R</kbd><kbd>O</kbd><kbd>A</kbd><kbd>T</kbd><kbd>M</kbd><kbd>C</kbd></span></div>
+        <div class="keys__row"><span>确定 / 分级退出 / 帮助</span><span class="keys__k"><kbd>Enter</kbd><kbd>Esc</kbd><kbd>F1</kbd></span></div>
+      </div>
     </div>
   </section>
 
   <!-- ── 下载 ─────────────────────────────────────────── -->
   <section class="section download" id="download">
     <div class="dl" data-reveal>
-      <div class="dl__reticle" aria-hidden="true">
-        <i></i><i></i><i></i><i></i>
-      </div>
-      <h2>装一个，然后忘掉它</h2>
+      <h2>下载</h2>
       <p>
-        好的截图工具不该占用注意力：装在系统里，热键按下就完成。
-        FrameCapture 0.9 预览版，Windows 10 19041 及以上。
+        装完待在托盘，两个热键就能干活。0.9 预览版，先自己用一段时间再定发布节奏。
       </p>
       <div class="cta">
-        <button class="btn btn--primary btn--lg" id="dlBtn" type="button">
-          <span class="ico" aria-hidden="true">&#xE896;</span> 下载 FrameCapture-Setup.exe
-        </button>
+        <a class="btn btn--primary btn--lg" id="dlBtn" href="../release/FrameCapture-Setup-0.9.0-x64.exe" download>
+          <span class="ico" aria-hidden="true">&#xE896;</span> FrameCapture-Setup-0.9.0-x64.exe
+        </a>
         <a class="btn btn--ghost btn--lg" href="#keys">
           <span class="ico" aria-hidden="true">&#xE8C1;</span> 先看快捷键
         </a>
       </div>
-      <p class="dl__hint" id="dlHint">安装程序在 <code>src/Setup/bin</code> 下构建产出；发布通道尚未接上。</p>
+      <p class="dl__hint" id="dlHint">预览版尚未接公开下载通道；这个链接指向仓库 <code>release/</code> 下当前构建产物。</p>
     </div>
+  </section>
+
+  <!-- ── 系统要求 ─────────────────────────────────────── -->
+  <section class="section" id="requirements">
+    <header class="section__head">
+      <h2 data-reveal>系统要求</h2>
+    </header>
+    <dl class="specs" data-reveal>
+      <div><dt>系统</dt><dd>Windows 10 19041 及以上，x64</dd></div>
+      <div><dt>安装器</dt><dd>6.9 MB，可选安装位置；不装也免运行（离线包内含完整运行时）</dd></div>
+      <div><dt>依赖</dt><dd>安装版需 .NET 8 桌面运行时；离线包自带，无需另装</dd></div>
+      <div><dt>文字识别</dt><dd>用系统内置 OCR 语言包，不联网</dd></div>
+      <div><dt>卸载</dt><dd>系统「设置 → 应用」里卸，或跑安装器的卸载入口</dd></div>
+      <div><dt>数据</dt><dd>配置在 <code>%APPDATA%\FrameCapture</code>，删掉即回到全新状态</dd></div>
+    </dl>
   </section>
 </main>
 
@@ -391,13 +325,12 @@
   <img class="foot__mark" src="assets/FrameCapture-256.png" alt="" width="22" height="22">
   <span>FrameCapture · 本地运行的截图与录制工具</span>
   <span class="foot__spacer"></span>
-  <span class="foot__theme">本页配色与时长取自 <code>Core/Fluent.cs</code></span>
+  <span class="foot__theme">0.9 预览版</span>
 </footer>
 
 <script src="js/tokens.js"></script>
 <script src="js/theme.js"></script>
 <script src="js/reveal.js"></script>
-<script src="js/hero.js"></script>
 <script src="js/tabs.js"></script>
 <script src="js/pointer.js"></script>
 <script src="js/main.js"></script>
