@@ -1,7 +1,7 @@
 # lint-i18n-coverage.ps1 — 已迁移文件里不许再出现没挂取词函数的中文文案
 #
-# 判定：一个 .cs 文件里出现过 Loc.T(/Loc.F(（宿主）或 T(（GestureEditor 库，取词函数由宿主注入）
-# 就算「已迁移」；这类文件里带中文的字符串字面量必须就是那次取词调用的参数，否则英文下会露出中文。
+# 判定：一个 .cs 文件里出现过 Loc.T(/Loc.F( 就算「已迁移」；这类文件里带中文的字符串字面量必须就是那次取词调用的参数，
+# 否则英文下会露出中文。
 # 整文件还没动过的先跳过，只在末尾报数。
 # 豁免：StringsEn.*.cs（中文键就是源语言本身）、Trace/Debug/Console 行与 throw 行（日志与异常消息不进译表）、
 # 行尾 // copyok（这行的文案本就不用翻）、行尾 // lockeys（这行的中文是取词的键，取词在读取处）、
@@ -17,14 +17,14 @@ $keyLines = 0
 $pending = @()
 
 # 取词调用：宿主的 Loc.T/Loc.F，与库里注入的 T(...)。点号前的 T（Foo.T(）不算。
-$reCall = [regex]'Loc\.(T|F)\(|(?<![\w.])T\('
-$reCallArg = [regex]'(Loc\.(T|F)|(?<![\w.])T)\(\s*@?"(?:\\.|[^"\\])*"'
+$reCall = [regex]'Loc\.(T|F)\('
+$reCallArg = [regex]'Loc\.(T|F)\(\s*@?"(?:\\.|[^"\\])*"'
 $reLiteral = [regex]'"(?:\\.|[^"\\])*"'
 $reCjk = [regex]'[\u4e00-\u9fff]'
 # 不进译表的行：日志与异常消息（AGENTS 文案第 7 条）
 $reNonUi = 'Trace\.(Log|Fail|Warn)|Debug\.Write|Console\.Write|\bthrow\b'
 
-$dirs = @('src\FrameCapture', 'src\GestureEditor') | ForEach-Object { Join-Path $root $_ }
+$dirs = @('src\FrameCapture') | ForEach-Object { Join-Path $root $_ }
 foreach ($f in Get-ChildItem -Path $dirs -Recurse -Include *.cs) {
     if ($f.Name -like 'StringsEn.*') { continue }
     $lines = Get-Content $f.FullName -Encoding UTF8

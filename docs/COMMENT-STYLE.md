@@ -1,6 +1,6 @@
 # 注释格式规范
 
-> 约束 `src/` 三个项目（FrameCapture / GestureCore / GestureEditor）的全部 C# 注释。
+> 约束 `src/` 两个项目（FrameCapture / GestureCore）的全部 C# 注释。
 > `tools/` 只受 §9 扫描与 §5 语言约束，不要求 XML 文档、不要求拆文件。
 > 机器可检部分固化在 `.editorconfig` 与 `scripts/lint-comments.ps1`（已挂进 `scripts/guardrail.ps1`）。
 

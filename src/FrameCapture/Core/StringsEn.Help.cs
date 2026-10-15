@@ -25,8 +25,8 @@ static partial class StringsEn
         ("录制：按住起录，松手停", "Record: hold to start, release to stop"),
         ("编辑器里：确定复制 / 取消", "In the editor: Done copies, cancel closes"),
         ("随时回到本指南", "This guide is always one key away"),
-        ("键位都是默认值，可在「手势配置器」里改成自己的习惯。",
-            "Every key is a default — change them in the Gesture Configurator to fit your habits."),
+        ("键位都是默认值，可在「设置 · 快捷键」里改成自己的习惯。",
+            "Every key is a default — change them under Settings · Shortcuts to fit your habits."),
 
         // 选捕获范围
         ("选捕获范围", "Choose the region"),
@@ -45,15 +45,15 @@ static partial class StringsEn
         ("一次触发，进剪贴板。", "One key, straight to the clipboard."),
         ("触发即截", "Trigger captures"),
         ("有范围截范围，没范围截光标所在屏", "With a region it captures that, otherwise the screen under the cursor"),
-        ("每条手势单独设：弹浮窗 / 进编辑器 / 什么都不做 / 贴图；写不写剪贴板是另一条独立开关",
-            "Set per binding: floating card, open in editor, nothing, or pin it. "
+        ("每条快捷键单独设：弹浮窗 / 进编辑器 / 什么都不做 / 贴图；写不写剪贴板是另一条独立开关",
+            "Set per hotkey: floating card, open in editor, nothing, or pin it. "
             + "Writing to the clipboard is a separate switch."),
         ("悬浮窗", "Floating card"),
         ("点它进编辑器；常驻/1/2/5秒/自定义可调", "Click it to open the editor; stay, or 1/2/5 seconds, or custom"),
         ("提示音", "Sound"),
         ("关闭 / 轻弹 / 自定义 ogg·wav，可试听", "Off / flick / your own ogg·wav, with a preview"),
-        ("「截图后」在「手势配置器」每条手势里设置；托盘还能「编辑上次截图」。",
-            "After capture is set per binding in the Gesture Configurator; the tray also offers Edit last capture."),
+        ("「截图后」在「设置 · 快捷键」每条快捷键的完成后一栏设置；托盘还能「编辑上次截图」。",
+            "After capture is set per hotkey under After on Settings · Shortcuts; the tray also offers Edit last capture."),
 
         // 录制
         ("按住录，松手成片。", "Hold to record, release for the clip."),
@@ -110,8 +110,8 @@ static partial class StringsEn
             "Counts down before shooting so menus and tooltips stay on screen; the seconds are adjustable"),
         ("长网页/长对话自动拼接成一张", "Stitches a long page or conversation into one image"),
         ("键位设置", "Key settings"),
-        ("全局键在手势配置器改，编辑器里的键在设置 · 快捷键直接改",
-            "Global keys in the Gesture Configurator; editor keys right on Settings · Shortcuts"),
+        ("全局快捷键与编辑器里的键都在「设置 · 快捷键」这一页改",
+            "Global hotkeys and the editor's keys are all rebound on the Settings · Shortcuts page"),
         ("托盘菜单", "Tray menu"),
         ("暂停手势 / 清除范围 / 设置…", "Pause gestures / clear region / Settings…"),
         ("外观", "Appearance"),

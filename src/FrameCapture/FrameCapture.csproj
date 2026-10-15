@@ -39,8 +39,6 @@
          deps.json 里没有它——Assembly.Load 按名字取不到，WGC 整条路静默失效。 -->
     <!-- 可复用「自定义手势/键位」引擎（netstandard2.0 零 UI 依赖，见 src/GestureCore） -->
     <ProjectReference Include="..\GestureCore\GestureCore.csproj" />
-    <!-- 可复用「手势配置器」UI 库（只依赖 GestureCore，宿主经 GestureEditorHost 注入，见 src/GestureEditor） -->
-    <ProjectReference Include="..\GestureEditor\GestureEditor.csproj" />
   </ItemGroup>
 
   <ItemGroup>

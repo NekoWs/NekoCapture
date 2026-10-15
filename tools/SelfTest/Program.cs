@@ -13,7 +13,6 @@ using System.Windows;
 using System.Windows.Input;
 
 using GE = GestureCore;
-using GEdit = GestureEditor;
 using SAP = FrameCapture.Core.ScrollAutoPolicy;
 using SAO = FrameCapture.Core.ScrollAutoObservation;
 
@@ -483,110 +482,6 @@ static class SelfTest
         return 0;
     }
 
-    /// <summary>离屏渲染手势配置器：库自己不认识语言与主题，这里按宿主同一套注入取词函数与配色，
-    /// 拍出来的就是用户真实看到的那一窗。选中第一条绑定，让详情面板也进画面。</summary>
-    /// <param name="outPath">输出 PNG 路径。</param>
-    /// <param name="scale">渲染倍率，1 表示 96dpi 原尺寸。</param>
-    /// <returns>恒为 0；渲染结果由打印行报告。</returns>
-    static int RenderGestures(string outPath, double scale = 1)
-    {
-        var app = new Application();
-        var svc = new FrameCapture.Core.SettingsService();
-        FrameCapture.Core.Theme.Apply(svc.Current.Theme, svc.Current.Accent);
-        FrameCapture.Core.Fluent.ApplyGlobalStyles();
-        string lang = Environment.GetEnvironmentVariable("FC_LANG") ?? "";
-        FrameCapture.Core.Loc.Apply(lang == "" ? svc.Current.UiLanguage : lang);
-
-        var pal = new GestureEditor.EditorPalette
-        {
-            WindowBg = FrameCapture.Core.Theme.WindowBg, PanelBg = FrameCapture.Core.Theme.PanelBg,
-            CardBg = FrameCapture.Core.Theme.CardBg, Text = FrameCapture.Core.Theme.Text,
-            TextDim = FrameCapture.Core.Theme.TextDim, Stroke = FrameCapture.Core.Theme.Stroke,
-            Accent = FrameCapture.Core.Theme.Accent, Hover = FrameCapture.Core.Theme.Hover,
-            Press = FrameCapture.Core.Theme.Press, TrackBg = FrameCapture.Core.Theme.TrackBg,
-            IsDark = FrameCapture.Core.Theme.IsDark,
-        };
-        var w = new GestureEditor.GestureEditorWindow(
-            new GestureRenderCatalog(), new GestureRenderStore(), new GestureRenderNamer(), pal,
-            FrameCapture.Core.Loc.T);
-
-        double W = w.Width, H = w.Height;
-        var root = (UIElement)w.Content;
-        w.WindowStartupLocation = WindowStartupLocation.Manual;
-        w.Left = -20000; w.Top = -20000;
-        w.Background = new System.Windows.Media.SolidColorBrush(FrameCapture.Core.Theme.WindowBg);
-        w.Show();
-        PumpMs(400);
-        root.Measure(new System.Windows.Size(W, H));
-        root.Arrange(new Rect(0, 0, W, H));
-        root.UpdateLayout();
-        int ww = (int)Math.Ceiling(W * scale), hh = (int)Math.Ceiling(H * scale);
-        var rtb = new System.Windows.Media.Imaging.RenderTargetBitmap(ww, hh, 96 * scale, 96 * scale, System.Windows.Media.PixelFormats.Pbgra32);
-        rtb.Render(root);
-        var enc = new System.Windows.Media.Imaging.PngBitmapEncoder();
-        enc.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(rtb));
-        Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(outPath))!);
-        using (var f = File.Create(outPath)) enc.Save(f);
-        Console.WriteLine($"saved {outPath} {ww}x{hh} lang={(FrameCapture.Core.Loc.IsEnglish ? "en" : "zh")}");
-        return 0;
-    }
-
-    /// <summary>渲染用的动作清单：直接取真表，配置器下拉里就是用户会看到的动作名。</summary>
-    sealed class GestureRenderCatalog : GestureEditor.IActionCatalog
-    {
-        /// <summary>动作清单，取词后的短名与说明。</summary>
-        /// <returns>按当前语言取词的 <see cref="FrameCapture.Core.GestureActions"/> 全表。</returns>
-        public IReadOnlyList<GestureEditor.ActionInfo> Actions() =>
-            FrameCapture.Core.GestureActions.All
-                .Select(a => new GestureEditor.ActionInfo(a.Name, a.Label, a.Description)).ToArray();
-        /// <summary>动作名是否受支持。</summary>
-        /// <param name="name">动作名。</param>
-        /// <returns>真表里有则 true。</returns>
-        public bool IsValid(string name) => FrameCapture.Core.GestureActions.IsValid(name);
-    }
-
-    /// <summary>渲染用的配置：两条写死的绑定，一条组合键带完成后序列，一条 F2 按下起录。</summary>
-    sealed class GestureRenderStore : GestureEditor.IGestureConfigStore
-    {
-        /// <summary>构造样例文档。</summary>
-        /// <returns>两条启用绑定的文档。</returns>
-        public GestureEditor.GestureDoc Load()
-        {
-            var d = new GestureEditor.GestureDoc { Enabled = true, Exclusive = false };
-            d.Bindings.Add(new GestureEditor.BindingEdit
-            {
-                Id = "a", Enabled = true, Mods = GestureCore.ModifierKeys.Control | GestureCore.ModifierKeys.Alt,
-                Key = 0x52, Trigger = GestureCore.TriggerKind.Chord,
-                Actions = new List<string> { "capture.selection" },
-                OnComplete = new List<string> { "edit.lastvideo" },
-                AfterCapture = "editor", CopyToClipboard = true,
-                Fallback = GestureCore.FallbackPolicy.Stop, Priority = 0, DoubleClickMs = 300, LongPressMs = 550,
-            });
-            d.Bindings.Add(new GestureEditor.BindingEdit
-            {
-                Id = "b", Enabled = true, Mods = GestureCore.ModifierKeys.None, Key = 0x71,
-                Trigger = GestureCore.TriggerKind.KeyDown,
-                Actions = new List<string> { "record.toggle" },
-                OnComplete = new List<string>(), AfterCapture = "", CopyToClipboard = false,
-                Fallback = GestureCore.FallbackPolicy.SkipStep, Priority = 1, DoubleClickMs = 300, LongPressMs = 550,
-            });
-            return d;
-        }
-
-        /// <summary>渲染模式不落盘。</summary>
-        /// <param name="doc">配置器当前文档，被忽略。</param>
-        public void Save(GestureEditor.GestureDoc doc) { }
-    }
-
-    /// <summary>渲染用的键名：VK → 显示名，够覆盖样例里的 R 与 F2。</summary>
-    sealed class GestureRenderNamer : GestureCore.IKeyNamer
-    {
-        /// <summary>虚拟键码 → 键名。</summary>
-        /// <param name="key">Windows 虚拟键码。</param>
-        /// <returns>R / F2；其余返回十进制数字串。</returns>
-        public string Name(int key) => key switch { 0x52 => "R", 0x71 => "F2", _ => key.ToString() };
-    }
-
     /// <summary>在视觉树里找左侧类别项：Border 内 Grid 里那条 StackPanel 带同名文字。</summary>
     /// <param name="node">起点节点。</param>
     /// <param name="text">类别名。</param>
@@ -870,7 +765,6 @@ static class SelfTest
             return RenderSettings(args[1], catNames[Math.Clamp(ci, 0, catNames.Length - 1)], ScaleArg(args),
                 args.Contains("open2") ? 1 : args.Contains("open") ? 0 : -1, args.Contains("adv"), args.Contains("clash"));
         }
-        if (args.Length >= 2 && args[0] == "rendergestures") return RenderGestures(args[1], ScaleArg(args));
     if (args.Length >= 2 && args[0] == "rendereditor") return RenderEditor(args[1], ScaleArg(args), args.Contains("guide"));
         if (args.Length == 3 && args[0] == "stitch") return StitchMode(args[1], args[2]);
         string tmp = Path.Combine(Path.GetTempPath(), "FrameCapture", "selftest");
@@ -1464,43 +1358,6 @@ static class SelfTest
             winP.Close();
         }
         catch (Exception e) { Chk("T179-play-row-order", false, e.Message); }
-
-        // 手势配置器详情区：切一条绑定就是一次状态切换，新内容逐项错位进场，不整块闪现
-        try
-        {
-            var winG = new GEdit.GestureEditorWindow(new TestCatalog(), new TestStore(), new TestNamer(), new GEdit.EditorPalette());
-            var detG = (System.Windows.Controls.StackPanel?)typeof(GEdit.GestureEditorWindow)
-                .GetField("_detail", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(winG);
-            var rowsG = detG!.Children.OfType<System.Windows.UIElement>().ToList();
-            Chk("T184a-detail-rows-built", rowsG.Count >= 4, $"详情行数={rowsG.Count}");
-            winG.Show();
-            // 打开这一帧详情区必须完整：整窗淡入覆盖详情区，行不该还在半透明。
-            int visG = 0;
-            while (winG.Opacity <= 0.05 && visG < 3000) { PumpMs(10); visG += 10; }
-            PumpMs(60);
-            var openG = rowsG.FirstOrDefault(u => u.Opacity < 0.999);
-            Chk("T184b-detail-complete-on-open", openG == null,
-                $"窗口可见={visG}ms 首={rowsG[0].Opacity:N2} 末={rowsG[^1].Opacity:N2} 未落定={(openG == null ? 0 : 1)}");
-            PumpMs(GEdit.Motion.EnterMs + GEdit.Motion.StaggerMs * 3 + 400);
-            var badG = rowsG.FirstOrDefault(u => u.Opacity < 0.999
-                || (u.RenderTransform != null && !u.RenderTransform.Value.IsIdentity));
-            Chk("T184c-detail-cascade-settles", badG == null,
-                badG == null ? "全部复位" : $"残留 透明度={badG.Opacity:N2} 变换={badG.RenderTransform?.GetType().Name}");
-            // 在已开窗内切换绑定仍逐项错位：那是一次状态切换，需要「新内容进场」的信号。
-            // ShowDetail 整段重建行，采样必须重建之后再取一次。
-            typeof(GEdit.GestureEditorWindow).GetMethod("ShowDetail",
-                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.Invoke(winG, null);
-            PumpMs(30);
-            var rowsS = detG!.Children.OfType<System.Windows.UIElement>().ToList();
-            bool orderedG = true;
-            for (int i = 1; i < rowsS.Count; i++) if (rowsS[i].Opacity > rowsS[i - 1].Opacity + 0.02) orderedG = false;
-            Chk("T184d-switch-still-staggers",
-                orderedG && rowsS.Count > 1 && rowsS[^1].Opacity < 0.05 && rowsS[0].Opacity > rowsS[^1].Opacity,
-                $"首={rowsS[0].Opacity:N2} 末={rowsS[^1].Opacity:N2} 错位单调={orderedG} 行数={rowsS.Count}");
-            winG.Close();
-            PumpMs(400);
-        }
-        catch (Exception e) { Chk("T184-detail-cascade", false, e.Message); }
 
         // 轻提示：抬起淡入 → 淡出走完收起；显示中再次触发只换文字续期，不把刚看清的一行字压回全透明
         try
@@ -3811,60 +3668,6 @@ static class SelfTest
             bool swF6 = eng.OnKeyDown(F6, GE.ModifierKeys.None, 0);
             Chk("T137d-unbound-key-no-swallow", !swF6, "未绑定的键（F6）不吞");
         }
-        // 手势配置器模型/校验（方案 C）：GestureEditor 库的纯逻辑，宿主无关，可脱离 UI 单测
-        {
-            var cat = new TestCatalog();
-            var nm = new TestNamer();
-            GEdit.BindingEdit BE(string id, GE.ModifierKeys mods, int key, string[] acts)
-                => new GEdit.BindingEdit { Id = id, Mods = mods, Key = key, Actions = new List<string>(acts) };
-
-            var ok = new GEdit.GestureDoc { Enabled = true, Bindings = { BE("a", GE.ModifierKeys.Control | GE.ModifierKeys.Alt, 0x41, new[] { "capture.frame" }) } };
-            Chk("T138a-valid-no-problem", GEdit.GestureValidation.Validate(ok, cat, nm).Count == 0, "合法绑定无校验问题");
-
-            var emptyChord = new GEdit.GestureDoc { Bindings = { BE("a", GE.ModifierKeys.None, 0, new[] { "capture.frame" }) } };
-            Chk("T138b-empty-chord-error", GEdit.GestureValidation.HasErrors(GEdit.GestureValidation.Validate(emptyChord, cat, nm)), "空组合键判为 error");
-
-            var noAct = new GEdit.GestureDoc { Bindings = { BE("a", GE.ModifierKeys.Control, 0x41, new string[0]) } };
-            Chk("T138c-no-action-error", GEdit.GestureValidation.HasErrors(GEdit.GestureValidation.Validate(noAct, cat, nm)), "无动作判为 error");
-
-            var badAct = new GEdit.GestureDoc { Bindings = { BE("a", GE.ModifierKeys.Control, 0x41, new[] { "no.such" }) } };
-            Chk("T138d-unknown-action-error", GEdit.GestureValidation.HasErrors(GEdit.GestureValidation.Validate(badAct, cat, nm)), "未知动作判为 error");
-
-            var dup = new GEdit.GestureDoc { Bindings = {
-                BE("a", GE.ModifierKeys.Control, 0x41, new[] { "capture.frame" }),
-                BE("b", GE.ModifierKeys.Control, 0x41, new[] { "record.toggle" }) } };
-            var p4 = GEdit.GestureValidation.Validate(dup, cat, nm);
-            Chk("T138e-duplicate-warn-not-error", p4.Count > 0 && !GEdit.GestureValidation.HasErrors(p4), "组合键+触发重复仅提示、非 error");
-
-            var badTime = new GEdit.GestureDoc { Bindings = { new GEdit.BindingEdit { Id = "a", Mods = GE.ModifierKeys.Control, Key = 0x41, Actions = new List<string> { "capture.frame" }, DoubleClickMs = 9999 } } };
-            var p5 = GEdit.GestureValidation.Validate(badTime, cat, nm);
-            Chk("T138f-timing-warn-not-error", p5.Count > 0 && !GEdit.GestureValidation.HasErrors(p5), "时间越界仅提示、非 error");
-        }
-        // 编辑器控件配色模板可套可 measure（/）：XamlReader 现拼的 ComboBox/ListBox 模板在 measure 套模板时才解析，
-        // 编译与 XamlReader.Parse 都不报（SelectionBoxItem 嵌套模板坑）——这里真正 Measure 兜底。
-        {
-            var pal = new GEdit.EditorPalette();
-            string? comboErr = null, listErr = null;
-            try {
-                var cb = new System.Windows.Controls.ComboBox();
-                GEdit.EditorStyles.ApplyCombo(cb, pal);
-                cb.Items.Add(new System.Windows.Controls.ComboBoxItem { Content = "A" });
-                cb.Items.Add(new System.Windows.Controls.ComboBoxItem { Content = "B" });
-                cb.SelectedIndex = 0;
-                cb.Measure(new System.Windows.Size(200, 30));
-                cb.Arrange(new Rect(0, 0, 200, 30));
-            } catch (Exception ex) { comboErr = ex.Message; }
-            try {
-                var lb = new System.Windows.Controls.ListBox();
-                GEdit.EditorStyles.ApplyList(lb, pal);
-                lb.Items.Add(new System.Windows.Controls.ListBoxItem { Content = "A" });
-                lb.SelectedIndex = 0;
-                lb.Measure(new System.Windows.Size(200, 60));
-                lb.Arrange(new Rect(0, 0, 200, 60));
-            } catch (Exception ex) { listErr = ex.Message; }
-            Chk("T139a-combo-template-measures", comboErr == null, "ComboBox 配色模板可套可 measure（深色下拉可读）" + (comboErr != null ? " 异常:" + comboErr : ""));
-            Chk("T139b-list-item-style-measures", listErr == null, "ListBox 条目样式可套可 measure" + (listErr != null ? " 异常:" + listErr : ""));
-        }
         // 文字字号映射（C3）：线宽挡位→帧像素字号，单调递增，锚定 细3/中6/粗10 = 22/34/50px @1080p
         {
             double f3 = AnnFont.FramePx(3), f6 = AnnFont.FramePx(6), f10 = AnnFont.FramePx(10);
@@ -3873,9 +3676,6 @@ static class SelfTest
         }
         // 启用/禁用（A1）：禁用绑定不校验、不进引擎
         {
-            var cat = new TestCatalog(); var nm = new TestNamer();
-            var offDoc = new GEdit.GestureDoc { Bindings = { new GEdit.BindingEdit { Id = "off", Enabled = false, Mods = GE.ModifierKeys.None, Key = 0, Actions = new List<string>() } } };
-            Chk("T141a-disabled-not-validated", GEdit.GestureValidation.Validate(offDoc, cat, nm).Count == 0, "禁用绑定不产生校验问题（不挡保存）");
             var cfg = new GestureConfig();
             cfg.Bindings.Add(new GestureBindingDto { Id = "off", Enabled = false, Chord = "F6", Actions = new[] { "capture.frame" } });
             cfg.Bindings.Add(new GestureBindingDto { Id = "on", Enabled = true, Chord = "F7", Actions = new[] { "scope.select" } });
@@ -4226,6 +4026,36 @@ static class SelfTest
             Chk("T192e-empty-chord-not-in-conflict", empty.ConflictIds().Count == 0, "没按键的条目不报撞车");
         }
 
+        // 坏配置压根不进引擎：没按键、空序列、认不出的动作名各自被丢掉，越界的连击/长按阈值钳回区间
+        {
+            var cfg = new GestureConfig();
+            cfg.Bindings.Add(new GestureBindingDto { Id = "nokey", Chord = "", Actions = new[] { "capture.frame" } });
+            cfg.Bindings.Add(new GestureBindingDto { Id = "noact", Chord = "Ctrl+Alt+K", Actions = Array.Empty<string>() });
+            cfg.Bindings.Add(new GestureBindingDto { Id = "badact", Chord = "Ctrl+Alt+J", Actions = new[] { "no.such.action" } });
+            cfg.Bindings.Add(new GestureBindingDto
+            {
+                Id = "halfbad", Chord = "Ctrl+Alt+H",
+                Actions = new[] { "scope.select", "no.such.action" },
+                OnComplete = new[] { "no.such.action" },
+            });
+            cfg.Bindings.Add(new GestureBindingDto
+            {
+                Id = "wild", Chord = "Ctrl+Alt+L", Actions = new[] { "capture.frame" },
+                DoubleClickMs = 99999, LongPressMs = -5,
+            });
+            var got = cfg.ToBindings();
+            Chk("T194a-empty-chord-not-installed", !got.Any(x => x.Id == "nokey"), "没按键的条目不进引擎");
+            Chk("T194b-empty-actions-not-installed", !got.Any(x => x.Id == "noact"), "动作序列为空的条目不进引擎");
+            Chk("T194c-unknown-action-dropped",
+                !got.Any(x => x.Id == "badact")
+                && got.FirstOrDefault(x => x.Id == "halfbad") is { } hb
+                && hb.Actions.SequenceEqual(new[] { "scope.select" }) && hb.OnComplete.Count == 0,
+                "认不出的动作名被丢掉：只剩坏动作的整条不进引擎，好动作原样保留");
+            var wild = got.FirstOrDefault(x => x.Id == "wild");
+            Chk("T194d-timing-clamped", wild != null && wild.DoubleClickMs == 2000 && wild.LongPressMs == 100,
+                $"越界阈值钳回区间：双击 {wild?.DoubleClickMs} 长按 {wild?.LongPressMs}");
+        }
+
         // 触发后缀只有一个实现（GestureConfig.TriggerLabel），供设置下拉、帮助窗与折叠行后缀共用
         {
             var names = Enum.GetNames<GE.TriggerKind>();
@@ -4295,6 +4125,10 @@ static class SelfTest
             Chk("T193c-trigger-combo-covers-all-kinds",
                 trigItems.Count == Enum.GetValues<GE.TriggerKind>().Length && trigItems.Distinct().Count() == trigItems.Count,
                 $"触发方式下拉 {trigItems.Count} 项覆盖全部触发且两两不同名：{string.Join("/", trigItems)}");
+            trig?.ApplyTemplate();
+            Chk("T193d-trigger-combo-template-measures",
+                trig != null && trig.Template != null && trig.ActualHeight > 12,
+                $"下拉模板已套上并量出高度 {trig?.ActualHeight.ToString() ?? "?"}（深色下拉开来读得清）");
             Chk("T191d-simple-hides-override",
                 OverrideRows().All(r => r.Visibility == Visibility.Collapsed),
                 "简单形态里完成后与失败时整行收起");
@@ -4333,25 +4167,6 @@ static class SelfTest
         }
         catch (Exception e) { Chk("T191-hotkey-expand-animation", false, e.Message); }
 
-        // 手势配置器触发下拉标签两两不同（，GestureEditorWindow.TriggerLabel 纯函数）
-        {
-            var kinds = Enum.GetValues<GE.TriggerKind>();
-            var labels = kinds.Select(k => GEdit.GestureEditorWindow.TriggerLabel(k)).ToList();
-            Chk("T151-trigger-labels-distinct",
-                labels.All(s => !string.IsNullOrEmpty(s)) && labels.Distinct().Count() == kinds.Length,
-                $"触发下拉 {kinds.Length} 项标签两两不同非空（Tap/Hold/HoldRelease 不再与 Chord 同名「组合键（同时按下）」）");
-        }
-        // 配置器(lib)触发标签须含宿主(host GestureConfig)核心词，防两份独立 TriggerLabel 漂移；
-        // 用户在配置器与设置/帮助看到同一触发方式应同核心词（KeyUp 宿主词为「松开」，配置器写「抬起」即漂移）
-        {
-            var drift = Enum.GetValues<GE.TriggerKind>()
-                .Select(k => (k, lib: GEdit.GestureEditorWindow.TriggerLabel(k), host: GestureConfig.TriggerLabel(k.ToString())))
-                .Where(x => x.host.Length > 0 && !x.lib.Contains(x.host))
-                .Select(x => $"{x.k}:配置器「{x.lib}」不含宿主「{x.host}」")
-                .ToList();
-            Chk("T155-lib-host-trigger-coreword-consistent", drift.Count == 0,
-                drift.Count == 0 ? "配置器每个触发标签都含宿主核心词（KeyUp 抬起→松开 已对齐）" : string.Join("；", drift));
-        }
         // 细滚动条全局样式真正生效（，用户「基本没变」根因：主题 ScrollBar 样式的
         // MinWidth=17.33 经 DynamicResource 以直值泄漏到模板内 ScrollBar，样式 Setter 压不住，须附加属性归零）
         {
@@ -4388,14 +4203,6 @@ static class SelfTest
                 && teal == System.Windows.Media.Colors.White && white == System.Windows.Media.Colors.Black
                 && black == System.Windows.Media.Colors.White,
                 $"#7F75FF→白 #{purple} / #FF8C00→黑 #{orange} / #00B294→白 #{teal} / 白底黑 黑底白");
-            // lib 侧同公式（GestureEditor 独立库自带 OnAccent，防漂移）
-            var pal = new GEdit.EditorPalette();
-            pal.Accent = System.Windows.Media.Color.FromRgb(0x7F, 0x75, 0xFF);
-            bool libPurple = pal.OnAccent() == System.Windows.Media.Colors.White;
-            pal.Accent = System.Windows.Media.Color.FromRgb(0xFF, 0x8C, 0x00);
-            bool libOrange = pal.OnAccent() == System.Windows.Media.Colors.Black;
-            Chk("T162c-lib-onaccent-same", libPurple && libOrange,
-                "配置器库 OnAccent 与宿主同 WCAG 公式（#7F75FF→白 / #FF8C00→黑）");
         }
 
         #region 真·窗口截图（WGC 本体 + 按轮廓合成阴影）纯逻辑
@@ -4543,6 +4350,7 @@ static class SelfTest
             Chk("T166w2-pregraborder", o1ok && o2ok && o3ok && o4.Count == 0 && o5ok,
                 $"o1={o1.Count} o2={o2.Count} o3={o3.Count} o4={o4.Count} o5={o5.Count}");
         }
+        #endregion
         #region 滚动预览长图降采样（纯函数）
         {
             // T167w1 不缩小＝逐字节原样：宽高都在上限内时不抽样，输出与源完全一致
@@ -4782,12 +4590,12 @@ static class SelfTest
             {
                 "设置捕获范围", "自动保存副本", "点击窗口时截取完整窗口", "只录窗口",
                 "识别文字…", "不透明度", "静音", "悬浮窗存在时间", "跟随显示器刷新率录满",
-                "启用手势层", "独占吞键", "完成后序列", "松手", "手势层当前关闭", "未绑定",
+                "启用快捷键", "添加快捷键", "完成后", "失败时", "松手", "未绑定",
                 "欢迎用 FrameCapture 编辑器", "总在最前", "帮助与快捷键", "松开应用裁剪", "RGBA 调色板",
                 "  裁剪 {0}×{1}", "未找到 ffmpeg，无法导出视频 — 安装方法见帮助，按 F1",
                 "拖框选择 · 悬停点击吸附窗口 · Esc 取消", "延时截图", "按新键 · Esc 解绑", "复制全部",
                 "未安装 OCR 语言包，请到 设置 › 时间和语言 › 语音 添加", "此环境无法注入滚轮，请手动滚动",
-                "组合键为空：请设置一个组合键", "已到内容底部，点「完成」出图",
+                "删除这条快捷键", "已到内容底部，点「完成」出图",
                 "使用指南", "快速上手", "定范围 → 触发 → 复制。", "贴图右键", "键位", "更多玩法",
             };
             var leaked = covered.Where(k => Loc.T(k) == k).ToList();
@@ -4808,14 +4616,6 @@ static class SelfTest
                 .Distinct().ToList();
             Chk("T189q-key-tables-translated", untran.Count == 0 && stillZh.Count == 0,
                 $"未译={string.Join(" | ", untran.Take(3))} 动作仍中文={string.Join(" | ", stillZh.Take(3))}");
-            // 校验文案由库经注入的取词函数产出：带参模板必须先整句取词再填参数，英文语序和中文不同
-            var vdoc = new GEdit.GestureDoc { Bindings =
-                { new GEdit.BindingEdit { Mods = GE.ModifierKeys.Control, Key = 0x41, Actions = new List<string> { "no.such" } } } };
-            var vmsgs = GEdit.GestureValidation.Validate(vdoc, new TestCatalog(), new TestNamer(), Loc.T)
-                .Select(p => p.Message).ToList();
-            Chk("T189p-validation-messages-in-en",
-                vmsgs.All(m => !m.Any(c => c >= 0x4E00 && c <= 0x9FFF)) && vmsgs.Any(m => m.Contains("Unknown action")),
-                string.Join(" | ", vmsgs));
             // 合成词：中文把挡位名并进「细笔画」，英文是「Thin stroke」——两段各自取词后还要拼得对
             Chk("T189o-composed-stroke-labels-in-en",
                 Loc.F("{0}笔画", Loc.T("细")) == "Thin stroke" && Loc.F("{0}笔画", Loc.T("粗")) == "Bold stroke",
@@ -4897,43 +4697,6 @@ sealed class PlainProbe : GestureCore.IActionInvoker
     public void BeginBinding(GestureCore.GestureBinding b) { }
 }
 
-/// <summary>测试配置仓：给配置器一份含两条绑定的内存配置，Save 只换内存副本不落盘。</summary>
-sealed class TestStore : GestureEditor.IGestureConfigStore
-{
-    static GestureEditor.BindingEdit Row(string id, int key) => new()
-    {
-        Id = id, Key = key, Actions = new List<string> { "capture.frame" }
-    };
-
-    GestureEditor.GestureDoc _doc = new()
-    {
-        Enabled = true,
-        Bindings = new List<GestureEditor.BindingEdit> { Row("a", 0x41), Row("b", 0x52) }
-    };
-
-    public GestureEditor.GestureDoc Load() => _doc;
-    public void Save(GestureEditor.GestureDoc doc) => _doc = doc;
-}
-
-/// <summary>GestureEditor 校验测试用的最小动作清单（宿主无关，只认两个合法动作名）。</summary>
-sealed class TestCatalog : GestureEditor.IActionCatalog
-{
-    static readonly GestureEditor.ActionInfo[] All =
-    {
-        new("capture.frame", "即时截图", ""),
-        new("record.toggle", "选区录制·同键停", ""),
-    };
-    public IReadOnlyList<GestureEditor.ActionInfo> Actions() => All;
-    public bool IsValid(string name) => name == "capture.frame" || name == "record.toggle";
-}
-
-/// <summary>测试键名器：VK → 可读名（仅覆盖测试用到的键）。</summary>
-sealed class TestNamer : GestureCore.IKeyNamer
-{
-    public string Name(int key) => key switch { 0x41 => "A", 0x52 => "R", 0x75 => "F6", _ => "#" + key };
-        #endregion
-
-}
 /// <summary>背板回读用的最小 DWM 声明。生产侧的 Win32 是 internal，测试不为此放宽可见性。</summary>
 static class DwmProbe
 {

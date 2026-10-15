@@ -71,7 +71,6 @@ static partial class StringsEn
         ("新增一条：先给它按一个组合键，再挑要执行的动作",
             "Adds one: press a key combination for it first, then pick what it should do."),
         ("点击按键", "Click, then press a key"),
-        ("启用这条", "Enable this one"),
         ("关掉即保留配置但不触发，无需删除", "Off keeps the setup but stops it from firing — no need to delete it."),
         ("名字", "Name"),
         ("留空则按序列自动取名", "Leave empty to name it from the sequence"),

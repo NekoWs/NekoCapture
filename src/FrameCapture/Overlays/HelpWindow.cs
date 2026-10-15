@@ -291,7 +291,7 @@ public sealed class HelpWindow : Window
                 KV(p, KeysFor(GestureActions.RecordToggle, GestureActions.RecordStart, GestureActions.RecordStop), Loc.T("录制：按住起录，松手停"));
                 KV(p, EditorKeysFor("commit", "close"), Loc.T("编辑器里：确定复制 / 取消"));
                 KV(p, EditorKeysFor("help"), Loc.T("随时回到本指南"));
-                Note(p, Loc.T("键位都是默认值，可在「手势配置器」里改成自己的习惯。"));
+                Note(p, Loc.T("键位都是默认值，可在「设置 · 快捷键」里改成自己的习惯。"));
             }),
 
             ("\uE7A8", Loc.T("选捕获范围"), Loc.T("指哪儿，截哪儿。"), p =>
@@ -306,10 +306,10 @@ public sealed class HelpWindow : Window
             ("\uE7B5", Loc.T("截图"), Loc.T("一次触发，进剪贴板。"), p =>
             {
                 KV(p, Loc.T("触发即截"), Loc.T("有范围截范围，没范围截光标所在屏"));
-                KV(p, Loc.T("截图后"), Loc.T("每条手势单独设：弹浮窗 / 进编辑器 / 什么都不做 / 贴图；写不写剪贴板是另一条独立开关"));
+                KV(p, Loc.T("截图后"), Loc.T("每条快捷键单独设：弹浮窗 / 进编辑器 / 什么都不做 / 贴图；写不写剪贴板是另一条独立开关"));
                 KV(p, Loc.T("悬浮窗"), Loc.T("点它进编辑器；常驻/1/2/5秒/自定义可调"));
                 KV(p, Loc.T("提示音"), Loc.T("关闭 / 轻弹 / 自定义 ogg·wav，可试听"));
-                Note(p, Loc.T("「截图后」在「手势配置器」每条手势里设置；托盘还能「编辑上次截图」。"));
+                Note(p, Loc.T("「截图后」在「设置 · 快捷键」每条快捷键的完成后一栏设置；托盘还能「编辑上次截图」。"));
             }),
 
             ("\uE714", Loc.T("录制"), Loc.T("按住录，松手成片。"), p =>
@@ -353,7 +353,7 @@ public sealed class HelpWindow : Window
             {
                 KV(p, Loc.T("延时截图"), Loc.T("托盘触发后倒数几秒再截——摆好菜单/悬停再入镜，支持自定义秒数"));
                 KV(p, Loc.T("滚动截图"), Loc.T("长网页/长对话自动拼接成一张"));
-                KV(p, Loc.T("键位设置"), Loc.T("全局键在手势配置器改，编辑器里的键在设置 · 快捷键直接改"));
+                KV(p, Loc.T("键位设置"), Loc.T("全局快捷键与编辑器里的键都在「设置 · 快捷键」这一页改"));
                 KV(p, Loc.T("托盘菜单"), Loc.T("暂停手势 / 清除范围 / 设置…"));
                 KV(p, Loc.T("外观"), Loc.T("主题跟随系统，强调色可自定义"));
                 Note(p, Loc.T("本页只是地图，细节都在各处的悬停气泡里——指到哪读到哪。"));
