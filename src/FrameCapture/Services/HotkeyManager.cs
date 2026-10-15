@@ -128,7 +128,7 @@ public sealed class HotkeyManager : IDisposable
 
         // 手势引擎喂键（唯一的全局触发路径）。手势层关闭时 KeySink=null，零开销。
         // Paused 时不喂：用户暂停全局热键=要求不拦截任何键，手势层同样避让。
-        // 返回值=是否独占吞键（命中带具体键的组合键且开启 Exclusive）。
+        // 返回值=是否吞键：命中带具体键的组合键即吞，纯修饰键组合与未命中不吞。
         bool gestureSwallow = false;
         if (!Paused && KeySink != null) gestureSwallow = KeySink(vk, isDown, CurrentMods(), info.time);
 

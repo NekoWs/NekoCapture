@@ -164,7 +164,7 @@ public sealed class GestureEngine
     /// <param name="mods">本次事件时刻的修饰键状态，由宿主读取随事件传入；引擎不自行推断。</param>
     /// <param name="now">毫秒时间戳，作为本次键盘按下的计时起点（轻点/按住按它判时长）。</param>
     /// <returns>是否应吞掉本键：命中带具体键的组合键并成功触发，或该键已被认领后的系统自动重复。
-    /// 宿主结合独占开关决定是否真的吞。</returns>
+    /// 宿主照这个返回值吞，中间没有别的开关。</returns>
     public bool OnKeyDown(int key, ModifierKeys mods, long now)
     {
         _swallowThisEvent = false;
