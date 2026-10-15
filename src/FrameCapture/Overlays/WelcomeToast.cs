@@ -75,7 +75,7 @@ public sealed class WelcomeToast : Window
             FontFamily = new FontFamily("Segoe UI"),
             VerticalAlignment = VerticalAlignment.Center,
         });
-        var close = Fluent.IconButton("\uE711", "关闭 (Esc)", 26, 12,
+        var close = Fluent.IconButton("\uE711", "关闭", 26, 12,
             new SolidColorBrush(Theme.TextDim));
         close.Click += (_, _) => Dismiss();
         Grid.SetColumn(close, 1);

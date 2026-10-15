@@ -357,7 +357,7 @@ public sealed class HelpWindow : Window
             g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(112) });
             g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             var sym = new TextBlock { Text = t.Sym, FontSize = 14, Foreground = new SolidColorBrush(Theme.Accent), VerticalAlignment = VerticalAlignment.Center };
-            var name = new TextBlock { Text = $"{(t.Tip.Contains(" (") ? t.Tip[..t.Tip.IndexOf(" (", StringComparison.Ordinal)] : t.Tip)} {t.Key}", FontSize = 12.5, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(Theme.Text), VerticalAlignment = VerticalAlignment.Center };
+            var name = new TextBlock { Text = $"{t.Tip} {t.Key}", FontSize = 12.5, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(Theme.Text), VerticalAlignment = VerticalAlignment.Center };
             var help = new TextBlock { Text = t.Help, FontSize = 12, Foreground = new SolidColorBrush(Theme.TextDim), TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center };
             Grid.SetColumn(sym, 0); Grid.SetColumn(name, 1); Grid.SetColumn(help, 2);
             g.Children.Add(sym); g.Children.Add(name); g.Children.Add(help);

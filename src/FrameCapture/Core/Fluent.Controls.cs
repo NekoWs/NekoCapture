@@ -111,7 +111,7 @@ public static partial class Fluent
     /// <param name="title">标题文字。</param>
     /// <param name="closeTip">关闭按钮的悬停提示。</param>
     /// <returns>条带 Border 与关闭按钮；条带须再经 <see cref="InstallCaptionDrag"/> 才成为原生拖窗区。</returns>
-    public static (Border bar, Button close) TitleBar(string glyph, string title, string closeTip = "关闭 (Esc)")
+    public static (Border bar, Button close) TitleBar(string glyph, string title, string closeTip = "关闭")
     {
         var bar = new Border
         {

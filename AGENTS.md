@@ -14,6 +14,13 @@
 5. **`public`/`internal` 成员必须有 XML 文档。** 有参必写 `<param>`，有返必写 `<returns>`
    （`CS1591`+`CS1573`=error）。中文为主，代码符号与 Win32/WGC/GDI/LZW 等术语保持英文。
 
+## 文案（界面 / 网页 / 提示 / 帮助）
+
+6. **标签只说名字。** 补充说明并进句子，或交给界面上别处：键位交给键帽表与工具条图标，选项就是那一行的按钮。
+   `录制（再按一下停止）` → `开始/停止录制`，`延时截图（3 秒）` → `延时截图`，`选中 (V)` → `选中`。
+   括号只留在代码符号与记法里（`rgb(r, g, b)`、`*.ogg;*.wav` 过滤器、`Program Files (x86)`）。
+   护栏：`scripts/lint-copy-parens.ps1`（已挂 guardrail 第 0 关），逐行豁免写 `// copyok`。
+
 ## 其余硬约束
 
 见 [GOAL.md](GOAL.md) 的 Hard constraints 段（仓库内写文件、禁 OS 级鼠标自动化、不记录用户按键、

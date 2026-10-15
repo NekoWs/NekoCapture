@@ -38,6 +38,15 @@ if ($mm.Success) {
     if ($mf -gt 0) { Say (& pwsh -NoProfile -File (Join-Path $PSScriptRoot "lint-motion-tokens.ps1") 2>&1 | Out-String) }
 } else { Add-Result "lint:motion-tokens" "FAIL" "扫描器无输出" }
 
+# 0c) 文案护栏（AGENTS.md 第 6 条：用户可见文案不写括注）
+$copyOut = & pwsh -NoProfile -File (Join-Path $PSScriptRoot "lint-copy-parens.ps1") -Quiet 2>&1 | Out-String
+$cm = [regex]::Match($copyOut, 'LINT-COPY (\w+)\s+FAIL=(\d+)')
+if ($cm.Success) {
+    $cf = [int]$cm.Groups[2].Value
+    Add-Result "lint:copy-parens" $(if ($cf -eq 0) { "PASS" } else { "FAIL" }) "FAIL=$cf"
+    if ($cf -gt 0) { Say (& pwsh -NoProfile -File (Join-Path $PSScriptRoot "lint-copy-parens.ps1") 2>&1 | Out-String) }
+} else { Add-Result "lint:copy-parens" "FAIL" "扫描器无输出" }
+
 # 1) 杀掉运行中的实例（否则 MSB3027 会让构建静默失败）
 $hadUserInstance = [bool](Get-Process FrameCapture -EA SilentlyContinue)
 Get-Process FrameCapture -EA SilentlyContinue | Stop-Process -Force

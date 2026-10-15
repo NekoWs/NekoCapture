@@ -1911,7 +1911,8 @@ static class SelfTest
                 Chk("T92b-keys", keys.Distinct().Count() == 11 && keys.Select(k => k[0]).OrderBy(c => c).SequenceEqual("ACHLMNOPRTV"), "键位 V/L/R/O/A/P/H/T/M/C/N 唯一且齐全");
                 Chk("T92c-glyphs", tools.All(t => t.Glyph.Length == 1 && t.Glyph[0] >= 0xE000 && t.Glyph[0] <= 0xF8FF) && tools.Select(t => t.Glyph).Distinct().Count() == 11,
                     "字形均为私有区码位且互不重复（GlyphProbe 定稿）");
-                Chk("T92d-tips", tools.All(t => t.Tip.Contains(t.Key) && t.Help.Length >= 8), "工具条提示含快捷键、帮助说明非占位");
+                Chk("T92d-tips", tools.All(t => t.Tip.Length >= 2 && !t.Tip.Contains('(') && !t.Tip.Contains('（') && t.Help.Length >= 8),
+                    "工具条提示只说动作名、不带括注；键位由 Key 单列，帮助窗排「名称 + 键」");
                 Chk("T92e-heading", ToolCatalog.HelpHeading.Contains(ToolCatalog.ExitKey), "退出键 X 写进帮助小节标题");
                 Chk("T92f-sym", tools.All(t => t.Sym.Length == 1 && !(t.Sym[0] >= 0xE000 && t.Sym[0] <= 0xF8FF)),
                     "帮助符号是普通 Unicode（默认字体可渲染，图标字形进帮助窗=豆腐块）");
