@@ -2530,7 +2530,8 @@ static class SelfTest
                     "字形均为私有区码位且互不重复（GlyphProbe 定稿）");
                 Chk("T92d-tips", tools.All(t => t.Tip.Length >= 2 && !t.Tip.Contains('(') && !t.Tip.Contains('（') && t.Help.Length >= 8),
                     "工具条提示只说动作名、不带括注；键位由 Key 单列，帮助窗排「名称 + 键」");
-                Chk("T92e-heading", ToolCatalog.HelpHeading.Contains(ToolCatalog.ExitKey), "退出键 X 写进帮助小节标题");
+                Chk("T92e-heading", Loc.F("编辑器 · 绘图 — 再点当前工具或 {0} 退出绘制", ToolCatalog.ExitKey).Contains(ToolCatalog.ExitKey),
+                    "退出键 X 作为格式参数写进帮助小节标题");
                 Chk("T92f-sym", tools.All(t => t.Sym.Length == 1 && !(t.Sym[0] >= 0xE000 && t.Sym[0] <= 0xF8FF)),
                     "帮助符号是普通 Unicode（默认字体可渲染，图标字形进帮助窗=豆腐块）");
             }
@@ -4456,6 +4457,22 @@ static class SelfTest
             };
             var leaked = covered.Where(k => Loc.T(k) == k).ToList();
             Chk("T189k-covered-surfaces", leaked.Count == 0, $"leaked={string.Join(',', leaked)}");
+            // 键表原文（// lockeys）返回中文、读取处才取词：Loc.T(变量) 的取值全来自这些表。
+            // 逐条要求英文下真的换了词——漏一条，帮助窗「绘图」那一页就整栏露中文。
+            var untran = ToolCatalog.Tools
+                .SelectMany(t => new[] { t.Tip, t.Help })
+                .Concat(EditorCommands.All.SelectMany(c => new[] { c.Name, c.Group }))
+                .Concat(EditorCommands.Groups)
+                .Concat(new[] { "按下", "松开", "轻点", "按住", "松手", "长按", "双击", "三击", "单击" })
+                .Where(s => !string.IsNullOrEmpty(s) && Loc.T(s) == s)
+                .Distinct().ToList();
+            // 动作目录的 Label/Description 自己就是取词后的结果，再取一次词必然原样返回：这里直接看成品里还有没有汉字
+            var stillZh = GestureActions.All
+                .SelectMany(a => new[] { a.Label, a.Description })
+                .Where(s => s.Any(c => c >= 0x4E00 && c <= 0x9FFF))
+                .Distinct().ToList();
+            Chk("T189q-key-tables-translated", untran.Count == 0 && stillZh.Count == 0,
+                $"未译={string.Join(" | ", untran.Take(3))} 动作仍中文={string.Join(" | ", stillZh.Take(3))}");
             // 校验文案由库经注入的取词函数产出：带参模板必须先整句取词再填参数，英文语序和中文不同
             var vdoc = new GEdit.GestureDoc { Bindings =
                 { new GEdit.BindingEdit { Mods = GE.ModifierKeys.Control, Key = 0x41, Actions = new List<string> { "no.such" } } } };

@@ -331,7 +331,7 @@ public sealed class HelpWindow : Window
                 Note(p, Loc.T("Ctrl+H 视觉暂留合成图；「生成胶片条」抽帧拼成一张逐帧图直接复制，喂 AI 最好用。"));
             }),
 
-            ("\uE71C", ToolCatalog.HelpHeading, Loc.T("左侧竖栏，单键切换。"), p => Tools(p)),
+            ("\uE71C", Loc.F("编辑器 · 绘图 — 再点当前工具或 {0} 退出绘制", ToolCatalog.ExitKey), Loc.T("左侧竖栏，单键切换。"), p => Tools(p)),
 
             ("\uE718", Loc.T("贴图"), Loc.T("把图钉在屏幕上。"), p =>
             {

@@ -121,5 +121,40 @@ static partial class StringsEn
         ("再按一次工具键或 {0} 退出绘制；滚轮调粗细，文字工具调字号；Alt 吸色。",
             "Press the tool key again or {0} to leave drawing; the wheel changes thickness, "
             + "the text tool changes size; Alt picks a color."),
+
+        // 绘图工具逐条说明：中文原文住在 ToolCatalog 里（// lockeys 键表），
+        // 帮助窗在读取处取词，所以这里的键必须与目录里的原文逐字一致。
+        ("编辑器 · 绘图 — 再点当前工具或 {0} 退出绘制",
+            "Editor · Drawing — click the current tool again or press {0} to leave drawing"),
+        ("点击标注=选中，虚线框标出；拖动=移动；Delete=删除；Esc 先取消选中。移动和删除都可 Ctrl+Z 撤销",
+            "Click a mark to select it, outlined by a dashed box; drag to move; Delete removes it; "
+            + "Esc clears the selection first. Ctrl+Z undoes both moving and deleting"),
+        ("拖出直线；按住 Shift 拖=吸附到 0/45/90°；再按 L 或点同一图标退出绘制",
+            "Drag out a line; hold Shift to snap to 0/45/90°; press L again or click the same icon to leave drawing"),
+        ("拖出矩形框圈住目标区域，最常用的强调框；按住 Shift 拖=正方形；再按 R 或点同一图标退出绘制",
+            "Drag a rectangle around the target, the most common emphasis box; hold Shift for a square; "
+            + "press R again or click the same icon to leave drawing"),
+        ("拖出椭圆或圆框住目标区域；按住 Shift 拖=正圆；再按 O 或点同一图标退出绘制",
+            "Drag an ellipse or circle around the target; hold Shift for a perfect circle; "
+            + "press O again or click the same icon to leave drawing"),
+        ("拖出箭头，头部自动朝向终点；按住 Shift 拖=吸附到 0/45/90°",
+            "Drag an arrow, its head points at the end point on its own; hold Shift to snap to 0/45/90°"),
+        ("按住拖动自由划线，松手成笔",
+            "Hold and drag to draw freely; letting go finishes the stroke"),
+        ("拖出半透明马克笔高亮，盖在文字/区域上不遮字；线宽挡位 = 笔宽，比手绘粗约 2.5 倍",
+            "Drag a translucent highlighter over text or an area without hiding the words; "
+            + "the width step sets the pen width, about 2.5× thicker than freehand"),
+        ("点画布就地输入，Enter 上屏 / Esc 取消；点已有文字可再编辑；字号随线宽挡位",
+            "Click the canvas and type in place, Enter commits / Esc cancels; click existing text to edit it again; "
+            + "the font size follows the width step"),
+        ("拖框实时块状化，松手应用；线宽挡位 = 块粒度，细 6 / 中 12 / 粗 20 px @1080p",
+            "Drag a box to pixelate live, release to apply; the width step sets the block size, "
+            + "Thin 6 / Medium 12 / Bold 20 px @1080p"),
+        ("拖框时框外压暗 + 三分网格，松开即裁；只改视图不毁数据，Ctrl+Z 可撤销",
+            "While you drag, the outside dims over a rule-of-thirds grid; release to crop. "
+            + "Only the view changes, the pixels stay — Ctrl+Z undoes it"),
+        ("点击放置递增编号圆标 1、2、3…，做步骤和教程标注；颜色随调色板、大小随线宽挡位；删除后编号自动回退不重号",
+            "Click to place numbered badges 1, 2, 3… for steps and tutorials; the color comes from the palette "
+            + "and the size from the width step; deleting one renumbers the rest"),
     };
 }

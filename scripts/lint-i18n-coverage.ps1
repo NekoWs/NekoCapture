@@ -64,14 +64,21 @@ foreach ($f in Get-ChildItem -Path $dirs -Recurse -Include *.cs) {
 
 # 挂了取词却没登记译名 = 英文下静默回退中文：界面看着"迁移过了"，切语言却什么都不变。
 # 因此取词调用里的每个中文键都必须在译表里出现（Loc.T(变量) 这种非字面量参数扫不到，交给整窗迁移时人工过）。
+# 字面量有两种写法：普通串（反斜杠转义）与逐字串 @"…"（双写引号转义，路径类键常用）。
+# 只认一种，另一种就是静默的缺译盲区——收表和扫调用点必须用同一套写法与同一个还原规则。
+$reEntryKey = [regex]'\(\s*(?<at>@)?"(?<k>(?(at)(?:""|[^"])*|(?:\\.|[^"\\])*))"\s*,\s*'
+$reKeyArg = [regex]'(?:Loc\.(?:T|F)|(?<![\w.])T)\(\s*(?<at>@)?"(?<k>(?(at)(?:""|[^"])*|(?:\\.|[^"\\])*))"'
+function ConvertFrom-CSharpString([string]$raw, [bool]$verbatim) {
+    if ($verbatim) { return $raw.Replace('""', '"') }
+    return [regex]::Replace($raw, '\\(.)', '$1')
+}
 $regPath = Join-Path $root 'src\FrameCapture\Core'
 $registered = @{}
 foreach ($sf in Get-ChildItem $regPath -Filter 'StringsEn.*.cs') {
-    foreach ($m in [regex]::Matches((Get-Content $sf.FullName -Raw -Encoding UTF8), '\(\s*"((?:\\.|[^"\\])*)"\s*,\s*')) {
-        $registered[$m.Groups[1].Value] = $true
+    foreach ($m in $reEntryKey.Matches((Get-Content $sf.FullName -Raw -Encoding UTF8))) {
+        $registered[(ConvertFrom-CSharpString $m.Groups['k'].Value $m.Groups['at'].Success)] = $true
     }
 }
-$reKeyArg = [regex]'(?:Loc\.(?:T|F)|(?<![\w.])T)\(\s*"((?:\\.|[^"\\])*)"'
 foreach ($f in Get-ChildItem -Path $dirs -Recurse -Include *.cs) {
     if ($f.Name -like 'StringsEn.*') { continue }
     $i = 0
@@ -79,7 +86,7 @@ foreach ($f in Get-ChildItem -Path $dirs -Recurse -Include *.cs) {
         $i++
         if ($l -match '^\s*(///|//|\*)') { continue }
         foreach ($m in $reKeyArg.Matches($l)) {
-            $k = $m.Groups[1].Value
+            $k = ConvertFrom-CSharpString $m.Groups['k'].Value $m.Groups['at'].Success
             if (-not $reCjk.IsMatch($k)) { continue }
             if ($registered.ContainsKey($k)) { continue }
             if (-not $Quiet) { Write-Host "  FAIL $($f.Name)`:$i  取词键未登记译名：$k" }
@@ -87,6 +94,29 @@ foreach ($f in Get-ChildItem -Path $dirs -Recurse -Include *.cs) {
         }
     }
 }
+
+# 键表（// lockeys）返回中文原文、读取处才取词，所以 Loc.T(变量) 的取值全住在这里。
+# 非字面量参数上面的正则扫不到，键表里的每个中文原文却扫得到：它们必须登记译名，
+# 否则英文界面就在读一个没有译名的键——帮助窗「绘图」那一页整栏露中文就是这么来的。
+# 内插串 $"…{变量}…" 天生当不了键：它带着占位符原文，登记了也匹配不上，只能写成 Loc.F 的格式键。
+$reAnyStr = [regex]'(?<at>@)?"(?<v>(?(at)(?:""|[^"])*|(?:\\.|[^"\\])*))"'
+$keyTableMisses = 0
+foreach ($f in Get-ChildItem -Path $dirs -Recurse -Include *.cs) {
+    if ($f.Name -like 'StringsEn.*') { continue }
+    $i = 0
+    foreach ($l in (Get-Content $f.FullName -Encoding UTF8)) {
+        $i++
+        if ($l -notmatch '//\s*lockeys') { continue }
+        foreach ($m in $reAnyStr.Matches([regex]::Replace($l, '\s//.*$', ''))) {
+            $k = ConvertFrom-CSharpString $m.Groups['v'].Value $m.Groups['at'].Success
+            if (-not $reCjk.IsMatch($k)) { continue }
+            if ($registered.ContainsKey($k)) { continue }
+            if (-not $Quiet) { Write-Host "  FAIL $($f.Name)`:$i  键表原文未登记译名：$k" }
+            $keyTableMisses++
+        }
+    }
+}
+$fail += $keyTableMisses
 
 # 安装器（net48）与宿主共用几个 Core 源文件，那边没有 Loc：这些文件里出现取词调用会让 Setup 编译失败，
 # 而 Setup 只在护栏最后一关才编，等到那时才发现等于把错误留给下一轮。

@@ -324,7 +324,7 @@ public sealed partial class EditorWindow : Window
         foreach (var (w, lbl) in new[] { (0, Loc.T("细")), (1, Loc.T("中")), (2, Loc.T("粗")) }.Select((t, i) => (t.Item1, t.Item2)))
         {
             int idx = w;
-            var b = IconBtn("", Loc.F("{0}笔画", Loc.T(lbl)), 24);
+            var b = IconBtn("", Loc.F("{0}笔画", lbl), 24);
             b.FontSize = 8 + idx * 3;
             b.PreviewMouseLeftButtonDown += (sender2, e2) => { _widthIdx = idx; RefreshWidths(); RestyleSelected(null, CurWidth); e2.Handled = true; };
             _widthBtns.Add(b);
