@@ -62,7 +62,7 @@ function Get-FcSettings {
 }
 
 # 键位由手势绑定决定。从 gestures.bindings 推导「截图」键位，与 C# 侧
-# GestureConfig.CaptureKeyText 同规：先认 tap/hold 系列的键，再认截图/选区动作所在的键。
+# GestureConfig.CaptureKeyText 同规：先认 tap/hold 系列的键，再认截图动作所在的键。
 function Get-FcCaptureHotkey {
     $g = (Get-FcSettings).gestures
     if ($g -and $g.Bindings) {
@@ -70,15 +70,15 @@ function Get-FcCaptureHotkey {
             if ($b.Enabled -and $b.Trigger -in 'Tap','Hold','HoldRelease') { return $b.Chord }
         }
         foreach ($b in $g.Bindings) {
-            if ($b.Enabled -and ($b.Actions -contains 'capture.selection' -or $b.Actions -contains 'scope.select')) { return $b.Chord }
+            if ($b.Enabled -and ($b.Actions -contains 'capture.stored' -or $b.Actions -contains 'capture.frame')) { return $b.Chord }
         }
     }
     return 'Ctrl+Alt+A'   # 与 GestureConfig.DefaultCaptureKey 一致
 }
 
-# R126 B2：e2e 统一测试手势集——把 settings.json 的 gestures 段钉成一套已知绑定，
+# e2e 统一测试手势集——把 settings.json 的 gestures 段钉成一套已知绑定，
 # 让注入键位与断言与用户自定义解耦。一套喂饱全部 e2e：
-#   Ctrl+Shift+G 轻点→选区截图（弹选区窗）；按住→起录，松手→停止并进编辑器（OnComplete edit.lastvideo）
+#   Ctrl+Shift+G 轻点→选区+截图（弹选区窗）；按住→起录，松手→停止并进编辑器（OnComplete edit.lastvideo）
 #   Ctrl+Shift+R 组合键→选区
 # 返回原 settings.json 原文（调用方负责结束还原）。
 function Set-FcTestGestureConfig {
@@ -89,15 +89,15 @@ function Set-FcTestGestureConfig {
     $s = if ($bak) { $bak | ConvertFrom-Json } else { [pscustomobject]@{} }
     $bindings = @(
         [pscustomobject]@{ Id='t.cap.tap'; Enabled=$true; Chord='Ctrl+Shift+G'; Trigger='Tap';
-            Actions=@('capture.selection'); OnComplete=@(); Fallback='Stop'; Priority=0; DoubleClickMs=400; LongPressMs=250 },
+            Actions=@('scope.select','capture.stored'); OnComplete=@(); OnFail=@(); Fallback='Stop'; Priority=0; DoubleClickMs=400; LongPressMs=250 },
         [pscustomobject]@{ Id='t.cap.hold'; Enabled=$true; Chord='Ctrl+Shift+G'; Trigger='Hold';
-            Actions=@('record.start'); OnComplete=@(); Fallback='Stop'; Priority=0; DoubleClickMs=400; LongPressMs=250 },
+            Actions=@('record.start'); OnComplete=@(); OnFail=@(); Fallback='Stop'; Priority=0; DoubleClickMs=400; LongPressMs=250 },
         [pscustomobject]@{ Id='t.cap.holdrelease'; Enabled=$true; Chord='Ctrl+Shift+G'; Trigger='HoldRelease';
-            Actions=@('record.stop'); OnComplete=@('edit.lastvideo'); Fallback='Stop'; Priority=0; DoubleClickMs=400; LongPressMs=250 },
+            Actions=@('record.stop'); OnComplete=@('edit.lastvideo'); OnFail=@(); Fallback='Stop'; Priority=0; DoubleClickMs=400; LongPressMs=250 },
         [pscustomobject]@{ Id='t.scope'; Enabled=$true; Chord='Ctrl+Shift+R'; Trigger='Chord';
-            Actions=@('scope.select'); OnComplete=@(); Fallback='Stop'; Priority=0; DoubleClickMs=400; LongPressMs=500 }
+            Actions=@('scope.select'); OnComplete=@(); OnFail=@(); Fallback='Stop'; Priority=0; DoubleClickMs=400; LongPressMs=500 }
     )
-    $gestures = [pscustomobject]@{ Enabled=$true; Exclusive=$true; Bindings=$bindings; Seeded=$true }
+    $gestures = [pscustomobject]@{ Enabled=$true; Bindings=$bindings; Seeded=$true }
     # 注意：app 的 JsonSerializer 大小写敏感，属性名须 PascalCase（"Gestures"），否则整段被忽略→回退默认播种集。
     $s | Add-Member -Force Gestures $gestures
     # 首启引导会吞掉进编辑器后的头几次按键：测试直投按键测的是键位本身，先把引导记成已看过

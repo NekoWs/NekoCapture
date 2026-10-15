@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using FrameCapture.Core;
 using GC = GestureCore;
 
@@ -11,10 +12,17 @@ namespace FrameCapture.Services;
 /// 放到投递的动作里于 UI 线程运行时做——钩子回调本身就在 UI 线程，若在回调里同步查 State，
 /// 同一次按键的 KeyDown/KeyUp 之间投递的动作还没跑，读到的是过期状态，按住录制便停不掉。
 /// 仅「即时定格」这类需要即时让位的动作保留回调内同步 State 检查。
+///
+/// 「选区」是整条序列里唯一的<b>前置任务</b>：它什么时候算完成只有宿主知道，
+/// 所以引擎把整条序列交回 <see cref="InvokePrelude"/>，后续动作与完成/失败落点都由宿主在范围落地后结算。
 /// </summary>
-sealed class GestureInvoker : GC.IActionInvoker
+sealed class GestureInvoker : GC.IPreludeInvoker
 {
     readonly AppHost _host;
+
+    /// <summary>当前正在执行的绑定，供前置任务把完成/失败序列交给控制器。
+    /// 引擎保证 <see cref="BeginBinding"/> 先于本条任何动作调用，两者在同一次输入回调里紧邻发生。</summary>
+    GC.GestureBinding? _binding;
 
     /// <summary>只保存宿主引用；控制器在每次 <see cref="Invoke"/> 时才取，故构造可早于控制器装配完成。</summary>
     /// <param name="host">提供 <see cref="CaptureController"/> 的宿主，整个生命周期内持有。</param>
@@ -43,15 +51,56 @@ sealed class GestureInvoker : GC.IActionInvoker
     }
 
     /// <summary>
-    /// 一条绑定开跑前的前置投递：把该绑定的「截图后」上下文交给控制器，截图完成时按它分派。
+    /// 一条绑定开跑前的前置投递：把「完成后」的上下文交给控制器。
     /// 失败静默——上下文没递到只会退回默认行为，不该中断已命中的手势。
     /// </summary>
-    /// <param name="b">即将执行的绑定。其 <c>AfterCapture</c> 为空串 = 不指定，截图后走默认弹提示；
-    /// <c>CopyToClipboard</c> 决定这张图要不要写进剪贴板。</param>
+    /// <param name="b">即将执行的绑定。它的 <c>OnComplete</c> 非空 = 这条手势自己指定落点，
+    /// 截图默认的弹提示让位；为空 = 不覆盖，照默认走。</param>
     public void BeginBinding(GC.GestureBinding b)
     {
-        try { _host.Controller.SetPendingAfterCapture(b.AfterCapture, b.CopyToClipboard); } catch { }
+        _binding = b;
+        try { _host.Controller.SetPendingAfterCapture(b.OnComplete.Count > 0 ? "none" : ""); } catch { }
     }
+
+    /// <summary>「选区」是这条序列唯一的前置任务：它要等用户拖完框，后面的动作不能立刻跑。</summary>
+    /// <param name="actionName">序列第一步的动作名。</param>
+    /// <returns>只有 <see cref="GestureActions.ScopeSelect"/> 是前置任务。</returns>
+    public bool IsPrelude(string actionName) => actionName == GestureActions.ScopeSelect;
+
+    /// <summary>受理一条以「选区」开头的序列：把范围落地之后要做的事整体交给控制器，
+    /// 范围定了它再把名字表原样交回 <see cref="Invoke"/>。</summary>
+    /// <param name="actions">完整序列，[0] 是「选区」。</param>
+    /// <returns>恒为 true——开选区这件事本身不会失败，取消走这条绑定的失败序列。</returns>
+    public bool InvokePrelude(IReadOnlyList<string> actions)
+    {
+        var b = _binding;
+        var verbs = new List<string>();
+        for (int i = 1; i < actions.Count; i++) verbs.Add(actions[i]);
+        var lead = verbs.Count > 0 ? LeadOf(verbs[0]) : CaptureController.ScopedLead.None;
+        var tail = verbs.Count > 0 ? verbs.GetRange(1, verbs.Count - 1) : verbs;
+        if (b != null) tail.AddRange(b.OnComplete);
+        var onFail = b != null ? new List<string>(b.OnFail) : new List<string>();
+        Trace.Log($"gesture prelude lead={lead} tail={tail.Count} onFail={onFail.Count}");
+        Post(() => _host.Controller.BeginScopedRun(lead, tail, onFail, RunNames));
+        return true;
+    }
+
+    /// <summary>控制器在产物收尾点交回的名字表：逐个走正常执行路径，各自按自己的路径记 trace。</summary>
+    /// <param name="names">要按序执行的动作名。</param>
+    void RunNames(IReadOnlyList<string> names)
+    {
+        foreach (var n in names) Invoke(n);
+    }
+
+    /// <summary>范围落地后，第一个动作走哪条既有的选区收尾路径。
+    /// 只有「对当前范围截图」需要选区刚定格的那一帧；全屏即时截图本来就无视范围，归 None。</summary>
+    static CaptureController.ScopedLead LeadOf(string name) => name switch
+    {
+        GestureActions.CaptureStored => CaptureController.ScopedLead.Still,
+        GestureActions.RecordToggle or GestureActions.RecordStart or GestureActions.RecordStop => CaptureController.ScopedLead.Record,
+        GestureActions.ScrollCapture => CaptureController.ScopedLead.Scroll,
+        _ => CaptureController.ScopedLead.None,
+    };
 
     bool InvokeCore(string actionName, CaptureController c)
     {
@@ -64,8 +113,7 @@ sealed class GestureInvoker : GC.IActionInvoker
                 return true;
 
             case GestureActions.ScopeSelect: Post(() => c.BeginScopeSelection()); return true;
-            case GestureActions.CaptureSelection: Post(() => c.BeginCaptureSelection()); return true;
-            case GestureActions.RecordSelection: Post(() => c.BeginRecordSelection()); return true;
+            case GestureActions.CaptureStored: Post(() => c.CaptureStoredStill()); return true;
             case GestureActions.RecordToggle: Post(() => c.ToggleRecordSelection()); return true;
 
             case GestureActions.RecordStart:
@@ -83,7 +131,9 @@ sealed class GestureInvoker : GC.IActionInvoker
             case GestureActions.DelayedCapture: Post(() => c.BeginDelayedCapture()); return true;
             case GestureActions.EditLastStill: Post(() => c.EditLastStill()); return true;
             case GestureActions.EditLastVideo: Post(() => c.EditLastVideo()); return true;
-            case GestureActions.PinSelection: Post(() => c.PinFromClipboard()); return true;
+            case GestureActions.PinSelection: Post(() => c.PinStoredStill()); return true;
+            case GestureActions.NotifyToast: Post(() => c.ShowLastStillToast()); return true;
+            case GestureActions.CopyLast: Post(() => c.CopyLastStill()); return true;
 
             case GestureActions.OcrSelection:
                 // 对当前范围直接 OCR（提取文字）。抓取/识别在投递的动作里于 UI 线程跑，钩子回调不占重活。
@@ -92,7 +142,6 @@ sealed class GestureInvoker : GC.IActionInvoker
 
             case GestureActions.SettingsOpen: Post(() => Overlays.SettingsWindow.ShowOrFocus()); return true;
             case GestureActions.HelpOpen: Post(() => Overlays.HelpWindow.ShowOrFocus()); return true;
-            case GestureActions.GestureEdit: Post(() => GestureEditorHost.ShowOrFocus()); return true;
 
             default: return false; // 未知动作=失败
         }

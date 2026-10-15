@@ -14,15 +14,6 @@ namespace FrameCapture.Services;
 /// </summary>
 public sealed partial class CaptureController : IDisposable
 {
-    /// <summary>「选区截图」——选一块区域，选完立即截一帧静态图（与 AutoCaptureOnSelect 开关无关）。</summary>
-    public void BeginCaptureSelection()
-    {
-        Trace.Log("capture-selection→picker");
-        _sessionAfter = _pendingAfter; _pendingAfter = ""; _sessionCopy = _pendingCopy; _pendingCopy = true;   // 捕获本条手势的截图后
-        BeginScopeSelection();
-        _captureAfterSelect = true;
-    }
-
     /// <summary>「选区录制」——选一块区域，选完立即对该区域起录。</summary>
     public void BeginRecordSelection()
     {
@@ -50,7 +41,7 @@ public sealed partial class CaptureController : IDisposable
     public void CaptureInstantStill()
     {
         if (State != Phase.Idle) return;
-        _sessionAfter = _pendingAfter; _pendingAfter = ""; _sessionCopy = _pendingCopy; _pendingCopy = true;   // 捕获本条手势的截图后
+        _sessionAfter = _pendingAfter; _pendingAfter = "";   // 捕获本条手势的截图后
         var region = FullMonitorAtCursor();
         var f = LiveCapture.Grab(region.Bounds);
         if (f == null) { Trace.Log("instant still: grab null"); return; }
@@ -63,7 +54,7 @@ public sealed partial class CaptureController : IDisposable
     public void CaptureStoredStill()
     {
         if (State != Phase.Idle) return;
-        _sessionAfter = _pendingAfter; _pendingAfter = ""; _sessionCopy = _pendingCopy; _pendingCopy = true;   // 捕获本条手势的截图后（托盘触发时 _pendingAfter 已空=默认弹提示）
+        _sessionAfter = _pendingAfter; _pendingAfter = "";   // 捕获本条手势的截图后（托盘触发时 _pendingAfter 已空=默认弹提示）
         var region = StoredRegion() ?? FullMonitorAtCursor();
         var f = LiveCapture.Grab(region.Bounds);
         if (f == null) { Trace.Log("stored still: grab null"); return; }
@@ -246,9 +237,9 @@ public sealed partial class CaptureController : IDisposable
     {
         var pth = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "FrameCapture", $"capture-{DateTime.Now:HHmmss}.png");
         try { BgraImage.SavePng(f, pth); } catch { }
-        if (_sessionCopy) Encoding.ClipboardService.SetFrame(f, includePng: windowCapture);
+        Encoding.ClipboardService.SetFrame(f, includePng: windowCapture);
         SaveService.MaybeSavePng(f); // 自动保存副本（关=零副作用）
-        Trace.Log($"still saved {pth} {f.W}x{f.H} copy={_sessionCopy}");
+        Trace.Log($"still saved {pth} {f.W}x{f.H} ");
         if (_settings.Current.CaptureSound) CaptureSound.Play(_settings.Current.CustomSoundPath); // 提示音（关=零副作用）
         // 截图后落点：弹提示浮窗 / 直接进编辑器 / 什么都不做 / 贴图——四态覆盖不同人群。
         // 写不写剪贴板是上面那条独立开关，与落点无关：贴图、进编辑器都可以不动剪贴板。
@@ -262,12 +253,15 @@ public sealed partial class CaptureController : IDisposable
             case AfterCaptureAction.Pin:
                 PinFrameAt(f, reg); // 截图后直接原地钉屏
                 break;
+            case AfterCaptureAction.None:
+                break; // 这条手势在「完成后」里自己写了落点，默认反馈让位给它
             default:
                 // 拍完即见：缩略浮窗确认这一张截到了，点击原地进编辑器标注，不抢焦点
-                Overlays.CaptureToast.Show(f, reg, device, () => OpenEditorForFrame(f, reg, device), copied: _sessionCopy);
+                Overlays.CaptureToast.Show(f, reg, device, () => OpenEditorForFrame(f, reg, device), copied: true);
                 break;
         }
         _lastStill.Set(f, reg, device); // 浮窗消失后仍可经托盘找回编辑器
+        RunScopedTail("still");         // 这条手势挂在选区上的尾巴：完成后/失败时的覆盖序列在这里交回
     }
 
     /// <summary>是否有可重新编辑的最近静态截图。</summary>
@@ -279,6 +273,33 @@ public sealed partial class CaptureController : IDisposable
     {
         if (!_lastStill.TryGet(out var f, out var reg, out var dev)) return;
         OpenEditorForFrame(f, reg, dev);
+    }
+
+    /// <summary>手势「贴图」——对当前范围（无则光标屏全屏）抓一帧钉在原地。
+    /// 与托盘的「粘贴即贴图」各走各的：这里钉的是屏幕上的范围，不看剪贴板。</summary>
+    public void PinStoredStill()
+    {
+        if (State != Phase.Idle) return;
+        var region = StoredRegion() ?? FullMonitorAtCursor();
+        var f = LiveCapture.Grab(region.Bounds);
+        if (f == null) { Trace.Log("pin-stored: grab null"); return; }
+        PinFrameAt(f, region.Bounds);
+        Trace.Log($"pin-stored {f.W}x{f.H}");
+    }
+
+    /// <summary>手势「提示」——把上一次截图再以浮窗弹一次，点它仍可进编辑器。没有上次截图时什么都不做。</summary>
+    public void ShowLastStillToast()
+    {
+        if (!_lastStill.TryGet(out var f, out var reg, out var dev)) return;
+        Overlays.CaptureToast.Show(f, reg, dev, () => OpenEditorForFrame(f, reg, dev), copied: false);
+    }
+
+    /// <summary>手势「复制到剪贴板」——把上一次截图写进剪贴板。没有上次截图时什么都不做。</summary>
+    public void CopyLastStill()
+    {
+        if (!_lastStill.TryGet(out var f, out _, out _)) return;
+        Encoding.ClipboardService.SetFrame(f);
+        Trace.Log("copy-last still");
     }
 
     /// <summary>是否有留在内存、可进编辑器的上次录制。</summary>

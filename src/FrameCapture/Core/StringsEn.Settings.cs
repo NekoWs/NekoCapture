@@ -12,11 +12,11 @@ static partial class StringsEn
         // 窗口标题、左侧分页导航与分页标题
         ("设置", "Settings"),
         ("快捷键", "Hotkeys"),
-        ("截图", "Screenshot"),
+        ("截图", "Capture"),
         ("录制", "Recording"),
         ("产物", "Output"),
         ("编辑器", "Editor"),
-        ("贴图", "Pins"),
+        ("贴图", "Pin"),
         ("外观", "Appearance"),
         ("系统", "System"),
 

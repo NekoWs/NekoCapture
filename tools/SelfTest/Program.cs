@@ -488,7 +488,7 @@ static class SelfTest
         /// <returns>按当前语言取词的 <see cref="FrameCapture.Core.GestureActions"/> 全表。</returns>
         public IReadOnlyList<GestureEditor.ActionInfo> Actions() =>
             FrameCapture.Core.GestureActions.All
-                .Select(a => new GestureEditor.ActionInfo(a.Name, a.Label, a.Description, a.IsCapture)).ToArray();
+                .Select(a => new GestureEditor.ActionInfo(a.Name, a.Label, a.Description)).ToArray();
         /// <summary>动作名是否受支持。</summary>
         /// <param name="name">动作名。</param>
         /// <returns>真表里有则 true。</returns>
@@ -3032,19 +3032,29 @@ static class SelfTest
                     && AfterCapture.Resolve("Editor") == AfterCaptureAction.Toast
                     && AfterCapture.Resolve("garbage") == AfterCaptureAction.Toast, "null/空/大小写/脏值→回落 Toast");
                 Chk("T116e-pin", AfterCapture.Resolve("pin") == AfterCaptureAction.Pin, "R117 pin→Pin");
-            // 写不写剪贴板与落点各自独立：这条开关必须随绑定往返，且缺省为真
-            var dtoCp = new GestureBindingDto
+            Chk("T116h-none", AfterCapture.Resolve("none") == AfterCaptureAction.None,
+                    "none→None：这条手势在「完成后」里自己写了落点，默认弹提示让位");
+            // 完成后/失败时是两份可选序列，随 DTO↔引擎绑定往返；空=不覆盖，由宿主按默认落点收尾
+            var dtoOv = new GestureBindingDto
             {
-                Chord = "F6", Trigger = "Chord", Actions = new[] { GestureActions.CaptureSelection },
-                AfterCapture = "pin", CopyToClipboard = false,
+                Chord = "F6", Trigger = "Chord", Actions = new[] { GestureActions.ScopeSelect, GestureActions.CaptureStored },
+                OnComplete = new[] { GestureActions.EditLastVideo }, OnFail = new[] { GestureActions.NotifyToast },
             };
-            var engCp = dtoCp.ToBinding()!;
-            Chk("T116f-copy-flag-roundtrip",
-                engCp.CopyToClipboard == false && GestureBindingDto.FromBinding(engCp).CopyToClipboard == false,
-                "「复制到剪贴板」开关随 DTO↔引擎绑定往返，落点各走各的");
-            Chk("T116g-copy-default-on",
-                new GestureBindingDto().CopyToClipboard && new GE.GestureBinding().CopyToClipboard,
-                "缺省写剪贴板：settings.json 里没有这个键时，行为与不写它一致");
+            var engOv = dtoOv.ToBinding()!;
+            var backOv = GestureBindingDto.FromBinding(engOv);
+            Chk("T116f-override-roundtrip",
+                engOv.OnComplete.SequenceEqual(new[] { GestureActions.EditLastVideo })
+                && engOv.OnFail.SequenceEqual(new[] { GestureActions.NotifyToast })
+                && backOv.OnComplete.SequenceEqual(new[] { GestureActions.EditLastVideo })
+                && backOv.OnFail.SequenceEqual(new[] { GestureActions.NotifyToast }),
+                "完成后/失败时两份序列随 DTO↔引擎绑定往返");
+            Chk("T116g-override-default-empty",
+                new GestureBindingDto().OnComplete.Length == 0 && new GestureBindingDto().OnFail.Length == 0
+                && new GE.GestureBinding().OnComplete.Count == 0 && new GE.GestureBinding().OnFail.Count == 0,
+                "缺省不覆盖：settings.json 里没有这两份序列时，行为与不写它一致");
+            var cl = new GE.GestureBinding { OnComplete = { GestureActions.NotifyToast }, OnFail = { GestureActions.CopyLast } }.Clone();
+            Chk("T116i-clone-carries-override", cl.OnComplete.Count == 1 && cl.OnFail.Count == 1,
+                "Clone 深拷贝两份序列，改副本不影响原绑定");
             }
             // 荧光笔半透明烘焙：盖在白底上应透出白（半透明），而非不透明纯色
             {
@@ -3597,22 +3607,27 @@ static class SelfTest
             Chk("T131b-bare-key-rejected", new GestureBindingDto { Chord = "G", Trigger = "Chord", Actions = new[] { GestureActions.CaptureFrame } }.ToBinding() == null,
                 "裸键 G（不安全）解析失败→ToBinding null（复用 HotkeySpec 安全规则）");
 
-            var def = GestureConfig.DefaultBindings("Ctrl+Shift+G", "Ctrl+Shift+R");
-            Chk("T131c-default", def.Count == 2 && def[0].Actions[0] == GestureActions.CaptureFrame && def[1].Actions[0] == GestureActions.ScopeSelect,
-                "默认绑定：捕获键→捕获单帧、选区键→选取范围");
+            var def = GestureConfig.DefaultQqSet("Ctrl+Alt+A", "Ctrl+Alt+R");
+            Chk("T131c-default-capture-chain", def.Count == 2
+                && def[0].Actions.SequenceEqual(new[] { GestureActions.ScopeSelect, GestureActions.CaptureStored })
+                && def[0].OnComplete.Length == 0,
+                "默认截图键 = 选区→截图，完成后不覆盖（默认弹提示），实得 " + string.Join("+", def[0].Actions));
+            Chk("T131c2-default-record-chain",
+                def[1].Actions.SequenceEqual(new[] { GestureActions.ScopeSelect, GestureActions.RecordToggle })
+                && def[1].OnComplete.SequenceEqual(new[] { GestureActions.EditLastVideo }),
+                "默认录制键 = 选区→开始/停止录制，完成后覆盖成打开编辑器");
 
-            var scopeFirst = GestureConfig.PresetScopeFirst("Ctrl+Shift+G", "Ctrl+Shift+R");
-            Chk("T131d-scope-first-preset", scopeFirst.Count == 2 && scopeFirst.All(x => x.Actions[0] == GestureActions.ScopeSelect),
-                "选区优先预设：两键均→选取范围（配合选完自动截图）");
+            Chk("T131d-default-skips-bad-key", GestureConfig.DefaultQqSet("G", "Ctrl+Alt+R").Count == 1,
+                "非法键串那一条不生成（裸键 G 不安全），另一条照生成");
 
-            var cfg = new GestureConfig { Enabled = true, Bindings = GestureConfig.PresetHoldToRecord("F6", "F7") };
+            var cfg = new GestureConfig { Enabled = true, Bindings = GestureConfig.DefaultQqSet("Ctrl+Alt+A", "Ctrl+Alt+R") };
             var json = System.Text.Json.JsonSerializer.Serialize(cfg);
             var back = System.Text.Json.JsonSerializer.Deserialize<GestureConfig>(json)!;
             var eb = back.ToBindings();
-            Chk("T131e-json-roundtrip", back.Enabled && eb.Count == 3
-                && eb.Any(x => x.Trigger == GE.TriggerKind.KeyDown && x.Actions[0] == GestureActions.RecordStart)
-                && eb.Any(x => x.Trigger == GE.TriggerKind.KeyUp && x.Actions[0] == GestureActions.RecordStop),
-                "按住即录预设 JSON 往返：Enabled + KeyDown→开始录制 + KeyUp→结束录制，实得 " + eb.Count + " 条");
+            Chk("T131e-json-roundtrip", back.Enabled && eb.Count == 2
+                && eb.All(x => x.Actions[0] == GestureActions.ScopeSelect)
+                && eb.Any(x => x.OnComplete.Count == 1 && x.OnComplete[0] == GestureActions.EditLastVideo),
+                "默认集 JSON 往返：Enabled + 两条都以选区开头 + 完成序列存活，实得 " + eb.Count + " 条");
 
             var bad = new GestureBindingDto { Chord = "F6", Trigger = "Click", Actions = new[] { GestureActions.CaptureFrame, "no.such.action" } };
             var bb = bad.ToBinding();
@@ -3652,23 +3667,29 @@ static class SelfTest
             Chk("T134a-hook-for-keysink", sinkInstalled, "有手势 KeySink 时装钩子（否则手势永不触发）");
             Chk("T134b-no-hook-when-idle", !idleNotInstalled, "无 KeySink 时不装钩子（零开销）");
         }
-        // 选区动作：capture.selection / record.selection 注册 + Ctrl+Alt+A/R 解析成 Chord
+        // 动作词汇表：选区/截图/提示/复制在册，合成动作不在册；Ctrl+Alt+A/R 解析成 Chord
         {
             Chk("T135a-actions-registered",
-                GestureActions.IsValid("capture.selection") && GestureActions.IsValid("record.selection"),
-                "选区截图/选区录制动作已注册");
-            var d1 = new GestureBindingDto { Id = "qq.shot", Chord = "Ctrl+Alt+A", Trigger = "Chord", Actions = new[] { "capture.selection" } };
+                GestureActions.IsValid("scope.select") && GestureActions.IsValid("capture.stored")
+                && GestureActions.IsValid("notify.toast") && GestureActions.IsValid("copy.clipboard"),
+                "选区 / 截图 / 提示 / 复制到剪贴板 四个动作已注册");
+            Chk("T135a2-composite-actions-gone",
+                !GestureActions.IsValid("capture.selection") && !GestureActions.IsValid("record.selection")
+                && !GestureActions.IsValid("gesture.edit"),
+                "合成动作不在词汇表里：先选区后执行由序列本身表达，配置器窗口已并入设置");
+            var d1 = new GestureBindingDto { Id = "qq.shot", Chord = "Ctrl+Alt+A", Trigger = "Chord", Actions = new[] { "scope.select", "capture.stored" } };
             var b1 = d1.ToBinding();
             Chk("T135b-shot-chord-parse",
                 b1 != null && b1.Chord.Key == 0x41 && (b1.Chord.Mods & GE.ModifierKeys.Control) != 0 &&
                 (b1.Chord.Mods & GE.ModifierKeys.Alt) != 0 && b1.Trigger == GE.TriggerKind.Chord &&
-                b1.Actions.Count == 1 && b1.Actions[0] == "capture.selection",
-                "Ctrl+Alt+A → Chord(Ctrl+Alt+A) → capture.selection 解析正确");
-            var d2 = new GestureBindingDto { Id = "qq.rec", Chord = "Ctrl+Alt+R", Trigger = "Chord", Actions = new[] { "record.selection" } };
+                b1.Actions.SequenceEqual(new[] { "scope.select", "capture.stored" }),
+                "Ctrl+Alt+A → Chord(Ctrl+Alt+A) → 选区+截图 解析正确");
+            var d2 = new GestureBindingDto { Id = "qq.rec", Chord = "Ctrl+Alt+R", Trigger = "Chord", Actions = new[] { "scope.select", "record.toggle" } };
             var b2 = d2.ToBinding();
             Chk("T135c-rec-chord-parse",
-                b2 != null && b2.Chord.Key == 0x52 && b2.Trigger == GE.TriggerKind.Chord && b2.Actions[0] == "record.selection",
-                "Ctrl+Alt+R → Chord → record.selection 解析正确");
+                b2 != null && b2.Chord.Key == 0x52 && b2.Trigger == GE.TriggerKind.Chord &&
+                b2.Actions.SequenceEqual(new[] { "scope.select", "record.toggle" }),
+                "Ctrl+Alt+R → Chord → 选区+开始/停止录制 解析正确");
         }
         // 录制同键起停 + 即时截图动作（B2 用户实测修正）
         {
@@ -3808,18 +3829,87 @@ static class SelfTest
             eng.OnMouseDown(0, GE.ModifierKeys.None, 10); eng.OnMouseUp(0, GE.ModifierKeys.None, 20);
             Chk("T143b-oncomplete-skipped-on-fail", !M.Log.Contains("Pin"), "主动作失败则完成后序列不跑，实得 " + string.Join(",", M.Log));
         }
+        // 前置任务：以「选区」开头的序列整条交给宿主，引擎不猜异步；失败时序列只在真失败时跑
+        {
+            const int F6 = 0x75;
+            void Click(GE.GestureEngine e) { e.OnKeyDown(F6, GE.ModifierKeys.None, 0); e.OnMouseDown(0, GE.ModifierKeys.None, 10); e.OnMouseUp(0, GE.ModifierKeys.None, 20); }
+            GE.GestureBinding Chain(string id, string[] acts, string[]? onDone = null, string[]? onFail = null) => new GE.GestureBinding
+            {
+                Id = id, Chord = new GE.KeyChord(GE.ModifierKeys.None, F6), Trigger = GE.TriggerKind.Click,
+                Actions = new List<string>(acts),
+                OnComplete = new List<string>(onDone ?? Array.Empty<string>()),
+                OnFail = new List<string>(onFail ?? Array.Empty<string>()),
+            };
+
+            var M = new GestureProbe();
+            M.Prelude.Add("Scope");
+            var eng = new GE.GestureEngine(M);
+            eng.SetBindings(new[] { Chain("x", new[] { "Scope", "Cap", "Pin" }) });
+            Click(eng);
+            Chk("T143c-prelude-hands-whole-chain", M.PreludeLog.Count == 1 && M.PreludeLog[0] == "Scope|Cap|Pin" && M.Log.Count == 0,
+                $"整条序列一次交给宿主，引擎不逐步跑后续，实得 prelude=[{string.Join(" / ", M.PreludeLog)}] invoke=[{string.Join(",", M.Log)}]");
+
+            M = new GestureProbe(); M.Prelude.Add("Scope");
+            eng = new GE.GestureEngine(M);
+            eng.SetBindings(new[] { Chain("x", new[] { "Scope" }) });
+            Click(eng);
+            Chk("T143d-prelude-alone-is-sync", M.Log.SequenceEqual(new[] { "Scope" }) && M.PreludeLog.Count == 0,
+                "序列只有前置任务一步：没有后续要等它，按普通动作同步执行，实得 " + string.Join(",", M.Log));
+
+            M = new GestureProbe(); M.Prelude.Add("Scope"); M.AcceptPrelude = false;
+            eng = new GE.GestureEngine(M);
+            eng.SetBindings(new[] { Chain("x", new[] { "Scope", "Cap" }, onFail: new[] { "Nope" }) });
+            Click(eng);
+            Chk("T143e-prelude-refused-runs-onfail", M.Log.SequenceEqual(new[] { "Nope" }),
+                "宿主不受理前置任务＝本条失败，跑失败时序列，实得 " + string.Join(",", M.Log));
+
+            M = new GestureProbe(); M.Prelude.Add("Scope");
+            eng = new GE.GestureEngine(M);
+            eng.SetBindings(new[] { Chain("x", new[] { "Cap", "Scope" }) });
+            Click(eng);
+            Chk("T143f-prelude-only-at-step-one", M.Log.SequenceEqual(new[] { "Cap", "Scope" }) && M.PreludeLog.Count == 0,
+                "同名动作出现在序列中间时按普通动作执行，实得 " + string.Join(",", M.Log));
+
+            var plain = new PlainProbe();   // 不支持前置任务的宿主
+            eng = new GE.GestureEngine(plain);
+            eng.SetBindings(new[] { Chain("x", new[] { "Scope", "Cap" }) });
+            Click(eng);
+            Chk("T143g-host-without-prelude", plain.Log.SequenceEqual(new[] { "Scope", "Cap" }),
+                "宿主没实现前置任务接口时保持逐步同步执行，实得 " + string.Join(",", plain.Log));
+
+            M = new GestureProbe();
+            eng = new GE.GestureEngine(M);
+            eng.SetBindings(new[] { Chain("x", new[] { "Cap" }, onDone: new[] { "Done" }, onFail: new[] { "Oops" }) });
+            Click(eng);
+            Chk("T143h-onfail-not-on-success", M.Log.SequenceEqual(new[] { "Cap", "Done" }),
+                "主序列成功：跑完成后、不跑失败时，实得 " + string.Join(",", M.Log));
+            M.Log.Clear(); M.Fail.Add("Cap");
+            Click(eng);
+            Chk("T143i-onfail-on-stop", M.Log.SequenceEqual(new[] { "Cap", "Oops" }),
+                "主序列失败且策略 Stop：跑失败时序列、不跑完成后，实得 " + string.Join(",", M.Log));
+            M.Log.Clear(); M.Fail.Clear(); M.Fail.Add("Cap");
+            eng.SetBindings(new[] { new GE.GestureBinding
+            {
+                Id = "y", Chord = new GE.KeyChord(GE.ModifierKeys.None, F6), Trigger = GE.TriggerKind.Click,
+                Actions = new List<string> { "Cap", "Pin" }, Fallback = GE.FallbackPolicy.SkipStep,
+                OnComplete = new List<string> { "Done" }, OnFail = new List<string> { "Oops" },
+            } });
+            Click(eng);
+            Chk("T143j-skipstep-keeps-going", M.Log.SequenceEqual(new[] { "Cap", "Pin", "Done" }),
+                "SkipStep：失败步跳过继续跑后续与完成后，失败时序列不跑，实得 " + string.Join(",", M.Log));
+        }
         // 录制动作无默认行为：停止/同键起停不自动开编辑器；开编辑器是独立动作、配在完成后序列
         {
             Chk("T144a-edit-lastvideo-exists", GestureActions.IsValid("edit.lastvideo"),
                 "新增『打开编辑器（上次录制）』动作");
             var rs = GestureActions.All.First(a => a.Name == "record.stop");
-            Chk("T144b-record-stop-no-default-editor", rs.Description.Contains("不进编辑器"),
+            Chk("T144b-record-stop-no-default-editor", rs.Description.Contains("不自动进编辑器"),
                 $"停止录制文案明确不进编辑器：{rs.Description}");
             var rt = GestureActions.All.First(a => a.Name == "record.toggle");
-            Chk("T144c-record-toggle-no-default-editor", rt.Description.Contains("不进编辑器"),
+            Chk("T144c-record-toggle-no-default-editor", rt.Description.Contains("不自动进编辑器"),
                 $"同键起停文案明确不进编辑器：{rt.Description}");
             var lv = GestureActions.All.First(a => a.Name == "edit.lastvideo");
-            Chk("T144d-edit-lastvideo-guides-oncomplete", lv.Description.Contains("完成后序列"),
+            Chk("T144d-edit-lastvideo-guides-oncomplete", lv.Description.Contains("完成后"),
                 $"打开编辑器动作文案引导配到完成后序列：{lv.Description}");
         }
         // 裁剪视图居中：非居中裁剪后，裁剪子区中心必落在视口中心+pan。
@@ -3897,19 +3987,17 @@ static class SelfTest
             bool swUp = eng.OnKeyUp(F6, GE.ModifierKeys.None, 100);
             Chk("T146f-claim-swallow", swDown && swRepeat && swUp, $"tap/hold 键按下+重复+抬起全吞（前台收不到），实得 down={swDown} rep={swRepeat} up={swUp}");
         }
-        // 默认手势集播种：QQ 键位——截图键组合键进选区、录制键组合键切换；一次性、尊重已有绑定。
+        // 默认手势集播种：截图键 = 选区→截图，录制键 = 选区→开始/停止录制 + 完成后打开编辑器；一次性、尊重已有绑定。
         {
-            var set = GestureConfig.DefaultTapHoldSet("Ctrl+Shift+G", "Ctrl+Shift+R");
+            var set = GestureConfig.DefaultQqSet("Ctrl+Shift+G", "Ctrl+Shift+R");
             Chk("T147a-default-set-shape",
-                set.Count == 4
-                && set.Any(b => b.Trigger == "Tap" && b.Actions.Contains("capture.selection"))
-                && set.Any(b => b.Trigger == "Hold" && b.Actions.Contains("record.start"))
-                && set.Any(b => b.Trigger == "HoldRelease" && b.Actions.Contains("record.stop"))
-                && set.Any(b => b.Trigger == "Chord" && b.Actions.Contains("scope.select")),
-                $"默认集=捕获键 Tap/Hold/HoldRelease + 选区键 Chord，实得 {set.Count} 条");
-            Chk("T147b-default-hold-threshold",
-                set.Where(b => b.Trigger is "Tap" or "Hold" or "HoldRelease").All(b => b.LongPressMs == 250),
-                "tap/hold 三条按住阈值=250ms");
+                set.Count == 2
+                && set.All(b => b.Trigger == "Chord")
+                && set.All(b => b.Actions.Length > 0 && b.Actions[0] == "scope.select")
+                && set[0].Actions.Contains("capture.stored") && set[1].Actions.Contains("record.toggle"),
+                $"默认集=两条 Chord、都以选区开头，实得 {set.Count} 条");
+            Chk("T147b-default-name-empty", set.All(b => string.IsNullOrEmpty(b.Name)),
+                "默认集名字留空：折叠时按序列推导显示，界面语言切换时跟着换");
 
             var cfg = new GestureConfig();
             cfg.SeedIfNeeded(GestureConfig.DefaultCaptureKey, GestureConfig.DefaultRecordKey);
@@ -3959,10 +4047,10 @@ static class SelfTest
             GC.Bindings = new List<GestureBindingDto>
             {
                 new() { Id = "r", Enabled = true, Chord = "Ctrl+Alt+R", Trigger = "Chord", Actions = new[] { "record.toggle" } },
-                new() { Id = "a", Enabled = true, Chord = "Ctrl+Alt+A", Trigger = "Chord", Actions = new[] { "capture.selection" } },
+                new() { Id = "a", Enabled = true, Chord = "Ctrl+Alt+A", Trigger = "Chord", Actions = new[] { "capture.stored" } },
                 new() { Id = "fd", Enabled = true, Chord = "F2", Trigger = "KeyDown", Actions = new[] { "record.start" } },
                 new() { Id = "fu", Enabled = true, Chord = "F2", Trigger = "KeyUp", Actions = new[] { "record.stop" } },
-                new() { Id = "off", Enabled = false, Chord = "Ctrl+Alt+X", Trigger = "Chord", Actions = new[] { "capture.selection" } },
+                new() { Id = "off", Enabled = false, Chord = "Ctrl+Alt+X", Trigger = "Chord", Actions = new[] { "capture.stored" } },
             };
             Chk("T149a-scope-unbound",
                 GC.DescribeKeysFor(GestureActions.ScopeSelect) == "未绑定",
@@ -3971,13 +4059,18 @@ static class SelfTest
             Chk("T149b-record-grouped", rec == "Ctrl+Alt+R，F2 按下/松开",
                 "录制键按组合键分组、合并触发后缀，实得 " + rec);
             Chk("T149c-capture-chord-nosuffix",
-                GC.DescribeKeysFor(GestureActions.CaptureSelection, GestureActions.CaptureFrame) == "Ctrl+Alt+A",
+                GC.DescribeKeysFor(GestureActions.CaptureStored, GestureActions.CaptureFrame) == "Ctrl+Alt+A",
                 "Chord 触发无后缀 + 禁用绑定排除 → Ctrl+Alt+A");
-            var def = new GestureConfig { Bindings = GestureConfig.DefaultTapHoldSet("Ctrl+Shift+G", "Ctrl+Shift+R") };
-            Chk("T149d-default-taphold",
-                def.DescribeKeysFor(GestureActions.CaptureSelection) == "Ctrl+Shift+G 轻点"
-                && def.DescribeKeysFor(GestureActions.RecordStart, GestureActions.RecordStop) == "Ctrl+Shift+G 按住/松手",
-                "默认集：截图=轻点、录制=按住/松手");
+            var th = new GestureConfig { Bindings = new List<GestureBindingDto>
+            {
+                new() { Id = "cap.tap", Enabled = true, Chord = "Ctrl+Shift+G", Trigger = "Tap", Actions = new[] { "capture.stored" } },
+                new() { Id = "cap.hold", Enabled = true, Chord = "Ctrl+Shift+G", Trigger = "Hold", Actions = new[] { "record.start" } },
+                new() { Id = "cap.holdrelease", Enabled = true, Chord = "Ctrl+Shift+G", Trigger = "HoldRelease", Actions = new[] { "record.stop" } },
+            } };
+            Chk("T149d-same-key-three-triggers",
+                th.DescribeKeysFor(GestureActions.CaptureStored) == "Ctrl+Shift+G 轻点"
+                && th.DescribeKeysFor(GestureActions.RecordStart, GestureActions.RecordStop) == "Ctrl+Shift+G 按住/松手",
+                "同一个键挂三种触发方式互不覆盖：轻点截图、按住起录、松手停录");
             Chk("T149e-trigger-label",
                 GestureConfig.TriggerLabel("Tap") == "轻点"
                 && GestureConfig.TriggerLabel("Chord") == ""
@@ -3989,7 +4082,7 @@ static class SelfTest
         // 设置窗「当前生效键位」用动作短标签（，GestureActions.LabelOf 纯查找）
         {
             Chk("T150a-label-known",
-                GestureActions.LabelOf("capture.selection") == "选区截图"
+                GestureActions.LabelOf("capture.stored") == "截图"
                 && GestureActions.LabelOf("record.toggle") == "开始/停止录制"
                 && GestureActions.LabelOf("ocr.selection") == "识别文字",
                 "已知动作 → 中文短名");
@@ -4530,14 +4623,36 @@ static class SelfTest
     }
 }
 
-/// <summary>GestureCore 测试探针：记录被调用的动作名，可指定某些动作必然失败以驱动失败策略分支。</summary>
-sealed class GestureProbe : GestureCore.IActionInvoker
+/// <summary>GestureCore 测试探针：记录被调用的动作名，可指定某些动作必然失败以驱动失败策略分支。
+/// 另实现 <see cref="GestureCore.IPreludeInvoker"/>：哪些动作名算前置任务、宿主是否受理都可控，
+/// 用来断言引擎把「以选区开头的序列」整体交给宿主，绝不逐步同步跑掉后面的动作。</summary>
+sealed class GestureProbe : GestureCore.IPreludeInvoker
 {
     public List<string> Log = new();
     public HashSet<string> Fail = new();
     public List<string> Bindings = new();   // 记录 BeginBinding 收到的绑定 Id
+    public HashSet<string> Prelude = new(); // 这些动作名被宿主认作前置任务
+    public bool AcceptPrelude = true;       // 宿主是否受理带前置任务的整条序列
+    public List<string> PreludeLog = new(); // 交来的整条序列，用 | 连接便于断言
     public bool Invoke(string actionName) { Log.Add(actionName); return !Fail.Contains(actionName); }
     public void BeginBinding(GestureCore.GestureBinding b) { Bindings.Add(b.Id); }
+    public bool IsPrelude(string actionName) => Prelude.Contains(actionName);
+    public bool InvokePrelude(IReadOnlyList<string> actions)
+    {
+        PreludeLog.Add(string.Join("|", actions));
+        // 受理＝整条归宿主跑；不受理＝什么都没发生，引擎据此走本条失败路径
+
+        return AcceptPrelude;
+    }
+}
+
+/// <summary>只实现 <see cref="GestureCore.IActionInvoker"/> 的最小宿主：不认前置任务，
+/// 用来断言引擎对不支持它的宿主保持逐步同步执行。</summary>
+sealed class PlainProbe : GestureCore.IActionInvoker
+{
+    public List<string> Log = new();
+    public bool Invoke(string actionName) { Log.Add(actionName); return true; }
+    public void BeginBinding(GestureCore.GestureBinding b) { }
 }
 
 /// <summary>测试配置仓：给配置器一份含两条绑定的内存配置，Save 只换内存副本不落盘。</summary>

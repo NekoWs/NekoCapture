@@ -70,11 +70,6 @@ public sealed class AppSettings
     /// WGC 按窗口取帧失败时自动回退区域录制。</summary>
     public bool RecordWindowClean { get; set; } = true;
 
-    /// <summary>截图完成后的行为：toast=弹缩略浮窗可一键进编辑器（默认，兼顾确认与标注）；
-    /// editor=复制后直接打开标注编辑器；copy=只复制不弹窗不开编辑器（最快，轮廓闪一下作反馈）。
-    /// 三态覆盖「要确认」「要标注」「只要剪贴板」三类人群，非法值回落 toast。</summary>
-    public string AfterCapture { get; set; } = "toast";
-
     /// <summary>按下选区快捷键后是否显示上次选区的虚线框（关=干净屏，Enter 确认上次选区随之失效）。</summary>
     public bool ShowLastRegion { get; set; } = true;
 
@@ -204,7 +199,7 @@ public sealed class AppSettings
         return JsonSerializer.Deserialize<AppSettings>(json)!;
     }
 
-    /// <summary>把非法/越界的值收敛到可运行区间：帧率、胶片条参数、主题与 AfterCapture 的非法字符串、
+    /// <summary>把非法/越界的值收敛到可运行区间：帧率、胶片条参数、主题、
     /// toast 时长、预抓窗口数，以及小于 16px 的「上次捕获范围」（连同显示器名一起作废）。
     /// Load / Save / Mutate 都会过它，因此读到的设置恒满足这些区间。</summary>
     public void Normalize()
@@ -214,7 +209,6 @@ public sealed class AppSettings
         AgentStripEveryN = Math.Clamp(AgentStripEveryN, 1, 60);
         if (Theme is not ("system" or "light" or "dark")) Theme = "system";
         if (UiLanguage is not ("system" or "zh" or "en")) UiLanguage = "system";
-        if (AfterCapture is not ("toast" or "editor" or "copy" or "pin")) AfterCapture = "toast";
         Gestures ??= new GestureConfig();
         Gestures.SeedIfNeeded(GestureConfig.DefaultCaptureKey, GestureConfig.DefaultRecordKey);   // 一次性：空配置播种 QQ 键位（截图 / 录制）
         ToastSeconds = ToastSeconds <= 0 ? 0 : Math.Clamp(ToastSeconds, 0.5, 60);

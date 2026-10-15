@@ -133,17 +133,15 @@ public sealed class GestureBinding
     /// <summary>动作名序列（宿主经 <see cref="IActionInvoker"/> 按名执行）。</summary>
     public List<string> Actions { get; set; } = new List<string>();
 
-    /// <summary>完成后序列（A3）：主 <see cref="Actions"/> 全部成功后再按序执行（如"截图后→贴图/复制"）。
-    /// 尽力而为：其失败不改变本条结果。宿主若把动作投递到串行队列，则天然排在主动作之后执行。</summary>
+    /// <summary>完成后序列：主 <see cref="Actions"/> 全部成功后再按序执行（如"截图后→贴图/复制"）。
+    /// 尽力而为：其失败不改变本条结果。宿主若把动作投递到串行队列，则天然排在主动作之后执行。
+    /// 空列表＝不覆盖，由宿主按自己的默认落点收尾（截图默认弹提示浮窗）。</summary>
     public List<string> OnComplete { get; set; } = new List<string>();
 
-    /// <summary>截图后行为：本条手势触发截图完成后的动作——"toast"弹提示 / "editor"进编辑器 / "copy"只复制 / "pin"贴图；
-    /// 空串＝跟随默认（弹提示）。仅对含截图动作的绑定生效，逐条各配各的，引擎本身不解释取值。</summary>
-    public string AfterCapture { get; set; } = "";
-
-    /// <summary>截图完成后要不要把这张图写进剪贴板。与 <see cref="AfterCapture"/> 各自独立：
-    /// 关掉它，贴图与进编辑器都不会覆盖用户剪贴板里原有的东西。引擎不解释取值，由宿主执行。</summary>
-    public bool CopyToClipboard { get; set; } = true;
+    /// <summary>失败时序列：主 <see cref="Actions"/> 有步失败且策略不是 <see cref="FallbackPolicy.SkipStep"/>
+    /// 时按序执行（如"提示一下为什么没成"）。空列表＝不覆盖，失败静默。
+    /// 前置任务在宿主手里失败或取消时，由宿主负责跑这份列表。</summary>
+    public List<string> OnFail { get; set; } = new List<string>();
 
     /// <summary>本条绑定内某步失败时的处理策略（显式数据，非引擎硬编码）。</summary>
     public FallbackPolicy Fallback { get; set; } = FallbackPolicy.Stop;
@@ -151,7 +149,7 @@ public sealed class GestureBinding
     /// <summary>同一触发命中多条绑定时的先后（小者先；相等按加入顺序）。「同键多绑定按优先级顺延」。</summary>
     public int Priority { get; set; }
 
-    /// <summary>深拷贝：新建 <see cref="Chord"/> 与两个动作列表，改副本不影响原绑定。</summary>
+    /// <summary>深拷贝：新建 <see cref="Chord"/> 与三份动作列表，改副本不影响原绑定。</summary>
     /// <returns>字段等值的新 <see cref="GestureBinding"/>；<see cref="GestureEngine.SetBindings"/> 入库时逐条走它。</returns>
     public GestureBinding Clone() => new GestureBinding
     {
@@ -162,7 +160,7 @@ public sealed class GestureBinding
         LongPressMs = LongPressMs,
         Actions = new List<string>(Actions),
         OnComplete = new List<string>(OnComplete),
-        AfterCapture = AfterCapture,
+        OnFail = new List<string>(OnFail),
         Fallback = Fallback,
         Priority = Priority,
     };
@@ -178,10 +176,30 @@ public interface IActionInvoker
     /// <returns>true=成功；false=失败，按该条绑定的 <see cref="GestureBinding.Fallback"/> 处理。抛异常等同失败。</returns>
     bool Invoke(string actionName);
 
-    /// <summary>绑定开始执行前通知宿主：宿主可读取 b 的元数据（如 <see cref="GestureBinding.AfterCapture"/>）
-    /// 作为本次动作序列的上下文（截图完成时据此分派「截图后」行为）。先于本条的任何动作调用一次；实现应轻量、不抛。</summary>
+    /// <summary>绑定开始执行前通知宿主：宿主可读取 b 的元数据（完成/失败序列、优先级、时长阈值）
+    /// 作为本次动作序列的上下文。先于本条的任何动作调用一次；实现应轻量、不抛。</summary>
     /// <param name="b">即将执行动作序列的绑定。引擎已克隆过入库副本，宿主不应在此改写它。</param>
     void BeginBinding(GestureBinding b);
+}
+
+/// <summary>
+/// 支持<b>前置任务</b>的宿主实现 <see cref="IActionInvoker"/> 之外的这一段；不实现它的宿主保持逐步同步执行。
+/// 前置任务＝它自己决定何时算完成（等用户拖完一个框、等一次选择落地），所以它之后的动作不能立刻执行。
+/// 引擎只在「序列第一步」这一处认前置任务，序列中间出现同名动作按普通动作处理。
+/// </summary>
+public interface IPreludeInvoker : IActionInvoker
+{
+    /// <summary>该动作名是否是前置任务。引擎用它决定这条序列走同步执行还是整体交给宿主。</summary>
+    /// <param name="actionName">序列第一步的动作名。</param>
+    /// <returns>该动作是前置任务时为 true。</returns>
+    bool IsPrelude(string actionName);
+
+    /// <summary>执行带前置任务的整条序列：先跑 <paramref name="actions"/>[0] 这个前置任务，
+    /// 它落地后再按序跑其余动作，跑完按宿主自己的默认落点或绑定携带的完成/失败序列收尾。
+    /// 引擎调用前已调过 <see cref="IActionInvoker.BeginBinding"/>，绑定元数据由宿主自己留存。</summary>
+    /// <param name="actions">完整序列，[0] 是 <see cref="IsPrelude"/> 认下的前置任务。</param>
+    /// <returns>是否已受理。true＝后续成败归宿主，引擎按成功处理本条；false＝受理失败，走本条失败路径。</returns>
+    bool InvokePrelude(IReadOnlyList<string> actions);
 }
 
 /// <summary>内部工具：把修饰键枚举格式化为 "Ctrl+Alt" 形式（供 KeyChord.Format）。</summary>

@@ -287,7 +287,7 @@ public sealed class HelpWindow : Window
             ("\uE945", Loc.T("快速上手"), Loc.T("定范围 → 触发 → 复制。"), p =>
             {
                 KV(p, KeysFor(GestureActions.ScopeSelect), Loc.T("设置捕获范围 · 拖框或点窗口"));
-                KV(p, KeysFor(GestureActions.CaptureFrame, GestureActions.CaptureSelection), Loc.T("截图：截完自动进剪贴板"));
+                KV(p, KeysFor(GestureActions.CaptureStored, GestureActions.CaptureFrame), Loc.T("截图：截完自动进剪贴板"));
                 KV(p, KeysFor(GestureActions.RecordToggle, GestureActions.RecordStart, GestureActions.RecordStop), Loc.T("录制：按住起录，松手停"));
                 KV(p, EditorKeysFor("commit", "close"), Loc.T("编辑器里：确定复制 / 取消"));
                 KV(p, EditorKeysFor("help"), Loc.T("随时回到本指南"));

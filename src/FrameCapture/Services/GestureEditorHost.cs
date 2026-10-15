@@ -43,7 +43,7 @@ public static class GestureEditorHost
         /// <returns>新数组：短名与说明按当前界面语言取词，因此切换语言后重开配置器就是新语言，
         /// 缓存成字段会把首次打开时的语言冻住。配置器只读，不回写。</returns>
         public IReadOnlyList<GE.ActionInfo> Actions() =>
-            GestureActions.All.Select(a => new GE.ActionInfo(a.Name, a.Label, a.Description, a.IsCapture)).ToArray();
+            GestureActions.All.Select(a => new GE.ActionInfo(a.Name, a.Label, a.Description)).ToArray();
 
         /// <summary>动作名是否为本 app 真实支持的动作。</summary>
         /// <param name="name">动作名，与 <see cref="GestureActions"/> 表内原文逐字比对（区分大小写）。</param>
@@ -71,7 +71,7 @@ public static class GestureEditorHost
         public GE.GestureDoc Load()
         {
             var cfg = AppHost.Current.Settings.Current.Gestures;
-            var doc = new GE.GestureDoc { Enabled = cfg.Enabled, Exclusive = cfg.Exclusive };
+            var doc = new GE.GestureDoc { Enabled = cfg.Enabled };
             foreach (var d in cfg.Bindings)
             {
                 var spec = HotkeySpec.Parse(d.Chord);
@@ -84,8 +84,8 @@ public static class GestureEditorHost
                     Trigger = Enum.TryParse<GC.TriggerKind>(d.Trigger, true, out var t) ? t : GC.TriggerKind.Chord,
                     Actions = d.Actions.ToList(),
                     OnComplete = d.OnComplete.ToList(),
-                    AfterCapture = d.AfterCapture ?? "",
-                    CopyToClipboard = d.CopyToClipboard,
+
+
                     Fallback = Enum.TryParse<GC.FallbackPolicy>(d.Fallback, true, out var f) ? f : GC.FallbackPolicy.Stop,
                     Priority = d.Priority,
                     DoubleClickMs = d.DoubleClickMs,
@@ -99,7 +99,7 @@ public static class GestureEditorHost
         /// <param name="doc">配置器当前文档。<b>整体替换</b>现有配置：文档里没有的绑定即被删除，不做增量合并。</param>
         public void Save(GE.GestureDoc doc)
         {
-            var cfg = new GestureConfig { Enabled = doc.Enabled, Exclusive = doc.Exclusive };
+            var cfg = new GestureConfig { Enabled = doc.Enabled };
             foreach (var b in doc.Bindings)
             {
                 var spec = new HotkeySpec
@@ -118,8 +118,8 @@ public static class GestureEditorHost
                     Trigger = b.Trigger.ToString(),
                     Actions = b.Actions.ToArray(),
                     OnComplete = b.OnComplete.ToArray(),
-                    AfterCapture = b.AfterCapture,
-                    CopyToClipboard = b.CopyToClipboard,
+
+
                     Fallback = b.Fallback.ToString(),
                     Priority = b.Priority,
                     DoubleClickMs = b.DoubleClickMs,

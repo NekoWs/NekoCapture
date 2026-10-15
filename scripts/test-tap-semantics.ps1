@@ -1,6 +1,6 @@
-# R126 B2 手势点按/按住语义端到端：统一测试手势集（Ctrl+Shift+G 轻点→选区截图 / 按住→录制→编辑器）。
-# 轻点(短按)→capture.selection→弹选区窗；按住(长按)→record.start→record.stop→edit.lastvideo→编辑器 frames>1。
-# 断言走 fc-trace「capture-selection→picker」与「open editor frames=N」，结束一律还原用户设置。
+# 手势点按/按住语义端到端：统一测试手势集（Ctrl+Shift+G 轻点→选区+截图 / 按住→录制→编辑器）。
+# 轻点(短按)→以「选区」开头的序列整体交给控制器→弹选区窗；按住(长按)→record.start→record.stop→edit.lastvideo→编辑器 frames>1。
+# 断言走 fc-trace「scoped arm lead=Still」与「open editor frames=N」，结束一律还原用户设置。
 $ErrorActionPreference = "Stop"
 $root = Split-Path $PSScriptRoot
 . (Join-Path $PSScriptRoot "lib-hotkey.ps1")
@@ -31,17 +31,17 @@ $capHk = 'Ctrl+Shift+G'
 try {
     Restart-App
 
-    # 场景1：轻点 80ms（< 250ms 阈值）→ capture.selection → 选区窗
-    $pk0 = Count-Trace "capture-selection→picker"
+    # 场景1：轻点 80ms（< 250ms 阈值）→ 选区+截图 → 选区窗
+    $pk0 = Count-Trace "scoped arm lead=Still"
     Invoke-FcHotkey $shot $capHk 80 | Out-Null; Start-Sleep 1.6
-    $pk1 = Count-Trace "capture-selection→picker"
+    $pk1 = Count-Trace "scoped arm lead=Still"
     $pkWin = & $shot rect "FrameCapture Region" 2>$null
     "tap80: picker_trace_delta=$($pk1 - $pk0) win=[$pkWin]"
     & $shot keyw "FrameCapture Region" 27 2>$null | Out-Null; Start-Sleep 0.6
     $tapOk = ($pk1 - $pk0) -ge 1
 
     # 场景2：按住 600ms（> 250ms 阈值）→ 起录→停止→编辑器，frames>1
-    # R157：场景间重启隔离——keyw(PostMessage) 不触发 WPF Esc，上一场景的编辑器/选区窗关不掉，
+    # 场景间重启隔离——keyw(PostMessage) 不触发 WPF Esc，上一场景的编辑器/选区窗关不掉，
     # 会让下一场景 edit.lastvideo 复用旧窗、不再产生「open editor frames=」trace（环境抖动，非产品缺陷）。
     Restart-App
     $n2 = Count-Trace "open editor frames="

@@ -30,23 +30,15 @@ public sealed partial class CaptureController : IDisposable
     private bool _captureAfterSelect;
     /// <summary>「选区录制」——本次选区确认后立即对该区域起录。</summary>
     private bool _recordAfterSelect;
-    /// <summary>本条手势的「截图后」（引擎 BeginBinding 设，截图发起时捕获进 <see cref="_sessionAfter"/>）。空=默认弹提示。</summary>
+    /// <summary>本条手势的「截图后」落点（引擎 BeginBinding 设，截图发起时捕获进 <see cref="_sessionAfter"/>）。
+    /// 空=不覆盖，走默认弹提示；"none"=这条手势在「完成后」里自己写了落点。</summary>
     private string _pendingAfter = "";
     /// <summary>本次截图会话的「截图后」（发起时从 <see cref="_pendingAfter"/> 捕获，完成时分派）。
     /// 单独存一份是为防选区拖框期间触发的别的手势把 _pendingAfter 覆盖掉。</summary>
     private string _sessionAfter = "";
-    /// <summary>本条手势的「复制到剪贴板」，发起时捕获进 <see cref="_sessionCopy"/>。</summary>
-    private bool _pendingCopy = true;
-    /// <summary>本次截图会话要不要写剪贴板。与落点各自独立：贴图、进编辑器都可以不动剪贴板。</summary>
-    private bool _sessionCopy = true;
-    /// <summary>引擎在跑某条手势动作前告知本条的「截图后」与「复制到剪贴板」。仅记录，真正生效在截图发起时捕获。</summary>
+    /// <summary>引擎在跑某条手势动作前告知本条的「完成后」是否覆盖了默认落点。仅记录，真正生效在截图发起时捕获。</summary>
     /// <param name="v">落点名；null 与空串等价，都按「默认弹提示」处理。</param>
-    /// <param name="copy">这张图完成后要不要写进剪贴板。</param>
-    public void SetPendingAfterCapture(string? v, bool copy = true)
-    {
-        _pendingAfter = string.IsNullOrEmpty(v) ? "" : v;
-        _pendingCopy = copy;
-    }
+    public void SetPendingAfterCapture(string? v) => _pendingAfter = string.IsNullOrEmpty(v) ? "" : v;
     /// <summary>选区完成后到真正抓取/起录之间的留白(ms)。选区窗已 WDA_EXCLUDEFROMCAPTURE，抓取本就拍不到它；
     /// 这里只留极短一拍让选区窗 Close 走完（防 WDA 万一失效时把选区界面截进画面）。再长就是纯等，用户能感觉到截图变慢。</summary>
     private const int PickerExitMs = 40;
@@ -178,9 +170,10 @@ public sealed partial class CaptureController : IDisposable
             var pk = _picker; // 定格帧/预抓缓存挂在选区窗上，先留引用（下面 _picker 置空、窗随即关闭）
             _picker = null;
             State = Phase.Idle;
-            bool stillAfterSelect = _settings.Current.AutoCaptureOnSelect || _captureAfterSelect;
+            // 挂着「先选区再执行」时全局「选区自动截取」让位：序列里写了截图才有截图，没写就只定范围
+            bool stillAfterSelect = _captureAfterSelect || (_settings.Current.AutoCaptureOnSelect && _tailRun == null);
             _captureAfterSelect = false;
-            if (region is null) return;
+            if (region is null) { RunScopedFail(); return; }
             // 选区跑完就交出这一份参数：矩形 + 点中的窗口 + 所在屏。后面截图还是录制都读它，
             // 各自用 WithWindowHonor 过一遍自己的开关，不再各存各的临时状态。
             var sel = new Selection(monitor.DeviceName, region.Value, hwnd);
@@ -265,6 +258,8 @@ public sealed partial class CaptureController : IDisposable
                 FlashOutline(region.Value);
                 _outline!.FadeAway(_settings.Current.OutlineFadeSeconds);
             }
+            // 范围已定且没有专门的收尾路径：尾巴就地交回宿主，各动作自己读已存范围
+            if (!stillAfterSelect) RunScopedTail("scope");
         };
         _picker.Show();
         // 选区窗不调 ForceForeground：它是非激活窗，抢前台会把焦点从目标窗（如浏览器）夺走，
@@ -467,6 +462,9 @@ public sealed partial class CaptureController : IDisposable
         }
         else { _lastSequence = seq; State = Phase.Idle; }
         RetireCaptureOutline();
+        // 录制停止才是这条手势的「完成」：挂在选区上的尾巴到这一刻才交回宿主，
+        // 必须排在 State 置 Idle 之后——『打开编辑器』只在空闲时才接产物。
+        RunScopedTail("record");
     }
 
     /// <summary>录制/截图收尾时退场范围提示：停徽标、复位边框，再按「常显轮廓」设置决定保留常显还是淡出。

@@ -22,6 +22,8 @@ namespace GestureCore;
 public sealed class GestureEngine
 {
     readonly IActionInvoker _invoker;
+    // 宿主支持前置任务时非空：以它开头的序列整体交给宿主，引擎不等异步
+    readonly IPreludeInvoker? _prelude;
     List<GestureBinding> _bindings = new List<GestureBinding>();
     // 每个组合键的运行时状态；字典按键值相等命中（见 ChordEq），不按实例身份
     readonly Dictionary<KeyChord, ChordState> _state = new Dictionary<KeyChord, ChordState>(ChordEq.Instance);
@@ -72,10 +74,12 @@ public sealed class GestureEngine
     }
 
     /// <summary>创建引擎。引擎与宿主的全部耦合都经 <paramref name="invoker"/> 发生，此外无任何外部依赖。</summary>
-    /// <param name="invoker">动作执行回调，由宿主实现；为 null 直接抛 <see cref="ArgumentNullException"/>。</param>
+    /// <param name="invoker">动作执行回调，由宿主实现；为 null 直接抛 <see cref="ArgumentNullException"/>。
+    /// 宿主若另实现 <see cref="IPreludeInvoker"/>，以「前置任务」开头的序列会整体交给它，而不是逐步同步跑。</param>
     public GestureEngine(IActionInvoker invoker)
     {
         _invoker = invoker ?? throw new ArgumentNullException(nameof(invoker));
+        _prelude = invoker as IPreludeInvoker;
     }
 
     /// <summary>替换绑定表（按优先级预排序）。会重置所有运行时状态：按下集合、吞键认领、连击与长按累积全部作废。</summary>
@@ -344,23 +348,51 @@ public sealed class GestureEngine
         return false;   // 该触发无绑定
     }
 
-    /// <summary>顺序执行一条绑定的动作序列。SkipStep 跳过失败步继续；Stop/NextBinding 遇失败即中止返回 false。
-    /// 主序列成功后再跑「完成后序列」OnComplete（A3）——尽力而为，其失败不改变本条结果。</summary>
+    /// <summary>顺序执行一条绑定的动作序列。SkipStep 跳过失败步继续；Stop/NextBinding 遇失败即中止并跑「失败时」序列。
+    /// 主序列成功后再跑「完成后序列」OnComplete——尽力而为，其失败不改变本条结果；OnComplete 为空由宿主按默认落点收尾。
+    /// 序列第一步是宿主认定的<b>前置任务</b>时，整条序列交给 <see cref="IPreludeInvoker.InvokePrelude"/>：
+    /// 前置任务的完成时刻只有宿主知道，后续动作的成败与完成/失败序列也一并归它结算，引擎不猜异步。</summary>
     bool RunActions(GestureBinding b)
     {
-        try { _invoker.BeginBinding(b); } catch { }   // 把本条绑定元数据（如截图后行为）交给宿主作上下文
+        try { _invoker.BeginBinding(b); } catch { }   // 把本条绑定的元数据交给宿主作本次序列的上下文
+        var prelude = _prelude;
+        if (prelude != null && b.Actions.Count > 0 && Safe(() => prelude.IsPrelude(b.Actions[0])))
+        {
+            // 只有前置任务一步：没有后续动作要等它，按普通动作同步执行即可
+            if (b.Actions.Count == 1)
+            {
+                if (Safe(() => _invoker.Invoke(b.Actions[0]))) { RunList(b.OnComplete); return true; }
+                RunList(b.OnFail);
+                return false;
+            }
+            bool started;
+            try { started = prelude.InvokePrelude(b.Actions); } catch { started = false; }
+            if (started) return true;
+            RunList(b.OnFail);
+            return false;
+        }
         foreach (var action in b.Actions)
         {
-            bool ok;
-            try { ok = _invoker.Invoke(action); }
-            catch { ok = false; }
-            if (ok) continue;
+            if (Safe(() => _invoker.Invoke(action))) continue;
             if (b.Fallback == FallbackPolicy.SkipStep) continue;   // 跳过这步，继续后续
-            return false;                                          // Stop / NextBinding：中止本条
+            RunList(b.OnFail);                                     // Stop / NextBinding：中止本条
+            return false;
         }
-        if (b.OnComplete != null)                                  // 完成后序列：主序列成功后才跑
-            foreach (var action in b.OnComplete)
-                try { _invoker.Invoke(action); } catch { }
+        RunList(b.OnComplete);                                     // 完成后序列：主序列成功后才跑
         return true;
+    }
+
+    /// <summary>取一个动作的成败：宿主抛异常等同失败，绝不让一次手势把输入链上的调用方带崩。</summary>
+    static bool Safe(Func<bool> f)
+    {
+        try { return f(); } catch { return false; }
+    }
+
+    /// <summary>尽力而为地跑一份可选序列：空列表什么都不做，单步失败不中断后续、也不改变本条结果。</summary>
+    void RunList(List<string>? actions)
+    {
+        if (actions == null) return;
+        foreach (var a in actions)
+            try { _invoker.Invoke(a); } catch { }
     }
 }

@@ -10,21 +10,22 @@ namespace FrameCapture.Core;
 public sealed class GestureBindingDto
 {
     public string Id { get; set; } = "";
+    /// <summary>这条快捷键的名字，列表折叠时就是它。用户自己写，存的就是他写的原文——
+    /// 界面语言表不认识它，切语言也不会改它。空名在界面上按序列推导显示。</summary>
+    public string Name { get; set; } = "";
     /// <summary>启用/禁用：禁用=保留配置但不进引擎、不触发，无需删除。默认启用。</summary>
     public bool Enabled { get; set; } = true;
     /// <summary>组合键串，如 "F6" / "Ctrl+Shift+G" / "Ctrl+Alt+A"（须含主键，纯修饰键组合暂不支持）。</summary>
     public string Chord { get; set; } = "";
     /// <summary>GestureCore.TriggerKind 名：KeyDown/KeyUp/Click/DoubleClick/TripleClick/LongPress/Chord。</summary>
     public string Trigger { get; set; } = "Chord";
-    /// <summary>动作名序列（见 <see cref="GestureActions"/>）。</summary>
+    /// <summary>触发时执行的动作名序列（见 <see cref="GestureActions"/>）。首步是「选区」时，其余动作等选区落地后才执行。</summary>
     public string[] Actions { get; set; } = Array.Empty<string>();
-    /// <summary>完成后序列：主动作全部成功后再跑（如"截图后→贴图"）。可空。</summary>
+    /// <summary>完成后序列：主动作全部成功后再跑（如"停止录制后→打开编辑器"）。
+    /// 空=不覆盖，由宿主按默认落点收尾（截图默认弹提示浮窗）。</summary>
     public string[] OnComplete { get; set; } = Array.Empty<string>();
-    /// <summary>截图后行为：本条手势触发截图完成后的落点——toast/editor/copy/pin；空=跟随默认（弹提示）。仅截图类手势生效。</summary>
-    public string AfterCapture { get; set; } = "";
-    /// <summary>截图完成后是否写剪贴板。与 <see cref="AfterCapture"/> 各自独立：关掉后贴图、进编辑器都不覆盖剪贴板。
-    /// 缺省为真——配置文件里没有这个键时，行为与不写它的老配置一致。</summary>
-    public bool CopyToClipboard { get; set; } = true;
+    /// <summary>失败时序列：主动作有步失败或选区被取消时再跑。空=不覆盖，失败静默。</summary>
+    public string[] OnFail { get; set; } = Array.Empty<string>();
     /// <summary>GestureCore.FallbackPolicy 名：Stop/SkipStep/NextBinding（逐条显式，非引擎硬编码）。</summary>
     public string Fallback { get; set; } = "Stop";
     /// <summary>同一触发命中多条绑定时的先后：数值小的先试。</summary>
@@ -55,8 +56,7 @@ public sealed class GestureBindingDto
             Trigger = trig,
             Actions = Actions.Where(GestureActions.IsValid).ToList(),
             OnComplete = (OnComplete ?? Array.Empty<string>()).Where(GestureActions.IsValid).ToList(),
-            AfterCapture = AfterCapture ?? "",
-            CopyToClipboard = CopyToClipboard,
+            OnFail = (OnFail ?? Array.Empty<string>()).Where(GestureActions.IsValid).ToList(),
             Fallback = fb,
             Priority = Priority,
             DoubleClickMs = Math.Clamp(DoubleClickMs, 50, 2000),
@@ -79,28 +79,24 @@ public sealed class GestureBindingDto
         return new GestureBindingDto
         {
             Id = b.Id, Chord = chord, Trigger = b.Trigger.ToString(), Actions = b.Actions.ToArray(),
-            OnComplete = b.OnComplete.ToArray(),
-            AfterCapture = b.AfterCapture,
-            CopyToClipboard = b.CopyToClipboard,
+            OnComplete = b.OnComplete.ToArray(), OnFail = b.OnFail.ToArray(),
             Fallback = b.Fallback.ToString(), Priority = b.Priority,
             DoubleClickMs = b.DoubleClickMs, LongPressMs = b.LongPressMs,
         };
     }
 }
 
-/// <summary>手势配置（存于 settings.json 的 gestures 段），功能触发的唯一入口。
-/// 空配置在首次 Normalize 时播种「捕获键 轻点截图 + 按住录制」默认集（<see cref="SeedIfNeeded"/>）。</summary>
+/// <summary>快捷键配置（存于 settings.json 的 gestures 段），功能触发的唯一入口。
+/// 首次 Normalize 时播种默认两条：截图键 = 选区→截图，录制键 = 选区→开始/停止录制 + 完成后打开编辑器
+/// （<see cref="SeedIfNeeded"/>）。</summary>
 public sealed class GestureConfig
 {
-    /// <summary>手势层总开关，默认 true。关掉后不向引擎喂键、不装鼠标钩子——手势层完全不参与，
-    /// 键照常放行给前台。只想「看得到手势但不抢键」应关 <see cref="Exclusive"/> 而非本开关。</summary>
+    /// <summary>「启用快捷键」总开关，默认 true。关掉后不向引擎喂键、不装鼠标钩子——快捷键完全不参与，
+    /// 键照常放行给前台。开着时命中带具体键的组合键即吞键，前台收不到那一键；
+    /// 纯修饰键组合（无具体键，如 Ctrl+Alt 本身）永不吞，防止 Ctrl+C 等被劫持。</summary>
     public bool Enabled { get; set; } = true;
 
-    /// <summary>独占吞键：手势命中「带具体键的组合键」（如 Ctrl+Alt+A）时，把该键的按下与抬起一起吞掉，
-    /// 前台程序收不到——全局独占，避免快捷键漏进输入框打出字符或触发别的软件。默认 true。
-    /// 纯修饰键组合（无具体键，如 Ctrl+Alt 本身）永不吞，防止 Ctrl+C 等被劫持。关掉=手势层只观察、键照常放行。</summary>
-    public bool Exclusive { get; set; } = true;
-
+    /// <summary>绑定列表，顺序即引擎匹配顺序。</summary>
     public List<GestureBindingDto> Bindings { get; set; } = new();
 
     /// <summary>默认集是否已播种过。置真后即使 <see cref="Bindings"/> 为空也不会再播种——
@@ -122,54 +118,14 @@ public sealed class GestureConfig
     }
 
     static GestureBindingDto B(string id, string chord, string trig, string[] acts,
+        string[]? onDone = null, string[]? onFail = null,
         string fb = "Stop", int prio = 0, int dbl = 400, int lp = 500)
-        => new GestureBindingDto { Id = id, Chord = chord, Trigger = trig, Actions = acts, Fallback = fb, Priority = prio, DoubleClickMs = dbl, LongPressMs = lp };
-
-    /// <summary>默认绑定集：捕获键 → 捕获单帧、选区键 → 选取范围，两条都是 Chord 触发。</summary>
-    /// <param name="captureHotkey">捕获键组合键串；非法（<see cref="HotkeySpec.Parse"/> 返回 null）则不生成该条。</param>
-    /// <param name="scopeHotkey">选区键组合键串；同样非法即跳过。</param>
-    /// <returns>0～2 条绑定，Id 为 <c>default.capture</c> / <c>default.scope</c>。</returns>
-    public static List<GestureBindingDto> DefaultBindings(string captureHotkey, string scopeHotkey)
-    {
-        var list = new List<GestureBindingDto>();
-        if (HotkeySpec.Parse(captureHotkey) != null)
-            list.Add(B("default.capture", captureHotkey, "Chord", new[] { GestureActions.CaptureFrame }));
-        if (HotkeySpec.Parse(scopeHotkey) != null)
-            list.Add(B("default.scope", scopeHotkey, "Chord", new[] { GestureActions.ScopeSelect }));
-        return list;
-    }
-
-    /// <summary>「选区优先」预设：两个键都绑成选区，配合 <c>AutoCaptureOnSelect</c> 即选完自动截图。
-    /// 一键切换，用户可在 JSON/编辑器里再改。</summary>
-    /// <param name="captureHotkey">捕获键串：这里也改绑选区，非法则跳过该条。</param>
-    /// <param name="scopeHotkey">选区键串：与捕获键同义，非法则跳过该条。</param>
-    /// <returns>0～2 条绑定，Id 为 <c>qq.capture</c> / <c>qq.scope</c>。</returns>
-    public static List<GestureBindingDto> PresetScopeFirst(string captureHotkey, string scopeHotkey)
-    {
-        var list = new List<GestureBindingDto>();
-        if (HotkeySpec.Parse(captureHotkey) != null)
-            list.Add(B("qq.capture", captureHotkey, "Chord", new[] { GestureActions.ScopeSelect }));
-        if (HotkeySpec.Parse(scopeHotkey) != null)
-            list.Add(B("qq.scope", scopeHotkey, "Chord", new[] { GestureActions.ScopeSelect }));
-        return list;
-    }
-
-    /// <summary>「按住即录」预设：捕获键按下起录、抬起停止（KeyDown/KeyUp 配对）；选区键=选取范围。</summary>
-    /// <param name="captureHotkey">捕获键串：生成 <c>rec.start</c> 与 <c>rec.stop</c> 两条配对绑定，非法则两条都不生成。</param>
-    /// <param name="scopeHotkey">选区键串：非法则跳过。</param>
-    /// <returns>0～3 条绑定。起录与停止必须成对出现，否则录制无法自动收尾。</returns>
-    public static List<GestureBindingDto> PresetHoldToRecord(string captureHotkey, string scopeHotkey)
-    {
-        var list = new List<GestureBindingDto>();
-        if (HotkeySpec.Parse(captureHotkey) != null)
+        => new GestureBindingDto
         {
-            list.Add(B("rec.start", captureHotkey, "KeyDown", new[] { GestureActions.RecordStart }));
-            list.Add(B("rec.stop", captureHotkey, "KeyUp", new[] { GestureActions.RecordStop }));
-        }
-        if (HotkeySpec.Parse(scopeHotkey) != null)
-            list.Add(B("rec.scope", scopeHotkey, "Chord", new[] { GestureActions.ScopeSelect }));
-        return list;
-    }
+            Id = id, Chord = chord, Trigger = trig, Actions = acts,
+            OnComplete = onDone ?? Array.Empty<string>(), OnFail = onFail ?? Array.Empty<string>(),
+            Fallback = fb, Priority = prio, DoubleClickMs = dbl, LongPressMs = lp,
+        };
 
     /// <summary>默认截图键：与 QQ 截图一致，按一下进选区、选完即截图。播种与全新配置的唯一事实源，
     /// 设置页与帮助窗都经它取值。</summary>
@@ -178,8 +134,12 @@ public sealed class GestureConfig
     /// <summary>默认录制键：与 QQ 一致，按一下起录、再按一下停。</summary>
     public const string DefaultRecordKey = "Ctrl+Alt+R";
 
-    /// <summary>默认「QQ 键位」集：截图键进选区（配合 <c>AutoCaptureOnSelect</c> 选完自动截图），
-    /// 录制键按一下起录、再按一下停。两条都是 Chord——组合键本身即触发，没有轻点与按住的歧义。</summary>
+    /// <summary>默认键位集，也是出厂形态的唯一事实源：
+    /// 截图键 = 选区 → 截图，完成后不覆盖（默认弹提示浮窗）；
+    /// 录制键 = 选区 → 开始/停止录制，完成后覆盖成打开编辑器。
+    /// 两条都以「选区」开头，后续动作等选区落地才执行；录制中再按一次时范围已定，选区这一步直接通过。
+    /// 两条都是 Chord——组合键本身即触发，没有轻点与按住的歧义。
+    /// 名字留空：列表折叠时按序列推导显示，界面语言切换时跟着换，用户改名即冻结成他自己的原文。</summary>
     /// <param name="captureKey">截图键串；非法则跳过该条。</param>
     /// <param name="recordKey">录制键串；非法则跳过该条。</param>
     /// <returns>0～2 条绑定，Id 为 <c>default.capture</c> / <c>default.record</c>。</returns>
@@ -187,29 +147,12 @@ public sealed class GestureConfig
     {
         var list = new List<GestureBindingDto>();
         if (HotkeySpec.Parse(captureKey) != null)
-            list.Add(B("default.capture", captureKey, "Chord", new[] { GestureActions.ScopeSelect }));
+            list.Add(B("default.capture", captureKey, "Chord",
+                new[] { GestureActions.ScopeSelect, GestureActions.CaptureStored }));
         if (HotkeySpec.Parse(recordKey) != null)
-            list.Add(B("default.record", recordKey, "Chord", new[] { GestureActions.RecordToggle }));
-        return list;
-    }
-
-    /// <summary>默认「轻点截图 + 按住录制」集：捕获键轻点→选区截图、按住→起录、松手→停止；
-    /// 选区键组合键→选区。按住阈值 250ms 写在三条 tap/hold 绑定的 <c>LongPressMs</c> 上，三条必须同值。</summary>
-    /// <param name="captureKey">捕获键串；非法则只生成选区那一条。</param>
-    /// <param name="scopeKey">选区键串；非法则只生成捕获那三条。</param>
-    /// <returns>0～4 条绑定，Id 为 <c>cap.tap</c> / <c>cap.hold</c> / <c>cap.holdrelease</c>
-    /// 与 <c>scope.chord</c>。</returns>
-    public static List<GestureBindingDto> DefaultTapHoldSet(string captureKey, string scopeKey)
-    {
-        var list = new List<GestureBindingDto>();
-        if (HotkeySpec.Parse(captureKey) != null)
-        {
-            list.Add(B("cap.tap", captureKey, "Tap", new[] { GestureActions.CaptureSelection }, lp: 250));
-            list.Add(B("cap.hold", captureKey, "Hold", new[] { GestureActions.RecordStart }, lp: 250));
-            list.Add(B("cap.holdrelease", captureKey, "HoldRelease", new[] { GestureActions.RecordStop }, lp: 250));
-        }
-        if (HotkeySpec.Parse(scopeKey) != null)
-            list.Add(B("scope.chord", scopeKey, "Chord", new[] { GestureActions.ScopeSelect }));
+            list.Add(B("default.record", recordKey, "Chord",
+                new[] { GestureActions.ScopeSelect, GestureActions.RecordToggle },
+                onDone: new[] { GestureActions.EditLastVideo }));
         return list;
     }
 
@@ -228,11 +171,11 @@ public sealed class GestureConfig
         Seeded = true;
     }
 
-    /// <summary>「截图」键位文案（欢迎卡/启动气泡用）：选区截图与整帧截图都算截图，
-    /// 按绑定顺序取第一个启用的。默认键位下截图就是进选区，因此 <c>scope.select</c> 排在最前。</summary>
+    /// <summary>「截图」键位文案（欢迎卡/启动气泡用）：对当前范围截图与整帧即时截图都算截图，
+    /// 按绑定顺序取第一个启用的。</summary>
     /// <returns>键位文案；一条都没绑时为「未绑定」。</returns>
     public string CaptureKeyText()
-        => DescribeKeysFor(GestureActions.ScopeSelect, GestureActions.CaptureSelection, GestureActions.CaptureFrame);
+        => DescribeKeysFor(GestureActions.CaptureStored, GestureActions.CaptureFrame);
 
     /// <summary>「录制」键位文案：按一下切换、按下起录松开停录，两种写法都算录制键。</summary>
     /// <returns>键位文案；一条都没绑时为「未绑定」。</returns>

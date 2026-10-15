@@ -12,9 +12,9 @@ namespace FrameCapture.Services;
 /// 线程模型：两个低级钩子都在 UI 线程安装 → 回调在 UI 线程；Tick 用 DispatcherTimer 也在 UI 线程。
 /// 故引擎无并发、无需加锁。钩子回调占着全系统输入链，动作一律 <b>BeginInvoke 投递</b>、绝不在回调内跑重活。
 ///
-/// 装配开关：<see cref="GestureConfig.Enabled"/> 默认 true，手势层因此是功能触发的<b>唯一</b>全局路径。
+/// 总开关：<see cref="GestureConfig.Enabled"/> 默认 true，快捷键因此是功能触发的<b>唯一</b>全局路径。
 /// 关掉它 → KeySink 置空、鼠标钩子卸载、Tick 停止，键盘钩子也随之不装，键原样落到前台。
-/// 只清空绑定而保持开关开着：sink 仍挂着、键盘钩子仍装，只是引擎里没有可命中的绑定。
+/// 开着时命中即吞键，前台收不到那一键；只清空绑定而保持开关开着：sink 仍挂着、键盘钩子仍装，只是引擎里没有可命中的绑定。
 /// </summary>
 public sealed class GestureService : IDisposable
 {
@@ -25,7 +25,7 @@ public sealed class GestureService : IDisposable
     Win32.LowLevelMouseProc? _mouseProc;
     System.Windows.Threading.DispatcherTimer? _tick;
     bool _mouseInstalled;
-    bool _exclusive;   // 独占吞键开关（来自 GestureConfig.Exclusive，Apply 时刷新）
+    bool _swallow;  // 命中即吞键：手势层开着就吞，界面不提供关它的开关
 
     /// <summary>建引擎与动作执行器。构造本身不装钩子、不喂配置——副作用全部在 <see cref="Apply"/>。</summary>
     /// <param name="host">宿主，整个生命周期持有；<see cref="Apply"/> 需要它的 <see cref="HotkeyManager"/> 已就位。</param>
@@ -37,16 +37,16 @@ public sealed class GestureService : IDisposable
     }
 
     /// <summary>应用手势配置（UI 线程调用，来自 AppHost.InstallHotkeys / 设置热重载）。</summary>
-    /// <param name="cfg">手势配置。null 与 <c>Enabled=false</c> 等价，都表示手势层完全不参与。
-    /// 鼠标钩子只在存在鼠标触发绑定时才装，Tick 泵只在存在鼠标触发或 Hold 绑定时才开；
-    /// <c>Exclusive</c> 仅在 <c>Enabled</c> 为真时生效。</param>
+    /// <param name="cfg">手势配置。null 与 <c>Enabled=false</c> 等价，都表示快捷键完全不参与：
+    /// 不挂键盘 sink，HotkeyManager 因此连键盘钩子都不装，前台键零开销。
+    /// 鼠标钩子只在存在鼠标触发绑定时才装，Tick 泵只在存在鼠标触发或 Hold 绑定时才开。</param>
     public void Apply(GestureConfig cfg)
     {
         bool on = cfg != null && cfg.Enabled;
-        _exclusive = on && cfg!.Exclusive;
+        _swallow = on;
         var bindings = on ? cfg!.ToBindings() : new List<GC.GestureBinding>();
         _engine.SetBindings(bindings);
-        Trace.Log($"gesture apply on={on} excl={_exclusive} n={bindings.Count} [" +
+        Trace.Log($"gesture apply on={on} n={bindings.Count} [" +
             string.Join(", ", bindings.Select(b => $"mods={b.Chord.Mods} key={b.Chord.Key}/{b.Trigger}/oc={b.OnComplete.Count}")) + "]");
         bool hasMouse = bindings.Any(b => IsMouse(b.Trigger));
         // Tick 泵：鼠标连击/长按消歧需要，键盘「按住到阈值触发 Hold」也需要。
@@ -64,12 +64,12 @@ public sealed class GestureService : IDisposable
     static bool IsMouse(GC.TriggerKind t) =>
         t is GC.TriggerKind.Click or GC.TriggerKind.DoubleClick or GC.TriggerKind.TripleClick or GC.TriggerKind.LongPress;
 
-    /// <summary>喂键给引擎；返回是否吞掉本键（独占吞键开启 且 引擎判定命中带具体键的组合键）。
-    /// 关闭独占时恒返回 false（只观察、键照常放行给前台）。</summary>
+    /// <summary>喂键给引擎；返回是否吞掉本键。快捷键开着且引擎判定命中带具体键的组合键时吞键，
+    /// 前台收不到这一键；纯修饰键组合与未命中的键照常放行。</summary>
     bool FeedKey(uint vk, bool down, GC.ModifierKeys mods, long time)
     {
         bool candidate = down ? _engine.OnKeyDown((int)vk, mods, time) : _engine.OnKeyUp((int)vk, mods, time);
-        return _exclusive && candidate;
+        return _swallow && candidate;
     }
 
     #region 鼠标钩子 / Tick 泵
