@@ -278,7 +278,7 @@ public sealed partial class EditorWindow : Window
         for (int i = 0; i < ToolOrder.Length; i++)
         {
             var tool = ToolOrder[i];
-            var b = IconBtn(ToolCatalog.Tools[i].Glyph, ToolCatalog.Tools[i].Tip);
+            var b = IconBtn(ToolCatalog.Tools[i].Glyph, Loc.T(ToolCatalog.Tools[i].Tip));
             b.PreviewMouseLeftButtonDown += (sender2, e2) => { e2.Handled = true; SetTool(tool); };
             _toolBtns.Add(b);
             bar.Children.Add(b);
