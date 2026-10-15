@@ -166,6 +166,9 @@ static class SelfTest
             .SetValue(FrameCapture.Services.AppHost.Current, svc);
         FrameCapture.Core.Theme.Apply(svc.Current.Theme, svc.Current.Accent);
         FrameCapture.Core.Fluent.ApplyGlobalStyles();
+        // 界面语言与 AppHost 同一套规则：先按配置，FC_LANG 可覆盖——拍双语界面不必先改用户配置
+        string lang = Environment.GetEnvironmentVariable("FC_LANG") ?? "";
+        FrameCapture.Core.Loc.Apply(lang == "" ? svc.Current.UiLanguage : lang);
         var w = new FrameCapture.Overlays.SettingsWindow();
         // Build 与构造分开（ShowOrFocus 先 Build 再 Show），离屏渲染同样要先建内容
         typeof(FrameCapture.Overlays.SettingsWindow)
@@ -188,7 +191,8 @@ static class SelfTest
             root.UpdateLayout();
         }
         Layout();
-        var nav = FindNavText(root, catName) as System.Windows.UIElement;
+        // 导航项显示的是当前语言的文案，查找也要用取词后的名字
+        var nav = FindNavText(root, FrameCapture.Core.Loc.T(catName)) as System.Windows.UIElement;
         if (nav != null && src != null)
         {
             // 类别项的 KeyDown 认 Enter/Space，与鼠标点一下走同一个 ShowCat
@@ -4048,6 +4052,44 @@ static class SelfTest
             static bool HasIn(Dictionary<(ModifierKeys Mods, Key Key), List<string>> m, ModifierKeys k, Key key, string id)
                 => m.TryGetValue((k, key), out var l) && l.Contains(id);
         }
+        #endregion
+
+        #region 界面文案取词
+
+        {
+            // 中文是源语言：没登记的原文原样返回，英文态也不能把读者丢给一个空字符串
+            string missing = "这句没有登记在任何分区";
+            Loc.Apply(Loc.PrefZh);
+            Chk("T189a-zh-passthrough", Loc.T(missing) == missing && !Loc.IsEnglish);
+            Loc.Apply(Loc.PrefEn);
+            Chk("T189b-en-fallback", Loc.T(missing) == missing && Loc.IsEnglish);
+            Chk("T189c-en-hit", Loc.T("退出") == "Exit" && Loc.T("设置…") == "Settings…");
+            Chk("T189d-en-format", Loc.F("范围 {0}×{1} · {2}fps", 800, 600, 24) == "Region 800×600 · 24 fps");
+            // 参数顺序由表里的英文值决定，调用侧只按中文原文的占位符顺序填参
+            Chk("T189e-format-arg-order",
+                Loc.F("已拼接 {0} 段 · 高 {1} px", 3, 1080) == "3 segments stitched · 1080 px tall");
+            Loc.Apply(Loc.PrefZh);
+            Chk("T189f-zh-format", Loc.F("已拼接 {0} 段 · 高 {1} px", 3, 1080) == "已拼接 3 段 · 高 1080 px");
+            // system 档看界面文化，不看线程区域格式；认不出的取值按 system 处理
+            bool sysEn = !System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName
+                .Equals("zh", StringComparison.OrdinalIgnoreCase);
+            Chk("T189g-system-follows-ui-culture", Loc.Apply(Loc.PrefSystem) == sysEn);
+            Chk("T189h-unknown-pref-is-system", Loc.Apply("klingon") == sysEn);
+            // 表的健康度：译名必须是英文、非空、不带括号标注；同一句中文不许两种译法
+            var tbl = StringsEn.Table;
+            var cjk = tbl.Where(kv => kv.Value.Any(c => c >= 0x4E00 && c <= 0x9FFF)).Select(kv => kv.Key).ToList();
+            var blank = tbl.Where(kv => string.IsNullOrWhiteSpace(kv.Value)).Select(kv => kv.Key).ToList();
+            var paren = tbl.Where(kv => kv.Value.IndexOf('(') >= 0 || kv.Value.IndexOf(')') >= 0).Select(kv => kv.Key).ToList();
+            Chk("T189i-table-hygiene",
+                cjk.Count == 0 && blank.Count == 0 && paren.Count == 0 && StringsEn.Conflicts.Count == 0,
+                $"cjk={cjk.Count} blank={blank.Count} paren={paren.Count} conflict={StringsEn.Conflicts.Count}");
+            // 落盘值由 Normalize 收口：写坏的语言退回跟随系统
+            var langSet = new AppSettings { UiLanguage = "fr" };
+            langSet.Normalize();
+            Chk("T189j-lang-normalize", langSet.UiLanguage == "system");
+            Loc.Apply(Loc.PrefZh);
+        }
+
         #endregion
 
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");

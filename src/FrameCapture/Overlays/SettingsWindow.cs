@@ -88,7 +88,7 @@ public sealed partial class SettingsWindow : Window
         var dock = new DockPanel { LastChildFill = true };
 
         #region 标题栏：图标 + 标题 + 关闭（共享件 Fluent.TitleBar）
-        var (bar, closeBtn) = Fluent.TitleBar("\uE7A8", "设置");
+        var (bar, closeBtn) = Fluent.TitleBar("\uE7A8", Loc.T("设置"));
         closeBtn.Click += (_, _) => Fluent.CloseWithFade(this);
         // 关闭按钮落在原生 CaptionHeight 拖窗区内，须显式让位给 WPF 命中，否则点它会拖窗而非关闭
         System.Windows.Shell.WindowChrome.SetIsHitTestVisibleInChrome(closeBtn, true);
@@ -104,7 +104,7 @@ public sealed partial class SettingsWindow : Window
             cats.Add((name, glyph, p));
             return p;
         }
-        StackPanel panel = Cat("快捷键", "\uE765");
+        StackPanel panel = Cat(Loc.T("快捷键"), "\uE765");
         #endregion
 
         #region 快捷键页说明：全局键位在这里只读，编辑器键位在下方逐条可改
@@ -199,7 +199,7 @@ public sealed partial class SettingsWindow : Window
         BuildEditorKeys(panel);
 
         #region 截图
-        panel = Cat("截图", "\uE7A8");
+        panel = Cat(Loc.T("截图"), "\uE7A8");
         panel.Children.Add(ToggleRow("\uE7B5", "选区自动截取", "完成选区后立即截取一帧 PNG 静态图，同时复制到剪贴板",
             _settings.Current.AutoCaptureOnSelect, v => _settings.Mutate(s => s.AutoCaptureOnSelect = v)));
         panel.Children.Add(ToggleRow("\uE740", "吸附到控件", "悬停自动吸附窗口内的具体控件：输入框、文字、图片、分组容器等，按 Tab 可上钻到父容器。依赖应用无障碍接口，不支持时自动回退整窗吸附",
@@ -252,7 +252,7 @@ public sealed partial class SettingsWindow : Window
         #endregion
 
         #region 录制
-        panel = Cat("录制", "\uE714");
+        panel = Cat(Loc.T("录制"), "\uE714");
         var fpsRow = SliderRow("\uEC4A", "录制帧率", "录制时每秒捕获的帧数；开启下方「跟随显示器刷新率」时本项隐藏，由刷新率取代",
             AppSettings.FpsMin, AppSettings.FpsMax, 5, _settings.Current.Fps,
             v => $"{v:0} fps", v => _settings.Mutate(s => s.Fps = (int)v));
@@ -298,7 +298,7 @@ public sealed partial class SettingsWindow : Window
         #endregion
 
         #region 产物
-        panel = Cat("产物", "\uE74E");
+        panel = Cat(Loc.T("产物"), "\uE74E");
         panel.Children.Add(ToggleRow("\uE74E", "自动保存副本", "捕获完成后，除复制到剪贴板外，再存一份文件到本地目录：截图存 PNG，录制按上面的「录制格式」存 MP4/WebM，未装 ffmpeg 则回退 GIF。视频在后台编码、文件稍后出现。写盘失败不影响剪贴板，捕获永远成功",
             _settings.Current.AutoSaveCopy, v => _settings.Mutate(s => s.AutoSaveCopy = v)));
         panel.Children.Add(PathRow());
@@ -307,7 +307,7 @@ public sealed partial class SettingsWindow : Window
         #endregion
 
         #region 编辑器
-        panel = Cat("编辑器", "\uE70F");
+        panel = Cat(Loc.T("编辑器"), "\uE70F");
         panel.Children.Add(ToggleRow("\uE8A9", "底部工具栏入场动效", "打开编辑器时，底部两排图标逐项落定，视线跟着落到工具上。关闭后工具栏随窗口直接出现，一个动画都不放",
             _settings.Current.EditorToolbarAnim, v => _settings.Mutate(s => s.EditorToolbarAnim = v)));
         panel.Children.Add(ToggleRow("\uEDD7", "记住上次的工具/颜色/粗细", "关闭编辑器时记住你最后用的标注工具、颜色和线宽，下次打开直接是它们，省去每次重选。关闭后每次打开都回到默认：浏览 / 红 / 中",
@@ -319,7 +319,7 @@ public sealed partial class SettingsWindow : Window
         #endregion
 
         #region 贴图
-        panel = Cat("贴图", "\uE718");
+        panel = Cat(Loc.T("贴图"), "\uE718");
         panel.Children.Add(ToggleRow("\uE718", "贴图窗口吸附", "拖动贴图时实时吸附对齐：贴近所在屏幕边缘则停靠四边/四角；贴近同屏其他贴图、以及浏览器或资源管理器等任何应用窗口的边或中线则与之对齐，把贴图摆齐像吸附网格一样自然。阈值调低为「贴边才吸」，不会隔空乱跳。关闭则松手停在原地",
             _settings.Current.PinSnapEdges, v => _settings.Mutate(s => s.PinSnapEdges = v)));
 
@@ -327,15 +327,16 @@ public sealed partial class SettingsWindow : Window
         #endregion
 
         #region 外观
-        panel = Cat("外观", "\uE790");
+        panel = Cat(Loc.T("外观"), "\uE790");
         panel.Children.Add(ThemeRow());
+        panel.Children.Add(LanguageRow());
         panel.Children.Add(AccentRow());
 
         Cardify(panel); // 外观页行归入卡片
         #endregion
 
         #region 系统
-        panel = Cat("系统", "\uE713");
+        panel = Cat(Loc.T("系统"), "\uE713");
         panel.Children.Add(ToggleRow("\uE7E8", "开机自启", "登录 Windows 时自动启动 FrameCapture",
             _settings.Current.RunAtStartup, v =>
             {

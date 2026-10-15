@@ -30,9 +30,13 @@ public sealed class AppHost
         Capture.FrameSpool.CleanupStale(); // 清理上次崩溃/强杀残留的磁盘暂存帧文件（>24h）
         Settings = new SettingsService();
         Theme.Apply(Settings.Current.Theme, Settings.Current.Accent);
+        Loc.Apply(Settings.Current.UiLanguage);
         // 设计审查专用：FC_THEME 覆盖主题（不落盘，不影响用户配置）
         var ft = Environment.GetEnvironmentVariable("FC_THEME");
         if (ft == "light" || ft == "dark") Theme.Apply(ft, Settings.Current.Accent);
+        // 设计审查专用：FC_LANG 覆盖界面语言，拍英文界面不必先改用户配置
+        var fl = Environment.GetEnvironmentVariable("FC_LANG");
+        if (fl == Loc.PrefZh || fl == Loc.PrefEn) Loc.Apply(fl);
         Core.Fluent.ApplyGlobalStyles();
         Controller = new CaptureController(Settings);
         Hotkeys = new HotkeyManager();
@@ -101,6 +105,7 @@ public sealed class AppHost
                 Settings.Reload();
                 var s = Settings.Current;
                 Theme.Apply(s.Theme, s.Accent);
+                Loc.Apply(s.UiLanguage);
                 InstallHotkeys();
                 Trace.Log($"settings reloaded: gestures={s.Gestures.Enabled}/{s.Gestures.Bindings.Count}");
             };

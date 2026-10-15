@@ -122,6 +122,9 @@ public sealed class AppSettings
     /// <summary>强调色 hex (如 #4CC2FF)；空 = 跟随系统。</summary>
     public string Accent { get; set; } = "";
 
+    /// <summary>界面语言: system | zh | en。中文是源语言，缺译的文案回退中文。</summary>
+    public string UiLanguage { get; set; } = "system";
+
     /// <summary>编辑器"自定义颜色"的最近用色（#RRGGBB，新在前，≤6 条，CustomPick.RememberColor 维护）。</summary>
     public List<string> CustomColors { get; set; } = new();
 
@@ -210,6 +213,7 @@ public sealed class AppSettings
         AgentStripFrames = Math.Clamp(AgentStripFrames, 2, 48);
         AgentStripEveryN = Math.Clamp(AgentStripEveryN, 1, 60);
         if (Theme is not ("system" or "light" or "dark")) Theme = "system";
+        if (UiLanguage is not ("system" or "zh" or "en")) UiLanguage = "system";
         if (AfterCapture is not ("toast" or "editor" or "copy" or "pin")) AfterCapture = "toast";
         Gestures ??= new GestureConfig();
         Gestures.SeedIfNeeded(GestureConfig.DefaultCaptureKey, GestureConfig.DefaultRecordKey);   // 一次性：空配置播种 QQ 键位（截图 / 录制）

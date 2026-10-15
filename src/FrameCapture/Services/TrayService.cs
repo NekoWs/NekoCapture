@@ -43,11 +43,11 @@ public sealed class TrayService : IDisposable
         var s = _host.Settings.Current;
         if (Services.HotkeyManager.Paused) // 暂停态一眼可见，避免用户以为热键失灵
         {
-            _icon.Text = "FrameCapture · 已暂停，热键让位其他软件";
+            _icon.Text = Loc.T("FrameCapture · 已暂停，热键让位其他软件");
             return;
         }
-        string region = s.RegionW >= 16 ? $"范围 {s.RegionW}×{s.RegionH} · {s.Fps}fps" : "未设范围 · 双击图标设置";
-        string tip = $"FrameCapture\n手势 {s.Gestures.Bindings.Count} 条 · {region}";
+        string region = s.RegionW >= 16 ? Loc.F("范围 {0}×{1} · {2}fps", s.RegionW, s.RegionH, s.Fps) : Loc.T("未设范围 · 双击图标设置");
+        string tip = Loc.F("FrameCapture\n手势 {0} 条 · {1}", s.Gestures.Bindings.Count, region);
         _icon.Text = tip.Length <= 63 ? tip : "FrameCapture"; // NotifyIcon.Text 上限 63 字符
     }
 
@@ -68,7 +68,7 @@ public sealed class TrayService : IDisposable
         bool on = !Services.HotkeyManager.Paused;
         Services.HotkeyManager.Paused = on;
         UpdateTip();
-        Notify(on ? "已暂停：截图热键暂时让位给其他软件，回到这里可恢复" : "已恢复：截图热键重新生效");
+        Notify(on ? Loc.T("已暂停：截图热键暂时让位给其他软件，回到这里可恢复") : Loc.T("已恢复：截图热键重新生效"));
         return on;
     }
 
@@ -91,50 +91,50 @@ public sealed class TrayService : IDisposable
         }
         void Sep() => menu.Items.Add(new Separator());
 
-        Item("设置捕获范围", () => _host.Controller.BeginScopeSelection());
-        Item("清除捕获范围", () => _host.Controller.ClearStoredRegion());
+        Item(Loc.T("设置捕获范围"), () => _host.Controller.BeginScopeSelection());
+        Item(Loc.T("清除捕获范围"), () => _host.Controller.ClearStoredRegion());
         Sep();
-        Item("立即捕获", () => _host.Controller.CaptureStoredStill());
+        Item(Loc.T("立即捕获"), () => _host.Controller.CaptureStoredStill());
         // 静态截图的确认浮窗会自动消失，留一个入口把最近那张重新拉回编辑器标注
         if (_host.Controller.HasLastStill)
-            Item("编辑上次截图", () => _host.Controller.EditLastStill());
-        Item("滚动截图", () => _host.Controller.BeginScrollCapture());
-        Item("延时截图", () => _host.Controller.BeginDelayedCapture());
-        Item("从剪贴板贴图", () =>
+            Item(Loc.T("编辑上次截图"), () => _host.Controller.EditLastStill());
+        Item(Loc.T("滚动截图"), () => _host.Controller.BeginScrollCapture());
+        Item(Loc.T("延时截图"), () => _host.Controller.BeginDelayedCapture());
+        Item(Loc.T("从剪贴板贴图"), () =>
         {
             if (!_host.Controller.PinFromClipboard())
-                Notify("剪贴板里没有图片——先复制一张截图、图片或网页图再试");
+                Notify(Loc.T("剪贴板里没有图片——先复制一张截图、图片或网页图再试"));
         });
         // 开了自动保存后，用户常想知道文件落到哪——直接打开保存目录
         if (_host.Settings.Current.AutoSaveCopy)
-            Item("打开保存文件夹", () =>
+            Item(Loc.T("打开保存文件夹"), () =>
             {
                 try
                 {
                     var dir = SaveService.ResolveFolder();
                     System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("explorer.exe", $"\"{dir}\"") { UseShellExecute = true });
                 }
-                catch (Exception ex) { Trace.Log($"open folder failed: {ex.Message}"); Notify("打开保存文件夹失败"); }
+                catch (Exception ex) { Trace.Log($"open folder failed: {ex.Message}"); Notify(Loc.T("打开保存文件夹失败")); }
             });
         Sep();
-        Item("设置…", OpenSettings);
-        Item("帮助", OpenHelp);
-        Item("开机自启", () =>
+        Item(Loc.T("设置…"), OpenSettings);
+        Item(Loc.T("帮助"), OpenHelp);
+        Item(Loc.T("开机自启"), () =>
         {
             _host.Settings.Mutate(s => s.RunAtStartup = !s.RunAtStartup);
             StartupService.Apply(_host.Settings.Current.RunAtStartup);
         }, checkable: true, isChecked: _host.Settings.Current.RunAtStartup);
         // 暂停全局热键——游戏/演示/与其他软件热键冲突时临时让位，键完整落到前台应用。
         // 运行时状态（不持久化），重启自动恢复工作。
-        Item("暂停全局热键", () => TogglePause(),
+        Item(Loc.T("暂停全局热键"), () => TogglePause(),
             checkable: true, isChecked: Services.HotkeyManager.Paused);
         // 按需提权：解决被更高权限窗口（管理员终端/游戏）压住、快捷键盲区的问题
         if (AppHost.IsElevated)
-            Item("管理员权限运行", () => { }, checkable: true, isChecked: true); // 勾选标记由 checkable 呈现，文本里不重复打勾
+            Item(Loc.T("管理员权限运行"), () => { }, checkable: true, isChecked: true); // 勾选标记由 checkable 呈现，文本里不重复打勾
         else
-            Item("以管理员身份运行", () => _host.RestartAsAdmin());
+            Item(Loc.T("以管理员身份运行"), () => _host.RestartAsAdmin());
         Sep();
-        Item("退出", () =>
+        Item(Loc.T("退出"), () =>
         {
             Dispose();
             System.Windows.Application.Current?.Shutdown();

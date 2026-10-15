@@ -104,7 +104,7 @@ public sealed class CaptureToast : Window
         var texts = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
         texts.Children.Add(new TextBlock
         {
-            Text = copied ? "已复制到剪贴板" : "已截图",
+            Text = copied ? Loc.T("已复制到剪贴板") : Loc.T("已截图"),
             FontSize = 13,
             FontWeight = FontWeights.SemiBold,
             Foreground = new SolidColorBrush(Theme.Text),
@@ -112,7 +112,7 @@ public sealed class CaptureToast : Window
         });
         texts.Children.Add(new TextBlock
         {
-            Text = "点击或按 Enter 继续标注 · Esc 关闭",
+            Text = Loc.T("点击或按 Enter 继续标注 · Esc 关闭"),
             FontSize = 11,
             Foreground = new SolidColorBrush(Theme.TextDim),
             FontFamily = new FontFamily("Segoe UI"),
@@ -121,7 +121,7 @@ public sealed class CaptureToast : Window
         Grid.SetColumn(texts, 1);
         grid.Children.Add(texts);
 
-        var close = Fluent.IconButton("\uE711", "关闭", 26, 12,
+        var close = Fluent.IconButton("\uE711", Loc.T("关闭"), 26, 12,
             new SolidColorBrush(Theme.TextDim));
         close.Cursor = System.Windows.Input.Cursors.Arrow;
         close.VerticalAlignment = VerticalAlignment.Top;

@@ -36,6 +36,54 @@ public sealed partial class SettingsWindow : Window
         nw.BeginAnimation(OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(1, TimeSpan.FromMilliseconds(FrameCapture.Core.Fluent.Motion.ThemeMs)));
     }
 
+    /// <summary>
+    /// 界面语言行：三档文字选项，每档用各自语言写自己的名字，只有「系统默认」跟着当前语言走。
+    /// 选中即落盘、即取词、原地重建本窗——本窗文案是构造期取值的，重建才看得到新语言；
+    /// 托盘菜单每次右键重建，编辑器与帮助窗下次打开自然跟上。
+    /// </summary>
+    /// <returns>可直接加进分页的整行。</returns>
+    FrameworkElement LanguageRow()
+    {
+        var g = ChipRow("\uF2B7", Loc.T("界面语言"), Loc.T("界面语言"));
+        var chips = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
+        Grid.SetColumn(chips, 2);
+        string cur = _settings.Current.UiLanguage;
+        foreach (var (id, label) in new[]
+                 { (Loc.PrefSystem, Loc.T("系统默认")), (Loc.PrefZh, "中文"), (Loc.PrefEn, "English") })
+        {
+            string captured = id;
+            var chip = new Border
+            {
+                CornerRadius = new CornerRadius(6),
+                Padding = new Thickness(10, 5, 10, 5),
+                Margin = new Thickness(2, 0, 2, 0),
+                Background = new SolidColorBrush(captured == cur ? Theme.Accent : Theme.Hover),
+                Child = new TextBlock
+                {
+                    Text = label,
+                    FontSize = 12.5,
+                    Foreground = new SolidColorBrush(captured == cur ? Fluent.OnAccentColor(Theme.Accent) : Theme.Text),
+                },
+                Cursor = Cursors.Hand,
+                Focusable = true,
+            };
+            Fluent.ChipHover(chip);   // 悬停只改底色带过渡，不缩放
+            void Pick()
+            {
+                if (_settings.Current.UiLanguage == captured) return;
+                _settings.Mutate(s => s.UiLanguage = captured);
+                Loc.Apply(captured);
+                RebuildInPlace();
+            }
+            chip.MouseLeftButtonDown += (_, e) => { Pick(); e.Handled = true; };
+            // 键盘可达——Tab 聚焦、空格/Enter 切换（与点击同一路径）
+            chip.KeyDown += (_, e) => { if (e.Key is Key.Space or Key.Enter) { Pick(); e.Handled = true; } };
+            chips.Children.Add(chip);
+        }
+        g.Children.Add(chips);
+        return g;
+    }
+
     #region 强调色：色片入口与取色弹层
 
     Popup? _accentPop;
@@ -45,10 +93,10 @@ public sealed partial class SettingsWindow : Window
     {
         var g = Row();
         g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); // 色片列
-        g.Children.Add(IconText("\uE790", "强调色：编辑器选中、开关、滑杆、进度都用它"));
+        g.Children.Add(IconText("\uE790", Loc.T("强调色：编辑器选中、开关、滑杆、进度都用它")));
         var lbl = new TextBlock
         {
-            Text = "强调色",
+            Text = Loc.T("强调色"),
             FontSize = 13,
             Foreground = new SolidColorBrush(Theme.Text),
             VerticalAlignment = VerticalAlignment.Center,
@@ -68,7 +116,7 @@ public sealed partial class SettingsWindow : Window
             VerticalAlignment = VerticalAlignment.Center,
             Cursor = Cursors.Hand,
             Focusable = true,
-            ToolTip = "点击自定义强调色，取色器与编辑器同款；右键恢复跟随系统",
+            ToolTip = Loc.T("点击自定义强调色，取色器与编辑器同款；右键恢复跟随系统"),
         };
         Grid.SetColumn(chip, 2);
         Fluent.ChipHover(chip);   // 悬停只改底色带过渡，不缩放
@@ -128,12 +176,12 @@ public sealed partial class SettingsWindow : Window
 
     FrameworkElement ThemeRow()
     {
-        var g = ChipRow("\uE793", "主题", "外观主题");
+        var g = ChipRow("\uE793", Loc.T("主题"), Loc.T("外观主题"));
         var chips = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
         Grid.SetColumn(chips, 2);
         string cur = _settings.Current.Theme;
         foreach (var (id, glyph, tip) in new[]
-                 { ("system", "\uE977", "跟随系统"), ("light", "\uE706", "浅色"), ("dark", "\uE708", "深色") })
+                 { ("system", "\uE977", Loc.T("跟随系统")), ("light", "\uE706", Loc.T("浅色")), ("dark", "\uE708", Loc.T("深色")) })
         {
             string captured = id;
             var chip = new Border
