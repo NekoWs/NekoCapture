@@ -124,7 +124,7 @@ kbd {
   font-size: 12px;
   padding: 2px 9px;
   border-radius: var(--r-pill);
-  color: var(--accent);
+  color: var(--accent-text);
   background: rgba(var(--accent-soft) / 0.12);
 }
 
@@ -159,7 +159,7 @@ kbd {
 }
 
 .tab:hover { background: var(--hover-bg); color: var(--text); }
-.tab.is-on { color: var(--accent); background: rgba(var(--accent-soft) / 0.13); }
+.tab.is-on { color: var(--accent-text); background: rgba(var(--accent-soft) / 0.13); }
 .tab .ico { font-size: 14px; }
 .tab:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 

@@ -161,7 +161,7 @@
 }
 
 .trust li { display: flex; align-items: center; gap: 7px; }
-.trust .ico { color: var(--accent); font-size: 15px; }
+.trust .ico { color: var(--accent-text); font-size: 15px; }
 
 .hero__stage { min-width: 0; width: 100%; max-width: 1120px; }
 
