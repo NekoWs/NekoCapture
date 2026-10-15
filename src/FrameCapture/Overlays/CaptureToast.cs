@@ -30,23 +30,24 @@ public sealed class CaptureToast : Window
     /// <summary>
     /// 弹出截屏成功浮窗：同一时刻只保留一张，再次调用先收起上一张。
     /// 非激活浮窗（ShowActivated=false），不打断用户当前输入；必须在 UI 线程调用。
-    /// 剪贴板内容已由调用方写好——本方法只负责告知与「继续标注」入口。
+    /// 剪贴板内容已由调用方按本条手势的开关写好——本方法只负责告知与「继续标注」入口。
     /// </summary>
     /// <param name="frame">刚截下的帧（BGRA），只用于生成 56×44 缩略图；建窗时即拷成冻结位图，之后改帧字节不影响浮窗。</param>
     /// <param name="region">截图区域，物理像素、虚拟桌面绝对坐标，决定落点。</param>
     /// <param name="monitorDevice">区域所在显示器 device name；按设备取不到时按区域坐标就近回退。</param>
     /// <param name="onEdit">点卡片或按 Enter 时执行的回调（进编辑器），在 UI 线程调用，执行后收起浮窗。</param>
-    public static void Show(CapturedFrame frame, RectI region, string monitorDevice, Action onEdit)
+    /// <param name="copied">这张图是否写进了剪贴板——决定标题说「已复制」还是「已截图」，两者不能混说。</param>
+    public static void Show(CapturedFrame frame, RectI region, string monitorDevice, Action onEdit, bool copied = true)
     {
         _current?.Close();
-        _current = new CaptureToast(frame, region, monitorDevice, onEdit);
+        _current = new CaptureToast(frame, region, monitorDevice, onEdit, copied);
         _current.Show(); // ShowActivated=false：不打断用户当前输入
     }
 
     /// <summary>立即收起当前浮窗（进入选区等全屏交互前调用，避免残留半透明浮窗与选区窗叠在一起闪）。</summary>
     public static void DismissCurrent() => _current?.Dismiss();
 
-    CaptureToast(CapturedFrame frame, RectI region, string monitorDevice, Action onEdit)
+    CaptureToast(CapturedFrame frame, RectI region, string monitorDevice, Action onEdit, bool copied)
     {
         Title = "FrameCapture Toast";
         Fluent.BorderlessOverlay(this);
@@ -103,7 +104,7 @@ public sealed class CaptureToast : Window
         var texts = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
         texts.Children.Add(new TextBlock
         {
-            Text = "已复制到剪贴板",
+            Text = copied ? "已复制到剪贴板" : "已截图",
             FontSize = 13,
             FontWeight = FontWeights.SemiBold,
             Foreground = new SolidColorBrush(Theme.Text),

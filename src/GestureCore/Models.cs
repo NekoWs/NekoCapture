@@ -141,6 +141,10 @@ public sealed class GestureBinding
     /// 空串＝跟随默认（弹提示）。仅对含截图动作的绑定生效，逐条各配各的，引擎本身不解释取值。</summary>
     public string AfterCapture { get; set; } = "";
 
+    /// <summary>截图完成后要不要把这张图写进剪贴板。与 <see cref="AfterCapture"/> 各自独立：
+    /// 关掉它，贴图与进编辑器都不会覆盖用户剪贴板里原有的东西。引擎不解释取值，由宿主执行。</summary>
+    public bool CopyToClipboard { get; set; } = true;
+
     /// <summary>本条绑定内某步失败时的处理策略（显式数据，非引擎硬编码）。</summary>
     public FallbackPolicy Fallback { get; set; } = FallbackPolicy.Stop;
 

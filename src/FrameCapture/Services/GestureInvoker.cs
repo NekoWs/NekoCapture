@@ -46,10 +46,11 @@ sealed class GestureInvoker : GC.IActionInvoker
     /// 一条绑定开跑前的前置投递：把该绑定的「截图后」上下文交给控制器，截图完成时按它分派。
     /// 失败静默——上下文没递到只会退回默认行为，不该中断已命中的手势。
     /// </summary>
-    /// <param name="b">即将执行的绑定。其 <c>AfterCapture</c> 为空串 = 不指定，截图后走默认弹提示。</param>
+    /// <param name="b">即将执行的绑定。其 <c>AfterCapture</c> 为空串 = 不指定，截图后走默认弹提示；
+    /// <c>CopyToClipboard</c> 决定这张图要不要写进剪贴板。</param>
     public void BeginBinding(GC.GestureBinding b)
     {
-        try { _host.Controller.SetPendingAfterCapture(b.AfterCapture); } catch { }
+        try { _host.Controller.SetPendingAfterCapture(b.AfterCapture, b.CopyToClipboard); } catch { }
     }
 
     bool InvokeCore(string actionName, CaptureController c)

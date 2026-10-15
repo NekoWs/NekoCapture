@@ -2413,6 +2413,19 @@ static class SelfTest
                     && AfterCapture.Resolve("Editor") == AfterCaptureAction.Toast
                     && AfterCapture.Resolve("garbage") == AfterCaptureAction.Toast, "null/空/大小写/脏值→回落 Toast");
                 Chk("T116e-pin", AfterCapture.Resolve("pin") == AfterCaptureAction.Pin, "R117 pin→Pin");
+            // 写不写剪贴板与落点各自独立：这条开关必须随绑定往返，且缺省为真
+            var dtoCp = new GestureBindingDto
+            {
+                Chord = "F6", Trigger = "Chord", Actions = new[] { GestureActions.CaptureSelection },
+                AfterCapture = "pin", CopyToClipboard = false,
+            };
+            var engCp = dtoCp.ToBinding()!;
+            Chk("T116f-copy-flag-roundtrip",
+                engCp.CopyToClipboard == false && GestureBindingDto.FromBinding(engCp).CopyToClipboard == false,
+                "「复制到剪贴板」开关随 DTO↔引擎绑定往返，落点各走各的");
+            Chk("T116g-copy-default-on",
+                new GestureBindingDto().CopyToClipboard && new GE.GestureBinding().CopyToClipboard,
+                "缺省写剪贴板：settings.json 里没有这个键时，行为与不写它一致");
             }
             // 荧光笔半透明烘焙：盖在白底上应透出白（半透明），而非不透明纯色
             {

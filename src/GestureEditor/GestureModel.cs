@@ -51,6 +51,8 @@ public sealed class BindingEdit
     public FallbackPolicy Fallback { get; set; } = FallbackPolicy.Stop;
     /// <summary>截图后行为：本条手势触发截图完成后的动作；空=跟随默认（弹提示）。仅截图类手势生效。</summary>
     public string AfterCapture { get; set; } = "";
+    /// <summary>截图完成后是否写剪贴板。与 <see cref="AfterCapture"/> 独立：关掉后贴图、进编辑器都不覆盖剪贴板。</summary>
+    public bool CopyToClipboard { get; set; } = true;
     /// <summary>同一「组合键+触发」命中多条时的先后（小者先，相等按加入顺序）。</summary>
     public int Priority { get; set; }
     /// <summary>双击/三击判定窗口（毫秒）。落在 50–2000 之外只提示，不挡保存。</summary>
@@ -66,6 +68,7 @@ public sealed class BindingEdit
     {
         Id = Id, Enabled = Enabled, Mods = Mods, Key = Key, Trigger = Trigger,
         Actions = new List<string>(Actions), OnComplete = new List<string>(OnComplete), Fallback = Fallback, AfterCapture = AfterCapture, Priority = Priority,
+        CopyToClipboard = CopyToClipboard,
         DoubleClickMs = DoubleClickMs, LongPressMs = LongPressMs,
     };
 }

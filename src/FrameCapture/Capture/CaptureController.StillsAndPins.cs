@@ -15,7 +15,7 @@ public sealed partial class CaptureController : IDisposable
     public void BeginCaptureSelection()
     {
         Trace.Log("capture-selection→picker");
-        _sessionAfter = _pendingAfter; _pendingAfter = "";   // 捕获本条手势的截图后
+        _sessionAfter = _pendingAfter; _pendingAfter = ""; _sessionCopy = _pendingCopy; _pendingCopy = true;   // 捕获本条手势的截图后
         BeginScopeSelection();
         _captureAfterSelect = true;
     }
@@ -47,7 +47,7 @@ public sealed partial class CaptureController : IDisposable
     public void CaptureInstantStill()
     {
         if (State != Phase.Idle) return;
-        _sessionAfter = _pendingAfter; _pendingAfter = "";   // 捕获本条手势的截图后
+        _sessionAfter = _pendingAfter; _pendingAfter = ""; _sessionCopy = _pendingCopy; _pendingCopy = true;   // 捕获本条手势的截图后
         var region = FullMonitorAtCursor();
         var f = LiveCapture.Grab(region.Bounds);
         if (f == null) { Trace.Log("instant still: grab null"); return; }
@@ -60,7 +60,7 @@ public sealed partial class CaptureController : IDisposable
     public void CaptureStoredStill()
     {
         if (State != Phase.Idle) return;
-        _sessionAfter = _pendingAfter; _pendingAfter = "";   // 捕获本条手势的截图后（托盘触发时 _pendingAfter 已空=默认弹提示）
+        _sessionAfter = _pendingAfter; _pendingAfter = ""; _sessionCopy = _pendingCopy; _pendingCopy = true;   // 捕获本条手势的截图后（托盘触发时 _pendingAfter 已空=默认弹提示）
         var region = StoredRegion() ?? FullMonitorAtCursor();
         var f = LiveCapture.Grab(region.Bounds);
         if (f == null) { Trace.Log("stored still: grab null"); return; }
@@ -179,7 +179,8 @@ public sealed partial class CaptureController : IDisposable
         });
     }
 
-    /// <summary>单帧静图完成后的统一处理：复制 + 自动保存副本 + 提示音 + 「截图后」四选一 + 记录上次截图。
+    /// <summary>单帧静图完成后的统一处理：按本条手势的开关决定写不写剪贴板 + 自动保存副本 + 提示音
+    /// + 「截图后」落点四选一 + 记录上次截图。
     /// 这是单帧产物<b>唯一</b>的完成路径：选区拖框、点按直出、即时截图都必须走这里，
     /// 绕开它的那条路径会整体丢掉「截图后」设置与提示音。</summary>
     /// <param name="f">已裁好的 BGRA 帧；本方法不拷贝它，剪贴板/浮窗/贴图/上次截图缓存共享同一份像素。</param>
@@ -190,24 +191,25 @@ public sealed partial class CaptureController : IDisposable
     {
         var pth = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "FrameCapture", $"capture-{DateTime.Now:HHmmss}.png");
         try { BgraImage.SavePng(f, pth); } catch { }
-        Encoding.ClipboardService.SetFrame(f, includePng: windowCapture);
+        if (_sessionCopy) Encoding.ClipboardService.SetFrame(f, includePng: windowCapture);
         SaveService.MaybeSavePng(f); // 自动保存副本（关=零副作用）
-        Trace.Log($"still saved {pth} {f.W}x{f.H}");
+        Trace.Log($"still saved {pth} {f.W}x{f.H} copy={_sessionCopy}");
         if (_settings.Current.CaptureSound) CaptureSound.Play(_settings.Current.CustomSoundPath); // 提示音（关=零副作用）
-        // 截图后行为：弹提示浮窗 / 直接进编辑器 / 只复制 / 贴图——四态覆盖不同人群
+        // 截图后落点：弹提示浮窗 / 直接进编辑器 / 什么都不做 / 贴图——四态覆盖不同人群。
+        // 写不写剪贴板是上面那条独立开关，与落点无关：贴图、进编辑器都可以不动剪贴板。
         switch (AfterCapture.Resolve(_sessionAfter))
         {
             case AfterCaptureAction.Editor:
                 OpenEditorForFrame(f, reg, device);
                 break;
             case AfterCaptureAction.Copy:
-                break; // 只复制（上面已 SetFrame），下方轮廓闪一下作反馈
+                break; // 不落任何东西；下方轮廓闪一下作反馈
             case AfterCaptureAction.Pin:
                 PinFrameAt(f, reg); // 截图后直接原地钉屏
                 break;
             default:
-                // 拍完即见：缩略浮窗确认"已复制"，点击原地进编辑器标注，不抢焦点
-                Overlays.CaptureToast.Show(f, reg, device, () => OpenEditorForFrame(f, reg, device));
+                // 拍完即见：缩略浮窗确认这一张截到了，点击原地进编辑器标注，不抢焦点
+                Overlays.CaptureToast.Show(f, reg, device, () => OpenEditorForFrame(f, reg, device), copied: _sessionCopy);
                 break;
         }
         _lastStill.Set(f, reg, device); // 浮窗消失后仍可经托盘找回编辑器

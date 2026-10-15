@@ -20,8 +20,11 @@ public sealed class GestureBindingDto
     public string[] Actions { get; set; } = Array.Empty<string>();
     /// <summary>完成后序列：主动作全部成功后再跑（如"截图后→贴图"）。可空。</summary>
     public string[] OnComplete { get; set; } = Array.Empty<string>();
-    /// <summary>截图后行为：本条手势触发截图完成后的动作——toast/editor/copy/pin；空=跟随默认（弹提示）。仅截图类手势生效。</summary>
+    /// <summary>截图后行为：本条手势触发截图完成后的落点——toast/editor/copy/pin；空=跟随默认（弹提示）。仅截图类手势生效。</summary>
     public string AfterCapture { get; set; } = "";
+    /// <summary>截图完成后是否写剪贴板。与 <see cref="AfterCapture"/> 各自独立：关掉后贴图、进编辑器都不覆盖剪贴板。
+    /// 缺省为真——配置文件里没有这个键时，行为与不写它的老配置一致。</summary>
+    public bool CopyToClipboard { get; set; } = true;
     /// <summary>GestureCore.FallbackPolicy 名：Stop/SkipStep/NextBinding（逐条显式，非引擎硬编码）。</summary>
     public string Fallback { get; set; } = "Stop";
     /// <summary>同一触发命中多条绑定时的先后：数值小的先试。</summary>
@@ -53,6 +56,7 @@ public sealed class GestureBindingDto
             Actions = Actions.Where(GestureActions.IsValid).ToList(),
             OnComplete = (OnComplete ?? Array.Empty<string>()).Where(GestureActions.IsValid).ToList(),
             AfterCapture = AfterCapture ?? "",
+            CopyToClipboard = CopyToClipboard,
             Fallback = fb,
             Priority = Priority,
             DoubleClickMs = Math.Clamp(DoubleClickMs, 50, 2000),
@@ -77,6 +81,7 @@ public sealed class GestureBindingDto
             Id = b.Id, Chord = chord, Trigger = b.Trigger.ToString(), Actions = b.Actions.ToArray(),
             OnComplete = b.OnComplete.ToArray(),
             AfterCapture = b.AfterCapture,
+            CopyToClipboard = b.CopyToClipboard,
             Fallback = b.Fallback.ToString(), Priority = b.Priority,
             DoubleClickMs = b.DoubleClickMs, LongPressMs = b.LongPressMs,
         };

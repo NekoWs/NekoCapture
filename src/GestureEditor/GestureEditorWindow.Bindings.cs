@@ -71,12 +71,13 @@ public sealed partial class GestureEditorWindow : Window
 
     string ActionLabel(string actionName) => _catalog.Actions().FirstOrDefault(a => a.Name == actionName)?.Label ?? actionName;
 
-    // 截图后行为的中文标签（取值与宿主 AfterCapture 一致；空=跟随默认弹提示）
+    // 截图后落点的中文标签（取值与宿主 AfterCapture 一致；空=跟随默认弹提示）。
+    // 只描述"截完之后打开什么"，写不写剪贴板是另一条独立开关。
     static string AfterCaptureLabel(string v) => v switch
     {
         "" => "跟随默认",
         "editor" => "进编辑器",
-        "copy" => "只复制",
+        "copy" => "什么都不做",
         "pin" => "贴图",
         _ => "弹提示",
     };
@@ -209,12 +210,16 @@ public sealed partial class GestureEditorWindow : Window
         _detail.Children.Add(BuildActionList(b.Actions, "动作序列", "添加动作"));
         _detail.Children.Add(BuildActionList(b.OnComplete, "完成后序列", "添加完成动作"));
 
-        // 截图后：本条手势触发截图完成后的行为；空=跟随默认（弹提示）。
+        // 截图后：本条手势触发截图完成后的落点；空=跟随默认（弹提示）。
         // 序列里没有截图类动作时整段隐藏（录制/编辑器/OCR 之外的手势配它没意义，徒增困惑）。
+        // 写不写剪贴板单独一条：贴图、进编辑器都不必覆盖用户剪贴板里原有的东西。
         _afterSec = new StackPanel();
         _afterSec.Children.Add(Label("截图后"));
         var afterOpts = new object[] { "", "toast", "editor", "copy", "pin" };
         _afterSec.Children.Add(MakeCombo(afterOpts, v => AfterCaptureLabel((string)v), b.AfterCapture, v => { b.AfterCapture = (string)v; RefreshList(); }));
+        _afterSec.Children.Add(Label("复制到剪贴板"));
+        var copyOpts = new object[] { true, false };
+        _afterSec.Children.Add(MakeCombo(copyOpts, v => (bool)v ? "复制" : "不复制", b.CopyToClipboard, v => b.CopyToClipboard = (bool)v));
         _detail.Children.Add(_afterSec);
         UpdateAfterSec();
 

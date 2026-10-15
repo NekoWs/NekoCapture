@@ -16,7 +16,7 @@ public sealed partial class CaptureController : IDisposable
     public void BeginScrollCapture()
     {
         Trace.Log("scroll capture→picker");
-        _sessionAfter = _pendingAfter; _pendingAfter = "";   // 捕获本条手势的截图后
+        _sessionAfter = _pendingAfter; _pendingAfter = ""; _sessionCopy = _pendingCopy; _pendingCopy = true;   // 捕获本条手势的截图后
         BeginScopeSelection();
         _scrollAfterSelect = true;
     }
@@ -187,7 +187,7 @@ public sealed partial class CaptureController : IDisposable
         bar?.CloseSelf();
         var pth = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "FrameCapture", $"scroll-{DateTime.Now:HHmmss}.png");
         try { BgraImage.SavePng(frame, pth); } catch { }
-        Encoding.ClipboardService.SetFrame(frame);
+        if (_sessionCopy) Encoding.ClipboardService.SetFrame(frame);
         SaveService.MaybeSavePng(frame);
         if (_settings.Current.CaptureSound) CaptureSound.Play(_settings.Current.CustomSoundPath);
         Trace.Log($"scroll done {frame.W}x{frame.H} segs={segs} {pth}");
@@ -202,7 +202,7 @@ public sealed partial class CaptureController : IDisposable
                 PinFrameAt(frame, reg);
                 break;
             default:
-                Overlays.CaptureToast.Show(frame, reg, dev, () => OpenEditorForFrame(frame, reg, dev));
+                Overlays.CaptureToast.Show(frame, reg, dev, () => OpenEditorForFrame(frame, reg, dev), copied: _sessionCopy);
                 break;
         }
         _lastStill.Set(frame, reg, dev);
@@ -228,7 +228,7 @@ public sealed partial class CaptureController : IDisposable
     public void BeginDelayedCapture()
     {
         if (_delayWindow != null) { Trace.Log("delay: already running, ignore"); return; }
-        _sessionAfter = _pendingAfter; _pendingAfter = "";   // 捕获本条手势的截图后
+        _sessionAfter = _pendingAfter; _pendingAfter = ""; _sessionCopy = _pendingCopy; _pendingCopy = true;   // 捕获本条手势的截图后
         int secs = Math.Clamp(_settings.Current.DelayCaptureSeconds, 0, 60);
         var region = StoredRegion() ?? FullMonitorAtCursor();
         string label = StoredRegion() != null ? $"范围 {region.Bounds.W}×{region.Bounds.H}" : "全屏";
@@ -288,7 +288,7 @@ public sealed partial class CaptureController : IDisposable
         var reg = region.Bounds; var dev = region.DeviceName;
         var f = LiveCapture.Grab(reg);
         if (f == null) { Trace.Log("delay: grab null"); return; }
-        Encoding.ClipboardService.SetFrame(f);
+        if (_sessionCopy) Encoding.ClipboardService.SetFrame(f);
         SaveService.MaybeSavePng(f);
         if (_settings.Current.CaptureSound) CaptureSound.Play(_settings.Current.CustomSoundPath);
         Trace.Log($"delay fire {f.W}x{f.H}");
@@ -303,7 +303,7 @@ public sealed partial class CaptureController : IDisposable
                 PinFrameAt(f, reg);
                 break;
             default:
-                Overlays.CaptureToast.Show(f, reg, dev, () => OpenEditorForFrame(f, reg, dev));
+                Overlays.CaptureToast.Show(f, reg, dev, () => OpenEditorForFrame(f, reg, dev), copied: _sessionCopy);
                 break;
         }
         _lastStill.Set(f, reg, dev);

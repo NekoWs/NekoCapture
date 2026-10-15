@@ -33,9 +33,18 @@ public sealed partial class CaptureController : IDisposable
     /// <summary>本次截图会话的「截图后」（发起时从 <see cref="_pendingAfter"/> 捕获，完成时分派）。
     /// 单独存一份是为防选区拖框期间触发的别的手势把 _pendingAfter 覆盖掉。</summary>
     private string _sessionAfter = "";
-    /// <summary>引擎在跑某条手势动作前告知本条的「截图后」（空=默认）。仅记录，真正生效在截图发起时捕获。</summary>
-    /// <param name="v">动作名；null 与空串等价，都按「默认弹提示」处理。</param>
-    public void SetPendingAfterCapture(string? v) => _pendingAfter = string.IsNullOrEmpty(v) ? "" : v;
+    /// <summary>本条手势的「复制到剪贴板」，发起时捕获进 <see cref="_sessionCopy"/>。</summary>
+    private bool _pendingCopy = true;
+    /// <summary>本次截图会话要不要写剪贴板。与落点各自独立：贴图、进编辑器都可以不动剪贴板。</summary>
+    private bool _sessionCopy = true;
+    /// <summary>引擎在跑某条手势动作前告知本条的「截图后」与「复制到剪贴板」。仅记录，真正生效在截图发起时捕获。</summary>
+    /// <param name="v">落点名；null 与空串等价，都按「默认弹提示」处理。</param>
+    /// <param name="copy">这张图完成后要不要写进剪贴板。</param>
+    public void SetPendingAfterCapture(string? v, bool copy = true)
+    {
+        _pendingAfter = string.IsNullOrEmpty(v) ? "" : v;
+        _pendingCopy = copy;
+    }
     /// <summary>选区完成后到真正抓取/起录之间的留白(ms)。选区窗已 WDA_EXCLUDEFROMCAPTURE，抓取本就拍不到它；
     /// 这里只留极短一拍让选区窗 Close 走完（防 WDA 万一失效时把选区界面截进画面）。再长就是纯等，用户能感觉到截图变慢。</summary>
     private const int PickerExitMs = 40;
