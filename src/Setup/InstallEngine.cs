@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
 using System.Reflection;
+using System.Threading;
 using Microsoft.Win32;
 
 namespace FrameCapture.Setup;
@@ -85,6 +86,13 @@ internal static class InstallEngine
         if (Directory.Exists(p) && !File.Exists(Path.Combine(p, AppName + ".exe")) && DirHasAnyEntry(p))
         { why = "这个文件夹里已有别的文件，请换一个空文件夹"; return false; }
 
+        // 装到一半才发现盘满，用户看到的是一句「失败」加一串回滚日志；挑位置时先量一次。
+        // 剩余空间查不到（网络路径、刚拔掉的盘）按不拦处理。
+        var need = PayloadBytes();
+        var free = FreeBytes(p);
+        if (need > 0 && free > 0 && free < need + (16L << 20))
+        { why = $"这里只剩 {free >> 20} MB，装不下这 {need >> 20} MB"; return false; }
+
         full = p;
         return true;
     }
@@ -109,9 +117,17 @@ internal static class InstallEngine
         catch (Exception) { return true; }
     }
 
-    /// <summary>开始菜单程序组目录。</summary>
-    internal static string StartMenuDir => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.CommonStartMenu), "Programs", AppFolder);
+    /// <summary>开始菜单程序组目录。已知文件夹被策略重定向到取不到的地方时返回空串：
+    /// 拿空串去 Path.Combine 会拼出相对路径，安装会把快捷方式建到引导器的当前目录，
+    /// 卸载会把那个目录整个删掉。</summary>
+    internal static string StartMenuDir
+    {
+        get
+        {
+            var root = Environment.GetFolderPath(Environment.SpecialFolder.CommonStartMenu);
+            return string.IsNullOrEmpty(root) ? "" : Path.Combine(root, "Programs", AppFolder);
+        }
+    }
 
     /// <summary>载荷来源：优先内嵌资源，缺省时退回 exe 同目录的 payload.zip，便于本地反复试装。</summary>
     /// <returns>可读取的 zip 流；两处都没有时抛异常。</returns>
@@ -131,6 +147,40 @@ internal static class InstallEngine
 
     /// <summary>引导器自身所在目录。</summary>
     private static string AppDir => Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location) ?? "";
+
+    static long? _payloadBytes;
+
+    /// <summary>载荷解压后的总字节数，供装前查剩余空间。</summary>
+    /// <returns>解压后字节数；载荷读不动时 0，按不拦处理。</returns>
+    internal static long PayloadBytes()
+    {
+        if (_payloadBytes != null) return _payloadBytes.Value;
+        long sum = 0;
+        try
+        {
+            using var zip = OpenPayload();
+            using var archive = new ZipArchive(zip, ZipArchiveMode.Read);
+            foreach (var e in archive.Entries) sum += e.Length;
+        }
+        catch (Exception) { sum = 0; }
+        _payloadBytes = sum;
+        return sum;
+    }
+
+    /// <summary>目标卷剩余字节。</summary>
+    /// <param name="pathForVolume">该卷上的任意路径，只用它定位卷。</param>
+    /// <returns>可用字节数；卷未就绪、路径没有根或查询抛异常时 -1，按不拦处理。</returns>
+    internal static long FreeBytes(string pathForVolume)
+    {
+        try
+        {
+            var root = Path.GetPathRoot(pathForVolume);
+            if (string.IsNullOrEmpty(root)) return -1;
+            var d = new DriveInfo(root);
+            return d.IsReady ? d.AvailableFreeSpace : -1;
+        }
+        catch (Exception) { return -1; }
+    }
 
     /// <summary>结束所有正在运行的主程序实例，否则被占用的 dll 删不掉也换不掉。</summary>
     internal static void KillApp()
@@ -152,8 +202,7 @@ internal static class InstallEngine
     /// <returns>true = 安装并登记成功。</returns>
     internal static bool Install(IProgress<string> log)
     {
-        var backup = Path.Combine(Path.GetTempPath(), "FrameCapture-backup-" + Guid.NewGuid().ToString("N"));
-        var moved = false;
+        string? backup = null;
         try
         {
             log.Report("正在结束运行中的主程序");
@@ -162,8 +211,8 @@ internal static class InstallEngine
             if (Directory.Exists(InstallDir))
             {
                 log.Report("正在备份已装版本");
-                Directory.Move(InstallDir, backup);
-                moved = true;
+                try { backup = BackupAside(InstallDir); }
+                catch (Exception ex) { throw new InvalidOperationException("备份 " + InstallDir + " 失败：" + ex.Message, ex); }
             }
 
             log.Report("正在释放文件");
@@ -185,13 +234,14 @@ internal static class InstallEngine
             }
 
             log.Report("正在放置卸载入口");
-            PlaceUninstallEntry();
+            // 少一个卸载入口和少一个快捷方式都不值得把已经装好的程序回滚掉，说清楚就行
+            if (!PlaceUninstallEntry()) log.Report("没能放下卸载入口，以后卸载请重新运行安装包");
 
             log.Report("正在登记卸载信息与快捷方式");
             Register();
-            CreateShortcut();
+            if (!CreateShortcut()) log.Report("没能创建开始菜单快捷方式，程序目录里的 exe 仍可直接运行");
 
-            if (moved) { TryDeleteDir(backup); }
+            if (backup != null) { TryDeleteDir(backup); }
             log.Report("完成");
             return true;
         }
@@ -201,10 +251,82 @@ internal static class InstallEngine
             // 新装没成功就把原样搬回去，用户至少还有上一个可用版本
             try
             {
-                if (moved && !Directory.Exists(InstallDir)) Directory.Move(backup, InstallDir);
+                if (backup != null && !Directory.Exists(InstallDir)) RestoreBackup(backup, InstallDir);
             }
             catch { /* 回滚失败已无更优解，日志里已留下失败原因 */ }
             return false;
+        }
+    }
+
+    /// <summary>把已装版本整目录挪去备份，返回备份位置。</summary>
+    /// <param name="installDir">程序目录。</param>
+    /// <returns>备份目录。</returns>
+    /// <remarks>备份优先落在程序目录的同级：只有同一卷才谈得上「移动」，
+    /// 把 D:\FrameCapture 移到系统盘的临时目录，<see cref="Directory.Move"/> 直接抛
+    /// 「源路径和目标路径必须具有相同的根」。跨卷只能复制再删，而删除窗口里只要有一个文件
+    /// 被占用，原版本就停在半删状态，所以同级能写就一定用同级。</remarks>
+    private static string BackupAside(string installDir)
+    {
+        var name = "FrameCapture.backup-" + Guid.NewGuid().ToString("N");
+        var parent = Path.GetDirectoryName(
+            installDir.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+        if (!string.IsNullOrEmpty(parent) && Directory.Exists(parent))
+        {
+            try { return MoveAside(installDir, Path.Combine(parent, name)); }
+            catch (Exception) { /* 同级不让写：盘根 ACL 收紧、目录在只读介质上，退回临时目录 */ }
+        }
+        var temp = Path.Combine(Path.GetTempPath(), name);
+        CopyTree(installDir, temp);
+        DeleteWithRetry(installDir);
+        return temp;
+    }
+
+    /// <summary>把备份放回原位。</summary>
+    /// <param name="backup">备份目录。</param>
+    /// <param name="installDir">程序目录。</param>
+    private static void RestoreBackup(string backup, string installDir)
+    {
+        if (SameVolume(backup, installDir)) Directory.Move(backup, installDir);
+        else CopyTree(backup, installDir);   // 跨卷没有「移回去」，临时那份交给系统清
+    }
+
+    /// <summary>同卷移动目录。</summary>
+    /// <param name="src">源目录。</param>
+    /// <param name="dst">目标目录。</param>
+    /// <returns>目标目录，便于调用处一行拿到落点。</returns>
+    private static string MoveAside(string src, string dst)
+    {
+        Directory.Move(src, dst);
+        return dst;
+    }
+
+    /// <summary>两个路径是否在同一卷上。</summary>
+    /// <param name="a">路径一。</param>
+    /// <param name="b">路径二。</param>
+    /// <returns>true = 同一卷，可以整目录移动。</returns>
+    private static bool SameVolume(string a, string b) =>
+        string.Equals(Path.GetPathRoot(a), Path.GetPathRoot(b), StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>递归复制目录树。</summary>
+    /// <param name="from">源目录。</param>
+    /// <param name="to">目标目录，不存在时创建。</param>
+    private static void CopyTree(string from, string to)
+    {
+        Directory.CreateDirectory(to);
+        foreach (var f in Directory.GetFiles(from))
+            File.Copy(f, Path.Combine(to, Path.GetFileName(f)), true);
+        foreach (var d in Directory.GetDirectories(from))
+            CopyTree(d, Path.Combine(to, Path.GetFileName(d)));
+    }
+
+    /// <summary>删目录，被占用时重试：主程序刚被结束，文件句柄常常还挂着几百毫秒。</summary>
+    /// <param name="dir">目标目录。</param>
+    private static void DeleteWithRetry(string dir)
+    {
+        for (var i = 0; ; i++)
+        {
+            try { Directory.Delete(dir, true); return; }
+            catch (Exception) when (i < 6) { Thread.Sleep(300); }
         }
     }
 
@@ -224,14 +346,23 @@ internal static class InstallEngine
             log.Report("正在删除程序目录 " + InstallDir);
             TryDeleteDir(InstallDir);
 
-            log.Report("正在删除快捷方式");
-            TryDeleteDir(StartMenuDir);
+            var sm = StartMenuDir;
+            if (sm.Length > 0)
+            {
+                log.Report("正在删除快捷方式");
+                TryDeleteDir(sm);
+            }
 
             // 设置与错误日志由主程序自己建，卸载要连它一起清才留不下痕迹。
             // 取的是当前用户的环境变量：别人账户下的同名目录动不了，也不该动。
-            log.Report("正在清除个人设置");
-            TryDeleteDir(Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), AppFolder));
+            // 已知文件夹取不到时整段跳过——空串拼出来的是相对路径，删掉的会是
+            // 引导器当前目录里那个同名文件夹。
+            var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+            if (!string.IsNullOrEmpty(appData))
+            {
+                log.Report("正在清除个人设置");
+                TryDeleteDir(Path.Combine(appData, AppFolder));
+            }
 
             // 自启值是主程序自己写的，卸载器必须清掉，否则「启动时运行」留一条指向空路径的死值
             log.Report("正在清除开机自启");
@@ -272,15 +403,19 @@ internal static class InstallEngine
     }
 
     /// <summary>把引导器自身复制到程序目录，作为卸载命令的落点。</summary>
+    /// <returns>true = 卸载入口已落地；false = 取不到自身路径，控制面板里的卸载会指向空文件。</returns>
     /// <remarks>复制正在运行的 exe 是允许的（读共享），落地的那份不在执行中，卸载时可删。</remarks>
-    private static void PlaceUninstallEntry()
+    private static bool PlaceUninstallEntry()
     {
-        var self = Process.GetCurrentProcess().MainModule?.FileName;
-        if (string.IsNullOrEmpty(self) || !File.Exists(self)) return;
+        string? self;
+        try { self = Process.GetCurrentProcess().MainModule?.FileName; }
+        catch (Exception) { return false; }   // 受限环境下取自身模块会抛，不该因此废掉整次安装
+        if (string.IsNullOrEmpty(self) || !File.Exists(self)) return false;
         var dest = Path.Combine(InstallDir, UninstallEntryName);
         // 引导器就放在目标目录里跑的情况：把文件复制到自己身上只会抛一场
-        if (string.Equals(Path.GetFullPath(self), Path.GetFullPath(dest), StringComparison.OrdinalIgnoreCase)) return;
+        if (string.Equals(Path.GetFullPath(self), Path.GetFullPath(dest), StringComparison.OrdinalIgnoreCase)) return true;
         File.Copy(self, dest, true);
+        return true;
     }
 
     /// <summary>发行者名，取自工程的 Company 特性，发行脚本可用 -p:Company 覆盖。</summary>
@@ -292,19 +427,29 @@ internal static class InstallEngine
     }
 
     /// <summary>在开始菜单建程序组与快捷方式。走系统 Shell 对象，不引第三方互操作程序集。</summary>
-    private static void CreateShortcut()
+    /// <returns>true = 快捷方式已落地；false = 这台机器建不了或没建，不影响安装本身。</returns>
+    private static bool CreateShortcut()
     {
-        Directory.CreateDirectory(StartMenuDir);
-        var lnk = Path.Combine(StartMenuDir, "FrameCapture.lnk");
-        var shell = Type.GetTypeFromProgID("WScript.Shell");
-        if (shell == null) return;
-        dynamic sh = Activator.CreateInstance(shell)!;
-        dynamic sc = sh.CreateShortcut(lnk);
-        sc.TargetPath = Path.Combine(InstallDir, AppName + ".exe");
-        sc.WorkingDirectory = InstallDir;
-        sc.IconLocation = Path.Combine(InstallDir, AppName + ".exe,0");
-        sc.Description = "FrameCapture";
-        sc.Save();
+        var dir = StartMenuDir;
+        if (dir.Length == 0) return false;
+        var lnk = Path.Combine(dir, "FrameCapture.lnk");
+        try
+        {
+            Directory.CreateDirectory(dir);
+            // 组策略可以禁掉 Windows 脚本宿主，那时 ProgID 解析不到、创建对象也会抛。
+            // 快捷方式建不出来是可说明的缺项，不该把已经装好的程序回滚掉。
+            var shell = Type.GetTypeFromProgID("WScript.Shell");
+            if (shell == null) return false;
+            dynamic sh = Activator.CreateInstance(shell)!;
+            dynamic sc = sh.CreateShortcut(lnk);
+            sc.TargetPath = Path.Combine(InstallDir, AppName + ".exe");
+            sc.WorkingDirectory = InstallDir;
+            sc.IconLocation = Path.Combine(InstallDir, AppName + ".exe,0");
+            sc.Description = "FrameCapture";
+            sc.Save();
+            return true;
+        }
+        catch (Exception) { return false; }
     }
 
     /// <summary>目录内文件字节总数，供 EstimatedSize 用。</summary>

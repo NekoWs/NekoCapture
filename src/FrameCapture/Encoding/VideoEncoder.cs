@@ -41,8 +41,14 @@ public static class FfmpegLocator
 
     private static IEnumerable<string> CommonPaths()
     {
-        yield return @"C:\Program Files\FFmpeg\bin\ffmpeg.exe";
-        yield return @"C:\Program Files (x86)\FFmpeg\bin\ffmpeg.exe";
+        // 系统盘不一定是 C:，写死盘符会漏掉装在别的卷上的 ffmpeg
+        foreach (var pf in new[]
+                 {
+                     Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
+                     Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86),
+                 })
+            if (!string.IsNullOrEmpty(pf))
+                yield return Path.Combine(pf, @"FFmpeg\bin\ffmpeg.exe");
         string local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
         if (!string.IsNullOrEmpty(local))
         {

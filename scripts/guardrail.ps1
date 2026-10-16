@@ -51,7 +51,8 @@ $lints = @(
     @{ n = "lint:comments";      f = "lint-comments.ps1";      mark = "LINT-COMMENTS" },
     @{ n = "lint:motion-tokens"; f = "lint-motion-tokens.ps1"; mark = "LINT-MOTION" },
     @{ n = "lint:copy-parens";   f = "lint-copy-parens.ps1";   mark = "LINT-COPY" },
-    @{ n = "lint:i18n-coverage"; f = "lint-i18n-coverage.ps1"; mark = "LINT-I18N" }
+    @{ n = "lint:i18n-coverage"; f = "lint-i18n-coverage.ps1"; mark = "LINT-I18N" },
+    @{ n = "lint:setup-paths";   f = "lint-setup-paths.ps1";   mark = "LINT-SETUP-PATHS" }
 )
 $lintJobs = [ordered]@{}
 foreach ($t in $lints) {

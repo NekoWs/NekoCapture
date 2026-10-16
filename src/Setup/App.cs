@@ -128,10 +128,11 @@ internal static class App
     /// <returns>true = 新实例已启动，当前实例应退出。</returns>
     internal static bool RelaunchElevated(string arguments)
     {
-        var exe = Process.GetCurrentProcess().MainModule?.FileName
-                  ?? System.Reflection.Assembly.GetExecutingAssembly().Location;
         try
         {
+            // 取自身模块在受限环境下会抛，落回程序集位置；提权失败不该以异常收场
+            var exe = Process.GetCurrentProcess().MainModule?.FileName
+                      ?? System.Reflection.Assembly.GetExecutingAssembly().Location;
             var psi = new ProcessStartInfo(exe, arguments) { UseShellExecute = true, Verb = "runas" };
             using var p = Process.Start(psi);
             return p != null;
