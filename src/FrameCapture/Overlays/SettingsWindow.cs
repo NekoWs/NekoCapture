@@ -170,34 +170,21 @@ public sealed partial class SettingsWindow : Window
         var fpsRow = SliderRow("\uEC4A", Loc.T(K.Settings.RecordingFrameRate), Loc.T(K.Settings.FramesCapturedPerSecondWhile),
             AppSettings.FpsMin, AppSettings.FpsMax, 5, _settings.Current.Fps,
             v => $"{v:0} fps", v => _settings.Mutate(s => s.Fps = (int)v));
-        // 跟随刷新率开启→手动帧率完全失效，整行淡出隐藏（关闭再淡入恢复），比灰着更诚实、页面更干净
-        void SetFpsVisible(bool vis)
-        {
-            if (vis)
-            {
-                fpsRow.Visibility = Visibility.Visible;
-                fpsRow.BeginAnimation(OpacityProperty, new DoubleAnimation(1.0,
-                    new Duration(TimeSpan.FromMilliseconds(Fluent.Motion.EnterMs)))
-                { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
-            }
-            else
-            {
-                var fade = new DoubleAnimation(0.0,
-                    new Duration(TimeSpan.FromMilliseconds(Fluent.Motion.ExitMs)))
-                { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseIn } };
-                fade.Completed += (_, _) => fpsRow.Visibility = Visibility.Collapsed;
-                fpsRow.BeginAnimation(OpacityProperty, fade);
-            }
-        }
-        if (_settings.Current.FollowMonitorRefresh) { fpsRow.Opacity = 0; fpsRow.Visibility = Visibility.Collapsed; }
-        panel.Children.Add(fpsRow);
+        // 跟随刷新率开启→手动帧率完全失效，整行原地收拢让位（关掉再原地拉开恢复），比灰着更诚实、页面更干净
+        var fpsFold = Fluent.Revealable(fpsRow);
+        if (!_settings.Current.FollowMonitorRefresh) Fluent.RevealOpen(fpsFold);
+        panel.Children.Add(fpsFold);
         int hz = Core.DisplayRefresh.RateOf(Capture.Monitors.All().FirstOrDefault(m => m.IsPrimary)?.DeviceName);
         panel.Children.Add(ToggleRow("\uE7F4", Loc.T(K.Settings.RecordAtFullMonitorRefresh),
             (hz > 0 ? Loc.F(K.Settings.TheRecordingFrameRateThen2, hz, hz)
                     : Loc.T(K.Settings.TheRecordingFrameRateThen))
             + Loc.T(K.Settings.HighRefreshPanelsAtHz),
             _settings.Current.FollowMonitorRefresh,
-            v => { _settings.Mutate(s => s.FollowMonitorRefresh = v); SetFpsVisible(!v); })); // 开→帧率行淡出隐藏，关→淡入恢复
+            v =>
+            {
+                _settings.Mutate(s => s.FollowMonitorRefresh = v);
+                if (v) Fluent.Conceal(fpsFold); else Fluent.Reveal(fpsFold);
+            })); // 开→帧率行收拢让位，关→原地拉开恢复
         panel.Children.Add(RecordFormatRow());
         // 长按录制没有时长上限——录到用户停为止，帧持续落盘，不受内存与时长约束，因此这里没有可调数值。
         // 唯一护栏是磁盘剩余空间（<1GB 自动停并保留已录内容）。

@@ -238,29 +238,10 @@ public sealed partial class SettingsWindow : Window
         };
         var chipList = new List<(Border chip, RecordFormat id)>();
         // 边框填充色只在 MP4 下出现：h264 没有透明通道，透明边得拍平到一个颜色才读得出阴影。
-        // 进出场与「跟随刷新率→帧率行」同款：淡入即现，淡完才收起，不突然跳版。
-        var matte = MatteColorRow();
-        bool matteIn = cur == RecordFormat.Mp4;
-        matte.Opacity = matteIn ? 1 : 0;
-        matte.Visibility = matteIn ? Visibility.Visible : Visibility.Collapsed;
-        void SetMatteVisible(bool vis)
-        {
-            if (vis)
-            {
-                matte.Visibility = Visibility.Visible;
-                matte.BeginAnimation(OpacityProperty, new DoubleAnimation(1.0,
-                    new Duration(TimeSpan.FromMilliseconds(Fluent.Motion.EnterMs)))
-                { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
-            }
-            else
-            {
-                var fade = new DoubleAnimation(0.0,
-                    new Duration(TimeSpan.FromMilliseconds(Fluent.Motion.ExitMs)))
-                { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseIn } };
-                fade.Completed += (_, _) => matte.Visibility = Visibility.Collapsed;
-                matte.BeginAnimation(OpacityProperty, fade);
-            }
-        }
+        // 进出场原地拉开空地再放内容，退场滑走收高——页面不跳版。
+        var matte = Fluent.Revealable(MatteColorRow());
+        bool matteOpen = cur == RecordFormat.Mp4;
+        if (matteOpen) Fluent.RevealOpen(matte);   // 开窗就选着 MP4：直接摆在展开态，不演入场
         foreach (var (id, text, tip) in opts)
         {
             RecordFormat captured = id;
@@ -270,7 +251,11 @@ public sealed partial class SettingsWindow : Window
             {
                 _settings.Mutate(s => s.RecordFormat = captured);
                 RefreshChips(chipList, captured);
-                SetMatteVisible(captured == RecordFormat.Mp4);
+                bool want = captured == RecordFormat.Mp4;
+                if (want == matteOpen) return;   // 状态没变就别再演一遍
+                matteOpen = want;
+                if (want) Fluent.Reveal(matte);
+                else Fluent.Conceal(matte);
             }
             WireChip(chip, Apply);
             chips.Children.Add(chip);

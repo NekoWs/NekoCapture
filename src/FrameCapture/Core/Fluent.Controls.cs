@@ -456,6 +456,109 @@ public static partial class Fluent
         };
     }
 
+    /// <summary>横向插拔的默认行程（像素）。再大就像整页在动，这个量级只够看清"是从旁边推进来的"。</summary>
+    public const double RevealShift = 14;
+
+    /// <summary>折叠件容器：把一行设置项包起来，交给 <see cref="Reveal"/> / <see cref="Conceal"/> 原地拉开与收拢。
+    /// 包这一层是为了让行自己的上下外边距算进高度里——不包的话高度收到 0 时那截边距会突然消失，收尾就跳一下。</summary>
+    /// <param name="content">要折叠的内容，通常是 <c>Row()</c> 产出的行容器。</param>
+    /// <returns>初始收起的容器：不占位、全透明、横向停在右侧待位。</returns>
+    public static Border Revealable(UIElement content) => new()
+    {
+        Child = content,
+        ClipToBounds = true,
+        Visibility = Visibility.Collapsed,
+        Opacity = 0,
+        RenderTransform = new TranslateTransform(RevealShift, 0),
+    };
+
+    /// <summary>原地展开：先把位置从当前高度拉开到自然高，内容同时淡入并从右侧一小段滑到位。
+    /// 中途打断一律从当前值接着走，不跳变。</summary>
+    /// <param name="el">目标元素，需已在可视树里——自然高度按父容器给的宽度量。</param>
+    /// <param name="slidePx">横向行程，默认 <see cref="RevealShift"/>。</param>
+    public static void Reveal(FrameworkElement el, double? slidePx = null)
+    {
+        double shift = slidePx ?? RevealShift;
+        double curH = double.IsPositiveInfinity(el.MaxHeight) ? 0 : el.MaxHeight;
+        double h = NaturalHeight(el);
+        el.ClipToBounds = true;
+        el.Visibility = Visibility.Visible;
+        var grow = new DoubleAnimation(Math.Min(curH, h), h,
+            new Duration(TimeSpan.FromMilliseconds(Motion.EnterMs)))
+        { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } };
+        // 走完放开限高：窗口变窄让这一行换行时，不能被入场那一刻量出来的高度卡住
+        grow.Completed += (_, _) => el.BeginAnimation(FrameworkElement.MaxHeightProperty, null);
+        el.BeginAnimation(FrameworkElement.MaxHeightProperty, grow);
+        Fade(el, 1, Motion.EnterMs, EasingMode.EaseOut);
+        Slide(ShiftOf(el), ShiftOf(el).X, 0, Motion.EnterMs, EasingMode.EaseOut);
+    }
+
+    /// <summary>收拢退场：内容向右一小段滑出、同时淡出，高度一起收到 0，动画走完才让位（Collapsed）。</summary>
+    /// <param name="el">目标元素。</param>
+    /// <param name="slidePx">横向行程，默认 <see cref="RevealShift"/>。</param>
+    public static void Conceal(FrameworkElement el, double? slidePx = null)
+    {
+        double shift = slidePx ?? RevealShift;
+        el.ClipToBounds = true;
+        var t = ShiftOf(el);
+        double fromH = el.ActualHeight;
+        if (!double.IsPositiveInfinity(el.MaxHeight)) fromH = Math.Min(fromH, el.MaxHeight);
+        if (fromH <= 0) fromH = NaturalHeight(el);
+        var shrink = new DoubleAnimation(fromH, 0,
+            new Duration(TimeSpan.FromMilliseconds(Motion.ExitMs)))
+        { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseIn } };
+        shrink.Completed += (_, _) =>
+        {
+            // 放开动画才能改回静止值：动画攥着的属性，直接赋值不生效
+            el.BeginAnimation(FrameworkElement.MaxHeightProperty, null);
+            el.BeginAnimation(UIElement.OpacityProperty, null);
+            t.BeginAnimation(TranslateTransform.XProperty, null);
+            el.Opacity = 0;
+            t.X = shift;                       // 停在右侧，下次入场仍从右边推进来
+            el.Visibility = Visibility.Collapsed;
+        };
+        el.BeginAnimation(FrameworkElement.MaxHeightProperty, shrink);
+        Fade(el, 0, Motion.ExitMs, EasingMode.EaseIn);
+        Slide(t, t.X, shift, Motion.ExitMs, EasingMode.EaseIn);
+    }
+
+    /// <summary>把折叠件直接摆在展开到位的静止态。页面装配时用，免得开窗就演一遍入场动画。</summary>
+    /// <param name="el">目标元素。</param>
+    public static void RevealOpen(FrameworkElement el)
+    {
+        el.Visibility = Visibility.Visible;
+        el.Opacity = 1;
+        el.MaxHeight = double.PositiveInfinity;
+        ShiftOf(el).X = 0;
+    }
+
+    static TranslateTransform ShiftOf(FrameworkElement el)
+    {
+        if (el.RenderTransform is TranslateTransform t) return t;
+        var nt = new TranslateTransform();
+        el.RenderTransform = nt;
+        return nt;
+    }
+
+    static void Fade(FrameworkElement el, double to, int ms, EasingMode mode)
+        => el.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(el.Opacity, to,
+            new Duration(TimeSpan.FromMilliseconds(ms))) { EasingFunction = new CubicEase { EasingMode = mode } });
+
+    static void Slide(TranslateTransform t, double from, double to, int ms, EasingMode mode)
+        => t.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(from, to,
+            new Duration(TimeSpan.FromMilliseconds(ms))) { EasingFunction = new CubicEase { EasingMode = mode } });
+
+    /// <summary>折叠件的自然高度：按父容器给的宽度量一次。测量要先放开限高——
+    /// 否则读到的是动画中途的限高，展开动画会原地不动。</summary>
+    static double NaturalHeight(FrameworkElement el)
+    {
+        el.BeginAnimation(FrameworkElement.MaxHeightProperty, null);
+        el.MaxHeight = double.PositiveInfinity;
+        double w = (el.Parent as FrameworkElement)?.ActualWidth ?? 0;
+        el.Measure(new Size(w > 1 ? w : 480, double.PositiveInfinity));
+        return el.DesiredSize.Height;
+    }
+
     /// <summary>圆角按钮模板：底色/内衬走 TemplateBinding，内容居中，可选悬停淡出。</summary>
     /// <param name="hoverFade">true = 悬停时整钮淡到 0.88；false = 悬停无变化。两种都要保留：
     /// 倒计时钮要淡出反馈，滚动控制条的钮淡出会与其所在浮窗的透明度叠加。</param>

@@ -1193,6 +1193,34 @@ static class SelfTest
                     $"换底后抬起不许在选中态画刷上开动画（抬起跑了 {upFired} 次，动画挂上={brush.HasAnimatedProperties}，实得 #{after.R:X2}{after.G:X2}{after.B:X2}，要 #0078D4）");
             }
             catch (Exception ex) { Chk("T204-chip-hover-yields-to-external-recolor", false, FirstLine(ex.Message)); }
+
+            // 折叠件进出场：展开要真的把位置拉开（高度到位、淡到位），收拢要真的把位置还回去。
+            try
+            {
+                var foldWin = new Window
+                {
+                    Left = -20000, Top = -20000, Width = 420, Height = 260,
+                    Content = new System.Windows.Controls.StackPanel(),
+                };
+                var fold = FrameCapture.Core.Fluent.Revealable(
+                    new System.Windows.Controls.Border { Height = 40 });
+                ((System.Windows.Controls.StackPanel)foldWin.Content).Children.Add(fold);
+                foldWin.Show();
+                PumpMs(250);
+                bool startCollapsed = fold.Visibility == Visibility.Collapsed && fold.Opacity == 0;
+                FrameCapture.Core.Fluent.Reveal(fold);
+                PumpMs(450);
+                double openH = fold.ActualHeight;
+                double openOp = fold.Opacity;
+                FrameCapture.Core.Fluent.Conceal(fold);
+                PumpMs(450);
+                bool yielded = fold.Visibility == Visibility.Collapsed;
+                Chk("T205-reveal-opens-and-conceal-yields-space",
+                    startCollapsed && openH > 39 && openOp > 0.99 && yielded,
+                    $"起始收起={startCollapsed} 展开后实高 {openH:0} 透明度 {openOp:0.00} 收拢让位={yielded}");
+                foldWin.Close();
+            }
+            catch (Exception ex) { Chk("T205-reveal-opens-and-conceal-yields-space", false, FirstLine(ex.Message)); }
             // 目录字形动态锁：工具目录里每个 Glyph 必须在字体里真实存在且有宽度——
             // 静态清单会漏新工具（加 V 时就漏了），目录本身才是该锁的对象
             bool catOk = true;

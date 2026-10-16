@@ -21,16 +21,9 @@ public sealed partial class SettingsWindow : Window
     /// <param name="panel">快捷键页的内容容器。</param>
     void BuildEditorKeys(StackPanel panel)
     {
-        panel.Children.Add(new TextBlock
-        {
-            Foreground = new SolidColorBrush(Theme.TextDim),
-            FontSize = 12.5,
-            Margin = new Thickness(2, 18, 0, 6),
-            TextWrapping = TextWrapping.Wrap,
-            Text = Loc.T(K.Settings.KeysForTheEditorWindow),
-        });
         // 每行注册一个刷新动作：改一条键位可能让别的行冒出撞键提示，整表刷一遍最省事
         var ekRefresh = new List<Action>();
+        bool firstCard = true;
         string ConflictNote(EditorCommand c)
         {
             var hits = new List<string>();
@@ -224,7 +217,8 @@ public sealed partial class SettingsWindow : Window
             }
             var card = new Border
             {
-                Margin = new Thickness(0, 2, 0, 2),
+                // 第一张卡离上面的快捷键卡片远一点：这一节没有标题也没有说明文字，分组靠留白说
+                Margin = new Thickness(0, firstCard ? 16 : 2, 0, 2),
                 CornerRadius = new CornerRadius(6),
                 BorderThickness = new Thickness(1),
                 BorderBrush = new SolidColorBrush(Theme.Stroke),
@@ -234,6 +228,7 @@ public sealed partial class SettingsWindow : Window
             };
             Fluent.Elevate(card, blur: 24, depth: 6);
             panel.Children.Add(card);
+            firstCard = false;
         }
         foreach (var g in EditorCommands.Groups) EditorKeyGroup(g);
         var ekResetAll = MiniButton(Loc.T(K.Settings.RestoreAllDefaultKeys), () =>

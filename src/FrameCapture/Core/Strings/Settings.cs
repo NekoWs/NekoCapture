@@ -221,10 +221,6 @@ public static partial class K
             "settings.keepsTheCurrentCaptureRegion",
             "在屏幕上持续显示当前捕获范围的边框，开/关立刻生效。尚未设置范围时没有可显示的边框——先用托盘「设置捕获范围」",
             "Keeps the current capture region's border on screen, and switching takes effect at once. With no region set there is nothing to show — set one first from the tray under Set Capture Region");
-        public static readonly Str KeysForTheEditorWindow = new(
-            "settings.keysForTheEditorWindow",
-            "编辑器窗口里的键位。点一下键位框，再按下新键即改；按 Esc 取消这个键位，加号再加一个按法。改完立即生效。",
-            "Keys for the editor window. Click a key box, then press a new key to rebind it; press Esc to clear that key, or the plus sign to add another way to press it. Changes apply immediately.");
         public static readonly Str Language = new("settings.language", "界面语言", "Language");
         public static readonly Str Light = new("settings.light", "浅色", "Light");
         public static readonly Str ListSeparator = new("settings.listSeparator", "、", ", ");
