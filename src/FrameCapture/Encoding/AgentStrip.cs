@@ -39,21 +39,25 @@ public static class AgentStrip
     /// 由帧序列渲染胶片条位图：每行最多 8 格，每格下方标帧号与秒数。
     /// 本方法只在内存里出图，写文件或写剪贴板由调用方决定。
     /// </summary>
-    /// <param name="frames">源帧序列，必须覆盖 idxs 里的每个下标；缩放比按 idxs[0] 那帧的宽高定。</param>
-    /// <param name="idxs">要上格的帧下标，数组顺序即格子排列顺序。<b>为空即抛异常</b>：空条没有意义。</param>
+    /// <param name="frames">要上格的帧，<b>与 <paramref name="idxs"/> 一一对应</b>：第 i 格画 frames[i]。
+    /// 编辑器递进来的是抽样烘焙后的那几帧，不是整段录制——按整段下标去取会越界。
+    /// 缩放比按 frames[0] 的宽高定。</param>
+    /// <param name="idxs">每格标注的原始帧号（时间轴下标），顺序即格子排列顺序。<b>为空即抛异常</b>：空条没有意义。</param>
     /// <returns>已 Freeze 的 Pbgra32 位图，96 DPI，可跨线程使用。
     /// 单格宽固定 288，高按帧宽高比并封顶 360。</returns>
-    /// <exception cref="ArgumentException">idxs 为空。</exception>
+    /// <exception cref="ArgumentException">idxs 为空，或帧数不够填满格子。</exception>
     public static BitmapSource Render(IReadOnlyList<CapturedFrame> frames, IReadOnlyList<int> idxs)
     {
         int take = idxs.Count;
         if (take == 0) throw new ArgumentException("empty strip");
+        if (frames.Count < take)
+            throw new ArgumentException($"frames={frames.Count} < idxs={take}：每格都要有自己的帧");
 
         int cols = Math.Min(take, 8);
         int rows = (take + cols - 1) / cols;
 
         // 单元格尺寸：宽 288，高按帧宽高比
-        int srcW = frames[idxs[0]].W, srcH = frames[idxs[0]].H;
+        int srcW = frames[0].W, srcH = frames[0].H;
         double scale = 288.0 / srcW;
         int cellW = (int)Math.Round(srcW * scale);
         int cellH = (int)Math.Round(srcH * scale);
@@ -76,7 +80,7 @@ public static class AgentStrip
                 int r = i / cols, c = i % cols;
                 int x = pad + c * (cellW + pad);
                 int y = pad + r * ((int)fh + label + pad);
-                var frame = frames[idxs[i]];
+                var frame = frames[i];
                 var bmp = BgraImage.ToSource(frame);
                 dc.DrawImage(bmp, new Rect(x, y, fw, fh));
                 var ft = new FormattedText(
@@ -103,7 +107,7 @@ public static class AgentStrip
     public static string Generate(CapturedSequence seq, int desiredFrames, string path)
     {
         var idxs = SampleIndices(seq.Frames.Count, desiredFrames, 1);
-        var img = Render(seq.Frames, idxs);
+        var img = Render(idxs.Select(i => seq.Frames[i]).ToList(), idxs);
         var enc = new PngBitmapEncoder();
         enc.Frames.Add(BitmapFrame.Create(img));
         using var fs = File.Create(path);

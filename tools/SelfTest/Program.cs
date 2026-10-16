@@ -1012,6 +1012,26 @@ static class SelfTest
         }
         catch (Exception e) { Chk("T7-strip", false, e.ToString()); }
 
+        // 编辑器递进 Render 的是抽样烘焙后的那几帧，idxs 是它们在时间轴上的编号。
+        // 按时间轴编号去取帧，一稀释就越界——胶片条永远生成失败，日志里只留一句 Index out of range。
+        try
+        {
+            var all7 = Enumerable.Range(0, 40).Select(k =>
+            {
+                var f = MovingSquare(160, 90, k, 16); f.TimeMs = k * 50; return f;
+            }).ToList();
+            var idxs7 = AgentStrip.SampleIndices(all7.Count, 8, 1);
+            var sampled7 = idxs7.Select(i => all7[i]).ToList();
+            var strip7 = AgentStrip.Render(sampled7, idxs7);
+            Chk("T7c-sampled-frames-match-their-timeline-ids",
+                idxs7.Count == 8 && sampled7.Count == 8 && strip7.PixelWidth > 800,
+                $"递 K 帧 + K 个时间轴编号必须成图（实得 {idxs7.Count} 编号 / {sampled7.Count} 帧 / {strip7.PixelWidth}px）");
+            bool threw7 = false;
+            try { AgentStrip.Render(sampled7.Take(3).ToList(), idxs7); } catch (ArgumentException) { threw7 = true; }
+            Chk("T7d-strip-rejects-missing-frames", threw7, "帧数不够格子时必须抛，不能默默画半张");
+        }
+        catch (Exception e) { Chk("T7-strip-sampling", false, e.ToString()); }
+
         // 主题：明/暗双调色板对比度正确（文字与背景必须反向）
         try
         {

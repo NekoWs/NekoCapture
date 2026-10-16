@@ -187,16 +187,17 @@ public sealed partial class CaptureController : IDisposable
         bar?.CloseSelf();
         var pth = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "FrameCapture", $"scroll-{DateTime.Now:HHmmss}.png");
         try { BgraImage.SavePng(frame, pth); } catch { }
-        Encoding.ClipboardService.SetFrame(frame);
         SaveService.MaybeSavePng(frame);
         if (_settings.Current.CaptureSound) CaptureSound.Play(_settings.Current.CustomSoundPath);
         Trace.Log($"scroll done {frame.W}x{frame.H} segs={segs} {pth}");
+        // 剪贴板由用户的动作写：点提示浮窗、编辑器里点 √，或这条落点本身就是「复制到剪贴板」。
         switch (AfterCapture.Resolve(_sessionAfter))
         {
             case AfterCaptureAction.Editor:
                 OpenEditorForFrame(frame, reg, dev);
                 break;
             case AfterCaptureAction.Copy:
+                Encoding.ClipboardService.SetFrame(frame);
                 break;
             case AfterCaptureAction.Pin:
                 PinFrameAt(frame, reg);
@@ -204,7 +205,12 @@ public sealed partial class CaptureController : IDisposable
             case AfterCaptureAction.None:
                 break; // 这条手势在「完成后」里自己写了落点
             default:
-                Overlays.CaptureToast.Show(frame, reg, dev, () => OpenEditorForFrame(frame, reg, dev), copied: true);
+                Overlays.CaptureToast.Show(frame, reg, dev,
+                    () =>
+                    {
+                        Encoding.ClipboardService.SetFrame(frame);
+                        OpenEditorForFrame(frame, reg, dev);
+                    });
                 break;
         }
         _lastStill.Set(frame, reg, dev);
@@ -291,22 +297,28 @@ public sealed partial class CaptureController : IDisposable
         var reg = region.Bounds; var dev = region.DeviceName;
         var f = LiveCapture.Grab(reg);
         if (f == null) { Trace.Log("delay: grab null"); return; }
-        Encoding.ClipboardService.SetFrame(f);
         SaveService.MaybeSavePng(f);
         if (_settings.Current.CaptureSound) CaptureSound.Play(_settings.Current.CustomSoundPath);
         Trace.Log($"delay fire {f.W}x{f.H}");
+        // 剪贴板由用户的动作写：点提示浮窗、编辑器里点 √，或这条落点本身就是「复制到剪贴板」。
         switch (AfterCapture.Resolve(_sessionAfter))
         {
             case AfterCaptureAction.Editor:
                 OpenEditorForFrame(f, reg, dev);
                 break;
             case AfterCaptureAction.Copy:
+                Encoding.ClipboardService.SetFrame(f);
                 break;
             case AfterCaptureAction.Pin:
                 PinFrameAt(f, reg);
                 break;
             default:
-                Overlays.CaptureToast.Show(f, reg, dev, () => OpenEditorForFrame(f, reg, dev), copied: true);
+                Overlays.CaptureToast.Show(f, reg, dev,
+                    () =>
+                    {
+                        Encoding.ClipboardService.SetFrame(f);
+                        OpenEditorForFrame(f, reg, dev);
+                    });
                 break;
         }
         _lastStill.Set(f, reg, dev);

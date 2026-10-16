@@ -240,30 +240,35 @@ public sealed partial class CaptureController : IDisposable
     {
         var pth = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "FrameCapture", $"capture-{DateTime.Now:HHmmss}.png");
         try { BgraImage.SavePng(f, pth); } catch { }
-        Encoding.ClipboardService.SetFrame(f, includePng: windowCapture);
         SaveService.MaybeSavePng(f); // 自动保存副本（关=零副作用）
         Trace.Log($"still saved {pth} {f.W}x{f.H} win={windowCapture}");
         if (_settings.Current.CaptureSound) CaptureSound.Play(_settings.Current.CustomSoundPath); // 提示音（关=零副作用）
         // 截图后落点：弹提示浮窗 / 直接进编辑器 / 什么都不做 / 贴图——四态覆盖不同人群。
-        // 写不写剪贴板是上面那条独立开关，与落点无关：贴图、进编辑器都可以不动剪贴板。
+        // 剪贴板由用户的动作写，不由截图写：点提示浮窗、编辑器里点 √，或这条落点本身就是「复制到剪贴板」。
         switch (AfterCapture.Resolve(_sessionAfter))
         {
             case AfterCaptureAction.Editor:
                 OpenEditorForFrame(f, reg, device);
                 break;
             case AfterCaptureAction.Copy:
-                break; // 不落任何东西；下方轮廓闪一下作反馈
+                Encoding.ClipboardService.SetFrame(f, includePng: windowCapture);
+                break; // 这条落点就是剪贴板本身；下方轮廓闪一下作反馈
             case AfterCaptureAction.Pin:
                 PinFrameAt(f, reg); // 截图后直接原地钉屏
                 break;
             case AfterCaptureAction.None:
                 break; // 这条手势在「完成后」里自己写了落点，默认反馈让位给它
             default:
-                // 拍完即见：缩略浮窗确认这一张截到了，点击原地进编辑器标注，不抢焦点
-                Overlays.CaptureToast.Show(f, reg, device, () => OpenEditorForFrame(f, reg, device), copied: true);
+                // 拍完即见：缩略浮窗确认这一张截到了。点它＝要这张图：此刻才写剪贴板，并原地进编辑器标注，不抢焦点。
+                Overlays.CaptureToast.Show(f, reg, device,
+                    () =>
+                    {
+                        Encoding.ClipboardService.SetFrame(f, includePng: windowCapture);
+                        OpenEditorForFrame(f, reg, device);
+                    });
                 break;
         }
-        _lastStill.Set(f, reg, device); // 浮窗消失后仍可经托盘找回编辑器
+        _lastStill.Set(f, reg, device, windowCapture); // 浮窗消失后仍可经托盘找回编辑器
         _tailProduct = true;            // 尾巴里的动作认的就是这一帧
         RunScopedTail("still");         // 这条手势挂在选区上的尾巴：完成后/失败时的覆盖序列在这里交回
     }
@@ -303,15 +308,16 @@ public sealed partial class CaptureController : IDisposable
     public void ShowLastStillToast()
     {
         if (!_lastStill.TryGet(out var f, out var reg, out var dev)) return;
-        Overlays.CaptureToast.Show(f, reg, dev, () => OpenEditorForFrame(f, reg, dev), copied: false);
+        Overlays.CaptureToast.Show(f, reg, dev, () => OpenEditorForFrame(f, reg, dev));
     }
 
-    /// <summary>手势「复制到剪贴板」——把上一次截图写进剪贴板。没有上次截图时什么都不做。</summary>
+    /// <summary>手势「复制到剪贴板」——把上一次截图写进剪贴板。没有上次截图时什么都不做。
+    /// 上次那张是窗口截图时必须带上 PNG 形态：CF_DIB 不带 alpha，透明边会被读成黑色。</summary>
     public void CopyLastStill()
     {
         if (!_lastStill.TryGet(out var f, out _, out _)) return;
-        Encoding.ClipboardService.SetFrame(f);
-        Trace.Log("copy-last still");
+        Encoding.ClipboardService.SetFrame(f, includePng: _lastStill.WindowCapture);
+        Trace.Log($"copy-last still {f.W}x{f.H} win={_lastStill.WindowCapture}");
     }
 
     /// <summary>是否有留在内存、可进编辑器的上次录制。</summary>

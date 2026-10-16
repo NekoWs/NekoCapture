@@ -28,10 +28,6 @@ public static partial class K
             "点击或按 Enter 继续标注 · Esc 关闭",
             "Click or press Enter to annotate · Esc to dismiss");
         public static readonly Str Copied = new("capture.copied", "已复制 ", "Copied ");
-        public static readonly Str CopiedToClipboard = new(
-            "capture.copiedToClipboard",
-            "已复制到剪贴板",
-            "Copied to clipboard");
         public static readonly Str CopyAll = new("capture.copyAll", "复制全部", "Copy all");
         public static readonly Str Done = new("capture.done", "完成", "Done");
         public static readonly Str DragToSelectHover = new(
