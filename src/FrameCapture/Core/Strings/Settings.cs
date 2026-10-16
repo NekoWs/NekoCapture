@@ -143,6 +143,10 @@ public static partial class K
             "settings.draggingAPinSnapsIt",
             "拖动贴图时实时吸附对齐：贴近所在屏幕边缘则停靠四边/四角；贴近同屏其他贴图、以及浏览器或资源管理器等任何应用窗口的边或中线则与之对齐，把贴图摆齐像吸附网格一样自然。阈值调低为「贴边才吸」，不会隔空乱跳。关闭则松手停在原地",
             "Dragging a pin snaps it into alignment: near a screen edge it docks to an edge or a corner, and near another pin on the same screen or the edge or center line of any app window — a browser or File Explorer included — it lines up with it. A lower threshold means it only grabs when close, so nothing jumps across the screen. Off, a pin stops where you let go");
+        public static readonly Str DragThisStepToReorder = new(
+            "settings.dragThisStepToReorder",
+            "按住拖动调整顺序",
+            "Drag to reorder this step");
         public static readonly Str DuringARecordingTheReal = new(
             "settings.duringARecordingTheReal",
             "录制期间按真实捕获范围高亮描边，只提示、不录进产物。取代 Windows 11 那条绕整屏的黄色系统捕获边框——WGC 只能整显示器捕获，系统边框必然全屏、与所选范围无关",
@@ -210,10 +214,6 @@ public static partial class K
             "编辑器窗口里的键位。点一下键位框，再按下新键即改；按 Esc 取消这个键位，加号再加一个按法。改完立即生效。",
             "Keys for the editor window. Click a key box, then press a new key to rebind it; press Esc to clear that key, or the plus sign to add another way to press it. Changes apply immediately.");
         public static readonly Str Language = new("settings.language", "界面语言", "Language");
-        public static readonly Str LeaveThisStepAlone = new(
-            "settings.leaveThisStepAlone",
-            "这一步不动",
-            "Leave this step alone");
         public static readonly Str Light = new("settings.light", "浅色", "Light");
         public static readonly Str ListSeparator = new("settings.listSeparator", "、", ", ");
         public static readonly Str NeverDisappearsOnItsOwn = new(
@@ -330,10 +330,6 @@ public static partial class K
             "settings.startupNotification",
             "启动气泡提示",
             "Startup notification");
-        public static readonly Str SwapThisStepForAnother = new(
-            "settings.swapThisStepForAnother",
-            "换成别的动作",
-            "Swap this step for another action");
         public static readonly Str System = new("settings.system", "系统", "System");
         public static readonly Str System2 = new("settings.system2", "系统默认", "System");
         public static readonly Str TheCursorAppears = new(

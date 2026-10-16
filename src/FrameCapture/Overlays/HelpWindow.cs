@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
@@ -368,24 +369,72 @@ public sealed class HelpWindow : Window
         };
     }
 
+    /// <summary>「工具」这一页：绘图工具排成两张一行的卡片，图标 + 名字 + 键位。
+    /// 每个工具那句长说明进 tooltip：一列长句把这一页撑成一屏滚动，扫一眼反而抓不到重点。</summary>
+    /// <param name="p">这一页的正文面板。</param>
     void Tools(StackPanel p)
     {
-        foreach (var t in ToolCatalog.Tools)
+        var grid = new UniformGrid { Columns = 2 };
+        foreach (var t in ToolCatalog.Tools) grid.Children.Add(ToolCard(t));
+        p.Children.Add(grid);
+        p.Children.Add(new TextBlock
         {
-            var g = new Grid { Margin = new Thickness(2, 2, 0, 2) };
-            g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(26) });
-            g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(112) });
-            g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            var sym = new TextBlock { Text = t.Sym, FontSize = 14, Foreground = new SolidColorBrush(Theme.Accent), VerticalAlignment = VerticalAlignment.Center };
-            var key = EditorKeyParts("tool." + t.Key)[0];
-            // 没绑键时只写工具名，绑了就带上键位——两种语言下都是这个结构
-            var name = new TextBlock { Text = key.Length == 0 ? Loc.T(t.Tip) : $"{Loc.T(t.Tip)} {key}", FontSize = 12.5, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(Theme.Text), VerticalAlignment = VerticalAlignment.Center };
-            var help = new TextBlock { Text = Loc.T(t.Help), FontSize = 12, Foreground = new SolidColorBrush(Theme.TextDim), TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center };
-            Grid.SetColumn(sym, 0); Grid.SetColumn(name, 1); Grid.SetColumn(help, 2);
-            g.Children.Add(sym); g.Children.Add(name); g.Children.Add(help);
-            p.Children.Add(g);
-        }
-        p.Children.Add(new TextBlock { Text = Loc.F(K.Help.PressTheToolKeyAgain, EditorKeysFor("tool.X")), FontSize = 11.5, Foreground = new SolidColorBrush(Theme.TextDim), Margin = new Thickness(2, 6, 0, 0), TextWrapping = TextWrapping.Wrap });
+            Text = Loc.F(K.Help.PressTheToolKeyAgain, EditorKeysFor("tool.X")),
+            FontSize = 11.5,
+            Foreground = new SolidColorBrush(Theme.TextDim),
+            Margin = new Thickness(2, 8, 0, 0),
+            TextWrapping = TextWrapping.Wrap,
+        });
+    }
+
+    /// <summary>一张工具卡：图标、名字、绑到的键。悬停填色，长说明在 tooltip。</summary>
+    /// <param name="t">目录里的一条工具。</param>
+    /// <returns>卡片。</returns>
+    static Border ToolCard(ToolInfo t)
+    {
+        string key = EditorKeyParts("tool." + t.Key)[0];
+        var head = new StackPanel { Orientation = Orientation.Horizontal };
+        head.Children.Add(new TextBlock
+        {
+            Text = t.Glyph,
+            FontFamily = new FontFamily(Fluent.IconFontChain),
+            FontSize = 15,
+            Foreground = new SolidColorBrush(Theme.Accent),
+            VerticalAlignment = VerticalAlignment.Center,
+            Width = 24,
+        });
+        head.Children.Add(new TextBlock
+        {
+            Text = Loc.T(t.Tip),
+            FontSize = 12.5,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = new SolidColorBrush(Theme.Text),
+            VerticalAlignment = VerticalAlignment.Center,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+        });
+        // 没绑键就只写名字：名字后面挂一个空位比什么都不写更乱
+        if (key.Length > 0)
+            head.Children.Add(new TextBlock
+            {
+                Text = key,
+                FontSize = 11,
+                Foreground = new SolidColorBrush(Theme.TextDim),
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(6, 0, 0, 0),
+            });
+        var card = new Border
+        {
+            Margin = new Thickness(2),
+            Padding = new Thickness(9, 7, 9, 7),
+            CornerRadius = new CornerRadius(6),
+            BorderBrush = new SolidColorBrush(Theme.StrokeSoft),
+            BorderThickness = new Thickness(1),
+            Background = Brushes.Transparent,
+            Child = head,
+            ToolTip = Loc.T(t.Help),
+        };
+        Fluent.ChipHover(card);
+        return card;
     }
     #endregion
 

@@ -17,8 +17,15 @@ try {
     $p = Start-Process $exe -PassThru
     Start-Sleep 1.5
     Invoke-FcSynthetic $exe $capHk 700
-    Start-Sleep 2.2
-    $ed = & $shot rect "FrameCapture Editor" 2>$null
+    # 编辑器出现要等捕获落定，机器忙的时候要多等几秒。轮询到 8 秒封顶：
+    # 「编辑器必须出现」是硬条件，只有等待时长随机器走。
+    $ed = "not-found"
+    $deadline = (Get-Date).AddSeconds(8)
+    while ((Get-Date) -lt $deadline) {
+        $ed = & $shot rect "FrameCapture Editor" 2>$null
+        if ("$ed" -notmatch "not-found") { break }
+        Start-Sleep -Milliseconds 250
+    }
     if ($ed -match "not-found") {
         Write-Host "ESC-LAYERS FAIL: 编辑器未出现——合成键未经消息通道抵达引擎"
         if (!$p.HasExited) { $p.Kill() }
@@ -28,8 +35,15 @@ try {
     Invoke-FcEditorKey $exe 27; Start-Sleep 0.6   # Esc → 应只退工具
     $ed2 = & $shot rect "FrameCapture Editor" 2>$null
     $stillOpen = "$ed2" -notmatch "not-found"
-    Invoke-FcEditorKey $exe 27; Start-Sleep 1.2   # Esc → 应关闭
-    $ed3 = & $shot rect "FrameCapture Editor" 2>$null
+    # 第二记 Esc 关窗同样轮询：关得慢不算失败，压根没关才算
+    Invoke-FcEditorKey $exe 27
+    $ed3 = "found"
+    $deadline = (Get-Date).AddSeconds(6)
+    while ((Get-Date) -lt $deadline) {
+        $ed3 = & $shot rect "FrameCapture Editor" 2>$null
+        if ("$ed3" -match "not-found") { break }
+        Start-Sleep -Milliseconds 250
+    }
     $closed = "$ed3" -match "not-found"
     if (!$p.HasExited) { $p.Kill() }
     $log = ""

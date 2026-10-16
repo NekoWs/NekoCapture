@@ -27,11 +27,8 @@ public static partial class K
         public static readonly Str DefaultNothing = new("hotkeys.defaultNothing", "默认 · 什么都不做", "Default · nothing");
         public static readonly Str DefaultToast = new("hotkeys.defaultToast", "默认 · 弹提示", "Default · toast");
         public static readonly Str EnableHotkeys = new("hotkeys.enableHotkeys", "启用快捷键", "Enable hotkeys");
-        public static readonly Str LeaveEmptyToNameIt = new(
-            "hotkeys.leaveEmptyToNameIt",
-            "留空则按序列自动取名",
-            "Leave empty to name it from the sequence");
-        public static readonly Str Name = new("hotkeys.name", "名字", "Name");
+        public static readonly Str NewPresetName = new("hotkeys.newPresetName", "新配置", "New preset");
+        public static readonly Str RenameThisHotkey = new("hotkeys.renameThisHotkey", "改名", "Rename");
         public static readonly Str OffStepsTheWholeHotkey = new(
             "hotkeys.offStepsTheWholeHotkey",
             "关掉后快捷键整体不参与：不吞键、不触发，按键照常交给当前窗口",
@@ -47,15 +44,11 @@ public static partial class K
             "hotkeys.pressANewKeyEsc",
             "按新键 · Esc 解绑",
             "Press a new key · Esc clears it");
-        public static readonly Str RunsInOrderClick = new(
-            "hotkeys.runsInOrderClick",
-            "按顺序执行；点芯片换这一步，点加号在后面加一步",
-            "Runs in order. Click a chip to change that step, click the plus sign to add one after it.");
+        public static readonly Str RunsInOrderDragToReorder = new(
+            "hotkeys.runsInOrderDragToReorder",
+            "按顺序执行；按住芯片拖到想要的位置，点加号在后面加一步",
+            "Runs in order. Drag a chip to the place you want, click the plus sign to add one after it.");
         public static readonly Str Shortcut = new("hotkeys.shortcut", "组合键", "Shortcut");
-        public static readonly Str TheNameThisHotkeyShows = new(
-            "hotkeys.theNameThisHotkeyShows",
-            "这条快捷键在列表里的名字；留空时按它执行的动作自动显示",
-            "The name this hotkey shows in the list. Left empty, it follows the actions it runs.");
         public static readonly Str Trigger = new("hotkeys.trigger", "触发方式", "Trigger");
     }
 }

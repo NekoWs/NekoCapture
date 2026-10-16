@@ -415,7 +415,10 @@ public sealed partial class SettingsWindow : Window
             Content = host,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            // 让出滚动条那一格：滚动条浮在这一格里，长页短页之间正文宽度始终不变
+            Padding = new Thickness(0, 0, 8, 0),
         };
+        Fluent.OverlayScroll(scroller);
         var rightPanel = new DockPanel { LastChildFill = true };
         DockPanel.SetDock(contentHeader, Dock.Top);
         rightPanel.Children.Add(contentHeader);
@@ -439,10 +442,15 @@ public sealed partial class SettingsWindow : Window
         // 首帧一次到位：整窗连同正文由构造函数里的 PopupEnter 同一帧淡入。
         // 行的逐项错位只用在切类别（ShowCat animate=true）——那里内容确实在变。
 
-        // 窗级 Esc 关窗、F1 打开帮助。
+        // 窗级 Esc 关窗、F1 打开帮助。Esc 挂在前置（隧道）事件上，窗口比子控件先收到按键：
+        // 正在等键的键位框要拿它解绑，正在打字的输入框要拿它作废，都不能顺手把窗关掉。
         PreviewKeyDown += (_, e) =>
         {
-            if (e.Key == Key.Escape) Fluent.CloseWithFade(this);
+            if (e.Key == Key.Escape)
+            {
+                if (InCapturingBox(e.OriginalSource as DependencyObject) || e.OriginalSource is TextBox) return;
+                Fluent.CloseWithFade(this);
+            }
             else if (e.Key == Key.F1) { HelpWindow.ShowOrFocus(); e.Handled = true; }
         };
         SourceInitialized += (_, _) =>

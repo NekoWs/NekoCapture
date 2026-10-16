@@ -74,13 +74,13 @@ public sealed partial class SettingsWindow : Window
                 Foreground = new SolidColorBrush(Theme.TextDim),
                 Margin = new Thickness(0, 0, 0, 4),
             });
-            // 键位区放得下两枚框：加到第三枚就换行，名字列不会被越加越多的按法挤扁
-            const double BoxW = 140, BoxGap = 6;
+            // 键位区按内容占宽：一枚键帽占一枚的宽度，放不下才换行
+            const double BoxGap = 6;
             foreach (var c in cmds)
             {
-                var row = new Grid { Margin = new Thickness(0, 2, 0, 2) };
+                var row = new Grid();
                 row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-                row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength((BoxW + BoxGap) * 2) });
+                row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
                 row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
                 row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
                 var nameStack = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
@@ -118,7 +118,18 @@ public sealed partial class SettingsWindow : Window
                 row.Children.Add(nameStack);
                 row.Children.Add(boxes);
                 row.Children.Add(reset);
-                stack.Children.Add(row);
+                // 一行一枚胶囊：与快捷键行同一层描边，静止时不填底，指针进来才浮出底色
+                var pill = new Border
+                {
+                    CornerRadius = new CornerRadius(6),
+                    BorderBrush = new SolidColorBrush(Theme.StrokeSoft),
+                    BorderThickness = new Thickness(1),
+                    Padding = new Thickness(10, 7, 8, 7),
+                    Margin = new Thickness(0, 2, 0, 2),
+                    Child = row,
+                };
+                HoverFill(pill);
+                stack.Children.Add(pill);
 
                 // 加号按钮：多一个按法不必挑默认那几个槽位，随时往上加
                 var add = new Border
@@ -158,7 +169,6 @@ public sealed partial class SettingsWindow : Window
                         var box = new ChordCaptureBox
                         {
                             Chord = list[at],
-                            Width = BoxW,
                             Margin = new Thickness(0, 1, BoxGap, 1),
                         };
                         box.Picked += v =>
@@ -178,7 +188,7 @@ public sealed partial class SettingsWindow : Window
                     if (pending)
                     {
                         // 新键位框一出来就在等键：按下键才落进列表，中途走开就当没加过
-                        var fresh = new ChordCaptureBox { Width = BoxW, Margin = new Thickness(0, 1, BoxGap, 1) };
+                        var fresh = new ChordCaptureBox { Margin = new Thickness(0, 1, BoxGap, 1) };
                         fresh.Picked += v =>
                         {
                             if (v.Length > 0)

@@ -33,12 +33,14 @@ public sealed partial class SettingsWindow : Window
     /// <value>约 37 毫秒。</value>
     static TimeSpan RowStep => TimeSpan.FromMilliseconds(Fluent.Motion.StaggerMs / 3);
 
-    /// <summary>展开正文容器：高度从 0 长到实测高度，容器里可见的行自上而下逐个滑入。</summary>
+    /// <summary>展开正文容器：容器先长到实测高度，长到一半时内容自上而下逐条淡入。
+    /// 两件事同时开跑会糊成一次整体位移——盒子先就位，内容才有落点。</summary>
     /// <param name="host">正文容器；动画期间靠 MaxHeight 限高，走完后放开。</param>
     /// <param name="rows">容器里的行面板，按可见顺序逐行错位。</param>
     /// <param name="width">容器可用的排版宽度，用来量出目标高度。</param>
     static void PlayExpand(Border host, Panel rows, double width)
     {
+        ClearFade(host);
         host.BeginAnimation(MaxHeightProperty, null);
         host.MaxHeight = double.PositiveInfinity;
         host.Visibility = Visibility.Visible;
@@ -56,18 +58,20 @@ public sealed partial class SettingsWindow : Window
         };
         host.MaxHeight = 0;
         host.BeginAnimation(MaxHeightProperty, grow);
+        // 半拍后开始落位：等容器完全长够再逐条淡入，整段会拖成明显的两拍
         int i = 0;
         foreach (UIElement c in rows.Children)
         {
             if (c.Visibility != Visibility.Visible) continue;
-            SlideIn(c, TimeSpan.FromMilliseconds(i * RowStep.TotalMilliseconds));
+            SlideIn(c, TimeSpan.FromMilliseconds(Fluent.Motion.EnterMs * 0.5 + i * RowStep.TotalMilliseconds));
             i++;
         }
     }
 
-    /// <summary>收起一个容器或一行：高度收回 0，走完后置为不可见。</summary>
+    /// <summary>收起一个容器或一行：内容先逐条淡出，容器再收口，走完后置为不可见。</summary>
     /// <param name="el">要收起的元素。</param>
-    static void PlayCollapse(FrameworkElement el)
+    /// <param name="delayMs">起跳前的等待毫秒数：同一批里后收的行等在这一行前面。</param>
+    static void PlayCollapse(FrameworkElement el, double delayMs = 0)
     {
         if (el.Visibility != Visibility.Visible)
         {
@@ -76,8 +80,13 @@ public sealed partial class SettingsWindow : Window
             return;
         }
         double from = el.ActualHeight > 1 ? el.ActualHeight : 1;
+        // 内容先退、容器后收：一起缩会把文字挤成一团
+        double lead = delayMs + FadeOutRows(el);
         var shrink = new DoubleAnimation(from, 0, new Duration(TimeSpan.FromMilliseconds(Fluent.Motion.ExitMs)))
-        { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseIn } };
+        {
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseIn },
+            BeginTime = TimeSpan.FromMilliseconds(lead),
+        };
         shrink.Completed += (_, _) =>
         {
             el.BeginAnimation(MaxHeightProperty, null);
@@ -87,18 +96,54 @@ public sealed partial class SettingsWindow : Window
         el.BeginAnimation(MaxHeightProperty, shrink);
     }
 
-    /// <summary>把单独一行就地长出来：高度从 0 到实测高度，同时滑入。</summary>
+    /// <summary>把容器里的可见行逐条淡出，倒着退（最后一条先走），与展开的先后成镜像。</summary>
+    /// <param name="el">容器：正文框或一行。</param>
+    /// <returns>整段淡出占用的毫秒数，收口动画据此错开；容器里没有行面板时为 0。</returns>
+    static double FadeOutRows(FrameworkElement el)
+    {
+        Panel? rows = (el as Border)?.Child as Panel ?? el as Panel;
+        if (rows == null) return 0;
+        double step = RowStep.TotalMilliseconds / 2;
+        int i = 0;
+        foreach (UIElement c in rows.Children)
+            if (c.Visibility == Visibility.Visible) i++;
+        int at = i - 1;
+        foreach (UIElement c in rows.Children)
+        {
+            if (c.Visibility != Visibility.Visible) continue;
+            c.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(1, 0,
+                new Duration(TimeSpan.FromMilliseconds(Fluent.Motion.QuickMs)))
+            { BeginTime = TimeSpan.FromMilliseconds(at * step) });
+            at--;
+        }
+        return i <= 1 ? 0 : (i - 1) * step;
+    }
+
+    /// <summary>清掉淡出留下的透明度动画。收起时逐条淡出的行，再次露出时若不清，
+    /// 那条动画的终值会把这一行一直按在透明上。</summary>
+    /// <param name="el">要清干净的容器。</param>
+    static void ClearFade(FrameworkElement el)
+    {
+        el.BeginAnimation(UIElement.OpacityProperty, null);
+        Panel? rows = (el as Border)?.Child as Panel ?? el as Panel;
+        if (rows == null) return;
+        foreach (UIElement c in rows.Children) c.BeginAnimation(UIElement.OpacityProperty, null);
+    }
+
+    /// <summary>把单独一行就地长出来：高度从 0 到实测高度，随后滑入。</summary>
     /// <param name="row">要露出的行。</param>
     /// <param name="width">排版宽度。</param>
-    static void RevealRow(FrameworkElement row, double width)
+    /// <param name="delayMs">起跳前的等待毫秒数：同一批里后露出的行据此排到前一行之后。</param>
+    static void RevealRow(FrameworkElement row, double width, double delayMs = 0)
     {
+        ClearFade(row);
         row.BeginAnimation(MaxHeightProperty, null);
         row.MaxHeight = double.PositiveInfinity;
         row.Visibility = Visibility.Visible;
         row.Measure(new Size(Math.Max(240, width), double.PositiveInfinity));
         double h = Math.Ceiling(row.DesiredSize.Height);
         var grow = new DoubleAnimation(0, h, new Duration(TimeSpan.FromMilliseconds(Fluent.Motion.EnterMs)))
-        { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } };
+        { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }, BeginTime = TimeSpan.FromMilliseconds(delayMs) };
         grow.Completed += (_, _) =>
         {
             row.BeginAnimation(MaxHeightProperty, null);
@@ -106,7 +151,7 @@ public sealed partial class SettingsWindow : Window
         };
         row.MaxHeight = 0;
         row.BeginAnimation(MaxHeightProperty, grow);
-        SlideIn(row, TimeSpan.Zero);
+        SlideIn(row, TimeSpan.FromMilliseconds(delayMs + Fluent.Motion.EnterMs * 0.5));
     }
 
     /// <summary>一行滑入：从上方 8 像素落到原位并淡入。</summary>

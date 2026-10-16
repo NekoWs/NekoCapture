@@ -1,7 +1,9 @@
+using System;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using K = FrameCapture.Core.K;
 
 namespace FrameCapture.Core;
@@ -32,6 +34,11 @@ public sealed class ChordCaptureBox : Border
     /// <summary>离开录入态，无论改键、解绑还是失焦。与 <see cref="CaptureBegan"/> 成对。</summary>
     public event Action? CaptureEnded;
 
+    /// <summary>是否正在等键。宿主窗口的「Esc 关窗」挂在前置（隧道）事件上，比本控件先收到按键，
+    /// 需要据此放行：正在等键时这一记 Esc 是解绑这个键位，不是关窗。</summary>
+    /// <value>录入态为 true。</value>
+    public bool Capturing => _capturing;
+
     /// <summary>当前键位串，空串表示这条命令不占键。</summary>
     /// <value>赋值后立即重画。</value>
     public string Chord
@@ -56,7 +63,7 @@ public sealed class ChordCaptureBox : Border
         CornerRadius = new CornerRadius(6);
         BorderThickness = new Thickness(1);
         Padding = new Thickness(10, 6, 10, 6);
-        MinWidth = 116;
+        MinWidth = 40;
         Background = new SolidColorBrush(Theme.CardBg);
         // 键帽在框里居中：表格里的框等宽对齐，键帽长短不一时靠边会让每行的键位错开
         _host.HorizontalAlignment = HorizontalAlignment.Center;
@@ -151,5 +158,24 @@ public sealed class ChordCaptureBox : Border
             }));
         }
         BorderBrush = new SolidColorBrush(_capturing ? Theme.Accent : Theme.Stroke);
+        FitWidth();
+    }
+
+    /// <summary>把框宽收到内容头上：一枚键帽就占一枚的宽度，不占住一整格。
+    /// 录入态那句提示比任何键帽都宽，宽度差用一次 <see cref="Fluent.Motion.StateMs"/> 过渡，
+    /// 直接改会让同一行里别的键位框跟着跳。</summary>
+    void FitWidth()
+    {
+        _host.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        double target = Math.Max(MinWidth, Math.Ceiling(_host.DesiredSize.Width)
+            + Padding.Left + Padding.Right + BorderThickness.Left + BorderThickness.Right);
+        double from = ActualWidth;
+        BeginAnimation(WidthProperty, null);
+        // 还没排版过就没有「当前宽度」可过渡，第一帧直接落位
+        if (from < 1 || Math.Abs(from - target) < 0.5) { Width = target; return; }
+        Width = from;
+        BeginAnimation(WidthProperty, new DoubleAnimation(from, target,
+            new Duration(TimeSpan.FromMilliseconds(Fluent.Motion.StateMs)))
+        { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
     }
 }

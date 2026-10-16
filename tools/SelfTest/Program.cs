@@ -218,9 +218,17 @@ static class SelfTest
     static int RenderHelp(string outPath) => RenderHelp(outPath, 0, 1);
     static int RenderHelp(string outPath, int step, double scale)    {
         var app = new Application();
+        // 帮助里的键位列取自 SettingsService.Shared：拍图路径不建它，那一列会整列空掉，
+        // 拍出来的就不是用户看到的形态。主题与语言也走与设置窗拍图同一条规则。
+        var svc = new FrameCapture.Core.SettingsService();
+        FrameCapture.Core.Theme.Apply(svc.Current.Theme, svc.Current.Accent);
+        string ftheme = Environment.GetEnvironmentVariable("FC_THEME") ?? "";
+        if (ftheme == "light" || ftheme == "dark")
+            FrameCapture.Core.Theme.Apply(ftheme, svc.Current.Accent);
+        FrameCapture.Core.Fluent.ApplyGlobalStyles();
         // 界面语言与宿主同一套规则：FC_LANG 覆盖配置，拍双语界面不必先改用户配置
         string lang = Environment.GetEnvironmentVariable("FC_LANG") ?? "";
-        if (lang != "") FrameCapture.Core.Loc.Apply(lang);
+        FrameCapture.Core.Loc.Apply(lang == "" ? svc.Current.UiLanguage : lang);
         // 反射设静态 _lastStep，让窗口停在指定步（长页/短页分别取证）
         typeof(FrameCapture.Overlays.HelpWindow)
             .GetField("_lastStep", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!
@@ -1289,10 +1297,17 @@ static class SelfTest
                 bestOrdered && bestLast < 0.05 && bestFirst > bestLast,
                 $"首={bestFirst:N2} 末={bestLast:N2} 错位单调={bestOrdered} 采样于={sampledMs}ms");
             PumpMs(Fluent.Motion.SpringMs + Fluent.Motion.StaggerMs + 300);
-            var bad = btnW.FirstOrDefault(b => b.Opacity < 0.999
+            // 收尾也不押固定时长：整段入场以 ContentRendered 为锚，锚点晚的时候上面那段泵不完最后几项。
+            // 继续泵到全部复位为止，上限 4 秒——「全部复位」这个判定条件本身一分没松。
+            System.Windows.Controls.Button? NotSettled() => btnW.FirstOrDefault(b => b.Opacity < 0.999
                 || (b.RenderTransform != null && !b.RenderTransform.Value.IsIdentity));
+            var bad = NotSettled();
+            var swSettle = Stopwatch.StartNew();
+            while (bad != null && swSettle.ElapsedMilliseconds < 4000) { PumpMs(20); bad = NotSettled(); }
             Chk("T178c-toolbar-settled", bad == null,
-                bad == null ? "全部复位" : $"残留 透明度={bad.Opacity:N2} 变换={bad.RenderTransform?.GetType().Name}");
+                bad == null
+                    ? $"全部复位，等位 {swSettle.ElapsedMilliseconds}ms"
+                    : $"残留 透明度={bad.Opacity:N2} 变换={bad.RenderTransform?.GetType().Name}");
             Chk("T178d-hover-scale-intact",
                 btnW.All(b => b.RenderTransform is null or System.Windows.Media.ScaleTransform),
                 string.Join(",", btnW.Select(b => b.RenderTransform?.GetType().Name ?? "null").Distinct()));
@@ -4169,6 +4184,223 @@ static class SelfTest
             };
         }
         catch (Exception e) { Chk("T191-hotkey-expand-animation", false, e.Message); }
+
+        // 快捷键页这一轮的形态：默认名按语言、名字在胶囊上就地改、键位框宽度跟着键帽走、
+        // 滚动条浮在内容上、等键的框自己接住 Esc、芯片只拖不点、加号在右侧点开候选卡。
+        // 芯片编辑器单独实例化，get/set 用测试自己的闭包：拖动与选动作都不会写进用户的配置。
+        try
+        {
+            var app6 = System.Windows.Application.Current ?? new System.Windows.Application();
+            var svc6 = new FrameCapture.Core.SettingsService();
+            typeof(FrameCapture.Services.AppHost).GetProperty("Settings")!
+                .SetValue(FrameCapture.Services.AppHost.Current, svc6);
+            FrameCapture.Core.Theme.Apply("dark", svc6.Current.Accent);
+            FrameCapture.Core.Fluent.ApplyGlobalStyles();
+            var swType = typeof(FrameCapture.Overlays.SettingsWindow);
+            const System.Reflection.BindingFlags NP = System.Reflection.BindingFlags.NonPublic
+                | System.Reflection.BindingFlags.Static;
+            const System.Reflection.BindingFlags FI = System.Reflection.BindingFlags.NonPublic
+                | System.Reflection.BindingFlags.Instance;
+            var nameMi = swType.GetMethod("HotkeyDisplayName", NP)!;
+            static FrameCapture.Core.GestureBindingDto Bind(string id, string? name = null)
+                => new() { Id = id, Name = name ?? "", Chord = "Ctrl+Alt+A", Trigger = "Chord", Actions = new[] { "scope.select" } };
+            string Disp(FrameCapture.Core.GestureBindingDto b, string lang)
+            {
+                FrameCapture.Core.Loc.Apply(lang);
+                return (string)nameMi.Invoke(null, new object[] { b })!;
+            }
+            Chk("T196a-default-names-follow-language",
+                Disp(Bind("default.capture"), "zh") == "截图" && Disp(Bind("default.record"), "zh") == "录制"
+                && Disp(Bind("user.x"), "zh") == "新配置"
+                && Disp(Bind("default.capture"), "en") == "Capture" && Disp(Bind("user.x"), "en") == "New preset",
+                "出厂两条按界面语言取自己的名字，用户新建的按语言取「新配置」");
+            Chk("T196b-user-name-survives-language",
+                Disp(Bind("default.capture", "我的截图"), "en") == "我的截图",
+                "用户写过的名字是他的数据，切到英文界面也原样保留");
+
+            // 就地改名的输入框：宽度跟着内容长，光标不会顶到框边
+            var renameMi = swType.GetMethod("RenameBox", NP)!;
+            var renameGrid = (System.Windows.Controls.Grid)renameMi.Invoke(null,
+                new object[] { "短", new Action<string>(_ => { }), new Action(() => { }) })!;
+            var renameBox = renameGrid.Children.OfType<System.Windows.Controls.TextBox>().First();
+            var winRn = new Window
+            {
+                Content = renameGrid, Left = -20000, Top = -20000, SizeToContent = SizeToContent.WidthAndHeight,
+                ShowInTaskbar = false, ShowActivated = false, WindowStyle = WindowStyle.None,
+            };
+            winRn.Show();
+            PumpMs(200);
+            double shortW = renameBox.Width;
+            renameBox.Text = "一条长得需要一直往右写的名字";
+            PumpMs(200);
+            Chk("T196c-rename-box-grows-with-text",
+                shortW > 40 && renameBox.Width > shortW + 60,
+                $"改名框随内容变宽：短名 {shortW:F0} → 长名 {renameBox.Width:F0}");
+            winRn.Close();
+
+            // 键位框宽度跟着键帽走：一条单键、一条三键，摆在一起比
+            svc6.Current.Gestures.Bindings.Add(new FrameCapture.Core.GestureBindingDto
+            { Id = "t196.one", Chord = "F6", Trigger = "Chord", Actions = new[] { "capture.frame" } });
+            svc6.Current.Gestures.Bindings.Add(new FrameCapture.Core.GestureBindingDto
+            { Id = "t196.three", Chord = "Ctrl+Alt+G", Trigger = "Chord", Actions = new[] { "capture.frame" } });
+            var win6 = new FrameCapture.Overlays.SettingsWindow
+            {
+                WindowStartupLocation = WindowStartupLocation.Manual,
+                Left = -20000, Top = -20000, ShowActivated = false, ShowInTaskbar = false,
+            };
+            swType.GetMethod("Build", System.Reflection.BindingFlags.NonPublic
+                | System.Reflection.BindingFlags.Instance)!.Invoke(win6, null);
+            win6.Show();
+            PumpMs(400);
+            var root6 = (UIElement)win6.Content;
+            var boxes6 = new List<System.Windows.DependencyObject>();
+            CollectTyped(root6, typeof(FrameCapture.Core.ChordCaptureBox), boxes6);
+            var cb6 = boxes6.Cast<FrameCapture.Core.ChordCaptureBox>().ToList();
+            var widest = cb6.OrderByDescending(b => b.ActualWidth).First();
+            var slimmest = cb6.OrderBy(b => b.ActualWidth).First();
+            Chk("T196d-chord-box-fits-its-keycaps",
+                widest.ActualWidth > slimmest.ActualWidth + 12 && slimmest.ActualWidth < 116,
+                $"三键框 {widest.ActualWidth:F0} 宽于单键框 {slimmest.ActualWidth:F0}（键帽多的框更宽，谁也不占固定宽度）");
+
+            // 滚动条浮在内容右缘：出现滚动条时正文一点宽度都不让
+            var svPlain = new System.Windows.Controls.ScrollViewer
+            { Width = 200, Height = 80, VerticalScrollBarVisibility = System.Windows.Controls.ScrollBarVisibility.Auto };
+            svPlain.Content = new System.Windows.Controls.Border { Width = 190, Height = 400 };
+            var svFloat = new System.Windows.Controls.ScrollViewer
+            { Width = 200, Height = 80, VerticalScrollBarVisibility = System.Windows.Controls.ScrollBarVisibility.Auto };
+            svFloat.Content = new System.Windows.Controls.Border { Width = 190, Height = 400 };
+            FrameCapture.Core.Fluent.OverlayScroll(svFloat);
+            var pair = new System.Windows.Controls.StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal };
+            pair.Children.Add(svPlain);
+            pair.Children.Add(svFloat);
+            var winSv = new Window
+            {
+                Content = pair, Left = -20000, Top = -20000, Width = 460, Height = 140,
+                ShowInTaskbar = false, ShowActivated = false, WindowStyle = WindowStyle.None,
+            };
+            winSv.Show();
+            PumpMs(200);
+            static double ViewportOf(System.Windows.Controls.ScrollViewer sv)
+            {
+                double w = 0;
+                void Walk(System.Windows.DependencyObject o)
+                {
+                    if (w > 0) return;
+                    if (o is System.Windows.Controls.ScrollContentPresenter cp) { w = cp.ActualWidth; return; }
+                    int n = System.Windows.Media.VisualTreeHelper.GetChildrenCount(o);
+                    for (int i = 0; i < n; i++) Walk(System.Windows.Media.VisualTreeHelper.GetChild(o, i));
+                }
+                Walk(sv);
+                return w;
+            }
+            double vPlain = ViewportOf(svPlain), vFloat = ViewportOf(svFloat);
+            Chk("T196e-scrollbar-overlays-not-laid-out", vFloat > vPlain + 4,
+                $"同样出滚动条：常规排版正文 {vPlain:F0} 宽，浮层排版 {vFloat:F0} 宽（切短页没有宽度可跳）");
+            winSv.Close();
+
+            // 正在等键的键位框：窗口那道 Esc 关窗的闸要认得出它，把这一记留给框自己
+            var inCapMi = swType.GetMethod("InCapturingBox", NP)!;
+            var oneKeyBox = cb6.First(b => b.ActualWidth == slimmest.ActualWidth);
+            bool idle = (bool)inCapMi.Invoke(null, new object[] { oneKeyBox })!;
+            oneKeyBox.RaiseEvent(new System.Windows.Input.MouseButtonEventArgs(
+                System.Windows.Input.Mouse.PrimaryDevice, 0, System.Windows.Input.MouseButton.Left)
+            { RoutedEvent = UIElement.MouseLeftButtonUpEvent, Source = oneKeyBox });
+            PumpMs(60);
+            Chk("T196f-esc-guard-sees-capturing-box",
+                !idle && oneKeyBox.Capturing && (bool)inCapMi.Invoke(null, new object[] { oneKeyBox })!
+                && win6.IsVisible,
+                "等键的框被那道闸认出来了：这一记 Esc 归解绑，不归关窗");
+
+            // 芯片编辑器：点芯片不弹候选卡，加号在右侧弹，选中即追加，拖动改序
+            var ceType = swType.GetNestedType("ChainEditor", System.Reflection.BindingFlags.NonPublic)!;
+            var seq = new List<string> { "scope.select", "capture.stored", "copy.clipboard" };
+            var written = new List<string>();
+            var editor = Activator.CreateInstance(ceType,
+                new Func<string[]>(() => seq.ToArray()),
+                new Func<int, IEnumerable<FrameCapture.Core.GestureAction>>(_ => FrameCapture.Core.GestureActions.All),
+                new Action<string[]>(a => { seq = a.ToList(); written.Add(string.Join(",", a)); }))!;
+            var rootEd = (System.Windows.Controls.Panel)ceType.GetProperty("Root")!.GetValue(editor)!;
+            var winEd = new Window
+            {
+                Content = rootEd, Left = -20000, Top = -20000, SizeToContent = SizeToContent.WidthAndHeight,
+                ShowInTaskbar = false, ShowActivated = false, WindowStyle = WindowStyle.None,
+            };
+            winEd.Show();
+            PumpMs(200);
+            var chips = (System.Windows.Controls.WrapPanel)rootEd.Children[0];
+            var pop = (System.Windows.Controls.Primitives.Popup)ceType.GetField("_pop", FI)!.GetValue(editor)!;
+            void Click(System.Windows.UIElement el) => el.RaiseEvent(new System.Windows.Input.MouseButtonEventArgs(
+                System.Windows.Input.Mouse.PrimaryDevice, 0, System.Windows.Input.MouseButton.Left)
+            { RoutedEvent = UIElement.MouseLeftButtonUpEvent, Source = el });
+            Click((System.Windows.UIElement)chips.Children[0]);
+            Chk("T196g-chip-click-opens-nothing", !pop.IsOpen && written.Count == 0,
+                "点芯片不再改这一步：候选卡没开，序列也没动（要换一步就删掉再加）");
+            Click((System.Windows.UIElement)chips.Children[chips.Children.Count - 1]);
+            PumpMs(80);
+            var popTexts = new List<System.Windows.DependencyObject>();
+            if (pop.Child != null) CollectTyped((System.Windows.DependencyObject)pop.Child, typeof(System.Windows.Controls.TextBlock), popTexts);
+            var popLabels = popTexts.Cast<System.Windows.Controls.TextBlock>().Select(t => t.Text).ToList();
+            int covered = FrameCapture.Core.GestureActions.All.Count(a => popLabels.Contains(a.Label));
+            Chk("T196h-plus-opens-card-at-the-right",
+                pop.IsOpen && pop.Placement == System.Windows.Controls.Primitives.PlacementMode.Right
+                && covered == FrameCapture.Core.GestureActions.All.Count(),
+                $"加号在右侧点开候选卡，{covered} 条动作与目录同数，卡里没有「取消」那一条");
+            var pickTb = popTexts.Cast<System.Windows.Controls.TextBlock>()
+                .First(t => t.Text == FrameCapture.Core.GestureActions.All[1].Label);
+            Click((System.Windows.UIElement)System.Windows.Media.VisualTreeHelper.GetParent(
+                System.Windows.Media.VisualTreeHelper.GetParent(pickTb)!)!);
+            PumpMs(80);
+            Chk("T196i-picking-appends-at-the-end",
+                written.Count == 1 && written[0] == "scope.select,capture.stored,copy.clipboard,"
+                    + FrameCapture.Core.GestureActions.All[1].Name,
+                $"选中一条即追加到末尾：{written.FirstOrDefault() ?? "（没写回）"}");
+
+            // 拖动改序：抬起来跟手、其余让位、松手落在预览那一格
+            ceType.GetMethod("ClosePicker", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
+                .Invoke(editor, null);
+            PumpMs(120);
+            // 拖动改序：抬起来跟手、其余让位、松手落在预览那一格。
+            // 合成鼠标事件带不了坐标（MouseButtonEventArgs 没有带 Point 的构造函数），
+            // 读真实光标又会让用例取决于用户手此刻在哪——这里直接驱动拖动自己的三步。
+            void SetF(string n, object v) => ceType.GetField(n, FI)!.SetValue(editor, v);
+            object? GetF(string n) => ceType.GetField(n, FI)!.GetValue(editor);
+            void Call(string n, System.Windows.Point p) => ceType.GetMethod(n, FI)!.Invoke(editor, new object[] { p });
+            System.Windows.Point InRoot(System.Windows.FrameworkElement el, double fx, double fy)
+                => el.TranslatePoint(new System.Windows.Point(el.ActualWidth * fx, el.ActualHeight * fy), rootEd);
+            var c0 = (System.Windows.FrameworkElement)chips.Children[0];
+            var before = seq.ToArray();
+            SetF("_drag", c0);
+            SetF("_dragFrom", 0);
+            SetF("_target", 0);
+            SetF("_dragging", false);
+            SetF("_grab", new System.Windows.Point(c0.ActualWidth / 2, c0.ActualHeight / 2));
+            SetF("_pressAt", InRoot(c0, 0.5, 0.5));
+            Call("DragMove", new System.Windows.Point(InRoot(c0, 0.5, 0.5).X + 24, InRoot(c0, 0.5, 0.5).Y));
+            PumpMs(60);
+            // 占位框插进去之后大家都挪了位，落点按挪完之后的位置算
+            var q = InRoot((System.Windows.FrameworkElement)chips.Children[2], 0.2, 0.5);
+            Call("DragMove", q);
+            PumpMs(60);
+            var ghost = GetF("_ghost");
+            bool ghostShown = ghost != null && chips.Children.Cast<UIElement>().Contains((UIElement)ghost);
+            int target = (int)GetF("_target")!;
+            Call("Drop", q);
+            PumpMs(120);
+            // 落点必须就是预览那一格：按预览下标算出应有的序列，再跟写回的比
+            var expect = before.ToList();
+            var movedItem = expect[0];
+            expect.RemoveAt(0);
+            expect.Insert(Math.Clamp(target > 0 ? target - 1 : 0, 0, expect.Count), movedItem);
+            Chk("T196j-drag-lands-where-the-ghost-was",
+                ghostShown && target > 0 && written.Count == 2 && written[1] == string.Join(",", expect),
+                $"拖动时占位框在第 {target} 格，松手后序列 {written.LastOrDefault() ?? "（没写回）"} 与那一格一致");
+            winEd.Close();
+            // 设置窗不关：它的 Closed 回调要重挂全局热键，而本进程从未走过启动流程，
+            // AppHost 上的手势服务还没建起来。删掉的测试绑定在内存里清干净就够了。
+            svc6.Current.Gestures.Bindings.RemoveAll(b => b.Id.StartsWith("t196.", StringComparison.Ordinal));
+            FrameCapture.Core.Loc.Apply("zh");
+        }
+        catch (Exception e) { Chk("T196-hotkey-page-round", false, e.Message); }
 
         // 细滚动条全局样式真正生效（，用户「基本没变」根因：主题 ScrollBar 样式的
         // MinWidth=17.33 经 DynamicResource 以直值泄漏到模板内 ScrollBar，样式 Setter 压不住，须附加属性归零）

@@ -1,5 +1,6 @@
 // Fluent partial：全局样式——主题化 ToolTip、细滚动条、菜单资源（ContextMenu/MenuItem/Separator）。
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 
 namespace FrameCapture.Core;
@@ -140,6 +141,31 @@ public static partial class Fluent
         var st = (Style)System.Windows.Markup.XamlReader.Parse(sbXaml);
         st.Setters.Add(new Setter(SlimProperty, true));   // 附加属性用 DP 对象直挂（XAML 里 clr-namespace 解析不了）
         return st;
+    }
+
+    /// <summary>把滚动条改成浮在内容右缘，不参与排版。滚动条出现与消失时正文宽度不变——
+    /// 按 <c>Auto</c> 排版时，长页翻到短页会在动画收尾处有一次宽度跳变。
+    /// 正文用 <see cref="ScrollViewer.Padding"/> 让出滚动条那一格，滑块不会压在文字上。</summary>
+    /// <param name="sv">目标滚动框，就地换模板。</param>
+    public static void OverlayScroll(ScrollViewer sv)
+    {
+        string xaml = """
+            <ControlTemplate TargetType="ScrollViewer"
+                   xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation">
+              <Grid>
+                <ScrollContentPresenter Margin="{TemplateBinding Padding}"/>
+                <ScrollBar Name="PART_VerticalScrollBar" Orientation="Vertical" HorizontalAlignment="Right"
+                           Value="{TemplateBinding VerticalOffset}" Maximum="{TemplateBinding ScrollableHeight}"
+                           ViewportSize="{TemplateBinding ViewportHeight}"
+                           Visibility="{TemplateBinding ComputedVerticalScrollBarVisibility}"/>
+                <ScrollBar Name="PART_HorizontalScrollBar" Orientation="Horizontal" VerticalAlignment="Bottom"
+                           Value="{TemplateBinding HorizontalOffset}" Maximum="{TemplateBinding ScrollableWidth}"
+                           ViewportSize="{TemplateBinding ViewportWidth}"
+                           Visibility="{TemplateBinding ComputedHorizontalScrollBarVisibility}"/>
+              </Grid>
+            </ControlTemplate>
+            """;
+        sv.Template = (ControlTemplate)System.Windows.Markup.XamlReader.Parse(xaml);
     }
 
     /// <summary>主题化菜单资源字典：ContextMenu / MenuItem / Separator 三套样式。
