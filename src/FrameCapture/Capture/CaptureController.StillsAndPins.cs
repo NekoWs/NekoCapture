@@ -62,14 +62,17 @@ public sealed partial class CaptureController : IDisposable
         DispatchStill(f, region.Bounds, region.DeviceName);
     }
 
-    /// <summary>手势「识别文字」——对已存范围（无则光标屏全屏）抓一帧做 OCR，结果按 <see cref="OcrService.Route"/> 分流：
+    /// <summary>手势「识别文字」——对已存范围（无则光标屏全屏）抓一帧做 OCR；这条手势刚截好一帧时认那一帧。
+    /// 结果按 <see cref="OcrService.Route"/> 分流：
     /// 结果窗 / 复制+轻确认 / 无引擎提示 / 空提示（反馈统一走可截图审查的 OcrResultWindow）。
     /// 帧像素在首个 await 前同步拷入 SoftwareBitmap，与关窗/释放无竞态；无语言包优雅降级不抛。</summary>
     public async void OcrStoredStill()
     {
         if (State != Phase.Idle) return;
+        // 刚截好的那一帧就是用户看见的那一帧：定格画面、窗口本体的透明边都在里面，重抓会换成另一个时刻。
+        CapturedFrame? shot = _tailProduct && _lastStill.TryGet(out var just, out _, out _) ? just : null;
         var region = StoredRegion() ?? FullMonitorAtCursor();
-        var f = LiveCapture.Grab(region.Bounds);
+        var f = shot ?? LiveCapture.Grab(region.Bounds);
         if (f == null) { Trace.Log("ocr-still: grab null"); return; }
         try
         {
@@ -261,6 +264,7 @@ public sealed partial class CaptureController : IDisposable
                 break;
         }
         _lastStill.Set(f, reg, device); // 浮窗消失后仍可经托盘找回编辑器
+        _tailProduct = true;            // 尾巴里的动作认的就是这一帧
         RunScopedTail("still");         // 这条手势挂在选区上的尾巴：完成后/失败时的覆盖序列在这里交回
     }
 
@@ -275,11 +279,19 @@ public sealed partial class CaptureController : IDisposable
         OpenEditorForFrame(f, reg, dev);
     }
 
-    /// <summary>手势「贴图」——对当前范围（无则光标屏全屏）抓一帧钉在原地。
+    /// <summary>手势「贴图」——对当前范围（无则光标屏全屏）抓一帧钉在原地；这条手势刚截好一帧时钉那一帧。
     /// 与托盘的「粘贴即贴图」各走各的：这里钉的是屏幕上的范围，不看剪贴板。</summary>
     public void PinStoredStill()
     {
         if (State != Phase.Idle) return;
+        // 刚截好的那一帧就在手上：钉它。对范围重抓会丢掉窗口截图的透明通道与投影，
+        // 而且选区窗刚关闭，重抓拿到的是选区之后的画面。
+        if (_tailProduct && _lastStill.TryGet(out var just, out var justReg, out _))
+        {
+            PinFrameAt(just, justReg);
+            Trace.Log($"pin-run {just.W}x{just.H}");
+            return;
+        }
         var region = StoredRegion() ?? FullMonitorAtCursor();
         var f = LiveCapture.Grab(region.Bounds);
         if (f == null) { Trace.Log("pin-stored: grab null"); return; }

@@ -36,9 +36,14 @@ public sealed partial class CaptureController : IDisposable
     /// <summary>本次截图会话的「截图后」（发起时从 <see cref="_pendingAfter"/> 捕获，完成时分派）。
     /// 单独存一份是为防选区拖框期间触发的别的手势把 _pendingAfter 覆盖掉。</summary>
     private string _sessionAfter = "";
-    /// <summary>引擎在跑某条手势动作前告知本条的「完成后」是否覆盖了默认落点。仅记录，真正生效在截图发起时捕获。</summary>
+    /// <summary>引擎在跑某条手势动作前告知本条的「完成后」是否覆盖了默认落点，同时收回上一次运行的产物资格。
+    /// 落点真正生效在截图发起时捕获；产物资格只在本条手势内有效。</summary>
     /// <param name="v">落点名；null 与空串等价，都按「默认弹提示」处理。</param>
-    public void SetPendingAfterCapture(string? v) => _pendingAfter = string.IsNullOrEmpty(v) ? "" : v;
+    public void SetPendingAfterCapture(string? v)
+    {
+        _pendingAfter = string.IsNullOrEmpty(v) ? "" : v;
+        _tailProduct = false;
+    }
     /// <summary>选区完成后到真正抓取/起录之间的留白(ms)。选区窗已 WDA_EXCLUDEFROMCAPTURE，抓取本就拍不到它；
     /// 这里只留极短一拍让选区窗 Close 走完（防 WDA 万一失效时把选区界面截进画面）。再长就是纯等，用户能感觉到截图变慢。</summary>
     private const int PickerExitMs = 40;
@@ -214,6 +219,9 @@ public sealed partial class CaptureController : IDisposable
             // 挂着「先选区再执行」时全局「选区自动截取」让位：序列里写了截图才有截图，没写就只定范围
             bool stillAfterSelect = _captureAfterSelect || (_settings.Current.AutoCaptureOnSelect && _tailRun == null);
             _captureAfterSelect = false;
+            // 范围一落地就把这条手势写的落点接进本次会话：拖框期间别的手势可能已经改写 _pendingAfter，
+            // 而选完还是取消都不该把它留给下一次捕获。
+            _sessionAfter = _pendingAfter; _pendingAfter = "";
             if (region is null) { RunScopedFail(); return; }
             // 选区跑完就交出这一份参数：矩形 + 点中的窗口 + 所在屏。后面截图还是录制都读它，
             // 各自用 WithWindowHonor 过一遍自己的开关，不再各存各的临时状态。

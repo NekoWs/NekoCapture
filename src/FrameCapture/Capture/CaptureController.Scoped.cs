@@ -32,6 +32,10 @@ public sealed partial class CaptureController : IDisposable
     Action<IReadOnlyList<string>>? _tailRun;
     bool _tailArmed;
 
+    /// <summary>本条手势刚产出的那一帧静图已就位：尾巴里的动作拿它当对象，不必对范围重抓一次。
+    /// 引擎每开跑一条绑定就把它收回（<see cref="SetPendingAfterCapture"/>），所以它只在这一条手势内为真。</summary>
+    bool _tailProduct;
+
     /// <summary>开始一次「先选区再执行」：空闲时先开选区，范围落地后按 <paramref name="lead"/> 走对应收尾，
     /// 收尾点再把 <paramref name="tail"/> 交回 <paramref name="run"/>。
     /// 非空闲（正在录制）时范围已经定死，不重开选区——直接把 lead 与尾巴就地跑掉，
