@@ -1524,16 +1524,27 @@ static class SelfTest
             };
             Fluent.BorderlessNative(winR);
             Fluent.FadeIn(winR, Fluent.Motion.EnterMs);
+            // 采样前先等动画时钟真的走起来：并行跑护栏时首帧可能晚于半个时长，那一刀切下去读到的是
+            // 还没起跳的 0。等起步不放宽判据——仍然在「半程」这一刀上读，只是确保切的是斜坡不是起点。
+            bool WaitRun(Func<bool> running, int capMs)
+            {
+                for (int t = 0; t < capMs; t += 10) { if (running()) return true; PumpMs(10); }
+                return running();
+            }
             winR.Show();
+            bool enterStarted = WaitRun(() => winR.Opacity > 0, Fluent.Motion.EnterMs);
             PumpMs(Fluent.Motion.EnterMs / 2);
             double c1 = winR.Opacity;
-            Chk("T180a-enter-mid-fade", c1 > 0.05 && c1 < 0.999, $"入场半程 Opacity={c1:N3}");
+            Chk("T180a-enter-mid-fade", enterStarted && c1 > 0.05 && c1 < 0.999,
+                $"入场半程 Opacity={c1:N3}（动画起步={enterStarted}）");
             PumpMs(Fluent.Motion.EnterMs + 300);
             Chk("T180b-enter-settled", winR.Opacity > 0.999, $"走完 Opacity={winR.Opacity:N3}");
             Fluent.CloseWithFade(winR);
+            bool exitStarted = WaitRun(() => winR.Opacity < 0.999, Fluent.Motion.ExitMs);
             PumpMs(Fluent.Motion.ExitMs / 2);
             double d1 = winR.Opacity;
-            Chk("T180c-exit-mid-fade", d1 > 0.02 && d1 < 0.95, $"退场半程 Opacity={d1:N3}");
+            Chk("T180c-exit-mid-fade", exitStarted && d1 > 0.02 && d1 < 0.95,
+                $"退场半程 Opacity={d1:N3}（动画起步={exitStarted}）");
             PumpMs(Fluent.Motion.ExitMs + 400);
             Chk("T180d-closed-after-exit", !winR.IsLoaded, $"窗口仍存活={winR.IsLoaded}");
         }
@@ -4415,6 +4426,215 @@ static class SelfTest
             FrameCapture.Core.Loc.Apply("zh");
         }
         catch (Exception e) { Chk("T196-hotkey-page-round", false, e.Message); }
+
+        // 芯片编辑器这一轮：抬起的芯片不再占位、预览排不到加号之后、候选卡跟着宿主窗走、
+        // 候选条目悬停真的叠得出底色。编辑器单独实例化，get/set 是本用例自己的闭包——
+        // 拖动与选动作都不写用户的配置。合成鼠标事件带不了坐标，拖动直接驱动它自己的三步。
+        try
+        {
+            var FI7 = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+            var ce7 = typeof(FrameCapture.Overlays.SettingsWindow).GetNestedType("ChainEditor",
+                System.Reflection.BindingFlags.NonPublic)!;
+            var seq7 = new List<string> { "scope.select", "capture.stored", "copy.clipboard" };
+            var ed7 = Activator.CreateInstance(ce7,
+                new Func<string[]>(() => seq7.ToArray()),
+                new Func<int, IEnumerable<FrameCapture.Core.GestureAction>>(_ => FrameCapture.Core.GestureActions.All),
+                new Action<string[]>(a => seq7 = a.ToList()))!;
+            var root7 = (System.Windows.Controls.Panel)ce7.GetProperty("Root")!.GetValue(ed7)!;
+            var win7 = new Window
+            {
+                Content = root7, Left = -20000, Top = -20000, SizeToContent = SizeToContent.WidthAndHeight,
+                ShowInTaskbar = false, ShowActivated = false, WindowStyle = WindowStyle.None,
+            };
+            win7.Show();
+            PumpMs(200);
+            var chips7 = (System.Windows.Controls.WrapPanel)root7.Children[0];
+            var add7 = (System.Windows.Controls.Border)ce7.GetField("_add", FI7)!.GetValue(ed7)!;
+            var pop7 = (System.Windows.Controls.Primitives.Popup)ce7.GetField("_pop", FI7)!.GetValue(ed7)!;
+            void Set7(string f, object? v) => ce7.GetField(f, FI7)!.SetValue(ed7, v);
+            object? Get7(string f) => ce7.GetField(f, FI7)!.GetValue(ed7);
+            void Call7(string m, params object[] a) => ce7.GetMethod(m, FI7, null,
+                a.Length == 0 ? Type.EmptyTypes : a.Select(x => x.GetType()).ToArray(), null)!
+                .Invoke(ed7, a.Length == 0 ? null : a);
+
+            var c0 = (System.Windows.Controls.Border)chips7.Children[0];
+            Set7("_drag", c0); Set7("_dragFrom", 0); Set7("_target", 0); Set7("_dragging", false);
+            Set7("_grab", new System.Windows.Point(c0.ActualWidth / 2, c0.ActualHeight / 2));
+            Set7("_pressAt", new System.Windows.Point(0, 0));
+            // 起拖前后比这一行的宽度：占位框顶上了芯片腾出的那一格，行宽才纹丝不动。
+            // 芯片要是还替自己占着位，行宽会多出一枚芯片，那正是用户看见的那块空白。
+            double rowW0 = chips7.ActualWidth;
+            Call7("BeginDrag");
+            chips7.UpdateLayout();
+            double rowW1 = chips7.ActualWidth;
+            Chk("T197a-lifted-chip-takes-no-room", rowW1 <= rowW0 + 4,
+                $"起拖后这一行从 {rowW0:F0} 宽涨到 {rowW1:F0} 宽：抬起的芯片还占着自己的位置，行里多出一块空白");
+
+            // 光标一路拖到加号右边很远：预览最多停在加号前面那一格，越过加号的预览是假的
+            var past = add7.TranslatePoint(new System.Windows.Point(add7.ActualWidth + 240, add7.ActualHeight / 2), root7);
+            Call7("DragMove", past);
+            int gi = chips7.Children.IndexOf((UIElement)Get7("_ghost")!), ai = chips7.Children.IndexOf(add7);
+            Chk("T197b-preview-never-passes-the-plus", gi >= 0 && gi < ai,
+                $"预览排到了加号之后（占位框第 {gi} 格，加号第 {ai} 格），松手根本落不进去");
+
+            Call7("Drop", past);
+            PumpMs(80);
+            Chk("T197c-drop-past-the-plus-lands-last", seq7.Count == 3 && seq7[2] == "scope.select",
+                $"拖到加号右边松手，这一步落到了第 {seq7.IndexOf("scope.select") + 1} 位，应落在最后一位");
+
+            Call7("OpenPicker");
+            PumpMs(160);
+            var popBorders = new List<System.Windows.DependencyObject>();
+            if (pop7.Child != null)
+                CollectTyped((System.Windows.DependencyObject)pop7.Child, typeof(System.Windows.Controls.Border), popBorders);
+            var item7 = popBorders.Cast<System.Windows.Controls.Border>().FirstOrDefault(b =>
+                b.Child is System.Windows.Controls.StackPanel sp &&
+                sp.Children.OfType<System.Windows.UIElement>().Any(u =>
+                    u is System.Windows.Controls.TextBlock tb && tb.FontSize == 12.5));
+            var baseColor = (item7?.Background as System.Windows.Media.SolidColorBrush)?.Color
+                            ?? default(System.Windows.Media.Color);
+            item7?.RaiseEvent(new System.Windows.Input.MouseEventArgs(System.Windows.Input.Mouse.PrimaryDevice, 0)
+            { RoutedEvent = UIElement.MouseEnterEvent, Source = item7 });
+            PumpMs(260);
+            var hoverColor = (item7?.Background as System.Windows.Media.SolidColorBrush)?.Color
+                             ?? default(System.Windows.Media.Color);
+            Chk("T197d-picker-item-hover-shows", item7 != null && baseColor.A > 0 && hoverColor != baseColor,
+                "候选条目悬停叠不出底色：基色自己 alpha 为 0 时，叠一层半透明强调还是全透明");
+
+            // 切到别的应用是窗口级的事：卡在自己的视觉树里收不到那一记，靠宿主窗的去激活收场。
+            // Deactivated 是 CLR 事件、没有可抛的 RoutedEvent，走窗口自己那扇 raising 方法——
+            // 系统让出前台时调的也是它。
+            typeof(Window).GetMethod("OnDeactivated", System.Reflection.BindingFlags.NonPublic
+                | System.Reflection.BindingFlags.Instance)!.Invoke(win7, new object[] { System.EventArgs.Empty });
+            PumpMs(FrameCapture.Core.Fluent.Motion.ExitMs + 260);
+            Chk("T197e-picker-closes-when-window-goes-away", !pop7.IsOpen && Get7("_hostWin") == null,
+                "切到别的应用候选卡还挂着，或宿主窗那两个事件没摘干净");
+            win7.Close();
+        }
+        catch (Exception e) { Chk("T197-chip-editor-round", false, e.Message); }
+
+        // 设置窗这一轮：覆盖行不再多摆一行文字（这一步有几条由芯片自己说），
+        // 编辑器绑键那一段左边留出呼吸、指针划过不再换底色。
+        try
+        {
+            var svc8 = new FrameCapture.Core.SettingsService();
+            typeof(FrameCapture.Services.AppHost).GetProperty("Settings")!
+                .SetValue(FrameCapture.Services.AppHost.Current, svc8);
+            FrameCapture.Core.Theme.Apply("dark", svc8.Current.Accent);
+            FrameCapture.Core.Fluent.ApplyGlobalStyles();
+            FrameCapture.Core.Loc.Apply("zh");
+            var sw8 = typeof(FrameCapture.Overlays.SettingsWindow);
+            var NP8 = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+            var win8 = new FrameCapture.Overlays.SettingsWindow
+            {
+                WindowStartupLocation = WindowStartupLocation.Manual,
+                Left = -20000, Top = -20000, ShowActivated = false, ShowInTaskbar = false,
+            };
+            // 高级形态才看得见「完成后 / 失败时」两行
+            sw8.GetField("_hotAdvanced", NP8)!.SetValue(win8, true);
+            sw8.GetMethod("Build", NP8)!.Invoke(win8, null);
+            win8.Show();
+            PumpMs(400);
+            var root8 = (UIElement)win8.Content;
+            var tbs8 = new List<System.Windows.DependencyObject>();
+            CollectTyped(root8, typeof(System.Windows.Controls.TextBlock), tbs8);
+            var shown = tbs8.Cast<System.Windows.Controls.TextBlock>().Select(t => t.Text).ToList();
+            string nothing = FrameCapture.Core.Loc.T(FrameCapture.Core.K.Hotkeys.DefaultNothing);
+            Chk("T198a-override-rows-drop-the-summary-line", !shown.Contains(nothing),
+                "覆盖行还摆着一行默认落点的文字：那件事该由芯片卡片自己说，不许多占一行");
+
+            // 编辑器绑键那几行按命令名认领：预设键行挂的是手势名，两拨混不到一起
+            var keyNames = FrameCapture.Core.EditorCommands.All
+                .Select(c => FrameCapture.Core.Loc.T(c.Name)).ToHashSet();
+            var borders8 = new List<System.Windows.DependencyObject>();
+            CollectTyped(root8, typeof(System.Windows.Controls.Border), borders8);
+            var keyRows = borders8.Cast<System.Windows.Controls.Border>()
+                .Where(b => b.CornerRadius.TopLeft == 6 && b.BorderThickness.Left == 1
+                            && b.Child is System.Windows.Controls.Grid)
+                .Where(b =>
+                {
+                    var rowTbs = new List<System.Windows.DependencyObject>();
+                    CollectTyped(b, typeof(System.Windows.Controls.TextBlock), rowTbs);
+                    return rowTbs.Count > 0
+                           && keyNames.Contains(((System.Windows.Controls.TextBlock)rowTbs[0]).Text);
+                })
+                .ToList();
+            var probe8 = keyRows[0];
+            double padLeft = keyRows.Min(p => p.Padding.Left);
+            probe8.RaiseEvent(new System.Windows.Input.MouseEventArgs(System.Windows.Input.Mouse.PrimaryDevice, 0)
+            { RoutedEvent = UIElement.MouseEnterEvent, Source = probe8 });
+            PumpMs(260);
+            Chk("T198b-editor-key-row-room-and-flat-hover",
+                keyRows.Count >= 3 && keyRows.All(p => p.Padding.Left >= 14)
+                && keyRows.All(p => p.Background == null),
+                $"{keyRows.Count} 行编辑器绑键：左边最少 {padLeft:F0} DIP，"
+                + $"悬停后{(keyRows.Any(p => p.Background != null) ? "有行换了底色" : "底色都没变")}");
+
+            // 用户主动打开的窗要在任务栏留个位置，被别的窗盖住才切得回来。
+            // 只构造不显示：没走过 Show，任务栏不会真闪出一枚，也挂不上关窗回调。
+            var plainSet = new FrameCapture.Overlays.SettingsWindow();
+            var plainHelp = new FrameCapture.Overlays.HelpWindow();
+            // 框选层相反：它是一层盖住屏幕的取境动作，不是一扇等着被切回来的窗
+            var plainPick = new FrameCapture.Overlays.RegionPickerWindow(
+                new FrameCapture.Capture.MonitorInfo("test", new FrameCapture.Capture.RectI(0, 0, 800, 600), true), null);
+            Chk("T198c-user-opened-windows-in-taskbar",
+                plainSet.ShowInTaskbar && plainSet.Owner == null
+                && plainHelp.ShowInTaskbar && plainHelp.Owner == null
+                && !plainPick.ShowInTaskbar,
+                "用户主动打开的窗没进任务栏（或有了 Owner——有 Owner 时这个开关被系统忽略），"
+                + $"或框选层混进了任务栏（ShowInTaskbar={plainPick.ShowInTaskbar}）");
+        }
+        catch (Exception e) { Chk("T198-settings-surface-round", false, e.Message); }
+
+        // 定格开着时，截图这一帧必须来自定格帧——包括「点击窗口时截取完整窗口」预抓没排到那只窗的时候。
+        // 取帧来源的裁定是纯函数，四条路各断言一次：谁被调用比像素更好查。
+        try
+        {
+            var NS9 = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static;
+            var choose = typeof(FrameCapture.Services.CaptureController).GetMethods(NS9)
+                .First(m => m.Name == "ChooseStillFrame");
+            var mon9 = new FrameCapture.Capture.RectI(0, 0, 800, 600);
+            var reg9 = new FrameCapture.Capture.RectI(100, 100, 64, 48);
+            FrameCapture.Capture.CapturedFrame Fill(byte v, int w, int h) => new()
+            { Bgra = Enumerable.Repeat(v, w * h * 4).ToArray(), W = w, H = h, TimeMs = 0 };
+            var frozen9 = Fill(0xFF, 800, 600);
+            Func<(FrameCapture.Capture.CapturedFrame f, FrameCapture.Capture.RectI r)?> miss = () => null;
+            Func<(FrameCapture.Capture.CapturedFrame f, FrameCapture.Capture.RectI r)?> hitWin =
+                () => (Fill(0x7F, 64, 48), reg9);
+            bool liveWinCalled = false, liveRegCalled = false;
+            Func<(FrameCapture.Capture.CapturedFrame f, FrameCapture.Capture.RectI r)?> liveWin = () =>
+            { liveWinCalled = true; return (Fill(0, 64, 48), reg9); };
+            Func<FrameCapture.Capture.RectI, FrameCapture.Capture.CapturedFrame?> liveReg = r =>
+            { liveRegCalled = true; return Fill(0, r.W, r.H); };
+            (FrameCapture.Capture.CapturedFrame? fr, bool winCap) Run9(bool freeze, bool locked,
+                Func<(FrameCapture.Capture.CapturedFrame f, FrameCapture.Capture.RectI r)?> cached,
+                FrameCapture.Capture.CapturedFrame? frozen)
+            {
+                liveWinCalled = liveRegCalled = false;
+                // 定格帧「没到位」就是传 null 进去：这里必须原样传 null，兜底那条才真的被走到
+                var r = choose.Invoke(null, new object?[] { freeze, locked, cached, liveWin,
+                    frozen, mon9, reg9, liveReg })!;
+                var t = r.GetType();
+                var fr = (FrameCapture.Capture.CapturedFrame?)t.GetField("Item1")!.GetValue(r);
+                return (fr, (bool)t.GetField("Item3")!.GetValue(r)!);
+            }
+            var a9 = Run9(true, true, miss, frozen9);
+            Chk("T199a-frozen-frame-beats-live-window", a9.fr?.Bgra[0] == 0xFF && !liveWinCalled && !a9.winCap,
+                "定格开着、预抓没排到这只窗时仍去实时抓窗口本体：屏幕上定着的就是那一帧");
+            var b9 = Run9(false, true, miss, null);
+            Chk("T199b-live-window-when-not-frozen", b9.fr?.Bgra[0] == 0 && b9.winCap && liveWinCalled,
+                "定格关着时点窗口仍该实时抓窗口本体（带 alpha 的干净画面）");
+            var c9 = Run9(true, false, miss, frozen9);
+            Chk("T199c-frozen-frame-for-a-plain-region", c9.fr?.Bgra[0] == 0xFF && !liveRegCalled && !c9.winCap,
+                "定格开着、按矩形截时该裁定格帧，不该重抓");
+            var d9 = Run9(true, true, hitWin, frozen9);
+            Chk("T199d-pregrabbed-window-wins", d9.fr?.Bgra[0] == 0x7F && d9.winCap,
+                "定格瞬间预抓到的干净窗口该优先于按矩形裁帧（干净圆角与投影）");
+            var e9 = Run9(true, false, miss, null);
+            Chk("T199e-live-fallback-without-a-frame", e9.fr?.Bgra[0] == 0 && liveRegCalled,
+                "定格帧没到位时实时抓兜底，否则这一枪空放");
+        }
+        catch (Exception e) { Chk("T199-frozen-frame-source", false, e.Message); }
 
         // 细滚动条全局样式真正生效（，用户「基本没变」根因：主题 ScrollBar 样式的
         // MinWidth=17.33 经 DynamicResource 以直值泄漏到模板内 ScrollBar，样式 Setter 压不住，须附加属性归零）

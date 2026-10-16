@@ -42,7 +42,7 @@ public sealed partial class SettingsWindow : Window
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
         Width = 760; Height = Math.Min(660, SystemParameters.WorkArea.Height - 120);
         MinWidth = 680; MinHeight = 460;
-        ShowInTaskbar = false;
+        ShowInTaskbar = true;   // 普通工具窗：任务栏要有它，从别的应用切回来才找得到
         Topmost = false;   // 普通工具窗：不该压住用户正在截/录的画面
         Title = "FrameCapture Settings";
         // 拖窗区只有标题条那一条（CaptionHeight = Fluent.TitleBarHeight）：整窗背景不承担拖拽——

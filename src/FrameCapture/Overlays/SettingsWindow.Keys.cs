@@ -118,17 +118,17 @@ public sealed partial class SettingsWindow : Window
                 row.Children.Add(nameStack);
                 row.Children.Add(boxes);
                 row.Children.Add(reset);
-                // 一行一枚胶囊：与快捷键行同一层描边，静止时不填底，指针进来才浮出底色
+                // 一行一枚胶囊：与快捷键行同一层描边。整排都是能拖的行，底色跟着指针亮起来
+                // 反而像在暗示只有亮的那一行能碰，所以静止与悬停同一张脸；名字离左边框留一段呼吸。
                 var pill = new Border
                 {
                     CornerRadius = new CornerRadius(6),
                     BorderBrush = new SolidColorBrush(Theme.StrokeSoft),
                     BorderThickness = new Thickness(1),
-                    Padding = new Thickness(10, 7, 8, 7),
+                    Padding = new Thickness(16, 7, 8, 7),
                     Margin = new Thickness(0, 2, 0, 2),
                     Child = row,
                 };
-                HoverFill(pill);
                 stack.Children.Add(pill);
 
                 // 加号按钮：多一个按法不必挑默认那几个槽位，随时往上加

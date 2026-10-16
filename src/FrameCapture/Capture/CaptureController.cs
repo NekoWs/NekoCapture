@@ -123,6 +123,47 @@ public sealed partial class CaptureController : IDisposable
 
     private IntPtr _prevFg; // 触发捕获/选区前的前台窗，关闭编辑器后归还焦点
 
+    /// <summary>选区截图这一帧从哪来。优先级：定格瞬间预抓的干净窗口 → 定格帧裁选区 → 实时抓。
+    /// 定格开着时绝不实时抓窗口本体，也绝不实时抓矩形：屏幕上定着的就是开框那一帧，重抓会把所见即所得
+    /// 变成所见非所得——预抓没排到那只窗，就退一步按矩形裁这一定格帧，拿到的仍是用户看见的画面。</summary>
+    /// <param name="freeze">「选区时定格画面」是否开着。</param>
+    /// <param name="windowLocked">选区是否吸附到了一只窗口。</param>
+    /// <param name="cachedWindow">取定格瞬间预抓到这只窗口的干净画面；没缓存到返回 null。</param>
+    /// <param name="liveWindow">实时抓这只窗口的本体；抓不到返回 null。</param>
+    /// <param name="frozen">开框瞬间的整屏定格帧；没到位为 null。</param>
+    /// <param name="frozenOrigin">定格帧覆盖的显示器范围，用于把选区换算进帧坐标。</param>
+    /// <param name="region">选区矩形（物理像素、虚拟桌面绝对坐标）。</param>
+    /// <param name="liveRegion">实时抓一块矩形。</param>
+    /// <returns>取到的一帧、它对应的矩形，以及这一帧是否按窗口截的。</returns>
+    static (CapturedFrame? frame, RectI reg, bool windowCapture) ChooseStillFrame(
+        bool freeze, bool windowLocked,
+        Func<(CapturedFrame f, RectI r)?> cachedWindow,
+        Func<(CapturedFrame f, RectI r)?> liveWindow,
+        CapturedFrame? frozen, RectI frozenOrigin, RectI region,
+        Func<RectI, CapturedFrame?> liveRegion)
+    {
+        if (windowLocked)
+        {
+            var hit = cachedWindow();
+            if (hit != null) return (hit.Value.f, hit.Value.r, true);
+            if (!freeze)
+            {
+                var live = liveWindow();
+                if (live != null) return (live.Value.f, live.Value.r, true);
+            }
+        }
+        if (frozen != null)
+        {
+            // 跨屏窗口超出本屏的部分裁掉，矩形同步收缩到实际裁出的范围（轮廓不超框）
+            int rx = region.X - frozenOrigin.X, ry = region.Y - frozenOrigin.Y;
+            var cut = BgraImage.Crop(frozen, rx, ry, region.W, region.H);
+            if (cut != null)
+                return (cut, new RectI(frozenOrigin.X + Math.Clamp(rx, 0, frozen.W),
+                    frozenOrigin.Y + Math.Clamp(ry, 0, frozen.H), cut.W, cut.H), false);
+        }
+        return (liveRegion(region), region, false);
+    }
+
     /// <summary>
     /// 打开全屏选区窗（热键与托盘共用）。录制中忽略；选取中再按一次只把选取层顶到最前，不重建选区窗。
     /// 结果回调按 <c>_scrollAfterSelect</c> / <c>_recordAfterSelect</c> / <c>_captureAfterSelect</c> 分流到
@@ -215,36 +256,23 @@ public sealed partial class CaptureController : IDisposable
                 t.Tick += (_, _) =>
                 {
                     t.Stop();
-                    // /点吸附窗口 → 真·窗口截图（带 alpha）；定格+窗口截图时优先用定格瞬间预抓的干净画面。
-                    // 区域截图：定格开 → 裁定格帧（所见即所得，不重抓）；定格关 → 实时重抓。
-                    CapturedFrame? f = null;
-                    RectI capReg = region.Value;
-                    bool winCap = false;
-                    // 同一个选取状态，过「干净窗口截图」开关：认窗口就截窗口本体，不认就按矩形截
+                    // 取帧来源的裁定在 ChooseStillFrame：定格开着就一律不出实时帧。
+                    // 同一个选取状态先过「干净窗口截图」开关——认窗口才按窗口算，不认就按矩形算。
                     var winSel = sel.WithWindowHonor(_settings.Current.WindowCaptureEnabled);
-                    if (winSel.LockedToWindow)
-                    {
-                        if (pk != null && pk.TryGetCachedWindow(winSel.Window, out var cf, out var cr))
-                        { f = cf; capReg = cr; winCap = true; } // 定格瞬间预抓的干净窗口（定格+干净圆角+投影）
-                        else
+                    var (f, capReg, winCap) = ChooseStillFrame(
+                        _settings.Current.FreezeOnSelect, winSel.LockedToWindow,
+                        () => pk != null && pk.TryGetCachedWindow(winSel.Window, out var cf, out var cr) ? (cf, cr) : null,
+                        () =>
                         {
                             try
                             {
                                 var (wf, wreg) = WindowCapture.Grab(winSel.Window, _settings.Current.WindowCaptureShadow);
-                                f = wf; capReg = wreg; winCap = true;
+                                return (wf, wreg);
                             }
-                            catch (Exception ex) { Trace.Log($"winCap fail→region: {ex.Message}"); f = null; }
-                        }
-                    }
-                    if (f == null && _settings.Current.FreezeOnSelect && pk != null && pk.FrozenFrame is { } ff)
-                    {
-                        // 裁自定格帧；跨屏窗口超出本屏部分裁掉，capReg 同步收缩到实际裁出的矩形（轮廓不超框）
-                        int ox = pk.FrozenOrigin.X, oy = pk.FrozenOrigin.Y, rx = region.Value.X - ox, ry = region.Value.Y - oy;
-                        f = BgraImage.Crop(ff, rx, ry, region.Value.W, region.Value.H);
-                        if (f != null) capReg = new RectI(ox + Math.Clamp(rx, 0, ff.W), oy + Math.Clamp(ry, 0, ff.H), f.W, f.H);
-                        else f = LiveCapture.Grab(region.Value); // 定格帧没到位（极快点选）→ 实时兜底
-                    }
-                    if (f == null) f = LiveCapture.Grab(region.Value);
+                            catch (Exception ex) { Trace.Log($"winCap fail→region: {ex.Message}"); return null; }
+                        },
+                        pk?.FrozenFrame, pk?.FrozenOrigin ?? monitor.Bounds, region.Value,
+                        r => LiveCapture.Grab(r));
                     if (f != null) DispatchStill(f, capReg, monitor.DeviceName, windowCapture: winCap);
                     if (_settings.Current.AlwaysShowRegionOutline) ShowOutline(capReg);
                     else { FlashOutline(capReg); _outline!.FadeAway(_settings.Current.OutlineFadeSeconds); }

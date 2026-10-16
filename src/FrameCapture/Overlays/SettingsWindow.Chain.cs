@@ -43,6 +43,14 @@ public sealed partial class SettingsWindow : Window
 
         int _dragFrom = -1, _target = -1;
         Point _pressAt, _grab, _cursor;
+
+        /// <summary>起拖之后这枚芯片在 Root 里的位置：它的排版槽位收成 0 之后挪了家，
+        /// 抬起要按这个新家算位移，否则芯片会在手里跳一截。</summary>
+        Point _liftHome;
+
+        /// <summary>候选卡开着时盯着的宿主窗：切到别的应用是窗口级的事，卡在自己的视觉树里收不到。</summary>
+        Window? _hostWin;
+
         bool _dragging;
 
         /// <summary>装配一个序列编辑器。</summary>
@@ -146,7 +154,8 @@ public sealed partial class SettingsWindow : Window
             if (want != _target) ShiftTo(want);
         }
 
-        /// <summary>起拖：记下所有芯片的当前位置，把占位框插在原位，芯片从排版里「浮」起来。</summary>
+        /// <summary>起拖：记下所有芯片的当前位置，把占位框插在原位，并把这枚芯片的排版槽位收成 0——
+        /// 行里空出来的那一格就是占位框，不该再多出一块它自己占的空白。</summary>
         void BeginDrag()
         {
             var chip = _drag;
@@ -166,8 +175,12 @@ public sealed partial class SettingsWindow : Window
                 Background = new SolidColorBrush(Color.FromArgb(0x2E, ac.R, ac.G, ac.B)),
             };
             _chips.Children.Insert(_dragFrom, _ghost);
+            // 负外边距把槽位抵成 0：芯片仍在视觉树里跟着光标走，缩放与投影照旧，只是不再替自己占位。
+            chip.Margin = new Thickness(-chip.ActualWidth, -chip.ActualHeight, 0, 0);
             chip.Effect = new DropShadowEffect { BlurRadius = 18, ShadowDepth = 3, Opacity = 0.45 };
             Panel.SetZIndex(chip, 1);
+            _chips.UpdateLayout();
+            _liftHome = chip.TranslatePoint(new Point(0, 0), Root);
         }
 
         /// <summary>把拖起的芯片按光标摆好：左上角落在光标减去起拖时按到的那个点，芯片不会在手里跳。</summary>
@@ -175,10 +188,10 @@ public sealed partial class SettingsWindow : Window
         void Lift(Point at)
         {
             var chip = _drag;
-            if (chip == null || !_before.TryGetValue(chip, out var home)) return;
+            if (chip == null) return;
             var tt = TransformOf(chip);
-            double dx = at.X - _grab.X - home.X;
-            double dy = at.Y - _grab.Y - home.Y;
+            double dx = at.X - _grab.X - _liftHome.X;
+            double dy = at.Y - _grab.Y - _liftHome.Y;
             tt.Item1.X = dx;
             tt.Item1.Y = dy;
             if (tt.Item2.ScaleX < 1.01)
@@ -194,10 +207,20 @@ public sealed partial class SettingsWindow : Window
         {
             if (_ghost == null) return;
             _chips.Children.Remove(_ghost);
-            _chips.Children.Insert(Math.Clamp(want, 0, _chips.Children.Count), _ghost);
-            _target = want;
+            int to = Math.Clamp(want, 0, MaxSlot());
+            _chips.Children.Insert(to, _ghost);
+            _target = to;
             _chips.UpdateLayout();
             PlayShift();
+        }
+
+        /// <summary>落点的上限：加号所在的那一格。加号不参与排序，越过它的预览是假的——松手也落不进去。</summary>
+        /// <returns>占位框允许占的最大下标，按移除占位框之后的子序计。</returns>
+        int MaxSlot()
+        {
+            int add = _chips.Children.IndexOf(_add);
+            int g = _ghost == null ? -1 : _chips.Children.IndexOf(_ghost);
+            return Math.Max(0, g >= 0 && g < add ? add - 1 : add);
         }
 
         /// <summary>记下当前每枚芯片在 Root 里的位置。</summary>
@@ -241,10 +264,10 @@ public sealed partial class SettingsWindow : Window
                 var p = _chips.Children[i].TranslatePoint(new Point(0, 0), Root);
                 var sz = _chips.Children[i].RenderSize;
                 if (at.Y < p.Y || at.Y > p.Y + sz.Height) continue;
-                if (at.X < p.X + sz.Width / 2) return i;
+                if (at.X < p.X + sz.Width / 2) return Math.Min(i, MaxSlot());
             }
-            // 加号永远在最后，落点最多排到它前面
-            return Math.Max(0, n - 1);
+            // 光标越过了最后一格：落点停在加号前面，不跟着跑到加号右边去
+            return MaxSlot();
         }
 
         /// <summary>松手：芯片落进占位框占的那一格，序列按新顺序写回。</summary>
@@ -400,6 +423,42 @@ public sealed partial class SettingsWindow : Window
             card.Height = Math.Ceiling(card.DesiredSize.Height);
             PlayPopIn(card, list);
             card.Focus();
+            // 切到别的应用不是「挑好了」，是用户已经不在这一窗了。候选卡在自己的视觉树里，
+            // 设置窗那道失焦收不到这一记，只能由宿主窗盯着去激活与窗外的点击。
+            _hostWin = Window.GetWindow(Root);
+            if (_hostWin != null)
+            {
+                _hostWin.Deactivated += OnHostGone;
+                _hostWin.PreviewMouseDown += OnHostPressedOutside;
+            }
+        }
+
+        /// <summary>宿主窗去了后台：带着候选卡走没意义，收。</summary>
+        /// <param name="s">事件源。</param>
+        /// <param name="e">事件参数。</param>
+        void OnHostGone(object? s, EventArgs e) { if (_pop.IsOpen) ClosePicker(); }
+
+        /// <summary>按在设置窗里的别处：卡是 <c>StaysOpen</c> 的弹层，窗外点击它自己不收，这里替它收。
+        /// 加号自己那一按交给它的开关逻辑，别在这里抢着关掉再被它重新打开。</summary>
+        /// <param name="s">事件源。</param>
+        /// <param name="e">鼠标事件，取命中的那个元素。</param>
+        void OnHostPressedOutside(object? s, MouseButtonEventArgs e)
+        {
+            if (!_pop.IsOpen || _pop.Child is not Border card) return;
+            var src = e.OriginalSource as DependencyObject;
+            if (IsInside(card, src) || IsInside(_add, src)) return;
+            ClosePicker();
+        }
+
+        /// <summary>命中的元素是否落在给定容器之内（含它自己）。</summary>
+        /// <param name="host">容器。</param>
+        /// <param name="src">命中的元素，可为空。</param>
+        /// <returns>在容器里为 true。</returns>
+        static bool IsInside(DependencyObject host, DependencyObject? src)
+        {
+            for (var o = src; o != null; o = VisualTreeHelper.GetParent(o))
+                if (ReferenceEquals(o, host)) return true;
+            return false;
         }
 
         /// <summary>候选卡入场：整张卡做一次弹性缩放，条目随后从右逐条滑进来。</summary>
@@ -433,6 +492,12 @@ public sealed partial class SettingsWindow : Window
         /// <summary>收候选卡：条目先往右退出，卡片再淡掉，走完才真的关掉弹层。</summary>
         void ClosePicker()
         {
+            if (_hostWin != null)
+            {
+                _hostWin.Deactivated -= OnHostGone;
+                _hostWin.PreviewMouseDown -= OnHostPressedOutside;
+                _hostWin = null;
+            }
             if (!_pop.IsOpen || _pop.Child is not Border card) { _pop.IsOpen = false; return; }
             if (card.Child is ScrollViewer sv && sv.Content is Panel list)
             {
@@ -466,7 +531,9 @@ public sealed partial class SettingsWindow : Window
                 CornerRadius = new CornerRadius(5),
                 Padding = new Thickness(9, 6, 9, 6),
                 Margin = new Thickness(1),
-                Background = Brushes.Transparent,
+                // 底色取卡片同色而不是全透明：悬停是在底色上叠一层半透明强调，
+                // 基色自己 alpha 为 0 时叠完还是全透明，指针进来什么也不会亮。
+                Background = new SolidColorBrush(Theme.PanelBg),
                 Cursor = Cursors.Hand,
                 Child = new StackPanel
                 {

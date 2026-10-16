@@ -476,25 +476,15 @@ public sealed partial class SettingsWindow : Window
     FrameworkElement OverrideRow(string label, Func<string[]> get, string defaultText,
         Action<string[]> set, Func<double> width, int order)
     {
-        var summary = new TextBlock
-        {
-            FontSize = 12.5,
-            VerticalAlignment = VerticalAlignment.Center,
-            TextWrapping = TextWrapping.Wrap,
-        };
+        var host = new StackPanel { HorizontalAlignment = HorizontalAlignment.Left };
         var editor = new ChainEditor(get, _ => ActionCatalog(step: false, first: false), list =>
         {
             set(list);
             Paint();
         });
-        void Paint()
-        {
-            var list = get();
-            summary.Text = OverrideSummary(list, defaultText);
-            summary.Foreground = new SolidColorBrush(list.Length == 0 ? Theme.TextDim : Theme.Text);
-        }
-        var host = new StackPanel { HorizontalAlignment = HorizontalAlignment.Left };
-        host.Children.Add(summary);
+        // 这一步有几条由芯片自己说：一条一枚卡片，空序列就只剩那枚加号。
+        // 不覆盖时落在哪交给提示——多摆一行字会把「这里能放几步」的那点版面挤没。
+        void Paint() => host.ToolTip = get().Length == 0 ? defaultText : null;
         host.Children.Add(editor.Root);
 
         var g = Row();
@@ -566,13 +556,6 @@ public sealed partial class SettingsWindow : Window
     /// 排在中间等于让后面的动作各等一次框选，出现在完成后更是无的放矢。</returns>
     static IEnumerable<GestureAction> ActionCatalog(bool step, bool first) =>
         GestureActions.All.Where(a => a.Name != GestureActions.ScopeSelect || (step && first));
-
-    /// <summary>覆盖序列的显示文案：空 = 走默认落点，非空 = 动作短名以间隔号相连。</summary>
-    /// <param name="list">覆盖序列。</param>
-    /// <param name="defaultText">空序列时显示的默认落点。</param>
-    /// <returns>一行文本。</returns>
-    static string OverrideSummary(string[] list, string defaultText) =>
-        list.Length == 0 ? defaultText : string.Join(" · ", list.Select(GestureActions.LabelOf));
 
     /// <summary>折叠行的名字：用户写过就是他的原文；没写过时，出厂那两条按界面语言取自己的名字，
     /// 用户新建的取「新配置」。名字是用户数据，他改过之后就固定成他写下的那串，语言切换动不了它。</summary>

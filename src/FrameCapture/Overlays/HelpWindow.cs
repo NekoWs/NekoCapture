@@ -69,7 +69,7 @@ public sealed class HelpWindow : Window
         ResizeMode = ResizeMode.NoResize;
         AllowsTransparency = true;
         Background = Brushes.Transparent;
-        ShowInTaskbar = false;
+        ShowInTaskbar = true;   // 用户主动打开的一扇窗：任务栏要有它，被别的窗盖住也切得回来
         Topmost = true;
         Title = "FrameCapture Help";
         Width = 660;
