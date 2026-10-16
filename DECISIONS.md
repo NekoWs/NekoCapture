@@ -1082,3 +1082,59 @@ NaN 转 int 得 0，`RenderTargetBitmap` 按 0 高去画，PNG 文件照样写�
 - **护栏**：`T203-pregrab-cache-outlives-the-picker-window` 往缓存塞一片、`Close()`、再读，读不到就红。
   取帧分支从此写进日志：`still frame hwnd=0x… pregrab=True/False winCap=True/False 宽x高`，
   下次这类问题不用靠猜。
+
+## 带 alpha 的截图写剪贴板必须带 PNG 格式，只写 CF_DIB 会被读成黑底
+
+- **现象**：完成后选「复制到剪贴板」，粘出来四周是一圈实心黑；点提示卡片复制的那条路却是好的。
+- **根因**：`ClipboardService.SetFrame` 有两个档位——只写 CF_DIB，或额外写一份 PNG（`includePng`）。
+  CF_DIB 是位图 DIB，格式里没有 alpha 通道，粘贴端拿不到 alpha 就当黑底铺。
+  窗口截图带圆角与投影的透明边，走 CF_DIB 就必然黑边。
+  提示卡片那条路显式传了 `includePng`，芯片那条路漏了——同一个动作两个出口，参数各写各的。
+- **决定**：`includePng` 不由调用方凭记忆给，跟着「这一帧是不是窗口截图」走：
+  `LastStill` 记下 `WindowCapture`，谁复制谁读它。区域截图本来全不透明，CF_DIB 够用也够用得更快。
+- **护栏**：`T189g-window-alpha-preserved` 断言窗口产物保留 alpha（圆角处 alpha<250、本体=255）；
+  复制路径的 `includePng` 全部取自 `_lastStill.WindowCapture`，新增复制出口漏传即红。
+
+## 胶片条的帧与编号是一一对应，不是"整段序列 + 抽样下标"
+
+- **现象**：编辑器里点「生成胶片条」每次都失败，日志 `filmstrip: Index was out of range (Parameter 'index')`。
+- **根因**：`AgentStrip.Render(frames, idxs)` 里格子取的是 `frames[idxs[i]]`——把 `idxs` 当成"进整段录制取样的下标"。
+  编辑器为了省内存只烘焙要上格的那 K 帧再递进来，于是 `idxs` 里第 8 号下标去查长度 8 的列表，越界。
+  纯函数用例当时递的是整段序列，恰好两个语义都对，测不出差别。
+- **决定**：契约写死成"第 i 格画 frames[i]，idxs 只是每格标的号"，帧数不够格子数直接抛。
+  要整段自己抽样的走 `Generate`，它自己先把帧取出来。
+- **护栏**：`T7c-sampled-frames-match-their-timeline-ids` 递 K 帧 + K 个时间轴编号必须成图；
+  `T7d-strip-rejects-missing-frames` 帧数不够必须抛，不许默默画半张。
+
+## 录制的投影按首帧轮廓算一次，逐帧合成超帧预算
+
+- **现象**：录制没有阴影，且边缘是白色填充。
+- **根因**：录制循环每帧末尾调 `FlattenOverWhite`，透明一律拍平到白——圆角和投影还没到编码端就没了。
+  而把静图那套投影合成逐帧搬进录制也不行：实测 1212×1062 画布合成一次 60.6ms，
+  30fps 的预算只有 33.3ms，逐帧算直接把帧率砍掉一半以上。
+- **决定**：投影轮廓取首帧的 alpha 剪影，算一次存成叠加层，整段录制复用；窗口中途改形状（如圆角动画）
+  投影跟不上，这是换来帧率的取舍，写在字段注释里。关掉「窗口截图包含投影」时边距直接给 0，
+  画布紧贴窗口本体，一像素都不外扩——与静图同一条规则。
+- **护栏**：`T189p-shadow-canvas-inflated` 断言画布 = 本体 + 2×边距；`T189r-shadow-band-transparent`
+  断言最外角透明、本体不透明。边距与形状与静图共用 `WindowCapture.ShadowMargin` / `ShadowShape`。
+
+## GIF 的透明只有 1 bit，软投影的渐变靠 Bayer 抖动摊开
+
+- **现象**：窗口截图存成 GIF，投影那圈变成一道死黑的边。
+- **根因**：GIF 每像素要么透明要么不透明。软投影是 alpha 从 0 到 200 的连续渐变，
+  按阈值一切，半透明的那圈整个被判成"不透明黑"，糊成一圈实心。
+- **决定**：带部分透明的帧走透明调色板（留 0 号索引当透明色），alpha 落在中间段的像素
+  按 4×4 Bayer 矩阵决定透不透——抖动密度跟着 alpha 走，肉眼看到的是渐隐而不是黑边。
+  全不透明的帧一个字节都不变，仍走原来的调色板。
+- **护栏**：`T7e-gif-transparent-corner` 用 WPF 的 GIF 解码器把产物读回来验像素（角上 A=0、本体 A=255），
+  编码端自己声明透明索引不算数；`T7f-opaque-gif-stays-opaque` 守住全不透明帧的字节流不变。
+
+## 透明按容器分派，MP4 的透明交给「边框填充色」
+
+- **现象**：录制的透明保留下来之后，MP4 里透明处发黑，WebM 里透明处直接没了。
+- **根因**：三个容器对 alpha 的态度完全不同——GIF 1 bit、WebM(vp9) 有 `yuva420p`、MP4(h264) 根本没有透明通道。
+  一条命令行参数解决不了 h264，喂进去之前就得拍平。
+- **决定**：编码端自己判（`CarriesAlpha` 抽首/中/末三帧看 alpha），WebM 自动切 `yuva420p -auto-alt-ref 0`
+  （alt-ref 开着时参考帧会把 alpha 抹平）；MP4 在喂帧前拍平到用户选的「边框填充色」，
+  该设置只在录制格式选中 MP4 时出现在其下方。默认白色：投影是半透明黑，铺白底才读得出阴影，铺黑底整圈消失。
+- **护栏**：`T127l-args-webm-alpha`、`T127m-args-mp4-never-carries-alpha`、`T127n-carries-alpha`。
