@@ -459,6 +459,14 @@ public static partial class Fluent
     /// <summary>横向插拔的默认行程（像素）。再大就像整页在动，这个量级只够看清"是从旁边推进来的"。</summary>
     public const double RevealShift = 14;
 
+    /// <summary>入场第二拍的起点：空地开到一半，内容就淡着推进来，两拍各让一半。
+    /// 完全错开要等空地开完，看着像两个独立动作；重叠太多又回到"整块闪一下"。
+    /// 高度走 EaseInOut 才有个"一半"可取——首速最快的曲线一上来就开掉大半，剩下的重叠等于没有。</summary>
+    static readonly TimeSpan RevealOverlap = TimeSpan.FromMilliseconds(Motion.EnterMs / 2);
+
+    /// <summary>退场第二拍的起点：内容挪到一半，空地就开始收，与入场对称。</summary>
+    static readonly TimeSpan ConcealOverlap = TimeSpan.FromMilliseconds(Motion.QuickMs / 2);
+
     /// <summary>折叠件容器：把一行设置项包起来，交给 <see cref="Reveal"/> / <see cref="Conceal"/> 原地拉开与收拢。
     /// 包这一层是为了让行自己的上下外边距算进高度里——不包的话高度收到 0 时那截边距会突然消失，收尾就跳一下。</summary>
     /// <param name="content">要折叠的内容，通常是 <c>Row()</c> 产出的行容器。</param>
@@ -472,9 +480,9 @@ public static partial class Fluent
         RenderTransform = new TranslateTransform(RevealShift, 0),
     };
 
-    /// <summary>原地展开，分两拍：先把空地从当前高度拉开到自然高，停一个错位间隔，
-    /// 内容才淡着从右侧一小段推进来。两拍同时走只会看成"整块东西闪了一下"，
-    /// 空地先到位、内容后落位，才读得出"这里给新设置项让了个位置"。</summary>
+    /// <summary>原地展开，两拍重叠：空地从当前高度往自然高拉开，开到一半，内容就淡着从右侧一小段推进来。
+    /// 两拍同时走只读得出"整块闪了一下"，完全错开又成了两个互不相干的动作；
+    /// 空地先起、内容在半程接上，才读得出"这里让出个位置"。</summary>
     /// <param name="el">目标元素，需已在可视树里——自然高度按父容器给的宽度量。</param>
     /// <param name="slidePx">横向行程，默认 <see cref="RevealShift"/>。</param>
     public static void Reveal(FrameworkElement el, double? slidePx = null)
@@ -495,7 +503,7 @@ public static partial class Fluent
         el.ClipToBounds = true;
         el.Visibility = Visibility.Visible;
 
-        var grow = Anim(fromH, h, Motion.EnterMs, EasingMode.EaseOut);
+        var grow = Anim(fromH, h, Motion.EnterMs, EasingMode.EaseInOut);
         // 拉开到位后放开限高：窗口变窄让这一行换行时，不能被入场那一刻量出来的高度卡住
         grow.Completed += (_, _) =>
         {
@@ -504,13 +512,12 @@ public static partial class Fluent
         };
         el.BeginAnimation(FrameworkElement.MaxHeightProperty, grow);
 
-        var beat = TimeSpan.FromMilliseconds(Motion.EnterMs + Motion.StaggerMs);
-        Fade(el, 1, Motion.QuickMs, EasingMode.EaseOut, beat);
-        Slide(t, curX, 0, Motion.QuickMs, EasingMode.EaseOut, beat);
+        Fade(el, 1, Motion.QuickMs, EasingMode.EaseOut, RevealOverlap);
+        Slide(t, curX, 0, Motion.QuickMs, EasingMode.EaseOut, RevealOverlap);
     }
 
-    /// <summary>收拢退场，两拍与入场相反：内容先淡出向右挪走，空地原地停半个错位间隔，
-    /// 再把高度收到 0，走完才让位（Collapsed）。先收空间会把还看得见的内容一起挤走，像被吸进去。</summary>
+    /// <summary>收拢退场，两拍与入场对称地重叠：内容淡出向右挪走，挪到一半空地就开始把高度收到 0，
+    /// 走完才让位（Collapsed）。空地等内容完全挪走再收会拖成两段；空地抢太前则把还看得见的内容挤走。</summary>
     /// <param name="el">目标元素。</param>
     /// <param name="slidePx">横向行程，默认 <see cref="RevealShift"/>。</param>
     public static void Conceal(FrameworkElement el, double? slidePx = null)
@@ -529,8 +536,7 @@ public static partial class Fluent
         Fade(el, 0, Motion.QuickMs, EasingMode.EaseIn);
         Slide(t, curX, shift, Motion.QuickMs, EasingMode.EaseIn);
 
-        var shrink = Anim(fromH, 0, Motion.ExitMs, EasingMode.EaseIn,
-            TimeSpan.FromMilliseconds(Motion.QuickMs + Motion.StaggerMs / 2));
+        var shrink = Anim(fromH, 0, Motion.ExitMs, EasingMode.EaseInOut, ConcealOverlap);
         shrink.Completed += (_, _) =>
         {
             // 放开动画才能改回静止值：动画攥着的属性，直接赋值不生效

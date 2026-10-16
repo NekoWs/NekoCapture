@@ -1222,8 +1222,8 @@ static class SelfTest
             }
             catch (Exception ex) { Chk("T205-reveal-opens-and-conceal-yields-space", false, FirstLine(ex.Message)); }
 
-            // 折叠件的两拍顺序与"逐渐"：入场空地先拉开到位、内容才开始淡入；退场内容先挪走、空地才开始收。
-            // 两拍同时走完全看不出"让位"，只像整块闪一下；空地瞬间撑开同样读不出"这里让出个位置"。
+            // 折叠件两拍的接法：入场空地先起、内容追着落位（重叠一段），退场内容先走、空地追着收。
+            // 完全同时走只读得出"整块闪一下"，完全错开又成了两个互不相干的动作。
             try
             {
                 var seqWin = new Window
@@ -1237,22 +1237,27 @@ static class SelfTest
                 seqWin.Show();
                 PumpMs(250);
                 FrameCapture.Core.Fluent.Reveal(seq);
-                // 逐帧盯空地的长法：内容还没淡的这段时间里必须量到"长到一半"的中间态。
-                // 瞬间撑开的每一帧只会是 0 或满高，量不出中间态。
+                // 逐帧盯入场：内容开始淡那一刻空地必须已经开了一部分、又还没开完。
+                // 瞬间撑开与"等空地开完才淡"都会量到满高，两种都不许。
                 bool grewOpen = false;
+                double hWhenContentStarts = -1;
                 int g = 0;
-                while (g++ < 80 && seq.ActualHeight < 39.5)
+                while (g++ < 80 && hWhenContentStarts < 0)
                 {
-                    if (seq.Opacity < 0.02 && seq.ActualHeight > 4 && seq.ActualHeight < 38) grewOpen = true;
+                    if (seq.ActualHeight > 4 && seq.ActualHeight < 38) grewOpen = true;
+                    if (seq.Opacity > 0.02) hWhenContentStarts = seq.ActualHeight;
                     PumpMs(16);
                 }
-                double opWhenSpaceFull = seq.Opacity;
                 PumpMs(700);
                 FrameCapture.Core.Fluent.Conceal(seq);
-                // 逐帧等内容淡干净，记下这一刻空地还剩多少
+                // 逐帧盯退场：空地开始收那一刻内容必须正在挪走——还没动是不该等这么久，挪完了是拖成两段。
+                double opWhenShrinkStarts = -1;
                 int f = 0;
-                while (f++ < 80 && seq.Opacity > 0.02) PumpMs(16);
-                double hWhenContentGone = seq.ActualHeight;
+                while (f++ < 80 && opWhenShrinkStarts < 0)
+                {
+                    if (seq.ActualHeight < 39.5) opWhenShrinkStarts = seq.Opacity;
+                    PumpMs(16);
+                }
                 bool shutShut = false;
                 while (f++ < 160 && seq.Visibility == Visibility.Visible)
                 {
@@ -1260,9 +1265,10 @@ static class SelfTest
                     PumpMs(16);
                 }
                 Chk("T206-reveal-space-leads-content-follows",
-                    grewOpen && opWhenSpaceFull < 0.05 && hWhenContentGone > 39 && shutShut,
-                    $"入场：空地中途量到={grewOpen}，拉开到位时内容透明度 {opWhenSpaceFull:0.00}（要还没开始淡）；"
-                    + $"退场：内容挪走时实高 {hWhenContentGone:0}（要还满着），收拢中途量到={shutShut}");
+                    grewOpen && hWhenContentStarts > 4 && hWhenContentStarts < 39.5
+                    && opWhenShrinkStarts > 0.02 && opWhenShrinkStarts < 0.99 && shutShut,
+                    $"入场：空地中途量到={grewOpen}，内容起淡时实高 {hWhenContentStarts:0}（要开了但没开完）；"
+                    + $"退场：空地起收时内容透明度 {opWhenShrinkStarts:0.00}（要正在挪走），收拢中途量到={shutShut}");
                 seqWin.Close();
             }
             catch (Exception ex) { Chk("T206-reveal-space-leads-content-follows", false, FirstLine(ex.Message)); }
