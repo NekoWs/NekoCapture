@@ -267,9 +267,12 @@ public sealed partial class CaptureController : IDisposable
                     // 取帧来源的裁定在 ChooseStillFrame：定格开着就一律不出实时帧。
                     // 同一个选取状态先过「干净窗口截图」开关——认窗口才按窗口算，不认就按矩形算。
                     var winSel = sel.WithWindowHonor(_settings.Current.WindowCaptureEnabled);
+                    // 定格瞬间预抓到这只窗口的干净画面：查一次，取帧与日志共用这一个结果。
+                    CapturedFrame pf = null!; RectI pr = default;
+                    bool pregrabbed = pk != null && pk.TryGetCachedWindow(winSel.Window, out pf, out pr);
                     var (f, capReg, winCap) = ChooseStillFrame(
                         _settings.Current.FreezeOnSelect, winSel.LockedToWindow,
-                        () => pk != null && pk.TryGetCachedWindow(winSel.Window, out var cf, out var cr) ? (cf, cr) : null,
+                        () => pregrabbed ? (pf, pr) : null,
                         () =>
                         {
                             try
@@ -281,6 +284,9 @@ public sealed partial class CaptureController : IDisposable
                         },
                         pk?.FrozenFrame, pk?.FrozenOrigin ?? monitor.Bounds, region.Value,
                         r => LiveCapture.Grab(r));
+                    // 这一帧从哪条分支来要在日志里站得住：句柄、预抓是否命中、最终是否按窗口截的。
+                    Trace.Log($"still frame hwnd=0x{winSel.Window.ToInt64():X} pregrab={pregrabbed} " +
+                        $"winCap={winCap} {capReg.W}x{capReg.H}");
                     if (f != null) DispatchStill(f, capReg, monitor.DeviceName, windowCapture: winCap);
                     if (_settings.Current.AlwaysShowRegionOutline) ShowOutline(capReg);
                     else { FlashOutline(capReg); _outline!.FadeAway(_settings.Current.OutlineFadeSeconds); }

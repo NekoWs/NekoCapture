@@ -242,7 +242,7 @@ public sealed partial class CaptureController : IDisposable
         try { BgraImage.SavePng(f, pth); } catch { }
         Encoding.ClipboardService.SetFrame(f, includePng: windowCapture);
         SaveService.MaybeSavePng(f); // 自动保存副本（关=零副作用）
-        Trace.Log($"still saved {pth} {f.W}x{f.H} ");
+        Trace.Log($"still saved {pth} {f.W}x{f.H} win={windowCapture}");
         if (_settings.Current.CaptureSound) CaptureSound.Play(_settings.Current.CustomSoundPath); // 提示音（关=零副作用）
         // 截图后落点：弹提示浮窗 / 直接进编辑器 / 什么都不做 / 贴图——四态覆盖不同人群。
         // 写不写剪贴板是上面那条独立开关，与落点无关：贴图、进编辑器都可以不动剪贴板。

@@ -4785,6 +4785,30 @@ static class SelfTest
         }
         catch (Exception e) { Chk("T199-frozen-frame-source", false, e.Message); }
 
+        // 预抓缓存要活到控制器读完它：结果先派发、窗后关闭，控制器在关闭之后的一拍里才取这一帧。
+        // 关闭时清缓存，定格 + 点窗口就永远命中不了预抓，退成按矩形裁的定格帧——画面不透明，日志也安静。
+        try
+        {
+            var pickWin = new FrameCapture.Overlays.RegionPickerWindow(
+                new FrameCapture.Capture.MonitorInfo("test", new FrameCapture.Capture.RectI(0, 0, 800, 600), true),
+                null, windowCapture: true, freeze: true);
+            var cache3 = (System.Collections.Concurrent.ConcurrentDictionary<IntPtr,
+                (FrameCapture.Capture.CapturedFrame Frame, FrameCapture.Capture.RectI Region)>)
+                typeof(FrameCapture.Overlays.RegionPickerWindow)
+                    .GetField("_winCache", System.Reflection.BindingFlags.NonPublic
+                        | System.Reflection.BindingFlags.Instance)!.GetValue(pickWin)!;
+            var fakeHwnd = new IntPtr(0x4D2);
+            cache3[fakeHwnd] = (new FrameCapture.Capture.CapturedFrame { Bgra = new byte[16], W = 2, H = 2 },
+                new FrameCapture.Capture.RectI(0, 0, 2, 2));
+            pickWin.Close();
+            PumpMs(60);
+            var kept3 = pickWin.TryGetCachedWindow(fakeHwnd, out var cf3, out _);
+            Chk("T203-pregrab-cache-outlives-the-picker-window", kept3 && cf3.W == 2,
+                "选区窗一关，预抓的干净窗口缓存就空了：控制器在关闭之后的一拍才读它，"
+                + "定格 + 点窗口永远命中不了预抓，退成按矩形裁的定格帧");
+        }
+        catch (Exception e) { Chk("T203-pregrab-cache-round", false, e.Message); }
+
         // 细滚动条全局样式真正生效（，用户「基本没变」根因：主题 ScrollBar 样式的
         // MinWidth=17.33 经 DynamicResource 以直值泄漏到模板内 ScrollBar，样式 Setter 压不住，须附加属性归零）
         {
