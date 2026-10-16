@@ -311,7 +311,7 @@ static class SelfTest
     /// <param name="advanced">true = 完成后与失败时按高级形态铺开。</param>
     /// <param name="clash">true = 再挂一条与第一条同键同触发的绑定，拍撞车那条的描边。</param>
     /// <returns>恒为 0。</returns>
-    static int RenderSettings(string outPath, Str catName, double scale = 1, int openAt = -1, bool advanced = false, bool clash = false)
+    static int RenderSettings(string outPath, Str catName, double scale = 1, int openAt = -1, bool advanced = false, bool clash = false, bool down = false)
     {
         var app = new Application();
         // 设置窗读 AppHost.Current.Settings；本模式只 new Application()，不走 AppHost.Startup，
@@ -404,6 +404,19 @@ static class SelfTest
             }
         }
         Layout();
+        // 「down」：把右栏滚到底再拍。编辑器绑键那一段在折叠线以下，不滚就拍不到它的真实形态。
+        if (down)
+        {
+            var svs = new List<System.Windows.DependencyObject>();
+            CollectTyped(root, typeof(System.Windows.Controls.ScrollViewer), svs);
+            if (svs.Count > 0)
+            {
+                var sv = (System.Windows.Controls.ScrollViewer)svs[0];
+                sv.ScrollToVerticalOffset(sv.ScrollableHeight);
+                PumpMs(300);
+                Layout();
+            }
+        }
         int ww = (int)Math.Ceiling(W * scale), hh = (int)Math.Ceiling(H * scale);
         var rtb = new System.Windows.Media.Imaging.RenderTargetBitmap(ww, hh, 96 * scale, 96 * scale, System.Windows.Media.PixelFormats.Pbgra32);
         rtb.Render(root);
@@ -771,7 +784,8 @@ static class SelfTest
             Str[] catNames = { K.Settings.Hotkeys, K.Common.Capture, K.Common.Recording, K.Settings.Output, K.Common.Editor, K.Common.Pin, K.Common.Appearance, K.Settings.System };
             int ci = args.Length >= 3 && int.TryParse(args[2], out var sc) ? sc : 0;
             return RenderSettings(args[1], catNames[Math.Clamp(ci, 0, catNames.Length - 1)], ScaleArg(args),
-                args.Contains("open2") ? 1 : args.Contains("open") ? 0 : -1, args.Contains("adv"), args.Contains("clash"));
+                args.Contains("open2") ? 1 : args.Contains("open") ? 0 : -1, args.Contains("adv"), args.Contains("clash"),
+                args.Contains("down"));
         }
     if (args.Length >= 2 && args[0] == "rendereditor") return RenderEditor(args[1], ScaleArg(args), args.Contains("guide"));
         if (args.Length == 3 && args[0] == "stitch") return StitchMode(args[1], args[2]);
