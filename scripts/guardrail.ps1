@@ -115,6 +115,22 @@ foreach ($t in $lints) {
     } else { Add-Result $t.n "FAIL" "扫描器无输出" $r.Sec; Say $r.Text }
 }
 
+# 4.5) 安装器搬运探针：装到非系统盘那条路径本机走不到，只有把搬运逻辑拎出来实机跑一遍才算测过。
+#      只在仓库内与临时目录写文件，不碰注册表，也不动已装程序。
+$spProj = Join-Path $root "tools/SetupProbe"
+$spExe  = Join-Path $spProj "bin/Debug/net48/SetupProbe.exe"
+$spBuild = & dotnet build $spProj -c Debug -v q --nologo 2>&1 | Out-String
+if (([regex]::Matches($spBuild, ': error')).Count -eq 0 -and (Test-Path $spExe)) {
+    $spOut = & $spExe 2>&1 | Out-String
+    $okSp = $spOut -match 'SETUP-PROBE PASS'
+    Add-Result "probe:setup-paths" $(if ($okSp) { "PASS" } else { "FAIL" }) `
+        ("{0} 项搬运断言" -f ([regex]::Matches($spOut, '(?m)^\s*(?:PASS|FAIL) ').Count)) 0
+    if (-not $okSp) { Say $spOut }
+} else {
+    Add-Result "probe:setup-paths" "FAIL" "探针构建失败或无产物"
+    Say $spBuild
+}
+
 # 5) 产物起得来：-SkipE2e 时其余动态项全不跑，主程序能不能起来这件事不能没人管。
 #    托盘应用，不弹窗、不注入任何输入；跑完按原字节还回用户设置。
 if ($okBuild) {

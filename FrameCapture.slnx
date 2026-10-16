@@ -17,6 +17,7 @@
     <Project Path="tools/SelfTest/SelfTest.csproj">
       <Platform Project="x64" />
     </Project>
+    <Project Path="tools/SetupProbe/SetupProbe.csproj" />
     <Project Path="tools/Shot/Shot.csproj">
       <Platform Project="x64" />
     </Project>

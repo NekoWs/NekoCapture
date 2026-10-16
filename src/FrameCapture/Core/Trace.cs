@@ -1,16 +1,16 @@
 namespace FrameCapture.Core;
 
 /// <summary>
-/// 轻量文件跟踪日志（开发期常开，写入工作区便于诊断）。
-/// 路径相对程序目录向上五级定位到仓库根；写失败（目录只读、文件被占）静默忽略，绝不影响功能。
+/// 轻量文件跟踪日志（开发期常开）。落点是程序目录向上五级，主程序落在 src\，
+/// SelfTest 落在 tools\，都在工作区里好找；写失败（目录只读、文件被占）静默忽略，绝不影响功能。
 /// </summary>
 public static class Trace
 {
     /// <summary>跟踪日志落点；程序不是从仓库里的构建输出运行时为 null，那时一个字都不写。</summary>
     static readonly string? Path = Resolve();
 
-    /// <summary>从程序目录向上五级定位仓库根的日志落点。</summary>
-    /// <returns>仓库根下的日志路径；程序装在别处时为 null。</returns>
+    /// <summary>从程序目录向上五级取日志落点。</summary>
+    /// <returns>日志路径；程序装在仓库构建输出之外时为 null。</returns>
     /// <remarks>装进 Program Files 或数据盘之后，向上五级会走到盘根：那里要么写不进去，
     /// 要么在盘根长出一个没人认领、也没人清的日志文件。两种都不如不写。</remarks>
     static string? Resolve()

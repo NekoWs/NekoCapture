@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- 安装器目录搬运探针：与引导器同框架（net48），把 InstallEngine 的源文件直接链进来，
+       这样探针跑的就是发行物里那份搬运逻辑。net8 的 SelfTest 引不动 net48 工程，
+       安装器的行为只能这样实测——装到非系统盘的那条路径在本机永远走不到。 -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net48</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <PlatformTarget>x64</PlatformTarget>
+    <AssemblyName>SetupProbe</AssemblyName>
+    <RootNamespace>FrameCapture.SetupProbe</RootNamespace>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <NoWarn>CS1591</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- 与引导器工程同一组引用：ZipArchive 与 dynamic 调 WScript.Shell 都要 -->
+    <Reference Include="System.IO.Compression" />
+    <Reference Include="System.IO.Compression.FileSystem" />
+    <Reference Include="Microsoft.CSharp" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="Program.cs" />
+    <Compile Include="..\..\src\Setup\InstallEngine.cs" />
+    <Compile Include="..\..\src\Setup\DotnetRuntime.cs" />
+    <Compile Include="..\..\src\Setup\GlobalUsings.cs" />
+  </ItemGroup>
+
+</Project>
