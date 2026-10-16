@@ -1222,8 +1222,8 @@ static class SelfTest
             }
             catch (Exception ex) { Chk("T205-reveal-opens-and-conceal-yields-space", false, FirstLine(ex.Message)); }
 
-            // 折叠件的两拍顺序：入场空地先拉开到位、内容才开始淡入；退场内容先挪走、空地才开始收。
-            // 两拍同时走完全看不出"让位"，只像整块闪一下——这条锁的就是别把它改回同时。
+            // 折叠件的两拍顺序与"逐渐"：入场空地先拉开到位、内容才开始淡入；退场内容先挪走、空地才开始收。
+            // 两拍同时走完全看不出"让位"，只像整块闪一下；空地瞬间撑开同样读不出"这里让出个位置"。
             try
             {
                 var seqWin = new Window
@@ -1237,9 +1237,15 @@ static class SelfTest
                 seqWin.Show();
                 PumpMs(250);
                 FrameCapture.Core.Fluent.Reveal(seq);
-                // 逐帧等空地拉开到位，记下这一刻内容淡没淡
+                // 逐帧盯空地的长法：内容还没淡的这段时间里必须量到"长到一半"的中间态。
+                // 瞬间撑开的每一帧只会是 0 或满高，量不出中间态。
+                bool grewOpen = false;
                 int g = 0;
-                while (g++ < 80 && seq.ActualHeight < 39.5) PumpMs(16);
+                while (g++ < 80 && seq.ActualHeight < 39.5)
+                {
+                    if (seq.Opacity < 0.02 && seq.ActualHeight > 4 && seq.ActualHeight < 38) grewOpen = true;
+                    PumpMs(16);
+                }
                 double opWhenSpaceFull = seq.Opacity;
                 PumpMs(700);
                 FrameCapture.Core.Fluent.Conceal(seq);
@@ -1247,10 +1253,16 @@ static class SelfTest
                 int f = 0;
                 while (f++ < 80 && seq.Opacity > 0.02) PumpMs(16);
                 double hWhenContentGone = seq.ActualHeight;
+                bool shutShut = false;
+                while (f++ < 160 && seq.Visibility == Visibility.Visible)
+                {
+                    if (seq.ActualHeight > 4 && seq.ActualHeight < 38) shutShut = true;
+                    PumpMs(16);
+                }
                 Chk("T206-reveal-space-leads-content-follows",
-                    opWhenSpaceFull < 0.05 && hWhenContentGone > 39,
-                    $"入场：空地拉开到位时内容透明度 {opWhenSpaceFull:0.00}（要还没开始淡）；"
-                    + $"退场：内容挪走时实高 {hWhenContentGone:0}（要还满着）");
+                    grewOpen && opWhenSpaceFull < 0.05 && hWhenContentGone > 39 && shutShut,
+                    $"入场：空地中途量到={grewOpen}，拉开到位时内容透明度 {opWhenSpaceFull:0.00}（要还没开始淡）；"
+                    + $"退场：内容挪走时实高 {hWhenContentGone:0}（要还满着），收拢中途量到={shutShut}");
                 seqWin.Close();
             }
             catch (Exception ex) { Chk("T206-reveal-space-leads-content-follows", false, FirstLine(ex.Message)); }

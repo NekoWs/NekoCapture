@@ -480,7 +480,7 @@ public static partial class Fluent
     public static void Reveal(FrameworkElement el, double? slidePx = null)
     {
         double shift = slidePx ?? RevealShift;
-        double curH = double.IsPositiveInfinity(el.MaxHeight) ? 0 : el.MaxHeight;
+        double curH = CurrentHeight(el);
         double curOp = el.Opacity;
         var t = ShiftOf(el);
         double curX = t.X;
@@ -518,8 +518,7 @@ public static partial class Fluent
         double shift = slidePx ?? RevealShift;
         var t = ShiftOf(el);
         double curOp = el.Opacity, curX = t.X;
-        double fromH = el.ActualHeight;
-        if (!double.IsPositiveInfinity(el.MaxHeight)) fromH = Math.Min(fromH, el.MaxHeight);
+        double fromH = CurrentHeight(el);
         if (fromH <= 0) fromH = NaturalHeight(el);
         Release(el, t);
         el.MaxHeight = fromH;   // 钉住当前高度：第一拍只挪内容，空地不能提前塌
@@ -590,15 +589,31 @@ public static partial class Fluent
     static void Slide(TranslateTransform t, double from, double to, int ms, EasingMode mode, TimeSpan? at = null)
         => t.BeginAnimation(TranslateTransform.XProperty, Anim(from, to, ms, mode, at));
 
+    /// <summary>折叠件此刻实际占着的高度，动画中途调用也拿到当前值。
+    /// 限高没设过是 NaN、展开到位是 +∞，两者都表示"没有约束"：直接拿去当动画起点会算出 NaN，
+    /// 而 NaN 的限高等于不限高——元素当场顶到最终高度，空地就成了瞬间出现而不是拉开。</summary>
+    static double CurrentHeight(FrameworkElement el)
+    {
+        double mh = el.MaxHeight;
+        if (double.IsNaN(mh) || double.IsPositiveInfinity(mh)) return el.ActualHeight;
+        return Math.Min(el.ActualHeight, mh);
+    }
+
     /// <summary>折叠件的自然高度：按父容器给的宽度量一次。测量要先放开限高——
-    /// 否则读到的是动画中途的限高，展开动画会原地不动。</summary>
+    /// 否则读到的是动画中途的限高，展开动画会原地不动。
+    /// 还要先让元素可见：Collapsed 元素的 Measure 直接返回 0，量出来的高度是 0，
+    /// 展开动画就变成 0→0 的空跑，一落地放开限高，空地成了瞬间出现而不是拉开。</summary>
     static double NaturalHeight(FrameworkElement el)
     {
         el.BeginAnimation(FrameworkElement.MaxHeightProperty, null);
         el.MaxHeight = double.PositiveInfinity;
+        var back = el.Visibility;
+        el.Visibility = Visibility.Visible;
         double w = (el.Parent as FrameworkElement)?.ActualWidth ?? 0;
         el.Measure(new Size(w > 1 ? w : 480, double.PositiveInfinity));
-        return el.DesiredSize.Height;
+        double h = el.DesiredSize.Height;
+        el.Visibility = back;
+        return h;
     }
 
     /// <summary>圆角按钮模板：底色/内衬走 TemplateBinding，内容居中，可选悬停淡出。</summary>
