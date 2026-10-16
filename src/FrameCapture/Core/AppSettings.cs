@@ -64,10 +64,15 @@ public sealed class AppSettings
     /// 外缘柔和渐隐到透明，看上去悬浮在桌面上。关掉则只截窗口本体（圆角透明、无投影）。</summary>
     public bool WindowCaptureShadow { get; set; } = true;
 
+    /// <summary>边框填充色：MP4 这类没有透明通道的容器，把窗口截图与录制的透明边（圆角、投影）拍平到这个颜色。
+    /// 默认白——投影是半透明黑，铺在白底上才读得出阴影，铺在黑底上整圈就消失了。
+    /// GIF 与 WebM 自带透明通道，这个设置对它们不起作用。</summary>
+    public string VideoMatteColor { get; set; } = "#FFFFFF";
+
     /// <summary>点击窗口时录制该窗口（默认开）：录制选区里点一个吸附到的窗口，录的是该窗口本体而非屏幕矩形——
     /// 别的窗口盖上来、窗口挪位置都不会进画面，成片只有这一个窗口。
-    /// GIF / MP4 没有透明通道，圆角等透明处拍平到白色。关掉则按屏幕矩形录。
-    /// WGC 按窗口取帧失败时自动回退区域录制。</summary>
+    /// 产物保留 alpha：GIF 走 1 bit 透明，WebM 走 vp9 透明，MP4 按「边框填充色」拍平。
+    /// 关掉则按屏幕矩形录；WGC 按窗口取帧失败时也自动回退区域录制。</summary>
     public bool RecordWindowClean { get; set; } = true;
 
     /// <summary>按下选区快捷键后是否显示上次选区的虚线框（关=干净屏，Enter 确认上次选区随之失效）。</summary>

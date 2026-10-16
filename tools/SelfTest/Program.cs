@@ -797,6 +797,20 @@ static class SelfTest
         return new CapturedFrame { Bgra = buf, W = w, H = h };
     }
 
+    /// <summary>把 GIF 读回来取某像素的 alpha。解码器交的是索引色，先转 Bgra32 才看得见透明标志的效果。</summary>
+    static int GifAlphaAt(byte[] gif, int x, int y)
+    {
+        var f = new System.Windows.Media.Imaging.GifBitmapDecoder(
+            new MemoryStream(gif),
+            System.Windows.Media.Imaging.BitmapCreateOptions.PreservePixelFormat,
+            System.Windows.Media.Imaging.BitmapCacheOption.OnLoad).Frames[0];
+        var bgra = new System.Windows.Media.Imaging.FormatConvertedBitmap(
+            f, System.Windows.Media.PixelFormats.Bgra32, null, 0);
+        var px = new byte[4];
+        bgra.CopyPixels(new System.Windows.Int32Rect(x, y, 1, 1), px, 4, 0);
+        return px[3];
+    }
+
     static CapturedFrame MovingSquare(int w, int h, int k, int steps)
     {
         // 红方块从左到右移动，背景黑
@@ -1031,6 +1045,36 @@ static class SelfTest
             Chk("T7d-strip-rejects-missing-frames", threw7, "帧数不够格子时必须抛，不能默默画半张");
         }
         catch (Exception e) { Chk("T7-strip-sampling", false, e.ToString()); }
+
+        // GIF 的透明只有 1 bit：窗口截图的圆角必须真透明，软投影靠 Bayer 抖动摊开而不是压成死黑边。
+        // 编码端自己声明透明索引不算数——用 WPF 的 GIF 解码器读回来，看像素到底带不带 alpha。
+        try
+        {
+            int gw = 64, gh = 48;
+            var buf = new byte[gw * gh * 4];
+            for (int y = 0; y < gh; y++)
+                for (int x = 0; x < gw; x++)
+                {
+                    int o = (y * gw + x) * 4;
+                    bool edge = x < 8 || x >= gw - 8 || y < 8 || y >= gh - 8;
+                    bool band = !edge && x < 12;
+                    buf[o] = edge || band ? (byte)0 : (byte)200;
+                    buf[o + 1] = edge || band ? (byte)0 : (byte)60;
+                    buf[o + 2] = edge || band ? (byte)0 : (byte)20;
+                    buf[o + 3] = edge ? (byte)0 : band ? (byte)128 : (byte)255;
+                }
+            var gf = new CapturedFrame { Bgra = buf, W = gw, H = gh, TimeMs = 0 };
+            byte[] gbytes = GifEncoder.Encode(new[] { gf }, new[] { 100 });
+            int cornerA = GifAlphaAt(gbytes, 0, 0);
+            int bodyA = GifAlphaAt(gbytes, 32, 24);
+            Chk("T7e-gif-transparent-corner", cornerA == 0 && bodyA == 255,
+                $"透明边 alpha={cornerA}（要 0），本体 alpha={bodyA}（要 255）");
+
+            byte[] opaque = GifEncoder.Encode(new[] { Solid(gw, gh, 0x30, 0x40, 0x50) }, new[] { 100 });
+            Chk("T7f-opaque-gif-stays-opaque", GifAlphaAt(opaque, 0, 0) == 255,
+                $"全不透明帧读回来 alpha={GifAlphaAt(opaque, 0, 0)}（要 255，不许声明透明）");
+        }
+        catch (Exception e) { Chk("T7-gif-alpha", false, e.ToString()); }
 
         // 主题：明/暗双调色板对比度正确（文字与背景必须反向）
         try
@@ -2048,12 +2092,49 @@ static class SelfTest
                 else if (fOcc != null) occDetail = $"缓冲不足 {fOcc.W}x{fOcc.H}/{fOcc.Bgra.Length}";
                 Chk("T189f-window-occlusion", occClean, $"遮挡处像素={occDetail} n={nWin} bad={badWin} empty={wgcWin.EmptyFrames}");
 
-                // 产物不留透明像素：边带拍平过，GIF / MP4 不会编出黑角
-                bool allOpaque = true;
-                if (fOcc == null) allOpaque = false;
-                else for (int i = 3; i < fOcc.Bgra.Length; i += 4)
-                        if (fOcc.Bgra[i] != 255) { allOpaque = false; break; }
-                Chk("T189g-window-opaque", allOpaque, fOcc == null ? "无帧" : $"{fOcc.W}x{fOcc.H}");
+                // 窗口本体的 alpha 原样保留：圆角处透明、本体不透明。
+                // 拍平到什么底色是编码端按容器决定的事（只有 MP4 这类无透明通道才填色），取帧这一步不替用户定。
+                bool cornerClear = false, coreOpaque = false;
+                if (fOcc != null)
+                {
+                    int cw = fOcc.W;
+                    for (int i = 3; i < fOcc.Bgra.Length; i += 4)
+                        if (fOcc.Bgra[i] < 250) { cornerClear = true; break; }
+                    int ci = ((fOcc.H / 2) * cw + cw / 2) * 4;
+                    coreOpaque = fOcc.Bgra[ci + 3] == 255;
+                }
+                Chk("T189g-window-alpha-preserved", cornerClear && coreOpaque,
+                    fOcc == null ? "无帧" : $"{fOcc.W}x{fOcc.H} 圆角透明={cornerClear} 本体不透明={coreOpaque}");
+
+                // 开投影的录制：画布向四周各外扩一个边距，最外角透明、本体不透明。
+                // 边距与形状和静图窗口截图同源（同一个 ShadowMargin / ShadowShape），两边投影才一样大。
+                try
+                {
+                    int margin = WindowCapture.ShadowMargin(target.Handle);
+                    using var wgcSh = new WgcLiveCapture();
+                    CapturedFrame? shFrame = null;
+                    int nSh = 0;
+                    wgcSh.FrameSampled += f => { shFrame = f; Interlocked.Increment(ref nSh); };
+                    wgcSh.StartWindow(target.Handle, mon, 20, false, includeShadow: true);
+                    var swSh = Stopwatch.StartNew();
+                    while (nSh < 1 && swSh.ElapsedMilliseconds < 3000) PumpMs(50);
+                    wgcSh.Stop();
+                    var sf = shFrame;
+                    Chk("T189p-shadow-canvas-inflated",
+                        sf != null && f0 != null && Math.Abs(sf.W - (f0.W + 2 * margin)) <= 4
+                        && Math.Abs(sf.H - (f0.H + 2 * margin)) <= 4,
+                        sf == null || f0 == null ? "无帧" : $"帧 {sf.W}x{sf.H} 应为 {f0.W + 2 * margin}x{f0.H + 2 * margin}（边距 {margin}）");
+                    bool shCorner = sf != null && sf.Bgra[3] < 250;
+                    bool shCore = false;
+                    if (sf != null)
+                    {
+                        int ci = ((sf.H / 2) * sf.W + sf.W / 2) * 4;
+                        shCore = sf.Bgra[ci + 3] == 255;
+                    }
+                    Chk("T189r-shadow-band-transparent", shCorner && shCore,
+                        $"外角 alpha={sf?.Bgra[3]}（投影淡到透明）本体不透明={shCore}");
+                }
+                catch (Exception ex) { Chk("T189p-shadow-canvas", false, FirstLine(ex.Message)); }
 
                 // 取证：遮挡期间采到的帧编成 GIF 与末帧 PNG 存 test-out，肉眼核对成片里只有目标窗
                 {
@@ -3503,6 +3584,24 @@ static class SelfTest
                     webmArgs.Contains("libvpx-vp9") && webmArgs.Contains("-crf 40") && webmArgs.Contains("-b:v 0")
                     && webmArgs.Contains("-s 320x240"),
                     "WebM：libvpx-vp9/crf40/bitrate0/尺寸");
+
+                // 透明按容器分派：WebM 带 alpha 走 yuva420p 并关掉 alt-ref（开着时参考帧会把 alpha 抹平）；
+                // MP4 的 h264 没有透明通道，命令行救不了，只能喂拍平后的帧。
+                string webmAlpha = VideoEncoder.BuildArgs(320, 240, 30, VideoFormat.WebM, @"C:\t\o.webm", alpha: true);
+                Chk("T127l-args-webm-alpha",
+                    webmAlpha.Contains("-pix_fmt yuva420p") && webmAlpha.Contains("-auto-alt-ref 0"),
+                    "WebM 带透明：yuva420p 且关掉 alt-ref");
+                Chk("T127m-args-mp4-never-carries-alpha",
+                    !VideoEncoder.BuildArgs(320, 240, 30, VideoFormat.Mp4, @"C:\t\o.mp4", alpha: true).Contains("yuva")
+                    && !webmArgs.Contains("yuva"),
+                    "MP4 永不声明透明；WebM 不带透明时仍是 yuv420p");
+                var semiBuf = new byte[8 * 8 * 4];
+                for (int i = 3; i < semiBuf.Length; i += 4) semiBuf[i] = 255;
+                semiBuf[3] = 120;
+                var semi = new CapturedFrame { Bgra = semiBuf, W = 8, H = 8, TimeMs = 0 };
+                Chk("T127n-carries-alpha",
+                    !VideoEncoder.CarriesAlpha(new[] { Solid(8, 8, 1, 2, 3) }) && VideoEncoder.CarriesAlpha(new[] { semi }),
+                    "全不透明 → false；一个半透明像素 → true");
 
                 // 奇数尺寸必须向下取偶（yuv420p 要求偶数宽高，否则 libx264/vp9 报 "width not divisible by 2"）
                 string oddArgs = VideoEncoder.BuildArgs(641, 401, 30, VideoFormat.Mp4, @"C:\t\o.mp4");

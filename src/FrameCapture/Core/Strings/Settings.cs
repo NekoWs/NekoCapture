@@ -69,6 +69,10 @@ public static partial class K
             "完成选区后立即截取一帧 PNG 静态图，同时复制到剪贴板",
             "As soon as a selection is complete, one PNG frame is captured and copied to the clipboard");
         public static readonly Str AutoSaveACopy = new("settings.autoSaveACopy", "自动保存副本", "Auto-save a copy");
+        public static readonly Str BorderFillColor = new(
+            "settings.borderFillColor",
+            "边框填充色",
+            "Border fill color");
         public static readonly Str BorderFlashAfterACapture = new(
             "settings.borderFlashAfterACapture",
             "截图后边框显示时间",
@@ -112,6 +116,10 @@ public static partial class K
             "settings.clickToPickAnAccent",
             "点击自定义强调色，取色器与编辑器同款；右键恢复跟随系统",
             "Click to pick an accent color with the editor's own picker; right-click to follow the system");
+        public static readonly Str ClickToPickTheFillColor = new(
+            "settings.clickToPickTheFillColor",
+            "点击选择填充色，取色器与编辑器同款",
+            "Click to pick the fill color with the editor's own picker");
         public static readonly Str ClosingTheEditorRemembers = new(
             "settings.closingTheEditorRemembers",
             "关闭编辑器时记住你最后用的标注工具、颜色和线宽，下次打开直接是它们，省去每次重选。关闭后每次打开都回到默认：浏览 / 红 / 中",
@@ -171,6 +179,10 @@ public static partial class K
             "settings.ffmpegNotFoundMp4",
             "未检测到 ffmpeg · 导出 MP4/WebM 需先安装，见帮助 F1，GIF 不受影响",
             "ffmpeg not found · MP4 and WebM export needs it installed first, see the F1 help; GIF is unaffected");
+        public static readonly Str FillsTheShadowBandFor = new(
+            "settings.fillsTheShadowBandFor",
+            "给不支持透明度的格式填充边框与阴影",
+            "Fills the border and shadow band for formats without transparency");
         public static readonly Str FollowSystem = new("settings.followSystem", "跟随系统", "Follow system");
         public static readonly Str FramesCapturedPerSecondWhile = new(
             "settings.framesCapturedPerSecondWhile",

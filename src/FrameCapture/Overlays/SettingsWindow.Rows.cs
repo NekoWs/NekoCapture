@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
@@ -236,6 +237,9 @@ public sealed partial class SettingsWindow : Window
             (RecordFormat.WebM, "WebM", Loc.T(K.Settings.AnOpenVideoFormatEncoded) + ffNote),
         };
         var chipList = new List<(Border chip, RecordFormat id)>();
+        // 边框填充色只在 MP4 下出现：h264 没有透明通道，透明边得拍平到一个颜色才读得出阴影
+        var matte = MatteColorRow();
+        matte.Visibility = cur == RecordFormat.Mp4 ? Visibility.Visible : Visibility.Collapsed;
         foreach (var (id, text, tip) in opts)
         {
             RecordFormat captured = id;
@@ -245,6 +249,7 @@ public sealed partial class SettingsWindow : Window
             {
                 _settings.Mutate(s => s.RecordFormat = captured);
                 RefreshChips(chipList, captured);
+                matte.Visibility = captured == RecordFormat.Mp4 ? Visibility.Visible : Visibility.Collapsed;
             }
             WireChip(chip, Apply);
             chips.Children.Add(chip);
@@ -274,7 +279,62 @@ public sealed partial class SettingsWindow : Window
         var wrap = new StackPanel();
         wrap.Children.Add(g);
         wrap.Children.Add(status);
+        wrap.Children.Add(matte);
         return wrap;
+    }
+
+    Popup? _mattePop;
+    ColorPickView? _matteView;
+
+    /// <summary>边框填充色：窗口截图与录制的透明边（圆角、投影）拍平到这个颜色，只有 MP4 用得上。
+    /// 默认白——投影是半透明黑，铺在白底上才读得出阴影，铺在黑底上整圈就消失了。</summary>
+    FrameworkElement MatteColorRow()
+    {
+        var g = ChipRow("\uE790", Loc.T(K.Settings.FillsTheShadowBandFor), Loc.T(K.Settings.BorderFillColor));
+        var chip = new Border
+        {
+            Width = 46,
+            Height = 20,
+            CornerRadius = new CornerRadius(5),
+            Background = new SolidColorBrush(HexColor.Parse(_settings.Current.VideoMatteColor) ?? Colors.White),
+            BorderBrush = new SolidColorBrush(Theme.Stroke),
+            BorderThickness = new Thickness(1),
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Center,
+            Cursor = Cursors.Hand,
+            Focusable = true,
+            ToolTip = Loc.T(K.Settings.ClickToPickTheFillColor),
+        };
+        Grid.SetColumn(chip, 2);
+        Fluent.ChipHover(chip);   // 悬停只改底色带过渡，不缩放
+        void Open()
+        {
+            if (_mattePop == null)
+            {
+                _matteView = new ColorPickView();
+                _matteView.Changed += c => chip.Background = new SolidColorBrush(Color.FromRgb(c.R, c.G, c.B));
+                _mattePop = new Popup
+                {
+                    Child = Fluent.PopupCard(_matteView),
+                    Placement = PlacementMode.Top,
+                    AllowsTransparency = true,
+                    PopupAnimation = PopupAnimation.Fade,
+                };
+                // 松板才落盘：拖动中只让色片实时跟色，避免每个像素都写一次设置
+                _mattePop.Closed += (_, _) =>
+                {
+                    var c = _matteView!.Color;
+                    _settings.Mutate(s => s.VideoMatteColor = HexColor.Format(c));
+                };
+            }
+            _matteView!.Color = chip.Background is SolidColorBrush sb ? sb.Color : Colors.White;
+            _mattePop.PlacementTarget = chip;
+            Fluent.OpenPopSticky(_mattePop, this);
+        }
+        chip.MouseLeftButtonDown += (_, e) => { Open(); e.Handled = true; };
+        chip.KeyDown += (_, e) => { if (e.Key is Key.Space or Key.Enter) { Open(); e.Handled = true; } };
+        g.Children.Add(chip);
+        return g;
     }
     #endregion
 

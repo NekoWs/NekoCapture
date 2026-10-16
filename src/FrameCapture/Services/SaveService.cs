@@ -82,6 +82,8 @@ public static class SaveService
             // 视频：后台编码（编辑器已可关闭，文件稍后出现）。先写临时文件成功再拷进目标名，
             // 保证目录里只出现完整可播产物（应用中途退出不会留下半截文件）。失败 → GIF 兜底不丢产物。
             var vfmt = fmt == RecordFormat.Mp4 ? VideoFormat.Mp4 : VideoFormat.WebM;
+            // MP4 没有透明通道：喂帧前按用户选的「边框填充色」拍平；WebM 自己带 alpha，这个颜色对它不起作用。
+            var matte = Core.HexColor.Parse(SettingsService.Shared.Current.VideoMatteColor);
             string ext = vfmt == VideoFormat.Mp4 ? "mp4" : "webm";
             var vpath = Path.Combine(dir, UniqueName(dir, Stamp(), ext));
             var frames = seq.Frames; // 已烘焙、内存态，闭包持有，独立于 spool
@@ -90,7 +92,8 @@ public static class SaveService
                 string tmp = Path.Combine(Path.GetTempPath(), $"fc_autosave_{Guid.NewGuid():N}.{ext}");
                 try
                 {
-                    VideoEncoder.Encode(frames, ff, tmp, vfmt, VideoEncoder.FpsFromFrames(frames));
+                    VideoEncoder.Encode(frames, ff, tmp, vfmt, VideoEncoder.FpsFromFrames(frames),
+                        matte: matte);
                     File.Copy(tmp, vpath, overwrite: true);
                     Trace.Log($"autosave {ext} {vpath} {new FileInfo(vpath).Length}B {frames.Count}f");
                 }

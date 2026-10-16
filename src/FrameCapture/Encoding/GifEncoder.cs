@@ -101,14 +101,14 @@ public static class GifEncoder
             int delay = Math.Clamp(delayMs, 10, 655_350) / 10;
             if (delay == 1) delay = 2; // 避免某些播放器把 1cs 当 0
 
+            var (indices, palette, entryBits, transparent) = Quantize(frame.Bgra, w, h);
+
             // GCE
             B(0x21); B(0xF9); B(4);
-            B(0x08); // packed: disposal=1（保留上一帧）
+            B((byte)(transparent ? 0x09 : 0x08)); // packed：disposal=2（每帧重画，透明处露出背景）+ 透明标志
             W16(delay);
-            B(0x00); // transparency flag=0
+            B(transparent ? (byte)0 : (byte)255); // 透明色索引；255 = 不启用
             B(0x00); // GCE 块终止符
-
-            var (indices, palette, entryBits) = Quantize(frame.Bgra, w, h);
 
             // Image Descriptor + 局部色表
             B(0x2C);
@@ -131,26 +131,42 @@ public static class GifEncoder
 
     #region 量化：median-cut → ≤256 色
 
-    static (byte[] Indices, byte[] Palette, int EntryBits) Quantize(byte[] bgra, int w, int h)
+    /// <summary>
+    /// 一帧 BGRA → GIF 索引 + 局部色表。帧里有半透明像素时走透明路径：
+    /// 索引 0 让给透明色，调色板最多 255 色，透明像素不参与配色统计。
+    /// </summary>
+    /// <param name="bgra">帧像素，行主序 BGRA。</param>
+    /// <param name="w">帧宽（像素）。</param>
+    /// <param name="h">帧高（像素）。</param>
+    /// <returns>Indices 是逐像素调色板索引；Palette 是 tableSize×3 的 RGB；
+    /// EntryBits 是 LZW 起始位宽；Transparent 为真时索引 0 即透明色，写 GCE 的调用方据此声明。</returns>
+    static (byte[] Indices, byte[] Palette, int EntryBits, bool Transparent) Quantize(byte[] bgra, int w, int h)
     {
+        int total = w * h;
+        bool transparent = HasPartialAlpha(bgra, total);
+        // GIF 的透明是 1 bit：alpha=0 干净透明，软投影这类渐变靠 Bayer 抖动摊成透明/实心两种像素，
+        // 硬阈值会把一圈渐变压成死黑边。
+        int maxColors = transparent ? 255 : 256;
+
         // 1) 收集样本颜色（大步长抽样）。6bit 归约键：5bit 会把暗渐变灰与暗杂色并进同桶，
         // 桶均值被拉离灰轴 → 渐变端头整段同档（抓到）
-        int total = w * h;
         int step = Math.Max(1, total / 60_000);
         var counts = new Dictionary<int, int>();
         for (int p = 0; p < total; p += step)
         {
             int o = p * 4;
+            if (transparent && bgra[o + 3] < 250) continue; // 透明与抖动像素不进配色
             int key = (bgra[o + 2] >> 2 << 12) | (bgra[o + 1] >> 2 << 6) | (bgra[o] >> 2);
             if (counts.TryGetValue(key, out int c)) counts[key] = c + 1; else counts[key] = 1;
         }
+        if (counts.Count == 0) counts[(bgra[2] >> 2 << 12) | (bgra[1] >> 2 << 6) | (bgra[0] >> 2)] = 1;
 
         // 2) median-cut 分桶（按 跨度×像素数 加权选分裂桶——纯 span 优先会让杂色垄断调色板，
         // 大面积渐变被挤成两三档，抖动也救不回顶部行）
         var boxes = new List<ColorBox>();
         var all = new List<(int Key, int Count)>(counts.Select(kv => (kv.Key, kv.Value)));
         boxes.Add(new ColorBox(all));
-        while (boxes.Count < 256)
+        while (boxes.Count < maxColors)
         {
             ColorBox? best = null; long bestScore = -1; int bestAxis = 0;
             foreach (var box in boxes)
@@ -170,16 +186,17 @@ public static class GifEncoder
             var b = new ColorBox(sorted.GetRange(mid, sorted.Count - mid));
             boxes.Remove(best);
             boxes.Add(a); boxes.Add(b);
-            if (boxes.Count >= 256) break;
+            if (boxes.Count >= maxColors) break;
         }
 
-        // 3) 调色板（桶均值）
+        // 3) 调色板（桶均值）。透明帧的索引 0 归透明色，桶整体后移一格
         int n = boxes.Count;
+        int off = transparent ? 1 : 0;
         // 补齐到 2 的幂
-        int entryBits = 1; while ((1 << entryBits) < n) entryBits++;
+        int entryBits = 1; while ((1 << entryBits) < n + off) entryBits++;
         entryBits = Math.Max(entryBits, 2);
         int tableSize = 1 << entryBits;
-        var palette = new byte[tableSize * 3];
+        var palette = new byte[tableSize * 3];   // 透明帧的 0 号项是透明色，RGB 留黑
         for (int i = 0; i < n; i++)
         {
             long r = 0, g = 0, b2 = 0, wt = 0;
@@ -191,9 +208,9 @@ public static class GifEncoder
                 wt += count;
             }
             if (wt == 0) wt = 1;
-            palette[i * 3] = (byte)(r / wt); // GIF 调色板 = RGB 顺序
-            palette[i * 3 + 1] = (byte)(g / wt);
-            palette[i * 3 + 2] = (byte)(b2 / wt);
+            palette[(i + off) * 3] = (byte)(r / wt); // GIF 调色板 = RGB 顺序
+            palette[(i + off) * 3 + 1] = (byte)(g / wt);
+            palette[(i + off) * 3 + 2] = (byte)(b2 / wt);
         }
 
         // 4) 像素 → 最近调色板色 + Floyd–Steinberg 误差扩散（蛇形扫描）。
@@ -212,6 +229,14 @@ public static class GifEncoder
             {
                 int x = ltr ? xi : w - 1 - xi;
                 int p = rowBase + x, o = p * 4, pe = p * 3;
+                if (transparent)
+                {
+                    int a = bgra[o + 3];
+                    // alpha=0 干净透明；渐变按 4×4 Bayer 阈值决定这一格透不透明，
+                    // 留下的像素按自身 RGB 配色（投影处是黑，摊在任意页底上都读作阴影）。
+                    // 透明像素不参与误差扩散：它根本不显示，误差传给邻居只会脏了实色区。
+                    if (a == 0 || (a < 250 && a <= (Bayer(x, y) + 0.5) * 255.0 / 16.0)) { indices[p] = 0; continue; }
+                }
                 int r = Clamp255(bgra[o + 2] + (int)Math.Round(errBuf[pe]));
                 int g = Clamp255(bgra[o + 1] + (int)Math.Round(errBuf[pe + 1]));
                 int b3 = Clamp255(bgra[o] + (int)Math.Round(errBuf[pe + 2]));
@@ -228,15 +253,15 @@ public static class GifEncoder
                     int bestI = 0, bestD = int.MaxValue;
                     for (int i = 0; i < n; i++)
                     {
-                        int dr = palette[i * 3] - r, dg = palette[i * 3 + 1] - g, db = palette[i * 3 + 2] - b3;
+                        int dr = palette[(i + off) * 3] - r, dg = palette[(i + off) * 3 + 1] - g, db = palette[(i + off) * 3 + 2] - b3;
                         int d = dr * dr + dg * dg + db * db;
                         if (d < bestD) { bestD = d; bestI = i; }
                     }
                     idx = bestI;
                     cache[key] = (gen << 8) | idx;
                 }
-                int er = r - palette[idx * 3], eg = g - palette[idx * 3 + 1], eb = b3 - palette[idx * 3 + 2];
-                indices[p] = (byte)idx;
+                int er = r - palette[(idx + off) * 3], eg = g - palette[(idx + off) * 3 + 1], eb = b3 - palette[(idx + off) * 3 + 2];
+                indices[p] = (byte)(idx + off);
                 // 微误差（三通道绝对值和 ≤2）不传播：源噪声/近平坦区保持平坦，不生成可见噪点；
                 // 真渐变的误差会累积到阈值以上继续驱动抖动
                 int aer = er < 0 ? -er : er, aeg = eg < 0 ? -eg : eg, aeb = eb < 0 ? -eb : eb;
@@ -258,11 +283,37 @@ public static class GifEncoder
                 }
             }
         }
-        return (indices, palette, entryBits);
+        return (indices, palette, entryBits, transparent);
 
         static int AxisKey(int key, int axis) => axis == 0 ? (key >> 12) : axis == 1 ? (key >> 6 & 63) : (key & 63);
         static int Clamp255(int v) => v < 0 ? 0 : v > 255 ? 255 : v;
     }
+
+    /// <summary>帧里有没有需要留透明的像素：alpha 不满即算——软投影的每一像素都不满。</summary>
+    /// <param name="bgra">帧像素，行主序 BGRA。</param>
+    /// <param name="total">像素数。</param>
+    /// <returns>true = 本帧走透明路径（索引 0 归透明色）。</returns>
+    static bool HasPartialAlpha(byte[] bgra, int total)
+    {
+        for (int p = 0, o = 3; p < total; p++, o += 4)
+            if (bgra[o] < 250) return true;
+        return false;
+    }
+
+    /// <summary>4×4 Bayer 有序抖动矩阵，格值 0–15。</summary>
+    static readonly int[] _bayer =
+    {
+         0,  8,  2, 10,
+        12,  4, 14,  6,
+         3, 11,  1,  9,
+        15,  7, 13,  5,
+    };
+
+    /// <summary>取这一像素在 4×4 Bayer 矩阵上的格子值。</summary>
+    /// <param name="x">像素列号。</param>
+    /// <param name="y">像素行号。</param>
+    /// <returns>0–15 的阈值格值，越小越早判成透明。</returns>
+    static int Bayer(int x, int y) => _bayer[(y & 3) * 4 + (x & 3)];
 
     // 误差缓冲按帧复用（LOH 分配，逐帧 new 会造成 GC 抖动）
     [ThreadStatic] private static float[]? _errBuf;

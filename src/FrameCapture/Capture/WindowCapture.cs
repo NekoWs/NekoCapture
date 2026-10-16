@@ -62,8 +62,7 @@ public static class WindowCapture
         // 5) 合成阴影（按本体 alpha 轮廓高斯模糊→黑色渐隐；不碰屏幕背景）
         if (includeShadow && margin > 0)
         {
-            int radius = Math.Max(2, (int)Math.Round(margin / 3.0)); // 3 次盒式模糊外延≈3r≈margin，到画布边正好淡到 0
-            int offsetY = Math.Max(1, margin / 8);                   // 轻微下移，更像真实投影
+            var (radius, offsetY) = ShadowShape(margin);
             SyntheticShadow(outBgra, outer.W, outer.H, body, bw, bh, bx, by, radius, ShadowStrength, offsetY);
         }
 
@@ -296,7 +295,16 @@ public static class WindowCapture
         throw new InvalidOperationException("no window bounds");
     }
 
-    static int ShadowMargin(IntPtr hwnd)
+    /// <summary>按边距定出合成投影的模糊半径与下移量。静图窗口截图与录制窗口共用，两边投影形状才一致。</summary>
+    /// <param name="margin">每侧投影边距（物理像素），来自 <see cref="ShadowMargin"/>。</param>
+    /// <returns>(模糊半径, 阴影下移像素)：3 次盒式模糊外延约 3r ≈ margin，到画布边正好淡到 0；下移取边距八分之一。</returns>
+    public static (int Radius, int OffsetY) ShadowShape(int margin)
+        => (Math.Max(2, (int)Math.Round(margin / 3.0)), Math.Max(1, margin / 8));
+
+    /// <summary>这只窗口的投影边距：按窗口 DPI 把 <see cref="ShadowBasePx"/> 换算成物理像素。</summary>
+    /// <param name="hwnd">目标窗口句柄，DPI 取它所在显示器的；句柄无效时按 96 DPI 起步。</param>
+    /// <returns>本体每侧要外扩的像素数，恒 ≥ 24。静图窗口截图与录制窗口共用这一个数，两边投影才一样大。</returns>
+    public static int ShadowMargin(IntPtr hwnd)
     {
         uint dpi = Win32.GetDpiForWindow(hwnd);
         if (dpi < 96) dpi = 96;

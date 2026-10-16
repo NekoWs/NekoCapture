@@ -222,7 +222,9 @@ public sealed partial class EditorWindow : Window
                     ?? throw new InvalidOperationException("未找到 ffmpeg，无法导出视频");
                 // 用帧时间戳推实际帧率：静态段少帧 → 低 fps，但总时长与录制一致（播放速度正确）
                 double vfps = VideoEncoder.FpsFromFrames(baked);
-                VideoEncoder.Encode(baked, ff, outPath!, videoFmt.Value, vfps, prog, ct);
+                // MP4 没有透明通道：喂帧前按「边框填充色」拍平；WebM 带 alpha，这个颜色对它不起作用。
+                var matte = Core.HexColor.Parse(_settings.Current.VideoMatteColor);
+                VideoEncoder.Encode(baked, ff, outPath!, videoFmt.Value, vfps, prog, ct, matte);
                 return (seq, gif: (byte[]?)null);
             }, ct).ContinueWith(t =>
             {

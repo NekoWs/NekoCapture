@@ -45,6 +45,10 @@ public sealed class WgcLiveCapture : IDisposable
     // GIF 的逻辑屏幕描述符只写首帧宽高，中途改尺寸会让产物错位。
     private bool _windowMode;
     private int _canvasW, _canvasH;
+    // 窗口模式的合成投影：边距与静图窗口截图同源，投影本体按首帧轮廓算一次、整段复用。
+    // 逐帧重算实测 60ms 一帧（30fps 预算 33ms），而窗口轮廓在一段录制里基本不变。
+    private int _shadowMargin;
+    private byte[]? _shadowOverlay;
     private SizeInt32 _poolSize;
     private string _refreshDevice = "";
     /// <summary>窗口模式首帧定下的画布尺寸；未起或区域模式为 0。</summary>
@@ -116,9 +120,11 @@ public sealed class WgcLiveCapture : IDisposable
     /// <param name="monitor">窗口所在显示器，只用来取刷新率决定「录满还是节流」。</param>
     /// <param name="fps">目标帧率，先钳到 AppSettings 上下限。</param>
     /// <param name="includeCursor">帧里是否画鼠标指针；系统不支持该开关时按系统默认。</param>
+    /// <param name="includeShadow">true = 产物四周合成投影（与静图窗口截图同一套算法、同一个边距），
+    /// 画布因此向四周各外扩一个边距；false = 画布紧贴窗口本体，不外扩一像素。</param>
     /// <exception cref="ArgumentException"><paramref name="hwnd"/> 为 0。</exception>
     /// <exception cref="TimeoutException">初始化线程 5s 内没有返回。</exception>
-    public void StartWindow(IntPtr hwnd, MonitorInfo monitor, int fps, bool includeCursor = true)
+    public void StartWindow(IntPtr hwnd, MonitorInfo monitor, int fps, bool includeCursor = true, bool includeShadow = false)
     {
         Stop();
         if (hwnd == IntPtr.Zero) throw new ArgumentException("hwnd=0");
@@ -128,6 +134,7 @@ public sealed class WgcLiveCapture : IDisposable
         _intervalMs = FpsThrottle.IntervalMs(_targetFps);
         _lastKeptMs = -1;
         _canvasW = _canvasH = 0; // 首帧定画布
+        _shadowMargin = includeShadow ? WindowCapture.ShadowMargin(hwnd) : 0;
         _refreshDevice = monitor.DeviceName;
 
         Exception? initErr = null;
@@ -291,24 +298,54 @@ public sealed class WgcLiveCapture : IDisposable
         return null;
     }
 
-    /// <summary>窗口模式：整帧拷进首帧定下的画布（窗口拉大就裁掉超出部分，缩小则留一圈白边），
-    /// 再把透明处拍平到白色——GIF / MP4 没有透明通道，圆角与镂空处的 alpha 直接编码会成黑块。</summary>
+    /// <summary>窗口模式：整帧拷进首帧定下的画布（窗口拉大就裁掉超出部分，缩小则留一圈透明），
+    /// 开投影时先把合成好的投影铺在底、本体盖上去。透明处保持透明：GIF 与 WebM 带透明通道，
+    /// 不支持透明的容器由编码端按用户选的填充色拍平，不在取帧这一步替用户决定底色。</summary>
     /// <param name="data">帧缓冲首字节指针，归 WGC 所有、只读。</param>
     /// <param name="fw">帧宽（像素），随窗口尺寸变。</param>
     /// <param name="fh">帧高（像素）。</param>
     private void CopyWindowFrame(IntPtr data, int fw, int fh)
     {
-        if (_canvasW == 0) { _canvasW = fw; _canvasH = fh; }
+        int m = _shadowMargin;
+        if (_canvasW == 0) { _canvasW = fw + 2 * m; _canvasH = fh + 2 * m; }
         int cw = _canvasW, ch = _canvasH;
         // Stop 把画布清零与取帧线程并发：清零那一瞬间这一帧已经没有落脚处，丢掉比产出一张 0×0 帧好
         if (cw < 1 || ch < 1) { Interlocked.Increment(ref _emptyFrames); return; }
-        int copyW = Math.Min(fw, cw), copyH = Math.Min(fh, ch);
+        int copyW = Math.Min(fw, cw - 2 * m), copyH = Math.Min(fh, ch - 2 * m);
+        if (copyW < 1 || copyH < 1) { Interlocked.Increment(ref _emptyFrames); return; }
+
         var bgra = new byte[cw * 4 * ch];
+        if (m > 0)
+        {
+            // 投影按首帧轮廓合成一次就够：窗口轮廓在一段录制里不变，逐帧重算实测 60ms 一帧。
+            _shadowOverlay ??= BuildShadow(cw, ch, data, fw, copyW, copyH, m);
+            Buffer.BlockCopy(_shadowOverlay, 0, bgra, 0, bgra.Length);
+        }
         int rowBytes = copyW * 4;
         for (int y = 0; y < copyH; y++)
-            Marshal.Copy(data + y * fw * 4, bgra, y * cw * 4, rowBytes);
-        WindowCapture.FlattenOverWhite(bgra, cw, ch);
+            Marshal.Copy(data + y * fw * 4, bgra, (y + m) * cw * 4 + m * 4, rowBytes);
         Emit(bgra, cw, ch);
+    }
+
+    /// <summary>按这一帧的 alpha 轮廓合成投影底图：画布大小，本体落点处留空，由调用方把本体盖上去。</summary>
+    /// <param name="cw">画布宽（像素），已含两侧边距。</param>
+    /// <param name="ch">画布高（像素），已含两侧边距。</param>
+    /// <param name="data">帧缓冲首字节指针，归 WGC 所有、只读。</param>
+    /// <param name="fw">帧宽（像素），即源行跨距。</param>
+    /// <param name="bw">参与合成的本体宽（像素），画布容不下时为裁切后的宽。</param>
+    /// <param name="bh">参与合成的本体高（像素）。</param>
+    /// <param name="m">每侧投影边距（物理像素）。</param>
+    /// <returns>画布大小的 BGRA：只有投影处有半透明黑，其余全透明。</returns>
+    static byte[] BuildShadow(int cw, int ch, IntPtr data, int fw, int bw, int bh, int m)
+    {
+        var body = new byte[bw * 4 * bh];
+        for (int y = 0; y < bh; y++)
+            Marshal.Copy(data + y * fw * 4, body, y * bw * 4, bw * 4);
+        var dst = new byte[cw * 4 * ch];
+        var (radius, offsetY) = WindowCapture.ShadowShape(m);
+        WindowCapture.SyntheticShadow(dst, cw, ch, body, bw, bh, m, m, radius,
+            WindowCapture.ShadowStrength, offsetY);
+        return dst;
     }
 
     /// <summary>按新帧尺寸重建帧池；画布不变，产物尺寸因此不受窗口缩放影响。</summary>
@@ -365,6 +402,8 @@ public sealed class WgcLiveCapture : IDisposable
         _running = false;
         _windowMode = false;
         _canvasW = _canvasH = 0;
+        _shadowMargin = 0;
+        _shadowOverlay = null;   // 画布随下一次起录重定，这张投影底图也就没用了
         _poolSize = default;
         // 先等在途的 FrameArrived 拷贝结束（持 _frameGate），再退订并释放池——避免回调正用 surface 时被 Dispose。
         lock (_frameGate)

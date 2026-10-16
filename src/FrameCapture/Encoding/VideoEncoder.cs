@@ -1,7 +1,9 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
+using System.Windows.Media;
 using FrameCapture.Capture;
+using FrameCapture.Services;
 
 namespace FrameCapture.Encoding;
 
@@ -67,6 +69,22 @@ public static class VideoEncoder
         return Math.Clamp((frames.Count - 1) / (dur / 1000.0), 1, 240);
     }
 
+    /// <summary>这组帧里有没有要保留的透明。抽首/中/末三帧看 alpha 通道：
+    /// 窗口录制的透明从第一帧起就在（圆角与投影全程都在），区域录制全程不透明。</summary>
+    /// <param name="frames">待编码帧。</param>
+    /// <returns>true = 至少一帧有 alpha 不满的像素。</returns>
+    public static bool CarriesAlpha(IReadOnlyList<CapturedFrame> frames)
+    {
+        if (frames.Count == 0) return false;
+        foreach (int i in new[] { 0, frames.Count / 2, frames.Count - 1 })
+        {
+            var bgra = frames[i].Bgra;
+            for (int o = 3; o < bgra.Length; o += 4)
+                if (bgra[o] < 250) return true;
+        }
+        return false;
+    }
+
     /// <summary>拼 ffmpeg 命令行（纯函数，便于单测）。rawvideo BGRA 从 stdin 进，按 fmt 选编码器。
     /// yuv420p 要求宽高为偶数，而用户选区可能是奇数（如 641×401）→ 奇数时插一条向下取偶的 scale
     /// 滤镜（641→640、401→400），否则 libx264/vp9 直接报 "width not divisible by 2" 编码失败。</summary>
@@ -75,13 +93,18 @@ public static class VideoEncoder
     /// <param name="fps">帧率，按 "0.###" 且不变文化格式化，避免区域小数点变成逗号。</param>
     /// <param name="fmt">容器与编码器选择。</param>
     /// <param name="outPath">输出文件绝对路径，带引号拼在末尾。</param>
+    /// <param name="alpha">true = 产物要带透明通道：只有 WebM 认，vp9 走 yuva420p 并关掉 alt-ref
+    /// （开着时参考帧会把 alpha 抹平）。MP4 的 h264 没有透明通道，这条参数救不了，
+    /// 透明由调用方在喂帧前按用户选的填充色拍平。</param>
     /// <returns>ffmpeg 的参数串（不含可执行文件名），可直接给 ProcessStartInfo.Arguments。</returns>
-    public static string BuildArgs(int w, int h, double fps, VideoFormat fmt, string outPath)
+    public static string BuildArgs(int w, int h, double fps, VideoFormat fmt, string outPath, bool alpha = false)
     {
         string fpsS = fps.ToString("0.###", CultureInfo.InvariantCulture);
         string codec = fmt == VideoFormat.Mp4
             ? "-c:v libx264 -pix_fmt yuv420p -preset ultrafast -movflags +faststart"
-            : "-c:v libvpx-vp9 -pix_fmt yuv420p -b:v 0 -crf 40";
+            : alpha
+                ? "-c:v libvpx-vp9 -pix_fmt yuva420p -auto-alt-ref 0 -b:v 0 -crf 40"
+                : "-c:v libvpx-vp9 -pix_fmt yuv420p -b:v 0 -crf 40";
         string vf = (w % 2 != 0 || h % 2 != 0)
             ? " -vf \"scale=trunc(iw/2)*2:trunc(ih/2)*2\""
             : "";
@@ -100,12 +123,15 @@ public static class VideoEncoder
     /// <param name="fps">帧率，钳制到 1–240。</param>
     /// <param name="progress">报告已写入帧数（计数，不是百分比），可为 null。</param>
     /// <param name="ct">取消令牌；取消即按失败路径处理并抛 <see cref="OperationCanceledException"/>。</param>
+    /// <param name="matte">MP4 这类无透明通道容器的填充色：帧里有透明时，喂给 ffmpeg 前先拍平到这个颜色
+    /// （只取 RGB，alpha 忽略）。WebM 与 GIF 自带透明通道，这个参数对它们无作用。</param>
     /// <exception cref="ArgumentException">帧序列为空，或首帧尺寸非法、某帧缓冲不足。</exception>
     /// <exception cref="FileNotFoundException">ffmpegPath 指向的文件不存在。</exception>
     /// <exception cref="InvalidOperationException">ffmpeg 启动失败、退出码非 0 或未产出文件。</exception>
     /// <exception cref="TimeoutException">关闭 stdin 后 120s 内 ffmpeg 未退出。</exception>
     public static void Encode(IReadOnlyList<CapturedFrame> frames, string ffmpegPath, string outPath,
-        VideoFormat fmt, double fps, IProgress<int>? progress = null, CancellationToken ct = default)
+        VideoFormat fmt, double fps, IProgress<int>? progress = null, CancellationToken ct = default,
+        Color? matte = null)
     {
         if (frames.Count == 0) throw new ArgumentException("no frames");
         if (!File.Exists(ffmpegPath)) throw new FileNotFoundException("ffmpeg not found", ffmpegPath);
@@ -113,7 +139,11 @@ public static class VideoEncoder
         if (w <= 0 || h <= 0) throw new ArgumentException($"bad size {w}x{h}");
         fps = Math.Clamp(fps, 1, 240);
 
-        var psi = new ProcessStartInfo(ffmpegPath, BuildArgs(w, h, fps, fmt, outPath))
+        bool hasAlpha = CarriesAlpha(frames);
+        bool alpha = fmt == VideoFormat.WebM && hasAlpha;
+        bool flatten = fmt == VideoFormat.Mp4 && hasAlpha && matte is { } mt;
+
+        var psi = new ProcessStartInfo(ffmpegPath, BuildArgs(w, h, fps, fmt, outPath, alpha))
         {
             RedirectStandardInput = true,
             RedirectStandardError = true,
@@ -133,7 +163,9 @@ public static class VideoEncoder
             for (int i = 0; i < frames.Count; i++)
             {
                 ct.ThrowIfCancellationRequested();
-                byte[] bgra = frames[i].Bgra;
+                byte[] bgra = flatten
+                    ? BgraImage.FlattenOver(frames[i], mt.R, mt.G, mt.B).Bgra
+                    : frames[i].Bgra;
                 if (bgra.Length < frameBytes)
                     throw new InvalidOperationException($"frame {i} too small: {bgra.Length} < {frameBytes}");
                 stdin.Write(bgra, 0, frameBytes);

@@ -404,7 +404,9 @@ public sealed partial class CaptureController : IDisposable
         {
             w = new WgcLiveCapture();
             w.FrameSampled += f => _spool?.Add(f);
-            if (byWindow) w.StartWindow(sel.Window, monitor, fps, _settings.Current.RecordIncludeCursor);
+            if (byWindow)
+                w.StartWindow(sel.Window, monitor, fps, _settings.Current.RecordIncludeCursor,
+                    _settings.Current.WindowCaptureShadow);
             else w.Start(monitor, sel.Bounds, fps, _settings.Current.RecordIncludeCursor);
             _wgc = w;
             Trace.Log(byWindow ? "capture backend=wgc-window" : "capture backend=wgc");
