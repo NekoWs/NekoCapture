@@ -228,6 +228,13 @@ public sealed partial class SettingsWindow : Window
             // 位移按「现在画在哪」闭环修正，不按装饰层的排版基准推算：装饰层把这层摆在哪儿、
             // 变换原点怎么参与渲染，都不由这一行决定。量出来的差一步补平，卡片就锁在光标上。
             // 扣的是放大到位之后的按住点——卡片长开之后一直停在那儿，长开的这一百来毫秒才是过渡。
+            // 让位与落入的动画可能还攥着这颗芯片的位移属性：动画的持有值压过本地值，
+            // 本地值怎么写都不上屏，抬起的卡片就钉在装饰层原点不动。
+            // 先把此刻生效的值落回本地再交还属性，芯片不会在手里跳一下。
+            tt.Item1.X = (double)tt.Item1.GetValue(TranslateTransform.XProperty);
+            tt.Item1.Y = (double)tt.Item1.GetValue(TranslateTransform.YProperty);
+            tt.Item1.BeginAnimation(TranslateTransform.XProperty, null);
+            tt.Item1.BeginAnimation(TranslateTransform.YProperty, null);
             var now = chip.TranslatePoint(new Point(0, 0), Root);
             tt.Item1.X += at.X - _grab.X * LiftScale - now.X;
             tt.Item1.Y += at.Y - _grab.Y * LiftScale - now.Y;

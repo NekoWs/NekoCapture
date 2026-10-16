@@ -4613,6 +4613,24 @@ static class SelfTest
             Call7("Drop", hoverAt);
             PumpMs(80);
 
+            // 接着拖第二枚：上一次让位与落入的动画还攥着这些芯片的位移属性，动画的持有值压过本地值。
+            // 抬起时不先把属性交还回本地值，卡片就钉在装饰层原点不动——第一次拖没事，第二次才犯。
+            var p2 = (System.Windows.Controls.Border)chips7.Children[0];
+            chips7.UpdateLayout();
+            Set7("_drag", p2); Set7("_dragFrom", 0); Set7("_target", 0); Set7("_dragging", false);
+            Set7("_grab", new System.Windows.Point(10, p2.ActualHeight / 2));
+            Set7("_pressAt", p2.TranslatePoint(new System.Windows.Point(10, 6), root7));
+            var again = p2.TranslatePoint(new System.Windows.Point(p2.ActualWidth + 140, 8), root7);
+            Call7("DragMove", again);
+            PumpMs(60);
+            var held2 = p2.TranslatePoint(new System.Windows.Point(10, p2.ActualHeight / 2), root7);
+            Chk("T202-second-drag-still-follows-the-cursor",
+                Math.Abs(held2.X - again.X) < 1.5 && Math.Abs(held2.Y - again.Y) < 1.5,
+                $"接着拖第二枚时卡片没跟上：光标停在 {again.X:F1},{again.Y:F1}，"
+                + $"芯片上被按住的那一点画在 {held2.X:F1},{held2.Y:F1}");
+            Call7("Drop", again);
+            PumpMs(80);
+
             Call7("OpenPicker");
             PumpMs(160);
             var popBorders = new List<System.Windows.DependencyObject>();
