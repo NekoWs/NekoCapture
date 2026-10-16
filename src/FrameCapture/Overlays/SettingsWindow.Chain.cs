@@ -65,8 +65,12 @@ public sealed partial class SettingsWindow : Window
             _get = get;
             _candidates = candidates;
             _set = set;
-            Root = new StackPanel();
+            Root = new StackPanel { Background = Brushes.Transparent };
             Root.Children.Add(_chips);
+            // 拖动中的移动与松手挂在 Root 上：它全程待在视觉树里，芯片抬起来、挂上装饰层都影响不到它。
+            // 挂在这两种地方之外都会断线——芯片一离开这一行就再也收不到鼠标事件。
+            Root.MouseMove += (_, e) => DragMove(e.GetPosition(Root));
+            Root.MouseLeftButtonUp += (_, e) => Drop(e.GetPosition(Root));
             Render();
         }
 
@@ -82,6 +86,8 @@ public sealed partial class SettingsWindow : Window
             _drag = null;
             _dragging = false;
             _ghost = null;
+            // 重铺之后手上那枚已经不存在了，捕获留在 Root 上会把之后的鼠标事件都吸过来
+            Root.ReleaseMouseCapture();
             _chips.Children.Clear();
             var list = _get().ToList();
             for (int i = 0; i < list.Count; i++)
@@ -106,6 +112,7 @@ public sealed partial class SettingsWindow : Window
         /// <returns>已接好删除、悬停与拖动的芯片。</returns>
         Border StepChip(string text, Action remove, int index)
         {
+            var close = CloseGlyph(remove);
             var body = new StackPanel
             {
                 Orientation = Orientation.Horizontal,
@@ -118,7 +125,7 @@ public sealed partial class SettingsWindow : Window
                         Foreground = new SolidColorBrush(Theme.Text),
                         VerticalAlignment = VerticalAlignment.Center,
                     },
-                    CloseGlyph(remove),
+                    close,
                 },
             };
             var chip = new Border
@@ -134,14 +141,16 @@ public sealed partial class SettingsWindow : Window
             Fluent.ChipHover(chip);
             chip.MouseLeftButtonDown += (_, e) =>
             {
+                // 点叉号那一下归叉号：不做起拖，也不去抢 Root 的捕获
+                if (IsInside(close, e.OriginalSource as DependencyObject)) return;
                 _drag = chip; _dragFrom = index; _target = index;
                 _pressAt = e.GetPosition(Root);
                 _grab = e.GetPosition(chip);
                 _dragging = false;
-                chip.CaptureMouse();
+                // 捕获握在 Root 上而不是芯片上：芯片抬起来就离开这一行，
+                // 离开视觉树的那一刻它手上的捕获会被收回，卡片从此收不到移动，钉在抬起处不动。
+                Root.CaptureMouse();
             };
-            chip.MouseMove += (_, e) => DragMove(e.GetPosition(Root));
-            chip.MouseLeftButtonUp += (_, e) => Drop(e.GetPosition(Root));
             return chip;
         }
 
@@ -377,8 +386,7 @@ public sealed partial class SettingsWindow : Window
         void Drop(Point at)
         {
             if (_drag == null) return;
-            var chip = _drag;
-            chip.ReleaseMouseCapture();
+            Root.ReleaseMouseCapture();
             DetachLift();
             _drag = null;
             if (!_dragging) return;

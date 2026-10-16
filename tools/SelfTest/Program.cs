@@ -4599,6 +4599,20 @@ static class SelfTest
             Call7("Drop", hoverAt);
             PumpMs(80);
 
+            // 芯片抬起来就离开芯片行：接管鼠标移动的那个元素必须全程待在视觉树里，
+            // 否则卡片钉在抬起处不动，而上面按索引算的断言全都还是绿的。
+            // 只钉这一条——往后的移动与松手要真发鼠标事件才走得到，那部分交给手测。
+            var pressC = (System.Windows.Controls.Border)chips7.Children[0];
+            pressC.RaiseEvent(new System.Windows.Input.MouseButtonEventArgs(
+                System.Windows.Input.Mouse.PrimaryDevice, 0, System.Windows.Input.MouseButton.Left)
+            { RoutedEvent = UIElement.MouseLeftButtonDownEvent, Source = pressC });
+            Chk("T201a-drag-input-survives-the-lift", ReferenceEquals(Mouse.Captured, root7),
+                "按下之后鼠标捕获不在编辑器根上，而在 "
+                + ((Mouse.Captured as UIElement)?.GetType().Name ?? "没人")
+                + "：芯片抬起来离开芯片行那一刻，捕获跟着它出了视觉树，卡片从此收不到移动");
+            Call7("Drop", hoverAt);
+            PumpMs(80);
+
             Call7("OpenPicker");
             PumpMs(160);
             var popBorders = new List<System.Windows.DependencyObject>();
