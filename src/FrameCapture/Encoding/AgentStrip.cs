@@ -43,26 +43,30 @@ public static class AgentStrip
     /// 编辑器递进来的是抽样烘焙后的那几帧，不是整段录制——按整段下标去取会越界。
     /// 缩放比按 frames[0] 的宽高定。</param>
     /// <param name="idxs">每格标注的原始帧号（时间轴下标），顺序即格子排列顺序。<b>为空即抛异常</b>：空条没有意义。</param>
-    /// <returns>已 Freeze 的 Pbgra32 位图，96 DPI，可跨线程使用。
-    /// 单格宽固定 288，高按帧宽高比并封顶 360。</returns>
+    /// <param name="cellTargetW">单格目标宽（像素），高按帧宽高比、封顶 1.25 倍格宽；
+    /// 内边距、标号行高与字号都按它缩放。默认 288 是成片尺寸，弹窗预览给个小的即可。</param>
+    /// <param name="decimate">true = 每格先按格子大小抽稀再画，供弹窗实时预览用：
+    /// 逐格从原始分辨率缩放时几十格要读几百 MB，滑杆跟不上。成片走默认的完整质量。</param>
+    /// <returns>已 Freeze 的 Pbgra32 位图，96 DPI，可跨线程使用。</returns>
     /// <exception cref="ArgumentException">idxs 为空，或帧数不够填满格子。</exception>
-    public static BitmapSource Render(IReadOnlyList<CapturedFrame> frames, IReadOnlyList<int> idxs)
+    public static BitmapSource Render(IReadOnlyList<CapturedFrame> frames, IReadOnlyList<int> idxs,
+        int cellTargetW = 288, bool decimate = false)
     {
         int take = idxs.Count;
         if (take == 0) throw new ArgumentException("empty strip");
         if (frames.Count < take)
             throw new ArgumentException($"frames={frames.Count} < idxs={take}：每格都要有自己的帧");
+        cellTargetW = Math.Max(24, cellTargetW);
 
         int cols = Math.Min(take, 8);
         int rows = (take + cols - 1) / cols;
 
-        // 单元格尺寸：宽 288，高按帧宽高比
+        // 单元格尺寸：宽 = 目标宽，高按帧宽高比并封顶 1.25 倍格宽
         int srcW = frames[0].W, srcH = frames[0].H;
-        double scale = 288.0 / srcW;
-        int cellW = (int)Math.Round(srcW * scale);
-        int cellH = (int)Math.Round(srcH * scale);
-        cellH = Math.Min(cellH, 360);
-        int pad = 8, label = 18;
+        int cellW = cellTargetW;
+        int cellH = Math.Min((int)Math.Round(srcH * (cellW / (double)srcW)), cellW * 5 / 4);
+        int pad = Math.Max(3, cellW / 36), label = Math.Max(11, cellW / 16);
+        double font = Math.Max(8, cellW / 24.0);
         double fw = cellW, fh = Math.Min(cellH, (int)(cellW * srcH / (double)srcW));
 
         int imgW = cols * (cellW + pad) + pad;
@@ -81,12 +85,12 @@ public static class AgentStrip
                 int x = pad + c * (cellW + pad);
                 int y = pad + r * ((int)fh + label + pad);
                 var frame = frames[i];
-                var bmp = BgraImage.ToSource(frame);
+                var bmp = decimate ? DecimatedSource(frame, cellW) : BgraImage.ToSource(frame);
                 dc.DrawImage(bmp, new Rect(x, y, fw, fh));
                 var ft = new FormattedText(
                     $"F{idxs[i]:00}  {frame.TimeMs / 1000.0:0.00}s",
                     System.Globalization.CultureInfo.InvariantCulture,
-                    FlowDirection.LeftToRight, typeface, 12,
+                    FlowDirection.LeftToRight, typeface, font,
                     new SolidColorBrush(Color.FromRgb(0xBB, 0xBB, 0xBB)), 1.0);
                 dc.DrawText(ft, new Point(x + 2, y + fh + 1));
             }
@@ -96,6 +100,33 @@ public static class AgentStrip
         rtb.Render(dv);
         rtb.Freeze();
         return rtb;
+    }
+
+    /// <summary>按格子大小整数倍抽稀后出图：每格取 step×step 块的四角均值，输出约等于格子分辨率。
+    /// 只用于实时预览——48 格逐格缩放原始帧要读几百 MB，滑杆会卡；抽稀后每格只写几千像素。</summary>
+    static BitmapSource DecimatedSource(CapturedFrame f, int targetW)
+    {
+        int step = Math.Max(1, f.W / Math.Max(1, targetW));
+        int w = Math.Max(1, f.W / step), h = Math.Max(1, f.H / step);
+        var src = f.Bgra;
+        var buf = new byte[w * h * 4];
+        int last = step - 1;
+        for (int y = 0; y < h; y++)
+        {
+            int y0 = Math.Min(y * step, f.H - 1) * f.W * 4;
+            int y1 = Math.Min(y * step + last, f.H - 1) * f.W * 4;
+            int dRow = y * w * 4;
+            for (int x = 0; x < w; x++)
+            {
+                int x0 = Math.Min(x * step, f.W - 1) * 4;
+                int x1 = Math.Min(x * step + last, f.W - 1) * 4;
+                int p00 = y0 + x0, p01 = y0 + x1, p10 = y1 + x0, p11 = y1 + x1;
+                for (int ch = 0; ch < 4; ch++)
+                    buf[dRow + x * 4 + ch] =
+                        (byte)((src[p00 + ch] + src[p01 + ch] + src[p10 + ch] + src[p11 + ch]) / 4);
+            }
+        }
+        return BitmapSource.Create(w, h, 96, 96, PixelFormats.Bgra32, null, buf, w * 4);
     }
 
     /// <summary>渲染胶片条并写 PNG 文件，是带落盘的完整入口（<see cref="Render"/> 只出图）。

@@ -27,12 +27,9 @@ public sealed class AppSettings
     /// 适合做教程/演示时后期自己加高亮，或不想让光标乱入成片。</summary>
     public bool RecordIncludeCursor { get; set; } = true;
 
-    /// <summary>「生成胶片条」小窗的记忆参数：抽帧数上限（2–48）。胶片条是编辑器里按需生成的功能，
-    /// 不属于录制产物。</summary>
+    /// <summary>「生成胶片条」小窗的记忆参数：抽帧数（2–48）。胶片条是编辑器里按需生成的功能，
+    /// 不属于录制产物；抽样步长由它和总帧数折算，不单独记。</summary>
     public int AgentStripFrames { get; set; } = 12;
-
-    /// <summary>胶片条抽样步长：每 N 帧取一次（≥1）。与抽帧数上限配合：先按步长取，再多则均匀稀释到上限。</summary>
-    public int AgentStripEveryN { get; set; } = 1;
 
     /// <summary>是否在屏幕上常显当前捕获范围轮廓。</summary>
     public bool AlwaysShowRegionOutline { get; set; } = false;
@@ -211,7 +208,6 @@ public sealed class AppSettings
     {
         Fps = Math.Clamp(Fps, FpsMin, FpsMax);
         AgentStripFrames = Math.Clamp(AgentStripFrames, 2, 48);
-        AgentStripEveryN = Math.Clamp(AgentStripEveryN, 1, 60);
         if (Theme is not ("system" or "light" or "dark")) Theme = "system";
         if (UiLanguage is not ("system" or "zh" or "en")) UiLanguage = "system";
         Gestures ??= new GestureConfig();

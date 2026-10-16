@@ -277,40 +277,36 @@ public sealed partial class EditorWindow : Window
         if (_encoding || !_seq.Frames.Any()) return;
         var (a, b) = TrimRange;
         int count = b - a + 1;
-        var dlg = new FilmStripDialog(this, _settings.Current.AgentStripFrames, _settings.Current.AgentStripEveryN, count) { Owner = this };
-        if (dlg.ShowDialog() != true) return;
-        int frames = dlg.Frames, every = dlg.EveryN;
-        _settings.Mutate(s => { s.AgentStripFrames = frames; s.AgentStripEveryN = every; });   // 小窗参数持久化，下次沿用
-
-        // UI 线程快照（后台只读）：抽样索引先算好，只烘焙要用的那几帧，长录制也秒级
+        // UI 线程快照（后台只读）：弹窗预览与成片读同一批帧，抽样口径一致
         IReadOnlyList<CapturedFrame> subset = _seq.Frames is FrameSpoolList spl
             ? spl.Slice(a, count)
             : _seq.Frames.Skip(a).Take(count).ToList();
-        var idxs = AgentStrip.SampleIndices(count, frames, every);
-        var sampled = idxs.Select(i => subset[i]).ToList();
         var anns = new List<Drawing.Annotation>(_anns.Items);
         var cropSnap = _crop.Current; bool cropOn = _crop.IsCropped;
+
+        // 预览画的是原始帧小图：裁剪与标注在 96 像素的格子里看不出来，不值得每档都烘焙一遍全尺寸帧
+        var dlg = new FilmStripDialog(this, count, _settings.Current.AgentStripFrames, k =>
+        {
+            var preview = AgentStrip.SampleIndices(count, k, 1);
+            return AgentStrip.Render(preview.Select(i => subset[i]).ToList(), preview,
+                FilmStripDialog.PreviewCell, decimate: true);
+        }) { Owner = this };
+        if (dlg.ShowDialog() != true) return;
+        int frames = dlg.Frames;
+        _settings.Mutate(s => s.AgentStripFrames = frames);   // 小窗参数持久化，下次沿用
+
+        var picks = AgentStrip.SampleIndices(count, frames, 1);
+        var sampled = picks.Select(i => subset[i]).ToList();
 
         _encoding = true; SetOkBusy(true);
         ShowSnack(Loc.T(K.Editor.BuildingFilmStrip));
         try
         {
-            var baked = await Task.Run(() =>
-            {
-                IReadOnlyList<CapturedFrame> fs = sampled; var outAnns = anns;
-                if (cropOn && fs.Count > 0)
-                {
-                    int fw = fs[0].W, fh = fs[0].H;
-                    var (cx, cy, cw, ch) = CropState.ToPixelOf(cropSnap, fw, fh);
-                    fs = Drawing.Bake.Crop(fs, cx, cy, cw, ch);
-                    outAnns = CropRemap.Remap(anns, (double)cx / fw, (double)cy / fh, (double)cw / fw, (double)ch / fh);
-                }
-                return Drawing.Bake.Apply(fs, outAnns);
-            });
-            var img = AgentStrip.Render(baked, idxs);
-            try { Clipboard.SetImage(img); ShowSnack(Loc.F(K.Editor.FilmStripCopiedFrames, idxs.Count)); }
+            var baked = await Task.Run(() => BakeForStrip(sampled, anns, cropSnap, cropOn));
+            var img = AgentStrip.Render(baked, picks);
+            try { Clipboard.SetImage(img); ShowSnack(Loc.F(K.Editor.FilmStripCopiedFrames, picks.Count)); }
             catch { ShowSnack(Loc.T(K.Editor.TheClipboardIsBusySo)); }
-            Trace.Log($"filmstrip {idxs.Count}/{count} frames every={every}");
+            Trace.Log($"filmstrip {picks.Count}/{count} frames");
         }
         catch (Exception ex)
         {
@@ -318,6 +314,27 @@ public sealed partial class EditorWindow : Window
             ShowSnack(Loc.T(K.Editor.FilmStripFailed));
         }
         finally { _encoding = false; SetOkBusy(false); }
+    }
+
+    /// <summary>按时间轴裁剪与标注烘焙给定帧，与导出同口径；只烘焙要上格的那几帧，长录制也秒级。</summary>
+    /// <param name="fs">抽样出来的帧，UI 线程快照，后台只读。</param>
+    /// <param name="anns">当前标注；开了裁剪时按裁剪框折算坐标。</param>
+    /// <param name="crop">裁剪框（归一化），仅在 <paramref name="cropOn"/> 为真时生效。</param>
+    /// <param name="cropOn">是否开了裁剪。</param>
+    /// <returns>烘焙完成的帧，与 <paramref name="fs"/> 一一对应，可直接交给 <see cref="AgentStrip.Render"/>.</returns>
+    static IReadOnlyList<CapturedFrame> BakeForStrip(
+        IReadOnlyList<CapturedFrame> fs, List<Drawing.Annotation> anns, CropState.Norm crop, bool cropOn)
+    {
+        IReadOnlyList<CapturedFrame> frames = fs;
+        var outAnns = anns;
+        if (cropOn && frames.Count > 0)
+        {
+            int fw = frames[0].W, fh = frames[0].H;
+            var (cx, cy, cw, ch) = CropState.ToPixelOf(crop, fw, fh);
+            frames = Drawing.Bake.Crop(frames, cx, cy, cw, ch);
+            outAnns = CropRemap.Remap(anns, (double)cx / fw, (double)cy / fh, (double)cw / fw, (double)ch / fh);
+        }
+        return Drawing.Bake.Apply(frames, outAnns);
     }
 
     void SaveFrame()

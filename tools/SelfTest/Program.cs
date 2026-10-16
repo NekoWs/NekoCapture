@@ -1043,6 +1043,19 @@ static class SelfTest
             bool threw7 = false;
             try { AgentStrip.Render(sampled7.Take(3).ToList(), idxs7); } catch (ArgumentException) { threw7 = true; }
             Chk("T7d-strip-rejects-missing-frames", threw7, "帧数不够格子时必须抛，不能默默画半张");
+
+            // 弹窗实时预览走小格子 + 抽稀：画布尺寸只由格子数决定，抽不抽稀都一样；
+            // 帧比格子还小（step=1）时不能崩，也不能改画布。
+            var prev8 = AgentStrip.Render(sampled7, idxs7, FrameCapture.Overlays.FilmStripDialog.PreviewCell, decimate: true);
+            var prevSame = AgentStrip.Render(sampled7, idxs7, FrameCapture.Overlays.FilmStripDialog.PreviewCell);
+            Chk("T7g-preview-cell-scales",
+                prev8.PixelWidth == prevSame.PixelWidth && prev8.PixelWidth < strip7.PixelWidth,
+                $"预览 {prev8.PixelWidth}px 与同格宽全质量一致，且小于成片 {strip7.PixelWidth}px");
+            var tiny = new[] { Solid(7, 5, 10, 20, 30), Solid(7, 5, 40, 50, 60) };
+            var prevTiny = AgentStrip.Render(tiny, new[] { 0, 1 }, FrameCapture.Overlays.FilmStripDialog.PreviewCell, decimate: true);
+            Chk("T7h-preview-tiny-frames",
+                prevTiny.PixelWidth > 0 && prevTiny.PixelHeight > 0,
+                $"帧比格子还小 → 抽稀退到逐像素，出图 {prevTiny.PixelWidth}x{prevTiny.PixelHeight}");
         }
         catch (Exception e) { Chk("T7-strip-sampling", false, e.ToString()); }
 

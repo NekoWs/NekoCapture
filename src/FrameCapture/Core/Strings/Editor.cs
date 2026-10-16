@@ -44,6 +44,10 @@ public static partial class K
             "editor.enterCopiesToTheClipboard",
             "Enter 写入剪贴板 · Esc 关闭 · 图钉=总在最前",
             "Enter copies to the clipboard · Esc closes · the pin keeps the window on top");
+        public static readonly Str EveryNFramesRowsCols = new(
+            "editor.everyNFramesRowsCols",
+            "每 {0} 帧取一次 · {1} 行 × {2} 格",
+            "One every {0} frames · {1} rows × {2} cells");
         public static readonly Str Export = new("editor.export", "  导出 {0}–{1}", "  Export {0}–{1}");
         public static readonly Str Exported = new("editor.exported", "已导出 {0}", "Exported {0}");
         public static readonly Str ExportFailed = new("editor.exportFailed", "导出失败", "Export failed");
@@ -66,21 +70,14 @@ public static partial class K
             "Film strip copied · {0} frames");
         public static readonly Str FilmStripFailed = new("editor.filmStripFailed", "生成胶片条失败", "Film strip failed");
         public static readonly Str ForwardOneSecond = new("editor.forwardOneSecond", "下一秒", "Forward one second");
-        public static readonly Str FrameCount = new("editor.frameCount", "抽帧数", "Frame count");
         public static readonly Str FramesDroppedByTheMemory = new(
             "editor.framesDroppedByTheMemory",
             "  ⚠内存预算已丢 {0} 帧",
             "  ⚠{0} frames dropped by the memory budget");
-        public static readonly Str FramesIfTheStepYields = new(
-            "editor.framesIfTheStepYields",
-            "帧 · 2–48，步长取完还多则均匀稀释到此数",
-            "frames · 2–48; if the step yields more, they thin out evenly to this number");
-        public static readonly Str FramesTakesEveryFrameEvery = new(
-            "editor.framesTakesEveryFrameEvery",
-            "帧 · 1 逐帧取，2 隔帧取",
-            "frames · 1 takes every frame, 2 every other");
+        public static readonly Str FramesValue = new("editor.framesValue", "{0} 帧", "{0} frames");
         public static readonly Str GotIt = new("editor.gotIt", "知道了", "Got it");
         public static readonly Str HelpAndShortcuts = new("editor.helpAndShortcuts", "帮助与快捷键", "Help and shortcuts");
+        public static readonly Str HowManyFrames = new("editor.howManyFrames", "抽多少帧", "How many frames");
         public static readonly Str LargerText = new("editor.largerText", "字号增大", "Larger text");
         public static readonly Str Medium = new("editor.medium", "中", "Medium");
         public static readonly Str More = new("editor.more", "更多", "More");
@@ -122,7 +119,6 @@ public static partial class K
         public static readonly Str SmallerText = new("editor.smallerText", "字号减小", "Smaller text");
         public static readonly Str StartHere = new("editor.startHere", "开始使用", "Start here");
         public static readonly Str Stroke = new("editor.stroke", "{0}笔画", "{0} stroke");
-        public static readonly Str TakeEveryNth = new("editor.takeEveryNth", "每 N 帧取一次", "Take every Nth");
         public static readonly Str TheClipboardIsBusySo = new(
             "editor.theClipboardIsBusySo",
             "剪贴板被占用，生成失败",
