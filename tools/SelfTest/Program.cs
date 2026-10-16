@@ -429,8 +429,71 @@ static class SelfTest
         return 0;
     }
 
+    /// <summary>把芯片拖动中途的样子拍下来。抬起的芯片该按原尺寸贴在光标按住的那一点，
+    /// 占位框该出现在落点那一格，其余芯片让开一格——这三件事光看索引断言看不出来，
+    /// 行被撑到换行、芯片被拉成两倍大，索引都还是对的。</summary>
+    /// <param name="outPath">输出 PNG 路径。</param>
+    /// <param name="at">拖动中光标在编辑器根上的位置。</param>
+    /// <returns>恒为 0。</returns>
+    static int RenderDrag(string outPath, System.Windows.Point at)
+    {
+        var np = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+        var ceType = typeof(FrameCapture.Overlays.SettingsWindow)
+            .GetNestedType("ChainEditor", System.Reflection.BindingFlags.NonPublic)!;
+        Func<string[]> get = () => new[] { "capture.region", "capture.stored", "pin.clipboard" };
+        Func<int, IEnumerable<FrameCapture.Core.GestureAction>> cand =
+            _ => Array.Empty<FrameCapture.Core.GestureAction>();
+        Action<string[]> set = _ => { };
+        var ed = Activator.CreateInstance(ceType, get, cand, set)!;
+        var root = (System.Windows.Controls.StackPanel)ceType.GetProperty("Root")!.GetValue(ed)!;
+        // 自己搭台子而不是塞进一扇不显示的窗：窗没 Show 过就不走真排版，芯片量出来是 0×0，
+        // 窗模板也没应用，装饰层沿视觉树往上找不到 AdornerDecorator，抬起的芯片无处可挂。
+        var stage = new System.Windows.Controls.Border
+        {
+            Width = 460, Height = 150,
+            Background = new System.Windows.Media.SolidColorBrush(FrameCapture.Core.Theme.CardBg),
+            Child = new System.Windows.Documents.AdornerDecorator { Child = root },
+        };
+        stage.Measure(new System.Windows.Size(460, 150));
+        stage.Arrange(new System.Windows.Rect(0, 0, 460, 150));
+        stage.UpdateLayout();
+        var chips = (System.Windows.Controls.WrapPanel)ceType.GetField("_chips", np)!.GetValue(ed)!;
+        var chip = (System.Windows.FrameworkElement)chips.Children[1];
+        var sizeBefore = chip.RenderSize;
+        var grab = new System.Windows.Point(12, sizeBefore.Height / 2);
+        ceType.GetField("_drag", np)!.SetValue(ed, chip);
+        ceType.GetField("_dragFrom", np)!.SetValue(ed, 1);
+        ceType.GetField("_target", np)!.SetValue(ed, 1);
+        ceType.GetField("_grab", np)!.SetValue(ed, grab);
+        ceType.GetField("_pressAt", np)!.SetValue(ed, chip.TranslatePoint(new System.Windows.Point(12, 6), root));
+        ceType.GetMethod("DragMove", np)!.Invoke(ed, new object[] { at });
+        // 让位是 150ms 的动画，不泵一下拍到的就是第 0 帧：别的芯片还在让位前的位置上，看着像压在占位框上
+        PumpMs(320);
+        stage.UpdateLayout();
+        var ghost = ceType.GetField("_ghost", np)!.GetValue(ed) as System.Windows.UIElement;
+        var lift = ceType.GetField("_lift", np)!.GetValue(ed);
+        Console.WriteLine($"drag: 芯片 {sizeBefore.Width:N0}x{sizeBefore.Height:N0} → {chip.RenderSize.Width:N0}x{chip.RenderSize.Height:N0}"
+            + $" 装饰层={(lift == null ? "没挂上" : "已挂上")} 占位框第 {chips.Children.IndexOf(ghost!)} 格 / 共 {chips.Children.Count} 子");
+        var tgD = chip.RenderTransform as System.Windows.Media.TransformGroup;
+        var trD = tgD?.Children.OfType<System.Windows.Media.TranslateTransform>().FirstOrDefault();
+        var scD = tgD?.Children.OfType<System.Windows.Media.ScaleTransform>().FirstOrDefault();
+        var gotD = chip.TranslatePoint(new System.Windows.Point(0, 0), root);
+        Console.WriteLine($"lift: 位移=({trD?.X:N1},{trD?.Y:N1}) 缩放={scD?.ScaleX:N3} 芯片左上角=({gotD.X:N1},{gotD.Y:N1})"
+            + $" 光标按住点=({at.X - grab.X:N1},{at.Y - grab.Y:N1}) 行原点=({chips.TranslatePoint(new System.Windows.Point(0, 0), root).X:N1},"
+            + $"{chips.TranslatePoint(new System.Windows.Point(0, 0), root).Y:N1})");
+        var rtb = new System.Windows.Media.Imaging.RenderTargetBitmap(460, 150, 96, 96, System.Windows.Media.PixelFormats.Pbgra32);
+        rtb.Render(stage);
+        var enc = new System.Windows.Media.Imaging.PngBitmapEncoder();
+        enc.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(rtb));
+        Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(outPath))!);
+        using (var f = File.Create(outPath)) enc.Save(f);
+        Console.WriteLine($"saved {outPath} 460x150");
+        return 0;
+    }
+
     /// <summary>渲染倍率：命令行最后一个参数写成 <c>@1.5</c> 就是 150%——宣传页的界面截图按 150% 出图，
     /// 位图 DPI 同步放大，字与图标都是矢量重绘，不是把 96dpi 的图放大重采样。</summary>
+
     /// <param name="args">命令行参数；最后一个形如 <c>@1.5</c> 的参数是倍率。</param>
     /// <returns>解析出的倍率；没写、写坏、或不是最后一个参数时返回 1。</returns>
     static double ScaleArg(string[] args) =>
@@ -788,6 +851,17 @@ static class SelfTest
                 args.Contains("down"));
         }
     if (args.Length >= 2 && args[0] == "rendereditor") return RenderEditor(args[1], ScaleArg(args), args.Contains("guide"));
+        // 拖动中途的取景：第三个参数写「x,y」就是光标拖到编辑器根上的哪一点
+        if (args.Length >= 2 && args[0] == "renderdrag")
+        {
+            double dx = 380, dy = 18;
+            if (args.Length >= 3)
+            {
+                var ps = args[2].Split(',');
+                if (ps.Length == 2 && double.TryParse(ps[0], out var ax) && double.TryParse(ps[1], out var ay)) { dx = ax; dy = ay; }
+            }
+            return RenderDrag(args[1], new System.Windows.Point(dx, dy));
+        }
         if (args.Length == 3 && args[0] == "stitch") return StitchMode(args[1], args[2]);
         string tmp = Path.Combine(Path.GetTempPath(), "FrameCapture", "selftest");
         Directory.CreateDirectory(tmp);
@@ -1281,6 +1355,10 @@ static class SelfTest
                 MonitorBounds = new RectI(0, 0, 1920, 1080),
             };
             var winW = new FrameCapture.Overlays.EditorWindow(stW, seqW);
+            // 挪到屏幕外再显示：这扇窗开在屏幕正中时，用户的光标压上去，WPF 就真发了 MouseEnter，
+            // 那个按钮会一直停在悬停倍率上——「全部复位」永远等不到，而它跟被测代码没关系。
+            winW.WindowStartupLocation = WindowStartupLocation.Manual;
+            winW.Left = -20000; winW.Top = -20000;
             var barW = (System.Windows.Controls.StackPanel?)typeof(FrameCapture.Overlays.EditorWindow)
                 .GetField("_toolsBar", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
                 .GetValue(winW);
@@ -1321,7 +1399,8 @@ static class SelfTest
             Chk("T178c-toolbar-settled", bad == null,
                 bad == null
                     ? $"全部复位，等位 {swSettle.ElapsedMilliseconds}ms"
-                    : $"残留 透明度={bad.Opacity:N2} 变换={bad.RenderTransform?.GetType().Name}");
+                    : $"残留 {bad.Content} 透明度={bad.Opacity:N2} 变换={bad.RenderTransform?.GetType().Name}"
+                    + $" 缩放={bad?.RenderTransform?.Value.M11:N3}×{bad?.RenderTransform?.Value.M22:N3}");
             Chk("T178d-hover-scale-intact",
                 btnW.All(b => b.RenderTransform is null or System.Windows.Media.ScaleTransform),
                 string.Join(",", btnW.Select(b => b.RenderTransform?.GetType().Name ?? "null").Distinct()));
@@ -4402,7 +4481,7 @@ static class SelfTest
             SetF("_pressAt", InRoot(c0, 0.5, 0.5));
             Call("DragMove", new System.Windows.Point(InRoot(c0, 0.5, 0.5).X + 24, InRoot(c0, 0.5, 0.5).Y));
             PumpMs(60);
-            // 占位框插进去之后大家都挪了位，落点按挪完之后的位置算
+            // 落点尺子在起拖那一刻定格，占位框那一格就是它在剩余序列里的下标
             var q = InRoot((System.Windows.FrameworkElement)chips.Children[2], 0.2, 0.5);
             Call("DragMove", q);
             PumpMs(60);
@@ -4415,7 +4494,7 @@ static class SelfTest
             var expect = before.ToList();
             var movedItem = expect[0];
             expect.RemoveAt(0);
-            expect.Insert(Math.Clamp(target > 0 ? target - 1 : 0, 0, expect.Count), movedItem);
+            expect.Insert(Math.Clamp(target, 0, expect.Count), movedItem);
             Chk("T196j-drag-lands-where-the-ghost-was",
                 ghostShown && target > 0 && written.Count == 2 && written[1] == string.Join(",", expect),
                 $"拖动时占位框在第 {target} 格，松手后序列 {written.LastOrDefault() ?? "（没写回）"} 与那一格一致");
@@ -4481,6 +4560,44 @@ static class SelfTest
             PumpMs(80);
             Chk("T197c-drop-past-the-plus-lands-last", seq7.Count == 3 && seq7[2] == "scope.select",
                 $"拖到加号右边松手，这一步落到了第 {seq7.IndexOf("scope.select") + 1} 位，应落在最后一位");
+
+            // 抬起的那枚芯片：尺寸必须与起拖前一模一样，左上角必须压在光标按住的那一点。
+            // 让它离开这一行靠的是负外边距的话，槽位确实塌成 0，Arrange 却把负 margin 加回渲染矩形——
+            // 芯片涨成两倍大、朝左上跑掉一格，索引断言全对，画面上是一张跟在手里的错尺寸的卡。
+            var c1b = (System.Windows.Controls.Border)chips7.Children[1];
+            chips7.UpdateLayout();   // 松手重铺出来的新芯片还没排版，不量一下尺寸是 0×0，比什么都比不出差别
+            var sizeWas = c1b.RenderSize;
+            var hold = new System.Windows.Point(12, sizeWas.Height / 2);
+            Set7("_drag", c1b); Set7("_dragFrom", 1); Set7("_target", 1); Set7("_dragging", false);
+            Set7("_grab", hold);
+            Set7("_pressAt", c1b.TranslatePoint(new System.Windows.Point(12, 6), root7));
+            var hoverAt = c1b.TranslatePoint(new System.Windows.Point(c1b.ActualWidth + 120, 8), root7);
+            Call7("DragMove", hoverAt);
+            PumpMs(60);
+            Chk("T200a-lifted-chip-keeps-its-size",
+                sizeWas.Width > 20 && c1b.RenderSize.Width == sizeWas.Width && c1b.RenderSize.Height == sizeWas.Height,
+                $"抬起后 {c1b.RenderSize.Width:F0}×{c1b.RenderSize.Height:F0}，起拖前 {sizeWas.Width:F0}×{sizeWas.Height:F0}");
+            // 比中心而不是左上角：抬起时芯片按自己的中心放大 6%，左上角本就差着放大出来的那一两 DIP。
+            // 中心才是「芯片跟着光标走」的不变量——位移被缩放放大时，偏的正是中心。
+            // 量「按住的那一点现在画在哪儿」：抬起时芯片按中心放大 6%，按住点也会被一起推出去，
+            // 位移不先把这截扣掉，手指按着不动、画面上按住的位置也会滑走——那正是「卡片没跟着手」。
+            var held = c1b.TranslatePoint(hold, root7);
+            Chk("T200b-lifted-chip-sits-under-the-cursor",
+                Math.Abs(held.X - hoverAt.X) < 1.5 && Math.Abs(held.Y - hoverAt.Y) < 1.5,
+                $"光标停在 {hoverAt.X:F1},{hoverAt.Y:F1}，芯片上被按住的那一点却画在 {held.X:F1},{held.Y:F1}");
+
+            // 光标停在同一个点不动，落点不许来回换格。占位框一挪别的芯片就跟着挪，
+            // 拿挪完之后的实时位置反查落点就是自己喂自己：指针不动，占位框也在左右闪。
+            var seen = new List<int>();
+            for (int i = 0; i < 6; i++)
+            {
+                Call7("DragMove", hoverAt);
+                seen.Add(chips7.Children.IndexOf((UIElement)Get7("_ghost")!));
+            }
+            Chk("T200c-preview-holds-while-cursor-holds", seen.Distinct().Count() == 1,
+                "光标停在同一个点，占位框却来回换格：" + string.Join("→", seen));
+            Call7("Drop", hoverAt);
+            PumpMs(80);
 
             Call7("OpenPicker");
             PumpMs(160);
