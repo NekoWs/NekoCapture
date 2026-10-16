@@ -1154,6 +1154,45 @@ static class SelfTest
                 if (ok && !(gt!.CharacterToGlyphMap.ContainsKey(ch) && gt.AdvanceWidths[gt.CharacterToGlyphMap[ch]] > 0.08))
                 { all = false; Console.WriteLine($"  missing glyph U+{(int)ch:X4}"); }
             Chk("T10-ui-glyphs-resolve", all && ok, "tofu risk");
+
+            // 悬停动效要让位给外部换色：点选芯片时选中态会整块换掉画刷，
+            // 抬起时的悬停动画若照旧盖回去，选中态当场就没了（芯片看着和没选中一样）。
+            try
+            {
+                var chipT = new System.Windows.Controls.Border
+                {
+                    Width = 60,
+                    Height = 24,
+                    Background = new System.Windows.Media.SolidColorBrush(
+                        System.Windows.Media.Color.FromRgb(0x33, 0x33, 0x33)),
+                };
+                FrameCapture.Core.Fluent.ChipHover(chipT);
+                var picked = System.Windows.Media.Color.FromRgb(0x00, 0x78, 0xD4);
+                int upFired = 0;
+                var dev = System.Windows.Input.Mouse.PrimaryDevice;
+                // 按下即激活：选中态当场整块换掉画刷（WireChip 的 apply 就挂在这个事件上）
+                chipT.MouseLeftButtonDown += (_, _) =>
+                    chipT.Background = new System.Windows.Media.SolidColorBrush(picked);
+                chipT.MouseLeftButtonUp += (_, _) => upFired++;
+                // 悬停进入要抬起来：MouseEventArgs 的构造函数是 protected，借自己的公开子类
+                chipT.RaiseEvent(new EnterMouseArgs(dev)
+                { RoutedEvent = UIElement.MouseEnterEvent, Source = chipT });
+                void Btn(RoutedEvent evt) => chipT.RaiseEvent(new System.Windows.Input.MouseButtonEventArgs(
+                    dev, 0, System.Windows.Input.MouseButton.Left) { RoutedEvent = evt, Source = chipT });
+                Btn(UIElement.PreviewMouseLeftButtonDownEvent);   // 按压色
+                Btn(UIElement.MouseLeftButtonDownEvent);          // 选中态换底
+                Btn(UIElement.MouseLeftButtonUpEvent);            // 抬起：不该把新底盖回去
+                PumpMs(200);
+                var brush = (System.Windows.Media.SolidColorBrush)chipT.Background;
+                var after = brush.Color;
+                // 断言落在「有没有在选中态画刷上开动画」：动画在离屏窗里不会真的走完，
+                // 但 BeginAnimation 一旦落下就挂着不放——那正是选中态被盖掉的成因。
+                Chk("T204-chip-hover-yields-to-external-recolor",
+                    upFired >= 1 && !brush.HasAnimatedProperties
+                    && after.R == picked.R && after.G == picked.G && after.B == picked.B,
+                    $"换底后抬起不许在选中态画刷上开动画（抬起跑了 {upFired} 次，动画挂上={brush.HasAnimatedProperties}，实得 #{after.R:X2}{after.G:X2}{after.B:X2}，要 #0078D4）");
+            }
+            catch (Exception ex) { Chk("T204-chip-hover-yields-to-external-recolor", false, FirstLine(ex.Message)); }
             // 目录字形动态锁：工具目录里每个 Glyph 必须在字体里真实存在且有宽度——
             // 静态清单会漏新工具（加 V 时就漏了），目录本身才是该锁的对象
             bool catOk = true;
@@ -5567,6 +5606,13 @@ static class SelfTest
         }
         return list;
     }
+}
+
+/// <summary>只带设备与时间戳的鼠标事件参数。<see cref="System.Windows.Input.MouseEventArgs"/> 的构造函数
+/// 是 protected，而 WPF 按参数类型挑委托，抬 MouseEnter/MouseLeave 这类无按键的鼠标事件必须有这个公开子类。</summary>
+sealed class EnterMouseArgs : System.Windows.Input.MouseEventArgs
+{
+    public EnterMouseArgs(System.Windows.Input.MouseDevice device) : base(device, 0, null!) { }
 }
 
 /// <summary>GestureCore 测试探针：记录被调用的动作名，可指定某些动作必然失败以驱动失败策略分支。

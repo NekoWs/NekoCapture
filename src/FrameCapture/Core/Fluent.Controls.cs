@@ -444,7 +444,16 @@ public static partial class Fluent
             else { baseColor = sb.Color; hasBase = true; ours = null; }   // 外部已换底：以新色为基色，别覆盖它
         };
         el.PreviewMouseLeftButtonDown += (_, _) => { if (hasBase) An(Blend(baseColor, Theme.Press), 70); };
-        el.MouseUp += (_, _) => { if (hasBase) An(Blend(baseColor, Theme.Hover), 120); };
+        // 只认左键抬起：按压色来自左键按下，右键抬起不该把悬停色盖回去。
+        // 挂 MouseLeftButtonUp 而不是复合的 MouseUp——复合事件只有真实输入管线才产出，测试抬不起来。
+        el.MouseLeftButtonUp += (_, _) =>
+        {
+            // 按下到抬起之间外部换了底色（点选芯片时选中态刷新就是这种）：
+            // 那份画刷不归我们动，硬把按压前的基色混着悬停色盖回去，选中态当场就没了。
+            var sb = Bg();
+            if (sb == null || !ReferenceEquals(sb, ours)) return;
+            An(Blend(baseColor, Theme.Hover), 120);
+        };
     }
 
     /// <summary>圆角按钮模板：底色/内衬走 TemplateBinding，内容居中，可选悬停淡出。</summary>

@@ -237,9 +237,30 @@ public sealed partial class SettingsWindow : Window
             (RecordFormat.WebM, "WebM", Loc.T(K.Settings.AnOpenVideoFormatEncoded) + ffNote),
         };
         var chipList = new List<(Border chip, RecordFormat id)>();
-        // 边框填充色只在 MP4 下出现：h264 没有透明通道，透明边得拍平到一个颜色才读得出阴影
+        // 边框填充色只在 MP4 下出现：h264 没有透明通道，透明边得拍平到一个颜色才读得出阴影。
+        // 进出场与「跟随刷新率→帧率行」同款：淡入即现，淡完才收起，不突然跳版。
         var matte = MatteColorRow();
-        matte.Visibility = cur == RecordFormat.Mp4 ? Visibility.Visible : Visibility.Collapsed;
+        bool matteIn = cur == RecordFormat.Mp4;
+        matte.Opacity = matteIn ? 1 : 0;
+        matte.Visibility = matteIn ? Visibility.Visible : Visibility.Collapsed;
+        void SetMatteVisible(bool vis)
+        {
+            if (vis)
+            {
+                matte.Visibility = Visibility.Visible;
+                matte.BeginAnimation(OpacityProperty, new DoubleAnimation(1.0,
+                    new Duration(TimeSpan.FromMilliseconds(Fluent.Motion.EnterMs)))
+                { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
+            }
+            else
+            {
+                var fade = new DoubleAnimation(0.0,
+                    new Duration(TimeSpan.FromMilliseconds(Fluent.Motion.ExitMs)))
+                { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseIn } };
+                fade.Completed += (_, _) => matte.Visibility = Visibility.Collapsed;
+                matte.BeginAnimation(OpacityProperty, fade);
+            }
+        }
         foreach (var (id, text, tip) in opts)
         {
             RecordFormat captured = id;
@@ -249,7 +270,7 @@ public sealed partial class SettingsWindow : Window
             {
                 _settings.Mutate(s => s.RecordFormat = captured);
                 RefreshChips(chipList, captured);
-                matte.Visibility = captured == RecordFormat.Mp4 ? Visibility.Visible : Visibility.Collapsed;
+                SetMatteVisible(captured == RecordFormat.Mp4);
             }
             WireChip(chip, Apply);
             chips.Children.Add(chip);

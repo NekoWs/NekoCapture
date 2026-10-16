@@ -1138,3 +1138,19 @@ NaN 转 int 得 0，`RenderTargetBitmap` 按 0 高去画，PNG 文件照样写�
   （alt-ref 开着时参考帧会把 alpha 抹平）；MP4 在喂帧前拍平到用户选的「边框填充色」，
   该设置只在录制格式选中 MP4 时出现在其下方。默认白色：投影是半透明黑，铺白底才读得出阴影，铺黑底整圈消失。
 - **护栏**：`T127l-args-webm-alpha`、`T127m-args-mp4-never-carries-alpha`、`T127n-carries-alpha`。
+
+## 悬停动效不许在外部换过的画刷上开动画，芯片的选中态才留得住
+
+- **现象**：设置里点选录制格式，被选中的按钮当场变回深灰，和没选中一模一样；只有鼠标移开再移回来才显出强调色。
+- **根因**：`BgHover` 在按下时把底色混上按压色，抬起时再混回悬停色——它记的基色是**按下那一刻**的画刷。
+  而芯片的激活挂在 `MouseLeftButtonDown`：按下瞬间选中态刷新就把整块 `Background` 换成了强调色画刷，
+  抬起时动画照旧开在新画刷上，把它盖回按压前的深灰并 HoldEnd 钉住。
+  悬停进入/离开两处都有「画刷实例变了就重取基色」的判断，唯独抬起漏了。
+- **决定**：抬起时先比对画刷实例，不是自己那份就直接返回。顺带把处理器从复合的 `MouseUp` 改挂 `MouseLeftButtonUp`——
+  按压色来自左键按下，右键抬起不该参与。
+- **护栏**：`T204-chip-hover-yields-to-external-recolor` 抬起后断言选中态画刷上**没有挂任何动画**
+  （`HasAnimatedProperties`）。离屏窗里动画不会真的走完，读颜色分辨不了；`BeginAnimation` 一落下就挂着不放，
+  那才是要拦的东西。抬起处理器一次都没跑也判红——事件抬不起来的断言等于没断言。
+- **顺带一条**：WPF 的复合鼠标事件（`MouseUp`/`MouseDown`）只有真实输入管线才产出，
+  `RaiseEvent(MouseLeftButtonUpEvent)` 唤不起 `MouseUp` 处理器；测试要抬鼠标事件只能抬带按键的具体事件。
+  `MouseEnter` 能抬，但 `MouseEventArgs` 构造函数是 protected，得自己派一个公开子类。
