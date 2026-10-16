@@ -472,54 +472,76 @@ public static partial class Fluent
         RenderTransform = new TranslateTransform(RevealShift, 0),
     };
 
-    /// <summary>原地展开：先把位置从当前高度拉开到自然高，内容同时淡入并从右侧一小段滑到位。
-    /// 中途打断一律从当前值接着走，不跳变。</summary>
+    /// <summary>原地展开，分两拍：先把空地从当前高度拉开到自然高，停一个错位间隔，
+    /// 内容才淡着从右侧一小段推进来。两拍同时走只会看成"整块东西闪了一下"，
+    /// 空地先到位、内容后落位，才读得出"这里给新设置项让了个位置"。</summary>
     /// <param name="el">目标元素，需已在可视树里——自然高度按父容器给的宽度量。</param>
     /// <param name="slidePx">横向行程，默认 <see cref="RevealShift"/>。</param>
     public static void Reveal(FrameworkElement el, double? slidePx = null)
     {
         double shift = slidePx ?? RevealShift;
         double curH = double.IsPositiveInfinity(el.MaxHeight) ? 0 : el.MaxHeight;
+        double curOp = el.Opacity;
+        var t = ShiftOf(el);
+        double curX = t.X;
         double h = NaturalHeight(el);
+        double fromH = Math.Min(curH, h);
+        // 三处属性先钉在当前值上：第二拍是延后起跑的，等待期间属性用的是静止值，
+        // 不钉就会从动画中途掉回静止值，看着像抖了一下。
+        Release(el, t);
+        el.MaxHeight = fromH;
+        el.Opacity = curOp;
+        t.X = curX;
         el.ClipToBounds = true;
         el.Visibility = Visibility.Visible;
-        var grow = new DoubleAnimation(Math.Min(curH, h), h,
-            new Duration(TimeSpan.FromMilliseconds(Motion.EnterMs)))
-        { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } };
-        // 走完放开限高：窗口变窄让这一行换行时，不能被入场那一刻量出来的高度卡住
-        grow.Completed += (_, _) => el.BeginAnimation(FrameworkElement.MaxHeightProperty, null);
+
+        var grow = Anim(fromH, h, Motion.EnterMs, EasingMode.EaseOut);
+        // 拉开到位后放开限高：窗口变窄让这一行换行时，不能被入场那一刻量出来的高度卡住
+        grow.Completed += (_, _) =>
+        {
+            el.BeginAnimation(FrameworkElement.MaxHeightProperty, null);
+            el.MaxHeight = double.PositiveInfinity;
+        };
         el.BeginAnimation(FrameworkElement.MaxHeightProperty, grow);
-        Fade(el, 1, Motion.EnterMs, EasingMode.EaseOut);
-        Slide(ShiftOf(el), ShiftOf(el).X, 0, Motion.EnterMs, EasingMode.EaseOut);
+
+        var beat = TimeSpan.FromMilliseconds(Motion.EnterMs + Motion.StaggerMs);
+        Fade(el, 1, Motion.QuickMs, EasingMode.EaseOut, beat);
+        Slide(t, curX, 0, Motion.QuickMs, EasingMode.EaseOut, beat);
     }
 
-    /// <summary>收拢退场：内容向右一小段滑出、同时淡出，高度一起收到 0，动画走完才让位（Collapsed）。</summary>
+    /// <summary>收拢退场，两拍与入场相反：内容先淡出向右挪走，空地原地停半个错位间隔，
+    /// 再把高度收到 0，走完才让位（Collapsed）。先收空间会把还看得见的内容一起挤走，像被吸进去。</summary>
     /// <param name="el">目标元素。</param>
     /// <param name="slidePx">横向行程，默认 <see cref="RevealShift"/>。</param>
     public static void Conceal(FrameworkElement el, double? slidePx = null)
     {
         double shift = slidePx ?? RevealShift;
-        el.ClipToBounds = true;
         var t = ShiftOf(el);
+        double curOp = el.Opacity, curX = t.X;
         double fromH = el.ActualHeight;
         if (!double.IsPositiveInfinity(el.MaxHeight)) fromH = Math.Min(fromH, el.MaxHeight);
         if (fromH <= 0) fromH = NaturalHeight(el);
-        var shrink = new DoubleAnimation(fromH, 0,
-            new Duration(TimeSpan.FromMilliseconds(Motion.ExitMs)))
-        { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseIn } };
+        Release(el, t);
+        el.MaxHeight = fromH;   // 钉住当前高度：第一拍只挪内容，空地不能提前塌
+        el.Opacity = curOp;
+        t.X = curX;
+        el.ClipToBounds = true;
+
+        Fade(el, 0, Motion.QuickMs, EasingMode.EaseIn);
+        Slide(t, curX, shift, Motion.QuickMs, EasingMode.EaseIn);
+
+        var shrink = Anim(fromH, 0, Motion.ExitMs, EasingMode.EaseIn,
+            TimeSpan.FromMilliseconds(Motion.QuickMs + Motion.StaggerMs / 2));
         shrink.Completed += (_, _) =>
         {
             // 放开动画才能改回静止值：动画攥着的属性，直接赋值不生效
-            el.BeginAnimation(FrameworkElement.MaxHeightProperty, null);
-            el.BeginAnimation(UIElement.OpacityProperty, null);
-            t.BeginAnimation(TranslateTransform.XProperty, null);
+            Release(el, t);
+            el.MaxHeight = double.PositiveInfinity;
             el.Opacity = 0;
             t.X = shift;                       // 停在右侧，下次入场仍从右边推进来
             el.Visibility = Visibility.Collapsed;
         };
         el.BeginAnimation(FrameworkElement.MaxHeightProperty, shrink);
-        Fade(el, 0, Motion.ExitMs, EasingMode.EaseIn);
-        Slide(t, t.X, shift, Motion.ExitMs, EasingMode.EaseIn);
     }
 
     /// <summary>把折叠件直接摆在展开到位的静止态。页面装配时用，免得开窗就演一遍入场动画。</summary>
@@ -532,6 +554,15 @@ public static partial class Fluent
         ShiftOf(el).X = 0;
     }
 
+    /// <summary>撤掉限高与透明度上的动画、以及位移上的动画。动画攥着的属性赋值不生效，
+    /// 要改静止值必须先放开。</summary>
+    static void Release(FrameworkElement el, TranslateTransform t)
+    {
+        el.BeginAnimation(FrameworkElement.MaxHeightProperty, null);
+        el.BeginAnimation(UIElement.OpacityProperty, null);
+        t.BeginAnimation(TranslateTransform.XProperty, null);
+    }
+
     static TranslateTransform ShiftOf(FrameworkElement el)
     {
         if (el.RenderTransform is TranslateTransform t) return t;
@@ -540,13 +571,24 @@ public static partial class Fluent
         return nt;
     }
 
-    static void Fade(FrameworkElement el, double to, int ms, EasingMode mode)
-        => el.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(el.Opacity, to,
-            new Duration(TimeSpan.FromMilliseconds(ms))) { EasingFunction = new CubicEase { EasingMode = mode } });
+    static Duration Dur(int ms) => new(TimeSpan.FromMilliseconds(ms));
 
-    static void Slide(TranslateTransform t, double from, double to, int ms, EasingMode mode)
-        => t.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(from, to,
-            new Duration(TimeSpan.FromMilliseconds(ms))) { EasingFunction = new CubicEase { EasingMode = mode } });
+    static CubicEase Ease(EasingMode mode) => new() { EasingMode = mode };
+
+    // BeginTime 只在真要延后时赋值：显式写 null 等于"这条动画没有开始时刻"，动画永远不起跑，
+    // 属性安安静静停在静止值上，看不出任何报错。
+    static DoubleAnimation Anim(double from, double to, int ms, EasingMode mode, TimeSpan? at = null)
+    {
+        var a = new DoubleAnimation(from, to, Dur(ms)) { EasingFunction = Ease(mode) };
+        if (at != null) a.BeginTime = at;
+        return a;
+    }
+
+    static void Fade(FrameworkElement el, double to, int ms, EasingMode mode, TimeSpan? at = null)
+        => el.BeginAnimation(UIElement.OpacityProperty, Anim(el.Opacity, to, ms, mode, at));
+
+    static void Slide(TranslateTransform t, double from, double to, int ms, EasingMode mode, TimeSpan? at = null)
+        => t.BeginAnimation(TranslateTransform.XProperty, Anim(from, to, ms, mode, at));
 
     /// <summary>折叠件的自然高度：按父容器给的宽度量一次。测量要先放开限高——
     /// 否则读到的是动画中途的限高，展开动画会原地不动。</summary>

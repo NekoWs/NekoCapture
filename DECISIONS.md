@@ -1154,3 +1154,15 @@ NaN 转 int 得 0，`RenderTargetBitmap` 按 0 高去画，PNG 文件照样写�
 - **顺带一条**：WPF 的复合鼠标事件（`MouseUp`/`MouseDown`）只有真实输入管线才产出，
   `RaiseEvent(MouseLeftButtonUpEvent)` 唤不起 `MouseUp` 处理器；测试要抬鼠标事件只能抬带按键的具体事件。
   `MouseEnter` 能抬，但 `MouseEventArgs` 构造函数是 protected，得自己派一个公开子类。
+
+## 延后起跑的动画：`BeginTime` 显式写 null 等于永不起跑
+
+- **现象**：折叠件退场两拍，高度按预期晚一拍收了，透明度却全程钉在 1.00 一动不动，编译与运行都没有任何提示。
+- **根因**：`Timeline.BeginTime` 赋 `null` 不是"取默认值"，而是"这条动画没有开始时刻"——时钟建得出来，
+  属性也被攥住（`HasAnimatedProperties` 为真），但活跃期永远不到，动画静默死掉。
+  延后起跑的动画小工具把可选参数 `TimeSpan? at` 直接塞进 `BeginTime`，
+  于是"不延后"的那一拍全部中招：入场两拍都带延后所以看着正常，退场第一拍不带延后所以没了。
+- **决定**：工具函数只在真要延后时赋 `BeginTime`，其余情况让它保持默认的 `TimeSpan.Zero`。
+- **护栏**：`T206-reveal-space-leads-content-follows` 逐帧比两拍的先后——入场空地拉开到位那一刻内容必须还没开始淡，
+  退场内容挪走那一刻空地必须还满着。它同时压住另一件事：两拍不许被改回同时走，那样只像整块闪一下，
+  读不出"这里给新设置项让了个位置"。

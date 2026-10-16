@@ -1209,11 +1209,11 @@ static class SelfTest
                 PumpMs(250);
                 bool startCollapsed = fold.Visibility == Visibility.Collapsed && fold.Opacity == 0;
                 FrameCapture.Core.Fluent.Reveal(fold);
-                PumpMs(450);
+                PumpMs(700);
                 double openH = fold.ActualHeight;
                 double openOp = fold.Opacity;
                 FrameCapture.Core.Fluent.Conceal(fold);
-                PumpMs(450);
+                PumpMs(700);
                 bool yielded = fold.Visibility == Visibility.Collapsed;
                 Chk("T205-reveal-opens-and-conceal-yields-space",
                     startCollapsed && openH > 39 && openOp > 0.99 && yielded,
@@ -1221,6 +1221,39 @@ static class SelfTest
                 foldWin.Close();
             }
             catch (Exception ex) { Chk("T205-reveal-opens-and-conceal-yields-space", false, FirstLine(ex.Message)); }
+
+            // 折叠件的两拍顺序：入场空地先拉开到位、内容才开始淡入；退场内容先挪走、空地才开始收。
+            // 两拍同时走完全看不出"让位"，只像整块闪一下——这条锁的就是别把它改回同时。
+            try
+            {
+                var seqWin = new Window
+                {
+                    Left = -20000, Top = -20000, Width = 420, Height = 260,
+                    Content = new System.Windows.Controls.StackPanel(),
+                };
+                var seq = FrameCapture.Core.Fluent.Revealable(
+                    new System.Windows.Controls.Border { Height = 40 });
+                ((System.Windows.Controls.StackPanel)seqWin.Content).Children.Add(seq);
+                seqWin.Show();
+                PumpMs(250);
+                FrameCapture.Core.Fluent.Reveal(seq);
+                // 逐帧等空地拉开到位，记下这一刻内容淡没淡
+                int g = 0;
+                while (g++ < 80 && seq.ActualHeight < 39.5) PumpMs(16);
+                double opWhenSpaceFull = seq.Opacity;
+                PumpMs(700);
+                FrameCapture.Core.Fluent.Conceal(seq);
+                // 逐帧等内容淡干净，记下这一刻空地还剩多少
+                int f = 0;
+                while (f++ < 80 && seq.Opacity > 0.02) PumpMs(16);
+                double hWhenContentGone = seq.ActualHeight;
+                Chk("T206-reveal-space-leads-content-follows",
+                    opWhenSpaceFull < 0.05 && hWhenContentGone > 39,
+                    $"入场：空地拉开到位时内容透明度 {opWhenSpaceFull:0.00}（要还没开始淡）；"
+                    + $"退场：内容挪走时实高 {hWhenContentGone:0}（要还满着）");
+                seqWin.Close();
+            }
+            catch (Exception ex) { Chk("T206-reveal-space-leads-content-follows", false, FirstLine(ex.Message)); }
             // 目录字形动态锁：工具目录里每个 Glyph 必须在字体里真实存在且有宽度——
             // 静态清单会漏新工具（加 V 时就漏了），目录本身才是该锁的对象
             bool catOk = true;
