@@ -112,6 +112,30 @@ switch (mode)
         Console.WriteLine($"keyw {vk} posted to {(long)h}");
         break;
     }
+    case "postmouse": // postmouse <标题> <x> <y> <move|drag|down|up> [holdMs] —— 鼠标消息 PostMessage 直达自家窗口
+    {
+        // 与 OS 级注入的分别：真光标不动、系统输入队列不进，只有这一个窗口收到消息。
+        // 坐标是客户区物理像素；全屏覆盖窗（选区层）客户区与屏幕重合，直接填屏幕坐标。
+        // drag 带 MK_LBUTTON：按住不放期间的移动，WPF 才认成拖框而不是两次悬停。
+        nint h = FindWindowW(null, args[1]);
+        if (h == 0) { Console.WriteLine("window-not-found"); return; }
+        int x = int.Parse(args[2]), y = int.Parse(args[3]);
+        string what = args[4].ToLowerInvariant();
+        int hold = args.Length > 5 ? int.Parse(args[5]) : 60;
+        const uint WM_MOUSEMOVE = 0x0200, WM_LBUTTONDOWN = 0x0201, WM_LBUTTONUP = 0x0202, MK_LBUTTON = 1;
+        uint pt = (uint)((y << 16) | (x & 0xFFFF));
+        switch (what)
+        {
+            case "move": PostMessageW(h, WM_MOUSEMOVE, 0, pt); break;
+            case "drag": PostMessageW(h, WM_MOUSEMOVE, MK_LBUTTON, pt); break;
+            case "down": PostMessageW(h, WM_LBUTTONDOWN, MK_LBUTTON, pt); break;
+            case "up": PostMessageW(h, WM_LBUTTONUP, 0, pt); break;
+            default: Console.WriteLine("postmouse: move|drag|down|up"); return;
+        }
+        await Task.Delay(hold);
+        Console.WriteLine($"postmouse {what} {x},{y} -> {(long)h}");
+        break;
+    }
     case "ctrlw": // ctrlw <title> <vk> → PostMessage Ctrl+<vk>（Ctrl down/up 包裹）
     {
         nint h = FindWindowW(null, args[1]);

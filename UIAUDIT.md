@@ -27,7 +27,15 @@
 - [x] D2 悬浮条明/暗齐（light-editor-bars.png / bars5.png）：浅色=浅亚克力+深图标，白块描边/分隔线/撤销禁用态全部到位
 - [x] D3 设置窗明/暗齐（light-settings.png / dark-settings.png）：双主题同构高水准；交叉淡入（260ms）原实现已在案
 - [x] D4 帮助窗明/暗齐（light-help.png / dark-help.png）：中文速查版式双主题一致
-- [ ] D5 选区层（吸附态/拖框态）— 需真鼠标悬停/拖框，自动化边界外；遮罩+虚线态已由 pick/pk2 覆盖
+- [x] D5 选区层（吸附态/拖框态）像素档案。**这条边界其实过得去**：OS 级鼠标注入确实禁（会搬用户真光标），
+  但对自家窗口 PostMessage 鼠标消息不算——D8 弹托盘菜单走的就是这条路。Shot 加 `postmouse <标题> <x> <y> move|drag|down|up`
+  （客户区物理像素；`drag` 带 `MK_LBUTTON`，WPF 才把一连串移动认成拖框而不是两次悬停）。
+  第二道坎是选区窗自己：它无条件 `WDA_EXCLUDEFROMCAPTURE`，PrintWindow 与桌面 BitBlt 都只拿到全黑——
+  不是没画，是排除对一切抓取 API 生效。于是给它加浮窗同一约定的 `FC_TOAST_NOEXCLUDE=1` 审查开关
+  （生产默认不变；代价是此时放大镜可能取到遮罩自己的像素，读数不作数）。
+  取证脚本 `scripts/cap-picker-states.ps1`：吸附态 `d5-picker-snap-{zh,en}-{dark,light}.png`（遮罩 + 十字虚线 +
+  吸附窗高亮 + 放大镜读数「1900, 1100 / 1924×1234 / #151517」），拖框态 `d5-picker-drag-*`（实线选区 + 顶部尺寸读数
+  「630 × 540」+ 角标坐标）。人眼复核：无裁切、无对比度问题。
 - [x] D6 轮廓窗生命周期连拍实证：区域确认后 亮起(482/524)→450ms 衰减→≈1.1s 强调驻留→350ms 柔和淡出；修复 FlashOutline/FadeAway 死代码 + 步进两跳（outline2.*）；HUD/编码进度反馈审查待做
 - [x] D6b HUD/编码反馈：后台编码 + HUD"导出 GIF… d/n"进度 + Esc 取消（在案）；本轮补 OK 主按钮 busy 0.55 淡变（编码期间，完成/取消/失败三路径复位）——编码期悬浮条自动隐藏致像素取证不确定，以接线审查+编译通过收账（该边界已由 D9 解除：进度/取消/失败/丢帧四态双主题像素档案在案）
 - [x] D7 提交流程：OK/取消/Esc 全部改走 CloseWithFade（150ms cubic-in 淡出后真关闭+剪贴板写入不受影响）；CloseWithFade 退场渐变已在 popup4 连拍实证，本路径同一机制（trace: editor key=None+Escape→closed）

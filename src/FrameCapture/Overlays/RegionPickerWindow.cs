@@ -224,7 +224,7 @@ public sealed partial class RegionPickerWindow : Window
             try { _snap = Services.BgraImage.ToSource(frozenScreen); } catch { _snap = null; }
         }
         // 没有现成定格帧时，全屏快照在 Show 之后异步抓（见 SourceInitialized）：打开关键路径上没有 4K BitBlt。
-        // 本窗设了 WDA_EXCLUDEFROMCAPTURE，抓取时即便遮罩已渲染也拍不到本窗，像素颜色仍真实。
+        // 本窗默认设 WDA_EXCLUDEFROMCAPTURE（见 SourceInitialized）：抓取时即便遮罩已渲染也拍不到本窗，像素颜色仍真实。
 
         SourceInitialized += (_, _) =>
         {
@@ -232,7 +232,11 @@ public sealed partial class RegionPickerWindow : Window
             Win32.SetWindowTextW(h, "FrameCapture Region");
             // 选区窗本身绝不入镜（BitBlt/WGC 都拍不到）：放大镜快照因此可在 Show 之后异步抓，
             // 把 4K 抓取挪出打开关键路径 → 选区窗更快出现，且遮罩已渲染也不影响取色。
-            try { Win32.SetWindowDisplayAffinity(h, Win32.WDA_EXCLUDEFROMCAPTURE); } catch { }
+            // FC_TOAST_NOEXCLUDE=1 仅供视觉审查截图（与浮窗同一约定，用户环境永不置位）：
+            // 排除开着时 PrintWindow 与桌面抓取都只拿到全黑，选区版面就没法人眼复核；代价是放大镜
+            // 此时可能取到遮罩自己的像素，读数不作数。
+            if (Environment.GetEnvironmentVariable("FC_TOAST_NOEXCLUDE") != "1")
+                try { Win32.SetWindowDisplayAffinity(h, Win32.WDA_EXCLUDEFROMCAPTURE); } catch { }
             // WS_EX_NOACTIVATE——Show 与鼠标按下都不激活本窗，前台焦点始终留在目标窗。
             // 否则拖框的 MouseDown 会把焦点从浏览器抢走，Z 序/前台一变，选区里就截到别的软件。
             try { Win32.SetWindowLongW(h, Win32.GWL_EXSTYLE, Win32.GetWindowLongW(h, Win32.GWL_EXSTYLE) | Win32.WS_EX_NOACTIVATE); } catch { }
