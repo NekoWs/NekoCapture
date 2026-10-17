@@ -230,6 +230,7 @@ $failN = @($results | Where-Object Status -eq "FAIL").Count
 $skipN = @($results | Where-Object Status -eq "SKIP").Count
 Say ""
 Say ("GUARDRAIL {0}  (FAIL={1} SKIP={2} 共 {3} 项)" -f $(if ($failN -eq 0) { "PASS" } else { "FAIL" }), $failN, $skipN, $results.Count)
-$logLines | Set-Content $transcript -Encoding UTF8
+# 空管道不截断文件：本轮若无日志行，上一轮的记录会留在原地冒充本轮。
+Set-Content $transcript -Encoding UTF8 -Value $(if ($logLines.Count) { $logLines } else { @("（本轮无日志行）") })
 Remove-Item $tmp -Recurse -Force -EA SilentlyContinue
 exit $(if ($failN -eq 0) { 0 } else { 1 })

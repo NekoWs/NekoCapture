@@ -51,6 +51,8 @@ static partial class SelfTest
                 case "settings-open": BuildSettingsAudit(app, rows, "settings-open", 0); break;
                 case "settings-adv": BuildSettingsAudit(app, rows, "settings-adv", 0, advanced: true); break;
                 case "settings-clash": BuildSettingsAudit(app, rows, "settings-clash", 0, clash: true); break;
+            // 拖到最小尺寸那一档：MinWidth/MinHeight 是用户能压到的极限，长说明文字在这一档最容易挤。
+            case "settings-narrow": BuildSettingsAudit(app, rows, "settings-narrow", 0, forceW: 680, forceH: 460); break;
                 case "help": BuildHelpAudit(rows); break;
                 case "editor": BuildEditorAudit(app, rows, 3); break;
                 case "editor-still": BuildEditorAudit(app, rows, 1); break;
@@ -82,7 +84,7 @@ static partial class SelfTest
     /// <summary>可审计的界面名，驱动脚本按这份清单跑满矩阵。</summary>
     internal static readonly string[] Surfaces =
     {
-        "settings", "settings-open", "settings-adv", "settings-clash",
+        "settings", "settings-open", "settings-adv", "settings-clash", "settings-narrow",
         "help", "editor", "editor-still", "pin", "pin-menu", "ocr", "ocr-msg",
         "notice", "welcome", "toast", "countdown", "scroll", "filmstrip",
         "picker", "picker-loupe",
@@ -91,7 +93,8 @@ static partial class SelfTest
     // ---- 逐界面建窗 ----
 
     /// <summary>设置窗：折叠态、展开第 0 条、高级形态、撞车描边四种形态各扫一遍。</summary>
-    static void BuildSettingsAudit(Application app, List<string> rows, string surface, int openAt, bool advanced = false, bool clash = false)
+    static void BuildSettingsAudit(Application app, List<string> rows, string surface, int openAt, bool advanced = false, bool clash = false,
+        double? forceW = null, double? forceH = null)
     {
         var svc = AppHost.Current.Settings!.Current;
         if (clash && svc.Gestures.Bindings.Count > 0)
@@ -113,7 +116,7 @@ static partial class SelfTest
             .Invoke(w, null);
         ShowOffscreen(w);
         var root = (UIElement)w.Content;
-        LayoutTo(root, w.Width, w.Height);
+        LayoutTo(root, forceW ?? w.Width, forceH ?? w.Height);
         // 快捷键页的展开行要点开才有内容：折叠态与展开态是两套版面
         if (openAt >= 0)
         {

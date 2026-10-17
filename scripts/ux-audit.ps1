@@ -31,7 +31,8 @@ foreach ($s in $Surfaces) {
     }
 }
 
-$rows | Set-Content -LiteralPath $Out -Encoding utf8
+# 空管道不会截断文件：全绿那一轮若直接管道给 Set-Content，上一轮的缺陷清单会留在原地冒充本轮结果。
+Set-Content -LiteralPath $Out -Encoding utf8 -Value $(if ($rows.Count) { $rows } else { @("（本轮无缺陷）") })
 if (-not $Quiet)
 {
     ""
