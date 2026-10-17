@@ -58,7 +58,8 @@ static partial class SelfTest
                 savePath: @"D:\Users\lin\Pictures\截图归档\2026\十月\产品走查与录屏\FrameCapture"); break;
             // 用户自己起的长绑定名：折叠行里名字与键帽、开关、垃圾桶抢同一行宽度
             case "settings-longname": BuildSettingsAudit(app, rows, "settings-longname", 0, forceW: 680, forceH: 460,
-                bindingName: "Capture the current window and save it to the clipboard"); break;
+                bindingName: LongBindingName); break;
+            // OCR 正文在 TextBox 里，探针只扫 TextBlock，长 URL 这一档量不到东西——见 TODO「辅助功能暴露面」一节
                 case "help": BuildHelpAudit(rows); break;
                 case "editor": BuildEditorAudit(app, rows, 3); break;
                 case "editor-still": BuildEditorAudit(app, rows, 1); break;
@@ -154,6 +155,9 @@ static partial class SelfTest
     }
 
     /// <summary>帮助窗：九步逐步建窗扫描，每一步的版式都不一样。</summary>
+    /// <summary>用户会起的那种长绑定名：拉丁文没有中文那样的任意断点，最先撑破版面。</summary>
+    const string LongBindingName = "Capture the current window and save it to the clipboard";
+
     static void BuildHelpAudit(List<string> rows)
     {
         var f = typeof(HelpWindow).GetField("_lastStep",
