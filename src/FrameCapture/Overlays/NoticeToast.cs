@@ -21,7 +21,9 @@ public sealed class NoticeToast : Window
     readonly DispatcherTimer _dismiss;
     bool _closing;
 
-    const double W = 336;      // DIP 宽
+    // 336 放下中文启动行绰绰有余，英文同一句要 285 DIP 正文宽，加上图标列与关闭钮就顶到了边：
+    // 一挤 WPF 便在 Ctrl+Alt+R 的 + 上找断点，键位被劈成两截。372 让最长那句一行放完。
+    const double W = 372;      // DIP 宽
     const double EstH = 62;    // 估算高（落点用；实际 SizeToContent）
 
     /// <summary>弹一条提示气泡。同一时刻只保留一条，再次调用先收起上一条。</summary>

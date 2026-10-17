@@ -200,13 +200,33 @@ static partial class SelfTest
     /// <summary>通用提示浮层。</summary>
     static void BuildNoticeAudit(Application app, List<string> rows)
     {
-        // 样例文案跟着语言走：审计自己塞中文，会把「漏翻」查成自己的假阳性
-        NoticeToast.Show(Loc.IsEnglish ? "Copied to clipboard" : "已复制到剪贴板", "GIF · 1.2 MB");
+        // 样例取启动气泡那一条：它是这层最长的真实文案，也是唯一带两处键位的。
+        // 键位串里有 +，宽度一紧 WPF 就在 + 上找断点，把 Ctrl+Alt+R 劈成两截——
+        // 折行本身不算缺陷，键位被劈开才算，所以这里连副行高度一起看。
+        NoticeToast.Show(Loc.T(K.Tray.FramecaptureIsRunning),
+            Loc.F(K.Tray.WaitingInTheTrayCapture, "Ctrl+Alt+A", "Ctrl+Alt+R"));
         var w = LastWindow(app);
         if (w == null) { rows.Add("UXA|notice|建窗失败|没拿到窗口"); return; }
         PumpMs(200);
         ScanTree(rows, "notice", (UIElement)w.Content);
+        var detail = FindByFontSize(w, 11);
+        if (detail != null && detail.ActualHeight > detail.FontSize * 1.6)
+            rows.Add($"UXA|notice|折行|副行 {detail.ActualHeight:F0}px 两行高，键位会被 + 劈开：{detail.Text}");
         w.Close();
+    }
+
+    /// <summary>按字号找那一条文字：版面审查里字号就是角色的区分（正文 13、副行 11）。</summary>
+    static TextBlock? FindByFontSize(DependencyObject root, double size)
+    {
+        var n = VisualTreeHelper.GetChildrenCount(root);
+        for (var i = 0; i < n; i++)
+        {
+            var c = VisualTreeHelper.GetChild(root, i);
+            if (c is TextBlock tb && Math.Abs(tb.FontSize - size) < 0.1) return tb;
+            var hit = FindByFontSize(c, size);
+            if (hit != null) return hit;
+        }
+        return null;
     }
 
     /// <summary>首启欢迎卡：新用户看到的第一屏。</summary>
