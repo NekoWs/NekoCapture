@@ -14,6 +14,10 @@ public static partial class K
             "tray.clearCaptureRegion",
             "清除捕获范围",
             "Clear Capture Region");
+        public static readonly Str ContinueTheLastScroll = new(
+            "tray.continueTheLastScroll",
+            "继续上次滚动",
+            "Continue the Last Scroll");
         public static readonly Str CouldNotOpenTheSave = new(
             "tray.couldNotOpenTheSave",
             "打开保存文件夹失败",

@@ -106,6 +106,9 @@ public sealed class TrayService : IDisposable
         if (_host.Controller.HasLastStill)
             Item(Loc.T(K.Tray.EditLastScreenshot), () => _host.Controller.EditLastStill());
         Item(Loc.T(K.Common.ScrollingCapture), () => _host.Controller.BeginScrollCapture());
+        // 滚早了头不必从头再来：只有手里真留着半张长图时这一条才出现
+        if (_host.Controller.HasScrollResume)
+            Item(Loc.T(K.Tray.ContinueTheLastScroll), () => _host.Controller.ResumeScrollCapture());
         Item(Loc.T(K.Common.DelayedCapture), () => _host.Controller.BeginDelayedCapture());
         Item(Loc.T(K.Tray.PinFromClipboard), () =>
         {

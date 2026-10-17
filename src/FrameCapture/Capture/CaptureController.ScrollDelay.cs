@@ -28,10 +28,31 @@ public sealed partial class CaptureController : IDisposable
     {
         var f = LiveCapture.Grab(region);
         if (f == null) { Trace.Log("scroll: first grab null"); return; }
-        _scrollAcc = f.Bgra; _scrollW = f.W; _scrollH = f.H; _scrollRegion = region; _scrollDevice = device; _scrollSegs = 1;
+        _scrollResume = null;   // 新起一次，手里那张就不该再挂在托盘上
+        ResetScrollSession(f.Bgra, f.W, f.H, region, device);
+        ShowScrollStage(region, device);
+        Trace.Log($"scroll loop start {region.W}x{region.H}");
+    }
+
+    /// <summary>把一次滚动会话摆成起点：基准像素 + 区域 + 设备，自动滚动的各档状态清零。</summary>
+    /// <param name="acc">已拼好的像素（新起一次就是基准帧，接着上次就是那张长图）。</param>
+    /// <param name="w">基准图像宽（物理像素）。</param>
+    /// <param name="h">基准图像高（物理像素）。</param>
+    /// <param name="region">要滚的屏幕区域。</param>
+    /// <param name="device">该区域所在显示器的设备名。</param>
+    void ResetScrollSession(byte[] acc, int w, int h, RectI region, string device)
+    {
+        _scrollAcc = acc; _scrollW = w; _scrollH = h; _scrollRegion = region; _scrollDevice = device; _scrollSegs = 1;
         _scrollPrevB = null; _scrollAuto = false;
         _autoWaitSettle = false; _autoNoNew = 0; _autoNotch = ScrollAutoPolicy.NotchStart; _autoStuckTicks = 0;
-        // 三层自下而上：取景层 → 预览卡 → 控制条。三者同为 Topmost，Show 顺序决定 Z 序，控制条必须在最上
+    }
+
+    /// <summary>三层浮层自下而上（取景层 → 预览卡 → 控制条）加 280ms 步进计时器。
+    /// 新起一次与接着上次都走这里：两条路径的浮层行为必须一模一样。</summary>
+    /// <param name="region">要滚的屏幕区域，浮层就铺在它上面。</param>
+    /// <param name="device">该区域所在显示器的设备名。</param>
+    void ShowScrollStage(RectI region, string device)
+    {
         // 同刻 Show，入场按 StaggerMs 依次错开：三件事一起出现读起来是「卡了一下」，依次落位才读得出层次
         _scrollStage = new Overlays.ScrollStageWindow(region, device);
         _scrollStage.Show();
@@ -51,7 +72,6 @@ public sealed partial class CaptureController : IDisposable
         _scrollTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(280) };
         _scrollTimer.Tick += (_, _) => ScrollTick();
         _scrollTimer.Start();
-        Trace.Log($"scroll loop start {region.W}x{region.H}");
     }
 
     /// <summary>「自动滚动」按钮：开＝把光标移进选区中心、由 ScrollTick 按步进注轮；关＝还原光标并交还滚动控制权。
@@ -187,6 +207,9 @@ public sealed partial class CaptureController : IDisposable
         bar?.CloseSelf();
         var pth = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "FrameCapture", $"scroll-{DateTime.Now:HHmmss}.png");
         try { BgraImage.SavePng(frame, pth); } catch { }
+        // 完成不等于收工：滚早了头是这条路径最常见的失手。刚落盘的这张 PNG 就是「继续滚动」的基准帧，
+        // 像素不进内存——长图动辄上百 MB，而它本来就已经在磁盘上了。
+        _scrollResume = System.IO.File.Exists(pth) ? (pth, reg, dev) : null;
         SaveService.MaybeSavePng(frame);
         if (_settings.Current.CaptureSound) CaptureSound.Play(_settings.Current.CustomSoundPath);
         Trace.Log($"scroll done {frame.W}x{frame.H} segs={segs} {pth}");
@@ -228,6 +251,41 @@ public sealed partial class CaptureController : IDisposable
         var bar = _scrollBar; _scrollBar = null; _scrollAcc = null; _scrollPrevB = null; _scrollSegs = 0; _scrollAuto = false;
         bar?.CloseSelf();
         Trace.Log("scroll cancel");
+    }
+
+    /// <summary>手里是否留着一张「完成」后没接着滚的长图。托盘据此决定给不给「继续上次滚动」。</summary>
+    public bool HasScrollResume => _scrollResume != null;
+
+    /// <summary>托盘「继续上次滚动」：把上次「完成」留下的那张长图当基准帧，重新进步进拼接循环。</summary>
+    /// <remarks>页面在这期间被滚走也不会拼错：重叠找不到就是不追加，宁可少一段也不接出错位的长图。
+    /// 那张 PNG 读不回来（临时目录被清、文件损坏）就当没有这次可继续，清掉并记 trace。</remarks>
+    public void ResumeScrollCapture()
+    {
+        var r = _scrollResume;
+        if (r == null) { Trace.Log("scroll resume: nothing to continue"); return; }
+        var (png, region, device) = r.Value;
+        _scrollResume = null;   // 无论接不接得起来，这一次都已经被用掉了
+        byte[] acc; int w, h;
+        try
+        {
+            var src = new System.Windows.Media.Imaging.BitmapImage();
+            using (var fs = System.IO.File.OpenRead(png))
+            {
+                src.BeginInit();
+                src.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
+                src.StreamSource = fs;
+                src.EndInit();
+            }
+            src.Freeze();
+            var f = BgraImage.FromSource(src);
+            if (f == null) throw new System.IO.InvalidDataException("空图");
+            (acc, w, h) = (f.Bgra, f.W, f.H);
+        }
+        catch (Exception e) { Trace.Log($"scroll resume: 读不回 {png} — {e.Message}"); return; }
+        if (State == Phase.SelectingScope || _scrollBar != null) { Trace.Log("scroll resume: 已有会话在跑"); return; }
+        ResetScrollSession(acc, w, h, region, device);
+        ShowScrollStage(region, device);
+        Trace.Log($"scroll resume {w}x{h} from {png}");
     }
     #endregion
 

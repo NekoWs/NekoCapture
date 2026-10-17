@@ -66,6 +66,10 @@ public sealed partial class CaptureController : IDisposable
     private string _scrollDevice = "";
     private System.Windows.Threading.DispatcherTimer? _scrollTimer;
     private byte[]? _scrollPrevB;   // 上一 tick 抓帧，用于「滚动已停稳」判定（避免拼接滚动中途的过渡帧）
+    /// <summary>点「完成」之后留在手里的半张长图：完成时落盘的那张 PNG，加上那块区域与所在显示器。
+    /// 滚早了头、滚少了尾巴是这条路径最常见的失手，托盘「继续上次滚动」据此接着拼而不是重来。
+    /// 像素不留在内存里——长图动辄上百 MB，而它本来就已经在磁盘上了。</summary>
+    private (string Png, RectI Region, string Device)? _scrollResume;
     // 自动滚动用 SendInput 注真实滚轮，节奏挂在同一个 ScrollTick 上：发一步 → 等这一步被拼上 → 再发下一步
     private bool _autoWaitSettle;   // 已注入一步、正等它落定；落定前不做拼接判定
     private int _autoNoNew;         // 连续「停稳且画面没变」次数，数满判到底

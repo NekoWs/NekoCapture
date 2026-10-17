@@ -5837,6 +5837,42 @@ static partial class SelfTest
         }
         catch (Exception e) { Chk("T212-loupe-color-history", false, e.Message); }
 
+        // 滚动截图「继续上次滚动」：完成时落盘的那张 PNG 就是基准帧，读回来直接进步进拼接循环
+        try
+        {
+            var ctlR = new FrameCapture.Services.CaptureController(new SettingsService());
+            var TR = typeof(FrameCapture.Services.CaptureController);
+            const System.Reflection.BindingFlags NPR = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+            bool none = !ctlR.HasScrollResume;
+            // 那张图读不回来（临时目录被清）就当没有这次可继续：不留会话，也不把「继续」挂在托盘上
+            TR.GetField("_scrollResume", NPR)!.SetValue(ctlR,
+                (@"C:\no-such-dir\fc-scroll-missing.png", new RectI(0, 0, 200, 120), "test"));
+            bool claimed = ctlR.HasScrollResume;
+            ctlR.ResumeScrollCapture();
+            bool cleared = !ctlR.HasScrollResume && TR.GetField("_scrollBar", NPR)!.GetValue(ctlR) == null;
+            // 真有一张：读回来当基准帧，控制条与步进计时器都该起来，Esc 吞键标志也该挂上
+            var pngR = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "FrameCapture", $"resume-test-{Guid.NewGuid():N}.png");
+            var accR = new byte[200 * 120 * 4];
+            for (int i = 0; i < accR.Length; i += 4) { accR[i] = 0x33; accR[i + 1] = 0x66; accR[i + 2] = 0x99; accR[i + 3] = 0xFF; }
+            FrameCapture.Services.BgraImage.SavePng(new CapturedFrame { Bgra = accR, W = 200, H = 120 }, pngR);
+            TR.GetField("_scrollResume", NPR)!.SetValue(ctlR, (pngR, new RectI(-18000, -18000, 200, 120), "test"));
+            ctlR.ResumeScrollCapture();
+            PumpMs(250);
+            bool running = TR.GetField("_scrollBar", NPR)!.GetValue(ctlR) != null
+                && (int)TR.GetField("_scrollH", NPR)!.GetValue(ctlR)! == 120
+                && FrameCapture.Services.HotkeyManager.ScrollActive;
+            ctlR.ScrollCancel();
+            PumpMs(150);
+            bool cleaned = !FrameCapture.Services.HotkeyManager.ScrollActive
+                && TR.GetField("_scrollAcc", NPR)!.GetValue(ctlR) == null;
+            try { System.IO.File.Delete(pngR); } catch { }
+            ctlR.Dispose();
+            Chk("T213-scroll-resume-from-the-done-png",
+                none && claimed && cleared && running && cleaned,
+                $"起手无={none} 声称有={claimed} 读不回即清={cleared} 接起来={running} 取消收干净={cleaned}");
+        }
+        catch (Exception e) { Chk("T213-scroll-resume", false, e.Message); }
+
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");
         return fail == 0 ? 0 : 1;
     }
