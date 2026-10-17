@@ -177,25 +177,33 @@ public sealed partial class SettingsWindow : Window
             VerticalAlignment = VerticalAlignment.Center,
             TextTrimming = TextTrimming.CharacterEllipsis,
         };
-        // 名字右侧一枚小编辑按钮：正文里那条「名字」输入框整行占位，改个名要先把行展开
-        var nameCell = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+        // 名字右侧一枚小编辑按钮：正文里那条「名字」输入框整行占位，改个名要先把行展开。
+        // 这里必须是 Grid：横向 StackPanel 用无限宽度量孩子，nameText 上的 TextTrimming 永远不生效，
+        // 用户起的长名字会直接画到右边的键帽上。星型列把宽度还给名字，省略号才可能出现。
+        var nameCell = new Grid { VerticalAlignment = VerticalAlignment.Center };
+        nameCell.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        nameCell.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         Border edit = null!;
         void ShowName()
         {
             nameCell.Children.Clear();
+            Grid.SetColumn(nameText, 0);
+            Grid.SetColumn(edit, 1);
             nameCell.Children.Add(nameText);
             nameCell.Children.Add(edit);
         }
         void BeginRename()
         {
             nameCell.Children.Clear();
-            nameCell.Children.Add(RenameBox(nameText.Text, v =>
+            var rb = RenameBox(nameText.Text, v =>
             {
                 b.Name = v.Trim();
                 nameText.Text = HotkeyDisplayName(b);
                 CommitHotkeys();
                 ShowName();
-            }, ShowName));
+            }, ShowName);
+            Grid.SetColumn(rb, 0);
+            nameCell.Children.Add(rb);
         }
         edit = RenameIconButton(BeginRename);
         ShowName();

@@ -56,6 +56,9 @@ static partial class SelfTest
             // 深层目录 + 最小宽度：路径行是最容易被长内容打穿的一处，默认那条短路径量不到
             case "settings-longpath": BuildSettingsAudit(app, rows, "settings-longpath", -1, forceW: 680, forceH: 460,
                 savePath: @"D:\Users\lin\Pictures\截图归档\2026\十月\产品走查与录屏\FrameCapture"); break;
+            // 用户自己起的长绑定名：折叠行里名字与键帽、开关、垃圾桶抢同一行宽度
+            case "settings-longname": BuildSettingsAudit(app, rows, "settings-longname", 0, forceW: 680, forceH: 460,
+                bindingName: "Capture the current window and save it to the clipboard"); break;
                 case "help": BuildHelpAudit(rows); break;
                 case "editor": BuildEditorAudit(app, rows, 3); break;
                 case "editor-still": BuildEditorAudit(app, rows, 1); break;
@@ -87,7 +90,7 @@ static partial class SelfTest
     /// <summary>可审计的界面名，驱动脚本按这份清单跑满矩阵。</summary>
     internal static readonly string[] Surfaces =
     {
-        "settings", "settings-open", "settings-adv", "settings-clash", "settings-narrow", "settings-longpath",
+        "settings", "settings-open", "settings-adv", "settings-clash", "settings-narrow", "settings-longpath", "settings-longname",
         "help", "editor", "editor-still", "pin", "pin-menu", "ocr", "ocr-msg",
         "notice", "welcome", "toast", "countdown", "scroll", "filmstrip",
         "picker", "picker-loupe",
@@ -97,10 +100,16 @@ static partial class SelfTest
 
     /// <summary>设置窗：折叠态、展开第 0 条、高级形态、撞车描边四种形态各扫一遍。</summary>
     static void BuildSettingsAudit(Application app, List<string> rows, string surface, int openAt, bool advanced = false, bool clash = false,
-        double? forceW = null, double? forceH = null, string? savePath = null)
+        double? forceW = null, double? forceH = null, string? savePath = null, string? bindingName = null)
     {
         var svc = AppHost.Current.Settings!.Current;
         if (savePath != null) svc.AutoSavePath = savePath;
+        if (bindingName != null && svc.Gestures.Bindings.Count > 0)
+        {
+            svc.Gestures.Bindings[0].Name = bindingName;
+            // 这份名字是这一档现造的，早先快照的 _userData 里没有；不登记就会被当成我们的漏翻文案
+            _userData.Add(bindingName);
+        }
         if (clash && svc.Gestures.Bindings.Count > 0)
         {
             var first = svc.Gestures.Bindings[0];
@@ -484,7 +493,11 @@ static partial class SelfTest
                 // 只有「真的会被切掉」或「被压成省略号」才算缺陷：WPF 默认不裁剪，
                 // 排得比想要的窄只是往右边空处溢出，看着一点问题没有（设置窗左侧导航就是这样误报的）。
                 bool ellipsized = tb.TextTrimming != TextTrimming.None;
-                if (need - avail >= 4 && (ellipsized || ClippedAncestor(tb)) && !InScroller(tb, horizontal: true))
+                // 用户自己写的字（绑定名、保存路径）压成省略号是正确行为：那是他打的字，版面只有这么宽。
+                // 我们的文案被省略号截断才是缺陷；硬裁（没有省略号）对用户数据同样是缺陷，照报。
+                bool userText = _userData.Contains(text.Trim()) || LooksLikePath(text);
+                if (need - avail >= 4 && (ellipsized || ClippedAncestor(tb)) && !InScroller(tb, horizontal: true)
+                    && !(ellipsized && userText))
                     rows.Add($"UXA|{surface}|{(ellipsized ? "省略号" : "裁字")}|{At(tb, root)} {avail:F0}→{need:F0} {Cut(text, 46)}");
             }
             else
@@ -529,13 +542,22 @@ static partial class SelfTest
             {
                 var a = boxes[i].R;
                 var b = boxes[j].R;
+                // 量出来的是「这段字要多宽」，不是「它被排到多宽」。带 TextTrimming 的元素会被裁断，
+                // 画不到邻居身上——按实际排出来的宽度算。真没被约束时（横向 StackPanel 给无限宽），
+                // ActualWidth 就等于需要的宽度，该报的照样报。
+                if (boxes[i].Tb.TextTrimming != TextTrimming.None)
+                    a = new Rect(a.X, a.Y, Math.Min(a.Width, boxes[i].Tb.ActualWidth), a.Height);
+                if (boxes[j].Tb.TextTrimming != TextTrimming.None)
+                    b = new Rect(b.X, b.Y, Math.Min(b.Width, boxes[j].Tb.ActualWidth), b.Height);
                 double ox = Math.Min(a.Right, b.Right) - Math.Max(a.X, b.X);
                 double oy = Math.Min(a.Bottom, b.Bottom) - Math.Max(a.Y, b.Y);
                 if (ox < 4 || oy < Math.Min(a.Height, b.Height) * 0.5) continue;
                 // 同一段字在同一个位置出现两次：模板里 ContentPresenter 套 TextBlock 的常见形状，不是叠字
                 if (boxes[i].Text == boxes[j].Text
                     && ox >= Math.Min(a.Width, b.Width) - 2 && oy >= Math.Min(a.Height, b.Height) - 2) continue;
-                rows.Add($"UXA|{surface}|叠字|{At(boxes[i].Tb, root)} {Cut(boxes[i].Text, 22)} × {Cut(boxes[j].Text, 22)} 压住{ox:F0}px");
+                // 两个矩形都写出来：只报「压住 26px」分不清是谁越界、还是量到的是上一轮的几何
+                rows.Add($"UXA|{surface}|叠字|{At(boxes[i].Tb, root)} {Cut(boxes[i].Text, 22)} × {Cut(boxes[j].Text, 22)} 压住{ox:F0}px"
+                    + $" [{a.X:F0},{a.Y:F0} {a.Width:F0}×{a.Height:F0}] [{b.X:F0},{b.Y:F0} {b.Width:F0}×{b.Height:F0}]");
             }
     }
 
