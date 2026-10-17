@@ -30,7 +30,7 @@ public sealed partial class CaptureController : IDisposable
         if (f == null) { Trace.Log("scroll: first grab null"); return; }
         _scrollResume = null;   // 新起一次，手里那张就不该再挂在托盘上
         ResetScrollSession(f.Bgra, f.W, f.H, region, device);
-        ShowScrollStage(region, device);
+        ShowScrollStage(f.Bgra, region, device);
         Trace.Log($"scroll loop start {region.W}x{region.H}");
     }
 
@@ -49,15 +49,16 @@ public sealed partial class CaptureController : IDisposable
 
     /// <summary>三层浮层自下而上（取景层 → 预览卡 → 控制条）加 280ms 步进计时器。
     /// 新起一次与接着上次都走这里：两条路径的浮层行为必须一模一样。</summary>
+    /// <param name="acc">预览卡第一眼要放的基准像素，与 <see cref="ResetScrollSession"/> 收下的同一份。</param>
     /// <param name="region">要滚的屏幕区域，浮层就铺在它上面。</param>
     /// <param name="device">该区域所在显示器的设备名。</param>
-    void ShowScrollStage(RectI region, string device)
+    void ShowScrollStage(byte[] acc, RectI region, string device)
     {
         // 同刻 Show，入场按 StaggerMs 依次错开：三件事一起出现读起来是「卡了一下」，依次落位才读得出层次
         _scrollStage = new Overlays.ScrollStageWindow(region, device);
         _scrollStage.Show();
         _scrollPreview = new Overlays.ScrollPreviewWindow(region, device, Core.Fluent.Motion.StaggerMs);
-        _scrollPreview.SetImage(_scrollAcc, _scrollW, _scrollH);   // 基准帧就上屏：进流程第一眼就有预览
+        _scrollPreview.SetImage(acc, _scrollW, _scrollH);   // 基准帧就上屏：进流程第一眼就有预览
         _scrollPreview.Show();
         _scrollBar = new Overlays.ScrollHintWindow(region, device, Core.Fluent.Motion.StaggerMs * 2)
         {
@@ -284,7 +285,7 @@ public sealed partial class CaptureController : IDisposable
         catch (Exception e) { Trace.Log($"scroll resume: 读不回 {png} — {e.Message}"); return; }
         if (State == Phase.SelectingScope || _scrollBar != null) { Trace.Log("scroll resume: 已有会话在跑"); return; }
         ResetScrollSession(acc, w, h, region, device);
-        ShowScrollStage(region, device);
+        ShowScrollStage(acc, region, device);
         Trace.Log($"scroll resume {w}x{h} from {png}");
     }
     #endregion
