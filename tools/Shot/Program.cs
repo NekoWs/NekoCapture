@@ -123,6 +123,7 @@ switch (mode)
         string what = args[4].ToLowerInvariant();
         int hold = args.Length > 5 ? int.Parse(args[5]) : 60;
         const uint WM_MOUSEMOVE = 0x0200, WM_LBUTTONDOWN = 0x0201, WM_LBUTTONUP = 0x0202, MK_LBUTTON = 1;
+        const uint WM_RBUTTONDOWN = 0x0204, WM_RBUTTONUP = 0x0205, MK_RBUTTON = 2;
         uint pt = (uint)((y << 16) | (x & 0xFFFF));
         switch (what)
         {
@@ -130,7 +131,11 @@ switch (mode)
             case "drag": PostMessageW(h, WM_MOUSEMOVE, MK_LBUTTON, pt); break;
             case "down": PostMessageW(h, WM_LBUTTONDOWN, MK_LBUTTON, pt); break;
             case "up": PostMessageW(h, WM_LBUTTONUP, 0, pt); break;
-            default: Console.WriteLine("postmouse: move|drag|down|up"); return;
+            // 右键消息同样只发给这一个窗口：给会处理右键的窗（贴图的右键菜单、编辑器的右键）用。
+            // 注意选区窗不吃这一套——它没有右键处理，Esc 等键只由 HotkeyManager 全局钩子代收。
+            case "rdown": PostMessageW(h, WM_RBUTTONDOWN, MK_RBUTTON, pt); break;
+            case "rup": PostMessageW(h, WM_RBUTTONUP, 0, pt); break;
+            default: Console.WriteLine("postmouse: move|drag|down|up|rdown|rup"); return;
         }
         await Task.Delay(hold);
         Console.WriteLine($"postmouse {what} {x},{y} -> {(long)h}");

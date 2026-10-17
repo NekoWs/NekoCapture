@@ -59,10 +59,11 @@ foreach ($p in @(@(1400, 900), @(1560, 1040), @(1720, 1180), @(1880, 1320))) {
 Start-Sleep -Milliseconds 400
 & $uicap win $pick (Join-Path $out "d5-picker-drag-$Lang-$Theme.png") 2>&1 | Select-Object -Last 1
 
-# 松手会真的截下这块区域，这里只要版面：先 Esc 取消，别留下产物
-& $shot keyw $pick 27 2>&1 | Out-Null
-Start-Sleep -Milliseconds 400
-& $shot keyw $pick 27 2>&1 | Out-Null
+# 收场：选区窗是非激活窗，Esc/Enter/C/F/Tab 全部由 HotkeyManager 全局钩子代收，
+# PostMessage 的 Esc 到不了它（合成键也到不了），它也没有右键取消。拖框没投 up，
+# 所以不会真的截下这块区域；直接停进程最干净——别让全屏遮罩留在屏幕上。
+Get-Process FrameCapture -EA SilentlyContinue | Stop-Process -Force
+Start-Sleep -Milliseconds 600
 
 Remove-Item Env:\FC_LANG, Env:\FC_THEME, Env:\FC_TOAST_NOEXCLUDE, Env:\FC_SETTINGS_DIR -EA SilentlyContinue
 Write-Host "D5-CAP 完成（$Lang / $Theme）→ $out"

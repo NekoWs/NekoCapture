@@ -172,7 +172,8 @@ $e2e = @(
     @{ n = "e2e:tap-semantics(手势轻点截图/长按录制)";             f = "test-tap-semantics.ps1";  mark = "TAP-SEMANTICS" },
     @{ n = "e2e:focus-safety(吞键不漏字符)";                     f = "test-focus-safety.ps1";   mark = "FOCUS-SAFETY"; gated = $true },
     @{ n = "e2e:fuzz-statemachine(乱键存活)";                    f = "fuzz-statemachine.ps1";   mark = "FUZZ" },
-    @{ n = "e2e:fuzz-keys(编辑器乱按 300 键存活)";               f = "fuzz-keys.ps1";           mark = "FUZZ" }
+    @{ n = "e2e:fuzz-keys(编辑器乱按 300 键存活)";               f = "fuzz-keys.ps1";           mark = "FUZZ" },
+    @{ n = "e2e:probe-memory(开合落在平台不漏)";                f = "probe-memory.ps1";        mark = "MEM-PROBE" }
 )
 if ($SkipE2e) {
     # SKIP 名单就是 e2e 名单本身：报一份和实际不相符的清单，等于谎报没跑什么
