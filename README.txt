@@ -45,8 +45,8 @@ FrameCapture 使用说明
 
 外观：设置→外观 跟随系统/浅色/深色 + 强调色，全窗口平滑过渡；录制项可关「录制时显示范围边框」。
 
-录制边框说明：Windows 11 自带捕获提示边框（黄色）只按"被捕获对象"绘制、永远绕整屏，
-已改为关闭系统边框，由 FrameCapture 按真实范围描边（WDA_EXCLUDEFROMCAPTURE 排除，只提示、不进产物）。
+录制边框说明：Windows 11 自带捕获提示边框（黄色）只按「被捕获对象」绘制、永远绕整屏，
+FrameCapture 关掉系统边框，由自己按真实范围描边（WDA_EXCLUDEFROMCAPTURE 排除，只提示、不进产物）。
 
 产物：确定后 GIF 写入剪贴板（含文件形式，位于 %TEMP%\FrameCapture），不自动落盘；
       GIF 帧延迟按真实时间量化到厘秒并保总时长（60fps 不提速）；胶片条在 %TEMP%\FrameCapture\agent（可关）。
