@@ -13,7 +13,7 @@ public static partial class K
         public static readonly Str AfterCaptureIsSetPer = new(
             "help.afterCaptureIsSetPer",
             "「截图后」在「设置 · 快捷键」每条快捷键的完成后一栏设置；托盘还能「编辑上次截图」。",
-            "The After column on Settings · Hotkeys sets this per hotkey; the tray also offers Edit last capture.");
+            "The After column on Settings · Hotkeys sets this per hotkey; the tray also offers Edit Last Screenshot.");
         public static readonly Str AfterRecording = new("help.afterRecording", "录完", "After recording");
         public static readonly Str AnyRectangleTheWheelResizes = new(
             "help.anyRectangleTheWheelResizes",
