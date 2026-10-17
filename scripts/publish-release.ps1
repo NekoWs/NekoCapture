@@ -154,6 +154,43 @@ foreach ($v in $variants) {
     }
 }
 
+# 离线包抽验：解出来真跑一次。字节对、体积对，不等于装上去能用。
+# 单实例互斥会把新进程直接并给已在跑的托盘并让它秒退——所以这一步只在没有任何实例时做，
+# 有实例时明确报「跳过」，避免把互斥当成包坏了。
+Step '抽验离线包'
+$offlineRow = @($results | Where-Object { $_.'包' -like '*offline.zip' } | Select-Object -First 1)
+$live = @(Get-Process FrameCapture -ErrorAction SilentlyContinue).Count
+if ($offlineRow.Count -eq 0) {
+    Write-Host '  本轮没有离线包（只发了引导器），跳过'
+} elseif ($live -gt 0) {
+    Write-Host "  跳过：检测到 $live 个 FrameCapture 实例，单实例互斥会让抽验进程秒退" -ForegroundColor Yellow
+} else {
+    $smoke = Join-Path $root 'test-out\release-smoke'
+    $smokeCfg = Join-Path $root 'test-out\release-smoke-settings'
+    foreach ($d in @($smoke, $smokeCfg)) { if (Test-Path $d) { Remove-Item $d -Recurse -Force } }
+    New-Item -ItemType Directory -Path $smoke | Out-Null
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    [IO.Compression.ZipFile]::ExtractToDirectory((Join-Path $root (Join-Path $OutDir $offlineRow[0].'包')), $smoke)
+    $smokeExe = Join-Path $smoke 'FrameCapture.exe'
+    if (-not (Test-Path $smokeExe)) { throw "离线包根目录里没有 FrameCapture.exe" }
+    $env:FC_SETTINGS_DIR = $smokeCfg
+    $env:FC_TEST_NO_FG = '1'
+    try {
+        $proc = Start-Process $smokeExe -PassThru
+        Start-Sleep -Seconds 6
+        $up = Get-Process -Id $proc.Id -ErrorAction SilentlyContinue
+        if (-not $up) { throw '离线包解出来起不来：6 秒内进程已退出' }
+        $errLog = Join-Path $smokeCfg 'error.log'
+        if (Test-Path $errLog) { throw "离线包启动即写 error.log：$errLog" }
+        Write-Host ("  离线包抽验 PASS：{0} 个文件、进程存活、内存 {1:N0} MB、error.log 为空" -f `
+            @(Get-ChildItem $smoke -Recurse -File).Count, ($up.WorkingSet64 / 1MB))
+    } finally {
+        Remove-Item Env:FC_SETTINGS_DIR, Env:FC_TEST_NO_FG -ErrorAction SilentlyContinue
+        Get-Process FrameCapture -ErrorAction SilentlyContinue | Stop-Process -Force
+        foreach ($d in @($smoke, $smokeCfg)) { Remove-Item $d -Recurse -Force -ErrorAction SilentlyContinue }
+    }
+}
+
 Step '产物'
 $results | Format-Table -AutoSize | Out-String -Width 200 | ForEach-Object{ $_ -split "`n" } | Where-Object{ $_.Trim() } | ForEach-Object{ "  $_" }
 Write-Host "  完整哈希：Get-FileHash release\FrameCapture-*.exe, release\FrameCapture-*.zip -Algorithm SHA256"
