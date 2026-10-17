@@ -63,6 +63,8 @@ static partial class SelfTest
                 case "countdown": BuildCountdownAudit(app, rows); break;
                 case "scroll": BuildScrollAudit(app, rows); break;
                 case "filmstrip": BuildFilmStripAudit(app, rows); break;
+        case "picker": BuildPickerAudit(rows, loupe: false); break;
+        case "picker-loupe": BuildPickerAudit(rows, loupe: true); break;
                 default: Console.WriteLine($"UXA|{surface}|未知界面|"); return 0;
             }
         }
@@ -82,6 +84,7 @@ static partial class SelfTest
         "settings", "settings-open", "settings-adv", "settings-clash",
         "help", "editor", "editor-still", "pin", "ocr", "ocr-msg",
         "notice", "welcome", "toast", "countdown", "scroll", "filmstrip",
+        "picker", "picker-loupe",
     };
 
     // ---- 逐界面建窗 ----
@@ -253,6 +256,19 @@ static partial class SelfTest
         ScanTree(rows, "scroll-hint", (UIElement)hint.Content);
         ScanTree(rows, "scroll-preview", (UIElement)prev.Content);
         hint.Close(); stage.Close(); prev.Close();
+    }
+
+    /// <summary>选区浮层：工具条只在有选区时出现，所以带一个已存在的选区进去建窗。</summary>
+    /// <param name="rows">发现汇总，逐条追加。</param>
+    /// <param name="loupe">true = 放大镜形态（取色读数、色值格式那一叠），false = 普通框选形态。</param>
+    static void BuildPickerAudit(List<string> rows, bool loupe)
+    {
+        var mon = new MonitorInfo(@"\\.\DISPLAY1", new RectI(0, 0, 1600, 900), true);
+        var w = new RegionPickerWindow(mon, new RectI(320, 200, 560, 380), magnifier: loupe);
+        ShowOffscreen(w);
+        PumpMs(250);
+        ScanTree(rows, loupe ? "picker-loupe" : "picker", (UIElement)w.Content);
+        w.Close();
     }
 
     /// <summary>胶片条参数对话框。</summary>
