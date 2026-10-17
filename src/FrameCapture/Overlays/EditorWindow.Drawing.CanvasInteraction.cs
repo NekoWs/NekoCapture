@@ -16,7 +16,13 @@ public sealed partial class EditorWindow
 
     void Canvas_Down(object sender, MouseButtonEventArgs e)
     {
-        if (_tool == Tool.Browse) return;
+        // 浏览态双击画布 = 在 1:1 与适配之间来回：看图最常做的两件事，值得一个手势。
+        // 只在浏览态认——选着工具时第二下是画图的起笔，不能抢。
+        if (_tool == Tool.Browse)
+        {
+            if (e.ClickCount == 2 && e.ChangedButton == MouseButton.Left) ZoomToggleActual();
+            return;
+        }
         e.Handled = true;
         if (_tool == Tool.Select)
         {

@@ -192,6 +192,16 @@ public sealed partial class EditorWindow
         SetZoom(Core.ZoomMath.OneToOneZoom(sFit), _viewGrid.ActualWidth / 2, _viewGrid.ActualHeight / 2);
     }
 
+    /// <summary>双击画布：1:1 与适配之间来回。已经停在 1:1（含小图被夹住不放大的那一档）就回适配，否则进 1:1。</summary>
+    void ZoomToggleActual()
+    {
+        var f = Cur();
+        var (fw, fh) = CropPx(f.W, f.H);
+        double sFit = Core.ZoomMath.FitScale(_viewGrid.ActualWidth, _viewGrid.ActualHeight, fw, fh);
+        if (Math.Abs(_zoom - Core.ZoomMath.OneToOneZoom(sFit)) < 0.001) ZoomFit();
+        else ZoomOneToOne();
+    }
+
     bool _panning;
     Point _panPress;
     double _panPressX, _panPressY;

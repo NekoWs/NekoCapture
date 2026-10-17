@@ -5731,6 +5731,38 @@ static partial class SelfTest
         }
         catch (Exception e) { Chk("T208-countdown-esc", false, e.Message); }
 
+        // 双击画布在 1:1 与适配之间来回：切的是缩放本身，直接驱动切换，量出来的就是屏幕上那个缩放
+        try
+        {
+            var stZ = new SettingsService();
+            var seqZ = new CapturedSequence
+            {
+                Frames = new List<CapturedFrame> { MovingSquare(3000, 1800, 0, 1) },
+                Region = new RectI(0, 0, 3000, 1800),
+                MonitorBounds = new RectI(0, 0, 1920, 1080),
+            };
+            var winZ = new FrameCapture.Overlays.EditorWindow(stZ, seqZ);
+            winZ.WindowStartupLocation = WindowStartupLocation.Manual;
+            winZ.Left = -20000; winZ.Top = -20000;
+            winZ.Show();
+            PumpMs(250);
+            var TZ = typeof(FrameCapture.Overlays.EditorWindow);
+            const System.Reflection.BindingFlags NPZ = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+            double Zoom() => (double)TZ.GetField("_zoom", NPZ)!.GetValue(winZ)!;
+            var toggle = TZ.GetMethod("ZoomToggleActual", NPZ)!;
+            double fit = Zoom();
+            toggle.Invoke(winZ, null);
+            double one = Zoom();
+            toggle.Invoke(winZ, null);
+            double back = Zoom();
+            // _zoom 是「相对适配的倍率」：适配档就是 1.0，图比视口大时 1:1 必然高于它
+            Chk("T209-double-click-toggles-actual-and-fit",
+                one > fit + 0.05 && Math.Abs(back - fit) < 0.001,
+                $"适配={fit:F3} 1:1={one:F3} 再切回={back:F3}");
+            try { winZ.Close(); } catch { }
+        }
+        catch (Exception e) { Chk("T209-double-click-zoom", false, e.Message); }
+
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");
         return fail == 0 ? 0 : 1;
     }

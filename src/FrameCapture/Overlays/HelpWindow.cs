@@ -362,6 +362,7 @@ public sealed class HelpWindow : Window
             {
                 KV(p, Loc.T(K.Common.DelayedCapture), Loc.T(K.Help.CountsDownBeforeShootingSo));
                 KV(p, Loc.T(K.Common.ScrollingCapture), Loc.T(K.Help.StitchesALongPage));
+                KV(p, Loc.T(K.Help.DoubleClickTheCanvas), Loc.T(K.Help.JumpsBetweenActualAnd));
                 KV(p, Loc.T(K.Help.KeySettings), Loc.T(K.Help.GlobalHotkeysAndTheEditor));
                 KV(p, Loc.T(K.Help.TrayMenu), Loc.T(K.Help.PauseGesturesClearRegionSettings));
                 KV(p, Loc.T(K.Common.Appearance), Loc.T(K.Help.TheThemeFollowsTheSystem));

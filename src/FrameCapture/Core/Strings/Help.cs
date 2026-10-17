@@ -51,6 +51,7 @@ public static partial class K
             "Ctrl+H 视觉暂留合成图；「生成胶片条」抽帧拼成一张逐帧图直接复制，喂 AI 最好用。",
             "Ctrl+H blends the frames into one image; Film strip samples them into a single sheet you can copy straight into an AI prompt.");
         public static readonly Str CtrlWheel = new("help.ctrlWheel", "Ctrl+滚轮", "Ctrl+wheel");
+        public static readonly Str DoubleClickTheCanvas = new("help.doubleClickTheCanvas", "双击画布", "Double-click the canvas");
         public static readonly Str DoneCopiesTheClipCancel = new(
             "help.doneCopiesTheClipCancel",
             "确定复制成片 / 取消",
@@ -96,6 +97,10 @@ public static partial class K
             "help.inTheTrayMenuGoes",
             "托盘菜单里，恢复「截光标所在屏」",
             "In the tray menu; goes back to capturing the screen under the cursor");
+        public static readonly Str JumpsBetweenActualAnd = new(
+            "help.jumpsBetweenActualAnd",
+            "在 1:1 与适配之间来回",
+            "Switches between 1:1 and fit");
         public static readonly Str KeySettings = new("help.keySettings", "键位设置", "Key settings");
         public static readonly Str ManualFollowMonitorRefreshRecords = new(
             "help.manualFollowMonitorRefreshRecords",
