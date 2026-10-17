@@ -1590,9 +1590,10 @@ static partial class SelfTest
             var btnW = barW!.Children.OfType<System.Windows.Controls.Button>().ToList();
             Chk("T178a-toolbar-items", btnW.Count > 4, $"工具条按钮数={btnW.Count}");
             winW.Show();
-            // 采样不押固定时长：整段入场以 ContentRendered 为锚，Mica 背板在场或机器忙时首帧渲染更晚，
-            // Show 后等固定时长会整段错过「首项已抬、末项未起」的那一瞬间。
-            // 从 Show 起持续泵消息，把这一瞬间的透明度差取到最大再判定——比的是左右顺序，不是绝对时刻。
+            // 波是逐项错开起跳：同一瞬间左端已经抬起来、右端还压在下面。
+            // 判「同一瞬间的落差」而不是「末项必须还没开始」——后者要求抓到某一帧，
+            // 而离屏窗口的透明度多久更新一次由合成器决定（这台机器约 100ms 一跳），
+            // 抓不抓得到跟动画本身无关。落差过半照样抓住两种真回归：同时淡入（落差≈0）与反序（单调不成立）。
             double bestGap = -1, bestFirst = 0, bestLast = 0;
             bool bestOrdered = false;
             int sampledMs = 0;
@@ -1606,13 +1607,15 @@ static partial class SelfTest
                     bool ord = true;
                     for (int i = 1; i < btnW.Count; i++) if (btnW[i].Opacity > btnW[i - 1].Opacity + 0.02) ord = false;
                     bestOrdered = ord;
-                    if (bestOrdered && bestLast < 0.05 && bestFirst > 0.5) break;
+                    if (bestOrdered && bestGap > 0.85) break;
                 }
+                // 全部落定之后落差只会归零，不用再等满上限
+                if (btnW.All(b => b.Opacity > 0.999)) break;
                 PumpMs(5);
             }
             Chk("T178b-wave-left-to-right",
-                bestOrdered && bestLast < 0.05 && bestFirst > bestLast,
-                $"首={bestFirst:N2} 末={bestLast:N2} 错位单调={bestOrdered} 采样于={sampledMs}ms");
+                bestOrdered && bestFirst - bestLast > 0.5 && bestFirst > 0.5,
+                $"首={bestFirst:N2} 末={bestLast:N2} 落差={bestGap:N2} 错位单调={bestOrdered} 采样于={sampledMs}ms");
             PumpMs(Fluent.Motion.SpringMs + Fluent.Motion.StaggerMs + 300);
             // 收尾也不押固定时长：整段入场以 ContentRendered 为锚，锚点晚的时候上面那段泵不完最后几项。
             // 继续泵到全部复位为止，上限 4 秒——「全部复位」这个判定条件本身一分没松。
@@ -2143,10 +2146,12 @@ static partial class SelfTest
                 fw = f.W; fh = f.H;
                 Interlocked.Increment(ref n);
             };
-            for (int i = 0; i < 20 && probeTick < 2; i++) Thread.Sleep(50); // 等窗口先画起来
+            for (int i = 0; i < 20 && probeTick < 2; i++) { System.Windows.Forms.Application.DoEvents(); Thread.Sleep(50); }
             wgc.Start(mon, reg, 30);
             var sw0 = Stopwatch.StartNew();
-            while (n < 3 && sw0.ElapsedMilliseconds < 3000) Thread.Sleep(50);
+            // 探针窗靠 WinForms 定时器改字，而定时器要消息泵才走：这里若干睡，屏幕内容不变，
+            // WGC 只在内容变化时产帧，于是只收到第一帧——能不能收到第三帧就变成看桌面上有没有别的东西在动。
+            while (n < 3 && sw0.ElapsedMilliseconds < 3000) { System.Windows.Forms.Application.DoEvents(); Thread.Sleep(16); }
             wgc.Stop();
             Chk("T20a-wgc-frames", n >= 3 && !badFmt && fw == reg.W && fh == reg.H, $"n={n} {fw}x{fh} badFmt={badFmt} missed={wgc.FramesMissed} err={wgc.LastLoopError?.Split('\n')[0]}");
             int after = n; Thread.Sleep(200);
