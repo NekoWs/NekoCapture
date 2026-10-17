@@ -322,9 +322,9 @@ public sealed class HelpWindow : Window
                 Note(p, Loc.T(K.Help.AfterCaptureIsSetPer));
             }),
 
-            ("\uE714", Loc.T(K.Common.Recording), Loc.T(K.Help.HoldToRecordRelease), p =>
+            ("\uE714", Loc.T(K.Common.Recording), Loc.T(K.Help.PressToRecordPressAgain), p =>
             {
-                KV(p, Loc.T(K.Help.HoldRelease), Loc.T(K.Help.StartStopTheRedRec));
+                KV(p, Loc.T(K.Help.PressPressAgain), Loc.T(K.Help.StartStopTheRedRec));
                 KV(p, Loc.T(K.Help.FrameRate), Loc.T(K.Help.ManualFollowMonitorRefreshRecords));
                 KV(p, Loc.T(K.Help.Format), Loc.T(K.Help.GifPlaysEverywhereMp4Webm));
                 KV(p, Loc.T(K.Help.AfterRecording), Loc.T(K.Help.OpensInTheEditor));

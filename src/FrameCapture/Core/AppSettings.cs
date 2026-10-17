@@ -176,7 +176,8 @@ public sealed class AppSettings
     public int DelayCaptureSeconds { get; set; } = 3;
 
     /// <summary>自定义手势配置：把功能触发方式拆成「组合键 + 触发方式 → 动作序列」，可分离/组合键绑定。
-    /// 默认启用，且 <see cref="Normalize"/> 会给空配置播种「轻点截图 + 按住录制」默认集——手势层就是功能触发的主路径。
+    /// 默认启用，且 <see cref="Normalize"/> 会给空配置播种「截图 / 录制」两条组合键（都是 Chord：组合键本身即触发，
+    /// 见 <see cref="GestureConfig.DefaultQqSet"/>）——手势层就是功能触发的主路径。
     /// 关掉后不喂键、不装鼠标钩子。引擎在独立的 GestureCore 库里。</summary>
     public GestureConfig Gestures { get; set; } = new();
 

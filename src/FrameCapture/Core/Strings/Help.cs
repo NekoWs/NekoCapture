@@ -83,11 +83,6 @@ public static partial class K
             "help.hiddenInSettings",
             "藏在设置和托盘里。",
             "Hidden in Settings and the tray.");
-        public static readonly Str HoldRelease = new("help.holdRelease", "按住 / 松开", "Hold / release");
-        public static readonly Str HoldToRecordRelease = new(
-            "help.holdToRecordRelease",
-            "按住录，松手成片。",
-            "Hold to record, release for the clip.");
         public static readonly Str Hover = new("help.hover", "悬停", "Hover");
         public static readonly Str InTheEditorDoneCopies = new(
             "help.inTheEditorDoneCopies",
@@ -148,10 +143,15 @@ public static partial class K
             "help.playAndPauseStep",
             "播放暂停 / 逐帧 · Shift 走一秒",
             "Play and pause / step a frame · Shift steps a second");
+        public static readonly Str PressPressAgain = new("help.pressPressAgain", "按一下 / 再按一下", "Press / press again");
         public static readonly Str PressTheToolKeyAgain = new(
             "help.pressTheToolKeyAgain",
             "再按一次工具键或 {0} 退出绘制；滚轮调粗细，文字工具调字号；Alt 吸色。",
             "Press the tool key again or {0} to leave drawing; the wheel changes thickness, the text tool changes size; Alt picks a color.");
+        public static readonly Str PressToRecordPressAgain = new(
+            "help.pressToRecordPressAgain",
+            "按一下起录，再按一下成片。",
+            "Press to start recording, press again for the clip.");
         public static readonly Str QuickStart = new("help.quickStart", "快速上手", "Quick Start");
         public static readonly Str RecognizeTheCurrentFrameResults = new(
             "help.recognizeTheCurrentFrameResults",
