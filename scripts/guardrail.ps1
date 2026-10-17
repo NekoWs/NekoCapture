@@ -172,45 +172,51 @@ if ($SkipE2e) {
 } elseif ($okBuild) {
     # e2e 会改用户设置（主题、热键、手势配置都写在 settings.json），跑完按原字节还回去：
     # 验证链不该在用户机器上留下可见的状态变化，也不该让下一轮从上一轮改写的主题起跑。
+    # 还原必须在 finally 里：中途一条脚本抛异常，用户设置也不该停在测试态。
     $cfgFile = Join-Path $env:APPDATA 'FrameCapture\settings.json'
     $cfgBak = if (Test-Path $cfgFile) { [IO.File]::ReadAllBytes($cfgFile) } else { $null }
-
-    # 控制器响应探针：--picker 让主实例走 BeginScopeSelection（与热键命中同一个入口），
-    # 选区窗出现即证明产物起得来、控制器在听。零 OS 级输入，也不抢前台。
-    $t0 = [Diagnostics.Stopwatch]::StartNew()
-    $env:FC_TEST_NO_FG = "1"
-    Start-Process $exe -ArgumentList '--picker' -PassThru | Out-Null
-    Start-Sleep 2.0
-    $pkProbe = & $shot rect "FrameCapture Region" 2>$null
-    Add-Result "probe:controller-responds" $(if ($pkProbe -notmatch "not-found") { "PASS" } else { "FAIL" }) $pkProbe $t0.Elapsed.TotalSeconds
-    & $shot keyw "FrameCapture Region" 27 2>$null | Out-Null
-    Start-Sleep 0.4
-    Remove-Item Env:\FC_TEST_NO_FG -EA SilentlyContinue
-    Get-Process FrameCapture -EA SilentlyContinue | Stop-Process -Force
-
-    foreach ($t in $e2e) {
-        # 焦点安全是全套里唯一必须真注入 OS 级按键的一项：注入期间 Ctrl 真的会被按住约 900ms，
-        # 用户此刻滚一下滚轮，浏览器就跟着缩放。安静窗口只保证「过去 3 秒没输入」，
-        # 预测不了下一秒——所以默认不跑，显式 -AllowInjection 才跑，跑了也还要再过一道闸。
-        if ($t.gated) {
-            if (-not $AllowInjection) { Add-Result $t.n "SKIP" "需 -AllowInjection（会注入 OS 级按键）"; continue }
-            if (-not (Wait-FcQuiet -TimeoutSec 25 -QuietMs 3000)) { Add-Result $t.n "SKIP" "用户持续有输入，跳过注入项"; continue }
-        }
+    try {
+        # 控制器响应探针：--picker 让主实例走 BeginScopeSelection（与热键命中同一个入口），
+        # 选区窗出现即证明产物起得来、控制器在听。零 OS 级输入，也不抢前台。
         $t0 = [Diagnostics.Stopwatch]::StartNew()
-        $r = Wait-Async (Start-Async ("e2e-" + $t.mark) "pwsh" @("-NoProfile", "-File", (Join-Path $PSScriptRoot $t.f)))
-        $o = $r.Text
-        # 判定按行来：标记与 PASS 不在同一行不算通过，缺标记一律 FAIL
-        $lines = @($o -split "`r?`n")
-        $status = if (@($lines | Where-Object { $_ -match "$($t.mark).*PASS" }).Count) { "PASS" }
-                  elseif (@($lines | Where-Object { $_ -match "$($t.mark).*FAIL" }).Count -or $r.Code -ne 0) { "FAIL" }
-                  elseif (@($lines | Where-Object { $_ -match 'SKIP' }).Count) { "SKIP" }
-                  else { "FAIL" }
-        $note = if ($status -eq "FAIL") { "exit={0}; {1}" -f $r.Code, (($lines | Select-Object -Last 3) -join " / ") } else { "" }
-        Add-Result $t.n $status $note $r.Sec
-        if ($o -match "capture_hotkey|restored_capture") { Say (($lines | Select-String "hotkey=" | Out-String).Trim()) }
+        $env:FC_TEST_NO_FG = "1"
+        Start-Process $exe -ArgumentList '--picker' -PassThru | Out-Null
+        Start-Sleep 2.0
+        $pkProbe = & $shot rect "FrameCapture Region" 2>$null
+        Add-Result "probe:controller-responds" $(if ($pkProbe -notmatch "not-found") { "PASS" } else { "FAIL" }) $pkProbe $t0.Elapsed.TotalSeconds
+        & $shot keyw "FrameCapture Region" 27 2>$null | Out-Null
+        Start-Sleep 0.4
+        Remove-Item Env:\FC_TEST_NO_FG -EA SilentlyContinue
+        Get-Process FrameCapture -EA SilentlyContinue | Stop-Process -Force
+
+        foreach ($t in $e2e) {
+            # 焦点安全是全套里唯一必须真注入 OS 级按键的一项：注入期间 Ctrl 真的会被按住约 900ms，
+            # 用户此刻滚一下滚轮，浏览器就跟着缩放。安静窗口只保证「过去 3 秒没输入」，
+            # 预测不了下一秒——所以默认不跑，显式 -AllowInjection 才跑，跑了也还要再过一道闸。
+            if ($t.gated) {
+                if (-not $AllowInjection) { Add-Result $t.n "SKIP" "需 -AllowInjection（会注入 OS 级按键）"; continue }
+                if (-not (Wait-FcQuiet -TimeoutSec 25 -QuietMs 3000)) { Add-Result $t.n "SKIP" "用户持续有输入，跳过注入项"; continue }
+            }
+            $t0 = [Diagnostics.Stopwatch]::StartNew()
+            $r = Wait-Async (Start-Async ("e2e-" + $t.mark) "pwsh" @("-NoProfile", "-File", (Join-Path $PSScriptRoot $t.f)))
+            $o = $r.Text
+            # 判定按行来：标记与 PASS 不在同一行不算通过，缺标记一律 FAIL
+            $lines = @($o -split "`r?`n")
+            $status = if (@($lines | Where-Object { $_ -match "$($t.mark).*PASS" }).Count) { "PASS" }
+                      elseif (@($lines | Where-Object { $_ -match "$($t.mark).*FAIL" }).Count -or $r.Code -ne 0) { "FAIL" }
+                      elseif (@($lines | Where-Object { $_ -match 'SKIP' }).Count) { "SKIP" }
+                      else { "FAIL" }
+            $note = if ($status -eq "FAIL") { "exit={0}; {1}" -f $r.Code, (($lines | Select-Object -Last 3) -join " / ") } else { "" }
+            Add-Result $t.n $status $note $r.Sec
+            if ($o -match "capture_hotkey|restored_capture") { Say (($lines | Select-String "hotkey=" | Out-String).Trim()) }
+        }
+    } catch {
+        # 一条脚本抛到这儿，整套 e2e 就此中断：如实记一条 FAIL，别让汇总看起来像全跑过
+        Add-Result "e2e:phase" "FAIL" ("e2e 阶段抛出：" + $_.Exception.Message) 0
+    } finally {
+        if ($null -ne $cfgBak) { [IO.File]::WriteAllBytes($cfgFile, $cfgBak); Say "  用户设置已还原（e2e 期间被改写）" }
+        elseif (Test-Path $cfgFile) { Remove-Item $cfgFile -Force; Say "  用户设置已还原（e2e 期间新建）" }
     }
-    if ($null -ne $cfgBak) { [IO.File]::WriteAllBytes($cfgFile, $cfgBak); Say "  用户设置已还原（e2e 期间被改写）" }
-    elseif (Test-Path $cfgFile) { Remove-Item $cfgFile -Force; Say "  用户设置已还原（e2e 期间新建）" }
 } else { foreach ($t in $e2e) { Add-Result $t.n "SKIP" "构建失败" } }
 
 # 8) 恢复稳态：护栏开始前用户实例在跑，就跑一个新的回来
