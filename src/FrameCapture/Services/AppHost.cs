@@ -82,6 +82,9 @@ public sealed class AppHost
     /// <remarks>启动、settings.json 外部改动热重载、手势配置器保存、设置窗关闭都走这里；可重复调用。</remarks>
     public void InstallHotkeys()
     {
+        // 服务还没就位时什么都不做：设置窗的销毁回调、启动中途失败、离屏建窗都会走到这里，
+        // 在窗口销毁回调里抛未处理异常等于把整个进程带走。
+        if (Settings is null || Gestures is null || Hotkeys is null) return;
         var s = Settings.Current;
         // 手势是唯一的全局触发路径。先应用手势（填引擎绑定表 + 挂键事件汇/鼠标钩子，置 KeySink），
         // 再装键盘钩子（Install 据 KeySink 决定装不装）。
