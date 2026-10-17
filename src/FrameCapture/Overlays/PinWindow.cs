@@ -534,7 +534,12 @@ public sealed class PinWindow : Window
         _snack.Visibility = Visibility.Collapsed;
     }
 
-    void ShowMenu()
+    /// <summary>
+    /// 搭出贴图右键菜单（不打开）。公开只为版面探针能逐项量到菜单文字——
+    /// 菜单开在独立 Popup 里，桌面截图与主窗视觉树都扫不到它，英文长条目被裁掉没人知道。
+    /// </summary>
+    /// <returns>挂好条目与动作的 <see cref="ContextMenu"/>，尚未设落点。</returns>
+    public ContextMenu BuildMenu()
     {
         var menu = new ContextMenu { Resources = Core.Fluent.MenuResources() }; // 套用共享 Fluent 菜单样式：裸 ContextMenu 走系统默认样式，与全局观感不符
         var copy = new MenuItem { Header = Core.Loc.T(K.Pin.Copy), InputGestureText = "Ctrl+C" };
@@ -569,6 +574,13 @@ public sealed class PinWindow : Window
         menu.Items.Add(new Separator());
         menu.Items.Add(close);
         menu.Items.Add(closeAll);
+        return menu;
+    }
+
+    /// <summary>在本贴图处打开右键菜单。</summary>
+    void ShowMenu()
+    {
+        var menu = BuildMenu();
         menu.PlacementTarget = this;
         menu.IsOpen = true;
     }

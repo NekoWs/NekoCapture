@@ -55,6 +55,7 @@ static partial class SelfTest
                 case "editor": BuildEditorAudit(app, rows, 3); break;
                 case "editor-still": BuildEditorAudit(app, rows, 1); break;
                 case "pin": BuildPinAudit(app, rows); break;
+            case "pin-menu": BuildPinMenuAudit(app, rows); break;
                 case "ocr": BuildOcrAudit(app, rows, message: false); break;
                 case "ocr-msg": BuildOcrAudit(app, rows, message: true); break;
                 case "notice": BuildNoticeAudit(app, rows); break;
@@ -82,7 +83,7 @@ static partial class SelfTest
     internal static readonly string[] Surfaces =
     {
         "settings", "settings-open", "settings-adv", "settings-clash",
-        "help", "editor", "editor-still", "pin", "ocr", "ocr-msg",
+        "help", "editor", "editor-still", "pin", "pin-menu", "ocr", "ocr-msg",
         "notice", "welcome", "toast", "countdown", "scroll", "filmstrip",
         "picker", "picker-loupe",
     };
@@ -183,6 +184,44 @@ static partial class SelfTest
         PumpMs(250);
         ScanTree(rows, "pin", (UIElement)w.Content);
         w.Close();
+    }
+
+    /// <summary>贴图右键菜单：菜单开在独立 Popup 里，主窗视觉树与桌面截图都扫不到它，只能单独叫出来量。</summary>
+    static void BuildPinMenuAudit(Application app, List<string> rows)
+    {
+        const int pw = 480, ph = 300;
+        var frame = new CapturedFrame { Bgra = MockScreen(pw, ph), W = pw, H = ph, TimeMs = 0 };
+        var w = new PinWindow(frame, new RectI(200, 160, pw, ph), false);
+        ShowOffscreen(w);
+        PumpMs(200);
+        var menu = w.BuildMenu();
+        menu.PlacementTarget = w;
+        // 不叫 Popup，直接量菜单本体：审计的窗口摆在屏幕外，Popup 一开就被虚拟桌面边界夹住，
+        // 每个条目的键位列都被裁掉 10px——那是取证装置在裁字，不是产品在裁字。
+        // 按无限宽度 Measure/Arrange 出来的才是菜单自己想要的尺寸。
+        menu.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        menu.Arrange(new Rect(menu.DesiredSize));
+        menu.UpdateLayout();
+        PumpMs(150);
+        ScanTree(rows, "pin-menu", menu);
+        // 扫不到字就是探针自己在说谎：菜单没 realize 时它一条也不会报，界面却根本没被量过。
+        int texts = CountTexts(menu);
+        if (texts < 6) rows.Add($"UXA|pin-menu|空扫|菜单里只量到 {texts} 条文字，这一项没真正跑到");
+        w.Close();
+    }
+
+    /// <summary>数这棵子树里有多少条可见文字，用来判断某个界面是不是被空扫了。</summary>
+    static int CountTexts(DependencyObject root)
+    {
+        int n = 0;
+        var c = VisualTreeHelper.GetChildrenCount(root);
+        for (var i = 0; i < c; i++)
+        {
+            var ch = VisualTreeHelper.GetChild(root, i);
+            if (ch is TextBlock tb && !string.IsNullOrWhiteSpace(tb.Text) && tb.Visibility == Visibility.Visible) n++;
+            n += CountTexts(ch);
+        }
+        return n;
     }
 
     /// <summary>OCR 结果窗的两种形态：可编辑结果与单条消息。</summary>
