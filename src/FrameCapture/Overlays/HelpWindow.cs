@@ -247,7 +247,9 @@ public sealed class HelpWindow : Window
     static void KV(StackPanel p, string k, string v)
     {
         var g = new Grid { Margin = new Thickness(2, 3, 0, 3) };
-        g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(128) });
+        // 键位列要装得下两条组合键并排（「设范围」那行两条出厂手势都含选区那一步）：
+        // 128 只够一条，第二条会在 + 号上被劈开，Ctrl+Alt / +R 读起来像两个键。
+        g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(158) });
         g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         var kt = new TextBlock { Text = k, FontSize = 12.5, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(Theme.Accent), VerticalAlignment = VerticalAlignment.Top, TextWrapping = TextWrapping.Wrap };
         var vt = new TextBlock { Text = v, FontSize = 12.5, Foreground = new SolidColorBrush(Theme.Text), TextWrapping = TextWrapping.Wrap, LineHeight = 17 };
@@ -296,7 +298,7 @@ public sealed class HelpWindow : Window
             {
                 KV(p, KeysFor(GestureActions.ScopeSelect), Loc.T(K.Help.SetTheCaptureRegionDrag));
                 KV(p, KeysFor(GestureActions.CaptureStored, GestureActions.CaptureFrame), Loc.T(K.Help.CaptureTheShotLands));
-                KV(p, KeysFor(GestureActions.RecordToggle, GestureActions.RecordStart, GestureActions.RecordStop), Loc.T(K.Help.RecordHoldToStartRelease));
+                KV(p, KeysFor(GestureActions.RecordToggle, GestureActions.RecordStart, GestureActions.RecordStop), Loc.T(K.Help.RecordPressToStartPressAgain));
                 KV(p, EditorKeysFor("commit", "close"), Loc.T(K.Help.InTheEditorDoneCopies));
                 KV(p, EditorKeysFor("help"), Loc.T(K.Help.ThisGuideIsAlwaysOne));
                 Note(p, Loc.T(K.Help.EveryKeyIsADefault));

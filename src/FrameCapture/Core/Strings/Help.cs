@@ -157,10 +157,10 @@ public static partial class K
             "help.recognizeTheCurrentFrameResults",
             "识别当前帧 → 结果窗：选哪段复制哪段",
             "Recognize the current frame → results window: copy the part you select");
-        public static readonly Str RecordHoldToStartRelease = new(
-            "help.recordHoldToStartRelease",
-            "录制：按住起录，松手停",
-            "Record: hold to start, release to stop");
+        public static readonly Str RecordPressToStartPressAgain = new(
+            "help.recordPressToStartPressAgain",
+            "录制：按一下开始，再按一下停止",
+            "Record: press to start, press again to stop");
         public static readonly Str RightClickAPin = new("help.rightClickAPin", "贴图右键", "Right-click a pin");
         public static readonly Str SaveTheCurrentFrameAs = new(
             "help.saveTheCurrentFrameAs",

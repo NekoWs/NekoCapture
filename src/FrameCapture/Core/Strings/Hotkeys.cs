@@ -23,7 +23,7 @@ public static partial class K
             "点击按键",
             "Click, then press a key");
         public static readonly Str ClickToSet = new("hotkeys.clickToSet", "点击设置", "Click to set");
-        public static readonly Str Comma = new("hotkeys.comma", "，", ",");
+        public static readonly Str Comma = new("hotkeys.comma", "，", ", ");
         public static readonly Str DefaultNothing = new("hotkeys.defaultNothing", "默认 · 什么都不做", "Default · nothing");
         public static readonly Str DefaultToast = new("hotkeys.defaultToast", "默认 · 弹提示", "Default · toast");
         public static readonly Str EnableHotkeys = new("hotkeys.enableHotkeys", "启用快捷键", "Enable hotkeys");

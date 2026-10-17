@@ -113,10 +113,10 @@ static partial class SelfTest
             dc.DrawText(title, new System.Windows.Point(card.X + 14, card.Y + 8));
             string[] head = en
                 ? new[] { "Capture   Ctrl+Alt+A    drag a box, release to shoot",
-                          "Record    Ctrl+Alt+R    hold to start, release for the clip",
+                          "Record    Ctrl+Alt+R    press to start, press again to stop",
                           "Pin       Ctrl+P        nail it to the screen" }
                 : new[] { "截图   Ctrl+Alt+A   拖框选区，松手即截",
-                          "录制   Ctrl+Alt+R   按住起录，松手成片",
+                          "录制   Ctrl+Alt+R   按一下开始，再按一下停止",
                           "贴图   Ctrl+P       钉在屏幕上，比切窗口快" };
             string[] body = en
                 ? new[] { "In the editor", "Save  Ctrl+S     Export  Ctrl+E",
