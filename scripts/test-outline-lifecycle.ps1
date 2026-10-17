@@ -62,7 +62,7 @@ try {
     $s = SetProp $s 'RegionMonitorId' $dev
     $s = SetProp $s 'RegionX' $RX; $s = SetProp $s 'RegionY' $RY
     $s = SetProp $s 'RegionW' $RW; $s = SetProp $s 'RegionH' $RH
-    $s | ConvertTo-Json | Set-Content $cfg -Encoding UTF8
+    $s | ConvertTo-Json -Depth 12 | Set-Content $cfg -Encoding UTF8
 
     $env:FC_TEST_NO_FG = "1"; $env:FC_TEST_OUTLINE_IN_CAPTURE = "1"
     $p = Start-Process $exe -PassThru

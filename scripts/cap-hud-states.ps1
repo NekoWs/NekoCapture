@@ -148,11 +148,15 @@ function Capture-Bars {
 # —— settings.json：备份 → 抬高 MaxDurationMs（实例启动前改好，避免与热加载竞态）→ 结束后原样还原 ——
 $cfgPath = Get-FcSettingsPath
 $cfgBackup = Join-Path $OutDir "settings-d9-backup-$Theme.json"
-Copy-Item $cfgPath $cfgBackup -Force
+# 设置文件可能还不存在（全新配置目录，应用没写过盘）：没有就没什么可备份，还原时也不回写
+if (Test-Path $cfgPath) { Copy-Item $cfgPath $cfgBackup -Force } else { $cfgBackup = $null }
 try {
-    $cfg = Get-Content $cfgPath -Raw | ConvertFrom-Json
-    $cfg.MaxDurationMs = 26000
-    $cfg | ConvertTo-Json | Set-Content $cfgPath -Encoding UTF8
+    $cfg = if ($cfgBackup) { Get-Content $cfgPath -Raw | ConvertFrom-Json } else { [pscustomobject]@{} }
+    # 用户没动过「最长录制时长」时，落盘的设置文件里根本没有这一项（应用只写非默认值）：
+    # 属性不存在就加上，不能直接赋值——那会抛「property cannot be found」。
+    if ($cfg.PSObject.Properties.Name -contains 'MaxDurationMs') { $cfg.MaxDurationMs = 26000 }
+    else { $cfg | Add-Member -NotePropertyName MaxDurationMs -NotePropertyValue 26000 }
+    $cfg | ConvertTo-Json -Depth 12 | Set-Content $cfgPath -Encoding UTF8
     Write-Host "settings: MaxDurationMs -> 26000 (临时，备份 $([IO.Path]::GetFileName($cfgBackup)))"
 
     $fail = 0
@@ -239,9 +243,10 @@ try {
     } else { Write-Host "  [fail] 编辑器未出现"; $fail++ }
     Stop-Fc $p
 } finally {
-    Copy-Item $cfgBackup $cfgPath -Force   # 原样还原（无论中途成败）
+    if ($cfgBackup) { Copy-Item $cfgBackup $cfgPath -Force }   # 原样还原（无论中途成败）
     Start-Sleep 0.8
-    Write-Host "settings: MaxDurationMs 已还原 ($((Get-Content $cfgPath -Raw | ConvertFrom-Json).MaxDurationMs))"
+    $back = if (Test-Path $cfgPath) { (Get-Content $cfgPath -Raw | ConvertFrom-Json).MaxDurationMs } else { "无设置文件" }
+    Write-Host "settings: MaxDurationMs 已还原 $(if ($back) { $back } else { '（该项本就不在文件里）' })"
 }
 
 if ($fail -eq 0) { Write-Host "HUD-CAP PASS (theme=$Theme)"; exit 0 }
