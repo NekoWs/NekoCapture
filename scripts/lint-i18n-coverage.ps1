@@ -92,6 +92,20 @@ foreach ($k in ($declared.Keys | Sort-Object)) {
     $fail += Write-Fail $declared[$k] 0 "没人取的文案：K.$k"
 }
 
+# ---------- 占位符：中文列与英文列的 {n} 必须一一对应 ----------
+# 少写一个 {0} 编译不报错，只会把「保存到 D:\…」印成「保存到 」——数据在格式化那步静悄悄丢掉。
+foreach ($sf in Get-ChildItem $stringsDir -Filter *.cs) {
+    $raw = (Get-Content $sf.FullName -Raw -Encoding UTF8) -replace '\s+', ' '
+    foreach ($m in [regex]::Matches($raw, '"([a-z]+\.[A-Za-z0-9]+)",\s*"(.*?[^"\\])",\s*"(.*?[^"\\])"')) {
+        $zh = @([regex]::Matches($m.Groups[2].Value, '\{\d+\}') | ForEach-Object { $_.Value }) -join ','
+        $en = @([regex]::Matches($m.Groups[3].Value, '\{\d+\}') | ForEach-Object { $_.Value }) -join ','
+        if ($zh -ne $en) {
+            $fail += Write-Fail ($sf.FullName.Substring($root.Length + 1)) 0 `
+                "占位符对不上：$($m.Groups[1].Value) 中文[$zh] 英文[$en]"
+        }
+    }
+}
+
 # ---------- 安装器共用文件 ----------
 $setupProj = Join-Path $root 'src\Setup\Setup.csproj'
 if (Test-Path $setupProj) {
