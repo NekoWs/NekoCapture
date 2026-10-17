@@ -5812,6 +5812,31 @@ static partial class SelfTest
         }
         catch (Exception e) { Chk("T211-autosave-hint", false, e.Message); }
 
+        // 选区里按 C 取过的色并进编辑器「最近用色」。存的必须是 #RRGGBB——读数按 F 会切成 rgb()/hsl()，
+        // 那只是复制出去的文本形式，色板认的是 HEX。
+        try
+        {
+            var svcL = new SettingsService();
+            svcL.Mutate(s => s.CustomColors = new List<string> { "#FFFFFF" });
+            typeof(FrameCapture.Services.AppHost).GetProperty("Settings")!
+                .SetValue(FrameCapture.Services.AppHost.Current, svcL);
+            var pickL = new FrameCapture.Overlays.RegionPickerWindow(
+                new FrameCapture.Capture.MonitorInfo("test", new FrameCapture.Capture.RectI(0, 0, 800, 600), true),
+                null, magnifier: true);
+            var TP = typeof(FrameCapture.Overlays.RegionPickerWindow);
+            const System.Reflection.BindingFlags NP2 = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+            TP.GetField("_lastRgb", NP2)!.SetValue(pickL, ((int)0xE8, (int)0x11, (int)0x23));
+            TP.GetField("_loupeHexText", NP2)!.SetValue(pickL, "rgb(232, 17, 35)");
+            bool taken = (bool)TP.GetMethod("OnPickerKey", NP2)!.Invoke(pickL, new object[] { (uint)0x43 })!;
+            PumpMs(150);
+            var cols = svcL.Current.CustomColors;
+            Chk("T212-loupe-color-enters-editor-recent-colors",
+                taken && cols.Count == 2 && cols[0] == "#E81123" && cols[1] == "#FFFFFF",
+                $"键被接管={taken} 最近用色=[{string.Join(",", cols)}]");
+            pickL.Close();
+        }
+        catch (Exception e) { Chk("T212-loupe-color-history", false, e.Message); }
+
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");
         return fail == 0 ? 0 : 1;
     }

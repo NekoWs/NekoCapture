@@ -57,6 +57,12 @@ public sealed partial class RegionPickerWindow : Window
                     {
                         try { Clipboard.SetText(t); } catch { }
                         if (_loupeHex != null) _loupeHex.Text = Loc.T(K.Capture.Copied) + t;
+                        // 选区时按 C 取过的色并进编辑器「最近用色」：看中的那抹红，
+                        // 截完图在调色板第一格就能点到，不用回编辑器手输 HEX。存的永远是 #RRGGBB，
+                        // 与当前显示成 RGB/HSL 无关。
+                        if (_lastRgb is { } lc)
+                            Services.AppHost.Current.Settings.Mutate(s => s.CustomColors = Core.CustomPick.RememberColor(
+                                s.CustomColors, Core.ColorFormat.Format(lc.r, lc.g, lc.b, Core.ColorCopyFormat.Hex)));
                     });
                 }
                 return true;
