@@ -469,6 +469,55 @@ static partial class SelfTest
         return false;
     }
 
+    /// <summary>
+    /// 文案里的「Settings · X」/「设置 · X」指路句：X 必须是侧栏真存在的某一页。
+    /// 帮助页与设置页各跑一个进程，所以这里就地再建一个设置窗取页名——多花不到一秒，
+    /// 换来的是「说明让你去一个不存在的页」这类缺陷当场报。
+    /// </summary>
+    /// <param name="rows">发现收集。</param>
+    /// <param name="surface">界面名，设置窗自己那几档跳过。</param>
+    /// <param name="root">已布局好的子树。</param>
+    static void CheckPageSignposts(List<string> rows, string surface, DependencyObject root)
+    {
+        if (surface.StartsWith("settings")) return;
+        var texts = new List<TextBlock>();
+        var found = new List<DependencyObject>();
+        CollectTyped(root, typeof(TextBlock), found);
+        foreach (var o in found)
+            if (o is TextBlock t) texts.Add(t);
+        var refs = new List<(TextBlock Tb, string Name)>();
+        foreach (var t in texts)
+        {
+            var m = System.Text.RegularExpressions.Regex.Match(t.Text,
+                @"(?:Settings|设置)\s*·\s*([^，,。；;」\n]{2,20}?)(?=[ ,.;—」]|$)");
+            if (m.Success) refs.Add((t, m.Groups[1].Value.Trim()));
+        }
+        if (refs.Count == 0) return;
+        var names = PageNames();
+        foreach (var (tb, name) in refs)
+            if (!names.Contains(name))
+                rows.Add($"UXA|{surface}|指路|{At(tb, root)} 文案指向「{name}」，侧栏没有这一页（有：{string.Join("/", names)}）");
+    }
+
+    /// <summary>侧栏真实存在的页名：靠导航项上的 Tag 取，不另立一份清单。</summary>
+    /// <returns>页名集合。</returns>
+    static HashSet<string> PageNames()
+    {
+        var set = new HashSet<string>();
+        var w = new SettingsWindow();
+        typeof(SettingsWindow).GetMethod("Build",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
+            .Invoke(w, null);
+        ShowOffscreen(w);
+        LayoutTo((UIElement)w.Content, w.Width, w.Height);
+        var els = new List<DependencyObject>();
+        CollectTyped((UIElement)w.Content, typeof(TextBlock), els);
+        foreach (var o in els)
+            if (o is TextBlock t && (t.Tag as string) == "settings-page") set.Add(t.Text.Trim());
+        w.Close();
+        return set;
+    }
+
     /// <summary>扫一棵已布局好的子树，报出挤掉的文字与英文界面里的中文。</summary>
     static void ScanTree(List<string> rows, string surface, DependencyObject root)
     {
@@ -477,6 +526,7 @@ static partial class SelfTest
         _scanned += found.Count;
         CheckMenuCase(rows, surface, root);
         CheckHitTargets(rows, surface, root);
+        CheckPageSignposts(rows, surface, root);
         foreach (var o in found)
         {
             if (o is not TextBlock tb) continue;

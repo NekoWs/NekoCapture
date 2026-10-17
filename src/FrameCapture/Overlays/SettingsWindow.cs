@@ -365,7 +365,9 @@ public sealed partial class SettingsWindow : Window
         {
             int captured = i;
             var icon = new TextBlock { Text = cats[i].Glyph, FontFamily = iconFont, FontSize = 15, Foreground = new SolidColorBrush(Theme.TextDim), VerticalAlignment = VerticalAlignment.Center, Width = 22, TextAlignment = TextAlignment.Center };
-            var label = new TextBlock { Text = cats[i].Name, FontSize = 13, Foreground = new SolidColorBrush(Theme.Text), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0, 0, 0) };
+            // Tag 是给版面探针认路用的：文案里的「设置 · X」指路句必须指着侧栏真存在的某一页，
+            // 侧栏写 Hotkeys 而帮助页说 Shortcuts，新用户就会照着说明去找一个不存在的页。
+            var label = new TextBlock { Text = cats[i].Name, Tag = "settings-page", FontSize = 13, Foreground = new SolidColorBrush(Theme.Text), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0, 0, 0) };
             var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(13, 0, 10, 0) };
             row.Children.Add(icon); row.Children.Add(label);
             var accent = new Border { CornerRadius = new CornerRadius(6), Background = new SolidColorBrush(Color.FromArgb(0x26, Theme.Accent.R, Theme.Accent.G, Theme.Accent.B)), Opacity = 0 };

@@ -13,7 +13,7 @@ public static partial class K
         public static readonly Str AfterCaptureIsSetPer = new(
             "help.afterCaptureIsSetPer",
             "「截图后」在「设置 · 快捷键」每条快捷键的完成后一栏设置；托盘还能「编辑上次截图」。",
-            "The After column on Settings · Shortcuts sets this per hotkey; the tray also offers Edit last capture.");
+            "The After column on Settings · Hotkeys sets this per hotkey; the tray also offers Edit last capture.");
         public static readonly Str AfterRecording = new("help.afterRecording", "录完", "After recording");
         public static readonly Str AnyRectangleTheWheelResizes = new(
             "help.anyRectangleTheWheelResizes",
@@ -67,7 +67,7 @@ public static partial class K
         public static readonly Str EveryKeyIsADefault = new(
             "help.everyKeyIsADefault",
             "键位都是默认值，可在「设置 · 快捷键」里改成自己的习惯。",
-            "Every key is a default — change them under Settings · Shortcuts to fit your habits.");
+            "Every key is a default — change them under Settings · Hotkeys to fit your habits.");
         public static readonly Str FloatingCard = new("help.floatingCard", "悬浮窗", "Floating card");
         public static readonly Str Format = new("help.format", "格式", "Format");
         public static readonly Str FrameRate = new("help.frameRate", "帧率", "Frame rate");
@@ -78,7 +78,7 @@ public static partial class K
         public static readonly Str GlobalHotkeysAndTheEditor = new(
             "help.globalHotkeysAndTheEditor",
             "全局快捷键与编辑器里的键都在「设置 · 快捷键」这一页改",
-            "Global hotkeys and the editor's keys are all rebound on the Settings · Shortcuts page");
+            "Global hotkeys and the editor's keys are all rebound on the Settings · Hotkeys page");
         public static readonly Str HiddenInSettings = new(
             "help.hiddenInSettings",
             "藏在设置和托盘里。",
