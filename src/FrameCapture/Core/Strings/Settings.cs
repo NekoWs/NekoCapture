@@ -57,7 +57,7 @@ public static partial class K
             "An animated image that plays anywhere; capped near 50fps by the format and large on disk");
         public static readonly Str AnOpenVideoFormatEncoded = new(
             "settings.anOpenVideoFormatEncoded",
-            "开源视频格式，用 VP9 编码，同画质体积更小，网页/上传首选 ",
+            "开源视频格式，用 VP9 编码，同画质体积更小，网页/上传首选",
             "An open video format encoded with VP9: the same quality at a smaller size, the first choice for the web and uploads");
         public static readonly Str AppearanceTheme = new("settings.appearanceTheme", "外观主题", "Appearance theme");
         public static readonly Str ASoftBuiltInBeep = new(
@@ -359,7 +359,7 @@ public static partial class K
             "The moment a capture finishes the region border lights up as confirmation; this sets how long it stays fully lit before fading. Turn it down to move on at once, up to double-check you caught the right thing. It is independent of the always-on outline and of the recording border");
         public static readonly Str TheMostCompatibleVideoFormat = new(
             "settings.theMostCompatibleVideoFormat",
-            "兼容性最好的视频格式，用 libx264 编码，浏览器/剪辑软件/社交平台通吃 ",
+            "兼容性最好的视频格式，用 libx264 编码，浏览器/剪辑软件/社交平台通吃",
             "The most compatible video format, encoded with libx264, at home in browsers, editors, and social platforms");
         public static readonly Str TheRecordingFrameRateThen = new(
             "settings.theRecordingFrameRateThen",
