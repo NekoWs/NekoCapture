@@ -303,7 +303,7 @@ public sealed partial class CaptureController : IDisposable
         Trace.Log($"delay capture start {secs}s {region.Bounds.W}x{region.Bounds.H}");
         if (secs <= 0) { DelayFire(region); return; }   // 0 秒＝立即截，不弹倒计时
         _delayLeft = secs;
-        _delayWindow = new Overlays.CountdownWindow(label, region.DeviceName) { OnCancel = DelayCancel };
+        _delayWindow = new Overlays.CountdownWindow(label, region.DeviceName, region.Bounds) { OnCancel = DelayCancel };
         _delayWindow.SetNumber(_delayLeft);
         _delayWindow.Show();   // ShowActivated=false：不抢焦点，用户才能打开要截的菜单
         Overlays.CountdownWindow.Current = _delayWindow;

@@ -30,28 +30,58 @@ public sealed class CountdownWindow : Window
     public static CountdownWindow? Current;
 
     /// <summary>
+    /// 倒计时卡落点：默认所在屏顶部居中；一旦压住要截的那块范围，就依次换到屏内其它锚位。
+    /// 顺序是「顶部居中 → 底部居中 → 左上 → 右上 → 左下 → 右下」，全被盖住（范围就是整屏）时保持顶部居中。
+    /// 之所以值得躲：倒计时这几秒用户正要在目标范围里点开菜单或悬停提示，卡压在上面就白等一轮。
+    /// </summary>
+    /// <param name="mon">倒计时所在显示器的物理矩形。</param>
+    /// <param name="cardW">卡片宽（物理像素）。</param>
+    /// <param name="cardH">卡片高（物理像素）。</param>
+    /// <param name="avoid">要避开的捕获范围；null 表示无需避开。</param>
+    /// <returns>卡片左上角的物理坐标，保证整张卡落在显示器内。</returns>
+    public static (int X, int Y) PickPlace(RectI mon, int cardW, int cardH, RectI? avoid)
+    {
+        int ClampX(int cx) => Math.Max(mon.X + 6, Math.Min(cx, mon.Right - cardW - 6));
+        int ClampY(int cy) => Math.Max(mon.Y + 6, Math.Min(cy, mon.Bottom - cardH - 6));
+        var anchors = new (int, int)[]
+        {
+            (mon.X + mon.W / 2 - cardW / 2, mon.Y + 48),              // 顶部居中：标题栏一带
+            (mon.X + mon.W / 2 - cardW / 2, mon.Bottom - cardH - 48), // 底部居中
+            (mon.X + 48, mon.Y + 48), (mon.Right - cardW - 48, mon.Y + 48),
+            (mon.X + 48, mon.Bottom - cardH - 48), (mon.Right - cardW - 48, mon.Bottom - cardH - 48),
+        };
+        foreach (var (ax, ay) in anchors)
+        {
+            var r = new RectI { X = ClampX(ax), Y = ClampY(ay), W = cardW, H = cardH };
+            if (avoid == null || !Overlaps(r, avoid.Value)) return (r.X, r.Y);
+        }
+        return (ClampX(anchors[0].Item1), ClampY(anchors[0].Item2));
+    }
+
+    /// <summary>两个矩形是否有公共面积；贴边不算压住。</summary>
+    static bool Overlaps(RectI a, RectI b) => a.X < b.Right && b.X < a.Right && a.Y < b.Bottom && b.Y < a.Bottom;
+
+    /// <summary>
     /// 构造倒计时浮窗：只建界面、不起计时——调用方须自行 Show 并驱动 <see cref="SetNumber"/>。
-    /// 构造期即定好落点（所在屏顶部居中，Show 前定位，无首帧闪烁），WDA 排除在 SourceInitialized 里设。
+    /// 构造期即定好落点（见 <see cref="PickPlace"/>，Show 前定位，无首帧闪烁），WDA 排除在 SourceInitialized 里设。
     /// 必须在 UI 线程构造。
     /// </summary>
     /// <param name="regionLabel">标题行右侧的范围描述文案（如「范围 800×600」「全屏」），原样上屏。</param>
     /// <param name="monitorDevice">倒计时所在显示器 device name；按设备取不到则退主屏，再退坐标就近屏。</param>
-    public CountdownWindow(string regionLabel, string monitorDevice)
+    /// <param name="avoidRegion">要避开的捕获范围（物理像素）：倒计时这几秒用户正要在里面点开菜单，卡压上去就白等一轮。</param>
+    public CountdownWindow(string regionLabel, string monitorDevice, RectI? avoidRegion = null)
     {
         Title = "FrameCapture Countdown";
         Fluent.BorderlessOverlay(this);   // 不抢焦点：目标窗口保持焦点，用户才能打开要截的菜单
 
-        // 落点：所在屏顶部居中（标题栏一带，尽量不挡目标内容；WDA 排除，不入镜）
+        // 落点：所在屏顶部居中的一组锚位里，第一个不压住目标范围的（WDA 排除，不入镜）
         var mon = Monitors.ByDevice(monitorDevice)
                   ?? Monitors.All().Find(m => m.IsPrimary)
                   ?? Monitors.Nearest(0, 0);
         var (sx, sy) = Monitors.DpiScaleOf(mon);
         int cardW = (int)(W * sx), cardH = (int)(EstH * sy);
-        int left = mon.Bounds.X + mon.Bounds.W / 2 - cardW / 2;
-        int top = mon.Bounds.Y + 48;
-        left = Math.Max(mon.Bounds.X + 6, Math.Min(left, mon.Bounds.X + mon.Bounds.W - cardW - 6));
-        top = Math.Max(mon.Bounds.Y + 6, Math.Min(top, mon.Bounds.Y + mon.Bounds.H - cardH - 6));
-        Left = left / sx; Top = top / sy;
+        var (px, py) = PickPlace(mon.Bounds, cardW, cardH, avoidRegion);
+        Left = px / sx; Top = py / sy;
 
         var card = new Border
         {

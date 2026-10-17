@@ -5873,6 +5873,35 @@ static partial class SelfTest
         }
         catch (Exception e) { Chk("T213-scroll-resume", false, e.Message); }
 
+        // 倒计时卡落点：那几秒用户正要在待截范围里点开菜单，卡压在上面就白等一轮。
+        // 判的是纯几何（不建窗）：默认位、躲开、仍在屏内、整屏时回原、副屏负坐标不跑偏。
+        try
+        {
+            var mon = new RectI(0, 0, 2560, 1440);
+            int cw = 450, ch = 276;
+            var (x0, y0) = FrameCapture.Overlays.CountdownWindow.PickPlace(mon, cw, ch, null);
+            bool topCenter = Math.Abs(x0 + cw / 2 - mon.W / 2) <= 2 && y0 == 48;
+
+            var strip = new RectI(900, 0, 760, 300);   // 正压在顶部居中一带
+            var (x1, y1) = FrameCapture.Overlays.CountdownWindow.PickPlace(mon, cw, ch, strip);
+            var card1 = new RectI(x1, y1, cw, ch);
+            bool dodged = !(card1.X < strip.Right && strip.X < card1.Right
+                         && card1.Y < strip.Bottom && strip.Y < card1.Bottom);
+            bool inside = card1.X >= mon.X && card1.Y >= mon.Y && card1.Right <= mon.Right && card1.Bottom <= mon.Bottom;
+
+            var (x2, y2) = FrameCapture.Overlays.CountdownWindow.PickPlace(mon, cw, ch, mon);
+            bool fallback = x2 == x0 && y2 == y0;   // 范围就是整屏：躲不掉，保持默认位而不是跑出屏外
+
+            var mon2 = new RectI(-1920, 0, 1920, 1080);   // 主屏左边的副屏
+            var (x3, y3) = FrameCapture.Overlays.CountdownWindow.PickPlace(mon2, cw, ch, new RectI(-1000, 0, 800, 400));
+            bool onMon2 = x3 >= -1920 && y3 >= 0 && x3 + cw <= 0 && y3 + ch <= 1080;
+
+            Chk("T214-countdown-card-dodges-the-region",
+                topCenter && dodged && inside && fallback && onMon2,
+                $"默认顶部居中={topCenter} 压范围时躲开={dodged} 仍在屏内={inside} 整屏时回原={fallback} 副屏不跑偏={onMon2}");
+        }
+        catch (Exception e) { Chk("T214-countdown-dodge", false, e.Message); }
+
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");
         return fail == 0 ? 0 : 1;
     }
