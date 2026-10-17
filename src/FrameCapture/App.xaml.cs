@@ -25,6 +25,9 @@ public partial class App : Application
     const string MsgPinClip = "FrameCapture_PinClip";
     const string MsgPauseToggle = "FrameCapture_PauseToggle";
     const string MsgOcr = "FrameCapture_Ocr";
+    const string MsgWelcome = "FrameCapture_Welcome";
+    const string MsgNotice = "FrameCapture_Notice";
+    const string MsgPicker = "FrameCapture_Picker";
     /// <summary>合成一次组合键的按下与抬起。wParam = 主键 VK | 修饰键位 <<8，lParam = 按住毫秒数。</summary>
     const string MsgSynthetic = "FrameCapture_Synthetic";
     /// <summary>把一次裸键直投当前编辑器的分派表。wParam = 虚拟键码。</summary>
@@ -143,20 +146,10 @@ public partial class App : Application
             }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
         // 打开首次启动欢迎卡（便于脚本/e2e 调用与截图审查；不改动 FirstRunHintShown，纯查看）
         if (e.Args.Any(a => string.Equals(a, "--welcome", StringComparison.OrdinalIgnoreCase)))
-            Dispatcher.BeginInvoke(() =>
-            {
-                var st = Services.AppHost.Current.Settings;
-                Overlays.WelcomeToast.Show(st.Current.Gestures.CaptureKeyText(), st.Current.Gestures.RecordKeyText());
-            }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+            Dispatcher.BeginInvoke(ShowWelcomeCard, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
         // 弹一条启动气泡（便于脚本/e2e 调用与截图审查；措辞与真实启动路径同源，热键取当前设置）
         if (e.Args.Any(a => string.Equals(a, "--notice", StringComparison.OrdinalIgnoreCase)))
-            Dispatcher.BeginInvoke(() =>
-            {
-                var s = Services.AppHost.Current.Settings.Current;
-                Overlays.NoticeToast.Show(Loc.T(K.Tray.FramecaptureIsRunning),
-                    Loc.F(K.Tray.WaitingInTheTrayCapture, s.Gestures.CaptureKeyText(), s.Gestures.RecordKeyText()),
-                    "\uE73E");
-            }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+            Dispatcher.BeginInvoke(ShowStartupNotice, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
         // 打开选区窗（截图/选区同一入口，便于脚本/e2e 验证「不抢焦点」与全局键代收）
         if (e.Args.Any(a => string.Equals(a, "--picker", StringComparison.OrdinalIgnoreCase)))
             Dispatcher.BeginInvoke(() => Services.AppHost.Current.Controller.BeginScopeSelection(),
@@ -337,8 +330,25 @@ public partial class App : Application
         ("--settings", MsgOpenSettings), ("--help", MsgOpenHelp), ("--edit-last", MsgEditLast),
         ("--scroll", MsgScroll), ("--delay", MsgDelay), ("--pin-clip", MsgPinClip),
         ("--pause-toggle", MsgPauseToggle), ("--ocr", MsgOcr), ("--synthetic", MsgSynthetic),
-        ("--editorkey", MsgEditorKey),
+        ("--editorkey", MsgEditorKey), ("--welcome", MsgWelcome), ("--notice", MsgNotice),
+        ("--picker", MsgPicker),
     };
+
+    /// <summary>弹首启欢迎卡，只看不写：不置 <c>FirstRunHintShown</c>，脚本可以反复叫出来截图审查。</summary>
+    void ShowWelcomeCard()
+    {
+        var st = Services.AppHost.Current.Settings;
+        Overlays.WelcomeToast.Show(st.Current.Gestures.CaptureKeyText(), st.Current.Gestures.RecordKeyText());
+    }
+
+    /// <summary>弹一条「已在托盘待命」气泡，措辞与真实启动路径同源，热键取当前设置。</summary>
+    void ShowStartupNotice()
+    {
+        var s = Services.AppHost.Current.Settings.Current;
+        Overlays.NoticeToast.Show(Loc.T(K.Tray.FramecaptureIsRunning),
+            Loc.F(K.Tray.WaitingInTheTrayCapture, s.Gestures.CaptureKeyText(), s.Gestures.RecordKeyText()),
+            "\uE73E");
+    }
 
     void StartMessageSink()
     {
@@ -355,6 +365,9 @@ public partial class App : Application
                 (MsgPinClip,      (_, _) => OnUi(() => Services.AppHost.Current.Controller.PinFromClipboard())),
                 (MsgPauseToggle,  (_, _) => OnUi(() => Services.AppHost.Current.Tray.TogglePause())),
                 (MsgOcr,          (_, _) => OnUi(() => Services.AppHost.Current.Controller.OcrStoredStill())),
+                (MsgWelcome,      (_, _) => OnUi(ShowWelcomeCard)),
+                (MsgNotice,       (_, _) => OnUi(ShowStartupNotice)),
+                (MsgPicker,       (_, _) => OnUi(() => Services.AppHost.Current.Controller.BeginScopeSelection())),
                 (MsgSynthetic,    SynthesizeChord),
                 (MsgEditorKey,    (w, _) => OnUi(() => FeedEditorKey((int)w.ToInt64()))),
             });
