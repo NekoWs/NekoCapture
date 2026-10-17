@@ -21,7 +21,7 @@ public static partial class K
         public static readonly Str PngImagePng = new("common.pngImagePng", "PNG 图片|*.png", "PNG image|*.png");
         public static readonly Str RecognitionFailed = new("common.recognitionFailed", "识别失败", "Recognition failed");
         public static readonly Str RecognizeText = new("common.recognizeText", "识别文字", "Recognize Text");
-        public static readonly Str RecognizeText2 = new("common.recognizeText2", "识别文字…", "Recognize text…");
+        public static readonly Str RecognizeText2 = new("common.recognizeText2", "识别文字…", "Recognize Text…");
         public static readonly Str Recording = new("common.recording", "录制", "Recording");
         public static readonly Str SaveFailed = new("common.saveFailed", "保存失败", "Save failed");
         public static readonly Str ScrollingCapture = new("common.scrollingCapture", "滚动截图", "Scrolling Capture");

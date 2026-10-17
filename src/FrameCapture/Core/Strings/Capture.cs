@@ -84,11 +84,11 @@ public static partial class K
         public static readonly Str ThisEnvironmentCanTInject = new(
             "capture.thisEnvironmentCanTInject",
             "此环境无法注入滚轮，请手动滚动",
-            "This environment can't inject the wheel, scroll by hand");
+            "This environment can't inject the wheel — scroll by hand");
         public static readonly Str ThisWindowDoesnTAccept = new(
             "capture.thisWindowDoesnTAccept",
             "这个窗口不接受滚轮注入，请手动滚动",
-            "This window doesn't accept wheel injection, scroll by hand");
+            "This window doesn't accept wheel injection — scroll by hand");
         public static readonly Str UseTheseSecondsToOpen = new(
             "capture.useTheseSecondsToOpen",
             "趁这几秒打开要截的菜单 / 悬停提示…",
