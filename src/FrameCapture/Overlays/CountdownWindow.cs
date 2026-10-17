@@ -127,7 +127,7 @@ public sealed class CountdownWindow : Window
             Text = "3",
             FontSize = 46,
             FontWeight = FontWeights.Bold,
-            Foreground = new SolidColorBrush(Theme.Accent),
+            Foreground = new SolidColorBrush(Core.Fluent.AccentText()),
             FontFamily = new FontFamily("Segoe UI"),
             HorizontalAlignment = HorizontalAlignment.Center,
             TextAlignment = TextAlignment.Center,

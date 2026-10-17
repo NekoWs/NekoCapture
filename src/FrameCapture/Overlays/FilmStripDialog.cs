@@ -122,7 +122,7 @@ public sealed class FilmStripDialog : Window
         };
         _value.FontSize = 13;
         _value.FontWeight = FontWeights.SemiBold;
-        _value.Foreground = new SolidColorBrush(Theme.Accent);
+        _value.Foreground = new SolidColorBrush(Core.Fluent.AccentText());
         _value.HorizontalAlignment = HorizontalAlignment.Right;
         Grid.SetColumn(lbl, 0);
         Grid.SetColumn(_value, 1);

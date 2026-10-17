@@ -5902,6 +5902,39 @@ static partial class SelfTest
         }
         catch (Exception e) { Chk("T214-countdown-dodge", false, e.Message); }
 
+        // 强调色当文字色必须读得清。出厂那抹浅蓝 #4CC2FF 压在白卡片上只有 1.9:1，
+        // 比 WCAG 正文 4.5:1 与大号字 3:1 都低；AccentText 按需要压暗到达标，色相不动。
+        try
+        {
+            var keepAcc = Theme.Accent;
+            bool ok = true;
+            string bad = "";
+            foreach (var hex in new[] { "#4CC2FF", "#7F75FF", "#E81123", "#FFB900", "#00CC6A" })
+            foreach (var th in new[] { "light", "dark" })
+            {
+                Theme.Apply(th, hex);
+                // 文字既落在白卡片上也落在窗口底色上，两张底都要过线。
+                double a = Fluent.ContrastRatio(Fluent.AccentText(), Theme.CardBg);
+                double b = Fluent.ContrastRatio(Fluent.AccentText(), Theme.WindowBg);
+                double got = Math.Min(a, b);
+                if (got >= 4.5) continue;
+                ok = false;
+                bad = th + " " + hex + " 只有 " + got.ToString("F2") + ":1";
+            }
+            // 浅蓝压在白底上确实不达标：这条判的是「为什么需要压暗」，
+            // 谁把 AccentText 简化回强调色本身，上面那圈就会红。
+            Theme.Apply("light", "#4CC2FF");
+            bool rawFails = Fluent.ContrastRatio(Theme.Accent, Theme.CardBg) < 3.0;
+            // 暗色主题里出厂浅蓝本来就够读（压在 #2D2D2D 上 6.5:1），必须原样用——
+            // 退回正文色会抹掉键位提示的强调，暗色界面的键位列一直是强调蓝。
+            Theme.Apply("dark", "#4CC2FF");
+            bool darkKeepsAccent = Fluent.AccentText() == Theme.Accent;
+            Theme.Accent = keepAcc;
+            Chk("T215-accent-text-meets-contrast", ok && rawFails && darkKeepsAccent,
+                bad + (darkKeepsAccent ? "" : " 暗色主题抹掉了强调色"));
+        }
+        catch (Exception e) { Chk("T215-accent-text-meets-contrast", false, e.Message); }
+
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");
         return fail == 0 ? 0 : 1;
     }

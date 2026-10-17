@@ -251,7 +251,7 @@ public sealed class HelpWindow : Window
         // 128 只够一条，第二条会在 + 号上被劈开，Ctrl+Alt / +R 读起来像两个键。
         g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(158) });
         g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        var kt = new TextBlock { Text = k, FontSize = 12.5, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(Theme.Accent), VerticalAlignment = VerticalAlignment.Top, TextWrapping = TextWrapping.Wrap };
+        var kt = new TextBlock { Text = k, FontSize = 12.5, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(Core.Fluent.AccentText()), VerticalAlignment = VerticalAlignment.Top, TextWrapping = TextWrapping.Wrap };
         var vt = new TextBlock { Text = v, FontSize = 12.5, Foreground = new SolidColorBrush(Theme.Text), TextWrapping = TextWrapping.Wrap, LineHeight = 17 };
         Grid.SetColumn(kt, 0); Grid.SetColumn(vt, 1);
         g.Children.Add(kt); g.Children.Add(vt);

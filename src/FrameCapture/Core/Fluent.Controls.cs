@@ -355,24 +355,6 @@ public static partial class Fluent
 
     #region 工具按钮选中态：accent 实心 + 反白图标（与 ✓ 主按钮同一语言）
 
-    /// <summary>accent 底色上的反白色：WCAG 相对亮度（sRGB 线性化）低于 0.35 → 白字，否则黑字。
-    /// 线性化不可省：按 0.299/0.587/0.114 直接加权会在 128 一刀切，把 #7F75FF 这类中等饱和紫判成黑字，
-    /// 紫底黑字糊成一片。</summary>
-    /// <param name="a">底色，即 accent 实心按钮的背景。</param>
-    /// <returns>纯白或纯黑两档之一，保证任何 accent 上图标都可读。</returns>
-    public static Color OnAccentColor(Color a)
-    {
-        static double L(double c) { c /= 255.0; return c <= 0.03928 ? c / 12.92 : Math.Pow((c + 0.055) / 1.055, 2.4); }
-        double lum = 0.2126 * L(a.R) + 0.7152 * L(a.G) + 0.0722 * L(a.B);
-        return lum < 0.35 ? Colors.White : Colors.Black;
-    }
-
-    /// <summary>强调色文字的落点色：只有亮色主题把强调色本身当文字色——压在浅底上读得清。
-    /// 暗色主题下强调色当正文色会随配色失读（深紫压在 #2D2D2D 上只有 3.3:1，浅蓝却够用，
-    /// 同一条规则罩不住两种配色），一律退回主题正文色。
-    /// 压在强调色实心底上的文字走 <see cref="OnAccentColor"/>（按底色亮度取黑白），两者不可混用。</summary>
-    /// <returns>亮色主题为当前强调色，暗色主题为 <see cref="Theme.Text"/>。</returns>
-    public static Color AccentText() => Theme.IsDark ? Theme.Text : Theme.Accent;
 
     /// <summary>工具按钮选中态：accent 实心 + 反白图标（与 ✓ 主按钮同一语言）。底色与图标同步淡变。</summary>
     /// <param name="b">目标按钮；Background / Foreground 被换成本方法持有的可动画画刷。</param>

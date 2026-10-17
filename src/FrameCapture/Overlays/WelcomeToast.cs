@@ -180,7 +180,7 @@ public sealed class WelcomeToast : Window
             Text = key,
             FontSize = 13.5,
             FontWeight = FontWeights.SemiBold,
-            Foreground = new SolidColorBrush(Theme.Accent),
+            Foreground = new SolidColorBrush(Core.Fluent.AccentText()),
             FontFamily = new FontFamily("Segoe UI"),
             VerticalAlignment = VerticalAlignment.Center,
         });

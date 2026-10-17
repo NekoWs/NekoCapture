@@ -42,6 +42,7 @@
     <Compile Include="..\FrameCapture\Core\Theme.cs" Link="Shared\Theme.cs" />
     <Compile Include="..\FrameCapture\Core\Fluent.cs" Link="Shared\Fluent.cs" />
     <Compile Include="..\FrameCapture\Core\Fluent.Controls.cs" Link="Shared\Fluent.Controls.cs" />
+    <Compile Include="..\FrameCapture\Core\Fluent.Color.cs" Link="Shared\Fluent.Color.cs" />
     <Compile Include="..\FrameCapture\Core\Fluent.Styles.cs" Link="Shared\Fluent.Styles.cs" />
   </ItemGroup>
 

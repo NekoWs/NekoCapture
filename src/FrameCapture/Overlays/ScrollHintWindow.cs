@@ -96,7 +96,7 @@ public sealed class ScrollHintWindow : Window
             Text = Loc.T(K.Capture.SegmentStitched),
             FontSize = 12.5,
             FontWeight = FontWeights.SemiBold,
-            Foreground = new SolidColorBrush(Theme.Accent),
+            Foreground = new SolidColorBrush(Core.Fluent.AccentText()),
             FontFamily = new FontFamily("Segoe UI"),
             VerticalAlignment = VerticalAlignment.Center,
         };
