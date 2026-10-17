@@ -504,4 +504,45 @@ public static partial class Fluent
     }
     #endregion
 
+    #region 路径显示
+
+    /// <summary>
+    /// 路径中段省略。结尾省略会留下盘符、丢掉真正用来认目录的那一级——
+    /// 「保存到哪了」这个问题恰好答在末尾。保留根与末尾若干字符，中间一个省略号，
+    /// 断点只落在分隔符之后，不切断目录名。认不出根（不是路径的短语）原样返回。
+    /// </summary>
+    /// <param name="path">完整路径。</param>
+    /// <param name="keepTail">末尾至少保留的字符数。</param>
+    /// <returns>短到放得下时原样返回，否则为「根…尾部」。</returns>
+    public static string TrimPathMiddle(string path, int keepTail = 26)
+    {
+        if (string.IsNullOrEmpty(path) || path.Length <= keepTail + 6) return path;
+        var root = PathRoot(path);
+        // 认不出盘符或 UNC 根就不是路径，别拿它当路径裁
+        if (root.Length == 0 || path.Length - root.Length <= keepTail) return path;
+        var tail = path.Substring(path.Length - keepTail);
+        var cut = tail.IndexOfAny(new[] { '\\', '/' });
+        // 断点抬到下一个分隔符之后：宁可少显示一点，也不显示半个目录名
+        if (cut > 0 && cut < tail.Length - 2) tail = tail.Substring(cut + 1);
+        return root + "…" + tail;
+    }
+
+    /// <summary>路径的根：<c>D:\</c> 或 UNC 的 <c>\\\\server\\share\\</c>。多盘符时它是唯一线索，省略时要留。</summary>
+    /// <param name="path">完整路径。</param>
+    /// <returns>根那一段；认不出则空串。</returns>
+    static string PathRoot(string path)
+    {
+        if (path.StartsWith(@"\\", StringComparison.Ordinal))
+        {
+            var third = path.IndexOf('\\', 2);
+            if (third < 0) return path;
+            var fourth = path.IndexOf('\\', third + 1);
+            return fourth > 0 ? path.Substring(0, fourth + 1) : path;
+        }
+        // 共享给 net48 的安装器工程编译，这里不能用 .. 范围语法
+        return path.Length >= 3 && path[1] == ':' && (path[2] == '\\' || path[2] == '/') ? path.Substring(0, 3) : "";
+    }
+
+    #endregion
+
 }

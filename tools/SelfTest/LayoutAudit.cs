@@ -53,6 +53,9 @@ static partial class SelfTest
                 case "settings-clash": BuildSettingsAudit(app, rows, "settings-clash", 0, clash: true); break;
             // 拖到最小尺寸那一档：MinWidth/MinHeight 是用户能压到的极限，长说明文字在这一档最容易挤。
             case "settings-narrow": BuildSettingsAudit(app, rows, "settings-narrow", 0, forceW: 680, forceH: 460); break;
+            // 深层目录 + 最小宽度：路径行是最容易被长内容打穿的一处，默认那条短路径量不到
+            case "settings-longpath": BuildSettingsAudit(app, rows, "settings-longpath", -1, forceW: 680, forceH: 460,
+                savePath: @"D:\Users\lin\Pictures\截图归档\2026\十月\产品走查与录屏\FrameCapture"); break;
                 case "help": BuildHelpAudit(rows); break;
                 case "editor": BuildEditorAudit(app, rows, 3); break;
                 case "editor-still": BuildEditorAudit(app, rows, 1); break;
@@ -84,7 +87,7 @@ static partial class SelfTest
     /// <summary>可审计的界面名，驱动脚本按这份清单跑满矩阵。</summary>
     internal static readonly string[] Surfaces =
     {
-        "settings", "settings-open", "settings-adv", "settings-clash", "settings-narrow",
+        "settings", "settings-open", "settings-adv", "settings-clash", "settings-narrow", "settings-longpath",
         "help", "editor", "editor-still", "pin", "pin-menu", "ocr", "ocr-msg",
         "notice", "welcome", "toast", "countdown", "scroll", "filmstrip",
         "picker", "picker-loupe",
@@ -94,9 +97,10 @@ static partial class SelfTest
 
     /// <summary>设置窗：折叠态、展开第 0 条、高级形态、撞车描边四种形态各扫一遍。</summary>
     static void BuildSettingsAudit(Application app, List<string> rows, string surface, int openAt, bool advanced = false, bool clash = false,
-        double? forceW = null, double? forceH = null)
+        double? forceW = null, double? forceH = null, string? savePath = null)
     {
         var svc = AppHost.Current.Settings!.Current;
+        if (savePath != null) svc.AutoSavePath = savePath;
         if (clash && svc.Gestures.Bindings.Count > 0)
         {
             var first = svc.Gestures.Bindings[0];
@@ -465,7 +469,7 @@ static partial class SelfTest
             if (o is not TextBlock tb) continue;
             string text = tb.Text ?? "";
             if (string.IsNullOrWhiteSpace(text)) continue;
-            if (Loc.IsEnglish && HasCjk(text) && !AllowedCjkInEnglish(text) && !_userData.Contains(text.Trim()))
+            if (Loc.IsEnglish && HasCjk(text) && !AllowedCjkInEnglish(text) && !LooksLikePath(text) && !_userData.Contains(text.Trim()))
                 rows.Add($"UXA|{surface}|漏翻|{At(tb, root)} {Cut(text, 60)}");
             // 图标字形按 em 框量，比它占的格子宽是常态；键帽单字符居中溢出三五个像素也不伤人。
             // 两类都不报，否则一次审计几十条假阳性，真的那条就淹了。
@@ -604,6 +608,15 @@ static partial class SelfTest
 
     /// <summary>英文界面里合法保留的中文：语言名按本语言自称是约定，不是漏翻。</summary>
     static bool AllowedCjkInEnglish(string s) => s.Trim() == "中文";
+
+    /// <summary>
+    /// 带盘符根或 UNC 根的字是文件系统路径：那是用户机器上的目录名，不是待译文案。
+    /// 保存位置那行显示的就是它，中文目录名在英文界面里出现是正常的。
+    /// </summary>
+    /// <param name="s">待判文字。</param>
+    /// <returns>像路径则为真。</returns>
+    static bool LooksLikePath(string s) =>
+        System.Text.RegularExpressions.Regex.IsMatch(s, @"^\\\\[^\\]+\\|^[A-Za-z]:[\\/]");
 
     /// <summary>元素在窗口内的落点：把一条发现对回截图上的位置，不靠猜。</summary>
     static string At(Visual el, DependencyObject root)

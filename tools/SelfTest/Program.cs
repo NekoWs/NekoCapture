@@ -5965,6 +5965,29 @@ static partial class SelfTest
         }
         catch (Exception e) { Chk("T216-palette-text-contrast", false, e.Message); }
 
+        // 保存位置那行的中段省略。这行要回答「存到哪去了」，答案在末尾——
+        // 结尾省略会留下盘符、丢掉用来认目录的那一级，等于把问题留着。
+        try
+        {
+            var deep = @"D:\Users\lin\Pictures\截图归档\2026\十月\产品走查\FrameCapture";
+            var t = Fluent.TrimPathMiddle(deep);
+            Chk("T217-path-middle-keeps-root", t.StartsWith(@"D:\"), t);
+            Chk("T217-path-middle-keeps-tail", t.EndsWith("FrameCapture"), t);
+            Chk("T217-path-middle-shorter", t.Contains('…') && t.Length < deep.Length, t);
+            // 断点落在分隔符上：显示的尾巴必须是原路径的真实后缀，且要么自己以分隔符开头，
+            // 要么在原路径里前面就是分隔符——两种情况都意味着没切断目录名。
+            var seg = t.Split('…')[1];
+            Chk("T217-path-middle-no-half-name",
+                deep.EndsWith(seg.TrimStart('\\')) && (seg.StartsWith('\\') || deep.Contains(@"\" + seg)), t);
+            Chk("T217-path-short-untouched", Fluent.TrimPathMiddle(@"C:\a\b") == @"C:\a\b");
+            Chk("T217-path-phrase-untouched",
+                Fluent.TrimPathMiddle("Pictures\\FrameCapture — default location") == "Pictures\\FrameCapture — default location");
+            Chk("T217-path-unc-keeps-share",
+                Fluent.TrimPathMiddle(@"\\nas\team\2026\十月\很长的目录名称\FrameCapture").StartsWith(@"\\nas\team\"),
+                Fluent.TrimPathMiddle(@"\\nas\team\2026\十月\很长的目录名称\FrameCapture"));
+        }
+        catch (Exception e) { Chk("T217-path-middle-trim", false, e.Message); }
+
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");
         return fail == 0 ? 0 : 1;
     }

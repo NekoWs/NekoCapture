@@ -180,7 +180,10 @@ public sealed partial class SettingsWindow : Window
         void Refresh()
         {
             var p = _settings.Current.AutoSavePath;
-            path.Text = string.IsNullOrWhiteSpace(p) ? Loc.T(K.Settings.PicturesFramecaptureDefaultLocation) : p;
+            var full = string.IsNullOrWhiteSpace(p) ? Loc.T(K.Settings.PicturesFramecaptureDefaultLocation) : p;
+            // 中段省略：这行要回答的是「存到哪去了」，答案在末尾；裁掉末尾等于把问题留着
+            path.Text = Fluent.TrimPathMiddle(full);
+            path.ToolTip = full;   // 省掉的那段交给悬停；「点击选择保存位置」那条提示挂在整行上，两处各说各的
         }
         Refresh();
         stack.Children.Add(lbl);
