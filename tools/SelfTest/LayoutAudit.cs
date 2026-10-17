@@ -371,12 +371,41 @@ static partial class SelfTest
         root.UpdateLayout();
     }
 
+    /// <summary>
+    /// 同一菜单里的条目大小写必须一致：本项目菜单走 Title Case（Set Capture Region、Run As Administrator）。
+    /// 混排最伤观感——「Recognize Text」旁边站着「Refresh content」。
+    /// 单词条目（Copy / Close）两种写法同形，不参与判定；占位符、括号与标点先剥掉。
+    /// </summary>
+    static void CheckMenuCase(List<string> rows, string surface, DependencyObject root)
+    {
+        var items = new List<DependencyObject>();
+        CollectTyped(root, typeof(MenuItem), items);
+        var title = new List<string>();
+        var sentence = new List<string>();
+        foreach (var o in items)
+        {
+            if (o is not MenuItem mi || mi.Header is not string h) continue;
+            var clean = System.Text.RegularExpressions.Regex
+                .Replace(h, @"\{[0-9]+\}|\(.*?\)|[^\w\s'-]", " ").Trim();
+            var words = clean.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+            if (words.Length < 2 || !words.All(w => Regex_Latin(w[0]))) continue;
+            if (words.All(w => char.IsUpper(w[0]))) title.Add(h);
+            else if (char.IsUpper(words[0][0]) && words.Skip(1).All(w => char.IsLower(w[0]))) sentence.Add(h);
+        }
+        if (title.Count > 0 && sentence.Count > 0)
+            rows.Add($"UXA|{surface}|大小写|同菜单混排：Title Case「{Cut(title[0], 26)}」与句首大写「{Cut(sentence[0], 26)}」");
+    }
+
+    /// <summary>只有拉丁字母才谈得上大小写。</summary>
+    static bool Regex_Latin(char c) => (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z');
+
     /// <summary>扫一棵已布局好的子树，报出挤掉的文字与英文界面里的中文。</summary>
     static void ScanTree(List<string> rows, string surface, DependencyObject root)
     {
         var found = new List<DependencyObject>();
         CollectTyped(root, typeof(TextBlock), found);
         _scanned += found.Count;
+        CheckMenuCase(rows, surface, root);
         foreach (var o in found)
         {
             if (o is not TextBlock tb) continue;

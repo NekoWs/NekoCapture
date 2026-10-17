@@ -5529,7 +5529,7 @@ static partial class SelfTest
                 Loc.F(K.Editor.Stroke, Loc.T(K.Editor.Thin)) == "Thin stroke" && Loc.F(K.Editor.Stroke, Loc.T(K.Editor.Bold)) == "Bold stroke",
                 Loc.F(K.Editor.Stroke, Loc.T(K.Editor.Medium)));
             // 带参串在英文里也要拼得出来：占位符顺序由译文决定，不是照抄中文
-            Chk("T189l-arg-format-in-en", Loc.F(K.Pin.CloseAllPins, 3) == "Close all pins (3)",
+            Chk("T189l-arg-format-in-en", Loc.F(K.Pin.CloseAllPins, 3) == "Close All Pins (3)",
                 Loc.F(K.Pin.CloseAllPins, 3));
             // 动作词汇表整表必须翻完：配置器下拉、快捷键页、帮助窗都读它，漏一条就是半中半英。
             // 判据取「切到英文后还带汉字」——缺译时取词原样返回中文，正好落进这个条件。

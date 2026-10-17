@@ -70,7 +70,7 @@ public static partial class K
         public static readonly Str SeeTheHelpAndEvery = new(
             "capture.seeTheHelpAndEvery",
             "查看帮助与全部快捷键",
-            "See the help and every shortcut");
+            "See the help and all shortcuts");
         public static readonly Str SegmentsStitchedPxTall = new(
             "capture.segmentsStitchedPxTall",
             "已拼接 {0} 段 · 高 {1} px",
