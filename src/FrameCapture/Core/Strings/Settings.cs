@@ -58,7 +58,7 @@ public static partial class K
         public static readonly Str AnOpenVideoFormatEncoded = new(
             "settings.anOpenVideoFormatEncoded",
             "开源视频格式，用 VP9 编码，同画质体积更小，网页/上传首选 ",
-            "An open video format encoded with VP9: the same quality at a smaller size, the first choice for the web and uploads ");
+            "An open video format encoded with VP9: the same quality at a smaller size, the first choice for the web and uploads");
         public static readonly Str AppearanceTheme = new("settings.appearanceTheme", "外观主题", "Appearance theme");
         public static readonly Str ASoftBuiltInBeep = new(
             "settings.aSoftBuiltInBeep",
@@ -174,7 +174,7 @@ public static partial class K
         public static readonly Str FfmpegNotFoundInstallFfmpeg = new(
             "settings.ffmpegNotFoundInstallFfmpeg",
             " · 未检测到 ffmpeg，装 FFmpeg 后可选",
-            " · ffmpeg not found; install FFmpeg to unlock");
+            " · ffmpeg not found; install FFmpeg to enable");
         public static readonly Str FfmpegNotFoundMp4 = new(
             "settings.ffmpegNotFoundMp4",
             "未检测到 ffmpeg · 导出 MP4/WebM 需先安装，见帮助 F1，GIF 不受影响",
@@ -360,7 +360,7 @@ public static partial class K
         public static readonly Str TheMostCompatibleVideoFormat = new(
             "settings.theMostCompatibleVideoFormat",
             "兼容性最好的视频格式，用 libx264 编码，浏览器/剪辑软件/社交平台通吃 ",
-            "The most compatible video format, encoded with libx264, at home in browsers, editors, and social platforms ");
+            "The most compatible video format, encoded with libx264, at home in browsers, editors, and social platforms");
         public static readonly Str TheRecordingFrameRateThen = new(
             "settings.theRecordingFrameRateThen",
             "开启后录制帧率自动取当前录制显示器的刷新率，本机暂未检测到主屏刷新率，录制时按实际显示器实时检测，上面的手动帧率随之隐藏。",

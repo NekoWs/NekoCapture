@@ -10,7 +10,7 @@ public static partial class K
     public static partial class Commands
     {
         public static readonly Str CloseName = new("commands.closeName", "取消并关闭", "Cancel and close");
-        public static readonly Str ColorCustomName = new("commands.colorCustomName", "取色与自定义颜色", "Pick and custom color");
+        public static readonly Str ColorCustomName = new("commands.colorCustomName", "取色与自定义颜色", "Picker & custom color");
         public static readonly Str CommitName = new("commands.commitName", "确定并复制", "Confirm and copy");
         public static readonly Str DeleteObjectName = new("commands.deleteObjectName", "删除选中对象", "Delete selected object");
         public static readonly Str GroupDrawingtools = new("commands.groupDrawingtools", "绘制工具", "Drawing tools");
