@@ -76,6 +76,8 @@ public static partial class K
             "已拼接 {0} 段 · 高 {1} px",
             "{0} segments stitched · {1} px tall");
         public static readonly Str SegmentStitched = new("capture.segmentStitched", "已拼接 1 段", "1 segment stitched");
+        public static readonly Str SavedFileName = new("capture.savedFileName", "已保存 {0}", "Saved {0}");
+        public static readonly Str SavingVideo = new("capture.savingVideo", "正在保存视频…", "Saving video…");
         public static readonly Str StopAutoScroll = new("capture.stopAutoScroll", "停止自动滚动", "Stop Auto-Scroll");
         public static readonly Str TheViewKeepsChangingSo = new(
             "capture.theViewKeepsChangingSo",

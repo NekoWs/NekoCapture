@@ -5766,6 +5766,52 @@ static partial class SelfTest
         }
         catch (Exception e) { Chk("T210-tray-icon-paused", false, e.Message); }
 
+        // 自动保存的轻提示：半秒内写完不打扰；慢的那次先说「正在保存视频…」，写完换成「已保存 文件名」
+        try
+        {
+            var tHint = typeof(FrameCapture.Services.SaveService).GetNestedType("SavingHint", System.Reflection.BindingFlags.NonPublic)!;
+            var startH = tHint.GetMethod("Start", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static)!;
+            var doneH = tHint.GetMethod("Done", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance)!;
+            static string ToastText()
+            {
+                var app = System.Windows.Application.Current;
+                if (app == null) return "";
+                foreach (System.Windows.Window w in app.Windows)
+                {
+                    if (w is not FrameCapture.Overlays.NoticeToast) continue;
+                    var sb = new System.Text.StringBuilder();
+                    var stack = new System.Collections.Generic.Stack<System.Windows.DependencyObject>();
+                    stack.Push(w);
+                    while (stack.Count > 0)
+                    {
+                        var d = stack.Pop();
+                        if (d is System.Windows.Controls.TextBlock tb) sb.Append(tb.Text).Append('|');
+                        int n = d is System.Windows.Media.Visual ? System.Windows.Media.VisualTreeHelper.GetChildrenCount(d) : 0;
+                        for (int i = 0; i < n; i++) stack.Push(System.Windows.Media.VisualTreeHelper.GetChild(d, i));
+                    }
+                    return sb.ToString();
+                }
+                return "";
+            }
+            FrameCapture.Overlays.NoticeToast.DismissCurrent();
+            PumpMs(400);                       // 让上一条淡出干净再计时
+            var h = startH.Invoke(null, new object[] { "clip.mp4" });
+            PumpMs(200);
+            string early = ToastText();
+            PumpMs(700);
+            string mid = ToastText();
+            doneH.Invoke(h, new object[] { true });
+            PumpMs(250);
+            string after = ToastText();
+            bool saving = mid.Contains("正在保存") || mid.Contains("Saving");
+            bool saved = (after.Contains("已保存") || after.Contains("Saved")) && after.Contains("clip.mp4");
+            Chk("T211-autosave-hint-waits-then-confirms",
+                early.Length == 0 && saving && saved,
+                $"200ms=[{early}] 900ms=[{mid}] 完成后=[{after}]");
+            FrameCapture.Overlays.NoticeToast.DismissCurrent();
+        }
+        catch (Exception e) { Chk("T211-autosave-hint", false, e.Message); }
+
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");
         return fail == 0 ? 0 : 1;
     }

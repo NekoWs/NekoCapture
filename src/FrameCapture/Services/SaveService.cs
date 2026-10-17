@@ -87,15 +87,18 @@ public static class SaveService
             string ext = vfmt == VideoFormat.Mp4 ? "mp4" : "webm";
             var vpath = Path.Combine(dir, UniqueName(dir, Stamp(), ext));
             var frames = seq.Frames; // 已烘焙、内存态，闭包持有，独立于 spool
+            var hint = SavingHint.Start(Path.GetFileName(vpath));
             Task.Run(() =>
             {
                 string tmp = Path.Combine(Path.GetTempPath(), $"fc_autosave_{Guid.NewGuid():N}.{ext}");
+                bool ok = false;
                 try
                 {
                     VideoEncoder.Encode(frames, ff, tmp, vfmt, VideoEncoder.FpsFromFrames(frames),
                         matte: matte);
                     File.Copy(tmp, vpath, overwrite: true);
                     Trace.Log($"autosave {ext} {vpath} {new FileInfo(vpath).Length}B {frames.Count}f");
+                    ok = true;
                 }
                 catch (Exception ex)
                 {
@@ -103,8 +106,10 @@ public static class SaveService
                     catch (Exception ex2) { Trace.Log($"autosave failed: {ex2.Message}"); }
                 }
                 finally { try { if (File.Exists(tmp)) File.Delete(tmp); } catch { } }
-            }).ContinueWith(_ =>
+                return ok;
+            }).ContinueWith(t =>
             {
+                hint.Done(t.IsCompletedSuccessfully && t.Result);
                 // 后台编码闭包持有的整段烘焙帧（长录制可达 GB）此刻已随任务委托释放，
                 // 主动全代 GC + 裁工作集，避免"录完视频内存一直虚高、要手动 MemReduct 才回落"。
                 Memory.Reclaim();
@@ -126,5 +131,52 @@ public static class SaveService
             Trace.Log($"autosave png {path} {frame.W}x{frame.H}");
         }
         catch (Exception ex) { Trace.Log($"autosave png failed: {ex.Message}"); }
+    }
+
+    /// <summary>
+    /// 后台编码的轻提示：只在慢的那次开口。半秒内写完不吭声——文件本来就在眼前出现，
+    /// 弹一条只是打断；超过半秒人已经开始找文件，先说「正在保存视频…」，写完换成「已保存 文件名」。
+    /// 编码失败不报「已保存」：兜底 GIF 会静默落盘，产物没丢，也不该拿成功的话骗人。
+    /// </summary>
+    sealed class SavingHint
+    {
+        /// <summary>等多久没写完才开口（ms）。短于这个时长，文件出现得比读完一条提示还快。</summary>
+        const int PatienceMs = 600;
+
+        readonly string _name;
+        System.Windows.Threading.DispatcherTimer? _timer;
+        bool _shown;
+
+        SavingHint(string name)
+        {
+            _name = name;
+            if (System.Windows.Application.Current is null) return;   // 没有 UI 的宿主：整条提示静默
+            _timer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(PatienceMs) };
+            _timer.Tick += (_, _) =>
+            {
+                _timer.Stop();
+                _shown = true;
+                Overlays.NoticeToast.Show(Loc.T(K.Capture.SavingVideo), _name, seconds: 8);
+            };
+            _timer.Start();
+        }
+
+        /// <summary>开始计时，须在 UI 线程调用——提示本身也在那里画。</summary>
+        /// <param name="name">报给用户的文件名，不含目录。</param>
+        /// <returns>提示句柄；编码结束时交给 <see cref="Done"/>。</returns>
+        public static SavingHint Start(string name) => new(name);
+
+        /// <summary>编码收尾：没来得及弹的收回；已经弹出去的，成功就换成「已保存」，失败就让那条自己到期。</summary>
+        /// <param name="ok">产物是否已完整落到目标文件。兜底 GIF 不算成功。</param>
+        public void Done(bool ok)
+        {
+            var app = System.Windows.Application.Current;
+            if (app is null) { _timer?.Stop(); return; }
+            app.Dispatcher.BeginInvoke(() =>
+            {
+                _timer?.Stop();
+                if (_shown && ok) Overlays.NoticeToast.Show(Loc.F(K.Capture.SavedFileName, _name), seconds: 3);
+            });
+        }
     }
 }
