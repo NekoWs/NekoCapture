@@ -242,8 +242,18 @@ public sealed class SettingsService
         Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
     };
 
-    public static string Dir => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "FrameCapture");
+    /// <summary>设置目录。默认 <c>%APPDATA%\FrameCapture</c>；<c>FC_SETTINGS_DIR</c> 指到别处，
+    /// 让自动化测试与脚本整份搬进临时目录，不碰用户机器上的配置。错误日志与文件监听跟着这里走。</summary>
+    public static string Dir
+    {
+        get
+        {
+            var alt = Environment.GetEnvironmentVariable("FC_SETTINGS_DIR");
+            return string.IsNullOrWhiteSpace(alt)
+                ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "FrameCapture")
+                : alt;
+        }
+    }
 
     public static string FilePath => Path.Combine(Dir, "settings.json");
 

@@ -5695,7 +5695,7 @@ static partial class SelfTest
 
         #endregion
 
-        // T207 · 贴图方向键微调：一格 1 DIP，Shift 一格 10 DIP，非方向键不给位移
+        // 贴图方向键微调：一格 1 DIP，Shift 一格 10 DIP，非方向键不给位移
         try
         {
             var left = PinNudge.Move(Key.Left, false);
