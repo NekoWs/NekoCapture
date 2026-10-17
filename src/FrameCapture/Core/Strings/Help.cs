@@ -134,7 +134,7 @@ public static partial class K
         public static readonly Str PinSnappingLinesThePin = new(
             "help.pinSnappingLinesThePin",
             "「贴图窗口吸附」：贴齐屏幕边、其他贴图、任意窗口边",
-            "Pin snapping lines the pin up with screen edges, other pins, and any window edge");
+            "With pin snapping, the pin lines up with screen edges, other pins, and any window edge");
         public static readonly Str PinsTheCurrentFrameFrom = new(
             "help.pinsTheCurrentFrameFrom",
             "编辑器里把当前帧钉到屏幕",

@@ -13,7 +13,7 @@ public static partial class K
         public static readonly Str AddsOnePressAKey = new(
             "hotkeys.addsOnePressAKey",
             "新增一条：先给它按一个组合键，再挑要执行的动作",
-            "Adds one: press a key combination for it first, then pick what it should do.");
+            "Add one: press a key combination first, then pick what it should do.");
         public static readonly Str AnotherHotkeyAlreadyUsesThis = new(
             "hotkeys.anotherHotkeyAlreadyUsesThis",
             "同一个组合键与触发方式上挂着多条快捷键，只有排在前面那条会触发",
@@ -32,7 +32,7 @@ public static partial class K
         public static readonly Str OffStepsTheWholeHotkey = new(
             "hotkeys.offStepsTheWholeHotkey",
             "关掉后快捷键整体不参与：不吞键、不触发，按键照常交给当前窗口",
-            "Off steps the whole hotkey layer back: no swallowed keys, no triggering — every keypress goes to the window in front.");
+            "Off, the whole hotkey layer steps back: no swallowed keys, no triggering — every keypress goes to the window in front.");
         public static readonly Str OnCompletion = new("hotkeys.onCompletion", "完成后", "On completion");
         public static readonly Str OneKeyCombinationCanCarry = new(
             "hotkeys.oneKeyCombinationCanCarry",
