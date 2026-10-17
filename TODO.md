@@ -466,3 +466,25 @@
 - **编辑器拖拽时重建整棵标注视觉树**（`ToolsAndRendering` 四角缩放、`KeysPlaybackAndDisplay` 每帧重建刻度尺）：改成增量更新是真实收益，但视觉树重建对 WPF 布局是幂等的，改坏了表现为**肉眼可见的错位**而 SelfTest 抓不到。需要一套截图比对基线才敢动。
 - **上一节 A 类 4 条与 B 类剩余各条**（`CaptureSound` 解码静默、`SampleIndices` 除零、`Afterimage` 返回 null、`UserPreferenceDark` 默认值不一致、`FinishCapture.holdMs` 死形参、`_flashTimer` 无 `Start()`、`MakeToggle` 两分支相同、`CaptureController.Dispose` 不完整、`WindowEnum` 排除范围、`AgentStrip.Generate`）：
   这些**修它本身就是改行为**——补护栏等于新增失败分支、删形参等于改签名、补 `Dispose` 等于改退出时序、统一默认值等于改变读到坏配置时的主题归属。与本轮「不影响现有行为」的硬约束直接冲突，留待单独一轮逐条确认预期后再动。
+
+## 辅助功能暴露面（夜间走查量出来，未做）
+
+用 UIAutomation 量了设置窗：`FrameCapture Settings` 下 **200 个 UIA 元素、193 个带名字**，
+但按控件类型分只有 **Button × 3**（外加 Pane/ScrollBar/Thumb 各 1），其余 194 个全是 `Text`。
+页面上真正可点的东西——7 个导航项、每条快捷键行的垃圾桶/铅笔/加号、开关、键帽——
+都是自绘 `Border` + `MouseLeftButtonDown`，**在 UIA 里既不是控件也没有 Invoke 模式**。
+
+后果说清楚：读屏（讲述人）能把这一页**读**出来（文字都暴露了），但**操作不了**——
+Tab 到不了、也按不动。键盘用户不受影响：本项目的动作全都有键位，帮助页逐条列着，
+这条是「读屏用户」而不是「不用鼠标的人」的门槛。
+
+**为什么今晚不做**：补法是给每个自绘命中区挂 `AutomationPeer`（或改用 `Button` 换模板），
+要动 Settings / Editor / Pin / Tray 全部命中区，属于跨界面重构，不适合放在发版前几小时里做。
+
+**建议做法**（单独一轮）：
+1. 先做**能受益最大的一层**：导航项与开关（读屏用户最先要动的两处），给它们自定义 `AutomationPeer`
+   暴露 `Invoke`/`Toggle`，并补 `AutomationProperties.Name`（名字直接取现有 `Loc.T` 的文案，不新增文案）。
+2. 命中区尺寸一并量：UIA 的 `BoundingRectangle` 就是现成的判据，低于 32 物理像素的报出来。
+3. 判据进 `LayoutAudit`：同一界面里「可见可点但 UIA 里不是控件」的元素计数，超过阈值就 FAIL——
+   否则补完这轮，下一轮新加的自绘按钮又会静悄悄掉出无障碍树。
+
