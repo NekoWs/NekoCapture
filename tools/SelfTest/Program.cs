@@ -5715,6 +5715,22 @@ static partial class SelfTest
         }
         catch (Exception e) { Chk("T207-pin-nudge", false, e.Message); }
 
+        // 倒计时窗的 Esc 代收开关跟着窗口生命周期走：漏关一次，全局 Esc 就永久失灵
+        try
+        {
+            var cd = new FrameCapture.Overlays.CountdownWindow("1560,260 940×560", @"\\.\DISPLAY1");
+            cd.Left = -20000; cd.Top = -20000;   // 构造期已定好落点，Show 前挪走，不在用户屏幕上闪
+            cd.Show();
+            PumpMs(150);
+            bool on = HotkeyManager.CountdownActive;
+            cd.Close();
+            PumpMs(150);
+            Chk("T208-countdown-esc-claim-and-release",
+                on && !HotkeyManager.CountdownActive && HotkeyManager.CountdownEsc is null,
+                $"开窗={on} 关窗={HotkeyManager.CountdownActive}");
+        }
+        catch (Exception e) { Chk("T208-countdown-esc", false, e.Message); }
+
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");
         return fail == 0 ? 0 : 1;
     }

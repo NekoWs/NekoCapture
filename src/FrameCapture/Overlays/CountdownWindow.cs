@@ -127,6 +127,16 @@ public sealed class CountdownWindow : Window
         var cancel = MakeBtn(Loc.T(K.Common.Cancel), Theme.Hover, Theme.Text);
         cancel.Click += (_, _) => OnCancel?.Invoke();
         btns.Children.Add(cancel);
+        // 键位写出来才有人按：这扇窗不抢焦点，Esc 由全局钩子代收
+        btns.Children.Add(new TextBlock
+        {
+            Text = "Esc",
+            FontSize = 11.5,
+            Foreground = new SolidColorBrush(Theme.TextDim),
+            FontFamily = new FontFamily("Segoe UI"),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(8, 0, 0, 0),
+        });
         root.Children.Add(btns);
 
         card.Child = root;
@@ -140,7 +150,19 @@ public sealed class CountdownWindow : Window
                 Win32.SetWindowDisplayAffinity(h, Win32.WDA_EXCLUDEFROMCAPTURE);
         };
 
-        Closed += (_, _) => { if (ReferenceEquals(Current, this)) Current = null; };
+        // 倒计时期间 Esc 全局取消：这扇窗 ShowActivated=false，键不会进它自己的 HWND，只能全局代收
+        Loaded += (_, _) =>
+        {
+            Services.HotkeyManager.CountdownActive = true;
+            // 回调在钩子回调线程里被同步调用，收窗要落回 UI 线程
+            Services.HotkeyManager.CountdownEsc = () => Dispatcher.BeginInvoke(() => OnCancel?.Invoke());
+        };
+        Closed += (_, _) =>
+        {
+            Services.HotkeyManager.CountdownActive = false;
+            Services.HotkeyManager.CountdownEsc = null;
+            if (ReferenceEquals(Current, this)) Current = null;
+        };
         Trace.Log("countdown shown");
         Fluent.FadeIn(this, Fluent.Motion.EnterMs, 8, offscreenFirstFrame: true);
     }

@@ -21,6 +21,11 @@ public sealed class HotkeyManager : IDisposable
     /// <summary>滚动截图会话是否活跃（由控制条生命周期置位：Show=true、Closed=false）。
     /// volatile：钩子线程读、UI 线程写。为 true 时全局吞掉 Esc 并触发 ScrollCancel。</summary>
     public static volatile bool ScrollActive;
+    /// <summary>延时截图倒计时活跃时置位：全局吞 Esc 并回调（倒计时窗不抢焦点，键不会进它自己的 HWND）。
+    /// 生命周期绑定倒计时窗 Show/Closed，绝不泄漏成"全局 Esc 失灵"。</summary>
+    public static volatile bool CountdownActive;
+    /// <value>倒计时期间 Esc 的响应。<b>在钩子回调内被同步调用</b>，赋值方自己投递到 UI 线程。</value>
+    public static Action? CountdownEsc;
     /// <summary>截图浮窗（CaptureToast）活跃时置位：全局吞 Enter/Esc 并回调（浮窗不抢焦点，键不会进它自己的
     /// HWND，只能靠全局钩子代劳）。Enter→进编辑器，Esc→关闭。生命周期绑定浮窗 Show/Closed。</summary>
     public static volatile bool ToastActive;
@@ -135,6 +140,9 @@ public sealed class HotkeyManager : IDisposable
         // 滚动截图会话中：Esc 全局取消并吞掉（控制条不抢焦点，否则 Esc 会漏给目标窗）。
         // 热路径仅一次 volatile 读 + 一次整数比较；ScrollActive 绑定控制条生命周期，绝不泄漏成"全局 Esc 失灵"。
         if (isDown && vk == 0x1B && ScrollActive) { ScrollCancel?.Invoke(); return true; }
+
+        // 延时截图倒计时中：Esc 取消这次截图并吞掉（倒计时窗不抢焦点，否则 Esc 会漏给目标窗）。
+        if (isDown && vk == 0x1B && CountdownActive) { CountdownEsc?.Invoke(); return true; }
 
         // 截图浮窗活跃：Enter=进编辑器、Esc=关闭，全局吞掉（浮窗不抢焦点，键不会进它自己的 HWND）。
         if (isDown && ToastActive && (vk == 0x0D || vk == 0x1B))
