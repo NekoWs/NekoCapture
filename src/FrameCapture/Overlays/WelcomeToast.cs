@@ -61,6 +61,7 @@ public sealed class WelcomeToast : Window
         };
 
         var root = new StackPanel();
+        Grid.SetIsSharedSizeScope(root, true);   // 两行热键的标签列共用一个宽度，键位才对齐
 
         // 标题行：标题 + 关闭 X
         var head = new Grid();
@@ -153,23 +154,28 @@ public sealed class WelcomeToast : Window
         Fluent.FadeIn(this, Fluent.Motion.EnterMs, 8, offscreenFirstFrame: true);
     }
 
+    /// <summary>一行「标签 + 键位」。标签列走 SharedSizeGroup：两行的键位对齐，列宽由两种语言里较宽的那条决定。
+    /// 写死宽度只量得出中文那两个汉字，英文的 Capture / Recording 会被切掉半截，还和键位挤在一起。</summary>
+    /// <param name="label">这条热键是干什么的，暗色小字。</param>
+    /// <param name="key">当前生效的键位串，强调色加粗。</param>
+    /// <returns>一行两列的版面，交给欢迎卡纵向堆叠。</returns>
     static FrameworkElement HotkeyLine(string label, string key)
     {
-        var sp = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            Margin = new Thickness(0, 10, 0, 0),
-        };
-        sp.Children.Add(new TextBlock
+        var g = new Grid { Margin = new Thickness(0, 10, 0, 0) };
+        g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto, SharedSizeGroup = "HotkeyLabel" });
+        g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        var lb = new TextBlock
         {
             Text = label,
             FontSize = 13,
             Foreground = new SolidColorBrush(Theme.TextDim),
             FontFamily = new FontFamily("Segoe UI"),
-            Width = 40,
+            Margin = new Thickness(0, 0, 8, 0),
             VerticalAlignment = VerticalAlignment.Center,
-        });
-        sp.Children.Add(new TextBlock
+        };
+        Grid.SetColumn(lb, 0);
+        g.Children.Add(lb);
+        g.Children.Add(new TextBlock
         {
             Text = key,
             FontSize = 13.5,
@@ -178,7 +184,8 @@ public sealed class WelcomeToast : Window
             FontFamily = new FontFamily("Segoe UI"),
             VerticalAlignment = VerticalAlignment.Center,
         });
-        return sp;
+        Grid.SetColumn(g.Children[1], 1);
+        return g;
     }
 
     // 圆角实心按钮模板（强调色底）；模板内无触发器，悬停底色由 Fluent.Springy 在代码里驱动

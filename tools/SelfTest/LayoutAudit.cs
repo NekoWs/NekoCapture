@@ -334,7 +334,65 @@ static partial class SelfTest
                     rows.Add($"UXA|{surface}|裁行|{At(tb, root)} 高{got:F0}→{need:F0} {Cut(text, 46)}");
             }
         }
+        OverlapPass(rows, surface, root, found);
         (root as UIElement)?.UpdateLayout();
+    }
+
+    /// <summary>两段文字画在同一块地方：写死宽度的标签溢出后压在邻居身上，邻居再把它盖掉。</summary>
+    /// <remarks>
+    /// 这类缺陷「裁字」那条查不出来：WPF 不裁，DesiredSize 也被自己那格的 Width 夹住，量不出溢出——
+    /// 唯一诚实的判据是「文字真正要多宽」和「邻居从哪儿开始」。
+    /// 欢迎卡的「截图」列写死 40px，英文 Capture 的尾字母正是这么被键位吃掉的。
+    /// </remarks>
+    /// <param name="rows">发现汇总，逐条追加。</param>
+    /// <param name="surface">界面名，进报告前缀。</param>
+    /// <param name="root">这棵子树的根，坐标以它为原点。</param>
+    /// <param name="found">已经收集好的 TextBlock 列表。</param>
+    static void OverlapPass(List<string> rows, string surface, DependencyObject root, List<DependencyObject> found)
+    {
+        if (root is not Visual visRoot) return;
+        var boxes = new List<(Rect R, string Text, TextBlock Tb)>();
+        foreach (var o in found)
+        {
+            if (o is not TextBlock tb) continue;
+            string text = tb.Text ?? "";
+            if (string.IsNullOrWhiteSpace(text) || tb.ActualWidth <= 0 || tb.ActualHeight <= 0) continue;
+            if (AllGlyph(text)) continue;   // 图标字形按 em 框量，本来就比格子宽，不算压到谁
+            if (!tb.IsVisible) continue;
+            var p = tb.TransformToVisual(visRoot).Transform(new Point(0, 0));
+            boxes.Add((new Rect(p.X, p.Y, Math.Max(NaturalWidth(tb), tb.ActualWidth), tb.ActualHeight), text, tb));
+        }
+        for (int i = 0; i < boxes.Count; i++)
+            for (int j = i + 1; j < boxes.Count; j++)
+            {
+                var a = boxes[i].R;
+                var b = boxes[j].R;
+                double ox = Math.Min(a.Right, b.Right) - Math.Max(a.X, b.X);
+                double oy = Math.Min(a.Bottom, b.Bottom) - Math.Max(a.Y, b.Y);
+                if (ox < 4 || oy < Math.Min(a.Height, b.Height) * 0.5) continue;
+                // 同一段字在同一个位置出现两次：模板里 ContentPresenter 套 TextBlock 的常见形状，不是叠字
+                if (boxes[i].Text == boxes[j].Text
+                    && ox >= Math.Min(a.Width, b.Width) - 2 && oy >= Math.Min(a.Height, b.Height) - 2) continue;
+                rows.Add($"UXA|{surface}|叠字|{At(boxes[i].Tb, root)} {Cut(boxes[i].Text, 22)} × {Cut(boxes[j].Text, 22)} 压住{ox:F0}px");
+            }
+    }
+
+    /// <summary>这段文字不受外层格子限制时真正要多宽：照抄字体属性另起一个 TextBlock 量。</summary>
+    /// <param name="tb">要量的文字块。</param>
+    /// <returns>单行不换行时的自然宽度（DIP）。</returns>
+    static double NaturalWidth(TextBlock tb)
+    {
+        var probe = new TextBlock
+        {
+            Text = tb.Text,
+            FontSize = tb.FontSize,
+            FontFamily = tb.FontFamily,
+            FontWeight = tb.FontWeight,
+            FontStyle = tb.FontStyle,
+            FontStretch = tb.FontStretch,
+        };
+        probe.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        return probe.DesiredSize.Width;
     }
 
     /// <summary>祖先里有没有会把溢出内容真切掉的东西：ClipToBounds、显式 Clip，或滚动容器。</summary>
