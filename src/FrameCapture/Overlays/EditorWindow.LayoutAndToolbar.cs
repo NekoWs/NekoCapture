@@ -289,17 +289,19 @@ public sealed partial class EditorWindow : Window
             int idx = i;
             var inner = new System.Windows.Shapes.Ellipse
             {
-                Width = 14, Height = 14, Fill = new SolidColorBrush(Swatches[idx]),
+                Width = 16, Height = 16, Fill = new SolidColorBrush(Swatches[idx]),
                 // 40% 文字色环：Theme.Stroke 在浅色主题太淡，白色色块会融进白工具条
                 Stroke = new SolidColorBrush(Color.FromArgb(0x66, Theme.Text.R, Theme.Text.G, Theme.Text.B)), StrokeThickness = 1,
             };
             var bd = new Border
             {
                 Child = inner,
-                Width = 22,
-                Height = 22,
+                // 26 见方：22 的命中区低于 24 的目标尺寸下限，选色这种要点准的动作尤其吃力。
+                // 色点跟着从 14 长到 16，选中环才继续贴着色点而不是浮在一圈空白外。
+                Width = 26,
+                Height = 26,
                 Margin = new Thickness(2),
-                CornerRadius = new CornerRadius(11),
+                CornerRadius = new CornerRadius(13),
                 Background = Brushes.Transparent,
                 BorderBrush = i == 0 ? new SolidColorBrush(Acc) : Brushes.Transparent,
                 BorderThickness = new Thickness(2),

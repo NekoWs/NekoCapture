@@ -348,7 +348,9 @@ public sealed partial class SettingsWindow : Window
 
     static Grid Row()
     {
-        var g = new Grid { Margin = new Thickness(0, 6, 0, 6) };
+        // 整行可点，所以命中区就是这一行的高度：只按内容排出来是 20 逻辑像素，比 24 的可用下限还小，
+        // 上下 6 像素的间距又落在命中区外。给个 32 的下限，间距收到 2，行距基本不变而点得着。
+        var g = new Grid { Margin = new Thickness(0, 2, 0, 2), MinHeight = 32 };
         g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         return g;

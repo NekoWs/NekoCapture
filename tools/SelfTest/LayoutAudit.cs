@@ -399,6 +399,56 @@ static partial class SelfTest
     /// <summary>只有拉丁字母才谈得上大小写。</summary>
     static bool Regex_Latin(char c) => (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z');
 
+    /// <summary>
+    /// 命中区尺寸：手型光标标出来的就是「给人点的」，短边不足 28 逻辑像素很容易点偏。
+    /// `Cursor` 在 WPF 里是继承属性，可点行里的每个文字都会带上手型——只判最外层那一个，
+    /// 内层继承来的不算，否则一条快捷键行能报十几条假阳性。
+    /// </summary>
+    static void CheckHitTargets(List<string> rows, string surface, DependencyObject root)
+    {
+        var els = new List<DependencyObject>();
+        CollectTyped(root, typeof(FrameworkElement), els);
+        foreach (var o in els)
+        {
+            if (o is not FrameworkElement fe) continue;
+            if (fe.Cursor != System.Windows.Input.Cursors.Hand) continue;
+            if (HandAncestor(fe, root)) continue;
+            double w = fe.ActualWidth, h = fe.ActualHeight;
+            if (w <= 0 || h <= 0) continue;
+            // 24 逻辑像素是 WCAG 2.5.8 的目标尺寸下限，也是 Windows 11 触控的最小档；
+            // 再往上抬就成了自造标准，会把 27.6 这种本来合格的浮窗按钮报成缺陷。
+            if (Math.Min(w, h) >= 24) continue;
+            rows.Add($"UXA|{surface}|命中区|{At(fe, root)} {fe.GetType().Name}「{Cut(FirstText(fe), 22)}」{w:F0}×{h:F0}");
+        }
+    }
+
+    /// <summary>取这棵子树里第一条文字，让命中区的报告说得出它是哪个按钮。</summary>
+    /// <param name="root">命中区根元素。</param>
+    /// <returns>第一条非空文字，没有则空串。</returns>
+    static string FirstText(DependencyObject root)
+    {
+        var list = new List<DependencyObject>();
+        CollectTyped(root, typeof(TextBlock), list);
+        foreach (var o in list)
+            if (o is TextBlock t && !string.IsNullOrWhiteSpace(t.Text)) return t.Text.Trim();
+        return "";
+    }
+
+    /// <summary>往上找有没有同样带手型光标的祖先：命中区是祖先，这个元素只是继承来的。</summary>
+    /// <param name="fe">待判元素。</param>
+    /// <param name="root">本次扫描的根，到根为止。</param>
+    /// <returns>祖先里出现过手型光标则为真。</returns>
+    static bool HandAncestor(FrameworkElement fe, DependencyObject root)
+    {
+        var p = VisualTreeHelper.GetParent(fe);
+        while (p != null && !ReferenceEquals(p, root))
+        {
+            if (p is FrameworkElement pe && pe.Cursor == System.Windows.Input.Cursors.Hand) return true;
+            p = VisualTreeHelper.GetParent(p);
+        }
+        return false;
+    }
+
     /// <summary>扫一棵已布局好的子树，报出挤掉的文字与英文界面里的中文。</summary>
     static void ScanTree(List<string> rows, string surface, DependencyObject root)
     {
@@ -406,6 +456,7 @@ static partial class SelfTest
         CollectTyped(root, typeof(TextBlock), found);
         _scanned += found.Count;
         CheckMenuCase(rows, surface, root);
+        CheckHitTargets(rows, surface, root);
         foreach (var o in found)
         {
             if (o is not TextBlock tb) continue;
@@ -552,11 +603,11 @@ static partial class SelfTest
     static bool AllowedCjkInEnglish(string s) => s.Trim() == "中文";
 
     /// <summary>元素在窗口内的落点：把一条发现对回截图上的位置，不靠猜。</summary>
-    static string At(TextBlock tb, DependencyObject root)
+    static string At(Visual el, DependencyObject root)
     {
         try
         {
-            var p = tb.TransformToVisual(root as Visual).Transform(new Point(0, 0));
+            var p = el.TransformToVisual(root as Visual).Transform(new Point(0, 0));
             return $"@{p.X:F0},{p.Y:F0}";
         }
         catch { return "@?"; }

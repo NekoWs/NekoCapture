@@ -47,6 +47,7 @@ public sealed partial class SettingsWindow : Window
                 BorderBrush = new SolidColorBrush(Theme.Stroke),
                 Background = Brushes.Transparent,
                 Padding = new Thickness(8, 3, 8, 3),
+                MinHeight = 30,   // 按内容排出来只有 23 逻辑像素高，手指点在字上才命中；撑到 30 让整颗按钮点得着。
                 Cursor = Cursors.Hand,
                 Child = new TextBlock { Text = text, FontSize = 11.5, Foreground = new SolidColorBrush(Theme.TextDim) },
             };
