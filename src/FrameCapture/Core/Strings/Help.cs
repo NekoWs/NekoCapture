@@ -13,7 +13,7 @@ public static partial class K
         public static readonly Str AfterCaptureIsSetPer = new(
             "help.afterCaptureIsSetPer",
             "「截图后」在「设置 · 快捷键」每条快捷键的完成后一栏设置；托盘还能「编辑上次截图」。",
-            "After capture is set per hotkey under After on Settings · Shortcuts; the tray also offers Edit last capture.");
+            "The After column on Settings · Shortcuts sets this per hotkey; the tray also offers Edit last capture.");
         public static readonly Str AfterRecording = new("help.afterRecording", "录完", "After recording");
         public static readonly Str AnyRectangleTheWheelResizes = new(
             "help.anyRectangleTheWheelResizes",
@@ -33,7 +33,7 @@ public static partial class K
         public static readonly Str ClickItToOpen = new(
             "help.clickItToOpen",
             "点它进编辑器；常驻/1/2/5秒/自定义可调",
-            "Click it to open the editor; stay, or 1/2/5 seconds, or custom");
+            "Click it to open the editor; stay, 1/2/5 seconds, or custom");
         public static readonly Str CloseTheMenuSavesReads = new(
             "help.closeTheMenuSavesReads",
             "关闭 / 右键菜单存盘、识字、复制",
@@ -142,7 +142,7 @@ public static partial class K
         public static readonly Str PlayAndPauseStep = new(
             "help.playAndPauseStep",
             "播放暂停 / 逐帧 · Shift 走一秒",
-            "Play and pause / step a frame · Shift steps a second");
+            "Play and pause / step a frame · Shift steps by a second");
         public static readonly Str PressPressAgain = new("help.pressPressAgain", "按一下 / 再按一下", "Press / press again");
         public static readonly Str PressTheToolKeyAgain = new(
             "help.pressTheToolKeyAgain",
