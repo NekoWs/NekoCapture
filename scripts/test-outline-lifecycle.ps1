@@ -36,7 +36,7 @@ function TraceTail([long]$from) {
 function TraceLen { if (Test-Path $trace) { (Get-Item $trace).Length } else { 0 } }
 
 # ---- 桌面静态性预检：环带若本身在变（动图壁纸等），像素结论不可信 → SKIP（≠FAIL） ----
-$cfg = Join-Path $env:APPDATA 'FrameCapture\settings.json'
+$cfg = Get-FcSettingsPath
 $cfgBackup = Join-Path $outDir "settings-backup.json"
 $capHk = Get-FcCaptureHotkey
 $fail = @()

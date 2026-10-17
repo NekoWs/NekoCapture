@@ -7,7 +7,7 @@ $root = Split-Path $PSScriptRoot
 $exe = Join-Path $root "src\FrameCapture\bin\x64\Debug\net8.0-windows10.0.19041.0\FrameCapture.exe"
 $shot = Join-Path $root "tools\Shot\bin\x64\Debug\net8.0-windows\Shot.exe"
 $trace = Join-Path $root "src\fc-trace.log"
-$err = Join-Path $env:APPDATA "FrameCapture\error.log"
+$err = (Get-FcLogPath 'error.log')
 $e0 = if (Test-Path $err) { (Get-Item $err).Length } else { 0 }
 
 function Count-Trace([string]$pat) {
@@ -63,7 +63,7 @@ try {
 finally {
     Get-Process FrameCapture -ErrorAction SilentlyContinue | Stop-Process -Force
     Remove-Item Env:\FC_TEST_NO_FG -EA SilentlyContinue
-    if ($bak) { Set-Content (Join-Path $env:APPDATA "FrameCapture\settings.json") -Value $bak -Encoding UTF8 }
+    if ($bak) { Set-Content (Get-FcSettingsPath) -Value $bak -Encoding UTF8 }
 }
 
 $e1 = if (Test-Path $err) { (Get-Item $err).Length } else { 0 }

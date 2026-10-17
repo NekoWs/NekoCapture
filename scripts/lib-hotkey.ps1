@@ -53,8 +53,19 @@ function Get-FcHotkeyParts {
     return @{ vk = $vk; ctrl = $ctrl; shift = $shift; alt = $alt; win = $win }
 }
 
+# 设置目录：优先 FC_SETTINGS_DIR（护栏给 e2e 起的临时目录），没设才回 %APPDATA% 那份。
+# 测试会改设置（主题、热键、手势都写在 settings.json），崩溃断言读的 error.log 也在这个目录里——
+# 两边都跟着它走，用户自己那份从头到尾不该被碰一下。
+# 手工单跑某个脚本时不设它，行为与过去一致：对着自己这台机器的设置来。
+function Get-FcDir {
+    if ($env:FC_SETTINGS_DIR) { return $env:FC_SETTINGS_DIR }
+    return Join-Path $env:APPDATA 'FrameCapture'
+}
+function Get-FcSettingsPath { Join-Path (Get-FcDir) 'settings.json' }
+function Get-FcLogPath([string]$name) { Join-Path (Get-FcDir) $name }
+
 function Get-FcSettings {
-    $cfg = Join-Path $env:APPDATA 'FrameCapture\settings.json'
+    $cfg = Get-FcSettingsPath
     if (Test-Path $cfg) {
         try { return (Get-Content $cfg -Raw | ConvertFrom-Json) } catch { }
     }
@@ -83,7 +94,7 @@ function Get-FcCaptureHotkey {
 # 返回原 settings.json 原文（调用方负责结束还原）。
 function Set-FcTestGestureConfig {
     param([int]$RegionX = -1, [int]$RegionY = -1, [int]$RegionW = -1, [int]$RegionH = -1)
-    $cfg = Join-Path $env:APPDATA 'FrameCapture\settings.json'
+    $cfg = Get-FcSettingsPath
     New-Item -ItemType Directory -Force -Path (Split-Path $cfg) | Out-Null
     $bak = if (Test-Path $cfg) { Get-Content $cfg -Raw } else { $null }
     $s = if ($bak) { $bak | ConvertFrom-Json } else { [pscustomobject]@{} }

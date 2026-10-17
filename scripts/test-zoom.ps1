@@ -57,5 +57,5 @@ try {
 finally {
     Get-Process FrameCapture -EA SilentlyContinue | Stop-Process -Force
     Remove-Item Env:\FC_TEST_NO_FG -EA SilentlyContinue
-    if ($bak) { Set-Content (Join-Path $env:APPDATA "FrameCapture\settings.json") -Value $bak -Encoding UTF8 }
+    if ($bak) { Set-Content (Get-FcSettingsPath) -Value $bak -Encoding UTF8 }
 }

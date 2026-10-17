@@ -36,5 +36,5 @@ try {
 }
 finally {
     Get-Process FrameCapture -ErrorAction SilentlyContinue | Stop-Process -Force
-    if ($bak) { Set-Content (Join-Path $env:APPDATA "FrameCapture\settings.json") -Value $bak -Encoding UTF8 }
+    if ($bak) { Set-Content (Get-FcSettingsPath) -Value $bak -Encoding UTF8 }
 }

@@ -7,7 +7,7 @@ $root = Split-Path $PSScriptRoot
 . (Join-Path $PSScriptRoot "lib-hotkey.ps1")
 $exe = Join-Path $root "src\FrameCapture\bin\x64\Debug\net8.0-windows10.0.19041.0\FrameCapture.exe"
 $shot = Join-Path $root "tools\Shot\bin\x64\Debug\net8.0-windows\Shot.exe"
-$err = Join-Path $env:APPDATA "FrameCapture\error.log"
+$err = (Get-FcLogPath 'error.log')
 $e0 = if (Test-Path $err) { (Get-Item $err).Length } else { 0 }
 # R126 B2：钉成统一测试手势集，让乱键压测 tap/hold/holdrelease 状态机（轻点→选区窗 / 长按→录制→编辑器）。
 $capHk = 'Ctrl+Shift+G'
@@ -83,5 +83,5 @@ if ($ok) { "FUZZ-STATE MACHINE PASS ($Steps steps, seed=$Seed)" } else { "FUZZ F
 finally {
     Get-Process FrameCapture -ErrorAction SilentlyContinue | Stop-Process -Force
     Remove-Item Env:\FC_TEST_NO_FG -EA SilentlyContinue
-    if ($bak) { Set-Content (Join-Path $env:APPDATA "FrameCapture\settings.json") -Value $bak -Encoding UTF8 }
+    if ($bak) { Set-Content (Get-FcSettingsPath) -Value $bak -Encoding UTF8 }
 }

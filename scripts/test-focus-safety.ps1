@@ -8,7 +8,7 @@ $root = Split-Path -Parent $PSScriptRoot
 $exe  = Join-Path $root "src/FrameCapture/bin/x64/Debug/net8.0-windows10.0.19041.0/FrameCapture.exe"
 $shot = Join-Path $root "tools/Shot/bin/x64/Debug/net8.0-windows/Shot.exe"
 if (!(Test-Path $exe)) { Write-Host "missing $exe"; exit 1 }
-$cfg = Join-Path $env:APPDATA "FrameCapture\settings.json"
+$cfg = Get-FcSettingsPath
 Get-Process FrameCapture -EA SilentlyContinue | Stop-Process -Force   # 先杀，避免运行实例回写覆盖
 Start-Sleep 0.5
 $bak = Set-FcTestGestureConfig   # 钉成统一测试手势集（Ctrl+Shift+G 已绑定），结束（含各 SKIP 出口）一律还原

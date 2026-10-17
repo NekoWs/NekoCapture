@@ -146,7 +146,7 @@ function Capture-Bars {
 }
 
 # —— settings.json：备份 → 抬高 MaxDurationMs（实例启动前改好，避免与热加载竞态）→ 结束后原样还原 ——
-$cfgPath = Join-Path $env:APPDATA 'FrameCapture\settings.json'
+$cfgPath = Get-FcSettingsPath
 $cfgBackup = Join-Path $OutDir "settings-d9-backup-$Theme.json"
 Copy-Item $cfgPath $cfgBackup -Force
 try {

@@ -142,10 +142,19 @@ if ($uxLine) {
 } else { Add-Result "lint:ux-bilingual" "FAIL" "审计无输出（SelfTest 产物缺失？）"; Say $ux }
 
 # 5) 产物起得来：-SkipE2e 时其余动态项全不跑，主程序能不能起来这件事不能没人管。
-#    托盘应用，不弹窗、不注入任何输入；跑完按原字节还回用户设置。
+#    托盘应用，不弹窗、不注入任何输入。
+#
+# 验证链一律在自己的设置目录里跑：FC_SETTINGS_DIR 把 settings.json 与崩溃用的 error.log 整套搬进
+# test-out/guardrail-settings，起点是用户那份的副本。用户 %APPDATA% 里那份只读不写——
+# 中途崩了、被人掐了，都不会在他机器上留下测试态（主题、热键、强调色停在测试钉的那一套）。
+$fcDir = Join-Path $PSScriptRoot '..\test-out\guardrail-settings'
+$fcUser = Join-Path $env:APPDATA 'FrameCapture\settings.json'
+if (Test-Path $fcDir) { Remove-Item $fcDir -Recurse -Force -EA SilentlyContinue }
+New-Item -ItemType Directory -Force -Path $fcDir | Out-Null
+if (Test-Path $fcUser) { Copy-Item $fcUser (Join-Path $fcDir 'settings.json') -Force }
+$env:FC_SETTINGS_DIR = $fcDir
+
 if ($okBuild) {
-    $cfgFile = Join-Path $env:APPDATA 'FrameCapture\settings.json'
-    $cfgBak = if (Test-Path $cfgFile) { [IO.File]::ReadAllBytes($cfgFile) } else { $null }
     $t0 = [Diagnostics.Stopwatch]::StartNew()
     $p = Start-Process $exe -PassThru
     Start-Sleep 2.5
@@ -153,8 +162,6 @@ if ($okBuild) {
     $note = if ($alive) { "进程存活，托盘就绪" } else { "退出码 $($p.ExitCode)" }
     if ($alive) { Stop-Process -Id $p.Id -Force -EA SilentlyContinue }
     Add-Result "smoke:startup" $(if ($alive) { "PASS" } else { "FAIL" }) $note $t0.Elapsed.TotalSeconds
-    if ($null -ne $cfgBak) { [IO.File]::WriteAllBytes($cfgFile, $cfgBak) }
-    elseif (Test-Path $cfgFile) { Remove-Item $cfgFile -Force }
 } else { Add-Result "smoke:startup" "SKIP" "构建失败" }
 
 # 6) 注入可达性探针 + 7) e2e
@@ -170,11 +177,8 @@ if ($SkipE2e) {
     # SKIP 名单就是 e2e 名单本身：报一份和实际不相符的清单，等于谎报没跑什么
     foreach ($t in $e2e) { Add-Result $t.n "SKIP" "-SkipE2e" }
 } elseif ($okBuild) {
-    # e2e 会改用户设置（主题、热键、手势配置都写在 settings.json），跑完按原字节还回去：
-    # 验证链不该在用户机器上留下可见的状态变化，也不该让下一轮从上一轮改写的主题起跑。
-    # 还原必须在 finally 里：中途一条脚本抛异常，用户设置也不该停在测试态。
-    $cfgFile = Join-Path $env:APPDATA 'FrameCapture\settings.json'
-    $cfgBak = if (Test-Path $cfgFile) { [IO.File]::ReadAllBytes($cfgFile) } else { $null }
+    # e2e 会改设置（主题、热键、手势配置都写在 settings.json）——那些写全落在上面起的临时目录里，
+    # 用户那份碰不到。这里只保证一件事：中途抛异常也要记一条 FAIL，别让汇总看起来像全跑过。
     try {
         # 控制器响应探针：--picker 让主实例走 BeginScopeSelection（与热键命中同一个入口），
         # 选区窗出现即证明产物起得来、控制器在听。零 OS 级输入，也不抢前台。
@@ -213,9 +217,6 @@ if ($SkipE2e) {
     } catch {
         # 一条脚本抛到这儿，整套 e2e 就此中断：如实记一条 FAIL，别让汇总看起来像全跑过
         Add-Result "e2e:phase" "FAIL" ("e2e 阶段抛出：" + $_.Exception.Message) 0
-    } finally {
-        if ($null -ne $cfgBak) { [IO.File]::WriteAllBytes($cfgFile, $cfgBak); Say "  用户设置已还原（e2e 期间被改写）" }
-        elseif (Test-Path $cfgFile) { Remove-Item $cfgFile -Force; Say "  用户设置已还原（e2e 期间新建）" }
     }
 } else { foreach ($t in $e2e) { Add-Result $t.n "SKIP" "构建失败" } }
 

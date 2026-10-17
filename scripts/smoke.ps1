@@ -2,7 +2,7 @@
 param([switch]$KeepRunning)
 $ErrorActionPreference='Stop'
 $env:FC_DEBUG="1"
-Remove-Item "$env:APPDATA\FrameCapture	race.log" -ErrorAction SilentlyContinue
+Remove-Item (Get-FcLogPath 'trace.log') -ErrorAction SilentlyContinue
 $exe = "D:\Backup\Capture\src\FrameCapture\bin\x64\Debug\net8.0-windows10.0.19041.0\FrameCapture.exe"
 Add-Type -Namespace W32 -Name U32 -MemberDefinition @'
 [DllImport("user32.dll")] public static extern void keybd_event(byte vk, byte scan, uint flags, System.UIntPtr extra);
