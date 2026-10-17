@@ -384,7 +384,7 @@ public static partial class Fluent
         itemMs = itemMs > 0 ? itemMs : Motion.EnterMs;
         budgetMs = budgetMs > 0 ? budgetMs : Motion.StaggerMs * 3;
         // 预算比单项还短时无空间错位：退化成整段同时淡入，不产生负延迟
-        double step = n > 1 ? Math.Max(0, Math.Min(Motion.StaggerMs, (double)(budgetMs - itemMs) / (n - 1))) : 0;
+        double step = CascadeStepMs(n, itemMs, budgetMs);
         var dur = new Duration(TimeSpan.FromMilliseconds(itemMs));
         int lead = Math.Max(0, leadMs);
         int k = 0;
@@ -463,6 +463,15 @@ public static partial class Fluent
         foreach (var c in body.Children) rows.Add(c as FrameworkElement);
         CascadeIn(rows, risePx, riseX, itemMs, budgetMs, leadMs);
     }
+
+    /// <summary>逐项入场里相邻两项的起跳间隔（ms）：第 k 项比第一项晚 <c>step × k</c> 起跳，
+    /// 左端先动右端后动这件事完全由这个数决定。</summary>
+    /// <param name="n">参与入场的元素数（null 项不算）。</param>
+    /// <param name="itemMs">单项时长（ms）。</param>
+    /// <param name="budgetMs">整段入场预算（ms）。</param>
+    /// <returns>间隔；只有一项、或预算装不下「单项 + 错位」时给 0，即整段同时淡入，绝不给负数。</returns>
+    public static double CascadeStepMs(int n, int itemMs, int budgetMs)
+        => n > 1 ? Math.Max(0, Math.Min(Motion.StaggerMs, (double)(budgetMs - itemMs) / (n - 1))) : 0;
 
     /// <summary>本类创建的位移动画对象登记表。清零时只摘自己造的那个，
     /// 不动调用方挂在行上的合法位移；随对象回收自动失效，不构成引用泄漏。</summary>
