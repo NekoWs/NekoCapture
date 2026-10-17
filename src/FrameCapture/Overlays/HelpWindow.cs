@@ -346,6 +346,7 @@ public sealed class HelpWindow : Window
                 KV(p, EditorKeysFor("pin-frame"), Loc.T(K.Help.PinsTheCurrentFrameFrom));
                 KV(p, Loc.T(K.Help.Wheel), Loc.T(K.Help.ZoomThePinChangeOpacity));
                 KV(p, Loc.T(K.Help.Drag), Loc.T(K.Help.PinSnappingLinesThePin));
+                KV(p, Loc.T(K.Help.ArrowKeys), Loc.T(K.Help.NudgeThePinOnePixel));
                 KV(p, Loc.T(K.Help.EscRightClick), Loc.T(K.Help.CloseTheMenuSavesReads));
                 Note(p, Loc.T(K.Help.TheSnappingSwitchLives));
             }),

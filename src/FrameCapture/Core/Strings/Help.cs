@@ -19,6 +19,7 @@ public static partial class K
             "help.anyRectangleTheWheelResizes",
             "选任意矩形；滚轮微调、方向键移动",
             "Any rectangle; the wheel resizes and the arrows move it");
+        public static readonly Str ArrowKeys = new("help.arrowKeys", "方向键", "Arrow keys");
         public static readonly Str CaptureExactlyWhatYouPoint = new(
             "help.captureExactlyWhatYouPoint",
             "指哪儿，截哪儿。",
@@ -102,6 +103,10 @@ public static partial class K
             "Manual 10–240; Follow monitor refresh records the display's full rate");
         public static readonly Str MoreToTry = new("help.moreToTry", "更多玩法", "More to try");
         public static readonly Str NextArrow = new("help.nextArrow", "下一页 →", "Next →");
+        public static readonly Str NudgeThePinOnePixel = new(
+            "help.nudgeThePinOnePixel",
+            "把贴图挪 1 像素，按住 Shift 一次 10 像素",
+            "Nudge the pin by 1 pixel, or 10 with Shift held");
         public static readonly Str OffFlickYourOwnOgg = new(
             "help.offFlickYourOwnOgg",
             "关闭 / 轻弹 / 自定义 ogg·wav，可试听",

@@ -841,10 +841,33 @@ static partial class SelfTest
         return (frames, img.Width, img.Height, c0);
     }
 
+    /// <summary>
+    /// 把设置目录整个挪进仓库内的临时目录再开跑。测试里构造的窗口和用户用的一样会写设置
+    /// （关掉编辑器就记住上次用的标注工具），落在 <c>%APPDATA%</c> 等于改了用户机器的行为，
+    /// 下一次跑还反过来影响断言的起点。内容每次从用户那份重新种一遍：
+    /// 断言看到的仍是同一份配置，写盘全进 scratch。
+    /// </summary>
+    static void SettingsScratch()
+    {
+        if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("FC_SETTINGS_DIR"))) return;
+        try
+        {
+            var user = Path.Combine(SettingsService.Dir, "settings.json");
+            var scratch = Path.Combine(AppContext.BaseDirectory, "settings-scratch");
+            Directory.CreateDirectory(scratch);
+            var mine = Path.Combine(scratch, "settings.json");
+            if (File.Exists(mine)) File.Delete(mine);
+            if (File.Exists(user)) File.Copy(user, mine);
+            Environment.SetEnvironmentVariable("FC_SETTINGS_DIR", scratch);
+        }
+        catch { /* 种不上就照默认目录跑，不让测试起不来 */ }
+    }
+
     [STAThread]
     static int Main(string[] args)
     {
         Console.OutputEncoding = System.Text.Encoding.UTF8;
+        SettingsScratch();
         // 版面与双语审计：一次进程一个界面，矩阵由 scripts/ux-audit.ps1 铺开
         if (args.Length >= 3 && args[0] == "uxaudit") return UxAudit(args[1], args[2]);
         if (args.Length == 2 && args[0] == "uxaudit" && args[1] == "list")
@@ -3241,6 +3264,9 @@ static partial class SelfTest
             try
             {
                 var settings = new SettingsService();
+                // 起点必须是「没选任何工具」：开着「记住上次用的工具」时，编辑器一打开就带着
+                // 上次那个工具，第一次点它就变成取消，测出来的开关正好反了。
+                settings.Mutate(s => s.RememberEditorTools = false);
                 var f = MovingSquare(160, 90, 0, 1);
                 var seq = new CapturedSequence { Frames = new List<CapturedFrame> { f }, Region = new RectI(0, 0, 160, 90), MonitorBounds = new RectI(0, 0, 1920, 1080) };
                 var win = new FrameCapture.Overlays.EditorWindow(settings, seq);
@@ -5668,6 +5694,21 @@ static partial class SelfTest
         }
 
         #endregion
+
+        // T207 · 贴图方向键微调：一格 1 DIP，Shift 一格 10 DIP，非方向键不给位移
+        try
+        {
+            var left = PinNudge.Move(Key.Left, false);
+            var downBig = PinNudge.Move(Key.Down, true);
+            var other = PinNudge.Move(Key.A, false);
+            Chk("T207a-pin-nudge-one-dip",
+                left == (-1d, 0d) && PinNudge.Move(Key.Right, false) == (1d, 0d)
+                && PinNudge.Move(Key.Up, false) == (0d, -1d),
+                $"左={left.Dx},{left.Dy} 上=({PinNudge.Move(Key.Up, false).Dx},{PinNudge.Move(Key.Up, false).Dy})");
+            Chk("T207b-pin-nudge-shift-coarse", downBig == (0d, PinNudge.Coarse), $"Shift+下 = {downBig.Dy}");
+            Chk("T207c-pin-nudge-ignores-other-keys", other == (0d, 0d), "非方向键不该给位移");
+        }
+        catch (Exception e) { Chk("T207-pin-nudge", false, e.Message); }
 
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");
         return fail == 0 ? 0 : 1;

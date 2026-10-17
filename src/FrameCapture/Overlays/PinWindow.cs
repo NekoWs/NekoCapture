@@ -212,6 +212,17 @@ public sealed class PinWindow : Window
             else if (e.Key == Key.S && (Keyboard.Modifiers & ModifierKeys.Control) != 0) SaveAs();
             else if (e.Key == Key.C && (Keyboard.Modifiers & ModifierKeys.Control) != 0) Copy(); // 复制回剪贴板
             else if (e.Key == Key.O && (Keyboard.Modifiers & ModifierKeys.Control) != 0) OcrFrame(); // 识别文字（与编辑器一致）
+            else
+            {
+                // 方向键微调位置：鼠标拖不出单像素精度，跟屏幕上的既有界面对齐要靠它。Shift 走粗格。
+                var (dx, dy) = Core.PinNudge.Move(e.Key, (Keyboard.Modifiers & ModifierKeys.Shift) != 0);
+                if (dx != 0 || dy != 0)
+                {
+                    Left += dx; Top += dy;
+                    _rawLeft = Left; _rawTop = Top;   // 拖动基准跟着走，否则一起手就被拽回微调前的位置
+                    e.Handled = true;
+                }
+            }
         };
 
         Loaded += (_, _) => _open.Add(this);
