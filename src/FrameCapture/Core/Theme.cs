@@ -64,7 +64,10 @@ public static class Theme
     /// <see cref="WindowBgSolid"/>。</summary>
     public static Color PanelBgSolid => Opaque(PanelBg);
     public static Color Text => IsDark ? C(0xFF, 0xFF, 0xFF, 0xFF) : C(0xFF, 0x1A, 0x1A, 0x1A);
-    public static Color TextDim => IsDark ? C(0xB3, 0xC0, 0xC0, 0xC0) : C(0xB3, 0x60, 0x60, 0x60);
+    /// <summary>次要文字：说明、提示、键帽、次要图标都读它。亮色主题用不透明的 #616161——
+    /// 带 Alpha 的浅灰压在白卡片上只有 3.2:1、压在标题栏底上 2.9:1，正文级的说明文字读起来费劲；
+    /// 暗色主题把透明度提到 0.8，压在卡片上从 4.5:1 抬到 5.4:1，留出余量。</summary>
+    public static Color TextDim => IsDark ? C(0xCC, 0xC0, 0xC0, 0xC0) : C(0xFF, 0x61, 0x61, 0x61);
     public static Color Stroke => IsDark ? C(0x55, 0xFF, 0xFF, 0xFF) : C(0x55, 0x00, 0x00, 0x00);
     /// <summary>比 <see cref="Stroke"/> 更淡的一档描边：成排出现的框用它。
     /// 一列条目各自描满标准描边，整列就被切成一堆格子，标准描边留给卡片外框这类一处边界。</summary>

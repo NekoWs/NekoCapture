@@ -31,6 +31,18 @@ public static partial class Fluent
         return (Math.Max(la, lb) + 0.05) / (Math.Min(la, lb) + 0.05);
     }
 
+    /// <summary>把带透明的前景压平到不透明底色上，得到眼睛真正看到的颜色：
+    /// 调色板里的次要文字带 Alpha，直接拿原始 RGB 去算对比度会算出一个不存在的颜色。</summary>
+    /// <param name="fg">带 Alpha 的前景。</param>
+    /// <param name="bg">不透明底色。</param>
+    /// <returns>压平后的不透明颜色。</returns>
+    public static Color Flatten(Color fg, Color bg)
+    {
+        double k = fg.A / 255.0;
+        return Color.FromRgb((byte)(fg.R * k + bg.R * (1 - k)), (byte)(fg.G * k + bg.G * (1 - k)),
+            (byte)(fg.B * k + bg.B * (1 - k)));
+    }
+
     /// <summary>把颜色按通道等比压暗（保留色相），用于让强调色在浅底上读得清。</summary>
     /// <param name="c">原色。</param>
     /// <param name="k">每通道乘数，0..1。</param>

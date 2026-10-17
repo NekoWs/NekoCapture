@@ -5935,6 +5935,36 @@ static partial class SelfTest
         }
         catch (Exception e) { Chk("T215-accent-text-meets-contrast", false, e.Message); }
 
+        // 调色板的正文与次要文字，压在四种底上都得过 4.5:1。次要文字带 Alpha，
+        // 压平到底色上才是眼睛看到的颜色——按原始 RGB 算会算出一个不存在的颜色。
+        try
+        {
+            var keepAcc = Theme.Accent;
+            bool ok = true;
+            string worst = "";
+            double worstCr = 99;
+            foreach (var th in new[] { "light", "dark" })
+            {
+                Theme.Apply(th, "#4CC2FF");
+                var bgs = new[] { Theme.CardBg, Theme.WindowBg, Theme.PanelBg, Theme.ChromeBg };
+                var names = new[] { "卡片", "窗口", "面板", "标题栏" };
+                var fgs = new[] { ("正文", Theme.Text), ("次要", Theme.TextDim) };
+                for (var i = 0; i < bgs.Length; i++)
+                    foreach (var (label, fg) in fgs)
+                    {
+                        double cr = Fluent.ContrastRatio(Fluent.Flatten(fg, bgs[i]), bgs[i]);
+                        if (cr >= 4.5) continue;
+                        ok = false;
+                        if (cr >= worstCr) continue;
+                        worstCr = cr;
+                        worst = th + " " + label + "压在" + names[i] + "底 " + cr.ToString("F2") + ":1";
+                    }
+            }
+            Theme.Accent = keepAcc;
+            Chk("T216-palette-text-contrast", ok, worst);
+        }
+        catch (Exception e) { Chk("T216-palette-text-contrast", false, e.Message); }
+
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");
         return fail == 0 ? 0 : 1;
     }
