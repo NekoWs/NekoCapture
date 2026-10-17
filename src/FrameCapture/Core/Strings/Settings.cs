@@ -26,7 +26,7 @@ public static partial class K
         public static readonly Str AFlashConfirmsIt = new(
             "settings.aFlashConfirmsIt",
             "快闪：确认一下就走",
-            "A flash: confirms it and goes");
+            "A quick flash: confirms it, then gone");
         public static readonly Str AfterACaptureOnTop = new(
             "settings.afterACaptureOnTop",
             "捕获完成后，除复制到剪贴板外，再存一份文件到本地目录：截图存 PNG，录制按上面的「录制格式」存 MP4/WebM，未装 ffmpeg 则回退 GIF。视频在后台编码、文件稍后出现。写盘失败不影响剪贴板，捕获永远成功",
@@ -80,7 +80,7 @@ public static partial class K
         public static readonly Str BriskAGlanceFits = new(
             "settings.briskAGlanceFits",
             "利落：来得及看一眼",
-            "Brisk: a glance fits");
+            "Brisk: enough to catch a glance");
         public static readonly Str CaptureOnSelection = new(
             "settings.captureOnSelection",
             "选区自动截取",
@@ -128,7 +128,7 @@ public static partial class K
         public static readonly Str ComfortableEnoughToExpand = new(
             "settings.comfortableEnoughToExpand",
             "从容：够展开下拉/悬停",
-            "Comfortable: enough to expand a dropdown or hover");
+            "Comfortable: enough to expand a dropdown or hover over it");
         public static readonly Str ComfortableEnoughToMove = new(
             "settings.comfortableEnoughToMove",
             "从容：够移动鼠标去点",
