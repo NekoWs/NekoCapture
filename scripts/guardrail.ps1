@@ -131,6 +131,16 @@ if (([regex]::Matches($spBuild, ': error')).Count -eq 0 -and (Test-Path $spExe))
     Say $spBuild
 }
 
+# 4.7) 双语版面审计：英文比中文长，按中文排的版面在英文下会把字挤掉或压成省略号；
+#      英文界面里残留的中文（动态拼出来那种、静态扫描看不见的）也在这里抓。全程离屏建窗，不动屏幕。
+$ux = & pwsh -NoProfile -File (Join-Path $PSScriptRoot "ux-audit.ps1") -Quiet 2>&1 | Out-String
+$uxLine = ($ux -split "`r?`n" | Where-Object { $_ -match '^UX-AUDIT (PASS|FAIL)' } | Select-Object -Last 1)
+if ($uxLine) {
+    $stUx = if ($uxLine -match '^UX-AUDIT PASS') { "PASS" } else { "FAIL" }
+    Add-Result "lint:ux-bilingual" $stUx (($uxLine -replace '^UX-AUDIT (PASS|FAIL)\s*', "").Trim()) 0
+    if ($stUx -eq "FAIL") { Say (Get-Content "test-out/uxaudit/report.txt" -Raw -EA SilentlyContinue) }
+} else { Add-Result "lint:ux-bilingual" "FAIL" "审计无输出（SelfTest 产物缺失？）"; Say $ux }
+
 # 5) 产物起得来：-SkipE2e 时其余动态项全不跑，主程序能不能起来这件事不能没人管。
 #    托盘应用，不弹窗、不注入任何输入；跑完按原字节还回用户设置。
 if ($okBuild) {

@@ -1,0 +1,408 @@
+// 版面与双语审计：逐界面离屏建窗，把两类靠肉眼漏掉的缺陷一次扫出来——
+//   裁字：英文比中文长，按中文排的版面在英文下把字挤掉（或压成省略号）；
+//   漏翻：英文界面里还印着中文（动态拼出来的文案最容易漏，静态扫描只看源码里的字面串）。
+// 用法：SelfTest.exe uxaudit <zh|en> <界面名>，一行一条 UXA|界面|类型|细节，由 scripts/ux-audit.ps1 汇总。
+
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Media;
+using FrameCapture.Capture;
+using FrameCapture.Core;
+using FrameCapture.Overlays;
+using FrameCapture.Services;
+
+static partial class SelfTest
+{
+    /// <summary>审计模式入口：按语言与界面名建一个窗口，扫完就关。</summary>
+    /// <param name="lang">语言覆盖：<c>zh</c> 或 <c>en</c>。</param>
+    /// <param name="surface">界面名，见 <see cref="Surfaces"/>。</param>
+    /// <returns>发现的缺陷条数（供驱动脚本汇总，非进程失败）。</returns>
+    internal static int UxAudit(string lang, string surface)
+    {
+        var app = new Application();
+        var rows = new List<string>();
+        // 建窗与关窗路径抛出来的异常按发现记录：关不掉的窗、销毁回调里炸的 NRE，用户都碰得到，
+        // 让它们把进程带走反而什么都看不到。
+        app.DispatcherUnhandledException += (_, e) =>
+        {
+            rows.Add($"UXA|{surface}|抛异常|{e.Exception.GetType().Name}: {Cut(e.Exception.Message, 70)}");
+            e.Handled = true;
+        };
+        var svc = new SettingsService();
+        typeof(AppHost).GetProperty("Settings")!
+            .SetValue(AppHost.Current, svc);
+        // 版面审计与配色无关，钉住暗色让两次运行完全可比
+        Theme.Apply("dark", svc.Current.Accent);
+        Loc.Apply(lang == "en" ? Loc.PrefEn : Loc.PrefZh);
+        Fluent.ApplyGlobalStyles();
+        // 用户自己写下的字（绑定名这类）不算漏翻：那是他打的字，语言切换不动它。
+        // 版面照着他的长名字压——名字越长越容易挤，那部分照查。
+        _userData = svc.Current.Gestures.Bindings
+            .Where(b => !string.IsNullOrWhiteSpace(b.Name))
+            .Select(b => b.Name.Trim())
+            .ToHashSet();
+
+        try
+        {
+            switch (surface)
+            {
+                case "settings": BuildSettingsAudit(app, rows, "settings", -1); break;
+                case "settings-open": BuildSettingsAudit(app, rows, "settings-open", 0); break;
+                case "settings-adv": BuildSettingsAudit(app, rows, "settings-adv", 0, advanced: true); break;
+                case "settings-clash": BuildSettingsAudit(app, rows, "settings-clash", 0, clash: true); break;
+                case "help": BuildHelpAudit(rows); break;
+                case "editor": BuildEditorAudit(app, rows, 3); break;
+                case "editor-still": BuildEditorAudit(app, rows, 1); break;
+                case "pin": BuildPinAudit(app, rows); break;
+                case "ocr": BuildOcrAudit(app, rows, message: false); break;
+                case "ocr-msg": BuildOcrAudit(app, rows, message: true); break;
+                case "notice": BuildNoticeAudit(app, rows); break;
+                case "welcome": BuildWelcomeAudit(app, rows); break;
+                case "toast": BuildToastAudit(app, rows); break;
+                case "countdown": BuildCountdownAudit(app, rows); break;
+                case "scroll": BuildScrollAudit(app, rows); break;
+                case "filmstrip": BuildFilmStripAudit(app, rows); break;
+                default: Console.WriteLine($"UXA|{surface}|未知界面|"); return 0;
+            }
+        }
+        catch (Exception ex)
+        {
+            rows.Add($"UXA|{surface}|建窗失败|{ex.GetType().Name}: {Cut(ex.Message, 90)}");
+        }
+        foreach (var r in rows) Console.WriteLine(r);
+        // 扫到的文字条数：0 条发现 + 0 条文字 = 探针没看到东西，不是界面干净
+        Console.WriteLine($"UXS|{surface}|{_scanned} 条文字");
+        return rows.Count;
+    }
+
+    /// <summary>可审计的界面名，驱动脚本按这份清单跑满矩阵。</summary>
+    internal static readonly string[] Surfaces =
+    {
+        "settings", "settings-open", "settings-adv", "settings-clash",
+        "help", "editor", "editor-still", "pin", "ocr", "ocr-msg",
+        "notice", "welcome", "toast", "countdown", "scroll", "filmstrip",
+    };
+
+    // ---- 逐界面建窗 ----
+
+    /// <summary>设置窗：折叠态、展开第 0 条、高级形态、撞车描边四种形态各扫一遍。</summary>
+    static void BuildSettingsAudit(Application app, List<string> rows, string surface, int openAt, bool advanced = false, bool clash = false)
+    {
+        var svc = AppHost.Current.Settings!.Current;
+        if (clash && svc.Gestures.Bindings.Count > 0)
+        {
+            var first = svc.Gestures.Bindings[0];
+            svc.Gestures.Bindings.Add(new GestureBindingDto
+            {
+                Id = "uxa.clash", Chord = first.Chord, Trigger = first.Trigger,
+                Actions = new[] { "ocr.selection" },
+            });
+        }
+        var w = new SettingsWindow();
+        if (advanced)
+            typeof(SettingsWindow).GetField("_hotAdvanced",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
+                .SetValue(w, true);
+        typeof(SettingsWindow).GetMethod("Build",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
+            .Invoke(w, null);
+        ShowOffscreen(w);
+        var root = (UIElement)w.Content;
+        LayoutTo(root, w.Width, w.Height);
+        // 快捷键页的展开行要点开才有内容：折叠态与展开态是两套版面
+        if (openAt >= 0)
+        {
+            var boxes = new List<DependencyObject>();
+            CollectTyped(root, typeof(ChordCaptureBox), boxes);
+            if (openAt < boxes.Count)
+            {
+                var row = VisualTreeHelper.GetParent(VisualTreeHelper.GetParent(boxes[openAt]));
+                if (row is UIElement re)
+                {
+                    re.RaiseEvent(new System.Windows.Input.KeyEventArgs(
+                        System.Windows.Input.Keyboard.PrimaryDevice, PresentationSource.FromVisual(w), 0,
+                        System.Windows.Input.Key.Enter)
+                    { RoutedEvent = System.Windows.Input.Keyboard.KeyDownEvent, Source = re });
+                    PumpMs(300);
+                }
+            }
+        }
+        LayoutTo(root, w.Width, w.Height);
+        ScanTree(rows, surface, root);
+        w.Close();
+    }
+
+    /// <summary>帮助窗：九步逐步建窗扫描，每一步的版式都不一样。</summary>
+    static void BuildHelpAudit(List<string> rows)
+    {
+        var f = typeof(HelpWindow).GetField("_lastStep",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!;
+        for (int step = 0; step < 9; step++)
+        {
+            f.SetValue(null, step);
+            var w = HelpWindow.CreateForCapture();
+            var root = (UIElement)w.Content;
+            LayoutTo(root, w.Width, w.Height);
+            ScanTree(rows, $"help{step}", root);
+        }
+    }
+
+    /// <summary>编辑器：多帧（带播放条）与单帧（只有绘制条）两套版面。</summary>
+    static void BuildEditorAudit(Application app, List<string> rows, int frameCount)
+    {
+        var svc = AppHost.Current.Settings!;
+        const int fw = 900, fh = 520;
+        var frames = new List<CapturedFrame>();
+        for (int i = 0; i < frameCount; i++)
+            frames.Add(new CapturedFrame { Bgra = MockScreen(fw, fh), W = fw, H = fh, TimeMs = i * 33.3 });
+        var seq = new CapturedSequence
+        {
+            Frames = frames,
+            Region = new RectI(0, 0, fw, fh),
+            MonitorBounds = new RectI(0, 0, 1920, 1080),
+            Fps = 30,
+        };
+        var w = new EditorWindow(svc, seq);
+        ShowOffscreen(w);
+        PumpMs(250);
+        ScanTree(rows, "editor", (UIElement)w.Content);
+        w.Close();
+    }
+
+    /// <summary>贴图：含右键菜单之外的常驻版面（贴图本体 + 浮层提示条）。</summary>
+    static void BuildPinAudit(Application app, List<string> rows)
+    {
+        const int pw = 640, ph = 400;
+        var frame = new CapturedFrame { Bgra = MockScreen(pw, ph), W = pw, H = ph, TimeMs = 0 };
+        var w = new PinWindow(frame, new RectI(240, 180, pw, ph), false);
+        ShowOffscreen(w);
+        PumpMs(250);
+        ScanTree(rows, "pin", (UIElement)w.Content);
+        w.Close();
+    }
+
+    /// <summary>OCR 结果窗的两种形态：可编辑结果与单条消息。</summary>
+    static void BuildOcrAudit(Application app, List<string> rows, bool message)
+    {
+        if (message) OcrResultWindow.ShowMessage(Loc.T(K.Capture.NoOcrLanguagePack));
+        else OcrResultWindow.Show("识别结果示例\nLine of english text for width probing\n第三行混排 text");
+        var w = LastWindow(app);
+        if (w == null) { rows.Add("UXA|ocr|建窗失败|没拿到窗口"); return; }
+        PumpMs(250);
+        ScanTree(rows, message ? "ocr-msg" : "ocr", (UIElement)w.Content);
+        w.Close();
+    }
+
+    /// <summary>通用提示浮层。</summary>
+    static void BuildNoticeAudit(Application app, List<string> rows)
+    {
+        // 样例文案跟着语言走：审计自己塞中文，会把「漏翻」查成自己的假阳性
+        NoticeToast.Show(Loc.IsEnglish ? "Copied to clipboard" : "已复制到剪贴板", "GIF · 1.2 MB");
+        var w = LastWindow(app);
+        if (w == null) { rows.Add("UXA|notice|建窗失败|没拿到窗口"); return; }
+        PumpMs(200);
+        ScanTree(rows, "notice", (UIElement)w.Content);
+        w.Close();
+    }
+
+    /// <summary>首启欢迎卡：新用户看到的第一屏。</summary>
+    static void BuildWelcomeAudit(Application app, List<string> rows)
+    {
+        WelcomeToast.Show("Ctrl+Shift+G", "Ctrl+Shift+R");
+        var w = LastWindow(app);
+        if (w == null) { rows.Add("UXA|welcome|建窗失败|没拿到窗口"); return; }
+        PumpMs(200);
+        ScanTree(rows, "welcome", (UIElement)w.Content);
+        w.Close();
+    }
+
+    /// <summary>截图后的确认浮窗。</summary>
+    static void BuildToastAudit(Application app, List<string> rows)
+    {
+        var frame = new CapturedFrame { Bgra = MockScreen(480, 300), W = 480, H = 300, TimeMs = 0 };
+        CaptureToast.Show(frame, new RectI(100, 80, 480, 300), @"\\.\DISPLAY1", () => { });
+        var w = LastWindow(app);
+        if (w == null) { rows.Add("UXA|toast|建窗失败|没拿到窗口"); return; }
+        PumpMs(200);
+        ScanTree(rows, "toast", (UIElement)w.Content);
+        w.Close();
+    }
+
+    /// <summary>延时截图倒计时浮窗。</summary>
+    static void BuildCountdownAudit(Application app, List<string> rows)
+    {
+        var w = new CountdownWindow("1560,260 940×560", @"\\.\DISPLAY1");
+        ShowOffscreen(w);
+        PumpMs(250);
+        ScanTree(rows, "countdown", (UIElement)w.Content);
+        w.Close();
+    }
+
+    /// <summary>滚动截图的三层浮层：取景层、预览卡、控制条。</summary>
+    static void BuildScrollAudit(Application app, List<string> rows)
+    {
+        var reg = new RectI(600, 200, 900, 700);
+        var hint = new ScrollHintWindow(reg, @"\\.\DISPLAY1");
+        ShowOffscreen(hint);
+        var stage = new ScrollStageWindow(reg, @"\\.\DISPLAY1");
+        ShowOffscreen(stage);
+        var prev = new ScrollPreviewWindow(reg, @"\\.\DISPLAY1");
+        ShowOffscreen(prev);
+        PumpMs(250);
+        ScanTree(rows, "scroll-hint", (UIElement)hint.Content);
+        ScanTree(rows, "scroll-preview", (UIElement)prev.Content);
+        hint.Close(); stage.Close(); prev.Close();
+    }
+
+    /// <summary>胶片条参数对话框。</summary>
+    static void BuildFilmStripAudit(Application app, List<string> rows)
+    {
+        var owner = new Window { Width = 200, Height = 120, WindowStartupLocation = WindowStartupLocation.Manual, Left = -20000, Top = -20000 };
+        owner.Show();
+        // 预览回调返回 null = 这一档画不出来，对话框留空；审计只要版面，不要缩略图
+        var w = new FilmStripDialog(owner, 240, 12, _ => default);
+        w.Show();
+        PumpMs(250);
+        ScanTree(rows, "filmstrip", (UIElement)w.Content);
+        w.Close(); owner.Close();
+    }
+
+    // ---- 扫描 ----
+
+    /// <summary>取最近显示的那个窗口：浮层类的 Show 工厂不返回实例，只能从应用的窗口表里拿。</summary>
+    static Window? LastWindow(Application app)
+    {
+        Window? last = null;
+        foreach (Window w in app.Windows) last = w;
+        return last;
+    }
+
+    /// <summary>把窗口挪到屏幕外再显示：布局按真实尺寸算，屏幕上看不到。</summary>
+    static void ShowOffscreen(Window w)
+    {
+        w.WindowStartupLocation = WindowStartupLocation.Manual;
+        w.Show();
+        w.Left = -20000; w.Top = -20000;
+        w.Opacity = 1;
+        PumpMs(120);
+    }
+
+    static void LayoutTo(UIElement root, double w, double h)
+    {
+        if (double.IsNaN(w) || double.IsNaN(h)) { root.UpdateLayout(); return; }
+        root.Measure(new Size(w, h));
+        root.Arrange(new Rect(0, 0, w, h));
+        root.UpdateLayout();
+    }
+
+    /// <summary>扫一棵已布局好的子树，报出挤掉的文字与英文界面里的中文。</summary>
+    static void ScanTree(List<string> rows, string surface, DependencyObject root)
+    {
+        var found = new List<DependencyObject>();
+        CollectTyped(root, typeof(TextBlock), found);
+        _scanned += found.Count;
+        foreach (var o in found)
+        {
+            if (o is not TextBlock tb) continue;
+            string text = tb.Text ?? "";
+            if (string.IsNullOrWhiteSpace(text)) continue;
+            if (Loc.IsEnglish && HasCjk(text) && !AllowedCjkInEnglish(text) && !_userData.Contains(text.Trim()))
+                rows.Add($"UXA|{surface}|漏翻|{At(tb, root)} {Cut(text, 60)}");
+            // 图标字形按 em 框量，比它占的格子宽是常态；键帽单字符居中溢出三五个像素也不伤人。
+            // 两类都不报，否则一次审计几十条假阳性，真的那条就淹了。
+            if (text.Trim().Length < 2 || AllGlyph(text)) continue;
+
+            double avail = tb.ActualWidth, got = tb.ActualHeight;
+            if (avail <= 0 || got <= 0) continue;
+            if (tb.TextWrapping == TextWrapping.NoWrap)
+            {
+                tb.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+                double need = tb.DesiredSize.Width;
+                // 只有「真的会被切掉」或「被压成省略号」才算缺陷：WPF 默认不裁剪，
+                // 排得比想要的窄只是往右边空处溢出，看着一点问题没有（设置窗左侧导航就是这样误报的）。
+                bool ellipsized = tb.TextTrimming != TextTrimming.None;
+                if (need - avail >= 4 && (ellipsized || ClippedAncestor(tb)) && !InScroller(tb, horizontal: true))
+                    rows.Add($"UXA|{surface}|{(ellipsized ? "省略号" : "裁字")}|{At(tb, root)} {avail:F0}→{need:F0} {Cut(text, 46)}");
+            }
+            else
+            {
+                tb.Measure(new Size(avail, double.PositiveInfinity));
+                double need = tb.DesiredSize.Height;
+                // 少掉一整行（≥6px）且祖先会裁剪才算：差三五个像素是行距取整，不是把字吃掉
+                if (need - got >= 6 && ClippedAncestor(tb) && !InScroller(tb, horizontal: false))
+                    rows.Add($"UXA|{surface}|裁行|{At(tb, root)} 高{got:F0}→{need:F0} {Cut(text, 46)}");
+            }
+        }
+        (root as UIElement)?.UpdateLayout();
+    }
+
+    /// <summary>祖先里有没有会把溢出内容真切掉的东西：ClipToBounds、显式 Clip，或滚动容器。</summary>
+    static bool ClippedAncestor(DependencyObject node)
+    {
+        if (node is FrameworkElement self && self.ClipToBounds) return true;
+        for (var p = VisualTreeHelper.GetParent(node); p != null; p = VisualTreeHelper.GetParent(p))
+        {
+            if (p is ScrollViewer) return true;   // 滚动容器按视口裁，溢出看不见
+            if (p is FrameworkElement fe && (fe.ClipToBounds || fe.Clip != null)) return true;
+            if (p is Window) return false;        // 到窗口为止：窗外的溢出属于「画到窗外」，另说
+        }
+        return false;
+    }
+
+    /// <summary>本次进程扫到的文字条数，用来判断「0 条发现」是真干净还是根本没扫到东西。</summary>
+    static int _scanned;
+
+    /// <summary>用户自己写下的字：漏翻检查跳过，版面挤压照查。</summary>
+    static HashSet<string> _userData = new();
+
+    /// <summary>整串都是私有区图标字形（Segoe Fluent Icons）。</summary>
+    static bool AllGlyph(string s)
+    {
+        foreach (char c in s.Trim())
+            if (c < 0xE000 || c > 0xF8FF) return false;
+        return true;
+    }
+
+    /// <summary>祖先里有能横向（或纵向）滚动的 ScrollViewer 时，超出是设计而非缺陷。</summary>
+    static bool InScroller(DependencyObject node, bool horizontal)
+    {
+        for (var p = VisualTreeHelper.GetParent(node); p != null; p = VisualTreeHelper.GetParent(p))
+        {
+            if (p is ScrollViewer sv)
+            {
+                var v = horizontal ? sv.HorizontalScrollBarVisibility : sv.VerticalScrollBarVisibility;
+                if (v != ScrollBarVisibility.Disabled) return true;
+            }
+        }
+        return false;
+    }
+
+    /// <summary>含中日韩字符（含全角标点）即算中文残留。</summary>
+    static bool HasCjk(string s)
+    {
+        foreach (char c in s)
+            if (c >= 0x3000 && c <= 0x9FFF || c >= 0xFF00 && c <= 0xFFEF) return true;
+        return false;
+    }
+
+    /// <summary>英文界面里合法保留的中文：语言名按本语言自称是约定，不是漏翻。</summary>
+    static bool AllowedCjkInEnglish(string s) => s.Trim() == "中文";
+
+    /// <summary>元素在窗口内的落点：把一条发现对回截图上的位置，不靠猜。</summary>
+    static string At(TextBlock tb, DependencyObject root)
+    {
+        try
+        {
+            var p = tb.TransformToVisual(root as Visual).Transform(new Point(0, 0));
+            return $"@{p.X:F0},{p.Y:F0}";
+        }
+        catch { return "@?"; }
+    }
+
+    static string Cut(string s, int n)
+    {
+        s = s.Replace("\r", " ").Replace("\n", " ⏎ ").Trim();
+        return s.Length <= n ? s : s[..n] + "…";
+    }
+}

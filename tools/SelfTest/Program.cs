@@ -16,7 +16,7 @@ using GE = GestureCore;
 using SAP = FrameCapture.Core.ScrollAutoPolicy;
 using SAO = FrameCapture.Core.ScrollAutoObservation;
 
-static class SelfTest
+static partial class SelfTest
 {
     static int pass, fail;
 
@@ -845,6 +845,13 @@ static class SelfTest
     static int Main(string[] args)
     {
         Console.OutputEncoding = System.Text.Encoding.UTF8;
+        // 版面与双语审计：一次进程一个界面，矩阵由 scripts/ux-audit.ps1 铺开
+        if (args.Length >= 3 && args[0] == "uxaudit") return UxAudit(args[1], args[2]);
+        if (args.Length == 2 && args[0] == "uxaudit" && args[1] == "list")
+        {
+            foreach (var s in Surfaces) Console.WriteLine(s);
+            return 0;
+        }
         // 离屏渲染帮助窗取证：独立进程、不 Show、不注册热键，不打断正在运行的实例
         if (args.Length >= 2 && args[0] == "renderpin") return RenderPin(args[1], ScaleArg(args));
                 if (args.Length >= 2 && args[0] == "renderhelp") return RenderHelp(args[1], args.Length >= 3 && int.TryParse(args[2], out var hs) ? hs : 0, ScaleArg(args));
