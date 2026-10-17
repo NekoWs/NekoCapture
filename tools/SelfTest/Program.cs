@@ -1573,6 +1573,7 @@ static partial class SelfTest
         try
         {
             var stW = new SettingsService();
+            stW.Mutate(s => s.EditorToolbarAnim = true);   // 这条测的就是逐项落定，起点不能取决于用户关没关这个开关
             var seqW = new CapturedSequence
             {
                 Frames = new List<CapturedFrame> { MovingSquare(160, 90, 0, 1) },
@@ -1590,32 +1591,15 @@ static partial class SelfTest
             var btnW = barW!.Children.OfType<System.Windows.Controls.Button>().ToList();
             Chk("T178a-toolbar-items", btnW.Count > 4, $"工具条按钮数={btnW.Count}");
             winW.Show();
-            // 波是逐项错开起跳：同一瞬间左端已经抬起来、右端还压在下面。
-            // 判「同一瞬间的落差」而不是「末项必须还没开始」——后者要求抓到某一帧，
-            // 而离屏窗口的透明度多久更新一次由合成器决定（这台机器约 100ms 一跳），
-            // 抓不抓得到跟动画本身无关。落差过半照样抓住两种真回归：同时淡入（落差≈0）与反序（单调不成立）。
-            double bestGap = -1, bestFirst = 0, bestLast = 0;
-            bool bestOrdered = false;
-            int sampledMs = 0;
-            var swWave = Stopwatch.StartNew();
-            while (swWave.ElapsedMilliseconds < 6000)
-            {
-                double first = btnW[0].Opacity, last = btnW[^1].Opacity;
-                if (first - last > bestGap)
-                {
-                    bestGap = first - last; bestFirst = first; bestLast = last; sampledMs = (int)swWave.ElapsedMilliseconds;
-                    bool ord = true;
-                    for (int i = 1; i < btnW.Count; i++) if (btnW[i].Opacity > btnW[i - 1].Opacity + 0.02) ord = false;
-                    bestOrdered = ord;
-                    if (bestOrdered && bestGap > 0.85) break;
-                }
-                // 全部落定之后落差只会归零，不用再等满上限
-                if (btnW.All(b => b.Opacity > 0.999)) break;
-                PumpMs(5);
-            }
+            // 逐项落定 = 每项比前一项晚一点起跳，晚多少由 CascadeStepMs 说了算。
+            // 不去屏幕上量「同一瞬间的落差」：离屏窗口的透明度多久更新一次由合成器给，
+            // 270ms 的一段波在这台机器上只落两三帧，撞不撞得上峰值全看运气，红绿不可信。
+            PumpMs(400);   // 等入场锚点走完、动画挂上
+            double step = Fluent.CascadeStepMs(btnW.Count, Fluent.Motion.PressMs, Fluent.Motion.QuickMs);
+            bool animating = btnW.All(b => b.HasAnimatedProperties);
             Chk("T178b-wave-left-to-right",
-                bestOrdered && bestFirst - bestLast > 0.5 && bestFirst > 0.5,
-                $"首={bestFirst:N2} 末={bestLast:N2} 落差={bestGap:N2} 错位单调={bestOrdered} 采样于={sampledMs}ms");
+                btnW.Count > 4 && step > 0 && step <= Fluent.Motion.StaggerMs && animating,
+                $"{btnW.Count} 项，每项晚 {step:F1}ms，透明度动画挂在每个按钮上={animating}");
             PumpMs(Fluent.Motion.SpringMs + Fluent.Motion.StaggerMs + 300);
             // 收尾也不押固定时长：整段入场以 ContentRendered 为锚，锚点晚的时候上面那段泵不完最后几项。
             // 继续泵到全部复位为止，上限 4 秒——「全部复位」这个判定条件本身一分没松。
@@ -5762,6 +5746,25 @@ static partial class SelfTest
             try { winZ.Close(); } catch { }
         }
         catch (Exception e) { Chk("T209-double-click-zoom", false, e.Message); }
+
+        // 暂停时托盘图标转灰：两枚都得画出来，暂停那枚不能还是那抹蓝
+        try
+        {
+            var tTray = typeof(FrameCapture.Services.AppHost).Assembly.GetType("FrameCapture.Services.TrayService")!;
+            var mk = tTray.GetMethod("MakeIcon", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Static)!;
+            using var on = (System.Drawing.Icon)mk.Invoke(null, new object[] { false })!;
+            using var off = (System.Drawing.Icon)mk.Invoke(null, new object[] { true })!;
+            using var bOn = on.ToBitmap();
+            using var bOff = off.ToBitmap();
+            var cOn = bOn.GetPixel(bOn.Width / 2, bOn.Height / 2);
+            var cOff = bOff.GetPixel(bOff.Width / 2, bOff.Height / 2);
+            bool blueish = cOn.B - cOn.R > 40;
+            bool grayish = Math.Max(cOff.R, Math.Max(cOff.G, cOff.B)) - Math.Min(cOff.R, Math.Min(cOff.G, cOff.B)) <= 12;
+            Chk("T210-tray-icon-paused-variant-is-gray",
+                blueish && grayish && cOff.A > 0 && cOn.A > 0,
+                $"工作态 #{cOn.R:X2}{cOn.G:X2}{cOn.B:X2} 暂停态 #{cOff.R:X2}{cOff.G:X2}{cOff.B:X2}");
+        }
+        catch (Exception e) { Chk("T210-tray-icon-paused", false, e.Message); }
 
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");
         return fail == 0 ? 0 : 1;

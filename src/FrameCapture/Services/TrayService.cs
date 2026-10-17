@@ -12,16 +12,20 @@ public sealed class TrayService : IDisposable
     private readonly WinForms.NotifyIcon _icon;
     private System.Windows.Window? _menuAnchor;
     private ContextMenu? _menu;
+    // 两枚图标一次画好备用：暂停切换时只是换个引用，不反复造 GDI 句柄
+    private readonly Icon _iconOn, _iconPaused;
 
     /// <summary>建托盘图标并订阅设置变更以刷新悬停提示。图标此刻 <c>Visible=false</c>，由 <see cref="Show"/> 点亮。</summary>
     /// <param name="host">宿主，用于把菜单项动作转给 <see cref="CaptureController"/> 与设置服务；须已完成装配。</param>
     public TrayService(AppHost host)
     {
         _host = host;
+        _iconOn = MakeIcon(paused: false);
+        _iconPaused = MakeIcon(paused: true);
 
         _icon = new WinForms.NotifyIcon
         {
-            Icon = MakeIcon(),
+            Icon = _iconOn,
             Visible = false,
             Text = "FrameCapture",
         };
@@ -43,9 +47,12 @@ public sealed class TrayService : IDisposable
         var s = _host.Settings.Current;
         if (Services.HotkeyManager.Paused) // 暂停态一眼可见，避免用户以为热键失灵
         {
+            // 图标整枚转灰：余光扫过托盘就知道热键让位了，不用把鼠标停上去读提示
+            _icon.Icon = _iconPaused;
             _icon.Text = Loc.T(K.Tray.FramecapturePausedHotkeysReleased);
             return;
         }
+        _icon.Icon = _iconOn;
         string region = s.RegionW >= 16 ? Loc.F(K.Tray.RegionFps, s.RegionW, s.RegionH, s.Fps) : Loc.T(K.Tray.NoRegionDoubleClick);
         string tip = Loc.F(K.Tray.FramecaptureGestures, s.Gestures.Bindings.Count, region);
         _icon.Text = tip.Length <= 63 ? tip : "FrameCapture"; // NotifyIcon.Text 上限 63 字符
@@ -187,7 +194,9 @@ public sealed class TrayService : IDisposable
     /// （边距 14.65% / 臂长 24.41% / 线宽 9.38% / 中心点直径 29.30%），透明底、无砖面。
     /// </summary>
     /// <remarks>64px 画布绘制后交给外壳缩到托盘尺寸；虚线角标在 16px 下会糊成一团，故用实角。</remarks>
-    static Icon MakeIcon()
+    /// <param name="paused">true 画暂停版：整枚转灰。暂停时热键让位给别的软件，托盘图标是唯一的余光信号。</param>
+    /// <returns>64px 透明底的托盘图标。</returns>
+    static Icon MakeIcon(bool paused)
     {
         const int C = 64;                                  // 画布边长
         const float inset = 0.1465f * C, arm = 0.2441f * C, stroke = 0.0938f * C, dot = 0.2930f * C;
@@ -195,7 +204,7 @@ public sealed class TrayService : IDisposable
         using var g = Graphics.FromImage(bmp);
         g.Clear(Color.Transparent);
         g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
-        var accent = Color.FromArgb(255, 0x4C, 0xC2, 0xFF);
+        var accent = paused ? Color.FromArgb(255, 0x9A, 0xA0, 0xA6) : Color.FromArgb(255, 0x4C, 0xC2, 0xFF);
         using var pen = new Pen(accent, stroke)
         {
             StartCap = System.Drawing.Drawing2D.LineCap.Flat,
