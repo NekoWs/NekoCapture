@@ -86,15 +86,17 @@ public static class Keycaps
         return sp;
     }
 
-    /// <summary>这串文字是不是键位：每条按法的组合键部分都不含中日韩文字才算。
-    /// 「未设键」这类占位文案要走普通文字，不能被切成一堆空键帽；
-    /// 「F2 按下/松开」的组合键部分是 <c>F2</c>、后缀才是中文，照样是键位。</summary>
+    /// <summary>这串文字是不是键位。判它是不是占位文案靠**身份**（就是调用方给的那句），
+    /// 不靠「里面有没有中文」——英文的 <c>No key</c> 没有中文，按语言猜会把它切成一枚「No」键帽加一句 key。
+    /// 剩下的部分再看有没有中日韩文字：「F2 按下/松开」的组合键部分是 <c>F2</c>、后缀才是中文，照样是键位。</summary>
     /// <param name="keys">键位串。</param>
     /// <param name="separators">分隔多条按法的串，与 <see cref="ChordRow"/> 用同一份。</param>
+    /// <param name="placeholder">本界面用的占位文案（如「未设键」/ <c>No key</c>）；与它相等就不是键位。</param>
     /// <returns>能渲染成键帽返回 true；是占位文案或空串返回 false。</returns>
-    public static bool LooksLikeKeys(string? keys, IReadOnlyList<string> separators)
+    public static bool LooksLikeKeys(string? keys, IReadOnlyList<string> separators, string? placeholder = null)
     {
         if (string.IsNullOrWhiteSpace(keys)) return false;
+        if (placeholder != null && string.Equals(keys, placeholder, StringComparison.Ordinal)) return false;
         var parts = keys.Split(separators.ToArray(), StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         return parts.Length > 0 && parts.All(p =>
         {
@@ -123,9 +125,10 @@ public static class Keycaps
             if (emptyHint != null) sp.Children.Add(Note(emptyHint, t));
             return sp;
         }
-        // 「未设键」这类占位文案不是键位：照键位去切，会给它画上一枚键帽，
-        // 看起来就像一个名叫「未设键」的键。整串按小字排。
-        if (!LooksLikeKeys(keys, separators))
+        // 占位文案不是键位：照键位去切，会给它画上一枚键帽，看起来就像一个名叫它自己的键。
+        // 认它靠身份（就是 emptyHint 那句），语言无关。
+        if (emptyHint != null && string.Equals(keys, emptyHint, StringComparison.Ordinal) ||
+            !LooksLikeKeys(keys, separators, emptyHint))
         {
             sp.Children.Add(Note(keys, t));
             return sp;

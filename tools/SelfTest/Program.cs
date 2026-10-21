@@ -6295,6 +6295,20 @@ static partial class SelfTest
             // 含中文的不是键位（「未设键」），照文字排，不能被切成一堆空键帽。
             var none = Chips((DependencyObject)keyCell.Invoke(null, new object[] { Loc.T(K.Common.NoKey) })!);
             Chk("T224-help-unbound-stays-text", none.Count == 0, "「未设键」不应长成键帽：" + string.Join(" / ", none));
+            // 占位文案靠**身份**认，不靠「里面有没有中文」：英文的「No key」没有中文，
+            // 按语言猜会切成一枚「No」键帽加一句 key（英文截图里真出现过）。这条与当前语言无关。
+            var seps = new[] { ",", " / " };
+            var theme = FrameCapture.Core.Fluent.KeycapTheme(11.5);
+            var enPlaceholder = Chips((DependencyObject)FrameCapture.Core.Keycaps.ChordRow(
+                "No key", theme, seps, "No key")!);
+            Chk("T224-placeholder-never-becomes-a-keycap",
+                enPlaceholder.Count == 0 && !FrameCapture.Core.Keycaps.LooksLikeKeys("No key", seps, "No key"),
+                "占位文案被切成键帽：" + string.Join(" / ", enPlaceholder));
+            // 真键位不受影响：占位文案在场时 Ctrl+Alt+R 照样是三枚键帽。
+            var stillKeys = Chips((DependencyObject)FrameCapture.Core.Keycaps.ChordRow(
+                "Ctrl+Alt+R", theme, seps, "No key")!);
+            Chk("T224-real-chord-still-renders", stillKeys.SequenceEqual(new[] { "Ctrl", "Alt", "R" }),
+                "键帽：" + string.Join(" / ", stillKeys));
         }
         catch (Exception e) { Chk("T224-help-key-vocabulary", false, e.Message); }
 

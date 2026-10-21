@@ -272,8 +272,8 @@ public sealed class HelpWindow : Window
             Foreground = new SolidColorBrush(Core.Fluent.AccentText()),
             VerticalAlignment = VerticalAlignment.Top, TextWrapping = TextWrapping.Wrap,
         };
-        return Keycaps.LooksLikeKeys(k, KeySeparators)
-            ? Keycaps.ChordRow(k, Core.Fluent.KeycapTheme(11.5), KeySeparators)
+        return Keycaps.LooksLikeKeys(k, KeySeparators, Loc.T(K.Common.NoKey))
+            ? Keycaps.ChordRow(k, Core.Fluent.KeycapTheme(11.5), KeySeparators, Loc.T(K.Common.NoKey))
             : text;
     }
 
