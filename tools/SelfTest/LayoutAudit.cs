@@ -259,11 +259,9 @@ static partial class SelfTest
     /// <summary>通用提示浮层。</summary>
     static void BuildNoticeAudit(Application app, List<string> rows)
     {
-        // 样例取启动气泡那一条：它是这层最长的真实文案，也是唯一带两处键位的。
-        // 键位串里有 +，宽度一紧 WPF 就在 + 上找断点，把 Ctrl+Alt+R 劈成两截——
-        // 折行本身不算缺陷，键位被劈开才算，所以这里连副行高度一起看。
-        NoticeToast.Show(Loc.T(K.Tray.FramecaptureIsRunning),
-            Loc.F(K.Tray.WaitingInTheTrayCapture, "Ctrl+Alt+A", "Ctrl+Alt+R"));
+        // 样例取「正在保存视频」那一条：启动气泡撤掉之后，这是这条气泡上最长的真实文案，
+        // 副行是文件名，宽度一紧就会折行——折行本身不算缺陷，字被裁才算。
+        NoticeToast.Show(Loc.T(K.Capture.SavingVideo), "FrameCapture 2026-10-21 2318.gif");
         var w = LastWindow(app);
         if (w == null) { rows.Add("UXA|notice|建窗失败|没拿到窗口"); return; }
         PumpMs(200);

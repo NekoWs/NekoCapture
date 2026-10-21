@@ -26,7 +26,6 @@ public partial class App : Application
     const string MsgPauseToggle = "FrameCapture_PauseToggle";
     const string MsgOcr = "FrameCapture_Ocr";
     const string MsgWelcome = "FrameCapture_Welcome";
-    const string MsgNotice = "FrameCapture_Notice";
     const string MsgPicker = "FrameCapture_Picker";
     /// <summary>合成一次组合键的按下与抬起。wParam = 主键 VK | 修饰键位 <<8，lParam = 按住毫秒数。</summary>
     const string MsgSynthetic = "FrameCapture_Synthetic";
@@ -77,26 +76,17 @@ public partial class App : Application
         Services.AppHost.Current.Startup();
         StartMessageSink();
 
-        // 首次启动弹一张欢迎卡，点破两个热键 + 关键手感（新用户装完只见托盘图标、不知按什么键是头号上手摩擦）。
-        // FirstRunHintShown 置位后本条件即消失；非激活浮窗不打断输入，ApplicationIdle 时再弹避免和启动抢焦点。
-        if (!Services.AppHost.Current.Settings.Current.FirstRunHintShown)
+        // 每次启动都弹就绪卡：首启那张常驻（还没看见就说明不了什么），之后几张按时自己走。
+        // 点破两个热键 + 关键手感——新用户装完只见托盘图标、不知按什么键是头号上手摩擦。
+        // 非激活浮窗不打断输入，ApplicationIdle 时再弹避开与启动抢焦点。
+        if (Services.AppHost.Current.Settings.Current.StartupToast)
             Dispatcher.BeginInvoke(() =>
             {
                 var st = Services.AppHost.Current.Settings;
-                if (st.Current.FirstRunHintShown) return;
-                st.Mutate(s => s.FirstRunHintShown = true);
+                bool firstRun = !st.Current.FirstRunHintShown;
+                if (firstRun) st.Mutate(s => s.FirstRunHintShown = true);
                 Overlays.WelcomeToast.Show(st.Current.Gestures.CaptureKeyText(), st.Current.Gestures.RecordKeyText(),
-                    sticky: true);   // 首启唯一一次说明，不自己走
-            }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
-        else if (Services.AppHost.Current.Settings.Current.StartupToast)
-            // 之后每次启动只报一句「已启动」。本程序没有主窗口，缺这一下容易被当成没启动成功。
-            // 与欢迎卡互斥：同一次启动只出现一条，两条气泡落在同一个角落只会互相压住。
-            Dispatcher.BeginInvoke(() =>
-            {
-                var s = Services.AppHost.Current.Settings.Current;
-                Overlays.NoticeToast.Show(Loc.T(K.Tray.FramecaptureIsRunning),
-                    Loc.F(K.Tray.WaitingInTheTrayCapture, s.Gestures.CaptureKeyText(), s.Gestures.RecordKeyText()),
-                    "\uE73E");
+                    sticky: firstRun);   // 只有首启那张不自己走
             }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
 
         // 调试/常驻入口：FrameCapture.exe --settings | --help | --edit-last
@@ -152,9 +142,7 @@ public partial class App : Application
         // 打开首次启动欢迎卡（便于脚本/e2e 调用与截图审查；不改动 FirstRunHintShown，纯查看）
         if (e.Args.Any(a => string.Equals(a, "--welcome", StringComparison.OrdinalIgnoreCase)))
             Dispatcher.BeginInvoke(ShowWelcomeCard, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
-        // 弹一条启动气泡（便于脚本/e2e 调用与截图审查；措辞与真实启动路径同源，热键取当前设置）
-        if (e.Args.Any(a => string.Equals(a, "--notice", StringComparison.OrdinalIgnoreCase)))
-            Dispatcher.BeginInvoke(ShowStartupNotice, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+
         // 打开选区窗（截图/选区同一入口，便于脚本/e2e 验证「不抢焦点」与全局键代收）
         if (e.Args.Any(a => string.Equals(a, "--picker", StringComparison.OrdinalIgnoreCase)))
             Dispatcher.BeginInvoke(() => Services.AppHost.Current.Controller.BeginScopeSelection(),
@@ -335,7 +323,7 @@ public partial class App : Application
         ("--settings", MsgOpenSettings), ("--help", MsgOpenHelp), ("--edit-last", MsgEditLast),
         ("--scroll", MsgScroll), ("--delay", MsgDelay), ("--pin-clip", MsgPinClip),
         ("--pause-toggle", MsgPauseToggle), ("--ocr", MsgOcr), ("--synthetic", MsgSynthetic),
-        ("--editorkey", MsgEditorKey), ("--welcome", MsgWelcome), ("--notice", MsgNotice),
+        ("--editorkey", MsgEditorKey), ("--welcome", MsgWelcome),
         ("--picker", MsgPicker),
     };
 
@@ -344,13 +332,6 @@ public partial class App : Application
     {
         var st = Services.AppHost.Current.Settings;
         Overlays.WelcomeToast.Show(st.Current.Gestures.CaptureKeyText(), st.Current.Gestures.RecordKeyText());
-    }
-
-    /// <summary>弹一条「已在托盘待命」气泡。只留这一句：键位归就绪卡与帮助页，
-    /// 气泡底下那行灰字又小又挤，读的人得先猜它是什么。</summary>
-    void ShowStartupNotice()
-    {
-        Overlays.NoticeToast.Show(Loc.T(K.Tray.FramecaptureIsRunning), null, "\uE73E");
     }
 
     void StartMessageSink()
@@ -369,7 +350,6 @@ public partial class App : Application
                 (MsgPauseToggle,  (_, _) => OnUi(() => Services.AppHost.Current.Tray.TogglePause())),
                 (MsgOcr,          (_, _) => OnUi(() => Services.AppHost.Current.Controller.OcrStoredStill())),
                 (MsgWelcome,      (_, _) => OnUi(ShowWelcomeCard)),
-                (MsgNotice,       (_, _) => OnUi(ShowStartupNotice)),
                 (MsgPicker,       (_, _) => OnUi(() => Services.AppHost.Current.Controller.BeginScopeSelection())),
                 (MsgSynthetic,    SynthesizeChord),
                 (MsgEditorKey,    (w, _) => OnUi(() => FeedEditorKey((int)w.ToInt64()))),

@@ -31,10 +31,6 @@ public static partial class K
             "tray.framecaptureGestures",
             "FrameCapture\n手势 {0} 条 · {1}",
             "FrameCapture\n{0} gestures · {1}");
-        public static readonly Str FramecaptureIsRunning = new(
-            "tray.framecaptureIsRunning",
-            "FrameCapture 已启动",
-            "FrameCapture is running");
         public static readonly Str FramecapturePausedHotkeysReleased = new(
             "tray.framecapturePausedHotkeysReleased",
             "FrameCapture · 已暂停，热键让位其他软件",
@@ -80,9 +76,5 @@ public static partial class K
             "Running As Administrator");
         public static readonly Str SetCaptureRegion = new("tray.setCaptureRegion", "设置捕获范围", "Set Capture Region");
         public static readonly Str Settings = new("tray.settings", "设置…", "Settings…");
-        public static readonly Str WaitingInTheTrayCapture = new(
-            "tray.waitingInTheTrayCapture",
-            "已在托盘待命 · 截图 {0} · 录制 {1}",
-            "Waiting in the tray · capture {0} · record {1}");
     }
 }
