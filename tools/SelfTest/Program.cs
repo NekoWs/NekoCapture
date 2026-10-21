@@ -6700,6 +6700,24 @@ static partial class SelfTest
         }
         catch (Exception e) { Chk("T231-picker-layout", false, e.Message); }
 
+        // 临时目录的中间文件超过保留期必须被清掉；未到期的留着（「继续滚动」的基准帧就在里面）。
+        try
+        {
+            System.IO.Directory.CreateDirectory(FrameCapture.Core.TempFiles.Dir);
+            string stale = FrameCapture.Core.TempFiles.PathOf("capture-selftest-stale.png");
+            string fresh = FrameCapture.Core.TempFiles.PathOf("scroll-selftest-fresh.png");
+            System.IO.File.WriteAllBytes(stale, new byte[] { 1 });
+            System.IO.File.WriteAllBytes(fresh, new byte[] { 1 });
+            System.IO.File.SetLastWriteTimeUtc(stale,
+                DateTime.UtcNow - FrameCapture.Core.TempFiles.Keep - TimeSpan.FromHours(1));
+            int removed = FrameCapture.Core.TempFiles.SweepStale();
+            Chk("T232-temp-sweep-removes-stale", !System.IO.File.Exists(stale) && removed >= 1,
+                "超期文件还在，删了 " + removed + " 个");
+            Chk("T232-temp-sweep-keeps-fresh", System.IO.File.Exists(fresh), "未到期的那张被清掉了");
+            FrameCapture.Core.TempFiles.Drop(fresh);
+        }
+        catch (Exception e) { Chk("T232-temp-sweep", false, e.Message); }
+
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");
         return fail == 0 ? 0 : 1;
     }

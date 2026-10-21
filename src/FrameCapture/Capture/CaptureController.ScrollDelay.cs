@@ -206,7 +206,9 @@ public sealed partial class CaptureController : IDisposable
         var frame = new CapturedFrame { Bgra = acc, W = _scrollW, H = _scrollH, TimeMs = 0 };
         var reg = _scrollRegion; var dev = _scrollDevice; int segs = _scrollSegs; _scrollSegs = 0;
         bar?.CloseSelf();
-        var pth = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "FrameCapture", $"scroll-{DateTime.Now:HHmmss}.png");
+        // 基准帧只留一张：新的一张落下前先把上一张删掉，否则每滚一次就多一个文件。
+        Core.TempFiles.Drop(_scrollResume?.Png);
+        var pth = Core.TempFiles.PathOf($"scroll-{DateTime.Now:HHmmss}.png");
         try { BgraImage.SavePng(frame, pth); } catch { }
         // 完成不等于收工：滚早了头是这条路径最常见的失手。刚落盘的这张 PNG 就是「继续滚动」的基准帧，
         // 像素不进内存——长图动辄上百 MB，而它本来就已经在磁盘上了。
@@ -283,7 +285,7 @@ public sealed partial class CaptureController : IDisposable
             if (f == null) throw new System.IO.InvalidDataException("空图");
             (acc, w, h) = (f.Bgra, f.W, f.H);
         }
-        catch (Exception e) { Trace.Log($"scroll resume: 读不回 {png} — {e.Message}"); return; }
+        catch (Exception e) { Trace.Log($"scroll resume: 读不回 {png} — {e.Message}"); Core.TempFiles.Drop(png); return; }
         if (State == Phase.SelectingScope || _scrollBar != null) { Trace.Log("scroll resume: 已有会话在跑"); return; }
         ResetScrollSession(acc, w, h, region, device);
         ShowScrollStage(acc, region, device);

@@ -238,10 +238,10 @@ public sealed partial class CaptureController : IDisposable
     /// <param name="windowCapture">true = 带 alpha 的窗口截图，剪贴板额外写 PNG 格式以保住透明通道。</param>
     void DispatchStill(CapturedFrame f, RectI reg, string device, bool windowCapture = false)
     {
-        var pth = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "FrameCapture", $"capture-{DateTime.Now:HHmmss}.png");
-        try { BgraImage.SavePng(f, pth); } catch { }
+        // 这张帧不进任何临时文件：剪贴板、浮窗、贴图、「上次截图」共享同一份内存像素，
+        // 中间那张 PNG 写了没人读，只会把临时目录撑大（实测一台机器上积了两千多个文件）。
         SaveService.MaybeSavePng(f); // 自动保存副本（关=零副作用）
-        Trace.Log($"still saved {pth} {f.W}x{f.H} win={windowCapture}");
+        Trace.Log($"still ready {f.W}x{f.H} win={windowCapture}");
         if (_settings.Current.CaptureSound) CaptureSound.Play(_settings.Current.CustomSoundPath); // 提示音（关=零副作用）
         // 截图后落点：弹提示浮窗 / 直接进编辑器 / 什么都不做 / 贴图——四态覆盖不同人群。
         // 剪贴板由用户的动作写，不由截图写：点提示浮窗、编辑器里点 √，或这条落点本身就是「复制到剪贴板」。
