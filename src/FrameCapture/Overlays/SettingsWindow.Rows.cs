@@ -177,6 +177,9 @@ public sealed partial class SettingsWindow : Window
             Padding = new Thickness(0),
             ToolTip = Loc.T(K.Settings.SaveFolderAutoSavedCopies),
         };
+        // 整窗关了输入法（避免拼音拦快捷键），但这是一个要打字的框：文件夹名可能是中文，
+        // 只给这个框把输入法放回来——键位录入框不是文本控件，不受影响。
+        InputMethod.SetIsInputMethodEnabled(box, true);
         // 空路径不是「没设置」，是「跟随默认」：占位文字把默认位置直接写出来，不必点开才知道存到哪
         var hint = new TextBlock
         {
