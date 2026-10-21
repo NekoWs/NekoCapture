@@ -23,6 +23,10 @@ public sealed class ElementHit
 /// </summary>
 public static class ElementSnap
 {
+    /// <summary>从目标窗口往下走时最多几层。</summary>
+    const int MaxDepth = 16;
+    /// <summary>往下走时一层里最多看几个兄弟节点。</summary>
+    const int MaxChildren = 400;
     /// <summary>修补时最多再往下走几层（只在一步命中落到匿名容器上时才用）。</summary>
     const int RepairDepth = 3;
     /// <summary>修补时一层里最多看几个兄弟节点。</summary>
@@ -70,9 +74,14 @@ public static class ElementSnap
                 if (TryTopmostAt(physX, physY, excludeHwnd, out IntPtr warmHwnd))
                     _ = AutomationElement.FromHandle(warmHwnd);
             }
-            var hit = AutomationElement.FromPoint(new Point(physX, physY));
-            if (hit != null && !IsExcluded(hit, excludeHwnd))
-                result = Pick(hit, physX, physY, sw);
+            // 一步命中先试：命中不属于自己时它最快。但选区窗是一张铺满全屏的最顶层遮罩，
+            // 开着的时候这里命中的永远是遮罩自己（会吸到底部提示文字那种东西）——
+            // 所以一旦发现命中是自己的，就回到「从目标窗口往下走」：枚举窗口时已经跳过了自己。
+            var quick = AutomationElement.FromPoint(new Point(physX, physY));
+            if (quick != null && !Ours(quick, excludeHwnd))
+                result = Pick(quick, physX, physY, sw);
+            if (result == null && TryTopmostAt(physX, physY, excludeHwnd, out IntPtr targetHwnd))
+                result = Walk(targetHwnd, physX, physY, sw);
         }
         catch { result = null; } // UIA 对提权进程/死句柄会抛 COMException
 
@@ -111,7 +120,7 @@ public static class ElementSnap
             return new ElementHit { Rect = r.Value, Element = hit };
 
         // 匿名容器：往下找「包含光标点、且说得出口」的孩子，取面积最小的那个。
-        var walker = TreeWalker.ControlViewWalker;
+        var walker = TreeWalker.RawViewWalker;
         var cur = hit;
         RectI curRect = r.Value;
         for (int depth = 0; depth < RepairDepth; depth++)
@@ -151,18 +160,74 @@ public static class ElementSnap
     static bool Usable(RectI r, int physX, int physY) =>
         r.W >= MinSide && r.H >= MinSide && r.Contains(physX, physY);
 
-    /// <summary>命中落在自己的选区窗上时不能用：否则吸到的是自己的遮罩。</summary>
+    /// <summary>探针用：把「往下走」每一层选中的节点打出来。生产路径留 null，零开销。</summary>
+    public static Action<string>? DebugLog { get; set; }
+    /// <summary>这枚元素是不是我们自己的界面（选区遮罩、弹层）。自己的界面永远不该被吸附。</summary>
     /// <param name="el">UIA 元素。</param>
     /// <param name="excludeHwnd">要排除的窗口句柄，<c>IntPtr.Zero</c> 表示不排除。</param>
-    static bool IsExcluded(AutomationElement el, IntPtr excludeHwnd)
+    static bool Ours(AutomationElement el, IntPtr excludeHwnd)
     {
-        if (excludeHwnd == IntPtr.Zero) return false;
         try
         {
+            if (el.Current.ProcessId == Environment.ProcessId) return true;
+            if (excludeHwnd == IntPtr.Zero) return false;
             IntPtr h = (IntPtr)el.Current.NativeWindowHandle;
             return h != IntPtr.Zero && h == excludeHwnd;
         }
         catch { return false; }
+    }
+
+    /// <summary>从目标窗口往下走，找包含光标点的最小控件。
+    /// 这条路绕不开：选区遮罩在最顶层，全局命中拿不到遮罩下面的东西。
+    /// 走不完预算时不死心——把路径上最后一个「说得出口」的节点交出去，总比给 null 强。</summary>
+    /// <param name="hwnd">光标所在窗口（已排除自己的）。</param>
+    /// <param name="physX">光标横坐标（物理像素）。</param>
+    /// <param name="physY">光标纵坐标（物理像素）。</param>
+    /// <param name="sw">本次命中的计时器。</param>
+    /// <returns>可用命中；整棵树里都没有说得出口的元素时为 null。</returns>
+    static ElementHit? Walk(IntPtr hwnd, int physX, int physY, Stopwatch sw)
+    {
+        AutomationElement root;
+        try { root = AutomationElement.FromHandle(hwnd); } catch { return null; }
+        var rootRect = FromUia(root);
+        if (rootRect == null || !rootRect.Value.Contains(physX, physY)) return null;
+
+        var walker = TreeWalker.RawViewWalker;
+        var cur = root;
+        RectI curRect = rootRect.Value;
+        ElementHit? lastSemantic = null;
+        for (int depth = 0; depth < MaxDepth; depth++)
+        {
+            if (sw.ElapsedMilliseconds > BudgetMs) break;
+            AutomationElement? best = null;
+            RectI bestRect = default;
+            long bestArea = Area(curRect);
+            // 用 FindAll 取子节点而不是 TreeWalker：Chrome 的部分节点上 GetFirstChild 直接返回 null
+            // （实测走一层就断），FindAll 走的是另一条列举路径，能把内容子树列出来。
+            AutomationElementCollection kids;
+            try { kids = cur.FindAll(TreeScope.Children, System.Windows.Automation.Condition.TrueCondition); } catch { break; }
+            int seen = 0;
+            foreach (AutomationElement child in kids)
+            {
+                if (++seen > MaxChildren) break;
+                var cr = FromUia(child);
+                if (DebugLog != null && seen <= 12)
+                    DebugLog($"      child {TypeName(child)} name=「{NameOf(child)}」 rect={(cr == null ? "空" : cr.Value.X + "," + cr.Value.Y + " " + cr.Value.W + "x" + cr.Value.H)}");
+                if (cr != null && Usable(cr.Value, physX, physY) && Area(cr.Value) < bestArea)
+                {
+                    best = child;
+                    bestRect = cr.Value;
+                    bestArea = Area(cr.Value);
+                }
+            }
+            if (best == null) break;
+            cur = best;
+            curRect = bestRect;
+            if (IsSemantic(cur)) lastSemantic = new ElementHit { Rect = curRect, Element = cur };
+            DebugLog?.Invoke($"    walk[{depth}] {TypeName(cur)} name=「{NameOf(cur)}」 rect={curRect.X},{curRect.Y} {curRect.W}x{curRect.H} 语义={IsSemantic(cur)}");
+        }
+        // 走到的那一格可能是无名容器：退回路径上最近的那个语义节点
+        return lastSemantic;
     }
 
     /// <summary>从命中的控件向上钻一层（Tab 键：控件 → 父容器 → … → 整窗）。</summary>
@@ -172,7 +237,7 @@ public static class ElementSnap
     {
         try
         {
-            var p = TreeWalker.ControlViewWalker.GetParent(hit.Element);
+            var p = TreeWalker.RawViewWalker.GetParent(hit.Element);
             if (p == null) return null;
             var r = FromUia(p);
             if (r == null) return null;
@@ -191,6 +256,21 @@ public static class ElementSnap
         return false;
     }
 
+    /// <summary>取控件类型名；UIA 抛异常时返回问号。</summary>
+    /// <param name="el">UIA 元素。</param>
+    /// <returns>类型名。</returns>
+    static string TypeName(AutomationElement el)
+    {
+        try { return el.Current.ControlType.ProgrammaticName.Replace("ControlType.", ""); } catch { return "?"; }
+    }
+
+    /// <summary>取无障碍名字；UIA 抛异常时返回空串。</summary>
+    /// <param name="el">UIA 元素。</param>
+    /// <returns>名字。</returns>
+    static string NameOf(AutomationElement el)
+    {
+        try { return el.Current.Name ?? ""; } catch { return ""; }
+    }
     private static RectI? FromUia(AutomationElement el)
     {
         try

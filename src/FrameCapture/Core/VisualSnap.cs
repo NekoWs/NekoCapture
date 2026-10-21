@@ -18,7 +18,7 @@ public static class VisualSnap
     /// <summary>控件的最小边长（物理像素）。</summary>
     public const int MinSide = 16;
     /// <summary>强线门限：该列/行的边缘强度要达到最强那条的这个比例。</summary>
-    const double StrongRatio = 0.35;
+    const double StrongRatio = 0.22;
     /// <summary>单像素判定为边缘的梯度门限。</summary>
     const int EdgeThreshold = 24;
 
@@ -86,7 +86,8 @@ public static class VisualSnap
         }
         long colMax = col.Max(), rowMax = row.Max();
         if (colMax <= 0 || rowMax <= 0) return null;   // 纯色区域：没有任何边
-        long colNeed = (long)(colMax * StrongRatio), rowNeed = (long)(rowMax * StrongRatio);
+        // 真实界面的边框往往比正文文字弱一档：按最强的 22% 取门限，并给一个绝对下限防止满屏纯色时误判。
+        long colNeed = Math.Max((long)(colMax * StrongRatio), 40), rowNeed = Math.Max((long)(rowMax * StrongRatio), 40);
 
         int left = -1, right = -1, top = -1, bottom = -1;
         for (int x = cx; x >= 1; x--) if (col[x] >= colNeed) { left = x; break; }

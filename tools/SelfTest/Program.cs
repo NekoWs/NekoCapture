@@ -737,6 +737,34 @@ static partial class SelfTest
         }
         var app = new Application();
         _ = new FrameCapture.Core.SettingsService();
+        // overlay 模式：先铺一张和选区窗一样的最顶层遮罩，复现「遮罩压在最上面」的真实条件。
+        // 不加这个模式，探针永远测不到那条路——而「吸到遮罩自己的提示文字」正是从那条路来的。
+        IntPtr self = IntPtr.Zero;
+        Window? overlay = null;
+        if (args.Length >= 4 && args[3] == "overlay")
+        {
+            overlay = new Window
+            {
+                WindowStyle = WindowStyle.None,
+                AllowsTransparency = true,
+                Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromArgb(0x30, 0, 0, 0)),
+                ShowInTaskbar = false,
+                Topmost = true,
+                Left = SystemParameters.VirtualScreenLeft, Top = SystemParameters.VirtualScreenTop,
+                Width = SystemParameters.VirtualScreenWidth, Height = SystemParameters.VirtualScreenHeight,
+                Content = new System.Windows.Controls.TextBlock
+                {
+                    Text = "选区遮罩的提示文字",
+                    Foreground = System.Windows.Media.Brushes.White,
+                    Margin = new Thickness(24),
+                    FontSize = 14,
+                },
+            };
+            overlay.Show();
+            PumpMs(320);
+            self = new System.Windows.Interop.WindowInteropHelper(overlay).Handle;
+            Console.WriteLine($"  （已铺最顶层遮罩 hwnd={self}，模拟选区窗）");
+        }
         var sw = System.Diagnostics.Stopwatch.StartNew();
         var raw = System.Windows.Automation.AutomationElement.FromPoint(new System.Windows.Point(x, y));
         if (raw == null) Console.WriteLine($"点 {x},{y}");
@@ -749,7 +777,9 @@ static partial class SelfTest
                 $"语义={FrameCapture.Core.ElementSnap.IsSemantic(raw)}");
         }
         sw.Restart();
-        var hit = FrameCapture.Core.ElementSnap.At(x, y, IntPtr.Zero);
+        if (Environment.GetEnvironmentVariable("FC_ELEMSNAP_DEBUG") == "1")
+            FrameCapture.Core.ElementSnap.DebugLog = s => Console.WriteLine(s);
+        var hit = FrameCapture.Core.ElementSnap.At(x, y, self);
         Console.WriteLine(hit == null
             ? $"  过滤后      {sw.ElapsedMilliseconds,4} ms  null（没有说得出口的控件）"
             : $"  过滤后      {sw.ElapsedMilliseconds,4} ms  {hit.Element.Current.ControlType.ProgrammaticName} " +
@@ -761,6 +791,7 @@ static partial class SelfTest
         else if (vr == null) Console.WriteLine($"  视觉        {sw.ElapsedMilliseconds,4} ms  null（附近没有闭合的框）");
         else Console.WriteLine($"  视觉        {sw.ElapsedMilliseconds,4} ms  {vr.Value.X},{vr.Value.Y} {vr.Value.W}x{vr.Value.H}");
         Console.WriteLine($"  最终采用    {(hit != null ? "UIA 控件" : vr != null ? "视觉框" : "整窗吸附")}");
+        overlay?.Close();
         return 0;
     }
 
