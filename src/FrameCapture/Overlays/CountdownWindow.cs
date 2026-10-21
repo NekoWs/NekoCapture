@@ -151,7 +151,9 @@ public sealed class CountdownWindow : Window
         };
         root.Children.Add(hint);
 
-        // 取消按钮（居中；点击不依赖焦点，Topmost 窗上照常命中）
+        // 取消按钮（居中；点击不依赖焦点，Topmost 窗上照常命中）。
+        // Esc 键帽放进按钮内部：挂在按钮旁边时它是孤立的一枚键帽，看不出和这一排有什么关系。
+        // 键帽沿用全应用那一套配色，在悬停底色的按钮里照样读得出边界。
         var btns = new StackPanel
         {
             Orientation = Orientation.Horizontal,
@@ -159,13 +161,25 @@ public sealed class CountdownWindow : Window
             Margin = new Thickness(0, 12, 0, 0),
         };
         var cancel = MakeBtn(Loc.T(K.Common.Cancel), Theme.Hover, Theme.Text);
+        var esc = Keycaps.Row("Esc", Core.Fluent.KeycapTheme(11));
+        esc.Margin = new Thickness(7, 0, 0, 0);
+        cancel.Content = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Children =
+            {
+                new TextBlock
+                {
+                    Text = Loc.T(K.Common.Cancel),
+                    FontSize = 12.5,
+                    Foreground = new SolidColorBrush(Theme.Text),
+                    VerticalAlignment = VerticalAlignment.Center,
+                },
+                esc,
+            },
+        };
         cancel.Click += (_, _) => OnCancel?.Invoke();
         btns.Children.Add(cancel);
-        // 键位写出来才有人按：这扇窗不抢焦点，Esc 由全局钩子代收。
-        // 用键帽而不是灰字——与首启卡、编辑器一副长相，键位在全应用只有一种写法。
-        var esc = Keycaps.Row("Esc", Core.Fluent.KeycapTheme(11.5));
-        esc.Margin = new Thickness(8, 0, 0, 0);
-        btns.Children.Add(esc);
         root.Children.Add(btns);
 
         card.Child = root;
