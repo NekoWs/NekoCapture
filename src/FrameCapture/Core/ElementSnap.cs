@@ -46,6 +46,11 @@ public static class ElementSnap
         // 注：Document 不在表里——它是网页根节点（整页），吸上去等于整页截图
     };
 
+    // 「这扇窗往下走也拿不到东西」的记账：Chromium 系的窗口连续几次走空之后就跳过它。
+    // 每次走都要惊动它的无障碍树（实测会让窗口卡一下、画面黑一瞬），空走一次都不该白花。
+    static readonly Dictionary<IntPtr, int> _walkMiss = new();
+    /// <summary>同一窗口连续走空几次之后跳过。</summary>
+    const int WalkMissLimit = 3;
     // 同一点位的悬停高频重复：按 (x, y) 缓存一次完整命中
     private static int _cacheX = int.MinValue, _cacheY;
     private static ElementHit? _cache;
@@ -81,7 +86,19 @@ public static class ElementSnap
             if (quick != null && !Ours(quick, excludeHwnd))
                 result = Pick(quick, physX, physY, sw);
             if (result == null && TryTopmostAt(physX, physY, excludeHwnd, out IntPtr targetHwnd))
-                result = Walk(targetHwnd, physX, physY, sw);
+            {
+                int misses;
+                lock (_walkMiss) _walkMiss.TryGetValue(targetHwnd, out misses);
+                if (misses < WalkMissLimit)
+                {
+                    result = Walk(targetHwnd, physX, physY, sw);
+                    lock (_walkMiss)
+                    {
+                        if (result == null) _walkMiss[targetHwnd] = misses + 1;
+                        else _walkMiss.Remove(targetHwnd);
+                    }
+                }
+            }
         }
         catch { result = null; } // UIA 对提权进程/死句柄会抛 COMException
 

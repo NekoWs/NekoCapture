@@ -3,53 +3,64 @@ using FrameCapture.Capture;
 namespace FrameCapture.Core;
 
 /// <summary>
-/// 视觉吸附：不看无障碍树，只看像素。在光标周围取一小块画面，按列/行统计边缘强度，
-/// 从光标向四个方向各找最近的一条强线，四条线围成一个闭合矩形就当成控件边界。
+/// 视觉吸附：不看无障碍树，只看像素。在光标周围取一小块画面，找**长直线**围成的闭合框——
+/// 竖边要求「同一列上有足够长的连续边」，横边同理。
 ///
-/// 存在的理由：有些界面根本不暴露无障碍元素（游戏、canvas 自绘、部分自绘 UI），
-/// 那时 UIA 只能给到整窗。像素里只要有边界，这里就能吸。
-/// 代价是它只看得到「长得像框的东西」——装饰线也会被当成边，所以它排在 UIA 之后，
-/// 并且要求四条边都强、尺寸不过大不过小，找不到就返回 null 交给整窗吸附。
+/// 为什么强调「长」：早一版按列/行累加边缘强度，结果文字笔画被当成边，吸出来的全是不相干的小框。
+/// 真实控件的边框是一条连续的直线（几十像素不断），而一个字的竖笔画只有十几像素。
+/// 这条差别就是判据：连续段长度不够的，一律不算边。
+///
+/// 存在的理由：有些界面根本不暴露无障碍元素（游戏、canvas 自绘、部分 Electron），
+/// 而 Chromium 系的内容树又只走 UIA 的 FromPoint 那条路——选区遮罩一挡就没了。
+/// 那一层拿不到时，这里按像素兜底；都找不到就交回整窗吸附，绝不给一个错的框。
 /// </summary>
 public static class VisualSnap
 {
-    /// <summary>取景窗口的边长（物理像素）：以光标为中心取这么多，够罩住常见控件。</summary>
+    /// <summary>取景窗口的边长（物理像素）：以光标为中心取这么多。</summary>
     public const int WindowSide = 400;
     /// <summary>控件的最小边长（物理像素）。</summary>
     public const int MinSide = 16;
-    /// <summary>强线门限：该列/行的边缘强度要达到最强那条的这个比例。</summary>
-    const double StrongRatio = 0.22;
+    /// <summary>直线的最小连续长度：比它还短的连续边是文字笔画，不是边框。</summary>
+    public const int MinLine = 20;
+    /// <summary>一条边在框的范围内的覆盖率下限：真边框基本是连续的，散点不算。</summary>
+    const double MinCoverage = 0.5;
     /// <summary>单像素判定为边缘的梯度门限。</summary>
     const int EdgeThreshold = 24;
+
+    // 同一块像素内的连续悬停：按 4 像素量化后缓存，避免每移动一像素就重算一遍
+    private static int _cacheX = int.MinValue, _cacheY;
+    private static RectI? _cache;
 
     /// <summary>在光标附近找一块矩形控件。</summary>
     /// <param name="frozen">冻结的整屏帧；null 或没覆盖到光标时现场抓一小块。</param>
     /// <param name="monitor">光标所在显示器的边界（物理像素），用来夹住取景窗口。</param>
     /// <param name="physX">光标横坐标（物理像素）。</param>
     /// <param name="physY">光标纵坐标（物理像素）。</param>
-    /// <returns>吸到的矩形；边界不闭合、尺寸不合规、像素抓不到时为 null。</returns>
+    /// <returns>吸到的矩形；四条长直线不闭合、尺寸不合规、像素抓不到时为 null。</returns>
     public static RectI? At(CapturedFrame? frozen, RectI monitor, int physX, int physY)
     {
+        if (_cacheX != int.MinValue && (physX >> 2) == (_cacheX >> 2) && (physY >> 2) == (_cacheY >> 2))
+            return _cache;
+
         int half = WindowSide / 2;
         var view = new RectI(
             Math.Max(monitor.X, physX - half),
             Math.Max(monitor.Y, physY - half),
             Math.Min(WindowSide, monitor.W),
             Math.Min(WindowSide, monitor.H));
-        if (view.W < MinSide || view.H < MinSide) return null;
-
-        byte[]? bgra; int w, h;
-        if (TrySlice(frozen, view, out bgra, out w, out h))
+        RectI? got = null;
+        if (view.W >= MinSide && view.H >= MinSide)
         {
-            // 用冻结帧：与用户看到的那一帧一致，也不会因为窗口在动而量歪
+            if (TrySlice(frozen, view, out var bgra, out int w, out int h))
+                got = Best(bgra, w, h, view.X, view.Y, physX, physY);
+            else
+            {
+                var grab = LiveCapture.Grab(view);
+                if (grab != null) got = Best(grab.Bgra, grab.W, grab.H, view.X, view.Y, physX, physY);
+            }
         }
-        else
-        {
-            var grab = LiveCapture.Grab(view);
-            if (grab == null) return null;
-            bgra = grab.Bgra; w = grab.W; h = grab.H;
-        }
-        return Best(bgra, w, h, view.X, view.Y, physX, physY);
+        _cacheX = physX; _cacheY = physY; _cache = got;
+        return got;
     }
 
     /// <summary>纯几何部分：从一块 BGRA 里找出光标所在的矩形控件。</summary>
@@ -60,51 +71,97 @@ public static class VisualSnap
     /// <param name="originY">这块像素左上角的桌面物理纵坐标。</param>
     /// <param name="physX">光标桌面物理横坐标。</param>
     /// <param name="physY">光标桌面物理纵坐标。</param>
-    /// <returns>吸到的矩形；没有闭合的四条强线时为 null。</returns>
+    /// <returns>吸到的矩形；没有长直线围成的闭合框时为 null。</returns>
     public static RectI? Best(byte[] bgra, int w, int h, int originX, int originY, int physX, int physY)
     {
         int cx = physX - originX, cy = physY - originY;
         if (w < MinSide || h < MinSide || cx < 1 || cy < 1 || cx >= w - 1 || cy >= h - 1) return null;
         if (bgra.Length < w * h * 4) return null;
 
-        // 逐列、逐行累加边缘强度：竖线在列上尖、横线在行上尖
-        var col = new long[w];
-        var row = new long[h];
+        // 第一遍：每列最长「连续竖边」、每行最长「连续横边」——长度才是「边框 vs 笔画」的分水岭
+        var colRun = new int[w];
+        var rowRun = new int[h];
+        for (int x = 1; x < w - 1; x++)
+        {
+            int run = 0, best = 0;
+            for (int y = 1; y < h - 1; y++)
+            {
+                int i = (y * w + x) * 4;
+                if (Math.Abs(Gray(bgra, i + 4) - Gray(bgra, i - 4)) >= EdgeThreshold) { run++; if (run > best) best = run; }
+                else run = 0;
+            }
+            colRun[x] = best;
+        }
         for (int y = 1; y < h - 1; y++)
         {
+            int run = 0, best = 0;
             int o = y * w * 4;
             for (int x = 1; x < w - 1; x++)
             {
                 int i = o + x * 4;
-                int gx = Math.Abs(Bgra(bgra, i + 4) - Bgra(bgra, i - 4));       // 横向差分 = 竖边
-                int gy = Math.Abs(Bgra(bgra, i + w * 4) - Bgra(bgra, i - w * 4)); // 纵向差分 = 横边
-                int s = gx + gy;
-                if (s < EdgeThreshold) continue;
-                col[x] += s;
-                row[y] += s;
+                if (Math.Abs(Gray(bgra, i + w * 4) - Gray(bgra, i - w * 4)) >= EdgeThreshold) { run++; if (run > best) best = run; }
+                else run = 0;
             }
+            rowRun[y] = best;
         }
-        long colMax = col.Max(), rowMax = row.Max();
-        if (colMax <= 0 || rowMax <= 0) return null;   // 纯色区域：没有任何边
-        // 真实界面的边框往往比正文文字弱一档：按最强的 22% 取门限，并给一个绝对下限防止满屏纯色时误判。
-        long colNeed = Math.Max((long)(colMax * StrongRatio), 40), rowNeed = Math.Max((long)(rowMax * StrongRatio), 40);
 
+        // 第二遍：从光标向四个方向各取最近的一条「够长的线」
         int left = -1, right = -1, top = -1, bottom = -1;
-        for (int x = cx; x >= 1; x--) if (col[x] >= colNeed) { left = x; break; }
-        for (int x = cx; x < w - 1; x++) if (col[x] >= colNeed) { right = x; break; }
-        for (int y = cy; y >= 1; y--) if (row[y] >= rowNeed) { top = y; break; }
-        for (int y = cy; y < h - 1; y++) if (row[y] >= rowNeed) { bottom = y; break; }
-
-        // 四条边缺一条就不是闭合的框：宁可交回整窗吸附，也不吸半截
+        for (int x = cx; x >= 1; x--) if (colRun[x] >= MinLine) { left = x; break; }
+        for (int x = cx; x < w - 1; x++) if (colRun[x] >= MinLine) { right = x; break; }
+        for (int y = cy; y >= 1; y--) if (rowRun[y] >= MinLine) { top = y; break; }
+        for (int y = cy; y < h - 1; y++) if (rowRun[y] >= MinLine) { bottom = y; break; }
         if (left < 0 || right < 0 || top < 0 || bottom < 0) return null;
+
         int bw = right - left, bh = bottom - top;
         if (bw < MinSide || bh < MinSide) return null;
         // 贴着取景窗口边缘的框是不完整的（真实控件比窗口还大），不采用
         if (left <= 1 || top <= 1 || right >= w - 2 || bottom >= h - 2) return null;
+        // 四条边在框范围内要基本连续：散点凑出来的「边」不算
+        if (CoverageV(bgra, w, left, top, bottom) < MinCoverage) return null;
+        if (CoverageV(bgra, w, right, top, bottom) < MinCoverage) return null;
+        if (CoverageH(bgra, w, top, left, right) < MinCoverage) return null;
+        if (CoverageH(bgra, w, bottom, left, right) < MinCoverage) return null;
         return new RectI(originX + left, originY + top, bw, bh);
     }
 
-    static int Bgra(byte[] p, int i) => (p[i] * 30 + p[i + 1] * 59 + p[i + 2] * 11) / 100;
+    /// <summary>竖边在 [top,bottom] 范围内的覆盖率。</summary>
+    /// <param name="p">像素。</param>
+    /// <param name="w">宽（像素）。</param>
+    /// <param name="x">列号。</param>
+    /// <param name="top">范围上界。</param>
+    /// <param name="bottom">范围下界。</param>
+    /// <returns>0..1 的比例。</returns>
+    static double CoverageV(byte[] p, int w, int x, int top, int bottom)
+    {
+        int hit = 0, all = Math.Max(1, bottom - top);
+        for (int y = top; y < bottom; y++)
+        {
+            int i = (y * w + x) * 4;
+            if (Math.Abs(Gray(p, i + 4) - Gray(p, i - 4)) >= EdgeThreshold) hit++;
+        }
+        return (double)hit / all;
+    }
+
+    /// <summary>横边在 [left,right] 范围内的覆盖率。</summary>
+    /// <param name="p">像素。</param>
+    /// <param name="w">宽（像素）。</param>
+    /// <param name="y">行号。</param>
+    /// <param name="left">范围左界。</param>
+    /// <param name="right">范围右界。</param>
+    /// <returns>0..1 的比例。</returns>
+    static double CoverageH(byte[] p, int w, int y, int left, int right)
+    {
+        int hit = 0, all = Math.Max(1, right - left);
+        for (int x = left; x < right; x++)
+        {
+            int i = (y * w + x) * 4;
+            if (Math.Abs(Gray(p, i + w * 4) - Gray(p, i - w * 4)) >= EdgeThreshold) hit++;
+        }
+        return (double)hit / all;
+    }
+
+    static int Gray(byte[] p, int i) => (p[i] * 30 + p[i + 1] * 59 + p[i + 2] * 11) / 100;
 
     /// <summary>从整屏冻结帧里切出取景窗口那一块；没覆盖到就返回 false。</summary>
     static bool TrySlice(CapturedFrame? frame, RectI view, out byte[] bgra, out int w, out int h)
