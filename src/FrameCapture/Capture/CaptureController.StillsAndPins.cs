@@ -265,7 +265,8 @@ public sealed partial class CaptureController : IDisposable
                     {
                         Encoding.ClipboardService.SetFrame(f, includePng: windowCapture);
                         OpenEditorForFrame(f, reg, device);
-                    });
+                    },
+                    () => Encoding.ClipboardService.SetFrame(f, includePng: windowCapture));
                 break;
         }
         _lastStill.Set(f, reg, device, windowCapture); // 浮窗消失后仍可经托盘找回编辑器
@@ -308,7 +309,7 @@ public sealed partial class CaptureController : IDisposable
     public void ShowLastStillToast()
     {
         if (!_lastStill.TryGet(out var f, out var reg, out var dev)) return;
-        Overlays.CaptureToast.Show(f, reg, dev, () => OpenEditorForFrame(f, reg, dev));
+        Overlays.CaptureToast.Show(f, reg, dev, () => OpenEditorForFrame(f, reg, dev), () => Encoding.ClipboardService.SetFrame(f));
     }
 
     /// <summary>手势「复制到剪贴板」——把上一次截图写进剪贴板。没有上次截图时什么都不做。

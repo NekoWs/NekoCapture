@@ -24,29 +24,30 @@ public sealed class CaptureToast : Window
     bool _closing;
     bool _persistent;   // ToastSeconds=0 → 常驻，不自动消失
 
-    const double W = 300;      // DIP 宽
-    const double EstH = 84;    // 估算高（落点用；实际 SizeToContent）
+    const double W = 320;      // DIP 宽
+    const double EstH = 116;   // 估算高（落点用；实际 SizeToContent）
 
     /// <summary>
     /// 弹出截屏成功浮窗：同一时刻只保留一张，再次调用先收起上一张。
     /// 非激活浮窗（ShowActivated=false），不打断用户当前输入；必须在 UI 线程调用。
-    /// 截图本身不写剪贴板：点卡片或按 Enter 走的 <paramref name="onEdit"/> 才写——浮窗只负责告知与「要这张图」。
+    /// 浮窗上摆的是「现在能做什么」：标注、复制、关闭，每一项都写成操作名 + 它的键帽。
     /// </summary>
-    /// <param name="frame">刚截下的帧（BGRA），只用于生成 56×44 缩略图；建窗时即拷成冻结位图，之后改帧字节不影响浮窗。</param>
+    /// <param name="frame">刚截下的帧（BGRA），只用于生成缩略图；建窗时即拷成冻结位图，之后改帧字节不影响浮窗。</param>
     /// <param name="region">截图区域，物理像素、虚拟桌面绝对坐标，决定落点。</param>
     /// <param name="monitorDevice">区域所在显示器 device name；按设备取不到时按区域坐标就近回退。</param>
-    /// <param name="onEdit">点卡片或按 Enter 时执行的回调（写剪贴板并进编辑器），在 UI 线程调用，执行后收起浮窗。</param>
-    public static void Show(CapturedFrame frame, RectI region, string monitorDevice, Action onEdit)
+    /// <param name="onEdit">点「标注」、点卡片或按 Enter 时执行的回调（写剪贴板并进编辑器），在 UI 线程调用，执行后收起浮窗。</param>
+    /// <param name="onCopy">点「复制」或按浮窗那条复制键时执行的回调（只写剪贴板），在 UI 线程调用，执行后收起浮窗。</param>
+    public static void Show(CapturedFrame frame, RectI region, string monitorDevice, Action onEdit, Action onCopy)
     {
         _current?.Close();
-        _current = new CaptureToast(frame, region, monitorDevice, onEdit);
+        _current = new CaptureToast(frame, region, monitorDevice, onEdit, onCopy);
         _current.Show(); // ShowActivated=false：不打断用户当前输入
     }
 
     /// <summary>立即收起当前浮窗（进入选区等全屏交互前调用，避免残留半透明浮窗与选区窗叠在一起闪）。</summary>
     public static void DismissCurrent() => _current?.Dismiss();
 
-    CaptureToast(CapturedFrame frame, RectI region, string monitorDevice, Action onEdit)
+    CaptureToast(CapturedFrame frame, RectI region, string monitorDevice, Action onEdit, Action onCopy)
     {
         Title = "FrameCapture Toast";
         Fluent.BorderlessOverlay(this);
@@ -119,14 +120,6 @@ public sealed class CaptureToast : Window
             Foreground = new SolidColorBrush(Theme.Text),
             FontFamily = new FontFamily("Segoe UI"),
         });
-        texts.Children.Add(new TextBlock
-        {
-            Text = Loc.T(K.Capture.ClickOrPressEnter),
-            FontSize = 11,
-            Foreground = new SolidColorBrush(Theme.TextDim),
-            FontFamily = new FontFamily("Segoe UI"),
-            Margin = new Thickness(0, 2, 0, 0),
-        });
         Grid.SetColumn(texts, 1);
         grid.Children.Add(texts);
 
@@ -138,7 +131,30 @@ public sealed class CaptureToast : Window
         Grid.SetColumn(close, 2);
         grid.Children.Add(close);
 
-        card.Child = grid;
+        // 操作行：这张卡现在能做什么，一件事一枚芯片，键位写在名字后面。
+        // 原先那行「点击或按 Enter 继续标注 · Esc 关闭」是灰字说明——读的人先得把它翻译成操作。
+        var acts = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 8, 0, 0) };
+        acts.Children.Add(ActionChip(Loc.T(K.Editor.Annotate), "Enter", () =>
+        {
+            Trace.Log("toast→edit(chip)");
+            onEdit();
+            Dismiss();
+        }));
+        string copyChord = SettingsService.Shared?.Current.ToastCopyChord ?? "";
+        if (copyChord.Length > 0)
+            acts.Children.Add(ActionChip(Loc.T(K.Pin.Copy), copyChord, () =>
+            {
+                Trace.Log("toast→copy(chip)");
+                onCopy();
+                Dismiss();
+            }));
+        acts.Children.Add(ActionChip(Loc.T(K.Common.Close), "Esc", Dismiss));
+
+        var stack = new StackPanel();
+        stack.Children.Add(grid);
+        stack.Children.Add(acts);
+
+        card.Child = stack;
         card.MouseLeftButtonUp += (_, e) =>
         {
             if (e.Source is DependencyObject d && ReferenceEquals(d, close)) return;
@@ -162,10 +178,14 @@ public sealed class CaptureToast : Window
             // WM_KEYDOWN 不会路由到这里，挂在这里等于没挂。唯一入口见下方 HotkeyManager。
         };
 
-        // 全局钩子代收 Enter/Esc（浮窗不抢焦点，只能这样）；生命周期绑定本浮窗，Closed 清零，绝不泄漏成「全局 Enter 失灵」。
+        // 全局钩子代收 标注/复制/关闭（浮窗不抢焦点，只能这样）；生命周期绑定本浮窗，
+        // Closed 清零，绝不泄漏成「全局 Enter / Ctrl+C 失灵」。
         Services.HotkeyManager.ToastActive = true;
         Services.HotkeyManager.ToastEnter = () => Dispatcher.BeginInvoke(() => { Trace.Log("toast→edit(key)"); onEdit(); Dismiss(); });
         Services.HotkeyManager.ToastEsc = () => Dispatcher.BeginInvoke(Dismiss);
+        Services.HotkeyManager.ToastCopy = copyChord.Length == 0
+            ? null
+            : () => Dispatcher.BeginInvoke(() => { Trace.Log("toast→copy(key)"); onCopy(); Dismiss(); });
 
         // 存在时间可自定义（ToastSeconds，0=常驻不自动消失）。悬停暂停计时、移开重数满时长。
         double secs = SettingsService.Shared?.Current.ToastSeconds ?? 3.2;
@@ -185,6 +205,7 @@ public sealed class CaptureToast : Window
                 Services.HotkeyManager.ToastActive = false;
                 Services.HotkeyManager.ToastEnter = null;
                 Services.HotkeyManager.ToastEsc = null;
+                Services.HotkeyManager.ToastCopy = null;
             }
         };
 
@@ -198,6 +219,41 @@ public sealed class CaptureToast : Window
         _closing = true;
         _dismiss.Stop();
         Fluent.CloseWithFade(this);
+    }
+
+    /// <summary>分隔多条按法：本地化逗号与带空格的斜杠，与就绪卡、帮助页同一份判法。</summary>
+    static string[] KeySeparators { get; } = { Loc.T(K.Hotkeys.Comma), ", ", " / " };
+
+    /// <summary>一枚操作芯片：操作名 + 它的键帽，整块可点。键位在全应用只有一种写法，读的人不必猜哪个键。</summary>
+    /// <param name="label">操作名，如「标注」。</param>
+    /// <param name="keys">这条操作的键位串，如 <c>Enter</c>、<c>Ctrl+C</c>。</param>
+    /// <param name="act">点下去要跑的动作。</param>
+    /// <returns>可点的芯片。</returns>
+    static FrameworkElement ActionChip(string label, string keys, Action act)
+    {
+        var row = new StackPanel { Orientation = Orientation.Horizontal };
+        row.Children.Add(new TextBlock
+        {
+            Text = label,
+            FontSize = 11.5,
+            Foreground = new SolidColorBrush(Theme.Text),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 5, 0),
+        });
+        row.Children.Add(Keycaps.ChordRow(keys, Fluent.KeycapTheme(10.5), KeySeparators));
+        var chip = new Border
+        {
+            CornerRadius = new CornerRadius(5),
+            Padding = new Thickness(6, 3, 6, 3),
+            Margin = new Thickness(0, 0, 6, 0),
+            Background = new SolidColorBrush(Theme.RowBg),
+            Cursor = System.Windows.Input.Cursors.Hand,
+            Child = row,
+        };
+        Fluent.ChipHover(chip);
+        // 吃掉这一击：别冒泡到整卡——整卡是「去标注」，点「复制」不该顺手打开编辑器
+        chip.MouseLeftButtonUp += (_, e) => { act(); e.Handled = true; };
+        return chip;
     }
 
     static BitmapSource Thumbnail(CapturedFrame f, double maxW, double maxH)

@@ -332,6 +332,14 @@ public static partial class K
             "settings.showTheKeysInTheReady",
             "就绪提示列出键位",
             "Show the keys in the ready card");
+        public static readonly Str CopyKey = new(
+            "settings.copyKey",
+            "截图后的复制键",
+            "Key to copy a shot");
+        public static readonly Str TheToastAlsoAccepts = new(
+            "settings.theToastAlsoAccepts",
+            "截图浮窗还在的那几秒里，这个组合键直接复制这张图；只认完全一致的修饰键，别的组合照常留给你正在用的软件",
+            "While the capture card is up, this chord copies the shot; only the exact modifier set is taken - other combinations still go to the app you are using");
         public static readonly Str TheReadyCardLists = new(
             "settings.theReadyCardLists",
             "就绪卡会在名字旁边列出当前生效的截图键与录制键；对键位已经上手后可以关掉，卡片只留标题和帮助入口",

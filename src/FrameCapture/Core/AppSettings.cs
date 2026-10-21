@@ -190,6 +190,10 @@ public sealed class AppSettings
     /// 想「拍完即走」调小、想「留着慢慢点进编辑器」调大或常驻。</summary>
     public double ToastSeconds { get; set; } = 3.2;
 
+    /// <summary>截图浮窗上「复制」用的键位串（默认 Ctrl+C）。浮窗活着的那几秒内由全局钩子代收，
+    /// 只认修饰键完全一致的那一条；空串表示不设，浮窗上只剩标注与关闭。</summary>
+    public string ToastCopyChord { get; set; } = "Ctrl+C";
+
     #region 上次捕获范围（物理像素，虚拟桌面绝对坐标；null 表示全屏主屏）
     public string? RegionMonitorId { get; set; }
     public int RegionX { get; set; }

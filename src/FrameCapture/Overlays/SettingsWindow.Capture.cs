@@ -13,6 +13,30 @@ namespace FrameCapture.Overlays;
 /// </summary>
 public sealed partial class SettingsWindow : Window
 {
+    // 截图浮窗上「复制」的键位：浮窗活着的那几秒由全局钩子代收，改完当场生效。
+    FrameworkElement ToastCopyRow()
+    {
+        var g = ChipRow("\uE8C8", Loc.T(K.Settings.TheToastAlsoAccepts), Loc.T(K.Settings.CopyKey));
+        var box = new ChordCaptureBox
+        {
+            Chord = _settings.Current.ToastCopyChord,
+            EmptyHint = Loc.T(K.Hotkeys.ClickToSet),
+            HorizontalAlignment = HorizontalAlignment.Right,
+        };
+        // 录入期间暂停全局钩子，否则正要录的那个组合键会被自家钩子先吞掉（与快捷键页同一套做法）
+        bool wasPaused = false;
+        box.CaptureBegan += () => { wasPaused = Services.HotkeyManager.Paused; Services.HotkeyManager.Paused = true; };
+        box.CaptureEnded += () => Services.HotkeyManager.Paused = wasPaused;
+        box.Picked += c =>
+        {
+            _settings.Mutate(s => s.ToastCopyChord = c);
+            Services.AppHost.Current.InstallHotkeys();   // 钩子里那份键位串跟着换，不必重启
+        };
+        Grid.SetColumn(box, 2);
+        g.Children.Add(box);
+        return g;
+    }
+
     // 取色复制格式：选区放大镜按 C 复制颜色时的文本形式，HEX / RGB / HSL 三选
     FrameworkElement ColorFormatRow()
     {

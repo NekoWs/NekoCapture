@@ -172,6 +172,7 @@ public sealed partial class SettingsWindow : Window
             0.2, 3.0, 0.1, _settings.Current.OutlineFadeSeconds,
             v => Loc.F(K.Settings.S, v), v => _settings.Mutate(s => s.OutlineFadeSeconds = v)));
         panel.Children.Add(ToastRow());
+        panel.Children.Add(ToastCopyRow());
         panel.Children.Add(CaptureSoundRow());
         panel.Children.Add(DelayRow());
 

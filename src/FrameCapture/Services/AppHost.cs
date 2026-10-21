@@ -86,6 +86,8 @@ public sealed class AppHost
         // 在窗口销毁回调里抛未处理异常等于把整个进程带走。
         if (Settings is null || Gestures is null || Hotkeys is null) return;
         var s = Settings.Current;
+        // 浮窗那条复制键随设置走：改完当场生效，不必等下次启动。
+        HotkeyManager.ToastCopyChord = s.ToastCopyChord ?? "";
         // 手势是唯一的全局触发路径。先应用手势（填引擎绑定表 + 挂键事件汇/鼠标钩子，置 KeySink），
         // 再装键盘钩子（Install 据 KeySink 决定装不装）。
         Gestures.Apply(s.Gestures);

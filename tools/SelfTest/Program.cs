@@ -720,6 +720,37 @@ static partial class SelfTest
         return 0;
     }
 
+    /// <summary>离屏渲染截图浮窗的内容：浮窗本身是 Window，先 Show 再拍它的 Content，
+    /// 拍到的就是每次截完图看到的那张卡（含操作芯片与键帽）。</summary>
+    /// <param name="outPath">输出 PNG 路径。</param>
+    /// <returns>0 = 已出图；1 = 浮窗没建起来。</returns>
+    static int RenderToast(string outPath)
+    {
+        var app = new Application();
+        // 浮窗上那条复制键来自设置：先建一份设置，芯片才按出厂默认 Ctrl+C 画出来
+        _ = new FrameCapture.Core.SettingsService();
+        FrameCapture.Overlays.CaptureToast.Show(Solid(320, 180, 0x2E, 0x5C, 0x8A),
+            new FrameCapture.Capture.RectI(0, 0, 320, 180), "", () => { }, () => { });
+        var w = System.Windows.Application.Current.Windows.OfType<FrameCapture.Overlays.CaptureToast>().FirstOrDefault();
+        if (w?.Content is not System.Windows.FrameworkElement root)
+        {
+            Console.WriteLine("toast 没建起来");
+            return 1;
+        }
+        root.UpdateLayout();
+        double cw = Math.Max(1, root.ActualWidth), ch = Math.Max(1, root.ActualHeight);
+        var rtb = new System.Windows.Media.Imaging.RenderTargetBitmap(
+            (int)Math.Ceiling(cw), (int)Math.Ceiling(ch), 96, 96, System.Windows.Media.PixelFormats.Pbgra32);
+        rtb.Render(root);
+        var enc = new System.Windows.Media.Imaging.PngBitmapEncoder();
+        enc.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(rtb));
+        Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(outPath))!);
+        using (var f = File.Create(outPath)) enc.Save(f);
+        Console.WriteLine($"saved {outPath} {cw:N0}x{ch:N0}");
+        w.Close();
+        return 0;
+    }
+
     static int RenderSlider(string outPath)
     {
         var app = new Application();
@@ -883,6 +914,7 @@ static partial class SelfTest
                 if (args.Length >= 2 && args[0] == "renderhelp") return RenderHelp(args[1], args.Length >= 3 && int.TryParse(args[2], out var hs) ? hs : 0, ScaleArg(args));
         if (args.Length == 2 && args[0] == "sbprobe") return SbProbe(args[1]);
         if (args.Length == 2 && args[0] == "renderpick") return RenderPick(args[1]);
+        if (args.Length == 2 && args[0] == "rendertoast") return RenderToast(args[1]);
         if (args.Length == 2 && args[0] == "editorwave") return EditorWave(args[1]);
         if (args.Length == 2 && args[0] == "scrollwave") return ScrollWave(args[1]);
         if (args.Length == 2 && args[0] == "renderslider") return RenderSlider(args[1]);
@@ -6253,7 +6285,7 @@ static partial class SelfTest
 
             // 「已复制」卡是全局曝光最高的一张卡：每次截图都出现，卡片边也必须同一副长相。
             FrameCapture.Overlays.CaptureToast.Show(Solid(160, 96, 0x30, 0x60, 0x90),
-                new FrameCapture.Capture.RectI(0, 0, 160, 96), "", () => { });
+                new FrameCapture.Capture.RectI(0, 0, 160, 96), "", () => { }, () => { });
             var tc = System.Windows.Application.Current.Windows
                 .OfType<FrameCapture.Overlays.CaptureToast>().FirstOrDefault();
             Chk("T223-toast-card-found", tc != null, tc == null ? "没找到「已复制」卡" : "已开");

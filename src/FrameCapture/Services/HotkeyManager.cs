@@ -34,6 +34,31 @@ public sealed class HotkeyManager : IDisposable
     public static Action? ToastEnter;
     /// <value>Esc 的响应，赋值时机与线程要求同 <see cref="ToastEnter"/>。</value>
     public static Action? ToastEsc;
+
+    /// <summary>截图浮窗上「复制」的响应；赋值时机与线程要求同 <see cref="ToastEnter"/>。</summary>
+    public static Action? ToastCopy;
+
+    /// <summary>浮窗上那条复制键（键位串；空串＝不设）。由设置写入，钩子里按修饰键与主键逐位比对。
+    /// 只在浮窗活着那几秒内生效，且要求修饰键完全一致——别的组合照常留给前台应用。</summary>
+    public static string ToastCopyChord = "Ctrl+C";
+
+    /// <summary>本键是否正是浮窗那条复制键。</summary>
+    /// <param name="vk">钩子给来的虚拟键码。</param>
+    /// <returns>主键与修饰键都逐位一致返回 true。</returns>
+    static bool MatchToastCopy(uint vk)
+    {
+        if (Core.EditorChord.Parse(ToastCopyChord) is not { } ch) return false;
+        if (System.Windows.Input.KeyInterop.VirtualKeyFromKey(ch.Key) != vk) return false;
+        var mods = ch.Mods;
+        bool ctrl = (mods & System.Windows.Input.ModifierKeys.Control) != 0;
+        bool alt = (mods & System.Windows.Input.ModifierKeys.Alt) != 0;
+        bool shift = (mods & System.Windows.Input.ModifierKeys.Shift) != 0;
+        bool win = (mods & System.Windows.Input.ModifierKeys.Windows) != 0;
+        return Win32.IsKeyDown(Win32.VK_CONTROL) == ctrl
+            && Win32.IsKeyDown(Win32.VK_MENU) == alt
+            && Win32.IsKeyDown(Win32.VK_SHIFT) == shift
+            && (Win32.IsKeyDown(Win32.VK_LWIN) || Win32.IsKeyDown(Win32.VK_RWIN)) == win;
+    }
     /// <summary>选区窗（RegionPickerWindow）活跃时置位：全局代收 Esc/Enter/C/F/Tab 并吞掉。
     /// 选区窗是 WS_EX_NOACTIVATE + ShowActivated=false，不夺前台——目标窗（如浏览器）保持焦点，
     /// 其键不会进选区窗自己的 HWND，只能靠全局钩子代劳（与滚动/浮窗同款会话拦截）。
@@ -144,11 +169,13 @@ public sealed class HotkeyManager : IDisposable
         // 延时截图倒计时中：Esc 取消这次截图并吞掉（倒计时窗不抢焦点，否则 Esc 会漏给目标窗）。
         if (isDown && vk == 0x1B && CountdownActive) { CountdownEsc?.Invoke(); return true; }
 
-        // 截图浮窗活跃：Enter=进编辑器、Esc=关闭，全局吞掉（浮窗不抢焦点，键不会进它自己的 HWND）。
-        if (isDown && ToastActive && (vk == 0x0D || vk == 0x1B))
+        // 截图浮窗活跃：Enter=进编辑器、Esc=关闭、浮窗那条复制键=复制，全局吞掉
+        // （浮窗不抢焦点，键不会进它自己的 HWND）。
+        if (isDown && ToastActive)
         {
-            if (vk == 0x0D) ToastEnter?.Invoke(); else ToastEsc?.Invoke();
-            return true;
+            if (vk == 0x0D) { ToastEnter?.Invoke(); return true; }
+            if (vk == 0x1B) { ToastEsc?.Invoke(); return true; }
+            if (ToastCopy != null && MatchToastCopy(vk)) { ToastCopy.Invoke(); return true; }
         }
 
         // 选区窗活跃：Esc/Enter/C/F/Tab 全局代收并吞掉（选区窗不抢焦点，键不会进它自己的 HWND）。

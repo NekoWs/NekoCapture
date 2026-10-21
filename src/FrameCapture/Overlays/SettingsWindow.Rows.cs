@@ -346,7 +346,7 @@ public sealed partial class SettingsWindow : Window
         var chip = new Border
         {
             Width = 46,
-            Height = 20,
+            Height = 24,   // 24 是可用下限：色块本身就是按钮，20 高指尖偏一点就点空
             CornerRadius = new CornerRadius(5),
             Background = new SolidColorBrush(HexColor.Parse(_settings.Current.VideoMatteColor) ?? Colors.White),
             BorderBrush = new SolidColorBrush(Theme.Stroke),

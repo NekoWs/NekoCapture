@@ -303,7 +303,7 @@ static partial class SelfTest
     static void BuildToastAudit(Application app, List<string> rows)
     {
         var frame = new CapturedFrame { Bgra = MockScreen(480, 300), W = 480, H = 300, TimeMs = 0 };
-        CaptureToast.Show(frame, new RectI(100, 80, 480, 300), @"\\.\DISPLAY1", () => { });
+        CaptureToast.Show(frame, new RectI(100, 80, 480, 300), @"\\.\DISPLAY1", () => { }, () => { });
         var w = LastWindow(app);
         if (w == null) { rows.Add("UXA|toast|建窗失败|没拿到窗口"); return; }
         PumpMs(200);

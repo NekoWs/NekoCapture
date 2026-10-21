@@ -234,7 +234,8 @@ public sealed partial class CaptureController : IDisposable
                     {
                         Encoding.ClipboardService.SetFrame(frame);
                         OpenEditorForFrame(frame, reg, dev);
-                    });
+                    },
+                    () => Encoding.ClipboardService.SetFrame(frame));
                 break;
         }
         _lastStill.Set(frame, reg, dev);
@@ -377,7 +378,8 @@ public sealed partial class CaptureController : IDisposable
                     {
                         Encoding.ClipboardService.SetFrame(f);
                         OpenEditorForFrame(f, reg, dev);
-                    });
+                    },
+                    () => Encoding.ClipboardService.SetFrame(f));
                 break;
         }
         _lastStill.Set(f, reg, dev);

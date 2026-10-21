@@ -23,11 +23,8 @@ public static partial class K
             "已到内容底部，点「完成」出图",
             "Bottom of the content reached — choose Done to stitch");
         public static readonly Str Characters = new("capture.characters", "{0} 字", "{0} characters");
-        public static readonly Str ClickOrPressEnter = new(
-            "capture.clickOrPressEnter",
-            "点击或按 Enter 继续标注 · Esc 关闭",
-            "Click or press Enter to annotate · Esc to dismiss");
         public static readonly Str Copied = new("capture.copied", "已复制 ", "Copied ");
+
         public static readonly Str CopyAll = new("capture.copyAll", "复制全部", "Copy all");
         public static readonly Str Done = new("capture.done", "完成", "Done");
         public static readonly Str DragToSelectHover = new(
