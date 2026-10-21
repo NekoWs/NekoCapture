@@ -103,7 +103,7 @@ public sealed class WelcomeToast : Window
         var (btnText, goHelp) = anyHotkeyBound
             ? (Loc.T(K.Capture.SeeTheHelpAndEvery), true)
             : (Loc.T(K.Capture.SetAKeyInSettings), false);
-        var help = new Button
+        var entry = new Button
         {
             Content = btnText,
             FontSize = 12.5,
@@ -116,14 +116,14 @@ public sealed class WelcomeToast : Window
             Margin = new Thickness(0, 12, 0, 0),
             Template = RoundedBtnTemplate(),
         };
-        help.Click += (_, _) =>
+        entry.Click += (_, _) =>
         {
             if (goHelp) { Trace.Log("welcome→help"); HelpWindow.ShowOrFocus(); }
             else { Trace.Log("welcome→settings"); SettingsWindow.ShowOrFocus(); }
             Dismiss();
         };
-        Fluent.Springy(help);   // 悬停只改底色带过渡，不缩放（与滚动控制条按钮同款反馈）
-        root.Children.Add(help);
+        Fluent.Springy(entry);   // 悬停只改底色带过渡，不缩放（与滚动控制条按钮同款反馈）
+        root.Children.Add(entry);
 
         card.Child = root;
         Content = card;
