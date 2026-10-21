@@ -53,7 +53,7 @@ public sealed class WelcomeToast : Window
         {
             Width = W,
             Background = new SolidColorBrush(Theme.CardBg),
-            BorderBrush = new SolidColorBrush(Color.FromArgb(0x66, Theme.Stroke.R, Theme.Stroke.G, Theme.Stroke.B)),
+            BorderBrush = Core.Fluent.CardEdge(),   // 上缘亮下缘暗：暗色里投影看不见，靠这条边说清卡片是浮着的
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(12),
             Padding = new Thickness(16, 14, 12, 14),

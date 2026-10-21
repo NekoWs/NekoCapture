@@ -429,6 +429,28 @@ public static partial class Fluent
             AnimateBg(Mix(baseColor, Theme.Hover), Motion.QuickMs);
         };
     }
+    /// <summary>浮起卡片的描边：一条上缘提亮、下缘压暗的竖向渐变。
+    /// 暗色主题下投影几乎看不见，卡片只剩一条等宽灰边，看不出它是浮着的还是贴上去的。
+    /// 光从上方来，上缘就比下缘亮——这条边把「谁压着谁」说清楚；
+    /// 比加深投影克制，也不像整圈白边那样在浅色主题里发脏。</summary>
+    /// <returns>可直接赋给 <c>Border.BorderBrush</c> 的竖向渐变画刷。</returns>
+    public static LinearGradientBrush CardEdge()
+    {
+        var s = Theme.Stroke;
+        static Color Tint(Color c, Color over, double a) => Color.FromArgb(c.A,
+            (byte)(c.R * (1 - a) + over.R * a),
+            (byte)(c.G * (1 - a) + over.G * a),
+            (byte)(c.B * (1 - a) + over.B * a));
+        var top = Tint(s, Colors.White, Theme.IsDark ? 0.42 : 0.62);
+        var bottom = Tint(s, Colors.Black, Theme.IsDark ? 0.34 : 0.2);
+        return new LinearGradientBrush(new GradientStopCollection
+        {
+            new GradientStop(Color.FromArgb(0x99, top.R, top.G, top.B), 0),
+            new GradientStop(Color.FromArgb(0x66, s.R, s.G, s.B), 0.42),
+            new GradientStop(Color.FromArgb(0x55, bottom.R, bottom.G, bottom.B), 1),
+        }, new Point(0.5, 0), new Point(0.5, 1));
+    }
+
     /// <summary>把一层带 alpha 的颜色压到实色上，得到两者混合后的实色：悬停色与按压色本身就是
     /// 一层半透明白，压在什么底色上都该得到那个底色自己的亮一档/暗一档，而不是一个固定色。</summary>
     /// <param name="src">底色，不透明实色。</param>
