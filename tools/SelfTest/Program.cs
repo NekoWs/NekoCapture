@@ -2840,8 +2840,9 @@ static partial class SelfTest
                 Chk("T92d-tips", tools.All(t => t.Tip.Zh.Length >= 2 && !t.Tip.Zh.Contains('(') && !t.Tip.Zh.Contains('（')
                         && t.Tip.En.Length >= 2 && !t.Tip.En.Contains('(') && t.Help.Zh.Length >= 8),
                     "工具条提示只说动作名、两种语言都不带括注；键位由 Key 单列，帮助窗排「名称 + 键」");
-                Chk("T92e-heading", Loc.F(K.Help.EditorDrawingClickTheCurrent, ToolCatalog.ExitKey).Contains(ToolCatalog.ExitKey),
-                    "退出键 X 作为格式参数写进帮助小节标题");
+                // 标题收成短名之后，「按一下 X 退出绘制」由页内那行提示承担；断言跟着那句话走，判据不变。
+                Chk("T92e-exit-key-in-the-note", Loc.F(K.Help.PressTheToolKeyAgain, ToolCatalog.ExitKey).Contains(ToolCatalog.ExitKey),
+                    "退出键 X 作为格式参数写进绘制页的提示句");
                 Chk("T92f-sym", tools.All(t => t.Sym.Length == 1 && !(t.Sym[0] >= 0xE000 && t.Sym[0] <= 0xF8FF)),
                     "帮助符号是普通 Unicode（默认字体可渲染，图标字形进帮助窗=豆腐块）");
             }

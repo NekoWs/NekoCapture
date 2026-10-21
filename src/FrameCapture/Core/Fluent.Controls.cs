@@ -47,6 +47,32 @@ public static partial class Fluent
         return b;
     }
 
+    /// <summary>图标字形块：行高收到字号本身，字形在块里水平垂直都居中。
+    /// 默认行盒比字形高出一截（字体升降部都算进去），同一行里图标与文字各按自己的行盒居中，
+    /// 看着就是图标偏上或偏下。收掉多余行距，块的上下沿才等于字形自己的上下沿。</summary>
+    /// <param name="glyph">Segoe Fluent Icons 的 PUA 码位。</param>
+    /// <param name="size">字号（等于期望的图标高度）。</param>
+    /// <param name="fg">字形颜色。</param>
+    /// <param name="width">固定宽度（图标要在一列里左右对齐时给）；0 表示按内容宽。</param>
+    /// <returns>可直接放进任意容器的字形块。</returns>
+    public static TextBlock Glyph(string glyph, double size, Brush fg, double width = 0)
+    {
+        var t = new TextBlock
+        {
+            Text = glyph,
+            FontFamily = new FontFamily(IconFontChain),
+            FontSize = size,
+            Foreground = fg,
+            VerticalAlignment = VerticalAlignment.Center,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            LineHeight = Math.Ceiling(size),
+            LineStackingStrategy = LineStackingStrategy.BlockLineHeight,
+            TextAlignment = TextAlignment.Center,
+        };
+        if (width > 0) t.Width = width;
+        return t;
+    }
+
     static void AnimateScale(UIElement el, double to, int ms, EasingFunctionBase? ease = null)
     {
         if (el.RenderTransform is not ScaleTransform st) return;

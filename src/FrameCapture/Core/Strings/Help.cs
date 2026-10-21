@@ -59,10 +59,10 @@ public static partial class K
         public static readonly Str DoneCheck = new("help.doneCheck", "完成 ✓", "Done ✓");
         public static readonly Str Drag = new("help.drag", "拖动", "Drag");
         public static readonly Str DragABox = new("help.dragABox", "拖框", "Drag a box");
-        public static readonly Str EditorDrawingClickTheCurrent = new(
-            "help.editorDrawingClickTheCurrent",
-            "编辑器 · 绘图 — 再点当前工具或 {0} 退出绘制",
-            "Editor · Drawing — click the current tool again or press {0} to leave drawing");
+        public static readonly Str EditorDrawing = new(
+            "help.editorDrawing",
+            "编辑器 · 绘制",
+            "Editor · Drawing");
         public static readonly Str EscRightClick = new("help.escRightClick", "Esc / 右键", "Esc / right-click");
         public static readonly Str EveryKeyIsADefault = new(
             "help.everyKeyIsADefault",

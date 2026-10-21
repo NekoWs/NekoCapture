@@ -103,7 +103,9 @@ public sealed class HelpWindow : Window
         main.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
         var left = new StackPanel { Margin = new Thickness(2, 0, 10, 0), VerticalAlignment = VerticalAlignment.Center };
-        _bigIcon = new TextBlock { FontFamily = new FontFamily(Fluent.IconFontChain), FontSize = 34, Foreground = new SolidColorBrush(Theme.Accent) };
+        _bigIcon = Fluent.Glyph("\uE945", 34, new SolidColorBrush(Theme.Accent));
+        _bigIcon.HorizontalAlignment = HorizontalAlignment.Left;   // 与下面那两行文字同一条左沿
+        _bigIcon.TextAlignment = TextAlignment.Left;
         _bigTitle = new TextBlock { FontSize = 21, FontWeight = FontWeights.Bold, Foreground = new SolidColorBrush(Theme.Text), Margin = new Thickness(0, 10, 0, 0), TextWrapping = TextWrapping.Wrap };
         _bigSub = new TextBlock { FontSize = 12, Foreground = new SolidColorBrush(Theme.TextDim), Margin = new Thickness(0, 6, 0, 0), TextWrapping = TextWrapping.Wrap, LineHeight = 18 };
         left.Children.Add(_bigIcon); left.Children.Add(_bigTitle); left.Children.Add(_bigSub);
@@ -364,7 +366,7 @@ public sealed class HelpWindow : Window
                 Note(p, Loc.T(K.Help.CtrlHBlendsTheFrames));
             }),
 
-            ("\uE71C", Loc.F(K.Help.EditorDrawingClickTheCurrent, ToolCatalog.ExitKey), Loc.T(K.Help.TheColumnOnTheLeft), p => Tools(p)),
+            ("\uE71C", Loc.T(K.Help.EditorDrawing), Loc.T(K.Help.TheColumnOnTheLeft), p => Tools(p)),
 
             ("\uE718", Loc.T(K.Common.Pin), Loc.T(K.Help.PinAnImageOnto), p =>
             {
@@ -421,15 +423,7 @@ public sealed class HelpWindow : Window
     {
         string key = EditorKeyParts("tool." + t.Key)[0];
         var head = new StackPanel { Orientation = Orientation.Horizontal };
-        head.Children.Add(new TextBlock
-        {
-            Text = t.Glyph,
-            FontFamily = new FontFamily(Fluent.IconFontChain),
-            FontSize = 15,
-            Foreground = new SolidColorBrush(Theme.Accent),
-            VerticalAlignment = VerticalAlignment.Center,
-            Width = 24,
-        });
+        head.Children.Add(Fluent.Glyph(t.Glyph, 15, new SolidColorBrush(Theme.Accent), 24));
         head.Children.Add(new TextBlock
         {
             Text = Loc.T(t.Tip),
