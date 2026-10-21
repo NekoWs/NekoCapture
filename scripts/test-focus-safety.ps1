@@ -13,11 +13,15 @@ Get-Process FrameCapture -EA SilentlyContinue | Stop-Process -Force   # 先杀�
 Start-Sleep 0.5
 $bak = Set-FcTestGestureConfig   # 钉成统一测试手势集（Ctrl+Shift+G 已绑定），结束（含各 SKIP 出口）一律还原
 try {
+    # 逐键日志受隐私开关管：全局钩子看得见用户所有按键，默认一条都不记。
+    # 本项自己注入自己的键，开它只记这几个键；不开的话下面找的证据根本不会出现，
+    # 于是这项每次都从「注入被拦截」出口静默跳过。
+    $env:FC_TRACE_KEYS = "1"
     $p = Start-Process $exe -PassThru
     Start-Sleep 1.5
     # 安静窗口闸：物理输入状态说了算。前台类名猜不出正在编辑器里打字的人。
     if (-not (Wait-FcQuiet -TimeoutSec 25 -QuietMs 3000)) {
-        Write-Host "SKIP: 用户持续有输入，跳过本项注入测试（SKIP ≠ FAIL）"
+        Write-Host ("SKIP: 25 秒内等不到 3 秒无物理输入，跳过本项注入测试（SKIP ≠ FAIL）；" + $script:FcQuietDiag)
         if (!$p.HasExited) { $p.Kill() }
         exit 0
     }
@@ -29,7 +33,7 @@ try {
     if (!$p.HasExited) { $p.Kill() }
     $tr = Get-Content (Join-Path $root "src/fc-trace.log") -Tail 40 | Out-String
     if (-not ($tr -match "hook key=71")) {
-        Write-Host "SKIP: 注入按键被拦截（游戏/反外挂），hook 无事件；关闭游戏后重跑"
+        Write-Host "SKIP: 注入的 G 没进 OS 级钩子（trace 里找不到 hook key=71）——游戏/反外挂拦截，或逐键日志没开；关闭游戏后重跑"
         exit 0
     }
     $clean = $out -match "SWALLOW text=\[ABCDEF\]"

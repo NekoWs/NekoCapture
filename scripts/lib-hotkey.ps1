@@ -157,19 +157,44 @@ function Wait-FcModifiersUp {
 # 安静窗口：连续 -QuietMs 毫秒内没有任何物理按键或鼠标键按下，才算用户暂时没在用电脑。
 # 唯一必须真注入的那一项（焦点安全）用它把关——等不到就返回 false，调用方跳过，绝不硬闯。
 # 判据是物理输入状态本身，不是「前台窗口类名像不像游戏」：后者看不见正在编辑器里打字的人。
+$script:FcQuietDiag = ""
 function Wait-FcQuiet {
     param([int]$TimeoutSec = 25, [int]$QuietMs = 3000)
+    # 跳过要说得出是哪个键按着：只报「用户在输入」会把卡住的按键状态说成有人在打字，
+    # 而这两种的处置完全不同（再等等 vs 去查谁把键按住了）。
+    $names = @{ 0x01 = "左键"; 0x02 = "右键"; 0x10 = "Shift"; 0x11 = "Ctrl"; 0x12 = "Alt"; 0x1B = "Esc"; 0x5B = "LWin"; 0x5C = "RWin" }
+    $down = @{}; $run = @{}; $maxRun = @{}
+    foreach ($vk in $names.Keys) { $down[$vk] = 0; $run[$vk] = 0; $maxRun[$vk] = 0 }
+    $samples = 0
+    $rounds = 0
     $t0 = Get-Date
     while (((Get-Date) - $t0).TotalSeconds -lt $TimeoutSec) {
+        $rounds++
         $busy = $false
         $sw = [Diagnostics.Stopwatch]::StartNew()
+        # 一整窗采到底再判：一量到按下就 break，「按下次数」永远是每轮 1 次，量不出比例。
         while ($sw.ElapsedMilliseconds -lt $QuietMs) {
-            if ([FcMods.Kb]::AnyInputDown()) { $busy = $true; break }
+            $samples++
+            foreach ($vk in $names.Keys) {
+                if (([FcMods.Kb]::GetAsyncKeyState($vk) -band 0x8000) -ne 0) {
+                    $down[$vk]++; $run[$vk]++
+                    if ($run[$vk] -gt $maxRun[$vk]) { $maxRun[$vk] = $run[$vk] }
+                    $busy = $true
+                } else { $run[$vk] = 0 }
+            }
             Start-Sleep -Milliseconds 60
         }
-        if (-not $busy) { return $true }
+        if (-not $busy) { $script:FcQuietDiag = ""; return $true }
         Start-Sleep -Milliseconds 250
     }
+    $who = foreach ($vk in $names.Keys) {
+        if ($down[$vk] -gt 0) {
+            "{0} 按下 {1}/{2} 次采样（最长连续 {3} 次）" -f $names[$vk], $down[$vk], $samples, $maxRun[$vk]
+        }
+    }
+    # 一个键都没量到却等不到安静窗口，是闸自己的问题，不许把账算到用户头上。
+    $script:FcQuietDiag = if ($who) { "看到的输入：" + ($who -join "；") + "（等了 $rounds 轮）" }
+                          else { "等 $rounds 轮一个键都没量到按下——闸自己有问题，不是有人在输入" }
     return $false
 }
 # 合成一次组合键的按下与抬起：二次实例把参数转发给主实例的消息专用窗（HWND_MESSAGE），

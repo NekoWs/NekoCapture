@@ -201,7 +201,9 @@ if ($SkipE2e) {
             # 预测不了下一秒——所以默认不跑，显式 -AllowInjection 才跑，跑了也还要再过一道闸。
             if ($t.gated) {
                 if (-not $AllowInjection) { Add-Result $t.n "SKIP" "需 -AllowInjection（会注入 OS 级按键）"; continue }
-                if (-not (Wait-FcQuiet -TimeoutSec 25 -QuietMs 3000)) { Add-Result $t.n "SKIP" "用户持续有输入，跳过注入项"; continue }
+                # 闸跳过时必须带上当场量到的键位：只写「用户持续有输入」是把结论当证据，
+                # 机器空着而某个键状态卡住时，这句话会冤枉人。
+                if (-not (Wait-FcQuiet -TimeoutSec 25 -QuietMs 3000)) { Add-Result $t.n "SKIP" ("等不到安静窗口：" + $script:FcQuietDiag); continue }
             }
             $t0 = [Diagnostics.Stopwatch]::StartNew()
             $r = Wait-Async (Start-Async ("e2e-" + $t.mark) "pwsh" @("-NoProfile", "-File", (Join-Path $PSScriptRoot $t.f)))
@@ -212,7 +214,17 @@ if ($SkipE2e) {
                       elseif (@($lines | Where-Object { $_ -match "$($t.mark).*FAIL" }).Count -or $r.Code -ne 0) { "FAIL" }
                       elseif (@($lines | Where-Object { $_ -match 'SKIP' }).Count) { "SKIP" }
                       else { "FAIL" }
-            $note = if ($status -eq "FAIL") { "exit={0}; {1}" -f $r.Code, (($lines | Select-Object -Last 3) -join " / ") } else { "" }
+            # SKIP 也要把子项自己说的那句话带上来：只剩一个「SKIP」，看结果的人只能猜，
+            # 而猜出来的原因通常按到别人头上。
+            $note = if ($status -eq "FAIL") { "exit={0}; {1}" -f $r.Code, (($lines | Select-Object -Last 3) -join " / ") }
+                    elseif ($status -eq "SKIP") { (($lines | Select-String 'SKIP' | Select-Object -First 1 | ForEach-Object { $_.Line.Trim() }) -join " / ") }
+                    else { "" }
+            # 显式要求跑注入项（-AllowInjection）却没跑成，按 FAIL 处理：
+            # 「永远 SKIP」和「通过」在汇总表里长得一模一样，这项曾因此静默跳过很久。
+            if ($t.gated -and $AllowInjection -and $status -eq "SKIP") {
+                $note = "显式要求注入却仍跳过：" + $note
+                $status = "FAIL"
+            }
             Add-Result $t.n $status $note $r.Sec
             if ($o -match "capture_hotkey|restored_capture") { Say (($lines | Select-String "hotkey=" | Out-String).Trim()) }
         }
