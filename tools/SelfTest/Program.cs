@@ -6403,9 +6403,14 @@ static partial class SelfTest
             Chk("T225-card-no-comma-in-chip",
                 scanned.Chips.All(c => !c.Contains('，') && !c.Contains(',')),
                 "键帽脸上：" + string.Join(" / ", scanned.Chips));
-            Chk("T225-card-shows-trigger-suffix",
-                scanned.Notes.Contains(Loc.T(K.Triggers.TriggerKeydown)),
-                "后缀：" + string.Join(" / ", scanned.Notes) + "（F2 那条绑的是「按下」）");
+            // 就绪卡只回答「按什么键」：触发后缀（轻按/按住松开）不该挤进这一行，
+            // 但帮助窗那张键位表仍要如实写出后缀。
+            Chk("T225-card-hides-trigger-suffix", !scanned.Notes.Contains(Loc.T(K.Triggers.TriggerKeydown)),
+                "卡片上仍带着后缀：" + string.Join(" / ", scanned.Notes));
+            Chk("T225-help-keeps-trigger-suffix",
+                g.DescribeKeysFor(GestureActions.CaptureStored, GestureActions.CaptureFrame)
+                    .Contains(Loc.T(K.Triggers.TriggerKeydown)),
+                "帮助窗那份键位串没带后缀：" + g.DescribeKeysFor(GestureActions.CaptureStored, GestureActions.CaptureFrame));
             Chk("T225-card-says-unbound",
                 scanned.Notes.Contains(Loc.T(K.Common.NoKey)),
                 "没绑键的录制应显示「未设键」，实际：" + string.Join(" / ", scanned.Notes));
@@ -6672,6 +6677,21 @@ static partial class SelfTest
             FrameCapture.Core.TempFiles.Drop(fresh);
         }
         catch (Exception e) { Chk("T232-temp-sweep", false, e.Message); }
+
+        // 描边必须整个落在捕获范围之外：范围里的像素一个都不该被自己的边框吃掉。
+        try
+        {
+            var r = new FrameCapture.Capture.RectI(900, 600, 900, 600);
+            var o = FrameCapture.Overlays.RegionOutlineWindow.OuterRect(r);
+            Chk("T235-outline-stroke-sits-outside-the-region",
+                o.X + 2 == r.X && o.Y + 2 == r.Y
+                && o.X + o.W - 2 == r.X + r.W && o.Y + o.H - 2 == r.Y + r.H,
+                "外框 " + o.X + "," + o.Y + " " + o.W + "x" + o.H + " / 范围 " + r.X + "," + r.Y + " " + r.W + "x" + r.H);
+            Chk("T235-outline-fits-around-the-region",
+                o.X < r.X && o.Y < r.Y && o.X + o.W > r.X + r.W && o.Y + o.H > r.Y + r.H,
+                "外框没有把范围完整包住");
+        }
+        catch (Exception e) { Chk("T235-outline-outside", false, e.Message); }
 
         // 「允许截到自己」默认关（浮窗与轮廓不进产物），打开后放行。
         try

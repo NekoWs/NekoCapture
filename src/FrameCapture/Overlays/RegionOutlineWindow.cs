@@ -54,7 +54,7 @@ public sealed class RegionOutlineWindow : Window
         _border = new Border
         {
             BorderBrush = new SolidColorBrush(AccentCol(0xC0)),
-            BorderThickness = new Thickness(2),
+            BorderThickness = new Thickness(Stroke),
             Background = Brushes.Transparent,
         };
 
@@ -103,7 +103,7 @@ public sealed class RegionOutlineWindow : Window
         {
             _flashTimer.Stop();
             _border.BorderBrush = new SolidColorBrush(AccentCol(0x60));
-            _border.BorderThickness = new Thickness(2);
+            _border.BorderThickness = new Thickness(Stroke);
         };
 
         // 先把 HWND 建好（此刻还未上屏），再打上"不进捕获"，避免第一帧被录进去
@@ -121,6 +121,9 @@ public sealed class RegionOutlineWindow : Window
     }
 
     bool _placeGuard;
+
+    /// <summary>描边宽度（物理像素）。窗口按它向外扩，边框因此完整落在捕获范围之外。</summary>
+    const int Stroke = 2;
 
     private RectI _region; // 最近一次目标区域（物理像素）
 
@@ -189,7 +192,7 @@ public sealed class RegionOutlineWindow : Window
         _border.BeginAnimation(Border.BorderThicknessProperty, null);
         if (_border.BorderBrush is SolidColorBrush sb) sb.BeginAnimation(SolidColorBrush.ColorProperty, null);
         _border.BorderBrush = new SolidColorBrush(AccentCol(0xC0));
-        _border.BorderThickness = new Thickness(2);
+        _border.BorderThickness = new Thickness(Stroke);
     }
 
     static Color AccentCol(byte a)
@@ -303,17 +306,27 @@ public sealed class RegionOutlineWindow : Window
             new Duration(TimeSpan.FromMilliseconds(Core.Fluent.Motion.FlashMs)))
         { EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut } };
         b.BeginAnimation(SolidColorBrush.ColorProperty, ca);
-        var ta = new System.Windows.Media.Animation.ThicknessAnimation(new Thickness(2),
+        var ta = new System.Windows.Media.Animation.ThicknessAnimation(new Thickness(Stroke),
             new Duration(TimeSpan.FromMilliseconds(Core.Fluent.Motion.FlashMs)))
         { EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut } };
         _border.BeginAnimation(Border.BorderThicknessProperty, ta);
     }
 
+    /// <summary>描边窗口要盖住的物理矩形：比捕获范围四周各外扩一个描边宽度。
+    /// 描边画在窗口自身的内沿，扩出来之后它正好落在捕获范围之外，范围里的像素一个都不碰。</summary>
+    /// <param name="region">捕获范围（物理像素、虚拟桌面绝对坐标）。</param>
+    /// <returns>外扩后的矩形：左上各减 <see cref="Stroke"/>、宽高各加两倍。</returns>
+    public static RectI OuterRect(RectI region) =>
+        new(region.X - Stroke, region.Y - Stroke, region.W + Stroke * 2, region.H + Stroke * 2);
     private void Place(RectI region)
     {
         var hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
         if (hwnd == IntPtr.Zero) return;
-        Win32.SetWindowPos(hwnd, Win32.HWND_TOPMOST, region.X, region.Y, region.W, region.H,
+        // 描边画在捕获范围**外面**：窗口铺满 region 时 2px 的边框会压在最外圈像素上，
+        // 截图/录制的产物边缘就被自己的边框吃掉一圈。把窗口四周各外扩描边宽度，
+        // 边框恰好落在范围外，范围里的像素一个都不碰。
+        var outer = OuterRect(region);
+        Win32.SetWindowPos(hwnd, Win32.HWND_TOPMOST, outer.X, outer.Y, outer.W, outer.H,
             Win32.SWP_NOACTIVATE | Win32.SWP_SHOWWINDOW);
         // 上屏后 WPF 布局会用 Left/Top/Width/Height(DIP) 回写窗口位置（实测把 681 覆写成 454=÷1.5）。
         // 把同一物理矩形换算成 DIP 同步给 WPF，令它的回写变成幂等，两套坐标收敛到同一个物理矩形。
@@ -323,8 +336,8 @@ public sealed class RegionOutlineWindow : Window
             try
             {
                 var d = VisualTreeHelper.GetDpi(this);
-                Left = region.X / d.DpiScaleX; Top = region.Y / d.DpiScaleY;
-                Width = region.W / d.DpiScaleX; Height = region.H / d.DpiScaleY;
+                Left = outer.X / d.DpiScaleX; Top = outer.Y / d.DpiScaleY;
+                Width = outer.W / d.DpiScaleX; Height = outer.H / d.DpiScaleY;
             }
             catch { }
             _syncing = false;

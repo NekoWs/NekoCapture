@@ -210,16 +210,17 @@ public sealed class GestureConfig
         return clash;
     }
 
-    /// <summary>「截图」键位文案（欢迎卡/启动气泡用）：对当前范围截图与整帧即时截图都算截图，
-    /// 按绑定顺序取第一个启用的。</summary>
+    /// <summary>「截图」键位文案（就绪卡用）：对当前范围截图与整帧即时截图都算截图。
+    /// 只列组合键、不带触发后缀——这一行回答的是「按什么键」，把「轻按 / 按住松开」一起塞进去，
+    /// 读者会以为还要多按几下。</summary>
     /// <returns>键位文案；一条都没绑时为「未设键」。</returns>
     public string CaptureKeyText()
-        => DescribeKeysFor(GestureActions.CaptureStored, GestureActions.CaptureFrame);
+        => DescribeChordsFor(GestureActions.CaptureStored, GestureActions.CaptureFrame);
 
-    /// <summary>「录制」键位文案：按一下切换、按下起录松开停录，两种写法都算录制键。</summary>
+    /// <summary>「录制」键位文案：按一下切换、按下起录松开停录，两种写法都算录制键；同样只列组合键。</summary>
     /// <returns>键位文案；一条都没绑时为「未设键」。</returns>
     public string RecordKeyText()
-        => DescribeKeysFor(GestureActions.RecordToggle, GestureActions.RecordStart, GestureActions.RecordStop);
+        => DescribeChordsFor(GestureActions.RecordToggle, GestureActions.RecordStart, GestureActions.RecordStop);
 
     /// <summary>触发方式 → 后缀文案（供帮助/展示反映真实手感）。Chord 及未知返回 <see cref="Str.Empty"/>——组合键本身即触发，无需后缀。</summary>
     /// <param name="trigger"><c>GestureCore.TriggerKind</c> 的名字；未知名字与 Chord 一样返回 <see cref="Str.Empty"/>。</param>
@@ -237,6 +238,22 @@ public sealed class GestureConfig
         "Click" => K.Triggers.TriggerClick,
         _ => Str.Empty,
     };
+
+    /// <summary>同 <see cref="DescribeKeysFor"/>，但只给组合键、不带触发后缀，按绑定顺序去重。
+    /// 用在「按什么键」这种一句话场合（就绪卡）；带后缀的完整写法留给帮助窗那种键位表。</summary>
+    /// <param name="actionNames">要查的动作名（见 <see cref="GestureActions"/>）；任一动作命中即计入。</param>
+    /// <returns>组合键串，「，」分隔；没有任何启用绑定时为「未设键」。</returns>
+    public string DescribeChordsFor(params string[] actionNames)
+    {
+        var chords = new List<string>();
+        foreach (var b in Bindings)
+        {
+            if (!b.Enabled || !b.Actions.Any(a => actionNames.Contains(a))) continue;
+            if (HotkeySpec.Parse(b.Chord) == null) continue;
+            if (!chords.Contains(b.Chord)) chords.Add(b.Chord);
+        }
+        return chords.Count == 0 ? Loc.T(K.Common.NoKey) : string.Join(Loc.T(K.Hotkeys.Comma), chords);
+    }
 
     /// <summary>把「绑定了指定动作的启用绑定」渲染成人类可读键位：按组合键分组、合并触发后缀（如 <c>F2 按下/松开</c>），
     /// 多条以顿号分隔（如 <c>Ctrl+Alt+R，F2 按下/松开</c>）。供帮助窗反映用户真实键位，
