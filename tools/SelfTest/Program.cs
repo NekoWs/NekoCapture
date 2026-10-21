@@ -6398,12 +6398,35 @@ static partial class SelfTest
                     System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
                 return ((System.Windows.Threading.DispatcherTimer)f.GetValue(w)!).IsEnabled;
             }
+            static System.Windows.Controls.Button? FindClose(DependencyObject o)
+            {
+                if (o is System.Windows.Controls.Button b && Equals(b.ToolTip, Loc.T(K.Common.Close))) return b;
+                foreach (var c in System.Windows.LogicalTreeHelper.GetChildren(o))
+                    if (c is DependencyObject d && FindClose(d) is { } found) return found;
+                return null;
+            }
             FrameCapture.Overlays.WelcomeToast.Show("F6", "Ctrl+Alt+R", sticky: true);
             var keep = System.Windows.Application.Current.Windows
                 .OfType<FrameCapture.Overlays.WelcomeToast>().First();
             Chk("T226-first-run-card-does-not-self-close", !AutoDismissRunning(keep),
                 "首启卡的计时器在跑，12 秒后会自己走");
-            keep.Close();
+            // 唯一出口：卡片不抢焦点，Esc 归用户当下正在用的那个窗口（实测注入 Esc 关不掉），
+            // 而它不自己走——所以 ✕ 必须在，而且点了得真能关。
+            var close = FindClose(keep);
+            Chk("T226-first-run-card-has-a-way-out", close != null,
+                "首启卡既不自己走、又等不到 Esc，却没有 ✕ 可点——用户被它关不住");
+            if (close != null)
+            {
+                close.RaiseEvent(new System.Windows.RoutedEventArgs(
+                    System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+                PumpMs(200);
+                Chk("T226-close-button-dismisses-the-card",
+                    !System.Windows.Application.Current.Windows
+                        .OfType<FrameCapture.Overlays.WelcomeToast>().Any(w => ReferenceEquals(w, keep)),
+                    "点了 ✕ 卡片还在");
+            }
+            foreach (var w in System.Windows.Application.Current.Windows
+                         .OfType<FrameCapture.Overlays.WelcomeToast>().ToList()) w.Close();
             FrameCapture.Overlays.WelcomeToast.Show("F6", "Ctrl+Alt+R");
             var timed = System.Windows.Application.Current.Windows
                 .OfType<FrameCapture.Overlays.WelcomeToast>().First();

@@ -158,7 +158,9 @@ public sealed class WelcomeToast : Window
         };
 
         // 上手信息给足阅读时间：12s，悬停暂停，移开再给 12s。
-        // 首启那张不计时（sticky）：没看见的人不该被倒计时没收唯一一次说明，✕ 与 Esc 随时能关。
+        // 首启那张不计时（sticky）：没看见的人不该被倒计时没收唯一一次说明。
+        // 关法是点右上角 ✕（唯一出口，护栏盯着它在不在）：卡片不抢焦点，Esc 归用户当下正在用的那个窗口，
+        // 要让它认 Esc 就得在卡片存在期间全局吞键，而它没有到期时间——那种拦截不能接受。
         _dismiss = new DispatcherTimer { Interval = TimeSpan.FromSeconds(12) };
         _dismiss.Tick += (_, _) => Dismiss();
         if (!sticky) _dismiss.Start();
