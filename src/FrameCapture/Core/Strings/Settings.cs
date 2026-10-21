@@ -333,6 +333,14 @@ public static partial class K
             "settings.startsFramecaptureWhenYouSign",
             "登录 Windows 时自动启动 FrameCapture",
             "Starts FrameCapture when you sign in to Windows");
+        public static readonly Str ShowTheKeysInTheReady = new(
+            "settings.showTheKeysInTheReady",
+            "就绪提示列出键位",
+            "Show the keys in the ready card");
+        public static readonly Str TheReadyCardLists = new(
+            "settings.theReadyCardLists",
+            "就绪卡会在名字旁边列出当前生效的截图键与录制键；对键位已经上手后可以关掉，卡片只留标题和帮助入口",
+            "The ready card lists the capture and record keys that are live right now, next to their names. Once your keys are muscle memory, turn it off and the card keeps only its title and the help entry");
         public static readonly Str StartupNotification = new(
             "settings.startupNotification",
             "启动气泡提示",

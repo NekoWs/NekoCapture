@@ -48,10 +48,6 @@ public static partial class K
             "未安装 OCR 语言包，请到 设置 › 时间和语言 › 语音 添加",
             "No OCR language pack is installed — add one in Settings › Time & Language › Speech");
         public static readonly Str NoTextRecognized = new("capture.noTextRecognized", "未识别到文字", "No text recognized");
-        public static readonly Str PickARegionToCapture = new(
-            "capture.pickARegionToCapture",
-            "选完区域即截图 · 录制键再按一下停止 · 双击贴图关闭 · 右键贴图 / 托盘查看更多",
-            "Pick a region to capture · press the record key again to stop · double-click a pin to close it · right-click a pin or the tray for more");
         public static readonly Str Preview = new("capture.preview", "预览", "Preview");
         public static readonly Str RecognizedCharactersCopied = new(
             "capture.recognizedCharactersCopied",

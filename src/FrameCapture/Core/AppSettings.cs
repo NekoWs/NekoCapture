@@ -133,6 +133,10 @@ public sealed class AppSettings
     /// 关掉后启动静默进托盘，只剩图标。</summary>
     public bool StartupToast { get; set; } = true;
 
+    /// <summary>就绪提示里是否列出当前生效的截图键与录制键。关掉后卡片只留标题与帮助入口——
+    /// 键位已经是肌肉记忆的人，每次开机都被提醒一遍是噪音。</summary>
+    public bool WelcomeShowsHotkeys { get; set; } = true;
+
     /// <summary>选区放大镜（默认开）：拖框/悬停选区时，光标旁显示高倍像素放大镜 + 坐标/尺寸读数，
     /// 便于像素级精确选区。关闭则不抓快照、不显示放大镜。</summary>
     public bool PickerMagnifier { get; set; } = true;

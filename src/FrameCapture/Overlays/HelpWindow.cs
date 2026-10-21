@@ -260,8 +260,9 @@ public sealed class HelpWindow : Window
 
     /// <summary>帮助页键位列的长相：键帽，与设置页、就绪卡同一副长相。
     /// 这一列以前是蓝色粗体文字，读起来像小标题，不像要按的键——而这一页正是迷路的人最先翻到的地方。
-    /// 含中文的不是键位（「未设键」这类），照文字排；多条按法并排，中间一条斜杠。</summary>
-    /// <param name="k">键位串，如 <c>F6</c>、<c>Ctrl+Alt+R</c>、<c>Enter / Esc</c>。</param>
+    /// 渲染交给 <see cref="Keycaps.ChordRow"/>：多条按法之间一条斜杠，触发后缀（「按下」）跟在键帽后面；
+    /// 「未设键」这类占位文案不是键位，照文字排。</summary>
+    /// <param name="k">键位串，如 <c>F6</c>、<c>Ctrl+Alt+R</c>、<c>F2 按下</c>、<c>Enter / Esc</c>。</param>
     /// <returns>可直接放进网格那一列的元素。</returns>
     static FrameworkElement KeyCell(string k)
     {
@@ -271,24 +272,14 @@ public sealed class HelpWindow : Window
             Foreground = new SolidColorBrush(Core.Fluent.AccentText()),
             VerticalAlignment = VerticalAlignment.Top, TextWrapping = TextWrapping.Wrap,
         };
-        if (k.Length == 0 || k.Any(c => c >= 0x4E00 && c <= 0x9FFF)) return text;
-        // 多条按法由 DescribeKeysFor 用「本地化逗号」拼：中文是全角「，」，英文才是 ", "。
-        // 只按半角切，中文帮助里第一枚键帽就成了「F6，」。
-        var seps = new[] { Loc.T(K.Hotkeys.Comma), ", ", " / ", "/" };
-        var chords = k.Split(seps, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        if (chords.Length == 0) return text;
-        var sp = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Top };
-        for (int i = 0; i < chords.Length; i++)
-        {
-            if (i > 0) sp.Children.Add(new TextBlock
-            {
-                Text = "/", FontSize = 11.5, Foreground = new SolidColorBrush(Theme.TextDim),
-                VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(5, 0, 5, 0),
-            });
-            sp.Children.Add(Keycaps.Row(chords[i], Core.Fluent.KeycapTheme(11.5)));
-        }
-        return sp;
+        return Keycaps.LooksLikeKeys(k, KeySeparators)
+            ? Keycaps.ChordRow(k, Core.Fluent.KeycapTheme(11.5), KeySeparators)
+            : text;
     }
+
+    /// <summary>分隔多条按法：本地化逗号（中文是全角「，」）与带空格的斜杠。
+    /// 后缀里的斜杠不带空格（<c>按下/松开</c>），带空格才是在说「或者」。</summary>
+    static string[] KeySeparators { get; } = { Loc.T(K.Hotkeys.Comma), ", ", " / " };
 
     static void Note(StackPanel p, string v)
         => p.Children.Add(new TextBlock { Text = v, FontSize = 11.5, Foreground = new SolidColorBrush(Theme.TextDim), TextWrapping = TextWrapping.Wrap, LineHeight = 16, Margin = new Thickness(2, 6, 0, 0) });

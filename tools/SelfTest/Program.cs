@@ -6267,6 +6267,82 @@ static partial class SelfTest
         }
         catch (Exception e) { Chk("T224-help-key-vocabulary", false, e.Message); }
 
+        // 就绪卡必须说真话：卡上的键位来自用户自己的配置，不是出厂默认。
+        // 一个动作可以绑多条按法，也可以带触发后缀（「F2 按下」），拼出来形如「Ctrl+Shift+X，F2 按下」；
+        // 整串当一个组合键切，键帽会裂成「F2，按下」——所以这里造一份用户配置，量卡片照不照得见。
+        try
+        {
+            var st = FrameCapture.Core.SettingsService.Shared!;
+            var g = st.Current.Gestures;
+            var saved = g.Bindings.ToList();
+            var savedFlag = st.Current.WelcomeShowsHotkeys;
+            static (List<string> Chips, List<string> Notes) ScanCard(DependencyObject root)
+            {
+                var chips = new List<string>();
+                var notes = new List<string>();
+                void W(DependencyObject o)
+                {
+                    if (o is System.Windows.Controls.Border bd && bd.Child is System.Windows.Controls.TextBlock tb
+                        && bd.MinWidth >= 24 && bd.BorderThickness.Bottom == 2) chips.Add(tb.Text);
+                    else if (o is System.Windows.Controls.TextBlock n && !string.IsNullOrWhiteSpace(n.Text)) notes.Add(n.Text);
+                    foreach (var c in System.Windows.LogicalTreeHelper.GetChildren(o))
+                        if (c is DependencyObject d) W(d);
+                }
+                W(root);
+                return (chips, notes);
+            }
+            void ShowCard()
+            {
+                foreach (var old in System.Windows.Application.Current.Windows.OfType<FrameCapture.Overlays.WelcomeToast>().ToList())
+                    old.Close();
+                PumpMs(120);
+                FrameCapture.Overlays.WelcomeToast.Show(g.CaptureKeyText(), g.RecordKeyText());
+                PumpMs(260);
+            }
+
+            // 截图绑两条（第二条带「按下」后缀），录制一条都不留。
+            g.Bindings.Clear();
+            g.Bindings.Add(new FrameCapture.Core.GestureBindingDto
+            { Id = "t.cap1", Chord = "Ctrl+Shift+X", Actions = new[] { FrameCapture.Core.GestureActions.CaptureStored } });
+            g.Bindings.Add(new FrameCapture.Core.GestureBindingDto
+            { Id = "t.cap2", Chord = "F2", Trigger = "KeyDown", Actions = new[] { FrameCapture.Core.GestureActions.CaptureStored } });
+            ShowCard();
+            var card = System.Windows.Application.Current.Windows.OfType<FrameCapture.Overlays.WelcomeToast>().First();
+            var scanned = ScanCard(card);
+            Chk("T225-card-shows-user-chords",
+                scanned.Chips.SequenceEqual(new[] { "Ctrl", "Shift", "X", "F2" }),
+                "键帽：" + string.Join(" / ", scanned.Chips) + "（应为 Ctrl / Shift / X / F2，两条按法都要照见）");
+            Chk("T225-card-no-comma-in-chip",
+                scanned.Chips.All(c => !c.Contains('，') && !c.Contains(',')),
+                "键帽脸上：" + string.Join(" / ", scanned.Chips));
+            Chk("T225-card-shows-trigger-suffix",
+                scanned.Notes.Contains(Loc.T(K.Triggers.TriggerKeydown)),
+                "后缀：" + string.Join(" / ", scanned.Notes) + "（F2 那条绑的是「按下」）");
+            Chk("T225-card-says-unbound",
+                scanned.Notes.Contains(Loc.T(K.Common.NoKey)),
+                "没绑键的录制应显示「未设键」，实际：" + string.Join(" / ", scanned.Notes));
+
+            // 开关关掉：卡片不列键位，也不该留下半排键帽。
+            st.Current.WelcomeShowsHotkeys = false;
+            ShowCard();
+            var off = System.Windows.Application.Current.Windows.OfType<FrameCapture.Overlays.WelcomeToast>().First();
+            Chk("T225-toggle-hides-keys", ScanCard(off).Chips.Count == 0,
+                "关掉开关后还剩 " + ScanCard(off).Chips.Count + " 枚键帽");
+            st.Current.WelcomeShowsHotkeys = true;
+            ShowCard();
+            var on = System.Windows.Application.Current.Windows.OfType<FrameCapture.Overlays.WelcomeToast>().First();
+            Chk("T225-toggle-restore-shows-keys", ScanCard(on).Chips.Count == 4,
+                "重新打开后应有 4 枚键帽，实际 " + ScanCard(on).Chips.Count + " 枚");
+            foreach (var old in System.Windows.Application.Current.Windows.OfType<FrameCapture.Overlays.WelcomeToast>().ToList())
+                old.Close();
+
+            // 这条测试改的是内存里的绑定表，跑完原样还回去。
+            g.Bindings.Clear();
+            foreach (var b in saved) g.Bindings.Add(b);
+            st.Current.WelcomeShowsHotkeys = savedFlag;
+        }
+        catch (Exception e) { Chk("T225-ready-card-follows-config", false, e.Message); }
+
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");
         return fail == 0 ? 0 : 1;
     }

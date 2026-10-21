@@ -83,19 +83,13 @@ public sealed class WelcomeToast : Window
         head.Children.Add(close);
         root.Children.Add(head);
 
-        // 两个热键：标签（暗）+ 键位（强调色加粗），一眼看清「按什么」
-        root.Children.Add(HotkeyLine(Loc.T(K.Common.Capture), captureHotkey));
-        root.Children.Add(HotkeyLine(Loc.T(K.Common.Recording), recordHotkey));
-
-        root.Children.Add(new TextBlock
+        // 两个热键：标签（暗）+ 键位（键帽），一眼看清「按什么」。
+        // 键位列可关：老手不需要每次开机都被提醒一遍键在哪，关掉后卡片只剩标题与帮助入口。
+        if (SettingsService.Shared?.Current.WelcomeShowsHotkeys ?? true)
         {
-            Text = Loc.T(K.Capture.PickARegionToCapture),
-            FontSize = 11.5,
-            Foreground = new SolidColorBrush(Theme.TextDim),
-            FontFamily = new FontFamily("Segoe UI"),
-            TextWrapping = TextWrapping.Wrap,
-            Margin = new Thickness(0, 8, 4, 0),
-        });
+            root.Children.Add(HotkeyLine(Loc.T(K.Common.Capture), captureHotkey));
+            root.Children.Add(HotkeyLine(Loc.T(K.Common.Recording), recordHotkey));
+        }
 
         // 查看帮助入口（打开帮助窗并收起本卡）
         var help = new Button
@@ -159,6 +153,9 @@ public sealed class WelcomeToast : Window
     /// <param name="label">这条热键是干什么的，暗色小字。</param>
     /// <param name="key">当前生效的键位串，强调色加粗。</param>
     /// <returns>一行两列的版面，交给欢迎卡纵向堆叠。</returns>
+    /// <summary>分隔多条按法：本地化逗号（中文是全角「，」）与带空格的斜杠，与帮助页同一份判法。</summary>
+    static string[] KeySeparators { get; } = { Loc.T(K.Hotkeys.Comma), ", ", " / " };
+
     static FrameworkElement HotkeyLine(string label, string key)
     {
         var g = new Grid { Margin = new Thickness(0, 10, 0, 0) };
@@ -177,7 +174,10 @@ public sealed class WelcomeToast : Window
         g.Children.Add(lb);
         // 键位用键帽画，不写成彩色文字：与编辑器、设置页同一副长相——
         // 用户在首启卡学到的「键位长这样」，到下一扇窗照样得成立。
-        g.Children.Add(Keycaps.Row(key, Core.Fluent.KeycapTheme(12.5)));
+        // 走 ChordRow 而不是 Row：一个动作可以绑多条按法（DescribeKeysFor 用本地化逗号拼），
+        // 也可以带触发后缀（「F2 按下」）；整串当一个组合键切，键帽会裂成「F6，Ctrl」。
+        g.Children.Add(Keycaps.ChordRow(key, Core.Fluent.KeycapTheme(12.5), KeySeparators,
+            Loc.T(K.Common.NoKey)));
         Grid.SetColumn(g.Children[1], 1);
         return g;
     }

@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -84,6 +85,78 @@ public static class Keycaps
             sp.Children.Add(Chip(tokens[i], t, i > 0 ? 5 : 0));
         return sp;
     }
+
+    /// <summary>这串文字是不是键位：每条按法的组合键部分都不含中日韩文字才算。
+    /// 「未设键」这类占位文案要走普通文字，不能被切成一堆空键帽；
+    /// 「F2 按下/松开」的组合键部分是 <c>F2</c>、后缀才是中文，照样是键位。</summary>
+    /// <param name="keys">键位串。</param>
+    /// <param name="separators">分隔多条按法的串，与 <see cref="ChordRow"/> 用同一份。</param>
+    /// <returns>能渲染成键帽返回 true；是占位文案或空串返回 false。</returns>
+    public static bool LooksLikeKeys(string? keys, IReadOnlyList<string> separators)
+    {
+        if (string.IsNullOrWhiteSpace(keys)) return false;
+        var parts = keys.Split(separators.ToArray(), StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        return parts.Length > 0 && parts.All(p =>
+        {
+            int cut = p.IndexOf(' ');
+            var chord = cut < 0 ? p : p[..cut];
+            return chord.Length > 0 && !chord.Any(c => c >= 0x4E00 && c <= 0x9FFF);
+        });
+    }
+
+    /// <summary>把「多条按法拼成的键位串」渲染成一排键帽：按法之间一条斜杠，
+    /// 每条按法后面的触发后缀（如「按下」「松手」）用暗色小字跟在键帽后面。</summary>
+    /// <param name="keys">键位串，如 <c>F6，Ctrl+Alt+R</c> 或 <c>F2 按下/松开</c>；没有按法时走 <paramref name="emptyHint"/>。</param>
+    /// <param name="t">配色与字号。</param>
+    /// <param name="separators">分隔多条按法的串。只该给「本地化逗号」与「带空格的斜杠」：
+    /// 触发后缀里的斜杠两边不带空格（<c>按下/松开</c>），带空格才是在分隔两条按法（<c>Enter / Esc</c>）。</param>
+    /// <param name="emptyHint">一条按法都没有时的占位文案；传 null 则返回空面板。</param>
+    /// <returns>横向排列的键帽面板，可直接塞进 Grid 或 StackPanel。</returns>
+    public static FrameworkElement ChordRow(string? keys, KeycapTheme t, IReadOnlyList<string> separators, string? emptyHint = null)
+    {
+        var sp = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+        var parts = string.IsNullOrWhiteSpace(keys)
+            ? Array.Empty<string>()
+            : keys.Split(separators.ToArray(), StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (parts.Length == 0)
+        {
+            if (emptyHint != null) sp.Children.Add(Note(emptyHint, t));
+            return sp;
+        }
+        // 「未设键」这类占位文案不是键位：照键位去切，会给它画上一枚键帽，
+        // 看起来就像一个名叫「未设键」的键。整串按小字排。
+        if (!LooksLikeKeys(keys, separators))
+        {
+            sp.Children.Add(Note(keys, t));
+            return sp;
+        }
+        for (int i = 0; i < parts.Length; i++)
+        {
+            if (i > 0) sp.Children.Add(Note("/", t, 5));
+            // 组合键与触发后缀以第一个空格分界：Ctrl+Alt+R 没有后缀，F2 按下/松开的后缀是「按下/松开」。
+            int cut = parts[i].IndexOf(' ');
+            var chord = cut < 0 ? parts[i] : parts[i][..cut];
+            var suffix = cut < 0 ? "" : parts[i][(cut + 1)..];
+            foreach (var tok in chord.Split('+', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                sp.Children.Add(Chip(tok, t, sp.Children.Count > 0 ? 5 : 0));
+            if (suffix.Length > 0) sp.Children.Add(Note(suffix, t, 6));
+        }
+        return sp;
+    }
+
+    /// <summary>键帽旁边的一句小字：占位文案或触发后缀，暗色、比键帽小一点。</summary>
+    /// <param name="text">要显示的文字。</param>
+    /// <param name="t">配色与字号。</param>
+    /// <param name="gapLeft">与前面那块之间的缝隙。</param>
+    /// <returns>一句小字。</returns>
+    static TextBlock Note(string text, KeycapTheme t, double gapLeft = 0) => new()
+    {
+        Text = text,
+        FontSize = t.Size,
+        Foreground = new SolidColorBrush(t.Dim),
+        VerticalAlignment = VerticalAlignment.Center,
+        Margin = new Thickness(gapLeft, 0, 0, 0),
+    };
 
     /// <summary>一枚键帽：圆角、描边、底边加粗，内容居中且不小于一个字母键的宽度。</summary>
     /// <param name="token">键帽里显示的文字。</param>

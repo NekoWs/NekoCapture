@@ -246,6 +246,9 @@ public sealed partial class SettingsWindow : Window
             }));
         panel.Children.Add(ToggleRow("\uE946", Loc.T(K.Settings.StartupNotification), Loc.T(K.Settings.AfterStartupANoticeAppears),
             _settings.Current.StartupToast, v => _settings.Mutate(s => s.StartupToast = v)));
+        // 两个开关成对摆：一个管「要不要弹这条提示」，一个管「弹出来要不要列键位」。
+        panel.Children.Add(ToggleRow("\uE765", Loc.T(K.Settings.ShowTheKeysInTheReady), Loc.T(K.Settings.TheReadyCardLists),
+            _settings.Current.WelcomeShowsHotkeys, v => _settings.Mutate(s => s.WelcomeShowsHotkeys = v)));
 
         Cardify(panel); // 系统页行归入卡片
         #endregion
