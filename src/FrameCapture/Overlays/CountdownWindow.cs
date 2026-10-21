@@ -157,16 +157,11 @@ public sealed class CountdownWindow : Window
         var cancel = MakeBtn(Loc.T(K.Common.Cancel), Theme.Hover, Theme.Text);
         cancel.Click += (_, _) => OnCancel?.Invoke();
         btns.Children.Add(cancel);
-        // 键位写出来才有人按：这扇窗不抢焦点，Esc 由全局钩子代收
-        btns.Children.Add(new TextBlock
-        {
-            Text = "Esc",
-            FontSize = 11.5,
-            Foreground = new SolidColorBrush(Theme.TextDim),
-            FontFamily = new FontFamily("Segoe UI"),
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(8, 0, 0, 0),
-        });
+        // 键位写出来才有人按：这扇窗不抢焦点，Esc 由全局钩子代收。
+        // 用键帽而不是灰字——与首启卡、编辑器一副长相，键位在全应用只有一种写法。
+        var esc = Keycaps.Row("Esc", Core.Fluent.KeycapTheme(11.5));
+        esc.Margin = new Thickness(8, 0, 0, 0);
+        btns.Children.Add(esc);
         root.Children.Add(btns);
 
         card.Child = root;
