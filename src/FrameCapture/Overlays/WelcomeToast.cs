@@ -93,18 +93,6 @@ public sealed class WelcomeToast : Window
         {
             root.Children.Add(HotkeyLine(Loc.T(K.Common.Capture), captureHotkey));
             root.Children.Add(HotkeyLine(Loc.T(K.Common.Recording), recordHotkey));
-            // 一个键都没绑：卡片上只剩两行「未设键」加一个 ✕，等于什么都没说。
-            // 这里补一句纯文字指路（不放入口按钮——按钮由用户明令撤掉），告诉他下一步去哪。
-            if (IsUnbound(captureHotkey) && IsUnbound(recordHotkey))
-                root.Children.Add(new TextBlock
-                {
-                    Text = Loc.T(K.Capture.NoHotkeysBoundYet),
-                    FontSize = 11.5,
-                    Foreground = new SolidColorBrush(Theme.TextDim),
-                    FontFamily = new FontFamily("Segoe UI"),
-                    TextWrapping = TextWrapping.Wrap,
-                    Margin = new Thickness(0, 10, 0, 0),
-                });
         }
 
         card.Child = root;
@@ -177,13 +165,6 @@ public sealed class WelcomeToast : Window
     /// <returns>一行两列的版面，交给欢迎卡纵向堆叠。</returns>
     /// <summary>分隔多条按法：本地化逗号（中文是全角「，」）与带空格的斜杠，与帮助页同一份判法。</summary>
     static string[] KeySeparators { get; } = { Loc.T(K.Hotkeys.Comma), ", ", " / " };
-
-    /// <summary>这串键位是不是「未设键」占位文案。按身份判、不靠猜：调用方给的占位句就那一句。
-    /// 两条都未设时，就绪卡上补一行纯文字指路。</summary>
-    /// <param name="keys">键位串。</param>
-    /// <returns>等于当前语言的「未设键」返回 true。</returns>
-    static bool IsUnbound(string? keys) =>
-        string.Equals(keys, Loc.T(K.Common.NoKey), StringComparison.Ordinal);
 
     static FrameworkElement HotkeyLine(string label, string key)
     {

@@ -24,10 +24,6 @@ public static partial class K
             "Bottom of the content reached — choose Done to stitch");
         public static readonly Str Characters = new("capture.characters", "{0} 字", "{0} characters");
         public static readonly Str Copied = new("capture.copied", "已复制 ", "Copied ");
-        public static readonly Str NoHotkeysBoundYet = new(
-            "capture.noHotkeysBoundYet",
-            "还没有绑定快捷键：托盘图标 → 设置 → 快捷键，绑一个就能用了",
-            "No keys bound yet - tray icon → Settings → Shortcuts, then set one");
 
         public static readonly Str CopyAll = new("capture.copyAll", "复制全部", "Copy all");
         public static readonly Str Done = new("capture.done", "完成", "Done");

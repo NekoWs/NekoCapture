@@ -6505,32 +6505,8 @@ static partial class SelfTest
                 Math.Abs((card.Left + card.ActualWidth) - (wa.Right - 16)) <= 2
                 && Math.Abs((card.Top + card.ActualHeight) - (wa.Bottom - 16)) <= 2,
                 $"右 {card.Left + card.ActualWidth:N0}/{wa.Right - 16:N0} 底 {card.Top + card.ActualHeight:N0}/{wa.Bottom - 16:N0}");
-            // 一个键都没绑：卡片上要有一句纯文字指路，且仍然没有按钮
-            var g227 = FrameCapture.Services.AppHost.Current.Settings.Current.Gestures;
-            var saved227 = g227.Bindings.ToList();
-            g227.Bindings.Clear();
             foreach (var old in System.Windows.Application.Current.Windows.OfType<FrameCapture.Overlays.WelcomeToast>().ToList())
                 old.Close();
-            PumpMs(140);
-            FrameCapture.Overlays.WelcomeToast.Show(Loc.T(K.Common.NoKey), Loc.T(K.Common.NoKey));
-            PumpMs(240);
-            var card227 = System.Windows.Application.Current.Windows.OfType<FrameCapture.Overlays.WelcomeToast>().First();
-            bool hasHint = false;
-            int btn227 = 0;
-            void Walk227(DependencyObject o)
-            {
-                if (o is System.Windows.Controls.TextBlock tb && tb.Text == Loc.T(K.Capture.NoHotkeysBoundYet)) hasHint = true;
-                if (o is System.Windows.Controls.Button b && b.Content is string s && s.Length > 0
-                    && !s.Any(ch => ch >= 0xE000 && ch <= 0xF8FF)) btn227++;
-                foreach (var c in System.Windows.LogicalTreeHelper.GetChildren(o))
-                    if (c is DependencyObject d) Walk227(d);
-            }
-            Walk227(card227);
-            Chk("T227-no-keys-card-explains-where-to-go", hasHint && btn227 == 0,
-                "指路文字=" + hasHint + " 文字按钮=" + btn227);
-            foreach (var old in System.Windows.Application.Current.Windows.OfType<FrameCapture.Overlays.WelcomeToast>().ToList())
-                old.Close();
-            foreach (var b in saved227) g227.Bindings.Add(b);
         }
         catch (Exception e) { Chk("T227-ready-card-buttons", false, e.Message); }
 
