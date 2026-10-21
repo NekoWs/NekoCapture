@@ -172,9 +172,8 @@ public sealed partial class SettingsWindow : Window
             Cursor = Cursors.Hand, Background = Brushes.Transparent,
             ToolTip = Loc.T(K.Settings.ClickToChooseTheSave),
         };
-        // 不再单摆一个「保存位置」：路径本身就是答案，左边那半句「自动保存副本」已经说清这一行是什么。
-        // 多一个标签就多占一截宽度，而省下来的宽度全给了路径——默认位置被裁成「图片\Fram…」
-        // 等于把「存到哪去了」这个问题原样还给用户。
+        // 这一行不摆「保存位置」标签：路径本身就是答案，左边那半句「自动保存副本」已经说清
+        // 这一行是什么；多一个标签就多占一截宽度，而这一行的宽度全该给路径。
         var path = new TextBlock
         {
             FontSize = 12, Foreground = new SolidColorBrush(Theme.TextDim),
@@ -182,7 +181,7 @@ public sealed partial class SettingsWindow : Window
             // 不给 MaxWidth：这一列是 *，宽度由所在行给。写死 250 会把整行撑到窗口右沿之外，
             // 结果右侧「更改」被裁掉半截——路径该让位，不该把邻居挤出去。
             // 宁可折行也不要省略号：这一行回答的是「存到哪去了」，
-            // 默认位置被裁成「图片\Fram…」等于把问题原样还给用户。
+            // 裁成「图片\Fram…」等于把问题原样还给用户。
             TextWrapping = TextWrapping.Wrap,
         };
         void Refresh()
