@@ -68,7 +68,10 @@ public sealed class ChordCaptureBox : Border
         // 键帽在框里居中：表格里的框等宽对齐，键帽长短不一时靠边会让每行的键位错开
         _host.HorizontalAlignment = HorizontalAlignment.Center;
         Child = _host;
-        MouseLeftButtonUp += (_, _) => { if (_capturing) EndCapture(); else BeginCapture(); };
+        // 点在框上就是来改键的：这一击吃掉，别冒泡到整行去展开。
+        // 必须显式吃掉：BeginCapture 会重画子元素，冒泡到父级时原始命中元素已从树里摘下，
+        // 父级按祖先链判断「是不是点在框里」会判成不是。
+        MouseLeftButtonUp += (_, e) => { if (_capturing) EndCapture(); else BeginCapture(); e.Handled = true; };
         KeyDown += (_, e) =>
         {
             if (!_capturing && e.Key is Key.Space or Key.Enter) { BeginCapture(); e.Handled = true; }
@@ -116,8 +119,11 @@ public sealed class ChordCaptureBox : Border
         // 只按下修饰键不算录成，等主键
         if (k is Key.LeftCtrl or Key.RightCtrl or Key.LeftShift or Key.RightShift
             or Key.LeftAlt or Key.RightAlt or Key.System or Key.LWin or Key.RWin) return;
-        if (k == Key.Escape) { Picked?.Invoke(""); EndCapture(); return; }
-        Picked?.Invoke(EditorChord.FromKey(e.KeyboardDevice.Modifiers, k).ToString());
+        if (k == Key.Escape) { _chord = ""; Picked?.Invoke(""); EndCapture(); return; }
+        // 先认下这一笔再发事件：框自己显示的就是它报出去的那个键位。
+        // 只把新值交给宿主而自己还留着原值，改完框里仍是原键帽——用户以为没生效。
+        _chord = EditorChord.FromKey(e.KeyboardDevice.Modifiers, k).ToString();
+        Picked?.Invoke(_chord);
         EndCapture();
     }
 
