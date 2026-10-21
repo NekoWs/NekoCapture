@@ -6193,7 +6193,8 @@ static partial class SelfTest
                 w.UpdateLayout();
                 void Walk(DependencyObject o)
                 {
-                    if (o is System.Windows.Controls.Border bd && bd.CornerRadius.TopLeft >= 10
+                    // 卡片是「装了内容的 Border」：只包一层描边的空壳（悬停淡入的那层）不算卡片边。
+                    if (o is System.Windows.Controls.Border bd && bd.Child != null && bd.CornerRadius.TopLeft >= 10
                         && bd.BorderBrush != null && bd.BorderBrush != System.Windows.Media.Brushes.Transparent)
                     {
                         if (bd.BorderBrush is System.Windows.Media.LinearGradientBrush) edges.Add(bd);
@@ -6229,6 +6230,15 @@ static partial class SelfTest
             Chk("T223-notice-card-found", nc != null, nc == null ? "没找到通知卡" : "已开");
             if (nc != null) CheckEdge("notice", nc);
             nc?.Close();
+
+            // 「已复制」卡是全局曝光最高的一张卡：每次截图都出现，卡片边也必须同一副长相。
+            FrameCapture.Overlays.CaptureToast.Show(Solid(160, 96, 0x30, 0x60, 0x90),
+                new FrameCapture.Capture.RectI(0, 0, 160, 96), "", () => { });
+            var tc = System.Windows.Application.Current.Windows
+                .OfType<FrameCapture.Overlays.CaptureToast>().FirstOrDefault();
+            Chk("T223-toast-card-found", tc != null, tc == null ? "没找到「已复制」卡" : "已开");
+            if (tc != null) CheckEdge("toast", tc);
+            tc?.Close();
         }
         catch (Exception e) { Chk("T223-card-edge", false, e.Message); }
 

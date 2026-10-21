@@ -7,7 +7,7 @@
 # 语义：SKIP（本轮没跑的项）≠ FAIL；缺 PASS 标记一律按 FAIL（不信任无结果的运行）。
 # 静态扫描不依赖构建，与构建并行起跑，SelfTest 期间收结果；三个构建互不写同一个 obj，也并行。
 # 用法: pwsh -NoProfile -File scripts/guardrail.ps1 [-SkipE2e] [-AllowInjection] [-MinSelfTestPass 560]
-param([switch]$SkipE2e, [switch]$AllowInjection, [int]$MinSelfTestPass = 660)
+param([switch]$SkipE2e, [switch]$AllowInjection, [int]$MinSelfTestPass = 663)
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 . (Join-Path $PSScriptRoot "lib-hotkey.ps1")

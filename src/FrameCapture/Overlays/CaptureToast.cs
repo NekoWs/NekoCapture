@@ -58,23 +58,33 @@ public sealed class CaptureToast : Window
         var pos = ToastPlace.Place(region, work, (int)(W * sx), (int)(EstH * sy));
         Left = pos.X / sx; Top = pos.Y / sy;
 
-        var strokeCol = Color.FromArgb(0x66, Theme.Stroke.R, Theme.Stroke.G, Theme.Stroke.B);
-        var borderBrush = new SolidColorBrush(strokeCol);
         var card = new Border
         {
             Background = new SolidColorBrush(Theme.CardBg),
-            BorderBrush = borderBrush,
+            BorderBrush = Core.Fluent.CardEdge(),   // 上缘亮下缘暗：暗色里投影看不见，靠这条边说清卡片是浮着的
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(10),
             Padding = new Thickness(10, 9, 10, 9),
             Effect = new DropShadowEffect { BlurRadius = 18, ShadowDepth = 2, Opacity = 0.35, Color = Colors.Black },
             Cursor = System.Windows.Input.Cursors.Hand,
         };
-        // 整张卡片可点→进编辑器；hover 描边亮起强调色，把「点我标注」的可点性显出来
-        card.MouseEnter += (_, _) => borderBrush.BeginAnimation(SolidColorBrush.ColorProperty,
-            new ColorAnimation(Theme.Accent, new Duration(TimeSpan.FromMilliseconds(Fluent.Motion.HoverMs))));
-        card.MouseLeave += (_, _) => borderBrush.BeginAnimation(SolidColorBrush.ColorProperty,
-            new ColorAnimation(strokeCol, new Duration(TimeSpan.FromMilliseconds(Fluent.Motion.StateMs))));
+        // 整张卡片可点→进编辑器；悬停时叠一层强调色描边淡入，把「点我标注」的可点性显出来。
+        // 静止态是渐变描边，颜色动画接不上两种画刷——悬停因此走叠加层的透明度，不换画刷。
+        var hoverEdge = new Border
+        {
+            BorderBrush = new SolidColorBrush(Theme.Accent),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(10),
+            Opacity = 0,
+            IsHitTestVisible = false,   // 命中全交给底下那张卡，别在这一层吃掉点击
+        };
+        var shell = new Grid();
+        shell.Children.Add(card);
+        shell.Children.Add(hoverEdge);
+        card.MouseEnter += (_, _) => hoverEdge.BeginAnimation(OpacityProperty,
+            new DoubleAnimation(1, new Duration(TimeSpan.FromMilliseconds(Fluent.Motion.HoverMs))));
+        card.MouseLeave += (_, _) => hoverEdge.BeginAnimation(OpacityProperty,
+            new DoubleAnimation(0, new Duration(TimeSpan.FromMilliseconds(Fluent.Motion.StateMs))));
 
         var grid = new Grid();
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -136,7 +146,7 @@ public sealed class CaptureToast : Window
             onEdit();
             Dismiss();
         };
-        Content = card;
+        Content = shell;
         // 弹性入场：卡片从 0.85 放大到 1（BackEase 过冲），叠加 FadeIn 的淡入+上浮
         ContentRendered += (_, _) => Fluent.PopIn(card);
 
