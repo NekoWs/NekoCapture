@@ -113,8 +113,26 @@ public sealed class NoticeToast : Window
 
         card.Child = grid;
         Content = card;
+        // 宽度是定值，高度随正文与副行长出来：先在动画开始前按内容高把底边贴准
+        // （FadeIn 收尾会把 Left/Top 写回它开始时的值，之后再改会被覆盖）。
+        card.Measure(new Size(W, double.PositiveInfinity));
+        Top = Math.Max(wa.Top, wa.Bottom - Math.Ceiling(card.DesiredSize.Height) - 16);
+        SizeChanged += (_, _) =>
+        {
+            Left = Math.Max(wa.Left, wa.Right - ActualWidth - 16);
+            Top = Math.Max(wa.Top, wa.Bottom - ActualHeight - 16);
+        };
         // 与截屏浮窗同款登场：淡入 + 上浮，卡片再从 0.85 弹到位
-        ContentRendered += (_, _) => Fluent.PopIn(card);
+        ContentRendered += (_, _) =>
+        {
+            // 入场动画收尾会把 Left/Top 写回它开始时的值：等这一帧的活干完再落一次位
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                Left = Math.Max(wa.Left, wa.Right - ActualWidth - 16);
+                Top = Math.Max(wa.Top, wa.Bottom - ActualHeight - 16);
+            }), System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+            Fluent.PopIn(card);
+        };
 
         SourceInitialized += (_, _) =>
         {

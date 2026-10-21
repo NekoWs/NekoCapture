@@ -34,16 +34,14 @@ public sealed class WelcomeToast : Window
     /// <param name="recordHotkey">「录制」键位的展示文案，原样上屏。</param>
     /// <param name="sticky">首启那张不自己走：装完软件的人若没看见右下角这一下，12 秒后卡片消失，
     /// 就等于从没告诉过他键位在哪。脚本叫出来审查的（<c>--welcome</c>）保持自动走，免得卡在屏幕上。</param>
-    /// <param name="anyHotkeyBound">当前是否还有任何启用的键位绑定。一个都没绑时按钮改成「去设置里绑一个键」，
-    /// 直接把人送到设置——他缺的不是说明，是键。</param>
-    public static void Show(string captureHotkey, string recordHotkey, bool sticky = false, bool anyHotkeyBound = true)
+    public static void Show(string captureHotkey, string recordHotkey, bool sticky = false)
     {
         _current?.Close();
-        _current = new WelcomeToast(captureHotkey, recordHotkey, sticky, anyHotkeyBound);
+        _current = new WelcomeToast(captureHotkey, recordHotkey, sticky);
         _current.Show(); // ShowActivated=false：不打断用户当前输入
     }
 
-    WelcomeToast(string captureHotkey, string recordHotkey, bool sticky, bool anyHotkeyBound)
+    WelcomeToast(string captureHotkey, string recordHotkey, bool sticky)
     {
         Title = "FrameCapture Welcome";
         Fluent.BorderlessOverlay(this);
@@ -90,50 +88,38 @@ public sealed class WelcomeToast : Window
         root.Children.Add(head);
 
         // 两个热键：标签（暗）+ 键位（键帽），一眼看清「按什么」。
-        // 键位列可关：老手不需要每次开机都被提醒一遍键在哪，关掉后卡片只剩标题与帮助入口。
+        // 键位列可关：老手不需要每次开机都被提醒一遍键在哪，关掉后卡片只剩标题。
         if (SettingsService.Shared?.Current.WelcomeShowsHotkeys ?? true)
         {
             root.Children.Add(HotkeyLine(Loc.T(K.Common.Capture), captureHotkey));
             root.Children.Add(HotkeyLine(Loc.T(K.Common.Recording), recordHotkey));
         }
 
-        // 查看帮助入口（打开帮助窗并收起本卡）
-        // 入口按钮分两种人：有键的人给「看帮助」，一个键都没绑的人给「去设置里绑一个键」。
-        // 卡片上写着两个「未设键」却只递一个看帮助的入口，等于把人晾在原地——他缺的不是说明，是键。
-        var (btnText, goHelp) = anyHotkeyBound
-            ? (Loc.T(K.Capture.SeeTheHelpAndEvery), true)
-            : (Loc.T(K.Capture.SetAKeyInSettings), false);
-        var entry = new Button
-        {
-            Content = btnText,
-            FontSize = 12.5,
-            Foreground = new SolidColorBrush(Fluent.OnAccentColor(Theme.Accent)), // 前景随强调色明暗自适应，浅强调色下不致白字不可读
-            Background = new SolidColorBrush(Theme.Accent),
-            BorderThickness = new Thickness(0),
-            Padding = new Thickness(12, 6, 12, 6),
-            HorizontalAlignment = HorizontalAlignment.Left,
-            Cursor = System.Windows.Input.Cursors.Hand,
-            Margin = new Thickness(0, 12, 0, 0),
-            Template = RoundedBtnTemplate(),
-        };
-        entry.Click += (_, _) =>
-        {
-            if (goHelp) { Trace.Log("welcome→help"); HelpWindow.ShowOrFocus(); }
-            else { Trace.Log("welcome→settings"); SettingsWindow.ShowOrFocus(); }
-            Dismiss();
-        };
-        Fluent.Springy(entry);   // 悬停只改底色带过渡，不缩放（与滚动控制条按钮同款反馈）
-        root.Children.Add(entry);
-
         card.Child = root;
         Content = card;
-        // 弹性入场：与 CaptureToast 同款放大登场。首帧量到实测宽高后把右下角贴准——
-        // 卡片宽度随内容变，按估算值摆会歪出一截。
-        ContentRendered += (_, _) =>
+        // 落点必须在入场动画开始前定对：FadeIn 的「先移出屏外再归位」会在收尾时把
+        // Left/Top 写回它开始时的值——那时若还是构造期的估算宽，卡片右侧就会空出一条。
+        // 所以先把卡片量一遍，按它自己的宽高把右下角贴准，再交给 SizeToContent。
+        card.Measure(new Size(W, double.PositiveInfinity));   // 量卡片本身（含内边距），量内容会少算一圈边
+        double cw = Math.Min(W, Math.Ceiling(card.DesiredSize.Width));
+        double ch = Math.Ceiling(card.DesiredSize.Height);
+        Left = Math.Max(wa.Left, wa.Right - cw - 16);
+        Top = Math.Max(wa.Top, wa.Bottom - ch - 16);
+        // 实测尺寸若与量出来的不同（换了字体/语言），落位时再校一次
+        SizeChanged += (_, _) =>
         {
             Left = Math.Max(wa.Left, wa.Right - ActualWidth - 16);
             Top = Math.Max(wa.Top, wa.Bottom - ActualHeight - 16);
-            Fluent.PopIn(card);
+        };
+        ContentRendered += (_, _) =>
+        {
+            // 入场动画收尾会把 Left/Top 写回它开始时的值：等这一帧的活干完再落一次位
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                Left = Math.Max(wa.Left, wa.Right - ActualWidth - 16);
+                Top = Math.Max(wa.Top, wa.Bottom - ActualHeight - 16);
+            }), System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+            Fluent.PopIn(card);   // 弹性入场：与 CaptureToast 同款放大登场
         };
 
         // 键盘等价：浮窗不抢焦点，WPF 焦点路由收不到键——直接在 HWND 层处理 Esc
@@ -210,21 +196,6 @@ public sealed class WelcomeToast : Window
         return g;
     }
 
-    // 圆角实心按钮模板（强调色底）；模板内无触发器，悬停底色由 Fluent.Springy 在代码里驱动
-    static ControlTemplate RoundedBtnTemplate()
-    {
-        var t = new ControlTemplate(typeof(Button));
-        var border = new FrameworkElementFactory(typeof(Border));
-        border.SetValue(Border.BackgroundProperty, new TemplateBindingExtension(Control.BackgroundProperty));
-        border.SetValue(Border.CornerRadiusProperty, new CornerRadius(6));
-        border.SetValue(Border.PaddingProperty, new TemplateBindingExtension(Control.PaddingProperty));
-        var cp = new FrameworkElementFactory(typeof(ContentPresenter));
-        cp.SetValue(ContentPresenter.HorizontalAlignmentProperty, HorizontalAlignment.Center);
-        cp.SetValue(ContentPresenter.VerticalAlignmentProperty, VerticalAlignment.Center);
-        border.AppendChild(cp);
-        t.VisualTree = border;
-        return t;
-    }
 
     void Dismiss()
     {
