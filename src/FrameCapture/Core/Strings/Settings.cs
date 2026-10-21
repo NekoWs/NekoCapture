@@ -332,6 +332,14 @@ public static partial class K
             "settings.showTheKeysInTheReady",
             "就绪提示列出键位",
             "Show the keys in the ready card");
+        public static readonly Str CaptureTheAppItself = new(
+            "settings.captureTheAppItself",
+            "允许截到自己",
+            "Allow capturing FrameCapture");
+        public static readonly Str WhenOnTheEditorTheRecord = new(
+            "settings.whenOnTheEditorTheRecord",
+            "打开后，编辑器、录制控制条、选区遮罩都会出现在你的截图和录屏里——想录一段界面演示时用；平时关着，浮窗与轮廓不会进产物",
+            "When on, the editor, the recording bar and the selection mask all show up in your shots and recordings - use it to demo the UI; leave it off and toasts and outlines stay out of the result");
         public static readonly Str CopyKey = new(
             "settings.copyKey",
             "截图后的复制键",

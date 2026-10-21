@@ -161,6 +161,13 @@ public sealed class RegionOutlineWindow : Window
         if (TestShowInCapture) return false; // 仅取证：让轮廓能被截到，便于人工核对位置
         var hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
         if (hwnd == IntPtr.Zero) return false;
+        // 允许「截到自己」时这一层要留在产物里：它正是用户想录下来的那个界面元素
+        if (Core.Fluent.CaptureSelfAllowed)
+        {
+            _captureExcluded = true;
+            Core.Trace.Log("outline: shown in capture by setting");
+            return true;
+        }
         if (!Win32.SetWindowDisplayAffinity(hwnd, Win32.WDA_EXCLUDEFROMCAPTURE))
         {
             Core.Trace.Log("outline: SetWindowDisplayAffinity failed err="

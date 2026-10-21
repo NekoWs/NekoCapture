@@ -144,8 +144,7 @@ public sealed class ScrollHintWindow : Window
         {
             var h = new System.Windows.Interop.WindowInteropHelper(this).Handle;
             Win32.SetRoundedCorners(h);
-            if (Environment.GetEnvironmentVariable("FC_TOAST_NOEXCLUDE") != "1")
-                Win32.SetWindowDisplayAffinity(h, Win32.WDA_EXCLUDEFROMCAPTURE);
+            Core.Fluent.ExcludeFromCapture(h);
             if (PresentationSource.FromVisual(this) is System.Windows.Interop.HwndSource src)
                 src.AddHook((hwnd, msg, w, l, ref handled) =>
                 {

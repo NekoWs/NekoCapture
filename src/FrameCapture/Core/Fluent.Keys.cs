@@ -1,4 +1,5 @@
 // Fluent partial：键帽配色。安装向导链的是 Theme/Fluent 那几份共享文件，这份带 WPF 控件依赖，它不链。
+using System;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -54,5 +55,21 @@ public static partial class Fluent
         };
         if (width > 0) t.Width = width;
         return t;
+    }
+
+    /// <summary>用户是否允许把本程序自己的窗口拍进截图/录屏。</summary>
+    /// <value>默认 false：浮窗、选区、轮廓、滚动取景层都只是给人的反馈，进产物只是脏东西。</value>
+    public static bool CaptureSelfAllowed =>
+        Environment.GetEnvironmentVariable("FC_TOAST_NOEXCLUDE") == "1"
+        || (SettingsService.Shared?.Current.CaptureSelf ?? false);
+
+    /// <summary>把窗口从屏幕捕获里排除（截屏与录屏都拍不到它）；允许截到自己时什么都不做。</summary>
+    /// <param name="hwnd">窗口句柄。</param>
+    /// <returns>true = 已排除；false = 按用户意愿放行，或系统不支持这个调用。</returns>
+    public static bool ExcludeFromCapture(IntPtr hwnd)
+    {
+        if (CaptureSelfAllowed) return false;
+        try { return FrameCapture.Native.Win32.SetWindowDisplayAffinity(hwnd, FrameCapture.Native.Win32.WDA_EXCLUDEFROMCAPTURE); }
+        catch { return false; }
     }
 }

@@ -82,8 +82,7 @@ public sealed class ScrollStageWindow : Window
             uint ex = Win32.GetWindowLongW(h, Win32.GWL_EXSTYLE);
             Win32.SetWindowLongW(h, Win32.GWL_EXSTYLE, ex | Win32.WS_EX_TRANSPARENT | Win32.WS_EX_NOACTIVATE
                 | Win32.WS_EX_LAYERED | Win32.WS_EX_TOOLWINDOW);
-            if (Environment.GetEnvironmentVariable("FC_TOAST_NOEXCLUDE") != "1")
-                Win32.SetWindowDisplayAffinity(h, Win32.WDA_EXCLUDEFROMCAPTURE);
+            Core.Fluent.ExcludeFromCapture(h);
             PlaceOnMonitor(mon.Bounds);
         };
         // 整屏层只做淡入：位移会让压暗矩形在入场那 190ms 里露出一条没压暗的屏幕边

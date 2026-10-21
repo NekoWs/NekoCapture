@@ -189,8 +189,7 @@ public sealed class CountdownWindow : Window
         {
             var h = new System.Windows.Interop.WindowInteropHelper(this).Handle;
             Win32.SetRoundedCorners(h);
-            if (Environment.GetEnvironmentVariable("FC_TOAST_NOEXCLUDE") != "1")
-                Win32.SetWindowDisplayAffinity(h, Win32.WDA_EXCLUDEFROMCAPTURE);
+            Core.Fluent.ExcludeFromCapture(h);
         };
 
         // 倒计时期间 Esc 全局取消：这扇窗 ShowActivated=false，键不会进它自己的 HWND，只能全局代收

@@ -194,6 +194,10 @@ public sealed class AppSettings
     /// 只认修饰键完全一致的那一条；空串表示不设，浮窗上只剩标注与关闭。</summary>
     public string ToastCopyChord { get; set; } = "Ctrl+C";
 
+    /// <summary>允许把本程序自己的窗口拍进截图/录屏（默认 false：浮窗与轮廓只是反馈，不该进产物）。
+    /// 打开后编辑器、录制控制条、选区遮罩都会出现在产物里——要录界面演示时用。</summary>
+    public bool CaptureSelf { get; set; }
+
     #region 上次捕获范围（物理像素，虚拟桌面绝对坐标；null 表示全屏主屏）
     public string? RegionMonitorId { get; set; }
     public int RegionX { get; set; }

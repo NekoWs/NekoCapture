@@ -72,6 +72,20 @@ public sealed partial class SettingsWindow : Window
         return null;
     }
 
+    /// <summary>把「允许截到自己」这次改动应用到已经开着的窗口：程序性重设一遍 WDA，不必重启才生效。</summary>
+    /// <param name="w">要重设的窗口；还没建句柄的直接跳过，它建成时会按设置走。</param>
+    static void ApplyCaptureAffinity(Window w)
+    {
+        var h = new System.Windows.Interop.WindowInteropHelper(w).Handle;
+        if (h == IntPtr.Zero) return;
+        if (Core.Fluent.CaptureSelfAllowed)
+        {
+            try { Win32.SetWindowDisplayAffinity(h, Win32.WDA_NONE); } catch { }
+            return;
+        }
+        Core.Fluent.ExcludeFromCapture(h);
+    }
+
     /// <summary>审查脚本用 <c>FC_SETTINGS_PAGE</c> 把窗口直接开到某一页截图（页名或下标）。
     /// 只认这一个环境变量：不给就回第一页，改主题/强调色重建时仍按 <c>_restoreCat</c> 停在原页。</summary>
     /// <returns>分页下标；没设或认不出返回 -1，由调用方兜到第一页。</returns>
@@ -257,6 +271,13 @@ public sealed partial class SettingsWindow : Window
             {
                 _settings.Mutate(s => s.RunAtStartup = v);
                 try { StartupService.Apply(v); } catch { }
+            }));
+        panel.Children.Add(ToggleRow("\uE8B9", Loc.T(K.Settings.CaptureTheAppItself), Loc.T(K.Settings.WhenOnTheEditorTheRecord),
+            _settings.Current.CaptureSelf, v =>
+            {
+                _settings.Mutate(s => s.CaptureSelf = v);
+                // 已经开着的窗口不会自己回头改：当场的窗口逐个重设一次，省得为了生效还得重启。
+                foreach (Window w in Application.Current.Windows) ApplyCaptureAffinity(w);
             }));
         panel.Children.Add(ToggleRow("\uE946", Loc.T(K.Settings.StartupNotification), Loc.T(K.Settings.AfterStartupANoticeAppears),
             _settings.Current.StartupToast, v => _settings.Mutate(s => s.StartupToast = v)));

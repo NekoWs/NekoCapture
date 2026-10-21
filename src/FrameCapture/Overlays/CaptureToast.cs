@@ -172,8 +172,7 @@ public sealed class CaptureToast : Window
             var h = new System.Windows.Interop.WindowInteropHelper(this).Handle;
             Win32.SetRoundedCorners(h);
             // 后续截屏拍不到浮窗；FC_TOAST_NOEXCLUDE=1 仅供视觉审查截图（生产默认排除）
-            if (Environment.GetEnvironmentVariable("FC_TOAST_NOEXCLUDE") != "1")
-                Win32.SetWindowDisplayAffinity(h, Win32.WDA_EXCLUDEFROMCAPTURE);
+            Core.Fluent.ExcludeFromCapture(h);
             // Enter/Esc 不在本 HWND 钩子里处理：ShowActivated=false 的窗口不是键盘焦点目标，
             // WM_KEYDOWN 不会路由到这里，挂在这里等于没挂。唯一入口见下方 HotkeyManager。
         };

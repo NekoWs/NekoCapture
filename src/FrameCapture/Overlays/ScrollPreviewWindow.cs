@@ -132,8 +132,7 @@ public sealed class ScrollPreviewWindow : Window
             // 不激活、不进 Alt-Tab：预览卡只是给人看的，滚动目标窗口必须一直握着焦点
             uint ex = Win32.GetWindowLongW(h, Win32.GWL_EXSTYLE);
             Win32.SetWindowLongW(h, Win32.GWL_EXSTYLE, ex | Win32.WS_EX_NOACTIVATE | Win32.WS_EX_TOOLWINDOW);
-            if (Environment.GetEnvironmentVariable("FC_TOAST_NOEXCLUDE") != "1")
-                Win32.SetWindowDisplayAffinity(h, Win32.WDA_EXCLUDEFROMCAPTURE);
+            Core.Fluent.ExcludeFromCapture(h);
         };
 
         Fluent.FadeIn(this, Fluent.Motion.EnterMs, 8, offscreenFirstFrame: true, leadMs: entranceLeadMs);

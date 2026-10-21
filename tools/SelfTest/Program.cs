@@ -6718,6 +6718,24 @@ static partial class SelfTest
         }
         catch (Exception e) { Chk("T232-temp-sweep", false, e.Message); }
 
+        // 「允许截到自己」默认关（浮窗与轮廓不进产物），打开后放行。
+        try
+        {
+            var svcSelf = FrameCapture.Core.SettingsService.Shared;
+            bool keepSelf = svcSelf?.Current.CaptureSelf ?? false;
+            svcSelf?.Mutate(s => s.CaptureSelf = false);
+            Chk("T233-self-capture-off-by-default", !FrameCapture.Core.Fluent.CaptureSelfAllowed,
+                "默认应当排除自己，实际放行了");
+            if (svcSelf != null)
+            {
+                svcSelf.Mutate(s => s.CaptureSelf = true);
+                Chk("T233-self-capture-can-be-enabled", FrameCapture.Core.Fluent.CaptureSelfAllowed,
+                    "打开开关后仍然排除自己");
+                svcSelf.Mutate(s => s.CaptureSelf = keepSelf);
+            }
+        }
+        catch (Exception e) { Chk("T233-self-capture", false, e.Message); }
+
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");
         return fail == 0 ? 0 : 1;
     }

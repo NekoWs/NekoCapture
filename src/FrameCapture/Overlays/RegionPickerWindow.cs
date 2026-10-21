@@ -236,7 +236,7 @@ public sealed partial class RegionPickerWindow : Window
             // 排除开着时 PrintWindow 与桌面抓取都只拿到全黑，选区版面就没法人眼复核；代价是放大镜
             // 此时可能取到遮罩自己的像素，读数不作数。
             if (Environment.GetEnvironmentVariable("FC_TOAST_NOEXCLUDE") != "1")
-                try { Win32.SetWindowDisplayAffinity(h, Win32.WDA_EXCLUDEFROMCAPTURE); } catch { }
+                Core.Fluent.ExcludeFromCapture(h);   // 允许截到自己时放行：这层遮罩会进产物
             // WS_EX_NOACTIVATE——Show 与鼠标按下都不激活本窗，前台焦点始终留在目标窗。
             // 否则拖框的 MouseDown 会把焦点从浏览器抢走，Z 序/前台一变，选区里就截到别的软件。
             try { Win32.SetWindowLongW(h, Win32.GWL_EXSTYLE, Win32.GetWindowLongW(h, Win32.GWL_EXSTYLE) | Win32.WS_EX_NOACTIVATE); } catch { }

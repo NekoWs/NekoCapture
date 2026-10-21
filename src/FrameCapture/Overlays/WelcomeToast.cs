@@ -142,8 +142,7 @@ public sealed class WelcomeToast : Window
             var h = new System.Windows.Interop.WindowInteropHelper(this).Handle;
             Win32.SetRoundedCorners(h);
             // 欢迎卡默认不出现在任何截图里；FC_TOAST_NOEXCLUDE=1 仅供视觉审查截图（与 CaptureToast 同一开关）
-            if (Environment.GetEnvironmentVariable("FC_TOAST_NOEXCLUDE") != "1")
-                Win32.SetWindowDisplayAffinity(h, Win32.WDA_EXCLUDEFROMCAPTURE);
+            Core.Fluent.ExcludeFromCapture(h);
             if (PresentationSource.FromVisual(this) is System.Windows.Interop.HwndSource src)
                 src.AddHook((hwnd, msg, w, l, ref handled) =>
                 {

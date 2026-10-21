@@ -121,8 +121,7 @@ public sealed class NoticeToast : Window
             var h = new System.Windows.Interop.WindowInteropHelper(this).Handle;
             Win32.SetRoundedCorners(h);
             // 提示气泡不该出现在用户自己的截图里；FC_TOAST_NOEXCLUDE=1 仅供视觉审查截图
-            if (Environment.GetEnvironmentVariable("FC_TOAST_NOEXCLUDE") != "1")
-                Win32.SetWindowDisplayAffinity(h, Win32.WDA_EXCLUDEFROMCAPTURE);
+            Core.Fluent.ExcludeFromCapture(h);
         };
 
         _dismiss = new DispatcherTimer { Interval = TimeSpan.FromSeconds(seconds > 0 ? seconds : 3600) };
