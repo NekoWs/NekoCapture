@@ -21,8 +21,9 @@ public sealed class WelcomeToast : Window
     readonly DispatcherTimer _dismiss;
     bool _closing;
 
-    const double W = 372;      // DIP 宽
-    const double EstH = 168;   // 估算高（落点用；实际 SizeToContent）
+    const double W = 372;      // 卡片最宽（DIP）：再宽就成横幅了
+    const double MinW = 244;   // 最窄：键位行的标签加一长串键帽要排得下
+    const double EstH = 168;   // 落点用的估算高，ContentRendered 后以实测宽高贴准
 
     /// <summary>
     /// 弹出欢迎卡：同一时刻只保留一张，再次调用先收起上一张。
@@ -51,7 +52,8 @@ public sealed class WelcomeToast : Window
 
         var card = new Border
         {
-            Width = W,
+            MinWidth = MinW,
+            MaxWidth = W,   // 宽度跟着内容走：列键位时宽一点，关掉键位时收回来，右边不空出一片
             Background = new SolidColorBrush(Theme.CardBg),
             BorderBrush = Core.Fluent.CardEdge(),   // 上缘亮下缘暗：暗色里投影看不见，靠这条边说清卡片是浮着的
             BorderThickness = new Thickness(1),
@@ -111,8 +113,14 @@ public sealed class WelcomeToast : Window
 
         card.Child = root;
         Content = card;
-        // 弹性入场：与 CaptureToast 同款放大登场
-        ContentRendered += (_, _) => Fluent.PopIn(card);
+        // 弹性入场：与 CaptureToast 同款放大登场。首帧量到实测宽高后把右下角贴准——
+        // 卡片宽度随内容变，按估算值摆会歪出一截。
+        ContentRendered += (_, _) =>
+        {
+            Left = Math.Max(wa.Left, wa.Right - ActualWidth - 16);
+            Top = Math.Max(wa.Top, wa.Bottom - ActualHeight - 16);
+            Fluent.PopIn(card);
+        };
 
         // 键盘等价：浮窗不抢焦点，WPF 焦点路由收不到键——直接在 HWND 层处理 Esc
         SourceInitialized += (_, _) =>
