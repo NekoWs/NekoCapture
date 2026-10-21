@@ -234,18 +234,18 @@ public sealed class CaptureToast : Window
         row.Children.Add(new TextBlock
         {
             Text = label,
-            FontSize = 11.5,
+            FontSize = 12.5,
             Foreground = new SolidColorBrush(Theme.Text),
             VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 0, 5, 0),
+            Margin = new Thickness(0, 0, 6, 0),
         });
-        row.Children.Add(Keycaps.ChordRow(keys, Fluent.KeycapTheme(10.5), KeySeparators));
+        row.Children.Add(Keycaps.ChordRow(keys, Fluent.KeycapTheme(11), KeySeparators));
         var chip = new Border
         {
-            CornerRadius = new CornerRadius(5),
-            Padding = new Thickness(6, 3, 6, 3),
+            CornerRadius = new CornerRadius(6),
+            Padding = new Thickness(10, 4, 10, 4),
             Margin = new Thickness(0, 0, 6, 0),
-            Background = new SolidColorBrush(Theme.RowBg),
+            Background = new SolidColorBrush(Theme.Hover),   // 与延时截图的取消按钮同一个底色
             Cursor = System.Windows.Input.Cursors.Hand,
             Child = row,
         };

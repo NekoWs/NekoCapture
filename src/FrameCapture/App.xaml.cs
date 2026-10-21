@@ -86,8 +86,7 @@ public partial class App : Application
                 if (st.Current.FirstRunHintShown) return;
                 st.Mutate(s => s.FirstRunHintShown = true);
                 Overlays.WelcomeToast.Show(st.Current.Gestures.CaptureKeyText(), st.Current.Gestures.RecordKeyText(),
-                    sticky: true,   // 首启唯一一次说明，不自己走
-                    anyHotkeyBound: st.Current.Gestures.Bindings.Any(b => b.Enabled));
+                    sticky: true);   // 首启唯一一次说明，不自己走
             }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
         else if (Services.AppHost.Current.Settings.Current.StartupToast)
             // 之后每次启动只报一句「已启动」。本程序没有主窗口，缺这一下容易被当成没启动成功。
@@ -344,8 +343,7 @@ public partial class App : Application
     void ShowWelcomeCard()
     {
         var st = Services.AppHost.Current.Settings;
-        Overlays.WelcomeToast.Show(st.Current.Gestures.CaptureKeyText(), st.Current.Gestures.RecordKeyText(),
-            anyHotkeyBound: st.Current.Gestures.Bindings.Any(b => b.Enabled));
+        Overlays.WelcomeToast.Show(st.Current.Gestures.CaptureKeyText(), st.Current.Gestures.RecordKeyText());
     }
 
     /// <summary>弹一条「已在托盘待命」气泡。只留这一句：键位归就绪卡与帮助页，

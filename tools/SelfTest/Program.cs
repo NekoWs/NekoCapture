@@ -6479,81 +6479,36 @@ static partial class SelfTest
         }
         catch (Exception e) { Chk("T226-welcome-card-timing", false, e.Message); }
 
-        // 一个键都没绑的人，卡片不该只递给他一个「看帮助」——他缺的是键，不是说明。
+        // 就绪卡只列已配置的快捷键，不放任何入口按钮：卡片上只该有 ✕ 这一枚图标按钮。
         try
         {
-            var st = FrameCapture.Core.SettingsService.Shared!;
-            var g = st.Current.Gestures;
-            var saved = g.Bindings.ToList();
-            static List<System.Windows.Controls.Button> TextButtons(DependencyObject root)
-            {
-                var list = new List<System.Windows.Controls.Button>();
-                void W(DependencyObject o)
-                {
-                    // 卡片上 ✕ 也是 Button（Content 是图标字形）：只认写着文字的按钮，
-                    // 私有使用区里的字形不算文字。
-                    if (o is System.Windows.Controls.Button b && b.Content is string s && s.Length > 0
-                        && !s.Any(ch => ch >= 0xE000 && ch <= 0xF8FF)) list.Add(b);
-                    foreach (var c in System.Windows.LogicalTreeHelper.GetChildren(o))
-                        if (c is DependencyObject d) W(d);
-                }
-                W(root);
-                return list;
-            }
-            static string CardButtonText(DependencyObject root)
-            {
-                var bs = TextButtons(root);
-                return bs.Count == 1 ? (string)bs[0].Content : "文字按钮 " + bs.Count + " 枚";
-            }
-            static bool WaitUntil(Func<bool> probe, int budgetMs)
-            {
-                // 开一扇重窗（设置窗要建八个分区）在机器正忙时要的时间远超固定等待，
-                // 写死一个毫秒数就是把自己交给负载：轮询到成或预算用完，判据本身不变。
-                var sw = System.Diagnostics.Stopwatch.StartNew();
-                while (sw.ElapsedMilliseconds < budgetMs)
-                {
-                    if (probe()) return true;
-                    PumpMs(30);
-                }
-                return probe();
-            }
-            void ShowBound(bool bound)
-            {
-                foreach (var old in System.Windows.Application.Current.Windows.OfType<FrameCapture.Overlays.WelcomeToast>().ToList())
-                    old.Close();
-                PumpMs(120);
-                FrameCapture.Overlays.WelcomeToast.Show(g.CaptureKeyText(), g.RecordKeyText(), anyHotkeyBound: bound);
-                PumpMs(220);
-            }
-
-            g.Bindings.Clear();
-            ShowBound(bound: false);
-            var card = System.Windows.Application.Current.Windows.OfType<FrameCapture.Overlays.WelcomeToast>().First();
-            var btn = TextButtons(card).FirstOrDefault()!;
-            Chk("T227-unbound-card-points-at-settings", CardButtonText(card) == Loc.T(K.Capture.SetAKeyInSettings),
-                "按钮写的是：" + CardButtonText(card));
-            btn.RaiseEvent(new System.Windows.RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
-            PumpMs(260);
-            Chk("T227-unbound-button-opens-settings",
-                WaitUntil(() => System.Windows.Application.Current.Windows
-                    .OfType<FrameCapture.Overlays.SettingsWindow>().Any(), 3000),
-                "点「去设置里绑一个键」没开出设置窗");
-            foreach (var sw in System.Windows.Application.Current.Windows.OfType<FrameCapture.Overlays.SettingsWindow>().ToList())
-                sw.Close();
-
-            // 有键的人给的还是「看帮助」，这条路径不能被上面那条挤掉。
-            foreach (var b in saved) g.Bindings.Add(b);
-            ShowBound(bound: true);
-            var withKeys = System.Windows.Application.Current.Windows.OfType<FrameCapture.Overlays.WelcomeToast>().First();
-            Chk("T227-bound-card-still-points-at-help",
-                CardButtonText(withKeys) == Loc.T(K.Capture.SeeTheHelpAndEvery),
-                "按钮写的是：" + CardButtonText(withKeys));
             foreach (var old in System.Windows.Application.Current.Windows.OfType<FrameCapture.Overlays.WelcomeToast>().ToList())
                 old.Close();
-            g.Bindings.Clear();
-            foreach (var b in saved) g.Bindings.Add(b);
+            PumpMs(120);
+            FrameCapture.Overlays.WelcomeToast.Show("F6", "Ctrl+Alt+R");
+            PumpMs(220);
+            var card = System.Windows.Application.Current.Windows.OfType<FrameCapture.Overlays.WelcomeToast>().First();
+            // 图标按钮（✕）不算：它有字形内容，正文按钮没有
+            int textButtons = 0;
+            void WalkBtn(DependencyObject o)
+            {
+                if (o is System.Windows.Controls.Button b && b.Content is string s && s.Length > 0
+                    && !s.Any(ch => ch >= 0xE000 && ch <= 0xF8FF)) textButtons++;
+                foreach (var c in System.Windows.LogicalTreeHelper.GetChildren(o))
+                    if (c is DependencyObject d) WalkBtn(d);
+            }
+            WalkBtn(card);
+            Chk("T227-ready-card-has-no-entry-button", textButtons == 0, "卡片上还有 " + textButtons + " 枚文字按钮");
+            // 落点：右下角各留 16 DIP。入场动画收尾会把 Left/Top 写回起始值，这条就是防它回退。
+            var wa = System.Windows.SystemParameters.WorkArea;
+            Chk("T227-ready-card-sits-in-the-corner",
+                Math.Abs((card.Left + card.ActualWidth) - (wa.Right - 16)) <= 2
+                && Math.Abs((card.Top + card.ActualHeight) - (wa.Bottom - 16)) <= 2,
+                $"右 {card.Left + card.ActualWidth:N0}/{wa.Right - 16:N0} 底 {card.Top + card.ActualHeight:N0}/{wa.Bottom - 16:N0}");
+            foreach (var old in System.Windows.Application.Current.Windows.OfType<FrameCapture.Overlays.WelcomeToast>().ToList())
+                old.Close();
         }
-        catch (Exception e) { Chk("T227-unbound-entry", false, e.Message); }
+        catch (Exception e) { Chk("T227-ready-card-buttons", false, e.Message); }
 
         // 键位框必须显示它报出去的那个键位：只把新值交给宿主、自己还留着原值，用户改完看到的仍是原键帽。
         static List<string> ChipsIn(DependencyObject root)
@@ -6735,6 +6690,26 @@ static partial class SelfTest
             }
         }
         catch (Exception e) { Chk("T233-self-capture", false, e.Message); }
+
+        // 截图浮窗的三枚操作：标注 / 复制 / 关闭，键位写在名字后面；复制那枚跟着设置里的键位走。
+        try
+        {
+            var svc = FrameCapture.Services.AppHost.Current.Settings;
+            string keepChord = svc.Current.ToastCopyChord;
+            svc.Mutate(s => s.ToastCopyChord = "Ctrl+C");
+            FrameCapture.Overlays.CaptureToast.Show(Solid(160, 96, 0x30, 0x60, 0x90),
+                new FrameCapture.Capture.RectI(0, 0, 160, 96), "", () => { }, () => { });
+            PumpMs(260);
+            var tc = System.Windows.Application.Current.Windows
+                .OfType<FrameCapture.Overlays.CaptureToast>().FirstOrDefault();
+            var caps = tc == null ? new List<string>() : ChipsIn(tc);
+            Chk("T234-toast-offers-annotate-copy-close",
+                caps.Contains("Enter") && caps.Contains("Ctrl") && caps.Contains("C") && caps.Contains("Esc"),
+                "浮窗键帽：" + string.Join(" / ", caps));
+            tc?.Close();
+            svc.Mutate(s => s.ToastCopyChord = keepChord);
+        }
+        catch (Exception e) { Chk("T234-toast-actions", false, e.Message); }
 
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");
         return fail == 0 ? 0 : 1;

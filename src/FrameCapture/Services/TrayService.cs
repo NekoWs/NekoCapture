@@ -133,8 +133,7 @@ public sealed class TrayService : IDisposable
         Item(Loc.T(K.Tray.ShowKeyHints), () =>
         {
             var g = _host.Settings.Current.Gestures;
-            Overlays.WelcomeToast.Show(g.CaptureKeyText(), g.RecordKeyText(),
-                anyHotkeyBound: g.Bindings.Any(b => b.Enabled));
+            Overlays.WelcomeToast.Show(g.CaptureKeyText(), g.RecordKeyText());
         });
         Item(Loc.T(K.Tray.Help), OpenHelp);
         Item(Loc.T(K.Common.StartWithWindows), () =>
