@@ -390,7 +390,7 @@ public static partial class Fluent
         SolidColorBrush? Bg() => el is Border bd ? bd.Background as SolidColorBrush
                             : el is Control cc ? cc.Background as SolidColorBrush : null;
         void SetBg(SolidColorBrush b) { if (el is Border bd) bd.Background = b; else if (el is Control cc) cc.Background = b; }
-        void An(Color to, int ms)
+        void AnimateBg(Color to, int ms)
         {
             var cur = Bg();
             Color from = cur?.Color ?? baseColor;
@@ -403,29 +403,21 @@ public static partial class Fluent
             ours = cur;
             cur.BeginAnimation(SolidColorBrush.ColorProperty, new ColorAnimation(to, new Duration(TimeSpan.FromMilliseconds(ms))));
         }
-        static Color Blend(Color src, Color over)
-        {
-            double a = over.A / 255.0;
-            return Color.FromArgb(src.A,
-                (byte)(src.R * (1 - a) + over.R * a),
-                (byte)(src.G * (1 - a) + over.G * a),
-                (byte)(src.B * (1 - a) + over.B * a));
-        }
         el.MouseEnter += (_, _) =>
         {
             var sb = Bg();
             if (sb == null) return;
             if (!hasBase || !ReferenceEquals(sb, ours)) { baseColor = sb.Color; hasBase = true; }   // 外部换底（选中态等）→ 重取基色
-            An(Blend(baseColor, Theme.Hover), 140);
+            AnimateBg(Mix(baseColor, Theme.Hover), Motion.HoverMs);
         };
         el.MouseLeave += (_, _) =>
         {
             var sb = Bg();
             if (sb == null) return;
-            if (hasBase && ReferenceEquals(sb, ours)) An(baseColor, 160);
+            if (hasBase && ReferenceEquals(sb, ours)) AnimateBg(baseColor, Motion.ExitMs);
             else { baseColor = sb.Color; hasBase = true; ours = null; }   // 外部已换底：以新色为基色，别覆盖它
         };
-        el.PreviewMouseLeftButtonDown += (_, _) => { if (hasBase) An(Blend(baseColor, Theme.Press), 70); };
+        el.PreviewMouseLeftButtonDown += (_, _) => { if (hasBase) AnimateBg(Mix(baseColor, Theme.Press), Motion.PressMs); };
         // 只认左键抬起：按压色来自左键按下，右键抬起不该把悬停色盖回去。
         // 挂 MouseLeftButtonUp 而不是复合的 MouseUp——复合事件只有真实输入管线才产出，测试抬不起来。
         el.MouseLeftButtonUp += (_, _) =>
@@ -434,8 +426,21 @@ public static partial class Fluent
             // 那份画刷不归我们动，硬把按压前的基色混着悬停色盖回去，选中态当场就没了。
             var sb = Bg();
             if (sb == null || !ReferenceEquals(sb, ours)) return;
-            An(Blend(baseColor, Theme.Hover), 120);
+            AnimateBg(Mix(baseColor, Theme.Hover), Motion.QuickMs);
         };
+    }
+    /// <summary>把一层带 alpha 的颜色压到实色上，得到两者混合后的实色：悬停色与按压色本身就是
+    /// 一层半透明白，压在什么底色上都该得到那个底色自己的亮一档/暗一档，而不是一个固定色。</summary>
+    /// <param name="src">底色，不透明实色。</param>
+    /// <param name="over">压上去的那层，只取它的 alpha 当混合比例。</param>
+    /// <returns>混合后的不透明实色。</returns>
+    public static Color Mix(Color src, Color over)
+    {
+        double a = over.A / 255.0;
+        return Color.FromArgb(src.A,
+            (byte)(src.R * (1 - a) + over.R * a),
+            (byte)(src.G * (1 - a) + over.G * a),
+            (byte)(src.B * (1 - a) + over.B * a));
     }
 
     /// <summary>横向插拔的默认行程（像素）。再大就像整页在动，这个量级只够看清"是从旁边推进来的"。</summary>

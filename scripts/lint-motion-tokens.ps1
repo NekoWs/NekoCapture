@@ -20,7 +20,7 @@ $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 if ($Paths.Count -eq 0) { $Paths = @((Join-Path $root "src"), (Join-Path $root "tools"), (Join-Path $root "Program.cs")) }
 
-$RxHelper   = '(?:AnimateColor|AnimateScale|FadeIn|FadeOut)\([^;\r\n]*?,\s*\d+\s*\)'
+$RxHelper   = '(?:AnimateColor|AnimateScale|AnimateBg|TintBg|FadeIn|FadeOut)\([^;\r\n]*?,\s*\d+\s*\)'
 $RxDuration = 'Duration\(\s*(?:System\.Windows\.)?TimeSpan\.FromMilliseconds\(\s*\d+\s*\)'
 $RxRawSpan  = 'TimeSpan\.FromMilliseconds\(\s*\d+\s*\)'
 $RxTimer    = '\bInterval\b'

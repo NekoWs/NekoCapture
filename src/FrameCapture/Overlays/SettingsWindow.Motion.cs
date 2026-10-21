@@ -26,12 +26,19 @@ public sealed partial class SettingsWindow : Window
     {
         var restColor = rest ?? Colors.Transparent;
         var hoverColor = hover ?? Theme.Hover;
+        // 按压色 = 底上再压一层半透明白：暗色更亮一档、亮色更暗一档，方向跟着主题走。
+        // 静止全透明的幽灵按钮没有底色可压，就拿悬停色当底，否则按下去什么变化都没有。
+        var pressColor = Fluent.Mix(restColor.A > 0 ? restColor : hoverColor, Theme.Press);
         var bg = new SolidColorBrush(restColor);
         bd.Background = bg;
-        void Tint(Color to) => bg.BeginAnimation(SolidColorBrush.ColorProperty,
-            new ColorAnimation(to, new Duration(TimeSpan.FromMilliseconds(Fluent.Motion.HoverMs))));
-        bd.MouseEnter += (_, _) => Tint(hoverColor);
-        bd.MouseLeave += (_, _) => Tint(restColor);
+        bool inside = false;
+        void TintBg(Color to, int ms) => bg.BeginAnimation(SolidColorBrush.ColorProperty,
+            new ColorAnimation(to, new Duration(TimeSpan.FromMilliseconds(ms))));
+        bd.MouseEnter += (_, _) => { inside = true; TintBg(hoverColor, Fluent.Motion.HoverMs); };
+        bd.MouseLeave += (_, _) => { inside = false; TintBg(restColor, Fluent.Motion.ExitMs); };
+        bd.PreviewMouseLeftButtonDown += (_, _) => TintBg(pressColor, Fluent.Motion.PressMs);
+        // 抬起回到指针所在的这一档：还在框里就停悬停色，已经滑出去才回静止色。
+        bd.MouseLeftButtonUp += (_, _) => TintBg(inside ? hoverColor : restColor, Fluent.Motion.QuickMs);
     }
 
     /// <summary>逐行错位的间隔：取分层错位间隔的三分之一，四五行走完仍落在一次入场时长里。</summary>

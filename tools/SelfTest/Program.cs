@@ -4999,6 +4999,50 @@ static partial class SelfTest
                 + $"悬停后{(hoverFlat ? "底色都没变" : "有行换了底色")}"
                 + $"，底色{(onRamp ? "=层次台阶的行色" : "不在层次台阶上")}");
 
+            // 快捷键行的胶囊四档：静止 → 悬停 → 按下 → 抬起（指针还在里面）→ 离开。
+            // 「静止 = 台阶行色」这条同时看住填充助手会不会把底色抹回透明——
+            // 助手一开口就把 Background 换成自己那份，行就白垫了一层。
+            var hotPills = borders8.Cast<System.Windows.Controls.Border>()
+                .Where(b => b.Cursor == System.Windows.Input.Cursors.Hand && b.CornerRadius.TopLeft == 6
+                            && b.Background is System.Windows.Media.SolidColorBrush pbg
+                            && pbg.Color == Theme.RowBg)
+                .ToList();
+            var pill0 = hotPills.FirstOrDefault();
+            if (pill0 == null)
+            {
+                Chk("T220-hotkey-row-rest-on-ramp", false, "没找到垫在层次台阶上的快捷键行");
+            }
+            else
+            {
+                // 进/出用 MouseEventArgs，按下/抬起用 MouseButtonEventArgs：喂错参数类型，
+                // WPF 的鼠标事件簿会把 MouseEnter 的处理器按按键处理器去转，当场抛 InvalidCast。
+                // 动画中的画刷 ToString() 会印成 scRGB 浮点串（sc#1, 0.046…, …），拿字符串比颜色一定输。
+                // 这里按字节比，容 ±2：scRGB 转回 sRGB 有一格以内的舍入。
+                bool Near(System.Windows.Media.Color a, System.Windows.Media.Color b)
+                    => Math.Abs(a.R - b.R) <= 2 && Math.Abs(a.G - b.G) <= 2 && Math.Abs(a.B - b.B) <= 2;
+                bool IsAt(System.Windows.Media.Color want)
+                    => pill0.Background is System.Windows.Media.SolidColorBrush pc && Near(pc.Color, want);
+                string PillColor() => pill0.Background is System.Windows.Media.SolidColorBrush pcc
+                    ? $"#{pcc.Color.R:X2}{pcc.Color.G:X2}{pcc.Color.B:X2}" : "null";
+                // 进/出用 MouseEventArgs，按下/抬起用 MouseButtonEventArgs：喂错参数类型，
+                // WPF 的鼠标事件簿会把 MouseEnter 的处理器按按键处理器去转，当场抛 InvalidCast。
+                void RaiseEnter(System.Windows.RoutedEvent ev) => pill0.RaiseEvent(
+                    new System.Windows.Input.MouseEventArgs(System.Windows.Input.Mouse.PrimaryDevice, 0)
+                    { RoutedEvent = ev, Source = pill0 });
+                void RaiseBtn(System.Windows.RoutedEvent ev) => pill0.RaiseEvent(
+                    new System.Windows.Input.MouseButtonEventArgs(System.Windows.Input.Mouse.PrimaryDevice, 0,
+                        System.Windows.Input.MouseButton.Left) { RoutedEvent = ev, Source = pill0 });
+                Chk("T220-hotkey-row-rest-on-ramp", IsAt(Theme.RowBg), PillColor());
+                RaiseEnter(UIElement.MouseEnterEvent); PumpMs(240);
+                Chk("T220-hotkey-row-hover-steps-up", IsAt(Theme.RowHover), PillColor());
+                RaiseBtn(UIElement.PreviewMouseLeftButtonDownEvent); PumpMs(240);
+                Chk("T220-hotkey-row-press-steps-again", IsAt(Fluent.Mix(Theme.RowBg, Theme.Press)), PillColor());
+                RaiseBtn(UIElement.MouseLeftButtonUpEvent); PumpMs(240);
+                Chk("T220-hotkey-row-release-back-to-hover", IsAt(Theme.RowHover), PillColor());
+                RaiseEnter(UIElement.MouseLeaveEvent); PumpMs(240);
+                Chk("T220-hotkey-row-leave-back-to-rest", IsAt(Theme.RowBg), PillColor());
+            }
+
             // 用户主动打开的窗要在任务栏留个位置，被别的窗盖住才切得回来。
             // 只构造不显示：没走过 Show，任务栏不会真闪出一枚，也挂不上关窗回调。
             var plainSet = new FrameCapture.Overlays.SettingsWindow();
