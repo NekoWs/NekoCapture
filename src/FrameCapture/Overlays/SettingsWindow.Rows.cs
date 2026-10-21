@@ -158,71 +158,91 @@ public sealed partial class SettingsWindow : Window
         return g;
     }
 
-    /// <summary>自动保存位置行：整行可点，弹系统文件夹选择器；空路径显示默认「图片\FrameCapture」。</summary>
+    /// <summary>自动保存位置行：路径是可直接编辑的输入框，右侧一枚图标按钮弹系统文件夹选择器。
+    /// 空着就跟随默认「图片\FrameCapture」；回车或走开落定，Esc 作废。</summary>
     FrameworkElement PathRow()
     {
         var g = Row();
-        g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); // 更改列
+        g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); // 图标按钮列
         g.Children.Add(IconText("\uE838", Loc.T(K.Settings.SaveFolderAutoSavedCopies)));
-        var stack = new StackPanel
+
+        var box = new TextBox
         {
-            Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center,
-            // 整行可点，命中高度就得按可点的东西算：贴着文字只有 17 高，指尖偏一点就点空。
-            MinHeight = 28,
-            Cursor = Cursors.Hand, Background = Brushes.Transparent,
-            ToolTip = Loc.T(K.Settings.ClickToChooseTheSave),
+            FontSize = 12,
+            Foreground = new SolidColorBrush(Theme.Text),
+            Background = Brushes.Transparent,
+            BorderThickness = new Thickness(0),
+            CaretBrush = new SolidColorBrush(Theme.Text),
+            VerticalContentAlignment = VerticalAlignment.Center,
+            Padding = new Thickness(0),
+            ToolTip = Loc.T(K.Settings.SaveFolderAutoSavedCopies),
         };
-        // 这一行不摆「保存位置」标签：路径本身就是答案，左边那半句「自动保存副本」已经说清
-        // 这一行是什么；多一个标签就多占一截宽度，而这一行的宽度全该给路径。
-        var path = new TextBlock
+        // 空路径不是「没设置」，是「跟随默认」：占位文字把默认位置直接写出来，不必点开才知道存到哪
+        var hint = new TextBlock
         {
-            FontSize = 12, Foreground = new SolidColorBrush(Theme.TextDim),
-            VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0, 0, 0),
-            // 不给 MaxWidth：这一列是 *，宽度由所在行给。写死 250 会把整行撑到窗口右沿之外，
-            // 结果右侧「更改」被裁掉半截——路径该让位，不该把邻居挤出去。
-            // 宁可折行也不要省略号：这一行回答的是「存到哪去了」，
-            // 裁成「图片\Fram…」等于把问题原样还给用户。
-            TextWrapping = TextWrapping.Wrap,
+            Text = Loc.T(K.Settings.PicturesFramecaptureDefaultLocation),
+            FontSize = 12,
+            Foreground = new SolidColorBrush(Theme.TextDim),
+            VerticalAlignment = VerticalAlignment.Center,
+            IsHitTestVisible = false,
+            TextTrimming = TextTrimming.CharacterEllipsis,
         };
+        var inner = new Grid();
+        inner.Children.Add(box);
+        inner.Children.Add(hint);
+        // 圆角底 + 描边：TextBox 自己没有圆角；聚焦时描边转强调色，与取色器的输入框同一套
+        var field = new Border
+        {
+            Height = 30,
+            VerticalAlignment = VerticalAlignment.Center,
+            Background = new SolidColorBrush(Theme.TrackBg),
+            BorderBrush = new SolidColorBrush(Theme.Stroke),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(5),
+            Padding = new Thickness(9, 0, 9, 0),
+            Margin = new Thickness(0, 0, 6, 0),
+            Child = inner,
+        };
+        Grid.SetColumn(field, 1);
+        g.Children.Add(field);
+        var browse = Fluent.IconButton("\uE8B7", Loc.T(K.Settings.Change), 30, 14);
+        Grid.SetColumn(browse, 2);
+        g.Children.Add(browse);
+
+        void PaintHint() =>
+            // 聚焦时收起：光标会压在提示文字上，两串字叠在一起谁都读不清
+            hint.Visibility = box.Text.Length == 0 && !box.IsKeyboardFocusWithin ? Visibility.Visible : Visibility.Collapsed;
+
         void Refresh()
         {
             var p = _settings.Current.AutoSavePath;
-            var full = string.IsNullOrWhiteSpace(p) ? Loc.T(K.Settings.PicturesFramecaptureDefaultLocation) : p;
-            // 中段省略：这行要回答的是「存到哪去了」，答案在末尾；裁掉末尾等于把问题留着
-            path.Text = Fluent.TrimPathMiddle(full);
-            path.ToolTip = full;   // 省掉的那段交给悬停；「点击选择保存位置」那条提示挂在整行上，两处各说各的
+            box.Text = string.IsNullOrWhiteSpace(p) ? "" : p;
+            PaintHint();
         }
-        Refresh();
-        stack.Children.Add(path);
-        // 整行可点（弹文件夹选择器）：hover 时路径文字提亮，提示这块也能点，与右侧「更改」链接一致
-        stack.MouseEnter += (_, _) => path.Foreground = new SolidColorBrush(Theme.Text);
-        stack.MouseLeave += (_, _) => path.Foreground = new SolidColorBrush(Theme.TextDim);
-        Grid.SetColumn(stack, 1);
-        g.Children.Add(stack);
-        // 「更改」包一层 Border：裸 TextBlock 的可点区域只有字那么大（24×15），
-        // 而且整行被撑爆时它排在最后，最先被裁。内边距给它自己的呼吸，
-        // 最小命中高度与其它可点行一致，悬停/按压走 ChipHover 与其它胶囊同一套手感。
-        var browseText = new TextBlock
+
+        void Commit()
         {
-            Text = Loc.T(K.Settings.Change), FontSize = 12, Foreground = new SolidColorBrush(Fluent.AccentText()),
-            VerticalAlignment = VerticalAlignment.Center,
-        };
-        var browse = new Border
+            var raw = box.Text.Trim().Trim('"');
+            if (raw.Length > 0)
+            {
+                // 用户从别处粘来的路径常带 %USERPROFILE% 这类变量，展开成真路径才存得住
+                try { raw = Environment.ExpandEnvironmentVariables(raw); } catch { }
+                if (raw.Length > 3) raw = raw.TrimEnd('\\', '/');   // 盘根 "C:\" 保留，别把冒号后那一个也吃掉
+            }
+            if (raw != (_settings.Current.AutoSavePath ?? "")) _settings.Mutate(s => s.AutoSavePath = raw);
+            Refresh();
+        }
+
+        box.GotKeyboardFocus += (_, _) => { field.BorderBrush = new SolidColorBrush(Theme.Accent); PaintHint(); };
+        box.LostKeyboardFocus += (_, _) => { field.BorderBrush = new SolidColorBrush(Theme.Stroke); Commit(); };
+        box.TextChanged += (_, _) => PaintHint();
+        box.PreviewKeyDown += (_, e) =>
         {
-            MinHeight = 28,
-            Padding = new Thickness(10, 0, 10, 0),
-            CornerRadius = new CornerRadius(6),
-            Background = Brushes.Transparent,
-            Cursor = Cursors.Hand,
-            Margin = new Thickness(12, 0, 6, 0),
-            Child = browseText,
+            if (e.Key == Key.Enter) { Commit(); box.SelectAll(); e.Handled = true; }
+            // Esc 作废：把框里的字放回当前配置，设置一个字都不动
+            else if (e.Key == Key.Escape) { Refresh(); e.Handled = true; }
         };
-        Fluent.ChipHover(browse);
-        Grid.SetColumn(browse, 2);
-        g.Children.Add(browse);
-        // 文字链接 hover 才显下划线（默认干净、悬停才提示可点），比常驻下划线更克制
-        browse.MouseEnter += (_, _) => browseText.TextDecorations = TextDecorations.Underline;
-        browse.MouseLeave += (_, _) => browseText.TextDecorations = null;
+
         void Open()
         {
             using var dlg = new System.Windows.Forms.FolderBrowserDialog();
@@ -240,8 +260,8 @@ public sealed partial class SettingsWindow : Window
             }
             Refresh();
         }
-        stack.MouseLeftButtonDown += (_, e) => { Open(); e.Handled = true; };
-        browse.MouseLeftButtonDown += (_, e) => { Open(); e.Handled = true; };
+        browse.Click += (_, _) => Open();
+        Refresh();
         return g;
     }
 

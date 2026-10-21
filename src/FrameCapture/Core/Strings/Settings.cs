@@ -103,12 +103,7 @@ public static partial class K
         public static readonly Str ClickingAWindowThePicker = new(
             "settings.clickingAWindowThePicker",
             "选区窗里点一个吸附到的窗口，不再按屏幕矩形抓像素，而是真正截取该窗口本体——Win11 圆角处透明、浏览器/GPU 窗也干净，背景透明。关掉则点窗恢复旧的「按矩形区域截图」。拖框选区域不受影响；目标窗被别的窗遮挡或取帧失败时自动回退区域截图",
-            "Clicking a window the picker snapped to no longer grabs screen pixels by rectangle; it captures the window itself — transparent at Win11's rounded corners, clean on browser and GPU-composited windows, transparent behind. Off, clicking a window goes back to capturing the rectangle. Dragging a box is unaffected, and a covered window or a failed frame falls back to a rectangle capture");
-        public static readonly Str ClickToChooseTheSave = new(
-            "settings.clickToChooseTheSave",
-            "点击选择保存文件夹，自动保存副本和导出对话框都用它",
-            "Click to choose the save folder; auto-saved copies and export dialogs all use it");
-        public static readonly Str ClickToHearTheCurrent = new(
+            "Clicking a window the picker snapped to no longer grabs screen pixels by rectangle; it captures the window itself — transparent at Win11's rounded corners, clean on browser and GPU-composited windows, transparent behind. Off, clicking a window goes back to capturing the rectangle. Dragging a box is unaffected, and a covered window or a failed frame falls back to a rectangle capture");        public static readonly Str ClickToHearTheCurrent = new(
             "settings.clickToHearTheCurrent",
             "点一下试听当前提示音，选「自定义…」后也会立刻放一声让你确认",
             "Click to hear the current sound; choosing Custom also plays one right away so you can confirm it");
