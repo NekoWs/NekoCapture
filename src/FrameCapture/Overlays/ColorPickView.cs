@@ -43,7 +43,7 @@ public sealed class ColorPickView : StackPanel
             Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 3, ShadowDepth = 0, Opacity = 0.6 },
             IsHitTestVisible = false,
         };
-        var sv = new Grid { Width = 180, Height = 120, Cursor = Cursors.Cross, ClipToBounds = true };
+        var sv = new Grid { Height = 120, Cursor = Cursors.Cross, ClipToBounds = true };
         sv.Children.Add(_svHue); sv.Children.Add(_svVal);
         // 游标必须活在 Canvas 里：Canvas.SetLeft/Top 对 Grid 子级无效，否则游标钉死中央
         var knobHost = new Canvas { IsHitTestVisible = false };
@@ -79,16 +79,27 @@ public sealed class ColorPickView : StackPanel
         #endregion
 
         #region 预览（棋盘底看透明）
-        var preview = new Grid { Width = 28, Height = 28, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(8, 0, 0, 0) };
-        preview.Children.Add(new Rectangle { Width = 28, Height = 28, Fill = Checker(), RadiusX = 4, RadiusY = 4 });
-        _previewRect = new Rectangle { Width = 28, Height = 28, RadiusX = 4, RadiusY = 4, Stroke = new SolidColorBrush(Color.FromArgb(0x66, Theme.Text.R, Theme.Text.G, Theme.Text.B)), StrokeThickness = 1 };
+        var preview = new Grid { Width = 26, Height = 26, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(8, 0, 0, 0) };
+        preview.Children.Add(new Rectangle { Width = 26, Height = 26, Fill = Checker(), RadiusX = 4, RadiusY = 4 });
+        _previewRect = new Rectangle { Width = 26, Height = 26, RadiusX = 4, RadiusY = 4, Stroke = new SolidColorBrush(Color.FromArgb(0x66, Theme.Text.R, Theme.Text.G, Theme.Text.B)), StrokeThickness = 1 };
         preview.Children.Add(_previewRect);
 
-        var top = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            Children = { Round(sv, 6), Spacing(6), Round(hueHost, 4), Spacing(6), Round(alphaHost, 4), preview },
-        };
+        // 上排交给 Grid：SV 区坐在星型列里，把「下排比它宽出来的那截」全吃掉。
+        // 不用「先量一遍再算宽度」：构造期的测量会被父级缓存住，之后改子元素宽度并不会让它重新长出来，
+        // 结果 SV 区只剩一层边框。星型列由布局自己分配，不存在这个先后问题。
+        var top = new Grid();
+        top.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star), MinWidth = 180 });
+        for (int i = 0; i < 3; i++) top.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        var svCell = Round(sv, 6);
+        var hueCell = Round(hueHost, 4);
+        hueCell.Margin = new Thickness(6, 0, 0, 0);
+        var alphaCell = Round(alphaHost, 4);
+        alphaCell.Margin = new Thickness(6, 0, 0, 0);
+        preview.Margin = new Thickness(8, 0, 0, 0);
+        top.Children.Add(svCell); Grid.SetColumn(svCell, 0);
+        top.Children.Add(hueCell); Grid.SetColumn(hueCell, 1);
+        top.Children.Add(alphaCell); Grid.SetColumn(alphaCell, 2);
+        top.Children.Add(preview); Grid.SetColumn(preview, 3);
         #endregion
 
         #region HEX + RGBA 直填（宿主 Popup 继承图标字体，文本框显式复位）
@@ -102,9 +113,11 @@ public sealed class ColorPickView : StackPanel
         NumCommit(_aBox, v => { _a = Math.Clamp(v, 0, 255) / 255.0; Sync(); Fire(); });
         var bottom = new StackPanel
         {
-            Orientation = Orientation.Horizontal, Margin = new Thickness(0, 8, 0, 0),
-            Children = { Field(_hexBox, 104), Spacing(8), Labeled("R", _rBox), Spacing(6), Labeled("G", _gBox), Spacing(6), Labeled("B", _bBox), Spacing(6), Labeled("A", _aBox) },
+            Orientation = Orientation.Horizontal, Margin = new Thickness(0, 6, 0, 0),
+            Children = { Field(_hexBox, 96), Spacing(8), Labeled("R", _rBox), Spacing(6), Labeled("G", _gBox), Spacing(6), Labeled("B", _bBox), Spacing(6), Labeled("A", _aBox) },
         };
+        // 上下两排同宽由布局保证：上排是 Grid（SV 占星型列），下排的自然宽度决定整块的总宽，
+        // 星型列把差值全吃掉，右端不会留一块空着的暗面。
         Orientation = Orientation.Vertical;
         Children.Add(top); Children.Add(bottom);
     }
@@ -177,12 +190,26 @@ public sealed class ColorPickView : StackPanel
     }
 
     static UIElement Spacing(double w) => new Rectangle { Width = w };
-    // 圆角包裹（Border 按 CornerRadius 裁剪子内容）+ 细描边，SV/色相/透明条不生硬
-    static Border Round(UIElement e, double r) => new()
+
+    // 圆角包裹 + 细描边，SV/色相/透明条不生硬。
+    // Border 的 CornerRadius 只把描边画圆，子内容仍按矩形边界裁——方角会从圆角外侧露出来，
+    // 露出来的那一圈正是「四角被圆角切掉」的样子。用几何裁剪把内容收进同一条圆角轮廓，
+    // 边缘由 WPF 自己抗锯齿，不需要再垫一层遮罩。
+    static Border Round(UIElement e, double r)
     {
-        CornerRadius = new CornerRadius(r), ClipToBounds = true, Child = e,
-        BorderBrush = new SolidColorBrush(Theme.Stroke), BorderThickness = new Thickness(1),
-    };
+        var b = new Border
+        {
+            CornerRadius = new CornerRadius(r), ClipToBounds = true, Child = e,
+            BorderBrush = new SolidColorBrush(Theme.Stroke), BorderThickness = new Thickness(1),
+        };
+        void Clip()
+        {
+            if (b.ActualWidth <= 0 || b.ActualHeight <= 0) return;
+            b.Clip = new RectangleGeometry(new Rect(0, 0, b.ActualWidth, b.ActualHeight), r, r);
+        }
+        b.SizeChanged += (_, _) => Clip();
+        return b;
+    }
     static Rectangle ThumbLine() => new()
     {
         Height = 3, RadiusX = 1.5, RadiusY = 1.5, Fill = Brushes.White,
@@ -196,8 +223,8 @@ public sealed class ColorPickView : StackPanel
             Orientation = Orientation.Horizontal,
             Children =
             {
-                new TextBlock { Text = t, FontFamily = new FontFamily("Segoe UI"), FontSize = 11, Foreground = new SolidColorBrush(Theme.TextDim), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 4, 0) },
-                Field(box, 40),
+                new TextBlock { Text = t, FontFamily = new FontFamily("Segoe UI"), FontSize = 11, Foreground = new SolidColorBrush(Theme.TextDim), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 3, 0) },
+                Field(box, 34),
             },
         },
     };
