@@ -129,6 +129,10 @@ public sealed class CountdownWindow : Window
             FontWeight = FontWeights.Bold,
             Foreground = new SolidColorBrush(Core.Fluent.AccentText()),
             FontFamily = new FontFamily("Segoe UI"),
+            // 外壳是 SizeToContent 的：数字从三位掉到两位（100→99、10→9）那一下，
+            // 整张卡片会跟着窄一截，倒计时看起来在抖。给数字留出三位的位置，
+            // 卡片宽度由标题那行定，与秒数是几位数无关。
+            MinWidth = 96,
             HorizontalAlignment = HorizontalAlignment.Center,
             TextAlignment = TextAlignment.Center,
             Margin = new Thickness(0, 4, 0, 2),
