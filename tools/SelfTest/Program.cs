@@ -795,6 +795,101 @@ static partial class SelfTest
         return 0;
     }
 
+    [System.Runtime.InteropServices.DllImport("user32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+    static extern IntPtr FindWindowW(string? cls, string title);
+    static IntPtr ScanFindWindow(string title) => FindWindowW(null, title);
+    /// <summary>扫描取证：抓一整窗，按网格在每个点上跑一次视觉吸附，把吸到的框画在图上输出。
+    /// 目的是让人一眼看出「这套判据在这个界面上到底认出了什么」——认得准不准不必靠读代码判断。</summary>
+    /// <param name="args">args[1] = 窗口标题（精确），args[2] = 输出 PNG，args[3] = 网格步长（可选，默认 48）。</param>
+    /// <returns>0 = 已出图；1 = 抓不到窗口；2 = 参数不对。</returns>
+    static int ScanVisual(string[] args)
+    {
+        var app = new Application();
+        if (args.Length < 3) { Console.WriteLine("用法: selftest scanvisual <窗口标题> <out.png> [步长]"); return 2; }
+        int step = args.Length >= 4 && int.TryParse(args[3], out var st) ? Math.Max(8, st) : 48;
+        int minLine = args.Length >= 5 && int.TryParse(args[4], out var ml) ? Math.Max(4, ml) : FrameCapture.Core.VisualSnap.MinLine;
+        int edgeThr = args.Length >= 6 && int.TryParse(args[5], out var et) ? Math.Max(2, et) : 24;
+        IntPtr hwnd = ScanFindWindow(args[1]);
+        if (hwnd == IntPtr.Zero) { Console.WriteLine($"找不到窗口「{args[1]}」"); return 1; }
+        var (frame, region) = FrameCapture.Capture.WindowCapture.Grab(hwnd, includeShadow: false);
+        if (frame == null) { Console.WriteLine("窗口抓取失败"); return 1; }
+        Console.WriteLine($"窗口 {region.X},{region.Y} {region.W}x{region.H}  步长 {step}  直线≥{minLine}px  边缘门限 {edgeThr}");
+
+        // 在每个格点上跑一次视觉吸附；同一块框只留一份
+        var found = new List<FrameCapture.Capture.RectI>();
+        int points = 0;
+        var swScan = System.Diagnostics.Stopwatch.StartNew();
+        for (int y = region.Y + 8; y < region.Y + region.H - 8; y += step)
+        {
+            for (int x = region.X + 8; x < region.X + region.W - 8; x += step)
+            {
+                points++;
+                int vw = Math.Min(FrameCapture.Core.VisualSnap.WindowSide, region.W);
+                int vh = Math.Min(FrameCapture.Core.VisualSnap.WindowSide, region.H);
+                var view = new FrameCapture.Capture.RectI(
+                    Math.Clamp(x - vw / 2, region.X, region.X + region.W - vw),
+                    Math.Clamp(y - vh / 2, region.Y, region.Y + region.H - vh),
+                    vw, vh);
+                var slice = new byte[view.W * view.H * 4];
+                for (int row = 0; row < view.H; row++)
+                    Array.Copy(frame.Bgra, ((view.Y - region.Y + row) * frame.W + (view.X - region.X)) * 4,
+                        slice, row * view.W * 4, view.W * 4);
+                var r = FrameCapture.Core.VisualSnap.Best(slice, view.W, view.H, view.X, view.Y, x, y, minLine, edgeThr);
+                if (r is not { } got) continue;
+                bool dup = false;
+                foreach (var f in found)
+                    if (Math.Abs(f.X - got.X) <= 3 && Math.Abs(f.Y - got.Y) <= 3
+                        && Math.Abs(f.W - got.W) <= 3 && Math.Abs(f.H - got.H) <= 3) { dup = true; break; }
+                if (!dup) found.Add(got);
+            }
+        }
+        Console.WriteLine($"扫了 {points} 个点，{swScan.ElapsedMilliseconds} ms，认出的独立框 {found.Count} 个");
+
+        // 画框：先铺整窗，再在副本上描边
+        var visual = new System.Windows.Media.DrawingVisual();
+        using (var dc = visual.RenderOpen())
+        {
+            var src = FrameCapture.Services.BgraImage.ToSource(frame);
+            dc.DrawImage(src, new Rect(0, 0, frame.W, frame.H));
+            var pen = new System.Windows.Media.Pen(new System.Windows.Media.SolidColorBrush(
+                System.Windows.Media.Color.FromArgb(0xFF, 0xFF, 0x3B, 0x30)), 2);
+            var penThin = new System.Windows.Media.Pen(new System.Windows.Media.SolidColorBrush(
+                System.Windows.Media.Color.FromArgb(0xCC, 0x00, 0xE5, 0x7A)), 1);
+            // 先把「认作长直线的列与行」画出来：这是判据真正看得见的东西，比只有红框更能说明问题
+            var linePen = new System.Windows.Media.Pen(new System.Windows.Media.SolidColorBrush(
+                System.Windows.Media.Color.FromArgb(0x66, 0x40, 0xC4, 0xFF)), 1);
+            var colRunAll = new int[frame.W];
+            for (int x = 1; x < frame.W - 1; x++)
+            {
+                int run = 0, best = 0;
+                for (int y = 1; y < frame.H - 1; y++)
+                {
+                    int i = (y * frame.W + x) * 4;
+                    int g = (frame.Bgra[i] * 30 + frame.Bgra[i + 1] * 59 + frame.Bgra[i + 2] * 11) / 100;
+                    int g2 = (frame.Bgra[i + 4] * 30 + frame.Bgra[i + 5] * 59 + frame.Bgra[i + 6] * 11) / 100;
+                    if (Math.Abs(g2 - g) >= edgeThr) { run++; if (run > best) best = run; } else run = 0;
+                }
+                colRunAll[x] = best;
+            }
+            for (int x = 1; x < frame.W - 1; x++)
+                if (colRunAll[x] >= minLine) dc.DrawLine(linePen, new System.Windows.Point(x, 0), new System.Windows.Point(x, frame.H));
+            for (int f2 = 0; f2 < found.Count; f2++)
+            {
+                var rr = new Rect(found[f2].X - region.X, found[f2].Y - region.Y, found[f2].W, found[f2].H);
+                dc.DrawRectangle(null, rr.Width > 120 || rr.Height > 120 ? pen : penThin, rr);
+            }
+        }
+        var rtb = new System.Windows.Media.Imaging.RenderTargetBitmap(frame.W, frame.H, 96, 96,
+            System.Windows.Media.PixelFormats.Pbgra32);
+        rtb.Render(visual);
+        var enc = new System.Windows.Media.Imaging.PngBitmapEncoder();
+        enc.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(rtb));
+        Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(args[2]))!);
+        using (var f = File.Create(args[2])) enc.Save(f);
+        Console.WriteLine($"saved {args[2]} {frame.W}x{frame.H}  框数 {found.Count}");
+        return 0;
+    }
+
     static int RenderToast(string outPath)
     {
         var app = new Application();
@@ -987,6 +1082,7 @@ static partial class SelfTest
         if (args.Length == 2 && args[0] == "renderpick") return RenderPick(args[1]);
         if (args.Length == 2 && args[0] == "rendertoast") return RenderToast(args[1]);
         if (args.Length >= 3 && args[0] == "elemsnap") return ElemSnapProbe(args);
+        if (args.Length >= 3 && args[0] == "scanvisual") return ScanVisual(args);
         if (args.Length == 2 && args[0] == "editorwave") return EditorWave(args[1]);
         if (args.Length == 2 && args[0] == "scrollwave") return ScrollWave(args[1]);
         if (args.Length == 2 && args[0] == "renderslider") return RenderSlider(args[1]);

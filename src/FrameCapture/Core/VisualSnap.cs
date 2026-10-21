@@ -42,12 +42,12 @@ public static class VisualSnap
         if (_cacheX != int.MinValue && (physX >> 2) == (_cacheX >> 2) && (physY >> 2) == (_cacheY >> 2))
             return _cache;
 
-        int half = WindowSide / 2;
+        // 取景窗口要整块落在显示器里：只夹左上角会让右边超出，切片读到越界、坐标也算错。
+        int vw = Math.Min(WindowSide, monitor.W), vh = Math.Min(WindowSide, monitor.H);
         var view = new RectI(
-            Math.Max(monitor.X, physX - half),
-            Math.Max(monitor.Y, physY - half),
-            Math.Min(WindowSide, monitor.W),
-            Math.Min(WindowSide, monitor.H));
+            Math.Clamp(physX - vw / 2, monitor.X, monitor.X + monitor.W - vw),
+            Math.Clamp(physY - vh / 2, monitor.Y, monitor.Y + monitor.H - vh),
+            vw, vh);
         RectI? got = null;
         if (view.W >= MinSide && view.H >= MinSide)
         {
@@ -71,8 +71,11 @@ public static class VisualSnap
     /// <param name="originY">这块像素左上角的桌面物理纵坐标。</param>
     /// <param name="physX">光标桌面物理横坐标。</param>
     /// <param name="physY">光标桌面物理纵坐标。</param>
+    /// <param name="minLine">直线的最小连续长度；越小越容易凑出框，也越容易误吸。默认 <see cref="MinLine"/>。</param>
+    /// <param name="edgeThreshold">单像素的边缘门限；越小越能看见浅色细边框。默认 <see cref="EdgeThreshold"/>。</param>
     /// <returns>吸到的矩形；没有长直线围成的闭合框时为 null。</returns>
-    public static RectI? Best(byte[] bgra, int w, int h, int originX, int originY, int physX, int physY)
+    public static RectI? Best(byte[] bgra, int w, int h, int originX, int originY, int physX, int physY,
+        int minLine = MinLine, int edgeThreshold = EdgeThreshold)
     {
         int cx = physX - originX, cy = physY - originY;
         if (w < MinSide || h < MinSide || cx < 1 || cy < 1 || cx >= w - 1 || cy >= h - 1) return null;
@@ -87,7 +90,7 @@ public static class VisualSnap
             for (int y = 1; y < h - 1; y++)
             {
                 int i = (y * w + x) * 4;
-                if (Math.Abs(Gray(bgra, i + 4) - Gray(bgra, i - 4)) >= EdgeThreshold) { run++; if (run > best) best = run; }
+                if (Math.Abs(Gray(bgra, i + 4) - Gray(bgra, i - 4)) >= edgeThreshold) { run++; if (run > best) best = run; }
                 else run = 0;
             }
             colRun[x] = best;
@@ -99,7 +102,7 @@ public static class VisualSnap
             for (int x = 1; x < w - 1; x++)
             {
                 int i = o + x * 4;
-                if (Math.Abs(Gray(bgra, i + w * 4) - Gray(bgra, i - w * 4)) >= EdgeThreshold) { run++; if (run > best) best = run; }
+                if (Math.Abs(Gray(bgra, i + w * 4) - Gray(bgra, i - w * 4)) >= edgeThreshold) { run++; if (run > best) best = run; }
                 else run = 0;
             }
             rowRun[y] = best;
@@ -107,10 +110,10 @@ public static class VisualSnap
 
         // 第二遍：从光标向四个方向各取最近的一条「够长的线」
         int left = -1, right = -1, top = -1, bottom = -1;
-        for (int x = cx; x >= 1; x--) if (colRun[x] >= MinLine) { left = x; break; }
-        for (int x = cx; x < w - 1; x++) if (colRun[x] >= MinLine) { right = x; break; }
-        for (int y = cy; y >= 1; y--) if (rowRun[y] >= MinLine) { top = y; break; }
-        for (int y = cy; y < h - 1; y++) if (rowRun[y] >= MinLine) { bottom = y; break; }
+        for (int x = cx; x >= 1; x--) if (colRun[x] >= minLine) { left = x; break; }
+        for (int x = cx; x < w - 1; x++) if (colRun[x] >= minLine) { right = x; break; }
+        for (int y = cy; y >= 1; y--) if (rowRun[y] >= minLine) { top = y; break; }
+        for (int y = cy; y < h - 1; y++) if (rowRun[y] >= minLine) { bottom = y; break; }
         if (left < 0 || right < 0 || top < 0 || bottom < 0) return null;
 
         int bw = right - left, bh = bottom - top;
@@ -118,10 +121,10 @@ public static class VisualSnap
         // 贴着取景窗口边缘的框是不完整的（真实控件比窗口还大），不采用
         if (left <= 1 || top <= 1 || right >= w - 2 || bottom >= h - 2) return null;
         // 四条边在框范围内要基本连续：散点凑出来的「边」不算
-        if (CoverageV(bgra, w, left, top, bottom) < MinCoverage) return null;
-        if (CoverageV(bgra, w, right, top, bottom) < MinCoverage) return null;
-        if (CoverageH(bgra, w, top, left, right) < MinCoverage) return null;
-        if (CoverageH(bgra, w, bottom, left, right) < MinCoverage) return null;
+        if (CoverageV(bgra, w, left, top, bottom, edgeThreshold) < MinCoverage) return null;
+        if (CoverageV(bgra, w, right, top, bottom, edgeThreshold) < MinCoverage) return null;
+        if (CoverageH(bgra, w, top, left, right, edgeThreshold) < MinCoverage) return null;
+        if (CoverageH(bgra, w, bottom, left, right, edgeThreshold) < MinCoverage) return null;
         return new RectI(originX + left, originY + top, bw, bh);
     }
 
@@ -131,14 +134,15 @@ public static class VisualSnap
     /// <param name="x">列号。</param>
     /// <param name="top">范围上界。</param>
     /// <param name="bottom">范围下界。</param>
+    /// <param name="edgeThreshold">边缘门限。</param>
     /// <returns>0..1 的比例。</returns>
-    static double CoverageV(byte[] p, int w, int x, int top, int bottom)
+    static double CoverageV(byte[] p, int w, int x, int top, int bottom, int edgeThreshold)
     {
         int hit = 0, all = Math.Max(1, bottom - top);
         for (int y = top; y < bottom; y++)
         {
             int i = (y * w + x) * 4;
-            if (Math.Abs(Gray(p, i + 4) - Gray(p, i - 4)) >= EdgeThreshold) hit++;
+            if (Math.Abs(Gray(p, i + 4) - Gray(p, i - 4)) >= edgeThreshold) hit++;
         }
         return (double)hit / all;
     }
@@ -149,14 +153,15 @@ public static class VisualSnap
     /// <param name="y">行号。</param>
     /// <param name="left">范围左界。</param>
     /// <param name="right">范围右界。</param>
+    /// <param name="edgeThreshold">边缘门限。</param>
     /// <returns>0..1 的比例。</returns>
-    static double CoverageH(byte[] p, int w, int y, int left, int right)
+    static double CoverageH(byte[] p, int w, int y, int left, int right, int edgeThreshold)
     {
         int hit = 0, all = Math.Max(1, right - left);
         for (int x = left; x < right; x++)
         {
             int i = (y * w + x) * 4;
-            if (Math.Abs(Gray(p, i + w * 4) - Gray(p, i - w * 4)) >= EdgeThreshold) hit++;
+            if (Math.Abs(Gray(p, i + w * 4) - Gray(p, i - w * 4)) >= edgeThreshold) hit++;
         }
         return (double)hit / all;
     }
