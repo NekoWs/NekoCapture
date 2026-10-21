@@ -6091,6 +6091,55 @@ static partial class SelfTest
         }
         catch (Exception e) { Chk("T219-elevation-ramp", false, e.Message); }
 
+        // 工具条的选中语义：浏览是「没在画」这个状态，不是目录里的一把工具，
+        // 所以整条没有高亮才是它对的样子；选一把就只刷那一枚，再点同一枚回到浏览。
+        try
+        {
+            var stTool = new SettingsService();
+            var seqTool = new CapturedSequence
+            {
+                Frames = new List<CapturedFrame> { MovingSquare(160, 90, 0, 1) },
+                Region = new RectI(0, 0, 160, 90),
+                MonitorBounds = new RectI(0, 0, 1920, 1080),
+            };
+            var winTool = new FrameCapture.Overlays.EditorWindow(stTool, seqTool);
+            var inst = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+            var stat = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static;
+            var ty = typeof(FrameCapture.Overlays.EditorWindow);
+            var list = ((System.Collections.IEnumerable)ty.GetField("_toolBtns", inst)!.GetValue(winTool)!)
+                .Cast<System.Windows.Controls.Button>().ToList();
+            var order = (Array)ty.GetField("ToolOrder", stat)!.GetValue(null)!;
+            var toolType = order.GetValue(0)!.GetType();
+            object? CurTool() => ty.GetField("_tool", inst)!.GetValue(winTool);
+            void Pick(string name) => ty.GetMethod("SetTool", inst)!.Invoke(winTool, new[] { Enum.Parse(toolType, name) });
+            // 动画中的画刷 ToString() 是 scRGB 串，按字节比、容 ±2
+            bool Active(System.Windows.Controls.Button b) =>
+                b.Background is System.Windows.Media.SolidColorBrush sb
+                && Math.Abs(sb.Color.R - Theme.Accent.R) <= 2
+                && Math.Abs(sb.Color.G - Theme.Accent.G) <= 2
+                && Math.Abs(sb.Color.B - Theme.Accent.B) <= 2;
+            Chk("T221-tool-strip-buttons-match-catalog", list.Count == order.Length,
+                $"工具按钮 {list.Count} 枚，工具目录 {order.Length} 把");
+            // 浏览不是目录里的一把工具，是「没在画」这个状态：整条没有高亮才是它对的样子。
+            // 怎么回浏览这件事写在编辑器首次打开的引导里（再点同一枚 = 回浏览），表面不再多占一个字。
+            Chk("T221-browse-state-paints-nothing",
+                Equals(CurTool(), Enum.Parse(toolType, "Browse")) && list.Count(Active) == 0,
+                $"当前={CurTool()}，高亮 {list.Count(Active)} 枚");
+            Pick("Rect");
+            PumpMs(240);   // 选中态是动画刷的，不等走完就是拿「还没画完」当「没高亮」
+            int rectIdx = Array.IndexOf(order, Enum.Parse(toolType, "Rect"));
+            Chk("T221-picked-tool-is-the-only-painted",
+                Equals(CurTool(), Enum.Parse(toolType, "Rect")) && Active(list[rectIdx]) && list.Count(Active) == 1,
+                $"当前={CurTool()}，高亮 {list.Count(Active)} 枚");
+            Pick("Rect");   // 再点同一枚 = 回浏览
+            PumpMs(240);
+            Chk("T221-toggle-same-tool-back-to-browse",
+                Equals(CurTool(), Enum.Parse(toolType, "Browse")) && list.Count(Active) == 0,
+                $"当前={CurTool()}，高亮 {list.Count(Active)} 枚");
+            winTool.Close();
+        }
+        catch (Exception e) { Chk("T221-tool-highlight-on-open", false, e.Message); }
+
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");
         return fail == 0 ? 0 : 1;
     }

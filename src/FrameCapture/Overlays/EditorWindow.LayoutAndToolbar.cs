@@ -19,6 +19,18 @@ public sealed partial class EditorWindow : Window
     Button IconBtn(string glyph, string tip, double size = 28) =>
         Fluent.IconButton(glyph, tip, size, 13);
 
+    /// <summary>工具条里的分组分隔线：一根居中的短细线。顶天立地的通高线会把一条工具条切成格子，
+    /// 「这几枚是一组」靠断开加留白就说清了；颜色取软描边那一档——成排出现的线不该抢内容。</summary>
+    /// <returns>一帧分隔线。</returns>
+    static FrameworkElement BarDivider() => new System.Windows.Shapes.Rectangle
+    {
+        Width = 1,
+        Height = 18,
+        VerticalAlignment = VerticalAlignment.Center,
+        Fill = new SolidColorBrush(Theme.StrokeSoft),
+        Margin = new Thickness(9, 0, 9, 0),
+    };
+
     // 文字按钮（非图标字体）：字号步进器 A−/A+ 用，走同一 IconButton 模板保持悬停/按压手感一致
     Button TextSizeBtn(string text, string tip)
     {
@@ -117,8 +129,7 @@ public sealed partial class EditorWindow : Window
         }
         _hud.Foreground = new SolidColorBrush(Theme.Text);
         // 选中语言随行：工具/线宽的前景色随主题（选中项反白、未选中项 Theme.Text），否则换肤后文字不可读
-        for (int i = 0; i < _toolBtns.Count; i++)
-            Highlight(_toolBtns[i], ToolOrder[i] == _tool);
+        RefreshToolHighlight();
         RefreshWidths();
         foreach (var p in new[] { _playPanel, _toolPanel })
             if (p != null)
@@ -283,7 +294,8 @@ public sealed partial class EditorWindow : Window
             _toolBtns.Add(b);
             bar.Children.Add(b);
         }
-        bar.Children.Add(new System.Windows.Shapes.Rectangle { Width = 1, Fill = new SolidColorBrush(Color.FromArgb(Theme.Stroke.A, Theme.Stroke.R, Theme.Stroke.G, Theme.Stroke.B)), Margin = new Thickness(8, 6, 8, 6) });
+        RefreshToolHighlight();   // 建完就刷一次：浏览态没人被刷，选中的是恢复来的上一把时立刻看得出
+        bar.Children.Add(BarDivider());
         for (int i = 0; i < Swatches.Length; i++)
         {
             int idx = i;
@@ -322,7 +334,7 @@ public sealed partial class EditorWindow : Window
         _recentHost = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
         bar.Children.Add(_recentHost);
         RebuildRecentSwatches();
-        bar.Children.Add(new System.Windows.Shapes.Rectangle { Width = 1, Fill = new SolidColorBrush(Color.FromArgb(Theme.Stroke.A, Theme.Stroke.R, Theme.Stroke.G, Theme.Stroke.B)), Margin = new Thickness(8, 6, 8, 6) });
+        bar.Children.Add(BarDivider());
         foreach (var (w, lbl) in new[] { (0, Loc.T(K.Editor.Thin)), (1, Loc.T(K.Editor.Medium)), (2, Loc.T(K.Editor.Bold)) }.Select((t, i) => (t.Item1, t.Item2)))
         {
             int idx = w;
@@ -341,7 +353,7 @@ public sealed partial class EditorWindow : Window
         bar.Children.Add(wMore);
         // 字号步进器：仅文字工具/选中文字时可见。A−/A+ 调字号——选中文字=改该文字（可撤销），文字工具下=定下次文字字号。
         _fontGroup = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Visibility = Visibility.Collapsed };
-        _fontGroup.Children.Add(new System.Windows.Shapes.Rectangle { Width = 1, Fill = new SolidColorBrush(Color.FromArgb(Theme.Stroke.A, Theme.Stroke.R, Theme.Stroke.G, Theme.Stroke.B)), Margin = new Thickness(8, 6, 8, 6) });
+        _fontGroup.Children.Add(BarDivider());
         var fMinus = TextSizeBtn("A\u2212", Loc.T(K.Editor.SmallerText)); fMinus.Click += (_, _) => StepFontSize(-1);
         var fPlus = TextSizeBtn("A+", Loc.T(K.Editor.LargerText)); fPlus.Click += (_, _) => StepFontSize(+1);
         _fontLabel = new TextBlock { FontFamily = new FontFamily("Segoe UI"), FontSize = 11, Foreground = new SolidColorBrush(Theme.Text), VerticalAlignment = VerticalAlignment.Center, MinWidth = 36, TextAlignment = TextAlignment.Center };
@@ -349,7 +361,7 @@ public sealed partial class EditorWindow : Window
         _fontGroup.Children.Add(_fontLabel);
         _fontGroup.Children.Add(fPlus);
         bar.Children.Add(_fontGroup);
-        bar.Children.Add(new System.Windows.Shapes.Rectangle { Width = 1, Fill = new SolidColorBrush(Color.FromArgb(Theme.Stroke.A, Theme.Stroke.R, Theme.Stroke.G, Theme.Stroke.B)), Margin = new Thickness(8, 6, 8, 6) });
+        bar.Children.Add(BarDivider());
         var undo = IconBtn("", Loc.T(K.Editor.Undo));
         undo.Click += (_, _) => UndoAnn();
         _undoBtn = undo;

@@ -252,12 +252,19 @@ public sealed partial class EditorWindow
         _sel = null; // 换工具即丢选中（选中只属于选中工具）
         _canvas.IsHitTestVisible = _tool != Tool.Browse;   // 浏览态画布不可命中（标注仍显示、平移穿透），绘制态可命中
         _canvas.Cursor = _tool switch { Tool.Browse or Tool.Select => Cursors.Arrow, Tool.Text => Cursors.IBeam, _ => Cursors.Cross };
-        for (int i = 0; i < _toolBtns.Count; i++)
-            Highlight(_toolBtns[i], ToolOrder[i] == _tool);
+        RefreshToolHighlight();
         UpdateFontStepper();
     }
 
     void Highlight(Button b, bool on) => Core.Fluent.HighlightBtn(b, on);
+
+    /// <summary>把当前工具那颗按钮刷成选中态。建完工具条、换肤、切换工具都走这里：
+    /// 选中态只有一处算法，三处各写一遍迟早分叉。浏览态没有任何一把被刷——
+    /// 浏览是「没在画」这个状态，不是工具目录里的一把工具。</summary>
+    void RefreshToolHighlight()
+    {
+        for (int i = 0; i < _toolBtns.Count; i++) Highlight(_toolBtns[i], ToolOrder[i] == _tool);
+    }
     #endregion
 
     #region 记住上次的工具/颜色/粗细
