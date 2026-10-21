@@ -251,11 +251,43 @@ public sealed class HelpWindow : Window
         // 128 只够一条，第二条会在 + 号上被劈开，Ctrl+Alt / +R 读起来像两个键。
         g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(158) });
         g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        var kt = new TextBlock { Text = k, FontSize = 12.5, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(Core.Fluent.AccentText()), VerticalAlignment = VerticalAlignment.Top, TextWrapping = TextWrapping.Wrap };
+        var kt = KeyCell(k);
         var vt = new TextBlock { Text = v, FontSize = 12.5, Foreground = new SolidColorBrush(Theme.Text), TextWrapping = TextWrapping.Wrap, LineHeight = 17 };
         Grid.SetColumn(kt, 0); Grid.SetColumn(vt, 1);
         g.Children.Add(kt); g.Children.Add(vt);
         p.Children.Add(g);
+    }
+
+    /// <summary>帮助页键位列的长相：键帽，与设置页、就绪卡同一副长相。
+    /// 这一列以前是蓝色粗体文字，读起来像小标题，不像要按的键——而这一页正是迷路的人最先翻到的地方。
+    /// 含中文的不是键位（「未设键」这类），照文字排；多条按法并排，中间一条斜杠。</summary>
+    /// <param name="k">键位串，如 <c>F6</c>、<c>Ctrl+Alt+R</c>、<c>Enter / Esc</c>。</param>
+    /// <returns>可直接放进网格那一列的元素。</returns>
+    static FrameworkElement KeyCell(string k)
+    {
+        var text = new TextBlock
+        {
+            Text = k, FontSize = 12.5, FontWeight = FontWeights.SemiBold,
+            Foreground = new SolidColorBrush(Core.Fluent.AccentText()),
+            VerticalAlignment = VerticalAlignment.Top, TextWrapping = TextWrapping.Wrap,
+        };
+        if (k.Length == 0 || k.Any(c => c >= 0x4E00 && c <= 0x9FFF)) return text;
+        // 多条按法由 DescribeKeysFor 用「本地化逗号」拼：中文是全角「，」，英文才是 ", "。
+        // 只按半角切，中文帮助里第一枚键帽就成了「F6，」。
+        var seps = new[] { Loc.T(K.Hotkeys.Comma), ", ", " / ", "/" };
+        var chords = k.Split(seps, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (chords.Length == 0) return text;
+        var sp = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Top };
+        for (int i = 0; i < chords.Length; i++)
+        {
+            if (i > 0) sp.Children.Add(new TextBlock
+            {
+                Text = "/", FontSize = 11.5, Foreground = new SolidColorBrush(Theme.TextDim),
+                VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(5, 0, 5, 0),
+            });
+            sp.Children.Add(Keycaps.Row(chords[i], Core.Fluent.KeycapTheme(11.5)));
+        }
+        return sp;
     }
 
     static void Note(StackPanel p, string v)

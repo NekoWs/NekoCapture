@@ -6232,6 +6232,41 @@ static partial class SelfTest
         }
         catch (Exception e) { Chk("T223-card-edge", false, e.Message); }
 
+        // 帮助页的键位列长成键帽：这一页是迷路的人最先翻到的地方，键位在这里也必须像要按的键。
+        // 帮助窗在测试进程里 Content 一直是 null（它建内容的时机在别处），整窗量不到东西；
+        // 而键位列的切分就是 KeyCell 一个静态函数——直接反射调它，量真正会错的那一步。
+        try
+        {
+            static List<string> Chips(DependencyObject root)
+            {
+                var list = new List<string>();
+                void W(DependencyObject o)
+                {
+                    if (o is System.Windows.Controls.Border bd && bd.Child is System.Windows.Controls.TextBlock tb
+                        && bd.MinWidth >= 24 && bd.BorderThickness.Bottom == 2) list.Add(tb.Text);
+                    foreach (var c in System.Windows.LogicalTreeHelper.GetChildren(o))
+                        if (c is DependencyObject d) W(d);
+                }
+                W(root);
+                return list;
+            }
+            var keyCell = typeof(FrameCapture.Overlays.HelpWindow).GetMethod("KeyCell",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!;
+            // 多条按法由 DescribeKeysFor 用「本地化逗号」拼接：中文是全角「，」，英文才是 ", "。
+            // 只按半角切，中文帮助里第一枚键帽就长成「F6，」。
+            var zh = Chips((DependencyObject)keyCell.Invoke(null, new object[] { "F6，Ctrl+Alt+R" })!);
+            var en = Chips((DependencyObject)keyCell.Invoke(null, new object[] { "F6, Ctrl+Alt+R" })!);
+            Chk("T224-help-keycell-splits-localized-comma", zh.Count == 4 && en.Count == 4,
+                $"中文逗号切出 {zh.Count} 枚、英文 {en.Count} 枚（应各 4：F6 一枚 + Ctrl+Alt+R 三枚）");
+            Chk("T224-help-keycap-has-no-separator",
+                zh.All(c => !c.Contains('，') && !c.Contains(',')) && en.All(c => !c.Contains('，') && !c.Contains(',')),
+                "键帽脸上：" + string.Join(" / ", zh));
+            // 含中文的不是键位（「未设键」），照文字排，不能被切成一堆空键帽。
+            var none = Chips((DependencyObject)keyCell.Invoke(null, new object[] { Loc.T(K.Common.NoKey) })!);
+            Chk("T224-help-unbound-stays-text", none.Count == 0, "「未设键」不应长成键帽：" + string.Join(" / ", none));
+        }
+        catch (Exception e) { Chk("T224-help-key-vocabulary", false, e.Message); }
+
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");
         return fail == 0 ? 0 : 1;
     }
