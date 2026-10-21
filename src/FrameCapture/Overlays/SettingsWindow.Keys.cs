@@ -46,8 +46,8 @@ public sealed partial class SettingsWindow : Window
                 BorderThickness = new Thickness(1),
                 BorderBrush = new SolidColorBrush(Theme.Stroke),
                 Background = Brushes.Transparent,
-                Padding = new Thickness(8, 3, 8, 3),
-                MinHeight = 30,   // 按内容排出来只有 23 逻辑像素高，手指点在字上才命中；撑到 30 让整颗按钮点得着。
+                Padding = new Thickness(7, 2, 7, 2),
+                MinHeight = 26,   // 低于 24 的可用下限就点不着了；26 是这一行能压到的最小值
                 Cursor = Cursors.Hand,
                 Child = new TextBlock { Text = text, FontSize = 11.5, Foreground = new SolidColorBrush(Theme.TextDim) },
             };
@@ -66,7 +66,7 @@ public sealed partial class SettingsWindow : Window
                 FontSize = 12,
                 FontWeight = FontWeights.SemiBold,
                 Foreground = new SolidColorBrush(Theme.TextDim),
-                Margin = new Thickness(0, 0, 0, 4),
+                Margin = new Thickness(0, 0, 0, 2),
             });
             // 键位区按内容占宽：一枚键帽占一枚的宽度，放不下才换行
             const double BoxGap = 6;
@@ -120,8 +120,8 @@ public sealed partial class SettingsWindow : Window
                     BorderBrush = new SolidColorBrush(Theme.StrokeSoft),
                     BorderThickness = new Thickness(1),
                     Background = new SolidColorBrush(Theme.RowBg),
-                    Padding = new Thickness(16, 7, 8, 7),
-                    Margin = new Thickness(0, 2, 0, 2),
+                    Padding = new Thickness(16, 4, 8, 4),
+                    Margin = new Thickness(0, 1, 0, 1),
                     Child = row,
                 };
                 stack.Children.Add(pill);
@@ -129,19 +129,19 @@ public sealed partial class SettingsWindow : Window
                 // 加号按钮：多一个按法不必挑默认那几个槽位，随时往上加
                 var add = new Border
                 {
-                    Width = 30,
+                    Width = 28,
                     CornerRadius = new CornerRadius(6),
                     BorderThickness = new Thickness(1),
                     BorderBrush = new SolidColorBrush(Theme.Stroke),
                     Background = Brushes.Transparent,
-                    Padding = new Thickness(0, 6, 0, 6),
-                    Margin = new Thickness(0, 1, 0, 1),
+                    Padding = new Thickness(0, 3, 0, 3),
+                    Margin = new Thickness(0, 0, 0, 0),
                     Cursor = Cursors.Hand,
                     VerticalAlignment = VerticalAlignment.Center,
                     Child = new TextBlock
                     {
                         Text = "+",
-                        FontSize = 14,
+                        FontSize = 13,
                         TextAlignment = TextAlignment.Center,
                         Foreground = new SolidColorBrush(Theme.TextDim),
                     },
@@ -164,7 +164,9 @@ public sealed partial class SettingsWindow : Window
                         var box = new ChordCaptureBox
                         {
                             Chord = list[at],
-                            Margin = new Thickness(0, 1, BoxGap, 1),
+                            // 这一节一行一条命令，密到二十来行：框上下各收 2，整页少滚一屏
+                            Padding = new Thickness(8, 4, 8, 4),
+                            Margin = new Thickness(0, 0, BoxGap, 0),
                         };
                         box.Picked += v =>
                         {
@@ -183,7 +185,11 @@ public sealed partial class SettingsWindow : Window
                     if (pending)
                     {
                         // 新键位框一出来就在等键：按下键才落进列表，中途走开就当没加过
-                        var fresh = new ChordCaptureBox { Margin = new Thickness(0, 1, BoxGap, 1) };
+                        var fresh = new ChordCaptureBox
+                        {
+                            Padding = new Thickness(8, 4, 8, 4),
+                            Margin = new Thickness(0, 0, BoxGap, 0),
+                        };
                         fresh.Picked += v =>
                         {
                             if (v.Length > 0)
@@ -220,12 +226,12 @@ public sealed partial class SettingsWindow : Window
             var card = new Border
             {
                 // 第一张卡离上面的快捷键卡片远一点：这一节没有标题也没有说明文字，分组靠留白说
-                Margin = new Thickness(0, firstCard ? 16 : 2, 0, 2),
+                Margin = new Thickness(0, firstCard ? 12 : 2, 0, 2),
                 CornerRadius = new CornerRadius(8),   // 卡片 8、行 6：外圆包内圆
                 BorderThickness = new Thickness(1),
                 BorderBrush = new SolidColorBrush(Theme.Stroke),
                 Background = new SolidColorBrush(Theme.CardBg),
-                Padding = new Thickness(12, 10, 12, 10),
+                Padding = new Thickness(12, 7, 12, 7),
                 Child = stack,
             };
             Fluent.Elevate(card, blur: 24, depth: 6);
@@ -239,7 +245,7 @@ public sealed partial class SettingsWindow : Window
             foreach (var f in ekRefresh) f();
         });
         ekResetAll.HorizontalAlignment = HorizontalAlignment.Left;
-        ekResetAll.Margin = new Thickness(2, 6, 0, 2);
+        ekResetAll.Margin = new Thickness(2, 4, 0, 2);
         panel.Children.Add(ekResetAll);
         foreach (var f in ekRefresh) f();
     }
