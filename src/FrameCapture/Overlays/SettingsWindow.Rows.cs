@@ -478,6 +478,8 @@ public sealed partial class SettingsWindow : Window
             Text = text,
             FontSize = 12.5,
             Foreground = new SolidColorBrush(selected ? Fluent.OnAccentColor(Theme.Accent) : Theme.Text),
+            // 芯片被行高拉伸（行有 32 的下限），内容不居中就会贴着上沿——看着像字比芯片高了半截
+            VerticalAlignment = VerticalAlignment.Center,
         },
         Cursor = Cursors.Hand,
         ToolTip = tip,

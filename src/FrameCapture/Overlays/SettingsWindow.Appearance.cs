@@ -218,6 +218,9 @@ public sealed partial class SettingsWindow : Window
                     FontFamily = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets, Segoe UI Symbol"),
                     FontSize = 14,
                     Foreground = new SolidColorBrush(captured == cur ? Fluent.OnAccentColor(Theme.Accent) : Theme.Text),
+                    // 芯片被行高拉伸（行有 32 的下限），图标不居中就会贴着上沿
+                    VerticalAlignment = VerticalAlignment.Center,
+                    HorizontalAlignment = HorizontalAlignment.Center,
                 },
                 Cursor = Cursors.Hand,
                 ToolTip = tip,
