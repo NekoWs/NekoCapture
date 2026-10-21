@@ -6628,26 +6628,42 @@ static partial class SelfTest
         }
         catch (Exception e) { Chk("T230-save-path-row", false, e.Message); }
 
-        // 取色器：两排右端必须齐平（右端空一大块就是「太分散」），圆角要真把内容裁进去。
+        // 取色器：色域必须是**方形直角**、四角不许被裁；下面只剩预览与 HEX 一个输入框；两排右端齐平。
         try
         {
             var view = new FrameCapture.Overlays.ColorPickView { Color = System.Windows.Media.Color.FromArgb(0x80, 0xE8, 0x4C, 0x3D) };
-            var host = new Window { Width = 340, Height = 220, WindowStyle = WindowStyle.None, Content = view };
+            // 宿主按内容定尺寸：弹层里的宽度就是内容自己撑出来的那段。
+            // 写死一个更大宽度会把下排拉伸到比上排宽，量出来的「右端不齐」是量具自己造的。
+            var host = new Window { WindowStyle = WindowStyle.None, SizeToContent = SizeToContent.WidthAndHeight, Content = view };
+
             ShowOffscreen(host);
             var topRow = (System.Windows.Controls.Grid)view.Children[0];
-            var bottomRow = (System.Windows.Controls.StackPanel)view.Children[1];
+            var bottomRow = (System.Windows.Controls.Grid)view.Children[1];
             var last = (System.Windows.FrameworkElement)topRow.Children[topRow.Children.Count - 1];
+            var lastBottom = (System.Windows.FrameworkElement)bottomRow.Children[bottomRow.Children.Count - 1];
             double topRight = last.TranslatePoint(new System.Windows.Point(last.ActualWidth, 0), view).X;
-            double bottomRight = bottomRow.TranslatePoint(new System.Windows.Point(bottomRow.ActualWidth, 0), view).X;
+            // 量的是「下排最后一块内容的右沿」：下排会被父级拉伸到整宽，用它自己的 ActualWidth 等于在量容器。
+            double bottomRight = lastBottom.TranslatePoint(new System.Windows.Point(lastBottom.ActualWidth, 0), view).X;
             Chk("T231-picker-rows-end-together", Math.Abs(topRight - bottomRight) <= 1.5,
                 $"上排右端 {topRight:N1} / 下排右端 {bottomRight:N1}");
+
             var svCell = (System.Windows.Controls.Border)topRow.Children[0];
-            Chk("T231-picker-sv-keeps-its-width",
-                svCell.Child is System.Windows.FrameworkElement sv && sv.ActualWidth >= 179,
-                "SV 区宽：" + ((svCell.Child as System.Windows.FrameworkElement)?.ActualWidth ?? -1).ToString("N1"));
-            Chk("T231-picker-sv-is-clipped-to-the-round-corner",
-                svCell.Clip is System.Windows.Media.RectangleGeometry { RadiusX: > 0 },
-                "没有圆角裁剪：" + (svCell.Clip?.GetType().Name ?? "null"));
+            var svEl = (System.Windows.FrameworkElement)svCell.Child;
+            Chk("T231-picker-sv-is-square", Math.Abs(svEl.ActualWidth - svEl.ActualHeight) <= 0.5,
+                $"色域 {svEl.ActualWidth:N1}×{svEl.ActualHeight:N1}");
+            Chk("T231-picker-corners-are-not-cut",
+                svCell.CornerRadius.TopLeft == 0 && svCell.Clip == null,
+                "色域外框圆角 " + svCell.CornerRadius.TopLeft + "、裁剪 " + (svCell.Clip?.GetType().Name ?? "null"));
+
+            int boxes = 0;
+            void CountBoxes(DependencyObject o)
+            {
+                if (o is System.Windows.Controls.TextBox) boxes++;
+                foreach (var c in System.Windows.LogicalTreeHelper.GetChildren(o))
+                    if (c is DependencyObject d) CountBoxes(d);
+            }
+            CountBoxes(view);
+            Chk("T231-picker-keeps-only-the-hex-field", boxes == 1, "输入框 " + boxes + " 个（应只剩 HEX 一个）");
             host.Close();
         }
         catch (Exception e) { Chk("T231-picker-layout", false, e.Message); }

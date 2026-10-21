@@ -8,18 +8,23 @@ using Theme = FrameCapture.Core.Theme;
 namespace FrameCapture.Overlays;
 
 /// <summary>
-/// 自绘 RGBA 调色板控件：DevTools 式 SV 区 + 色相/透明度竖条 + HEX/RGBA 直填。
+/// 自绘 RGBA 调色板控件：方形色域 + 色相/透明度竖条，下面一行「预览 + HEX」直填。
 /// 不用系统 ColorDialog：主题一致、就地弹出、拖动即时生效。
 /// 纯视图：不关心弹出方式；宿主（编辑器弹层 / SelfTest 离屏渲染）订阅 Changed 收色。
+/// 色域与两条竖条都是直角、不带裁剪：圆角会把四个角切掉一块，看着像内容被啃了。
 /// </summary>
 public sealed class ColorPickView : StackPanel
 {
+    const double SvSize = 168;   // 方形色域边长，也是两条竖条的高度
+    const double BarW = 14;
+    const double PreviewSize = 26;
+
     double _h, _s = 1, _v = 1, _a = 1;
 
     readonly Rectangle _svHue, _svVal, _alphaFill, _previewRect;
     readonly Ellipse _svKnob;
     readonly Rectangle _hueThumb, _alphaThumb;
-    readonly TextBox _hexBox, _rBox, _gBox, _bBox, _aBox;
+    readonly TextBox _hexBox;
 
     /// <summary>用户改动（拖动/输入）后当前色。</summary>
     public event Action<Color>? Changed;
@@ -31,10 +36,10 @@ public sealed class ColorPickView : StackPanel
         set { SetState(value); Sync(); }
     }
 
-    /// <summary>构建 SV 区、色相/透明度竖条与 HEX/RGBA 直填；初始色为纯红不透明，构造不发 <see cref="Changed"/>。</summary>
+    /// <summary>构建方形色域、色相/透明度竖条与「预览 + HEX」；初始色为纯红不透明，构造不发 <see cref="Changed"/>。</summary>
     public ColorPickView()
     {
-        #region SV 区（180×120）：白→色相横渐变 + 透明→黑竖渐变，十字准星
+        #region 方形色域：白→色相横渐变 + 透明→黑竖渐变，十字准星
         _svHue = new Rectangle { Fill = new LinearGradientBrush(Colors.White, Colors.Red, 0) };
         _svVal = new Rectangle { Fill = new LinearGradientBrush(Colors.Transparent, Colors.Black, 90) };
         _svKnob = new Ellipse
@@ -43,7 +48,7 @@ public sealed class ColorPickView : StackPanel
             Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 3, ShadowDepth = 0, Opacity = 0.6 },
             IsHitTestVisible = false,
         };
-        var sv = new Grid { Height = 120, Cursor = Cursors.Cross, ClipToBounds = true };
+        var sv = new Grid { Width = SvSize, Height = SvSize, Cursor = Cursors.Cross, ClipToBounds = true };
         sv.Children.Add(_svHue); sv.Children.Add(_svVal);
         // 游标必须活在 Canvas 里：Canvas.SetLeft/Top 对 Grid 子级无效，否则游标钉死中央
         var knobHost = new Canvas { IsHitTestVisible = false };
@@ -53,7 +58,7 @@ public sealed class ColorPickView : StackPanel
         #endregion
 
         #region 色相竖条：彩虹常驻
-        var hue = new Rectangle { Width = 14, Height = 120 };
+        var hue = new Rectangle { Width = BarW, Height = SvSize };
         hue.Fill = new LinearGradientBrush
         {
             GradientStops = new GradientStopCollection
@@ -64,60 +69,62 @@ public sealed class ColorPickView : StackPanel
             StartPoint = new Point(0, 0), EndPoint = new Point(0, 1),
         };
         _hueThumb = ThumbLine();
-        var hueHost = new Grid { Width = 14, Height = 120, Cursor = Cursors.Hand };
+        var hueHost = new Grid { Width = BarW, Height = SvSize, Cursor = Cursors.Hand };
         hueHost.Children.Add(hue); hueHost.Children.Add(_hueThumb);
         AttachDrag(hueHost, (_, y) => { _h = y * 360; Sync(); Fire(); });
         #endregion
 
         #region 透明度竖条：棋盘底 + 实色→透明
-        var alphaHost = new Grid { Width = 14, Height = 120, Cursor = Cursors.Hand };
-        alphaHost.Children.Add(new Rectangle { Width = 14, Height = 120, Fill = Checker() });
-        _alphaFill = new Rectangle { Width = 14, Height = 120 };
+        var alphaHost = new Grid { Width = BarW, Height = SvSize, Cursor = Cursors.Hand };
+        alphaHost.Children.Add(new Rectangle { Width = BarW, Height = SvSize, Fill = Checker() });
+        _alphaFill = new Rectangle { Width = BarW, Height = SvSize };
         _alphaThumb = ThumbLine();
         alphaHost.Children.Add(_alphaFill); alphaHost.Children.Add(_alphaThumb);
         AttachDrag(alphaHost, (_, y) => { _a = 1 - y; Sync(); Fire(); });
         #endregion
 
-        #region 预览（棋盘底看透明）
-        var preview = new Grid { Width = 26, Height = 26, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(8, 0, 0, 0) };
-        preview.Children.Add(new Rectangle { Width = 26, Height = 26, Fill = Checker(), RadiusX = 4, RadiusY = 4 });
-        _previewRect = new Rectangle { Width = 26, Height = 26, RadiusX = 4, RadiusY = 4, Stroke = new SolidColorBrush(Color.FromArgb(0x66, Theme.Text.R, Theme.Text.G, Theme.Text.B)), StrokeThickness = 1 };
-        preview.Children.Add(_previewRect);
-
-        // 上排交给 Grid：SV 区坐在星型列里，把「下排比它宽出来的那截」全吃掉。
-        // 不用「先量一遍再算宽度」：构造期的测量会被父级缓存住，之后改子元素宽度并不会让它重新长出来，
-        // 结果 SV 区只剩一层边框。星型列由布局自己分配，不存在这个先后问题。
-        var top = new Grid();
-        top.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star), MinWidth = 180 });
-        for (int i = 0; i < 3; i++) top.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        var svCell = Round(sv, 6);
-        var hueCell = Round(hueHost, 4);
+        #region 上排：色域 + 两条竖条，边距写死成同一组数，两排自然同宽
+        var top = new Grid { Height = SvSize };
+        top.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        top.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        top.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        var svCell = Span(sv);
+        var hueCell = Span(hueHost);
         hueCell.Margin = new Thickness(6, 0, 0, 0);
-        var alphaCell = Round(alphaHost, 4);
+        var alphaCell = Span(alphaHost);
         alphaCell.Margin = new Thickness(6, 0, 0, 0);
-        preview.Margin = new Thickness(8, 0, 0, 0);
         top.Children.Add(svCell); Grid.SetColumn(svCell, 0);
         top.Children.Add(hueCell); Grid.SetColumn(hueCell, 1);
         top.Children.Add(alphaCell); Grid.SetColumn(alphaCell, 2);
-        top.Children.Add(preview); Grid.SetColumn(preview, 3);
         #endregion
 
-        #region HEX + RGBA 直填（宿主 Popup 继承图标字体，文本框显式复位）
-        _hexBox = TextBoxAt();
-        _rBox = NumBox(); _gBox = NumBox(); _bBox = NumBox(); _aBox = NumBox();
+        #region 下排：颜色预览 + HEX 直填（RGBA 四个输入框撤掉：调色靠拖，精确值靠 HEX）
+        _hexBox = new TextBox
+        {
+            FontFamily = new FontFamily("Consolas"), FontSize = 12.5, Foreground = new SolidColorBrush(Theme.Text),
+            Background = Brushes.Transparent, BorderThickness = new Thickness(0), CaretBrush = new SolidColorBrush(Theme.Text),
+            VerticalContentAlignment = VerticalAlignment.Center,
+        };
         _hexBox.KeyDown += (_, ek) => { if (ek.Key == Key.Enter) { CommitHex(); ek.Handled = true; } };
         _hexBox.LostFocus += (_, _) => CommitHex();
-        NumCommit(_rBox, v => SetRgbPart(0, v));
-        NumCommit(_gBox, v => SetRgbPart(1, v));
-        NumCommit(_bBox, v => SetRgbPart(2, v));
-        NumCommit(_aBox, v => { _a = Math.Clamp(v, 0, 255) / 255.0; Sync(); Fire(); });
-        var bottom = new StackPanel
-        {
-            Orientation = Orientation.Horizontal, Margin = new Thickness(0, 6, 0, 0),
-            Children = { Field(_hexBox, 96), Spacing(8), Labeled("R", _rBox), Spacing(6), Labeled("G", _gBox), Spacing(6), Labeled("B", _bBox), Spacing(6), Labeled("A", _aBox) },
-        };
-        // 上下两排同宽由布局保证：上排是 Grid（SV 占星型列），下排的自然宽度决定整块的总宽，
-        // 星型列把差值全吃掉，右端不会留一块空着的暗面。
+
+        var preview = new Grid { Width = PreviewSize, Height = PreviewSize };
+        preview.Children.Add(new Rectangle { Width = PreviewSize, Height = PreviewSize, Fill = Checker(), RadiusX = 4, RadiusY = 4 });
+        _previewRect = new Rectangle { Width = PreviewSize, Height = PreviewSize, RadiusX = 4, RadiusY = 4, Stroke = new SolidColorBrush(Color.FromArgb(0x66, Theme.Text.R, Theme.Text.G, Theme.Text.B)), StrokeThickness = 1 };
+        preview.Children.Add(_previewRect);
+
+        // 下排交给 Grid：HEX 框坐星型列，宽度由「上排有多宽」决定。
+        // 手算「色域 + 两条竖条 + 两段 6」会漏掉三个外框各 1px 的描边，差出一截。
+        var bottom = new Grid { Margin = new Thickness(0, 8, 0, 0) };
+        bottom.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        bottom.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(8) });
+        bottom.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        bottom.Children.Add(preview);
+        var hexField = Field(_hexBox);
+        Grid.SetColumn(hexField, 2);
+        bottom.Children.Add(hexField);
+        #endregion
+
         Orientation = Orientation.Vertical;
         Children.Add(top); Children.Add(bottom);
     }
@@ -132,15 +139,6 @@ public sealed class ColorPickView : StackPanel
 
     void Fire() => Changed?.Invoke(Color);
 
-    void SetRgbPart(int i, int v)
-    {
-        v = Math.Clamp(v, 0, 255);
-        var (r, g, b) = Rgb();
-        if (i == 0) r = (byte)v; else if (i == 1) g = (byte)v; else b = (byte)v;
-        SetState(Color.FromRgb(r, g, b));
-        Sync(); Fire();
-    }
-
     void CommitHex()
     {
         var got = Core.HexColor.Parse(_hexBox.Text);
@@ -149,7 +147,7 @@ public sealed class ColorPickView : StackPanel
         Sync(); Fire();
     }
 
-    /// <summary>状态→一切视觉：渐变、准星、滑块、预览、文本框（聚焦中的框不回写，防打字被吞）。</summary>
+    /// <summary>状态→一切视觉：渐变、准星、滑块、预览、HEX 框（聚焦中的框不回写，防打字被吞）。</summary>
     void Sync()
     {
         var (r, g, b) = Rgb();
@@ -157,23 +155,21 @@ public sealed class ColorPickView : StackPanel
         _svHue.Fill = new LinearGradientBrush(Colors.White, opaque, 0);
         double w = _svHue.ActualWidth, h = _svHue.ActualHeight;
         Canvas.SetLeft(_svKnob, _s * w - 6); Canvas.SetTop(_svKnob, (1 - _v) * h - 6);
-        _hueThumb.Margin = new Thickness(0, Math.Clamp(_h / 360 * (_hueThumb.Parent is FrameworkElement p ? p.ActualHeight : 120), 0, 117), 0, 0);
+        _hueThumb.Margin = new Thickness(0, ThumbTop(_h / 360, _hueThumb), 0, 0);
         _alphaFill.Fill = new LinearGradientBrush { GradientStops = new GradientStopCollection { new(opaque, 0), new(Color.FromArgb(0, r, g, b), 1) }, StartPoint = new Point(0, 0), EndPoint = new Point(0, 1) };
-        _alphaThumb.Margin = new Thickness(0, Math.Clamp((1 - _a) * (_alphaThumb.Parent is FrameworkElement ap ? ap.ActualHeight : 120), 0, 117), 0, 0);
+        _alphaThumb.Margin = new Thickness(0, ThumbTop(1 - _a, _alphaThumb), 0, 0);
         _previewRect.Fill = new SolidColorBrush(Color.FromArgb((byte)Math.Round(_a * 255), r, g, b));
 
-        var hex = Core.HexColor.Format(Color.FromArgb((byte)Math.Round(_a * 255), r, g, b));
-        SetTextUnlessFocused(_hexBox, hex);
-        SetTextUnlessFocused(_rBox, r.ToString());
-        SetTextUnlessFocused(_gBox, g.ToString());
-        SetTextUnlessFocused(_bBox, b.ToString());
-        SetTextUnlessFocused(_aBox, ((byte)Math.Round(_a * 255)).ToString());
+        if (!_hexBox.IsKeyboardFocusWithin)
+            _hexBox.Text = Core.HexColor.Format(Color.FromArgb((byte)Math.Round(_a * 255), r, g, b));
     }
 
-    static void SetTextUnlessFocused(TextBox? box, string text)
+    /// <summary>滑块上沿的位置：按父级实测高度算，写死一个数会在改色域高度时让滑块越界或提前停住。</summary>
+    static double ThumbTop(double t, Rectangle thumb)
     {
-        if (box == null || box.IsKeyboardFocusWithin) return;
-        box.Text = text;
+        double h = thumb.Parent is FrameworkElement p ? p.ActualHeight : SvSize;
+        double max = Math.Max(0, h - thumb.Height);
+        return Math.Clamp(t * h, 0, max);
     }
 
     /// <summary>把元素变成归一化拖拽面（0..1，钳进边界），按下即捕获、移动即回调。</summary>
@@ -191,77 +187,39 @@ public sealed class ColorPickView : StackPanel
 
     static UIElement Spacing(double w) => new Rectangle { Width = w };
 
-    // 圆角包裹 + 细描边，SV/色相/透明条不生硬。
-    // Border 的 CornerRadius 只把描边画圆，子内容仍按矩形边界裁——方角会从圆角外侧露出来，
-    // 露出来的那一圈正是「四角被圆角切掉」的样子。用几何裁剪把内容收进同一条圆角轮廓，
-    // 边缘由 WPF 自己抗锯齿，不需要再垫一层遮罩。
-    static Border Round(UIElement e, double r)
+    /// <summary>色域/竖条的外框：直角 + 一根细描边，不做圆角、不裁剪。
+    /// 圆角会把内容的四个角切掉一块（Border 只圆描边，内容仍按矩形画，多出来的方角露在圆外），
+    /// 取色器要的是完整的一块颜色，四角不该少。</summary>
+    static Border Span(UIElement e) => new()
     {
-        var b = new Border
-        {
-            CornerRadius = new CornerRadius(r), ClipToBounds = true, Child = e,
-            BorderBrush = new SolidColorBrush(Theme.Stroke), BorderThickness = new Thickness(1),
-        };
-        void Clip()
-        {
-            if (b.ActualWidth <= 0 || b.ActualHeight <= 0) return;
-            b.Clip = new RectangleGeometry(new Rect(0, 0, b.ActualWidth, b.ActualHeight), r, r);
-        }
-        b.SizeChanged += (_, _) => Clip();
-        return b;
-    }
+        Child = e,
+        BorderBrush = new SolidColorBrush(Theme.Stroke),
+        BorderThickness = new Thickness(1),
+    };
+
     static Rectangle ThumbLine() => new()
     {
         Height = 3, RadiusX = 1.5, RadiusY = 1.5, Fill = Brushes.White,
         Stroke = new SolidColorBrush(Color.FromArgb(0x99, 0, 0, 0)), StrokeThickness = 1,
         VerticalAlignment = VerticalAlignment.Top, IsHitTestVisible = false,
     };
-    static Border Labeled(string t, UIElement box) => new()
-    {
-        Child = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            Children =
-            {
-                new TextBlock { Text = t, FontFamily = new FontFamily("Segoe UI"), FontSize = 11, Foreground = new SolidColorBrush(Theme.TextDim), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 3, 0) },
-                Field(box, 34),
-            },
-        },
-    };
-    // 主题化输入字段——深色圆角底 + 描边，聚焦转强调色
-    static Border Field(UIElement inner, double w)
+
+    // 主题化输入字段——深色底 + 描边，聚焦转强调色；宽度由所在列给（不写死，换语言/换字体不会裂）
+    static Border Field(UIElement inner)
     {
         var b = new Border
         {
-            Width = w, Height = 24,
+            Height = 26,
             Background = new SolidColorBrush(Theme.TrackBg),
             BorderBrush = new SolidColorBrush(Theme.Stroke),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(5),
-            Padding = new Thickness(6, 0, 6, 0),
+            Padding = new Thickness(8, 0, 8, 0),
             Child = inner,
         };
         inner.GotKeyboardFocus += (_, _) => b.BorderBrush = new SolidColorBrush(Theme.Accent);
         inner.LostKeyboardFocus += (_, _) => b.BorderBrush = new SolidColorBrush(Theme.Stroke);
         return b;
-    }
-    static TextBox TextBoxAt() => new()
-    {
-        FontFamily = new FontFamily("Consolas"), FontSize = 12, Foreground = new SolidColorBrush(Theme.Text),
-        Background = Brushes.Transparent, BorderThickness = new Thickness(0), CaretBrush = new SolidColorBrush(Theme.Text),
-        VerticalContentAlignment = VerticalAlignment.Center,
-    };
-    static TextBox NumBox() => new()
-    {
-        FontFamily = new FontFamily("Consolas"), FontSize = 12, Foreground = new SolidColorBrush(Theme.Text),
-        Background = Brushes.Transparent, BorderThickness = new Thickness(0), CaretBrush = new SolidColorBrush(Theme.Text),
-        VerticalContentAlignment = VerticalAlignment.Center,
-    };
-    static void NumCommit(TextBox box, Action<int> apply)
-    {
-        box.PreviewTextInput += (_, e) => { foreach (var ch in e.Text) if (!char.IsDigit(ch)) { e.Handled = true; return; } };
-        box.KeyDown += (_, ek) => { if (ek.Key == Key.Enter) { if (int.TryParse(box.Text, out var v)) apply(v); ek.Handled = true; } };
-        box.LostFocus += (_, _) => { if (int.TryParse(box.Text, out var v)) apply(v); };
     }
 
     /// <summary>透明预览用棋盘格刷：16×16 DIP 平铺，8×8 方格，灰 #CCCCCC 与白交替。</summary>
@@ -277,6 +235,4 @@ public sealed class ColorPickView : StackPanel
         d.Children.Add(new GeometryDrawing(a, null, new RectangleGeometry(new Rect(8, 8, 8, 8))));
         return new DrawingBrush(d) { TileMode = TileMode.Tile, Viewport = new Rect(0, 0, 16, 16), ViewportUnits = BrushMappingMode.Absolute };
     }
-        #endregion
-
 }
