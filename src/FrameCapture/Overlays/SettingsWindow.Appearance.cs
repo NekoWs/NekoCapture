@@ -107,7 +107,9 @@ public sealed partial class SettingsWindow : Window
         var chip = new Border
         {
             Width = 34,
-            Height = 20,
+            // 28 高：这块点开的是取色窗，20 高的命中面指尖偏一点就点空。
+            // 色片本来就是一枚按钮，长高一点反而更像它能按。
+            Height = 28,
             CornerRadius = new CornerRadius(5),
             Background = new SolidColorBrush(Theme.Accent),
             BorderBrush = new SolidColorBrush(Theme.Stroke),

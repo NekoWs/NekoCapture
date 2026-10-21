@@ -240,6 +240,8 @@ public sealed partial class SettingsWindow : Window
         {
             CornerRadius = new CornerRadius(6),
             Padding = new Thickness(10, 4, 10, 4),
+            // 28 高：文字加上下 4 的内边距只有 24，试听是要点准的小按钮，命中面按可点的东西算。
+            MinHeight = 28,
             Margin = new Thickness(0, 0, 12, 0),
             // 垂直居中——横向 StackPanel 里 Border 被拉满行高，文字贴左上「错位」真凶
             VerticalAlignment = VerticalAlignment.Center,

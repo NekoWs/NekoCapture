@@ -298,7 +298,6 @@ public static partial class K
             "settings.saveFolderAutoSavedCopies",
             "保存文件夹：自动保存副本存到这里，编辑器/贴图「另存为」对话框也默认打开这里",
             "Save folder: auto-saved copies go here, and the editor and pin Save As dialogs open here by default");
-        public static readonly Str SaveLocation = new("settings.saveLocation", "保存位置", "Save location");
         public static readonly Str SelectionMagnifier = new(
             "settings.selectionMagnifier",
             "选区放大镜",
