@@ -51,6 +51,16 @@ static partial class SelfTest
                 case "settings-open": BuildSettingsAudit(app, rows, "settings-open", 0); break;
                 case "settings-adv": BuildSettingsAudit(app, rows, "settings-adv", 0, advanced: true); break;
                 case "settings-clash": BuildSettingsAudit(app, rows, "settings-clash", 0, clash: true); break;
+            // 另外七个分区各开一次：分区是同一套行控件搭的，但文案不同、控件组合不同，
+            // 只量第一个分区等于其余七页从来没进过探针。
+            case "settings-cap": BuildSettingsAudit(app, rows, "settings-cap", -1, cat: 1); break;
+            case "settings-rec": BuildSettingsAudit(app, rows, "settings-rec", -1, cat: 2); break;
+            case "settings-out": BuildSettingsAudit(app, rows, "settings-out", -1, cat: 3); break;
+            case "settings-edit": BuildSettingsAudit(app, rows, "settings-edit", -1, cat: 4); break;
+            case "settings-pin": BuildSettingsAudit(app, rows, "settings-pin", -1, cat: 5); break;
+            case "settings-look": BuildSettingsAudit(app, rows, "settings-look", -1, cat: 6); break;
+            case "settings-sys": BuildSettingsAudit(app, rows, "settings-sys", -1, cat: 7); break;
+
             // 拖到最小尺寸那一档：MinWidth/MinHeight 是用户能压到的极限，长说明文字在这一档最容易挤。
             case "settings-narrow": BuildSettingsAudit(app, rows, "settings-narrow", 0, forceW: 680, forceH: 460); break;
             // 深层目录 + 最小宽度：路径行是最容易被长内容打穿的一处，默认那条短路径量不到
@@ -64,7 +74,7 @@ static partial class SelfTest
                 case "editor": BuildEditorAudit(app, rows, 3); break;
                 case "editor-still": BuildEditorAudit(app, rows, 1); break;
                 case "pin": BuildPinAudit(app, rows); break;
-            case "pin-menu": BuildPinMenuAudit(app, rows); break;
+
                 case "ocr": BuildOcrAudit(app, rows, message: false); break;
                 case "ocr-msg": BuildOcrAudit(app, rows, message: true); break;
                 case "notice": BuildNoticeAudit(app, rows); break;
@@ -92,16 +102,20 @@ static partial class SelfTest
     internal static readonly string[] Surfaces =
     {
         "settings", "settings-open", "settings-adv", "settings-clash", "settings-narrow", "settings-longpath", "settings-longname",
-        "help", "editor", "editor-still", "pin", "pin-menu", "ocr", "ocr-msg",
+        // 八个分区各扫一遍：分区由 BuildSettingsAudit 的 cat 参数指定（走 _restoreCat）。
+        "settings-cap", "settings-rec", "settings-out", "settings-edit", "settings-pin", "settings-look", "settings-sys",
+        "help", "editor", "editor-still", "pin", "ocr", "ocr-msg",
+
         "notice", "welcome", "toast", "countdown", "scroll", "filmstrip",
         "picker", "picker-loupe",
     };
 
     // ---- 逐界面建窗 ----
 
-    /// <summary>设置窗：折叠态、展开第 0 条、高级形态、撞车描边四种形态各扫一遍。</summary>
+    /// <summary>设置窗：折叠态、展开某条绑定、高级形态、撞车描边、最小尺寸各扫一遍，
+    /// 另外七个分区由 <paramref name="cat"/> 指定，各扫一遍。</summary>
     static void BuildSettingsAudit(Application app, List<string> rows, string surface, int openAt, bool advanced = false, bool clash = false,
-        double? forceW = null, double? forceH = null, string? savePath = null, string? bindingName = null)
+        double? forceW = null, double? forceH = null, string? savePath = null, string? bindingName = null, int cat = -1)
     {
         var svc = AppHost.Current.Settings!.Current;
         if (savePath != null) svc.AutoSavePath = savePath;
@@ -125,6 +139,11 @@ static partial class SelfTest
             typeof(SettingsWindow).GetField("_hotAdvanced",
                 System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
                 .SetValue(w, true);
+        // 分页靠 _restoreCat 切：Build 末尾就是用它停在原分页的（ShowCat 是 Build 里的局部函数，反射拿不到）。
+        // 探针不点侧栏就永远停在第一个分页，其余七页从来没量过。
+        if (cat >= 0)
+            typeof(SettingsWindow).GetField("_restoreCat",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.SetValue(w, cat);
         typeof(SettingsWindow).GetMethod("Build",
             System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
             .Invoke(w, null);
@@ -206,31 +225,10 @@ static partial class SelfTest
         w.Close();
     }
 
-    /// <summary>贴图右键菜单：菜单开在独立 Popup 里，主窗视觉树与桌面截图都扫不到它，只能单独叫出来量。</summary>
-    static void BuildPinMenuAudit(Application app, List<string> rows)
-    {
-        const int pw = 480, ph = 300;
-        var frame = new CapturedFrame { Bgra = MockScreen(pw, ph), W = pw, H = ph, TimeMs = 0 };
-        var w = new PinWindow(frame, new RectI(200, 160, pw, ph), false);
-        ShowOffscreen(w);
-        PumpMs(200);
-        var menu = w.BuildMenu();
-        menu.PlacementTarget = w;
-        // 不叫 Popup，直接量菜单本体：审计的窗口摆在屏幕外，Popup 一开就被虚拟桌面边界夹住，
-        // 每个条目的键位列都被裁掉 10px——那是取证装置在裁字，不是产品在裁字。
-        // 按无限宽度 Measure/Arrange 出来的才是菜单自己想要的尺寸。
-        menu.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-        menu.Arrange(new Rect(menu.DesiredSize));
-        menu.UpdateLayout();
-        PumpMs(150);
-        ScanTree(rows, "pin-menu", menu);
-        // 扫不到字就是探针自己在说谎：菜单没 realize 时它一条也不会报，界面却根本没被量过。
-        int texts = CountTexts(menu);
-        if (texts < 6) rows.Add($"UXA|pin-menu|空扫|菜单里只量到 {texts} 条文字，这一项没真正跑到");
-        w.Close();
-    }
-
-    /// <summary>数这棵子树里有多少条可见文字，用来判断某个界面是不是被空扫了。</summary>
+    /// <summary>数这棵子树里有多少条真正显示出来的文字，用来判断某个界面是不是被空扫了。
+    /// 只看元素自己的 Visibility 不够：设置窗八个分区都挂在树里，切走的那块只是父面板折叠，
+    /// 里面每条文字的 Visibility 仍是 Visible——那样数出来的是「树里有多少文字」而不是「用户看到多少」，
+    /// 「0 条发现 + 0 条文字 = 探针没看到东西」这条判据会被撑成一个永远不可能为 0 的大数。</summary>
     static int CountTexts(DependencyObject root)
     {
         int n = 0;
@@ -238,7 +236,9 @@ static partial class SelfTest
         for (var i = 0; i < c; i++)
         {
             var ch = VisualTreeHelper.GetChild(root, i);
-            if (ch is TextBlock tb && !string.IsNullOrWhiteSpace(tb.Text) && tb.Visibility == Visibility.Visible) n++;
+            // 被折叠的整棵子树直接跳过：里面的文字用户看不到
+            if (ch is UIElement ue && !ue.IsVisible) continue;
+            if (ch is TextBlock tb && !string.IsNullOrWhiteSpace(tb.Text)) n++;
             n += CountTexts(ch);
         }
         return n;
@@ -550,9 +550,11 @@ static partial class SelfTest
                 // 用户自己写的字（绑定名、保存路径）压成省略号是正确行为：那是他打的字，版面只有这么宽。
                 // 我们的文案被省略号截断才是缺陷；硬裁（没有省略号）对用户数据同样是缺陷，照报。
                 bool userText = _userData.Contains(text.Trim()) || LooksLikePath(text);
-                if (need - avail >= 4 && (ellipsized || ClippedAncestor(tb)) && !InScroller(tb, horizontal: true)
+                // 「被切掉」要落到具体那一格：祖先里有个裁剪容器不等于这条文字被它切到。
+                string cutter = ellipsized ? "自身省略号" : CutByHere(tb, root as UIElement);
+                if (need - avail >= 4 && cutter != null && !InScroller(tb, horizontal: true)
                     && !(ellipsized && userText))
-                    rows.Add($"UXA|{surface}|{(ellipsized ? "省略号" : "裁字")}|{At(tb, root)} {avail:F0}→{need:F0} {Cut(text, 46)}");
+                    rows.Add($"UXA|{surface}|{(ellipsized ? "省略号" : "裁字")}|{At(tb, root)} {avail:F0}→{need:F0} 切于 {cutter} {Cut(text, 40)}");
             }
             else
             {
@@ -632,6 +634,31 @@ static partial class SelfTest
         probe.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
         return probe.DesiredSize.Width;
     }
+
+    /// <summary>找出把这条文字切掉的那一格：从父级往上第一个会真裁溢出内容、且右边缘比文字右边缘更早收口的容器。
+    /// 判据只要求「存在一个 ClipToBounds 的祖先」是不够的：设置页那两条数值标签的祖先里全是裁剪容器，
+    /// 可它们都比文字右边缘更靠右，一个字都没被切掉，报出来就是假阳性。
+    /// 报告里带上那一格的类型与尺寸，一条裁字才从「有个地方被裁」变成「这一格收口太早」。</summary>
+    /// <param name="el">被裁的那条文字。</param>
+    /// <param name="root">这一界面的视觉树根，用来换算坐标。</param>
+    /// <returns>那一格的类型与尺寸；没有任何祖先真在切它时为 null——文字往右边空处溢出不是缺陷。</returns>
+    static string CutByHere(FrameworkElement el, UIElement root)
+    {
+        if (el == null || root == null) return null;
+        double right = el.TranslatePoint(new Point(el.ActualWidth, 0), root).X;
+        for (var p = VisualTreeHelper.GetParent(el); p != null; p = VisualTreeHelper.GetParent(p))
+        {
+            if (p is not FrameworkElement fe || fe.ActualWidth <= 0 || !Clips(fe)) continue;
+            double pr = fe.TranslatePoint(new Point(fe.ActualWidth, 0), root).X;
+            if (pr < right - 1) return $"{fe.GetType().Name} {fe.ActualWidth:F0}×{fe.ActualHeight:F0} 右缘 {pr:F0}";
+        }
+        return null;
+    }
+
+    /// <summary>这一格会不会把溢出的内容真切掉：ClipToBounds、显式 Clip、滚动容器，或窗口本身——
+    /// 窗口边界永远裁掉越界的内容，漏了它，「被挤出窗口右沿」这一类反而查不出来。</summary>
+    static bool Clips(FrameworkElement fe) =>
+        fe is Window or ScrollViewer || fe.ClipToBounds || fe.Clip != null;
 
     /// <summary>祖先里有没有会把溢出内容真切掉的东西：ClipToBounds、显式 Clip，或滚动容器。</summary>
     static bool ClippedAncestor(DependencyObject node)
