@@ -15,18 +15,23 @@ namespace FrameCapture.Overlays;
 /// </summary>
 public sealed partial class SettingsWindow : Window
 {
-    /// <summary>静止时全透明、指针进来才浮出底色的填充。成排的条目各自垫一块灰底会把列表切成格子，
-    /// 底色于是只在悬停时出现。<see cref="Fluent.ChipHover"/> 走的是「与基色混合」，
-    /// 透明基色混出来仍是透明，这里直接淡到 <see cref="Theme.Hover"/> 本身。</summary>
+    /// <summary>悬停时浮出底色的填充：<paramref name="rest"/> 是静止底色，<paramref name="hover"/> 是
+    /// 指针进来时的底色，指针离开回到静止底色。默认静止全透明——给没有底色的元素用；
+    /// 已经在层次台阶上的行传进 <see cref="Theme.RowBg"/> 与 <see cref="Theme.RowHover"/>，
+    /// 悬停就在台阶上再走一档，而不是把底色抹掉再混一层白。</summary>
     /// <param name="bd">目标框；<c>Background</c> 被换成本方法持有的可动画画刷。</param>
-    static void HoverFill(Border bd)
+    /// <param name="rest">静止底色，省略即全透明。</param>
+    /// <param name="hover">悬停底色，省略即 <see cref="Theme.Hover"/>。</param>
+    static void HoverFill(Border bd, Color? rest = null, Color? hover = null)
     {
-        var bg = new SolidColorBrush(Colors.Transparent);
+        var restColor = rest ?? Colors.Transparent;
+        var hoverColor = hover ?? Theme.Hover;
+        var bg = new SolidColorBrush(restColor);
         bd.Background = bg;
         void Tint(Color to) => bg.BeginAnimation(SolidColorBrush.ColorProperty,
             new ColorAnimation(to, new Duration(TimeSpan.FromMilliseconds(Fluent.Motion.HoverMs))));
-        bd.MouseEnter += (_, _) => Tint(Theme.Hover);
-        bd.MouseLeave += (_, _) => Tint(Colors.Transparent);
+        bd.MouseEnter += (_, _) => Tint(hoverColor);
+        bd.MouseLeave += (_, _) => Tint(restColor);
     }
 
     /// <summary>逐行错位的间隔：取分层错位间隔的三分之一，四五行走完仍落在一次入场时长里。</summary>

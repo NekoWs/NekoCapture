@@ -63,7 +63,7 @@ public sealed partial class SettingsWindow : Window
         var card = new Border
         {
             Margin = new Thickness(0, 2, 0, 2),
-            CornerRadius = new CornerRadius(6),
+            CornerRadius = new CornerRadius(8),   // 卡片 8、行 6：外圆包内圆
             BorderThickness = new Thickness(1),
             BorderBrush = new SolidColorBrush(Theme.Stroke),
             Background = new SolidColorBrush(Theme.CardBg),
@@ -242,18 +242,20 @@ public sealed partial class SettingsWindow : Window
         head.Children.Add(chevron); head.Children.Add(nameCell); head.Children.Add(suffix);
         head.Children.Add(del); head.Children.Add(sw); head.Children.Add(box);
 
-        // 名字与键帽坐在一条描了边的胶囊上：文字直接浮在卡片里没有落点。静止时不填底色——
-        // 一列条目各自垫一块灰底会把列表切成格子；指针进来才浮出一点底色，仍然说明这一整条可点。
+        // 名字与键帽坐在一条胶囊上：文字直接浮在卡片里没有落点。胶囊比卡片亮一档（暗色）/暗一档（亮色），
+        // 边界先由明度说话，描边只留一根细线；台阶跨得太大会把列表切成一格一格，一档刚好分得出层又不像格子。
+        // 指针进来再浮出一点底色，仍然说明这一整条可点。
         var pill = new Border
         {
             CornerRadius = new CornerRadius(6),
             BorderBrush = new SolidColorBrush(Theme.StrokeSoft),
             BorderThickness = new Thickness(1),
+            Background = new SolidColorBrush(Theme.RowBg),
             Padding = new Thickness(10, 7, 8, 7),
             Cursor = Cursors.Hand,
             Child = head,
         };
-        HoverFill(pill);
+        HoverFill(pill, Theme.RowBg, Theme.RowHover);
         // 撞了车的那条描边发红：同一个组合键与触发上挂着多条，引擎按优先级与顺序只走第一条，这条永远不响。
         var pillStroke = (SolidColorBrush)pill.BorderBrush;
         void PaintClash()

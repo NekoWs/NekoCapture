@@ -373,7 +373,7 @@ public sealed partial class SettingsWindow : Window
         var card = new Border
         {
             Margin = new Thickness(0, 2, 0, 2),
-            CornerRadius = new CornerRadius(6),
+            CornerRadius = new CornerRadius(8),   // 卡片 8、行 6：两级圆角差一档，嵌套时外圆包内圆才对得齐
             BorderThickness = new Thickness(1),
             BorderBrush = new SolidColorBrush(Theme.Stroke),
             Background = new SolidColorBrush(Theme.CardBg),

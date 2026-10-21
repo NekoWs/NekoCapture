@@ -119,6 +119,7 @@ public sealed partial class SettingsWindow : Window
                     CornerRadius = new CornerRadius(6),
                     BorderBrush = new SolidColorBrush(Theme.StrokeSoft),
                     BorderThickness = new Thickness(1),
+                    Background = new SolidColorBrush(Theme.RowBg),
                     Padding = new Thickness(16, 7, 8, 7),
                     Margin = new Thickness(0, 2, 0, 2),
                     Child = row,
@@ -220,7 +221,7 @@ public sealed partial class SettingsWindow : Window
             {
                 // 第一张卡离上面的快捷键卡片远一点：这一节没有标题也没有说明文字，分组靠留白说
                 Margin = new Thickness(0, firstCard ? 16 : 2, 0, 2),
-                CornerRadius = new CornerRadius(6),
+                CornerRadius = new CornerRadius(8),   // 卡片 8、行 6：外圆包内圆
                 BorderThickness = new Thickness(1),
                 BorderBrush = new SolidColorBrush(Theme.Stroke),
                 Background = new SolidColorBrush(Theme.CardBg),

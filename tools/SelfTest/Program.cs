@@ -4982,14 +4982,22 @@ static partial class SelfTest
                 .ToList();
             var probe8 = keyRows[0];
             double padLeft = keyRows.Min(p => p.Padding.Left);
+            // 悬停不许改底色：整排都是能拖的行，只有亮起来那一行会像在暗示只有它能碰。
+            // 所以判据盯「悬停前后底色一模一样」，不盯「底色必须是空」——
+            // 行有一层静止底色是层次台阶的一部分，禁掉它等于禁掉了层次。
+            string ColorOf(System.Windows.Controls.Border b) =>
+                b.Background is System.Windows.Media.SolidColorBrush sbx ? sbx.Color.ToString() : "null";
+            string[] bgBefore = keyRows.Select(ColorOf).ToArray();
             probe8.RaiseEvent(new System.Windows.Input.MouseEventArgs(System.Windows.Input.Mouse.PrimaryDevice, 0)
             { RoutedEvent = UIElement.MouseEnterEvent, Source = probe8 });
             PumpMs(260);
+            bool hoverFlat = keyRows.Select((p, i) => ColorOf(p) == bgBefore[i]).All(x => x);
+            bool onRamp = keyRows.All(p => p.Background is System.Windows.Media.SolidColorBrush sb2 && sb2.Color == Theme.RowBg);
             Chk("T198b-editor-key-row-room-and-flat-hover",
-                keyRows.Count >= 3 && keyRows.All(p => p.Padding.Left >= 14)
-                && keyRows.All(p => p.Background == null),
+                keyRows.Count >= 3 && keyRows.All(p => p.Padding.Left >= 14) && hoverFlat && onRamp,
                 $"{keyRows.Count} 行编辑器绑键：左边最少 {padLeft:F0} DIP，"
-                + $"悬停后{(keyRows.Any(p => p.Background != null) ? "有行换了底色" : "底色都没变")}");
+                + $"悬停后{(hoverFlat ? "底色都没变" : "有行换了底色")}"
+                + $"，底色{(onRamp ? "=层次台阶的行色" : "不在层次台阶上")}");
 
             // 用户主动打开的窗要在任务栏留个位置，被别的窗盖住才切得回来。
             // 只构造不显示：没走过 Show，任务栏不会真闪出一枚，也挂不上关窗回调。
@@ -5987,6 +5995,57 @@ static partial class SelfTest
                 Fluent.TrimPathMiddle(@"\\nas\team\2026\十月\很长的目录名称\FrameCapture"));
         }
         catch (Exception e) { Chk("T217-path-middle-trim", false, e.Message); }
+
+        // 层次台阶：卡片与行同色时整页只剩描边，读起来是一叠线框。两套主题都必须往正确的方向
+        // 跨一档——暗色行更亮、亮色行更暗；幅度也要卡住：太小分不出层，太大就把列表切成格子。
+        try
+        {
+            var themeSvc = AppHost.Current.Settings!;
+            var keepTheme = themeSvc.Current.Theme;
+            static double Lum(System.Windows.Media.Color c) => (c.R * 299 + c.G * 587 + c.B * 114) / 1000.0;
+            static double Step(System.Windows.Media.Color a, System.Windows.Media.Color b)
+                => Math.Abs(Lum(a) - Lum(b));
+            static double Ratio(System.Windows.Media.Color fg, System.Windows.Media.Color bg)
+            {
+                // WCAG 相对亮度与对比度：alpha 先压平，透明色不能直接算
+                static System.Windows.Media.Color Flat(System.Windows.Media.Color c, System.Windows.Media.Color on) =>
+                    System.Windows.Media.Color.FromRgb(
+                        (byte)(c.A / 255.0 * c.R + (1 - c.A / 255.0) * on.R),
+                        (byte)(c.A / 255.0 * c.G + (1 - c.A / 255.0) * on.G),
+                        (byte)(c.A / 255.0 * c.B + (1 - c.A / 255.0) * on.B));
+                static double L(System.Windows.Media.Color c)
+                {
+                    static double C(double v) => v <= 0.03928 ? v / 12.92 : Math.Pow((v + 0.055) / 1.055, 2.4);
+                    return 0.2126 * C(c.R / 255.0) + 0.7152 * C(c.G / 255.0) + 0.0722 * C(c.B / 255.0);
+                }
+                var f = Flat(fg, bg);
+                double l1 = L(f), l2 = L(bg);
+                return (Math.Max(l1, l2) + 0.05) / (Math.Min(l1, l2) + 0.05);
+            }
+
+            FrameCapture.Core.Theme.Apply("dark", themeSvc.Current.Accent);
+            Chk("T219-ramp-dark-row-lighter", Lum(Theme.RowBg) > Lum(Theme.CardBg),
+                $"行 {Lum(Theme.RowBg):F1} 卡片 {Lum(Theme.CardBg):F1}");
+            Chk("T219-ramp-dark-hover-lighter", Lum(Theme.RowHover) > Lum(Theme.RowBg));
+            Chk("T219-ramp-dark-step-one-notch",
+                Step(Theme.RowBg, Theme.CardBg) >= 4 && Step(Theme.RowBg, Theme.CardBg) <= 24,
+                $"台阶 {Step(Theme.RowBg, Theme.CardBg):F1}");
+            Chk("T219-ramp-dark-dim-readable", Ratio(Theme.TextDim, Theme.RowBg) >= 4.5,
+                $"{Ratio(Theme.TextDim, Theme.RowBg):F2}:1");
+
+            FrameCapture.Core.Theme.Apply("light", themeSvc.Current.Accent);
+            Chk("T219-ramp-light-row-darker", Lum(Theme.RowBg) < Lum(Theme.CardBg),
+                $"行 {Lum(Theme.RowBg):F1} 卡片 {Lum(Theme.CardBg):F1}");
+            Chk("T219-ramp-light-hover-darker", Lum(Theme.RowHover) < Lum(Theme.RowBg));
+            Chk("T219-ramp-light-step-one-notch",
+                Step(Theme.RowBg, Theme.CardBg) >= 4 && Step(Theme.RowBg, Theme.CardBg) <= 24,
+                $"台阶 {Step(Theme.RowBg, Theme.CardBg):F1}");
+            Chk("T219-ramp-light-dim-readable", Ratio(Theme.TextDim, Theme.RowBg) >= 4.5,
+                $"{Ratio(Theme.TextDim, Theme.RowBg):F2}:1");
+
+            FrameCapture.Core.Theme.Apply(keepTheme, themeSvc.Current.Accent);
+        }
+        catch (Exception e) { Chk("T219-elevation-ramp", false, e.Message); }
 
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");
         return fail == 0 ? 0 : 1;
