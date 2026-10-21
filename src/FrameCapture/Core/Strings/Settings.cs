@@ -194,8 +194,8 @@ public static partial class K
         public static readonly Str Hotkeys = new("settings.hotkeys", "快捷键", "Hotkeys");
         public static readonly Str HoveringSnapsToASpecific = new(
             "settings.hoveringSnapsToASpecific",
-            "悬停自动吸附窗口内的具体控件：输入框、文字、图片、分组容器等，按 Tab 可上钻到父容器。依赖应用无障碍接口，不支持时自动回退整窗吸附",
-            "Hovering snaps to a specific control inside the window — input boxes, text, images, group containers — and Tab steps up to the parent container. It relies on the app's accessibility interface and falls back to whole-window snapping where that is unavailable");
+            "悬停自动吸附窗口内的具体控件：输入框、按钮、链接、文字、图片、列表项等，按 Tab 可上钻到父容器。先走应用的无障碍接口；那里给不出可用控件时改看像素，在光标附近找闭合的方框；都没有才回退整窗吸附",
+            "Hovering snaps to a specific control inside the window — input boxes, buttons, links, text, images, list items — and Tab steps up to the parent container. It asks the app's accessibility interface first; where that yields nothing usable it looks at pixels for a closed box near the cursor, and only then falls back to whole-window snapping");
         public static readonly Str HowLongTheCopiedThumbnail = new(
             "settings.howLongTheCopiedThumbnail",
             "截完弹出的「已复制」缩略浮窗停留多久自动消失。悬停其上会暂停计时、移开再给满时长。想拍完即走调小、想留着慢慢点进编辑器调大或常驻。",

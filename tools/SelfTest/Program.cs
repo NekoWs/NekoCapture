@@ -724,6 +724,46 @@ static partial class SelfTest
     /// 拍到的就是每次截完图看到的那张卡（含操作芯片与键帽）。</summary>
     /// <param name="outPath">输出 PNG 路径。</param>
     /// <returns>0 = 已出图；1 = 浮窗没建起来。</returns>
+    /// <summary>只读探针：打印某个屏幕坐标上三路吸附各自会给出什么（UIA 一步命中 / UIA 过滤后 / 视觉），
+    /// 用来核对 Chrome、Electron、自绘界面这些不同来源的真实表现。不改设置、不点鼠标。</summary>
+    /// <param name="args">args[1] = 物理横坐标，args[2] = 物理纵坐标。</param>
+    /// <returns>0 = 已打印；2 = 参数不对。</returns>
+    static int ElemSnapProbe(string[] args)
+    {
+        if (!int.TryParse(args[1], out int x) || !int.TryParse(args[2], out int y))
+        {
+            Console.WriteLine("用法: selftest elemsnap <物理x> <物理y>");
+            return 2;
+        }
+        var app = new Application();
+        _ = new FrameCapture.Core.SettingsService();
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var raw = System.Windows.Automation.AutomationElement.FromPoint(new System.Windows.Point(x, y));
+        if (raw == null) Console.WriteLine($"点 {x},{y}");
+        else
+        {
+            var rc = raw.Current.BoundingRectangle;
+            Console.WriteLine($"点 {x},{y}");
+            Console.WriteLine($"  UIA 一步命中 {sw.ElapsedMilliseconds,4} ms  {raw.Current.ControlType.ProgrammaticName} " +
+                $"name=「{raw.Current.Name}」 {rc.X:N0},{rc.Y:N0} {rc.Width:N0}x{rc.Height:N0} " +
+                $"语义={FrameCapture.Core.ElementSnap.IsSemantic(raw)}");
+        }
+        sw.Restart();
+        var hit = FrameCapture.Core.ElementSnap.At(x, y, IntPtr.Zero);
+        Console.WriteLine(hit == null
+            ? $"  过滤后      {sw.ElapsedMilliseconds,4} ms  null（没有说得出口的控件）"
+            : $"  过滤后      {sw.ElapsedMilliseconds,4} ms  {hit.Element.Current.ControlType.ProgrammaticName} " +
+              $"name=「{hit.Element.Current.Name}」 {hit.Rect.X},{hit.Rect.Y} {hit.Rect.W}x{hit.Rect.H}");
+        var mon = FrameCapture.Capture.Monitors.Nearest(x, y);
+        sw.Restart();
+        var vr = mon == null ? null : FrameCapture.Core.VisualSnap.At(null, mon.Bounds, x, y);
+        if (mon == null) Console.WriteLine("  视觉        --   拿不到显示器");
+        else if (vr == null) Console.WriteLine($"  视觉        {sw.ElapsedMilliseconds,4} ms  null（附近没有闭合的框）");
+        else Console.WriteLine($"  视觉        {sw.ElapsedMilliseconds,4} ms  {vr.Value.X},{vr.Value.Y} {vr.Value.W}x{vr.Value.H}");
+        Console.WriteLine($"  最终采用    {(hit != null ? "UIA 控件" : vr != null ? "视觉框" : "整窗吸附")}");
+        return 0;
+    }
+
     static int RenderToast(string outPath)
     {
         var app = new Application();
@@ -915,6 +955,7 @@ static partial class SelfTest
         if (args.Length == 2 && args[0] == "sbprobe") return SbProbe(args[1]);
         if (args.Length == 2 && args[0] == "renderpick") return RenderPick(args[1]);
         if (args.Length == 2 && args[0] == "rendertoast") return RenderToast(args[1]);
+        if (args.Length >= 3 && args[0] == "elemsnap") return ElemSnapProbe(args);
         if (args.Length == 2 && args[0] == "editorwave") return EditorWave(args[1]);
         if (args.Length == 2 && args[0] == "scrollwave") return ScrollWave(args[1]);
         if (args.Length == 2 && args[0] == "renderslider") return RenderSlider(args[1]);
@@ -6677,6 +6718,49 @@ static partial class SelfTest
             FrameCapture.Core.TempFiles.Drop(fresh);
         }
         catch (Exception e) { Chk("T232-temp-sweep", false, e.Message); }
+
+        // 语义判定：按钮/链接/输入框算控件；匿名容器与整页文档不算。
+        try
+        {
+            Chk("T236-semantic-button-passes",
+                FrameCapture.Core.ElementSnap.IsSemantic(System.Windows.Automation.ControlType.Button, ""),
+                "按钮应当算控件");
+            Chk("T236-named-container-passes",
+                FrameCapture.Core.ElementSnap.IsSemantic(System.Windows.Automation.ControlType.Group, "Dashboard menu"),
+                "有名字的分组应当算控件");
+            Chk("T236-anonymous-pane-fails",
+                !FrameCapture.Core.ElementSnap.IsSemantic(System.Windows.Automation.ControlType.Pane, ""),
+                "匿名容器不该算控件");
+            Chk("T236-whole-document-fails",
+                !FrameCapture.Core.ElementSnap.IsSemantic(System.Windows.Automation.ControlType.Document, "GitHub"),
+                "整页文档不该算控件");
+        }
+        catch (Exception e) { Chk("T236-semantic", false, e.Message); }
+
+        // 视觉吸附：浅底上画一个深色框，光标放在框里 → 应当正好吸到它；纯色区域必须给 null。
+        try
+        {
+            const int VW = 480, VH = 400;
+            var px = new byte[VW * VH * 4];
+            for (int i = 0; i < px.Length; i += 4) { px[i] = 240; px[i + 1] = 240; px[i + 2] = 240; px[i + 3] = 255; }
+            for (int y = 100; y < 220; y++)
+                for (int x = 120; x < 320; x++)
+                {
+                    int i = (y * VW + x) * 4;
+                    px[i] = 40; px[i + 1] = 90; px[i + 2] = 200; px[i + 3] = 255;
+                }
+            var got = FrameCapture.Core.VisualSnap.Best(px, VW, VH, 0, 0, 200, 160);
+            Chk("T236-visual-snap-finds-the-box",
+                got is { } g && Math.Abs(g.X - 120) <= 1 && Math.Abs(g.Y - 100) <= 1
+                && Math.Abs(g.W - 200) <= 2 && Math.Abs(g.H - 120) <= 2,
+                "吸到的是 " + (got?.ToString() ?? "null"));
+            var flat = new byte[VW * VH * 4];
+            for (int i = 0; i < flat.Length; i += 4) { flat[i] = 120; flat[i + 1] = 120; flat[i + 2] = 120; flat[i + 3] = 255; }
+            Chk("T236-visual-snap-nothing-on-flat",
+                FrameCapture.Core.VisualSnap.Best(flat, VW, VH, 0, 0, 200, 160) == null,
+                "纯色区域不该吸出框");
+        }
+        catch (Exception e) { Chk("T236-visual", false, e.Message); }
 
         // 描边必须整个落在捕获范围之外：范围里的像素一个都不该被自己的边框吃掉。
         try
