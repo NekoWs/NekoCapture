@@ -6176,6 +6176,62 @@ static partial class SelfTest
         }
         catch (Exception e) { Chk("T222-keycap-vocabulary", false, e.Message); }
 
+        // 浮起卡片的描边方向。暗色主题下投影几乎看不见，卡片靠一条「上缘亮、下缘暗」的
+        // 渐变边说清它是浮在桌面内容之上的；等宽实色边撑不起这个层次，卡片就又贴平了。
+        // 倒计时卡走同一个 Fluent.CardEdge()，这里查两张被动卡片即可覆盖那条工厂。
+        try
+        {
+            static double Lum(System.Windows.Media.Color c)
+            {
+                static double F(double v) => v <= 0.03928 ? v / 12.92 : Math.Pow((v + 0.055) / 1.055, 2.4);
+                return 0.2126 * F(c.R / 255.0) + 0.7152 * F(c.G / 255.0) + 0.0722 * F(c.B / 255.0);
+            }
+            void CheckEdge(string name, Window w)
+            {
+                var edges = new List<System.Windows.Controls.Border>();
+                var flat = new List<System.Windows.Controls.Border>();
+                w.UpdateLayout();
+                void Walk(DependencyObject o)
+                {
+                    if (o is System.Windows.Controls.Border bd && bd.CornerRadius.TopLeft >= 10
+                        && bd.BorderBrush != null && bd.BorderBrush != System.Windows.Media.Brushes.Transparent)
+                    {
+                        if (bd.BorderBrush is System.Windows.Media.LinearGradientBrush) edges.Add(bd);
+                        else flat.Add(bd);
+                    }
+                    int n = System.Windows.Media.VisualTreeHelper.GetChildrenCount(o);
+                    for (int i = 0; i < n; i++) Walk(System.Windows.Media.VisualTreeHelper.GetChild(o, i));
+                }
+                Walk(w);
+                Chk($"T223-{name}-card-edge-is-gradient", edges.Count == 1 && flat.Count == 0,
+                    $"卡片描边：渐变 {edges.Count} 处、等宽实色 {flat.Count} 处（卡片应恰好 1 条渐变边）");
+                bool LitFromAbove(System.Windows.Controls.Border b)
+                {
+                    var gs = ((System.Windows.Media.LinearGradientBrush)b.BorderBrush).GradientStops;
+                    return gs.Count >= 2 && Lum(gs[0].Color) > Lum(gs[gs.Count - 1].Color);
+                }
+                Chk($"T223-{name}-card-edge-lit-from-above", edges.Count == 1 && LitFromAbove(edges[0]),
+                    edges.Count == 0 ? "没有渐变描边可判" :
+                    $"上缘亮度 {Lum(((System.Windows.Media.LinearGradientBrush)edges[0].BorderBrush).GradientStops[0].Color):F4}" +
+                    $" 下缘 {Lum(((System.Windows.Media.LinearGradientBrush)edges[0].BorderBrush).GradientStops[^1].Color):F4}");
+            }
+
+            FrameCapture.Overlays.WelcomeToast.Show("F6", "Ctrl+Alt+R");
+            var wc = System.Windows.Application.Current.Windows
+                .OfType<FrameCapture.Overlays.WelcomeToast>().FirstOrDefault();
+            Chk("T223-welcome-card-found", wc != null, wc == null ? "没找到首启卡" : "已开");
+            if (wc != null) CheckEdge("welcome", wc);
+            wc?.Close();
+
+            FrameCapture.Overlays.NoticeToast.Show("自检通知", "浮起卡片的描边方向");
+            var nc = System.Windows.Application.Current.Windows
+                .OfType<FrameCapture.Overlays.NoticeToast>().FirstOrDefault();
+            Chk("T223-notice-card-found", nc != null, nc == null ? "没找到通知卡" : "已开");
+            if (nc != null) CheckEdge("notice", nc);
+            nc?.Close();
+        }
+        catch (Exception e) { Chk("T223-card-edge", false, e.Message); }
+
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");
         return fail == 0 ? 0 : 1;
     }
