@@ -38,6 +38,8 @@ public sealed partial class SettingsWindow : Window
 
     /// <summary>
     /// 界面语言行：三档文字选项，每档用各自语言写自己的名字，只有「系统默认」跟着当前语言走。
+    /// 三档装在一条轨道里：选中那块是落在轨道内侧的强调色胶囊，三段的上下沿由同一个数说话，
+    /// 不靠半透明底色分选中——那种底在暗色主题下几乎看不见，看着就像其中一颗比别的小一圈。
     /// 选中即落盘、即取词、原地重建本窗——本窗文案是构造期取值的，重建才看得到新语言；
     /// 托盘菜单每次右键重建，编辑器与帮助窗下次打开自然跟上。
     /// </summary>
@@ -45,29 +47,47 @@ public sealed partial class SettingsWindow : Window
     FrameworkElement LanguageRow()
     {
         var g = ChipRow("\uF2B7", Loc.T(K.Settings.Language), Loc.T(K.Settings.Language));
-        var chips = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
-        Grid.SetColumn(chips, 2);
         string cur = _settings.Current.UiLanguage;
+        var strip = new StackPanel { Orientation = Orientation.Horizontal };
+        var track = new Border
+        {
+            Height = 30,
+            CornerRadius = new CornerRadius(7),
+            Background = new SolidColorBrush(Theme.TrackBg),
+            BorderBrush = new SolidColorBrush(Theme.Stroke),
+            BorderThickness = new Thickness(1),
+            Padding = new Thickness(2),
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Center,
+            Child = strip,
+        };
+        Grid.SetColumn(track, 2);
+        bool first = true;
         foreach (var (id, label) in new[]
                  { (Loc.PrefSystem, Loc.T(K.Settings.System2)), (Loc.PrefZh, "中文"), (Loc.PrefEn, "English") }) // copyok 语言名用本语言自称，两种界面下都显示「中文 / English」
         {
             string captured = id;
-            var chip = new Border
+            bool sel = captured == cur;
+            var seg = new Border
             {
-                CornerRadius = new CornerRadius(6),
-                Padding = new Thickness(10, 5, 10, 5),
-                Margin = new Thickness(2, 0, 2, 0),
-                Background = new SolidColorBrush(captured == cur ? Theme.Accent : Theme.Hover),
+                Height = 24,
+                CornerRadius = new CornerRadius(5),
+                Padding = new Thickness(10, 0, 10, 0),
+                Margin = new Thickness(first ? 0 : 2, 0, 0, 0),
+                Background = new SolidColorBrush(sel ? Theme.Accent : Colors.Transparent),
+                Cursor = Cursors.Hand,
+                Focusable = true,
                 Child = new TextBlock
                 {
                     Text = label,
                     FontSize = 12.5,
-                    Foreground = new SolidColorBrush(captured == cur ? Fluent.OnAccentColor(Theme.Accent) : Theme.Text),
+                    Foreground = new SolidColorBrush(sel ? Fluent.OnAccentColor(Theme.Accent) : Theme.TextDim),
+                    VerticalAlignment = VerticalAlignment.Center,
+                    HorizontalAlignment = HorizontalAlignment.Center,
                 },
-                Cursor = Cursors.Hand,
-                Focusable = true,
             };
-            Fluent.ChipHover(chip);   // 悬停只改底色带过渡，不缩放
+            first = false;
+            Fluent.ChipHover(seg);   // 悬停只改底色带过渡，不缩放
             void Pick()
             {
                 if (_settings.Current.UiLanguage == captured) return;
@@ -75,12 +95,12 @@ public sealed partial class SettingsWindow : Window
                 Loc.Apply(captured);
                 RebuildInPlace();
             }
-            chip.MouseLeftButtonDown += (_, e) => { Pick(); e.Handled = true; };
+            seg.MouseLeftButtonDown += (_, e) => { Pick(); e.Handled = true; };
             // 键盘可达——Tab 聚焦、空格/Enter 切换（与点击同一路径）
-            chip.KeyDown += (_, e) => { if (e.Key is Key.Space or Key.Enter) { Pick(); e.Handled = true; } };
-            chips.Children.Add(chip);
+            seg.KeyDown += (_, e) => { if (e.Key is Key.Space or Key.Enter) { Pick(); e.Handled = true; } };
+            strip.Children.Add(seg);
         }
-        g.Children.Add(chips);
+        g.Children.Add(track);
         return g;
     }
 
