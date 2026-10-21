@@ -148,14 +148,7 @@ public sealed class ChordCaptureBox : Border
         {
             // 走 token 而不是切串：主键是加号时，串里的加号分不清分隔符与键名
             var toks = EditorChord.Parse(_chord) is { } ec ? ec.Tokens() : new[] { _chord };
-            _host.Children.Add(Keycaps.Row(toks, new KeycapTheme
-            {
-                Face = Fluent.KeycapFace(),
-                Text = Theme.Text,
-                Stroke = Theme.Stroke,
-                Dim = Theme.TextDim,
-                Size = 12,
-            }));
+            _host.Children.Add(Keycaps.Row(toks, Fluent.KeycapTheme()));
         }
         BorderBrush = new SolidColorBrush(_capturing ? Theme.Accent : Theme.Stroke);
         FitWidth();

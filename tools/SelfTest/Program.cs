@@ -6140,6 +6140,42 @@ static partial class SelfTest
         }
         catch (Exception e) { Chk("T221-tool-highlight-on-open", false, e.Message); }
 
+        // 键位在全应用只有一副长相：首启卡把键位写成彩色文字、编辑器写成键帽，
+        // 用户在首启卡学到的「键位长这样」到下一扇窗就不成立。
+        try
+        {
+            FrameCapture.Overlays.WelcomeToast.Show("F6", "Ctrl+Alt+R");
+            var toast = System.Windows.Application.Current.Windows
+                .OfType<FrameCapture.Overlays.WelcomeToast>().FirstOrDefault();
+            Chk("T222-welcome-toast-opened", toast != null, toast == null ? "没找到首启卡窗口" : "已开");
+            var caps = new List<System.Windows.Controls.Border>();
+            if (toast != null)
+            {
+                toast.UpdateLayout();
+                void Walk(DependencyObject o)
+                {
+                    // 键帽的长相：最小宽 24（一个字母键）+ 底边比四周粗一档（按键的厚度感）
+                    if (o is System.Windows.Controls.Border bd && bd.Child is System.Windows.Controls.TextBlock
+                        && bd.MinWidth >= 24 && bd.BorderThickness.Bottom == 2)
+                        caps.Add(bd);
+                    int n = System.Windows.Media.VisualTreeHelper.GetChildrenCount(o);
+                    for (int i = 0; i < n; i++) Walk(System.Windows.Media.VisualTreeHelper.GetChild(o, i));
+                }
+                Walk(toast);
+            }
+            // F6 一枚 + Ctrl+Alt+R 三枚
+            Chk("T222-welcome-keys-are-keycaps", caps.Count == 4, $"键帽 {caps.Count} 枚（应为 4：F6 一枚、Ctrl+Alt+R 三枚）");
+            bool SameFace(System.Windows.Controls.Border b) =>
+                b.Background is System.Windows.Media.SolidColorBrush sb
+                && Math.Abs(sb.Color.R - Fluent.KeycapFace().R) <= 2
+                && Math.Abs(sb.Color.G - Fluent.KeycapFace().G) <= 2
+                && Math.Abs(sb.Color.B - Fluent.KeycapFace().B) <= 2;
+            Chk("T222-welcome-keycap-face-matches-editor", caps.Count > 0 && caps.All(SameFace),
+                $"底色与键帽面一致的有 {caps.Count(SameFace)} / {caps.Count} 枚");
+            toast?.Close();
+        }
+        catch (Exception e) { Chk("T222-keycap-vocabulary", false, e.Message); }
+
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");
         return fail == 0 ? 0 : 1;
     }

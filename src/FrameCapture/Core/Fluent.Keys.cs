@@ -14,4 +14,17 @@ public static partial class Fluent
     public static Color KeycapFace() => Theme.IsDark
         ? Keycaps.Lift(Theme.Opaque(Theme.CardBg), Theme.Hover)
         : Colors.White;
+
+    /// <summary>标准键帽配色：底色取键帽面，字色与描边随主题。键帽在任何界面都该是同一副长相——
+    /// 首启卡把键位写成彩色文字、编辑器写成键帽，用户在首启卡学到的「键位长这样」到下一扇窗就不成立了。</summary>
+    /// <param name="size">键帽字号，默认 12。</param>
+    /// <returns>可直接交给 <see cref="Keycaps.Row(string, KeycapTheme, string)"/> 的配色。</returns>
+    public static KeycapTheme KeycapTheme(double size = 12) => new()
+    {
+        Face = KeycapFace(),
+        Text = Theme.Text,
+        Stroke = Theme.Stroke,
+        Dim = Theme.TextDim,
+        Size = size,
+    };
 }

@@ -175,15 +175,9 @@ public sealed class WelcomeToast : Window
         };
         Grid.SetColumn(lb, 0);
         g.Children.Add(lb);
-        g.Children.Add(new TextBlock
-        {
-            Text = key,
-            FontSize = 13.5,
-            FontWeight = FontWeights.SemiBold,
-            Foreground = new SolidColorBrush(Core.Fluent.AccentText()),
-            FontFamily = new FontFamily("Segoe UI"),
-            VerticalAlignment = VerticalAlignment.Center,
-        });
+        // 键位用键帽画，不写成彩色文字：与编辑器、设置页同一副长相——
+        // 用户在首启卡学到的「键位长这样」，到下一扇窗照样得成立。
+        g.Children.Add(Keycaps.Row(key, Core.Fluent.KeycapTheme(12.5)));
         Grid.SetColumn(g.Children[1], 1);
         return g;
     }
