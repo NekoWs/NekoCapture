@@ -784,6 +784,15 @@ static partial class SelfTest
             ? $"  过滤后      {sw.ElapsedMilliseconds,4} ms  null（没有说得出口的控件）"
             : $"  过滤后      {sw.ElapsedMilliseconds,4} ms  {hit.Element.Current.ControlType.ProgrammaticName} " +
               $"name=「{hit.Element.Current.Name}」 {hit.Rect.X},{hit.Rect.Y} {hit.Rect.W}x{hit.Rect.H}");
+        // MSAA：在目标窗口内部命中，绕过最上层遮罩
+        IntPtr targetHwnd = ScanFindWindow(ForegroundTitle());
+        if (targetHwnd != IntPtr.Zero)
+        {
+            var mh = FrameCapture.Core.MsaaSnap.At(targetHwnd, x, y);
+            Console.WriteLine(mh == null
+                ? "  MSAA        --   没有可用控件"
+                : $"  MSAA        --   role={mh.Role} name=「{mh.Name}」 {mh.Rect.X},{mh.Rect.Y} {mh.Rect.W}x{mh.Rect.H} 子节点={mh.ChildCount}");
+        }
         var mon = FrameCapture.Capture.Monitors.Nearest(x, y);
         sw.Restart();
         var vr = mon == null ? null : FrameCapture.Core.VisualSnap.At(null, mon.Bounds, x, y);
@@ -798,6 +807,17 @@ static partial class SelfTest
     [System.Runtime.InteropServices.DllImport("user32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
     static extern IntPtr FindWindowW(string? cls, string title);
     static IntPtr ScanFindWindow(string title) => FindWindowW(null, title);
+    static string ForegroundTitle()
+    {
+        IntPtr h = GetForegroundWindow();
+        var sb = new System.Text.StringBuilder(512);
+        GetWindowTextW(h, sb, 512);
+        return sb.ToString();
+    }
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    static extern IntPtr GetForegroundWindow();
+    [System.Runtime.InteropServices.DllImport("user32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+    static extern int GetWindowTextW(IntPtr h, System.Text.StringBuilder s, int n);
     /// <summary>扫描取证：抓一整窗，按网格在每个点上跑一次视觉吸附，把吸到的框画在图上输出。
     /// 目的是让人一眼看出「这套判据在这个界面上到底认出了什么」——认得准不准不必靠读代码判断。</summary>
     /// <param name="args">args[1] = 窗口标题（精确），args[2] = 输出 PNG，args[3] = 网格步长（可选，默认 48）。</param>
@@ -6845,6 +6865,17 @@ static partial class SelfTest
             FrameCapture.Core.TempFiles.Drop(fresh);
         }
         catch (Exception e) { Chk("T232-temp-sweep", false, e.Message); }
+
+        // MSAA 的语义判定：按钮/链接/文本算控件；整页文档与无名容器不算，有名字的容器算。
+        try
+        {
+            Chk("T237-msaa-role-button", FrameCapture.Core.MsaaSnap.IsSemantic(0x2B, ""), "按钮角色应当算控件");
+            Chk("T237-msaa-role-link", FrameCapture.Core.MsaaSnap.IsSemantic(0x1E, ""), "链接角色应当算控件");
+            Chk("T237-msaa-role-document", !FrameCapture.Core.MsaaSnap.IsSemantic(0x0F, "GitHub"), "整页文档不该算控件");
+            Chk("T237-msaa-role-unnamed-pane", !FrameCapture.Core.MsaaSnap.IsSemantic(0x10, ""), "无名容器不该算控件");
+            Chk("T237-msaa-role-named-group", FrameCapture.Core.MsaaSnap.IsSemantic(0x10, "Dashboard"), "有名字的容器该算控件");
+        }
+        catch (Exception e) { Chk("T237-msaa-semantic", false, e.Message); }
 
         // 语义判定：按钮/链接/输入框算控件；匿名容器与整页文档不算。
         try

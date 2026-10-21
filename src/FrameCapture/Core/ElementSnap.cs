@@ -10,7 +10,8 @@ namespace FrameCapture.Core;
 public sealed class ElementHit
 {
     public RectI Rect;
-    public AutomationElement Element = null!;
+    /// <summary>UIA 元素；MSAA 命中时为空，此时不支持 Tab 上钻。</summary>
+    public AutomationElement? Element;
 }
 
 /// <summary>
@@ -87,16 +88,18 @@ public static class ElementSnap
                 result = Pick(quick, physX, physY, sw);
             if (result == null && TryTopmostAt(physX, physY, excludeHwnd, out IntPtr targetHwnd))
             {
-                int misses;
-                lock (_walkMiss) _walkMiss.TryGetValue(targetHwnd, out misses);
-                if (misses < WalkMissLimit)
-                {
+                // MSAA 在目标窗口内部命中：这一条不经过全局命中，遮罩在不在最上层都无所谓。
+                // Chrome / Electron 的网页内容只走这条路才拿得到（实测与 UIA 无遮罩时结果一致）。
+                // 自己进程的窗口：从窗口往下走。这条路对 Chromium 没用（会卡），但自家 WPF 窗口走得通，
+                // 而 MSAA 命中没有 UIA 元素、Tab 上钻会断，所以自家的窗仍走 UIA。
+                if (IsOurWindow(targetHwnd))
                     result = Walk(targetHwnd, physX, physY, sw);
-                    lock (_walkMiss)
-                    {
-                        if (result == null) _walkMiss[targetHwnd] = misses + 1;
-                        else _walkMiss.Remove(targetHwnd);
-                    }
+                else
+                {
+                    var msaa = MsaaSnap.At(targetHwnd, physX, physY);
+                    if (msaa != null && msaa.Rect.W >= MinSide && msaa.Rect.H >= MinSide
+                        && MsaaSnap.IsSemantic(msaa.Role, msaa.Name))
+                        result = new ElementHit { Rect = msaa.Rect, Element = null };
                 }
             }
         }
@@ -179,6 +182,22 @@ public static class ElementSnap
 
     /// <summary>探针用：把「往下走」每一层选中的节点打出来。生产路径留 null，零开销。</summary>
     public static Action<string>? DebugLog { get; set; }
+    /// <summary>这扇窗是不是本进程的。</summary>
+    /// <param name="hwnd">窗口句柄。</param>
+    /// <returns>属于本进程返回 true。</returns>
+    static bool IsOurWindow(IntPtr hwnd)
+    {
+        try
+        {
+            uint pid;
+            GetWindowThreadProcessId(hwnd, out pid);
+            return pid == (uint)Environment.ProcessId;
+        }
+        catch { return false; }
+    }
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint pid);
     /// <summary>这枚元素是不是我们自己的界面（选区遮罩、弹层）。自己的界面永远不该被吸附。</summary>
     /// <param name="el">UIA 元素。</param>
     /// <param name="excludeHwnd">要排除的窗口句柄，<c>IntPtr.Zero</c> 表示不排除。</param>
@@ -241,7 +260,7 @@ public static class ElementSnap
             cur = best;
             curRect = bestRect;
             if (IsSemantic(cur)) lastSemantic = new ElementHit { Rect = curRect, Element = cur };
-            DebugLog?.Invoke($"    walk[{depth}] {TypeName(cur)} name=「{NameOf(cur)}」 rect={curRect.X},{curRect.Y} {curRect.W}x{curRect.H} 语义={IsSemantic(cur)}");
+            DebugLog?.Invoke($"    walk[{depth}] {TypeName(cur)} name='{NameOf(cur)}' rect={curRect.X},{curRect.Y} {curRect.W}x{curRect.H} semantic={IsSemantic(cur)}");
         }
         // 走到的那一格可能是无名容器：退回路径上最近的那个语义节点
         return lastSemantic;
@@ -254,7 +273,8 @@ public static class ElementSnap
     {
         try
         {
-            var p = TreeWalker.RawViewWalker.GetParent(hit.Element);
+            if (hit.Element == null) return null;   // MSAA 命中没有父级可上钻
+        var p = TreeWalker.RawViewWalker.GetParent(hit.Element);
             if (p == null) return null;
             var r = FromUia(p);
             if (r == null) return null;
