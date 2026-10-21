@@ -15,7 +15,7 @@ public sealed partial class SettingsWindow : Window
     readonly SettingsService _settings;
     readonly bool _mica;   // 背板在场才透明，缺席必须平涂
     int _cat;           // 当前分页索引
-    int _restoreCat;    // 重建（改主题/强调色）时要恢复的分页索引
+    int _restoreCat = -1;    // 重建（改主题/强调色）时要恢复的分页索引；-1 = 没指定，走默认第一页
 
     /// <summary>
     /// 设置窗的窗口属性：无边框 + WindowChrome 原生拖窗区与缩放边框、固定起始尺寸、不进任务栏、不总在最前。
@@ -70,6 +70,19 @@ public sealed partial class SettingsWindow : Window
         foreach (Window w in Application.Current.Windows)
             if (w is SettingsWindow s) return s;
         return null;
+    }
+
+    /// <summary>审查脚本用 <c>FC_SETTINGS_PAGE</c> 把窗口直接开到某一页截图（页名或下标）。
+    /// 只认这一个环境变量：不给就回第一页，改主题/强调色重建时仍按 <c>_restoreCat</c> 停在原页。</summary>
+    /// <returns>分页下标；没设或认不出返回 -1，由调用方兜到第一页。</returns>
+    static int StartupPage()
+    {
+        var raw = Environment.GetEnvironmentVariable("FC_SETTINGS_PAGE");
+        if (string.IsNullOrWhiteSpace(raw)) return -1;
+        raw = raw.Trim().ToLowerInvariant();
+        string[] names = { "hotkeys", "capture", "record", "output", "editor", "pin", "appearance", "system" };
+        int at = Array.IndexOf(names, raw);
+        return at >= 0 ? at : int.TryParse(raw, out var n) ? n : -1;
     }
 
     void Build()
@@ -425,7 +438,8 @@ public sealed partial class SettingsWindow : Window
         Grid.SetColumn(navHost, 0); Grid.SetColumn(divider, 1); Grid.SetColumn(rightPanel, 2);
         body.Children.Add(navHost); body.Children.Add(divider); body.Children.Add(rightPanel);
 
-        ShowCat(Math.Clamp(_restoreCat, 0, cats.Count - 1), false);   // 重建时停在原类别
+        ShowCat(Math.Clamp(_restoreCat >= 0 ? _restoreCat : StartupPage(), 0, cats.Count - 1), false);   // 重建时停在原类别
+
 
         dock.Children.Add(body);   // LastChildFill 填满标题栏以下区域
         root.Child = dock;

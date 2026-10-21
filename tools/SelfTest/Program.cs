@@ -702,7 +702,10 @@ static partial class SelfTest
         };
         root.Measure(new System.Windows.Size(420, 400));
         double h = Math.Max(1, root.DesiredSize.Height);
-        root.Arrange(new Rect(0, 0, 420, h));
+        // 按自然宽排版：弹层里的宽度就是内容自己撑出来的那段，按 420 排会把右侧的竖条画到位图外面，
+        // 拍出来像少了半截东西，而真实弹层根本不是这个宽度。
+        double w = Math.Max(1, root.DesiredSize.Width);
+        root.Arrange(new Rect(0, 0, w, h));
         root.UpdateLayout();
         view.Color = System.Windows.Media.Color.FromArgb(0x80, 0xE8, 0x4C, 0x3D); // 布局后重设一次：准星/滑块按 ActualWidth 落位
         root.UpdateLayout();
@@ -3025,7 +3028,13 @@ static partial class SelfTest
                 Chk("T101c-unique-3",
                     SaveService.UniqueName(svDir, "FrameCapture x", "gif") == "FrameCapture x (3).gif",
                     "同名+（2）占用 → (3)");
-                // SelfTest 不建 SettingsService（Shared=null）→ 自动保存视为关闭：目录回退默认、写盘零副作用
+                // 先清掉自定义保存目录再把自动保存关掉，这两条判据才不依赖本机设置：
+                // 用户设过保存目录时，第一条量的是他的路径；开着自动保存时，第二条会真的往盘上写。
+                // 两样都在本段末尾还原。
+                var saveSvc = FrameCapture.Core.SettingsService.Shared;
+                string keepPath = saveSvc?.Current.AutoSavePath ?? "";
+                bool keepAuto = saveSvc?.Current.AutoSaveCopy ?? false;
+                saveSvc?.Mutate(s2 => { s2.AutoSavePath = ""; s2.AutoSaveCopy = false; });
                 var resolved = SaveService.ResolveFolder();
                 Chk("T101d-folder-fallback",
                     resolved == Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), "FrameCapture")
@@ -3038,7 +3047,8 @@ static partial class SelfTest
                 SaveService.MaybeSaveArtifact(twoSeq, new byte[] { 1, 2, 3 });
                 SaveService.MaybeSavePng(f0);
                 Chk("T101e-off-noop", Directory.GetFiles(resolved).Length == before,
-                    "关闭状态（Shared=null）→ 零落盘，绝不影响捕获");
+                    "自动保存关闭 → 零落盘，绝不影响捕获");
+                saveSvc?.Mutate(s2 => { s2.AutoSavePath = keepPath; s2.AutoSaveCopy = keepAuto; });
                 try { Directory.Delete(svDir, true); } catch { }
             }
 
@@ -6511,6 +6521,135 @@ static partial class SelfTest
             foreach (var b in saved) g.Bindings.Add(b);
         }
         catch (Exception e) { Chk("T227-unbound-entry", false, e.Message); }
+
+        // 键位框必须显示它报出去的那个键位：只把新值交给宿主、自己还留着原值，用户改完看到的仍是原键帽。
+        static List<string> ChipsIn(DependencyObject root)
+        {
+            var list = new List<string>();
+            void W(DependencyObject o)
+            {
+                if (o is System.Windows.Controls.Border b && b.Child is System.Windows.Controls.TextBlock tb
+                    && b.MinWidth >= 24 && b.BorderThickness.Bottom == 2) list.Add(tb.Text);
+                foreach (var c in System.Windows.LogicalTreeHelper.GetChildren(o))
+                    if (c is DependencyObject d) W(d);
+            }
+            W(root);
+            return list;
+        }
+        static void ShowOffscreen(Window w) { w.Left = -3000; w.Top = -3000; w.ShowInTaskbar = false; w.Show(); PumpMs(140); }
+        try
+        {
+            var box = new FrameCapture.Core.ChordCaptureBox { Chord = "F6" };
+            string picked = "";
+            box.Picked += c => picked = c;
+            var host = new Window { Width = 220, Height = 120, WindowStyle = WindowStyle.None, Content = box };
+            ShowOffscreen(host);
+            box.BeginCapture();
+            var mi = typeof(FrameCapture.Core.ChordCaptureBox).GetMethod("OnPreviewKeyDown",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance
+                | System.Reflection.BindingFlags.DeclaredOnly)!;   // 基类也有同名重写：不加 DeclaredOnly 会「同形重载」报错
+            var ke = new System.Windows.Input.KeyEventArgs(System.Windows.Input.Keyboard.PrimaryDevice,
+                System.Windows.PresentationSource.FromVisual(box)!, 0, System.Windows.Input.Key.F7)
+            { RoutedEvent = System.Windows.Input.Keyboard.PreviewKeyDownEvent };
+            mi.Invoke(box, new object[] { box, ke });
+            PumpMs(80);
+            Chk("T228-chord-box-reports-the-new-key", picked == "F7", "报出去的是：" + picked);
+            Chk("T228-chord-box-shows-the-new-key", ChipsIn(box).SequenceEqual(new[] { "F7" }),
+                "框里显示：" + string.Join(" / ", ChipsIn(box)));
+            host.Close();
+        }
+        catch (Exception e) { Chk("T228-chord-box-display", false, e.Message); }
+
+        // 语言三档装在同一条轨道里：三段的上下沿由同一个数说话，不能谁比谁高半截。
+        try
+        {
+            var sw = new FrameCapture.Overlays.SettingsWindow();
+            var np = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+            typeof(FrameCapture.Overlays.SettingsWindow).GetField("_restoreCat", np)!.SetValue(sw, 6);   // 外观
+            typeof(FrameCapture.Overlays.SettingsWindow).GetMethod("Build", np)!.Invoke(sw, null);
+            sw.Left = -3000; sw.Top = -3000; sw.ShowInTaskbar = false; sw.Show(); PumpMs(200);
+            var segs = new List<System.Windows.Controls.Border>();
+            void WalkSeg(DependencyObject o)
+            {
+                if (o is System.Windows.Controls.Border b && b.Child is System.Windows.Controls.TextBlock { FontSize: > 12 and < 13 }
+                    && Math.Abs(b.Height - 24) < 0.1) segs.Add(b);
+                int n = System.Windows.Media.VisualTreeHelper.GetChildrenCount(o);
+                for (int i = 0; i < n; i++) WalkSeg(System.Windows.Media.VisualTreeHelper.GetChild(o, i));
+            }
+            WalkSeg(sw);
+            Chk("T229-language-segments-are-equal-height",
+                segs.Count == 3 && segs.Select(s => Math.Round(s.ActualHeight, 1)).Distinct().Count() == 1,
+                segs.Count + " 段，高度：" + string.Join(" / ", segs.Select(s => s.ActualHeight.ToString("N1"))));
+            sw.Close();
+        }
+        catch (Exception e) { Chk("T229-language-segment-heights", false, e.Message); }
+
+        // 保存路径行是可直接编辑的输入框：回车落盘，Esc 把框里的字放回当前配置。
+        try
+        {
+            // 设置窗读的是 AppHost 那份 Settings 实例，和 SettingsService.Shared 未必是同一个——
+            // 断言与还原都走同一份，否则改的是甲的设置、读的是乙，测试自己制造出「没生效」。
+            var svc = FrameCapture.Services.AppHost.Current.Settings;
+            string before = svc.Current.AutoSavePath;
+            var sw = new FrameCapture.Overlays.SettingsWindow();
+            var np = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+            typeof(FrameCapture.Overlays.SettingsWindow).GetField("_restoreCat", np)!.SetValue(sw, 3);   // 产物
+            typeof(FrameCapture.Overlays.SettingsWindow).GetMethod("Build", np)!.Invoke(sw, null);
+            sw.Left = -3000; sw.Top = -3000; sw.ShowInTaskbar = false; sw.Show(); PumpMs(200);
+            var boxes = new List<System.Windows.Controls.TextBox>();
+            void FindBox(DependencyObject o)
+            {
+                if (o is System.Windows.Controls.TextBox t) boxes.Add(t);
+                foreach (var c in System.Windows.LogicalTreeHelper.GetChildren(o))
+                    if (c is DependencyObject d) FindBox(d);
+            }
+            FindBox(sw);
+            var box = boxes.FirstOrDefault(b => Equals(b.ToolTip, Loc.T(K.Settings.SaveFolderAutoSavedCopies)));
+            Chk("T230-save-path-is-an-editable-box", box != null, "产物页里没有可编辑的路径输入框");
+            if (box != null)
+            {
+                void Press(System.Windows.Input.Key key) => box!.RaiseEvent(new System.Windows.Input.KeyEventArgs(
+                    System.Windows.Input.Keyboard.PrimaryDevice, System.Windows.PresentationSource.FromVisual(box)!, 0, key)
+                { RoutedEvent = System.Windows.Input.Keyboard.PreviewKeyDownEvent });
+                box.Text = @"C:\Windows";
+                Press(System.Windows.Input.Key.Enter);
+                PumpMs(80);
+                Chk("T230-typed-path-lands-in-settings", svc.Current.AutoSavePath == @"C:\Windows",
+                    "设置里是：" + svc.Current.AutoSavePath);
+                box.Text = @"D:\no-such-folder";
+                Press(System.Windows.Input.Key.Escape);
+                PumpMs(80);
+                Chk("T230-escape-reverts-the-box", svc.Current.AutoSavePath == @"C:\Windows" && box.Text == @"C:\Windows",
+                    "设置=" + svc.Current.AutoSavePath + " 框里=" + box.Text);
+            }
+            sw.Close();
+            svc.Mutate(s => s.AutoSavePath = before);   // 还原成审查前的设置
+        }
+        catch (Exception e) { Chk("T230-save-path-row", false, e.Message); }
+
+        // 取色器：两排右端必须齐平（右端空一大块就是「太分散」），圆角要真把内容裁进去。
+        try
+        {
+            var view = new FrameCapture.Overlays.ColorPickView { Color = System.Windows.Media.Color.FromArgb(0x80, 0xE8, 0x4C, 0x3D) };
+            var host = new Window { Width = 340, Height = 220, WindowStyle = WindowStyle.None, Content = view };
+            ShowOffscreen(host);
+            var topRow = (System.Windows.Controls.Grid)view.Children[0];
+            var bottomRow = (System.Windows.Controls.StackPanel)view.Children[1];
+            var last = (System.Windows.FrameworkElement)topRow.Children[topRow.Children.Count - 1];
+            double topRight = last.TranslatePoint(new System.Windows.Point(last.ActualWidth, 0), view).X;
+            double bottomRight = bottomRow.TranslatePoint(new System.Windows.Point(bottomRow.ActualWidth, 0), view).X;
+            Chk("T231-picker-rows-end-together", Math.Abs(topRight - bottomRight) <= 1.5,
+                $"上排右端 {topRight:N1} / 下排右端 {bottomRight:N1}");
+            var svCell = (System.Windows.Controls.Border)topRow.Children[0];
+            Chk("T231-picker-sv-keeps-its-width",
+                svCell.Child is System.Windows.FrameworkElement sv && sv.ActualWidth >= 179,
+                "SV 区宽：" + ((svCell.Child as System.Windows.FrameworkElement)?.ActualWidth ?? -1).ToString("N1"));
+            Chk("T231-picker-sv-is-clipped-to-the-round-corner",
+                svCell.Clip is System.Windows.Media.RectangleGeometry { RadiusX: > 0 },
+                "没有圆角裁剪：" + (svCell.Clip?.GetType().Name ?? "null"));
+            host.Close();
+        }
+        catch (Exception e) { Chk("T231-picker-layout", false, e.Message); }
 
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");
         return fail == 0 ? 0 : 1;
