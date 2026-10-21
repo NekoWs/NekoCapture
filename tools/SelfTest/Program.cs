@@ -6190,7 +6190,6 @@ static partial class SelfTest
             {
                 var edges = new List<System.Windows.Controls.Border>();
                 var flat = new List<System.Windows.Controls.Border>();
-                w.UpdateLayout();
                 void Walk(DependencyObject o)
                 {
                     // 卡片是「装了内容的 Border」：只包一层描边的空壳（悬停淡入的那层）不算卡片边。
@@ -6203,7 +6202,17 @@ static partial class SelfTest
                     int n = System.Windows.Media.VisualTreeHelper.GetChildrenCount(o);
                     for (int i = 0; i < n; i++) Walk(System.Windows.Media.VisualTreeHelper.GetChild(o, i));
                 }
-                Walk(w);
+                // 视觉树要等渲染才落地：机器正忙时固定等待会偶发量空，量空就报「没有渐变描边可判」，
+                // 那是测试自己的毛病不是产品的毛病。轮询到量出候选边框为止，判据本身一个字不改。
+                var swalk = System.Diagnostics.Stopwatch.StartNew();
+                while (true)
+                {
+                    edges.Clear(); flat.Clear();
+                    w.UpdateLayout();
+                    Walk(w);
+                    if (edges.Count + flat.Count > 0 || swalk.ElapsedMilliseconds > 3000) break;
+                    PumpMs(30);
+                }
                 Chk($"T223-{name}-card-edge-is-gradient", edges.Count == 1 && flat.Count == 0,
                     $"卡片描边：渐变 {edges.Count} 处、等宽实色 {flat.Count} 处（卡片应恰好 1 条渐变边）");
                 bool LitFromAbove(System.Windows.Controls.Border b)
@@ -6416,6 +6425,18 @@ static partial class SelfTest
                 var bs = TextButtons(root);
                 return bs.Count == 1 ? (string)bs[0].Content : "文字按钮 " + bs.Count + " 枚";
             }
+            static bool WaitUntil(Func<bool> probe, int budgetMs)
+            {
+                // 开一扇重窗（设置窗要建八个分区）在机器正忙时要的时间远超固定等待，
+                // 写死一个毫秒数就是把自己交给负载：轮询到成或预算用完，判据本身不变。
+                var sw = System.Diagnostics.Stopwatch.StartNew();
+                while (sw.ElapsedMilliseconds < budgetMs)
+                {
+                    if (probe()) return true;
+                    PumpMs(30);
+                }
+                return probe();
+            }
             void ShowBound(bool bound)
             {
                 foreach (var old in System.Windows.Application.Current.Windows.OfType<FrameCapture.Overlays.WelcomeToast>().ToList())
@@ -6434,7 +6455,8 @@ static partial class SelfTest
             btn.RaiseEvent(new System.Windows.RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
             PumpMs(260);
             Chk("T227-unbound-button-opens-settings",
-                System.Windows.Application.Current.Windows.OfType<FrameCapture.Overlays.SettingsWindow>().Any(),
+                WaitUntil(() => System.Windows.Application.Current.Windows
+                    .OfType<FrameCapture.Overlays.SettingsWindow>().Any(), 3000),
                 "点「去设置里绑一个键」没开出设置窗");
             foreach (var sw in System.Windows.Application.Current.Windows.OfType<FrameCapture.Overlays.SettingsWindow>().ToList())
                 sw.Close();
