@@ -6239,6 +6239,18 @@ static partial class SelfTest
             Chk("T223-toast-card-found", tc != null, tc == null ? "没找到「已复制」卡" : "已开");
             if (tc != null) CheckEdge("toast", tc);
             tc?.Close();
+
+            // 滚动截图那两张卡也浮在任意桌面内容上，同一副长相就该受同一把尺子量。
+            var sh = new FrameCapture.Overlays.ScrollHintWindow(new FrameCapture.Capture.RectI(0, 0, 320, 240), "");
+            sh.Show();
+            PumpMs(220);
+            CheckEdge("scroll-hint", sh);
+            sh.Close();
+            var spw = new FrameCapture.Overlays.ScrollPreviewWindow(new FrameCapture.Capture.RectI(0, 0, 320, 240), "");
+            spw.Show();
+            PumpMs(220);
+            CheckEdge("scroll-preview", spw);
+            spw.Close();
         }
         catch (Exception e) { Chk("T223-card-edge", false, e.Message); }
 
