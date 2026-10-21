@@ -185,14 +185,16 @@ public sealed class WelcomeToast : Window
     {
         var g = new Grid { Margin = new Thickness(0, 10, 0, 0) };
         g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto, SharedSizeGroup = "HotkeyLabel" });
-        g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        // 星型列吃掉「卡片比这一行宽」的那截：键帽因此贴住右沿，与标题行的 ✕ 落在同一条线上。
+        // 都用 Auto 时整行只占自己的宽度，右边空出的一条谁也没用。
+        g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         var lb = new TextBlock
         {
             Text = label,
             FontSize = 13,
             Foreground = new SolidColorBrush(Theme.TextDim),
             FontFamily = new FontFamily("Segoe UI"),
-            Margin = new Thickness(0, 0, 8, 0),
+            Margin = new Thickness(0, 0, 10, 0),
             VerticalAlignment = VerticalAlignment.Center,
         };
         Grid.SetColumn(lb, 0);
@@ -201,9 +203,11 @@ public sealed class WelcomeToast : Window
         // 用户在首启卡学到的「键位长这样」，到下一扇窗照样得成立。
         // 走 ChordRow 而不是 Row：一个动作可以绑多条按法（DescribeKeysFor 用本地化逗号拼），
         // 也可以带触发后缀（「F2 按下」）；整串当一个组合键切，键帽会裂成「F6，Ctrl」。
-        g.Children.Add(Keycaps.ChordRow(key, Core.Fluent.KeycapTheme(12.5), KeySeparators,
-            Loc.T(K.Common.NoKey)));
-        Grid.SetColumn(g.Children[1], 1);
+        var keys = Keycaps.ChordRow(key, Core.Fluent.KeycapTheme(12.5), KeySeparators,
+            Loc.T(K.Common.NoKey));
+        keys.HorizontalAlignment = HorizontalAlignment.Right;
+        g.Children.Add(keys);
+        Grid.SetColumn(keys, 1);
         return g;
     }
 

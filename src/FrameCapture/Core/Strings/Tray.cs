@@ -40,6 +40,10 @@ public static partial class K
             "FrameCapture · 已暂停，热键让位其他软件",
             "FrameCapture · paused, hotkeys released to other apps");
         public static readonly Str Help = new("tray.help", "帮助", "Help");
+        public static readonly Str ShowKeyHints = new(
+            "tray.showKeyHints",
+            "查看快捷键提示",
+            "Show key hints");
         public static readonly Str NoImageOnTheClipboard = new(
             "tray.noImageOnTheClipboard",
             "剪贴板里没有图片——先复制一张截图、图片或网页图再试",

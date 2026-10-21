@@ -128,6 +128,14 @@ public sealed class TrayService : IDisposable
             });
         Sep();
         Item(Loc.T(K.Tray.Settings), OpenSettings);
+        // 就绪卡只在首启弹一次；老手想再看一眼自己现在绑的是哪个键，从托盘直接叫出来，
+        // 不必为一行键位去开帮助窗。
+        Item(Loc.T(K.Tray.ShowKeyHints), () =>
+        {
+            var g = _host.Settings.Current.Gestures;
+            Overlays.WelcomeToast.Show(g.CaptureKeyText(), g.RecordKeyText(),
+                anyHotkeyBound: g.Bindings.Any(b => b.Enabled));
+        });
         Item(Loc.T(K.Tray.Help), OpenHelp);
         Item(Loc.T(K.Common.StartWithWindows), () =>
         {
