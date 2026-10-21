@@ -48,6 +48,10 @@ public static partial class K
             "未安装 OCR 语言包，请到 设置 › 时间和语言 › 语音 添加",
             "No OCR language pack is installed — add one in Settings › Time & Language › Speech");
         public static readonly Str NoTextRecognized = new("capture.noTextRecognized", "未识别到文字", "No text recognized");
+        public static readonly Str SetAKeyInSettings = new(
+            "capture.setAKeyInSettings",
+            "去设置里绑一个键",
+            "Set a key in Settings");
         public static readonly Str Preview = new("capture.preview", "预览", "Preview");
         public static readonly Str RecognizedCharactersCopied = new(
             "capture.recognizedCharactersCopied",

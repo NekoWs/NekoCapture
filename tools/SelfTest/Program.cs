@@ -6390,6 +6390,69 @@ static partial class SelfTest
         }
         catch (Exception e) { Chk("T226-welcome-card-timing", false, e.Message); }
 
+        // 一个键都没绑的人，卡片不该只递给他一个「看帮助」——他缺的是键，不是说明。
+        try
+        {
+            var st = FrameCapture.Core.SettingsService.Shared!;
+            var g = st.Current.Gestures;
+            var saved = g.Bindings.ToList();
+            static List<System.Windows.Controls.Button> TextButtons(DependencyObject root)
+            {
+                var list = new List<System.Windows.Controls.Button>();
+                void W(DependencyObject o)
+                {
+                    // 卡片上 ✕ 也是 Button（Content 是图标字形）：只认写着文字的按钮，
+                    // 私有使用区里的字形不算文字。
+                    if (o is System.Windows.Controls.Button b && b.Content is string s && s.Length > 0
+                        && !s.Any(ch => ch >= 0xE000 && ch <= 0xF8FF)) list.Add(b);
+                    foreach (var c in System.Windows.LogicalTreeHelper.GetChildren(o))
+                        if (c is DependencyObject d) W(d);
+                }
+                W(root);
+                return list;
+            }
+            static string CardButtonText(DependencyObject root)
+            {
+                var bs = TextButtons(root);
+                return bs.Count == 1 ? (string)bs[0].Content : "文字按钮 " + bs.Count + " 枚";
+            }
+            void ShowBound(bool bound)
+            {
+                foreach (var old in System.Windows.Application.Current.Windows.OfType<FrameCapture.Overlays.WelcomeToast>().ToList())
+                    old.Close();
+                PumpMs(120);
+                FrameCapture.Overlays.WelcomeToast.Show(g.CaptureKeyText(), g.RecordKeyText(), anyHotkeyBound: bound);
+                PumpMs(220);
+            }
+
+            g.Bindings.Clear();
+            ShowBound(bound: false);
+            var card = System.Windows.Application.Current.Windows.OfType<FrameCapture.Overlays.WelcomeToast>().First();
+            var btn = TextButtons(card).FirstOrDefault()!;
+            Chk("T227-unbound-card-points-at-settings", CardButtonText(card) == Loc.T(K.Capture.SetAKeyInSettings),
+                "按钮写的是：" + CardButtonText(card));
+            btn.RaiseEvent(new System.Windows.RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+            PumpMs(260);
+            Chk("T227-unbound-button-opens-settings",
+                System.Windows.Application.Current.Windows.OfType<FrameCapture.Overlays.SettingsWindow>().Any(),
+                "点「去设置里绑一个键」没开出设置窗");
+            foreach (var sw in System.Windows.Application.Current.Windows.OfType<FrameCapture.Overlays.SettingsWindow>().ToList())
+                sw.Close();
+
+            // 有键的人给的还是「看帮助」，这条路径不能被上面那条挤掉。
+            foreach (var b in saved) g.Bindings.Add(b);
+            ShowBound(bound: true);
+            var withKeys = System.Windows.Application.Current.Windows.OfType<FrameCapture.Overlays.WelcomeToast>().First();
+            Chk("T227-bound-card-still-points-at-help",
+                CardButtonText(withKeys) == Loc.T(K.Capture.SeeTheHelpAndEvery),
+                "按钮写的是：" + CardButtonText(withKeys));
+            foreach (var old in System.Windows.Application.Current.Windows.OfType<FrameCapture.Overlays.WelcomeToast>().ToList())
+                old.Close();
+            g.Bindings.Clear();
+            foreach (var b in saved) g.Bindings.Add(b);
+        }
+        catch (Exception e) { Chk("T227-unbound-entry", false, e.Message); }
+
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");
         return fail == 0 ? 0 : 1;
     }

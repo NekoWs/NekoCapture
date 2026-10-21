@@ -34,14 +34,16 @@ public sealed class WelcomeToast : Window
     /// <param name="recordHotkey">「录制」键位的展示文案，原样上屏。</param>
     /// <param name="sticky">首启那张不自己走：装完软件的人若没看见右下角这一下，12 秒后卡片消失，
     /// 就等于从没告诉过他键位在哪。脚本叫出来审查的（<c>--welcome</c>）保持自动走，免得卡在屏幕上。</param>
-    public static void Show(string captureHotkey, string recordHotkey, bool sticky = false)
+    /// <param name="anyHotkeyBound">当前是否还有任何启用的键位绑定。一个都没绑时按钮改成「去设置里绑一个键」，
+    /// 直接把人送到设置——他缺的不是说明，是键。</param>
+    public static void Show(string captureHotkey, string recordHotkey, bool sticky = false, bool anyHotkeyBound = true)
     {
         _current?.Close();
-        _current = new WelcomeToast(captureHotkey, recordHotkey, sticky);
+        _current = new WelcomeToast(captureHotkey, recordHotkey, sticky, anyHotkeyBound);
         _current.Show(); // ShowActivated=false：不打断用户当前输入
     }
 
-    WelcomeToast(string captureHotkey, string recordHotkey, bool sticky)
+    WelcomeToast(string captureHotkey, string recordHotkey, bool sticky, bool anyHotkeyBound)
     {
         Title = "FrameCapture Welcome";
         Fluent.BorderlessOverlay(this);
@@ -96,9 +98,14 @@ public sealed class WelcomeToast : Window
         }
 
         // 查看帮助入口（打开帮助窗并收起本卡）
+        // 入口按钮分两种人：有键的人给「看帮助」，一个键都没绑的人给「去设置里绑一个键」。
+        // 卡片上写着两个「未设键」却只递一个看帮助的入口，等于把人晾在原地——他缺的不是说明，是键。
+        var (btnText, goHelp) = anyHotkeyBound
+            ? (Loc.T(K.Capture.SeeTheHelpAndEvery), true)
+            : (Loc.T(K.Capture.SetAKeyInSettings), false);
         var help = new Button
         {
-            Content = Loc.T(K.Capture.SeeTheHelpAndEvery),
+            Content = btnText,
             FontSize = 12.5,
             Foreground = new SolidColorBrush(Fluent.OnAccentColor(Theme.Accent)), // 前景随强调色明暗自适应，浅强调色下不致白字不可读
             Background = new SolidColorBrush(Theme.Accent),
@@ -109,7 +116,12 @@ public sealed class WelcomeToast : Window
             Margin = new Thickness(0, 12, 0, 0),
             Template = RoundedBtnTemplate(),
         };
-        help.Click += (_, _) => { Trace.Log("welcome→help"); HelpWindow.ShowOrFocus(); Dismiss(); };
+        help.Click += (_, _) =>
+        {
+            if (goHelp) { Trace.Log("welcome→help"); HelpWindow.ShowOrFocus(); }
+            else { Trace.Log("welcome→settings"); SettingsWindow.ShowOrFocus(); }
+            Dismiss();
+        };
         Fluent.Springy(help);   // 悬停只改底色带过渡，不缩放（与滚动控制条按钮同款反馈）
         root.Children.Add(help);
 
