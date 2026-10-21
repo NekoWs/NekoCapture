@@ -32,14 +32,16 @@ public sealed class WelcomeToast : Window
     /// </summary>
     /// <param name="captureHotkey">「截图」键位的展示文案，原样上屏，不做二次解析。</param>
     /// <param name="recordHotkey">「录制」键位的展示文案，原样上屏。</param>
-    public static void Show(string captureHotkey, string recordHotkey)
+    /// <param name="sticky">首启那张不自己走：装完软件的人若没看见右下角这一下，12 秒后卡片消失，
+    /// 就等于从没告诉过他键位在哪。脚本叫出来审查的（<c>--welcome</c>）保持自动走，免得卡在屏幕上。</param>
+    public static void Show(string captureHotkey, string recordHotkey, bool sticky = false)
     {
         _current?.Close();
-        _current = new WelcomeToast(captureHotkey, recordHotkey);
+        _current = new WelcomeToast(captureHotkey, recordHotkey, sticky);
         _current.Show(); // ShowActivated=false：不打断用户当前输入
     }
 
-    WelcomeToast(string captureHotkey, string recordHotkey)
+    WelcomeToast(string captureHotkey, string recordHotkey, bool sticky)
     {
         Title = "FrameCapture Welcome";
         Fluent.BorderlessOverlay(this);
@@ -143,12 +145,13 @@ public sealed class WelcomeToast : Window
                 });
         };
 
-        // 上手信息给足阅读时间：12s，悬停暂停，移开再给 12s
+        // 上手信息给足阅读时间：12s，悬停暂停，移开再给 12s。
+        // 首启那张不计时（sticky）：没看见的人不该被倒计时没收唯一一次说明，✕ 与 Esc 随时能关。
         _dismiss = new DispatcherTimer { Interval = TimeSpan.FromSeconds(12) };
         _dismiss.Tick += (_, _) => Dismiss();
-        _dismiss.Start();
+        if (!sticky) _dismiss.Start();
         MouseEnter += (_, _) => _dismiss.Stop();
-        MouseLeave += (_, _) => _dismiss.Start();
+        MouseLeave += (_, _) => { if (!sticky) _dismiss.Start(); };
 
         Closed += (_, _) => { _dismiss.Stop(); if (ReferenceEquals(_current, this)) _current = null; };
 

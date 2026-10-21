@@ -81,7 +81,8 @@ public partial class App : Application
                 var st = Services.AppHost.Current.Settings;
                 if (st.Current.FirstRunHintShown) return;
                 st.Mutate(s => s.FirstRunHintShown = true);
-                Overlays.WelcomeToast.Show(st.Current.Gestures.CaptureKeyText(), st.Current.Gestures.RecordKeyText());
+                Overlays.WelcomeToast.Show(st.Current.Gestures.CaptureKeyText(), st.Current.Gestures.RecordKeyText(),
+                    sticky: true);   // 首启唯一一次说明，不自己走
             }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
         else if (Services.AppHost.Current.Settings.Current.StartupToast)
             // 之后每次启动只报一句「已启动」。本程序没有主窗口，缺这一下容易被当成没启动成功。

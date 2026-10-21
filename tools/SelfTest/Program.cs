@@ -6365,6 +6365,31 @@ static partial class SelfTest
         }
         catch (Exception e) { Chk("T225-ready-card-follows-config", false, e.Message); }
 
+        // 首启那张卡不自己走：没看见右下角这一下的人，不该被 12 秒倒计时没收唯一一次说明。
+        // 脚本叫出来审查的那张仍按时自己走，免得卡在屏幕上。
+        try
+        {
+            static bool AutoDismissRunning(Window w)
+            {
+                var f = typeof(FrameCapture.Overlays.WelcomeToast).GetField("_dismiss",
+                    System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
+                return ((System.Windows.Threading.DispatcherTimer)f.GetValue(w)!).IsEnabled;
+            }
+            FrameCapture.Overlays.WelcomeToast.Show("F6", "Ctrl+Alt+R", sticky: true);
+            var keep = System.Windows.Application.Current.Windows
+                .OfType<FrameCapture.Overlays.WelcomeToast>().First();
+            Chk("T226-first-run-card-does-not-self-close", !AutoDismissRunning(keep),
+                "首启卡的计时器在跑，12 秒后会自己走");
+            keep.Close();
+            FrameCapture.Overlays.WelcomeToast.Show("F6", "Ctrl+Alt+R");
+            var timed = System.Windows.Application.Current.Windows
+                .OfType<FrameCapture.Overlays.WelcomeToast>().First();
+            Chk("T226-scripted-card-still-times-out", AutoDismissRunning(timed),
+                "脚本叫出来的卡应按时自己走，不然审查脚本会一直等");
+            timed.Close();
+        }
+        catch (Exception e) { Chk("T226-welcome-card-timing", false, e.Message); }
+
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");
         return fail == 0 ? 0 : 1;
     }
