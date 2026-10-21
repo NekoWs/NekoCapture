@@ -344,13 +344,11 @@ public partial class App : Application
             anyHotkeyBound: st.Current.Gestures.Bindings.Any(b => b.Enabled));
     }
 
-    /// <summary>弹一条「已在托盘待命」气泡，措辞与真实启动路径同源，热键取当前设置。</summary>
+    /// <summary>弹一条「已在托盘待命」气泡。只留这一句：键位归就绪卡与帮助页，
+    /// 气泡底下那行灰字又小又挤，读的人得先猜它是什么。</summary>
     void ShowStartupNotice()
     {
-        var s = Services.AppHost.Current.Settings.Current;
-        Overlays.NoticeToast.Show(Loc.T(K.Tray.FramecaptureIsRunning),
-            Loc.F(K.Tray.WaitingInTheTrayCapture, s.Gestures.CaptureKeyText(), s.Gestures.RecordKeyText()),
-            "\uE73E");
+        Overlays.NoticeToast.Show(Loc.T(K.Tray.FramecaptureIsRunning), null, "\uE73E");
     }
 
     void StartMessageSink()
