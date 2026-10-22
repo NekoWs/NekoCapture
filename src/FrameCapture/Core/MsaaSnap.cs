@@ -1,4 +1,6 @@
 using System.Runtime.InteropServices;
+using System.Threading;
+using System.Threading.Tasks;
 using FrameCapture.Capture;
 using FrameCapture.Native;
 
@@ -55,14 +57,22 @@ public static class MsaaSnap
         {
             if (!_warmed.Add(hwnd)) return;
         }
-        try
+        // 放后台：唤醒要走跨进程无障碍握手，几十毫秒，不能卡住鼠标移动。
+        // 两条路都要走：只发 UIA 那一路时，Chromium 常常连渲染器子窗口都还没建出来，
+        // 于是候选里只剩 D3D 合成层、顶层又只给一个无名整窗 Pane——看起来就像根本没有内容。
+        _ = Task.Run(() =>
         {
-            _ = System.Windows.Automation.AutomationElement.FromHandle(hwnd);
-            // 渲染器子窗口也问一次：内容树挂在它下面
-            foreach (var child in ChildrenAt(hwnd, -1, -1)) _ = child;
-        }
-        catch { }
-        DebugLog?.Invoke($"  msaa-warm hwnd={hwnd}");
+            try
+            {
+                var iid = IidAccessible;
+                _ = AccessibleObjectFromWindow(hwnd, ObjidClient, ref iid, out object _);
+                _ = System.Windows.Automation.AutomationElement.FromHandle(hwnd);
+                // 握手之后它才会建渲染器子窗口与内容树，给它一点时间
+                Thread.Sleep(120);
+                DebugLog?.Invoke($"  msaa-warm hwnd={hwnd} rendererAfterWarm={FindRenderer(hwnd)}");
+            }
+            catch { }
+        });
     }
     // 同一点位的悬停高频重复：按 (x, y) 缓存
     static int _cacheX = int.MinValue, _cacheY;
@@ -138,6 +148,20 @@ public static class MsaaSnap
         return result;
     }
 
+    /// <summary>吸附候选窗口：先渲染器（按类名直找），再是包含该点的子窗口。</summary>
+    /// <param name="parent">顶层窗口。</param>
+    /// <param name="x">物理横坐标。</param>
+    /// <param name="y">物理纵坐标。</param>
+    /// <returns>候选窗口，按优先级排列；可能为空。</returns>
+    internal static List<IntPtr> Candidates(IntPtr parent, int x, int y)
+    {
+        var list = new List<IntPtr>();
+        var renderer = FindRenderer(parent);
+        if (renderer != IntPtr.Zero) list.Add(renderer);
+        foreach (var child in ChildrenAt(parent, x, y))
+            if (!list.Contains(child)) list.Add(child);
+        return list;
+    }
     /// <summary>在整棵子树里按类名找 Chromium 渲染器窗口。</summary>
     /// <param name="parent">顶层窗口。</param>
     /// <returns>渲染器窗口句柄；没有时为 <c>IntPtr.Zero</c>。</returns>
@@ -209,6 +233,45 @@ public static class MsaaSnap
         }
     }
 
+    /// <summary>
+    /// 遮罩临时设为命中测试透明后，用 UIA 的全局命中拿光标下的元素。
+    /// 有些应用只暴露 UIA、不暴露 MSAA（Electron 类），MSAA 那边只能给空壳，
+    /// 而 UIA 的全局命中又被最上层的遮罩挡住——趁遮罩透明的那一瞬间问，才能看到它。
+    /// </summary>
+    /// <param name="overlay">自己的遮罩窗口。</param>
+    /// <param name="x">物理横坐标。</param>
+    /// <param name="y">物理纵坐标。</param>
+    /// <returns>光标下的元素；拿不到或落在自己界面上时为 null。</returns>
+    internal static System.Windows.Automation.AutomationElement? FromPointThroughOverlay(IntPtr overlay, int x, int y)
+    {
+        int saved = 0;
+        bool flipped = false;
+        try
+        {
+            if (overlay != IntPtr.Zero)
+            {
+                saved = GetWindowLongW(overlay, GwlExStyle);
+                if ((saved & WsExTransparent) == 0)
+                {
+                    SetWindowLongW(overlay, GwlExStyle, saved | WsExTransparent);
+                    flipped = true;
+                }
+            }
+            var el = System.Windows.Automation.AutomationElement.FromPoint(new System.Windows.Point(x, y));
+            if (el == null) return null;
+            // 命中自己的界面就丢掉（遮罩虽然透明了，仍在无障碍树里）
+            if (el.Current.ProcessId == Environment.ProcessId) return null;
+            return el;
+        }
+        catch { return null; }
+        finally
+        {
+            if (flipped)
+            {
+                try { SetWindowLongW(overlay, GwlExStyle, saved); } catch { }
+            }
+        }
+    }
     const int GwlExStyle = -20;
     const int WsExTransparent = 0x20;
 

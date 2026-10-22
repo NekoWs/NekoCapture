@@ -86,6 +86,14 @@ public static class ElementSnap
             var quick = AutomationElement.FromPoint(new Point(physX, physY));
             if (quick != null && !Ours(quick, excludeHwnd))
                 result = Pick(quick, physX, physY, sw);
+            if (result == null)
+            {
+                // 遮罩挡着的时候，把遮罩临时设为命中测试透明再问 UIA：
+                // 有些应用只暴露 UIA（Electron 类），MSAA 那边只有空壳，这条路是它们唯一的入口。
+                var through = MsaaSnap.FromPointThroughOverlay(excludeHwnd, physX, physY);
+                Trace.Log($"elemsnap uia-through {(through == null ? "null" : through.Current.ControlType.ProgrammaticName)}");
+                if (through != null) result = Pick(through, physX, physY, sw);
+            }
             bool foundTarget = TryTopmostAt(physX, physY, excludeHwnd, out IntPtr targetHwnd);
             Trace.Log($"elemsnap at {physX},{physY} quickOurs={quick != null} target={targetHwnd} got={foundTarget}");
             if (result == null && foundTarget)
@@ -101,21 +109,28 @@ public static class ElementSnap
                 }
                 else
                 {
-                    // 先问「遮罩下的真实窗口」：Chromium 系的网页内容挂在渲染器子窗口上，
-                    // 而跨进程取子窗口矩形并不可靠；直接问系统该点上哪一层属于目标最稳。
+                    // 逐个候选去问，谁先给出说得出口的控件就用谁：
+                    // 1) 遮罩下真实的窗口层（Chromium 的网页内容在这一层）
+                    // 2) 顶层窗口本身（原生应用在这一层）
+                    // 3) 按类名直接找的渲染器窗口
+                    // 4) 其余子窗口
+                    // 不靠"是不是它的后代"来判断——跨进程的祖先关系与子窗口枚举都可能不可靠。
                     var under = MsaaSnap.TopWindowUnderOverlay(excludeHwnd, physX, physY);
-                    IntPtr msaaTarget = targetHwnd;
-                    if (under != IntPtr.Zero && under != targetHwnd)
+                    var candidates = new List<IntPtr> { under, targetHwnd };
+                    foreach (var extra in MsaaSnap.Candidates(targetHwnd, physX, physY)) candidates.Add(extra);
+                    foreach (var cand in candidates)
                     {
-                        IntPtr root = GetAncestor(under, 2);
-                        if (root == targetHwnd) msaaTarget = under;
+                        // 自己界面的窗口永不参与：那会吸到遮罩自己的提示文字
+                        if (cand == IntPtr.Zero || cand == excludeHwnd || IsOurWindow(cand)) continue;
+                        var h = MsaaSnap.At(cand, physX, physY);
+                        Trace.Log($"elemsnap msaa-try hwnd={cand} -> {(h == null ? "null" : $"role={h.Role} name='{h.Name}' {h.Rect} semantic={MsaaSnap.IsSemantic(h.Role, h.Name)}")}");
+                        if (h != null && h.Rect.W >= MinSide && h.Rect.H >= MinSide
+                            && MsaaSnap.IsSemantic(h.Role, h.Name) && h.Rect.Contains(physX, physY))
+                        {
+                            result = new ElementHit { Rect = h.Rect, Element = null };
+                            break;
+                        }
                     }
-                    Trace.Log($"elemsnap under={under} msaaTarget={msaaTarget} root={targetHwnd}");
-                    var msaa = MsaaSnap.At(msaaTarget, physX, physY);
-                    Trace.Log($"elemsnap msaa {(msaa == null ? "null" : $"role={msaa.Role} name='{msaa.Name}' {msaa.Rect} semantic={MsaaSnap.IsSemantic(msaa.Role, msaa.Name)}")}");
-                    if (msaa != null && msaa.Rect.W >= MinSide && msaa.Rect.H >= MinSide
-                        && MsaaSnap.IsSemantic(msaa.Role, msaa.Name))
-                        result = new ElementHit { Rect = msaa.Rect, Element = null };
                 }
             }
         }
