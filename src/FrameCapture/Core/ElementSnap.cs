@@ -86,17 +86,33 @@ public static class ElementSnap
             var quick = AutomationElement.FromPoint(new Point(physX, physY));
             if (quick != null && !Ours(quick, excludeHwnd))
                 result = Pick(quick, physX, physY, sw);
-            if (result == null && TryTopmostAt(physX, physY, excludeHwnd, out IntPtr targetHwnd))
+            bool foundTarget = TryTopmostAt(physX, physY, excludeHwnd, out IntPtr targetHwnd);
+            Trace.Log($"elemsnap at {physX},{physY} quickOurs={quick != null} target={targetHwnd} got={foundTarget}");
+            if (result == null && foundTarget)
             {
                 // MSAA 在目标窗口内部命中：这一条不经过全局命中，遮罩在不在最上层都无所谓。
                 // Chrome / Electron 的网页内容只走这条路才拿得到（实测与 UIA 无遮罩时结果一致）。
                 // 自己进程的窗口：从窗口往下走。这条路对 Chromium 没用（会卡），但自家 WPF 窗口走得通，
                 // 而 MSAA 命中没有 UIA 元素、Tab 上钻会断，所以自家的窗仍走 UIA。
                 if (IsOurWindow(targetHwnd))
+                {
                     result = Walk(targetHwnd, physX, physY, sw);
+                    Trace.Log($"elemsnap ours-walk {(result == null ? "null" : result.Rect.ToString())}");
+                }
                 else
                 {
-                    var msaa = MsaaSnap.At(targetHwnd, physX, physY);
+                    // 先问「遮罩下的真实窗口」：Chromium 系的网页内容挂在渲染器子窗口上，
+                    // 而跨进程取子窗口矩形并不可靠；直接问系统该点上哪一层属于目标最稳。
+                    var under = MsaaSnap.TopWindowUnderOverlay(excludeHwnd, physX, physY);
+                    IntPtr msaaTarget = targetHwnd;
+                    if (under != IntPtr.Zero && under != targetHwnd)
+                    {
+                        IntPtr root = GetAncestor(under, 2);
+                        if (root == targetHwnd) msaaTarget = under;
+                    }
+                    Trace.Log($"elemsnap under={under} msaaTarget={msaaTarget} root={targetHwnd}");
+                    var msaa = MsaaSnap.At(msaaTarget, physX, physY);
+                    Trace.Log($"elemsnap msaa {(msaa == null ? "null" : $"role={msaa.Role} name='{msaa.Name}' {msaa.Rect} semantic={MsaaSnap.IsSemantic(msaa.Role, msaa.Name)}")}");
                     if (msaa != null && msaa.Rect.W >= MinSide && msaa.Rect.H >= MinSide
                         && MsaaSnap.IsSemantic(msaa.Role, msaa.Name))
                         result = new ElementHit { Rect = msaa.Rect, Element = null };
@@ -198,6 +214,8 @@ public static class ElementSnap
 
     [System.Runtime.InteropServices.DllImport("user32.dll")]
     static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint pid);
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    static extern IntPtr GetAncestor(IntPtr hwnd, uint gaFlags);
     /// <summary>这枚元素是不是我们自己的界面（选区遮罩、弹层）。自己的界面永远不该被吸附。</summary>
     /// <param name="el">UIA 元素。</param>
     /// <param name="excludeHwnd">要排除的窗口句柄，<c>IntPtr.Zero</c> 表示不排除。</param>

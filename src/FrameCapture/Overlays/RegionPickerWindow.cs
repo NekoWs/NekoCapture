@@ -470,6 +470,9 @@ public sealed partial class RegionPickerWindow : Window
             _canvas.Opacity = 0;
             _canvas.BeginAnimation(OpacityProperty, MaskAnim(1, 150, 0));
             if (_freezeBg != null && !_opaqueFreeze) _freezeBg.BeginAnimation(OpacityProperty, MaskAnim(1, 150, 0)); // 定格背景与遮罩同步淡入
+            // 定格帧已经铺满屏幕时，整屏压暗这一下就是用户看到的「黑屏一瞬」：
+            // 先把遮罩留成透明，画面与压暗前一样；真正开始拖选时再压暗，那时它才有用。
+            if (_opaqueFreeze && _spotPath != null) _spotPath.Fill = Brushes.Transparent;
             _hint.BeginAnimation(OpacityProperty, MaskAnim(1, 220, 320)); // 提示滞后入场，不打扰
             if (_existing != null)
             {
@@ -511,6 +514,9 @@ public sealed partial class RegionPickerWindow : Window
 
     private void OnDown(object sender, MouseButtonEventArgs e)
     {
+        // 开始拖选：压暗整屏（入场时为了不闪而留成透明）
+        if (_spotPath != null && _spotPath.Fill is not SolidColorBrush)
+            _spotPath.Fill = new SolidColorBrush(Color.FromArgb(0x60, 0, 0, 0));
         var p = WindowPosToPhys(e.GetPosition(this));
         _dragX1 = p.X; _dragY1 = p.Y;
         _dragging = true;

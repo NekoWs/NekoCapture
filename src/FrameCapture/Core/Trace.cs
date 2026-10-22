@@ -7,7 +7,21 @@ namespace FrameCapture.Core;
 public static class Trace
 {
     /// <summary>跟踪日志落点；程序不是从仓库里的构建输出运行时为 null，那时一个字都不写。</summary>
-    static readonly string? Path = Resolve();
+    static readonly string? Path = ResolveFromEnv() ?? Resolve();
+
+    /// <summary>环境变量 <c>FC_TRACE_FILE</c> 给出的日志路径（诊断用）；没设或目录为空时为 null。</summary>
+    /// <returns>可写的日志路径，或 null。</returns>
+    static string? ResolveFromEnv()
+    {
+        var p = Environment.GetEnvironmentVariable("FC_TRACE_FILE");
+        if (string.IsNullOrWhiteSpace(p)) return null;
+        try
+        {
+            var dir = System.IO.Path.GetDirectoryName(System.IO.Path.GetFullPath(p)) ?? "";
+            return dir.Length <= 3 ? null : System.IO.Path.GetFullPath(p);
+        }
+        catch { return null; }
+    }
 
     /// <summary>从程序目录向上五级取日志落点。</summary>
     /// <returns>日志路径；程序装在仓库构建输出之外时为 null。</returns>

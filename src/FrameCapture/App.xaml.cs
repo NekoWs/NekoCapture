@@ -47,6 +47,8 @@ public partial class App : Application
         // 自家中间文件超过保留期就清掉：截图与长图的中间件都在 %TEMP%\FrameCapture，
         // 不收拾会一直涨（实测一台机器上积到两千多个、2.6 GB）。
         Core.TempFiles.SweepStale();
+        Core.MsaaSnap.DebugLog = Core.Trace.Log;
+        Core.ElementSnap.DebugLog = Core.Trace.Log;
 
         // 单实例
         _mutex = new Mutex(true, @"Local\FrameCapture.SingleInstance", out bool owned);

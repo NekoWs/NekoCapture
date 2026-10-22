@@ -40,8 +40,33 @@ public static class MsaaSnap
     /// <summary>探针用：把每次 MSAA 命中尝试打出来。生产路径留 null，零开销。</summary>
     public static Action<string>? DebugLog { get; set; }
 
+    // 已经唤醒过无障碍树的窗口：Chromium 在第一次被问到时才建树，唤醒只做一次
+    static readonly HashSet<IntPtr> _warmed = new();
+
+    /// <summary>
+    /// 唤醒目标窗口的无障碍树。Chromium 与 Electron 只在被询问时才建无障碍树，
+    /// 而选区遮罩让 UIA 的全局命中永远落在遮罩自己身上，目标窗口一次都没被问过——
+    /// 于是 MSAA 那边只能看到一具空壳（无名整窗 Pane）。这里显式按句柄问一次。
+    /// </summary>
+    /// <param name="hwnd">目标窗口。</param>
+    static void Warm(IntPtr hwnd)
+    {
+        lock (_warmed)
+        {
+            if (!_warmed.Add(hwnd)) return;
+        }
+        try
+        {
+            _ = System.Windows.Automation.AutomationElement.FromHandle(hwnd);
+            // 渲染器子窗口也问一次：内容树挂在它下面
+            foreach (var child in ChildrenAt(hwnd, -1, -1)) _ = child;
+        }
+        catch { }
+        DebugLog?.Invoke($"  msaa-warm hwnd={hwnd}");
+    }
     // 同一点位的悬停高频重复：按 (x, y) 缓存
     static int _cacheX = int.MinValue, _cacheY;
+    static IntPtr _cacheHwnd;
     static MsaaHit? _cache;
 
     /// <summary>在指定窗口内部命中光标下的控件。</summary>
@@ -52,9 +77,10 @@ public static class MsaaSnap
     public static MsaaHit? At(IntPtr hwnd, int physX, int physY)
     {
         if (hwnd == IntPtr.Zero) return null;
-        if (physX == _cacheX && physY == _cacheY) return _cache;
+        if (physX == _cacheX && physY == _cacheY && hwnd == _cacheHwnd) return _cache;
 
         MsaaHit? result = null;
+        Warm(hwnd);
         var sw = System.Diagnostics.Stopwatch.StartNew();
         try
         {
@@ -84,7 +110,11 @@ public static class MsaaSnap
         if (result is null || !IsSemantic(result.Role, result.Name))
         {
             long bestArea = result is null ? long.MaxValue : (long)result.Rect.W * result.Rect.H;
-            foreach (var childHwnd in ChildrenAt(hwnd, physX, physY))
+            var kids = ChildrenAt(hwnd, physX, physY);
+            var renderer = FindRenderer(hwnd);
+            DebugLog?.Invoke($"  msaa-children count={kids.Count} renderer={renderer}");
+            if (renderer != IntPtr.Zero && !kids.Contains(renderer)) kids.Insert(0, renderer);
+            foreach (var childHwnd in kids)
             {
                 try
                 {
@@ -104,10 +134,90 @@ public static class MsaaSnap
             }
         }
 
-        _cacheX = physX; _cacheY = physY; _cache = result;
+        _cacheX = physX; _cacheY = physY; _cacheHwnd = hwnd; _cache = result;
         return result;
     }
 
+    /// <summary>在整棵子树里按类名找 Chromium 渲染器窗口。</summary>
+    /// <param name="parent">顶层窗口。</param>
+    /// <returns>渲染器窗口句柄；没有时为 <c>IntPtr.Zero</c>。</returns>
+    static IntPtr FindRenderer(IntPtr parent)
+    {
+        IntPtr found = IntPtr.Zero;
+        try
+        {
+            EnumChildWindows(parent, (h, _) =>
+            {
+                if (!IsRenderer(h)) return true;
+                found = h;
+                return false;
+            }, IntPtr.Zero);
+        }
+        catch { }
+        return found;
+    }
+    /// <summary>是不是 Chromium 系的渲染器窗口——网页内容挂在它下面。</summary>
+    /// <param name="hwnd">窗口句柄。</param>
+    /// <returns>类名含 <c>Chrome_RenderWidgetHost</c> 时返回 true。</returns>
+    static bool IsRenderer(IntPtr hwnd)
+    {
+        try
+        {
+            var sb = new System.Text.StringBuilder(128);
+            GetClassNameW(hwnd, sb, 128);
+            return sb.ToString().Contains("Chrome_RenderWidgetHost", StringComparison.Ordinal);
+        }
+        catch { return false; }
+    }
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    static extern int GetClassNameW(IntPtr hwnd, System.Text.StringBuilder name, int max);
+    /// <summary>
+    /// 问出「这个点上真正属于目标窗口的那一层窗口」。遮罩铺在最上层，直接 WindowFromPoint
+    /// 只会拿到遮罩自己；把自己临时设为命中测试透明再问，就能拿到目标窗口的渲染器层。
+    /// 只翻一个扩展样式位、问完立刻翻回来，不动可见性也不触发重绘。
+    /// </summary>
+    /// <param name="overlay">自己的遮罩窗口；<c>IntPtr.Zero</c> 表示不处理。</param>
+    /// <param name="x">物理横坐标。</param>
+    /// <param name="y">物理纵坐标。</param>
+    /// <returns>该点最上层的窗口；全部失败时为 <c>IntPtr.Zero</c>。</returns>
+    internal static IntPtr TopWindowUnderOverlay(IntPtr overlay, int x, int y)
+    {
+        int saved = 0;
+        bool flipped = false;
+        try
+        {
+            if (overlay != IntPtr.Zero)
+            {
+                saved = GetWindowLongW(overlay, GwlExStyle);
+                if ((saved & WsExTransparent) == 0)
+                {
+                    SetWindowLongW(overlay, GwlExStyle, saved | WsExTransparent);
+                    flipped = true;
+                }
+            }
+            var pt = new Pt { X = x, Y = y };
+            return WindowFromPoint(pt);
+        }
+        catch { return IntPtr.Zero; }
+        finally
+        {
+            if (flipped)
+            {
+                try { SetWindowLongW(overlay, GwlExStyle, saved); } catch { }
+            }
+        }
+    }
+
+    const int GwlExStyle = -20;
+    const int WsExTransparent = 0x20;
+
+    [StructLayout(LayoutKind.Sequential)]
+    struct Pt { public int X, Y; }
+
+    [DllImport("user32.dll")] static extern IntPtr WindowFromPoint(Pt p);
+    [DllImport("user32.dll")] static extern int GetWindowLongW(IntPtr hwnd, int index);
+    [DllImport("user32.dll")] static extern int SetWindowLongW(IntPtr hwnd, int index, int value);
     /// <summary>包含该点的子窗口，按面积从小到大排——网页内容在渲染器那一层，
     /// 而更小的中间层（D3D 合成窗口）没有无障碍对象，所以要逐层试而不是只取最小的一层。</summary>
     /// <param name="parent">父窗口。</param>
@@ -128,7 +238,13 @@ public static class MsaaSnap
             }, IntPtr.Zero);
         }
         catch { }
-        list.Sort((a, b) => a.Area.CompareTo(b.Area));
+        // 渲染器窗口优先：网页内容挂在它下面；D3D 中间层面积更小但没有内容
+        list.Sort((a, b) =>
+        {
+            bool ra = IsRenderer(a.Hwnd), rb = IsRenderer(b.Hwnd);
+            if (ra != rb) return ra ? -1 : 1;
+            return a.Area.CompareTo(b.Area);
+        });
         var result = new List<IntPtr>(list.Count);
         foreach (var item in list) result.Add(item.Hwnd);
         return result;
