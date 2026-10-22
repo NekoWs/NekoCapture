@@ -194,118 +194,6 @@ public static class MsaaSnap
         catch { return false; }
     }
 
-    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
-    static extern int GetClassNameW(IntPtr hwnd, System.Text.StringBuilder name, int max);
-    /// <summary>
-    /// 问出「这个点上真正属于目标窗口的那一层窗口」。遮罩铺在最上层，直接 WindowFromPoint
-    /// 只会拿到遮罩自己；把自己临时设为命中测试透明再问，就能拿到目标窗口的渲染器层。
-    /// 只翻一个扩展样式位、问完立刻翻回来，不动可见性也不触发重绘。
-    /// </summary>
-    /// <param name="overlay">自己的遮罩窗口；<c>IntPtr.Zero</c> 表示不处理。</param>
-    /// <param name="x">物理横坐标。</param>
-    /// <param name="y">物理纵坐标。</param>
-    /// <returns>该点最上层的窗口；全部失败时为 <c>IntPtr.Zero</c>。</returns>
-    internal static IntPtr TopWindowUnderOverlay(IntPtr overlay, int x, int y)
-    {
-        int saved = 0;
-        bool flipped = false;
-        try
-        {
-            if (overlay != IntPtr.Zero)
-            {
-                saved = GetWindowLongW(overlay, GwlExStyle);
-                if ((saved & WsExTransparent) == 0)
-                {
-                    SetWindowLongW(overlay, GwlExStyle, saved | WsExTransparent);
-                    flipped = true;
-                }
-            }
-            var pt = new Pt { X = x, Y = y };
-            return WindowFromPoint(pt);
-        }
-        catch { return IntPtr.Zero; }
-        finally
-        {
-            if (flipped)
-            {
-                try { SetWindowLongW(overlay, GwlExStyle, saved); } catch { }
-            }
-        }
-    }
-
-    /// <summary>
-    /// 遮罩临时设为命中测试透明后，用 UIA 的全局命中拿光标下的元素。
-    /// 有些应用只暴露 UIA、不暴露 MSAA（Electron 类），MSAA 那边只能给空壳，
-    /// 而 UIA 的全局命中又被最上层的遮罩挡住——趁遮罩透明的那一瞬间问，才能看到它。
-    /// </summary>
-    /// <param name="overlay">自己的遮罩窗口。</param>
-    /// <param name="x">物理横坐标。</param>
-    /// <param name="y">物理纵坐标。</param>
-    /// <returns>光标下的元素；拿不到或落在自己界面上时为 null。</returns>
-    internal static System.Windows.Automation.AutomationElement? FromPointThroughOverlay(IntPtr overlay, int x, int y)
-    {
-        // 光标下的自家窗口不止一扇：选区遮罩之外还有放大镜、提示条这些各占一扇窗，
-        // 只把遮罩设成透明，UIA 就会撞到放大镜上——所以本进程的窗口全部临时透明。
-        var saved = new List<(IntPtr Hwnd, int Style)>();
-        try
-        {
-            foreach (var h in OwnWindows(overlay))
-            {
-                int st = GetWindowLongW(h, GwlExStyle);
-                if ((st & WsExTransparent) != 0) continue;
-                if (SetWindowLongW(h, GwlExStyle, st | WsExTransparent) == 0 && st == 0) continue;
-                saved.Add((h, st));
-            }
-            var el = System.Windows.Automation.AutomationElement.FromPoint(new System.Windows.Point(x, y));
-            if (el == null) return null;
-            if (el.Current.ProcessId == Environment.ProcessId) return null;
-            return el;
-        }
-        catch { return null; }
-        finally
-        {
-            foreach (var (h, st) in saved)
-            {
-                try { SetWindowLongW(h, GwlExStyle, st); } catch { }
-            }
-        }
-    }
-
-    /// <summary>本进程所有可见的顶层窗口。</summary>
-    /// <param name="also">额外包含的窗口（可能还没进枚举）。</param>
-    /// <returns>窗口句柄列表。</returns>
-    static List<IntPtr> OwnWindows(IntPtr also)
-    {
-        var list = new List<IntPtr>();
-        if (also != IntPtr.Zero) list.Add(also);
-        try
-        {
-            EnumWindows((h, _) =>
-            {
-                if (!IsWindowVisible(h)) return true;
-                GetWindowThreadProcessId(h, out uint pid);
-                if (pid != (uint)Environment.ProcessId) return true;
-                if (!list.Contains(h)) list.Add(h);
-                return true;
-            }, IntPtr.Zero);
-        }
-        catch { }
-        return list;
-    }
-
-    delegate bool EnumWinProc(IntPtr h, IntPtr p);
-    [DllImport("user32.dll")] static extern bool EnumWindows(EnumWinProc cb, IntPtr p);
-    [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr hwnd);
-    [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint pid);
-    const int GwlExStyle = -20;
-    const int WsExTransparent = 0x20;
-
-    [StructLayout(LayoutKind.Sequential)]
-    struct Pt { public int X, Y; }
-
-    [DllImport("user32.dll")] static extern IntPtr WindowFromPoint(Pt p);
-    [DllImport("user32.dll")] static extern int GetWindowLongW(IntPtr hwnd, int index);
-    [DllImport("user32.dll")] static extern int SetWindowLongW(IntPtr hwnd, int index, int value);
     /// <summary>包含该点的子窗口，按面积从小到大排——网页内容在渲染器那一层，
     /// 而更小的中间层（D3D 合成窗口）没有无障碍对象，所以要逐层试而不是只取最小的一层。</summary>
     /// <param name="parent">父窗口。</param>
@@ -346,6 +234,8 @@ public static class MsaaSnap
     static extern bool EnumChildWindows(IntPtr parent, EnumProc cb, IntPtr p);
     [DllImport("user32.dll")]
     static extern bool GetWindowRect(IntPtr hwnd, out WinRect r);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    static extern int GetClassNameW(IntPtr hwnd, System.Text.StringBuilder name, int max);
 
     /// <summary>角色与名字算不算「说得出口的控件」。</summary>
     /// <param name="role">MSAA 角色码。</param>

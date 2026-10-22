@@ -86,14 +86,7 @@ public static class ElementSnap
             var quick = AutomationElement.FromPoint(new Point(physX, physY));
             if (quick != null && !Ours(quick, excludeHwnd))
                 result = Pick(quick, physX, physY, sw);
-            if (result == null)
-            {
-                // 遮罩挡着的时候，把遮罩临时设为命中测试透明再问 UIA：
-                // 有些应用只暴露 UIA（Electron 类），MSAA 那边只有空壳，这条路是它们唯一的入口。
-                var through = MsaaSnap.FromPointThroughOverlay(excludeHwnd, physX, physY);
-                Trace.Log($"elemsnap uia-through {(through == null ? "null" : through.Current.ControlType.ProgrammaticName)}");
-                if (through != null) result = Pick(through, physX, physY, sw);
-            }
+
             bool foundTarget = TryTopmostAt(physX, physY, excludeHwnd, out IntPtr targetHwnd);
             Trace.Log($"elemsnap at {physX},{physY} quickOurs={quick != null} target={targetHwnd} got={foundTarget}");
             if (result == null && foundTarget)
@@ -115,8 +108,7 @@ public static class ElementSnap
                     // 3) 按类名直接找的渲染器窗口
                     // 4) 其余子窗口
                     // 不靠"是不是它的后代"来判断——跨进程的祖先关系与子窗口枚举都可能不可靠。
-                    var under = MsaaSnap.TopWindowUnderOverlay(excludeHwnd, physX, physY);
-                    var candidates = new List<IntPtr> { under, targetHwnd };
+                    var candidates = new List<IntPtr> { targetHwnd };
                     foreach (var extra in MsaaSnap.Candidates(targetHwnd, physX, physY)) candidates.Add(extra);
                     foreach (var cand in candidates)
                     {
