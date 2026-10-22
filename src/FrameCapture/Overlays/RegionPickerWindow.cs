@@ -18,9 +18,6 @@ public sealed partial class RegionPickerWindow : Window
     public event Action<RectI?, IntPtr>? Result; // (选区矩形, 窗口句柄)：hwnd≠0 表示按窗口截图
 
     private readonly MonitorInfo _monitor;
-    /// <summary>视觉吸附当前吸到的矩形；null 表示这一拍是 UIA 命中或落到了整窗。Tab 上钻只对 UIA 命中生效。</summary>
-    private RectI? _curVisual;
-
     private readonly RectI _monitorPhys;
     private readonly Canvas _canvas;
     private readonly Rectangle _prev = new(); // 上次选区虚线框：_existing 非空才画出，Enter 即确认它
@@ -543,30 +540,20 @@ public sealed partial class RegionPickerWindow : Window
                 }
                 _drillLock = false;   // 明显移动→解锁，恢复常规吸附
             }
-            // 控件级吸附三级回退：UIA 语义元素 → 视觉找框（像素里有边就能吸） → 整窗
+            // 控件级吸附：UIA 语义元素 → MSAA 窗口内命中（在 ElementSnap 内部依次尝试）→ 整窗
             if (_snapContent)
             {
                 var selfH = new System.Windows.Interop.WindowInteropHelper(this).Handle;
                 var eh = Core.ElementSnap.At(p.X, p.Y, selfH);
                 if (eh != null && eh.Rect.W >= 8 && eh.Rect.H >= 8)
                 {
-                    _curElem = eh; _curVisual = null;
+                    _curElem = eh;
                     ShowSpot(eh.Rect);
                     UpdateLoupe(dip, p, eh.Rect);
                     return;
                 }
-                // 无障碍给不出可用控件（游戏、canvas、不暴露树的界面）：退到视觉吸附，
-                // 在光标附近按像素找闭合的框；这一层只认矩形，找不到就继续往下走。
-                var vr = Core.VisualSnap.At(_snapFrame, _monitorPhys, p.X, p.Y);
-                if (vr != null && vr.Value.W >= 8 && vr.Value.H >= 8)
-                {
-                    _curElem = null; _curVisual = vr;
-                    ShowSpot(vr.Value);
-                    UpdateLoupe(dip, p, vr.Value);
-                    return;
-                }
             }
-            _curElem = null; _curVisual = null;
+            _curElem = null;
             var hit = SnapWindowAt(p);
             if (hit != null) { ShowSpot(hit.Value); UpdateLoupe(dip, p, hit); }
             else if (_existing == null) { ShowSpot(null); UpdateLoupe(dip, p, null); }
@@ -589,10 +576,6 @@ public sealed partial class RegionPickerWindow : Window
                 var selfH = new System.Windows.Interop.WindowInteropHelper(this).Handle;
                 var eh = Core.ElementSnap.At(p.X, p.Y, selfH);
                 if (eh != null && eh.Rect.W >= 8 && eh.Rect.H >= 8) { Finish(eh.Rect); return; }
-                // 悬停时视觉层已经吸到了就复用那一块，别再算一遍像素
-                if (_curVisual is RectI vs && vs.W >= 8 && vs.H >= 8) { Finish(vs); return; }
-                var vr = Core.VisualSnap.At(_snapFrame, _monitorPhys, p.X, p.Y);
-                if (vr != null && vr.Value.W >= 8 && vr.Value.H >= 8) { Finish(vr.Value); return; }
             }
             // 点吸附到的窗口 → 真·窗口截图（开关开 + 未被遮挡 + 吸附到的是窗口而非 UIA 子元素）
             if (_windowCapture)

@@ -728,6 +728,32 @@ static partial class SelfTest
     /// 用来核对 Chrome、Electron、自绘界面这些不同来源的真实表现。不改设置、不点鼠标。</summary>
     /// <param name="args">args[1] = 物理横坐标，args[2] = 物理纵坐标。</param>
     /// <returns>0 = 已打印；2 = 参数不对。</returns>
+    /// <summary>取屏幕该点下面、不属于本进程的最上层窗口：遮罩在上层时用它找到真正的目标。</summary>
+    /// <param name="x">物理横坐标。</param>
+    /// <param name="y">物理纵坐标。</param>
+    /// <returns>窗口句柄；找不到为 <c>IntPtr.Zero</c>。</returns>
+    static IntPtr TopWindowAt(int x, int y)
+    {
+        IntPtr found = IntPtr.Zero;
+        EnumWindows((h, _) =>
+        {
+            if (!IsWindowVisible(h)) return true;
+            GetWindowThreadProcessId(h, out uint pid);
+            if (pid == (uint)Environment.ProcessId) return true;
+            if (!GetWindowRect(h, out var rc)) return true;
+            if (x >= rc.L && x < rc.R && y >= rc.T && y < rc.B) { found = h; return false; }
+            return true;
+        }, IntPtr.Zero);
+        return found;
+    }
+
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+    struct ProbeRect { public int L, T, R, B; }
+    delegate bool ProbeEnumProc(IntPtr h, IntPtr p);
+    [System.Runtime.InteropServices.DllImport("user32.dll")] static extern bool EnumWindows(ProbeEnumProc cb, IntPtr p);
+    [System.Runtime.InteropServices.DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr h);
+    [System.Runtime.InteropServices.DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
+    [System.Runtime.InteropServices.DllImport("user32.dll")] static extern bool GetWindowRect(IntPtr h, out ProbeRect r);
     static int ElemSnapProbe(string[] args)
     {
         if (!int.TryParse(args[1], out int x) || !int.TryParse(args[2], out int y))
@@ -782,131 +808,23 @@ static partial class SelfTest
         var hit = FrameCapture.Core.ElementSnap.At(x, y, self);
         Console.WriteLine(hit == null
             ? $"  过滤后      {sw.ElapsedMilliseconds,4} ms  null（没有说得出口的控件）"
-            : $"  过滤后      {sw.ElapsedMilliseconds,4} ms  {hit.Element.Current.ControlType.ProgrammaticName} " +
-              $"name=「{hit.Element.Current.Name}」 {hit.Rect.X},{hit.Rect.Y} {hit.Rect.W}x{hit.Rect.H}");
+            : hit.Element == null
+                ? $"  过滤后      {sw.ElapsedMilliseconds,4} ms  MSAA 命中 {hit.Rect.X},{hit.Rect.Y} {hit.Rect.W}x{hit.Rect.H}"
+                : $"  过滤后      {sw.ElapsedMilliseconds,4} ms  {hit.Element.Current.ControlType.ProgrammaticName} " +
+                  $"name=「{hit.Element.Current.Name}」 {hit.Rect.X},{hit.Rect.Y} {hit.Rect.W}x{hit.Rect.H}");
         // MSAA：在目标窗口内部命中，绕过最上层遮罩
-        IntPtr targetHwnd = ScanFindWindow(ForegroundTitle());
+        IntPtr targetHwnd = TopWindowAt(x, y);
         if (targetHwnd != IntPtr.Zero)
         {
+            if (Environment.GetEnvironmentVariable("FC_ELEMSNAP_DEBUG") == "1")
+                FrameCapture.Core.MsaaSnap.DebugLog = s => Console.WriteLine("    " + s);
             var mh = FrameCapture.Core.MsaaSnap.At(targetHwnd, x, y);
             Console.WriteLine(mh == null
                 ? "  MSAA        --   没有可用控件"
                 : $"  MSAA        --   role={mh.Role} name=「{mh.Name}」 {mh.Rect.X},{mh.Rect.Y} {mh.Rect.W}x{mh.Rect.H} 子节点={mh.ChildCount}");
         }
-        var mon = FrameCapture.Capture.Monitors.Nearest(x, y);
-        sw.Restart();
-        var vr = mon == null ? null : FrameCapture.Core.VisualSnap.At(null, mon.Bounds, x, y);
-        if (mon == null) Console.WriteLine("  视觉        --   拿不到显示器");
-        else if (vr == null) Console.WriteLine($"  视觉        {sw.ElapsedMilliseconds,4} ms  null（附近没有闭合的框）");
-        else Console.WriteLine($"  视觉        {sw.ElapsedMilliseconds,4} ms  {vr.Value.X},{vr.Value.Y} {vr.Value.W}x{vr.Value.H}");
-        Console.WriteLine($"  最终采用    {(hit != null ? "UIA 控件" : vr != null ? "视觉框" : "整窗吸附")}");
+        Console.WriteLine($"  最终采用    {(hit == null ? "整窗吸附" : hit.Element == null ? "MSAA 控件" : "UIA 控件")}");
         overlay?.Close();
-        return 0;
-    }
-
-    [System.Runtime.InteropServices.DllImport("user32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
-    static extern IntPtr FindWindowW(string? cls, string title);
-    static IntPtr ScanFindWindow(string title) => FindWindowW(null, title);
-    static string ForegroundTitle()
-    {
-        IntPtr h = GetForegroundWindow();
-        var sb = new System.Text.StringBuilder(512);
-        GetWindowTextW(h, sb, 512);
-        return sb.ToString();
-    }
-    [System.Runtime.InteropServices.DllImport("user32.dll")]
-    static extern IntPtr GetForegroundWindow();
-    [System.Runtime.InteropServices.DllImport("user32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
-    static extern int GetWindowTextW(IntPtr h, System.Text.StringBuilder s, int n);
-    /// <summary>扫描取证：抓一整窗，按网格在每个点上跑一次视觉吸附，把吸到的框画在图上输出。
-    /// 目的是让人一眼看出「这套判据在这个界面上到底认出了什么」——认得准不准不必靠读代码判断。</summary>
-    /// <param name="args">args[1] = 窗口标题（精确），args[2] = 输出 PNG，args[3] = 网格步长（可选，默认 48）。</param>
-    /// <returns>0 = 已出图；1 = 抓不到窗口；2 = 参数不对。</returns>
-    static int ScanVisual(string[] args)
-    {
-        var app = new Application();
-        if (args.Length < 3) { Console.WriteLine("用法: selftest scanvisual <窗口标题> <out.png> [步长]"); return 2; }
-        int step = args.Length >= 4 && int.TryParse(args[3], out var st) ? Math.Max(8, st) : 48;
-        int minLine = args.Length >= 5 && int.TryParse(args[4], out var ml) ? Math.Max(4, ml) : FrameCapture.Core.VisualSnap.MinLine;
-        int edgeThr = args.Length >= 6 && int.TryParse(args[5], out var et) ? Math.Max(2, et) : 24;
-        IntPtr hwnd = ScanFindWindow(args[1]);
-        if (hwnd == IntPtr.Zero) { Console.WriteLine($"找不到窗口「{args[1]}」"); return 1; }
-        var (frame, region) = FrameCapture.Capture.WindowCapture.Grab(hwnd, includeShadow: false);
-        if (frame == null) { Console.WriteLine("窗口抓取失败"); return 1; }
-        Console.WriteLine($"窗口 {region.X},{region.Y} {region.W}x{region.H}  步长 {step}  直线≥{minLine}px  边缘门限 {edgeThr}");
-
-        // 在每个格点上跑一次视觉吸附；同一块框只留一份
-        var found = new List<FrameCapture.Capture.RectI>();
-        int points = 0;
-        var swScan = System.Diagnostics.Stopwatch.StartNew();
-        for (int y = region.Y + 8; y < region.Y + region.H - 8; y += step)
-        {
-            for (int x = region.X + 8; x < region.X + region.W - 8; x += step)
-            {
-                points++;
-                int vw = Math.Min(FrameCapture.Core.VisualSnap.WindowSide, region.W);
-                int vh = Math.Min(FrameCapture.Core.VisualSnap.WindowSide, region.H);
-                var view = new FrameCapture.Capture.RectI(
-                    Math.Clamp(x - vw / 2, region.X, region.X + region.W - vw),
-                    Math.Clamp(y - vh / 2, region.Y, region.Y + region.H - vh),
-                    vw, vh);
-                var slice = new byte[view.W * view.H * 4];
-                for (int row = 0; row < view.H; row++)
-                    Array.Copy(frame.Bgra, ((view.Y - region.Y + row) * frame.W + (view.X - region.X)) * 4,
-                        slice, row * view.W * 4, view.W * 4);
-                var r = FrameCapture.Core.VisualSnap.Best(slice, view.W, view.H, view.X, view.Y, x, y, minLine, edgeThr);
-                if (r is not { } got) continue;
-                bool dup = false;
-                foreach (var f in found)
-                    if (Math.Abs(f.X - got.X) <= 3 && Math.Abs(f.Y - got.Y) <= 3
-                        && Math.Abs(f.W - got.W) <= 3 && Math.Abs(f.H - got.H) <= 3) { dup = true; break; }
-                if (!dup) found.Add(got);
-            }
-        }
-        Console.WriteLine($"扫了 {points} 个点，{swScan.ElapsedMilliseconds} ms，认出的独立框 {found.Count} 个");
-
-        // 画框：先铺整窗，再在副本上描边
-        var visual = new System.Windows.Media.DrawingVisual();
-        using (var dc = visual.RenderOpen())
-        {
-            var src = FrameCapture.Services.BgraImage.ToSource(frame);
-            dc.DrawImage(src, new Rect(0, 0, frame.W, frame.H));
-            var pen = new System.Windows.Media.Pen(new System.Windows.Media.SolidColorBrush(
-                System.Windows.Media.Color.FromArgb(0xFF, 0xFF, 0x3B, 0x30)), 2);
-            var penThin = new System.Windows.Media.Pen(new System.Windows.Media.SolidColorBrush(
-                System.Windows.Media.Color.FromArgb(0xCC, 0x00, 0xE5, 0x7A)), 1);
-            // 先把「认作长直线的列与行」画出来：这是判据真正看得见的东西，比只有红框更能说明问题
-            var linePen = new System.Windows.Media.Pen(new System.Windows.Media.SolidColorBrush(
-                System.Windows.Media.Color.FromArgb(0x66, 0x40, 0xC4, 0xFF)), 1);
-            var colRunAll = new int[frame.W];
-            for (int x = 1; x < frame.W - 1; x++)
-            {
-                int run = 0, best = 0;
-                for (int y = 1; y < frame.H - 1; y++)
-                {
-                    int i = (y * frame.W + x) * 4;
-                    int g = (frame.Bgra[i] * 30 + frame.Bgra[i + 1] * 59 + frame.Bgra[i + 2] * 11) / 100;
-                    int g2 = (frame.Bgra[i + 4] * 30 + frame.Bgra[i + 5] * 59 + frame.Bgra[i + 6] * 11) / 100;
-                    if (Math.Abs(g2 - g) >= edgeThr) { run++; if (run > best) best = run; } else run = 0;
-                }
-                colRunAll[x] = best;
-            }
-            for (int x = 1; x < frame.W - 1; x++)
-                if (colRunAll[x] >= minLine) dc.DrawLine(linePen, new System.Windows.Point(x, 0), new System.Windows.Point(x, frame.H));
-            for (int f2 = 0; f2 < found.Count; f2++)
-            {
-                var rr = new Rect(found[f2].X - region.X, found[f2].Y - region.Y, found[f2].W, found[f2].H);
-                dc.DrawRectangle(null, rr.Width > 120 || rr.Height > 120 ? pen : penThin, rr);
-            }
-        }
-        var rtb = new System.Windows.Media.Imaging.RenderTargetBitmap(frame.W, frame.H, 96, 96,
-            System.Windows.Media.PixelFormats.Pbgra32);
-        rtb.Render(visual);
-        var enc = new System.Windows.Media.Imaging.PngBitmapEncoder();
-        enc.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(rtb));
-        Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(args[2]))!);
-        using (var f = File.Create(args[2])) enc.Save(f);
-        Console.WriteLine($"saved {args[2]} {frame.W}x{frame.H}  框数 {found.Count}");
         return 0;
     }
 
@@ -1102,7 +1020,6 @@ static partial class SelfTest
         if (args.Length == 2 && args[0] == "renderpick") return RenderPick(args[1]);
         if (args.Length == 2 && args[0] == "rendertoast") return RenderToast(args[1]);
         if (args.Length >= 3 && args[0] == "elemsnap") return ElemSnapProbe(args);
-        if (args.Length >= 3 && args[0] == "scanvisual") return ScanVisual(args);
         if (args.Length == 2 && args[0] == "editorwave") return EditorWave(args[1]);
         if (args.Length == 2 && args[0] == "scrollwave") return ScrollWave(args[1]);
         if (args.Length == 2 && args[0] == "renderslider") return RenderSlider(args[1]);
@@ -6894,31 +6811,6 @@ static partial class SelfTest
                 "整页文档不该算控件");
         }
         catch (Exception e) { Chk("T236-semantic", false, e.Message); }
-
-        // 视觉吸附：浅底上画一个深色框，光标放在框里 → 应当正好吸到它；纯色区域必须给 null。
-        try
-        {
-            const int VW = 480, VH = 400;
-            var px = new byte[VW * VH * 4];
-            for (int i = 0; i < px.Length; i += 4) { px[i] = 240; px[i + 1] = 240; px[i + 2] = 240; px[i + 3] = 255; }
-            for (int y = 100; y < 220; y++)
-                for (int x = 120; x < 320; x++)
-                {
-                    int i = (y * VW + x) * 4;
-                    px[i] = 40; px[i + 1] = 90; px[i + 2] = 200; px[i + 3] = 255;
-                }
-            var got = FrameCapture.Core.VisualSnap.Best(px, VW, VH, 0, 0, 200, 160);
-            Chk("T236-visual-snap-finds-the-box",
-                got is { } g && Math.Abs(g.X - 120) <= 1 && Math.Abs(g.Y - 100) <= 1
-                && Math.Abs(g.W - 200) <= 2 && Math.Abs(g.H - 120) <= 2,
-                "吸到的是 " + (got?.ToString() ?? "null"));
-            var flat = new byte[VW * VH * 4];
-            for (int i = 0; i < flat.Length; i += 4) { flat[i] = 120; flat[i + 1] = 120; flat[i + 2] = 120; flat[i + 3] = 255; }
-            Chk("T236-visual-snap-nothing-on-flat",
-                FrameCapture.Core.VisualSnap.Best(flat, VW, VH, 0, 0, 200, 160) == null,
-                "纯色区域不该吸出框");
-        }
-        catch (Exception e) { Chk("T236-visual", false, e.Message); }
 
         // 描边必须整个落在捕获范围之外：范围里的像素一个都不该被自己的边框吃掉。
         try

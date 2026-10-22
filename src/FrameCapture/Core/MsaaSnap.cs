@@ -37,6 +37,9 @@ public static class MsaaSnap
     /// <summary>控件的最小边长（物理像素）。</summary>
     const int MinSide = 6;
 
+    /// <summary>探针用：把每次 MSAA 命中尝试打出来。生产路径留 null，零开销。</summary>
+    public static Action<string>? DebugLog { get; set; }
+
     // 同一点位的悬停高频重复：按 (x, y) 缓存
     static int _cacheX = int.MinValue, _cacheY;
     static MsaaHit? _cache;
@@ -56,6 +59,8 @@ public static class MsaaSnap
         try
         {
             var iid = IidAccessible;
+            // 先问顶层窗口；Chromium 与 Electron 的网页内容挂在渲染器子窗口下，
+            // 顶层只给一个无名整窗 Pane，所以拿不到说得出口的控件时换子窗口再问一次。
             if (AccessibleObjectFromWindow(hwnd, ObjidClient, ref iid, out object rootObj) == 0 && rootObj is IAccessible root)
             {
                 if (root.accHitTest(physX, physY, out object child) == 0 && child != null)
@@ -75,9 +80,68 @@ public static class MsaaSnap
         }
         catch { result = null; } // 目标进程没暴露 MSAA / 提权进程 / 对象已死，一律当作拿不到
 
+        // 顶层没给出说得出口的控件：换「包含光标点的子窗口」逐层再问，取面积最小的语义命中
+        if (result is null || !IsSemantic(result.Role, result.Name))
+        {
+            long bestArea = result is null ? long.MaxValue : (long)result.Rect.W * result.Rect.H;
+            foreach (var childHwnd in ChildrenAt(hwnd, physX, physY))
+            {
+                try
+                {
+                    var iid2 = IidAccessible;
+                    if (AccessibleObjectFromWindow(childHwnd, ObjidClient, ref iid2, out object o2) != 0 || o2 is not IAccessible sub) continue;
+                    if (sub.accHitTest(physX, physY, out object c2) != 0 || c2 == null) continue;
+                    var h2 = FromVariant(sub, c2);
+                    if (h2 == null) continue;
+                    DebugLog?.Invoke($"  msaa-child hwnd={childHwnd} role={h2.Role} name='{h2.Name}' " +
+                        $"{h2.Rect.X},{h2.Rect.Y} {h2.Rect.W}x{h2.Rect.H} semantic={IsSemantic(h2.Role, h2.Name)}");
+                    // 取面积最小、且说得出口的那个：中间层（D3D 合成窗口）常给出有名的大容器，不能先到先得
+                    if (!IsSemantic(h2.Role, h2.Name)) continue;
+                    long area = (long)h2.Rect.W * h2.Rect.H;
+                    if (area < bestArea) { bestArea = area; result = h2; }
+                }
+                catch { }
+            }
+        }
+
         _cacheX = physX; _cacheY = physY; _cache = result;
         return result;
     }
+
+    /// <summary>包含该点的子窗口，按面积从小到大排——网页内容在渲染器那一层，
+    /// 而更小的中间层（D3D 合成窗口）没有无障碍对象，所以要逐层试而不是只取最小的一层。</summary>
+    /// <param name="parent">父窗口。</param>
+    /// <param name="x">物理横坐标。</param>
+    /// <param name="y">物理纵坐标。</param>
+    /// <returns>候选子窗口，面积升序；一个都没有时为空列表。</returns>
+    static List<IntPtr> ChildrenAt(IntPtr parent, int x, int y)
+    {
+        var list = new List<(IntPtr Hwnd, long Area)>();
+        try
+        {
+            EnumChildWindows(parent, (h, _) =>
+            {
+                if (!GetWindowRect(h, out var r)) return true;
+                if (x < r.L || x >= r.R || y < r.T || y >= r.B) return true;
+                list.Add((h, (long)(r.R - r.L) * (r.B - r.T)));
+                return true;
+            }, IntPtr.Zero);
+        }
+        catch { }
+        list.Sort((a, b) => a.Area.CompareTo(b.Area));
+        var result = new List<IntPtr>(list.Count);
+        foreach (var item in list) result.Add(item.Hwnd);
+        return result;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    struct WinRect { public int L, T, R, B; }
+
+    delegate bool EnumProc(IntPtr h, IntPtr p);
+    [DllImport("user32.dll")]
+    static extern bool EnumChildWindows(IntPtr parent, EnumProc cb, IntPtr p);
+    [DllImport("user32.dll")]
+    static extern bool GetWindowRect(IntPtr hwnd, out WinRect r);
 
     /// <summary>角色与名字算不算「说得出口的控件」。</summary>
     /// <param name="role">MSAA 角色码。</param>
@@ -90,24 +154,27 @@ public static class MsaaSnap
         // 说得出口的角色
         RolePushButton or RoleLink or RoleText or RoleStaticText or RoleListItem or RoleOutlineItem
             or RoleGraphic or RoleGrouping or RoleCell or RoleRow or RoleMenuItem or RoleCheckButton
-            or RoleRadioButton or RoleComboBox or RoleTabItem or RoleTab => true,
+            or RoleRadioButton or RoleComboBox or RolePageTab or RoleOutline or RoleTable or RoleList
+            or RoleSlider or RoleSpinButton or RoleSplitButton => true,
         // 其余角色：有名字就当控件，没名字不要
         _ => !string.IsNullOrWhiteSpace(name),
     };
 
-    // ROLE_SYSTEM_* 里我们用得到的几个（oleacc.h）
-    const int RoleDocument = 0x0F;
+    // ROLE_SYSTEM_*（取值见 oleacc.h）
     const int RoleWindow = 0x09;
     const int RoleClient = 0x0A;
-    const int RolePaneUnnamed = 0x10;
+    const int RoleMenuItem = 0x0C;
+    const int RoleDocument = 0x0F;
     const int RoleGrouping = 0x14;
-    const int RoleTab = 0x12;
-    const int RoleRow = 0x13;
+    const int RoleTable = 0x18;
+    const int RoleRow = 0x1C;
     const int RoleCell = 0x1D;
     const int RoleLink = 0x1E;
+    const int RoleList = 0x21;
     const int RoleListItem = 0x22;
-    const int RoleOutlineItem = 0x23;
-    const int RoleTabItem = 0x25;
+    const int RoleOutline = 0x23;
+    const int RoleOutlineItem = 0x24;
+    const int RolePageTab = 0x25;
     const int RoleGraphic = 0x28;
     const int RoleStaticText = 0x29;
     const int RoleText = 0x2A;
@@ -115,7 +182,9 @@ public static class MsaaSnap
     const int RoleCheckButton = 0x2C;
     const int RoleRadioButton = 0x2D;
     const int RoleComboBox = 0x2E;
-    const int RoleMenuItem = 0x0C;
+    const int RoleSlider = 0x33;
+    const int RoleSpinButton = 0x34;
+    const int RoleSplitButton = 0x3E;
 
     static readonly Guid IidAccessible = new("618736E0-3C3D-11CF-810C-00AA00389B71");
 
