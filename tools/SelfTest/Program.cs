@@ -767,6 +767,7 @@ static partial class SelfTest
         // 不加这个模式，探针永远测不到那条路——而「吸到遮罩自己的提示文字」正是从那条路来的。
         IntPtr self = IntPtr.Zero;
         Window? overlay = null;
+        Window? loupe = null;
         if (args.Length >= 4 && args[3] == "overlay")
         {
             overlay = new Window
@@ -790,6 +791,18 @@ static partial class SelfTest
             PumpMs(320);
             self = new System.Windows.Interop.WindowInteropHelper(overlay).Handle;
             Console.WriteLine($"  （已铺最顶层遮罩 hwnd={self}，模拟选区窗）");
+            // 再铺一扇光标附近的小窗，模拟放大镜：只把遮罩设透明时 UIA 会撞到它
+            loupe = new Window
+            {
+                WindowStyle = WindowStyle.None, AllowsTransparency = true,
+                Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromArgb(0x40, 0, 0, 0)),
+                ShowInTaskbar = false, Topmost = true,
+                Left = x - 90, Top = y - 90, Width = 180, Height = 180,
+                Content = new System.Windows.Controls.TextBlock { Text = "放大镜" },
+            };
+            loupe.Show();
+            PumpMs(160);
+            Console.WriteLine($"  （已铺放大镜 hwnd={new System.Windows.Interop.WindowInteropHelper(loupe).Handle}）");
         }
         var sw = System.Diagnostics.Stopwatch.StartNew();
         var raw = System.Windows.Automation.AutomationElement.FromPoint(new System.Windows.Point(x, y));
@@ -825,6 +838,7 @@ static partial class SelfTest
         }
         Console.WriteLine($"  最终采用    {(hit == null ? "整窗吸附" : hit.Element == null ? "MSAA 控件" : "UIA 控件")}");
         overlay?.Close();
+        loupe?.Close();
         return 0;
     }
 

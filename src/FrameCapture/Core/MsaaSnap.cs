@@ -244,34 +244,59 @@ public static class MsaaSnap
     /// <returns>光标下的元素；拿不到或落在自己界面上时为 null。</returns>
     internal static System.Windows.Automation.AutomationElement? FromPointThroughOverlay(IntPtr overlay, int x, int y)
     {
-        int saved = 0;
-        bool flipped = false;
+        // 光标下的自家窗口不止一扇：选区遮罩之外还有放大镜、提示条这些各占一扇窗，
+        // 只把遮罩设成透明，UIA 就会撞到放大镜上——所以本进程的窗口全部临时透明。
+        var saved = new List<(IntPtr Hwnd, int Style)>();
         try
         {
-            if (overlay != IntPtr.Zero)
+            foreach (var h in OwnWindows(overlay))
             {
-                saved = GetWindowLongW(overlay, GwlExStyle);
-                if ((saved & WsExTransparent) == 0)
-                {
-                    SetWindowLongW(overlay, GwlExStyle, saved | WsExTransparent);
-                    flipped = true;
-                }
+                int st = GetWindowLongW(h, GwlExStyle);
+                if ((st & WsExTransparent) != 0) continue;
+                if (SetWindowLongW(h, GwlExStyle, st | WsExTransparent) == 0 && st == 0) continue;
+                saved.Add((h, st));
             }
             var el = System.Windows.Automation.AutomationElement.FromPoint(new System.Windows.Point(x, y));
             if (el == null) return null;
-            // 命中自己的界面就丢掉（遮罩虽然透明了，仍在无障碍树里）
             if (el.Current.ProcessId == Environment.ProcessId) return null;
             return el;
         }
         catch { return null; }
         finally
         {
-            if (flipped)
+            foreach (var (h, st) in saved)
             {
-                try { SetWindowLongW(overlay, GwlExStyle, saved); } catch { }
+                try { SetWindowLongW(h, GwlExStyle, st); } catch { }
             }
         }
     }
+
+    /// <summary>本进程所有可见的顶层窗口。</summary>
+    /// <param name="also">额外包含的窗口（可能还没进枚举）。</param>
+    /// <returns>窗口句柄列表。</returns>
+    static List<IntPtr> OwnWindows(IntPtr also)
+    {
+        var list = new List<IntPtr>();
+        if (also != IntPtr.Zero) list.Add(also);
+        try
+        {
+            EnumWindows((h, _) =>
+            {
+                if (!IsWindowVisible(h)) return true;
+                GetWindowThreadProcessId(h, out uint pid);
+                if (pid != (uint)Environment.ProcessId) return true;
+                if (!list.Contains(h)) list.Add(h);
+                return true;
+            }, IntPtr.Zero);
+        }
+        catch { }
+        return list;
+    }
+
+    delegate bool EnumWinProc(IntPtr h, IntPtr p);
+    [DllImport("user32.dll")] static extern bool EnumWindows(EnumWinProc cb, IntPtr p);
+    [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr hwnd);
+    [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint pid);
     const int GwlExStyle = -20;
     const int WsExTransparent = 0x20;
 
