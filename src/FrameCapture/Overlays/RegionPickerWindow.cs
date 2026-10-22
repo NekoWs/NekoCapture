@@ -240,6 +240,16 @@ public sealed partial class RegionPickerWindow : Window
             // WS_EX_NOACTIVATE——Show 与鼠标按下都不激活本窗，前台焦点始终留在目标窗。
             // 否则拖框的 MouseDown 会把焦点从浏览器抢走，Z 序/前台一变，选区里就截到别的软件。
             try { Win32.SetWindowLongW(h, Win32.GWL_EXSTYLE, Win32.GetWindowLongW(h, Win32.GWL_EXSTYLE) | Win32.WS_EX_NOACTIVATE); } catch { }
+            // 点击穿透：本窗不进命中测试，UIA 的全局命中才能看到遮罩下面的目标窗口——
+            // 有些应用（Electron 类）只暴露 UIA、且只在全局命中里出现，这是它们唯一的入口。
+            // 输入改由鼠标捕获接收：捕获与命中测试无关，移动与点击照样到手，前台焦点也仍留在目标窗。
+            // 捕获没拿到就立刻退回可命中状态：选区窗不能用比吸不到控件严重得多。
+            // 实测结论：穿透样式 + SetCapture 拿不到鼠标消息——捕获只在本窗持有输入状态时才路由，
+            // 而本窗是非激活窗（前台在目标窗），GetCapture 虽返回本窗，WM_MOUSEMOVE 一条也不来。
+            // 穿透后选区窗就拖不动了，所以这里保持可命中。控件吸附在 Electron 类应用里仍拿不到，
+            // 已在文档里记为已知限制。
+            _clickThrough = false;
+            Core.Trace.Log($"picker clickthrough={_clickThrough}");
             // 定格模式开框瞬间抓一张全屏定格帧（喂背景+放大镜+裁选区）；实时模式不抓全屏，
             // 放大镜改每次移动实时小区域重抓（跟画面）。定格+窗口截图都开时，后台按 Z 序预抓可见窗口干净画面。
             if (_freeze)
@@ -327,6 +337,7 @@ public sealed partial class RegionPickerWindow : Window
         Content = rootGrid;
 
         Loaded += (_, _) => _topTimer.Start();
+        Closed += (_, _) => { ReleaseClickThrough(); };
         Closed += (_, _) =>
         {
             _topTimer.Stop();
@@ -509,6 +520,49 @@ public sealed partial class RegionPickerWindow : Window
     private Point _drillAnchor;   // 锁定时的光标 DIP 位置，移动超过阈值才解锁恢复常规吸附
     private Border _hint = null!;
 
+    /// <summary>关闭时把鼠标捕获还回去，别的窗口才拿得到输入。</summary>
+    private void ReleaseClickThrough()
+    {
+        if (!_clickThrough) return;
+        _clickThrough = false;
+        try { Win32.ReleaseCapture(); } catch { }
+    }
+    /// <summary>本窗是否已设为命中测试透明、改由鼠标捕获接收输入。</summary>
+    private bool _clickThrough;
+
+    /// <summary>
+    /// 把本窗设为命中测试透明并接管鼠标输入。捕获拿不到就退回原样，绝不留下一个点不动的选区窗。
+    /// </summary>
+    /// <param name="h">本窗句柄。</param>
+    /// <returns>切换成功返回 true。</returns>
+    private static bool TryClickThroughWithCapture(IntPtr h)
+    {
+        int style = 0;
+        try
+        {
+            style = (int)Win32.GetWindowLongW(h, Win32.GWL_EXSTYLE);
+            Win32.SetWindowLongW(h, Win32.GWL_EXSTYLE, (uint)(style | (int)Win32.WS_EX_TRANSPARENT));
+            Win32.SetCapture(h);
+            if (Win32.GetCapture() == h) return true;
+            // 捕获没到手：恢复可命中，宁可吸不到控件也不能让选区窗失灵
+            Win32.SetWindowLongW(h, Win32.GWL_EXSTYLE, (uint)style);
+            Win32.ReleaseCapture();
+            return false;
+        }
+        catch
+        {
+            try { Win32.SetWindowLongW(h, Win32.GWL_EXSTYLE, (uint)style); } catch { }
+            return false;
+        }
+    }
+
+    /// <summary>把捕获抢回来：切换前台、点其它窗口等情况下系统会收走它。</summary>
+    /// <param name="h">本窗句柄。</param>
+    private void KeepCapture(IntPtr h)
+    {
+        if (!_clickThrough || Win32.GetCapture() == h) return;
+        try { Win32.SetCapture(h); } catch { }
+    }
     private void OnDown(object sender, MouseButtonEventArgs e)
     {
         var p = WindowPosToPhys(e.GetPosition(this));
@@ -520,6 +574,7 @@ public sealed partial class RegionPickerWindow : Window
 
     private void OnMove(object sender, MouseEventArgs e)
     {
+        KeepCapture(new System.Windows.Interop.WindowInteropHelper(this).Handle);
         var dip = e.GetPosition(this);
         var p = WindowPosToPhys(dip);
         if (_dragging)
@@ -544,7 +599,7 @@ public sealed partial class RegionPickerWindow : Window
             if (_snapContent)
             {
                 var selfH = new System.Windows.Interop.WindowInteropHelper(this).Handle;
-                var eh = Core.ElementSnap.At(p.X, p.Y, selfH);
+                var eh = Core.ElementSnap.At(p.X, p.Y, _clickThrough ? IntPtr.Zero : selfH);
                 if (eh != null && eh.Rect.W >= 8 && eh.Rect.H >= 8)
                 {
                     _curElem = eh;
@@ -574,7 +629,7 @@ public sealed partial class RegionPickerWindow : Window
             if (_snapContent)
             {
                 var selfH = new System.Windows.Interop.WindowInteropHelper(this).Handle;
-                var eh = Core.ElementSnap.At(p.X, p.Y, selfH);
+                var eh = Core.ElementSnap.At(p.X, p.Y, _clickThrough ? IntPtr.Zero : selfH);
                 if (eh != null && eh.Rect.W >= 8 && eh.Rect.H >= 8) { Finish(eh.Rect); return; }
             }
             // 点吸附到的窗口 → 真·窗口截图（开关开 + 未被遮挡 + 吸附到的是窗口而非 UIA 子元素）

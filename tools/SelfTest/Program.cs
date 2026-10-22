@@ -754,6 +754,89 @@ static partial class SelfTest
     [System.Runtime.InteropServices.DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr h);
     [System.Runtime.InteropServices.DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
     [System.Runtime.InteropServices.DllImport("user32.dll")] static extern bool GetWindowRect(IntPtr h, out ProbeRect r);
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+    struct ProbeInput { public int Type; public int Dx; public int Dy; public int MouseData; public int Flags; public int Time; public IntPtr Extra; }
+    [System.Runtime.InteropServices.DllImport("user32.dll", EntryPoint = "SendInput")]
+    static extern uint ProbeSendInput(uint n, ProbeInput[] p, int size);
+    static void ProbeMouseMove(int x, int y)
+    {
+        // ABSOLUTE 用的是 0..65535 的归一化坐标，不是像素——直接填像素会把光标送到屏幕外
+        int sw = (int)SystemParameters.PrimaryScreenWidth;
+        int sh = (int)SystemParameters.PrimaryScreenHeight;
+        int nx = (int)((long)x * 65535 / Math.Max(1, sw));
+        int ny = (int)((long)y * 65535 / Math.Max(1, sh));
+        var item = new ProbeInput { Type = 0, Dx = nx, Dy = ny, Flags = 0x0001 | 0x8000 };
+        ProbeSendInput(1, new[] { item }, System.Runtime.InteropServices.Marshal.SizeOf<ProbeInput>());
+    }
+    const int ProbeGwlExStyle = -20;
+    const int ProbeWsExTransparent = 0x20;
+    [System.Runtime.InteropServices.DllImport("user32.dll", EntryPoint = "GetWindowLongW")] static extern int ProbeGetWindowLong(IntPtr h, int i);
+    [System.Runtime.InteropServices.DllImport("user32.dll", EntryPoint = "SetWindowLongW")] static extern int ProbeSetWindowLong(IntPtr h, int i, int v);
+    [System.Runtime.InteropServices.DllImport("user32.dll", EntryPoint = "SetCapture")] static extern IntPtr ProbeSetCapture(IntPtr h);
+    [System.Runtime.InteropServices.DllImport("user32.dll", EntryPoint = "GetCapture")] static extern IntPtr ProbeGetCapture();
+    [System.Runtime.InteropServices.DllImport("user32.dll", EntryPoint = "ReleaseCapture")] static extern bool ProbeReleaseCapture();
+    [System.Runtime.InteropServices.DllImport("user32.dll", EntryPoint = "SetCursorPos")] static extern bool ProbeSetCursorPos(int x, int y);
+    /// <summary>验证点击穿透 + 鼠标捕获这套输入架构：UIA 能否看穿遮罩、鼠标消息是否照样到手。</summary>
+    /// <param name="args">args[1] = 物理横坐标，args[2] = 物理纵坐标。</param>
+    /// <returns>0 = 两项都通过；1 = 有一项不通过；2 = 参数不对。</returns>
+    static int OverlayClickThrough(string[] args)
+    {
+        if (!int.TryParse(args[1], out int x) || !int.TryParse(args[2], out int y))
+        {
+            Console.WriteLine("用法: selftest overlayct <物理x> <物理y>");
+            return 2;
+        }
+        var app = new Application();
+        _ = new FrameCapture.Core.SettingsService();
+        var moves = 0;
+        var win = new Window
+        {
+            WindowStyle = WindowStyle.None, AllowsTransparency = true,
+            Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromArgb(0x30, 0, 0, 0)),
+            ShowInTaskbar = false, Topmost = true, ShowActivated = false,
+            Left = SystemParameters.VirtualScreenLeft, Top = SystemParameters.VirtualScreenTop,
+            Width = SystemParameters.VirtualScreenWidth, Height = SystemParameters.VirtualScreenHeight,
+            Content = new System.Windows.Controls.TextBlock { Text = "穿透遮罩" },
+        };
+        win.Show();
+        PumpMs(300);
+        IntPtr h = new System.Windows.Interop.WindowInteropHelper(win).Handle;
+        var src = System.Windows.Interop.HwndSource.FromHwnd(h)!;
+        src.AddHook((IntPtr hwnd, int msg, IntPtr w, IntPtr l, ref bool handled) =>
+        {
+            if (msg == 0x0200) moves++;   // WM_MOUSEMOVE
+            return IntPtr.Zero;
+        });
+        // 与选区窗同一套：设为命中测试透明 + 捕获输入
+        int style = ProbeGetWindowLong(h, ProbeGwlExStyle);
+        ProbeSetWindowLong(h, ProbeGwlExStyle,
+            style | ProbeWsExTransparent);
+        ProbeSetCapture(h);
+        bool captured = ProbeGetCapture() == h;
+        Console.WriteLine($"  穿透样式已设，捕获={(captured ? "到手" : "没到手")}");
+
+        // 一、UIA 能不能看穿
+        var hit = FrameCapture.Core.ElementSnap.At(x, y, IntPtr.Zero);
+        Console.WriteLine(hit == null
+            ? "  UIA 看穿：null（没拿到控件）"
+            : $"  UIA 看穿：{(hit.Element == null ? "MSAA" : hit.Element.Current.ControlType.ProgrammaticName)} " +
+              $"name=「{hit.Element?.Current.Name}」 {hit.Rect.X},{hit.Rect.Y} {hit.Rect.W}x{hit.Rect.H}");
+
+        // 二、鼠标消息是否照样到手
+        // 用 SendInput 移动：SetCursorPos 只改光标位置，不产生鼠标消息，测不出输入是否到手
+        for (int i = 0; i < 12; i++)
+        {
+            ProbeMouseMove(x + i * 24, y + i * 6);
+            PumpMs(70);
+        }
+        Console.WriteLine($"  鼠标消息：收到 {moves} 条 WM_MOUSEMOVE");
+
+        ProbeReleaseCapture();
+        win.Close();
+        bool ok = captured && hit != null && moves > 0;
+        Console.WriteLine(ok ? "  RESULT 通过" : "  RESULT 不通过");
+        return ok ? 0 : 1;
+    }
     static int ElemSnapProbe(string[] args)
     {
         if (!int.TryParse(args[1], out int x) || !int.TryParse(args[2], out int y))
@@ -1034,6 +1117,7 @@ static partial class SelfTest
         if (args.Length == 2 && args[0] == "renderpick") return RenderPick(args[1]);
         if (args.Length == 2 && args[0] == "rendertoast") return RenderToast(args[1]);
         if (args.Length >= 3 && args[0] == "elemsnap") return ElemSnapProbe(args);
+        if (args.Length >= 3 && args[0] == "overlayct") return OverlayClickThrough(args);
         if (args.Length == 2 && args[0] == "editorwave") return EditorWave(args[1]);
         if (args.Length == 2 && args[0] == "scrollwave") return ScrollWave(args[1]);
         if (args.Length == 2 && args[0] == "renderslider") return RenderSlider(args[1]);

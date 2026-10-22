@@ -8,7 +8,7 @@ namespace FrameCapture.Native;
 /// 坐标约定：除注明"窗口相对"外，一律物理像素、虚拟桌面绝对坐标。
 /// 句柄约定：不使用 SafeHandle——Get/Create 得到的 DC、位图、钩子由调用方在同一调用栈内配对释放。
 /// </summary>
-internal static class Win32
+internal static partial class Win32
 {
     #region 内存状态
     /// <summary>
@@ -265,6 +265,8 @@ internal static class Win32
     /// <returns>true = 枚举完整走完；false = 回调提前中止或枚举出错。</returns>
     [DllImport("user32.dll")]
     public static extern bool EnumWindows(EnumWindowsProc lpEnumFunc, IntPtr lParam);
+
+
 
     /// <summary>窗口 WS_VISIBLE 位是否置起。cloaked 窗口与最小化窗口同样算可见。</summary>
     /// <param name="hWnd">目标窗口句柄。</param>
