@@ -378,7 +378,7 @@ public sealed partial class RegionPickerWindow : Window
             // 挖洞遮罩：用 Path 奇偶填充
             _spotPath = new Path
             {
-                Fill = new SolidColorBrush(Color.FromArgb(0x60, 0, 0, 0)),
+                Fill = new SolidColorBrush(Color.FromArgb(0x80, 0, 0, 0)),   // 选区期间整屏压暗 50%
                 Data = BuildMask(new Rect(0, 0, Width, Height), null),
             };
             // 洞内补一层 alpha=1 的填充：分层窗 alpha=0 的像素鼠标会穿透到下面窗口，
@@ -500,7 +500,6 @@ public sealed partial class RegionPickerWindow : Window
                 _canvas.Opacity = 1;
                 _canvas.BeginAnimation(OpacityProperty, null);
                 if (_spotPath != null) _spotPath.Fill = Brushes.Transparent;
-                _spotPathDims = false;
                 _hint.BeginAnimation(OpacityProperty, MaskAnim(1, 120, 0));
             }
             else
@@ -551,20 +550,10 @@ public sealed partial class RegionPickerWindow : Window
     /// <summary>首帧是否已画完：窗口预抓取等它之后再开始。</summary>
     private bool _firstFrameDone;
 
-    /// <summary>遮罩当前是否已压暗整屏：定格模式下拖选才开始压暗。</summary>
-    private bool _spotPathDims;
 
-    /// <summary>拖选起手才把整屏压暗：入场时压暗是可见的「整屏黑一下」，而不拖选时它没有用。</summary>
-    private void DimMaskOnDrag()
-    {
-        if (_spotPathDims || _spotPath == null) return;
-        _spotPathDims = true;
-        _spotPath.Fill = new SolidColorBrush(Color.FromArgb(0x60, 0, 0, 0));
-    }
 
     private void OnDown(object sender, MouseButtonEventArgs e)
     {
-        DimMaskOnDrag();
         var p = WindowPosToPhys(e.GetPosition(this));
         _dragX1 = p.X; _dragY1 = p.Y;
         _dragging = true;
