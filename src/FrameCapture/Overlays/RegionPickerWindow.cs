@@ -542,6 +542,7 @@ public sealed partial class RegionPickerWindow : Window
                 var wc = WindowHitForCapture(p);
                 if (wc != null)
                 {
+                    if (!Editable) { Finish(wc.Value.Bounds, wc.Value.Hwnd); return; }
                     ShowSelection(wc.Value.Bounds);
                     _selHwnd = wc.Value.Hwnd;
                     _selHwndBounds = wc.Value.Bounds;
@@ -578,8 +579,7 @@ public sealed partial class RegionPickerWindow : Window
             if (kindDown != GrabKind.None)
             {
                 var gp = WindowPosToPhys(dipDown);
-                ClearSnapHold();
-                // 按下时按「正在拖的边外侧」探一次，之后由 SnapResizing 按节流刷新
+                
                 _grab = kindDown; _grabX = gp.X; _grabY = gp.Y; _selAtGrab = _sel.Value;
                 CaptureMouse();
                 return;
@@ -641,7 +641,7 @@ public sealed partial class RegionPickerWindow : Window
 
     private void OnUp(object sender, MouseButtonEventArgs e)
     {
-        if (_grab != GrabKind.None) { _grab = GrabKind.None; ClearSnapHold(); ReleaseMouseCapture(); return; }
+        if (_grab != GrabKind.None) { _grab = GrabKind.None;  ReleaseMouseCapture(); return; }
         if (!_dragging) return;
         _dragging = false;
         ReleaseMouseCapture();
@@ -654,7 +654,13 @@ public sealed partial class RegionPickerWindow : Window
             {
                 var selfH = new System.Windows.Interop.WindowInteropHelper(this).Handle;
                 var eh = Core.ElementSnap.At(p.X, p.Y, selfH);
-                if (eh != null && eh.Rect.W >= 8 && eh.Rect.H >= 8) { _selHwnd = IntPtr.Zero; ShowSelection(eh.Rect); return; }
+                if (eh != null && eh.Rect.W >= 8 && eh.Rect.H >= 8)
+                {
+                    _selHwnd = IntPtr.Zero;
+                    if (!Editable) { Finish(eh.Rect); return; }
+                    ShowSelection(eh.Rect);
+                    return;
+                }
             }
             // 点吸附到的窗口 → 真·窗口截图（开关开 + 未被遮挡 + 吸附到的是窗口而非 UIA 子元素）
             if (_windowCapture)
@@ -662,6 +668,7 @@ public sealed partial class RegionPickerWindow : Window
                 var wc = WindowHitForCapture(p);
                 if (wc != null)
                 {
+                    if (!Editable) { Finish(wc.Value.Bounds, wc.Value.Hwnd); return; }
                     ShowSelection(wc.Value.Bounds);
                     _selHwnd = wc.Value.Hwnd;
                     _selHwndBounds = wc.Value.Bounds;
@@ -670,11 +677,14 @@ public sealed partial class RegionPickerWindow : Window
             }
             var hit = SnapWindowAt(p);
             _selHwnd = IntPtr.Zero;
-            ShowSelection(hit ?? _existing ?? _monitorPhys);
+            var baseRect = hit ?? _existing ?? _monitorPhys;
+            if (!Editable) { Finish(baseRect); return; }
+            ShowSelection(baseRect);
             return;
         }
         // 松手先给可调整的框：拖边角还能改，Enter 或勾才真的出图
         _selHwnd = IntPtr.Zero;
+        if (!Editable) { Finish(rect); return; }
         ShowSelection(rect);
     }
 

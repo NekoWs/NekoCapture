@@ -37,10 +37,10 @@ public sealed partial class SettingsWindow : Window
         return g;
     }
 
-    // 调整选区时吸附控件：拖边角时吸到附近的控件边界（按住 Alt 临时关）
-    FrameworkElement ResizeSnapRow() =>
-        ToggleRow("\uE740", Loc.T(K.Settings.ResizeSnap), Loc.T(K.Settings.ResizeSnapDesc),
-            _settings.Current.ResizeSnapToControls, v => _settings.Mutate(s => s.ResizeSnapToControls = v));
+    // 可调整选区（默认关）：开着时松手先给一个可拖边角改大小的框，确认才出图
+    FrameworkElement EditableSelectionRow() =>
+        ToggleRow("\uE7C8", Loc.T(K.Settings.EditableSelection), Loc.T(K.Settings.EditableSelectionDesc),
+            _settings.Current.EditableSelection, v => _settings.Mutate(s => s.EditableSelection = v));
 
     // 确认/取消选区：可调整的框出现后生效，右侧两个键位框点一下就能录
     FrameworkElement PickerKeysRow()

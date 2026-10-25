@@ -123,44 +123,4 @@ public static class AdjustGeometry
         int y = Math.Clamp(sel.Y + dy, bounds.Y, bounds.Y + bounds.H - h);
         return new RectI(x, y, w, h);
     }
-
-    /// <summary>
-    /// 把正在拖的边吸到目标矩形的对应边上：只吸这条边的方向，且距离在容差内。
-    /// 用途说得很直白——吸附到子控件之后想多框进几个兄弟控件，靠拖边时吸上去完成。
-    /// </summary>
-    /// <param name="sel">当前（已按位移算过）的选区。</param>
-    /// <param name="kind">抓住的部位。</param>
-    /// <param name="target">要吸附到的元素矩形。</param>
-    /// <param name="tol">吸附容差（物理像素）。</param>
-    /// <returns>吸附后的矩形；够不着或吸附后会小于最小边长时原样返回。</returns>
-    public static RectI Snap(RectI sel, GrabKind kind, RectI target, int tol)
-    {
-        if (kind is GrabKind.None or GrabKind.Move) return sel;
-        int l = sel.X, t = sel.Y, r = sel.X + sel.W, b = sel.Y + sel.H;
-        bool movingL = kind is GrabKind.Left or GrabKind.TopLeft or GrabKind.BottomLeft;
-        bool movingR = kind is GrabKind.Right or GrabKind.TopRight or GrabKind.BottomRight;
-        bool movingT = kind is GrabKind.Top or GrabKind.TopLeft or GrabKind.TopRight;
-        bool movingB = kind is GrabKind.Bottom or GrabKind.BottomLeft or GrabKind.BottomRight;
-        int tl = target.X, tr = target.X + target.W, tt = target.Y, tb = target.Y + target.H;
-        if (movingL) l = Nearest(l, tl, tr, tol);
-        if (movingR) r = Nearest(r, tl, tr, tol);
-        if (movingT) t = Nearest(t, tt, tb, tol);
-        if (movingB) b = Nearest(b, tt, tb, tol);
-        if (r - l < MinSide || b - t < MinSide) return sel;
-        return new RectI(l, t, r - l, b - t);
-    }
-
-    /// <summary>在两条候选线里取最近且不超容差的那条；都不够近就返回原值。</summary>
-    /// <param name="v">当前坐标。</param>
-    /// <param name="a">候选线一。</param>
-    /// <param name="b">候选线二。</param>
-    /// <param name="tol">容差。</param>
-    /// <returns>吸附后的坐标。</returns>
-    static int Nearest(int v, int a, int b, int tol)
-    {
-        int da = Math.Abs(v - a), db = Math.Abs(v - b);
-        if (da <= db && da <= tol) return a;
-        if (db < da && db <= tol) return b;
-        return v;
-    }
 }

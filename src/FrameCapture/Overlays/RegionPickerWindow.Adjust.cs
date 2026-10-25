@@ -65,26 +65,20 @@ public sealed partial class RegionPickerWindow
                 _cancelButton.Background = new SolidColorBrush(cancel ? HoverOf(CancelFill, true) : CancelFill);
         }
     }
-    /// <summary>上次问吸附的时间：拖边角时按 80 ms 节流。</summary>
-    private DateTime _snapAt = DateTime.MinValue;
 
-    /// <summary>吸附容差（DIP）。</summary>
-    private const double SnapTol = 24;
 
     /// <summary>按钮直径（DIP）。</summary>
     private const double ButtonWidth = 66;
     private const double ButtonHeight = 30;
+
+    /// <summary>可调整选区开关：关着时松手立刻出图，与没有这个功能时一致。</summary>
+    private static bool Editable => SettingsService.Shared?.Current.EditableSelection ?? false;
 
     /// <summary>本窗的 DPI 缩放。</summary>
     private double DpiScale
     {
         get { try { return VisualTreeHelper.GetDpi(this).DpiScaleX; } catch { return 1; } }
     }
-
-    /// <summary>调整选区时是否吸附控件；按住 Alt 临时关。</summary>
-    private static bool ResizeSnapOn =>
-        (SettingsService.Shared?.Current.ResizeSnapToControls ?? true)
-        && !FrameCapture.Native.Win32.IsKeyDown(FrameCapture.Native.Win32.VK_MENU);
 
     /// <summary>建控制点与两个按钮：都不吃鼠标事件，命中在 OnDown/OnUp 里自己判。</summary>
     private void BuildAdjustChrome()
@@ -250,104 +244,13 @@ public sealed partial class RegionPickerWindow
     /// <param name="kind">抓住的部位。</param>
     /// <param name="physX">光标物理横坐标。</param>
     /// <param name="physY">光标物理纵坐标。</param>
-    /// <returns>吸附后的选区。</returns>
-    private RectI SnapResizing(RectI raw, GrabKind kind, int physX, int physY)
-    {
-        if (kind is GrabKind.None or GrabKind.Move || !ResizeSnapOn) return raw;
-
-        // 吸附优先：按下时锁定一个目标元素，之后每一帧都显示「吸到它边上」的位置，
-        // 而不是「跟手走、偶尔跳一下」。这样框要么稳定地贴着目标边线，要么完全跟手。
-        // 探测点取「正在拖的那条边外侧」：那里才是要吸到的邻居控件。
-        // 拿光标当探测点没用——拖边角时光标压在选区边线上，问到的往往是选区自己或整窗。
-        var probe = ProbePoint(raw, kind);
-        if (_snapTarget is not { } locked || CursorAwayFrom(locked, probe.X, probe.Y))
-        {
-            var now = DateTime.UtcNow;
-            if (now - _snapAt >= TimeSpan.FromMilliseconds(150))   // lint-motion:ignore 换目标的冷却间隔，不是动效
-            {
-                _snapAt = now;
-                // 只在新目标确实拿到时才替换：一次问空不该把已经吸住的目标丢掉
-                if (ElementSnap.At(probe.X, probe.Y, _selfHwnd) is { } fresh) _snapTarget = fresh.Rect;
-            }
-        }
-        return SnapOrRaw(raw, kind, _snapTarget, physX, physY);
-    }
-
-    /// <summary>算「正在拖的那条边外侧」的探测点：往外 28 DIP，夹在显示器内。</summary>
-    /// <param name="raw">原始矩形（物理像素）。</param>
-    /// <param name="kind">抓住的部位。</param>
-    /// <returns>探测点。</returns>
-    private (int X, int Y) ProbePoint(RectI raw, GrabKind kind)
-    {
-        int outward = Math.Max((int)Math.Round(28 * DpiScale), 20);
-        int x = raw.X + raw.W / 2, y = raw.Y + raw.H / 2;
-        if (kind is GrabKind.Left or GrabKind.TopLeft or GrabKind.BottomLeft) x = raw.X - outward;
-        else if (kind is GrabKind.Right or GrabKind.TopRight or GrabKind.BottomRight) x = raw.X + raw.W + outward;
-        if (kind is GrabKind.Top or GrabKind.TopLeft or GrabKind.TopRight) y = raw.Y - outward;
-        else if (kind is GrabKind.Bottom or GrabKind.BottomLeft or GrabKind.BottomRight) y = raw.Y + raw.H + outward;
-        x = Math.Clamp(x, _monitorPhys.X + 1, _monitorPhys.X + _monitorPhys.W - 2);
-        y = Math.Clamp(y, _monitorPhys.Y + 1, _monitorPhys.Y + _monitorPhys.H - 2);
-        return (x, y);
-    }
-    /// <summary>按锁定目标吸；没有目标就原样返回。</summary>
-    /// <param name="raw">原始矩形。</param>
-    /// <param name="kind">抓住的部位。</param>
-    /// <param name="target">锁定的目标元素矩形。</param>
-    /// <param name="physX">光标物理横坐标。</param>
-    /// <param name="physY">光标物理纵坐标。</param>
-    /// <returns>吸附后的矩形。</returns>
-    private RectI SnapOrRaw(RectI raw, GrabKind kind, RectI? target, int physX, int physY)
-    {
-        if (target is not { } tgt) return raw;
-        return AdjustGeometry.Snap(raw, kind, tgt, Math.Max(1, (int)Math.Round(SnapTol * DpiScale)));
-    }
-
-    /// <summary>光标是否已经离开锁定目标太远：离开才值得重新找目标。</summary>
-    /// <param name="target">锁定的目标矩形。</param>
-    /// <param name="physX">光标物理横坐标。</param>
-    /// <param name="physY">光标物理纵坐标。</param>
-    /// <returns>离开超过一个目标宽度（且至少 90 DIP）返回 true。</returns>
-    private bool CursorAwayFrom(RectI target, int physX, int physY)
-    {
-        int margin = Math.Max((int)Math.Round(90 * DpiScale), target.W);
-        return physX < target.X - margin || physX > target.X + target.W + margin
-            || physY < target.Y - margin || physY > target.Y + target.H + margin;
-    }
-
-    /// <summary>拖边角时锁定的吸附目标：按下时定一次，离开太远才换。</summary>
-    private RectI? _snapTarget;
-    /// <summary>两个矩形是否完全相同。</summary>
-    /// <param name="a">矩形一。</param>
-    /// <param name="b">矩形二。</param>
-    /// <returns>四边都相同返回 true。</returns>
-    static bool Same(RectI a, RectI b) => a.X == b.X && a.Y == b.Y && a.W == b.W && a.H == b.H;
-
-    /// <summary>吸住时抓的是哪条边/角。</summary>
-
-
-    /// <summary>丢掉吸附记忆：换边、松手、关掉吸附时都要丢。</summary>
-    private void ClearSnapHold()
-    {
-        _snapTarget = null;
-        _snapAt = DateTime.MinValue;
-    }
-
     /// <summary>调整态下拖动：按抓住的部位改选区。</summary>
     /// <param name="dip">当前 DIP 坐标。</param>
     private void DragAdjust(Point dip)
     {
         var p = WindowPosToPhys(dip);
         var moved = AdjustGeometry.Resize(_selAtGrab, _grab, p.X - _grabX, p.Y - _grabY, _monitorPhys);
-        // 吸附要跨进程问无障碍树，几十毫秒一次；每帧都问，框就跟不上手。
-        // 折中：框每帧按位移走，吸附每 80 ms 才问一次——松手前最后一次吸附照样生效。
-        var now = DateTime.UtcNow;
-        RectI rect = moved;
-        if (now - _snapAt >= TimeSpan.FromMilliseconds(80))   // lint-motion:ignore 吸附刷新间隔，不是动效
-        {
-            rect = SnapResizing(moved, _grab, p.X, p.Y);
-            _snapAt = now;
-        }
-        ShowSelection(rect);
+        ShowSelection(moved);
     }
     /// <summary>确认当前选区。</summary>
     /// <returns>确实确认了返回 true。</returns>

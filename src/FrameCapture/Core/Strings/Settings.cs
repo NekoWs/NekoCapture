@@ -319,14 +319,14 @@ public static partial class K
             "识别文字后显示结果窗",
             "Show the result window after recognizing text");
         public static readonly Str Simple = new("settings.simple", "简单", "Simple");
-        /// <summary>「调整选区时吸附控件」标题。</summary>
-        public static readonly Str ResizeSnap = new("settings.resizeSnap", "调整选区时吸附控件", "Snap while resizing the selection");
+        /// <summary>「可调整选区」标题（默认关闭）。</summary>
+        public static readonly Str EditableSelection = new("settings.editableSelection", "可调整选区", "Adjustable selection");
 
-        /// <summary>说明：为什么需要它，以及怎么临时关掉。</summary>
-        public static readonly Str ResizeSnapDesc = new(
-            "settings.resizeSnapDesc",
-            "拖动选区的边或角时接近控件边界会吸上去——吸附到子控件之后想把周围的兄弟控件一起框进来，靠这个拖一下就够。按住 Alt 临时关掉",
-            "Dragging an edge or corner snaps to nearby control boundaries, so a selection made on one sub-control can be widened to cover its siblings in one drag. Hold Alt to turn it off for the moment");
+        /// <summary>说明：松手后的框能拖边角改大小、可整块移动，确认才出图。</summary>
+        public static readonly Str EditableSelectionDesc = new(
+            "settings.editableSelectionDesc",
+            "松手后先给一个能拖边角改大小、可整块移动的框，确认或按 Enter 才出图；关着时松手立刻出图",
+            "After releasing, keep an adjustable frame — drag an edge or corner to resize, drag inside to move, confirm with Enter before the shot is taken. When off, releasing captures right away");
 
 
         /// <summary>键位行的说明：什么时候生效。</summary>

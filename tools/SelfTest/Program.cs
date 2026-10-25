@@ -6957,21 +6957,7 @@ static partial class SelfTest
             Chk("T240-resize-clamps-min-side", clamped.W >= FrameCapture.Core.AdjustGeometry.MinSide,
                 "缩到最小也不能小于下限：" + clamped.W);
 
-            // 吸附：右边距目标左边界 9 px 内 → 吸上去；差得远就原样
-            var target = new FrameCapture.Capture.RectI(312, 90, 120, 180);
-            var snapped = FrameCapture.Core.AdjustGeometry.Snap(sel, FrameCapture.Core.GrabKind.Right, target, 14);
-            Chk("T240-snap-right-edge", snapped.X + snapped.W == 312, "右边应吸到 312：" + (snapped.X + snapped.W));
-            // 粘连式吸附的核心：把吸住的那条边按回去，其它三条必须一字不动
-            var held = FrameCapture.Core.AdjustGeometry.Snap(sel, FrameCapture.Core.GrabKind.Right, target, 14);
-            var readback = FrameCapture.Core.AdjustGeometry.Snap(
-                new FrameCapture.Capture.RectI(sel.X + 5, sel.Y + 7, sel.W, sel.H),
-                FrameCapture.Core.GrabKind.Right, target, 40);
-            Chk("T240-hold-keeps-target-edge",
-                readback.X + readback.W == held.X + held.W, "吸住的右边线应保持：" + (readback.X + readback.W));
-            Chk("T240-hold-moves-only-that-edge",
-                readback.W != sel.W || readback.X + readback.W == 312,
-                "只有正在拖的那条边该变");            var far = FrameCapture.Core.AdjustGeometry.Snap(sel, FrameCapture.Core.GrabKind.Right, target, 2);
-            Chk("T240-snap-out-of-range-keeps", far.X + far.W == 300, "超出容差不该动：" + (far.X + far.W));
+
         }
         catch (Exception e) { Chk("T240-adjust-geometry", false, e.Message); }
         // 语义判定：按钮/链接/输入框算控件；匿名容器与整页文档不算。

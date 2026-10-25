@@ -15,7 +15,7 @@
 #   默认    再加 SelfTest / 双语审计 / 安装器探针 / 启动冒烟（约 55 秒，静默）
 #   -Full   再加控制器探针与整套 e2e（约 3 分钟）——发布前用
 # 用法: pwsh -NoProfile -File scripts/guardrail.ps1 [-Quick] [-Full] [-SkipE2e] [-AllowInjection] [-MinSelfTestPass 711]
-param([switch]$Full, [switch]$Quick, [switch]$SkipE2e, [switch]$AllowInjection, [int]$MinSelfTestPass = 713)
+param([switch]$Full, [switch]$Quick, [switch]$SkipE2e, [switch]$AllowInjection, [int]$MinSelfTestPass = 709)
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 . (Join-Path $PSScriptRoot "lib-hotkey.ps1")

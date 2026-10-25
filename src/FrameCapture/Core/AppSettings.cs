@@ -52,8 +52,8 @@ public sealed class AppSettings
     /// <summary>选区吸附取客户区（排除窗口边框/标题栏，适合游戏画面）。</summary>
     public bool SnapContentArea { get; set; } = false;
 
-    /// <summary>调整选区时是否吸附到控件边界（按住 Alt 可临时关）。</summary>
-    public bool ResizeSnapToControls { get; set; } = true;
+/// <summary>可调整选区：松手后先给一个能拖边角改大小、可整块移动的框，确认才出图（默认关）。</summary>
+public bool EditableSelection { get; set; } = false;
 
     /// <summary>确认选区的键位：可调整的框出现后按它出图。</summary>
     public string PickerConfirmChord { get; set; } = "Enter";
