@@ -51,7 +51,8 @@ public sealed partial class RegionPickerWindow
     private const double SnapTol = 10;
 
     /// <summary>按钮直径（DIP）。</summary>
-    private const double ButtonSize = 32;
+    private const double ButtonWidth = 58;
+    private const double ButtonHeight = 30;
 
     /// <summary>本窗的 DPI 缩放。</summary>
     private double DpiScale
@@ -82,8 +83,8 @@ public sealed partial class RegionPickerWindow
             _handles[i] = h;
             _canvas.Children.Add(h);
         }
-        _okButton = AdjustButton("\uE73E", Theme.Accent, Loc.T(K.Capture.ConfirmSelection));
-        _cancelButton = AdjustButton("\uE711", null, Loc.T(K.Capture.CancelSelection));
+        _okButton = AdjustButton(Loc.T(K.Capture.ConfirmSelection), Theme.Accent, Loc.T(K.Capture.ConfirmSelection));
+        _cancelButton = AdjustButton(Loc.T(K.Capture.CancelSelection), null, Loc.T(K.Capture.CancelSelection));
         _canvas.Children.Add(_okButton);
         _canvas.Children.Add(_cancelButton);
     }
@@ -93,18 +94,25 @@ public sealed partial class RegionPickerWindow
     /// <param name="accent">强调色；null 表示用中性底。</param>
     /// <param name="tip">悬停提示。</param>
     /// <returns>按钮边框。</returns>
-    private Border AdjustButton(string glyph, Color? accent, string tip) => new()
+    private Border AdjustButton(string text, Color? accent, string tip) => new()
     {
-        Width = ButtonSize,
-        Height = ButtonSize,
-        CornerRadius = new CornerRadius(ButtonSize / 2),
-        Background = new SolidColorBrush(accent ?? Color.FromArgb(0xE6, 0x1B, 0x1B, 0x1B)),
-        BorderBrush = new SolidColorBrush(Color.FromArgb(0x66, 0xFF, 0xFF, 0xFF)),
+        Width = ButtonWidth,
+        Height = ButtonHeight,
+        CornerRadius = new CornerRadius(6),
+        Background = new SolidColorBrush(accent ?? Color.FromArgb(0xF0, 0x1B, 0x1B, 0x1B)),
+        BorderBrush = new SolidColorBrush(Color.FromArgb(0x4D, 0xFF, 0xFF, 0xFF)),
         BorderThickness = new Thickness(1),
         Visibility = Visibility.Collapsed,
         IsHitTestVisible = false,
         ToolTip = tip,
-        Child = Fluent.Glyph(glyph, 14, new SolidColorBrush(accent is { } c ? Fluent.OnAccentColor(c) : Colors.White)),
+        Child = new TextBlock
+        {
+            Text = text,
+            FontSize = 12.5,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+            Foreground = new SolidColorBrush(accent is { } c ? Fluent.OnAccentColor(c) : Colors.White),
+        },
     };
 
     /// <summary>进入调整态并重画：框、控制点、按钮、尺寸徽标一起更新。</summary>
@@ -152,13 +160,13 @@ public sealed partial class RegionPickerWindow
             _handles[i].Visibility = Visibility.Visible;
         }
         const double gap = 8;
-        double bx = r.X + r.Width - ButtonSize * 2 - gap;
+        double bx = r.X + r.Width - (ButtonWidth * 2 + 6);   // 两个按钮并排，右缘对齐选区右缘
         double by = r.Y + r.Height + gap;
-        if (by + ButtonSize > Height - 4) by = r.Y + r.Height - ButtonSize - gap;
+        if (by + ButtonHeight > Height - 4) by = r.Y + r.Height - ButtonHeight - gap;
         bx = Math.Max(4, bx);
         by = Math.Max(4, by);
         if (_okButton != null) { Canvas.SetLeft(_okButton, bx); Canvas.SetTop(_okButton, by); _okButton.Visibility = Visibility.Visible; }
-        if (_cancelButton != null) { Canvas.SetLeft(_cancelButton, bx + ButtonSize + gap); Canvas.SetTop(_cancelButton, by); _cancelButton.Visibility = Visibility.Visible; }
+        if (_cancelButton != null) { Canvas.SetLeft(_cancelButton, bx + ButtonWidth + 6); Canvas.SetTop(_cancelButton, by); _cancelButton.Visibility = Visibility.Visible; }
     }
 
     /// <summary>调整态下试抓某个点：返回抓住的部位，并把光标换成对应形状。</summary>
@@ -170,7 +178,10 @@ public sealed partial class RegionPickerWindow
         var p = WindowPosToPhys(dip);
         var kind = AdjustGeometry.Hit(_sel.Value, p.X, p.Y, Math.Max(1, (int)Math.Round(GrabTol * DpiScale)));
         var name = AdjustGeometry.CursorFor(kind);
-        if (name.Length != 0) Cursor = (Cursor)new CursorConverter().ConvertFromString(name)!;
+        // 每条分支都要给光标：只在抓到边角时设、其它情况不管，光标会一直停在缩放形状上
+        Cursor = name.Length == 0
+            ? Cursors.Cross
+            : (Cursor)new CursorConverter().ConvertFromString(name)!;
         return kind;
     }
 
