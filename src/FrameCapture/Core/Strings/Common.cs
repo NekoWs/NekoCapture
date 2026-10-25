@@ -10,7 +10,8 @@ public static partial class K
     public static partial class Common
     {
         public static readonly Str Appearance = new("common.appearance", "外观", "Appearance");
-        public static readonly Str Cancel = new("common.cancel", "取消", "Cancel");
+        public static readonly Str Confirm = new("common.confirm", "确认", "Confirm");
+    public static readonly Str Cancel = new("common.cancel", "取消", "Cancel");
         public static readonly Str Capture = new("common.capture", "截图", "Capture");
         public static readonly Str Close = new("common.close", "关闭", "Close");
         public static readonly Str Copied = new("common.copied", "已复制", "Copied");

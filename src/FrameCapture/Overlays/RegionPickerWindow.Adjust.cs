@@ -72,8 +72,8 @@ public sealed partial class RegionPickerWindow
     private const double SnapTol = 10;
 
     /// <summary>按钮直径（DIP）。</summary>
-    private const double ButtonWidth = 58;
-    private const double ButtonHeight = 30;
+    private const double ButtonWidth = 84;
+    private const double ButtonHeight = 38;
 
     /// <summary>本窗的 DPI 缩放。</summary>
     private double DpiScale
@@ -104,8 +104,8 @@ public sealed partial class RegionPickerWindow
             _handles[i] = h;
             _canvas.Children.Add(h);
         }
-        _okButton = AdjustButton(Loc.T(K.Capture.ConfirmSelection), Theme.Accent, true, Loc.T(K.Capture.ConfirmSelection));
-        _cancelButton = AdjustButton(Loc.T(K.Capture.CancelSelection), null, false, Loc.T(K.Capture.CancelSelection));
+        _okButton = AdjustButton(Loc.T(K.Common.Confirm), Theme.Accent, true, Loc.T(K.Capture.ConfirmSelection));
+        _cancelButton = AdjustButton(Loc.T(K.Common.Cancel), null, false, Loc.T(K.Capture.CancelSelection));
         _canvas.Children.Add(_okButton);
         _canvas.Children.Add(_cancelButton);
     }
@@ -142,7 +142,7 @@ public sealed partial class RegionPickerWindow
             Child = new TextBlock
             {
                 Text = text,
-                FontSize = 13,
+                FontSize = 13.5,
                 FontWeight = primary ? FontWeights.SemiBold : FontWeights.Normal,
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center,
@@ -204,14 +204,15 @@ public sealed partial class RegionPickerWindow
             Canvas.SetTop(_handles[i], pts[i].Y - HandleSize / 2);
             _handles[i].Visibility = Visibility.Visible;
         }
-        const double gap = 8;
-        double bx = r.X + r.Width - (ButtonWidth * 2 + 6);   // 两个按钮并排，右缘对齐选区右缘
+        const double gap = 12;         // 按钮与选区之间的边距
+        const double between = 10;      // 两个按钮之间的间距
+        double bx = r.X + r.Width - (ButtonWidth * 2 + between);   // 两个按钮并排，右缘对齐选区右缘
         double by = r.Y + r.Height + gap;
         if (by + ButtonHeight > Height - 4) by = r.Y + r.Height - ButtonHeight - gap;
         bx = Math.Max(4, bx);
         by = Math.Max(4, by);
         if (_okButton != null) { Canvas.SetLeft(_okButton, bx); Canvas.SetTop(_okButton, by); _okButton.Visibility = Visibility.Visible; }
-        if (_cancelButton != null) { Canvas.SetLeft(_cancelButton, bx + ButtonWidth + 6); Canvas.SetTop(_cancelButton, by); _cancelButton.Visibility = Visibility.Visible; }
+        if (_cancelButton != null) { Canvas.SetLeft(_cancelButton, bx + ButtonWidth + between); Canvas.SetTop(_cancelButton, by); _cancelButton.Visibility = Visibility.Visible; }
     }
 
     /// <summary>调整态下试抓某个点：返回抓住的部位，并把光标换成对应形状。</summary>
@@ -252,10 +253,45 @@ public sealed partial class RegionPickerWindow
     /// <returns>吸附后的选区。</returns>
     private RectI SnapResizing(RectI sel, GrabKind kind, int physX, int physY)
     {
-        if (kind is GrabKind.None or GrabKind.Move || !ResizeSnapOn) return sel;
+        if (kind is GrabKind.None or GrabKind.Move || !ResizeSnapOn) { ClearSnapHold(); return sel; }
+        int tol = Math.Max(1, (int)Math.Round(SnapTol * DpiScale));
+
+        // 粘连式：已经吸住的那条边，只要光标还没明显拖离（离开阈值放宽到 28 DIP）就一直吸着。
+        // 只做「贴近才吸」的话，鼠标抖一像素就脱开重算，框一跳一跳的——那是贴合式，不是吸附。
+        if (_holdKind == kind && _holdTarget is { } held)
+        {
+            var sticky = AdjustGeometry.Snap(sel, kind, held, Math.Max(tol * 3, 28));
+            if (!Same(sticky, sel)) return sticky;
+            ClearSnapHold();
+        }
+
+        // 节流：跨进程问无障碍树要几十毫秒，每帧都问框就跟不上手
+        var now = DateTime.UtcNow;
+        if (now - _snapAt < TimeSpan.FromMilliseconds(80)) return sel;   // lint-motion:ignore 吸附刷新间隔，不是动效
+        _snapAt = now;
         var hit = ElementSnap.At(physX, physY, _selfHwnd);
         if (hit == null) return sel;
-        return AdjustGeometry.Snap(sel, kind, hit.Rect, Math.Max(1, (int)Math.Round(SnapTol * DpiScale)));
+        var snapped = AdjustGeometry.Snap(sel, kind, hit.Rect, tol);
+        if (!Same(snapped, sel)) { _holdKind = kind; _holdTarget = hit.Rect; }
+        return snapped;
+    }
+
+    /// <summary>两个矩形是否完全相同。</summary>
+    /// <param name="a">矩形一。</param>
+    /// <param name="b">矩形二。</param>
+    /// <returns>四边都相同返回 true。</returns>
+    static bool Same(RectI a, RectI b) => a.X == b.X && a.Y == b.Y && a.W == b.W && a.H == b.H;
+
+    /// <summary>当前吸住的目标与抓取部位：粘连式吸附靠它记住吸在哪儿。</summary>
+    private GrabKind _holdKind = GrabKind.None;
+    private RectI? _holdTarget;
+
+    /// <summary>丢掉吸附记忆：换边、松手、关掉吸附时都要丢。</summary>
+    private void ClearSnapHold()
+    {
+        _holdKind = GrabKind.None;
+        _holdTarget = null;
+        _snapAt = DateTime.MinValue;
     }
 
     /// <summary>调整态下拖动：按抓住的部位改选区。</summary>

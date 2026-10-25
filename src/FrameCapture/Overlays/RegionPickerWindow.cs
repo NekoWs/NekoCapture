@@ -578,6 +578,7 @@ public sealed partial class RegionPickerWindow : Window
             if (kindDown != GrabKind.None)
             {
                 var gp = WindowPosToPhys(dipDown);
+                ClearSnapHold();
                 _grab = kindDown; _grabX = gp.X; _grabY = gp.Y; _selAtGrab = _sel.Value;
                 CaptureMouse();
                 return;
@@ -639,7 +640,7 @@ public sealed partial class RegionPickerWindow : Window
 
     private void OnUp(object sender, MouseButtonEventArgs e)
     {
-        if (_grab != GrabKind.None) { _grab = GrabKind.None; ReleaseMouseCapture(); return; }
+        if (_grab != GrabKind.None) { _grab = GrabKind.None; ClearSnapHold(); ReleaseMouseCapture(); return; }
         if (!_dragging) return;
         _dragging = false;
         ReleaseMouseCapture();
