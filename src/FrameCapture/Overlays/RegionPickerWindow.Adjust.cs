@@ -257,18 +257,38 @@ public sealed partial class RegionPickerWindow
 
         // 吸附优先：按下时锁定一个目标元素，之后每一帧都显示「吸到它边上」的位置，
         // 而不是「跟手走、偶尔跳一下」。这样框要么稳定地贴着目标边线，要么完全跟手。
-        if (_snapTarget is not { } locked || CursorAwayFrom(locked, physX, physY))
+        // 探测点取「正在拖的那条边外侧」：那里才是要吸到的邻居控件。
+        // 拿光标当探测点没用——拖边角时光标压在选区边线上，问到的往往是选区自己或整窗。
+        var probe = ProbePoint(raw, kind);
+        if (_snapTarget is not { } locked || CursorAwayFrom(locked, probe.X, probe.Y))
         {
             var now = DateTime.UtcNow;
             if (now - _snapAt >= TimeSpan.FromMilliseconds(150))   // lint-motion:ignore 换目标的冷却间隔，不是动效
             {
                 _snapAt = now;
-                _snapTarget = ElementSnap.At(physX, physY, _selfHwnd)?.Rect;
+                // 只在新目标确实拿到时才替换：一次问空不该把已经吸住的目标丢掉
+                if (ElementSnap.At(probe.X, probe.Y, _selfHwnd) is { } fresh) _snapTarget = fresh.Rect;
             }
         }
         return SnapOrRaw(raw, kind, _snapTarget, physX, physY);
     }
 
+    /// <summary>算「正在拖的那条边外侧」的探测点：往外 28 DIP，夹在显示器内。</summary>
+    /// <param name="raw">原始矩形（物理像素）。</param>
+    /// <param name="kind">抓住的部位。</param>
+    /// <returns>探测点。</returns>
+    private (int X, int Y) ProbePoint(RectI raw, GrabKind kind)
+    {
+        int outward = Math.Max((int)Math.Round(28 * DpiScale), 20);
+        int x = raw.X + raw.W / 2, y = raw.Y + raw.H / 2;
+        if (kind is GrabKind.Left or GrabKind.TopLeft or GrabKind.BottomLeft) x = raw.X - outward;
+        else if (kind is GrabKind.Right or GrabKind.TopRight or GrabKind.BottomRight) x = raw.X + raw.W + outward;
+        if (kind is GrabKind.Top or GrabKind.TopLeft or GrabKind.TopRight) y = raw.Y - outward;
+        else if (kind is GrabKind.Bottom or GrabKind.BottomLeft or GrabKind.BottomRight) y = raw.Y + raw.H + outward;
+        x = Math.Clamp(x, _monitorPhys.X + 1, _monitorPhys.X + _monitorPhys.W - 2);
+        y = Math.Clamp(y, _monitorPhys.Y + 1, _monitorPhys.Y + _monitorPhys.H - 2);
+        return (x, y);
+    }
     /// <summary>按锁定目标吸；没有目标就原样返回。</summary>
     /// <param name="raw">原始矩形。</param>
     /// <param name="kind">抓住的部位。</param>
