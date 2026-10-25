@@ -44,6 +44,27 @@ public sealed partial class RegionPickerWindow
     /// <summary>边角判定半径（DIP）：太小抓不住，太大会把整块移动吃掉。</summary>
     private const double GrabTol = 7;
 
+    /// <summary>两个按钮当前是否处于悬停态：只在状态变化时改画刷，避免每帧重建。</summary>
+    private bool _hoverOk, _hoverCancel;
+
+    /// <summary>刷两个按钮的悬停底色（只有状态变化才动）。</summary>
+    /// <param name="ok">确认按钮是否悬停。</param>
+    /// <param name="cancel">取消按钮是否悬停。</param>
+    private void SetButtonHover(bool ok, bool cancel)
+    {
+        if (ok != _hoverOk)
+        {
+            _hoverOk = ok;
+            if (_okButton != null)
+                _okButton.Background = new SolidColorBrush(ok ? HoverOf(Theme.Accent, true) : Theme.Accent);
+        }
+        if (cancel != _hoverCancel)
+        {
+            _hoverCancel = cancel;
+            if (_cancelButton != null)
+                _cancelButton.Background = new SolidColorBrush(cancel ? HoverOf(CancelFill, true) : CancelFill);
+        }
+    }
     /// <summary>上次问吸附的时间：拖边角时按 80 ms 节流。</summary>
     private DateTime _snapAt = DateTime.MinValue;
 
@@ -83,8 +104,8 @@ public sealed partial class RegionPickerWindow
             _handles[i] = h;
             _canvas.Children.Add(h);
         }
-        _okButton = AdjustButton(Loc.T(K.Capture.ConfirmSelection), Theme.Accent, Loc.T(K.Capture.ConfirmSelection));
-        _cancelButton = AdjustButton(Loc.T(K.Capture.CancelSelection), null, Loc.T(K.Capture.CancelSelection));
+        _okButton = AdjustButton(Loc.T(K.Capture.ConfirmSelection), Theme.Accent, true, Loc.T(K.Capture.ConfirmSelection));
+        _cancelButton = AdjustButton(Loc.T(K.Capture.CancelSelection), null, false, Loc.T(K.Capture.CancelSelection));
         _canvas.Children.Add(_okButton);
         _canvas.Children.Add(_cancelButton);
     }
@@ -94,26 +115,50 @@ public sealed partial class RegionPickerWindow
     /// <param name="accent">强调色；null 表示用中性底。</param>
     /// <param name="tip">悬停提示。</param>
     /// <returns>按钮边框。</returns>
-    private Border AdjustButton(string text, Color? accent, string tip) => new()
+    private Border AdjustButton(string text, Color? accent, bool primary, string tip)
     {
-        Width = ButtonWidth,
-        Height = ButtonHeight,
-        CornerRadius = new CornerRadius(6),
-        Background = new SolidColorBrush(accent ?? Color.FromArgb(0xF0, 0x1B, 0x1B, 0x1B)),
-        BorderBrush = new SolidColorBrush(Color.FromArgb(0x4D, 0xFF, 0xFF, 0xFF)),
-        BorderThickness = new Thickness(1),
-        Visibility = Visibility.Collapsed,
-        IsHitTestVisible = false,
-        ToolTip = tip,
-        Child = new TextBlock
+        var b = new Border
         {
-            Text = text,
-            FontSize = 12.5,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Center,
-            Foreground = new SolidColorBrush(accent is { } c ? Fluent.OnAccentColor(c) : Colors.White),
-        },
-    };
+            Width = ButtonWidth,
+            Height = ButtonHeight,
+            CornerRadius = new CornerRadius(7),
+            Background = new SolidColorBrush(accent ?? CancelFill),
+            BorderBrush = new SolidColorBrush(accent is { } c
+                ? Color.FromArgb(0x33, 0xFF, 0xFF, 0xFF)
+                : Color.FromArgb(0x3D, 0xFF, 0xFF, 0xFF)),
+            BorderThickness = new Thickness(1),
+            Visibility = Visibility.Collapsed,
+            IsHitTestVisible = false,
+            ToolTip = tip,
+            // 投影是这几枚按钮唯一的"分层"手段：不画它就直接贴在截图内容上，边界糊在一起
+            Effect = new System.Windows.Media.Effects.DropShadowEffect
+            {
+                BlurRadius = 14,
+                ShadowDepth = 3,
+                Direction = 270,
+                Opacity = 0.55,
+                Color = Colors.Black,
+            },
+            Child = new TextBlock
+            {
+                Text = text,
+                FontSize = 13,
+                FontWeight = primary ? FontWeights.SemiBold : FontWeights.Normal,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+                Foreground = new SolidColorBrush(accent.HasValue ? Fluent.OnAccentColor(accent.Value) : Colors.White),
+            },
+        };
+        return b;
+    }
+
+    /// <summary>取消键的底色：比纯黑亮一点，压在深色截图上不至于糊成一团。</summary>
+    static readonly Color CancelFill = Color.FromArgb(0xF2, 0x22, 0x22, 0x24);
+
+    /// <summary>悬停时的底色。</summary>
+    static Color HoverOf(Color c, bool lighten) => lighten
+        ? Color.FromArgb(c.A, (byte)Math.Min(255, c.R + 26), (byte)Math.Min(255, c.G + 26), (byte)Math.Min(255, c.B + 26))
+        : c;
 
     /// <summary>进入调整态并重画：框、控制点、按钮、尺寸徽标一起更新。</summary>
     /// <param name="sel">选区（物理像素）。</param>
@@ -177,8 +222,11 @@ public sealed partial class RegionPickerWindow
         if (_sel == null) return GrabKind.None;
         var p = WindowPosToPhys(dip);
         var kind = AdjustGeometry.Hit(_sel.Value, p.X, p.Y, Math.Max(1, (int)Math.Round(GrabTol * DpiScale)));
+        // 悬在按钮上：手型 + 变色；其余按区域给形状。每条分支都给光标，不能只在抓到边角时设
+        if (OverButton(dip, _okButton)) { SetButtonHover(true, false); Cursor = Cursors.Hand; return GrabKind.None; }
+        if (OverButton(dip, _cancelButton)) { SetButtonHover(false, true); Cursor = Cursors.Hand; return GrabKind.None; }
+        SetButtonHover(false, false);
         var name = AdjustGeometry.CursorFor(kind);
-        // 每条分支都要给光标：只在抓到边角时设、其它情况不管，光标会一直停在缩放形状上
         Cursor = name.Length == 0
             ? Cursors.Cross
             : (Cursor)new CursorConverter().ConvertFromString(name)!;
