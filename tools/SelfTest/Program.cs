@@ -1110,11 +1110,40 @@ static partial class SelfTest
         catch { /* 种不上就照默认目录跑，不让测试起不来 */ }
     }
 
+    /// <summary>
+    /// 静默开关：默认打开。本进程里每一个 Window 一加载就搬到屏幕外，
+    /// 用户屏幕上不出现、也不挡鼠标。版面与坐标断言在屏幕外同样成立（WPF 的版面与
+    /// PointToScreen 都按窗口自身位置换算），只有「窗口在屏幕上的绝对位置」类断言例外。
+    /// </summary>
+    static readonly bool Quiet = Environment.GetEnvironmentVariable("FC_TEST_QUIET") != "0";
+
+    /// <summary>把本进程每一个 Window 搬到屏幕外：挂在 Window.Loaded 的类处理器上，一处管全部。</summary>
+    static void InstallQuietWindows()
+    {
+        if (!Quiet) return;
+        EventManager.RegisterClassHandler(typeof(Window), FrameworkElement.LoadedEvent,
+            new RoutedEventHandler((s, _) =>
+            {
+                if (s is not Window w) return;
+                try
+                {
+                    var h = new System.Windows.Interop.WindowInteropHelper(w).Handle;
+                    if (h != IntPtr.Zero) SetWindowPos(h, IntPtr.Zero, -20000, -20000, 0, 0, 0x0001 | 0x0004);
+                    else { w.Left = -20000; w.Top = -20000; }
+                }
+                catch { }
+            }));
+    }
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    static extern bool SetWindowPos(IntPtr h, IntPtr after, int x, int y, int cx, int cy, uint flags);
+
     [STAThread]
     static int Main(string[] args)
     {
         Console.OutputEncoding = System.Text.Encoding.UTF8;
         SettingsScratch();
+        InstallQuietWindows();
         // 版面与双语审计：一次进程一个界面，矩阵由 scripts/ux-audit.ps1 铺开
         if (args.Length >= 3 && args[0] == "uxaudit") return UxAudit(args[1], args[2]);
         if (args.Length == 2 && args[0] == "uxaudit" && args[1] == "list")
