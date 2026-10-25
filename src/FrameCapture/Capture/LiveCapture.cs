@@ -98,7 +98,8 @@ public sealed class LiveCapture : IDisposable
 
     /// <summary>抓取虚拟桌面坐标 region 的一帧 BGRA（任意线程可调）。
     /// 走 GetDC(NULL) + BitBlt(SRCCOPY | CAPTUREBLT)：CAPTUREBLT 让分层窗口（指针、部分置顶窗）也进画面。
-    /// 每次调用自建并释放 DIB 与兼容 DC，无跨调用状态，因此 UI 线程与捕获线程可并发调用。</summary>
+    /// 暂存位图按尺寸缓存复用：全屏抓取里新建一块十几 MB 的 DIB 要花十几毫秒，而它每帧都被整块覆盖。
+    /// 缓存只为少建位图，返回值仍是新分配的帧，调用方照旧独占自己的像素。</summary>
     /// <param name="region">物理像素、虚拟桌面绝对坐标；宽或高小于 2 直接返回 null。</param>
     /// <returns>新分配的 BGRA 帧，top-down、无 padding；<c>TimeMs</c> 恒为 0——单帧抓取没有计时基准。
     /// 取屏 DC 失败静默返回 null；建 DIBSection、建兼容 DC、BitBlt 失败各记一条 trace（前者与 BitBlt 带 Win32 错误码）。</returns>
@@ -107,52 +108,78 @@ public sealed class LiveCapture : IDisposable
         if (region.W < 2 || region.H < 2) return null;
         IntPtr hsrc = Win32.GetDC(IntPtr.Zero);
         if (hsrc == IntPtr.Zero) return null;
-        IntPtr hbmp = IntPtr.Zero;
         try
         {
-            var bmi = new Win32.BITMAPINFO
+            lock (StageLock)
             {
-                biSize = Win32.SIZEOF_BITMAPINFOHEADER,
-                biWidth = region.W,
-                biHeight = -region.H, // top-down
-                biPlanes = 1,
-                biBitCount = 32,
-                biCompression = Win32.BI_RGB,
-            };
-            IntPtr bits;
-            hbmp = Win32.CreateDIBSection(hsrc, ref bmi, 0, out bits, IntPtr.Zero, 0);
-            if (hbmp == IntPtr.Zero || bits == IntPtr.Zero)
-            {
-                FrameCapture.Core.Trace.Log("grab: DIBSection=0 err=" + System.Runtime.InteropServices.Marshal.GetLastWin32Error());
-                return null;
-            }
-            IntPtr mem = Win32.CreateCompatibleDC(hsrc);
-            if (mem == IntPtr.Zero) { FrameCapture.Core.Trace.Log("grab: CompatDC=0"); return null; }
-            IntPtr old = Win32.SelectObject(mem, hbmp);
-            try
-            {
-                if (!Win32.BitBlt(mem, 0, 0, region.W, region.H, hsrc, region.X, region.Y,
-                        Win32.SRCCOPY | Win32.CAPTUREBLT))
+                if (_stageW != region.W || _stageH != region.H || _stageBmp == IntPtr.Zero)
                 {
-                    FrameCapture.Core.Trace.Log("grab: BitBlt fail err=" + System.Runtime.InteropServices.Marshal.GetLastWin32Error());
-                    return null;
+                    ReleaseStage();
+                    var bmi = new Win32.BITMAPINFO
+                    {
+                        biSize = Win32.SIZEOF_BITMAPINFOHEADER,
+                        biWidth = region.W,
+                        biHeight = -region.H, // top-down
+                        biPlanes = 1,
+                        biBitCount = 32,
+                        biCompression = Win32.BI_RGB,
+                    };
+                    _stageBmp = Win32.CreateDIBSection(hsrc, ref bmi, 0, out _stageBits, IntPtr.Zero, 0);
+                    if (_stageBmp == IntPtr.Zero || _stageBits == IntPtr.Zero)
+                    {
+                        FrameCapture.Core.Trace.Log("grab: DIBSection=0 err=" + System.Runtime.InteropServices.Marshal.GetLastWin32Error());
+                        ReleaseStage();
+                        return null;
+                    }
+                    _stageDc = Win32.CreateCompatibleDC(hsrc);
+                    if (_stageDc == IntPtr.Zero)
+                    {
+                        FrameCapture.Core.Trace.Log("grab: CompatDC=0");
+                        ReleaseStage();
+                        return null;
+                    }
+                    _stageW = region.W; _stageH = region.H;
                 }
-                Win32.GdiFlush();
-                var dst = new byte[(long)region.W * region.H * 4];
-                System.Runtime.InteropServices.Marshal.Copy(bits, dst, 0, dst.Length);
+
+                IntPtr old = Win32.SelectObject(_stageDc, _stageBmp);
+                try
+                {
+                    if (!Win32.BitBlt(_stageDc, 0, 0, region.W, region.H, hsrc, region.X, region.Y,
+                            Win32.SRCCOPY | Win32.CAPTUREBLT))
+                    {
+                        FrameCapture.Core.Trace.Log("grab: BitBlt fail err=" + System.Runtime.InteropServices.Marshal.GetLastWin32Error());
+                        return null;
+                    }
+                    Win32.GdiFlush();
+                }
+                finally
+                {
+                    if (old != IntPtr.Zero) Win32.SelectObject(_stageDc, old);
+                }
+                // 马上被整块覆盖：不初始化，省掉十几 MB 的零填充
+                var dst = System.GC.AllocateUninitializedArray<byte>((int)((long)region.W * region.H * 4));
+                System.Runtime.InteropServices.Marshal.Copy(_stageBits, dst, 0, dst.Length);
                 return new CapturedFrame { Bgra = dst, W = region.W, H = region.H, TimeMs = 0 };
-            }
-            finally
-            {
-                if (old != IntPtr.Zero) Win32.SelectObject(mem, old);
-                Win32.DeleteDC(mem);
             }
         }
         finally
         {
-            if (hbmp != IntPtr.Zero) Win32.DeleteObject(hbmp);
             Win32.ReleaseDC(IntPtr.Zero, hsrc);
         }
+    }
+
+    // 暂存位图：只在 Grab 内部用，按尺寸缓存
+    static readonly object StageLock = new();
+    static IntPtr _stageDc, _stageBmp, _stageBits;
+    static int _stageW, _stageH;
+
+    /// <summary>释放暂存位图与兼容 DC。</summary>
+    static void ReleaseStage()
+    {
+        if (_stageDc != IntPtr.Zero) { Win32.DeleteDC(_stageDc); _stageDc = IntPtr.Zero; }
+        if (_stageBmp != IntPtr.Zero) { Win32.DeleteObject(_stageBmp); _stageBmp = IntPtr.Zero; }
+        _stageBits = IntPtr.Zero;
+        _stageW = _stageH = 0;
     }
 
     /// <summary>停止捕获：置停止位后 Join 等待循环退出，上限 500ms——UI 线程调用时最坏会等这么久。</summary>

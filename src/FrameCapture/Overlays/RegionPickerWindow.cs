@@ -88,6 +88,21 @@ public sealed partial class RegionPickerWindow : Window
     /// <summary>定格+窗口截图都开时，后台按 Z 序（聚焦窗最优先）预抓「完整可见」窗口的干净画面（WGC，
     /// 带透明圆角+可选投影），缓存到 _winCache。点窗口命中即用＝定格+干净；没缓存好则控制器实时抓兜底。
     /// 只抓本屏、完整可见（未被更靠上窗遮挡）、数量取前 N 个；每个失败静默跳过；选区结束即停。</summary>
+    /// <summary>
+    /// 窗口预抓取推迟到首帧画完之后：它要按 Z 序抓若干窗口（WGC），
+    /// 与首帧渲染抢同一批 CPU 与 DWM 资源时，选区窗会晚十几到几十毫秒才出现。
+    /// 预抓的目的只是点选时有干净像素可用，晚开一拍没有损失。
+    /// </summary>
+    private void DeferWindowPregrab()
+    {
+        if (_firstFrameDone) { StartWindowPregrab(); return; }
+        void Kick(object? s, EventArgs e)
+        {
+            ContentRendered -= Kick;
+            StartWindowPregrab();
+        }
+        ContentRendered += Kick;
+    }
     void StartWindowPregrab()
     {
         var self = new System.Windows.Interop.WindowInteropHelper(this).Handle;
@@ -249,15 +264,22 @@ public sealed partial class RegionPickerWindow : Window
             if (_freeze)
             {
                 if (!_opaqueFreeze) StartFreezeSnapshot();
-                if (_windowCapture && _pregrabMax > 0) StartWindowPregrab();
+                if (_windowCapture && _pregrabMax > 0) DeferWindowPregrab();
             }
             // 分层窗（AllowsTransparency）没有黑首帧问题，绝不能屏外停放：
             // 本窗 Left/Top 在 Loaded 才赋值，Park 抓到的 home=NaN，回写 NaN 会让系统级联位兜底（实测偏移 266,266，提示被推出屏外）
-            Core.Fluent.FadeIn(this, Core.Fluent.Motion.QuickMs);
+            // 定格模式下窗底就是那一帧画面，与按键前的屏幕完全相同——渐显反而让整屏暗、亮一次。
+            // 只有分层窗（没有定格帧）才需要它盖住首帧。
+            if (!_opaqueFreeze) Core.Fluent.FadeIn(this, Core.Fluent.Motion.QuickMs);
+            else Opacity = 1;
         };
         {
             var swOpen = System.Diagnostics.Stopwatch.StartNew();
-            ContentRendered += (_, _) => Core.Trace.Log($"picker first frame rendered dt={swOpen.ElapsedMilliseconds}ms");
+            ContentRendered += (_, _) =>
+            {
+                _firstFrameDone = true;
+                Core.Trace.Log($"picker first frame rendered dt={swOpen.ElapsedMilliseconds}ms");
+            };
         }
         Core.Fluent.BorderlessNative(this, 0); // 全屏覆盖层：消除 DWM 非客户区白条，无需边缘调整
         WindowStyle = WindowStyle.None;
@@ -471,10 +493,23 @@ public sealed partial class RegionPickerWindow : Window
                 _prev.StrokeDashArray = new DoubleCollection { 4, 3 };
             }
             // 入场：遮罩 150ms 渐显；上次选区虚线滞后错开并轻微放大落位（ArkPV 式分层，不打扰）
-            _canvas.Opacity = 0;
-            _canvas.BeginAnimation(OpacityProperty, MaskAnim(1, 150, 0));
+            if (_opaqueFreeze)
+            {
+                // 定格模式：窗底就是按键前那一帧，画面与按键前的屏幕一模一样。
+                // 这里不渐显、也不压暗——压暗那一下是可见的"整屏黑"，而拖选一开始它才有用。
+                _canvas.Opacity = 1;
+                _canvas.BeginAnimation(OpacityProperty, null);
+                if (_spotPath != null) _spotPath.Fill = Brushes.Transparent;
+                _spotPathDims = false;
+                _hint.BeginAnimation(OpacityProperty, MaskAnim(1, 120, 0));
+            }
+            else
+            {
+                _canvas.Opacity = 0;
+                _canvas.BeginAnimation(OpacityProperty, MaskAnim(1, 150, 0));
+                _hint.BeginAnimation(OpacityProperty, MaskAnim(1, 220, 320)); // 提示滞后入场，不打扰
+            }
             if (_freezeBg != null && !_opaqueFreeze) _freezeBg.BeginAnimation(OpacityProperty, MaskAnim(1, 150, 0)); // 定格背景与遮罩同步淡入
-            _hint.BeginAnimation(OpacityProperty, MaskAnim(1, 220, 320)); // 提示滞后入场，不打扰
             if (_existing != null)
             {
                 _prev.Opacity = 0;
@@ -513,8 +548,23 @@ public sealed partial class RegionPickerWindow : Window
     private Point _drillAnchor;   // 锁定时的光标 DIP 位置，移动超过阈值才解锁恢复常规吸附
     private Border _hint = null!;
 
+    /// <summary>首帧是否已画完：窗口预抓取等它之后再开始。</summary>
+    private bool _firstFrameDone;
+
+    /// <summary>遮罩当前是否已压暗整屏：定格模式下拖选才开始压暗。</summary>
+    private bool _spotPathDims;
+
+    /// <summary>拖选起手才把整屏压暗：入场时压暗是可见的「整屏黑一下」，而不拖选时它没有用。</summary>
+    private void DimMaskOnDrag()
+    {
+        if (_spotPathDims || _spotPath == null) return;
+        _spotPathDims = true;
+        _spotPath.Fill = new SolidColorBrush(Color.FromArgb(0x60, 0, 0, 0));
+    }
+
     private void OnDown(object sender, MouseButtonEventArgs e)
     {
+        DimMaskOnDrag();
         var p = WindowPosToPhys(e.GetPosition(this));
         _dragX1 = p.X; _dragY1 = p.Y;
         _dragging = true;
