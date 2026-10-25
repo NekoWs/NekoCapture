@@ -96,11 +96,8 @@ public sealed partial class SettingsWindow : Window
         Fluent.ChipHover(btn);
         btn.MouseLeftButtonUp += (_, e) =>
         {
-            _settings.Mutate(s => s.Gestures.Bindings.RemoveAll(x => ReferenceEquals(x, b)));
-            AppHost.Current.InstallHotkeys();
-            if (_hotOpen == b.Id) _hotOpen = "";
-            RebuildHotkeys();
             e.Handled = true;
+            DetachHotkeyAnimated(b);
         };
         return btn;
     }

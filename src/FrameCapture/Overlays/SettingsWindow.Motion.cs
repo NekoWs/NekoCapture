@@ -92,12 +92,12 @@ public sealed partial class SettingsWindow : Window
             return;
         }
         double from = el.ActualHeight > 1 ? el.ActualHeight : 1;
-        // 内容先退、容器后收：一起缩会把文字挤成一团
-        double lead = delayMs + FadeOutRows(el);
+        // 收口与内容淡出同时开跑：内容先退完再收，中间多出一拍空等，看着像卡了一下
+        FadeOutRows(el);
         var shrink = new DoubleAnimation(from, 0, new Duration(TimeSpan.FromMilliseconds(Fluent.Motion.ExitMs)))
         {
-            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseIn },
-            BeginTime = TimeSpan.FromMilliseconds(lead),
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseInOut },
+            BeginTime = TimeSpan.FromMilliseconds(delayMs),
         };
         shrink.Completed += (_, _) =>
         {
@@ -120,12 +120,17 @@ public sealed partial class SettingsWindow : Window
         foreach (UIElement c in rows.Children)
             if (c.Visibility == Visibility.Visible) i++;
         int at = i - 1;
+        var d = new Duration(TimeSpan.FromMilliseconds(Fluent.Motion.QuickMs));
+        var ease = new CubicEase { EasingMode = EasingMode.EaseIn };
         foreach (UIElement c in rows.Children)
         {
             if (c.Visibility != Visibility.Visible) continue;
-            c.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(1, 0,
-                new Duration(TimeSpan.FromMilliseconds(Fluent.Motion.QuickMs)))
-            { BeginTime = TimeSpan.FromMilliseconds(at * step) });
+            // 倒着退：最后一条先走，与展开的先后成镜像；退的同时往下滑一点，方向与入场相反
+            var begin = TimeSpan.FromMilliseconds(at * step);
+            c.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(1, 0, d) { BeginTime = begin, EasingFunction = ease });
+            var tt = c.RenderTransform as TranslateTransform ?? new TranslateTransform();
+            c.RenderTransform = tt;
+            tt.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(0, 6, d) { BeginTime = begin, EasingFunction = ease });
             at--;
         }
         return i <= 1 ? 0 : (i - 1) * step;
