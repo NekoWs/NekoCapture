@@ -4,6 +4,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Shapes;
 using FrameCapture.Capture;
+using FrameCapture.Core;
 using FrameCapture.Native;
 using Loc = FrameCapture.Core.Loc;
 using K = FrameCapture.Core.K;
@@ -244,6 +245,7 @@ public sealed partial class RegionPickerWindow : Window
         SourceInitialized += (_, _) =>
         {
             var h = new System.Windows.Interop.WindowInteropHelper(this).Handle;
+            _selfHwnd = h;
             Win32.SetWindowTextW(h, "FrameCapture Region");
             // 选区窗本身绝不入镜（BitBlt/WGC 都拍不到）：放大镜快照因此可在 Show 之后异步抓，
             // 把 4K 抓取挪出打开关键路径 → 选区窗更快出现，且遮罩已渲染也不影响取色。
@@ -332,14 +334,15 @@ public sealed partial class RegionPickerWindow : Window
             Opacity = 0,
         };
         // 提示条只有一行：操作口径本身，不带教学副行
-        _hint.Child = new TextBlock
+        _hintLabel = new TextBlock
         {
             Text = _existing != null
-                ? Loc.T(K.Capture.DragToSelectHover)
-                : Loc.T(K.Capture.DragToSelectHover2),
+                ? Loc.T(K.Capture.DragToSelectHover2)
+                : Loc.T(K.Capture.DragToSelectHover),
             FontSize = 13,
             Foreground = new SolidColorBrush(Color.FromArgb(0xE6, 0xFF, 0xFF, 0xFF)),
         };
+        _hint.Child = _hintLabel;
         var rootGrid = new Grid();
         if (_freeze)
         {
@@ -546,6 +549,9 @@ public sealed partial class RegionPickerWindow : Window
     private Point _drillAnchor;   // 锁定时的光标 DIP 位置，移动超过阈值才解锁恢复常规吸附
     private Border _hint = null!;
 
+    /// <summary>提示条里的那行字：调整态要把文案换成「拖边角改大小 · Enter 确认」。</summary>
+    private TextBlock? _hintLabel;
+
     /// <summary>首帧是否已画完：窗口预抓取等它之后再开始。</summary>
     private bool _firstFrameDone;
 
@@ -553,6 +559,22 @@ public sealed partial class RegionPickerWindow : Window
 
     private void OnDown(object sender, MouseButtonEventArgs e)
     {
+        var dipDown = e.GetPosition(this);
+        // 调整态：先看勾/叉按钮，再看是抓边角还是整块移动；点到框外就重开一个选区
+        if (_sel != null)
+        {
+            if (OverButton(dipDown, _okButton)) { ConfirmSelection(); return; }
+            if (OverButton(dipDown, _cancelButton)) { Finish(null); return; }
+            var kindDown = ProbeAt(dipDown);
+            if (kindDown != GrabKind.None)
+            {
+                var gp = WindowPosToPhys(dipDown);
+                _grab = kindDown; _grabX = gp.X; _grabY = gp.Y; _selAtGrab = _sel.Value;
+                CaptureMouse();
+                return;
+            }
+            HideSelection();
+        }
         var p = WindowPosToPhys(e.GetPosition(this));
         _dragX1 = p.X; _dragY1 = p.Y;
         _dragging = true;
@@ -562,6 +584,9 @@ public sealed partial class RegionPickerWindow : Window
 
     private void OnMove(object sender, MouseEventArgs e)
     {
+        var dipMove = e.GetPosition(this);
+        if (_grab != GrabKind.None) { DragAdjust(dipMove); return; }
+        if (_sel != null) { ProbeAt(dipMove); return; }
         var dip = e.GetPosition(this);
         var p = WindowPosToPhys(dip);
         if (_dragging)
@@ -605,6 +630,7 @@ public sealed partial class RegionPickerWindow : Window
 
     private void OnUp(object sender, MouseButtonEventArgs e)
     {
+        if (_grab != GrabKind.None) { _grab = GrabKind.None; ReleaseMouseCapture(); return; }
         if (!_dragging) return;
         _dragging = false;
         ReleaseMouseCapture();
@@ -629,7 +655,8 @@ public sealed partial class RegionPickerWindow : Window
             Finish(hit ?? _existing ?? _monitorPhys);
             return;
         }
-        Finish(rect);
+        // 松手先给可调整的框：拖边角还能改，Enter 或勾才真的出图
+        ShowSelection(rect);
     }
 
 }

@@ -14,8 +14,8 @@
 #   -Quick  只跑静态扫描 + 构建（约 10 秒）——改代码时用这个
 #   默认    再加 SelfTest / 双语审计 / 安装器探针 / 启动冒烟（约 55 秒，静默）
 #   -Full   再加控制器探针与整套 e2e（约 3 分钟）——发布前用
-# 用法: pwsh -NoProfile -File scripts/guardrail.ps1 [-Quick] [-Full] [-SkipE2e] [-AllowInjection] [-MinSelfTestPass 702]
-param([switch]$Full, [switch]$Quick, [switch]$SkipE2e, [switch]$AllowInjection, [int]$MinSelfTestPass = 702)
+# 用法: pwsh -NoProfile -File scripts/guardrail.ps1 [-Quick] [-Full] [-SkipE2e] [-AllowInjection] [-MinSelfTestPass 711]
+param([switch]$Full, [switch]$Quick, [switch]$SkipE2e, [switch]$AllowInjection, [int]$MinSelfTestPass = 711)
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 . (Join-Path $PSScriptRoot "lib-hotkey.ps1")
@@ -67,10 +67,15 @@ foreach ($t in $lints) {
     $lintJobs[$t.n] = Start-Async $t.n "pwsh" @("-NoProfile", "-File", (Join-Path $PSScriptRoot $t.f), "-Quiet")
 }
 
-# 1) 杀掉运行中的实例（否则 MSB3027 会让构建静默失败）
-$hadUserInstance = [bool](Get-Process FrameCapture -EA SilentlyContinue)
-Get-Process FrameCapture -EA SilentlyContinue | Stop-Process -Force
-Start-Sleep 0.6
+# 1) 只杀掉从构建输出目录跑起来的实例：它们锁住 bin 下的文件，MSB3027 会让构建静默失败。
+#    用户自己那份跑在 release\ 或安装目录里，与构建产物不是同一个文件，不必动它。
+$srcRoot = Join-Path $root 'src'
+$lockingInstances = @(Get-Process FrameCapture -EA SilentlyContinue | Where-Object {
+    try { $_.Path -and $_.Path.StartsWith($srcRoot, [StringComparison]::OrdinalIgnoreCase) } catch { $false }
+})
+$hadUserInstance = (@(Get-Process FrameCapture -EA SilentlyContinue).Count - $lockingInstances.Count) -gt 0
+foreach ($p in $lockingInstances) { Stop-Process -Id $p.Id -Force -EA SilentlyContinue }
+if ($lockingInstances.Count) { Start-Sleep 0.6 }
 
 # 2) 构建：SelfTest 带着主程序与 GestureCore 一起建，Shot 与 Setup 各自独立，三者并行。
 #    Setup 是 net48 且只链主项目的 Theme/Fluent 共享源文件：主项目往那几个文件里加了对
@@ -175,7 +180,9 @@ $env:FC_SETTINGS_DIR = $fcDir
 
 # 冒烟要弹欢迎浮窗。默认档要静默：先在测试设置里关掉它。-Full 时照原样弹，
 # 因为那一次本来就要看「首次运行会提示」这条路径。
-if ($okBuild) {
+if ($hadUserInstance) {
+    Add-Result "smoke:startup" "SKIP" "用户实例在跑（单实例互斥，不替它再起一个）"
+} elseif ($okBuild) {
     if (-not $Full) {
         $smokeSet = Join-Path $fcDir "settings.json"
         if (Test-Path $smokeSet) {
@@ -271,7 +278,8 @@ if (-not $Full) {
 } else { foreach ($t in $e2e) { Add-Result $t.n "SKIP" "构建失败" } }
 
 # 8) 恢复稳态：护栏开始前用户实例在跑，就跑一个新的回来
-if ($hadUserInstance) { Start-Process $exe; Say "  (已恢复用户的 FrameCapture 实例)" }
+# 只恢复「被我们杀掉的那类」实例（从构建目录跑起来的）；用户自己那份一直没动，不能替它再起一个
+if ($lockingInstances.Count) { Start-Process $exe; Say "  (已恢复被构建打断的实例)" }
 
 # 汇总
 $failN = @($results | Where-Object Status -eq "FAIL").Count

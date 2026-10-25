@@ -6933,6 +6933,38 @@ static partial class SelfTest
         }
         catch (Exception e) { Chk("T237-msaa-semantic", false, e.Message); }
 
+        // 可调整选区的纯几何：抓边角、缩放、整块移动、吸附。左右写反是这里最常见的错，逐条钉住。
+        try
+        {
+            var sel = new FrameCapture.Capture.RectI(100, 100, 200, 150);   // 100..300 / 100..250
+            Chk("T240-grab-corner", FrameCapture.Core.AdjustGeometry.Hit(sel, 101, 101, 6) == FrameCapture.Core.GrabKind.TopLeft,
+                "左上角应判成 TopLeft");
+            Chk("T240-grab-edge", FrameCapture.Core.AdjustGeometry.Hit(sel, 200, 249, 6) == FrameCapture.Core.GrabKind.Bottom,
+                "下边中点应判成 Bottom");
+            Chk("T240-grab-inside-moves", FrameCapture.Core.AdjustGeometry.Hit(sel, 200, 180, 6) == FrameCapture.Core.GrabKind.Move,
+                "框内应判成 Move");
+            Chk("T240-grab-outside-none", FrameCapture.Core.AdjustGeometry.Hit(sel, 600, 600, 6) == FrameCapture.Core.GrabKind.None,
+                "框外应判成 None");
+
+            var bounds = new FrameCapture.Capture.RectI(0, 0, 1000, 800);
+            var widened = FrameCapture.Core.AdjustGeometry.Resize(sel, FrameCapture.Core.GrabKind.Right, 50, 0, bounds);
+            Chk("T240-resize-right-grows", widened.W == 250 && widened.X == 100 && widened.H == 150,
+                "拖右边只改宽：" + widened.W + "×" + widened.H);
+            var moved = FrameCapture.Core.AdjustGeometry.Resize(sel, FrameCapture.Core.GrabKind.Move, 30, -20, bounds);
+            Chk("T240-move-keeps-size", moved.X == 130 && moved.Y == 80 && moved.W == 200 && moved.H == 150,
+                "整块移动尺寸不变：" + moved.X + "," + moved.Y + " " + moved.W + "×" + moved.H);
+            var clamped = FrameCapture.Core.AdjustGeometry.Resize(sel, FrameCapture.Core.GrabKind.Left, 500, 0, bounds);
+            Chk("T240-resize-clamps-min-side", clamped.W >= FrameCapture.Core.AdjustGeometry.MinSide,
+                "缩到最小也不能小于下限：" + clamped.W);
+
+            // 吸附：右边距目标左边界 9 px 内 → 吸上去；差得远就原样
+            var target = new FrameCapture.Capture.RectI(312, 90, 120, 180);
+            var snapped = FrameCapture.Core.AdjustGeometry.Snap(sel, FrameCapture.Core.GrabKind.Right, target, 14);
+            Chk("T240-snap-right-edge", snapped.X + snapped.W == 312, "右边应吸到 312：" + (snapped.X + snapped.W));
+            var far = FrameCapture.Core.AdjustGeometry.Snap(sel, FrameCapture.Core.GrabKind.Right, target, 2);
+            Chk("T240-snap-out-of-range-keeps", far.X + far.W == 300, "超出容差不该动：" + (far.X + far.W));
+        }
+        catch (Exception e) { Chk("T240-adjust-geometry", false, e.Message); }
         // 语义判定：按钮/链接/输入框算控件；匿名容器与整页文档不算。
         try
         {

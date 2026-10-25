@@ -9,7 +9,24 @@ public static partial class K
     /// <summary>捕获过程与各种浮窗的文案。</summary>
     public static partial class Capture
     {
-        public static readonly Str AutoScroll = new("capture.autoScroll", "自动滚动", "Auto-Scroll");
+        /// <summary>调整选区期间的提示条：怎么改、怎么确认。</summary>
+    public static readonly Str AdjustHint = new(
+        "capture.adjustHint",
+        "拖边角改大小 · 拖动中间移动 · Enter 确认 · Esc 取消",
+        "Drag an edge or corner to resize, drag inside to move, Enter to confirm, Esc to cancel");
+
+    /// <summary>勾按钮的悬停提示。</summary>
+    public static readonly Str ConfirmSelection = new(
+        "capture.confirmSelection",
+        "确认选区",
+        "Confirm the selection");
+
+    /// <summary>叉按钮的悬停提示。</summary>
+    public static readonly Str CancelSelection = new(
+        "capture.cancelSelection",
+        "取消选区",
+        "Cancel the selection");
+    public static readonly Str AutoScroll = new("capture.autoScroll", "自动滚动", "Auto-Scroll");
         public static readonly Str AutoScrollingStops = new(
             "capture.autoScrollingStops",
             "自动滚动中 · 到底自动停止",

@@ -38,6 +38,20 @@ public sealed partial class RegionPickerWindow : Window
     /// 动作经 Dispatcher.BeginInvoke 投递到干净的 dispatcher 轮次执行（与浮窗/滚动同款，避免在输入链里做重活）。</summary>
     private bool OnPickerKey(uint vk)
     {
+        // 确认/取消用设置里配的键位（默认 Enter / Esc），先判它们：调整态也要管用
+        var pickerSettings = Services.AppHost.Current?.Settings.Current;
+        if (pickerSettings != null && MatchesChord(pickerSettings.PickerCancelChord, vk))
+        {
+            Dispatcher.BeginInvoke(() => Finish(null));
+            return true;
+        }
+        if (pickerSettings != null && MatchesChord(pickerSettings.PickerConfirmChord, vk))
+        {
+            if (_sel != null) { Dispatcher.BeginInvoke(() => ConfirmSelection()); return true; }
+            if (_existing == null) return false;
+            Dispatcher.BeginInvoke(() => Finish(_existing.Value));
+            return true;
+        }
         if (Win32.IsKeyDown(Win32.VK_CONTROL) || Win32.IsKeyDown(Win32.VK_MENU)
             || Win32.IsKeyDown(Win32.VK_LWIN) || Win32.IsKeyDown(Win32.VK_RWIN)) return false;
         switch (vk)
@@ -77,6 +91,25 @@ public sealed partial class RegionPickerWindow : Window
         }
     }
 
+    /// <summary>钩子给来的虚拟键是否正是这个组合键：主键与修饰键逐位一致才算。</summary>
+    /// <param name="chord">组合键串，如 <c>Enter</c> / <c>Ctrl+Enter</c>；空串或解析失败返回 false。</param>
+    /// <param name="vk">钩子给来的虚拟键码。</param>
+    /// <returns>完全匹配返回 true。</returns>
+    private static bool MatchesChord(string? chord, uint vk)
+    {
+        if (string.IsNullOrWhiteSpace(chord)) return false;
+        if (Core.EditorChord.Parse(chord) is not { } ch) return false;
+        if (System.Windows.Input.KeyInterop.VirtualKeyFromKey(ch.Key) != vk) return false;
+        var mods = ch.Mods;
+        bool ctrl = (mods & System.Windows.Input.ModifierKeys.Control) != 0;
+        bool alt = (mods & System.Windows.Input.ModifierKeys.Alt) != 0;
+        bool shift = (mods & System.Windows.Input.ModifierKeys.Shift) != 0;
+        bool win = (mods & System.Windows.Input.ModifierKeys.Windows) != 0;
+        return Win32.IsKeyDown(Win32.VK_CONTROL) == ctrl
+            && Win32.IsKeyDown(Win32.VK_MENU) == alt
+            && Win32.IsKeyDown(Win32.VK_SHIFT) == shift
+            && (Win32.IsKeyDown(Win32.VK_LWIN) || Win32.IsKeyDown(Win32.VK_RWIN)) == win;
+    }
     // 循环取色复制格式 Hex→RGB→HSL，就地刷新放大镜读数并持久化（下次捕获/设置窗同步）
     private void CycleColorFormat()
     {

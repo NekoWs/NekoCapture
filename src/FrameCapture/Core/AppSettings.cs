@@ -52,6 +52,15 @@ public sealed class AppSettings
     /// <summary>选区吸附取客户区（排除窗口边框/标题栏，适合游戏画面）。</summary>
     public bool SnapContentArea { get; set; } = false;
 
+    /// <summary>调整选区时是否吸附到控件边界（按住 Alt 可临时关）。</summary>
+    public bool ResizeSnapToControls { get; set; } = true;
+
+    /// <summary>确认选区的键位：可调整的框出现后按它出图。</summary>
+    public string PickerConfirmChord { get; set; } = "Enter";
+
+    /// <summary>取消选区的键位：Esc 始终有效，这里配的是替代或额外的键。</summary>
+    public string PickerCancelChord { get; set; } = "Esc";
+
     /// <summary>点击窗口时截取完整窗口（默认开）：选区窗里点一个吸附到的窗口，截的是该窗口本体而非屏幕矩形像素
     /// （WGC 按窗口捕获，Win11 圆角透明、浏览器/GPU 窗也干净），可选带真实投影、
     /// 背景透明。关掉则按屏幕矩形抓像素。目标窗被遮挡或 WGC 取帧失败时自动回退区域截图。</summary>

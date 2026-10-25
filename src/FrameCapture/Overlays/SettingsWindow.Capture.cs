@@ -37,6 +37,42 @@ public sealed partial class SettingsWindow : Window
         return g;
     }
 
+    // 调整选区时吸附控件：拖边角时吸到附近的控件边界（按住 Alt 临时关）
+    FrameworkElement ResizeSnapRow() =>
+        ToggleRow("\uE740", Loc.T(K.Settings.ResizeSnap), Loc.T(K.Settings.ResizeSnapDesc),
+            _settings.Current.ResizeSnapToControls, v => _settings.Mutate(s => s.ResizeSnapToControls = v));
+
+    // 确认/取消选区：可调整的框出现后生效，右侧两个键位框点一下就能录
+    FrameworkElement PickerKeysRow()
+    {
+        var g = ChipRow("\uE8C8", Loc.T(K.Settings.ConfirmCancelKeysTip), Loc.T(K.Settings.ConfirmCancelKeysHint));
+        var row = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
+        Grid.SetColumn(row, 2);
+        row.Children.Add(PickerKeyBox(_settings.Current.PickerConfirmChord, "confirm"));
+        row.Children.Add(PickerKeyBox(_settings.Current.PickerCancelChord, "cancel"));
+        g.Children.Add(row);
+        return g;
+    }
+
+    // 单个键位框：录入期间暂停全局钩子（与快捷键页同一套做法），改完当场落盘
+    ChordCaptureBox PickerKeyBox(string chord, string which)
+    {
+        var box = new ChordCaptureBox
+        {
+            Chord = chord,
+            EmptyHint = Loc.T(K.Hotkeys.ClickToSet),
+            Margin = new Thickness(8, 0, 0, 0),
+            HorizontalAlignment = HorizontalAlignment.Right,
+        };
+        bool wasPaused = false;
+        box.CaptureBegan += () => { wasPaused = Services.HotkeyManager.Paused; Services.HotkeyManager.Paused = true; };
+        box.CaptureEnded += () => Services.HotkeyManager.Paused = wasPaused;
+        box.Picked += c => _settings.Mutate(s =>
+        {
+            if (which == "confirm") s.PickerConfirmChord = c; else s.PickerCancelChord = c;
+        });
+        return box;
+    }
     // 取色复制格式：选区放大镜按 C 复制颜色时的文本形式，HEX / RGB / HSL 三选
     FrameworkElement ColorFormatRow()
     {
