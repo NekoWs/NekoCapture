@@ -60,7 +60,7 @@ if (-not $SkipVerify) {
     if ($line -notmatch 'FAIL=0') { throw '断言未全绿，不出包' }
 
     # 护栏默认路径零 OS 级输入，用户在场也能跑完；焦点安全那一项要注入，只有 -AllowInjection 才带上。
-    $gArgs = @('-NoProfile', '-File', 'scripts/guardrail.ps1')
+    $gArgs = @('-NoProfile', '-File', 'scripts/guardrail.ps1', '-Full')
     if ($AllowInjection) { $gArgs += '-AllowInjection' }
     $g = & pwsh @gArgs 2>&1 | Out-String
     $gLast = ($g -split "`n" | Where-Object{ $_.Trim() } | Select-Object -Last 1)

@@ -123,10 +123,26 @@ public static class ElementSnap
                             break;
                         }
                     }
+                    // 都没命中：按句柄平铺查一层树。Electron 类的无障碍树是惰性的，
+                    // 只有部分元素（会话条目、按钮、文字）在树里，其余只能落到整窗——能吸到多少算多少。
+                    if (result == null)
+                    {
+                        var viaTree = UiaSnap.At(targetHwnd, physX, physY);
+                        Trace.Log($"elemsnap tree hwnd={targetHwnd} -> {(viaTree == null ? "null" : viaTree.Value.Type.ProgrammaticName + " name='" + viaTree.Value.Name + "' " + viaTree.Value.Rect)}");
+                        if (viaTree is { } vt)
+                        {
+                            // 整窗大小的容器没有吸附价值，那等于整窗吸附：交给下一层
+                            long area = (long)vt.Rect.W * vt.Rect.H;
+                            var mon = Monitors.Nearest(physX, physY);
+                            long monArea = mon == null ? long.MaxValue : (long)mon.Bounds.W * mon.Bounds.H;
+                            if (area < monArea / 2) result = new ElementHit { Rect = vt.Rect, Element = null };
+                        }
+                    }
                 }
             }
         }
         catch { result = null; } // UIA 对提权进程/死句柄会抛 COMException
+    done:
 
         _cacheX = physX; _cacheY = physY; _cache = result;
         return result;

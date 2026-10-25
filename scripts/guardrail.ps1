@@ -1,13 +1,17 @@
 # E 回归护栏（UIAUDIT.md E 条目）：一条命令跑完整闸门——
-#   静态扫描 → 构建 0 error → SelfTest 全过（≥基线数）→ 产物起得来 → 控制器响应探针 → 全套 e2e
+#   静态扫描 → 构建 0 error → SelfTest 全过（≥基线数）→ 产物起得来 → 控制器响应探针 → e2e
 # 默认路径零 OS 级输入：合成键经主实例的消息专用窗喂进手势引擎，用户正用电脑时也能跑完，
 # 键盘鼠标一下都不动。
 # 焦点安全是唯一例外——它测的就是「全局热键会不会漏字符进前台应用」，不经真实注入测不到，
 # 因此默认 SKIP；要跑请显式加 -AllowInjection，加了之后仍有安静窗口闸兜底。
 # 语义：SKIP（本轮没跑的项）≠ FAIL；缺 PASS 标记一律按 FAIL（不信任无结果的运行）。
-# 静态扫描不依赖构建，与构建并行起跑，SelfTest 期间收结果；三个构建互不写同一个 obj，也并行。
-# 用法: pwsh -NoProfile -File scripts/guardrail.ps1 [-SkipE2e] [-AllowInjection] [-MinSelfTestPass 560]
-param([switch]$SkipE2e, [switch]$AllowInjection, [int]$MinSelfTestPass = 702)
+# 静态扫描不依赖构建，与构建并行起跑；SelfTest、双语审计、安装器探针互不相干，也并行跑。
+# 两档：
+#   默认档（< 1 分钟）——静态扫描 / 构建 / SelfTest / 双语审计 / 安装器探针 / 启动冒烟 / 控制器探针。
+#   -Full（约 3 分钟）——再加整套 e2e（每项都要重启一次主程序，串行是硬约束：单实例）。
+#   发布脚本走 -Full，平时改代码走默认档。
+# 用法: pwsh -NoProfile -File scripts/guardrail.ps1 [-Full] [-SkipE2e] [-AllowInjection] [-MinSelfTestPass 702]
+param([switch]$Full, [switch]$SkipE2e, [switch]$AllowInjection, [int]$MinSelfTestPass = 702)
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 . (Join-Path $PSScriptRoot "lib-hotkey.ps1")
@@ -85,11 +89,18 @@ foreach ($k in $buildJobs.Keys) {
     if (-not $ok) { Say $r.Text; $okBuild = $false }
 }
 
-# 3) SelfTest：全过且不少于基线数。用例名还要两两不同——重名的两条只看得见一条
-if ($okBuild) {
-    $t0 = [Diagnostics.Stopwatch]::StartNew()
-    $so = & $stExe 2>&1 | Out-String
-    $stSec = $t0.Elapsed.TotalSeconds
+# 3) 三件互不相干的事并行起跑：SelfTest（42 s 上下）、双语版面审计（17 s）、安装器搬运探针。
+#    它们都不碰主程序实例，也不写同一批文件；串行跑等于白等两轮。
+$auditJob = Start-Async "ux-audit" "pwsh" @("-NoProfile", "-File", (Join-Path $PSScriptRoot "ux-audit.ps1"), "-Quiet")
+$spJob = Start-Async "setup-probe" "pwsh" @("-NoProfile", "-Command",
+    "dotnet build '$(Join-Path $root "tools/SetupProbe")' -c Debug -v q --nologo; & '$(Join-Path $root "tools/SetupProbe/bin/Debug/net48/SetupProbe.exe")'")
+$stJob = if ($okBuild) { Start-Async "selftest" $stExe @() } else { $null }
+
+# 3.1) SelfTest：全过且不少于基线数。用例名还要两两不同——重名的两条只看得见一条
+if ($stJob) {
+    $r = Wait-Async $stJob
+    $so = $r.Text
+    $stSec = $r.Sec
     $m = [regex]::Match($so, 'RESULT PASS=(\d+) FAIL=(\d+)')
     if ($m.Success) {
         $p = [int]$m.Groups[1].Value; $f = [int]$m.Groups[2].Value
@@ -116,28 +127,27 @@ foreach ($t in $lints) {
 }
 
 # 4.5) 安装器搬运探针：装到非系统盘那条路径本机走不到，只有把搬运逻辑拎出来实机跑一遍才算测过。
-#      只在仓库内与临时目录写文件，不碰注册表，也不动已装程序。
-$spProj = Join-Path $root "tools/SetupProbe"
-$spExe  = Join-Path $spProj "bin/Debug/net48/SetupProbe.exe"
-$spBuild = & dotnet build $spProj -c Debug -v q --nologo 2>&1 | Out-String
-if (([regex]::Matches($spBuild, ': error')).Count -eq 0 -and (Test-Path $spExe)) {
-    $spOut = & $spExe 2>&1 | Out-String
+#      只在仓库内与临时目录写文件，不碰注册表，也不动已装程序。结果在 SelfTest 跑的时候就收好了。
+$spR = Wait-Async $spJob
+$spOut = $spR.Text
+if ($spOut -match 'SETUP-PROBE') {
     $okSp = $spOut -match 'SETUP-PROBE PASS'
     Add-Result "probe:setup-paths" $(if ($okSp) { "PASS" } else { "FAIL" }) `
-        ("{0} 项搬运断言" -f ([regex]::Matches($spOut, '(?m)^\s*(?:PASS|FAIL) ').Count)) 0
+        ("{0} 项搬运断言" -f ([regex]::Matches($spOut, '(?m)^\s*(?:PASS|FAIL) ').Count)) $spR.Sec
     if (-not $okSp) { Say $spOut }
 } else {
-    Add-Result "probe:setup-paths" "FAIL" "探针构建失败或无产物"
-    Say $spBuild
+    Add-Result "probe:setup-paths" "FAIL" "探针构建失败或无产物" $spR.Sec
+    Say $spOut
 }
 
 # 4.7) 双语版面审计：英文比中文长，按中文排的版面在英文下会把字挤掉或压成省略号；
 #      英文界面里残留的中文（动态拼出来那种、静态扫描看不见的）也在这里抓。全程离屏建窗，不动屏幕。
-$ux = & pwsh -NoProfile -File (Join-Path $PSScriptRoot "ux-audit.ps1") -Quiet 2>&1 | Out-String
+$uxR = Wait-Async $auditJob
+$ux = $uxR.Text
 $uxLine = ($ux -split "`r?`n" | Where-Object { $_ -match '^UX-AUDIT (PASS|FAIL)' } | Select-Object -Last 1)
 if ($uxLine) {
     $stUx = if ($uxLine -match '^UX-AUDIT PASS') { "PASS" } else { "FAIL" }
-    Add-Result "lint:ux-bilingual" $stUx (($uxLine -replace '^UX-AUDIT (PASS|FAIL)\s*', "").Trim()) 0
+    Add-Result "lint:ux-bilingual" $stUx (($uxLine -replace '^UX-AUDIT (PASS|FAIL)\s*', "").Trim()) $uxR.Sec
     if ($stUx -eq "FAIL") { Say (Get-Content "test-out/uxaudit/report.txt" -Raw -EA SilentlyContinue) }
 } else { Add-Result "lint:ux-bilingual" "FAIL" "审计无输出（SelfTest 产物缺失？）"; Say $ux }
 
@@ -164,7 +174,23 @@ if ($okBuild) {
     Add-Result "smoke:startup" $(if ($alive) { "PASS" } else { "FAIL" }) $note $t0.Elapsed.TotalSeconds
 } else { Add-Result "smoke:startup" "SKIP" "构建失败" }
 
-# 6) 注入可达性探针 + 7) e2e
+# 6) 控制器响应探针：--picker 让主实例走 BeginScopeSelection（与热键命中同一个入口），
+#    选区窗出现即证明产物起得来、控制器在听。零 OS 级输入，也不抢前台。每次必跑，两秒。
+if ($okBuild) {
+    $t0 = [Diagnostics.Stopwatch]::StartNew()
+    $env:FC_TEST_NO_FG = "1"
+    Start-Process $exe -ArgumentList '--picker' -PassThru | Out-Null
+    Start-Sleep 2.0
+    $pkProbe = & $shot rect "FrameCapture Region" 2>$null
+    Add-Result "probe:controller-responds" $(if ($pkProbe -notmatch "not-found") { "PASS" } else { "FAIL" }) $pkProbe $t0.Elapsed.TotalSeconds
+    & $shot keyw "FrameCapture Region" 27 2>$null | Out-Null
+    Start-Sleep 0.4
+    Remove-Item Env:\FC_TEST_NO_FG -EA SilentlyContinue
+    Get-Process FrameCapture -EA SilentlyContinue | Stop-Process -Force
+} else { Add-Result "probe:controller-responds" "SKIP" "构建失败" }
+
+# 7) e2e：每一项都要重启一次主程序（单实例是硬约束，串行跑不掉），合计约两分半。
+#    平时改代码走默认档跳过它，发布前用 -Full 跑全套。
 $e2e = @(
     @{ n = "e2e:editor-keys(捕获→编辑器→Enter→剪贴板三格式)"; f = "test-editor-keys.ps1";    mark = "EDITOR-KEYS" },
     @{ n = "e2e:zoom(1:1/放大/适配 键路由+zoom决策)";             f = "test-zoom.ps1";           mark = "ZOOM" },
@@ -175,26 +201,15 @@ $e2e = @(
     @{ n = "e2e:fuzz-keys(编辑器乱按 300 键存活)";               f = "fuzz-keys.ps1";           mark = "FUZZ" },
     @{ n = "e2e:probe-memory(开合落在平台不漏)";                f = "probe-memory.ps1";        mark = "MEM-PROBE" }
 )
-if ($SkipE2e) {
+if (-not $Full) {
+    foreach ($t in $e2e) { Add-Result $t.n "SKIP" "默认档不跑 e2e（发布前用 -Full）" }
+} elseif ($SkipE2e) {
     # SKIP 名单就是 e2e 名单本身：报一份和实际不相符的清单，等于谎报没跑什么
     foreach ($t in $e2e) { Add-Result $t.n "SKIP" "-SkipE2e" }
 } elseif ($okBuild) {
     # e2e 会改设置（主题、热键、手势配置都写在 settings.json）——那些写全落在上面起的临时目录里，
     # 用户那份碰不到。这里只保证一件事：中途抛异常也要记一条 FAIL，别让汇总看起来像全跑过。
     try {
-        # 控制器响应探针：--picker 让主实例走 BeginScopeSelection（与热键命中同一个入口），
-        # 选区窗出现即证明产物起得来、控制器在听。零 OS 级输入，也不抢前台。
-        $t0 = [Diagnostics.Stopwatch]::StartNew()
-        $env:FC_TEST_NO_FG = "1"
-        Start-Process $exe -ArgumentList '--picker' -PassThru | Out-Null
-        Start-Sleep 2.0
-        $pkProbe = & $shot rect "FrameCapture Region" 2>$null
-        Add-Result "probe:controller-responds" $(if ($pkProbe -notmatch "not-found") { "PASS" } else { "FAIL" }) $pkProbe $t0.Elapsed.TotalSeconds
-        & $shot keyw "FrameCapture Region" 27 2>$null | Out-Null
-        Start-Sleep 0.4
-        Remove-Item Env:\FC_TEST_NO_FG -EA SilentlyContinue
-        Get-Process FrameCapture -EA SilentlyContinue | Stop-Process -Force
-
         foreach ($t in $e2e) {
             # 焦点安全是全套里唯一必须真注入 OS 级按键的一项：注入期间 Ctrl 真的会被按住约 900ms，
             # 用户此刻滚一下滚轮，浏览器就跟着缩放。安静窗口只保证「过去 3 秒没输入」，
