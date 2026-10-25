@@ -31,6 +31,10 @@ public sealed partial class RegionPickerWindow
     /// <summary>确认/取消两个按钮（画在遮罩上，命中自己判）。</summary>
     private Border? _okButton, _cancelButton;
 
+    /// <summary>点选窗口时记下它的句柄与边界：选区一动就不再按窗口抓，留给普通区域截图。</summary>
+    private IntPtr _selHwnd;
+    private RectI _selHwndBounds;
+
     /// <summary>本窗句柄，交给吸附做排除。</summary>
     private IntPtr _selfHwnd;
 
@@ -108,6 +112,9 @@ public sealed partial class RegionPickerWindow
     private void ShowSelection(RectI sel)
     {
         if (_handles[0] == null || _okButton == null) BuildAdjustChrome();
+        // 调整态收掉放大镜：这时光标是在改框，不是取色；留着它挡在选区边上也碍事
+        if (_loupe != null) _loupe.Visibility = Visibility.Collapsed;
+        if (_loupeHex != null) _loupeHexText = "";
         _sel = sel;
         ShowSpot(sel);
         LayoutAdjustChrome(sel);
@@ -202,7 +209,7 @@ public sealed partial class RegionPickerWindow
         // 折中：框每帧按位移走，吸附每 80 ms 才问一次——松手前最后一次吸附照样生效。
         var now = DateTime.UtcNow;
         RectI rect = moved;
-        if (now - _snapAt >= TimeSpan.FromMilliseconds(80))
+        if (now - _snapAt >= TimeSpan.FromMilliseconds(80))   // lint-motion:ignore 吸附刷新间隔，不是动效
         {
             rect = SnapResizing(moved, _grab, p.X, p.Y);
             _snapAt = now;
@@ -214,6 +221,14 @@ public sealed partial class RegionPickerWindow
     private bool ConfirmSelection()
     {
         if (_sel is not { } sel) return false;
+        // 点选窗口之后没动过框 → 仍走干净窗口截图（从窗口自己的表面取，被遮挡也不影响）；
+        // 动过框就说明用户要的是自定义范围，退回普通区域截图。
+        if (_selHwnd != IntPtr.Zero && sel.X == _selHwndBounds.X && sel.Y == _selHwndBounds.Y
+            && sel.W == _selHwndBounds.W && sel.H == _selHwndBounds.H)
+        {
+            Finish(sel, _selHwnd);
+            return true;
+        }
         Finish(sel);
         return true;
     }

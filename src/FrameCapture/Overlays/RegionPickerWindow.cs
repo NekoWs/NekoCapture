@@ -540,7 +540,13 @@ public sealed partial class RegionPickerWindow : Window
             if (_windowCapture)
             {
                 var wc = WindowHitForCapture(p);
-                if (wc != null) { Finish(wc.Value.Bounds, wc.Value.Hwnd); return; }
+                if (wc != null)
+                {
+                    ShowSelection(wc.Value.Bounds);
+                    _selHwnd = wc.Value.Hwnd;
+                    _selHwndBounds = wc.Value.Bounds;
+                    return;
+                }
             }
             var hit = SnapWindowAt(p);
             Finish(hit ?? _existing ?? new RectI(_monitorPhys.X, _monitorPhys.Y, _monitorPhys.W, _monitorPhys.H));
@@ -646,19 +652,27 @@ public sealed partial class RegionPickerWindow : Window
             {
                 var selfH = new System.Windows.Interop.WindowInteropHelper(this).Handle;
                 var eh = Core.ElementSnap.At(p.X, p.Y, selfH);
-                if (eh != null && eh.Rect.W >= 8 && eh.Rect.H >= 8) { ShowSelection(eh.Rect); return; }
+                if (eh != null && eh.Rect.W >= 8 && eh.Rect.H >= 8) { _selHwnd = IntPtr.Zero; ShowSelection(eh.Rect); return; }
             }
             // 点吸附到的窗口 → 真·窗口截图（开关开 + 未被遮挡 + 吸附到的是窗口而非 UIA 子元素）
             if (_windowCapture)
             {
                 var wc = WindowHitForCapture(p);
-                if (wc != null) { Finish(wc.Value.Bounds, wc.Value.Hwnd); return; }
+                if (wc != null)
+                {
+                    ShowSelection(wc.Value.Bounds);
+                    _selHwnd = wc.Value.Hwnd;
+                    _selHwndBounds = wc.Value.Bounds;
+                    return;
+                }
             }
             var hit = SnapWindowAt(p);
+            _selHwnd = IntPtr.Zero;
             ShowSelection(hit ?? _existing ?? _monitorPhys);
             return;
         }
         // 松手先给可调整的框：拖边角还能改，Enter 或勾才真的出图
+        _selHwnd = IntPtr.Zero;
         ShowSelection(rect);
     }
 
