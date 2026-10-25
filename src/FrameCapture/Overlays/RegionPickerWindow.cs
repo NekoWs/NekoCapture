@@ -484,6 +484,9 @@ public sealed partial class RegionPickerWindow : Window
                     Child = loupeStack,
                 };
                 _canvas.Children.Add(_loupe);
+
+        // 可调整态的控制点与勾/叉按钮：排在最后加上，画在遮罩之上
+        BuildAdjustChrome();
             }
 
             if (_existing != null)
@@ -643,7 +646,7 @@ public sealed partial class RegionPickerWindow : Window
             {
                 var selfH = new System.Windows.Interop.WindowInteropHelper(this).Handle;
                 var eh = Core.ElementSnap.At(p.X, p.Y, selfH);
-                if (eh != null && eh.Rect.W >= 8 && eh.Rect.H >= 8) { Finish(eh.Rect); return; }
+                if (eh != null && eh.Rect.W >= 8 && eh.Rect.H >= 8) { ShowSelection(eh.Rect); return; }
             }
             // 点吸附到的窗口 → 真·窗口截图（开关开 + 未被遮挡 + 吸附到的是窗口而非 UIA 子元素）
             if (_windowCapture)
@@ -652,7 +655,7 @@ public sealed partial class RegionPickerWindow : Window
                 if (wc != null) { Finish(wc.Value.Bounds, wc.Value.Hwnd); return; }
             }
             var hit = SnapWindowAt(p);
-            Finish(hit ?? _existing ?? _monitorPhys);
+            ShowSelection(hit ?? _existing ?? _monitorPhys);
             return;
         }
         // 松手先给可调整的框：拖边角还能改，Enter 或勾才真的出图

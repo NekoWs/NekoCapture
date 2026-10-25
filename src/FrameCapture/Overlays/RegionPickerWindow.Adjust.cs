@@ -35,10 +35,13 @@ public sealed partial class RegionPickerWindow
     private IntPtr _selfHwnd;
 
     /// <summary>控制点边长（DIP）。</summary>
-    private const double HandleSize = 9;
+    private const double HandleSize = 11;
 
     /// <summary>边角判定半径（DIP）：太小抓不住，太大会把整块移动吃掉。</summary>
     private const double GrabTol = 7;
+
+    /// <summary>上次问吸附的时间：拖边角时按 80 ms 节流。</summary>
+    private DateTime _snapAt = DateTime.MinValue;
 
     /// <summary>吸附容差（DIP）。</summary>
     private const double SnapTol = 10;
@@ -67,8 +70,8 @@ public sealed partial class RegionPickerWindow
                 Width = HandleSize,
                 Height = HandleSize,
                 Fill = Brushes.White,
-                Stroke = new SolidColorBrush(Color.FromRgb(0x4C, 0xC2, 0xFF)),
-                StrokeThickness = 1,
+                Stroke = new SolidColorBrush(Color.FromArgb(0xFF, 0x0B, 0x0B, 0x0B)),
+                StrokeThickness = 1.5,
                 Visibility = Visibility.Collapsed,
                 IsHitTestVisible = false,
             };
@@ -104,6 +107,7 @@ public sealed partial class RegionPickerWindow
     /// <param name="sel">选区（物理像素）。</param>
     private void ShowSelection(RectI sel)
     {
+        if (_handles[0] == null || _okButton == null) BuildAdjustChrome();
         _sel = sel;
         ShowSpot(sel);
         LayoutAdjustChrome(sel);
@@ -194,9 +198,17 @@ public sealed partial class RegionPickerWindow
     {
         var p = WindowPosToPhys(dip);
         var moved = AdjustGeometry.Resize(_selAtGrab, _grab, p.X - _grabX, p.Y - _grabY, _monitorPhys);
-        ShowSelection(SnapResizing(moved, _grab, p.X, p.Y));
+        // 吸附要跨进程问无障碍树，几十毫秒一次；每帧都问，框就跟不上手。
+        // 折中：框每帧按位移走，吸附每 80 ms 才问一次——松手前最后一次吸附照样生效。
+        var now = DateTime.UtcNow;
+        RectI rect = moved;
+        if (now - _snapAt >= TimeSpan.FromMilliseconds(80))
+        {
+            rect = SnapResizing(moved, _grab, p.X, p.Y);
+            _snapAt = now;
+        }
+        ShowSelection(rect);
     }
-
     /// <summary>确认当前选区。</summary>
     /// <returns>确实确认了返回 true。</returns>
     private bool ConfirmSelection()
