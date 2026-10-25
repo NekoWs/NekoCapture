@@ -499,7 +499,6 @@ public sealed partial class RegionPickerWindow : Window
                 // 这里不渐显、也不压暗——压暗那一下是可见的"整屏黑"，而拖选一开始它才有用。
                 _canvas.Opacity = 1;
                 _canvas.BeginAnimation(OpacityProperty, null);
-                if (_spotPath != null) _spotPath.Fill = Brushes.Transparent;
                 _hint.BeginAnimation(OpacityProperty, MaskAnim(1, 120, 0));
             }
             else
