@@ -23,8 +23,20 @@ static partial class SelfTest
     [System.Runtime.InteropServices.DllImport("user32.dll", SetLastError = true)]
     static extern bool SetWindowDisplayAffinity(IntPtr hWnd, uint dwAffinity);
 
+    // 逐条耗时：FC_ST_PERF=1 时把「距上一条断言花了多久」打出来，用来找时间黑洞。
+    // 慢的几乎都是定长 PumpMs 等待，不是断言本身吃时间。
+    static readonly bool PerfDump = Environment.GetEnvironmentVariable("FC_ST_PERF") == "1";
+    static readonly System.Diagnostics.Stopwatch PerfSw = System.Diagnostics.Stopwatch.StartNew();
+    static long _perfLast;
+
     static void Chk(string name, bool ok, string? detail = null)
     {
+        if (PerfDump)
+        {
+            long now = PerfSw.ElapsedMilliseconds;
+            Console.WriteLine($"PERF {now - _perfLast,6} {name}");
+            _perfLast = now;
+        }
         if (ok) { pass++; Console.WriteLine($"PASS {name}"); }
         else { fail++; Console.WriteLine($"FAIL {name}{(detail != null ? " :: " + detail : "")}"); }
     }

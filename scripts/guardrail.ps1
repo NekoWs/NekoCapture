@@ -10,8 +10,12 @@
 #   默认档（< 1 分钟）——静态扫描 / 构建 / SelfTest / 双语审计 / 安装器探针 / 启动冒烟 / 控制器探针。
 #   -Full（约 3 分钟）——再加整套 e2e（每项都要重启一次主程序，串行是硬约束：单实例）。
 #   发布脚本走 -Full，平时改代码走默认档。
-# 用法: pwsh -NoProfile -File scripts/guardrail.ps1 [-Full] [-SkipE2e] [-AllowInjection] [-MinSelfTestPass 702]
-param([switch]$Full, [switch]$SkipE2e, [switch]$AllowInjection, [int]$MinSelfTestPass = 702)
+# 三档速度：
+#   -Quick  只跑静态扫描 + 构建（约 10 秒）——改代码时用这个
+#   默认    再加 SelfTest / 双语审计 / 安装器探针 / 启动冒烟（约 55 秒，静默）
+#   -Full   再加控制器探针与整套 e2e（约 3 分钟）——发布前用
+# 用法: pwsh -NoProfile -File scripts/guardrail.ps1 [-Quick] [-Full] [-SkipE2e] [-AllowInjection] [-MinSelfTestPass 702]
+param([switch]$Full, [switch]$Quick, [switch]$SkipE2e, [switch]$AllowInjection, [int]$MinSelfTestPass = 702)
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 . (Join-Path $PSScriptRoot "lib-hotkey.ps1")
@@ -91,10 +95,14 @@ foreach ($k in $buildJobs.Keys) {
 
 # 3) 三件互不相干的事并行起跑：SelfTest（42 s 上下）、双语版面审计（17 s）、安装器搬运探针。
 #    它们都不碰主程序实例，也不写同一批文件；串行跑等于白等两轮。
-$auditJob = Start-Async "ux-audit" "pwsh" @("-NoProfile", "-File", (Join-Path $PSScriptRoot "ux-audit.ps1"), "-Quiet")
-$spJob = Start-Async "setup-probe" "pwsh" @("-NoProfile", "-Command",
-    "dotnet build '$(Join-Path $root "tools/SetupProbe")' -c Debug -v q --nologo; & '$(Join-Path $root "tools/SetupProbe/bin/Debug/net48/SetupProbe.exe")'")
-$stJob = if ($okBuild) { Start-Async "selftest" $stExe @() } else { $null }
+$auditJob = $null
+if (-not $Quick) { $auditJob = Start-Async "ux-audit" "pwsh" @("-NoProfile", "-File", (Join-Path $PSScriptRoot "ux-audit.ps1"), "-Quiet") }
+$spJob = $null
+if (-not $Quick) {
+    $spJob = Start-Async "setup-probe" "pwsh" @("-NoProfile", "-Command",
+        "dotnet build '$(Join-Path $root "tools/SetupProbe")' -c Debug -v q --nologo; & '$(Join-Path $root "tools/SetupProbe/bin/Debug/net48/SetupProbe.exe")'")
+}
+$stJob = if ($okBuild -and -not $Quick) { Start-Async "selftest" $stExe @() } else { $null }
 
 # 3.1) SelfTest：全过且不少于基线数。用例名还要两两不同——重名的两条只看得见一条
 if ($stJob) {
@@ -113,7 +121,7 @@ if ($stJob) {
             ("{0} 条用例，重名 {1}" -f $names.Count, $dup.Count) 0
         if ($dup.Count) { Say (($dup | ForEach-Object { "  重名 {0} ×{1}" -f $_.Name, $_.Count }) -join "`n") }
     } else { Add-Result "selftest" "FAIL" "无 RESULT 行" $stSec; Say (($so -split "`n" | Select-Object -Last 12) -join "`n") }
-} else { Add-Result "selftest" "SKIP" "构建失败"; Add-Result "selftest:names-unique" "SKIP" "构建失败" }
+} elseif ($Quick) { Add-Result "selftest" "SKIP" "-Quick（只扫静态与构建）"; Add-Result "selftest:names-unique" "SKIP" "-Quick" } else { Add-Result "selftest" "SKIP" "构建失败"; Add-Result "selftest:names-unique" "SKIP" "构建失败" }
 
 # 4) 收静态扫描结果：SelfTest 跑的时候它们一直在旁边跑
 foreach ($t in $lints) {
@@ -128,9 +136,10 @@ foreach ($t in $lints) {
 
 # 4.5) 安装器搬运探针：装到非系统盘那条路径本机走不到，只有把搬运逻辑拎出来实机跑一遍才算测过。
 #      只在仓库内与临时目录写文件，不碰注册表，也不动已装程序。结果在 SelfTest 跑的时候就收好了。
-$spR = Wait-Async $spJob
+$spR = if ($spJob) { Wait-Async $spJob } else { $null }
 $spOut = $spR.Text
-if ($spOut -match 'SETUP-PROBE') {
+if (-not $spR) { Add-Result "probe:setup-paths" "SKIP" "-Quick" }
+elseif ($spOut -match 'SETUP-PROBE') {
     $okSp = $spOut -match 'SETUP-PROBE PASS'
     Add-Result "probe:setup-paths" $(if ($okSp) { "PASS" } else { "FAIL" }) `
         ("{0} 项搬运断言" -f ([regex]::Matches($spOut, '(?m)^\s*(?:PASS|FAIL) ').Count)) $spR.Sec
@@ -142,10 +151,10 @@ if ($spOut -match 'SETUP-PROBE') {
 
 # 4.7) 双语版面审计：英文比中文长，按中文排的版面在英文下会把字挤掉或压成省略号；
 #      英文界面里残留的中文（动态拼出来那种、静态扫描看不见的）也在这里抓。全程离屏建窗，不动屏幕。
-$uxR = Wait-Async $auditJob
-$ux = $uxR.Text
+$uxR = if ($auditJob) { Wait-Async $auditJob } else { $null }
+$ux = if ($uxR) { $uxR.Text } else { "" }
 $uxLine = ($ux -split "`r?`n" | Where-Object { $_ -match '^UX-AUDIT (PASS|FAIL)' } | Select-Object -Last 1)
-if ($uxLine) {
+if (-not $uxR) { Add-Result "lint:ux-bilingual" "SKIP" "-Quick" } elseif ($uxLine) {
     $stUx = if ($uxLine -match '^UX-AUDIT PASS') { "PASS" } else { "FAIL" }
     Add-Result "lint:ux-bilingual" $stUx (($uxLine -replace '^UX-AUDIT (PASS|FAIL)\s*', "").Trim()) $uxR.Sec
     if ($stUx -eq "FAIL") { Say (Get-Content "test-out/uxaudit/report.txt" -Raw -EA SilentlyContinue) }
@@ -164,7 +173,17 @@ New-Item -ItemType Directory -Force -Path $fcDir | Out-Null
 if (Test-Path $fcUser) { Copy-Item $fcUser (Join-Path $fcDir 'settings.json') -Force }
 $env:FC_SETTINGS_DIR = $fcDir
 
+# 冒烟要弹欢迎浮窗。默认档要静默：先在测试设置里关掉它。-Full 时照原样弹，
+# 因为那一次本来就要看「首次运行会提示」这条路径。
 if ($okBuild) {
+    if (-not $Full) {
+        $smokeSet = Join-Path $fcDir "settings.json"
+        if (Test-Path $smokeSet) {
+            $js = Get-Content $smokeSet -Raw | ConvertFrom-Json
+            $js.StartupToast = $false
+            ($js | ConvertTo-Json -Depth 12) | Set-Content $smokeSet -Encoding UTF8
+        }
+    }
     $t0 = [Diagnostics.Stopwatch]::StartNew()
     $p = Start-Process $exe -PassThru
     Start-Sleep 2.5
@@ -175,8 +194,10 @@ if ($okBuild) {
 } else { Add-Result "smoke:startup" "SKIP" "构建失败" }
 
 # 6) 控制器响应探针：--picker 让主实例走 BeginScopeSelection（与热键命中同一个入口），
-#    选区窗出现即证明产物起得来、控制器在听。零 OS 级输入，也不抢前台。每次必跑，两秒。
-if ($okBuild) {
+#    它会在屏幕上开一扇全屏选区窗——默认档要静默，只在 -Full 跑。
+if (-not $Full) {
+    Add-Result "probe:controller-responds" "SKIP" "默认档不跑（会开全屏选区窗，发布前用 -Full）"
+} elseif ($okBuild) {
     $t0 = [Diagnostics.Stopwatch]::StartNew()
     $env:FC_TEST_NO_FG = "1"
     Start-Process $exe -ArgumentList '--picker' -PassThru | Out-Null
