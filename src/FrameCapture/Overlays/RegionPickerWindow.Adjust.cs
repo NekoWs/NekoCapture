@@ -72,8 +72,8 @@ public sealed partial class RegionPickerWindow
     private const double SnapTol = 10;
 
     /// <summary>按钮直径（DIP）。</summary>
-    private const double ButtonWidth = 84;
-    private const double ButtonHeight = 38;
+    private const double ButtonWidth = 66;
+    private const double ButtonHeight = 30;
 
     /// <summary>本窗的 DPI 缩放。</summary>
     private double DpiScale
@@ -142,7 +142,7 @@ public sealed partial class RegionPickerWindow
             Child = new TextBlock
             {
                 Text = text,
-                FontSize = 13.5,
+                FontSize = 12.5,
                 FontWeight = primary ? FontWeights.SemiBold : FontWeights.Normal,
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center,
@@ -205,7 +205,7 @@ public sealed partial class RegionPickerWindow
             _handles[i].Visibility = Visibility.Visible;
         }
         const double gap = 12;         // 按钮与选区之间的边距
-        const double between = 10;      // 两个按钮之间的间距
+        const double between = 8;       // 两个按钮之间的间距
         double bx = r.X + r.Width - (ButtonWidth * 2 + between);   // 两个按钮并排，右缘对齐选区右缘
         double by = r.Y + r.Height + gap;
         if (by + ButtonHeight > Height - 4) by = r.Y + r.Height - ButtonHeight - gap;
@@ -251,46 +251,84 @@ public sealed partial class RegionPickerWindow
     /// <param name="physX">光标物理横坐标。</param>
     /// <param name="physY">光标物理纵坐标。</param>
     /// <returns>吸附后的选区。</returns>
-    private RectI SnapResizing(RectI sel, GrabKind kind, int physX, int physY)
+    private RectI SnapResizing(RectI raw, GrabKind kind, int physX, int physY)
     {
-        if (kind is GrabKind.None or GrabKind.Move || !ResizeSnapOn) { ClearSnapHold(); return sel; }
+        if (kind is GrabKind.None or GrabKind.Move || !ResizeSnapOn) { ClearSnapHold(); return raw; }
         int tol = Math.Max(1, (int)Math.Round(SnapTol * DpiScale));
 
-        // 粘连式：已经吸住的那条边，只要光标还没明显拖离（离开阈值放宽到 28 DIP）就一直吸着。
-        // 只做「贴近才吸」的话，鼠标抖一像素就脱开重算，框一跳一跳的——那是贴合式，不是吸附。
-        if (_holdKind == kind && _holdTarget is { } held)
+        // 1) 正吸着：把记住的那条绝对边线按回去。只要光标还没把这条边拖离，
+        //    就一直用吸住的位置——这样鼠标怎么抖，框都不动。
+        if (_holdKind == kind)
         {
-            var sticky = AdjustGeometry.Snap(sel, kind, held, Math.Max(tol * 3, 28));
-            if (!Same(sticky, sel)) return sticky;
+            var applied = ApplyHold(raw);
+            int release = Math.Max((int)Math.Round(28 * DpiScale), 24);
+            if (EdgeDistance(raw, applied) <= release) return applied;
             ClearSnapHold();
+            _snapAt = DateTime.MinValue;   // 脱开立刻允许重新问，不留 80 ms 空窗
         }
 
-        // 节流：跨进程问无障碍树要几十毫秒，每帧都问框就跟不上手
+        // 2) 没吸着：节流后问一次无障碍树，命中就把三条线记下来（只记正在拖的那几条）
         var now = DateTime.UtcNow;
-        if (now - _snapAt < TimeSpan.FromMilliseconds(80)) return sel;   // lint-motion:ignore 吸附刷新间隔，不是动效
+        if (now - _snapAt < TimeSpan.FromMilliseconds(80)) return raw;   // lint-motion:ignore 吸附刷新间隔，不是动效
         _snapAt = now;
         var hit = ElementSnap.At(physX, physY, _selfHwnd);
-        if (hit == null) return sel;
-        var snapped = AdjustGeometry.Snap(sel, kind, hit.Rect, tol);
-        if (!Same(snapped, sel)) { _holdKind = kind; _holdTarget = hit.Rect; }
+        if (hit == null) return raw;
+        var snapped = AdjustGeometry.Snap(raw, kind, hit.Rect, tol);
+        if (Same(snapped, raw)) return raw;
+        _holdKind = kind;
+        _hold = snapped;          // 吸附后的完整矩形：边线就存在它的四边里
         return snapped;
     }
 
+    /// <summary>把吸住的四条边按回原始矩形上（只动正在拖的那几条）。</summary>
+    /// <param name="raw">按键位算出来的原始矩形。</param>
+    /// <returns>按回吸附边线后的矩形。</returns>
+    private RectI ApplyHold(RectI raw)
+    {
+        if (_hold is not { } h) return raw;
+        int l = raw.X, t = raw.Y, r = raw.X + raw.W, b = raw.Y + raw.H;
+        bool ml = _holdKind is GrabKind.Left or GrabKind.TopLeft or GrabKind.BottomLeft;
+        bool mr = _holdKind is GrabKind.Right or GrabKind.TopRight or GrabKind.BottomRight;
+        bool mt = _holdKind is GrabKind.Top or GrabKind.TopLeft or GrabKind.TopRight;
+        bool mb = _holdKind is GrabKind.Bottom or GrabKind.BottomLeft or GrabKind.BottomRight;
+        if (ml) l = h.X;
+        if (mr) r = h.X + h.W;
+        if (mt) t = h.Y;
+        if (mb) b = h.Y + h.H;
+        return new RectI(l, t, r - l, b - t);
+    }
+
+    /// <summary>两条矩形之间「正在拖的那条边」差多远，用来判断该不该脱开吸附。</summary>
+    /// <param name="raw">原始矩形。</param>
+    /// <param name="applied">按回吸附后的矩形。</param>
+    /// <returns>位移差（物理像素）。</returns>
+    private int EdgeDistance(RectI raw, RectI applied)
+    {
+        int d = 0;
+        if (_holdKind is GrabKind.Left or GrabKind.TopLeft or GrabKind.BottomLeft) d = Math.Max(d, Math.Abs(raw.X - applied.X));
+        if (_holdKind is GrabKind.Right or GrabKind.TopRight or GrabKind.BottomRight) d = Math.Max(d, Math.Abs(raw.X + raw.W - (applied.X + applied.W)));
+        if (_holdKind is GrabKind.Top or GrabKind.TopLeft or GrabKind.TopRight) d = Math.Max(d, Math.Abs(raw.Y - applied.Y));
+        if (_holdKind is GrabKind.Bottom or GrabKind.BottomLeft or GrabKind.BottomRight) d = Math.Max(d, Math.Abs(raw.Y + raw.H - (applied.Y + applied.H)));
+        return d;
+    }
+
+    /// <summary>当前吸附到的矩形：四条边即被吸住的边线。</summary>
+    private RectI? _hold;
     /// <summary>两个矩形是否完全相同。</summary>
     /// <param name="a">矩形一。</param>
     /// <param name="b">矩形二。</param>
     /// <returns>四边都相同返回 true。</returns>
     static bool Same(RectI a, RectI b) => a.X == b.X && a.Y == b.Y && a.W == b.W && a.H == b.H;
 
-    /// <summary>当前吸住的目标与抓取部位：粘连式吸附靠它记住吸在哪儿。</summary>
+    /// <summary>吸住时抓的是哪条边/角。</summary>
     private GrabKind _holdKind = GrabKind.None;
-    private RectI? _holdTarget;
+
 
     /// <summary>丢掉吸附记忆：换边、松手、关掉吸附时都要丢。</summary>
     private void ClearSnapHold()
     {
         _holdKind = GrabKind.None;
-        _holdTarget = null;
+        _hold = null;
         _snapAt = DateTime.MinValue;
     }
 
