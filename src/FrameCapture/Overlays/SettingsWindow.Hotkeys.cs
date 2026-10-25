@@ -81,6 +81,7 @@ public sealed partial class SettingsWindow : Window
     {
         if (_hotList == null) return;
         _hotList.Children.Clear();
+        _hotRows.Clear();
         _hotBoxes.Clear();
         _hotModeSync.Clear();
         _hotClashSync.Clear();
@@ -144,7 +145,7 @@ public sealed partial class SettingsWindow : Window
         _settings.Mutate(s => s.Gestures.Bindings.Add(b));
         AppHost.Current.InstallHotkeys();
         _hotOpen = b.Id;
-        RebuildHotkeys();
+        InsertHotkeyAnimated(b);
         if (_hotBoxes.TryGetValue(b.Id, out var box))
             // 新行刚进树，焦点要等布局走完才落得住。
             Dispatcher.BeginInvoke(new Action(box.BeginCapture), System.Windows.Threading.DispatcherPriority.Loaded);
@@ -297,6 +298,7 @@ public sealed partial class SettingsWindow : Window
             else PlayCollapse(body);
             e.Handled = true;
         };
+        _hotRows[b.Id] = row;
         return row;
     }
 
