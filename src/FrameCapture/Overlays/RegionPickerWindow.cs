@@ -579,6 +579,7 @@ public sealed partial class RegionPickerWindow : Window
             {
                 var gp = WindowPosToPhys(dipDown);
                 ClearSnapHold();
+                _snapTarget = ElementSnap.At(gp.X, gp.Y, _selfHwnd)?.Rect;   // 按下时定一次目标，之后不再每帧问
                 _grab = kindDown; _grabX = gp.X; _grabY = gp.Y; _selAtGrab = _sel.Value;
                 CaptureMouse();
                 return;
