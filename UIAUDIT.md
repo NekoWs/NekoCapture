@@ -236,3 +236,9 @@ B1 主题化悬浮条 → C1/C2 状态语义 → A1/A2 入退场 → A3-A5 → B
 - [x] **下拉框点文字那一截不开候选**：模板里只有箭头是开关，点正文只放光标。现在给 `PART_EditableTextBox` 挂一枚抬起处理器，弹层关着就打开；断言 `T252-duration-click-text-opens`。
 
 - [x] **内存探针在并行护栏下偶发「编辑器没出现」**：固定等 2.1 秒窗口不出来就判失败。改成最多重试 16 次、每次 500ms；判据不变（编辑器必须出现）。
+
+- [x] **选区的去向只能由手势决定**：同一次拖框，想截图还是想录制取决于把你叫起来的是哪个键。现在可调整态多一枚两段开关（截图 / 录制），只活这一次、不落盘；断言 `T262-picker-mode-initial`、`T262-picker-mode-switchable`。
+
+- [x] **切到录制就立刻开录**：范围定完往往还要摆窗口、清桌面。现在选区旁边先摆一条「开始录制 / 取消」（`RecordStartWindow`，不抢焦点），点下去才起录；可在 `设置 · 录制 · 选区后先按开始` 关掉。断言 `T264-record-start-bar-shows`、`T264-record-start-bar-starts`、`T263-startclick-toggle-on-record-page`。
+
+- [x] **选区层只能用 Esc 取消**：鼠标在手的用户得腾出一只手回键盘。现在右键等同于 Esc（`设置 · 截图 · 右键关闭选区`，默认开，可关）；断言 `T262-rightclick-closes`、`T262-rightclick-can-be-off`。

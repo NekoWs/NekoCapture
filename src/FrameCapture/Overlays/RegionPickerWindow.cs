@@ -216,7 +216,7 @@ public sealed partial class RegionPickerWindow : Window
     /// <param name="windowShadow">预抓的窗口画面是否带合成投影。</param>
     /// <param name="frozenScreen">建窗前就抓好的整屏定格帧。给了即走不透明全屏窗：帧直接铺成窗底，
     /// 窗口出现即有内容；null 且 <c>freeze</c> 为 true 则本窗做分层透明，定格帧在 Show 之后异步补。</param>
-    public RegionPickerWindow(MonitorInfo monitor, RectI? existing, bool snapContent = false, bool magnifier = false, Core.ColorCopyFormat colorFormat = Core.ColorCopyFormat.Hex, bool windowCapture = false, bool freeze = false, int pregrabMax = 0, bool windowShadow = false, CapturedFrame? frozenScreen = null)
+    public RegionPickerWindow(MonitorInfo monitor, RectI? existing, bool snapContent = false, bool magnifier = false, Core.ColorCopyFormat colorFormat = Core.ColorCopyFormat.Hex, bool windowCapture = false, bool freeze = false, int pregrabMax = 0, bool windowShadow = false, CapturedFrame? frozenScreen = null, bool recordMode = false, bool rightClickCancel = true)
     {
         // 覆盖层不需要文本输入：禁用输入法，避免拼音拦截快捷键
         InputMethod.SetIsInputMethodEnabled(this, false);
@@ -227,6 +227,8 @@ public sealed partial class RegionPickerWindow : Window
         _freeze = freeze;
         _pregrabMax = pregrabMax;
         _windowShadow = windowShadow;
+        RecordMode = recordMode;
+        _rightClickCancel = rightClickCancel;
         _colorFormat = colorFormat;
         _monitorPhys = monitor.Bounds;
         _existing = existing;
@@ -531,6 +533,8 @@ public sealed partial class RegionPickerWindow : Window
 
         // 选区窗没有 WPF KeyDown 处理：非激活窗（WS_EX_NOACTIVATE）收不到路由键事件，
         // Esc/Enter/C/F/Tab 全部由 HotkeyManager 全局钩子代收（见类末 OnPickerKey）。
+        // 右键关整层：与 Esc 同一条出口，设置里可以关掉（网页里想右键复制时不至于把选区弄丢）
+        MouseRightButtonUp += (_, _) => { if (_rightClickCancel) Finish(null); };
         MouseLeftButtonDown += OnDown;
         MouseMove += OnMove;
         MouseLeftButtonUp += OnUp;
@@ -574,6 +578,7 @@ public sealed partial class RegionPickerWindow : Window
         if (_sel != null)
         {
             if (OverButton(dipDown, _okButton)) { ConfirmSelection(); return; }
+            if (HitModeSwitch(dipDown)) return;
             if (OverButton(dipDown, _cancelButton)) { Finish(null); return; }
             var kindDown = ProbeAt(dipDown);
             if (kindDown != GrabKind.None)

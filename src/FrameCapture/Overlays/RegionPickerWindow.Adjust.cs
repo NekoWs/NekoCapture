@@ -31,6 +31,16 @@ public sealed partial class RegionPickerWindow
     /// <summary>确认/取消两个按钮（画在遮罩上，命中自己判）。</summary>
     private Border? _okButton, _cancelButton;
 
+    /// <summary>这次选区落下去要做什么：true = 起录，false = 截图。初值由调用方的意图给，用户在开关上可以改。</summary>
+    public bool RecordMode { get; private set; }
+
+    /// <summary>模式开关的两段（截图 / 录制）；点它改的是上面那个属性，不落盘。</summary>
+    private Border? _modeSwitch;
+    private Border? _modeCapture, _modeRecord;
+
+    /// <summary>右键关掉整层：Esc 之外的第二只手，设置里可关。</summary>
+    private readonly bool _rightClickCancel;
+
     /// <summary>点选窗口时记下它的句柄与边界：选区一动就不再按窗口抓，留给普通区域截图。</summary>
     private IntPtr _selHwnd;
     private RectI _selHwndBounds;
@@ -102,6 +112,23 @@ public sealed partial class RegionPickerWindow
         _cancelButton = AdjustButton(Loc.T(K.Common.Cancel), null, false, Loc.T(K.Capture.CancelSelection));
         _canvas.Children.Add(_okButton);
         _canvas.Children.Add(_cancelButton);
+        // 模式开关：这次选区落下去是截图还是起录。贴在勾按钮左边，与两个按钮同一行
+        _modeSwitch = new Border
+        {
+            Width = ModeSwitchWidth,
+            Height = ButtonHeight,
+            CornerRadius = new CornerRadius(7),
+            Background = new SolidColorBrush(CancelFill),
+            BorderBrush = new SolidColorBrush(Color.FromArgb(0x33, 0xFF, 0xFF, 0xFF)),
+            BorderThickness = new Thickness(1),
+            Visibility = Visibility.Collapsed,
+        };
+        _modeCapture = ModeSegment(Loc.T(K.Common.Capture), false);
+        _modeRecord = ModeSegment(Loc.T(K.Common.Recording), true);
+        _canvas.Children.Add(_modeSwitch);
+        _canvas.Children.Add(_modeCapture);
+        _canvas.Children.Add(_modeRecord);
+        PaintModeSwitch();
     }
 
     /// <summary>做一个圆形按钮：勾用强调色底，叉用深色底。</summary>
@@ -176,6 +203,9 @@ public sealed partial class RegionPickerWindow
         foreach (var h in _handles) h.Visibility = Visibility.Collapsed;
         if (_okButton != null) _okButton.Visibility = Visibility.Collapsed;
         if (_cancelButton != null) _cancelButton.Visibility = Visibility.Collapsed;
+        if (_modeSwitch != null) _modeSwitch.Visibility = Visibility.Collapsed;
+        if (_modeCapture != null) _modeCapture.Visibility = Visibility.Collapsed;
+        if (_modeRecord != null) _modeRecord.Visibility = Visibility.Collapsed;
         if (_hintLabel != null) _hintLabel.Text = Loc.T(K.Capture.DragToSelectHover);
         ShowSpot(null);
     }
@@ -206,6 +236,12 @@ public sealed partial class RegionPickerWindow
         bx = Math.Max(4, bx);
         by = Math.Max(4, by);
         if (_okButton != null) { Canvas.SetLeft(_okButton, bx); Canvas.SetTop(_okButton, by); _okButton.Visibility = Visibility.Visible; }
+        if (_modeSwitch != null)
+        {
+            double sx = Math.Max(4, bx - 8 - ModeSwitchWidth);
+            Canvas.SetLeft(_modeSwitch, sx); Canvas.SetTop(_modeSwitch, by); _modeSwitch.Visibility = Visibility.Visible;
+            LayoutModeSegments(sx, by);
+        }
         if (_cancelButton != null) { Canvas.SetLeft(_cancelButton, bx + ButtonWidth + between); Canvas.SetTop(_cancelButton, by); _cancelButton.Visibility = Visibility.Visible; }
     }
 
@@ -220,6 +256,7 @@ public sealed partial class RegionPickerWindow
         // 悬在按钮上：手型 + 变色；其余按区域给形状。每条分支都给光标，不能只在抓到边角时设
         if (OverButton(dip, _okButton)) { SetButtonHover(true, false); Cursor = Cursors.Hand; return GrabKind.None; }
         if (OverButton(dip, _cancelButton)) { SetButtonHover(false, true); Cursor = Cursors.Hand; return GrabKind.None; }
+        if (OverButton(dip, _modeCapture) || OverButton(dip, _modeRecord)) { SetButtonHover(false, false); Cursor = Cursors.Hand; return GrabKind.None; }
         SetButtonHover(false, false);
         var name = AdjustGeometry.CursorFor(kind);
         Cursor = name.Length == 0
@@ -237,6 +274,85 @@ public sealed partial class RegionPickerWindow
         if (b == null || b.Visibility != Visibility.Visible) return false;
         double x = Canvas.GetLeft(b), y = Canvas.GetTop(b);
         return dip.X >= x && dip.X <= x + b.Width && dip.Y >= y && dip.Y <= y + b.Height;
+    }
+
+    /// <summary>模式开关整块的宽度：两段各 56，够放「截图」「录制」两个词。</summary>
+    private const double ModeSwitchWidth = 112;
+
+    /// <summary>模式开关里的一段：不自带命中，命中由 OnDown 按 Canvas 位置判。</summary>
+    /// <param name="text">段名。</param>
+    /// <param name="record">true = 这一段是「录制」。</param>
+    /// <returns>段落边框，交给调用方摆位置。</returns>
+    private Border ModeSegment(string text, bool record) => new()
+    {
+        Width = ModeSwitchWidth / 2,
+        Height = ButtonHeight - 2,
+        CornerRadius = new CornerRadius(6),
+        Background = Brushes.Transparent,
+        Visibility = Visibility.Collapsed,
+        Child = new TextBlock
+        {
+            Text = text,
+            FontSize = 12,
+            Foreground = Brushes.White,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+        },
+        ToolTip = record ? Loc.T(K.Settings.StartRecordingAfterSelecting) : Loc.T(K.Capture.ConfirmSelection),
+    };
+
+    /// <summary>把两段摆进开关里：左截图、右录制。</summary>
+    /// <param name="x">开关左缘（DIP）。</param>
+    /// <param name="y">开关上缘（DIP）。</param>
+    private void LayoutModeSegments(double x, double y)
+    {
+        if (_modeCapture == null || _modeRecord == null) return;
+        Canvas.SetLeft(_modeCapture, x + 1);
+        Canvas.SetTop(_modeCapture, y + 1);
+        Canvas.SetLeft(_modeRecord, x + ModeSwitchWidth / 2);
+        Canvas.SetTop(_modeRecord, y + 1);
+        _modeCapture.Visibility = Visibility.Visible;
+        _modeRecord.Visibility = Visibility.Visible;
+    }
+
+    /// <summary>按当前模式刷两段的底色与字色，并把勾按钮的提示改成这一次真正会发生的事。</summary>
+    private void PaintModeSwitch()
+    {
+        if (_modeCapture != null)
+        {
+            _modeCapture.Background = RecordMode ? Brushes.Transparent : Theme.AccentBrush;
+            ((TextBlock)_modeCapture.Child!).Foreground = RecordMode
+                ? new SolidColorBrush(Color.FromArgb(0xCC, 0xFF, 0xFF, 0xFF))
+                : new SolidColorBrush(Fluent.OnAccentColor(Theme.Accent));
+        }
+        if (_modeRecord != null)
+        {
+            _modeRecord.Background = RecordMode ? Theme.AccentBrush : Brushes.Transparent;
+            ((TextBlock)_modeRecord.Child!).Foreground = RecordMode
+                ? new SolidColorBrush(Fluent.OnAccentColor(Theme.Accent))
+                : new SolidColorBrush(Color.FromArgb(0xCC, 0xFF, 0xFF, 0xFF));
+        }
+        if (_okButton != null)
+            _okButton.ToolTip = Loc.T(RecordMode ? K.Actions.RecordStartLabel : K.Capture.ConfirmSelection);
+    }
+
+    /// <summary>点模式开关的某一段，或由调用方在开窗之后摆正初值：改的是这一次选区的去向，不落盘。</summary>
+    /// <param name="record">true = 切到录制。</param>
+    public void SetRecordMode(bool record)
+    {
+        if (RecordMode == record) return;
+        RecordMode = record;
+        PaintModeSwitch();
+    }
+
+    /// <summary>这一击是不是落在模式开关上；落上就切段并吃掉。</summary>
+    /// <param name="dip">相对本窗的 DIP 坐标。</param>
+    /// <returns>吃掉了这一击返回 true。</returns>
+    private bool HitModeSwitch(Point dip)
+    {
+        if (OverButton(dip, _modeCapture)) { SetRecordMode(false); return true; }
+        if (OverButton(dip, _modeRecord)) { SetRecordMode(true); return true; }
+        return false;
     }
 
     /// <summary>拖边角时的吸附：按住 Alt 或设置里关掉就直接返回。</summary>

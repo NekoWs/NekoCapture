@@ -212,6 +212,13 @@ public bool EditableSelection { get; set; } = false;
     /// 想「拍完即走」调小、想「留着慢慢点进编辑器」调大或常驻。</summary>
     public double ToastSeconds { get; set; } = 3.2;
 
+    /// <summary>选区切到「录制」之后先给一个开始按钮（默认开）：确认选区不等于马上开录，
+    /// 按钮点下去才起录——选区定完往往还要摆一摆窗口、清一下桌面。关掉则确认选区即起录。</summary>
+    public bool RecordNeedsStartClick { get; set; } = true;
+
+    /// <summary>鼠标右键关闭选区（默认开）：Esc 恒可用，右键是第二只手。关掉后右键在选区层上不做事，
+    /// 免得在网页里想右键复制时把选区弄丢。</summary>
+    public bool PickerRightClickCancel { get; set; } = true;
     /// <summary>截图浮窗上「复制」用的键位串（默认 Ctrl+C）。浮窗活着的那几秒内由全局钩子代收，
     /// 只认修饰键完全一致的那一条；空串表示不设，浮窗上只剩标注与关闭。</summary>
     public string ToastCopyChord { get; set; } = "Ctrl+C";

@@ -265,6 +265,11 @@ public static partial class K
             "快速：够移一下鼠标",
             "Quick: enough to move the mouse");
         public static readonly Str QuotedName = new("settings.quotedName", "「{0}」", "“{0}”");
+        public static readonly Str StartRecordingAfterSelecting = new("settings.startRecordingAfterSelecting", "选区后先按开始", "Start after selecting");
+        public static readonly Str StartRecordingAfterSelectingTip = new(
+            "settings.startRecordingAfterSelectingTip",
+            "切到录制并确认选区之后，不马上开录，先在选区旁边摆一个「开始录制」按钮：摆好窗口、清干净桌面再点下去。关掉则确认选区即起录",
+            "After switching to record and confirming a region, recording does not begin at once — a Start Recording button waits beside the region, so you can arrange the window and tidy the desktop first. Turn it off and confirming starts recording right away");
         public static readonly Str RecordAtFullMonitorRefresh = new(
             "settings.recordAtFullMonitorRefresh",
             "跟随显示器刷新率录满",
@@ -279,6 +284,11 @@ public static partial class K
             "settings.rememberTheLastToolColor",
             "记住上次的工具/颜色/粗细",
             "Remember the last tool, color, and width");
+        public static readonly Str RightClickCancelsPicker = new("settings.rightClickCancelsPicker", "右键关闭选区", "Right-click closes the picker");
+        public static readonly Str RightClickCancelsPickerTip = new(
+            "settings.rightClickCancelsPickerTip",
+            "选区层上按右键等同于 Esc：整层关掉，什么都不截。关掉它，右键在选区层上就不做事——在网页里想右键复制时不会被选区吃掉",
+            "On the picker, a right click acts like Esc and closes the whole layer without capturing anything. Turn it off and the right button does nothing there, so copying from a page with the context menu is safe");
         public static readonly Str Reset = new("settings.reset", "恢复", "Reset");
         public static readonly Str Resident = new("settings.resident", "常驻", "Resident");
         public static readonly Str RestoreAllDefaultKeys = new(

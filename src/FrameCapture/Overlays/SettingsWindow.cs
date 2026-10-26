@@ -152,6 +152,8 @@ public sealed partial class SettingsWindow : Window
         panel.Children.Add(ToggleRow("\uE740", Loc.T(K.Settings.SnapToControls), Loc.T(K.Settings.HoveringSnapsToASpecific),
             _settings.Current.SnapContentArea, v => _settings.Mutate(s => s.SnapContentArea = v)));
         panel.Children.Add(EditableSelectionRow());
+panel.Children.Add(ToggleRow("\uE7C4", Loc.T(K.Settings.RightClickCancelsPicker), Loc.T(K.Settings.RightClickCancelsPickerTip),
+            _settings.Current.PickerRightClickCancel, v => _settings.Mutate(s => s.PickerRightClickCancel = v)));
 panel.Children.Add(ToggleRow("\uE7C8", Loc.T(K.Settings.ClickAWindowToCapture), Loc.T(K.Settings.ClickingAWindowThePicker),
             _settings.Current.WindowCaptureEnabled, v => _settings.Mutate(s => s.WindowCaptureEnabled = v)));
         panel.Children.Add(ToggleRow("\uE7B3", Loc.T(K.Settings.IncludeTheShadowInWindow), Loc.T(K.Settings.WithTheSwitchAbove),
@@ -217,6 +219,8 @@ panel.Children.Add(ToggleRow("\uE7C8", Loc.T(K.Settings.ClickAWindowToCapture), 
                 _settings.Mutate(s => s.FollowMonitorRefresh = v);
                 if (v) Fluent.Conceal(fpsFold); else Fluent.Reveal(fpsFold);
             })); // 开→帧率行收拢让位，关→原地拉开恢复
+panel.Children.Add(ToggleRow("\uE768", Loc.T(K.Settings.StartRecordingAfterSelecting), Loc.T(K.Settings.StartRecordingAfterSelectingTip),
+            _settings.Current.RecordNeedsStartClick, v => _settings.Mutate(s => s.RecordNeedsStartClick = v)));
         panel.Children.Add(RecordFormatRow());
         // 长按录制没有时长上限——录到用户停为止，帧持续落盘，不受内存与时长约束，因此这里没有可调数值。
         // 唯一护栏是磁盘剩余空间（<1GB 自动停并保留已录内容）。

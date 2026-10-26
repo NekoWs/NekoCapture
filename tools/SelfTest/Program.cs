@@ -7474,9 +7474,66 @@ static partial class SelfTest
             Chk("T261-preview-chips-gapped",
                 chipOnB != null && chipOffB != null && chipOnB.Margin.Right == 6 && chipOffB.Margin.Right == 6,
                 $"预览芯片右间距：{chipOnB?.Margin.Right} / {chipOffB?.Margin.Right}");
+            // 新增的两枚开关各在它该在的那一页上，且默认都是开
+            var capTexts = Of(1, typeof(System.Windows.Controls.TextBlock)).OfType<System.Windows.Controls.TextBlock>().Select(t => t.Text).ToList();
+            var recTexts = Of(2, typeof(System.Windows.Controls.TextBlock)).OfType<System.Windows.Controls.TextBlock>().Select(t => t.Text).ToList();
+            Chk("T263-rightclick-toggle-on-capture-page", capTexts.Contains(Loc.T(K.Settings.RightClickCancelsPicker)),
+                "「右键关闭选区」在截图页上");
+            Chk("T263-startclick-toggle-on-record-page", recTexts.Contains(Loc.T(K.Settings.StartRecordingAfterSelecting)),
+                "「选区后先按开始」在录制页上");
+            var freshSettings = new AppSettings();
+            Chk("T263-new-behaviours-default-on", freshSettings.PickerRightClickCancel && freshSettings.RecordNeedsStartClick,
+                "两者出厂都是开：右键关选区、选区后先按开始");
             winPg.Close();
         }
         catch (Exception e) { Chk("T248-settings-pages", false, e.Message); }
+        // 选区窗上的模式开关与右键关层：开关改的是这一次的去向，右键等同于 Esc（可在设置里关）
+        try
+        {
+            var mon262 = new FrameCapture.Capture.MonitorInfo("test", new FrameCapture.Capture.RectI(0, 0, 800, 600), true);
+            FrameCapture.Core.Loc.Apply("zh");
+            var pickRec = new FrameCapture.Overlays.RegionPickerWindow(mon262, null, recordMode: true);
+            Chk("T262-picker-mode-initial", pickRec.RecordMode, "选区窗按传入的意图开在录制档");
+            pickRec.SetRecordMode(false);
+            Chk("T262-picker-mode-switchable", !pickRec.RecordMode, "开关切回截图档");
+            int done = 0; bool? finalRegion = null;
+            pickRec.Result += (r, _) => { done++; finalRegion = r != null; };
+            pickRec.RaiseEvent(new System.Windows.Input.MouseButtonEventArgs(
+                System.Windows.Input.Mouse.PrimaryDevice, 0, System.Windows.Input.MouseButton.Right)
+            { RoutedEvent = System.Windows.Input.Mouse.MouseUpEvent, Source = pickRec });
+            Chk("T262-rightclick-closes", done == 1 && finalRegion == false, $"右键关掉整层：回调 {done} 次，范围 {(finalRegion == false ? "空（取消）" : "有")}");
+            var pickNoRight = new FrameCapture.Overlays.RegionPickerWindow(mon262, null, rightClickCancel: false);
+            int done2 = 0;
+            pickNoRight.Result += (_, __) => done2++;
+            pickNoRight.RaiseEvent(new System.Windows.Input.MouseButtonEventArgs(
+                System.Windows.Input.Mouse.PrimaryDevice, 0, System.Windows.Input.MouseButton.Right)
+            { RoutedEvent = System.Windows.Input.Mouse.MouseUpEvent, Source = pickNoRight });
+            Chk("T262-rightclick-can-be-off", done2 == 0, "设置关掉之后右键不再关层");
+            pickNoRight.Close();
+        }
+        catch (Exception e) { Chk("T262-picker-mode", false, e.Message); }
+        // 「开始录制」那一条：摆出来、点开始会回调、取消会收走
+        try
+        {
+            int started264 = 0;
+            FrameCapture.Overlays.RecordStartWindow.Show(new FrameCapture.Capture.RectI(100, 100, 400, 300), "",
+                () => started264++);
+            PumpMs(220);
+            var bar264 = Application.Current.Windows.OfType<FrameCapture.Overlays.RecordStartWindow>().FirstOrDefault();
+            Chk("T264-record-start-bar-shows", bar264 != null && bar264.IsVisible, "选区切到录制后摆在旁边的那一条出现了");
+            var buttons264 = new List<System.Windows.DependencyObject>();
+            if (bar264 != null) CollectTyped(bar264, typeof(System.Windows.Controls.Border), buttons264);
+            var startBtn264 = buttons264.OfType<System.Windows.Controls.Border>()
+                .FirstOrDefault(b => b.Child is System.Windows.Controls.TextBlock t && t.Text == Loc.T(K.Actions.RecordStartLabel));
+            startBtn264?.RaiseEvent(new System.Windows.Input.MouseButtonEventArgs(
+                System.Windows.Input.Mouse.PrimaryDevice, 0, System.Windows.Input.MouseButton.Left)
+            { RoutedEvent = System.Windows.UIElement.MouseLeftButtonUpEvent, Source = startBtn264 });
+            PumpMs(160);
+            Chk("T264-record-start-bar-starts", started264 == 1 && bar264 != null && !bar264.IsVisible,
+                $"点「开始录制」走起录回调并收走那一条：回调 {started264} 次");
+            FrameCapture.Overlays.RecordStartWindow.DismissCurrent();
+        }
+        catch (Exception e) { Chk("T264-record-start-bar", false, e.Message); }
 
         // 窗口底就是「窗口底色」这枚令牌：改它就当场变，不会被 Mica 背板挡住。
         try

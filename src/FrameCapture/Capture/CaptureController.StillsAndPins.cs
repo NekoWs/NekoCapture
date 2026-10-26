@@ -20,6 +20,7 @@ public sealed partial class CaptureController : IDisposable
         Trace.Log("record-selection→picker");
         BeginScopeSelection();
         _recordAfterSelect = true;
+        _picker?.SetRecordMode(true);   // 开窗之后才定下的意图，摆到选区窗的开关上
     }
 
     /// <summary>录制中→停止（产物留内存，不进编辑器）；否则→选区起录。一个键承担开始/结束两面。

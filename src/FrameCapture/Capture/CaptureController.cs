@@ -213,7 +213,9 @@ public sealed partial class CaptureController : IDisposable
             windowCapture: _settings.Current.WindowCaptureEnabled || _settings.Current.RecordWindowClean,
             freeze: _settings.Current.FreezeOnSelect, pregrabMax: _settings.Current.FreezePregrabMaxWindows,
             windowShadow: _settings.Current.WindowCaptureShadow,
-            frozenScreen: frozen);
+            frozenScreen: frozen,
+            // 开窗这一刻意图还没定（调用方在返回后才置位），初值按「截图」给，随后 SetRecordMode 摆正
+            rightClickCancel: _settings.Current.PickerRightClickCancel);
         Trace.Log($"picker ctor done dt={swOpen.ElapsedMilliseconds}ms freezeGrab={grabMs}ms magnifier={_settings.Current.PickerMagnifier}");
         _picker.Result += (region, hwnd) =>
         {
@@ -222,6 +224,10 @@ public sealed partial class CaptureController : IDisposable
             State = Phase.Idle;
             // 挂着「先选区再执行」时全局「选区自动截取」让位：序列里写了截图才有截图，没写就只定范围
             bool stillAfterSelect = _captureAfterSelect || (_settings.Current.AutoCaptureOnSelect && _tailRun == null);
+            // 这一次落下去是录制还是截图，以选区窗上的开关为准（开窗后调用方才定下意图，开关是唯一活着的那份状态）；
+            // 标志在这里一次性清掉：用户在开关上切回截图、或直接取消，都不能把它留给下一次选区。
+            bool wantRecord = pk?.RecordMode ?? _recordAfterSelect;
+            _recordAfterSelect = false;
             _captureAfterSelect = false;
             // 范围一落地就把这条手势写的落点接进本次会话：拖框期间别的手势可能已经改写 _pendingAfter，
             // 而选完还是取消都不该把它留给下一次捕获。
@@ -247,12 +253,30 @@ public sealed partial class CaptureController : IDisposable
                 st.Start();
                 return;
             }
-            if (_recordAfterSelect)
+            if (wantRecord)
             {
                 // 选区录制：区域已由上方 Mutate 存好（RegionX/Y/W/H），选区窗已 WDA 排除，选区窗关闭后起录。
                 // 锁定到窗口且「只录窗口」开着 → 起录时录该窗口本体；存好的矩形仍是取不到窗口时的回退范围。
-                _recordAfterSelect = false;
                 _pendingSel = sel.WithWindowHonor(_settings.Current.RecordWindowClean);
+                HideOutline();
+                // 先按开始：选区定完不等于马上开录，摆一条「开始录制」在旁边等用户点
+                if (_settings.Current.RecordNeedsStartClick)
+                {
+                    var startReg = region.Value; var startDev = monitor.DeviceName;
+                    var st0 = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(PickerExitMs) };
+                    st0.Tick += (_, _) =>
+                    {
+                        st0.Stop();
+                        Overlays.RecordStartWindow.Show(startReg, startDev, () =>
+                        {
+                            var rt2 = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(PickerExitMs) };
+                            rt2.Tick += (_, _) => { rt2.Stop(); BeginCaptureCore(); };
+                            rt2.Start();
+                        });
+                    };
+                    st0.Start();
+                    return;
+                }
                 HideOutline();
                 var rt = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(PickerExitMs) };
                 rt.Tick += (_, _) => { rt.Stop(); BeginCaptureCore(); };

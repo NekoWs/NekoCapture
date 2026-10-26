@@ -34,7 +34,7 @@ try {
     $gifsBefore = @(Get-ChildItem $stage -Filter *.gif -EA SilentlyContinue).Count
     Invoke-FcEditorKey $exe 13; Start-Sleep 2.5
     # Enter 提交后：编辑器已关 + 真剪贴板三格式（在杀进程前取证，避免所有权竞态）
-    $ed = & $shot rect "FrameCapture Editor" 2>$null
+    # 关窗与写剪贴板都是异步收尾：并行跑别的关时 2.5 秒可能不够，给一段重试（判据不变：最终必须三格式齐全、编辑器关掉）
     if ($null -eq ('FcProbe.ClipProbe' -as [type])) {
         Add-Type -Namespace FcProbe -Name ClipProbe -Language CSharp -MemberDefinition @'
 [System.Runtime.InteropServices.DllImport("user32.dll")] public static extern bool IsClipboardFormatAvailable(uint f);
@@ -43,12 +43,20 @@ try {
     }
     $CF_BITMAP = 2; $CF_DIB = 8; $CF_HDROP = 15
     $fmtGif = [FcProbe.ClipProbe]::RegisterClipboardFormatW("FrameCapture.Gif")
-    $hasHdrop = [FcProbe.ClipProbe]::IsClipboardFormatAvailable($CF_HDROP)
-    $hasBitmap = [FcProbe.ClipProbe]::IsClipboardFormatAvailable($CF_DIB) -or [FcProbe.ClipProbe]::IsClipboardFormatAvailable($CF_BITMAP)
-    $hasGifBytes = [FcProbe.ClipProbe]::IsClipboardFormatAvailable($fmtGif)
-    $files = @(Get-ChildItem $stage -Filter *.gif -EA SilentlyContinue)
-    $gifFileOk = ($files.Count -gt $gifsBefore)
-    if ($gifFileOk) { $newest = $files | Sort-Object LastWriteTime -Descending | Select-Object -First 1; $gifFileOk = $newest.Length -gt 0 }
+    $hasHdrop = $false; $hasBitmap = $false; $hasGifBytes = $false; $gifFileOk = $false
+    $ed = "window-not-found"
+    $deadline = (Get-Date).AddSeconds(8)
+    while ((Get-Date) -lt $deadline) {
+        $ed = & $shot rect "FrameCapture Editor" 2>$null
+        $hasHdrop = [FcProbe.ClipProbe]::IsClipboardFormatAvailable($CF_HDROP)
+        $hasBitmap = [FcProbe.ClipProbe]::IsClipboardFormatAvailable($CF_DIB) -or [FcProbe.ClipProbe]::IsClipboardFormatAvailable($CF_BITMAP)
+        $hasGifBytes = [FcProbe.ClipProbe]::IsClipboardFormatAvailable($fmtGif)
+        $files = @(Get-ChildItem $stage -Filter *.gif -EA SilentlyContinue)
+        $gifFileOk = ($files.Count -gt $gifsBefore)
+        if ($gifFileOk) { $newest = $files | Sort-Object LastWriteTime -Descending | Select-Object -First 1; $gifFileOk = $newest.Length -gt 0 }
+        if (($ed -match "not-found") -and $hasHdrop -and $hasBitmap -and $hasGifBytes -and $gifFileOk) { break }
+        Start-Sleep -Milliseconds 400
+    }
     Write-Host "clipboard: hdrop=$hasHdrop gifFile=$gifFileOk bitmap=$hasBitmap gifBytes=$hasGifBytes"
     if (!$p.HasExited) { $p.Kill() }
     $log = (Get-Content (Join-Path $root "src/fc-trace.log") -Tail 80) -join "`n"
