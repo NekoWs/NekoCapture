@@ -54,7 +54,8 @@ public sealed partial class SettingsWindow
         }
     }
 
-    /// <summary>删掉一条快捷键：先淡出右滑，再把它退回布局、让下面几行滑上来补位，最后落配置。</summary>
+    /// <summary>删掉一条快捷键：这一行一边淡出右滑，一边把高度收到 0——下面的行被布局连着顶上来，收完再退出列表。
+    /// 先滑走、再补位是两拍：滑走那段时间下面几行纹丝不动，收尾那一下看着就是一个跳。</summary>
     /// <param name="b">要删的绑定。</param>
     void DetachHotkeyAnimated(GestureBindingDto b)
     {
@@ -65,26 +66,27 @@ public sealed partial class SettingsWindow
             return;
         }
 
-        var before = SnapshotRows();
         row.IsHitTestVisible = false;
         var tt = row.RenderTransform as TranslateTransform ?? new TranslateTransform();
         row.RenderTransform = tt;
-        int ms = Fluent.Motion.QuickMs;
-
-        // 第一拍：淡出并向右滑走。这一行还在占位，下面的行不动。
-        row.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(1, 0,
-            new Duration(TimeSpan.FromMilliseconds(ms))) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseIn } });
-        var go = new DoubleAnimation(0, 28, new Duration(TimeSpan.FromMilliseconds(ms)))
-        { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } };
-        go.Completed += (_, _) =>
+        var span = new Duration(TimeSpan.FromMilliseconds(Fluent.Motion.StateMs));
+        var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
+        // 展开着的行连正文一起收：限高由外层说话，这里只钉住行本身的高度
+        double h = row.ActualHeight;
+        var margin = row.Margin;
+        row.ClipToBounds = true;
+        var shrink = new DoubleAnimation(h, 0, span) { EasingFunction = ease };
+        shrink.Completed += (_, _) =>
         {
-            // 第二拍：这一行退出布局，下面的行瞬时落位，再由 PlayReflow 从旧位置滑上去。
             host.Children.Remove(row);
             _hotList?.UpdateLayout();
-            PlayReflow(before);
             RemoveHotkeyNow(b);
         };
-        tt.BeginAnimation(TranslateTransform.XProperty, go);
+        row.BeginAnimation(FrameworkElement.HeightProperty, shrink);
+        row.BeginAnimation(FrameworkElement.MarginProperty,
+            new ThicknessAnimation(margin, new Thickness(0), span) { EasingFunction = ease });
+        row.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(1, 0, span) { EasingFunction = ease });
+        tt.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(0, 24, span) { EasingFunction = ease });
     }
 
     /// <summary>把这条绑定从配置里摘掉并热重载键位；不改动界面。</summary>

@@ -186,6 +186,8 @@ B1 主题化悬浮条 → C1/C2 状态语义 → A1/A2 入退场 → A3-A5 → B
 
 - [x] **换深浅档后语言三档的文字色不跟**：轨道底色是共享刷，当场就换；「系统默认 / 中文 / English」三段是构造期取色的私有画刷，没登记重画，翻档后字还停在旧档的灰度上，浅色底配深档的浅灰字就糊成一片。三段现在登记进本窗重画表，选中段按底色重新判字色。断言 `T244-lang-chip-found`、`T244-lang-chip-on-new-palette`、`T244-lang-chip-actually-moved`。
 
+- [x] **删快捷键是两拍，中间有一段时间纹丝不动**：原先先淡出右滑（`QuickMs` 120ms）、再把这行退出布局并让下面几行在 150ms 里滑上来——滑走那 120ms 下面几行一动不动，收尾那一下就是一个跳。现在改成一拍：淡出右滑的同时把这行的高度收到 0、外边距同时收到 0，下面几行被布局连着顶上来，收完再退出列表。断言 `T245-hotkey-delete-shrinks`（被删那行在起步后就矮了）、`T245-hotkey-delete-follows-during`（45ms 时下面那行已经在往上走）、`T245-hotkey-delete-gone`、`T245-hotkey-delete-committed`。
+
 ### 取证
 `scripts/cap-palette.ps1 -Page <页> -Themes <dark|light>` 拍设置页；拍前把窗提到 TOPMOST，否则被别的窗压住，量到的是桌面。
 `scripts/cap-mask.ps1` 换色连拍：本进程逐帧截屏（另起进程一帧的开销比整段动画还长，采不到淡开的那几帧），

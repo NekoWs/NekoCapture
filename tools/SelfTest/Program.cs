@@ -7208,6 +7208,62 @@ static partial class SelfTest
             swLang.Close();
         }
         catch (Exception e) { Chk("T244-lang-chip-repaint", false, e.Message); }
+        // 删一条快捷键是一拍收高：行一边淡出右滑、一边把高度收到 0，下面的行被布局连着顶上来。
+        // 先滑走再补位是两拍——滑走那段时间下面几行纹丝不动，收尾那一下看着就是一个跳。
+        try
+        {
+            var npDel = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+            var tyDel = typeof(FrameCapture.Overlays.SettingsWindow);
+            var tyHost = typeof(FrameCapture.Services.AppHost);
+            // 这条用例会真删一条绑定并落盘：整块搬进临时目录，不碰用户机器上的配置
+            string? prevDir = Environment.GetEnvironmentVariable("FC_SETTINGS_DIR");
+            string scratchDel = Path.Combine(Path.GetTempPath(), "fc-selftest-hotkeys");
+            Directory.CreateDirectory(scratchDel);
+            // 上一轮写下的 settings.json 里已经少了一条绑定：不清掉，这一轮就是接着上一轮的残局跑
+            string scratchFileDel = Path.Combine(scratchDel, "settings.json");
+            if (File.Exists(scratchFileDel)) File.Delete(scratchFileDel);
+            Environment.SetEnvironmentVariable("FC_SETTINGS_DIR", scratchDel);
+            var prevSvc = tyHost.GetProperty("Settings")!.GetValue(FrameCapture.Services.AppHost.Current);
+            var svcDel = new SettingsService();
+            tyHost.GetProperty("Settings")!.SetValue(FrameCapture.Services.AppHost.Current, svcDel);
+            try
+            {
+                var swDel = new FrameCapture.Overlays.SettingsWindow();
+                tyDel.GetField("_restoreCat", npDel)!.SetValue(swDel, 0);   // 快捷键
+                tyDel.GetMethod("Build", npDel)!.Invoke(swDel, null);
+                swDel.WindowStartupLocation = WindowStartupLocation.Manual;
+                swDel.Left = -20000; swDel.Top = -20000; swDel.ShowInTaskbar = false;
+                swDel.Show();
+                PumpMs(260);
+                var list = tyDel.GetField("_hotList", npDel)!.GetValue(swDel) as System.Windows.Controls.StackPanel;
+                var rows = tyDel.GetField("_hotRows", npDel)!.GetValue(swDel) as Dictionary<string, FrameworkElement>;
+                Chk("T245-hotkey-list-built", list != null && rows != null && rows.Count >= 2 && list.Children.Count >= 2,
+                    $"快捷键列表：{rows?.Count ?? 0} 条绑定，{list?.Children.Count ?? 0} 个孩子");
+                var first = list!.Children[0] as FrameworkElement;
+                var second = list.Children[1] as FrameworkElement;
+                string id = rows!.First(kv => ReferenceEquals(kv.Value, first)).Key;
+                var target = svcDel.Current.Gestures.Bindings.First(x => x.Id == id);
+                double h0 = first!.ActualHeight;
+                double y0 = second!.TranslatePoint(new System.Windows.Point(0, 0), list).Y;
+                tyDel.GetMethod("DetachHotkeyAnimated", npDel)!.Invoke(swDel, new object[] { target });
+                // 起步之后的一小段：被删那行已经矮了，下面那行也已经在往上走——不是等它滑完才动
+                PumpMs(45);
+                double h1 = first.ActualHeight;
+                double y1 = second.TranslatePoint(new System.Windows.Point(0, 0), list).Y;
+                Chk("T245-hotkey-delete-shrinks", h1 < h0 - 1, $"被删的那一行从 {h0:F0} 收到 {h1:F0}");
+                Chk("T245-hotkey-delete-follows-during", y1 < y0 - 1, $"下面一行当场跟上来：{y0:F1} → {y1:F1}");
+                PumpMs(Fluent.Motion.StateMs + 320);
+                Chk("T245-hotkey-delete-gone", !list.Children.Contains(first), "收高走完这一行退出列表");
+                Chk("T245-hotkey-delete-committed", svcDel.Current.Gestures.Bindings.All(x => x.Id != id), "配置里也摘掉了这条");
+                swDel.Close();
+            }
+            finally
+            {
+                tyHost.GetProperty("Settings")!.SetValue(FrameCapture.Services.AppHost.Current, prevSvc);
+                Environment.SetEnvironmentVariable("FC_SETTINGS_DIR", prevDir);
+            }
+        }
+        catch (Exception e) { Chk("T245-hotkey-delete", false, e.Message); }
         // 语义判定：按钮/链接/输入框算控件；匿名容器与整页文档不算。
         try
         {
