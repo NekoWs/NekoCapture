@@ -7044,6 +7044,16 @@ static partial class SelfTest
             }
             Theme.ClearAllCustoms();
 
+            // 预览卡那行跟着对比当场改口：出厂配色报 0 处，把正文改成贴着窗口底就该报出来
+            var inkFn = typeof(FrameCapture.Overlays.SettingsWindow).GetMethod("InkShortfalls",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+            Theme.Apply("light", null);
+            Chk("T241-ink-note-clear", (int)inkFn!.Invoke(null, null)! == 0, "出厂配色的预览卡报 0 处对比不足");
+            Theme.SetCustom("Text", false, Theme.Opaque(Theme.ValueOf("WindowBg", false)));
+            Chk("T241-ink-note-warn", (int)inkFn.Invoke(null, null)! > 0, "正文贴着窗口底时预览卡报出对比不足");
+            Theme.ClearAllCustoms();
+            Theme.Apply("dark", null);   // 深浅档交回后面那段用例认得的这一档
+
             var junk = new AppSettings();
             junk.Colors["dark.CardBg"] = "#123456";
             junk.Colors["dark.NotAToken"] = "#123456";

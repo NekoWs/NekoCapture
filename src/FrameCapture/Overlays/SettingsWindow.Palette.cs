@@ -229,13 +229,16 @@ public sealed partial class SettingsWindow : Window
         var navPill = new Border { CornerRadius = new CornerRadius(6), Padding = new Thickness(12, 4, 12, 4), Margin = new Thickness(0, 0, 6, 0), Child = new TextBlock { Text = Loc.T(K.Settings.TokenNavBg), FontSize = 12 } };
         chips.Children.Add(chipOn); chips.Children.Add(chipOff); chips.Children.Add(navPill);
 
+        // 逐枚改色是当场生效的，改完这一行替人把四种底都量一遍：读不清的地方有几处
+        var ink = new TextBlock { FontSize = 11.5, Margin = new Thickness(0, 10, 0, 0), TextWrapping = TextWrapping.Wrap };
+
         var surface = new Border
         {
             CornerRadius = new CornerRadius(8),
             BorderThickness = new Thickness(1),
             Padding = new Thickness(12, 10, 12, 10),
             Margin = new Thickness(0, 2, 0, 4),
-            Child = new StackPanel { Children = { line1, rowPill, dots, chips } },
+            Child = new StackPanel { Children = { line1, rowPill, dots, chips, ink } },
         };
         card.Children.Add(surface);
 
@@ -264,7 +267,25 @@ public sealed partial class SettingsWindow : Window
             var navTint = Fluent.AccentOn(Theme.NavBg, 0.26);
             navPill.Background = new SolidColorBrush(navTint);
             ((TextBlock)navPill.Child!).Foreground = new SolidColorBrush(Fluent.AccentTextOn(navTint));
+            int low = InkShortfalls();
+            ink.Text = low == 0 ? Loc.T(K.Settings.InkClear) : Loc.F(K.Settings.InkLowOnSurfaces, low);
+            ink.Foreground = low == 0 ? Theme.TextDimBrush : new SolidColorBrush(Theme.Warning);
         });
+    }
+
+    /// <summary>正文两枚压在窗口 / 面板 / 卡片 / 行四种底色上，数一对读不清的有几对。
+    /// 取色器逐帧生效，这一行跟着当场改口；出厂配色下这一数是 0。</summary>
+    /// <returns>Text 与 TextDim 在四种底上对比不足 4.5:1 的对数。</returns>
+    static int InkShortfalls()
+    {
+        int n = 0;
+        foreach (var key in new[] { "Text", "TextDim" })
+        {
+            Color ink = Theme.ValueOf(key, Theme.IsDark);
+            foreach (var bg in new[] { "WindowBg", "PanelBg", "CardBg", "RowBg" })
+                if (Fluent.ContrastRatio(ink, Theme.Opaque(Theme.ValueOf(bg, Theme.IsDark))) < 4.5) n++;
+        }
+        return n;
     }
 
     #endregion

@@ -217,6 +217,8 @@ public static partial class K
             "settings.includeTheShadowInWindow",
             "窗口截图包含投影",
             "Include the shadow in window captures");
+        public static readonly Str InkClear = new("settings.inkClear", "正文在这四种底色上都读得清", "Body text reads clearly on all four surfaces");
+        public static readonly Str InkLowOnSurfaces = new("settings.inkLowOnSurfaces", "{0} 处正文和它压着的底色对比不足", "{0} spots where body text lacks contrast against the surface under it");
         public static readonly Str KeepsTheCurrentCaptureRegion = new(
             "settings.keepsTheCurrentCaptureRegion",
             "在屏幕上持续显示当前捕获范围的边框，开/关立刻生效。尚未设置范围时没有可显示的边框——先用托盘「设置捕获范围」",
