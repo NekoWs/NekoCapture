@@ -17,6 +17,12 @@ public sealed partial class SettingsWindow : Window
     int _cat;           // 当前分页索引
     int _restoreCat = -1;    // 重建（改主题/强调色）时要恢复的分页索引；-1 = 没指定，走默认第一页
 
+    /// <summary>选中项左侧那枚滑条：位置由选中项的真实行位算，切换时滑到新行。</summary>
+    Border? _selBar;
+
+    /// <summary>侧栏各项，按分页顺序；滑条的中线拿它们的实际行位算。</summary>
+    readonly List<Border> _navRows = new();
+
     /// <summary>
     /// 设置窗的窗口属性：无边框 + WindowChrome 原生拖窗区与缩放边框、固定起始尺寸、不进任务栏、不总在最前。
     /// 必须在 UI 线程调用；此处只取 <c>SettingsService</c> 引用，内容装配在 <see cref="Build"/>。
@@ -308,16 +314,24 @@ panel.Children.Add(ToggleRow("\uE7C8", Loc.T(K.Settings.ClickAWindowToCapture), 
 
         // 滑动竖条（胶囊）：唯一做位移动画的元素，切换时滑到目标行
         var selBar = new Border { Width = 3, Height = 18, CornerRadius = new CornerRadius(2), Background = Theme.AccentBrush };
+        _selBar = selBar;
         selBar.Effect = new System.Windows.Media.Effects.DropShadowEffect { Color = Theme.Accent, BlurRadius = 9, ShadowDepth = 0, Opacity = 0.75 };
         Canvas.SetLeft(selBar, 8);
         var navCanvas = new Canvas { IsHitTestVisible = false };
         navCanvas.Children.Add(selBar);
 
-        // 每项高 38 + 上下边距各 1 = 40；卡片内衬 6 让第一项也压在同一组数上
-        const double RowPitch = 40, RowTop = 7, RowH = 38, BarH = 18;
+        // 每项高 38 + 上下边距各 1 = 40；滑条按这一项的真实位置算中线，不再用写死的行顶偏移——
+        // 行顶偏移一改（外层内衬变了、边距变了），写死的那个数就让滑条整体偏出中线几像素
+        const double RowPitch = 40, RowH = 38, BarH = 18;
+        double RowTopOf(int idx)
+        {
+            if (idx >= 0 && idx < _navRows.Count && _navRows[idx].IsLoaded)
+                return _navRows[idx].TranslatePoint(new Point(0, 0), navCanvas).Y;
+            return idx * RowPitch + 1;   // 还没进树时按行高 + 上边距推算
+        }
         void MoveIndicator(int idx, bool animate)
         {
-            double barTop = idx * RowPitch + RowTop + (RowH - BarH) / 2;
+            double barTop = RowTopOf(idx) + (RowH - BarH) / 2;
             if (!animate) { Canvas.SetTop(selBar, barTop); return; }
             // 单调缓动、绝不过冲：弹性缓动（ElasticEase）会滑过目标行再回弹，视觉上冲出选项卡边框。
             // CubicEase EaseOut 平滑滑入即停，全程落在首末选项卡之间，不越界。
@@ -420,6 +434,7 @@ panel.Children.Add(ToggleRow("\uE7C8", Loc.T(K.Settings.ClickAWindowToCapture), 
         // 左栏：一块侧栏底板上摆竖向导航项。静止项与底板同色（读作「还没被碰」），
         // 悬停浮起一枚药丸、选中项被强调色染过，两者叠加时按「选中底色上再走一档」算，不再叠第二层透明。
         var navPanel = new StackPanel { VerticalAlignment = VerticalAlignment.Top };
+        _navRows.Clear();   // 原地重建会再走一遍这里：不清掉，行位表会叠上一层旧窗口的元素
         for (int i = 0; i < cats.Count; i++)
         {
             int captured = i;
@@ -451,6 +466,7 @@ panel.Children.Add(ToggleRow("\uE7C8", Loc.T(K.Settings.ClickAWindowToCapture), 
             el.GotKeyboardFocus += (_, _) => { el.BorderBrush = Theme.AccentBrush; el.BorderThickness = new Thickness(1); };
             el.LostKeyboardFocus += (_, _) => el.BorderThickness = new Thickness(0);
             navItems.Add((el, bg, icon, label));
+            _navRows.Add(el);
             navPanel.Children.Add(el);
         }
         // 侧栏三态是算在 NavBg 上的颜色，各项拿着私有画刷：调色板一动就当帧重算一遍，胶囊的影也跟着换色。

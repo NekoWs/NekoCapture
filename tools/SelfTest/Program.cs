@@ -7264,6 +7264,46 @@ static partial class SelfTest
             }
         }
         catch (Exception e) { Chk("T245-hotkey-delete", false, e.Message); }
+        // 侧栏那枚滑条要正落在选中项的中线上：行顶偏移写死过一个数，滑条整体偏出中线六像素
+        try
+        {
+            var npNav = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+            var tyNav = typeof(FrameCapture.Overlays.SettingsWindow);
+            List<System.Windows.Controls.Border>? rows = null;
+            System.Windows.Controls.Border? bar = null;
+            FrameCapture.Overlays.SettingsWindow? win = null;
+            // 开窗停在指定分页，滑条就走开窗那条路落位：第 1 页与第 4 页各量一次
+            void Open(int cat)
+            {
+                win = new FrameCapture.Overlays.SettingsWindow();
+                tyNav.GetField("_restoreCat", npNav)!.SetValue(win, cat);
+                tyNav.GetMethod("Build", npNav)!.Invoke(win, null);
+                win.WindowStartupLocation = WindowStartupLocation.Manual;
+                win.Left = -20000; win.Top = -20000; win.ShowInTaskbar = false;
+                win.Show();
+                PumpMs(240);
+                rows = tyNav.GetField("_navRows", npNav)!.GetValue(win) as List<System.Windows.Controls.Border>;
+                bar = tyNav.GetField("_selBar", npNav)!.GetValue(win) as System.Windows.Controls.Border;
+            }
+            double Offset(int idx)
+            {
+                var host = (UIElement)bar!.Parent;
+                var row = rows![idx];
+                double rowMid = row.TranslatePoint(new System.Windows.Point(0, 0), host).Y + row.ActualHeight / 2;
+                double barMid = System.Windows.Controls.Canvas.GetTop(bar) + bar.ActualHeight / 2;
+                return barMid - rowMid;
+            }
+            Open(0);
+            Chk("T246-nav-indicator-wired", rows != null && rows.Count >= 5 && bar != null && bar.Parent != null,
+                $"侧栏 {rows?.Count ?? 0} 项，滑条 {(bar == null ? "没拿到" : "在位")}");
+            Chk("T246-nav-indicator-centred", Math.Abs(Offset(0)) <= 1.0, $"首项：滑条中线与行中线差 {Offset(0):F1}px");
+            win!.Close();
+            // 换一页再量：行位一变，滑条就得落在新行上，而不是只对第一项凑巧对齐
+            Open(3);
+            Chk("T246-nav-indicator-follows", Math.Abs(Offset(3)) <= 1.0, $"第 4 项：滑条中线与行中线差 {Offset(3):F1}px");
+            win!.Close();
+        }
+        catch (Exception e) { Chk("T246-nav-indicator", false, e.Message); }
         // 语义判定：按钮/链接/输入框算控件；匿名容器与整页文档不算。
         try
         {
