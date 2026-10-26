@@ -7172,8 +7172,9 @@ static partial class SelfTest
                 return a != null && a.Length > 0;
             }
             Chk("T242-mask-idle", !Masked(), "窗刚开时遮罩不在场");
+            // 遮罩是在 Theme.Apply 的广播里同步挂上装饰层的，取它不需要等渲染节拍：
+            // 泵一下反而可能在重载机器上等到整段动画走完，量到的是「已经摘掉了」
             Theme.Apply(Theme.IsDark ? "light" : "dark", null);
-            PumpMs(20);
             Chk("T242-mask-on-swap", Masked(), "深浅档互换：设置窗推开一层遮罩");
             PumpMs(Fluent.Motion.RippleMs + 400);
             Chk("T242-mask-after-swap", !Masked(), "遮罩铺满整窗后自己摘掉");
@@ -7210,7 +7211,6 @@ static partial class SelfTest
             }
             Chk("T243-editor-mask-idle", !EdMasked(), "编辑器刚开时遮罩不在场");
             Theme.Apply(Theme.IsDark ? "light" : "dark", null);
-            PumpMs(20);
             Chk("T243-editor-mask-on-swap", EdMasked(), "深浅档互换：编辑器也推开一层遮罩");
             PumpMs(Fluent.Motion.RippleMs + 400);
             Chk("T243-editor-mask-gone", !EdMasked(), "编辑器遮罩铺满整窗后自己摘掉");
