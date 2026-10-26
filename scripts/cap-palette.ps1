@@ -5,6 +5,7 @@ param(
     [string[]]$Themes = @('dark', 'light'),
     [string]$OutDir = 'test-out/palette',
     [string]$SettingsDir = 'test-out/palette-settings',
+    [string]$Lang = '',
     [switch]$FromRelease
 )
 
@@ -24,6 +25,13 @@ if (-not (Test-Path $cap)) { $cap = Join-Path $root 'tools\UICap\bin\Debug\net8.
 # 起点用用户那份设置（键位/强调色真实），但整份搬进 scratch，绝不写回用户目录
 $user = Join-Path $env:APPDATA 'FrameCapture\settings.json'
 if (Test-Path $user) { Copy-Item $user (Join-Path $scratch 'settings.json') -Force }
+if ($Lang) {
+    # 英文版面取证：只改 scratch 那份的语言，用户设置不动
+    $f = Join-Path $scratch 'settings.json'
+    $s = Get-Content $f -Raw | ConvertFrom-Json
+    $s.UiLanguage = $Lang
+    $s | ConvertTo-Json -Depth 40 | Set-Content $f -Encoding utf8
+}
 
 # 拍之前把设置窗提到最前：桌面 BitBlt 拍的是屏幕合成，别的窗压在它上面就会拍进别人。
 if (-not ('RaiseWin' -as [type])) {
