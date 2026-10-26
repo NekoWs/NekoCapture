@@ -72,4 +72,41 @@ public static partial class Fluent
         for (var i = 0; i < 24 && WorstContrast(c) < 4.5; i++) c = Darken(c, 0.90);
         return c;
     }
+
+    /// <summary>强调色文字压在<em>指定</em>底色上的落点色。
+    /// <see cref="AccentText"/> 只保证压在卡片底与窗口底上读得清；选中态那层强调色淡底比两张底都亮，
+    /// 压上去照样糊，所以这里按真实底色判：强调色 → 压暗版强调色 → 正文色，三档里取第一个够读的。</summary>
+    /// <param name="backing">文字实际坐在的那块底。</param>
+    /// <returns>在那块底上对比度够 4.5:1 的颜色。</returns>
+    public static Color AccentTextOn(Color backing)
+    {
+        if (ContrastRatio(Theme.Accent, backing) >= 4.5) return Theme.Accent;
+        var dim = AccentText();
+        return ContrastRatio(dim, backing) >= 4.5 ? dim : Theme.Text;
+    }
+
+    /// <summary>底色上铺一层悬停叠加之后，眼睛真正看到的实色。
+    /// 控件底色一律用这种算出来的不透明色：底色本身带 alpha 时再叠一层半透明悬停，
+    /// 两层透下去落在什么全看窗口背后是什么，同一处在明暗两套主题里读出来是两个颜色。</summary>
+    /// <param name="backing">控件坐在的那块底（卡片、行、侧栏…）。</param>
+    /// <returns>不透明的悬停底色。</returns>
+    public static Color HoverOn(Color backing) => Mix(Theme.Opaque(backing), Theme.Hover);
+
+    /// <summary>底色上铺一层按下叠加之后的实色，档位恒比 <see cref="HoverOn"/> 更深。</summary>
+    /// <param name="backing">控件坐在的那块底。</param>
+    /// <returns>不透明的按下底色。</returns>
+    public static Color PressOn(Color backing) => Mix(Theme.Opaque(backing), Theme.Press);
+
+    /// <summary>强调色按给定浓度铺在底色上得到的选中底色：选中态要的是「这一项被强调色染过」，
+    /// 不是「这一项上盖了一块半透明强调色」——后者压在什么底色上就跟着变，叠上悬停层更是一片脏色。</summary>
+    /// <param name="backing">被染的那块底。</param>
+    /// <param name="strength">强调色的浓度 0..1，越大越浓。</param>
+    /// <returns>不透明的选中底色。</returns>
+    public static Color AccentOn(Color backing, double strength)
+    {
+        // 本文件与 net48 安装器共用，那里没有 Math.Clamp
+        double k = strength < 0 ? 0 : strength > 1 ? 1 : strength;
+        var a = Theme.Accent;
+        return Mix(Theme.Opaque(backing), Color.FromArgb((byte)(k * 255.0), a.R, a.G, a.B));
+    }
 }

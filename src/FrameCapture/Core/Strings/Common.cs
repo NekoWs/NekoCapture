@@ -18,6 +18,7 @@ public static partial class K
         public static readonly Str DelayedCapture = new("common.delayedCapture", "延时截图", "Delayed Capture");
         public static readonly Str Editor = new("common.editor", "编辑器", "Editor");
         public static readonly Str NoKey = new("common.noKey", "未设键", "No key");
+        public static readonly Str Palette = new("common.palette", "配色", "Palette");
         public static readonly Str Pin = new("common.pin", "贴图", "Pin");
         public static readonly Str PngImagePng = new("common.pngImagePng", "PNG 图片|*.png", "PNG image|*.png");
         public static readonly Str RecognitionFailed = new("common.recognitionFailed", "识别失败", "Recognition failed");

@@ -3,7 +3,7 @@ using System.Windows.Media;
 namespace FrameCapture.Core;
 
 /// <summary>
-/// 自绘调色板的纯数学（SelfTest 覆盖）：HSV 双向换算 + HEX 解析/格式化。
+/// 自绘调色板的纯数学（SelfTest 覆盖）：HSV 双向换算。
 /// 替代系统 ColorDialog 的地基——UI 只做拖拽与绑定，换算全在这里，可离线断言。
 /// H∈[0,360)，S/V/A∈[0,1]。
 /// </summary>
@@ -46,35 +46,4 @@ public static class Hsv
         };
         return ((byte)Math.Round((rgb.r + m) * 255), (byte)Math.Round((rgb.g + m) * 255), (byte)Math.Round((rgb.b + m) * 255));
     }
-}
-
-/// <summary>#RGB / #RRGGBB / #RRGGBBAA 解析与最短形式格式化（A=255 时省略 AA）。</summary>
-public static class HexColor
-{
-    /// <summary>解析用户输入的 HEX 颜色。</summary>
-    /// <param name="text">3/6/8 位十六进制；前缀 <c>#</c> 可省，也认 <c>0x</c>；3 位按每位翻倍展开。</param>
-    /// <returns>带 alpha 的颜色，6 位输入按不透明（A=255）。长度不是 3/6/8 或含非十六进制字符时 null。</returns>
-    public static Color? Parse(string? text)
-    {
-        if (text == null) return null;
-        var s = text.Trim();
-        if (s.StartsWith("0x", StringComparison.OrdinalIgnoreCase)) s = "#" + s[2..];
-        if (!s.StartsWith('#')) s = "#" + s;
-        s = s[1..];
-        if (s.Length == 3) s = string.Concat(s[0], s[0], s[1], s[1], s[2], s[2]);
-        if (s.Length == 6) s += "FF";
-        if (s.Length != 8) return null;
-        for (int i = 0; i < 8; i++) if (!Uri.IsHexDigit(s[i])) return null;
-        return Color.FromArgb(
-            Convert.ToByte(s.Substring(6, 2), 16),
-            Convert.ToByte(s.Substring(0, 2), 16),
-            Convert.ToByte(s.Substring(2, 2), 16),
-            Convert.ToByte(s.Substring(4, 2), 16));
-    }
-
-    /// <summary>颜色 → 最短 HEX 文本。</summary>
-    /// <param name="c">要格式化的颜色。</param>
-    /// <returns>不透明时 <c>#RRGGBB</c>，带透明时 <c>#RRGGBBAA</c>；大写，alpha=255 不写冗余尾。</returns>
-    public static string Format(Color c) =>
-        c.A == 255 ? $"#{c.R:X2}{c.G:X2}{c.B:X2}" : $"#{c.R:X2}{c.G:X2}{c.B:X2}{c.A:X2}";
 }

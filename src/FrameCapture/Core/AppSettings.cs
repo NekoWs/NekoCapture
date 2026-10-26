@@ -128,6 +128,14 @@ public bool EditableSelection { get; set; } = false;
     /// <summary>强调色 hex (如 #4CC2FF)；空 = 跟随系统。</summary>
     public string Accent { get; set; } = "";
 
+    /// <summary>调色板覆盖表：<c>dark.CardBg</c> / <c>light.Text</c> 这类「主题.令牌」→ HEX。
+    /// 只存与出厂值不同的那几枚；空表就是出厂配色。写入走设置页「配色」。</summary>
+    public Dictionary<string, string> Colors { get; set; } = new();
+
+    /// <summary>最近套用的配色预设标识（<see cref="ColorPresets"/>）；认不出按出厂处理。
+    /// 套预设之后单改某枚颜色，这个字段留着——它记的是「从哪套起步」，与逐枚覆盖互不冲突。</summary>
+    public string ColorPreset { get; set; } = "";
+
     /// <summary>界面语言: system | zh | en。中文是源语言，缺译的文案回退中文。</summary>
     public string UiLanguage { get; set; } = "system";
 
@@ -215,6 +223,15 @@ public bool EditableSelection { get; set; } = false;
     public int RegionH { get; set; }
     #endregion
 
+    /// <summary>把这份设置里的整套配色落到全局调色板：先载入覆盖表，再落主题与强调色。
+    /// 覆盖表先载入，主题切换才算在用户那一套颜色上，而不是先算一遍出厂再算一遍自定义。</summary>
+    public void ApplyPalette()
+    {
+        // 本类的 Theme 属性是主题名字符串，把同名类型遮住了，这里必须写全名
+        FrameCapture.Core.Theme.LoadCustoms(Colors);
+        FrameCapture.Core.Theme.Apply(Theme, Accent);
+    }
+
     /// <summary>深拷贝：经 JSON 序列化往返得到一个与本机设置完全解耦的副本，改副本不影响 <c>settings.json</c>。</summary>
     /// <returns>字段值等同的副本；Gestures 等引用类型也是新的实例。</returns>
     public AppSettings Clone()
@@ -224,7 +241,8 @@ public bool EditableSelection { get; set; } = false;
     }
 
     /// <summary>把非法/越界的值收敛到可运行区间：帧率、胶片条参数、主题、
-    /// toast 时长、预抓窗口数，以及小于 16px 的「上次捕获范围」（连同显示器名一起作废）。
+    /// toast 时长、预抓窗口数、配色预设标识与配色覆盖表，以及小于 16px 的「上次捕获范围」
+    /// （连同显示器名一起作废）。
     /// Load / Save / Mutate 都会过它，因此读到的设置恒满足这些区间。</summary>
     public void Normalize()
     {
@@ -232,6 +250,8 @@ public bool EditableSelection { get; set; } = false;
         AgentStripFrames = Math.Clamp(AgentStripFrames, 2, 48);
         if (Theme is not ("system" or "light" or "dark")) Theme = "system";
         if (UiLanguage is not ("system" or "zh" or "en")) UiLanguage = "system";
+        if (ColorPresets.All.All(p => p.Id != ColorPreset)) ColorPreset = "";
+        Colors = CleanColors(Colors);
         Gestures ??= new GestureConfig();
         Gestures.SeedIfNeeded(GestureConfig.DefaultCaptureKey, GestureConfig.DefaultRecordKey);   // 一次性：空配置播种 QQ 键位（截图 / 录制）
         Gestures.UpgradeStockDefaults();   // 出厂默认的两条补齐成「先选区，后执行」，用户改过的不碰
@@ -241,6 +261,54 @@ public bool EditableSelection { get; set; } = false;
         {
             RegionMonitorId = null; RegionX = RegionY = RegionW = RegionH = 0;
         }
+    }
+
+    /// <summary>收敛配色覆盖表：认不出的令牌、认不出的主题前缀、解析不了的 HEX、与出厂色相同的条目一律丢掉。
+    /// 手写 settings.json 写错一枚，代价是那枚回到出厂色，不是整套配色读不出来。</summary>
+    /// <param name="raw">读到的原始表；null 当空表。</param>
+    /// <returns>只含有效覆盖的新表，键序按令牌表原序重排，同一份设置两次保存出来的文件一致。</returns>
+    static Dictionary<string, string> CleanColors(Dictionary<string, string>? raw)
+    {
+        var keep = new Dictionary<string, string>(StringComparer.Ordinal);
+        if (raw != null)
+        {
+            foreach (var (key, hex) in raw)
+            {
+                var split = SplitColorKey(key);
+                if (split == null) continue;
+                var (dark, token) = split.Value;
+                var got = HexColor.Parse(hex);
+                if (got == null || got.Value == FrameCapture.Core.Theme.DefaultColor(token, dark)) continue;
+                keep[key] = HexColor.Format(got.Value);
+            }
+        }
+        // 按令牌表顺序重排：字典的枚举顺序跟着插入顺序走，逐枚改色会把文件里的行序搅乱
+        var sorted = new Dictionary<string, string>(keep.Count, StringComparer.Ordinal);
+        foreach (var t in FrameCapture.Core.Theme.Tokens)
+            foreach (var dark in new[] { false, true })
+            {
+                var k = (dark ? "dark." : "light.") + t.Key;
+                if (keep.TryGetValue(k, out var v)) sorted[k] = v;
+            }
+        return sorted;
+    }
+
+    /// <summary>拆配色覆盖表的键。</summary>
+    /// <param name="key">形如 <c>dark.CardBg</c> 的键。</param>
+    /// <returns>主题侧与令牌名；前缀不是 dark/light、或令牌认不出时 null。</returns>
+    static (bool Dark, string Token)? SplitColorKey(string key)
+    {
+        int dot = key.IndexOf('.');
+        if (dot <= 0 || dot == key.Length - 1) return null;
+        bool dark = key.Substring(0, dot) switch
+        {
+            "dark" => true,
+            "light" => false,
+            _ => false,
+        };
+        if (key.Substring(0, dot) is not ("dark" or "light")) return null;
+        var token = key.Substring(dot + 1);
+        return FrameCapture.Core.Theme.Tokens.Any(t => t.Key == token) ? (dark, token) : null;
     }
 }
 

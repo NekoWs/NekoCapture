@@ -94,7 +94,7 @@ public sealed partial class SettingsWindow : Window
         var raw = Environment.GetEnvironmentVariable("FC_SETTINGS_PAGE");
         if (string.IsNullOrWhiteSpace(raw)) return -1;
         raw = raw.Trim().ToLowerInvariant();
-        string[] names = { "hotkeys", "capture", "record", "output", "editor", "pin", "appearance", "system" };
+        string[] names = { "hotkeys", "capture", "record", "output", "editor", "pin", "appearance", "palette", "system" };
         int at = Array.IndexOf(names, raw);
         return at >= 0 ? at : int.TryParse(raw, out var n) ? n : -1;
     }
@@ -261,9 +261,13 @@ panel.Children.Add(ToggleRow("\uE7C8", Loc.T(K.Settings.ClickAWindowToCapture), 
         panel = Cat(Loc.T(K.Common.Appearance), "\uE790");
         panel.Children.Add(ThemeRow());
         panel.Children.Add(LanguageRow());
-        panel.Children.Add(AccentRow());
 
         Cardify(panel); // 外观页行归入卡片
+        #endregion
+
+        #region 配色
+        panel = Cat(Loc.T(K.Common.Palette), "\uE771");
+        BuildPalette(panel);   // 预设 / 预览 / 逐枚令牌各自成卡
         #endregion
 
         #region 系统
@@ -291,7 +295,7 @@ panel.Children.Add(ToggleRow("\uE7C8", Loc.T(K.Settings.ClickAWindowToCapture), 
         #endregion
 
         #region 主从式装配：左栏竖向导航 + 右栏内容，中间细分隔线
-        var iconFont = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets, Segoe UI Symbol");
+        var iconFont = new FontFamily(Fluent.IconFontChain);
         var contentHeader = new TextBlock
         {
             FontSize = 17,
@@ -299,16 +303,18 @@ panel.Children.Add(ToggleRow("\uE7C8", Loc.T(K.Settings.ClickAWindowToCapture), 
             Foreground = new SolidColorBrush(Theme.Text),
             Margin = new Thickness(22, 16, 22, 4),
         };
-        var navItems = new List<(Border el, TextBlock icon, TextBlock label, Border accent)>();
+        var navItems = new List<(Border el, SolidColorBrush bg, TextBlock icon, TextBlock label)>();
+        int navHover = -1;   // 指针当前压着的导航项；-1 = 没有
 
-        // 滑动竖条（胶囊）：唯一做位移动画的元素，切换时滑到目标行；选中底色由每项自带的强调色卡片淡入淡出
+        // 滑动竖条（胶囊）：唯一做位移动画的元素，切换时滑到目标行
         var selBar = new Border { Width = 3, Height = 18, CornerRadius = new CornerRadius(2), Background = new SolidColorBrush(Theme.Accent) };
         selBar.Effect = new System.Windows.Media.Effects.DropShadowEffect { Color = Theme.Accent, BlurRadius = 9, ShadowDepth = 0, Opacity = 0.75 };
-        Canvas.SetLeft(selBar, 4);
+        Canvas.SetLeft(selBar, 8);
         var navCanvas = new Canvas { IsHitTestVisible = false };
         navCanvas.Children.Add(selBar);
 
-        const double RowPitch = 40, RowTop = 1, RowH = 38, BarH = 18;   // 每项高 38 + 上下边距各 1 = 40
+        // 每项高 38 + 上下边距各 1 = 40；卡片内衬 6 让第一项也压在同一组数上
+        const double RowPitch = 40, RowTop = 7, RowH = 38, BarH = 18;
         void MoveIndicator(int idx, bool animate)
         {
             double barTop = idx * RowPitch + RowTop + (RowH - BarH) / 2;
@@ -327,11 +333,35 @@ panel.Children.Add(ToggleRow("\uE7C8", Loc.T(K.Settings.ClickAWindowToCapture), 
             }
             else tb.Foreground = new SolidColorBrush(to);
         }
-        void AnimOpacity(UIElement el, double to, bool animate)
+        void AnimBrush(SolidColorBrush b, Color to, bool animate, int ms)
         {
-            if (!animate) { el.Opacity = to; return; }
-            el.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(to, TimeSpan.FromMilliseconds(Fluent.Motion.StateMs)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
+            if (!animate) { b.Color = to; return; }
+            b.BeginAnimation(SolidColorBrush.ColorProperty, new ColorAnimation(to, TimeSpan.FromMilliseconds(ms)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
         }
+
+        // 导航项的三态全部算在侧栏底色上，算出来都是不透明色：底色带 alpha、悬停再叠一层半透明白，
+        // 落出来的颜色取决于窗口背后是什么；选中项上再压一层悬停，两层染色互相污染成一片脏色。
+        Color NavPaint(int i)
+        {
+            Color c = i == _cat ? Fluent.AccentOn(Theme.NavBg, 0.26) : Theme.NavBg;
+            return i == navHover ? Fluent.HoverOn(c) : c;
+        }
+        // 选中项的文字压在「强调色淡底」上，比卡片底和窗口底都亮，照抄 AccentText 会糊成一片浅蓝；
+        // 按这一项真正的底色判，读不清就退回正文色，选中感交给色块与左侧滑条。
+        Color NavFg(int i, bool icon)
+            => i == _cat ? Fluent.AccentTextOn(NavPaint(i))
+             : i == navHover ? Theme.Text
+             : icon ? Theme.TextDim : Theme.Text;
+        void PaintNav(bool animate)
+        {
+            for (int i = 0; i < navItems.Count; i++)
+            {
+                AnimBrush(navItems[i].bg, NavPaint(i), animate, i == navHover ? Fluent.Motion.HoverMs : Fluent.Motion.StateMs);
+                AnimColor(navItems[i].icon, NavFg(i, true), animate);
+                AnimColor(navItems[i].label, NavFg(i, false), animate);
+            }
+        }
+
         ScrollViewer? scroller = null;   // 前向声明：ShowCat 切类别时需复位滚动（实际构造在下方右栏装配处）
         void ShowCat(int idx, bool animate)
         {
@@ -382,25 +412,13 @@ panel.Children.Add(ToggleRow("\uE7C8", Loc.T(K.Settings.ClickAWindowToCapture), 
                 contentHeader.BeginAnimation(UIElement.OpacityProperty,
                     new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(Fluent.Motion.EnterMs)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
             else contentHeader.Opacity = 1;
-            var acc = Fluent.AccentText();
-            for (int i = 0; i < navItems.Count; i++)
-            {
-                bool on = i == idx;
-                AnimOpacity(navItems[i].accent, on ? 1 : 0, animate);   // 强调色卡片淡入淡出
-                AnimColor(navItems[i].icon, on ? acc : Theme.TextDim, animate);
-                AnimColor(navItems[i].label, on ? acc : Theme.Text, animate);
-            }
+            PaintNav(animate);
             MoveIndicator(idx, animate);
         }
 
-        // 左栏：竖向导航项（图标 + 名称；选中态 = 每项自带强调色卡片淡入淡出 + 共享竖条滑动）
-        // hover 用 IsMouseOver 触发器（WPF 自维护，绝不卡住）；选中项的强调色卡片在 hover 之上，故不会互相盖
-        var hoverStyle = new Style(typeof(Border));
-        var hovTrig = new Trigger { Property = UIElement.IsMouseOverProperty, Value = true };
-        hovTrig.Setters.Add(new Setter(Border.BackgroundProperty, new SolidColorBrush(Theme.Hover)));
-        hoverStyle.Triggers.Add(hovTrig);
-
-        var navPanel = new StackPanel { Width = 184, VerticalAlignment = VerticalAlignment.Top };
+        // 左栏：一块侧栏底板上摆竖向导航项。静止项与底板同色（读作「还没被碰」），
+        // 悬停浮起一枚药丸、选中项被强调色染过，两者叠加时按「选中底色上再走一档」算，不再叠第二层透明。
+        var navPanel = new StackPanel { VerticalAlignment = VerticalAlignment.Top };
         for (int i = 0; i < cats.Count; i++)
         {
             int captured = i;
@@ -408,33 +426,46 @@ panel.Children.Add(ToggleRow("\uE7C8", Loc.T(K.Settings.ClickAWindowToCapture), 
             // Tag 是给版面探针认路用的：文案里的「设置 · X」指路句必须指着侧栏真存在的某一页，
             // 侧栏写 Hotkeys 而帮助页说 Shortcuts，新用户就会照着说明去找一个不存在的页。
             var label = new TextBlock { Text = cats[i].Name, Tag = "settings-page", FontSize = 13, Foreground = new SolidColorBrush(Theme.Text), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0, 0, 0) };
-            var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(13, 0, 10, 0) };
+            var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(15, 0, 10, 0) };
             row.Children.Add(icon); row.Children.Add(label);
-            var accent = new Border { CornerRadius = new CornerRadius(6), Background = new SolidColorBrush(Color.FromArgb(0x26, Theme.Accent.R, Theme.Accent.G, Theme.Accent.B)), Opacity = 0 };
-            var cell = new Grid();
-            cell.Children.Add(accent);   // 强调色卡片：淡入淡出，铺满整项
-            cell.Children.Add(row);      // 内容在上
+            var bg = new SolidColorBrush(Theme.NavBg);
             var el = new Border
             {
                 CornerRadius = new CornerRadius(6),
-                Height = 38,
+                Height = RowH,
                 Margin = new Thickness(0, 1, 0, 1),
-                Style = hoverStyle,
-                Child = cell,
+                Background = bg,
+                Child = row,
                 Cursor = Cursors.Hand,
                 Focusable = true,
             };
             el.MouseLeftButtonDown += (_, e) => { ShowCat(captured, true); e.Handled = true; };
             el.KeyDown += (_, e) => { if (e.Key is Key.Space or Key.Enter) { ShowCat(captured, true); e.Handled = true; } };
+            // 悬停走 MouseEnter/MouseLeave 而不是 IsMouseOver 触发器：三态要一起算，
+            // 触发器只会改底色这一项，文字与图标会停在旧色上，选中项还会被触发器的透明悬停盖回脏色。
+            el.MouseEnter += (_, _) => { navHover = captured; PaintNav(true); };
+            el.MouseLeave += (_, _) => { if (navHover == captured) { navHover = -1; PaintNav(true); } };
             // 键盘焦点环：与 toggle/chip/试听 同款——Tab 聚焦时描边转强调色，失焦归零
             el.GotKeyboardFocus += (_, _) => { el.BorderBrush = new SolidColorBrush(Theme.Accent); el.BorderThickness = new Thickness(1); };
             el.LostKeyboardFocus += (_, _) => el.BorderThickness = new Thickness(0);
-            navItems.Add((el, icon, label, accent));
+            navItems.Add((el, bg, icon, label));
             navPanel.Children.Add(el);
         }
-        var navHost = new Grid { Width = 184, Margin = new Thickness(10, 10, 6, 12), VerticalAlignment = VerticalAlignment.Top };
-        navHost.Children.Add(navPanel);    // 项在下层（含淡入淡出强调色卡片）
-        navHost.Children.Add(navCanvas);   // 竖条在上层，落在左侧留白区、压在卡片上、不压文字
+        var navInner = new Grid();
+        navInner.Children.Add(navPanel);    // 项在下层
+        navInner.Children.Add(navCanvas);   // 竖条在上层，落在药丸左缘、不压文字
+        var navHost = new Border
+        {
+            Width = 200,
+            Margin = new Thickness(12, 10, 8, 12),
+            VerticalAlignment = VerticalAlignment.Top,
+            CornerRadius = new CornerRadius(8),
+            Background = new SolidColorBrush(Theme.NavBg),
+            BorderBrush = new SolidColorBrush(Theme.StrokeSoft),
+            BorderThickness = new Thickness(1),
+            Padding = new Thickness(6),
+            Child = navInner,
+        };
 
         // 右栏：内容标题 + 可滚动内容宿主
         var host = new Grid();

@@ -29,7 +29,7 @@ public sealed class AppHost
         Trace.Log("Startup begin");
         Capture.FrameSpool.CleanupStale(); // 清理上次崩溃/强杀残留的磁盘暂存帧文件（>24h）
         Settings = new SettingsService();
-        Theme.Apply(Settings.Current.Theme, Settings.Current.Accent);
+        Settings.Current.ApplyPalette();
         Loc.Apply(Settings.Current.UiLanguage);
         // 设计审查专用：FC_THEME 覆盖主题（不落盘，不影响用户配置）
         var ft = Environment.GetEnvironmentVariable("FC_THEME");
@@ -109,7 +109,7 @@ public sealed class AppHost
                 if (Settings.RecentlySelfWritten) return; // 忽略本进程自己的落盘
                 Settings.Reload();
                 var s = Settings.Current;
-                Theme.Apply(s.Theme, s.Accent);
+                s.ApplyPalette();
                 Loc.Apply(s.UiLanguage);
                 InstallHotkeys();
                 Trace.Log($"settings reloaded: gestures={s.Gestures.Enabled}/{s.Gestures.Bindings.Count}");

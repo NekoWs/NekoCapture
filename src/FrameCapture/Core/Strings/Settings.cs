@@ -187,6 +187,11 @@ public static partial class K
             "settings.freezeTheScreenWhileSelecting",
             "选区时定格画面",
             "Freeze the screen while selecting");
+        public static readonly Str GroupInteraction = new("settings.groupInteraction", "交互", "Interaction");
+        public static readonly Str GroupLine = new("settings.groupLine", "描边", "Lines");
+        public static readonly Str GroupSemantic = new("settings.groupSemantic", "语义", "Semantic");
+        public static readonly Str GroupSurface = new("settings.groupSurface", "表面", "Surfaces");
+        public static readonly Str GroupText = new("settings.groupText", "文字色", "Text");
         public static readonly Str HighRefreshPanelsAtHz = new(
             "settings.highRefreshPanelsAtHz",
             "144 / 165 / 240Hz 这类高刷屏录满才丝滑；MP4/WebM 可录满，GIF 受格式封顶约 50fps",
@@ -239,6 +244,9 @@ public static partial class K
             "关掉即保留配置但不触发，无需删除",
             "Off keeps the setup but stops it from firing — no need to delete it.");
         public static readonly Str Output = new("settings.output", "产物", "Output");
+        public static readonly Str PalettePresets = new("settings.palettePresets", "预设", "Presets");
+        public static readonly Str PalettePreview = new("settings.palettePreview", "预览", "Preview");
+        public static readonly Str PaletteRestore = new("settings.paletteRestore", "恢复出厂配色", "Restore the stock palette");
         public static readonly Str PicturesFramecaptureDefaultLocation = new(
             "settings.picturesFramecaptureDefaultLocation",
             "图片\\FrameCapture · 默认位置",
@@ -248,6 +256,11 @@ public static partial class K
             "settings.plentyEnoughToLineUp",
             "充裕：够摆好几个界面元素",
             "Plenty: enough to line up several interface elements");
+        public static readonly Str PresetContrast = new("settings.presetContrast", "高对比", "High contrast");
+        public static readonly Str PresetDefault = new("settings.presetDefault", "出厂", "Stock");
+        public static readonly Str PresetGraphite = new("settings.presetGraphite", "石墨", "Graphite");
+        public static readonly Str PresetMidnight = new("settings.presetMidnight", "午夜蓝", "Midnight");
+        public static readonly Str PresetSand = new("settings.presetSand", "暖沙", "Warm sand");
         public static readonly Str Preview = new("settings.preview", "试听", "Preview");
         public static readonly Str QuickEnoughToMove = new(
             "settings.quickEnoughToMove",
@@ -357,6 +370,23 @@ public static partial class K
             "settings.captureTheAppItself",
             "允许截到自己",
             "Allow capturing FrameCapture");
+        public static readonly Str TokenCardBg = new("settings.tokenCardBg", "卡片底色", "Card");
+        public static readonly Str TokenChromeBg = new("settings.tokenChromeBg", "标题栏底色", "Title bar");
+        public static readonly Str TokenDanger = new("settings.tokenDanger", "提醒", "Danger");
+        public static readonly Str TokenHover = new("settings.tokenHover", "悬停叠加", "Hover overlay");
+        public static readonly Str TokenNavBg = new("settings.tokenNavBg", "侧栏底色", "Sidebar");
+        public static readonly Str TokenPanelBg = new("settings.tokenPanelBg", "面板底色", "Panel");
+        public static readonly Str TokenPress = new("settings.tokenPress", "按下叠加", "Pressed overlay");
+        public static readonly Str TokenRowBg = new("settings.tokenRowBg", "行底色", "Row");
+        public static readonly Str TokenRowHover = new("settings.tokenRowHover", "行悬停", "Row hover");
+        public static readonly Str TokenStroke = new("settings.tokenStroke", "标准描边", "Stroke");
+        public static readonly Str TokenStrokeSoft = new("settings.tokenStrokeSoft", "细描边", "Soft stroke");
+        public static readonly Str TokenSuccess = new("settings.tokenSuccess", "成色", "Success");
+        public static readonly Str TokenText = new("settings.tokenText", "正文", "Body text");
+        public static readonly Str TokenTextDim = new("settings.tokenTextDim", "次要文字", "Secondary text");
+        public static readonly Str TokenTrack = new("settings.tokenTrack", "轨道", "Track");
+        public static readonly Str TokenWarning = new("settings.tokenWarning", "注意", "Warning");
+        public static readonly Str TokenWindowBg = new("settings.tokenWindowBg", "窗口底色", "Window");
         public static readonly Str WhenOnTheEditorTheRecord = new(
             "settings.whenOnTheEditorTheRecord",
             "打开后，编辑器、录制控制条、选区遮罩都会出现在你的截图和录屏里——想录一段界面演示时用；平时关着，浮窗与轮廓不会进产物",
