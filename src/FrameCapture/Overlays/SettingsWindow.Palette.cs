@@ -225,7 +225,9 @@ public sealed partial class SettingsWindow : Window
         var chips = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 10, 0, 0) };
         var chipOn = new Border { CornerRadius = new CornerRadius(6), Padding = new Thickness(12, 4, 12, 4), Margin = new Thickness(0, 0, 6, 0), Child = new TextBlock { Text = Loc.T(K.Settings.Accent), FontSize = 12 } };
         var chipOff = new Border { CornerRadius = new CornerRadius(6), BorderThickness = new Thickness(1), Padding = new Thickness(12, 4, 12, 4), Child = new TextBlock { Text = Loc.T(K.Settings.TokenStroke), FontSize = 12 } };
-        chips.Children.Add(chipOn); chips.Children.Add(chipOff);
+        // 侧栏选中项那一档：强调色淡底压着文字。左侧导航读不清的正是这一档，预览里必须摆出来看
+        var navPill = new Border { CornerRadius = new CornerRadius(6), Padding = new Thickness(12, 4, 12, 4), Margin = new Thickness(0, 0, 6, 0), Child = new TextBlock { Text = Loc.T(K.Settings.TokenNavBg), FontSize = 12 } };
+        chips.Children.Add(chipOn); chips.Children.Add(chipOff); chips.Children.Add(navPill);
 
         var surface = new Border
         {
@@ -258,6 +260,10 @@ public sealed partial class SettingsWindow : Window
             chipOff.Background = Theme.RowBgBrush;
             chipOff.BorderBrush = Theme.StrokeSoftBrush;
             ((TextBlock)chipOff.Child!).Foreground = Theme.TextBrush;
+            // 侧栏选中档：淡底与文字都算在这块底上，跟左侧导航用的是同一组数
+            var navTint = Fluent.AccentOn(Theme.NavBg, 0.26);
+            navPill.Background = new SolidColorBrush(navTint);
+            ((TextBlock)navPill.Child!).Foreground = new SolidColorBrush(Fluent.AccentTextOn(navTint));
         });
     }
 
