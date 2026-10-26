@@ -7020,6 +7020,30 @@ static partial class SelfTest
             Theme.ClearAllCustoms();
             Chk("T241-preset-clears", Theme.Custom("WindowBg") == null, "清掉自定义后回到出厂值");
 
+            // 每套预设都要让正文读得清：预设是「一键换整套」，坏一套就是一次全站不可读。
+            foreach (var pr in ColorPresets.All)
+            {
+                var pp = new AppSettings { ColorPreset = pr.Id };
+                pp.Colors = new Dictionary<string, string>(pr.Colors, StringComparer.Ordinal);
+                pp.ApplyPalette();
+                foreach (var which in new[] { "light", "dark" })
+                {
+                    Theme.Apply(which, null);
+                    double worst = double.MaxValue;
+                    string at = "";
+                    foreach (var inkKey in new[] { "Text", "TextDim" })
+                        foreach (var bgKey in new[] { "WindowBg", "PanelBg", "CardBg", "RowBg" })
+                        {
+                            double rr = Fluent.ContrastRatio(Theme.ValueOf(inkKey, Theme.IsDark),
+                                Theme.Opaque(Theme.ValueOf(bgKey, Theme.IsDark)));
+                            if (rr < worst) { worst = rr; at = $"{inkKey} 压在 {bgKey} 上"; }
+                        }
+                    Chk($"T241-preset-ink-{pr.Id}-{which}", worst >= 4.5,
+                        $"{pr.Id} 预设 {which} 态最差一对 {at} 只有 {worst:F2}:1");
+                }
+            }
+            Theme.ClearAllCustoms();
+
             var junk = new AppSettings();
             junk.Colors["dark.CardBg"] = "#123456";
             junk.Colors["dark.NotAToken"] = "#123456";
@@ -7032,7 +7056,7 @@ static partial class SelfTest
             badPreset.Normalize();
             Chk("T241-normalize-preset-id", badPreset.ColorPreset == "", "认不出的预设标识在归一时清空");
 
-            // 换色遮罩：盖在 Adorner 层上，淡出走完自己摘掉
+            // 换色遮罩：盖在 Adorner 层上，从圆心推开，铺满自己摘掉
             var mw = new System.Windows.Window
             {
                 Content = new System.Windows.Controls.Grid { Background = System.Windows.Media.Brushes.Transparent },
@@ -7046,19 +7070,79 @@ static partial class SelfTest
             mw.Show();
             PumpMs(80);
             var rootEl = (System.Windows.UIElement)mw.Content;
-            Fluent.MaskFade(mw, System.Windows.Media.Color.FromRgb(0x11, 0x22, 0x33));
+            Fluent.RippleOrigin = new System.Windows.Point(37, 21);
+            var incoming = System.Windows.Media.Color.FromRgb(0x11, 0x22, 0x33);
+            Fluent.MaskRipple(mw, incoming);
             PumpMs(30);
             var layer = System.Windows.Documents.AdornerLayer.GetAdornerLayer(rootEl);
             var on = layer?.GetAdorners(rootEl);
             Chk("T241-mask-on", on != null && on.Length == 1, "换色遮罩出现在 Adorner 层上，不占布局");
-            PumpMs(Fluent.Motion.ThemeMs + 260);
+            var path = on != null
+                ? (on[0].GetType()
+                    .GetField("_disc", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
+                    ?.GetValue(on[0]) as System.Windows.Shapes.Path)
+                : null;
+            var geo = path?.Data as System.Windows.Media.EllipseGeometry;
+            Chk("T241-mask-origin", geo != null && geo.Center.X == 37 && geo.Center.Y == 21,
+                $"圆心落在写进来的那一点：{geo?.Center.ToString() ?? "取不到"}");
+            var fill = path?.Fill as System.Windows.Media.SolidColorBrush;
+            Chk("T241-mask-color-incoming", fill != null && fill.Color == incoming, "没有快照时遮罩是一层进场侧的底色");
+            Fluent.RippleOrigin = null;
+            PumpMs(Fluent.Motion.RippleMs + 400);
             var off = layer?.GetAdorners(rootEl);
-            Chk("T241-mask-gone", off == null || off.Length == 0, "淡出走完遮罩自己摘掉");
+            Chk("T241-mask-gone", off == null || off.Length == 0, "铺满整窗后遮罩自己摘掉");
+
+            // 快照拍得到真画面：像素尺寸跟着窗口走，遮罩才有东西可铺
+            var shotWin = new System.Windows.Window
+            {
+                Content = new System.Windows.Controls.Border
+                {
+                    Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x26, 0x28, 0x2D)),
+                    Width = 40,
+                    Height = 30,
+                },
+                Width = 60,
+                Height = 50,
+                WindowStartupLocation = WindowStartupLocation.Manual,
+                Left = -4000,
+                Top = -4000,
+                ShowInTaskbar = false,
+            };
+            shotWin.Show();
+            PumpMs(120);
+            var shot = Fluent.Snapshot(shotWin) as System.Windows.Media.Imaging.RenderTargetBitmap;
+            Chk("T241-snapshot-size", shot != null && shot.PixelWidth >= 40 && shot.PixelHeight >= 30,
+                $"拍得到这一屏：{shot?.PixelWidth.ToString() ?? "null"}×{shot?.PixelHeight.ToString() ?? "?"} 像素");
+            shotWin.Close();
+
+            // 有换色前那一屏时推开的是它：圆里露出的直接是换好色的界面，不是一块纯色
+            var snap = new System.Windows.Media.Imaging.RenderTargetBitmap(40, 30, 96, 96,
+                System.Windows.Media.PixelFormats.Pbgra32);
+            Fluent.RippleView = new Fluent.RippleScene(snap, System.Windows.Media.Color.FromRgb(0x26, 0x28, 0x2D));
+            Fluent.MaskRipple(mw, incoming);
+            PumpMs(30);
+            var on2 = layer?.GetAdorners(rootEl);
+            var face = on2 != null
+                ? (on2[0].GetType()
+                    .GetField("_face", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
+                    ?.GetValue(on2[0]) as System.Windows.Controls.Grid)
+                : null;
+            var photo = face?.Children.OfType<System.Windows.Controls.Image>().FirstOrDefault();
+            Chk("T241-mask-snapshot-face", photo != null && ReferenceEquals(photo.Source, snap),
+                "有那一屏时遮罩铺的是换色前拍下的画面");
+            var mat = face?.Children.OfType<System.Windows.Shapes.Rectangle>().FirstOrDefault();
+            Chk("T241-mask-snapshot-mat", mat != null
+                && ((System.Windows.Media.SolidColorBrush)mat.Fill!).Color == System.Windows.Media.Color.FromRgb(0x26, 0x28, 0x2D),
+                "照片底下垫着一层不透明的旧窗口底");
+            Fluent.RippleView = null;
+            PumpMs(Fluent.Motion.RippleMs + 400);
+            var off2 = layer?.GetAdorners(rootEl);
+            Chk("T241-mask-snapshot-gone", off2 == null || off2.Length == 0, "画面遮罩铺满整窗后也自己摘掉");
             mw.Close();
         }
         catch (Exception e) { Chk("T241-palette-live", false, e.Message); }
 
-        // 遮罩挂在真设置窗上：深浅档互换盖幕淡出，逐枚改色不盖幕——那种改动要的是当场看见。
+        // 遮罩挂在真设置窗上：深浅档互换从圆心推开一层新底色，逐枚改色不盖遮罩——那种改动要的是当场看见。
         try
         {
             bool keepDark = Theme.IsDark;
@@ -7077,15 +7161,15 @@ static partial class SelfTest
                 var a = slayer?.GetAdorners(sroot);
                 return a != null && a.Length > 0;
             }
-            Chk("T242-mask-idle", !Masked(), "窗刚开时幕布不在场");
+            Chk("T242-mask-idle", !Masked(), "窗刚开时遮罩不在场");
             Theme.Apply(Theme.IsDark ? "light" : "dark", null);
             PumpMs(20);
-            Chk("T242-mask-on-swap", Masked(), "深浅档互换：设置窗盖上退场色的幕布");
-            PumpMs(Fluent.Motion.ThemeMs + 260);
-            Chk("T242-mask-after-swap", !Masked(), "幕布淡出走完自己摘掉");
+            Chk("T242-mask-on-swap", Masked(), "深浅档互换：设置窗推开一层遮罩");
+            PumpMs(Fluent.Motion.RippleMs + 400);
+            Chk("T242-mask-after-swap", !Masked(), "遮罩铺满整窗后自己摘掉");
             Theme.SetCustom("CardBg", Theme.IsDark, System.Windows.Media.Color.FromRgb(0x21, 0x22, 0x23));
             PumpMs(20);
-            Chk("T242-mask-on-edit", !Masked(), "逐枚改色不盖幕布");
+            Chk("T242-mask-on-edit", !Masked(), "逐枚改色不推遮罩");
             Theme.ClearCustom("CardBg", Theme.IsDark);
             Theme.Apply(keepDark ? "dark" : "light", null);
             PumpMs(60);

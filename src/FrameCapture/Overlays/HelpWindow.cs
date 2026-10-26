@@ -47,18 +47,35 @@ public sealed class HelpWindow : Window
         return w;
     }
 
-    /// <summary>上一次看到的深浅档与窗口底：遮罩盖的是退场那一侧的颜色，换色之后就取不到了。</summary>
+    /// <summary>上一次看到的深浅档：只有深浅互换才需要遮罩，逐枚改色不必挡视线。</summary>
     bool _maskDark = Theme.IsDark;
-    Color _maskFrom = Theme.WindowBgSolid;
 
-    /// <summary>调色板变更：深浅档换了盖一层旧窗口底再淡出，正文按新色重排一遍。
+    /// <summary>换色前那一屏（照片 + 垫底色）：深浅互换时由它当退场层，圆里露出的直接是换好色的界面。</summary>
+    Fluent.RippleScene? _maskView;
+
+    /// <summary>调色板即将重算：这一次要翻深浅档，就趁画面还是旧调色板拍一张。拍不到就算了，遮罩退回纯色。</summary>
+    /// <param name="dark">重算之后的深浅档。</param>
+    void OnPaletteChanging(bool dark)
+    {
+        _maskView = null;
+        if (dark == _maskDark) return;
+        var shot = Fluent.Snapshot(this);
+        if (shot != null) _maskView = new Fluent.RippleScene(shot, Theme.WindowBgSolid);
+    }
+
+    /// <summary>调色板变更：深浅档换了就从圆心推开一层，正文按新色重排一遍。
     /// 换色不再重建整窗——颜色挂在共享画刷上，重建会把用户正在读的那一页连滚动位置一起丢掉。</summary>
     void OnPaletteChanged()
     {
         bool dark = Theme.IsDark;
-        if (dark != _maskDark) Fluent.MaskFade(this, _maskFrom);
+        if (dark != _maskDark)
+        {
+            Fluent.RippleView = _maskView;
+            Fluent.MaskRipple(this, Theme.WindowBgSolid);
+            Fluent.RippleView = null;
+        }
+        _maskView = null;
         _maskDark = dark;
-        _maskFrom = Theme.WindowBgSolid;
         if (_nextBtn.Child is TextBlock nt) nt.Foreground = new SolidColorBrush(Fluent.OnAccentColor(Theme.Accent));
         ShowStep(animate: false);
     }
@@ -154,7 +171,8 @@ public sealed class HelpWindow : Window
         ShowStep(animate: false);
 
         Theme.Changed += OnPaletteChanged;
-        Closed += (_, _) => Theme.Changed -= OnPaletteChanged;
+        Theme.Changing += OnPaletteChanging;
+        Closed += (_, _) => { Theme.Changed -= OnPaletteChanged; Theme.Changing -= OnPaletteChanging; };
         PreviewKeyDown += (_, e) =>
         {
             if (e.Key == Key.Escape) Fluent.CloseWithFade(this);

@@ -75,6 +75,10 @@ public static class Theme
     /// <summary>主题或任一颜色实际变化后触发，窗口订阅后可即时换色。</summary>
     public static event Action Changed = () => { };
 
+    /// <summary>调色板即将重算，参数是重算之后的深浅档。想在换色前拍下当前画面的订阅它：
+    /// <see cref="Changed"/> 广播时画面已经是新调色板，那时候再拍就拍不到退场的那一屏了。</summary>
+    public static event Action<bool> Changing = _ => { };
+
     /// <summary>令牌在 <see cref="Registry"/> 里的下标。属性体按它取已算好的当前色。</summary>
     enum Slot
     {
@@ -169,7 +173,7 @@ public static class Theme
     /// <summary>把解析好的颜色推给共享画刷。当帧落色，不给画刷挂颜色动画：
     /// 动画在飞的时候 <see cref="SolidColorBrush.Color"/> 读到的是动画值而不是终点，
     /// 渲染节拍没跟上时甚至会一直停在起始色——悬停克隆、断言、下一次比较全被带偏。
-    /// 深浅互换的过渡由 <see cref="Fluent.MaskFade"/> 那层遮罩负责，画刷只管把当前色答对。</summary>
+    /// 深浅互换的过渡由 <see cref="Fluent.MaskRipple"/> 那层遮罩负责，画刷只管把当前色答对。</summary>
     static void SyncPaints()
     {
         for (int i = 0; i < Paints.Length; i++) Paints[i].Color = Resolved[i];
@@ -183,6 +187,7 @@ public static class Theme
     static void Recompute()
     {
         bool dark = EffectiveDark;
+        try { Changing(dark); } catch { /* 拍不到退场画面的窗口自己退回纯色遮罩 */ }
         for (int i = 0; i < Registry.Length; i++)
             Resolved[i] = Customs.TryGetValue(ModeKey(dark, Registry[i].Key), out var c)
                 ? c : Registry[i].Default(dark);

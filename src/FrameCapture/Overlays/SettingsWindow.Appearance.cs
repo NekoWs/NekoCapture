@@ -39,17 +39,45 @@ public sealed partial class SettingsWindow : Window
         nw.BeginAnimation(OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(1, TimeSpan.FromMilliseconds(FrameCapture.Core.Fluent.Motion.ThemeMs)));
     }
 
-    /// <summary>上一次看到的深浅档与窗口底：遮罩盖的是退场那一侧的颜色，换色之后就取不到了。</summary>
+    /// <summary>上一次看到的深浅档：只有深浅互换才需要遮罩，逐枚改色不必挡视线。</summary>
     bool _maskDark = Theme.IsDark;
-    Color _maskFrom = Theme.WindowBgSolid;
 
-    /// <summary>调色板变更：深浅档换了才盖一层旧窗口底再淡出，逐枚改色直接落色不挡视线。</summary>
+    /// <summary>换色前那一屏（照片 + 垫底色）：深浅互换时由它当退场层，圆里露出的直接是换好色的界面。</summary>
+    Fluent.RippleScene? _maskView;
+
+    /// <summary>调色板即将重算：这一次要翻深浅档，就趁画面还是旧调色板拍一张。拍不到就算了，遮罩退回纯色。</summary>
+    /// <param name="dark">重算之后的深浅档。</param>
+    void OnPaletteChanging(bool dark)
+    {
+        _maskView = null;
+        if (dark == _maskDark) return;
+        var shot = Fluent.Snapshot(this);
+        if (shot != null) _maskView = new Fluent.RippleScene(shot, Theme.WindowBgSolid);
+    }
+
+    /// <summary>调色板变更：深浅档换了就从圆心推开一层，铺满自己摘；逐枚改色直接落色。</summary>
     void OnPaletteChanged()
     {
         bool dark = Theme.IsDark;
-        if (dark != _maskDark) Fluent.MaskFade(this, _maskFrom);
+        if (dark != _maskDark)
+        {
+            Fluent.RippleView = _maskView;
+            Fluent.MaskRipple(this, Theme.WindowBgSolid);
+            Fluent.RippleView = null;
+        }
+        _maskView = null;
         _maskDark = dark;
-        _maskFrom = Theme.WindowBgSolid;
+    }
+
+    /// <summary>把触发换色的元素换算成遮罩圆心：它在窗口内容根坐标系里的中心。
+    /// 量不到（还没进树或没有尺寸）交回 null，遮罩自己退回窗口中心。</summary>
+    /// <param name="el">被点中或被键盘选中的那一档。</param>
+    /// <returns>内容根坐标系里的圆心；量不到时为 null。</returns>
+    Point? RippleFrom(FrameworkElement el)
+    {
+        if (Content is not UIElement root || el.ActualWidth <= 0 || el.ActualHeight <= 0) return null;
+        var p = el.TransformToVisual(root).Transform(new Point(el.ActualWidth / 2, el.ActualHeight / 2));
+        return double.IsFinite(p.X) && double.IsFinite(p.Y) ? p : null;
     }
 
     /// <summary>
@@ -251,10 +279,13 @@ public sealed partial class SettingsWindow : Window
             chip.MouseLeave += (_, _) => AnimateTo(Base(), Fluent.Motion.StateMs);
             void ApplyTheme()
             {
+                // 圆心落在被点中的那颗按钮上，边界从手指底下推开；退场那一屏由 Theme.Changing 在落色前拍
+                Fluent.RippleOrigin = RippleFrom(chip);
                 _settings.Mutate(s => s.Theme = captured);
                 Theme.Apply(captured, _settings.Current.Accent);
                 Fluent.ApplyGlobalStyles();
-                Paint();    // 选中态跟着点中的那一档走；深浅互换由换色遮罩盖幕淡出
+                Fluent.RippleOrigin = null;   // 圆心只属于这一次换色，别让下一次（比如系统自己翻深浅）沿用
+                Paint();    // 选中态跟着点中的那一档走；深浅互换由换色遮罩从这颗按钮推开
             }
             chip.MouseLeftButtonDown += (_, e) => { ApplyTheme(); e.Handled = true; };
             // 键盘可达——Tab 聚焦、空格/Enter 切换主题（与点击同一路径）

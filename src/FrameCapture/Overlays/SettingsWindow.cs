@@ -511,7 +511,8 @@ panel.Children.Add(ToggleRow("\uE7C8", Loc.T(K.Settings.ClickAWindowToCapture), 
         // 深浅互换时整窗几十处颜色同帧跳变：盖一层退场那一侧的底色再淡出，变化就发生在幕布后面。
         // 逐枚改色不盖幕布——那种改动要的是当场看见，不该被一层淡出挡一下。
         Theme.Changed += OnPaletteChanged;
-        Closed += (_, _) => Theme.Changed -= OnPaletteChanged;
+        Theme.Changing += OnPaletteChanging;
+        Closed += (_, _) => { Theme.Changed -= OnPaletteChanged; Theme.Changing -= OnPaletteChanging; };
 
         // 首帧一次到位：整窗连同正文由构造函数里的 PopupEnter 同一帧淡入。
         // 行的逐项错位只用在切类别（ShowCat animate=true）——那里内容确实在变。
