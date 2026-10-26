@@ -44,7 +44,7 @@ public sealed partial class SettingsWindow : Window
             {
                 CornerRadius = new CornerRadius(5),
                 BorderThickness = new Thickness(1),
-                BorderBrush = Theme.StrokeBrush,
+                BorderBrush = Theme.StrokeFieldBrush,
                 Background = Brushes.Transparent,
                 Padding = new Thickness(7, 2, 7, 2),
                 MinHeight = 26,   // 低于 24 的可用下限就点不着了；26 是这一行能压到的最小值
@@ -132,7 +132,7 @@ public sealed partial class SettingsWindow : Window
                     Width = 28,
                     CornerRadius = new CornerRadius(6),
                     BorderThickness = new Thickness(1),
-                    BorderBrush = Theme.StrokeBrush,
+                    BorderBrush = Theme.StrokeFieldBrush,
                     Background = Brushes.Transparent,
                     Padding = new Thickness(0, 3, 0, 3),
                     Margin = new Thickness(0, 0, 0, 0),
@@ -229,7 +229,7 @@ public sealed partial class SettingsWindow : Window
                 Margin = new Thickness(0, firstCard ? 12 : 2, 0, 2),
                 CornerRadius = new CornerRadius(8),   // 卡片 8、行 6：外圆包内圆
                 BorderThickness = new Thickness(1),
-                BorderBrush = Theme.StrokeBrush,
+                BorderBrush = Theme.StrokeFieldBrush,
                 Background = Theme.CardBgBrush,
                 Padding = new Thickness(12, 7, 12, 7),
                 Child = stack,

@@ -280,13 +280,13 @@ public sealed partial class SettingsWindow : Window
             dotFills[2].Fill = Theme.WarningBrush;
             chipOn.Background = Theme.AccentBrush;
             ((TextBlock)chipOn.Child!).Foreground = new SolidColorBrush(Fluent.OnAccentColor(Theme.Accent));
-            chipOff.Background = Theme.RowBgBrush;
-            chipOff.BorderBrush = Theme.StrokeSoftBrush;
+            chipOff.Background = Theme.ChipBgBrush;
+            chipOff.BorderBrush = Theme.StrokeFieldBrush;
             ((TextBlock)chipOff.Child!).Foreground = Theme.TextBrush;
             // 侧栏选中档：淡底与文字都算在这块底上，跟左侧导航用的是同一组数
-            var navTint = Fluent.AccentOn(Theme.NavBg, 0.26);
+            var navTint = Fluent.NavBacking(Theme.NavBg, selected: true, hovered: false);
             navPill.Background = new SolidColorBrush(navTint);
-            ((TextBlock)navPill.Child!).Foreground = new SolidColorBrush(Fluent.AccentTextOn(navTint));
+            ((TextBlock)navPill.Child!).Foreground = new SolidColorBrush(Fluent.NavInk(navTint, true, false));
             int low = InkShortfalls();
             ink.Text = low == 0 ? Loc.T(K.Settings.InkClear) : Loc.F(K.Settings.InkLowOnSurfaces, low);
             ink.Foreground = low == 0 ? Theme.TextDimBrush : new SolidColorBrush(Theme.Warning);
@@ -424,7 +424,7 @@ public sealed partial class SettingsWindow : Window
         {
             var c = Theme.ValueOf(token.Key, dark);
             fill.Background = new SolidColorBrush(c);
-            cell.BorderBrush = Theme.StrokeBrush;
+            cell.BorderBrush = Theme.StrokeFieldBrush;
             hex.Text = HexColor.Format(c);
             // 正文两枚要压在窗口 / 面板 / 卡片 / 行四种底上：最差那一对低于 4.5:1 就把十六进制标成注意色。
             // 改色是当场生效的，标出来的人才看得见这一改把字读没了。
@@ -549,10 +549,13 @@ public sealed partial class SettingsWindow : Window
         "CardBg" => K.Settings.TokenCardBg,
         "RowBg" => K.Settings.TokenRowBg,
         "NavBg" => K.Settings.TokenNavBg,
+        "KeycapBg" => K.Settings.TokenKeycap,
+        "ChipBg" => K.Settings.TokenChip,
         "Text" => K.Settings.TokenText,
         "TextDim" => K.Settings.TokenTextDim,
         "Stroke" => K.Settings.TokenStroke,
         "StrokeSoft" => K.Settings.TokenStrokeSoft,
+        "StrokeField" => K.Settings.TokenStrokeField,
         "Hover" => K.Settings.TokenHover,
         "Press" => K.Settings.TokenPress,
         "RowHover" => K.Settings.TokenRowHover,

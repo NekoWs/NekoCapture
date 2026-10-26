@@ -82,9 +82,9 @@ public static class Theme
     /// <summary>令牌在 <see cref="Registry"/> 里的下标。属性体按它取已算好的当前色。</summary>
     enum Slot
     {
-        WindowBg, PanelBg, ChromeBg, CardBg, RowBg, NavBg,
+        WindowBg, PanelBg, ChromeBg, CardBg, RowBg, NavBg, KeycapBg, ChipBg,
         Text, TextDim,
-        Stroke, StrokeSoft,
+        Stroke, StrokeSoft, StrokeField,
         Hover, Press, RowHover, TrackBg,
         Danger, Success, Warning,
     }
@@ -104,12 +104,17 @@ public static class Theme
         Tok(Slot.CardBg, ColorGroup.Surface, O(0xFF, 0xFF, 0xFF), O(0x26, 0x28, 0x2D)),
         Tok(Slot.RowBg, ColorGroup.Surface, O(0xF2, 0xF3, 0xF7), O(0x2E, 0x31, 0x37)),
         Tok(Slot.NavBg, ColorGroup.Surface, O(0xEC, 0xEE, 0xF3), O(0x23, 0x25, 0x29)),
+        // 键帽与芯片各自一枚底色：它们坐在卡片上，却与卡片差着一层台阶；借用行底色会把「可点」和「一行」混成一种面
+        Tok(Slot.KeycapBg, ColorGroup.Surface, O(0xFB, 0xFC, 0xFD), O(0x2C, 0x2F, 0x35)),
+        Tok(Slot.ChipBg, ColorGroup.Surface, O(0xF1, 0xF2, 0xF6), O(0x30, 0x33, 0x39)),
         // 文字：次要文字取不透明灰，压在四种底上都过 4.5:1；带 Alpha 的灰压在浅底上只有 3.2:1
         Tok(Slot.Text, ColorGroup.Text, O(0x1A, 0x1A, 0x1A), O(0xFF, 0xFF, 0xFF)),
         Tok(Slot.TextDim, ColorGroup.Text, O(0x5D, 0x63, 0x6E), O(0xC7, 0xCA, 0xD1)),
         // 描边：整列条目各自描满标准描边会把列表切成格子，标准描边本身也收到不抢眼的一档
-        Tok(Slot.Stroke, ColorGroup.Line, C(0x33, 0, 0, 0), C(0x3B, 0xFF, 0xFF, 0xFF)),
+        Tok(Slot.Stroke, ColorGroup.Line, C(0x2E, 0, 0, 0), C(0x2E, 0xFF, 0xFF, 0xFF)),
         Tok(Slot.StrokeSoft, ColorGroup.Line, C(0x1F, 0, 0, 0), C(0x24, 0xFF, 0xFF, 0xFF)),
+        // 控件描边：键帽、芯片、输入框、开关轨道这一圈。与卡片外框分开，调细调淡不必连卡片一起动
+        Tok(Slot.StrokeField, ColorGroup.Line, C(0x1F, 0, 0, 0), C(0x24, 0xFF, 0xFF, 0xFF)),
         // 交互：按下恒比悬停再走一档，两套主题同方向；行悬停是不透明色，落在行底色上不再叠第二层
         Tok(Slot.Hover, ColorGroup.Interaction, C(0x14, 0, 0, 0), C(0x1E, 0xFF, 0xFF, 0xFF)),
         Tok(Slot.Press, ColorGroup.Interaction, C(0x24, 0, 0, 0), C(0x30, 0xFF, 0xFF, 0xFF)),
@@ -386,6 +391,16 @@ public static class Theme
     /// 一列条目各自描满标准描边，整列就被切成一堆格子，标准描边留给卡片外框这类一处边界。</summary>
     public static Color StrokeSoft => Resolved[(int)Slot.StrokeSoft];
 
+    /// <summary>控件描边：键帽、芯片、输入框、开关轨道这一圈。与卡片外框分开一格，
+    /// 调细调淡不必连卡片边界一起动。</summary>
+    public static Color StrokeField => Resolved[(int)Slot.StrokeField];
+
+    /// <summary>键帽底色：快捷键页与编辑器键位那一圈键帽的底，比卡片差开一档而自成一档。</summary>
+    public static Color KeycapBg => Resolved[(int)Slot.KeycapBg];
+
+    /// <summary>芯片底色：格式芯片、触发方式芯片这类小方块的底。</summary>
+    public static Color ChipBg => Resolved[(int)Slot.ChipBg];
+
     /// <summary>悬停叠加层：只作为 <see cref="Fluent.Mix"/> 的一层压在底色上，不直接当底色铺。</summary>
     public static Color Hover => Resolved[(int)Slot.Hover];
 
@@ -444,6 +459,12 @@ public static class Theme
     public static SolidColorBrush StrokeBrush => Paints[(int)Slot.Stroke];
     /// <summary>细描边画刷（共享实例）。</summary>
     public static SolidColorBrush StrokeSoftBrush => Paints[(int)Slot.StrokeSoft];
+    /// <summary>控件描边画刷（共享实例）：键帽、芯片、输入框、开关轨道。</summary>
+    public static SolidColorBrush StrokeFieldBrush => Paints[(int)Slot.StrokeField];
+    /// <summary>键帽底色画刷（共享实例）。</summary>
+    public static SolidColorBrush KeycapBgBrush => Paints[(int)Slot.KeycapBg];
+    /// <summary>芯片底色画刷（共享实例）。</summary>
+    public static SolidColorBrush ChipBgBrush => Paints[(int)Slot.ChipBg];
     /// <summary>行悬停底画刷（共享实例）。</summary>
     public static SolidColorBrush RowHoverBrush => Paints[(int)Slot.RowHover];
     /// <summary>轨道画刷（共享实例）。</summary>

@@ -38,13 +38,13 @@ public static partial class Fluent
     /// <param name="editable">true = 内容区是一枚可输入的文本框。</param>
     static void ComboSkin(ComboBox c, bool editable)
     {
-        string hexCard = Theme.CardBg.ToString(), hexStroke = Theme.Stroke.ToString();
+        string hexCard = Theme.CardBg.ToString(), hexStroke = Theme.Stroke.ToString(), hexField = Theme.StrokeField.ToString();
         string hexText = Theme.Text.ToString(), hexDim = Theme.TextDim.ToString();
         string hexPanel = Theme.PanelBg.ToString(), hexHover = Theme.Hover.ToString();
         string hexAccent = Theme.Accent.ToString(), hexOnAccent = OnAccentColor(Theme.Accent).ToString();
         c.Foreground = Theme.TextBrush;
         c.Background = Theme.CardBgBrush;
-        c.BorderBrush = Theme.StrokeBrush;
+        c.BorderBrush = Theme.StrokeFieldBrush;
         // 可编辑的那种：文本框占满左列，箭头是一枚只负责开关弹层的按钮。
         // 文本框自己不带底色与描边，圆角与描边由外层这一圈画，聚焦时整圈转强调色。
         string content = editable
@@ -57,7 +57,7 @@ public static partial class Fluent
         string xaml =
             $@"<ControlTemplate TargetType=""ComboBox"" xmlns=""{XamlPres}"" xmlns:x=""{XamlX}"">
   <Grid>
-    <Border x:Name=""root"" Background=""{hexCard}"" BorderBrush=""{hexStroke}"" BorderThickness=""1"" CornerRadius=""6""
+    <Border x:Name=""root"" Background=""{hexCard}"" BorderBrush=""{hexField}"" BorderThickness=""1"" CornerRadius=""6""
         TextElement.Foreground=""{hexText}"">
       <Grid>
         <Grid.ColumnDefinitions><ColumnDefinition Width=""*""/><ColumnDefinition Width=""Auto""/></Grid.ColumnDefinitions>

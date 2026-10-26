@@ -64,7 +64,7 @@ public sealed class ChordCaptureBox : Border
         BorderThickness = new Thickness(1);
         Padding = new Thickness(10, 6, 10, 6);
         MinWidth = 40;
-        Background = Theme.CardBgBrush;
+        Background = Theme.KeycapBgBrush;
         // 键帽在框里居中：表格里的框等宽对齐，键帽长短不一时靠边会让每行的键位错开
         _host.HorizontalAlignment = HorizontalAlignment.Center;
         Child = _host;
@@ -156,7 +156,7 @@ public sealed class ChordCaptureBox : Border
             var toks = EditorChord.Parse(_chord) is { } ec ? ec.Tokens() : new[] { _chord };
             _host.Children.Add(Keycaps.Row(toks, Fluent.KeycapTheme()));
         }
-        BorderBrush = new SolidColorBrush(_capturing ? Theme.Accent : Theme.Stroke);
+        BorderBrush = new SolidColorBrush(_capturing ? Theme.Accent : Theme.StrokeField);
         FitWidth();
     }
 

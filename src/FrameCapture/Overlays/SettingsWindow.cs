@@ -354,17 +354,10 @@ panel.Children.Add(ToggleRow("\uE7C8", Loc.T(K.Settings.ClickAWindowToCapture), 
 
         // 导航项的三态全部算在侧栏底色上，算出来都是不透明色：底色带 alpha、悬停再叠一层半透明白，
         // 落出来的颜色取决于窗口背后是什么；选中项上再压一层悬停，两层染色互相污染成一片脏色。
-        Color NavPaint(int i)
-        {
-            Color c = i == _cat ? Fluent.AccentOn(Theme.NavBg, 0.26) : Theme.NavBg;
-            return i == navHover ? Fluent.HoverOn(c) : c;
-        }
+        Color NavPaint(int i) => Fluent.NavBacking(Theme.NavBg, i == _cat, i == navHover);
         // 选中项的文字压在「强调色淡底」上，比卡片底和窗口底都亮，照抄 AccentText 会糊成一片浅蓝；
-        // 按这一项真正的底色判，读不清就退回正文色，选中感交给色块与左侧滑条。
-        Color NavFg(int i, bool icon)
-            => i == _cat ? Fluent.AccentTextOn(NavPaint(i))
-             : i == navHover ? Theme.Text
-             : icon ? Theme.TextDim : Theme.Text;
+        // 按这一项真正的底色判，读不清就退回黑或白，选中感交给色块与左侧滑条。
+        Color NavFg(int i, bool icon) => Fluent.NavInk(NavPaint(i), i == _cat, icon);
         void PaintNav(bool animate)
         {
             for (int i = 0; i < navItems.Count; i++)

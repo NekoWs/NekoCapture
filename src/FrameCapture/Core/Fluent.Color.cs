@@ -75,15 +75,57 @@ public static partial class Fluent
 
     /// <summary>强调色文字压在<em>指定</em>底色上的落点色。
     /// <see cref="AccentText"/> 只保证压在卡片底与窗口底上读得清；选中态那层强调色淡底比两张底都亮，
-    /// 压上去照样糊，所以这里按真实底色判：强调色 → 压暗版强调色 → 正文色，三档里取第一个够读的。</summary>
+    /// 压上去照样糊，所以这里按真实底色判：强调色 → 压暗版强调色 → 正文色 → 黑或白，四档里取第一个够读的。
+    /// 最后一档不可省：底色被用户调成很亮时，正文色可能本身就是白字，白字压上去只有一倍多对比。</summary>
     /// <param name="backing">文字实际坐在的那块底。</param>
     /// <returns>在那块底上对比度够 4.5:1 的颜色。</returns>
     public static Color AccentTextOn(Color backing)
     {
         if (ContrastRatio(Theme.Accent, backing) >= 4.5) return Theme.Accent;
         var dim = AccentText();
-        return ContrastRatio(dim, backing) >= 4.5 ? dim : Theme.Text;
+        if (ContrastRatio(dim, backing) >= 4.5) return dim;
+        return InkOn(backing, Theme.Text);
     }
+
+    /// <summary>一块底上该压什么颜色的字：优先用调用方给的那一支，不够读就按底色明暗在黑与白之间取。
+    /// 底色是用户可改的，任何「照抄正文色」的写法都会在某一种自定义配色下读不清。</summary>
+    /// <param name="backing">文字实际坐在的那块底。</param>
+    /// <param name="preferred">本来想用的字色。</param>
+    /// <returns>对比度够 4.5:1 的字色：原色够读就原样，否则黑或白里更够读的那一支。</returns>
+    public static Color InkOn(Color backing, Color preferred)
+    {
+        if (ContrastRatio(preferred, backing) >= 4.5) return preferred;
+        return ContrastRatio(Colors.Black, backing) >= ContrastRatio(Colors.White, backing) ? Colors.Black : Colors.White;
+    }
+
+    /// <summary>侧栏一项按强调色染过的浓度：静止与指针压上来各一档。
+    /// 指针压上来是提浓度而不是再叠一层通用悬停色——两种颜色各叠一层，落出来的色相取决于强调色有多亮，
+    /// 亮强调色上再压白就成了一块刺眼的青，压在它上面的字也跟着读不清。</summary>
+    public const double NavTint = 0.26;
+
+    /// <summary>侧栏选中项被指针压着时的强调色浓度，比静止档浓一档。</summary>
+    public const double NavTintHot = 0.36;
+
+    /// <summary>侧栏一项在某状态下的底色：静止项就是侧栏底色，选中项是强调色按浓度染过的那块。
+    /// 两个状态都算在侧栏底色上，落出来都是不透明实色，不再往上半透明地叠。</summary>
+    /// <param name="navBg">侧栏底色令牌。</param>
+    /// <param name="selected">是否为选中项。</param>
+    /// <param name="hovered">指针是否压在这一项上。</param>
+    /// <returns>这一项的不透明底色。</returns>
+    public static Color NavBacking(Color navBg, bool selected, bool hovered)
+    {
+        if (!selected) return hovered ? HoverOn(navBg) : Theme.Opaque(navBg);
+        return AccentOn(navBg, hovered ? NavTintHot : NavTint);
+    }
+
+    /// <summary>侧栏一项的字色：按它真正的底色挑。选中项走强调色的三档兜底，
+    /// 其余项用正文色或次要文字色；底色被调亮到读不清时退回黑或白。</summary>
+    /// <param name="backing">这一项的底色，见 <see cref="NavBacking"/>。</param>
+    /// <param name="selected">是否为选中项。</param>
+    /// <param name="icon">true = 这一格是图标，静止时用次要文字色。</param>
+    /// <returns>压在 <paramref name="backing"/> 上读得清的字色。</returns>
+    public static Color NavInk(Color backing, bool selected, bool icon)
+        => selected ? AccentTextOn(backing) : InkOn(backing, icon ? Theme.TextDim : Theme.Text);
 
     /// <summary>换一个 alpha，色相与明度不动：强调色要淡淡铺一层时的写法。</summary>
     /// <param name="c">原色。</param>

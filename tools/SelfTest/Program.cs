@@ -7614,6 +7614,253 @@ static partial class SelfTest
             }
         }
         catch (Exception e) { Chk("T253-duration-commit", false, e.Message); }
+        // 侧栏三态在任何一套预设、任何一侧主题下都要读得清：底色与字色一起算。
+        // 选中项的悬停是提强调色浓度，不再叠一层通用悬停色——两层染色叠出来的色相取决于强调色有多亮，
+        // 亮强调色上再压白就是一块刺眼的青，压在上面的字当场读不清。
+        try
+        {
+            var npNv = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+            var tyNv = typeof(FrameCapture.Overlays.SettingsWindow);
+            bool keepDarkNv = Theme.IsDark;
+            var winNv = new FrameCapture.Overlays.SettingsWindow();
+            tyNv.GetMethod("Build", npNv)!.Invoke(winNv, null);
+            winNv.WindowStartupLocation = WindowStartupLocation.Manual;
+            winNv.Left = -20000; winNv.Top = -20000; winNv.ShowInTaskbar = false;
+            winNv.Show();
+            PumpMs(220);
+            var rowsNv = tyNv.GetField("_navRows", npNv)!.GetValue(winNv) as List<System.Windows.Controls.Border>;
+            double worst = double.MaxValue;
+            string worstAt = "";
+            void Note(double r, string at)
+            {
+                if (r < worst) { worst = r; worstAt = at; }
+            }
+            foreach (var p in ColorPresets.All)
+            {
+                foreach (var th in new[] { "dark", "light" })
+                {
+                    var st = new AppSettings { Theme = th, Accent = p.Accent };
+                    st.Colors = new Dictionary<string, string>(p.Colors, StringComparer.Ordinal);
+                    // 预览卡与导航走同一组数：先按这套预设把调色板落下来，再读界面上真正在用的那几支画刷
+                    Theme.LoadCustoms(st.Colors);
+                    Theme.Apply(th, p.Accent);
+                    for (int i = 0; i < rowsNv!.Count; i++)
+                    {
+                        var el = rowsNv[i];
+                        var bg = (el.Background as System.Windows.Media.SolidColorBrush)?.Color ?? System.Windows.Media.Colors.Transparent;
+                        var sp = (System.Windows.Controls.StackPanel)el.Child;
+                        var inkIcon = ((System.Windows.Controls.TextBlock)sp.Children[0]).Foreground as System.Windows.Media.SolidColorBrush;
+                        var inkText = ((System.Windows.Controls.TextBlock)sp.Children[1]).Foreground as System.Windows.Media.SolidColorBrush;
+                        Note(Fluent.ContrastRatio(inkText?.Color ?? Theme.Text, bg), $"{p.Id}/{th}/第{i + 1}项文字");
+                        Note(Fluent.ContrastRatio(inkIcon?.Color ?? Theme.TextDim, bg), $"{p.Id}/{th}/第{i + 1}项图标");
+                    }
+                    // 悬停态：底色与字色都由同一组规则给出，四种组合各算一遍
+                    foreach (var sel in new[] { false, true })
+                    {
+                        var back = Fluent.NavBacking(Theme.NavBg, sel, hovered: true);
+                        foreach (var icon in new[] { false, true })
+                            Note(Fluent.ContrastRatio(Fluent.NavInk(back, sel, icon), back),
+                                $"{p.Id}/{th}/悬停{(sel ? "选中" : "未选")}{(icon ? "图标" : "文字")}");
+                    }
+                }
+            }
+            Chk("T254-nav-ink-readable", worst >= 4.5, $"最差一处 {worstAt} 只有 {worst:F2}:1");
+            // 选中 + 悬停的底色要比选中的静止档更浓：提一档浓度，而不是混进一层把色相冲淡的白
+            Theme.LoadCustoms(new Dictionary<string, string>());
+            Theme.Apply("dark", null);
+            var selRest = Fluent.NavBacking(Theme.NavBg, selected: true, hovered: false);
+            var selHot = Fluent.NavBacking(Theme.NavBg, selected: true, hovered: true);
+            Chk("T254-nav-hover-deeper", Math.Abs(Fluent.ContrastRatio(selHot, Theme.Accent) - Fluent.ContrastRatio(selRest, Theme.Accent)) > 0.05,
+                $"选中悬停比静止更靠近强调色：{HexColor.Format(selRest)} → {HexColor.Format(selHot)}");
+            Theme.Apply(keepDarkNv ? "dark" : "light", null);
+            PumpMs(60);
+            winNv.Close();
+        }
+        catch (Exception e) { Chk("T254-nav-ink", false, e.Message); }
+
+        // 每套预设两侧都要看得出换过：预设只给出厂那几个色阶的邻居，用户会以为「亮色根本没做」。
+        try
+        {
+            var lines = new List<string>();
+            foreach (var p in ColorPresets.All)
+            {
+                if (p.Id == "default") continue;
+                foreach (var dark in new[] { false, true })
+                {
+                    int changed = 0;
+                    var detail = new List<string>();
+                    foreach (var t in Theme.Tokens)
+                    {
+                        var key = (dark ? "dark." : "light.") + t.Key;
+                        var factory = t.Default(dark);
+                        var v = p.Colors.TryGetValue(key, out var hex) ? HexColor.Parse(hex) ?? factory : factory;
+                        int delta = Math.Max(Math.Abs(v.A - factory.A),
+                            Math.Max(Math.Abs(v.R - factory.R), Math.Max(Math.Abs(v.G - factory.G), Math.Abs(v.B - factory.B))));
+                        if (delta >= 6) changed++;
+                        detail.Add($"{t.Key}+{delta}");
+                    }
+                    lines.Add($"{p.Id}/{(dark ? "dark" : "light")}:{changed}");
+                    Chk($"T255-preset-visible-{p.Id}-{(dark ? "dark" : "light")}", changed >= 4,
+                        $"这套在{(dark ? "深" : "亮")}侧改动了 {changed} 枚令牌（{string.Join(" ", detail)}）");
+                }
+            }
+            Console.WriteLine("预设改动枚数 " + string.Join(" ", lines));
+        }
+        catch (Exception e) { Chk("T255-preset-visible", false, e.Message); }
+        // 描边要看得见但不能抢眼：把带 alpha 的描边压到它那块底上，量两者对比度。
+        // 太亮就是「用了预设之后边框很扎眼」，太淡则等于没有边界——两头都要有数。
+        try
+        {
+            bool keepDarkBd = Theme.IsDark;
+            double hi = 0, lo = 99;
+            string hiAt = "", loAt = "";
+            foreach (var p in ColorPresets.All)
+            {
+                Theme.LoadCustoms(p.Colors);
+                foreach (var dark in new[] { false, true })
+                {
+                    foreach (var (strokeKey, bgKey) in new[]
+                             {
+                                 ("Stroke", "CardBg"), ("StrokeField", "KeycapBg"),
+                                 ("StrokeField", "ChipBg"), ("StrokeSoft", "RowBg"),
+                             })
+                    {
+                        var bg = Theme.Opaque(Theme.ValueOf(bgKey, dark));
+                        var line = Fluent.Flatten(Theme.ValueOf(strokeKey, dark), bg);
+                        double r = Fluent.ContrastRatio(line, bg);
+                        string at = $"{p.Id}/{(dark ? "深" : "亮")} {strokeKey} 压 {bgKey}";
+                        if (r > hi) { hi = r; hiAt = at; }
+                        if (r < lo) { lo = r; loAt = at; }
+                    }
+                }
+            }
+            Theme.ClearAllCustoms();
+            Theme.Apply(keepDarkBd ? "dark" : "light", null);
+            Chk("T256-border-calm", hi <= 2.0, $"最扎眼的一处 {hiAt} 达到 {hi:F2}:1（上限 2.0）");
+            Chk("T256-border-visible", lo >= 1.08, $"最淡的一处 {loAt} 只有 {lo:F2}:1（下限 1.08）");
+        }
+        catch (Exception e) { Chk("T256-border-contrast", false, e.Message); }
+        // 键帽与芯片换成了各自的令牌：开窗后键帽的底就是「键帽底色」那支共享画刷，芯片未选中态是「芯片底色」。
+        try
+        {
+            var npTk = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+            var tyTk = typeof(FrameCapture.Overlays.SettingsWindow);
+            var winTk = new FrameCapture.Overlays.SettingsWindow();
+            tyTk.GetField("_restoreCat", npTk)!.SetValue(winTk, 0);
+            tyTk.GetMethod("Build", npTk)!.Invoke(winTk, null);
+            winTk.WindowStartupLocation = WindowStartupLocation.Manual;
+            winTk.Left = -20000; winTk.Top = -20000; winTk.ShowInTaskbar = false;
+            winTk.Show();
+            PumpMs(260);
+            var boxesTk = tyTk.GetField("_hotBoxes", npTk)!.GetValue(winTk) as Dictionary<string, FrameCapture.Core.ChordCaptureBox>;
+            var capTk = boxesTk!.Values.First();
+            Chk("T257-keycap-uses-token", ReferenceEquals(capTk.Background, Theme.KeycapBgBrush),
+                "键帽底走「键帽底色」令牌，改它当场换色");
+            Chk("T257-keycap-border-uses-token",
+                capTk.BorderBrush is System.Windows.Media.SolidColorBrush kb
+                    && (kb.Color == Theme.StrokeField || kb.Color == Theme.Accent),
+                "键帽描边走「控件描边」令牌");
+            // 截图页上的格式芯片：未选中那几枚的底就是芯片底色
+            var svsTk = new List<System.Windows.DependencyObject>();
+            CollectTyped(winTk, typeof(System.Windows.Controls.ScrollViewer), svsTk);
+            var hostTk = (svsTk.Count > 0 ? (svsTk[0] as System.Windows.Controls.ScrollViewer)?.Content : null) as System.Windows.Controls.Grid;
+            var pageCap = hostTk?.Children.Count > 1 ? hostTk.Children[1] as FrameworkElement : null;
+            var textsTk = new List<System.Windows.DependencyObject>();
+            if (pageCap != null) CollectTyped(pageCap, typeof(System.Windows.Controls.TextBlock), textsTk);
+            var rgbChip = textsTk.OfType<System.Windows.Controls.TextBlock>()
+                .Where(t => t.Text == "RGB")
+                .Select(t => System.Windows.Media.VisualTreeHelper.GetParent(t))
+                .OfType<System.Windows.Controls.Border>().FirstOrDefault();
+            Chk("T257-chip-uses-token",
+                (rgbChip?.Background as System.Windows.Media.SolidColorBrush)?.Color == Theme.ChipBg,
+                $"未选中的芯片底就是「芯片底色」：{HexColor.Format((rgbChip?.Background as System.Windows.Media.SolidColorBrush)?.Color ?? System.Windows.Media.Colors.Transparent)} / 令牌 {HexColor.Format(Theme.ChipBg)}");
+            winTk.Close();
+        }
+        catch (Exception e) { Chk("T257-new-tokens", false, e.Message); }
+        // 叠加层与描边必须是半透明的：色值写成 8 位时 alpha 的位置写错，读出来就是一支不透明的亮色——
+        // 悬停于是把整行刷成一块刺眼的青，压在上面的字全糊。
+        try
+        {
+            var overlay = new[] { "Hover", "Press", "Stroke", "StrokeSoft", "StrokeField", "TrackBg" };
+            int checkedCount = 0, opaque = 0;
+            var bad = new List<string>();
+            foreach (var p in ColorPresets.All)
+            {
+                foreach (var e in p.Colors)
+                {
+                    int dot = e.Key.IndexOf('.');
+                    var token = dot > 0 ? e.Key.Substring(dot + 1) : e.Key;
+                    if (Array.IndexOf(overlay, token) < 0) continue;
+                    var c = HexColor.Parse(e.Value);
+                    if (c == null) continue;
+                    checkedCount++;
+                    if (c.Value.A >= 255) { opaque++; bad.Add($"{e.Key}={e.Value}"); }
+                }
+            }
+            Chk("T258-overlays-translucent", checkedCount >= 30 && opaque == 0,
+                $"{checkedCount} 条叠加层/描边里不透明的有 {opaque} 条{(bad.Count > 0 ? "：" + string.Join(" ", bad.Take(6)) : "")}");
+            // 悬停一步要读得出「被碰过」，但不能把整块底翻个面：出厂与每套预设都量一次
+            bool keepDarkHv = Theme.IsDark;
+            double worstHover = 0;
+            string worstHoverAt = "";
+            foreach (var p in ColorPresets.All)
+            {
+                Theme.LoadCustoms(p.Colors);
+                foreach (var dark in new[] { false, true })
+                {
+                    var nav = Theme.Opaque(Theme.ValueOf("NavBg", dark));
+                    var row = Theme.Opaque(Theme.ValueOf("RowBg", dark));
+                    double a = Fluent.ContrastRatio(Fluent.HoverOn(nav), nav);
+                    double b = Fluent.ContrastRatio(Fluent.HoverOn(row), row);
+                    if (a > worstHover) { worstHover = a; worstHoverAt = $"{p.Id}/{(dark ? "深" : "亮")} 侧栏"; }
+                    if (b > worstHover) { worstHover = b; worstHoverAt = $"{p.Id}/{(dark ? "深" : "亮")} 行"; }
+                }
+            }
+            Theme.ClearAllCustoms();
+            Theme.Apply(keepDarkHv ? "dark" : "light", null);
+            Chk("T258-hover-is-a-step", worstHover <= 1.9, $"最重的一步悬停 {worstHoverAt} 到 {worstHover:F2}:1（上限 1.9）");
+        }
+        catch (Exception e) { Chk("T258-overlay-alpha", false, e.Message); }
+        // 设置文件里那份预设副本：套用那一刻抄下来的字符串，字节顺序读不对就一直读错。
+        // 版本落后时只换读错位的那几条——存下来不透明、表里这条本是半透明。
+        try
+        {
+            var stale = new AppSettings { ColorPreset = "midnight", PresetRevision = 0 };
+            stale.Colors["dark.Hover"] = "#33FFFFFF";   // 错位的写法：读出来是不透明的青
+            stale.Normalize();
+            Chk("T259-stale-preset-copy-rewritten",
+                !stale.Colors.TryGetValue("dark.Hover", out var leftHover) || leftHover != "#33FFFFFF",
+                $"错位那条被表里的值替掉了：dark.Hover={(stale.Colors.TryGetValue("dark.Hover", out var lh) ? lh : "（与出厂同值，已省去）")}");
+            // 表里这条与出厂同值，换回半透明之后会被归一丢掉；留着的也必须已经是半透明
+            Chk("T259-misread-entry-becomes-translucent",
+                stale.PresetRevision == ColorPresets.Revision
+                    && (!stale.Colors.TryGetValue("dark.Hover", out var backHover) || (HexColor.Parse(backHover)?.A ?? 255) < 255),
+                $"换回来之后 dark.Hover={(stale.Colors.TryGetValue("dark.Hover", out var bh) ? bh : "与出厂同值，已省去")}");
+            // 逐条对，别整张表覆盖：手改的那枚与读错的那条同行时也得各归各位
+            var mixed = new AppSettings { ColorPreset = "midnight", PresetRevision = 0 };
+            mixed.Colors["dark.Hover"] = "#33FFFFFF";   // 错位
+            mixed.Colors["dark.RowBg"] = "#123456";     // 手改（表里这条不透明，不该被动）
+            mixed.Normalize();
+            Chk("T259-only-misread-entries-swapped",
+                (!mixed.Colors.TryGetValue("dark.Hover", out var mixedHover) || mixedHover != "#33FFFFFF")
+                    && mixed.Colors.TryGetValue("dark.RowBg", out var mixedRow) && mixedRow == "#123456",
+                "只把读错位的那条按表换掉，其它手改的颜色留着");
+            // 出厂预设的覆盖表是空的：这种设置下的自定义颜色一枚都不能丢
+            var ownColours = new AppSettings { ColorPreset = "default", PresetRevision = 0 };
+            ownColours.Colors["dark.CardBg"] = "#123456";
+            ownColours.Normalize();
+            Chk("T259-default-preset-keeps-customs",
+                ownColours.Colors.TryGetValue("dark.CardBg", out var ownCard) && ownCard == "#123456"
+                    && ownColours.PresetRevision == ColorPresets.Revision,
+                "出厂预设下自己调的颜色不会被版本迁移抹掉");
+            var keepId = new AppSettings { ColorPreset = "midnight", PresetRevision = ColorPresets.Revision };
+            keepId.Colors["dark.CardBg"] = "#123456";
+            keepId.Normalize();
+            Chk("T259-preset-tweak-survives",
+                keepId.Colors.TryGetValue("dark.CardBg", out var kept) && kept == "#123456",
+                "版本已是最新时，套预设之后手改的那枚留得住");
+        }
+        catch (Exception e) { Chk("T259-preset-revision", false, e.Message); }
         // 语义判定：按钮/链接/输入框算控件；匿名容器与整页文档不算。
         try
         {

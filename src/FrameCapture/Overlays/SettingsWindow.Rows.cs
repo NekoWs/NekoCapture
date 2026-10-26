@@ -103,7 +103,7 @@ public sealed partial class SettingsWindow : Window
             Margin = new Thickness(12, 0, 0, 0),
             CornerRadius = new CornerRadius(10),
             Background = new SolidColorBrush(initial ? Theme.Accent : Theme.TrackBg),
-            BorderBrush = new SolidColorBrush(initial ? Theme.Accent : Theme.Stroke),
+            BorderBrush = new SolidColorBrush(initial ? Theme.Accent : Theme.StrokeField),
             BorderThickness = new Thickness(1),
             HorizontalAlignment = HorizontalAlignment.Right,
             VerticalAlignment = VerticalAlignment.Center,
@@ -237,7 +237,7 @@ public sealed partial class SettingsWindow : Window
         }
 
         box.GotKeyboardFocus += (_, _) => { field.BorderBrush = Theme.AccentBrush; PaintHint(); };
-        box.LostKeyboardFocus += (_, _) => { field.BorderBrush = Theme.StrokeBrush; Commit(); };
+        box.LostKeyboardFocus += (_, _) => { field.BorderBrush = Theme.StrokeFieldBrush; Commit(); };
         box.TextChanged += (_, _) => PaintHint();
         box.PreviewKeyDown += (_, e) =>
         {
@@ -473,7 +473,7 @@ public sealed partial class SettingsWindow : Window
         CornerRadius = new CornerRadius(6),
         Padding = new Thickness(10, 5, 10, 5),
         Margin = new Thickness(2, 0, 2, 0),
-        Background = new SolidColorBrush(selected ? Theme.Accent : Theme.Hover),
+        Background = new SolidColorBrush(selected ? Theme.Accent : Theme.ChipBg),
         Child = new TextBlock
         {
             Text = text,
@@ -510,7 +510,7 @@ public sealed partial class SettingsWindow : Window
         {
             bool sel = Equals(cid, selected);
             anySel |= sel;
-            c.Background = new SolidColorBrush(sel ? Theme.Accent : Theme.Hover);
+            c.Background = new SolidColorBrush(sel ? Theme.Accent : Theme.ChipBg);
             if (c.Child is TextBlock tb) tb.Foreground = new SolidColorBrush(sel ? Fluent.OnAccentColor(Theme.Accent) : Theme.Text);
         }
         return anySel;

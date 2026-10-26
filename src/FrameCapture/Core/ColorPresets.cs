@@ -64,78 +64,82 @@ public static class ColorPresets
     public static readonly ColorPreset Graphite = new("graphite", "#8FA8C8", Map(
         ("dark.WindowBg", "#1A1B1D"), ("dark.PanelBg", "#232427"), ("dark.ChromeBg", "#25262A"),
         ("dark.CardBg", "#202124"), ("dark.RowBg", "#2A2C30"), ("dark.NavBg", "#1E1F22"),
-        ("dark.RowHover", "#35373C"), ("dark.TrackBg", "#2DFFFFFF"),
+        ("dark.RowHover", "#35373C"), ("dark.TrackBg", "#FFFFFF2D"), ("dark.KeycapBg", "#2A2C30"), ("dark.ChipBg", "#2F3237"),
         ("dark.Text", "#F5F6F8"), ("dark.TextDim", "#C6C9D0"),
-        ("dark.Stroke", "#3DFFFFFF"), ("dark.StrokeSoft", "#24FFFFFF"),
-        ("dark.Hover", "#1FFFFFFF"), ("dark.Press", "#33FFFFFF"),
-        ("light.WindowBg", "#F4F5F6"), ("light.PanelBg", "#FFFFFF"), ("light.ChromeBg", "#ECEDEF"),
-        ("light.CardBg", "#FFFFFF"), ("light.RowBg", "#F0F1F3"), ("light.NavBg", "#EAEBEE"),
-        ("light.RowHover", "#E5E7EA"), ("light.TrackBg", "#1F000000"),
-        ("light.Text", "#16171A"), ("light.TextDim", "#585D66"),
-        ("light.Stroke", "#33000000"), ("light.StrokeSoft", "#1F000000"),
-        ("light.Hover", "#14000000"), ("light.Press", "#24000000")));
+        ("dark.Stroke", "#FFFFFF24"), ("dark.StrokeSoft", "#FFFFFF12"), ("dark.StrokeField", "#FFFFFF1A"),
+        ("dark.Hover", "#FFFFFF1F"), ("dark.Press", "#FFFFFF33"),
+        ("light.WindowBg", "#F0F0F0"), ("light.PanelBg", "#FBFBFB"), ("light.ChromeBg", "#E8E8E8"),
+        ("light.CardBg", "#FFFFFF"), ("light.RowBg", "#E9E9E9"), ("light.NavBg", "#E3E3E3"),
+        ("light.RowHover", "#DCDCDC"), ("light.TrackBg", "#0000001F"), ("light.KeycapBg", "#F7F7F7"), ("light.ChipBg", "#E9E9E9"),
+        ("light.Text", "#161616"), ("light.TextDim", "#555555"),
+        ("light.Stroke", "#00000024"), ("light.StrokeSoft", "#00000012"), ("light.StrokeField", "#0000001A"),
+        ("light.Hover", "#00000014"), ("light.Press", "#00000024")));
 
     /// <summary>午夜蓝：暗侧整套沉进深海蓝，描边与轨道带一点蓝白；亮侧同色相的浅蓝灰。
     /// 层级靠明度拉开，四层表面之间各差一档，卡片不靠描边也分得开。</summary>
     public static readonly ColorPreset Midnight = new("midnight", "#5AB0FF", Map(
         ("dark.WindowBg", "#0F1626"), ("dark.PanelBg", "#172033"), ("dark.ChromeBg", "#1A2338"),
         ("dark.CardBg", "#1B2437"), ("dark.RowBg", "#222E46"), ("dark.NavBg", "#141C2C"),
-        ("dark.RowHover", "#2A3A58"), ("dark.TrackBg", "#33A8C6FF"),
+        ("dark.RowHover", "#2A3A58"), ("dark.TrackBg", "#A8C6FF33"), ("dark.KeycapBg", "#212B40"), ("dark.ChipBg", "#27334C"),
         ("dark.Text", "#F2F6FF"), ("dark.TextDim", "#C2CEE4"),
-        ("dark.Stroke", "#40A8C6FF"), ("dark.StrokeSoft", "#26A8C6FF"),
-        ("dark.Hover", "#1EFFFFFF"), ("dark.Press", "#2EFFFFFF"),
-        ("light.WindowBg", "#F2F5FB"), ("light.PanelBg", "#FFFFFF"), ("light.ChromeBg", "#E6ECF7"),
-        ("light.CardBg", "#FFFFFF"), ("light.RowBg", "#EDF1F9"), ("light.NavBg", "#E7EDF8"),
-        ("light.RowHover", "#E3E9F5"), ("light.TrackBg", "#1F2A3A5C"),
-        ("light.Text", "#101827"), ("light.TextDim", "#4F5C74"),
-        ("light.Stroke", "#33233247"), ("light.StrokeSoft", "#1F233247"),
-        ("light.Hover", "#14233247"), ("light.Press", "#24233247")));
+        ("dark.Stroke", "#A8C6FF2E"), ("dark.StrokeSoft", "#A8C6FF16"), ("dark.StrokeField", "#A8C6FF22"),
+        ("dark.Hover", "#FFFFFF1E"), ("dark.Press", "#FFFFFF2E"),
+        ("light.WindowBg", "#E9EFFA"), ("light.PanelBg", "#FDFEFF"), ("light.ChromeBg", "#DDE6F6"),
+        ("light.CardBg", "#FFFFFF"), ("light.RowBg", "#E3EAF7"), ("light.NavBg", "#DCE4F3"),
+        ("light.RowHover", "#D6DFF0"), ("light.TrackBg", "#2A3A5C1F"), ("light.KeycapBg", "#F4F7FE"), ("light.ChipBg", "#E3EAF7"),
+        ("light.Text", "#101827"), ("light.TextDim", "#47566F"),
+        ("light.Stroke", "#23324726"), ("light.StrokeSoft", "#23324714"), ("light.StrokeField", "#2332471F"),
+        ("light.Hover", "#23324714"), ("light.Press", "#23324724")));
 
     /// <summary>暖沙：整套往暖褐走，亮侧像纸、暗侧像灯下的木桌。强调色是那盏灯本身。</summary>
     public static readonly ColorPreset Sand = new("sand", "#E0A35C", Map(
         ("dark.WindowBg", "#1E1A15"), ("dark.PanelBg", "#29241D"), ("dark.ChromeBg", "#2B2620"),
         ("dark.CardBg", "#262119"), ("dark.RowBg", "#332C23"), ("dark.NavBg", "#221D17"),
-        ("dark.RowHover", "#40382C"), ("dark.TrackBg", "#2DE8D9BF"),
+        ("dark.RowHover", "#40382C"), ("dark.TrackBg", "#E8D9BF2D"), ("dark.KeycapBg", "#2C261D"), ("dark.ChipBg", "#332C23"),
         ("dark.Text", "#FBF5EA"), ("dark.TextDim", "#D3C7B4"),
-        ("dark.Stroke", "#3BE8D9BF"), ("dark.StrokeSoft", "#24E8D9BF"),
-        ("dark.Hover", "#1EF5E8D2"), ("dark.Press", "#2EF5E8D2"),
-        ("light.WindowBg", "#FAF6EE"), ("light.PanelBg", "#FFFDF8"), ("light.ChromeBg", "#F1E9DC"),
-        ("light.CardBg", "#FFFDF8"), ("light.RowBg", "#F5EEE2"), ("light.NavBg", "#F1E9DB"),
-        ("light.RowHover", "#ECE3D3"), ("light.TrackBg", "#1F5A4A32"),
+        ("dark.Stroke", "#E8D9BF2B"), ("dark.StrokeSoft", "#E8D9BF16"), ("dark.StrokeField", "#E8D9BF20"),
+        ("dark.Hover", "#F5E8D21E"), ("dark.Press", "#F5E8D22E"),
+        ("light.WindowBg", "#F8F1E4"), ("light.PanelBg", "#FFFDF7"), ("light.ChromeBg", "#EFE5D3"),
+        ("light.CardBg", "#FFFDF7"), ("light.RowBg", "#F2E9D8"), ("light.NavBg", "#EDE3D0"),
+        ("light.RowHover", "#E8DDC8"), ("light.TrackBg", "#5A4A321F"), ("light.KeycapBg", "#FDF8EF"), ("light.ChipBg", "#F2E9D8"),
         ("light.Text", "#21190F"), ("light.TextDim", "#6A5C48"),
-        ("light.Stroke", "#335A4A32"), ("light.StrokeSoft", "#1F5A4A32"),
-        ("light.Hover", "#145A4A32"), ("light.Press", "#245A4A32")));
+        ("light.Stroke", "#5A4A3228"), ("light.StrokeSoft", "#5A4A3216"), ("light.StrokeField", "#5A4A3220"),
+        ("light.Hover", "#5A4A3214"), ("light.Press", "#5A4A3224")));
 
     /// <summary>森林：灰绿表面配青绿强调色，暗侧像雨后的林荫，亮侧是带一点绿的纸。</summary>
     public static readonly ColorPreset Forest = new("forest", "#54C98D", Map(
         ("dark.WindowBg", "#121A15"), ("dark.PanelBg", "#1A241D"), ("dark.ChromeBg", "#1C2720"),
         ("dark.CardBg", "#18221C"), ("dark.RowBg", "#223026"), ("dark.NavBg", "#151F19"),
-        ("dark.RowHover", "#2A3B30"), ("dark.TrackBg", "#2DBDD9C0"),
+        ("dark.RowHover", "#2A3B30"), ("dark.TrackBg", "#BDD9C02D"), ("dark.KeycapBg", "#1C2720"), ("dark.ChipBg", "#223026"),
         ("dark.Text", "#F1F7F2"), ("dark.TextDim", "#BCCFC2"),
-        ("dark.Stroke", "#3ACBE3D3"), ("dark.StrokeSoft", "#24CBE3D3"),
-        ("dark.Hover", "#1EFFFFFF"), ("dark.Press", "#2EFFFFFF"),
-        ("light.WindowBg", "#F3F7F2"), ("light.PanelBg", "#FFFFFF"), ("light.ChromeBg", "#E9F0E7"),
-        ("light.CardBg", "#FFFFFF"), ("light.RowBg", "#F0F5EF"), ("light.NavBg", "#EAF1E8"),
-        ("light.RowHover", "#E6EDE4"), ("light.TrackBg", "#1F36503F"),
-        ("light.Text", "#121A14"), ("light.TextDim", "#4E5F52"),
-        ("light.Stroke", "#33374F3F"), ("light.StrokeSoft", "#1F374F3F"),
-        ("light.Hover", "#14374F3F"), ("light.Press", "#24374F3F")));
+        ("dark.Stroke", "#CBE3D32A"), ("dark.StrokeSoft", "#CBE3D316"), ("dark.StrokeField", "#CBE3D320"),
+        ("dark.Hover", "#FFFFFF1E"), ("dark.Press", "#FFFFFF2E"),
+        ("light.WindowBg", "#ECF3EA"), ("light.PanelBg", "#FCFEFB"), ("light.ChromeBg", "#E0EBDE"),
+        ("light.CardBg", "#FFFFFF"), ("light.RowBg", "#E5EEE2"), ("light.NavBg", "#DFE9DC"),
+        ("light.RowHover", "#D9E4D5"), ("light.TrackBg", "#36503F1F"), ("light.KeycapBg", "#F6FAF4"), ("light.ChipBg", "#E5EEE2"),
+        ("light.Text", "#121A14"), ("light.TextDim", "#4A5C4D"),
+        ("light.Stroke", "#374F3F28"), ("light.StrokeSoft", "#374F3F16"), ("light.StrokeField", "#374F3F20"),
+        ("light.Hover", "#374F3F14"), ("light.Press", "#374F3F24")));
 
     /// <summary>高对比：表面收到接近纯黑与纯白，描边与叠加层加浓、次要文字提到接近正文。
     /// 给看不清低对比界面的人一个能用的档，明暗两侧都留出最大的明度差。</summary>
     public static readonly ColorPreset Contrast = new("contrast", "#2668D9", Map(
         ("dark.WindowBg", "#000000"), ("dark.PanelBg", "#0B0B0D"), ("dark.ChromeBg", "#0A0A0C"),
         ("dark.CardBg", "#121216"), ("dark.RowBg", "#1C1F24"), ("dark.NavBg", "#0D0F12"),
-        ("dark.RowHover", "#262A31"), ("dark.TrackBg", "#4DFFFFFF"),
+        ("dark.RowHover", "#262A31"), ("dark.TrackBg", "#FFFFFF4D"), ("dark.KeycapBg", "#17181C"), ("dark.ChipBg", "#1C1F24"),
         ("dark.Text", "#FFFFFF"), ("dark.TextDim", "#E9ECF1"),
-        ("dark.Stroke", "#99FFFFFF"), ("dark.StrokeSoft", "#66FFFFFF"),
-        ("dark.Hover", "#33FFFFFF"), ("dark.Press", "#4DFFFFFF"),
+        ("dark.Stroke", "#FFFFFF33"), ("dark.StrokeSoft", "#FFFFFF1F"), ("dark.StrokeField", "#FFFFFF2A"),
+        ("dark.Hover", "#FFFFFF26"), ("dark.Press", "#FFFFFF38"),
         ("light.WindowBg", "#FFFFFF"), ("light.PanelBg", "#FFFFFF"), ("light.ChromeBg", "#FFFFFF"),
         ("light.CardBg", "#FFFFFF"), ("light.RowBg", "#F7F8FB"), ("light.NavBg", "#F2F4F8"),
-        ("light.RowHover", "#E8EBF1"), ("light.TrackBg", "#3D000000"),
+        ("light.RowHover", "#E8EBF1"), ("light.TrackBg", "#0000003D"), ("light.KeycapBg", "#FFFFFF"), ("light.ChipBg", "#F7F8FB"),
         ("light.Text", "#000000"), ("light.TextDim", "#33383F"),
-        ("light.Stroke", "#77000000"), ("light.StrokeSoft", "#44000000"),
-        ("light.Hover", "#26000000"), ("light.Press", "#3A000000")));
+        ("light.Stroke", "#00000033"), ("light.StrokeSoft", "#0000001F"), ("light.StrokeField", "#0000002A"),
+        ("light.Hover", "#0000001F"), ("light.Press", "#0000002E")));
+
+    /// <summary>预设表的版本。色值格式一变，「设置文件里那份副本」就该按表重取一次——
+    /// 副本是套用那一刻抄下来的字符串，读不对的字节留在里面会一直读错。</summary>
+    public const int Revision = 1;
 
     /// <summary>设置页「配色」里按顺序摆出的全部预设。</summary>
     public static readonly IReadOnlyList<ColorPreset> All =

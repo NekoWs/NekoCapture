@@ -126,7 +126,7 @@ public sealed partial class SettingsWindow : Window
         cell.MouseLeftButtonUp += (_, e) => { Open(); e.Handled = true; };
         cell.KeyDown += (_, e) => { if (e.Key is Key.Space or Key.Enter) { Open(); e.Handled = true; } };
         cell.GotKeyboardFocus += (_, _) => cell.BorderBrush = Theme.AccentBrush;
-        cell.LostKeyboardFocus += (_, _) => cell.BorderBrush = Theme.StrokeBrush;
+        cell.LostKeyboardFocus += (_, _) => cell.BorderBrush = Theme.StrokeFieldBrush;
         reset.MouseLeftButtonUp += (_, e) =>
         {
             _settings.Mutate(s => s.Accent = "");
@@ -138,7 +138,7 @@ public sealed partial class SettingsWindow : Window
         _repaint.Add(() =>
         {
             fill.Background = Theme.AccentBrush;
-            cell.BorderBrush = Theme.StrokeBrush;
+            cell.BorderBrush = Theme.StrokeFieldBrush;
             hex.Text = HexColor.Format(Theme.Accent);
             hex.Foreground = Theme.TextBrush;
             lbl.Foreground = Theme.TextBrush;

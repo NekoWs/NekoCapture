@@ -376,15 +376,18 @@ public static partial class K
             "允许截到自己",
             "Allow capturing FrameCapture");
         public static readonly Str TokenCardBg = new("settings.tokenCardBg", "卡片底色", "Card");
+        public static readonly Str TokenChip = new("settings.tokenChip", "芯片底色", "Chip");
         public static readonly Str TokenChromeBg = new("settings.tokenChromeBg", "标题栏底色", "Title bar");
         public static readonly Str TokenDanger = new("settings.tokenDanger", "提醒", "Danger");
         public static readonly Str TokenHover = new("settings.tokenHover", "悬停叠加", "Hover overlay");
+        public static readonly Str TokenKeycap = new("settings.tokenKeycap", "键帽底色", "Keycap");
         public static readonly Str TokenNavBg = new("settings.tokenNavBg", "侧栏底色", "Sidebar");
         public static readonly Str TokenPanelBg = new("settings.tokenPanelBg", "面板底色", "Panel");
         public static readonly Str TokenPress = new("settings.tokenPress", "按下叠加", "Pressed overlay");
         public static readonly Str TokenRowBg = new("settings.tokenRowBg", "行底色", "Row");
         public static readonly Str TokenRowHover = new("settings.tokenRowHover", "行悬停", "Row hover");
         public static readonly Str TokenStroke = new("settings.tokenStroke", "标准描边", "Stroke");
+        public static readonly Str TokenStrokeField = new("settings.tokenStrokeField", "控件描边", "Control stroke");
         public static readonly Str TokenStrokeSoft = new("settings.tokenStrokeSoft", "细描边", "Soft stroke");
         public static readonly Str TokenSuccess = new("settings.tokenSuccess", "成色", "Success");
         public static readonly Str TokenText = new("settings.tokenText", "正文", "Body text");

@@ -136,6 +136,11 @@ public bool EditableSelection { get; set; } = false;
     /// 套预设之后单改某枚颜色，这个字段留着——它记的是「从哪套起步」，与逐枚覆盖互不冲突。</summary>
     public string ColorPreset { get; set; } = "";
 
+    /// <summary><see cref="Colors"/> 这份副本的版本：设置文件里那份是套用预设那一刻抄下来的，
+    /// 预设表本身会随代码演进（同一组色值换了字节顺序也算）。版本落后时按预设表重取一份——
+    /// 这份副本记的是读不对的那组字节，留着只会继续读错。</summary>
+    public int PresetRevision { get; set; }
+
     /// <summary>界面语言: system | zh | en。中文是源语言，缺译的文案回退中文。</summary>
     public string UiLanguage { get; set; } = "system";
 
@@ -251,6 +256,21 @@ public bool EditableSelection { get; set; } = false;
         if (Theme is not ("system" or "light" or "dark")) Theme = "system";
         if (UiLanguage is not ("system" or "zh" or "en")) UiLanguage = "system";
         if (ColorPresets.All.All(p => p.Id != ColorPreset)) ColorPreset = "";
+        if (ColorPresets.All.All(p => p.Id != ColorPreset)) ColorPreset = "";
+        if (PresetRevision < ColorPresets.Revision)
+        {
+            // 只换那几条读错位的：存下来是不透明、表里这条本是半透明（透明度那一字节被当成红通道了）。
+            // 逐条对，别整张表覆盖——用户在这套预设上手改过的其它颜色得留着。
+            var table = ColorPresets.Find(ColorPreset).Colors;
+            foreach (var kv in table)
+            {
+                if (!Colors.TryGetValue(kv.Key, out var stored)) continue;
+                var was = HexColor.Parse(stored);
+                var now = HexColor.Parse(kv.Value);
+                if (was != null && now != null && was.Value.A >= 255 && now.Value.A < 255) Colors[kv.Key] = kv.Value;
+            }
+            PresetRevision = ColorPresets.Revision;
+        }
         Colors = CleanColors(Colors);
         Gestures ??= new GestureConfig();
         Gestures.SeedIfNeeded(GestureConfig.DefaultCaptureKey, GestureConfig.DefaultRecordKey);   // 一次性：空配置播种 QQ 键位（截图 / 录制）
