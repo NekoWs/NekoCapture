@@ -173,7 +173,7 @@ B1 主题化悬浮条 → C1/C2 状态语义 → A1/A2 入退场 → A3-A5 → B
 ### 这一轮看到的缺陷
 - [x] **设置窗左侧导航选中项是一片脏色**：底色带 alpha，悬停再叠一层半透明白，落出来的颜色取决于窗口背后压着什么；选中项上再压一层悬停，两层染色互相污染。三态现在全部算在 `NavBg` 上（`AccentOn` / `HoverOn`），算出来都是不透明色；选中项文字按这一项真正的底色判（`Fluent.AccentTextOn`），读不清退回正文色。断言 `T241-mixes-opaque`、`T241-press-steps-past-hover`、`T241-accent-text-on-tint-light/dark`。
 - [x] **改配色要重建窗口才看得见**：界面颜色是构造期取值的静态画刷。`Theme` 为每枚令牌持一支共享 `SolidColorBrush`，216 处 `new SolidColorBrush(Theme.X)` 指到 `Theme.XBrush`；取色器拖动逐帧落色。断言 `T241-brush-matches-token`、`T241-custom-lands-in-brush`、`T241-clear-restores-brush`。
-- [x] **深浅互换是几十处同帧跳变**：`Fluent.MaskRipple` 在 Adorner 层从圆心推开一层，铺满自摘；不进布局、不吃命中。推开的是**换色前拍下的那一屏**（`Theme.Changing` 在重算之前广播，窗口趁画面还是旧色拍一张），几何是整窗矩形挖掉一个越来越大的圆——圆里露出的直接是换好色的界面，跟网页上那种圆形遮罩逐渐扩大的换肤一个做法。圆心落在点下去的那颗主题按钮上。只在深浅档互换时推，逐枚改色直接落色。断言 `T241-mask-on`、`T241-mask-origin`、`T241-mask-snapshot-face`、`T241-mask-gone`。
+- [x] **深浅互换是几十处同帧跳变**：`Fluent.MaskFade` 在 Adorner 层整窗盖一层换色那一刻的窗口底，按 `Motion.ThemeMs` 淡出后自摘；不进布局、不吃命中。新调色板在幕布后面就位，淡出期间看到的是同一块面在换色。退场色由 `Theme.Changing` 在重算之前取一个——`Changed` 广播时调色板已经换了。只在深浅档互换时盖，逐枚改色直接落色。断言 `T241-mask-on`、`T241-mask-color-outgoing`、`T241-mask-covers-window`、`T241-mask-gone`。
 - [x] **悬停动画涂到全窗**：共享刷上挂元素级动画等于让每个用它的地方一起动画。`Fluent.BgHover` 先按 `Theme.IsPaletteBrush` 判出来再克隆私有副本；侧栏三态、快捷键胶囊描边、`HoverFill` 的静止/悬停底色各自私有，底色在事件发生时取，不在构造期抄死。
 - [x] **写死的颜色**：选区描边、裁剪预览填充、托盘图标、ffmpeg 状态点、主题芯片选中/悬停色、帮助窗翻页芯片等 20 余处 ARGB 收进令牌。
 
@@ -182,13 +182,14 @@ B1 主题化悬浮条 → C1/C2 状态语义 → A1/A2 入退场 → A3-A5 → B
 
 - [x] **改色改到读不清没人提醒**：预览卡最后一行把 `Text` / `TextDim` 压在窗口 / 面板 / 卡片 / 行四种底上的对比当场数出来，不足 4.5:1 的有几对报几对（注意色），一对都没有就说「正文在这四种底色上都读得清」；行内色块的十六进制同样在对比不足时转注意色并挂说明。断言 `T241-ink-note-clear`、`T241-ink-note-warn`。
 
-- [x] **编辑器换色是几十处同帧跳变**：推开同一层圆形遮罩，且深浅互换这一档下窗底直接落定——窗底再自己淡 260ms，圆里露出的就是一层走到一半的颜色。断言 `T243-editor-mask-on-swap`、`T243-editor-mask-gone`；取证 `scripts/cap-mask-editor.ps1`（工具条中点第 23 帧、左下角第 27 帧）。
+- [x] **编辑器换色是几十处同帧跳变**：盖同一层换色幕布，且深浅互换这一档下窗底直接落定——幕布已经盖住整窗，窗底再自己淡一遍只是白跑一段动画。断言 `T243-editor-mask-on-swap`、`T243-editor-mask-gone`；取证 `scripts/cap-mask-editor.ps1`。
+
+- [x] **换深浅档后语言三档的文字色不跟**：轨道底色是共享刷，当场就换；「系统默认 / 中文 / English」三段是构造期取色的私有画刷，没登记重画，翻档后字还停在旧档的灰度上，浅色底配深档的浅灰字就糊成一片。三段现在登记进本窗重画表，选中段按底色重新判字色。断言 `T244-lang-chip-found`、`T244-lang-chip-on-new-palette`、`T244-lang-chip-actually-moved`。
 
 ### 取证
 `scripts/cap-palette.ps1 -Page <页> -Themes <dark|light>` 拍设置页；拍前把窗提到 TOPMOST，否则被别的窗压住，量到的是桌面。
-`scripts/cap-mask.ps1` 换色连拍：本进程逐帧截屏（另起进程一帧的开销比整段动画还长，采不到边界走过的那几帧），
-逐帧量窗口中心与远角——中心第 22 帧越过两档中点、远角第 26 帧，圆从中心推开；
-`test-out/mask/mask-024.png` 看得见圆形边界，圆里是换好色的界面，四个角还是换色前的那一屏。
-`-From light -To dark` 反着翻同样成立（中心第 22 帧、远角第 26 帧）。
+`scripts/cap-mask.ps1` 换色连拍：本进程逐帧截屏（另起进程一帧的开销比整段动画还长，采不到淡开的那几帧），
+逐帧量窗口中心与远角——两条曲线越过两档中点只差 0–1 帧、各有 6–7 帧过渡值，判 `FADE UNIFORM`；
+`-From light -To dark` 反着翻同样成立。换色后的外观页（`test-out/mask/mask-060.png`）里语言三档的字色跟着新档走。
 逐页走查：快捷键 / 截图 / 产物 / 系统四页各拼一张（`test-out/pages/montage-dark.png`、`montage-light.png`），
 明暗两侧导航选中态、卡片、开关、键帽、芯片一致，无残留脏色。

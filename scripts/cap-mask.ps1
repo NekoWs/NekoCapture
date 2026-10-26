@@ -1,8 +1,8 @@
-# 换色遮罩取证：真进程里把主题从一档翻到另一档（默认暗→亮，-From light -To dark 反过来），
+# 换色幕布取证：真进程里把主题从一档翻到另一档（默认暗→亮，-From light -To dark 反过来），
 # 连拍一串帧，逐帧量「窗口中心」与「远角」两块的平均亮度。
-# 深浅互换时设置窗从圆心推开一层：中心先翻、远角后翻，两条曲线之间拉开一段距离。
-# 整片淡变的话两块同时翻，两条曲线会贴在一起；没有遮罩则两条都是直接跳档，中间不留过渡值。
-# 逐帧用本进程截屏（每帧十几毫秒）：另起进程去截，一帧的开销比整段动画还长，采不到边界走过的那几帧。
+# 深浅互换时整窗盖一层换色前的窗口底再淡开：两块应当同时翻，两条曲线贴在一起，中间留下几帧过渡值。
+# 没有幕布则两条都是直接跳档，中间不留过渡值；两块先后错开则说明过渡不是整片进行的。
+# 逐帧用本进程截屏（每帧十几毫秒）：另起进程去截，一帧的开销比整段动画还长，采不到淡开的那几帧。
 # 用法：pwsh -NoProfile -File scripts/cap-mask.ps1 [-From dark] [-To light]
 param(
     [string]$OutDir = 'test-out/mask',
@@ -146,8 +146,14 @@ try {
     Write-Host ("远角序列：" + ($corner -join ' '))
     $arrC = Get-Arrival $centre $startC $endC
     $arrN = Get-Arrival $corner $startN $endN
-    Write-Host ("中心越过中点在第 {0} 帧，远角在第 {1} 帧（早 {2} 帧）" -f $arrC, $arrN, ($arrN - $arrC))
-    if (($arrN - $arrC) -ge 3) { Write-Host 'RIPPLE VISIBLE' } else { Write-Host 'NO RIPPLE' }
+    Write-Host ("中心越过中点在第 {0} 帧，远角在第 {1} 帧（差 {2} 帧）" -f $arrC, $arrN, [Math]::Abs($arrN - $arrC))
+    # 中间值：既不是起点也不是终点的那些帧。幕布淡开时两块都会经过它们；没有幕布就是直接跳档
+    $midC = @($centre | Where-Object { $_ -gt [Math]::Min($startC, $endC) + 8 -and $_ -lt [Math]::Max($startC, $endC) - 8 }).Count
+    $midN = @($corner | Where-Object { $_ -gt [Math]::Min($startN, $endN) + 8 -and $_ -lt [Math]::Max($startN, $endN) - 8 }).Count
+    Write-Host ("过渡帧：中心 {0} 帧，远角 {1} 帧" -f $midC, $midN)
+    if ($midC -ge 2 -and $midN -ge 2 -and [Math]::Abs($arrN - $arrC) -le 2) { Write-Host 'FADE UNIFORM' }
+    elseif ($midC -ge 2 -or $midN -ge 2) { Write-Host 'FADE NOT UNIFORM' }
+    else { Write-Host 'NO TRANSITION' }
 }
 finally {
     Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue

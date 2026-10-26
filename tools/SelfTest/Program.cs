@@ -7080,74 +7080,25 @@ static partial class SelfTest
             mw.Show();
             PumpMs(80);
             var rootEl = (System.Windows.UIElement)mw.Content;
-            Fluent.RippleOrigin = new System.Windows.Point(37, 21);
-            var incoming = System.Windows.Media.Color.FromRgb(0x11, 0x22, 0x33);
-            Fluent.MaskRipple(mw, incoming);
-            PumpMs(30);
+            var from = System.Windows.Media.Color.FromRgb(0x11, 0x22, 0x33);
+            Fluent.MaskFade(mw, from);
             var layer = System.Windows.Documents.AdornerLayer.GetAdornerLayer(rootEl);
             var on = layer?.GetAdorners(rootEl);
-            Chk("T241-mask-on", on != null && on.Length == 1, "换色遮罩出现在 Adorner 层上，不占布局");
-            var path = on != null
+            Chk("T241-mask-on", on != null && on.Length == 1, "换色幕布出现在 Adorner 层上，不占布局");
+            var face = on != null
                 ? (on[0].GetType()
-                    .GetField("_disc", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
-                    ?.GetValue(on[0]) as System.Windows.Shapes.Path)
+                    .GetField("_b", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
+                    ?.GetValue(on[0]) as System.Windows.Controls.Border)
                 : null;
-            var geo = path?.Data as System.Windows.Media.EllipseGeometry;
-            Chk("T241-mask-origin", geo != null && geo.Center.X == 37 && geo.Center.Y == 21,
-                $"圆心落在写进来的那一点：{geo?.Center.ToString() ?? "取不到"}");
-            var fill = path?.Fill as System.Windows.Media.SolidColorBrush;
-            Chk("T241-mask-color-incoming", fill != null && fill.Color == incoming, "没有快照时遮罩是一层进场侧的底色");
-            Fluent.RippleOrigin = null;
-            PumpMs(Fluent.Motion.RippleMs + 400);
-            var off = layer?.GetAdorners(rootEl);
-            Chk("T241-mask-gone", off == null || off.Length == 0, "铺满整窗后遮罩自己摘掉");
-
-            // 快照拍得到真画面：像素尺寸跟着窗口走，遮罩才有东西可铺
-            var shotWin = new System.Windows.Window
-            {
-                Content = new System.Windows.Controls.Border
-                {
-                    Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x26, 0x28, 0x2D)),
-                    Width = 40,
-                    Height = 30,
-                },
-                Width = 60,
-                Height = 50,
-                WindowStartupLocation = WindowStartupLocation.Manual,
-                Left = -4000,
-                Top = -4000,
-                ShowInTaskbar = false,
-            };
-            shotWin.Show();
-            PumpMs(120);
-            var shot = Fluent.Snapshot(shotWin) as System.Windows.Media.Imaging.RenderTargetBitmap;
-            Chk("T241-snapshot-size", shot != null && shot.PixelWidth >= 40 && shot.PixelHeight >= 30,
-                $"拍得到这一屏：{shot?.PixelWidth.ToString() ?? "null"}×{shot?.PixelHeight.ToString() ?? "?"} 像素");
-            shotWin.Close();
-
-            // 有换色前那一屏时推开的是它：圆里露出的直接是换好色的界面，不是一块纯色
-            var snap = new System.Windows.Media.Imaging.RenderTargetBitmap(40, 30, 96, 96,
-                System.Windows.Media.PixelFormats.Pbgra32);
-            Fluent.RippleView = new Fluent.RippleScene(snap, System.Windows.Media.Color.FromRgb(0x26, 0x28, 0x2D));
-            Fluent.MaskRipple(mw, incoming);
+            var fill = face?.Background as System.Windows.Media.SolidColorBrush;
+            Chk("T241-mask-color-outgoing", fill != null && fill.Color == from, "幕布铺的是换色那一刻画面上的窗口底");
             PumpMs(30);
-            var on2 = layer?.GetAdorners(rootEl);
-            var face = on2 != null
-                ? (on2[0].GetType()
-                    .GetField("_face", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
-                    ?.GetValue(on2[0]) as System.Windows.Controls.Grid)
-                : null;
-            var photo = face?.Children.OfType<System.Windows.Controls.Image>().FirstOrDefault();
-            Chk("T241-mask-snapshot-face", photo != null && ReferenceEquals(photo.Source, snap),
-                "有那一屏时遮罩铺的是换色前拍下的画面");
-            var mat = face?.Children.OfType<System.Windows.Shapes.Rectangle>().FirstOrDefault();
-            Chk("T241-mask-snapshot-mat", mat != null
-                && ((System.Windows.Media.SolidColorBrush)mat.Fill!).Color == System.Windows.Media.Color.FromRgb(0x26, 0x28, 0x2D),
-                "照片底下垫着一层不透明的旧窗口底");
-            Fluent.RippleView = null;
-            PumpMs(Fluent.Motion.RippleMs + 400);
-            var off2 = layer?.GetAdorners(rootEl);
-            Chk("T241-mask-snapshot-gone", off2 == null || off2.Length == 0, "画面遮罩铺满整窗后也自己摘掉");
+            Chk("T241-mask-covers-window", face != null
+                && face.ActualWidth == rootEl.RenderSize.Width && face.ActualHeight == rootEl.RenderSize.Height,
+                $"幕布铺满整窗：{face?.ActualWidth.ToString() ?? "?"}×{face?.ActualHeight.ToString() ?? "?"}");
+            PumpMs(Fluent.Motion.ThemeMs + 400);
+            var off = layer?.GetAdorners(rootEl);
+            Chk("T241-mask-gone", off == null || off.Length == 0, "淡完之后幕布自己摘掉");
             mw.Close();
         }
         catch (Exception e) { Chk("T241-palette-live", false, e.Message); }
@@ -7171,16 +7122,16 @@ static partial class SelfTest
                 var a = slayer?.GetAdorners(sroot);
                 return a != null && a.Length > 0;
             }
-            Chk("T242-mask-idle", !Masked(), "窗刚开时遮罩不在场");
+            Chk("T242-mask-idle", !Masked(), "窗刚开时幕布不在场");
             // 遮罩是在 Theme.Apply 的广播里同步挂上装饰层的，取它不需要等渲染节拍：
             // 泵一下反而可能在重载机器上等到整段动画走完，量到的是「已经摘掉了」
             Theme.Apply(Theme.IsDark ? "light" : "dark", null);
-            Chk("T242-mask-on-swap", Masked(), "深浅档互换：设置窗推开一层遮罩");
-            PumpMs(Fluent.Motion.RippleMs + 400);
-            Chk("T242-mask-after-swap", !Masked(), "遮罩铺满整窗后自己摘掉");
+            Chk("T242-mask-on-swap", Masked(), "深浅档互换：设置窗盖上一层幕布");
+            PumpMs(Fluent.Motion.ThemeMs + 400);
+            Chk("T242-mask-after-swap", !Masked(), "淡完之后幕布自己摘掉");
             Theme.SetCustom("CardBg", Theme.IsDark, System.Windows.Media.Color.FromRgb(0x21, 0x22, 0x23));
             PumpMs(20);
-            Chk("T242-mask-on-edit", !Masked(), "逐枚改色不推遮罩");
+            Chk("T242-mask-on-edit", !Masked(), "逐枚改色不盖幕布");
             Theme.ClearCustom("CardBg", Theme.IsDark);
             Theme.Apply(keepDark ? "dark" : "light", null);
             PumpMs(60);
@@ -7209,16 +7160,54 @@ static partial class SelfTest
                 var a = elayer?.GetAdorners(eroot);
                 return a != null && a.Length > 0;
             }
-            Chk("T243-editor-mask-idle", !EdMasked(), "编辑器刚开时遮罩不在场");
+            Chk("T243-editor-mask-idle", !EdMasked(), "编辑器刚开时幕布不在场");
             Theme.Apply(Theme.IsDark ? "light" : "dark", null);
-            Chk("T243-editor-mask-on-swap", EdMasked(), "深浅档互换：编辑器也推开一层遮罩");
-            PumpMs(Fluent.Motion.RippleMs + 400);
-            Chk("T243-editor-mask-gone", !EdMasked(), "编辑器遮罩铺满整窗后自己摘掉");
+            Chk("T243-editor-mask-on-swap", EdMasked(), "深浅档互换：编辑器也盖一层幕布");
+            PumpMs(Fluent.Motion.ThemeMs + 400);
+            Chk("T243-editor-mask-gone", !EdMasked(), "编辑器幕布淡完之后自己摘掉");
             winEd.Close();
             Theme.Apply(Theme.IsDark ? "light" : "dark", null);
             PumpMs(60);
         }
         catch (Exception e) { Chk("T243-editor-mask", false, e.Message); }
+        // 语言三档的文字色跟着调色板走：三段是构造期取色的私有画刷，漏登记重画就会在换深浅档后停在旧档的灰度上
+        try
+        {
+            var npLang = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+            var swLang = new FrameCapture.Overlays.SettingsWindow();
+            typeof(FrameCapture.Overlays.SettingsWindow).GetField("_restoreCat", npLang)!.SetValue(swLang, 6);   // 外观
+            typeof(FrameCapture.Overlays.SettingsWindow).GetMethod("Build", npLang)!.Invoke(swLang, null);
+            swLang.WindowStartupLocation = WindowStartupLocation.Manual;
+            swLang.Left = -20000; swLang.Top = -20000; swLang.ShowInTaskbar = false;
+            swLang.Show();
+            PumpMs(180);
+            var labels = new List<System.Windows.Controls.TextBlock>();
+            void WalkLang(DependencyObject o)
+            {
+                if (o is System.Windows.Controls.TextBlock tb && tb.Text is "中文" or "English") labels.Add(tb);
+                int n = System.Windows.Media.VisualTreeHelper.GetChildrenCount(o);
+                for (int i = 0; i < n; i++) WalkLang(System.Windows.Media.VisualTreeHelper.GetChild(o, i));
+            }
+            WalkLang(swLang);
+            Chk("T244-lang-chip-found", labels.Count >= 2, $"语言三档在外观页上找得到 {labels.Count} 段文字");
+            System.Windows.Media.Color Fore(System.Windows.Controls.TextBlock t) => ((System.Windows.Media.SolidColorBrush)t.Foreground).Color;
+            var before = labels.Select(Fore).ToList();
+            Theme.Apply(Theme.IsDark ? "light" : "dark", null);
+            PumpMs(80);
+            var dim = Theme.TextDim;
+            var onAccent = Fluent.OnAccentColor(Theme.Accent);
+            bool Same(System.Windows.Media.Color a, System.Windows.Media.Color b) => a.R == b.R && a.G == b.G && a.B == b.B;
+            bool OnNewPalette(int i) => Same(Fore(labels[i]), dim) || Same(Fore(labels[i]), onAccent);
+            Chk("T244-lang-chip-on-new-palette", labels.Count >= 2 && Enumerable.Range(0, labels.Count).All(OnNewPalette),
+                $"换深浅档后语言三档的文字色落在新档上：{string.Join(" / ", labels.Select(t => "#" + Fore(t).R.ToString("X2") + Fore(t).G.ToString("X2") + Fore(t).B.ToString("X2")))}");
+            Chk("T244-lang-chip-actually-moved", labels.Count >= 2 &&
+                Enumerable.Range(0, labels.Count).Any(i => !Same(Fore(labels[i]), before[i])),
+                "至少有一段文字确实从旧档灰度换到了新档");
+            Theme.Apply(Theme.IsDark ? "light" : "dark", null);
+            PumpMs(60);
+            swLang.Close();
+        }
+        catch (Exception e) { Chk("T244-lang-chip-repaint", false, e.Message); }
         // 语义判定：按钮/链接/输入框算控件；匿名容器与整页文档不算。
         try
         {

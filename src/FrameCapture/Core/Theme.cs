@@ -173,7 +173,7 @@ public static class Theme
     /// <summary>把解析好的颜色推给共享画刷。当帧落色，不给画刷挂颜色动画：
     /// 动画在飞的时候 <see cref="SolidColorBrush.Color"/> 读到的是动画值而不是终点，
     /// 渲染节拍没跟上时甚至会一直停在起始色——悬停克隆、断言、下一次比较全被带偏。
-    /// 深浅互换的过渡由 <see cref="Fluent.MaskRipple"/> 那层遮罩负责，画刷只管把当前色答对。</summary>
+    /// 深浅互换的过渡由 <see cref="Fluent.MaskFade"/> 那层幕布负责，画刷只管把当前色答对。</summary>
     static void SyncPaints()
     {
         for (int i = 0; i < Paints.Length; i++) Paints[i].Color = Resolved[i];

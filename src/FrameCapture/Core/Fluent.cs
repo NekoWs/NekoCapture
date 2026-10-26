@@ -28,8 +28,7 @@ public static partial class Fluent
         public const int StaggerMs = 110;    // 分层错位间隔
         public const int HoverMs = 110;      // hover 反馈
         public const int StateMs = 150;      // 状态切换（开关/选中），与 Exit 同速
-        public const int ThemeMs = 260;      // 主题交叉淡入
-        public const int RippleMs = 420;     // 换色扩散：一圈推开整窗，慢到看得见边界走过
+        public const int ThemeMs = 260;      // 主题交叉淡入，也是换色幕布的淡出时长
         public const int SpringMs = 260;     // 弹性回弹（松手/入场的 settling，BackEase 过冲）
         public const int PressMs = 70;       // 按压下沉：必须短于 hover，按压要跟手
         public const int QuickMs = 120;      // 即时短程过渡：按了就要看到的淡入/回位

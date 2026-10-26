@@ -1,7 +1,7 @@
-# 编辑器也推开同一层换色遮罩的取证：真进程里开着一张样图，把主题从暗翻到亮，本进程逐帧截屏。
+# 编辑器也盖同一层换色幕布的取证：真进程里开着一张样图，把主题从暗翻到亮，本进程逐帧截屏。
 # 编辑器中间是样图与画布四周那圈固定中性，换色不动它们；会跟着换色的是底下那条工具条与两侧面板。
-# 于是两块取样都落在工具条上：一块贴着横向中点（离圆心近），一块在左下角（离圆心远）。
-# 圆从窗口中心推开 → 中点那块先翻、左下角后翻；整片淡变或没有遮罩时两块一起翻。
+# 于是两块取样都落在工具条上：一块贴着横向中点，一块在左下角。
+# 整片淡开时两块同时翻、两条曲线贴在一起，中间留下几帧过渡值；没有幕布就是直接跳档。
 # 用法：pwsh -NoProfile -File scripts/cap-mask-editor.ps1 [-From dark] [-To light]
 param(
     [string]$OutDir = 'test-out/mask-editor',
@@ -149,8 +149,13 @@ try {
     Write-Host ("左下角序列：" + ($corner -join ' '))
     $arrM = Get-Arrival $mid $startM $endM
     $arrN = Get-Arrival $corner $startN $endN
-    Write-Host ("中点越过中点在第 {0} 帧，左下角在第 {1} 帧（早 {2} 帧）" -f $arrM, $arrN, ($arrN - $arrM))
-    if (($arrN - $arrM) -ge 3) { Write-Host 'RIPPLE VISIBLE' } else { Write-Host 'NO RIPPLE' }
+    Write-Host ("中点越过中点在第 {0} 帧，左下角在第 {1} 帧（差 {2} 帧）" -f $arrM, $arrN, [Math]::Abs($arrN - $arrM))
+    $midF = @($mid | Where-Object { $_ -gt [Math]::Min($startM, $endM) + 8 -and $_ -lt [Math]::Max($startM, $endM) - 8 }).Count
+    $corF = @($corner | Where-Object { $_ -gt [Math]::Min($startN, $endN) + 8 -and $_ -lt [Math]::Max($startN, $endN) - 8 }).Count
+    Write-Host ("过渡帧：中点 {0} 帧，左下角 {1} 帧" -f $midF, $corF)
+    if ($midF -ge 2 -and $corF -ge 2 -and [Math]::Abs($arrN - $arrM) -le 2) { Write-Host 'FADE UNIFORM' }
+    elseif ($midF -ge 2 -or $corF -ge 2) { Write-Host 'FADE NOT UNIFORM' }
+    else { Write-Host 'NO TRANSITION' }
 }
 finally {
     Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
