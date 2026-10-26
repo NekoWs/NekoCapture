@@ -85,6 +85,12 @@ public static partial class Fluent
         return ContrastRatio(dim, backing) >= 4.5 ? dim : Theme.Text;
     }
 
+    /// <summary>换一个 alpha，色相与明度不动：强调色要淡淡铺一层时的写法。</summary>
+    /// <param name="c">原色。</param>
+    /// <param name="a">新的不透明度。</param>
+    /// <returns>同色相的新透明度版本。</returns>
+    public static Color WithAlpha(Color c, byte a) => Color.FromArgb(a, c.R, c.G, c.B);
+
     /// <summary>底色上铺一层悬停叠加之后，眼睛真正看到的实色。
     /// 控件底色一律用这种算出来的不透明色：底色本身带 alpha 时再叠一层半透明悬停，
     /// 两层透下去落在什么全看窗口背后是什么，同一处在明暗两套主题里读出来是两个颜色。</summary>

@@ -3,6 +3,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Shapes;
+using FrameCapture.Core;
 using FrameCapture.Drawing;
 
 namespace FrameCapture.Overlays;
@@ -104,7 +105,7 @@ public sealed partial class EditorWindow
                 ((Polyline)_preview).Points.Add(_pressPos);
                 break;
             case Tool.Crop:
-                _preview = new Rectangle { Stroke = new SolidColorBrush(Acc), StrokeThickness = 1.5, StrokeDashArray = new DoubleCollection { 4, 3 }, Fill = new SolidColorBrush(Color.FromArgb(0x33, 0x4C, 0xC2, 0xFF)) };
+                _preview = new Rectangle { Stroke = new SolidColorBrush(Acc), StrokeThickness = 1.5, StrokeDashArray = new DoubleCollection { 4, 3 }, Fill = new SolidColorBrush(Fluent.WithAlpha(Theme.Accent, 0x33)) };
                 _pending = null;
                 StartCropGuide();
                 break;

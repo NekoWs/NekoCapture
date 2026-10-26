@@ -12,8 +12,10 @@ public sealed class TrayService : IDisposable
     private readonly WinForms.NotifyIcon _icon;
     private System.Windows.Window? _menuAnchor;
     private ContextMenu? _menu;
-    // 两枚图标一次画好备用：暂停切换时只是换个引用，不反复造 GDI 句柄
-    private readonly Icon _iconOn, _iconPaused;
+    // 两枚图标一次画好备用：暂停切换时只是换个引用，不反复造 GDI 句柄。
+    // 强调色改动会重画它们——图标是位图，画出来就定死了，不重画会停在旧强调色上。
+    private Icon _iconOn, _iconPaused;
+    private readonly Action _onPalette;
 
     /// <summary>建托盘图标并订阅设置变更以刷新悬停提示。图标此刻 <c>Visible=false</c>，由 <see cref="Show"/> 点亮。</summary>
     /// <param name="host">宿主，用于把菜单项动作转给 <see cref="CaptureController"/> 与设置服务；须已完成装配。</param>
@@ -39,7 +41,21 @@ public sealed class TrayService : IDisposable
         _icon.DoubleClick += (_, _) => Dispatch(() => _host.Controller.BeginScopeSelection());
         // 悬停提示动态反映当前热键/范围/fps：改键或换范围后无需打开菜单即可确认状态
         _host.Settings.Changed += () => Dispatch(UpdateTip);
+        _onPalette = () => Dispatch(RebuildIcons);
+        Theme.Changed += _onPalette;
         UpdateTip();
+    }
+
+    /// <summary>按当前强调色重画两枚托盘图标，再把托盘切到新引用上。</summary>
+    void RebuildIcons()
+    {
+        var prevOn = _iconOn;
+        var prevPaused = _iconPaused;
+        _iconOn = MakeIcon(paused: false);
+        _iconPaused = MakeIcon(paused: true);
+        UpdateTip();          // 先让 _icon.Icon 指向新画的那枚，旧句柄才谈得上释放
+        prevOn.Dispose();
+        prevPaused.Dispose();
     }
 
     void UpdateTip()
@@ -214,7 +230,8 @@ public sealed class TrayService : IDisposable
         using var g = Graphics.FromImage(bmp);
         g.Clear(Color.Transparent);
         g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
-        var accent = paused ? Color.FromArgb(255, 0x9A, 0xA0, 0xA6) : Color.FromArgb(255, 0x4C, 0xC2, 0xFF);
+        var accent = paused ? Color.FromArgb(255, 0x9A, 0xA0, 0xA6)
+                            : Color.FromArgb(255, Theme.Accent.R, Theme.Accent.G, Theme.Accent.B);
         using var pen = new Pen(accent, stroke)
         {
             StartCap = System.Drawing.Drawing2D.LineCap.Flat,
@@ -243,6 +260,7 @@ public sealed class TrayService : IDisposable
     /// <remarks>调用后实例不可再用：<see cref="WinForms.NotifyIcon"/> 已释放，再调 <see cref="Show"/> 会抛异常。</remarks>
     public void Dispose()
     {
+        Theme.Changed -= _onPalette;
         _icon.Visible = false;
         _icon.Dispose();
         _menuAnchor?.Close();

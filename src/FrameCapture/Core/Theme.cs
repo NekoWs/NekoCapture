@@ -1,4 +1,6 @@
+using System;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 
 namespace FrameCapture.Core;
 
@@ -136,14 +138,66 @@ public static class Theme
 
     static Theme() => Recompute();
 
+    /// <summary>共享画刷：与 <see cref="Resolved"/> 同序，一枚令牌一支，全窗共用同一实例。
+    /// 界面取色拿这支，而不是自己 new 一支——颜色在构造期被抄进画刷后就定死了，
+    /// 改完配色要整窗重建才跟得上，取色器拖动期间界面是一片死色。</summary>
+    static readonly SolidColorBrush[] Paints = BuildPaints();
+
+    static SolidColorBrush[] BuildPaints()
+    {
+        var a = new SolidColorBrush[Registry.Length];
+        for (int i = 0; i < a.Length; i++) a[i] = new SolidColorBrush(Colors.Transparent);
+        return a;
+    }
+
+    /// <summary>窗口底与面板底的不透明版本，同样共享：弹窗与菜单压在 Mica 上要的是实底。</summary>
+    static readonly SolidColorBrush WindowBgSolidPaint = new SolidColorBrush(Colors.Transparent);
+    static readonly SolidColorBrush PanelBgSolidPaint = new SolidColorBrush(Colors.Transparent);
+
+    /// <summary>强调色画刷：强调色不在令牌表里，单独跟着 <see cref="Apply"/> 与 <see cref="ResetAccent"/> 同步。</summary>
+    static readonly SolidColorBrush AccentPaint = new SolidColorBrush(Colors.Transparent);
+
+    /// <summary>这支画刷是不是调色板共享画刷。共享实例被全窗共用，就地动画会带着所有用它的元素一起动，
+    /// 想做悬停这类局部动画得先克隆一份再动。</summary>
+    /// <param name="b">待判画刷，可为 null。</param>
+    /// <returns>是共享实例返回 true。</returns>
+    public static bool IsPaletteBrush(SolidColorBrush? b)
+        => b != null && (Array.IndexOf(Paints, b) >= 0
+            || ReferenceEquals(b, WindowBgSolidPaint)
+            || ReferenceEquals(b, PanelBgSolidPaint)
+            || ReferenceEquals(b, AccentPaint));
+
+    /// <summary>把解析好的颜色推给共享画刷。</summary>
+    /// <param name="animate">按 <see cref="Fluent.Motion.StateMs"/> 走一段颜色动画。
+    /// 首次同步（画刷还是透明）与拖动取色器时不动画——逐帧动画会落在指针后面。</param>
+    static void SyncPaints(bool animate)
+    {
+        for (int i = 0; i < Paints.Length; i++) SetPaint(Paints[i], Resolved[i], animate);
+        SetPaint(WindowBgSolidPaint, Opaque(Resolved[(int)Slot.WindowBg]), animate);
+        SetPaint(PanelBgSolidPaint, Opaque(Resolved[(int)Slot.PanelBg]), animate);
+        SetPaint(AccentPaint, Accent, animate);
+    }
+
+    static void SetPaint(SolidColorBrush b, Color to, bool animate)
+    {
+        if (b.Color == to) return;
+        if (!animate || b.Color == Colors.Transparent) { b.Color = to; return; }
+        b.BeginAnimation(SolidColorBrush.ColorProperty,
+            new ColorAnimation(to, TimeSpan.FromMilliseconds(Fluent.Motion.StateMs))
+            {
+                EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut },
+            });
+    }
+
     static string ModeKey(bool dark, string key) => (dark ? "dark." : "light.") + key;
 
-    static void Recompute()
+    static void Recompute(bool animate = false)
     {
         bool dark = EffectiveDark;
         for (int i = 0; i < Registry.Length; i++)
             Resolved[i] = Customs.TryGetValue(ModeKey(dark, Registry[i].Key), out var c)
                 ? c : Registry[i].Default(dark);
+        SyncPaints(animate);
     }
 
     static bool Same(Color[] a)
@@ -171,7 +225,7 @@ public static class Theme
             try { Accent = (Color)ColorConverter.ConvertFromString(accentHex); }
             catch { /* 保持当前强调色 */ }
         }
-        Recompute();
+        Recompute(true);
         if (EffectiveDark != oldDark || Accent != oldAcc || !Same(old))
         {
             try { Changed(); } catch { /* 某窗口换色失败不影响其余 */ }
@@ -213,7 +267,7 @@ public static class Theme
         var mk = ModeKey(dark, key);
         if (Customs.TryGetValue(mk, out var cur) && cur == color) return false;
         Customs[mk] = color;
-        Recompute();
+        Recompute(false);   // 取色器拖动中逐帧调用：动画会落在指针后面，这里要的是当帧落色
         try { Changed(); } catch { }
         return true;
     }
@@ -225,7 +279,7 @@ public static class Theme
     public static bool ClearCustom(string key, bool dark)
     {
         if (!Customs.Remove(ModeKey(dark, key))) return false;
-        Recompute();
+        Recompute(true);
         try { Changed(); } catch { }
         return true;
     }
@@ -235,7 +289,7 @@ public static class Theme
     {
         if (Customs.Count == 0) return;
         Customs.Clear();
-        Recompute();
+        Recompute(true);
         try { Changed(); } catch { }
     }
 
@@ -260,7 +314,7 @@ public static class Theme
                 if (c != null) Customs[k] = c.Value;
             }
         }
-        Recompute();
+        Recompute(true);
         if (!Same(old))
         {
             try { Changed(); } catch { }
@@ -291,6 +345,7 @@ public static class Theme
     {
         if (Accent == DefaultAccent) return;
         Accent = DefaultAccent;
+        SyncPaints(true);
         try { Changed(); } catch { }
     }
 
@@ -356,6 +411,52 @@ public static class Theme
 
     /// <summary>注意色：可用但有前提的状态点。</summary>
     public static Color Warning => Resolved[(int)Slot.Warning];
+
+    #region 共享画刷
+
+    // 上面那些 Color 属性是「此刻的颜色」，取到手就凝固了；下面这些是同一批颜色的实例形态：
+    // 元素的底色与笔触指到它们上，配色一改就顺着画刷自己变过去，不必重建窗口。
+    // 一支画刷全窗共用，想给单个元素做悬停动画，先按 IsPaletteBrush 判出来再克隆一份（见 Fluent.BgHover）。
+    // 悬停与按下是叠加层不是表面，没有对应的画刷——它们只该被 Fluent.HoverOn/PressOn 混进底色。
+
+    /// <summary>窗口底画刷（共享实例）。</summary>
+    public static SolidColorBrush WindowBgBrush => Paints[(int)Slot.WindowBg];
+    /// <summary>面板底画刷（共享实例）。</summary>
+    public static SolidColorBrush PanelBgBrush => Paints[(int)Slot.PanelBg];
+    /// <summary>标题栏底画刷（共享实例）。</summary>
+    public static SolidColorBrush ChromeBgBrush => Paints[(int)Slot.ChromeBg];
+    /// <summary>卡片底画刷（共享实例）。</summary>
+    public static SolidColorBrush CardBgBrush => Paints[(int)Slot.CardBg];
+    /// <summary>行底画刷（共享实例）。</summary>
+    public static SolidColorBrush RowBgBrush => Paints[(int)Slot.RowBg];
+    /// <summary>侧栏底画刷（共享实例）。</summary>
+    public static SolidColorBrush NavBgBrush => Paints[(int)Slot.NavBg];
+    /// <summary>正文色画刷（共享实例）。</summary>
+    public static SolidColorBrush TextBrush => Paints[(int)Slot.Text];
+    /// <summary>次要文字画刷（共享实例）。</summary>
+    public static SolidColorBrush TextDimBrush => Paints[(int)Slot.TextDim];
+    /// <summary>标准描边画刷（共享实例）。</summary>
+    public static SolidColorBrush StrokeBrush => Paints[(int)Slot.Stroke];
+    /// <summary>细描边画刷（共享实例）。</summary>
+    public static SolidColorBrush StrokeSoftBrush => Paints[(int)Slot.StrokeSoft];
+    /// <summary>行悬停底画刷（共享实例）。</summary>
+    public static SolidColorBrush RowHoverBrush => Paints[(int)Slot.RowHover];
+    /// <summary>轨道画刷（共享实例）。</summary>
+    public static SolidColorBrush TrackBgBrush => Paints[(int)Slot.TrackBg];
+    /// <summary>提醒色画刷（共享实例）。</summary>
+    public static SolidColorBrush DangerBrush => Paints[(int)Slot.Danger];
+    /// <summary>成色画刷（共享实例）。</summary>
+    public static SolidColorBrush SuccessBrush => Paints[(int)Slot.Success];
+    /// <summary>注意色画刷（共享实例）。</summary>
+    public static SolidColorBrush WarningBrush => Paints[(int)Slot.Warning];
+    /// <summary>窗口底的不透明画刷（共享实例）：弹窗、菜单这类要实底的场合。</summary>
+    public static SolidColorBrush WindowBgSolidBrush => WindowBgSolidPaint;
+    /// <summary>面板底的不透明画刷（共享实例）。</summary>
+    public static SolidColorBrush PanelBgSolidBrush => PanelBgSolidPaint;
+    /// <summary>强调色画刷（共享实例）。</summary>
+    public static SolidColorBrush AccentBrush => AccentPaint;
+
+    #endregion
 }
 
 static class SystemParams

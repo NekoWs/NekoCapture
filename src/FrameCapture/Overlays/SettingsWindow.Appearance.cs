@@ -212,7 +212,7 @@ public sealed partial class SettingsWindow : Window
                 CornerRadius = new CornerRadius(6),
                 Padding = new Thickness(9, 5, 9, 5),
                 Margin = new Thickness(2, 0, 2, 0),
-                Background = new SolidColorBrush(captured == cur ? Theme.Accent : Theme.Hover),
+                Background = new SolidColorBrush(captured == cur ? Theme.Accent : Theme.RowBg),
                 Child = new TextBlock
                 {
                     Text = glyph,
@@ -228,10 +228,11 @@ public sealed partial class SettingsWindow : Window
             };
             var localChip = chip;
             var localText = (TextBlock)chip.Child;
-            Color chipBase = captured == cur ? Theme.Accent : Theme.Hover;
-            Color chipHover = captured == cur
-                ? Color.FromArgb(0xFF, 0x6A, 0xD0, 0xFF)
-                : (Theme.IsDark ? Color.FromArgb(0x3A, 0xFF, 0xFF, 0xFF) : Color.FromArgb(0x4A, 0x00, 0x00, 0x00));
+            // 芯片坐在卡片上，底色必须是实心色：未选中是行底，选中是强调色。
+            // 拿半透明叠加层当底色，透出来的是什么取决于卡片背后压着什么，明暗两套读出来是两个颜色；
+            // 悬停也只是同一块底再深一档，不再往上盖第二层半透明。
+            Color chipBase = captured == cur ? Theme.Accent : Theme.RowBg;
+            Color chipHover = Fluent.HoverOn(chipBase);
             localChip.MouseEnter += (_, _) =>
             {
                 if (localChip.Background is SolidColorBrush bg0)

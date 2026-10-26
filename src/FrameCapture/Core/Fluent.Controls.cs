@@ -106,8 +106,9 @@ public static partial class Fluent
     /// <summary>标题栏高度（逻辑像素）：既是条带高度，也是 <see cref="InstallCaptionDrag"/> 默认的可拖条带。</summary>
     public const double TitleBarHeight = 36;
 
-    /// <summary>构建自绘标题栏：CardBg 条带 + 图标 + 标题 + 关闭按钮。
-    /// 设置窗与帮助窗共用同一件——全盘 UI 对齐同一套密度与视觉语言。</summary>
+    /// <summary>构建自绘标题栏：ChromeBg 条带 + 图标 + 标题 + 关闭按钮。
+    /// 设置窗与帮助窗共用同一件——全盘 UI 对齐同一套密度与视觉语言。
+    /// 标题栏用 ChromeBg 而不是卡片底：它是窗口的檐口，比正文区暗一档，正文卡片才浮得起来。</summary>
     /// <param name="glyph">左侧图标的 PUA 字形，取 Accent 色。</param>
     /// <param name="title">标题文字。</param>
     /// <param name="closeTip">关闭按钮的悬停提示，由调用方取好词再传进来——本文件与安装器共用，不认识语言。</param>
@@ -117,7 +118,7 @@ public static partial class Fluent
         var bar = new Border
         {
             Height = TitleBarHeight,
-            Background = new SolidColorBrush(Theme.CardBg),
+            Background = new SolidColorBrush(Theme.ChromeBg),
             CornerRadius = new CornerRadius(11, 11, 0, 0),
             Padding = new Thickness(14, 0, 6, 0),
         };
@@ -395,7 +396,9 @@ public static partial class Fluent
         {
             var cur = Bg();
             Color from = cur?.Color ?? baseColor;
-            if (cur == null || cur.IsFrozen)   // Theme.B() 产出的画刷是冻结的——动画前先换成当前色的可动画副本
+            // 调色板共享画刷被全窗共用，就地动画会带着别的元素一起动；冻结的画刷根本动不了。
+            // 两种情况都先换成当前色的私有副本，动画只归这个元素。
+            if (cur == null || cur.IsFrozen || Theme.IsPaletteBrush(cur))
             {
                 var nb = new SolidColorBrush(from);
                 SetBg(nb);

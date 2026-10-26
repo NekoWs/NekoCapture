@@ -310,7 +310,7 @@ public sealed partial class SettingsWindow : Window
         // 未检测到 ffmpeg 时在行下方直接写明（芯片 tooltip 要悬停才读到，这行一眼可见）；
         // 用绘制的小圆点而非字形，规避未验证字形；只读、开设置时算一次
         var status = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(32, 3, 0, 0) };
-        var dotColor = hasFf ? Color.FromRgb(0x4C, 0xAF, 0x50) : Color.FromRgb(0xD1, 0x8B, 0x00);
+        var dotColor = hasFf ? Theme.Success : Theme.Warning;
         status.Children.Add(new Ellipse
         {
             Width = 7,

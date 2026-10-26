@@ -393,7 +393,7 @@ public sealed partial class RegionPickerWindow : Window
             };
             _spotStroke = new Rectangle
             {
-                Stroke = new SolidColorBrush(Color.FromRgb(0x4C, 0xC2, 0xFF)),
+                Stroke = new SolidColorBrush(Theme.Accent),
                 StrokeThickness = 2,
                 Fill = Brushes.Transparent,
                 Visibility = Visibility.Collapsed,
@@ -407,7 +407,7 @@ public sealed partial class RegionPickerWindow : Window
             _badgeText = new TextBlock
             {
                 FontSize = 12,
-                Foreground = new SolidColorBrush(Color.FromRgb(0x4C, 0xC2, 0xFF)),
+                Foreground = new SolidColorBrush(Theme.Accent),
             };
             _badge = new Border
             {
@@ -429,7 +429,7 @@ public sealed partial class RegionPickerWindow : Window
                 _loupeMarker = new Rectangle
                 {
                     Width = cell, Height = cell,
-                    Stroke = new SolidColorBrush(Color.FromRgb(0x4C, 0xC2, 0xFF)),
+                    Stroke = new SolidColorBrush(Theme.Accent),
                     StrokeThickness = 1, SnapsToDevicePixels = true,
                 };
                 var markerCanvas = new Canvas { Width = LoupeSize, Height = LoupeSize, IsHitTestVisible = false };
@@ -440,7 +440,7 @@ public sealed partial class RegionPickerWindow : Window
                 _loupeInfo = new TextBlock
                 {
                     FontSize = 11,
-                    Foreground = new SolidColorBrush(Color.FromRgb(0x4C, 0xC2, 0xFF)),
+                    Foreground = new SolidColorBrush(Theme.Accent),
                     HorizontalAlignment = HorizontalAlignment.Center,
                     Margin = new Thickness(0, 3, 0, 0),
                 };
@@ -475,7 +475,7 @@ public sealed partial class RegionPickerWindow : Window
                 _loupe = new Border
                 {
                     Background = new SolidColorBrush(Color.FromArgb(0xE6, 0x1B, 0x1B, 0x1B)),
-                    BorderBrush = new SolidColorBrush(Color.FromArgb(0x80, 0x4C, 0xC2, 0xFF)),
+                    BorderBrush = new SolidColorBrush(Fluent.WithAlpha(Theme.Accent, 0x80)),
                     BorderThickness = new Thickness(1),
                     CornerRadius = new CornerRadius(6),
                     Padding = new Thickness(4),
@@ -494,7 +494,7 @@ public sealed partial class RegionPickerWindow : Window
                 var r = ToDip(_existing.Value);
                 Canvas.SetLeft(_prev, r.X); Canvas.SetTop(_prev, r.Y);
                 _prev.Width = r.Width; _prev.Height = r.Height;
-                _prev.Stroke = new SolidColorBrush(Color.FromArgb(0x90, 0x4C, 0xC2, 0xFF));
+                _prev.Stroke = new SolidColorBrush(Fluent.WithAlpha(Theme.Accent, 0x90));
                 _prev.StrokeThickness = 2;
                 _prev.StrokeDashArray = new DoubleCollection { 4, 3 };
             }
