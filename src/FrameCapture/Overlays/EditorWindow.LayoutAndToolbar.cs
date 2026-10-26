@@ -118,17 +118,49 @@ public sealed partial class EditorWindow : Window
         Child = child,
     };
 
+    /// <summary>上一次看到的深浅档：只有深浅互换才需要遮罩，改强调色之类不必挡视线。</summary>
+    bool _maskDark = Theme.IsDark;
+
+    /// <summary>换色前那一屏（照片 + 垫底色）：深浅互换时由它当退场层，圆里露出的直接是换好色的界面。</summary>
+    Fluent.RippleScene? _maskView;
+
+    /// <summary>调色板即将重算：这一次要翻深浅档，就趁画面还是旧调色板拍一张。拍不到就算了，遮罩退回纯色。</summary>
+    /// <param name="dark">重算之后的深浅档。</param>
+    void OnPaletteChanging(bool dark)
+    {
+        _maskView = null;
+        if (dark == _maskDark) return;
+        var shot = Fluent.Snapshot(this);
+        if (shot != null) _maskView = new Fluent.RippleScene(shot, Theme.WindowBgSolid);
+    }
+
     void Editor_OnTheme()
     {
+        // 深浅互换从窗口中心推开一层：圆里是换好色的界面，圆外还是换色前那一屏。
+        // 这一档下窗底直接落定——窗底再自己淡 260ms，圆里露出的就是一层走到一半的颜色。
+        bool flip = Theme.IsDark != _maskDark;
+        _maskDark = Theme.IsDark;
+        if (flip)
+        {
+            Fluent.RippleView = _maskView;
+            Fluent.MaskRipple(this, Theme.WindowBgSolid);
+            Fluent.RippleView = null;
+        }
+        _maskView = null;
+
         // 背板在场时窗底保持透明：把 WindowBg 动画上去等于用一层平涂盖掉 Mica。
         // 背板色调由 Fluent.MicaBackdrop 挂在 Theme.Changed 上同步，这里无需参与。
         var bg = _mica ? null : Background as SolidColorBrush;
         if (bg != null)
         {
-            var anim = new System.Windows.Media.Animation.ColorAnimation(Theme.WindowBg, TimeSpan.FromMilliseconds(FrameCapture.Core.Fluent.Motion.ThemeMs));
-            var holder = new SolidColorBrush(bg.Color);
-            Background = holder;
-            holder.BeginAnimation(SolidColorBrush.ColorProperty, anim);
+            if (flip) Background = new SolidColorBrush(Theme.WindowBg);
+            else
+            {
+                var anim = new System.Windows.Media.Animation.ColorAnimation(Theme.WindowBg, TimeSpan.FromMilliseconds(FrameCapture.Core.Fluent.Motion.ThemeMs));
+                var holder = new SolidColorBrush(bg.Color);
+                Background = holder;
+                holder.BeginAnimation(SolidColorBrush.ColorProperty, anim);
+            }
         }
         _hud.Foreground = Theme.TextBrush;
         // 选中语言随行：工具/线宽的前景色随主题（选中项反白、未选中项 Theme.Text），否则换肤后文字不可读

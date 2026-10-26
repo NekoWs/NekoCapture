@@ -7186,6 +7186,39 @@ static partial class SelfTest
             sw.Close();
         }
         catch (Exception e) { Chk("T242-settings-mask", false, e.Message); }
+        // 编辑器推开同一层：深浅档在别处翻了，开着的编辑器不该几十处颜色同帧跳变
+        try
+        {
+            var stEd = new SettingsService();
+            var seqEd = new CapturedSequence
+            {
+                Frames = new List<CapturedFrame> { MovingSquare(200, 120, 0, 1) },
+                Region = new RectI(0, 0, 200, 120),
+                MonitorBounds = new RectI(0, 0, 1920, 1080),
+            };
+            var winEd = new FrameCapture.Overlays.EditorWindow(stEd, seqEd);
+            winEd.WindowStartupLocation = WindowStartupLocation.Manual;
+            winEd.Left = -20000; winEd.Top = -20000; winEd.ShowInTaskbar = false;
+            winEd.Show();
+            PumpMs(220);
+            var eroot = (System.Windows.UIElement)winEd.Content;
+            var elayer = System.Windows.Documents.AdornerLayer.GetAdornerLayer(eroot);
+            bool EdMasked()
+            {
+                var a = elayer?.GetAdorners(eroot);
+                return a != null && a.Length > 0;
+            }
+            Chk("T243-editor-mask-idle", !EdMasked(), "编辑器刚开时遮罩不在场");
+            Theme.Apply(Theme.IsDark ? "light" : "dark", null);
+            PumpMs(20);
+            Chk("T243-editor-mask-on-swap", EdMasked(), "深浅档互换：编辑器也推开一层遮罩");
+            PumpMs(Fluent.Motion.RippleMs + 400);
+            Chk("T243-editor-mask-gone", !EdMasked(), "编辑器遮罩铺满整窗后自己摘掉");
+            winEd.Close();
+            Theme.Apply(Theme.IsDark ? "light" : "dark", null);
+            PumpMs(60);
+        }
+        catch (Exception e) { Chk("T243-editor-mask", false, e.Message); }
         // 语义判定：按钮/链接/输入框算控件；匿名容器与整页文档不算。
         try
         {

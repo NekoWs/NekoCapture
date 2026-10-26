@@ -154,7 +154,8 @@ public sealed partial class EditorWindow : Window
         if (_toolsBar != null) _toolsBar.SizeChanged += (_, _) => FitMinWidthToToolbar(); // 最近用色增减时跟随
         if (!_settings.Current.EditorGuideShown) ShowGuide(); // 首次打开：一次性上手引导
         Theme.Changed += Editor_OnTheme;
-        Closed += (_, _) => Theme.Changed -= Editor_OnTheme;
+        Theme.Changing += OnPaletteChanging;
+        Closed += (_, _) => { Theme.Changed -= Editor_OnTheme; Theme.Changing -= OnPaletteChanging; };
         // 键位表随设置热重载：设置页改完键位，开着的编辑器下一次按键就用新表
         _settings.Changed += Editor_OnKeysChanged;
         Closed += (_, _) => _settings.Changed -= Editor_OnKeysChanged;
