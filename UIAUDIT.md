@@ -173,7 +173,7 @@ B1 主题化悬浮条 → C1/C2 状态语义 → A1/A2 入退场 → A3-A5 → B
 ### 这一轮看到的缺陷
 - [x] **设置窗左侧导航选中项是一片脏色**：底色带 alpha，悬停再叠一层半透明白，落出来的颜色取决于窗口背后压着什么；选中项上再压一层悬停，两层染色互相污染。三态现在全部算在 `NavBg` 上（`AccentOn` / `HoverOn`），算出来都是不透明色；选中项文字按这一项真正的底色判（`Fluent.AccentTextOn`），读不清退回正文色。断言 `T241-mixes-opaque`、`T241-press-steps-past-hover`、`T241-accent-text-on-tint-light/dark`。
 - [x] **改配色要重建窗口才看得见**：界面颜色是构造期取值的静态画刷。`Theme` 为每枚令牌持一支共享 `SolidColorBrush`，216 处 `new SolidColorBrush(Theme.X)` 指到 `Theme.XBrush`；取色器拖动逐帧落色。断言 `T241-brush-matches-token`、`T241-custom-lands-in-brush`、`T241-clear-restores-brush`。
-- [x] **深浅互换是几十处同帧跳变**：`Fluent.MaskFade` 在 Adorner 层盖一层退场侧的窗口底，按 `Motion.ThemeMs` 淡出后自摘；不进布局、不吃命中。只在深浅档互换时盖，逐枚改色直接落色。断言 `T241-mask-on`、`T241-mask-gone`。
+- [x] **深浅互换是几十处同帧跳变**：`Fluent.MaskRipple` 在 Adorner 层从圆心推开一层，铺满自摘；不进布局、不吃命中。推开的是**换色前拍下的那一屏**（`Theme.Changing` 在重算之前广播，窗口趁画面还是旧色拍一张），几何是整窗矩形挖掉一个越来越大的圆——圆里露出的直接是换好色的界面，跟网页上那种圆形遮罩逐渐扩大的换肤一个做法。圆心落在点下去的那颗主题按钮上。只在深浅档互换时推，逐枚改色直接落色。断言 `T241-mask-on`、`T241-mask-origin`、`T241-mask-snapshot-face`、`T241-mask-gone`。
 - [x] **悬停动画涂到全窗**：共享刷上挂元素级动画等于让每个用它的地方一起动画。`Fluent.BgHover` 先按 `Theme.IsPaletteBrush` 判出来再克隆私有副本；侧栏三态、快捷键胶囊描边、`HoverFill` 的静止/悬停底色各自私有，底色在事件发生时取，不在构造期抄死。
 - [x] **写死的颜色**：选区描边、裁剪预览填充、托盘图标、ffmpeg 状态点、主题芯片选中/悬停色、帮助窗翻页芯片等 20 余处 ARGB 收进令牌。
 
@@ -182,3 +182,6 @@ B1 主题化悬浮条 → C1/C2 状态语义 → A1/A2 入退场 → A3-A5 → B
 
 ### 取证
 `scripts/cap-palette.ps1 -Page <页> -Themes <dark|light>` 拍设置页；拍前把窗提到 TOPMOST，否则被别的窗压住，量到的是桌面。
+`scripts/cap-mask.ps1` 换色连拍：本进程逐帧截屏（另起进程一帧的开销比整段动画还长，采不到边界走过的那几帧），
+逐帧量窗口中心与远角——中心第 22 帧越过两档中点、远角第 26 帧，圆从中心推开；
+`test-out/mask/mask-024.png` 看得见圆形边界，圆里是换好色的界面，四个角还是换色前的那一屏。
