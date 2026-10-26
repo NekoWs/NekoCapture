@@ -68,7 +68,7 @@ public sealed class ScrollHintWindow : Window
         var card = new Border
         {
             Width = W,
-            Background = new SolidColorBrush(Theme.CardBg),
+            Background = Theme.CardBgBrush,
             BorderBrush = Core.Fluent.CardEdge(),   // 上缘亮下缘暗：暗色里投影看不见，靠这条边说清卡片是浮着的
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(12),
@@ -87,7 +87,7 @@ public sealed class ScrollHintWindow : Window
             Text = Loc.T(K.Common.ScrollingCapture),
             FontSize = 15,
             FontWeight = FontWeights.Bold,
-            Foreground = new SolidColorBrush(Theme.Text),
+            Foreground = Theme.TextBrush,
             FontFamily = new FontFamily("Segoe UI"),
             VerticalAlignment = VerticalAlignment.Center,
         });
@@ -108,7 +108,7 @@ public sealed class ScrollHintWindow : Window
         {
             Text = DefaultHint,
             FontSize = 11.5,
-            Foreground = new SolidColorBrush(Theme.TextDim),
+            Foreground = Theme.TextDimBrush,
             FontFamily = new FontFamily("Segoe UI"),
             TextWrapping = TextWrapping.Wrap,
             Margin = new Thickness(0, 7, 4, 0),
@@ -172,7 +172,7 @@ public sealed class ScrollHintWindow : Window
     {
         _progress.Text = Loc.F(K.Capture.SegmentsStitchedPxTall, segments, heightPx);
         _hint.Text = _autoOn ? AutoHint : DefaultHint;
-        _hint.Foreground = new SolidColorBrush(Theme.TextDim);
+        _hint.Foreground = Theme.TextDimBrush;
         if (segments != _lastSegs) { _lastSegs = segments; PopProgress(); }
     }
 
@@ -186,7 +186,7 @@ public sealed class ScrollHintWindow : Window
         _auto.Background = new SolidColorBrush(on ? Theme.Accent : Theme.Hover);
         _auto.Foreground = new SolidColorBrush(on ? Fluent.OnAccentColor(Theme.Accent) : Theme.TextDim);
         _hint.Text = on ? AutoHint : DefaultHint;
-        _hint.Foreground = new SolidColorBrush(Theme.TextDim);
+        _hint.Foreground = Theme.TextDimBrush;
     }
 
     /// <summary>每成功拼接一段，进度数字弹一下（0.72→1.0 BackEase 过冲，右缘锚定不撞标题）——滚动拼接时的弹性即时反馈，同倒计时数字弹入。</summary>

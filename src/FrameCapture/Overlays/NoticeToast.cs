@@ -59,7 +59,7 @@ public sealed class NoticeToast : Window
         var card = new Border
         {
             Width = W,
-            Background = new SolidColorBrush(Theme.CardBg),
+            Background = Theme.CardBgBrush,
             BorderBrush = Core.Fluent.CardEdge(),   // 上缘亮下缘暗：暗色里投影看不见，靠这条边说清卡片是浮着的
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(10),
@@ -77,7 +77,7 @@ public sealed class NoticeToast : Window
             Text = glyph,
             FontFamily = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets, Segoe UI Symbol"),
             FontSize = 17,
-            Foreground = new SolidColorBrush(Theme.Accent),
+            Foreground = Theme.AccentBrush,
             VerticalAlignment = VerticalAlignment.Center,
             Margin = new Thickness(2, 0, 11, 0),
         });
@@ -88,7 +88,7 @@ public sealed class NoticeToast : Window
             Text = message,
             FontSize = 13,
             FontWeight = FontWeights.SemiBold,
-            Foreground = new SolidColorBrush(Theme.Text),
+            Foreground = Theme.TextBrush,
             FontFamily = new FontFamily("Segoe UI"),
             TextWrapping = TextWrapping.Wrap,
         });
@@ -97,7 +97,7 @@ public sealed class NoticeToast : Window
             {
                 Text = detail,
                 FontSize = 11,
-                Foreground = new SolidColorBrush(Theme.TextDim),
+                Foreground = Theme.TextDimBrush,
                 FontFamily = new FontFamily("Segoe UI"),
                 TextWrapping = TextWrapping.Wrap,
                 Margin = new Thickness(0, 3, 0, 0),
@@ -105,7 +105,7 @@ public sealed class NoticeToast : Window
         Grid.SetColumn(texts, 1);
         grid.Children.Add(texts);
 
-        var close = Fluent.IconButton("\uE711", Loc.T(K.Common.Close), 26, 12, new SolidColorBrush(Theme.TextDim));
+        var close = Fluent.IconButton("\uE711", Loc.T(K.Common.Close), 26, 12, Theme.TextDimBrush);
         close.VerticalAlignment = VerticalAlignment.Top;
         close.Click += (_, _) => Dismiss();
         Grid.SetColumn(close, 2);

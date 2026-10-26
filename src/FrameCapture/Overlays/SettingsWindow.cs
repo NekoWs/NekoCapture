@@ -37,7 +37,7 @@ public sealed partial class SettingsWindow : Window
         if (chrome != null) chrome.CaptionHeight = Fluent.TitleBarHeight;
         // 背板在场时窗口底必须透明：Mica 只在窗口自己不画像素的地方显形，铺任何底色都会把它盖成平涂。
         // 背板缺席时相反——非分层窗没有可透的背板，透明会被画成纯黑。
-        Background = _mica ? Brushes.Transparent : new SolidColorBrush(Theme.WindowBg);
+        Background = _mica ? Brushes.Transparent : Theme.WindowBgBrush;
         SizeToContent = SizeToContent.Manual;   // 分页后每页很短，固定舒适尺寸起步，可拖边缩放
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
         Width = 760; Height = Math.Min(660, SystemParameters.WorkArea.Height - 120);
@@ -106,8 +106,8 @@ public sealed partial class SettingsWindow : Window
         var root = new Border
         {
             CornerRadius = new CornerRadius(8),
-            Background = _mica ? Brushes.Transparent : new SolidColorBrush(Theme.WindowBg),
-            BorderBrush = new SolidColorBrush(Theme.Stroke),
+            Background = _mica ? Brushes.Transparent : Theme.WindowBgBrush,
+            BorderBrush = Theme.StrokeBrush,
             BorderThickness = new Thickness(1),
             // 阴影交给 WindowChrome 的原生 DWM 阴影（自绘 DropShadow 与原生缩放窗叠加会重影、发虚）
         };
@@ -300,14 +300,14 @@ panel.Children.Add(ToggleRow("\uE7C8", Loc.T(K.Settings.ClickAWindowToCapture), 
         {
             FontSize = 17,
             FontWeight = FontWeights.SemiBold,
-            Foreground = new SolidColorBrush(Theme.Text),
+            Foreground = Theme.TextBrush,
             Margin = new Thickness(22, 16, 22, 4),
         };
         var navItems = new List<(Border el, SolidColorBrush bg, TextBlock icon, TextBlock label)>();
         int navHover = -1;   // 指针当前压着的导航项；-1 = 没有
 
         // 滑动竖条（胶囊）：唯一做位移动画的元素，切换时滑到目标行
-        var selBar = new Border { Width = 3, Height = 18, CornerRadius = new CornerRadius(2), Background = new SolidColorBrush(Theme.Accent) };
+        var selBar = new Border { Width = 3, Height = 18, CornerRadius = new CornerRadius(2), Background = Theme.AccentBrush };
         selBar.Effect = new System.Windows.Media.Effects.DropShadowEffect { Color = Theme.Accent, BlurRadius = 9, ShadowDepth = 0, Opacity = 0.75 };
         Canvas.SetLeft(selBar, 8);
         var navCanvas = new Canvas { IsHitTestVisible = false };
@@ -422,13 +422,13 @@ panel.Children.Add(ToggleRow("\uE7C8", Loc.T(K.Settings.ClickAWindowToCapture), 
         for (int i = 0; i < cats.Count; i++)
         {
             int captured = i;
-            var icon = new TextBlock { Text = cats[i].Glyph, FontFamily = iconFont, FontSize = 15, Foreground = new SolidColorBrush(Theme.TextDim), VerticalAlignment = VerticalAlignment.Center, Width = 22, TextAlignment = TextAlignment.Center };
+            var icon = new TextBlock { Text = cats[i].Glyph, FontFamily = iconFont, FontSize = 15, Foreground = Theme.TextDimBrush, VerticalAlignment = VerticalAlignment.Center, Width = 22, TextAlignment = TextAlignment.Center };
             // Tag 是给版面探针认路用的：文案里的「设置 · X」指路句必须指着侧栏真存在的某一页，
             // 侧栏写 Hotkeys 而帮助页说 Shortcuts，新用户就会照着说明去找一个不存在的页。
-            var label = new TextBlock { Text = cats[i].Name, Tag = "settings-page", FontSize = 13, Foreground = new SolidColorBrush(Theme.Text), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0, 0, 0) };
+            var label = new TextBlock { Text = cats[i].Name, Tag = "settings-page", FontSize = 13, Foreground = Theme.TextBrush, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0, 0, 0) };
             var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(15, 0, 10, 0) };
             row.Children.Add(icon); row.Children.Add(label);
-            var bg = new SolidColorBrush(Theme.NavBg);
+            var bg = Theme.NavBgBrush;
             var el = new Border
             {
                 CornerRadius = new CornerRadius(6),
@@ -446,7 +446,7 @@ panel.Children.Add(ToggleRow("\uE7C8", Loc.T(K.Settings.ClickAWindowToCapture), 
             el.MouseEnter += (_, _) => { navHover = captured; PaintNav(true); };
             el.MouseLeave += (_, _) => { if (navHover == captured) { navHover = -1; PaintNav(true); } };
             // 键盘焦点环：与 toggle/chip/试听 同款——Tab 聚焦时描边转强调色，失焦归零
-            el.GotKeyboardFocus += (_, _) => { el.BorderBrush = new SolidColorBrush(Theme.Accent); el.BorderThickness = new Thickness(1); };
+            el.GotKeyboardFocus += (_, _) => { el.BorderBrush = Theme.AccentBrush; el.BorderThickness = new Thickness(1); };
             el.LostKeyboardFocus += (_, _) => el.BorderThickness = new Thickness(0);
             navItems.Add((el, bg, icon, label));
             navPanel.Children.Add(el);
@@ -460,8 +460,8 @@ panel.Children.Add(ToggleRow("\uE7C8", Loc.T(K.Settings.ClickAWindowToCapture), 
             Margin = new Thickness(12, 10, 8, 12),
             VerticalAlignment = VerticalAlignment.Top,
             CornerRadius = new CornerRadius(8),
-            Background = new SolidColorBrush(Theme.NavBg),
-            BorderBrush = new SolidColorBrush(Theme.StrokeSoft),
+            Background = Theme.NavBgBrush,
+            BorderBrush = Theme.StrokeSoftBrush,
             BorderThickness = new Thickness(1),
             Padding = new Thickness(6),
             Child = navInner,
@@ -484,7 +484,7 @@ panel.Children.Add(ToggleRow("\uE7C8", Loc.T(K.Settings.ClickAWindowToCapture), 
         rightPanel.Children.Add(contentHeader);
         rightPanel.Children.Add(scroller);
 
-        var divider = new Border { Width = 1, Background = new SolidColorBrush(Theme.Stroke) };
+        var divider = new Border { Width = 1, Background = Theme.StrokeBrush };
 
         var body = new Grid();
         body.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -499,6 +499,11 @@ panel.Children.Add(ToggleRow("\uE7C8", Loc.T(K.Settings.ClickAWindowToCapture), 
         dock.Children.Add(body);   // LastChildFill 填满标题栏以下区域
         root.Child = dock;
         Content = root;
+
+        // 深浅互换时整窗几十处颜色同帧跳变：盖一层退场那一侧的底色再淡出，变化就发生在幕布后面。
+        // 逐枚改色不盖幕布——那种改动要的是当场看见，不该被一层淡出挡一下。
+        Theme.Changed += OnPaletteChanged;
+        Closed += (_, _) => Theme.Changed -= OnPaletteChanged;
 
         // 首帧一次到位：整窗连同正文由构造函数里的 PopupEnter 同一帧淡入。
         // 行的逐项错位只用在切类别（ShowCat animate=true）——那里内容确实在变。

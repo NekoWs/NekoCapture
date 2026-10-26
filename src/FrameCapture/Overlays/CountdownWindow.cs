@@ -86,7 +86,7 @@ public sealed class CountdownWindow : Window
         var card = new Border
         {
             Width = W,
-            Background = new SolidColorBrush(Theme.CardBg),
+            Background = Theme.CardBgBrush,
             BorderBrush = Core.Fluent.CardEdge(),   // 上缘亮下缘暗：暗色里投影看不见，靠这条边说清卡片是浮着的
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(12),
@@ -105,7 +105,7 @@ public sealed class CountdownWindow : Window
             Text = Loc.T(K.Common.DelayedCapture),
             FontSize = 15,
             FontWeight = FontWeights.Bold,
-            Foreground = new SolidColorBrush(Theme.Text),
+            Foreground = Theme.TextBrush,
             FontFamily = new FontFamily("Segoe UI"),
             VerticalAlignment = VerticalAlignment.Center,
         });
@@ -113,7 +113,7 @@ public sealed class CountdownWindow : Window
         {
             Text = regionLabel,
             FontSize = 12,
-            Foreground = new SolidColorBrush(Theme.TextDim),
+            Foreground = Theme.TextDimBrush,
             FontFamily = new FontFamily("Segoe UI"),
             VerticalAlignment = VerticalAlignment.Center,
         };
@@ -143,7 +143,7 @@ public sealed class CountdownWindow : Window
         {
             Text = Loc.T(K.Capture.UseTheseSecondsToOpen),
             FontSize = 11.5,
-            Foreground = new SolidColorBrush(Theme.TextDim),
+            Foreground = Theme.TextDimBrush,
             FontFamily = new FontFamily("Segoe UI"),
             TextWrapping = TextWrapping.Wrap,
             TextAlignment = TextAlignment.Center,
@@ -172,7 +172,7 @@ public sealed class CountdownWindow : Window
                 {
                     Text = Loc.T(K.Common.Cancel),
                     FontSize = 12.5,
-                    Foreground = new SolidColorBrush(Theme.Text),
+                    Foreground = Theme.TextBrush,
                     VerticalAlignment = VerticalAlignment.Center,
                 },
                 esc,

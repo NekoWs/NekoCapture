@@ -21,6 +21,7 @@ public static partial class K
         public static readonly Str Palette = new("common.palette", "配色", "Palette");
         public static readonly Str Pin = new("common.pin", "贴图", "Pin");
         public static readonly Str PngImagePng = new("common.pngImagePng", "PNG 图片|*.png", "PNG image|*.png");
+        public static readonly Str Preview = new("common.preview", "预览", "Preview");
         public static readonly Str RecognitionFailed = new("common.recognitionFailed", "识别失败", "Recognition failed");
         public static readonly Str RecognizeText = new("common.recognizeText", "识别文字", "Recognize Text");
         public static readonly Str RecognizeText2 = new("common.recognizeText2", "识别文字…", "Recognize Text…");

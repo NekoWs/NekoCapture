@@ -129,7 +129,7 @@ public sealed partial class EditorWindow : Window
 
         _hud = new TextBlock
         {
-            Foreground = new SolidColorBrush(Theme.Text),
+            Foreground = Theme.TextBrush,
             FontSize = 12,
             FontFamily = new FontFamily("Segoe UI"),
             VerticalAlignment = VerticalAlignment.Center,
@@ -197,7 +197,7 @@ public sealed partial class EditorWindow : Window
         {
             Text = Loc.T(K.Editor.WelcomeToTheFramecaptureEditor),
             FontSize = 16, FontWeight = FontWeights.SemiBold,
-            Foreground = new SolidColorBrush(Theme.Text),
+            Foreground = Theme.TextBrush,
             Margin = new Thickness(0, 0, 0, 10),
         });
         foreach (var (k, v) in rows)
@@ -229,7 +229,7 @@ public sealed partial class EditorWindow : Window
         {
             MaxWidth = 520,
             CornerRadius = new CornerRadius(12),
-            Background = new SolidColorBrush(Theme.PanelBg),
+            Background = Theme.PanelBgBrush,
             BorderBrush = new SolidColorBrush(Color.FromArgb(0x88, Theme.Stroke.R, Theme.Stroke.G, Theme.Stroke.B)),
             BorderThickness = new Thickness(1),
             Padding = new Thickness(22, 18, 22, 18),

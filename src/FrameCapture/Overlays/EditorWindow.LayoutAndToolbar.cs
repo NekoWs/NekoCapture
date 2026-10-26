@@ -27,7 +27,7 @@ public sealed partial class EditorWindow : Window
         Width = 1,
         Height = 18,
         VerticalAlignment = VerticalAlignment.Center,
-        Fill = new SolidColorBrush(Theme.StrokeSoft),
+        Fill = Theme.StrokeSoftBrush,
         Margin = new Thickness(9, 0, 9, 0),
     };
 
@@ -38,7 +38,7 @@ public sealed partial class EditorWindow : Window
         {
             Content = text, ToolTip = tip, Width = 26, Height = 26, Margin = new Thickness(1),
             FontFamily = new FontFamily("Segoe UI"), FontSize = 12, FontWeight = FontWeights.Bold,
-            Foreground = new SolidColorBrush(Theme.Text), Background = Brushes.Transparent,
+            Foreground = Theme.TextBrush, Background = Brushes.Transparent,
             BorderBrush = Brushes.Transparent, Template = Fluent.IconButtonTemplate(),
             Focusable = false,
         };
@@ -108,7 +108,7 @@ public sealed partial class EditorWindow : Window
 
     Border Panel(FrameworkElement child) => new()
     {
-        Background = _mica ? Brushes.Transparent : new SolidColorBrush(Theme.PanelBg),
+        Background = _mica ? Brushes.Transparent : Theme.PanelBgBrush,
         BorderBrush = new SolidColorBrush(Color.FromArgb(0x66, Theme.Stroke.R, Theme.Stroke.G, Theme.Stroke.B)),
         BorderThickness = new Thickness(0, 1, 0, 0),
         Padding = new Thickness(8, 2, 8, 2),
@@ -127,14 +127,14 @@ public sealed partial class EditorWindow : Window
             Background = holder;
             holder.BeginAnimation(SolidColorBrush.ColorProperty, anim);
         }
-        _hud.Foreground = new SolidColorBrush(Theme.Text);
+        _hud.Foreground = Theme.TextBrush;
         // 选中语言随行：工具/线宽的前景色随主题（选中项反白、未选中项 Theme.Text），否则换肤后文字不可读
         RefreshToolHighlight();
         RefreshWidths();
         foreach (var p in new[] { _playPanel, _toolPanel })
             if (p != null)
             {
-                p.Background = _mica ? Brushes.Transparent : new SolidColorBrush(Theme.PanelBg);
+                p.Background = _mica ? Brushes.Transparent : Theme.PanelBgBrush;
                 p.BorderBrush = new SolidColorBrush(Color.FromArgb(0x66, Theme.Stroke.R, Theme.Stroke.G, Theme.Stroke.B));
             }
         DrawRange();
@@ -356,7 +356,7 @@ public sealed partial class EditorWindow : Window
         _fontGroup.Children.Add(BarDivider());
         var fMinus = TextSizeBtn("A\u2212", Loc.T(K.Editor.SmallerText)); fMinus.Click += (_, _) => StepFontSize(-1);
         var fPlus = TextSizeBtn("A+", Loc.T(K.Editor.LargerText)); fPlus.Click += (_, _) => StepFontSize(+1);
-        _fontLabel = new TextBlock { FontFamily = new FontFamily("Segoe UI"), FontSize = 11, Foreground = new SolidColorBrush(Theme.Text), VerticalAlignment = VerticalAlignment.Center, MinWidth = 36, TextAlignment = TextAlignment.Center };
+        _fontLabel = new TextBlock { FontFamily = new FontFamily("Segoe UI"), FontSize = 11, Foreground = Theme.TextBrush, VerticalAlignment = VerticalAlignment.Center, MinWidth = 36, TextAlignment = TextAlignment.Center };
         _fontGroup.Children.Add(fMinus);
         _fontGroup.Children.Add(_fontLabel);
         _fontGroup.Children.Add(fPlus);
@@ -469,8 +469,8 @@ public sealed partial class EditorWindow : Window
         {
             _widthSlider = new Slider { Minimum = 1, Maximum = 24, IsSnapToTickEnabled = true, TickFrequency = 1, Width = 150 };
             Fluent.StyleSlider(_widthSlider);
-            _widthVal = new TextBlock { FontFamily = new FontFamily("Segoe UI"), FontSize = 11, Foreground = new SolidColorBrush(Theme.Text), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 0, 0) };
-            _widthPreview = new System.Windows.Shapes.Ellipse { Fill = new SolidColorBrush(Theme.Text), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0, 0, 0) };
+            _widthVal = new TextBlock { FontFamily = new FontFamily("Segoe UI"), FontSize = 11, Foreground = Theme.TextBrush, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 0, 0) };
+            _widthPreview = new System.Windows.Shapes.Ellipse { Fill = Theme.TextBrush, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0, 0, 0) };
             _widthSlider.ValueChanged += (_, e) =>
             {
                 _customWidth = (float)e.NewValue;

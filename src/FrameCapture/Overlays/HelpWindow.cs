@@ -47,18 +47,20 @@ public sealed class HelpWindow : Window
         return w;
     }
 
-    void OnThemeRebuild()
+    /// <summary>上一次看到的深浅档与窗口底：遮罩盖的是退场那一侧的颜色，换色之后就取不到了。</summary>
+    bool _maskDark = Theme.IsDark;
+    Color _maskFrom = Theme.WindowBgSolid;
+
+    /// <summary>调色板变更：深浅档换了盖一层旧窗口底再淡出，正文按新色重排一遍。
+    /// 换色不再重建整窗——颜色挂在共享画刷上，重建会把用户正在读的那一页连滚动位置一起丢掉。</summary>
+    void OnPaletteChanged()
     {
-        var oldw = this;
-        var nw = new HelpWindow();
-        nw.Build();
-        nw.Left = oldw.Left; nw.Top = oldw.Top;
-        nw.Opacity = 0;
-        nw.Show();
-        var fo = new DoubleAnimation(0, TimeSpan.FromMilliseconds(Fluent.Motion.ExitMs + 20)); // 交叉淡入的非对称节拍
-        fo.Completed += (_, _) => oldw.Close();
-        oldw.BeginAnimation(OpacityProperty, fo);
-        nw.BeginAnimation(OpacityProperty, new DoubleAnimation(1, TimeSpan.FromMilliseconds(Fluent.Motion.ThemeMs)));
+        bool dark = Theme.IsDark;
+        if (dark != _maskDark) Fluent.MaskFade(this, _maskFrom);
+        _maskDark = dark;
+        _maskFrom = Theme.WindowBgSolid;
+        if (_nextBtn.Child is TextBlock nt) nt.Foreground = new SolidColorBrush(Fluent.OnAccentColor(Theme.Accent));
+        ShowStep(animate: false);
     }
 
     void Build()
@@ -80,8 +82,8 @@ public sealed class HelpWindow : Window
         var root = new Border
         {
             CornerRadius = new CornerRadius(12),
-            Background = new SolidColorBrush(Theme.WindowBgSolid),
-            BorderBrush = new SolidColorBrush(Theme.Stroke),
+            Background = Theme.WindowBgSolidBrush,
+            BorderBrush = Theme.StrokeBrush,
             BorderThickness = new Thickness(1),
             Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 24, ShadowDepth = 2, Opacity = Theme.IsDark ? 0.5 : 0.15 },
         };
@@ -103,11 +105,11 @@ public sealed class HelpWindow : Window
         main.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
         var left = new StackPanel { Margin = new Thickness(2, 0, 10, 0), VerticalAlignment = VerticalAlignment.Center };
-        _bigIcon = Fluent.Glyph("\uE945", 34, new SolidColorBrush(Theme.Accent));
+        _bigIcon = Fluent.Glyph("\uE945", 34, Theme.AccentBrush);
         _bigIcon.HorizontalAlignment = HorizontalAlignment.Left;   // 与下面那两行文字同一条左沿
         _bigIcon.TextAlignment = TextAlignment.Left;
-        _bigTitle = new TextBlock { FontSize = 21, FontWeight = FontWeights.Bold, Foreground = new SolidColorBrush(Theme.Text), Margin = new Thickness(0, 10, 0, 0), TextWrapping = TextWrapping.Wrap };
-        _bigSub = new TextBlock { FontSize = 12, Foreground = new SolidColorBrush(Theme.TextDim), Margin = new Thickness(0, 6, 0, 0), TextWrapping = TextWrapping.Wrap, LineHeight = 18 };
+        _bigTitle = new TextBlock { FontSize = 21, FontWeight = FontWeights.Bold, Foreground = Theme.TextBrush, Margin = new Thickness(0, 10, 0, 0), TextWrapping = TextWrapping.Wrap };
+        _bigSub = new TextBlock { FontSize = 12, Foreground = Theme.TextDimBrush, Margin = new Thickness(0, 6, 0, 0), TextWrapping = TextWrapping.Wrap, LineHeight = 18 };
         left.Children.Add(_bigIcon); left.Children.Add(_bigTitle); left.Children.Add(_bigSub);
         Grid.SetColumn(left, 0);
         main.Children.Add(left);
@@ -134,7 +136,7 @@ public sealed class HelpWindow : Window
         var foot = new Grid { Margin = new Thickness(18, 6, 18, 14) };
         foot.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         foot.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        _pager = new TextBlock { FontSize = 12, Foreground = new SolidColorBrush(Theme.TextDim), VerticalAlignment = VerticalAlignment.Center };
+        _pager = new TextBlock { FontSize = 12, Foreground = Theme.TextDimBrush, VerticalAlignment = VerticalAlignment.Center };
         Grid.SetColumn(_pager, 0);
         foot.Children.Add(_pager);
         var nav = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center };
@@ -151,8 +153,8 @@ public sealed class HelpWindow : Window
         Content = root;
         ShowStep(animate: false);
 
-        Theme.Changed += OnThemeRebuild;
-        Closed += (_, _) => Theme.Changed -= OnThemeRebuild;
+        Theme.Changed += OnPaletteChanged;
+        Closed += (_, _) => Theme.Changed -= OnPaletteChanged;
         PreviewKeyDown += (_, e) =>
         {
             if (e.Key == Key.Escape) Fluent.CloseWithFade(this);
@@ -223,8 +225,8 @@ public sealed class HelpWindow : Window
             CornerRadius = new CornerRadius(6),
             Padding = new Thickness(12, 6, 12, 6),
             Margin = new Thickness(8, 0, 0, 0),
-            Background = new SolidColorBrush(on ? Theme.Accent : Theme.CardBg),
-            BorderBrush = new SolidColorBrush(on ? Theme.Accent : Theme.Stroke),
+            Background = on ? Theme.AccentBrush : Theme.CardBgBrush,
+            BorderBrush = on ? Theme.AccentBrush : Theme.StrokeBrush,
             BorderThickness = new Thickness(1),
             Cursor = Cursors.Hand,
             Focusable = true,
@@ -254,7 +256,7 @@ public sealed class HelpWindow : Window
         g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(158) });
         g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         var kt = KeyCell(k);
-        var vt = new TextBlock { Text = v, FontSize = 12.5, Foreground = new SolidColorBrush(Theme.Text), TextWrapping = TextWrapping.Wrap, LineHeight = 17 };
+        var vt = new TextBlock { Text = v, FontSize = 12.5, Foreground = Theme.TextBrush, TextWrapping = TextWrapping.Wrap, LineHeight = 17 };
         Grid.SetColumn(kt, 0); Grid.SetColumn(vt, 1);
         g.Children.Add(kt); g.Children.Add(vt);
         p.Children.Add(g);
@@ -284,7 +286,7 @@ public sealed class HelpWindow : Window
     static string[] KeySeparators { get; } = { Loc.T(K.Hotkeys.Comma), ", ", " / " };
 
     static void Note(StackPanel p, string v)
-        => p.Children.Add(new TextBlock { Text = v, FontSize = 11.5, Foreground = new SolidColorBrush(Theme.TextDim), TextWrapping = TextWrapping.Wrap, LineHeight = 16, Margin = new Thickness(2, 6, 0, 0) });
+        => p.Children.Add(new TextBlock { Text = v, FontSize = 11.5, Foreground = Theme.TextDimBrush, TextWrapping = TextWrapping.Wrap, LineHeight = 16, Margin = new Thickness(2, 6, 0, 0) });
 
     static string KeysFor(params string[] actions)
     {
@@ -410,7 +412,7 @@ public sealed class HelpWindow : Window
         {
             Text = Loc.F(K.Help.PressTheToolKeyAgain, EditorKeysFor("tool.X")),
             FontSize = 11.5,
-            Foreground = new SolidColorBrush(Theme.TextDim),
+            Foreground = Theme.TextDimBrush,
             Margin = new Thickness(2, 8, 0, 0),
             TextWrapping = TextWrapping.Wrap,
         });
@@ -423,13 +425,13 @@ public sealed class HelpWindow : Window
     {
         string key = EditorKeyParts("tool." + t.Key)[0];
         var head = new StackPanel { Orientation = Orientation.Horizontal };
-        head.Children.Add(Fluent.Glyph(t.Glyph, 15, new SolidColorBrush(Theme.Accent), 24));
+        head.Children.Add(Fluent.Glyph(t.Glyph, 15, Theme.AccentBrush, 24));
         head.Children.Add(new TextBlock
         {
             Text = Loc.T(t.Tip),
             FontSize = 12.5,
             FontWeight = FontWeights.SemiBold,
-            Foreground = new SolidColorBrush(Theme.Text),
+            Foreground = Theme.TextBrush,
             VerticalAlignment = VerticalAlignment.Center,
             TextTrimming = TextTrimming.CharacterEllipsis,
         });
@@ -439,7 +441,7 @@ public sealed class HelpWindow : Window
             {
                 Text = key,
                 FontSize = 11,
-                Foreground = new SolidColorBrush(Theme.TextDim),
+                Foreground = Theme.TextDimBrush,
                 VerticalAlignment = VerticalAlignment.Center,
                 Margin = new Thickness(6, 0, 0, 0),
             });
@@ -448,7 +450,7 @@ public sealed class HelpWindow : Window
             Margin = new Thickness(2),
             Padding = new Thickness(9, 7, 9, 7),
             CornerRadius = new CornerRadius(6),
-            BorderBrush = new SolidColorBrush(Theme.StrokeSoft),
+            BorderBrush = Theme.StrokeSoftBrush,
             BorderThickness = new Thickness(1),
             Background = Brushes.Transparent,
             Child = head,

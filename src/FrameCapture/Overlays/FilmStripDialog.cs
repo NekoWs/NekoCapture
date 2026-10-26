@@ -60,7 +60,7 @@ public sealed class FilmStripDialog : Window
             TickFrequency = 1,
             IsSnapToTickEnabled = true,
             Value = Math.Clamp(desired, 2, hi),
-            Foreground = new SolidColorBrush(Theme.Accent),
+            Foreground = Theme.AccentBrush,
             Margin = new Thickness(2, 0, 0, 0),
             // 吸附开启时步长必须=档位：默认 SmallChange=1 会被吸回原档，方向键看似失灵
             SmallChange = 1,
@@ -75,8 +75,8 @@ public sealed class FilmStripDialog : Window
 
         var card = new Border
         {
-            Background = new SolidColorBrush(Theme.PanelBgSolid),
-            BorderBrush = new SolidColorBrush(Theme.Stroke),
+            Background = Theme.PanelBgSolidBrush,
+            BorderBrush = Theme.StrokeBrush,
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(10),
             Padding = new Thickness(20, 16, 20, 16),
@@ -103,12 +103,12 @@ public sealed class FilmStripDialog : Window
         root.Children.Add(new TextBlock
         {
             Text = Loc.T(K.Editor.FilmStrip), FontSize = 15, FontWeight = FontWeights.SemiBold,
-            Foreground = new SolidColorBrush(Theme.Text),
+            Foreground = Theme.TextBrush,
         });
         root.Children.Add(new TextBlock
         {
             Text = Loc.F(K.Editor.SamplesTheCurrentRecordingInto, _total),
-            FontSize = 12, Foreground = new SolidColorBrush(Theme.TextDim),
+            FontSize = 12, Foreground = Theme.TextDimBrush,
             Margin = new Thickness(0, 3, 0, 12), TextWrapping = TextWrapping.Wrap,
         });
 
@@ -118,7 +118,7 @@ public sealed class FilmStripDialog : Window
         var lbl = new TextBlock
         {
             Text = Loc.T(K.Editor.HowManyFrames), FontSize = 13,
-            Foreground = new SolidColorBrush(Theme.Text), VerticalAlignment = VerticalAlignment.Center,
+            Foreground = Theme.TextBrush, VerticalAlignment = VerticalAlignment.Center,
         };
         _value.FontSize = 13;
         _value.FontWeight = FontWeights.SemiBold;
@@ -132,7 +132,7 @@ public sealed class FilmStripDialog : Window
         root.Children.Add(slider);
 
         _summary.FontSize = 11.5;
-        _summary.Foreground = new SolidColorBrush(Theme.TextDim);
+        _summary.Foreground = Theme.TextDimBrush;
         _summary.Margin = new Thickness(2, 3, 0, 10);
         root.Children.Add(_summary);
 
@@ -143,7 +143,7 @@ public sealed class FilmStripDialog : Window
             Height = 196,
             CornerRadius = new CornerRadius(8),
             Background = new SolidColorBrush(Color.FromRgb(0x14, 0x14, 0x14)),
-            BorderBrush = new SolidColorBrush(Theme.Stroke),
+            BorderBrush = Theme.StrokeBrush,
             BorderThickness = new Thickness(1),
             Padding = new Thickness(8),
             Child = _preview,

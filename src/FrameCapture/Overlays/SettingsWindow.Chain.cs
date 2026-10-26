@@ -122,7 +122,7 @@ public sealed partial class SettingsWindow : Window
                     {
                         Text = text,
                         FontSize = 12.5,
-                        Foreground = new SolidColorBrush(Theme.Text),
+                        Foreground = Theme.TextBrush,
                         VerticalAlignment = VerticalAlignment.Center,
                     },
                     close,
@@ -133,7 +133,7 @@ public sealed partial class SettingsWindow : Window
                 CornerRadius = new CornerRadius(6),
                 Padding = new Thickness(10, 5, 8, 5),
                 Margin = new Thickness(2),
-                Background = new SolidColorBrush(Theme.Hover),
+                Background = Theme.RowBgBrush,
                 Cursor = Cursors.SizeAll,
                 Child = body,
                 ToolTip = Loc.T(K.Settings.DragThisStepToReorder),
@@ -202,7 +202,7 @@ public sealed partial class SettingsWindow : Window
                 Margin = new Thickness(2),
                 VerticalAlignment = VerticalAlignment.Center,
                 CornerRadius = new CornerRadius(6),
-                BorderBrush = new SolidColorBrush(Theme.Accent),
+                BorderBrush = Theme.AccentBrush,
                 BorderThickness = new Thickness(1),
                 Background = new SolidColorBrush(Color.FromArgb(0x2E, ac.R, ac.G, ac.B)),
             };
@@ -458,7 +458,7 @@ public sealed partial class SettingsWindow : Window
                 Text = "\uE711",
                 FontFamily = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets, Segoe UI Symbol"),
                 FontSize = 10,
-                Foreground = new SolidColorBrush(Theme.TextDim),
+                Foreground = Theme.TextDimBrush,
                 VerticalAlignment = VerticalAlignment.Center,
                 Margin = new Thickness(8, 0, 1, 0),
                 Cursor = Cursors.Hand,
@@ -476,14 +476,14 @@ public sealed partial class SettingsWindow : Window
                 CornerRadius = new CornerRadius(6),
                 Padding = new Thickness(9, 5, 9, 5),
                 Margin = new Thickness(2),
-                Background = new SolidColorBrush(Theme.Hover),
+                Background = Theme.RowBgBrush,
                 Cursor = Cursors.Hand,
                 Child = new TextBlock
                 {
                     Text = "\uE710",
                     FontFamily = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets, Segoe UI Symbol"),
                     FontSize = 12,
-                    Foreground = new SolidColorBrush(Theme.TextDim),
+                    Foreground = Theme.TextDimBrush,
                     VerticalAlignment = VerticalAlignment.Center,
                 },
                 ToolTip = Loc.T(K.Settings.AddAStepAfterThis),
@@ -513,9 +513,9 @@ public sealed partial class SettingsWindow : Window
             {
                 Focusable = true,
                 CornerRadius = new CornerRadius(6),
-                BorderBrush = new SolidColorBrush(Theme.Stroke),
+                BorderBrush = Theme.StrokeBrush,
                 BorderThickness = new Thickness(1),
-                Background = new SolidColorBrush(Theme.PanelBg),
+                Background = Theme.PanelBgBrush,
                 Child = new ScrollViewer
                 {
                     MaxHeight = 280,
@@ -652,7 +652,7 @@ public sealed partial class SettingsWindow : Window
                 Margin = new Thickness(1),
                 // 底色取卡片同色而不是全透明：悬停是在底色上叠一层半透明强调，
                 // 基色自己 alpha 为 0 时叠完还是全透明，指针进来什么也不会亮。
-                Background = new SolidColorBrush(Theme.PanelBg),
+                Background = Theme.PanelBgBrush,
                 Cursor = Cursors.Hand,
                 Child = new StackPanel
                 {
@@ -662,13 +662,13 @@ public sealed partial class SettingsWindow : Window
                         {
                             Text = a.Label,
                             FontSize = 12.5,
-                            Foreground = new SolidColorBrush(Theme.Text),
+                            Foreground = Theme.TextBrush,
                         },
                         new TextBlock
                         {
                             Text = a.Description,
                             FontSize = 11.5,
-                            Foreground = new SolidColorBrush(Theme.TextDim),
+                            Foreground = Theme.TextDimBrush,
                             TextWrapping = TextWrapping.Wrap,
                             MaxWidth = 260,
                             Margin = new Thickness(0, 2, 0, 0),

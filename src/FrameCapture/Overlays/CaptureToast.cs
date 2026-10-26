@@ -61,7 +61,7 @@ public sealed class CaptureToast : Window
 
         var card = new Border
         {
-            Background = new SolidColorBrush(Theme.CardBg),
+            Background = Theme.CardBgBrush,
             BorderBrush = Core.Fluent.CardEdge(),   // 上缘亮下缘暗：暗色里投影看不见，靠这条边说清卡片是浮着的
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(10),
@@ -73,7 +73,7 @@ public sealed class CaptureToast : Window
         // 静止态是渐变描边，颜色动画接不上两种画刷——悬停因此走叠加层的透明度，不换画刷。
         var hoverEdge = new Border
         {
-            BorderBrush = new SolidColorBrush(Theme.Accent),
+            BorderBrush = Theme.AccentBrush,
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(10),
             Opacity = 0,
@@ -117,14 +117,14 @@ public sealed class CaptureToast : Window
             Text = Loc.T(K.Capture.ScreenshotTaken),
             FontSize = 13,
             FontWeight = FontWeights.SemiBold,
-            Foreground = new SolidColorBrush(Theme.Text),
+            Foreground = Theme.TextBrush,
             FontFamily = new FontFamily("Segoe UI"),
         });
         Grid.SetColumn(texts, 1);
         grid.Children.Add(texts);
 
         var close = Fluent.IconButton("\uE711", Loc.T(K.Common.Close), 26, 12,
-            new SolidColorBrush(Theme.TextDim));
+            Theme.TextDimBrush);
         close.Cursor = System.Windows.Input.Cursors.Arrow;
         close.VerticalAlignment = VerticalAlignment.Top;
         close.Click += (_, _) => Dismiss();
@@ -235,7 +235,7 @@ public sealed class CaptureToast : Window
         {
             Text = label,
             FontSize = 12.5,
-            Foreground = new SolidColorBrush(Theme.Text),
+            Foreground = Theme.TextBrush,
             VerticalAlignment = VerticalAlignment.Center,
             Margin = new Thickness(0, 0, 6, 0),
         });
@@ -245,7 +245,7 @@ public sealed class CaptureToast : Window
             CornerRadius = new CornerRadius(6),
             Padding = new Thickness(10, 4, 10, 4),
             Margin = new Thickness(0, 0, 6, 0),
-            Background = new SolidColorBrush(Theme.Hover),   // 与延时截图的取消按钮同一个底色
+            Background = Theme.RowBgBrush,   // 芯片坐在提示条上，底色是实心行底：拿半透明叠加层当底，透出来的是什么取决于提示条压着什么内容
             Cursor = System.Windows.Input.Cursors.Hand,
             Child = row,
         };

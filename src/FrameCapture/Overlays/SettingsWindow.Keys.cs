@@ -44,12 +44,12 @@ public sealed partial class SettingsWindow : Window
             {
                 CornerRadius = new CornerRadius(5),
                 BorderThickness = new Thickness(1),
-                BorderBrush = new SolidColorBrush(Theme.Stroke),
+                BorderBrush = Theme.StrokeBrush,
                 Background = Brushes.Transparent,
                 Padding = new Thickness(7, 2, 7, 2),
                 MinHeight = 26,   // 低于 24 的可用下限就点不着了；26 是这一行能压到的最小值
                 Cursor = Cursors.Hand,
-                Child = new TextBlock { Text = text, FontSize = 11.5, Foreground = new SolidColorBrush(Theme.TextDim) },
+                Child = new TextBlock { Text = text, FontSize = 11.5, Foreground = Theme.TextDimBrush },
             };
             Fluent.ChipHover(b);
             b.MouseLeftButtonUp += (_, _) => onClick();
@@ -65,7 +65,7 @@ public sealed partial class SettingsWindow : Window
                 Text = Loc.T(group),
                 FontSize = 12,
                 FontWeight = FontWeights.SemiBold,
-                Foreground = new SolidColorBrush(Theme.TextDim),
+                Foreground = Theme.TextDimBrush,
                 Margin = new Thickness(0, 0, 0, 2),
             });
             // 键位区按内容占宽：一枚键帽占一枚的宽度，放不下才换行
@@ -82,13 +82,13 @@ public sealed partial class SettingsWindow : Window
                 {
                     Text = Loc.T(c.Name),
                     FontSize = 12.5,
-                    Foreground = new SolidColorBrush(Theme.Text),
+                    Foreground = Theme.TextBrush,
                     TextWrapping = TextWrapping.Wrap,
                 });
                 var note = new TextBlock
                 {
                     FontSize = 11,
-                    Foreground = new SolidColorBrush(Theme.Danger),
+                    Foreground = Theme.DangerBrush,
                     TextWrapping = TextWrapping.Wrap,
                     Visibility = Visibility.Collapsed,
                 };
@@ -117,9 +117,9 @@ public sealed partial class SettingsWindow : Window
                 var pill = new Border
                 {
                     CornerRadius = new CornerRadius(6),
-                    BorderBrush = new SolidColorBrush(Theme.StrokeSoft),
+                    BorderBrush = Theme.StrokeSoftBrush,
                     BorderThickness = new Thickness(1),
-                    Background = new SolidColorBrush(Theme.RowBg),
+                    Background = Theme.RowBgBrush,
                     Padding = new Thickness(16, 4, 8, 4),
                     Margin = new Thickness(0, 1, 0, 1),
                     Child = row,
@@ -132,7 +132,7 @@ public sealed partial class SettingsWindow : Window
                     Width = 28,
                     CornerRadius = new CornerRadius(6),
                     BorderThickness = new Thickness(1),
-                    BorderBrush = new SolidColorBrush(Theme.Stroke),
+                    BorderBrush = Theme.StrokeBrush,
                     Background = Brushes.Transparent,
                     Padding = new Thickness(0, 3, 0, 3),
                     Margin = new Thickness(0, 0, 0, 0),
@@ -143,7 +143,7 @@ public sealed partial class SettingsWindow : Window
                         Text = "+",
                         FontSize = 13,
                         TextAlignment = TextAlignment.Center,
-                        Foreground = new SolidColorBrush(Theme.TextDim),
+                        Foreground = Theme.TextDimBrush,
                     },
                 };
                 Fluent.ChipHover(add);
@@ -211,7 +211,7 @@ public sealed partial class SettingsWindow : Window
                         {
                             Text = Loc.T(K.Common.NoKey),
                             FontSize = 12.5,
-                            Foreground = new SolidColorBrush(Theme.TextDim),
+                            Foreground = Theme.TextDimBrush,
                             VerticalAlignment = VerticalAlignment.Center,
                             Margin = new Thickness(0, 0, BoxGap, 0),
                         });
@@ -229,8 +229,8 @@ public sealed partial class SettingsWindow : Window
                 Margin = new Thickness(0, firstCard ? 12 : 2, 0, 2),
                 CornerRadius = new CornerRadius(8),   // 卡片 8、行 6：外圆包内圆
                 BorderThickness = new Thickness(1),
-                BorderBrush = new SolidColorBrush(Theme.Stroke),
-                Background = new SolidColorBrush(Theme.CardBg),
+                BorderBrush = Theme.StrokeBrush,
+                Background = Theme.CardBgBrush,
                 Padding = new Thickness(12, 7, 12, 7),
                 Child = stack,
             };

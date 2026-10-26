@@ -65,8 +65,8 @@ public sealed partial class SettingsWindow : Window
             Margin = new Thickness(0, 2, 0, 2),
             CornerRadius = new CornerRadius(8),   // 卡片 8、行 6：外圆包内圆
             BorderThickness = new Thickness(1),
-            BorderBrush = new SolidColorBrush(Theme.Stroke),
-            Background = new SolidColorBrush(Theme.CardBg),
+            BorderBrush = Theme.StrokeBrush,
+            Background = Theme.CardBgBrush,
             Padding = new Thickness(8, 6, 8, 8),
             Child = _hotList,
         };
@@ -99,7 +99,7 @@ public sealed partial class SettingsWindow : Window
             CornerRadius = new CornerRadius(6),
             Padding = new Thickness(10, 7, 10, 7),
             Margin = new Thickness(0, 4, 0, 4),
-            BorderBrush = new SolidColorBrush(Theme.StrokeSoft),
+            BorderBrush = Theme.StrokeSoftBrush,
             BorderThickness = new Thickness(1),
             Cursor = Cursors.Hand,
             Child = new StackPanel
@@ -120,7 +120,7 @@ public sealed partial class SettingsWindow : Window
                     {
                         Text = Loc.T(K.Hotkeys.AddAHotkey),
                         FontSize = 12.5,
-                        Foreground = new SolidColorBrush(Theme.Text),
+                        Foreground = Theme.TextBrush,
                         VerticalAlignment = VerticalAlignment.Center,
                     },
                 },
@@ -163,7 +163,7 @@ public sealed partial class SettingsWindow : Window
             Text = open ? "\uE70E" : "\uE70D",
             FontFamily = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets, Segoe UI Symbol"),
             FontSize = 11,
-            Foreground = new SolidColorBrush(Theme.TextDim),
+            Foreground = Theme.TextDimBrush,
             VerticalAlignment = VerticalAlignment.Center,
             Width = 18,
             TextAlignment = TextAlignment.Center,
@@ -174,7 +174,7 @@ public sealed partial class SettingsWindow : Window
             Text = HotkeyDisplayName(b),
             FontSize = 13,
             FontWeight = FontWeights.SemiBold,
-            Foreground = new SolidColorBrush(Theme.Text),
+            Foreground = Theme.TextBrush,
             VerticalAlignment = VerticalAlignment.Center,
             TextTrimming = TextTrimming.CharacterEllipsis,
         };
@@ -212,7 +212,7 @@ public sealed partial class SettingsWindow : Window
         {
             Text = Loc.T(GestureConfig.TriggerLabel(b.Trigger)),
             FontSize = 12,
-            Foreground = new SolidColorBrush(Theme.TextDim),
+            Foreground = Theme.TextDimBrush,
             VerticalAlignment = VerticalAlignment.Center,
             Margin = new Thickness(8, 0, 0, 0),
         };
@@ -249,9 +249,9 @@ public sealed partial class SettingsWindow : Window
         var pill = new Border
         {
             CornerRadius = new CornerRadius(6),
-            BorderBrush = new SolidColorBrush(Theme.StrokeSoft),
+            BorderBrush = Theme.StrokeSoftBrush,
             BorderThickness = new Thickness(1),
-            Background = new SolidColorBrush(Theme.RowBg),
+            Background = Theme.RowBgBrush,
             Padding = new Thickness(10, 7, 8, 7),
             Cursor = Cursors.Hand,
             Child = head,
@@ -373,7 +373,7 @@ public sealed partial class SettingsWindow : Window
                 Text = "\uE70F",
                 FontFamily = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets, Segoe UI Symbol"),
                 FontSize = 11,
-                Foreground = new SolidColorBrush(Theme.TextDim),
+                Foreground = Theme.TextDimBrush,
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center,
             },
@@ -407,11 +407,11 @@ public sealed partial class SettingsWindow : Window
             Text = current,
             FontSize = 13,
             FontWeight = FontWeights.SemiBold,
-            Background = new SolidColorBrush(Theme.CardBg),
-            BorderBrush = new SolidColorBrush(Theme.Accent),
+            Background = Theme.CardBgBrush,
+            BorderBrush = Theme.AccentBrush,
             BorderThickness = new Thickness(1),
-            CaretBrush = new SolidColorBrush(Theme.Accent),
-            Foreground = new SolidColorBrush(Theme.Text),
+            CaretBrush = Theme.AccentBrush,
+            Foreground = Theme.TextBrush,
             Padding = new Thickness(5, 1, 5, 1),
             MinWidth = 60,
             VerticalContentAlignment = VerticalAlignment.Center,
@@ -504,7 +504,7 @@ public sealed partial class SettingsWindow : Window
         {
             Text = label,
             FontSize = 13,
-            Foreground = new SolidColorBrush(Theme.Text),
+            Foreground = Theme.TextBrush,
             VerticalAlignment = VerticalAlignment.Top,
             Margin = new Thickness(0, 6, 14, 0),
         };
@@ -550,7 +550,7 @@ public sealed partial class SettingsWindow : Window
         {
             Text = label,
             FontSize = 13,
-            Foreground = new SolidColorBrush(Theme.Text),
+            Foreground = Theme.TextBrush,
             VerticalAlignment = VerticalAlignment.Center,
             Margin = new Thickness(0, 0, 14, 0),
         };

@@ -16,14 +16,15 @@ namespace FrameCapture.Overlays;
 public sealed partial class SettingsWindow : Window
 {
     /// <summary>
-    /// 主题/强调色变更后原地重建：新窗在原位置淡入，本窗同时淡出后关闭，两者节拍非对称。
+    /// 界面语言变更后原地重建：新窗在原位置淡入，本窗同时淡出后关闭，两者节拍非对称。
+    /// 只有文案跟着换的语言才需要重建——颜色挂在 <see cref="Theme"/> 的共享画刷上，换色不必换窗。
     /// 必须在 UI 线程调用；重建期间两个实例短暂共存，分页索引由 <c>_restoreCat</c> 交给新窗。
     /// </summary>
     void RebuildInPlace()
     {
         var oldw = this;
         var nw = new SettingsWindow();
-        nw._restoreCat = oldw._cat;   // 改主题/强调色重建后停在原分页，不跳回首页
+        nw._restoreCat = oldw._cat;   // 重建后停在原分页，不跳回首页
         nw.Build();
         // 构造里是 CenterScreen，Show 时会覆盖下面手设的 Left/Top，窗口会弹回屏幕中心。
         // 重建必须走 Manual，才尊重原位置。
@@ -35,6 +36,19 @@ public sealed partial class SettingsWindow : Window
         fo.Completed += (_, _) => oldw.Close();
         oldw.BeginAnimation(OpacityProperty, fo);
         nw.BeginAnimation(OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(1, TimeSpan.FromMilliseconds(FrameCapture.Core.Fluent.Motion.ThemeMs)));
+    }
+
+    /// <summary>上一次看到的深浅档与窗口底：遮罩盖的是退场那一侧的颜色，换色之后就取不到了。</summary>
+    bool _maskDark = Theme.IsDark;
+    Color _maskFrom = Theme.WindowBgSolid;
+
+    /// <summary>调色板变更：深浅档换了才盖一层旧窗口底再淡出，逐枚改色直接落色不挡视线。</summary>
+    void OnPaletteChanged()
+    {
+        bool dark = Theme.IsDark;
+        if (dark != _maskDark) Fluent.MaskFade(this, _maskFrom);
+        _maskDark = dark;
+        _maskFrom = Theme.WindowBgSolid;
     }
 
     /// <summary>
@@ -54,8 +68,8 @@ public sealed partial class SettingsWindow : Window
         {
             Height = 30,
             CornerRadius = new CornerRadius(7),
-            Background = new SolidColorBrush(Theme.TrackBg),
-            BorderBrush = new SolidColorBrush(Theme.Stroke),
+            Background = Theme.TrackBgBrush,
+            BorderBrush = Theme.StrokeBrush,
             BorderThickness = new Thickness(1),
             Padding = new Thickness(2),
             HorizontalAlignment = HorizontalAlignment.Right,
@@ -119,7 +133,7 @@ public sealed partial class SettingsWindow : Window
         {
             Text = Loc.T(K.Settings.Accent),
             FontSize = 13,
-            Foreground = new SolidColorBrush(Theme.Text),
+            Foreground = Theme.TextBrush,
             VerticalAlignment = VerticalAlignment.Center,
             Margin = new Thickness(0, 0, 10, 0),
         };
@@ -132,8 +146,8 @@ public sealed partial class SettingsWindow : Window
             // 色片本来就是一枚按钮，长高一点反而更像它能按。
             Height = 28,
             CornerRadius = new CornerRadius(5),
-            Background = new SolidColorBrush(Theme.Accent),
-            BorderBrush = new SolidColorBrush(Theme.Stroke),
+            Background = Theme.AccentBrush,
+            BorderBrush = Theme.StrokeBrush,
             BorderThickness = new Thickness(1),
             HorizontalAlignment = HorizontalAlignment.Right,
             VerticalAlignment = VerticalAlignment.Center,
@@ -148,14 +162,11 @@ public sealed partial class SettingsWindow : Window
             if (_accentPop == null)
             {
                 _accentView = new ColorPickView();
-                Color previewed = Theme.Accent;
                 _accentView.Changed += c =>
                 {
-                    // 拖动中只预览（改静态色+全局样式），松板才落盘重建——避免每像素重建窗口
-                    previewed = c;
-                    Theme.Accent = Color.FromRgb(c.R, c.G, c.B);
-                    chip.Background = new SolidColorBrush(Theme.Accent); // 色片实时跟色，所见即所得
-                    Fluent.ApplyGlobalStyles();
+                    // 拖动中只改全局调色板：界面颜色挂在共享画刷上，当场就跟着走，不落盘也不重烤 XAML
+                    Theme.PreviewAccent(Color.FromRgb(c.R, c.G, c.B));
+                    chip.Background = Theme.AccentBrush; // 悬停可能已把色片换成私有副本，重新指回共享刷才继续跟色
                 };
                 _accentPop = new Popup
                 {
@@ -170,8 +181,7 @@ public sealed partial class SettingsWindow : Window
                     var hex = $"#{c.R:X2}{c.G:X2}{c.B:X2}";
                     _settings.Mutate(s => s.Accent = hex);
                     Theme.Apply(_settings.Current.Theme, hex);
-                    Fluent.ApplyGlobalStyles();
-                    RebuildInPlace(); // 本窗静态刷色需重建才跟上
+                    Fluent.ApplyGlobalStyles();   // ToolTip/滚动条/菜单的颜色烤在 XAML 里，收起弹层统一重烤一次
                 };
             }
             _accentView!.Color = Theme.Accent;
@@ -182,14 +192,13 @@ public sealed partial class SettingsWindow : Window
         chip.MouseRightButtonUp += (_, _) =>
         {
             _settings.Mutate(s => s.Accent = "");
-            Theme.Apply(_settings.Current.Theme, "");
+            Theme.ResetAccent();
             Fluent.ApplyGlobalStyles();
-            RebuildInPlace();
         };
         chip.KeyDown += (_, e) => { if (e.Key is Key.Space or Key.Enter) { Open(); e.Handled = true; } };
         // 键盘焦点环：与「试听」按钮同款——聚焦时描边转强调色，失焦回描边底色
-        chip.GotKeyboardFocus += (_, _) => chip.BorderBrush = new SolidColorBrush(Theme.Accent);
-        chip.LostKeyboardFocus += (_, _) => chip.BorderBrush = new SolidColorBrush(Theme.Stroke);
+        chip.GotKeyboardFocus += (_, _) => chip.BorderBrush = Theme.AccentBrush;
+        chip.LostKeyboardFocus += (_, _) => chip.BorderBrush = Theme.StrokeBrush;
         g.Children.Add(chip);
         return g;
     }
@@ -202,7 +211,7 @@ public sealed partial class SettingsWindow : Window
         var g = ChipRow("\uE793", Loc.T(K.Settings.Theme), Loc.T(K.Settings.AppearanceTheme));
         var chips = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
         Grid.SetColumn(chips, 2);
-        string cur = _settings.Current.Theme;
+        var cells = new List<(Border el, TextBlock icon, string id)>();
         foreach (var (id, glyph, tip) in new[]
                  { ("system", "\uE977", Loc.T(K.Settings.FollowSystem)), ("light", "\uE706", Loc.T(K.Settings.Light)), ("dark", "\uE708", Loc.T(K.Settings.Dark)) })
         {
@@ -212,13 +221,11 @@ public sealed partial class SettingsWindow : Window
                 CornerRadius = new CornerRadius(6),
                 Padding = new Thickness(9, 5, 9, 5),
                 Margin = new Thickness(2, 0, 2, 0),
-                Background = new SolidColorBrush(captured == cur ? Theme.Accent : Theme.RowBg),
                 Child = new TextBlock
                 {
                     Text = glyph,
                     FontFamily = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets, Segoe UI Symbol"),
                     FontSize = 14,
-                    Foreground = new SolidColorBrush(captured == cur ? Fluent.OnAccentColor(Theme.Accent) : Theme.Text),
                     // 芯片被行高拉伸（行有 32 的下限），图标不居中就会贴着上沿
                     VerticalAlignment = VerticalAlignment.Center,
                     HorizontalAlignment = HorizontalAlignment.Center,
@@ -226,40 +233,27 @@ public sealed partial class SettingsWindow : Window
                 Cursor = Cursors.Hand,
                 ToolTip = tip,
             };
-            var localChip = chip;
-            var localText = (TextBlock)chip.Child;
-            // 芯片坐在卡片上，底色必须是实心色：未选中是行底，选中是强调色。
+            var icon = (TextBlock)chip.Child;
+            cells.Add((chip, icon, captured));
+            // 芯片坐在卡片上，底色是实心色：未选中是行底，选中是强调色。
             // 拿半透明叠加层当底色，透出来的是什么取决于卡片背后压着什么，明暗两套读出来是两个颜色；
             // 悬停也只是同一块底再深一档，不再往上盖第二层半透明。
-            Color chipBase = captured == cur ? Theme.Accent : Theme.RowBg;
-            Color chipHover = Fluent.HoverOn(chipBase);
-            localChip.MouseEnter += (_, _) =>
+            Color Base() => captured == _settings.Current.Theme ? Theme.Accent : Theme.RowBg;
+            void AnimateTo(Color to, int ms)
             {
-                if (localChip.Background is SolidColorBrush bg0)
-                {
-                    var anim = new System.Windows.Media.Animation.ColorAnimation(chipHover, new Duration(TimeSpan.FromMilliseconds(Fluent.Motion.QuickMs)));
-                    var holder = new SolidColorBrush(bg0.Color);
-                    localChip.Background = holder;
-                    holder.BeginAnimation(SolidColorBrush.ColorProperty, anim);
-                }
-            };
-            localChip.MouseLeave += (_, _) =>
-            {
-                if (localChip.Background is SolidColorBrush bg1)
-                {
-                    var anim = new System.Windows.Media.Animation.ColorAnimation(chipBase, new Duration(TimeSpan.FromMilliseconds(Fluent.Motion.StateMs)));
-                    var holder = new SolidColorBrush(bg1.Color);
-                    localChip.Background = holder;
-                    holder.BeginAnimation(SolidColorBrush.ColorProperty, anim);
-                }
-            };
+                var holder = new SolidColorBrush(chip.Background is SolidColorBrush b ? b.Color : Base());
+                chip.Background = holder;
+                holder.BeginAnimation(SolidColorBrush.ColorProperty,
+                    new System.Windows.Media.Animation.ColorAnimation(to, new Duration(TimeSpan.FromMilliseconds(ms))));
+            }
+            chip.MouseEnter += (_, _) => AnimateTo(Fluent.HoverOn(Base()), Fluent.Motion.QuickMs);
+            chip.MouseLeave += (_, _) => AnimateTo(Base(), Fluent.Motion.StateMs);
             void ApplyTheme()
             {
                 _settings.Mutate(s => s.Theme = captured);
                 Theme.Apply(captured, _settings.Current.Accent);
                 Fluent.ApplyGlobalStyles();
-                // 无缝过渡：本窗淡出的同时，同位置淡入新窗（Theme.Changed 已让其他窗口即时换色）
-                RebuildInPlace();
+                Paint();    // 选中态跟着点中的那一档走；深浅互换由换色遮罩盖幕淡出
             }
             chip.MouseLeftButtonDown += (_, e) => { ApplyTheme(); e.Handled = true; };
             // 键盘可达——Tab 聚焦、空格/Enter 切换主题（与点击同一路径）
@@ -268,10 +262,24 @@ public sealed partial class SettingsWindow : Window
             {
                 if (e.Key is Key.Space or Key.Enter) { ApplyTheme(); e.Handled = true; }
             };
-            chip.GotKeyboardFocus += (_, _) => { chip.BorderBrush = new SolidColorBrush(Theme.Accent); chip.BorderThickness = new Thickness(1); };
+            chip.GotKeyboardFocus += (_, _) => { chip.BorderBrush = Theme.AccentBrush; chip.BorderThickness = new Thickness(1); };
             chip.LostKeyboardFocus += (_, _) => { chip.BorderThickness = new Thickness(0); };
             chips.Children.Add(chip);
         }
+
+        // 选中态是「哪一档被点中」的判断，画刷管不到：调色板一动就按当前主题与强调色重排一遍。
+        void Paint()
+        {
+            string cur = _settings.Current.Theme;
+            foreach (var (el, ic, id) in cells)
+            {
+                bool on = id == cur;
+                el.Background = on ? Theme.AccentBrush : Theme.RowBgBrush;
+                ic.Foreground = on ? new SolidColorBrush(Fluent.OnAccentColor(Theme.Accent)) : Theme.TextBrush;
+            }
+        }
+        _repaint.Add(Paint);
+        Paint();
         g.Children.Add(chips);
         return g;
     }

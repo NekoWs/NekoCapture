@@ -46,8 +46,8 @@ public sealed class OcrResultWindow : Window
         var root = new Border
         {
             CornerRadius = new CornerRadius(12),
-            Background = new SolidColorBrush(Theme.WindowBgSolid),
-            BorderBrush = new SolidColorBrush(Theme.Stroke),
+            Background = Theme.WindowBgSolidBrush,
+            BorderBrush = Theme.StrokeBrush,
             BorderThickness = new Thickness(1),
             Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 24, ShadowDepth = 2, Opacity = 0.5 },
         };
@@ -65,7 +65,7 @@ public sealed class OcrResultWindow : Window
             {
                 Text = text,
                 FontSize = 14,
-                Foreground = new SolidColorBrush(Theme.Text),
+                Foreground = Theme.TextBrush,
                 FontFamily = new FontFamily("Segoe UI"),
                 TextWrapping = TextWrapping.Wrap,
                 TextAlignment = TextAlignment.Center,
@@ -89,7 +89,7 @@ public sealed class OcrResultWindow : Window
         {
             Text = Loc.F(K.Capture.Characters, text.Length),
             FontSize = 12,
-            Foreground = new SolidColorBrush(Theme.TextDim),
+            Foreground = Theme.TextDimBrush,
             VerticalAlignment = VerticalAlignment.Center,
         };
         bottom.Children.Add(count);
@@ -97,7 +97,7 @@ public sealed class OcrResultWindow : Window
         var copyBox = new Border
         {
             CornerRadius = new CornerRadius(6),
-            Background = new SolidColorBrush(Theme.Accent),
+            Background = Theme.AccentBrush,
             Padding = new Thickness(14, 6, 14, 6),
             Cursor = Cursors.Hand,
             VerticalAlignment = VerticalAlignment.Center,
@@ -123,11 +123,11 @@ public sealed class OcrResultWindow : Window
             TextWrapping = TextWrapping.Wrap,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            Background = new SolidColorBrush(Theme.PanelBgSolid),
-            Foreground = new SolidColorBrush(Theme.Text),
-            CaretBrush = new SolidColorBrush(Theme.Text),
+            Background = Theme.PanelBgSolidBrush,
+            Foreground = Theme.TextBrush,
+            CaretBrush = Theme.TextBrush,
             BorderThickness = new Thickness(1),
-            BorderBrush = new SolidColorBrush(Theme.Stroke),
+            BorderBrush = Theme.StrokeBrush,
             FontSize = 13,
             Padding = new Thickness(10, 8, 6, 8),
             Margin = new Thickness(14, 10, 14, 4),

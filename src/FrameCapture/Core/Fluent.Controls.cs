@@ -32,7 +32,7 @@ public static partial class Fluent
             Margin = new Thickness(2),
             FontFamily = IconFont,
             FontSize = fontSize,
-            Foreground = fg ?? new SolidColorBrush(Theme.Text),
+            Foreground = fg ?? Theme.TextBrush,
             Background = Brushes.Transparent,
             BorderBrush = Brushes.Transparent,
             Template = IconButtonTemplate(),
@@ -118,7 +118,7 @@ public static partial class Fluent
         var bar = new Border
         {
             Height = TitleBarHeight,
-            Background = new SolidColorBrush(Theme.ChromeBg),
+            Background = Theme.ChromeBgBrush,
             CornerRadius = new CornerRadius(11, 11, 0, 0),
             Padding = new Thickness(14, 0, 6, 0),
         };
@@ -129,13 +129,13 @@ public static partial class Fluent
         grid.Children.Add(new TextBlock
         {
             Text = glyph, FontFamily = IconFont, FontSize = 15,
-            Foreground = new SolidColorBrush(Theme.Accent),
+            Foreground = Theme.AccentBrush,
             VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 9, 0),
         });
         var title1 = new TextBlock
         {
             Text = title, FontSize = 13, FontWeight = FontWeights.SemiBold,
-            Foreground = new SolidColorBrush(Theme.Text), VerticalAlignment = VerticalAlignment.Center,
+            Foreground = Theme.TextBrush, VerticalAlignment = VerticalAlignment.Center,
         };
         Grid.SetColumn(title1, 1);
         grid.Children.Add(title1);

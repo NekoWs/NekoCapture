@@ -128,19 +128,19 @@ public sealed partial class SettingsWindow : Window
             TextAlignment = TextAlignment.Center,
             Background = Brushes.Transparent,
             BorderThickness = new Thickness(0),
-            Foreground = new SolidColorBrush(Theme.Text),
-            CaretBrush = new SolidColorBrush(Theme.Accent),
+            Foreground = Theme.TextBrush,
+            CaretBrush = Theme.AccentBrush,
             VerticalAlignment = VerticalAlignment.Center,
             VerticalContentAlignment = VerticalAlignment.Center,
         };
-        var unit = new TextBlock { Text = Loc.T(K.Settings.S7), FontSize = 12.5, Foreground = new SolidColorBrush(Theme.TextDim), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(3, 0, 0, 0) };
+        var unit = new TextBlock { Text = Loc.T(K.Settings.S7), FontSize = 12.5, Foreground = Theme.TextDimBrush, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(3, 0, 0, 0) };
         var customBox = new Border
         {
             CornerRadius = new CornerRadius(6),
             Padding = new Thickness(8, 4, 8, 4),
             Margin = new Thickness(8, 0, 2, 0),
-            Background = new SolidColorBrush(Theme.CardBg),
-            BorderBrush = new SolidColorBrush(Theme.Stroke),
+            Background = Theme.CardBgBrush,
+            BorderBrush = Theme.StrokeBrush,
             BorderThickness = new Thickness(1),
             Child = new StackPanel { Orientation = Orientation.Horizontal, Children = { box, unit } },
             ToolTip = Loc.T(K.Settings.CustomAnyNumberOfSeconds),
@@ -210,19 +210,19 @@ public sealed partial class SettingsWindow : Window
             TextAlignment = TextAlignment.Center,   // 数字居中：34px 窄框里贴边数字像被裁了一半
             Background = Brushes.Transparent,
             BorderThickness = new Thickness(0),
-            Foreground = new SolidColorBrush(Theme.Text),
-            CaretBrush = new SolidColorBrush(Theme.Accent),
+            Foreground = Theme.TextBrush,
+            CaretBrush = Theme.AccentBrush,
             VerticalAlignment = VerticalAlignment.Center,
             VerticalContentAlignment = VerticalAlignment.Center,
         };
-        var unit = new TextBlock { Text = Loc.T(K.Settings.S7), FontSize = 12.5, Foreground = new SolidColorBrush(Theme.TextDim), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(3, 0, 0, 0) };
+        var unit = new TextBlock { Text = Loc.T(K.Settings.S7), FontSize = 12.5, Foreground = Theme.TextDimBrush, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(3, 0, 0, 0) };
         var customBox = new Border
         {
             CornerRadius = new CornerRadius(6),
             Padding = new Thickness(8, 4, 8, 4),
             Margin = new Thickness(8, 0, 2, 0),
-            Background = new SolidColorBrush(Theme.CardBg),
-            BorderBrush = new SolidColorBrush(Theme.Stroke),
+            Background = Theme.CardBgBrush,
+            BorderBrush = Theme.StrokeBrush,
             BorderThickness = new Thickness(1),
             Child = new StackPanel { Orientation = Orientation.Horizontal, Children = { box, unit } },
             ToolTip = Loc.T(K.Settings.CustomAnythingFromToSeconds),
@@ -286,7 +286,7 @@ public sealed partial class SettingsWindow : Window
         {
             Text = Loc.T(K.Settings.CaptureSound),
             FontSize = 13,
-            Foreground = new SolidColorBrush(Theme.Text),
+            Foreground = Theme.TextBrush,
             VerticalAlignment = VerticalAlignment.Center,
             TextWrapping = TextWrapping.Wrap,
         };
@@ -305,8 +305,8 @@ public sealed partial class SettingsWindow : Window
             Margin = new Thickness(0, 0, 12, 0),
             // 垂直居中——横向 StackPanel 里 Border 被拉满行高，文字贴左上「错位」真凶
             VerticalAlignment = VerticalAlignment.Center,
-            Background = new SolidColorBrush(Theme.Hover),
-            Child = new TextBlock { Text = Loc.T(K.Settings.Preview), FontSize = 12.5, Foreground = new SolidColorBrush(Theme.Text), VerticalAlignment = VerticalAlignment.Center },
+            Background = Theme.RowBgBrush,
+            Child = new TextBlock { Text = Loc.T(K.Settings.Preview), FontSize = 12.5, Foreground = Theme.TextBrush, VerticalAlignment = VerticalAlignment.Center },
             Cursor = Cursors.Hand,
             ToolTip = Loc.T(K.Settings.ClickToHearTheCurrent),
             Focusable = true,
@@ -315,7 +315,7 @@ public sealed partial class SettingsWindow : Window
             _settings.Current.CaptureSound ? _settings.Current.CustomSoundPath : "");
         preview.MouseLeftButtonDown += (_, e) => { DoPreview(); e.Handled = true; };
         preview.KeyDown += (_, e) => { if (e.Key is Key.Space or Key.Enter) { DoPreview(); e.Handled = true; } };
-        preview.GotKeyboardFocus += (_, _) => { preview.BorderBrush = new SolidColorBrush(Theme.Accent); preview.BorderThickness = new Thickness(1); };
+        preview.GotKeyboardFocus += (_, _) => { preview.BorderBrush = Theme.AccentBrush; preview.BorderThickness = new Thickness(1); };
         preview.LostKeyboardFocus += (_, _) => preview.BorderThickness = new Thickness(0);
         Fluent.ChipHover(preview);   // 与普通按钮一致——悬停只改底色带过渡，不放大
         right.Children.Add(preview);

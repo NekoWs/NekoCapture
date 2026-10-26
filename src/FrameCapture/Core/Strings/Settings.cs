@@ -1,4 +1,4 @@
-namespace FrameCapture.Core;
+﻿namespace FrameCapture.Core;
 
 /// <summary>
 /// 文案 · 设置窗。一行一句：稳定 id、中文原文、英文译名。
@@ -245,7 +245,6 @@ public static partial class K
             "Off keeps the setup but stops it from firing — no need to delete it.");
         public static readonly Str Output = new("settings.output", "产物", "Output");
         public static readonly Str PalettePresets = new("settings.palettePresets", "预设", "Presets");
-        public static readonly Str PalettePreview = new("settings.palettePreview", "预览", "Preview");
         public static readonly Str PaletteRestore = new("settings.paletteRestore", "恢复出厂配色", "Restore the stock palette");
         public static readonly Str PicturesFramecaptureDefaultLocation = new(
             "settings.picturesFramecaptureDefaultLocation",

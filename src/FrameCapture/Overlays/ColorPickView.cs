@@ -101,8 +101,8 @@ public sealed class ColorPickView : StackPanel
         #region 下排：颜色预览 + HEX 直填（RGBA 四个输入框撤掉：调色靠拖，精确值靠 HEX）
         _hexBox = new TextBox
         {
-            FontFamily = new FontFamily("Consolas"), FontSize = 12.5, Foreground = new SolidColorBrush(Theme.Text),
-            Background = Brushes.Transparent, BorderThickness = new Thickness(0), CaretBrush = new SolidColorBrush(Theme.Text),
+            FontFamily = new FontFamily("Consolas"), FontSize = 12.5, Foreground = Theme.TextBrush,
+            Background = Brushes.Transparent, BorderThickness = new Thickness(0), CaretBrush = Theme.TextBrush,
             VerticalContentAlignment = VerticalAlignment.Center,
         };
         _hexBox.KeyDown += (_, ek) => { if (ek.Key == Key.Enter) { CommitHex(); ek.Handled = true; } };
@@ -193,7 +193,7 @@ public sealed class ColorPickView : StackPanel
     static Border Span(UIElement e) => new()
     {
         Child = e,
-        BorderBrush = new SolidColorBrush(Theme.Stroke),
+        BorderBrush = Theme.StrokeBrush,
         BorderThickness = new Thickness(1),
     };
 
@@ -210,15 +210,15 @@ public sealed class ColorPickView : StackPanel
         var b = new Border
         {
             Height = 26,
-            Background = new SolidColorBrush(Theme.TrackBg),
-            BorderBrush = new SolidColorBrush(Theme.Stroke),
+            Background = Theme.TrackBgBrush,
+            BorderBrush = Theme.StrokeBrush,
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(5),
             Padding = new Thickness(8, 0, 8, 0),
             Child = inner,
         };
-        inner.GotKeyboardFocus += (_, _) => b.BorderBrush = new SolidColorBrush(Theme.Accent);
-        inner.LostKeyboardFocus += (_, _) => b.BorderBrush = new SolidColorBrush(Theme.Stroke);
+        inner.GotKeyboardFocus += (_, _) => b.BorderBrush = Theme.AccentBrush;
+        inner.LostKeyboardFocus += (_, _) => b.BorderBrush = Theme.StrokeBrush;
         return b;
     }
 

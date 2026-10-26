@@ -24,9 +24,9 @@ public static partial class Fluent
         string hexText = Theme.Text.ToString(), hexDim = Theme.TextDim.ToString();
         string hexPanel = Theme.PanelBg.ToString(), hexHover = Theme.Hover.ToString();
         string hexAccent = Theme.Accent.ToString(), hexOnAccent = OnAccentColor(Theme.Accent).ToString();
-        c.Foreground = new SolidColorBrush(Theme.Text);
-        c.Background = new SolidColorBrush(Theme.CardBg);
-        c.BorderBrush = new SolidColorBrush(Theme.Stroke);
+        c.Foreground = Theme.TextBrush;
+        c.Background = Theme.CardBgBrush;
+        c.BorderBrush = Theme.StrokeBrush;
         string xaml =
             $@"<ControlTemplate TargetType=""ComboBox"" xmlns=""{XamlPres}"" xmlns:x=""{XamlX}"">
   <Grid>

@@ -349,6 +349,16 @@ public static class Theme
         try { Changed(); } catch { }
     }
 
+    /// <summary>拖动强调色取色器时的即时生效：改色、同步共享画刷、广播，不落盘。</summary>
+    /// <param name="c">取色板当前的颜色。</param>
+    public static void PreviewAccent(Color c)
+    {
+        if (Accent == c) return;
+        Accent = c;
+        SyncPaints(false);
+        try { Changed(); } catch { }
+    }
+
     /// <summary>这套调色板里有没有任何一枚被自定义过。</summary>
     public static bool HasCustoms => Customs.Count > 0;
 

@@ -505,7 +505,7 @@ public sealed partial class EditorWindow
             Width = 8,
             Height = 8,
             Fill = new SolidColorBrush(ph),
-            Stroke = new SolidColorBrush(Theme.PanelBg),
+            Stroke = Theme.PanelBgBrush,
             StrokeThickness = 1.5,
         };
         Canvas.SetLeft(knob, xm - 4);

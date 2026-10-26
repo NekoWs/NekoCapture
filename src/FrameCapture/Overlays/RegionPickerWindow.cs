@@ -393,7 +393,7 @@ public sealed partial class RegionPickerWindow : Window
             };
             _spotStroke = new Rectangle
             {
-                Stroke = new SolidColorBrush(Theme.Accent),
+                Stroke = Theme.AccentBrush,
                 StrokeThickness = 2,
                 Fill = Brushes.Transparent,
                 Visibility = Visibility.Collapsed,
@@ -407,7 +407,7 @@ public sealed partial class RegionPickerWindow : Window
             _badgeText = new TextBlock
             {
                 FontSize = 12,
-                Foreground = new SolidColorBrush(Theme.Accent),
+                Foreground = Theme.AccentBrush,
             };
             _badge = new Border
             {
@@ -429,7 +429,7 @@ public sealed partial class RegionPickerWindow : Window
                 _loupeMarker = new Rectangle
                 {
                     Width = cell, Height = cell,
-                    Stroke = new SolidColorBrush(Theme.Accent),
+                    Stroke = Theme.AccentBrush,
                     StrokeThickness = 1, SnapsToDevicePixels = true,
                 };
                 var markerCanvas = new Canvas { Width = LoupeSize, Height = LoupeSize, IsHitTestVisible = false };
@@ -440,7 +440,7 @@ public sealed partial class RegionPickerWindow : Window
                 _loupeInfo = new TextBlock
                 {
                     FontSize = 11,
-                    Foreground = new SolidColorBrush(Theme.Accent),
+                    Foreground = Theme.AccentBrush,
                     HorizontalAlignment = HorizontalAlignment.Center,
                     Margin = new Thickness(0, 3, 0, 0),
                 };

@@ -56,7 +56,7 @@ public sealed class WelcomeToast : Window
         {
             MinWidth = MinW,
             MaxWidth = W,   // 宽度跟着内容走：列键位时宽一点，关掉键位时收回来，右边不空出一片
-            Background = new SolidColorBrush(Theme.CardBg),
+            Background = Theme.CardBgBrush,
             BorderBrush = Core.Fluent.CardEdge(),   // 上缘亮下缘暗：暗色里投影看不见，靠这条边说清卡片是浮着的
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(12),
@@ -76,12 +76,12 @@ public sealed class WelcomeToast : Window
             Text = Loc.T(K.Capture.FramecaptureIsReady),
             FontSize = 15,
             FontWeight = FontWeights.Bold,
-            Foreground = new SolidColorBrush(Theme.Text),
+            Foreground = Theme.TextBrush,
             FontFamily = new FontFamily("Segoe UI"),
             VerticalAlignment = VerticalAlignment.Center,
         });
         var close = Fluent.IconButton("\uE711", Loc.T(K.Common.Close), 26, 12,
-            new SolidColorBrush(Theme.TextDim));
+            Theme.TextDimBrush);
         close.Click += (_, _) => Dismiss();
         Grid.SetColumn(close, 1);
         head.Children.Add(close);
@@ -177,7 +177,7 @@ public sealed class WelcomeToast : Window
         {
             Text = label,
             FontSize = 13,
-            Foreground = new SolidColorBrush(Theme.TextDim),
+            Foreground = Theme.TextDimBrush,
             FontFamily = new FontFamily("Segoe UI"),
             Margin = new Thickness(0, 0, 10, 0),
             VerticalAlignment = VerticalAlignment.Center,

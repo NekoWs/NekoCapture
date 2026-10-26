@@ -33,7 +33,7 @@ public sealed partial class SettingsWindow : Window
         {
             Text = label,
             FontSize = 13,
-            Foreground = new SolidColorBrush(Theme.Text),
+            Foreground = Theme.TextBrush,
             VerticalAlignment = VerticalAlignment.Center,
             TextWrapping = TextWrapping.Wrap,
         };
@@ -43,7 +43,7 @@ public sealed partial class SettingsWindow : Window
         {
             Text = fmt(val),
             FontSize = 11,
-            Foreground = new SolidColorBrush(Theme.TextDim),
+            Foreground = Theme.TextDimBrush,
             VerticalAlignment = VerticalAlignment.Center,
             Margin = new Thickness(10, 0, 0, 0),
         };
@@ -56,7 +56,7 @@ public sealed partial class SettingsWindow : Window
             TickFrequency = tick,
             IsSnapToTickEnabled = true,
             Value = val,
-            Foreground = new SolidColorBrush(Theme.Accent),
+            Foreground = Theme.AccentBrush,
             Margin = new Thickness(4, 4, 0, 0),
             // 吸附开启时步长必须=档位：默认 SmallChange=1 会被吸回原档，方向键看似失灵
             SmallChange = tick,
@@ -90,7 +90,7 @@ public sealed partial class SettingsWindow : Window
         {
             Text = label,
             FontSize = 13,
-            Foreground = new SolidColorBrush(Theme.Text),
+            Foreground = Theme.TextBrush,
             VerticalAlignment = VerticalAlignment.Center,
             TextWrapping = TextWrapping.Wrap,
         };
@@ -169,10 +169,10 @@ public sealed partial class SettingsWindow : Window
         var box = new TextBox
         {
             FontSize = 12,
-            Foreground = new SolidColorBrush(Theme.Text),
+            Foreground = Theme.TextBrush,
             Background = Brushes.Transparent,
             BorderThickness = new Thickness(0),
-            CaretBrush = new SolidColorBrush(Theme.Text),
+            CaretBrush = Theme.TextBrush,
             VerticalContentAlignment = VerticalAlignment.Center,
             Padding = new Thickness(0),
             ToolTip = Loc.T(K.Settings.SaveFolderAutoSavedCopies),
@@ -185,7 +185,7 @@ public sealed partial class SettingsWindow : Window
         {
             Text = Loc.T(K.Settings.PicturesFramecaptureDefaultLocation),
             FontSize = 12,
-            Foreground = new SolidColorBrush(Theme.TextDim),
+            Foreground = Theme.TextDimBrush,
             VerticalAlignment = VerticalAlignment.Center,
             IsHitTestVisible = false,
             TextTrimming = TextTrimming.CharacterEllipsis,
@@ -198,8 +198,8 @@ public sealed partial class SettingsWindow : Window
         {
             Height = 30,
             VerticalAlignment = VerticalAlignment.Center,
-            Background = new SolidColorBrush(Theme.TrackBg),
-            BorderBrush = new SolidColorBrush(Theme.Stroke),
+            Background = Theme.TrackBgBrush,
+            BorderBrush = Theme.StrokeBrush,
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(5),
             Padding = new Thickness(9, 0, 9, 0),
@@ -236,8 +236,8 @@ public sealed partial class SettingsWindow : Window
             Refresh();
         }
 
-        box.GotKeyboardFocus += (_, _) => { field.BorderBrush = new SolidColorBrush(Theme.Accent); PaintHint(); };
-        box.LostKeyboardFocus += (_, _) => { field.BorderBrush = new SolidColorBrush(Theme.Stroke); Commit(); };
+        box.GotKeyboardFocus += (_, _) => { field.BorderBrush = Theme.AccentBrush; PaintHint(); };
+        box.LostKeyboardFocus += (_, _) => { field.BorderBrush = Theme.StrokeBrush; Commit(); };
         box.TextChanged += (_, _) => PaintHint();
         box.PreviewKeyDown += (_, e) =>
         {
@@ -324,7 +324,7 @@ public sealed partial class SettingsWindow : Window
             Text = hasFf ? Loc.T(K.Settings.FfmpegDetectedMp4AndWebm)
                          : Loc.T(K.Settings.FfmpegNotFoundMp4),
             FontSize = 11.5,
-            Foreground = new SolidColorBrush(Theme.TextDim),
+            Foreground = Theme.TextDimBrush,
             VerticalAlignment = VerticalAlignment.Center,
             TextWrapping = TextWrapping.Wrap,
         });
@@ -349,7 +349,7 @@ public sealed partial class SettingsWindow : Window
             Height = 24,   // 24 是可用下限：色块本身就是按钮，20 高指尖偏一点就点空
             CornerRadius = new CornerRadius(5),
             Background = new SolidColorBrush(HexColor.Parse(_settings.Current.VideoMatteColor) ?? Colors.White),
-            BorderBrush = new SolidColorBrush(Theme.Stroke),
+            BorderBrush = Theme.StrokeBrush,
             BorderThickness = new Thickness(1),
             HorizontalAlignment = HorizontalAlignment.Right,
             VerticalAlignment = VerticalAlignment.Center,
@@ -418,8 +418,8 @@ public sealed partial class SettingsWindow : Window
             Margin = new Thickness(0, 2, 0, 2),
             CornerRadius = new CornerRadius(8),   // 卡片 8、行 6：两级圆角差一档，嵌套时外圆包内圆才对得齐
             BorderThickness = new Thickness(1),
-            BorderBrush = new SolidColorBrush(Theme.Stroke),
-            Background = new SolidColorBrush(Theme.CardBg),
+            BorderBrush = Theme.StrokeBrush,
+            Background = Theme.CardBgBrush,
             Padding = new Thickness(12, 6, 12, 6),
             Child = inner,
         };
@@ -432,7 +432,7 @@ public sealed partial class SettingsWindow : Window
         Text = glyph,
         FontFamily = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets, Segoe UI Symbol"),
         FontSize = 16,
-        Foreground = new SolidColorBrush(Theme.Text),
+        Foreground = Theme.TextBrush,
         VerticalAlignment = VerticalAlignment.Center,
         Margin = new Thickness(4, 0, 14, 0),
         ToolTip = tip,
@@ -453,7 +453,7 @@ public sealed partial class SettingsWindow : Window
         {
             Text = label,
             FontSize = 13,
-            Foreground = new SolidColorBrush(Theme.Text),
+            Foreground = Theme.TextBrush,
             VerticalAlignment = VerticalAlignment.Center,
             Margin = new Thickness(0, 0, 12, 0),
         };
@@ -494,7 +494,7 @@ public sealed partial class SettingsWindow : Window
         chip.MouseLeftButtonDown += (_, e) => { apply(); e.Handled = true; };
         chip.Focusable = true;
         chip.KeyDown += (_, e) => { if (e.Key is Key.Space or Key.Enter) { apply(); e.Handled = true; } };
-        chip.GotKeyboardFocus += (_, _) => { chip.BorderBrush = new SolidColorBrush(Theme.Accent); chip.BorderThickness = new Thickness(1); };
+        chip.GotKeyboardFocus += (_, _) => { chip.BorderBrush = Theme.AccentBrush; chip.BorderThickness = new Thickness(1); };
         chip.LostKeyboardFocus += (_, _) => { chip.BorderThickness = new Thickness(0); };
     }
 

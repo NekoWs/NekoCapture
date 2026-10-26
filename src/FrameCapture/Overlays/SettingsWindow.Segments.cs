@@ -87,7 +87,7 @@ public sealed partial class SettingsWindow : Window
                 Text = "\uE74D",
                 FontFamily = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets, Segoe UI Symbol"),
                 FontSize = 13,
-                Foreground = new SolidColorBrush(Theme.TextDim),
+                Foreground = Theme.TextDimBrush,
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center,
             },
@@ -123,7 +123,7 @@ public sealed partial class SettingsWindow : Window
             Width = seg - 4,
             Height = h - 6,
             CornerRadius = new CornerRadius(5),
-            Background = new SolidColorBrush(Theme.Accent),
+            Background = Theme.AccentBrush,
             HorizontalAlignment = HorizontalAlignment.Left,
             VerticalAlignment = VerticalAlignment.Center,
             Margin = new Thickness(2, 0, 0, 0),
@@ -136,8 +136,8 @@ public sealed partial class SettingsWindow : Window
         {
             Height = h,
             CornerRadius = new CornerRadius(7),
-            Background = new SolidColorBrush(Theme.TrackBg),
-            BorderBrush = new SolidColorBrush(Theme.Stroke),
+            Background = Theme.TrackBgBrush,
+            BorderBrush = Theme.StrokeBrush,
             BorderThickness = new Thickness(1),
         };
         track.Children.Add(back);

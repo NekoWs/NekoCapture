@@ -1,4 +1,4 @@
-namespace FrameCapture.Core;
+﻿namespace FrameCapture.Core;
 
 /// <summary>
 /// 文案 · 捕获过程与各种浮窗。一行一句：稳定 id、中文原文、英文译名。
@@ -62,7 +62,6 @@ public static partial class K
             "未安装 OCR 语言包，请到 设置 › 时间和语言 › 语音 添加",
             "No OCR language pack is installed — add one in Settings › Time & Language › Speech");
         public static readonly Str NoTextRecognized = new("capture.noTextRecognized", "未识别到文字", "No text recognized");
-        public static readonly Str Preview = new("capture.preview", "预览", "Preview");
         public static readonly Str RecognizedCharactersCopied = new(
             "capture.recognizedCharactersCopied",
             "已识别 {0} 字 · 已复制",

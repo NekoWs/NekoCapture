@@ -65,7 +65,7 @@ public sealed class ScrollStageWindow : Window
             Width = Math.Max(0, rx - lx),
             Height = Math.Max(0, by - ty),
             BorderThickness = new Thickness(2),
-            BorderBrush = new SolidColorBrush(Theme.Accent),
+            BorderBrush = Theme.AccentBrush,
             Background = Brushes.Transparent,
             IsHitTestVisible = false,
         };

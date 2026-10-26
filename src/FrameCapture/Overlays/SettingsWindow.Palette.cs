@@ -11,13 +11,14 @@ namespace FrameCapture.Overlays;
 // 本 partial 职责：配色分页——预设整套、逐枚令牌的明暗两色、强调色、恢复出厂配色，以及一块跟着改动实时变的预览。
 /// <summary>
 /// 设置窗的配色分页。每一枚 <see cref="ColorToken"/> 一行，行内明暗两枚色块各开各的取色弹层：
-/// 拖动即时生效（<see cref="Theme.SetCustom"/> 广播 <see cref="Theme.Changed"/>，本页与其余窗口一起变色），
-/// 弹层收起才落盘并原地重建本窗——本窗的颜色是构造期取值的静态画刷。
+/// 拖动即时生效——<see cref="Theme.SetCustom"/> 改的是全局调色板，界面颜色挂在 <see cref="Theme"/> 的共享画刷上，
+/// 本窗与其余窗口当场一起变；弹层收起只是把这份改动写进设置，不重建窗口。
 /// </summary>
 public sealed partial class SettingsWindow : Window
 {
-    /// <summary>本页订阅 <see cref="Theme.Changed"/> 的处理器；关窗时摘掉，静态事件不拖住已关的窗。</summary>
-    Action? _palHandler;
+    /// <summary>本窗订阅 <see cref="Theme.Changed"/> 的处理器：调色板一动，<see cref="_repaint"/> 里的小段各自重画。
+    /// 关窗时摘掉，静态事件不拖住已关的窗。</summary>
+    Action? _repaintHandler;
 
     /// <summary>配色弹层：一枚共享弹层在色块之间挪位，谁被点就挂到谁身上。</summary>
     Popup? _palPop;
@@ -29,16 +30,17 @@ public sealed partial class SettingsWindow : Window
     /// <summary>弹层当前在改这一枚的哪一侧主题。</summary>
     bool _palDark;
 
-    /// <summary>配色页上所有「按当前调色板重画自己」的小段：色块、十六进制、预览、预设色带。</summary>
-    readonly List<Action> _palRepaint = new();
+    /// <summary>本窗所有「按当前调色板重画自己」的小段：配色页的色块、十六进制、预览、预设色带，
+    /// 以及外观页主题芯片的选中态。共享画刷管颜色，这里管「哪一项算选中」这类构造期算出来的判断。</summary>
+    readonly List<Action> _repaint = new();
 
     /// <summary>装配配色分页：预设 → 预览 → 按组分节的令牌行 → 恢复出厂。</summary>
     /// <param name="panel">这一页的容器，由 <c>Build</c> 创建并交给分页表。</param>
     void BuildPalette(StackPanel panel)
     {
-        _palHandler = () => { foreach (var f in _palRepaint) f(); };
-        Theme.Changed += _palHandler;
-        Closed += (_, _) => { if (_palHandler != null) Theme.Changed -= _palHandler; };
+        _repaintHandler = () => { foreach (var f in _repaint) f(); };
+        Theme.Changed += _repaintHandler;
+        Closed += (_, _) => { if (_repaintHandler != null) Theme.Changed -= _repaintHandler; };
 
         var presets = new StackPanel();
         PresetCard(presets);
@@ -67,7 +69,7 @@ public sealed partial class SettingsWindow : Window
         panel.Children.Add(restore);
 
         // 每段重绘只在 Theme.Changed 上挂；建完页先跑一遍，色块与十六进制才有出厂值，不必等第一次改动。
-        foreach (var f in _palRepaint) f();
+        foreach (var f in _repaint) f();
     }
 
     #region 预设与恢复
@@ -99,7 +101,7 @@ public sealed partial class SettingsWindow : Window
             {
                 Text = Loc.T(PresetLabel(p.Id)),
                 FontSize = 11.5,
-                Foreground = new SolidColorBrush(Theme.Text),
+                Foreground = Theme.TextBrush,
                 HorizontalAlignment = HorizontalAlignment.Center,
                 Margin = new Thickness(0, 4, 0, 0),
             };
@@ -117,11 +119,11 @@ public sealed partial class SettingsWindow : Window
             el.MouseLeftButtonUp += (_, e) => { ApplyPreset(p); e.Handled = true; };
             el.KeyDown += (_, e) => { if (e.Key is Key.Space or Key.Enter) { ApplyPreset(p); e.Handled = true; } };
             Fluent.ChipHover(el);
-            _palRepaint.Add(() =>
+            _repaint.Add(() =>
             {
                 var sw = p.Swatches(Theme.IsDark);
                 for (int i = 0; i < bands.Count; i++) bands[i].Background = new SolidColorBrush(sw[i]);
-                bandCard.BorderBrush = new SolidColorBrush(Theme.StrokeSoft);
+                bandCard.BorderBrush = Theme.StrokeSoftBrush;
                 // 设置里没写预设标识 = 谁都没套过，亮起来的是出厂那一枚
                 var cur = _settings.Current.ColorPreset;
                 bool on = string.IsNullOrEmpty(cur) ? p.Id == "default" : cur == p.Id;
@@ -145,7 +147,6 @@ public sealed partial class SettingsWindow : Window
         });
         _settings.Current.ApplyPalette();
         Fluent.ApplyGlobalStyles();
-        RebuildInPlace();
     }
 
     /// <summary>恢复出厂配色：清掉全部覆盖、预设标识与自定义强调色。</summary>
@@ -167,7 +168,6 @@ public sealed partial class SettingsWindow : Window
             Theme.ClearAllCustoms();
             Theme.ResetAccent();
             Fluent.ApplyGlobalStyles();
-            RebuildInPlace();
             e.Handled = true;
         };
         return btn;
@@ -181,15 +181,15 @@ public sealed partial class SettingsWindow : Window
     /// <param name="card">预览那一节的容器。</param>
     void PreviewCard(StackPanel card)
     {
-        card.Children.Add(SectionHeader(Loc.T(K.Settings.PalettePreview)));
+        card.Children.Add(SectionHeader(Loc.T(K.Common.Preview)));
 
-        var body = new TextBlock { Text = Loc.T(K.Settings.TokenText), FontSize = 13, Foreground = new SolidColorBrush(Theme.Text) };
-        var dim = new TextBlock { Text = Loc.T(K.Settings.TokenTextDim), FontSize = 12, Foreground = new SolidColorBrush(Theme.TextDim), Margin = new Thickness(10, 0, 0, 0) };
+        var body = new TextBlock { Text = Loc.T(K.Settings.TokenText), FontSize = 13, Foreground = Theme.TextBrush };
+        var dim = new TextBlock { Text = Loc.T(K.Settings.TokenTextDim), FontSize = 12, Foreground = Theme.TextDimBrush, Margin = new Thickness(10, 0, 0, 0) };
         var line1 = new StackPanel { Orientation = Orientation.Horizontal };
         line1.Children.Add(body); line1.Children.Add(dim);
 
         var rowPill = new Border { CornerRadius = new CornerRadius(6), BorderThickness = new Thickness(1), Padding = new Thickness(10, 6, 10, 6), Margin = new Thickness(0, 8, 0, 0) };
-        var rowText = new TextBlock { Text = Loc.T(K.Settings.TokenRowBg), FontSize = 12.5, Foreground = new SolidColorBrush(Theme.Text), VerticalAlignment = VerticalAlignment.Center };
+        var rowText = new TextBlock { Text = Loc.T(K.Settings.TokenRowBg), FontSize = 12.5, Foreground = Theme.TextBrush, VerticalAlignment = VerticalAlignment.Center };
         var track = new Border { Width = 32, Height = 18, CornerRadius = new CornerRadius(9), BorderThickness = new Thickness(1), VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Right };
         var knob = new Ellipse { Width = 10, Height = 10, StrokeThickness = 1, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 0, 4, 0) };
         track.Child = knob;
@@ -203,7 +203,7 @@ public sealed partial class SettingsWindow : Window
         foreach (var label in dotLabels)
         {
             var dot = new Ellipse { Width = 9, Height = 9, VerticalAlignment = VerticalAlignment.Center };
-            var txt = new TextBlock { Text = Loc.T(label), FontSize = 11.5, Foreground = new SolidColorBrush(Theme.TextDim), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 16, 0) };
+            var txt = new TextBlock { Text = Loc.T(label), FontSize = 11.5, Foreground = Theme.TextDimBrush, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 16, 0) };
             dotFills.Add(dot);
             dots.Children.Add(dot); dots.Children.Add(txt);
         }
@@ -223,27 +223,27 @@ public sealed partial class SettingsWindow : Window
         };
         card.Children.Add(surface);
 
-        _palRepaint.Add(() =>
+        _repaint.Add(() =>
         {
-            body.Foreground = new SolidColorBrush(Theme.Text);
-            dim.Foreground = new SolidColorBrush(Theme.TextDim);
-            surface.Background = new SolidColorBrush(Theme.CardBg);
-            surface.BorderBrush = new SolidColorBrush(Theme.Stroke);
-            rowPill.Background = new SolidColorBrush(Theme.RowBg);
-            rowPill.BorderBrush = new SolidColorBrush(Theme.StrokeSoft);
-            rowText.Foreground = new SolidColorBrush(Theme.Text);
-            track.Background = new SolidColorBrush(Theme.Accent);
-            track.BorderBrush = new SolidColorBrush(Theme.Accent);
+            body.Foreground = Theme.TextBrush;
+            dim.Foreground = Theme.TextDimBrush;
+            surface.Background = Theme.CardBgBrush;
+            surface.BorderBrush = Theme.StrokeBrush;
+            rowPill.Background = Theme.RowBgBrush;
+            rowPill.BorderBrush = Theme.StrokeSoftBrush;
+            rowText.Foreground = Theme.TextBrush;
+            track.Background = Theme.AccentBrush;
+            track.BorderBrush = Theme.AccentBrush;
             knob.Fill = new SolidColorBrush(Fluent.OnAccentColor(Theme.Accent));
-            knob.Stroke = new SolidColorBrush(Theme.StrokeSoft);
-            dotFills[0].Fill = new SolidColorBrush(Theme.Danger);
-            dotFills[1].Fill = new SolidColorBrush(Theme.Success);
-            dotFills[2].Fill = new SolidColorBrush(Theme.Warning);
-            chipOn.Background = new SolidColorBrush(Theme.Accent);
+            knob.Stroke = Theme.StrokeSoftBrush;
+            dotFills[0].Fill = Theme.DangerBrush;
+            dotFills[1].Fill = Theme.SuccessBrush;
+            dotFills[2].Fill = Theme.WarningBrush;
+            chipOn.Background = Theme.AccentBrush;
             ((TextBlock)chipOn.Child!).Foreground = new SolidColorBrush(Fluent.OnAccentColor(Theme.Accent));
-            chipOff.Background = new SolidColorBrush(Theme.RowBg);
-            chipOff.BorderBrush = new SolidColorBrush(Theme.StrokeSoft);
-            ((TextBlock)chipOff.Child!).Foreground = new SolidColorBrush(Theme.Text);
+            chipOff.Background = Theme.RowBgBrush;
+            chipOff.BorderBrush = Theme.StrokeSoftBrush;
+            ((TextBlock)chipOff.Child!).Foreground = Theme.TextBrush;
         });
     }
 
@@ -274,7 +274,7 @@ public sealed partial class SettingsWindow : Window
         {
             Text = text,
             FontSize = 11,
-            Foreground = new SolidColorBrush(Theme.TextDim),
+            Foreground = Theme.TextDimBrush,
             MinWidth = 66,
         };
         var pair = new StackPanel { Orientation = Orientation.Horizontal };
@@ -294,18 +294,18 @@ public sealed partial class SettingsWindow : Window
         {
             Text = Loc.T(TokenLabel(token.Key)),
             FontSize = 13,
-            Foreground = new SolidColorBrush(Theme.Text),
+            Foreground = Theme.TextBrush,
             VerticalAlignment = VerticalAlignment.Center,
         };
         g.Children.Add(name);
 
-        var reset = Fluent.IconButton("\uE72C", Loc.T(K.Settings.PaletteRestore), 26, 13, new SolidColorBrush(Theme.TextDim));
+        var reset = Fluent.IconButton("\uE72C", Loc.T(K.Settings.PaletteRestore), 26, 13, Theme.TextDimBrush);
         Grid.SetColumn(reset, 5);
         g.Children.Add(reset);
 
-        _palRepaint.Add(() =>
+        _repaint.Add(() =>
         {
-            name.Foreground = new SolidColorBrush(Theme.Text);
+            name.Foreground = Theme.TextBrush;
             bool any = Theme.IsCustom(token.Key, true) || Theme.IsCustom(token.Key, false);
             reset.Opacity = any ? 1 : 0.35;
             reset.IsHitTestVisible = any;
@@ -320,7 +320,6 @@ public sealed partial class SettingsWindow : Window
             Theme.ClearCustom(token.Key, true);
             Theme.ClearCustom(token.Key, false);
             Fluent.ApplyGlobalStyles();
-            RebuildInPlace();
             e.Handled = true;
         };
 
@@ -355,16 +354,16 @@ public sealed partial class SettingsWindow : Window
         {
             FontFamily = new FontFamily("Cascadia Mono, Consolas, Microsoft YaHei UI"),
             FontSize = 11,
-            Foreground = new SolidColorBrush(Theme.TextDim),
+            Foreground = Theme.TextDimBrush,
             VerticalAlignment = VerticalAlignment.Center,
             MinWidth = 66,
         };
 
-        _palRepaint.Add(() =>
+        _repaint.Add(() =>
         {
             var c = Theme.ValueOf(token.Key, dark);
             fill.Background = new SolidColorBrush(c);
-            cell.BorderBrush = new SolidColorBrush(Theme.Stroke);
+            cell.BorderBrush = Theme.StrokeBrush;
             hex.Text = HexColor.Format(c);
             hex.Foreground = new SolidColorBrush(Theme.IsCustom(token.Key, dark) ? Theme.Text : Theme.TextDim);
         });
@@ -407,8 +406,8 @@ public sealed partial class SettingsWindow : Window
                 {
                     CornerRadius = new CornerRadius(10),
                     BorderThickness = new Thickness(1),
-                    Background = new SolidColorBrush(Theme.PanelBgSolid),
-                    BorderBrush = new SolidColorBrush(Theme.Stroke),
+                    Background = Theme.PanelBgSolidBrush,
+                    BorderBrush = Theme.StrokeBrush,
                     Padding = new Thickness(10),
                     Child = _palView,
                 },
@@ -436,11 +435,12 @@ public sealed partial class SettingsWindow : Window
     void PreviewSwatch(Color c)
     {
         if (_palKey == null) return;
+        // 界面颜色挂在共享画刷上，这一句就够全窗跟着变；
+        // ToolTip/滚动条/菜单的颜色是烤进 XAML 的，逐帧重烤既贵又没必要，收起弹层时统一来一次。
         Theme.SetCustom(_palKey, _palDark, c);
-        Fluent.ApplyGlobalStyles();
     }
 
-    /// <summary>弹层收起：把这一枚的自定义色写进设置并原地重建本窗。没改动过就不折腾窗口。</summary>
+    /// <summary>弹层收起：把这一枚的自定义色写进设置，并重烤烤进 XAML 的那批颜色。没改动过就不折腾。</summary>
     void CommitSwatch()
     {
         var key = _palKey;
@@ -451,7 +451,6 @@ public sealed partial class SettingsWindow : Window
         if (_settings.Current.Colors.TryGetValue(mk, out var old) && old == hex) return;
         _settings.Mutate(s => s.Colors[mk] = hex);
         Fluent.ApplyGlobalStyles();
-        RebuildInPlace();
     }
 
     #endregion
@@ -516,7 +515,7 @@ public sealed partial class SettingsWindow : Window
         Text = text,
         FontSize = 11,
         FontWeight = FontWeights.SemiBold,
-        Foreground = new SolidColorBrush(Theme.TextDim),
+        Foreground = Theme.TextDimBrush,
         Margin = new Thickness(2, 6, 0, 0),
     };
 
