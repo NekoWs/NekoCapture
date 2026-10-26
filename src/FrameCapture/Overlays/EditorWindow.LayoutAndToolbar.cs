@@ -80,6 +80,7 @@ public sealed partial class EditorWindow : Window
         };
         _snack = new Border
         {
+            // 轻提示浮在图上而不是浮在界面上：底与字色固定成一组反色对，压在白文档还是黑终端上都读得清。
             Background = new SolidColorBrush(Color.FromArgb(0xD8, 0x1F, 0x1F, 0x1F)),
             CornerRadius = new CornerRadius(6),
             Padding = new Thickness(14, 8, 14, 8),
@@ -95,6 +96,8 @@ public sealed partial class EditorWindow : Window
         var viewHost = new Border
         {
             CornerRadius = new CornerRadius(8, 8, 0, 0), // 上角与 Win11 原生窗口圆角贴合；下角由工具面板收口
+            // 画布四周固定中性暗底，明暗两套都一样：截图十张里六张是白底文档，
+            // 底一亮，图的边界就化在背景里；工具条跟着主题走，画布跟着「图要看得清边界」走。
             Background = new SolidColorBrush(Color.FromRgb(0x14, 0x14, 0x14)),
             Child = _viewGrid,
         };
