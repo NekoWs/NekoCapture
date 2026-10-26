@@ -150,7 +150,7 @@ public sealed partial class SettingsWindow : Window
         card.Children.Add(strip);
     }
 
-    /// <summary>套用一整套预设：覆盖表整体换成预设的值，落盘后原地重建本窗。</summary>
+    /// <summary>套用一整套预设：覆盖表整体换成预设的值，落盘后把全局样式重烤一次。</summary>
     /// <param name="p">要套的预设；出厂预设的覆盖表是空的。</param>
     void ApplyPreset(ColorPreset p)
     {

@@ -7,10 +7,11 @@ using FrameCapture.Core;
 
 namespace FrameCapture.Overlays;
 
-// 本 partial 职责：外观分组——主题三档行、界面语言行（含取色弹层状态字段），以及配色变更后的原地重建。
+// 本 partial 职责：外观分组——主题三档行、界面语言行（含取色弹层状态字段），以及换语言后的原地重建。
 /// <summary>
-/// 设置窗的外观分组部分：主题三档与界面语言都在变更瞬间生效——先 <c>Theme.Apply</c> +
-/// <c>Fluent.ApplyGlobalStyles</c> 刷全局，再整窗重建，因为本窗颜色是构造期取值的静态画刷。
+/// 设置窗的外观分组部分：主题三档改的是全局调色板，本窗颜色挂在 <see cref="Theme"/> 的共享画刷上，当场跟上；
+/// 界面语言改的是文案，文案在构造期取值，只有它需要 <c>RebuildInPlace</c> 换窗。
+/// 两者都再跟一次 <c>Fluent.ApplyGlobalStyles</c>——ToolTip / 滚动条 / 菜单的颜色烤在生成的 XAML 里。
 /// 强调色行与逐枚配色的编辑在 <c>SettingsWindow.Palette.cs</c>，共用这里的 <c>RebuildInPlace</c> 与取色弹层字段。
 /// </summary>
 public sealed partial class SettingsWindow : Window
