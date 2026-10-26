@@ -6999,6 +6999,14 @@ static partial class SelfTest
                 var tint = Fluent.AccentOn(Theme.NavBg, 0.26);
                 double r = Fluent.ContrastRatio(Fluent.AccentTextOn(tint), tint);
                 Chk($"T241-accent-text-on-tint-{which}", r >= 4.5, $"{which} 态淡底上的强调色文字对比 {r:F2}");
+                // 出厂配色的两枚字色要压得住四种底——配色页把这条规则摆给用户看，出厂值自己先得过
+                foreach (var (nm, ink) in new[] { ("Text", Theme.Text), ("TextDim", Theme.TextDim) })
+                    foreach (var bgKey in new[] { "WindowBg", "PanelBg", "CardBg", "RowBg" })
+                    {
+                        double rr = Fluent.ContrastRatio(ink, Theme.Opaque(Theme.ValueOf(bgKey, Theme.IsDark)));
+                        Chk($"T241-factory-ink-{which}-{nm}-{bgKey}", rr >= 4.5,
+                            $"{which} 态 {nm} 压在 {bgKey} 上只有 {rr:F2}:1");
+                    }
             }
             Theme.Apply(keepDark ? "dark" : "light", null);
 
