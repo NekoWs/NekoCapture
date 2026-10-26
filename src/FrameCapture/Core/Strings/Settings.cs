@@ -1,4 +1,4 @@
-﻿namespace FrameCapture.Core;
+namespace FrameCapture.Core;
 
 /// <summary>
 /// 文案 · 设置窗。一行一句：稳定 id、中文原文、英文译名。
@@ -224,6 +224,7 @@ public static partial class K
         public static readonly Str Language = new("settings.language", "界面语言", "Language");
         public static readonly Str Light = new("settings.light", "浅色", "Light");
         public static readonly Str ListSeparator = new("settings.listSeparator", "、", ", ");
+        public static readonly Str LowContrastOnSurfaces = new("settings.lowContrastOnSurfaces", "这个颜色和它要压着的底色对比不足，正文会读不清", "Low contrast against the surfaces this text sits on — body text will be hard to read");
         public static readonly Str NeverDisappearsOnItsOwn = new(
             "settings.neverDisappearsOnItsOwn",
             "不自动消失，点一下或 Esc 才关",

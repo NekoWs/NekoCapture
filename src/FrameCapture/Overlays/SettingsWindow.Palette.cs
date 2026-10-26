@@ -385,7 +385,12 @@ public sealed partial class SettingsWindow : Window
             fill.Background = new SolidColorBrush(c);
             cell.BorderBrush = Theme.StrokeBrush;
             hex.Text = HexColor.Format(c);
-            hex.Foreground = new SolidColorBrush(Theme.IsCustom(token.Key, dark) ? Theme.Text : Theme.TextDim);
+            // 正文两枚要压在窗口 / 面板 / 卡片 / 行四种底上：最差那一对低于 4.5:1 就把十六进制标成注意色。
+            // 改色是当场生效的，标出来的人才看得见这一改把字读没了。
+            double worst = WorstTextRatio(token.Key, c, dark);
+            bool low = worst > 0 && worst < 4.5;
+            hex.Foreground = new SolidColorBrush(low ? Theme.Warning : Theme.IsCustom(token.Key, dark) ? Theme.Text : Theme.TextDim);
+            cell.ToolTip = low ? Loc.T(K.Settings.LowContrastOnSurfaces) : Loc.T(TokenLabel(token.Key));
         });
 
         cell.MouseLeftButtonUp += (_, e) => { OpenSwatchPop(cell, token.Key, dark); e.Handled = true; };
@@ -398,6 +403,21 @@ public sealed partial class SettingsWindow : Window
         Grid.SetColumn(pair, col);
         Grid.SetColumnSpan(pair, 2);
         return pair;
+    }
+
+    /// <summary>正文与次要文字要压在窗口 / 面板 / 卡片 / 行四种底上，取最差那一对的对比度。
+    /// 其余令牌是底色与叠加层，没有「读不读得清」这一问，返回 0 表示不适用。</summary>
+    /// <param name="key">令牌键。</param>
+    /// <param name="ink">这一侧当前的字色。</param>
+    /// <param name="dark">算深色侧还是浅色侧。</param>
+    /// <returns>四种底上最差的一对对比度；不适用的令牌返回 0。</returns>
+    static double WorstTextRatio(string key, Color ink, bool dark)
+    {
+        if (key != "Text" && key != "TextDim") return 0;
+        double worst = double.MaxValue;
+        foreach (var bg in new[] { "WindowBg", "PanelBg", "CardBg", "RowBg" })
+            worst = Math.Min(worst, Fluent.ContrastRatio(ink, Theme.Opaque(Theme.ValueOf(bg, dark))));
+        return worst;
     }
 
     /// <summary>令牌行的列骨架：名字占满剩余宽度，两对「色块 + 十六进制」与恢复按钮各自贴右。</summary>
