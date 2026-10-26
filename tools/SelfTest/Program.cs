@@ -1,4 +1,4 @@
-﻿// SelfTest：无头功能测试（不碰鼠标键盘、不开任何窗口）
+// SelfTest：无头功能测试（不碰鼠标键盘、不开任何窗口）
 // 覆盖：GIF 编码往返/调色板 RGB 序、标注烘焙、裁剪、视觉暂留、快捷键解析、抽帧、胶片条
 using System.Diagnostics;
 using System.Drawing;
@@ -7049,6 +7049,41 @@ static partial class SelfTest
             mw.Close();
         }
         catch (Exception e) { Chk("T241-palette-live", false, e.Message); }
+
+        // 遮罩挂在真设置窗上：深浅档互换盖幕淡出，逐枚改色不盖幕——那种改动要的是当场看见。
+        try
+        {
+            bool keepDark = Theme.IsDark;
+            var sw = new FrameCapture.Overlays.SettingsWindow();
+            typeof(FrameCapture.Overlays.SettingsWindow)
+                .GetMethod("Build", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
+                .Invoke(sw, null);
+            sw.WindowStartupLocation = WindowStartupLocation.Manual;
+            sw.Left = -20000; sw.Top = -20000; sw.ShowInTaskbar = false;
+            sw.Show();
+            PumpMs(140);
+            var sroot = (System.Windows.UIElement)sw.Content;
+            var slayer = System.Windows.Documents.AdornerLayer.GetAdornerLayer(sroot);
+            bool Masked()
+            {
+                var a = slayer?.GetAdorners(sroot);
+                return a != null && a.Length > 0;
+            }
+            Chk("T242-mask-idle", !Masked(), "窗刚开时幕布不在场");
+            Theme.Apply(Theme.IsDark ? "light" : "dark", null);
+            PumpMs(20);
+            Chk("T242-mask-on-swap", Masked(), "深浅档互换：设置窗盖上退场色的幕布");
+            PumpMs(Fluent.Motion.ThemeMs + 260);
+            Chk("T242-mask-after-swap", !Masked(), "幕布淡出走完自己摘掉");
+            Theme.SetCustom("CardBg", Theme.IsDark, System.Windows.Media.Color.FromRgb(0x21, 0x22, 0x23));
+            PumpMs(20);
+            Chk("T242-mask-on-edit", !Masked(), "逐枚改色不盖幕布");
+            Theme.ClearCustom("CardBg", Theme.IsDark);
+            Theme.Apply(keepDark ? "dark" : "light", null);
+            PumpMs(60);
+            sw.Close();
+        }
+        catch (Exception e) { Chk("T242-settings-mask", false, e.Message); }
         // 语义判定：按钮/链接/输入框算控件；匿名容器与整页文档不算。
         try
         {
