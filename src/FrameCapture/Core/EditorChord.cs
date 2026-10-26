@@ -138,6 +138,7 @@ public readonly record struct EditorChord(ModifierKeys Mods, Key Key)
         Key.Up => "↑",
         Key.Down => "↓",
         Key.Space => "Space",
+        Key.PrintScreen => "PrtSc",   // 键帽上一格放得下；Windows 自己也叫这个名字
         >= Key.D0 and <= Key.D9 => ((char)('0' + (k - Key.D0))).ToString(),
         _ => k.ToString(),
     };
@@ -182,6 +183,7 @@ public readonly record struct EditorChord(ModifierKeys Mods, Key Key)
             case "home": return Key.Home;
             case "end": return Key.End;
             case "tab": return Key.Tab;
+            case "prtsc" or "printscreen" or "snapshot": return Key.PrintScreen;
         }
         if (tok.Length == 1 && char.IsBetween(tok[0], '0', '9'))
             return Key.D0 + (tok[0] - '0');

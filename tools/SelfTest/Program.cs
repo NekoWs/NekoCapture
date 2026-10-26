@@ -7534,6 +7534,42 @@ static partial class SelfTest
             FrameCapture.Overlays.RecordStartWindow.DismissCurrent();
         }
         catch (Exception e) { Chk("T264-record-start-bar", false, e.Message); }
+        // 单键绑定与 Win 组合键：PrtSc 这种只属于截图的裸键要能绑，Win+Shift+S 这类系统先接手的也要能绑
+        try
+        {
+            var prtsc = FrameCapture.Core.HotkeySpec.Parse("PrtSc");
+            Chk("T265-bare-prtsc-parses",
+                prtsc != null && prtsc.Key == System.Windows.Forms.Keys.PrintScreen && !prtsc.Ctrl && !prtsc.Alt && !prtsc.Shift && !prtsc.Win,
+                $"PrtSc 单键解析：{prtsc?.ToString() ?? "null"}");
+            Chk("T265-bare-prtsc-roundtrip", prtsc != null && prtsc.ToString() == "PrtSc", "存进设置的串读回来还是 PrtSc");
+            Chk("T265-bare-letter-still-rejected", FrameCapture.Core.HotkeySpec.Parse("A") == null,
+                "裸字母仍然拒收：热键在窗口外也生效，收下裸键等于劫持别人的输入");
+            var winShiftS = FrameCapture.Core.HotkeySpec.Parse("Win+Shift+S");
+            Chk("T265-win-chord-parses",
+                winShiftS != null && winShiftS.Win && winShiftS.Shift && !winShiftS.Ctrl && winShiftS.Key == System.Windows.Forms.Keys.S,
+                $"Win+Shift+S：{winShiftS?.ToString() ?? "null"}");
+            var ctrlPrtsc = FrameCapture.Core.HotkeySpec.Parse("Ctrl+PrtSc");
+            Chk("T265-modified-prtsc-parses", ctrlPrtsc != null && ctrlPrtsc.Ctrl && ctrlPrtsc.Key == System.Windows.Forms.Keys.PrintScreen,
+                $"Ctrl+PrtSc：{ctrlPrtsc?.ToString() ?? "null"}");
+            // 手势绑定层：以前裸 PrtSc 在这一步被丢掉，绑定表里看着有、实际不生效
+            var dto265 = new FrameCapture.Core.GestureBindingDto
+            {
+                Id = "selftest.prtsc",
+                Chord = "PrtSc",
+                Trigger = "Chord",
+                Actions = new[] { FrameCapture.Core.GestureActions.ScopeSelect, FrameCapture.Core.GestureActions.CaptureStored },
+            };
+            Chk("T265-bare-prtsc-reaches-engine", dto265.ToBinding() != null, "裸 PrtSc 能变成引擎绑定（不再是空）");
+            var ed265 = FrameCapture.Core.EditorChord.Parse("PrtSc");
+            Chk("T265-editor-chord-prtsc",
+                ed265 != null && ed265.Value.Key == System.Windows.Input.Key.PrintScreen && ed265.Value.ToString() == "PrtSc"
+                    && ed265.Value.Tokens().Count == 1,
+                $"编辑器键位里的 PrtSc：{ed265?.ToString() ?? "null"}，键帽 {ed265?.Tokens().Count ?? 0} 枚");
+            var edWin265 = FrameCapture.Core.EditorChord.Parse("Win+Shift+S");
+            Chk("T265-editor-chord-win", edWin265 != null && edWin265.Value.Tokens().Count == 3,
+                "Win+Shift+S 在编辑器键位里拆成三枚键帽");
+        }
+        catch (Exception e) { Chk("T265-single-key-bindings", false, e.Message); }
 
         // 窗口底就是「窗口底色」这枚令牌：改它就当场变，不会被 Mica 背板挡住。
         try

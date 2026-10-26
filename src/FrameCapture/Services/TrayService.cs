@@ -155,7 +155,7 @@ public sealed class TrayService : IDisposable
         Item(Loc.T(K.Common.StartWithWindows), () =>
         {
             _host.Settings.Mutate(s => s.RunAtStartup = !s.RunAtStartup);
-            StartupService.Apply(_host.Settings.Current.RunAtStartup);
+            StartupService.Apply(_host.Settings.Current.RunAtStartup, _host.Settings.Current.RunAsAdmin);
         }, checkable: true, isChecked: _host.Settings.Current.RunAtStartup);
         // 暂停全局热键——游戏/演示/与其他软件热键冲突时临时让位，键完整落到前台应用。
         // 运行时状态（不持久化），重启自动恢复工作。

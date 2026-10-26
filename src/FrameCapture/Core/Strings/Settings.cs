@@ -284,7 +284,31 @@ public static partial class K
             "settings.rememberTheLastToolColor",
             "记住上次的工具/颜色/粗细",
             "Remember the last tool, color, and width");
-        public static readonly Str RightClickCancelsPicker = new("settings.rightClickCancelsPicker", "右键关闭选区", "Right-click closes the picker");
+        public static readonly Str ElevatedNow = new("settings.elevatedNow", "当前以管理员身份运行：Win 组合键与高权限窗口上的按键都抓得住", "Running as administrator: Win chords and keys over elevated windows are captured");
+        public static readonly Str ElevationNeedsRestart = new(
+            "settings.elevationNeedsRestart",
+            "以管理员身份运行需要换成提权实例，现在会重启一次并弹出 UAC。继续吗",
+            "Running as administrator needs an elevated instance. FrameCapture will restart and Windows will ask for permission. Continue");
+        public static readonly Str ElevationRelaunchFailed = new(
+            "settings.elevationRelaunchFailed",
+            "提权启动被取消，仍在当前权限下运行——Win 组合键可能被系统先接走",
+            "Elevation was cancelled and FrameCapture keeps running as it is, so Windows may still take Win chords first");
+        public static readonly Str NotElevated = new(
+            "settings.notElevated",
+            "当前未提权：焦点落在高权限窗口上时可能抓不到按键，Win 组合键也可能被系统先接走",
+            "Not elevated: keys may be missed while an elevated window has focus, and Windows may take Win chords first");
+        public static readonly Str RunAsAdministratorTip = new(
+            "settings.runAsAdministratorTip",
+            "全局键盘钩子要抓住 Win+Shift+S、单点 PrtSc 这类系统先接手的键，以及焦点在高权限窗口上的按键，就得提权。开启时换一次提权实例，Windows 会问一次权限；同时开着开机自启，登录时由计划任务直接以管理员身份拉起，不再弹 UAC",
+            "The global keyboard hook needs elevation to catch keys Windows handles first — Win+Shift+S, a bare PrtSc — and keys pressed while an elevated window has focus. Turning it on restarts once as administrator, which costs one Windows permission prompt. With Start with Windows also on, a scheduled task launches it elevated at sign-in and no UAC appears");
+        public static readonly Str StartupTaskCancelled = new(
+            "settings.startupTaskCancelled",
+            "建提权自启需要管理员，这一步被取消了：自启没有生效，可以再点一次",
+            "Creating the elevated start-up entry needs administrator rights and was cancelled, so nothing was set up. Try again");
+        public static readonly Str StartupTaskFailed = new(
+            "settings.startupTaskFailed",
+            "提权自启的计划任务没建成，可能被组策略禁用；自启没有生效",
+            "The elevated start-up task could not be created — group policy may block it — so the start-up entry is not in place");        public static readonly Str RightClickCancelsPicker = new("settings.rightClickCancelsPicker", "右键关闭选区", "Right-click closes the picker");
         public static readonly Str RightClickCancelsPickerTip = new(
             "settings.rightClickCancelsPickerTip",
             "选区层上按右键等同于 Esc：整层关掉，什么都不截。关掉它，右键在选区层上就不做事——在网页里想右键复制时不会被选区吃掉",

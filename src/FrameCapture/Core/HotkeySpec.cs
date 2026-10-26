@@ -29,7 +29,7 @@ public sealed partial class HotkeySpec
     /// <value><c>(uint)Key</c>，直接用于 RegisterHotKey 的 vk 参数。</value>
     public uint VirtualKey => (uint)Key;
 
-    /// <summary>主键是否为“修饰键本身”（如用户按 F12 之外的裸键）。</summary>
+    /// <summary>主键是否为“修饰键本身”：这类键不能单独当主键绑定。</summary>
     public bool KeyIsModifier => Key is WinFormsKeys.ControlKey or WinFormsKeys.ShiftKey or WinFormsKeys.Menu
         or WinFormsKeys.LWin or WinFormsKeys.RWin or WinFormsKeys.LShiftKey or WinFormsKeys.RShiftKey
         or WinFormsKeys.LControlKey or WinFormsKeys.RControlKey;
@@ -88,7 +88,9 @@ public sealed partial class HotkeySpec
 
         if (key == null) return null;
         bool hasMod = ctrl || alt || shift || win;
-        bool safeSingle = IsFunctionKey(key.Value);
+        // 裸键只放行两类：F1–F24（本来就不参与输入）与 PrintScreen（系统里它就只为截图存在）。
+        // 其余裸键一律拒收——热键在窗口外也生效，收下裸字母等于劫持别的软件的输入。
+        bool safeSingle = IsFunctionKey(key.Value) || key.Value is WinFormsKeys.PrintScreen or WinFormsKeys.Snapshot;
         if (!hasMod && !safeSingle) return null;
         if (KeyIsModifierStatic(key.Value)) return null;
 
@@ -105,6 +107,8 @@ public sealed partial class HotkeySpec
         WinFormsKeys.ControlKey => "Ctrl",
         WinFormsKeys.Menu => "Alt",
         WinFormsKeys.ShiftKey => "Shift",
+        // 键帽与设置串里都写 PrtSc：Windows 的「使用 Print Screen 键打开截图工具」也叫这个名字
+        WinFormsKeys.PrintScreen or WinFormsKeys.Snapshot => "PrtSc",
         _ => k.ToString(),
     };
 

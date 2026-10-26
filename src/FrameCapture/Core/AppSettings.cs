@@ -147,8 +147,13 @@ public bool EditableSelection { get; set; } = false;
     /// <summary>编辑器"自定义颜色"的最近用色（#RRGGBB，新在前，≤6 条，CustomPick.RememberColor 维护）。</summary>
     public List<string> CustomColors { get; set; } = new();
 
-    /// <summary>开机自启。</summary>
+    /// <summary>开机自启。与 <see cref="RunAsAdmin"/> 同时为真时走最高权限的计划任务：
+    /// 登录时不弹 UAC，直接以管理员身份起来。</summary>
     public bool RunAtStartup { get; set; }
+
+    /// <summary>以管理员身份运行（默认关）：全局键盘钩子要抓住 Win 组合键、以及焦点落在高权限窗口上的按键，
+    /// 都需要当前进程已提权。开启时用一次 UAC 换成提权实例，此后自启走计划任务、不再弹 UAC。</summary>
+    public bool RunAsAdmin { get; set; }
 
     /// <summary>启动气泡提示（默认开）：启动完成后在屏幕右下角弹一条「FrameCapture 已启动」，
     /// 给一个「它真的在后台待命了」的确定感——本程序启动后没有主窗口，缺这一下容易被当成没启动成功。
