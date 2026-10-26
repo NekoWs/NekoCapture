@@ -623,16 +623,16 @@ public sealed partial class SettingsWindow : Window
         _ => new Str("preset." + id, id, id),
     };
 
-    /// <summary>节标题：卡片里一组同类设置行上方那行小字。</summary>
+    /// <summary>节标题：卡片里一组同类设置行上方那行小字。各页共用这一个，字号与上下留白只有一处定义——同一页上两张卡各写各的字号，看上去就是两张不同的卡。</summary>
     /// <param name="text">已取好词的文字。</param>
     /// <returns>不可聚焦的小标题。</returns>
     static TextBlock SectionHeader(string text) => new()
     {
         Text = text,
-        FontSize = 11,
+        FontSize = 12,
         FontWeight = FontWeights.SemiBold,
         Foreground = Theme.TextDimBrush,
-        Margin = new Thickness(2, 6, 0, 0),
+        Margin = new Thickness(0, 4, 0, 6),
     };
 
     #endregion

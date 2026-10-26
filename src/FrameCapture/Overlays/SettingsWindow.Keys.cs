@@ -23,7 +23,6 @@ public sealed partial class SettingsWindow : Window
     {
         // 每行注册一个刷新动作：改一条键位可能让别的行冒出撞键提示，整表刷一遍最省事
         var ekRefresh = new List<Action>();
-        bool firstCard = true;
         string ConflictNote(EditorCommand c)
         {
             var hits = new List<string>();
@@ -60,14 +59,7 @@ public sealed partial class SettingsWindow : Window
             var cmds = EditorCommands.All.Where(c => c.Group == group).ToList();
             if (cmds.Count == 0) return;
             var stack = new StackPanel();
-            stack.Children.Add(new TextBlock
-            {
-                Text = Loc.T(group),
-                FontSize = 12,
-                FontWeight = FontWeights.SemiBold,
-                Foreground = Theme.TextDimBrush,
-                Margin = new Thickness(0, 2, 0, 6),
-            });
+            stack.Children.Add(SectionHeader(Loc.T(group)));
             // 键位区按内容占宽：一枚键帽占一枚的宽度，放不下才换行
             const double BoxGap = 6;
             foreach (var c in cmds)
@@ -225,8 +217,8 @@ public sealed partial class SettingsWindow : Window
             }
             var card = new Border
             {
-                // 第一张卡离上面的快捷键卡片远一点：这一节没有标题也没有说明文字，分组靠留白说
-                Margin = new Thickness(0, firstCard ? 12 : 2, 0, 2),
+                // 一张卡一组命令：分组由标题说出来，卡与卡之间就是同一档留白
+                Margin = new Thickness(0, 2, 0, 2),
                 CornerRadius = new CornerRadius(8),   // 卡片 8、行 6：外圆包内圆
                 BorderThickness = new Thickness(1),
                 BorderBrush = Theme.StrokeBrush,
@@ -236,7 +228,6 @@ public sealed partial class SettingsWindow : Window
             };
             Fluent.Elevate(card, blur: 24, depth: 6);
             panel.Children.Add(card);
-            firstCard = false;
         }
         foreach (var g in EditorCommands.Groups) EditorKeyGroup(g);
         var ekResetAll = MiniButton(Loc.T(K.Settings.RestoreAllDefaultKeys), () =>
