@@ -298,15 +298,7 @@ public static partial class K
             "settings.rrggbbTheCommonForm",
             "#RRGGBB 通用格式",
             "#RRGGBB, the common form");
-        public static readonly Str S = new("settings.s", "{0:0.0} 秒", "{0:0.0} s");
-        public static readonly Str S2 = new("settings.s2", "10秒", "10s");
-        public static readonly Str S3 = new("settings.s3", "1秒", "1s");
-        public static readonly Str S4 = new("settings.s4", "2秒", "2s");
-        public static readonly Str S5 = new("settings.s5", "3秒", "3s");
-        public static readonly Str S6 = new("settings.s6", "5秒", "5s");
-        public static readonly Str S8 = new("settings.s8", "30秒", "30s");
-        public static readonly Str S9 = new("settings.s9", "60秒", "60s");
-        public static readonly Str SecondsValue = new("settings.secondsValue", "{0} 秒", "{0} s");
+        public static readonly Str SecondsUnit = new("settings.secondsUnit", "秒", "s");
         public static readonly Str SaveFolderAutoSavedCopies = new(
             "settings.saveFolderAutoSavedCopies",
             "保存文件夹：自动保存副本存到这里，编辑器/贴图「另存为」对话框也默认打开这里",

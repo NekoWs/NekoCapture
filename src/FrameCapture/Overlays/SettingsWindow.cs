@@ -189,9 +189,7 @@ panel.Children.Add(ToggleRow("\uE7C8", Loc.T(K.Settings.ClickAWindowToCapture), 
         panel.Children.Add(ColorFormatRow());
         panel.Children.Add(ToggleRow("\uE71A", Loc.T(K.Settings.AlwaysShowTheCaptureOutline), Loc.T(K.Settings.KeepsTheCurrentCaptureRegion),
             _settings.Current.AlwaysShowRegionOutline, v => _settings.Mutate(s => s.AlwaysShowRegionOutline = v)));
-        panel.Children.Add(SliderRow("\uE7C4", Loc.T(K.Settings.BorderFlashAfterACapture), Loc.T(K.Settings.TheMomentACaptureFinishes),
-            0.2, 3.0, 0.1, _settings.Current.OutlineFadeSeconds,
-            v => Loc.F(K.Settings.S, v), v => _settings.Mutate(s => s.OutlineFadeSeconds = v)));
+        panel.Children.Add(OutlineFadeRow());
         panel.Children.Add(ToastRow());
         panel.Children.Add(CaptureSoundRow());
         panel.Children.Add(DelayRow());

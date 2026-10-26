@@ -610,6 +610,16 @@ static partial class SelfTest
             CollectTyped(System.Windows.Media.VisualTreeHelper.GetChild(node, i), type, into);
     }
 
+    /// <summary>设置页里某个时长输入后面那枚单位的文字：Tag 是「控件标记 + -unit」。</summary>
+    /// <param name="root">要在哪棵子树里找。</param>
+    /// <param name="tag">时长框的标记。</param>
+    /// <returns>单位的文字；没找到返回空串。</returns>
+    static string DurationUnitOf(System.Windows.DependencyObject root, string tag)
+    {
+        var all = new List<System.Windows.DependencyObject>();
+        CollectTyped(root, typeof(System.Windows.Controls.TextBlock), all);
+        return all.OfType<System.Windows.Controls.TextBlock>().FirstOrDefault(t => (t.Tag as string) == tag + "-unit")?.Text ?? "";
+    }
     /// <summary>在视觉树里找第一个显示该文字的元素，用于把事件打在指定的行首图标上。</summary>
     /// <param name="node">起点节点。</param>
     /// <param name="text">要匹配的文字，通常是单个 PUA 字形。</param>
@@ -1167,7 +1177,7 @@ static partial class SelfTest
             return RenderPicker(args[1], args.Length < 3 || args[2] != "layered");
         if (args.Length >= 2 && args[0] == "rendersettings")
         {
-            Str[] catNames = { K.Settings.Hotkeys, K.Common.Capture, K.Common.Recording, K.Settings.Output, K.Common.Editor, K.Common.Pin, K.Common.Appearance, K.Settings.System };
+            Str[] catNames = { K.Settings.Hotkeys, K.Common.Capture, K.Common.Recording, K.Settings.Output, K.Common.Editor, K.Common.Pin, K.Common.Appearance, K.Common.Palette, K.Settings.System };
             int ci = args.Length >= 3 && int.TryParse(args[2], out var sc) ? sc : 0;
             return RenderSettings(args[1], catNames[Math.Clamp(ci, 0, catNames.Length - 1)], ScaleArg(args),
                 args.Contains("open2") ? 1 : args.Contains("open") ? 0 : -1, args.Contains("adv"), args.Contains("clash"),
@@ -7442,8 +7452,8 @@ static partial class SelfTest
                 $"展开候选：IsOpen={popPart?.IsOpen} 宽 {(popPart?.Child as FrameworkElement)?.ActualWidth ?? 0:F0}");
             delayBox.IsDropDownOpen = false;
             PumpMs(140);
-            Chk("T252-duration-shows-current", delayBox.Text.Contains("秒"),
-                $"延时的框里写着当前值：{delayBox.Text}");
+            Chk("T252-duration-shows-current", delayBox != null && double.TryParse(delayBox.Text, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out _), $"延时的框里写着当前值且只有数字：{delayBox?.Text}");
+            Chk("T252-duration-unit-outside", delayBox != null && delayBox.Width <= 62 && DurationUnitOf(pages[1], "settings-duration-delay") == Loc.T(K.Settings.SecondsUnit), $"单位在框外：框宽 {delayBox?.Width}，右侧写着「{DurationUnitOf(pages[1], "settings-duration-delay")}」");
 
             // 键位录入全在「快捷键」页：两条绑定的键帽 + 确认 / 取消 + 复制键，都在带小标题的那张卡里。
             // 编辑器键位那几组也在这页上，所以不数总数，认的是「确认与取消」「截图后的复制键」这两行的标签。
@@ -7457,6 +7467,23 @@ static partial class SelfTest
                 $"截图页上还剩 {keysCap.Count} 个键位框");
             Chk("T251-ui-keys-labelled", hotTexts.Contains(Loc.T(K.Hotkeys.UiKeys)),
                 "快捷键页给这组键位写了小标题");
+            // 「恢复出厂配色」与卡片同一族：圆角、描边、投影都对得上，不是一块没有边的灰条
+            var restoreBtn = Of(7, typeof(System.Windows.Controls.Border)).OfType<System.Windows.Controls.Border>()
+                .FirstOrDefault(b => (b.Tag as string) == "settings-restore");
+            Chk("T261-restore-looks-like-card",
+                restoreBtn != null && restoreBtn.CornerRadius.TopLeft == 8 && restoreBtn.BorderThickness.Left == 1
+                    && (restoreBtn.BorderBrush as System.Windows.Media.SolidColorBrush)?.Color == Theme.Stroke
+                    && restoreBtn.Effect is System.Windows.Media.Effects.DropShadowEffect,
+                "恢复出厂配色：圆角 8、1px 描边、带投影，与卡片同一族");
+            // 预览卡里三枚芯片的右间距一致：中间那枚原本一点右间距都没有，两枚贴在一起
+            System.Windows.Controls.Border? ChipOf(Str s) => Of(7, typeof(System.Windows.Controls.Border))
+                .OfType<System.Windows.Controls.Border>()
+                .FirstOrDefault(b => b.Child is System.Windows.Controls.TextBlock tb && tb.Text == Loc.T(s));
+            var chipOnB = ChipOf(K.Settings.Accent);
+            var chipOffB = ChipOf(K.Settings.TokenStroke);
+            Chk("T261-preview-chips-gapped",
+                chipOnB != null && chipOffB != null && chipOnB.Margin.Right == 6 && chipOffB.Margin.Right == 6,
+                $"预览芯片右间距：{chipOnB?.Margin.Right} / {chipOffB?.Margin.Right}");
             winPg.Close();
         }
         catch (Exception e) { Chk("T248-settings-pages", false, e.Message); }
@@ -7582,6 +7609,8 @@ static partial class SelfTest
                 var boxes = allDu.OfType<System.Windows.Controls.ComboBox>().ToList();
                 var delayDu = boxes.FirstOrDefault(c => (c.Tag as string) == "settings-duration-delay");
                 var toastDu = boxes.FirstOrDefault(c => (c.Tag as string) == "settings-duration-toast");
+                var outlineDu = boxes.FirstOrDefault(c => (c.Tag as string) == "settings-duration-outline");
+                Chk("T260-duration-outline-row", outlineDu != null && outlineDu.IsEditable, "边框亮多久也是一枚可输入下拉框");
                 void Type(System.Windows.Controls.ComboBox c, string text, System.Windows.Input.Key key)
                 {
                     c.Text = text;
@@ -7591,20 +7620,18 @@ static partial class SelfTest
                     PumpMs(50);
                 }
                 Type(delayDu!, "7 秒", System.Windows.Input.Key.Enter);
-                Chk("T253-duration-commits-typed", svcDu.Current.DelayCaptureSeconds == 7 && delayDu!.Text == "7 秒",
-                    $"打「7 秒」回车：设置 {svcDu.Current.DelayCaptureSeconds} 秒，框里写「{delayDu!.Text}」");
+                Chk("T253-duration-commits-typed", svcDu.Current.DelayCaptureSeconds == 7 && delayDu!.Text == "7", $"打「7 秒」回车：设置 {svcDu.Current.DelayCaptureSeconds} 秒，框里写「{delayDu!.Text}」");
                 Type(delayDu!, "999 秒", System.Windows.Input.Key.Enter);
                 Chk("T253-duration-clamps", svcDu.Current.DelayCaptureSeconds == 120,
                     $"上限收在 120：实得 {svcDu.Current.DelayCaptureSeconds}");
                 Type(toastDu!, "0", System.Windows.Input.Key.Enter);
-                Chk("T253-duration-resident", svcDu.Current.ToastSeconds == 0 && toastDu!.Text == Loc.T(K.Settings.Resident),
-                    $"打「0」回车落成常驻：设置 {svcDu.Current.ToastSeconds}，框里写「{toastDu!.Text}」");
+                Chk("T253-duration-resident", svcDu.Current.ToastSeconds == 0 && toastDu!.Text == "0" && DurationUnitOf(winDu, "settings-duration-toast") == Loc.T(K.Settings.Resident), $"打「0」回车落成常驻：设置 {svcDu.Current.ToastSeconds}，框里写「{toastDu!.Text}」+「{DurationUnitOf(winDu, "settings-duration-toast")}」");
                 Type(toastDu!, "2.5 秒", System.Windows.Input.Key.Enter);
-                Chk("T253-duration-decimals", Math.Abs(svcDu.Current.ToastSeconds - 2.5) < 1e-9 && toastDu!.Text == "2.5 秒",
-                    $"打「2.5 秒」回车：设置 {svcDu.Current.ToastSeconds}，框里写「{toastDu!.Text}」");
+                Chk("T253-duration-decimals", Math.Abs(svcDu.Current.ToastSeconds - 2.5) < 1e-9 && toastDu!.Text == "2.5" && DurationUnitOf(winDu, "settings-duration-toast") == Loc.T(K.Settings.SecondsUnit), $"打「2.5 秒」回车：设置 {svcDu.Current.ToastSeconds}，框里写「{toastDu!.Text}」+「{DurationUnitOf(winDu, "settings-duration-toast")}」");
                 Type(toastDu!, "9", System.Windows.Input.Key.Escape);
-                Chk("T253-duration-escape-reverts", Math.Abs(svcDu.Current.ToastSeconds - 2.5) < 1e-9 && toastDu!.Text == "2.5 秒",
-                    $"Esc 作废：设置还是 {svcDu.Current.ToastSeconds}，框里写「{toastDu!.Text}」");
+                Chk("T253-duration-escape-reverts", Math.Abs(svcDu.Current.ToastSeconds - 2.5) < 1e-9 && toastDu!.Text == "2.5", $"Esc 作废：设置还是 {svcDu.Current.ToastSeconds}，框里写「{toastDu!.Text}」");
+                Type(outlineDu!, "2.5", System.Windows.Input.Key.Enter);
+                Chk("T260-duration-outline-commits", Math.Abs(svcDu.Current.OutlineFadeSeconds - 2.5) < 1e-9 && outlineDu!.Text == "2.5", $"边框余晖打「2.5」回车：设置 {svcDu.Current.OutlineFadeSeconds}，框里写「{outlineDu!.Text}」");
                 winDu.Close();
             }
             finally
@@ -7615,7 +7642,7 @@ static partial class SelfTest
         }
         catch (Exception e) { Chk("T253-duration-commit", false, e.Message); }
         // 侧栏三态在任何一套预设、任何一侧主题下都要读得清：底色与字色一起算。
-        // 选中项的悬停是提强调色浓度，不再叠一层通用悬停色——两层染色叠出来的色相取决于强调色有多亮，
+        // 选中项的悬停是提强调色浓度，而不是叠一层通用悬停色——两层染色叠出来的色相取决于强调色有多亮，
         // 亮强调色上再压白就是一块刺眼的青，压在上面的字当场读不清。
         try
         {

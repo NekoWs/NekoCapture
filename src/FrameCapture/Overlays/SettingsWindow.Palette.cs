@@ -183,15 +183,39 @@ public sealed partial class SettingsWindow : Window
         Fluent.ApplyGlobalStyles();
     }
 
-    /// <summary>恢复出厂配色：清掉全部覆盖、预设标识与自定义强调色。</summary>
+    /// <summary>恢复出厂配色：清掉全部覆盖、预设标识与自定义强调色。
+    /// 整宽一块，圆角、描边与投影都跟卡片走——它挨着卡片摆，样式差一档就看着像另一个家族的东西。</summary>
     /// <returns>整宽的一枚按钮。</returns>
     FrameworkElement RestoreRow()
     {
-        var btn = Fluent.RoundButton(Loc.T(K.Settings.PaletteRestore), Theme.RowBg, Theme.Text, 14, true);
-        btn.HorizontalAlignment = HorizontalAlignment.Stretch;
-        btn.HorizontalContentAlignment = HorizontalAlignment.Center;
-        btn.ToolTip = Loc.T(K.Settings.PaletteRestore);
-        btn.MouseLeftButtonUp += (_, e) =>
+        var label = new TextBlock
+        {
+            Text = Loc.T(K.Settings.PaletteRestore),
+            FontSize = 12.5,
+            Foreground = Theme.TextBrush,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        var btn = new Border
+        {
+            CornerRadius = new CornerRadius(8),
+            BorderThickness = new Thickness(1),
+            BorderBrush = Theme.StrokeBrush,
+            Background = Theme.RowBgBrush,
+            Padding = new Thickness(14, 9, 14, 9),
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            Cursor = Cursors.Hand,
+            Focusable = true,
+            ToolTip = Loc.T(K.Settings.PaletteRestore),
+            // 探针认路用：这一块要与卡片同一族，样式靠用例盯着
+            Tag = "settings-restore",
+            Child = label,
+        };
+        Fluent.Elevate(btn, blur: 24, depth: 6);
+        HoverFill(btn, () => Theme.RowBg, () => Theme.RowHover);
+        btn.GotKeyboardFocus += (_, _) => btn.BorderBrush = Theme.AccentBrush;
+        btn.LostKeyboardFocus += (_, _) => btn.BorderBrush = Theme.StrokeBrush;
+        void Restore()
         {
             _settings.Mutate(s =>
             {
@@ -202,8 +226,15 @@ public sealed partial class SettingsWindow : Window
             Theme.ClearAllCustoms();
             Theme.ResetAccent();
             Fluent.ApplyGlobalStyles();
-            e.Handled = true;
-        };
+        }
+        btn.MouseLeftButtonUp += (_, e) => { Restore(); e.Handled = true; };
+        btn.KeyDown += (_, e) => { if (e.Key is Key.Space or Key.Enter) { Restore(); e.Handled = true; } };
+        _repaint.Add(() =>
+        {
+            label.Foreground = Theme.TextBrush;
+            btn.BorderBrush = Theme.StrokeBrush;
+            btn.Background = Theme.RowBgBrush;
+        });
         return btn;
     }
 
@@ -244,9 +275,9 @@ public sealed partial class SettingsWindow : Window
 
         var chips = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 10, 0, 0) };
         var chipOn = new Border { CornerRadius = new CornerRadius(6), Padding = new Thickness(12, 4, 12, 4), Margin = new Thickness(0, 0, 6, 0), Child = new TextBlock { Text = Loc.T(K.Settings.Accent), FontSize = 12 } };
-        var chipOff = new Border { CornerRadius = new CornerRadius(6), BorderThickness = new Thickness(1), Padding = new Thickness(12, 4, 12, 4), Child = new TextBlock { Text = Loc.T(K.Settings.TokenStroke), FontSize = 12 } };
+        var chipOff = new Border { CornerRadius = new CornerRadius(6), BorderThickness = new Thickness(1), Padding = new Thickness(12, 4, 12, 4), Margin = new Thickness(0, 0, 6, 0), Child = new TextBlock { Text = Loc.T(K.Settings.TokenStroke), FontSize = 12 } };
         // 侧栏选中项那一档：强调色淡底压着文字。左侧导航读不清的正是这一档，预览里必须摆出来看
-        var navPill = new Border { CornerRadius = new CornerRadius(6), Padding = new Thickness(12, 4, 12, 4), Margin = new Thickness(0, 0, 6, 0), Child = new TextBlock { Text = Loc.T(K.Settings.TokenNavBg), FontSize = 12 } };
+        var navPill = new Border { CornerRadius = new CornerRadius(6), Padding = new Thickness(12, 4, 12, 4), Child = new TextBlock { Text = Loc.T(K.Settings.TokenNavBg), FontSize = 12 } };
         chips.Children.Add(chipOn); chips.Children.Add(chipOff); chips.Children.Add(navPill);
 
         // 逐枚改色是当场生效的，改完这一行替人把四种底都量一遍：读不清的地方有几处

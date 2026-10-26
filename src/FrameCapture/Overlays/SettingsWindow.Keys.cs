@@ -66,7 +66,7 @@ public sealed partial class SettingsWindow : Window
                 FontSize = 12,
                 FontWeight = FontWeights.SemiBold,
                 Foreground = Theme.TextDimBrush,
-                Margin = new Thickness(0, 0, 0, 2),
+                Margin = new Thickness(0, 2, 0, 6),
             });
             // 键位区按内容占宽：一枚键帽占一枚的宽度，放不下才换行
             const double BoxGap = 6;
@@ -229,9 +229,9 @@ public sealed partial class SettingsWindow : Window
                 Margin = new Thickness(0, firstCard ? 12 : 2, 0, 2),
                 CornerRadius = new CornerRadius(8),   // 卡片 8、行 6：外圆包内圆
                 BorderThickness = new Thickness(1),
-                BorderBrush = Theme.StrokeFieldBrush,
+                BorderBrush = Theme.StrokeBrush,
                 Background = Theme.CardBgBrush,
-                Padding = new Thickness(12, 7, 12, 7),
+                Padding = new Thickness(12, 6, 12, 6),
                 Child = stack,
             };
             Fluent.Elevate(card, blur: 24, depth: 6);

@@ -50,7 +50,7 @@ public static partial class Fluent
         string content = editable
             ? $@"<TextBox x:Name=""PART_EditableTextBox"" Grid.Column=""0"" Background=""Transparent"" BorderThickness=""0""
         Foreground=""{hexText}"" CaretBrush=""{hexAccent}"" FontSize=""12.5"" Height=""28""
-        Padding=""9,0,0,0"" VerticalContentAlignment=""Center""/>"
+        Padding=""7,0,0,0"" VerticalContentAlignment=""Center""/>"
             : $@"<ContentPresenter Grid.Column=""0"" Margin=""10,0,0,0"" VerticalAlignment=""Center""
         Content=""{{Binding SelectionBoxItem, RelativeSource={{RelativeSource AncestorType={{x:Type ComboBox}}}}}}""
         ContentTemplate=""{{Binding SelectionBoxItemTemplate, RelativeSource={{RelativeSource AncestorType={{x:Type ComboBox}}}}}}""/>";

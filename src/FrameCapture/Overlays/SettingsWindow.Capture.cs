@@ -54,48 +54,46 @@ public sealed partial class SettingsWindow : Window
 
     #region 时长：一枚可输入下拉框
 
-    /// <summary>时长行的骨架：一行「图标 + 名字 + 下拉框」。</summary>
+    /// <summary>时长行的骨架：一行「图标 + 名字 + 数值框 + 单位」。</summary>
     /// <param name="glyph">Segoe Fluent Icons 的 PUA 字形。</param>
     /// <param name="tip">图标 tooltip，写明这一行管什么。</param>
     /// <param name="label">行标签。</param>
-    /// <param name="combo">已经装好候选档的下拉框。</param>
+    /// <param name="field">数值框与后面那个单位，见 <see cref="DurationField"/>。</param>
     /// <returns>可直接加进分页的一行。</returns>
-    FrameworkElement DurationRow(string glyph, string tip, string label, ComboBox combo)
+    FrameworkElement DurationRow(string glyph, string tip, string label, FrameworkElement field)
     {
         var g = ChipRow(glyph, tip, label);
-        Grid.SetColumn(combo, 2);
-        g.Children.Add(combo);
+        Grid.SetColumn(field, 2);
+        g.Children.Add(field);
         return g;
     }
 
-    /// <summary>一枚时长下拉框：候选档就是那几个常用值，框里直接打数字也认。
-    /// 键位表与「打出来的值」共用一种写法（<c>3 秒</c>），挑档与自己打看起来是同一件事。
+    /// <summary>时长输入：一枚只装数字的下拉框，后面跟一枚单位。
+    /// 框里只放数字，单位摆在外面，框宽就能收到三位数刚好——「秒」写在框里时那一格总要给三个字留位，
+    /// 数字只有一两位，右边空出一大片。特殊档（关 / 常驻）由单位那一格改口，框里始终是数字。
     /// 选档、回车、移开焦点都落盘；Esc 把框里的字放回当前值。</summary>
     /// <param name="tag">探针认路用的标记。</param>
-    /// <param name="presets">候选档：值、档位文案、那一档的说明。</param>
+    /// <param name="presets">候选档：值 + 那一档的说明（框里显示的就是数字）。</param>
     /// <param name="get">读当前值。落盘会被归一化夹取，回显一律以它为准。</param>
-    /// <param name="max">允许输入的上限（秒）。</param>
+    /// <param name="max">允许输入的上限。</param>
+    /// <param name="special">特殊档的值（0 = 关 / 常驻）。</param>
+    /// <param name="specialWord">特殊档时单位那一格改成的字。</param>
     /// <param name="tip">框的 tooltip，写明这个数管什么、能打到多大。</param>
     /// <param name="onChange">落定后的写回动作，参数是夹取到 0..<paramref name="max"/> 的值。</param>
-    /// <returns>已接好事件的框；宽度按四五个汉字取，够放「30 秒」这类三字档。</returns>
-    ComboBox DurationCombo(string tag, (double Value, Str Text, Str Tip)[] presets,
-        Func<double> get, double max, string tip, Action<double> onChange)
+    /// <returns>已接好事件的「框 + 单位」小组合。</returns>
+    FrameworkElement DurationField(string tag, (double Value, Str Tip)[] presets,
+        Func<double> get, double max, double special, string specialWord, string tip, Action<double> onChange)
     {
-        string Fmt(double v) => v.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
-        string TextOf(double v)
-        {
-            foreach (var p in presets)
-                if (Math.Abs(p.Value - v) < 0.0001) return Loc.T(p.Text);
-            return Loc.F(K.Settings.SecondsValue, Fmt(v));
-        }
-        // 框里的字认三种写法：档位文案（「常驻」「关」）、带单位的秒数（「3 秒」「0.5秒」）、光秃秃的数字。
+        string Num(double v) => v.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+        // 框里的字认三种写法：光秃秃的数字、「3 秒」这种带单位的、以及「关」「常驻」这两个词。
         // 取数字走一遍前缀扫描，中英文单位与夹在中间的空格都不必各自列一条规则。
         double? Parse(string s)
         {
             var text = (s ?? "").Trim();
             if (text.Length == 0) return null;
-            foreach (var p in presets)
-                if (string.Equals(Loc.T(p.Text), text, StringComparison.OrdinalIgnoreCase)) return p.Value;
+            if (string.Equals(text, specialWord, StringComparison.OrdinalIgnoreCase)) return special;
+            if (string.Equals(text, Loc.T(K.Settings.Off), StringComparison.OrdinalIgnoreCase)
+                || string.Equals(text, Loc.T(K.Settings.Resident), StringComparison.OrdinalIgnoreCase)) return special;
             int end = 0;
             while (end < text.Length && (char.IsDigit(text[end]) || text[end] == '.' || text[end] == ',')) end++;
             if (end == 0) return null;
@@ -106,26 +104,36 @@ public sealed partial class SettingsWindow : Window
 
         var combo = new ComboBox
         {
-            Width = 104,
+            Width = 60,   // 三位数 + 箭头；「秒」搬出去之后不必再给汉字留位
             Tag = tag,
             VerticalAlignment = VerticalAlignment.Center,
-            HorizontalAlignment = HorizontalAlignment.Right,
             ToolTip = tip,
         };
         Fluent.StyleComboEditable(combo);
         foreach (var p in presets)
-            combo.Items.Add(new ComboBoxItem { Content = Loc.T(p.Text), ToolTip = Loc.T(p.Tip), Tag = p.Value });
+            combo.Items.Add(new ComboBoxItem { Content = Num(p.Value), ToolTip = Loc.T(p.Tip), Tag = p.Value });
+
+        var unit = new TextBlock
+        {
+            FontSize = 12.5,
+            Foreground = Theme.TextDimBrush,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(5, 0, 0, 0),
+            Tag = tag + "-unit",
+        };
 
         bool sync = false;   // 回显时挂起提交，免得程序写字把自己当成用户挑档
+        void PaintUnit(double v) => unit.Text = Math.Abs(v - special) < 0.0001 ? specialWord : Loc.T(K.Settings.SecondsUnit);
         void Show(double v)
         {
             sync = true;
             // 先把选中项摆到对的档上，再写框里的字：可编辑下拉框一旦把选中项设为空，
-            // 会顺手把 Text 清成空串——顺序反过来，「7 秒」这种不在档位上的值当场从框里消失。
+            // 会顺手把 Text 清成空串——顺序反过来，不在档位上的值当场从框里消失。
             combo.SelectedItem = null;
             foreach (ComboBoxItem it in combo.Items)
                 if (it.Tag is double d && Math.Abs(d - v) < 0.0001) { combo.SelectedItem = it; break; }
-            combo.Text = TextOf(v);
+            combo.Text = Num(v);
+            PaintUnit(v);
             sync = false;
         }
         void Apply(double v)
@@ -154,43 +162,74 @@ public sealed partial class SettingsWindow : Window
         };
         combo.LostKeyboardFocus += (_, _) => ApplyTyped();
         // 下拉箭头与圆角描边是拼进模板的字符串：改配色后重新套一遍才跟着换色
-        _repaint.Add(() => { Fluent.StyleComboEditable(combo); Show(get()); });
-        return combo;
+        _repaint.Add(() =>
+        {
+            Fluent.StyleComboEditable(combo);
+            unit.Foreground = Theme.TextDimBrush;
+            Show(get());
+        });
+        var wrap = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Center,
+            Children = { combo, unit },
+        };
+        return wrap;
     }
 
     /// <summary>延时截图：托盘触发后倒数这么久再截，留时间打开右键菜单这类一动就消失的界面。
-    /// 候选档是「关 / 1 / 3 / 5 / 10 / 30 / 60 秒」，其余秒数直接打进框里。</summary>
+    /// 候选档是 0 / 1 / 3 / 5 / 10 / 30 / 60 秒，其余秒数直接打进框里；0 的单位那一格改口成「关」。</summary>
     FrameworkElement DelayRow()
     {
-        var combo = DurationCombo("settings-duration-delay", new[]
+        var field = DurationField("settings-duration-delay", new[]
         {
-            (0.0, K.Settings.Off, K.Settings.NoDelayCapturesAsSoon),
-            (1.0, K.Settings.S3, K.Settings.QuickEnoughToMove),
-            (3.0, K.Settings.S5, K.Settings.UsualEnoughToOpen),
-            (5.0, K.Settings.S6, K.Settings.ComfortableEnoughToExpand),
-            (10.0, K.Settings.S2, K.Settings.PlentyEnoughToLineUp),
-            (30.0, K.Settings.S8, K.Settings.PlentyEnoughToLineUp),
-            (60.0, K.Settings.S9, K.Settings.PlentyEnoughToLineUp),
-        }, () => _settings.Current.DelayCaptureSeconds, 120, Loc.T(K.Settings.CustomAnyNumberOfSeconds),
+            (0.0, K.Settings.NoDelayCapturesAsSoon),
+            (1.0, K.Settings.QuickEnoughToMove),
+            (3.0, K.Settings.UsualEnoughToOpen),
+            (5.0, K.Settings.ComfortableEnoughToExpand),
+            (10.0, K.Settings.PlentyEnoughToLineUp),
+            (30.0, K.Settings.PlentyEnoughToLineUp),
+            (60.0, K.Settings.PlentyEnoughToLineUp),
+        }, () => _settings.Current.DelayCaptureSeconds, 120, 0, Loc.T(K.Settings.Off),
+            Loc.T(K.Settings.CustomAnyNumberOfSeconds),
             v => _settings.Mutate(s => s.DelayCaptureSeconds = (int)Math.Round(v)));
-        return DurationRow("\uE916", Loc.T(K.Settings.AfterTheTraySDelayed), Loc.T(K.Common.DelayedCapture), combo);
+        return DurationRow("\uE916", Loc.T(K.Settings.AfterTheTraySDelayed), Loc.T(K.Common.DelayedCapture), field);
     }
 
     /// <summary>截图后悬浮窗存在时间：截完弹出的「已复制」缩略浮窗停留多久。
-    /// 候选档是「常驻 / 1 / 2 / 5 / 10 / 30 秒」，其余秒数直接打进框里。</summary>
+    /// 候选档是 0 / 1 / 2 / 5 / 10 / 30 秒，其余秒数直接打进框里；0 的单位那一格改口成「常驻」。</summary>
     FrameworkElement ToastRow()
     {
-        var combo = DurationCombo("settings-duration-toast", new[]
+        var field = DurationField("settings-duration-toast", new[]
         {
-            (0.0, K.Settings.Resident, K.Settings.NeverDisappearsOnItsOwn),
-            (1.0, K.Settings.S3, K.Settings.AFlashConfirmsIt),
-            (2.0, K.Settings.S4, K.Settings.BriskAGlanceFits),
-            (5.0, K.Settings.S6, K.Settings.ComfortableEnoughToMove),
-            (10.0, K.Settings.S2, K.Settings.ComfortableEnoughToMove),
-            (30.0, K.Settings.S8, K.Settings.ComfortableEnoughToMove),
-        }, () => _settings.Current.ToastSeconds, 60, Loc.T(K.Settings.CustomAnythingFromToSeconds),
+            (0.0, K.Settings.NeverDisappearsOnItsOwn),
+            (1.0, K.Settings.AFlashConfirmsIt),
+            (2.0, K.Settings.BriskAGlanceFits),
+            (5.0, K.Settings.ComfortableEnoughToMove),
+            (10.0, K.Settings.ComfortableEnoughToMove),
+            (30.0, K.Settings.ComfortableEnoughToMove),
+        }, () => _settings.Current.ToastSeconds, 60, 0, Loc.T(K.Settings.Resident),
+            Loc.T(K.Settings.CustomAnythingFromToSeconds),
             v => _settings.Mutate(s => s.ToastSeconds = v));
-        return DurationRow("\uE916", Loc.T(K.Settings.HowLongTheCopiedThumbnail), Loc.T(K.Settings.ToastLifetime), combo);
+        return DurationRow("\uE916", Loc.T(K.Settings.HowLongTheCopiedThumbnail), Loc.T(K.Settings.ToastLifetime), field);
+    }
+
+    /// <summary>截图后那圈边框亮多久：截完一圈描边慢慢退掉，这一行是它的时长。
+    /// 候选档 0.2 / 0.5 / 1 / 1.5 / 2 / 3 秒，0.1–5 秒之间直接打进框里。</summary>
+    FrameworkElement OutlineFadeRow()
+    {
+        var field = DurationField("settings-duration-outline", new[]
+        {
+            (0.2, K.Settings.TheMomentACaptureFinishes),
+            (0.5, K.Settings.TheMomentACaptureFinishes),
+            (1.0, K.Settings.TheMomentACaptureFinishes),
+            (1.5, K.Settings.TheMomentACaptureFinishes),
+            (2.0, K.Settings.TheMomentACaptureFinishes),
+            (3.0, K.Settings.TheMomentACaptureFinishes),
+        }, () => _settings.Current.OutlineFadeSeconds, 5, -1, "", Loc.T(K.Settings.TheMomentACaptureFinishes),
+            v => _settings.Mutate(s => s.OutlineFadeSeconds = v));
+        return DurationRow("\uE7C4", Loc.T(K.Settings.BorderFlashAfterACapture), Loc.T(K.Settings.BorderFlashAfterACapture), field);
     }
 
     #endregion
