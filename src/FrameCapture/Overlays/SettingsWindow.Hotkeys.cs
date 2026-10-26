@@ -73,6 +73,71 @@ public sealed partial class SettingsWindow : Window
         Fluent.Elevate(card, blur: 24, depth: 6);
         panel.Children.Add(card);
         RebuildHotkeys();
+
+        // 界面上每一处「按一下录一个键」都归这一页：确认与取消在选区框上生效，复制键在截完那张浮窗上生效。
+        // 它们跟上面那份列表是同一类东西，散到各自功能的分页里，找键位就得挨个翻。
+        var ui = new StackPanel();
+        ui.Children.Add(SectionHeader(Loc.T(K.Hotkeys.UiKeys)));
+        ui.Children.Add(PickerKeysRow());
+        ui.Children.Add(ToastCopyRow());
+        Cardify(ui);
+        panel.Children.Add(ui);
+    }
+
+    // 确认/取消选区：可调整的框出现后生效，右侧两个键位框点一下就能录
+    FrameworkElement PickerKeysRow()
+    {
+        var g = ChipRow("\uE8C8", Loc.T(K.Settings.ConfirmCancelKeysTip), Loc.T(K.Settings.ConfirmCancelKeysHint));
+        var row = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
+        Grid.SetColumn(row, 2);
+        row.Children.Add(PickerKeyBox(_settings.Current.PickerConfirmChord, "confirm"));
+        row.Children.Add(PickerKeyBox(_settings.Current.PickerCancelChord, "cancel"));
+        g.Children.Add(row);
+        return g;
+    }
+
+    // 单个键位框：录入期间暂停全局钩子（与快捷键列表同一套做法），改完当场落盘
+    ChordCaptureBox PickerKeyBox(string chord, string which)
+    {
+        var box = new ChordCaptureBox
+        {
+            Chord = chord,
+            EmptyHint = Loc.T(K.Hotkeys.ClickToSet),
+            Margin = new Thickness(8, 0, 0, 0),
+            HorizontalAlignment = HorizontalAlignment.Right,
+        };
+        bool wasPaused = false;
+        box.CaptureBegan += () => { wasPaused = HotkeyManager.Paused; HotkeyManager.Paused = true; };
+        box.CaptureEnded += () => HotkeyManager.Paused = wasPaused;
+        box.Picked += c => _settings.Mutate(s =>
+        {
+            if (which == "confirm") s.PickerConfirmChord = c; else s.PickerCancelChord = c;
+        });
+        return box;
+    }
+
+    // 截图浮窗上「复制」的键位：浮窗活着的那几秒由全局钩子代收，改完当场生效。
+    FrameworkElement ToastCopyRow()
+    {
+        var g = ChipRow("\uE8C8", Loc.T(K.Settings.TheToastAlsoAccepts), Loc.T(K.Settings.CopyKey));
+        var box = new ChordCaptureBox
+        {
+            Chord = _settings.Current.ToastCopyChord,
+            EmptyHint = Loc.T(K.Hotkeys.ClickToSet),
+            HorizontalAlignment = HorizontalAlignment.Right,
+        };
+        // 录入期间暂停全局钩子，否则正要录的那个组合键会被自家钩子先吞掉（与快捷键列表同一套做法）
+        bool wasPaused = false;
+        box.CaptureBegan += () => { wasPaused = HotkeyManager.Paused; HotkeyManager.Paused = true; };
+        box.CaptureEnded += () => HotkeyManager.Paused = wasPaused;
+        box.Picked += c =>
+        {
+            _settings.Mutate(s => s.ToastCopyChord = c);
+            AppHost.Current.InstallHotkeys();   // 钩子里那份键位串跟着换，不必重启
+        };
+        Grid.SetColumn(box, 2);
+        g.Children.Add(box);
+        return g;
     }
 
     /// <summary>按当前配置重铺快捷键列表：逐条一行，末尾一枚「添加快捷键」。
@@ -85,6 +150,7 @@ public sealed partial class SettingsWindow : Window
         _hotBoxes.Clear();
         _hotModeSync.Clear();
         _hotClashSync.Clear();
+        _folds.Clear();   // 行的容器整个换了一批，上一批容器的记账跟着一起丢
         foreach (var b in _settings.Current.Gestures.Bindings)
             _hotList.Children.Add(HotkeyRow(b));
         _hotList.Children.Add(AddHotkeyButton());

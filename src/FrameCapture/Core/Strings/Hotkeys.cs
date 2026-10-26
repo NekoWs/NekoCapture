@@ -50,5 +50,6 @@ public static partial class K
             "Runs in order. Drag a chip to the place you want, click the plus sign to add one after it.");
         public static readonly Str Shortcut = new("hotkeys.shortcut", "组合键", "Shortcut");
         public static readonly Str Trigger = new("hotkeys.trigger", "触发方式", "Trigger");
+        public static readonly Str UiKeys = new("hotkeys.uiKeys", "界面键位", "Interface keys");
     }
 }

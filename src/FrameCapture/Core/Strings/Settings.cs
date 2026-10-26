@@ -131,12 +131,12 @@ public static partial class K
         public static readonly Str Custom = new("settings.custom", "自定义…", "Custom…");
         public static readonly Str CustomAnyNumberOfSeconds = new(
             "settings.customAnyNumberOfSeconds",
-            "自定义：输入 1–120 任意秒数，回车或移开焦点生效",
-            "Custom: any number of seconds from 1 to 120, applied on Enter or when focus leaves");
+            "点开挑一档，或直接打 1–120 的秒数，回车生效",
+            "Pick a preset, or type any number of seconds from 1 to 120; Enter applies it");
         public static readonly Str CustomAnythingFromToSeconds = new(
             "settings.customAnythingFromToSeconds",
-            "自定义：输入 0.5–60 任意秒数，0 为常驻，回车或移开焦点生效",
-            "Custom: anything from 0.5 to 60 seconds, 0 keeps it resident, applied on Enter or when focus leaves");
+            "点开挑一档，或直接打 0.5–60 的秒数，0 为常驻，回车生效",
+            "Pick a preset, or type 0.5 to 60 seconds; 0 keeps it resident, Enter applies it");
         public static readonly Str Dark = new("settings.dark", "深色", "Dark");
         public static readonly Str DeleteThisHotkey = new(
             "settings.deleteThisHotkey",
@@ -260,6 +260,7 @@ public static partial class K
             "Plenty: enough to line up several interface elements");
         public static readonly Str PresetContrast = new("settings.presetContrast", "高对比", "High contrast");
         public static readonly Str PresetDefault = new("settings.presetDefault", "出厂", "Stock");
+        public static readonly Str PresetForest = new("settings.presetForest", "森林", "Forest");
         public static readonly Str PresetGraphite = new("settings.presetGraphite", "石墨", "Graphite");
         public static readonly Str PresetMidnight = new("settings.presetMidnight", "午夜蓝", "Midnight");
         public static readonly Str PresetSand = new("settings.presetSand", "暖沙", "Warm sand");
@@ -303,7 +304,9 @@ public static partial class K
         public static readonly Str S4 = new("settings.s4", "2秒", "2s");
         public static readonly Str S5 = new("settings.s5", "3秒", "3s");
         public static readonly Str S6 = new("settings.s6", "5秒", "5s");
-        public static readonly Str S7 = new("settings.s7", "秒", "s");
+        public static readonly Str S8 = new("settings.s8", "30秒", "30s");
+        public static readonly Str S9 = new("settings.s9", "60秒", "60s");
+        public static readonly Str SecondsValue = new("settings.secondsValue", "{0} 秒", "{0} s");
         public static readonly Str SaveFolderAutoSavedCopies = new(
             "settings.saveFolderAutoSavedCopies",
             "保存文件夹：自动保存副本存到这里，编辑器/贴图「另存为」对话框也默认打开这里",

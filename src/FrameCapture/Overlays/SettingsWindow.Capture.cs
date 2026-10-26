@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using FrameCapture.Core;
@@ -13,66 +14,11 @@ namespace FrameCapture.Overlays;
 /// </summary>
 public sealed partial class SettingsWindow : Window
 {
-    // 截图浮窗上「复制」的键位：浮窗活着的那几秒由全局钩子代收，改完当场生效。
-    FrameworkElement ToastCopyRow()
-    {
-        var g = ChipRow("\uE8C8", Loc.T(K.Settings.TheToastAlsoAccepts), Loc.T(K.Settings.CopyKey));
-        var box = new ChordCaptureBox
-        {
-            Chord = _settings.Current.ToastCopyChord,
-            EmptyHint = Loc.T(K.Hotkeys.ClickToSet),
-            HorizontalAlignment = HorizontalAlignment.Right,
-        };
-        // 录入期间暂停全局钩子，否则正要录的那个组合键会被自家钩子先吞掉（与快捷键页同一套做法）
-        bool wasPaused = false;
-        box.CaptureBegan += () => { wasPaused = Services.HotkeyManager.Paused; Services.HotkeyManager.Paused = true; };
-        box.CaptureEnded += () => Services.HotkeyManager.Paused = wasPaused;
-        box.Picked += c =>
-        {
-            _settings.Mutate(s => s.ToastCopyChord = c);
-            Services.AppHost.Current.InstallHotkeys();   // 钩子里那份键位串跟着换，不必重启
-        };
-        Grid.SetColumn(box, 2);
-        g.Children.Add(box);
-        return g;
-    }
-
     // 可调整选区（默认关）：开着时松手先给一个可拖边角改大小的框，确认才出图
     FrameworkElement EditableSelectionRow() =>
         ToggleRow("\uE7C8", Loc.T(K.Settings.EditableSelection), Loc.T(K.Settings.EditableSelectionDesc),
             _settings.Current.EditableSelection, v => _settings.Mutate(s => s.EditableSelection = v));
 
-    // 确认/取消选区：可调整的框出现后生效，右侧两个键位框点一下就能录
-    FrameworkElement PickerKeysRow()
-    {
-        var g = ChipRow("\uE8C8", Loc.T(K.Settings.ConfirmCancelKeysTip), Loc.T(K.Settings.ConfirmCancelKeysHint));
-        var row = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
-        Grid.SetColumn(row, 2);
-        row.Children.Add(PickerKeyBox(_settings.Current.PickerConfirmChord, "confirm"));
-        row.Children.Add(PickerKeyBox(_settings.Current.PickerCancelChord, "cancel"));
-        g.Children.Add(row);
-        return g;
-    }
-
-    // 单个键位框：录入期间暂停全局钩子（与快捷键页同一套做法），改完当场落盘
-    ChordCaptureBox PickerKeyBox(string chord, string which)
-    {
-        var box = new ChordCaptureBox
-        {
-            Chord = chord,
-            EmptyHint = Loc.T(K.Hotkeys.ClickToSet),
-            Margin = new Thickness(8, 0, 0, 0),
-            HorizontalAlignment = HorizontalAlignment.Right,
-        };
-        bool wasPaused = false;
-        box.CaptureBegan += () => { wasPaused = Services.HotkeyManager.Paused; Services.HotkeyManager.Paused = true; };
-        box.CaptureEnded += () => Services.HotkeyManager.Paused = wasPaused;
-        box.Picked += c => _settings.Mutate(s =>
-        {
-            if (which == "confirm") s.PickerConfirmChord = c; else s.PickerCancelChord = c;
-        });
-        return box;
-    }
     // 取色复制格式：选区放大镜按 C 复制颜色时的文本形式，HEX / RGB / HSL 三选
     FrameworkElement ColorFormatRow()
     {
@@ -106,180 +52,148 @@ public sealed partial class SettingsWindow : Window
         return g;
     }
 
-    FrameworkElement DelayRow()
+    #region 时长：一枚可输入下拉框
+
+    /// <summary>时长行的骨架：一行「图标 + 名字 + 下拉框」。</summary>
+    /// <param name="glyph">Segoe Fluent Icons 的 PUA 字形。</param>
+    /// <param name="tip">图标 tooltip，写明这一行管什么。</param>
+    /// <param name="label">行标签。</param>
+    /// <param name="combo">已经装好候选档的下拉框。</param>
+    /// <returns>可直接加进分页的一行。</returns>
+    FrameworkElement DurationRow(string glyph, string tip, string label, ComboBox combo)
     {
-        var g = ChipRow("\uE916", Loc.T(K.Settings.AfterTheTraySDelayed), Loc.T(K.Common.DelayedCapture));
-        var chips = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
-        Grid.SetColumn(chips, 2);
-        int cur = _settings.Current.DelayCaptureSeconds;
-        var opts = new (int secs, string text, string tip)[]
-        {
-            (0, Loc.T(K.Settings.Off), Loc.T(K.Settings.NoDelayCapturesAsSoon)),
-            (1, Loc.T(K.Settings.S3), Loc.T(K.Settings.QuickEnoughToMove)),
-            (3, Loc.T(K.Settings.S5), Loc.T(K.Settings.UsualEnoughToOpen)),
-            (5, Loc.T(K.Settings.S6), Loc.T(K.Settings.ComfortableEnoughToExpand)),
-            (10, Loc.T(K.Settings.S2), Loc.T(K.Settings.PlentyEnoughToLineUp)),
-        };
-        var chipList = new List<(Border chip, int secs)>();
-        // 预设 5 档之外还有「自定义」输入框：1–120 秒任意值都调得了；文字居中，与悬浮窗时长同款交互
-        var box = new TextBox
-        {
-            Text = cur.ToString(),
-            Width = 30,
-            FontSize = 12.5,
-            TextAlignment = TextAlignment.Center,
-            Background = Brushes.Transparent,
-            BorderThickness = new Thickness(0),
-            Foreground = Theme.TextBrush,
-            CaretBrush = Theme.AccentBrush,
-            VerticalAlignment = VerticalAlignment.Center,
-            VerticalContentAlignment = VerticalAlignment.Center,
-        };
-        var unit = new TextBlock { Text = Loc.T(K.Settings.S7), FontSize = 12.5, Foreground = Theme.TextDimBrush, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(3, 0, 0, 0) };
-        var customBox = new Border
-        {
-            CornerRadius = new CornerRadius(6),
-            Padding = new Thickness(8, 4, 8, 4),
-            Margin = new Thickness(8, 0, 2, 0),
-            Background = Theme.CardBgBrush,
-            BorderBrush = Theme.StrokeBrush,
-            BorderThickness = new Thickness(1),
-            Child = new StackPanel { Orientation = Orientation.Horizontal, Children = { box, unit } },
-            ToolTip = Loc.T(K.Settings.CustomAnyNumberOfSeconds),
-            Cursor = Cursors.Hand,
-        };
-        customBox.MouseLeftButtonUp += (_, _) => { box.Focus(); box.SelectAll(); };
-        void RefreshSel(int v)
-        {
-            bool anySel = RefreshChips(chipList, v);
-            customBox.Background = new SolidColorBrush(anySel ? Theme.CardBg : Theme.Accent);
-            customBox.BorderBrush = new SolidColorBrush(anySel ? Theme.Stroke : Theme.Accent);
-            box.Foreground = new SolidColorBrush(anySel ? Theme.Text : Fluent.OnAccentColor(Theme.Accent));
-            unit.Foreground = new SolidColorBrush(anySel ? Theme.TextDim : Fluent.OnAccentColor(Theme.Accent));
-            box.Text = v.ToString();
-        }
-        void Commit()
-        {
-            var raw = (box.Text ?? "").Trim();
-            if (!int.TryParse(raw, out int v) || v < 1) { box.Text = _settings.Current.DelayCaptureSeconds.ToString(); return; }
-            v = Math.Clamp(v, 1, 120);
-            _settings.Mutate(s => s.DelayCaptureSeconds = v);
-            RefreshSel(v);
-        }
-        box.LostFocus += (_, _) => Commit();
-        box.KeyDown += (_, e) => { if (e.Key == Key.Enter) { Commit(); box.MoveFocus(new TraversalRequest(FocusNavigationDirection.Next)); e.Handled = true; } };
-        foreach (var (secs, text, tip) in opts)
-        {
-            int captured = secs;
-            var chip = Chip(text, tip, captured == cur);
-            chipList.Add((chip, secs));
-            void Apply()
-            {
-                _settings.Mutate(s => s.DelayCaptureSeconds = captured);
-                RefreshSel(captured);
-            }
-            WireChip(chip, Apply);
-            chips.Children.Add(chip);
-        }
-        chips.Children.Add(customBox);
-        RefreshSel(cur);
-        _repaint.Add(() => RefreshSel(_settings.Current.DelayCaptureSeconds));   // 改配色后芯片与自定义框一起回到当前档
-        g.Children.Add(chips);
+        var g = ChipRow(glyph, tip, label);
+        Grid.SetColumn(combo, 2);
+        g.Children.Add(combo);
         return g;
     }
 
-    // 截图后悬浮窗存在时间——文字芯片（常驻/秒数），点击就地更新选中态
+    /// <summary>一枚时长下拉框：候选档就是那几个常用值，框里直接打数字也认。
+    /// 键位表与「打出来的值」共用一种写法（<c>3 秒</c>），挑档与自己打看起来是同一件事。
+    /// 选档、回车、移开焦点都落盘；Esc 把框里的字放回当前值。</summary>
+    /// <param name="tag">探针认路用的标记。</param>
+    /// <param name="presets">候选档：值、档位文案、那一档的说明。</param>
+    /// <param name="get">读当前值。落盘会被归一化夹取，回显一律以它为准。</param>
+    /// <param name="max">允许输入的上限（秒）。</param>
+    /// <param name="tip">框的 tooltip，写明这个数管什么、能打到多大。</param>
+    /// <param name="onChange">落定后的写回动作，参数是夹取到 0..<paramref name="max"/> 的值。</param>
+    /// <returns>已接好事件的框；宽度按四五个汉字取，够放「30 秒」这类三字档。</returns>
+    ComboBox DurationCombo(string tag, (double Value, Str Text, Str Tip)[] presets,
+        Func<double> get, double max, string tip, Action<double> onChange)
+    {
+        string Fmt(double v) => v.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+        string TextOf(double v)
+        {
+            foreach (var p in presets)
+                if (Math.Abs(p.Value - v) < 0.0001) return Loc.T(p.Text);
+            return Loc.F(K.Settings.SecondsValue, Fmt(v));
+        }
+        // 框里的字认三种写法：档位文案（「常驻」「关」）、带单位的秒数（「3 秒」「0.5秒」）、光秃秃的数字。
+        // 取数字走一遍前缀扫描，中英文单位与夹在中间的空格都不必各自列一条规则。
+        double? Parse(string s)
+        {
+            var text = (s ?? "").Trim();
+            if (text.Length == 0) return null;
+            foreach (var p in presets)
+                if (string.Equals(Loc.T(p.Text), text, StringComparison.OrdinalIgnoreCase)) return p.Value;
+            int end = 0;
+            while (end < text.Length && (char.IsDigit(text[end]) || text[end] == '.' || text[end] == ',')) end++;
+            if (end == 0) return null;
+            var num = text.Substring(0, end).Replace(',', '.');
+            return double.TryParse(num, System.Globalization.NumberStyles.Float,
+                System.Globalization.CultureInfo.InvariantCulture, out var v) ? v : null;
+        }
+
+        var combo = new ComboBox
+        {
+            Width = 104,
+            Tag = tag,
+            VerticalAlignment = VerticalAlignment.Center,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            ToolTip = tip,
+        };
+        Fluent.StyleComboEditable(combo);
+        foreach (var p in presets)
+            combo.Items.Add(new ComboBoxItem { Content = Loc.T(p.Text), ToolTip = Loc.T(p.Tip), Tag = p.Value });
+
+        bool sync = false;   // 回显时挂起提交，免得程序写字把自己当成用户挑档
+        void Show(double v)
+        {
+            sync = true;
+            // 先把选中项摆到对的档上，再写框里的字：可编辑下拉框一旦把选中项设为空，
+            // 会顺手把 Text 清成空串——顺序反过来，「7 秒」这种不在档位上的值当场从框里消失。
+            combo.SelectedItem = null;
+            foreach (ComboBoxItem it in combo.Items)
+                if (it.Tag is double d && Math.Abs(d - v) < 0.0001) { combo.SelectedItem = it; break; }
+            combo.Text = TextOf(v);
+            sync = false;
+        }
+        void Apply(double v)
+        {
+            v = Math.Max(0, Math.Min(max, v));
+            if (Math.Abs(v - get()) > 0.0001) onChange(v);
+            Show(get());
+        }
+        void ApplyTyped()
+        {
+            if (Parse(combo.Text) is not double v) { Show(get()); return; }
+            Apply(v);
+        }
+
+        Show(get());
+        combo.DropDownClosed += (_, _) => ApplyTyped();   // 关弹层即落定：挑完档不必再点一下别的
+        combo.SelectionChanged += (_, _) =>
+        {
+            if (sync) return;
+            if (combo.SelectedItem is ComboBoxItem { Tag: double d }) Apply(d);
+        };
+        combo.PreviewKeyDown += (_, e) =>
+        {
+            if (e.Key == Key.Enter) { ApplyTyped(); e.Handled = true; }
+            else if (e.Key == Key.Escape) { Show(get()); combo.IsDropDownOpen = false; e.Handled = true; }
+        };
+        combo.LostKeyboardFocus += (_, _) => ApplyTyped();
+        // 下拉箭头与圆角描边是拼进模板的字符串：改配色后重新套一遍才跟着换色
+        _repaint.Add(() => { Fluent.StyleComboEditable(combo); Show(get()); });
+        return combo;
+    }
+
+    /// <summary>延时截图：托盘触发后倒数这么久再截，留时间打开右键菜单这类一动就消失的界面。
+    /// 候选档是「关 / 1 / 3 / 5 / 10 / 30 / 60 秒」，其余秒数直接打进框里。</summary>
+    FrameworkElement DelayRow()
+    {
+        var combo = DurationCombo("settings-duration-delay", new[]
+        {
+            (0.0, K.Settings.Off, K.Settings.NoDelayCapturesAsSoon),
+            (1.0, K.Settings.S3, K.Settings.QuickEnoughToMove),
+            (3.0, K.Settings.S5, K.Settings.UsualEnoughToOpen),
+            (5.0, K.Settings.S6, K.Settings.ComfortableEnoughToExpand),
+            (10.0, K.Settings.S2, K.Settings.PlentyEnoughToLineUp),
+            (30.0, K.Settings.S8, K.Settings.PlentyEnoughToLineUp),
+            (60.0, K.Settings.S9, K.Settings.PlentyEnoughToLineUp),
+        }, () => _settings.Current.DelayCaptureSeconds, 120, Loc.T(K.Settings.CustomAnyNumberOfSeconds),
+            v => _settings.Mutate(s => s.DelayCaptureSeconds = (int)Math.Round(v)));
+        return DurationRow("\uE916", Loc.T(K.Settings.AfterTheTraySDelayed), Loc.T(K.Common.DelayedCapture), combo);
+    }
+
+    /// <summary>截图后悬浮窗存在时间：截完弹出的「已复制」缩略浮窗停留多久。
+    /// 候选档是「常驻 / 1 / 2 / 5 / 10 / 30 秒」，其余秒数直接打进框里。</summary>
     FrameworkElement ToastRow()
     {
-        var g = ChipRow("\uE916", Loc.T(K.Settings.HowLongTheCopiedThumbnail), Loc.T(K.Settings.ToastLifetime));
-        var chips = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
-        Grid.SetColumn(chips, 2);
-        double cur = _settings.Current.ToastSeconds;
-        // 预设只留 常驻/1秒/2秒/5秒 四档（0 = 常驻单独成档），其余秒数走自定义输入
-        var opts = new (double secs, string text, string tip)[]
+        var combo = DurationCombo("settings-duration-toast", new[]
         {
-            (0, Loc.T(K.Settings.Resident), Loc.T(K.Settings.NeverDisappearsOnItsOwn)),
-            (1, Loc.T(K.Settings.S3), Loc.T(K.Settings.AFlashConfirmsIt)),
-            (2, Loc.T(K.Settings.S4), Loc.T(K.Settings.BriskAGlanceFits)),
-            (5, Loc.T(K.Settings.S6), Loc.T(K.Settings.ComfortableEnoughToMove)),
-        };
-        var chipList = new List<(Border chip, double secs)>();
-        string Fmt(double v) => v.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
-        var box = new TextBox
-        {
-            Text = Fmt(cur),
-            Width = 34,
-            FontSize = 12.5,
-            TextAlignment = TextAlignment.Center,   // 数字居中：34px 窄框里贴边数字像被裁了一半
-            Background = Brushes.Transparent,
-            BorderThickness = new Thickness(0),
-            Foreground = Theme.TextBrush,
-            CaretBrush = Theme.AccentBrush,
-            VerticalAlignment = VerticalAlignment.Center,
-            VerticalContentAlignment = VerticalAlignment.Center,
-        };
-        var unit = new TextBlock { Text = Loc.T(K.Settings.S7), FontSize = 12.5, Foreground = Theme.TextDimBrush, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(3, 0, 0, 0) };
-        var customBox = new Border
-        {
-            CornerRadius = new CornerRadius(6),
-            Padding = new Thickness(8, 4, 8, 4),
-            Margin = new Thickness(8, 0, 2, 0),
-            Background = Theme.CardBgBrush,
-            BorderBrush = Theme.StrokeBrush,
-            BorderThickness = new Thickness(1),
-            Child = new StackPanel { Orientation = Orientation.Horizontal, Children = { box, unit } },
-            ToolTip = Loc.T(K.Settings.CustomAnythingFromToSeconds),
-            Cursor = Cursors.Hand,
-        };
-        customBox.MouseLeftButtonUp += (_, _) => { box.Focus(); box.SelectAll(); };
-        void RefreshSel(double v)
-        {
-            // 预设档匹配用 0.01 容差而非精确相等：自定义框可输入任意小数，近似值仍算命中预设档
-            bool anySel = false;
-            foreach (var (c, cs) in chipList)
-            {
-                bool sel = Math.Abs(cs - v) < 0.01;
-                anySel |= sel;
-                c.Background = new SolidColorBrush(sel ? Theme.Accent : Theme.Hover);
-                if (c.Child is TextBlock tb) tb.Foreground = new SolidColorBrush(sel ? Fluent.OnAccentColor(Theme.Accent) : Theme.Text);
-            }
-            // 值不落在任何预设档 = 自定义生效，自定义框高亮成选中态，一眼看出当前用的是哪个值
-            customBox.Background = new SolidColorBrush(anySel ? Theme.CardBg : Theme.Accent);
-            customBox.BorderBrush = new SolidColorBrush(anySel ? Theme.Stroke : Theme.Accent);
-            box.Foreground = new SolidColorBrush(anySel ? Theme.Text : Fluent.OnAccentColor(Theme.Accent));
-            unit.Foreground = new SolidColorBrush(anySel ? Theme.TextDim : Fluent.OnAccentColor(Theme.Accent));
-            box.Text = Fmt(v);
-        }
-        void Commit()
-        {
-            var raw = (box.Text ?? "").Trim().Replace(',', '.');
-            if (!double.TryParse(raw, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double v) || v < 0)
-            { box.Text = Fmt(_settings.Current.ToastSeconds); return; }   // 非法输入回退当前值
-            _settings.Mutate(s => s.ToastSeconds = v);                     // Normalize 夹 0.5–60，0=常驻
-            RefreshSel(_settings.Current.ToastSeconds);                    // 用夹取后的实际值回显
-        }
-        box.LostFocus += (_, _) => Commit();
-        box.KeyDown += (_, e) => { if (e.Key == Key.Enter) { Commit(); box.MoveFocus(new TraversalRequest(FocusNavigationDirection.Next)); e.Handled = true; } };
-        foreach (var (secs, text, tip) in opts)
-        {
-            double captured = secs;
-            bool sel0 = Math.Abs(captured - cur) < 0.01;
-            var chip = Chip(text, tip, sel0);
-            chipList.Add((chip, secs));
-            void Apply()
-            {
-                _settings.Mutate(s => s.ToastSeconds = captured);
-                RefreshSel(captured);
-            }
-            WireChip(chip, Apply);
-            chips.Children.Add(chip);
-        }
-        chips.Children.Add(customBox);
-        RefreshSel(cur);   // 初始回显：值不在预设档时自定义框即刻高亮
-        _repaint.Add(() => RefreshSel(_settings.Current.ToastSeconds));   // 改配色后芯片与自定义框一起回到当前档
-        g.Children.Add(chips);
-        return g;
+            (0.0, K.Settings.Resident, K.Settings.NeverDisappearsOnItsOwn),
+            (1.0, K.Settings.S3, K.Settings.AFlashConfirmsIt),
+            (2.0, K.Settings.S4, K.Settings.BriskAGlanceFits),
+            (5.0, K.Settings.S6, K.Settings.ComfortableEnoughToMove),
+            (10.0, K.Settings.S2, K.Settings.ComfortableEnoughToMove),
+            (30.0, K.Settings.S8, K.Settings.ComfortableEnoughToMove),
+        }, () => _settings.Current.ToastSeconds, 60, Loc.T(K.Settings.CustomAnythingFromToSeconds),
+            v => _settings.Mutate(s => s.ToastSeconds = v));
+        return DurationRow("\uE916", Loc.T(K.Settings.HowLongTheCopiedThumbnail), Loc.T(K.Settings.ToastLifetime), combo);
     }
+
+    #endregion
 
     FrameworkElement CaptureSoundRow()
     {

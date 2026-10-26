@@ -7304,6 +7304,316 @@ static partial class SelfTest
             win!.Close();
         }
         catch (Exception e) { Chk("T246-nav-indicator", false, e.Message); }
+
+        // 配色预设：每套自带强调色，套用即整屏一起换；出厂那一枚把覆盖表与强调色都放回厂值。
+        try
+        {
+            var npPre = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+            var tyPre = typeof(FrameCapture.Overlays.SettingsWindow);
+            var tyHostPre = typeof(FrameCapture.Services.AppHost);
+            string? prevDirPre = Environment.GetEnvironmentVariable("FC_SETTINGS_DIR");
+            string scratchPre = Path.Combine(Path.GetTempPath(), "fc-selftest-presets");
+            Directory.CreateDirectory(scratchPre);
+            string scratchFilePre = Path.Combine(scratchPre, "settings.json");
+            if (File.Exists(scratchFilePre)) File.Delete(scratchFilePre);
+            Environment.SetEnvironmentVariable("FC_SETTINGS_DIR", scratchPre);
+            var prevSvcPre = tyHostPre.GetProperty("Settings")!.GetValue(FrameCapture.Services.AppHost.Current);
+            var svcPre = new SettingsService();
+            tyHostPre.GetProperty("Settings")!.SetValue(FrameCapture.Services.AppHost.Current, svcPre);
+            bool keepDarkPre = Theme.IsDark;
+            try
+            {
+                Chk("T247-presets-count", ColorPresets.All.Count >= 6, $"{ColorPresets.All.Count} 套预设");
+                Chk("T247-presets-accent-defined",
+                    ColorPresets.All.All(p => p.Accent.Length == 0 || HexColor.Parse(p.Accent) != null),
+                    "每套的强调色要么留空跟随出厂，要么是合法 HEX");
+                Chk("T247-presets-ids-unique",
+                    ColorPresets.All.Select(p => p.Id).Distinct().Count() == ColorPresets.All.Count, "预设标识不重复");
+                // 强调色是选中态与开关的底，压在上面的字按明度取黑或白，这一对必须读得清
+                foreach (var p in ColorPresets.All)
+                {
+                    var a = p.AccentColor;
+                    double fill = Fluent.ContrastRatio(Fluent.OnAccentColor(a), a);
+                    Chk($"T247-preset-fill-ink-{p.Id}", fill >= 4.5, $"{p.Id} 的强调色上压字对比 {fill:F2}");
+                }
+                var swPre = new FrameCapture.Overlays.SettingsWindow();
+                tyPre.GetField("_restoreCat", npPre)!.SetValue(swPre, 7);   // 配色
+                tyPre.GetMethod("Build", npPre)!.Invoke(swPre, null);
+                swPre.WindowStartupLocation = WindowStartupLocation.Manual;
+                swPre.Left = -20000; swPre.Top = -20000; swPre.ShowInTaskbar = false;
+                swPre.Show();
+                PumpMs(200);
+                var forest = ColorPresets.Find("forest");
+                tyPre.GetMethod("ApplyPreset", npPre)!.Invoke(swPre, new object[] { forest });
+                Chk("T247-preset-applies-colors", svcPre.Current.Colors.Count >= 8,
+                    $"套用预设后覆盖表有 {svcPre.Current.Colors.Count} 条");
+                Chk("T247-preset-applies-accent",
+                    svcPre.Current.Accent == forest.Accent && Theme.Accent == forest.AccentColor,
+                    $"强调色跟着预设走：设置 {svcPre.Current.Accent} / 调色板 {HexColor.Format(Theme.Accent)}");
+                Chk("T247-preset-marks-id", svcPre.Current.ColorPreset == forest.Id, "设置里记下套的是哪一套");
+                tyPre.GetMethod("ApplyPreset", npPre)!.Invoke(swPre, new object[] { ColorPresets.Default });
+                Chk("T247-preset-default-resets-accent",
+                    svcPre.Current.Accent.Length == 0 && Theme.Accent == Theme.DefaultAccent && svcPre.Current.Colors.Count == 0,
+                    "出厂那一枚把覆盖表与强调色都放回厂值");
+                swPre.Close();
+            }
+            finally
+            {
+                tyHostPre.GetProperty("Settings")!.SetValue(FrameCapture.Services.AppHost.Current, prevSvcPre);
+                Environment.SetEnvironmentVariable("FC_SETTINGS_DIR", prevDirPre);
+                Theme.ClearAllCustoms();
+                Theme.ResetAccent();
+                Theme.Apply(keepDarkPre ? "dark" : "light", null);
+                PumpMs(60);
+            }
+        }
+        catch (Exception e) { Chk("T247-presets", false, e.Message); }
+
+        // 设置页版面：强调色的入口在「配色」页上，时长是两枚可输入下拉框，键位录入全在「快捷键」页。
+        // 分页面板按 Build 的装配顺序排在同一个宿主里，按序号取到那一页整棵子树再找控件。
+        try
+        {
+            var npPg = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+            var tyPg = typeof(FrameCapture.Overlays.SettingsWindow);
+            var winPg = new FrameCapture.Overlays.SettingsWindow();
+            tyPg.GetField("_restoreCat", npPg)!.SetValue(winPg, 7);
+            tyPg.GetMethod("Build", npPg)!.Invoke(winPg, null);
+            winPg.WindowStartupLocation = WindowStartupLocation.Manual;
+            winPg.Left = -20000; winPg.Top = -20000; winPg.ShowInTaskbar = false;
+            winPg.Show();
+            PumpMs(240);
+            var svsPg = new List<System.Windows.DependencyObject>();
+            CollectTyped(winPg, typeof(System.Windows.Controls.ScrollViewer), svsPg);
+            var hostPg = (svsPg.Count > 0 ? (svsPg[0] as System.Windows.Controls.ScrollViewer)?.Content : null) as System.Windows.Controls.Grid;
+            var pages = hostPg?.Children.Cast<FrameworkElement>().ToList() ?? new List<FrameworkElement>();
+            Chk("T248-pages-built", pages.Count >= 9, $"分页 {pages.Count} 个");
+
+            List<System.Windows.DependencyObject> Of(int page, Type t)
+            {
+                var got = new List<System.Windows.DependencyObject>();
+                if (page >= 0 && page < pages.Count) CollectTyped(pages[page], t, got);
+                return got;
+            }
+
+            // 强调色：色块与十六进制都在「配色」页（第 8 页），外观页上没有它
+            var swatches = Of(7, typeof(System.Windows.Controls.Border)).OfType<System.Windows.Controls.Border>()
+                .Where(b => (b.Tag as string) == "settings-accent-swatch").ToList();
+            var hexes = Of(7, typeof(System.Windows.Controls.TextBlock)).OfType<System.Windows.Controls.TextBlock>()
+                .Where(t => (t.Tag as string) == "settings-accent-hex").ToList();
+            Chk("T248-accent-entry-present", swatches.Count == 1 && hexes.Count == 1,
+                $"配色页上强调色：色块 {swatches.Count} 枚，十六进制 {hexes.Count} 枚");
+            var fillAcc = swatches.Count == 1 && swatches[0].Child is System.Windows.Controls.Grid gAcc
+                && gAcc.Children.Count > 1 ? gAcc.Children[1] as System.Windows.Controls.Border : null;
+            Chk("T248-accent-entry-shows-colour",
+                fillAcc?.Background is System.Windows.Media.SolidColorBrush sbAcc && sbAcc.Color == Theme.Accent,
+                "色块画的就是当前强调色");
+            Chk("T248-accent-entry-shows-hex", hexes.Count == 1 && hexes[0].Text == HexColor.Format(Theme.Accent),
+                $"色块旁边写着当前值：{hexes.FirstOrDefault()?.Text}");
+            Chk("T248-accent-not-on-appearance",
+                Of(6, typeof(System.Windows.Controls.Border)).OfType<System.Windows.Controls.Border>()
+                    .All(b => (b.Tag as string) != "settings-accent-swatch"),
+                "外观页上没有单独的强调色");
+
+            // 时长：截图页（第 2 页）上两枚可输入下拉框，候选档都在，框里写着当前值。
+            // 先切到那一页再找——收起的页不参与排版，模板还没套上去，模板里的部件一个都取不到。
+            var navRowsPg = tyPg.GetField("_navRows", npPg)!.GetValue(winPg) as List<System.Windows.Controls.Border>;
+            navRowsPg![1].RaiseEvent(new System.Windows.Input.MouseButtonEventArgs(
+                System.Windows.Input.Mouse.PrimaryDevice, 0, System.Windows.Input.MouseButton.Left)
+            { RoutedEvent = System.Windows.UIElement.MouseLeftButtonDownEvent, Source = navRowsPg[1] });
+            PumpMs(520);
+            var combos = Of(1, typeof(System.Windows.Controls.ComboBox)).OfType<System.Windows.Controls.ComboBox>().ToList();
+            var delayBox = combos.FirstOrDefault(c => (c.Tag as string) == "settings-duration-delay");
+            var toastBox = combos.FirstOrDefault(c => (c.Tag as string) == "settings-duration-toast");
+            Chk("T252-duration-boxes", delayBox != null && toastBox != null,
+                $"截图页上的时长框：延时 {(delayBox == null ? "没找到" : "有")}，悬浮窗 {(toastBox == null ? "没找到" : "有")}");
+            Chk("T252-duration-editable", delayBox != null && delayBox.IsEditable && toastBox != null && toastBox.IsEditable,
+                "两个时长框都能直接打字");
+            Chk("T252-duration-items", delayBox != null && delayBox.Items.Count >= 6 && toastBox != null && toastBox.Items.Count >= 5,
+                $"候选档：延时 {delayBox?.Items.Count} 档 / 悬浮窗 {toastBox?.Items.Count} 档");
+            // 模板得真有可编辑文本框与弹层：少了前者打不进字，少了后者点箭头没有候选
+            Chk("T252-duration-template",
+                delayBox != null && delayBox.Template?.FindName("PART_EditableTextBox", delayBox) is System.Windows.Controls.TextBox,
+                "模板里有可编辑文本框");
+            var popPart = delayBox?.Template?.FindName("PART_Popup", delayBox) as System.Windows.Controls.Primitives.Popup;
+            delayBox!.IsDropDownOpen = true;
+            PumpMs(260);
+            Chk("T252-duration-dropdown-opens",
+                popPart != null && popPart.IsOpen && popPart.Child is FrameworkElement pc && pc.ActualWidth > 10,
+                $"展开候选：IsOpen={popPart?.IsOpen} 宽 {(popPart?.Child as FrameworkElement)?.ActualWidth ?? 0:F0}");
+            delayBox.IsDropDownOpen = false;
+            PumpMs(140);
+            Chk("T252-duration-shows-current", delayBox.Text.Contains("秒"),
+                $"延时的框里写着当前值：{delayBox.Text}");
+
+            // 键位录入全在「快捷键」页：两条绑定的键帽 + 确认 / 取消 + 复制键，都在带小标题的那张卡里。
+            // 编辑器键位那几组也在这页上，所以不数总数，认的是「确认与取消」「截图后的复制键」这两行的标签。
+            var keysCap = Of(1, typeof(FrameCapture.Core.ChordCaptureBox));
+            var hotTexts = Of(0, typeof(System.Windows.Controls.TextBlock)).OfType<System.Windows.Controls.TextBlock>()
+                .Select(t => t.Text).ToList();
+            Chk("T251-ui-keys-on-hotkeys-page",
+                hotTexts.Contains(Loc.T(K.Settings.ConfirmCancelKeysHint)) && hotTexts.Contains(Loc.T(K.Settings.CopyKey)),
+                $"快捷键页上找得到「{Loc.T(K.Settings.ConfirmCancelKeysHint)}」与「{Loc.T(K.Settings.CopyKey)}」两行");
+            Chk("T251-keys-not-on-capture-page", keysCap.Count == 0,
+                $"截图页上还剩 {keysCap.Count} 个键位框");
+            Chk("T251-ui-keys-labelled", hotTexts.Contains(Loc.T(K.Hotkeys.UiKeys)),
+                "快捷键页给这组键位写了小标题");
+            winPg.Close();
+        }
+        catch (Exception e) { Chk("T248-settings-pages", false, e.Message); }
+
+        // 窗口底就是「窗口底色」这枚令牌：改它就当场变，不会被 Mica 背板挡住。
+        try
+        {
+            var npBg = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+            var winBg = new FrameCapture.Overlays.SettingsWindow();
+            typeof(FrameCapture.Overlays.SettingsWindow).GetMethod("Build", npBg)!.Invoke(winBg, null);
+            winBg.WindowStartupLocation = WindowStartupLocation.Manual;
+            winBg.Left = -20000; winBg.Top = -20000; winBg.ShowInTaskbar = false;
+            winBg.Show();
+            PumpMs(180);
+            var wash = winBg.Background as System.Windows.Media.SolidColorBrush;
+            Chk("T249-window-bg-is-token", wash != null && ReferenceEquals(wash, Theme.WindowBgSolidBrush),
+                "窗口底直接铺共享的窗口底色画刷，不留给背板");
+            var probeBg = System.Windows.Media.Color.FromRgb(0x2B, 0x1E, 0x2E);
+            Theme.SetCustom("WindowBg", Theme.IsDark, probeBg);
+            Chk("T249-window-bg-follows", wash != null && wash.Color == Theme.Opaque(probeBg),
+                $"改窗口底色，窗口底当场变：{HexColor.Format(wash?.Color ?? System.Windows.Media.Colors.Transparent)}");
+            Theme.ClearCustom("WindowBg", Theme.IsDark);
+            Chk("T249-window-bg-restores", wash != null && wash.Color == Theme.WindowBgSolid,
+                "去掉自定义，窗口底回到出厂色");
+            winBg.Close();
+        }
+        catch (Exception e) { Chk("T249-window-bg", false, e.Message); }
+
+        // 快捷键展开/收起连点：每次开关领一个代数，过期的收口/展开回调不许落地。
+        // 掉帧的根子是这件事——前一次动画的中途回调把限高改回去，行要么当场塌掉、要么卡在半透明。
+        try
+        {
+            var npFd = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+            var tyFd = typeof(FrameCapture.Overlays.SettingsWindow);
+            var winFd = new FrameCapture.Overlays.SettingsWindow();
+            tyFd.GetField("_restoreCat", npFd)!.SetValue(winFd, 0);
+            tyFd.GetMethod("Build", npFd)!.Invoke(winFd, null);
+            winFd.WindowStartupLocation = WindowStartupLocation.Manual;
+            winFd.Left = -20000; winFd.Top = -20000; winFd.ShowInTaskbar = false;
+            winFd.Show();
+            PumpMs(260);
+            var rowsFd = tyFd.GetField("_hotRows", npFd)!.GetValue(winFd) as Dictionary<string, FrameworkElement>;
+            var rowFd = rowsFd!.Values.First() as System.Windows.Controls.Border;
+            var stackFd = rowFd!.Child as System.Windows.Controls.StackPanel;
+            var pillFd = stackFd!.Children[0] as System.Windows.Controls.Border;
+            var bodyFd = stackFd.Children[1] as System.Windows.Controls.Border;
+            void Tap()
+            {
+                pillFd!.RaiseEvent(new System.Windows.Input.MouseButtonEventArgs(
+                    System.Windows.Input.Mouse.PrimaryDevice, 0, System.Windows.Input.MouseButton.Left)
+                { RoutedEvent = System.Windows.UIElement.MouseLeftButtonUpEvent, Source = pillFd });
+            }
+            // 从收起态连点三下 → 展开；每一下都赶在上一段动画走完时打下去，回调只认最后那一代
+            for (int i = 0; i < 3; i++) { Tap(); PumpMs(35); }
+            PumpMs(900);
+            Chk("T250-fold-open-after-rapid",
+                bodyFd!.Visibility == Visibility.Visible && double.IsPositiveInfinity(bodyFd.MaxHeight)
+                    && Math.Abs(bodyFd.Opacity - 1) < 0.01,
+                $"三下连点之后停在展开态：可见={bodyFd.Visibility} 限高={bodyFd.MaxHeight} 透明度={bodyFd.Opacity:F2}");
+            bool allOpaque = true;
+            foreach (var c in ((System.Windows.Controls.Panel)bodyFd.Child!).Children)
+                if (c is FrameworkElement fe && Math.Abs(fe.Opacity - 1) > 0.02) allOpaque = false;
+            Chk("T250-fold-content-visible", allOpaque, "正文里的每一行都回到全亮，没有停在半透明");
+            PumpMs(400);   // 再过一段：过期的收口回调要是还活着，这里就把这一行收走了
+            Chk("T250-fold-stays-open",
+                bodyFd.Visibility == Visibility.Visible && double.IsPositiveInfinity(bodyFd.MaxHeight),
+                "过期回调不许把这一行收回去");
+            Chk("T250-fold-height-sane", bodyFd.ActualHeight > 20 && bodyFd.ActualHeight < 900,
+                $"正文高度 {bodyFd.ActualHeight:F0}");
+            // 记账高度：展开到位时对得上实测高度，重复展开不必重新排版量一遍——每次开关都量整棵正文，连点就是在这里掉帧
+            var foldsFd = tyFd.GetField("_folds", npFd)!.GetValue(winFd)!;
+            var tryFd = foldsFd.GetType().GetMethod("TryGetValue")!;
+            double NaturalOf()
+            {
+                object?[] args = { bodyFd, null };
+                if (!(bool)tryFd.Invoke(foldsFd, args)! || args[1] == null) return -1;
+                return (double)args[1]!.GetType().GetField("Natural")!.GetValue(args[1])!;
+            }
+            double natural1 = NaturalOf();
+            Chk("T250-fold-caches-height", Math.Abs(natural1 - bodyFd.ActualHeight) <= 1,
+                $"记账高度 {natural1:F0} 与实测 {bodyFd.ActualHeight:F0} 一致");
+            for (int i = 0; i < 2; i++) { Tap(); PumpMs(35); }   // 展开态再连点两下：收、开，仍落在展开
+            PumpMs(900);
+            Chk("T250-fold-reopens-after-rapid",
+                bodyFd.Visibility == Visibility.Visible && Math.Abs(bodyFd.Opacity - 1) < 0.01,
+                $"展开态连点两下仍停在展开：可见={bodyFd.Visibility} 透明度={bodyFd.Opacity:F2}");
+            double natural2 = NaturalOf();
+            Chk("T250-fold-reuses-height", Math.Abs(natural2 - natural1) <= 1 && Math.Abs(natural2 - bodyFd.ActualHeight) <= 1,
+                $"来回折返之后记账高度还是 {natural2:F0}，与实测一致");
+            Tap();   // 收一下，停在收起态
+            PumpMs(900);
+            Chk("T250-fold-closed-after-rapid", bodyFd.Visibility == Visibility.Collapsed && bodyFd.MaxHeight == 0,
+                $"收起态：可见={bodyFd.Visibility} 限高={bodyFd.MaxHeight}");
+            winFd.Close();
+        }
+        catch (Exception e) { Chk("T250-fold-rapid", false, e.Message); }
+        // 时长框落盘：选档、回车、移开焦点都认，键位文案（「常驻」「关」）与带单位的数字都读得出来。
+        try
+        {
+            var npDu = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+            var tyDu = typeof(FrameCapture.Overlays.SettingsWindow);
+            var tyHostDu = typeof(FrameCapture.Services.AppHost);
+            string? prevDirDu = Environment.GetEnvironmentVariable("FC_SETTINGS_DIR");
+            string scratchDu = Path.Combine(Path.GetTempPath(), "fc-selftest-duration");
+            Directory.CreateDirectory(scratchDu);
+            string scratchFileDu = Path.Combine(scratchDu, "settings.json");
+            if (File.Exists(scratchFileDu)) File.Delete(scratchFileDu);
+            Environment.SetEnvironmentVariable("FC_SETTINGS_DIR", scratchDu);
+            var prevSvcDu = tyHostDu.GetProperty("Settings")!.GetValue(FrameCapture.Services.AppHost.Current);
+            var svcDu = new SettingsService();
+            tyHostDu.GetProperty("Settings")!.SetValue(FrameCapture.Services.AppHost.Current, svcDu);
+            try
+            {
+                var winDu = new FrameCapture.Overlays.SettingsWindow();
+                tyDu.GetField("_restoreCat", npDu)!.SetValue(winDu, 1);   // 截图
+                tyDu.GetMethod("Build", npDu)!.Invoke(winDu, null);
+                winDu.WindowStartupLocation = WindowStartupLocation.Manual;
+                winDu.Left = -20000; winDu.Top = -20000; winDu.ShowInTaskbar = false;
+                winDu.Show();
+                PumpMs(240);
+                var allDu = new List<System.Windows.DependencyObject>();
+                CollectTyped(winDu, typeof(System.Windows.Controls.ComboBox), allDu);
+                var boxes = allDu.OfType<System.Windows.Controls.ComboBox>().ToList();
+                var delayDu = boxes.FirstOrDefault(c => (c.Tag as string) == "settings-duration-delay");
+                var toastDu = boxes.FirstOrDefault(c => (c.Tag as string) == "settings-duration-toast");
+                void Type(System.Windows.Controls.ComboBox c, string text, System.Windows.Input.Key key)
+                {
+                    c.Text = text;
+                    c.RaiseEvent(new System.Windows.Input.KeyEventArgs(
+                        System.Windows.Input.Keyboard.PrimaryDevice, System.Windows.PresentationSource.FromVisual(c)!, 0, key)
+                    { RoutedEvent = System.Windows.Input.Keyboard.PreviewKeyDownEvent, Source = c });
+                    PumpMs(50);
+                }
+                Type(delayDu!, "7 秒", System.Windows.Input.Key.Enter);
+                Chk("T253-duration-commits-typed", svcDu.Current.DelayCaptureSeconds == 7 && delayDu!.Text == "7 秒",
+                    $"打「7 秒」回车：设置 {svcDu.Current.DelayCaptureSeconds} 秒，框里写「{delayDu!.Text}」");
+                Type(delayDu!, "999 秒", System.Windows.Input.Key.Enter);
+                Chk("T253-duration-clamps", svcDu.Current.DelayCaptureSeconds == 120,
+                    $"上限收在 120：实得 {svcDu.Current.DelayCaptureSeconds}");
+                Type(toastDu!, "0", System.Windows.Input.Key.Enter);
+                Chk("T253-duration-resident", svcDu.Current.ToastSeconds == 0 && toastDu!.Text == Loc.T(K.Settings.Resident),
+                    $"打「0」回车落成常驻：设置 {svcDu.Current.ToastSeconds}，框里写「{toastDu!.Text}」");
+                Type(toastDu!, "2.5 秒", System.Windows.Input.Key.Enter);
+                Chk("T253-duration-decimals", Math.Abs(svcDu.Current.ToastSeconds - 2.5) < 1e-9 && toastDu!.Text == "2.5 秒",
+                    $"打「2.5 秒」回车：设置 {svcDu.Current.ToastSeconds}，框里写「{toastDu!.Text}」");
+                Type(toastDu!, "9", System.Windows.Input.Key.Escape);
+                Chk("T253-duration-escape-reverts", Math.Abs(svcDu.Current.ToastSeconds - 2.5) < 1e-9 && toastDu!.Text == "2.5 秒",
+                    $"Esc 作废：设置还是 {svcDu.Current.ToastSeconds}，框里写「{toastDu!.Text}」");
+                winDu.Close();
+            }
+            finally
+            {
+                tyHostDu.GetProperty("Settings")!.SetValue(FrameCapture.Services.AppHost.Current, prevSvcDu);
+                Environment.SetEnvironmentVariable("FC_SETTINGS_DIR", prevDirDu);
+            }
+        }
+        catch (Exception e) { Chk("T253-duration-commit", false, e.Message); }
         // 语义判定：按钮/链接/输入框算控件；匿名容器与整页文档不算。
         try
         {

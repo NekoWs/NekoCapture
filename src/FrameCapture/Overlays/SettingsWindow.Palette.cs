@@ -8,11 +8,12 @@ using FrameCapture.Core;
 
 namespace FrameCapture.Overlays;
 
-// 本 partial 职责：配色分页——预设整套、逐枚令牌的明暗两色、强调色、恢复出厂配色，以及一块跟着改动实时变的预览。
+// 本 partial 职责：配色分页——预设整套、强调色、逐枚令牌的明暗两色、恢复出厂配色，以及一块跟着改动实时变的预览。
 /// <summary>
 /// 设置窗的配色分页。每一枚 <see cref="ColorToken"/> 一行，行内明暗两枚色块各开各的取色弹层：
 /// 拖动即时生效——<see cref="Theme.SetCustom"/> 改的是全局调色板，界面颜色挂在 <see cref="Theme"/> 的共享画刷上，
 /// 本窗与其余窗口当场一起变；弹层收起只是把这份改动写进设置，不重建窗口。
+/// 强调色也摆在这一页：它不逐主题成对，所以是单独一张卡（装配在 <c>SettingsWindow.Accent.cs</c>），一行色块加十六进制。
 /// </summary>
 public sealed partial class SettingsWindow : Window
 {
@@ -34,7 +35,7 @@ public sealed partial class SettingsWindow : Window
     /// 以及外观页主题芯片的选中态。共享画刷管颜色，这里管「哪一项算选中」这类构造期算出来的判断。</summary>
     readonly List<Action> _repaint = new();
 
-    /// <summary>装配配色分页：预设 → 预览 → 按组分节的令牌行 → 恢复出厂。</summary>
+    /// <summary>装配配色分页：预设 → 预览 → 强调色 → 按组分节的令牌行 → 恢复出厂。</summary>
     /// <param name="panel">这一页的容器，由 <c>Build</c> 创建并交给分页表。</param>
     void BuildPalette(StackPanel panel)
     {
@@ -51,6 +52,11 @@ public sealed partial class SettingsWindow : Window
         PreviewCard(preview);
         Cardify(preview);
         panel.Children.Add(preview);
+
+        var accent = new StackPanel();
+        AccentCard(accent);
+        Cardify(accent);
+        panel.Children.Add(accent);
 
         foreach (var group in (ColorGroup[])Enum.GetValues(typeof(ColorGroup)))
         {
@@ -74,12 +80,14 @@ public sealed partial class SettingsWindow : Window
 
     #region 预设与恢复
 
-    /// <summary>预设卡：每套预设一枚芯片，芯片上是那套配色上下两行色带（上浅色侧、下深色侧），点了整套套用。</summary>
+    /// <summary>预设卡：每套预设一枚芯片，芯片上是那套配色上下两行色带（上浅色侧、下深色侧），
+    /// 色带下面一枚强调色圆点加名字，点了整套套用——颜色与强调色一起换，才是一整套。</summary>
     /// <param name="card">预设那一节的容器。</param>
     void PresetCard(StackPanel card)
     {
         card.Children.Add(SectionHeader(Loc.T(K.Settings.PalettePresets)));
-        var strip = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 3, 0, 4) };
+        // 六套预设横着排不下：换行面板让它们按卡片宽度自己折行，窄窗也不会把最后一套挤到卡片外
+        var strip = new WrapPanel { Margin = new Thickness(0, 3, 0, 4) };
         foreach (var p in ColorPresets.All)
         {
             // 色带两行：上一行是这套配色的浅色侧，下一行是深色侧。
@@ -88,10 +96,11 @@ public sealed partial class SettingsWindow : Window
             var bandHost = new StackPanel { Orientation = Orientation.Vertical };
             for (int side = 0; side < 2; side++)
             {
-                var row = new StackPanel { Orientation = Orientation.Horizontal };
+                // 四段均分整条色带的宽度：芯片宽度统一，色带才是一条整齐的带子，而不是左边一块彩色、右边一段留白
+                var row = new UniformGrid { Rows = 1, Columns = 4 };
                 for (int i = 0; i < 4; i++)
                 {
-                    var b = new Border { Width = 15, Height = 10, Margin = new Thickness(i == 0 ? 0 : 1, side == 0 ? 0 : 1, 0, 0) };
+                    var b = new Border { Height = 10, Margin = new Thickness(0, side == 0 ? 0 : 1, i < 3 ? 1 : 0, 0) };
                     row.Children.Add(b);
                     bands.Add(b);
                 }
@@ -104,24 +113,28 @@ public sealed partial class SettingsWindow : Window
                 BorderThickness = new Thickness(1),
                 Child = bandHost,
             };
+            var dot = new Ellipse { Width = 8, Height = 8, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 5, 0) };
             var name = new TextBlock
             {
                 Text = Loc.T(PresetLabel(p.Id)),
                 FontSize = 11.5,
                 Foreground = Theme.TextBrush,
-                HorizontalAlignment = HorizontalAlignment.Center,
-                Margin = new Thickness(0, 4, 0, 0),
+                VerticalAlignment = VerticalAlignment.Center,
             };
+            var nameRow = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 4, 0, 0) };
+            nameRow.Children.Add(dot);
+            nameRow.Children.Add(name);
             var el = new Border
             {
+                Width = 68,   // 六套要在一行里排开：整行可用宽度按这个数除以 6 定
                 CornerRadius = new CornerRadius(7),
-                Padding = new Thickness(8, 6, 8, 6),
-                Margin = new Thickness(0, 0, 6, 0),
+                Padding = new Thickness(6, 5, 6, 5),
+                Margin = new Thickness(0, 0, 5, 0),
                 BorderThickness = new Thickness(1),
                 Cursor = Cursors.Hand,
                 Focusable = true,
                 ToolTip = Loc.T(PresetLabel(p.Id)),
-                Child = new StackPanel { Children = { bandCard, name } },
+                Child = new StackPanel { Children = { bandCard, nameRow } },
             };
             el.MouseLeftButtonUp += (_, e) => { ApplyPreset(p); e.Handled = true; };
             el.KeyDown += (_, e) => { if (e.Key is Key.Space or Key.Enter) { ApplyPreset(p); e.Handled = true; } };
@@ -144,22 +157,29 @@ public sealed partial class SettingsWindow : Window
                 el.BorderBrush = new SolidColorBrush(on ? Theme.Accent : Theme.StrokeSoft);
                 // 选中那枚的名字压在强调色淡底上，按这块真正的底判色才读得清
                 name.Foreground = new SolidColorBrush(on ? Fluent.AccentTextOn(back) : Theme.Text);
+                dot.Fill = new SolidColorBrush(p.AccentColor);
+                dot.Stroke = Theme.StrokeSoftBrush;
+                dot.StrokeThickness = 1;
             });
             strip.Children.Add(el);
         }
         card.Children.Add(strip);
     }
 
-    /// <summary>套用一整套预设：覆盖表整体换成预设的值，落盘后把全局样式重烤一次。</summary>
-    /// <param name="p">要套的预设；出厂预设的覆盖表是空的。</param>
+    /// <summary>套用一整套预设：覆盖表与强调色一起换成这套的值，落盘后把全局样式重烤一次。
+    /// 预设自带强调色，套用就该整屏一个整体，而不是留下上一套的强调色配新表面。</summary>
+    /// <param name="p">要套的预设；出厂预设的覆盖表是空的、强调色也回到出厂。</param>
     void ApplyPreset(ColorPreset p)
     {
         _settings.Mutate(s =>
         {
             s.ColorPreset = p.Id;
             s.Colors = new Dictionary<string, string>(p.Colors, StringComparer.Ordinal);
+            s.Accent = p.Accent;
         });
         _settings.Current.ApplyPalette();
+        // 强调色为空时 ApplyPalette 会保持当前值，出厂预设要的就是把强调色放回出厂
+        if (p.Accent.Length == 0) Theme.ResetAccent();
         Fluent.ApplyGlobalStyles();
     }
 
@@ -565,6 +585,7 @@ public sealed partial class SettingsWindow : Window
         "graphite" => K.Settings.PresetGraphite,
         "midnight" => K.Settings.PresetMidnight,
         "sand" => K.Settings.PresetSand,
+        "forest" => K.Settings.PresetForest,
         _ => new Str("preset." + id, id, id),
     };
 

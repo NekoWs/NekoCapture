@@ -197,3 +197,12 @@ B1 主题化悬浮条 → C1/C2 状态语义 → A1/A2 入退场 → A3-A5 → B
 `-From light -To dark` 反着翻同样成立。换色后的外观页（`test-out/mask/mask-060.png`）里语言三档的字色跟着新档走。
 逐页走查：快捷键 / 截图 / 产物 / 系统四页各拼一张（`test-out/pages/montage-dark.png`、`montage-light.png`），
 明暗两侧导航选中态、卡片、开关、键帽、芯片一致，无残留脏色。
+- [x] **配色自带的几套看着不对，强调色的入口也找不到**：预设只动了表面与描边，强调色还是上一套那一抹蓝，选中胶囊与开关不跟着换；强调色那行（`AccentRow`）写完没有挂到任何一页上，用户在界面上根本找不到它。现在预设是六套各有性格的整套配色，每套自带强调色并一起落；强调色在「配色」页单独一张卡（色块 + 十六进制 + 恢复出厂 + 一句用法）。断言 `T247-preset-applies-accent`、`T247-preset-default-resets-accent`、`T247-preset-fill-ink-*`（强调色上的字 ≥ 4.5:1）、`T248-accent-entry-present`、`T248-accent-entry-shows-hex`、`T248-accent-not-on-appearance`。
+
+- [x] **改「窗口底色」窗口不动**：设置窗的窗底原先让给了 Mica 背板（窗口自身底色透明），背板只在窗口自己不画像素的地方显形——铺什么令牌颜色都等同被它盖掉。现在窗底平涂「窗口底色」这枚令牌的不透明版（共享画刷），背板让位，改它就当场整窗换色。断言 `T249-window-bg-is-token`、`T249-window-bg-follows`、`T249-window-bg-restores`；像素取证见 `PROGRESS.md` 这一轮的「窗口底与卡片都跟着令牌走」。
+
+- [x] **快捷键展开收起连点会掉帧**：展开每次都把限高放到无限再 `Measure` 一遍整棵正文，半路折返时内容还会被重新按回透明再淡一次。现在每个容器记「第几代开关 + 展开到位的自然高度」：自然高度只在第一次展开时量，往后直接当动画目标；半路折返从当前高度与当前透明度接着走；动画回调对不上代数就不落地。断言 `T250-fold-open-after-rapid`、`T250-fold-content-visible`、`T250-fold-stays-open`、`T250-fold-caches-height`、`T250-fold-reuses-height`、`T250-fold-closed-after-rapid`。
+
+- [x] **确认与取消、复制键散在截图页上**：键位录入是同一类东西，却在两页上各摆一份，找键位要挨个翻页。现在两行移进快捷键页的「界面键位」卡，截图页一个键位框都不剩。规则写进 `AGENTS.md` 第 8 条。断言 `T251-ui-keys-on-hotkeys-page`、`T251-keys-not-on-capture-page`、`T251-ui-keys-labelled`。
+
+- [x] **时长是「五枚芯片 + 一枚输入框」两套交互**：延时截图与悬浮窗存在时间各占一行却有六个可点的东西，输入框还只在值不落在档位上时才高亮。现在各是一枚可输入下拉框：候选档 + 直接打字共用一种写法（「3 秒」），选档 / 回车 / 移开焦点落盘，Esc 作废，条目逐条淡入。断言 `T252-duration-boxes`、`T252-duration-editable`、`T252-duration-items`、`T253-duration-commits-typed`、`T253-duration-clamps`、`T253-duration-resident`、`T253-duration-decimals`、`T253-duration-escape-reverts`。

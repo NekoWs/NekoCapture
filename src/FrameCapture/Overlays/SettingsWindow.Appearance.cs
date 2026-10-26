@@ -7,12 +7,12 @@ using FrameCapture.Core;
 
 namespace FrameCapture.Overlays;
 
-// 本 partial 职责：外观分组——主题三档行、界面语言行（含取色弹层状态字段），以及换语言后的原地重建。
+// 本 partial 职责：外观分组——主题三档行、界面语言行，以及换语言后的原地重建。
 /// <summary>
 /// 设置窗的外观分组部分：主题三档改的是全局调色板，本窗颜色挂在 <see cref="Theme"/> 的共享画刷上，当场跟上；
 /// 界面语言改的是文案，文案在构造期取值，只有它需要 <c>RebuildInPlace</c> 换窗。
 /// 两者都再跟一次 <c>Fluent.ApplyGlobalStyles</c>——ToolTip / 滚动条 / 菜单的颜色烤在生成的 XAML 里。
-/// 强调色行与逐枚配色的编辑在 <c>SettingsWindow.Palette.cs</c>，共用这里的 <c>RebuildInPlace</c> 与取色弹层字段。
+/// 强调色与逐枚配色的编辑在 <c>SettingsWindow.Palette.cs</c>：颜色都归「配色」那一页。
 /// </summary>
 public sealed partial class SettingsWindow : Window
 {
@@ -133,91 +133,6 @@ public sealed partial class SettingsWindow : Window
         g.Children.Add(track);
         return g;
     }
-
-    #region 强调色：色片入口与取色弹层
-
-    Popup? _accentPop;
-    ColorPickView? _accentView;
-
-    FrameworkElement AccentRow()
-    {
-        var g = Row();
-        g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); // 色片列
-        g.Children.Add(IconText("\uE790", Loc.T(K.Settings.AccentColorEditorSelectionsSwitches)));
-        var lbl = new TextBlock
-        {
-            Text = Loc.T(K.Settings.Accent),
-            FontSize = 13,
-            Foreground = Theme.TextBrush,
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 0, 10, 0),
-        };
-        Grid.SetColumn(lbl, 1);
-        g.Children.Add(lbl);
-        var chip = new Border
-        {
-            Width = 34,
-            // 28 高：这块点开的是取色窗，20 高的命中面指尖偏一点就点空。
-            // 色片本来就是一枚按钮，长高一点反而更像它能按。
-            Height = 28,
-            CornerRadius = new CornerRadius(5),
-            Background = Theme.AccentBrush,
-            BorderBrush = Theme.StrokeBrush,
-            BorderThickness = new Thickness(1),
-            HorizontalAlignment = HorizontalAlignment.Right,
-            VerticalAlignment = VerticalAlignment.Center,
-            Cursor = Cursors.Hand,
-            Focusable = true,
-            ToolTip = Loc.T(K.Settings.ClickToPickAnAccent),
-        };
-        Grid.SetColumn(chip, 2);
-        Fluent.ChipHover(chip);   // 悬停只改底色带过渡，不缩放
-        void Open()
-        {
-            if (_accentPop == null)
-            {
-                _accentView = new ColorPickView();
-                _accentView.Changed += c =>
-                {
-                    // 拖动中只改全局调色板：界面颜色挂在共享画刷上，当场就跟着走，不落盘也不重烤 XAML
-                    Theme.PreviewAccent(Color.FromRgb(c.R, c.G, c.B));
-                    chip.Background = Theme.AccentBrush; // 悬停可能已把色片换成私有副本，重新指回共享刷才继续跟色
-                };
-                _accentPop = new Popup
-                {
-                    Child = Fluent.PopupCard(_accentView),
-                    Placement = PlacementMode.Top,
-                    AllowsTransparency = true,
-                    PopupAnimation = PopupAnimation.Fade,
-                };
-                _accentPop.Closed += (_, _) =>
-                {
-                    var c = _accentView!.Color;
-                    var hex = $"#{c.R:X2}{c.G:X2}{c.B:X2}";
-                    _settings.Mutate(s => s.Accent = hex);
-                    Theme.Apply(_settings.Current.Theme, hex);
-                    Fluent.ApplyGlobalStyles();   // ToolTip/滚动条/菜单的颜色烤在 XAML 里，收起弹层统一重烤一次
-                };
-            }
-            _accentView!.Color = Theme.Accent;
-            _accentPop.PlacementTarget = chip;
-            Fluent.OpenPopSticky(_accentPop, this);
-        }
-        chip.MouseLeftButtonDown += (_, e) => { Open(); e.Handled = true; };
-        chip.MouseRightButtonUp += (_, _) =>
-        {
-            _settings.Mutate(s => s.Accent = "");
-            Theme.ResetAccent();
-            Fluent.ApplyGlobalStyles();
-        };
-        chip.KeyDown += (_, e) => { if (e.Key is Key.Space or Key.Enter) { Open(); e.Handled = true; } };
-        // 键盘焦点环：与「试听」按钮同款——聚焦时描边转强调色，失焦回描边底色
-        chip.GotKeyboardFocus += (_, _) => chip.BorderBrush = Theme.AccentBrush;
-        chip.LostKeyboardFocus += (_, _) => chip.BorderBrush = Theme.StrokeBrush;
-        g.Children.Add(chip);
-        return g;
-    }
-    #endregion
 
     #region 主题
 
