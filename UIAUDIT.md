@@ -167,3 +167,18 @@ B1 主题化悬浮条 → C1/C2 状态语义 → A1/A2 入退场 → A3-A5 → B
 
 ### 待人工核验
 - 贴图方向键、倒计时 Esc、双击画布缩放、暂停托盘转灰、自动保存轻提示：都要真键盘真鼠标走一遍（自动化只能到窗口与状态这一层）
+
+## 配色可自定义与改色即时生效（2026-10-26 上午）
+
+### 这一轮看到的缺陷
+- [x] **设置窗左侧导航选中项是一片脏色**：底色带 alpha，悬停再叠一层半透明白，落出来的颜色取决于窗口背后压着什么；选中项上再压一层悬停，两层染色互相污染。三态现在全部算在 `NavBg` 上（`AccentOn` / `HoverOn`），算出来都是不透明色；选中项文字按这一项真正的底色判（`Fluent.AccentTextOn`），读不清退回正文色。断言 `T241-mixes-opaque`、`T241-press-steps-past-hover`、`T241-accent-text-on-tint-light/dark`。
+- [x] **改配色要重建窗口才看得见**：界面颜色是构造期取值的静态画刷。`Theme` 为每枚令牌持一支共享 `SolidColorBrush`，216 处 `new SolidColorBrush(Theme.X)` 指到 `Theme.XBrush`；取色器拖动逐帧落色。断言 `T241-brush-matches-token`、`T241-custom-lands-in-brush`、`T241-clear-restores-brush`。
+- [x] **深浅互换是几十处同帧跳变**：`Fluent.MaskFade` 在 Adorner 层盖一层退场侧的窗口底，按 `Motion.ThemeMs` 淡出后自摘；不进布局、不吃命中。只在深浅档互换时盖，逐枚改色直接落色。断言 `T241-mask-on`、`T241-mask-gone`。
+- [x] **悬停动画涂到全窗**：共享刷上挂元素级动画等于让每个用它的地方一起动画。`Fluent.BgHover` 先按 `Theme.IsPaletteBrush` 判出来再克隆私有副本；侧栏三态、快捷键胶囊描边、`HoverFill` 的静止/悬停底色各自私有，底色在事件发生时取，不在构造期抄死。
+- [x] **写死的颜色**：选区描边、裁剪预览填充、托盘图标、ffmpeg 状态点、主题芯片选中/悬停色、帮助窗翻页芯片等 20 余处 ARGB 收进令牌。
+
+### 新增界面
+- [x] **设置 → 配色**：预设五套（芯片色带摆明暗两侧——浅色主题下五套预设只看当前侧几乎一模一样）→ 预览 → 按组分节的 17 枚令牌（行内明暗两枚色块各开各的取色弹层）→ 恢复出厂配色。断言 `T241-preset-applies`、`T241-preset-clears`、`T241-normalize-drops-junk`。
+
+### 取证
+`scripts/cap-palette.ps1 -Page <页> -Themes <dark|light>` 拍设置页；拍前把窗提到 TOPMOST，否则被别的窗压住，量到的是桌面。

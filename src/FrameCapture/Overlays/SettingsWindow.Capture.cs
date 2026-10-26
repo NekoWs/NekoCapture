@@ -101,6 +101,8 @@ public sealed partial class SettingsWindow : Window
             chips.Children.Add(chip);
         }
         g.Children.Add(chips);
+        // 芯片的选中态是构造期算的配色：改配色时按当前值重排一遍，不然选中那颗会停在旧强调色上。
+        _repaint.Add(() => RefreshChips(chipList, _settings.Current.ColorCopyFormat));
         return g;
     }
 
@@ -181,6 +183,7 @@ public sealed partial class SettingsWindow : Window
         }
         chips.Children.Add(customBox);
         RefreshSel(cur);
+        _repaint.Add(() => RefreshSel(_settings.Current.DelayCaptureSeconds));   // 改配色后芯片与自定义框一起回到当前档
         g.Children.Add(chips);
         return g;
     }
@@ -273,6 +276,7 @@ public sealed partial class SettingsWindow : Window
         }
         chips.Children.Add(customBox);
         RefreshSel(cur);   // 初始回显：值不在预设档时自定义框即刻高亮
+        _repaint.Add(() => RefreshSel(_settings.Current.ToastSeconds));   // 改配色后芯片与自定义框一起回到当前档
         g.Children.Add(chips);
         return g;
     }

@@ -307,6 +307,7 @@ public sealed partial class SettingsWindow : Window
             chips.Children.Add(chip);
         }
         g.Children.Add(chips);
+        _repaint.Add(() => RefreshChips(chipList, _settings.Current.RecordFormat));   // 改配色后选中那颗芯片跟着换色
         // 未检测到 ffmpeg 时在行下方直接写明（芯片 tooltip 要悬停才读到，这行一眼可见）；
         // 用绘制的小圆点而非字形，规避未验证字形；只读、开设置时算一次
         var status = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(32, 3, 0, 0) };

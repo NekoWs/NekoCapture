@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Windows.Media;
 
 namespace FrameCapture.Core;
@@ -221,7 +221,8 @@ public static class Theme
         }
     }
 
-    /// <summary>当前主题下这个令牌的实际颜色。</summary>    /// <param name="key">令牌键名；认不出返回 <see cref="Colors.Transparent"/>，让错键在截图里显形而不是抛。</param>
+    /// <summary>当前主题下这个令牌的实际颜色。</summary>
+    /// <param name="key">令牌键名；认不出返回 <see cref="Colors.Transparent"/>，让错键在截图里显形而不是抛。</param>
     /// <returns>自定义色，没自定义则当前主题的出厂色。</returns>
     public static Color Current(string key)
         => Ordinals.TryGetValue(key, out var i) ? Resolved[i] : Colors.Transparent;
@@ -414,7 +415,7 @@ public static class Theme
     #region 共享画刷
 
     // 上面那些 Color 属性是「此刻的颜色」，取到手就凝固了；下面这些是同一批颜色的实例形态：
-    // 元素的底色与笔触指到它们上，配色一改就顺着画刷自己变过去，不必重建窗口。
+    // 元素的底色与笔触指到它们上，配色一改就顺着画刷自己跟上，不必重建窗口。
     // 一支画刷全窗共用，想给单个元素做悬停动画，先按 IsPaletteBrush 判出来再克隆一份（见 Fluent.BgHover）。
     // 悬停与按下是叠加层不是表面，没有对应的画刷——它们只该被 Fluent.HoverOn/PressOn 混进底色。
 

@@ -293,7 +293,7 @@ public static partial class Fluent
     /// 新调色板在幕布后面就位，淡出期间看到的是同一块面在换色，而不是零散地这里黑一块那里白一块。
     /// 幕布走 Adorner 层：不进布局，不会把 DockPanel 的填充位抢走，也不会挤动任何一行。</summary>
     /// <param name="w">盖幕布的窗口。</param>
-    /// <param name="from">幕布颜色：换色之前的窗口底。</param>
+    /// <param name="from">幕布颜色：换色那一刻画面上的窗口底。</param>
     public static void MaskFade(Window w, Color from)
     {
         if (w.Content is not UIElement el) return;
