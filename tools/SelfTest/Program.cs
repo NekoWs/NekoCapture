@@ -7431,6 +7431,16 @@ static partial class SelfTest
                 $"展开候选：IsOpen={popPart?.IsOpen} 宽 {(popPart?.Child as FrameworkElement)?.ActualWidth ?? 0:F0}");
             delayBox.IsDropDownOpen = false;
             PumpMs(140);
+            // 点文字那一截也要开：模板里只有箭头是开关，点正文只会放光标，用户看到的是「点了没反应」
+            var tbPart = delayBox.Template?.FindName("PART_EditableTextBox", delayBox) as System.Windows.Controls.TextBox;
+            tbPart?.RaiseEvent(new System.Windows.Input.MouseButtonEventArgs(
+                System.Windows.Input.Mouse.PrimaryDevice, 0, System.Windows.Input.MouseButton.Left)
+            { RoutedEvent = System.Windows.UIElement.PreviewMouseLeftButtonUpEvent, Source = tbPart });
+            PumpMs(160);
+            Chk("T252-duration-click-text-opens", tbPart != null && delayBox.IsDropDownOpen,
+                $"点文本框也能拉开候选：IsOpen={delayBox.IsDropDownOpen}");
+            delayBox.IsDropDownOpen = false;
+            PumpMs(140);
             Chk("T252-duration-shows-current", delayBox != null && double.TryParse(delayBox.Text, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out _), $"延时的框里写着当前值且只有数字：{delayBox?.Text}");
             Chk("T252-duration-unit-outside", delayBox != null && delayBox.Width <= 62 && DurationUnitOf(pages[1], "settings-duration-delay") == Loc.T(K.Settings.SecondsUnit), $"单位在框外：框宽 {delayBox?.Width}，右侧写着「{DurationUnitOf(pages[1], "settings-duration-delay")}」");
 

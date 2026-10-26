@@ -92,6 +92,13 @@ public static partial class Fluent
   </ControlTemplate.Triggers>
 </ControlTemplate>";
         c.Template = (ControlTemplate)XamlReader.Parse(xaml);
+        // 点文字那一截也要能开列表：模板里只有箭头是开关，点正文只会把光标放进去，看着就是「点了没反应」。
+        // 处理器挂在文本框自己身上：TextBox 会把鼠标事件标成已处理，挂在 ComboBox 上的隧道处理器在真实输入下收不到。
+        c.ApplyTemplate();
+        if (editable && c.Template?.FindName("PART_EditableTextBox", c) is TextBox tbBox)
+        {
+            tbBox.PreviewMouseLeftButtonUp += (_, _) => { if (!c.IsDropDownOpen) c.IsDropDownOpen = true; };
+        }
         WireDropDown(c);
         // 条目：透明底 + 悬停高亮；选中底 = accent 实心，前景按 accent 明度自适应（亮 accent→黑字、暗 accent→白字）。
         c.Resources[typeof(ComboBoxItem)] = (Style)XamlReader.Parse(

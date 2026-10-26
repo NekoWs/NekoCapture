@@ -56,8 +56,14 @@ try {
     # 编辑器开合若干轮，逐轮记录
     $marks = @()
     for ($i = 1; $i -le $Cycles; $i++) {
-        Invoke-FcSynthetic $exe $capHk 700; Start-Sleep -Milliseconds 2100
-        $ed = & $shot rect "FrameCapture Editor" 2>$null
+        Invoke-FcSynthetic $exe $capHk 700
+        # 等编辑器出来：护栏并行跑其它关时这一步会慢上几秒，给一段重试而不是卡死一个固定等待
+        $ed = "not-found"
+        for ($w = 0; $w -lt 16; $w++) {
+            Start-Sleep -Milliseconds 500
+            $ed = & $shot rect "FrameCapture Editor" 2>$null
+            if ($ed -notmatch "not-found") { break }
+        }
         if ($ed -match "not-found") { Write-Host "MEM-PROBE FAIL 第 $i 轮编辑器没出现"; exit 1 }
         & $shot keyw "FrameCapture Editor" 27 2>$null | Out-Null
         Start-Sleep -Milliseconds 1200

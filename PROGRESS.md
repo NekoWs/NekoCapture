@@ -2894,3 +2894,17 @@ ShowCat 是 Build 里的局部函数，反射拿不到），组合 44 → 56。�
 - SelfTest 845 条全绿；`T251-ui-keys-on-hotkeys-page` 认三行标签，`T191d-*` 认两行始终可见。
 - 双语排版体检去掉「分段控件必须扫到」这条要求（控件已经不在），其余判据不变。
 - 取证：`rendersettings <out> 0 open` 拍展开态——触发方式 / 触发时 / 完成后 / 失败时四行、三枚加号同高，界面键位三行无图标。
+
+### 下拉框点文字那一截也能拉开候选
+
+模板里只有右侧箭头是 `ToggleButton`，点正文只会把光标放进文本框——用户看到的是「点了没反应」。
+现在模板套上之后给 `PART_EditableTextBox` 挂一枚 `PreviewMouseLeftButtonUp`：弹层关着就打开，焦点仍在框里，
+接着打字照样进文本框（`StaysOpenOnEdit`）。处理器挂在文本框自己身上而不是 ComboBox 上——TextBox 会把鼠标事件标成已处理，
+挂在祖先上的隧道处理器在真实输入下收不到（合成事件能收到，所以这条要按真实路由选挂点）。
+断言 `T252-duration-click-text-opens`：往文本框上派一发抬起，弹层必须打开。
+
+### 版本 0.9.3 与安装包
+
+`src/FrameCapture/FrameCapture.csproj` 的 `<Version>` 升到 0.9.3，`scripts/publish-release.ps1` 重打 self + fd 两个产物。
+护栏 `-Full` 第一次卡在 `e2e:probe-memory`（第 1 轮编辑器没出现）——那一关固定等 2.1 秒就去看窗口，
+并行跑其它关时不够；改成最多重试 16 次、每次 500ms，判据仍是「编辑器必须出现」。修完 `-Full` 全绿。
