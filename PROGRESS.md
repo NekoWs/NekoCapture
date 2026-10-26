@@ -2874,3 +2874,23 @@ ShowCat 是 Build 里的局部函数，反射拿不到），组合 44 → 56。�
 - SelfTest 846 条全绿，新增 `T252-duration-unit-outside`、`T260-duration-outline-*`、`T261-restore-looks-like-card`、`T261-preview-chips-gapped`。
 - 取证：`scripts/cap-palette.ps1` 拍「截图」页（三个时长框都是 `[数值] 秒`）与「快捷键」页（界面键位两行与绘制工具同一行距）；
   渲染器 `rendersettings` 的类别表补上「配色」页，索引 7。
+
+### 快捷键卡片更矮，简单/高级开关下线
+
+- 折叠行胶囊的内衬从 7 收到 4、行外边距 4 收到 2，卡片内衬 6/8 收到 4/5，「添加快捷键」那块也收一档——两条默认绑定那一屏少了约 20px。
+- 「简单 / 高级」分段开关整块删掉：完成后与失败时两行始终在，`AdvancedSwitch` / `SegLabel` / `Tint` 与 `_hotAdvanced`、`_hotModeSync` 一起下线，
+  连带四条只服务这个开关的文案。断言 `T191d-overrides-always-shown` 替掉原来的 `T191d-simple-hides-override`。
+- 芯片与加号统一 27 的行高（`ChainEditor.ChipHeight`）：一行里只剩加号时高度不掉，拖动时卡片不会再一缩一伸。
+
+### 界面键位：一行一键位，不带图标
+
+确认与取消原先是同一行里的两枚键帽加一枚图标，看起来像一对连体控件，录左边那枚时右边那枚跟着错位。
+现在拆成「确认选区」「取消选区」「截图后的复制键」三行，每行一枚键帽；行首的图标一并去掉——
+这页的行都只有名字，图标换来换去反而让每行看起来管着不同种类的东西。
+标签复用 `K.Capture.ConfirmSelection` / `K.Capture.CancelSelection`（收紧工具栏上那两枚 ✓/✗ 的悬停提示），不再另起一条文案。
+
+### 验证（这一轮）
+
+- SelfTest 845 条全绿；`T251-ui-keys-on-hotkeys-page` 认三行标签，`T191d-*` 认两行始终可见。
+- 双语排版体检去掉「分段控件必须扫到」这条要求（控件已经不在），其余判据不变。
+- 取证：`rendersettings <out> 0 open` 拍展开态——触发方式 / 触发时 / 完成后 / 失败时四行、三枚加号同高，界面键位三行无图标。

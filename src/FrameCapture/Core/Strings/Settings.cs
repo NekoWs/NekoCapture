@@ -22,7 +22,6 @@ public static partial class K
             "settings.addAStepAfterThis",
             "在后面加一步",
             "Add a step after this");
-        public static readonly Str Advanced = new("settings.advanced", "高级", "Advanced");
         public static readonly Str AFlashConfirmsIt = new(
             "settings.aFlashConfirmsIt",
             "快闪：确认一下就走",
@@ -154,10 +153,6 @@ public static partial class K
             "settings.duringARecordingTheReal",
             "录制期间按真实捕获范围高亮描边，只提示、不录进产物。取代 Windows 11 那条绕整屏的黄色系统捕获边框——WGC 只能整显示器捕获，系统边框必然全屏、与所选范围无关",
             "During a recording the real capture region is outlined in a highlight, as a hint only — it never lands in the output. It stands in for the yellow system capture border Windows 11 draws around the whole screen: WGC captures a whole monitor, so that border is always full-screen and says nothing about your selection");
-        public static readonly Str EditTheStepsThatRun = new(
-            "settings.editTheStepsThatRun",
-            "逐条编辑完成后与失败时要跑的动作",
-            "Edit the steps that run on completion and on failure, one by one.");
         public static readonly Str FfmpegDetected = new(
             "settings.ffmpegDetected",
             " · 已检测到 ffmpeg",
@@ -312,10 +307,6 @@ public static partial class K
             "settings.sharesAKeyWith",
             "与{0}同键 {1}",
             "Shares a key with {0} — {1}");
-        public static readonly Str ShowsOnlyWhereEachCase = new(
-            "settings.showsOnlyWhereEachCase",
-            "只显示默认落点，用不到的不必展开",
-            "Shows only where each case lands — what you don't use stays folded.");
         public static readonly Str ShowTheLastSelection = new(
             "settings.showTheLastSelection",
             "显示上次选区",
@@ -328,7 +319,6 @@ public static partial class K
             "settings.showTheResultWindowAfter",
             "识别文字后显示结果窗",
             "Show the result window after recognizing text");
-        public static readonly Str Simple = new("settings.simple", "简单", "Simple");
         /// <summary>「可调整选区」标题（默认关闭）。</summary>
         public static readonly Str EditableSelection = new("settings.editableSelection", "可调整选区", "Adjustable selection");
 
@@ -340,10 +330,6 @@ public static partial class K
 
 
         /// <summary>键位行的说明：什么时候生效。</summary>
-        public static readonly Str ConfirmCancelKeysHint = new(
-            "settings.confirmCancelKeysHint",
-            "确认与取消",
-            "Confirm and cancel");
 
         /// <summary>上面那一行键位的长说明，放 ToolTip，不占行内宽度。</summary>
         public static readonly Str ConfirmCancelKeysTip = new(

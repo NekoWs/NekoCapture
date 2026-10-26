@@ -4820,22 +4820,9 @@ static partial class SelfTest
             Chk("T193d-trigger-combo-template-measures",
                 trig != null && trig.Template != null && trig.ActualHeight > 12,
                 $"下拉模板已套上并量出高度 {trig?.ActualHeight.ToString() ?? "?"}（深色下拉开来读得清）");
-            Chk("T191d-simple-hides-override",
-                OverrideRows().All(r => r.Visibility == Visibility.Collapsed),
-                "简单形态里完成后与失败时整行收起");
-            var seg = FindGlyphText(hotRoot, "高级") as System.Windows.UIElement;
-            seg!.RaiseEvent(new System.Windows.Input.MouseButtonEventArgs(
-                System.Windows.Input.Mouse.PrimaryDevice, 0, System.Windows.Input.MouseButton.Left)
-            { RoutedEvent = System.Windows.UIElement.MouseLeftButtonUpEvent, Source = seg });
-            PumpMs(500);
-            var borders = new List<System.Windows.DependencyObject>();
-            CollectTyped(hotRoot, typeof(System.Windows.Controls.Border), borders);
-            var hi = borders.Cast<System.Windows.Controls.Border>().FirstOrDefault(b =>
-                !b.IsHitTestVisible && b.RenderTransform is System.Windows.Media.TranslateTransform);
-            double slide = hi == null ? -1 : ((System.Windows.Media.TranslateTransform)hi.RenderTransform!).X;
-            Chk("T191e-advanced-reveals-and-slides",
-                OverrideRows().All(r => r.Visibility == Visibility.Visible && r.ActualHeight > 20) && slide > 50,
-                $"切到高级：两行长出来，高亮块滑到第二段（X={slide:F0}）");
+            Chk("T191d-overrides-always-shown",
+                OverrideRows().All(r => r.Visibility == Visibility.Visible && r.ActualHeight > 20),
+                "完成后与失败时两行始终在：没有简单/高级之分");
             // 收起整行再展开：限高放开之后再来一次，动画仍从 0 起
             pill.RaiseEvent(new System.Windows.Input.MouseButtonEventArgs(
                 System.Windows.Input.Mouse.PrimaryDevice, 0, System.Windows.Input.MouseButton.Left)
@@ -5248,8 +5235,6 @@ static partial class SelfTest
                 WindowStartupLocation = WindowStartupLocation.Manual,
                 Left = -20000, Top = -20000, ShowActivated = false, ShowInTaskbar = false,
             };
-            // 高级形态才看得见「完成后 / 失败时」两行
-            sw8.GetField("_hotAdvanced", NP8)!.SetValue(win8, true);
             sw8.GetMethod("Build", NP8)!.Invoke(win8, null);
             win8.Show();
             PumpMs(400);
@@ -5904,7 +5889,7 @@ static partial class SelfTest
             // ① 容器宽度写死，另一种语言的字更宽 → 裁在盒子边上；
             // ② TextBlock 显式 Height 比行盒高 + VerticalAlignment=Center → 多出的空隙全落在字下面，字看着偏上。
             // 逐页扫真实窗口，判据用 FormattedText 现量，不跟任何写死的像素数对赌。
-            static (List<string> Faults, int Seen, bool SawSegmented) LayoutFaults(string lang)
+            static (List<string> Faults, int Seen) LayoutFaults(string lang)
             {
                 Loc.Apply(lang);
                 var svc = new FrameCapture.Core.SettingsService();
@@ -5917,10 +5902,6 @@ static partial class SelfTest
                     WindowStartupLocation = WindowStartupLocation.Manual,
                     Left = -20000, Top = -20000, ShowActivated = false, ShowInTaskbar = false,
                 };
-                // 高级形态 + 展开第一行：分段控件长在展开后的行里，不展开就扫不到它
-                typeof(FrameCapture.Overlays.SettingsWindow)
-                    .GetField("_hotAdvanced", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
-                    .SetValue(win, true);
                 typeof(FrameCapture.Overlays.SettingsWindow)
                     .GetMethod("Build", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
                     .Invoke(win, null);
@@ -5941,7 +5922,6 @@ static partial class SelfTest
                 }
                 var faults = new List<string>();
                 int seen = 0;
-                bool sawSeg = false;
                 // 一段单行文字自然要多宽：现量，不跟任何写死的像素数对赌
                 static double Need(System.Windows.Controls.TextBlock t)
                 {
@@ -5959,7 +5939,6 @@ static partial class SelfTest
                     if (o is System.Windows.Controls.TextBlock tb && OneLine(tb))
                     {
                         seen++;
-                        if (tb.Text == Loc.T(K.Settings.Advanced)) sawSeg = true;
                         // 显式 Height 比行盒高 + 居中：多出的空隙全落在字下面，字看着偏上
                         if (!double.IsNaN(tb.Height) && tb.VerticalAlignment == VerticalAlignment.Center)
                         {
@@ -6015,7 +5994,7 @@ static partial class SelfTest
                 }
                 // 只隐藏不 Close：销毁处理器会去装热键，而这个宿主没起完整 AppHost
                 win.Hide();
-                return (faults, seen, sawSeg);
+                return (faults, seen);
             }
             var en = LayoutFaults("en");
             var zh = LayoutFaults("zh");
@@ -6024,8 +6003,8 @@ static partial class SelfTest
             var pin = en.Faults.Concat(zh.Faults).Where(f => f.StartsWith("钉高")).ToList();
             // 审计要自证看到了那个控件：没扫到它的「零缺陷」是假绿
             Chk("T195a-text-fits",
-                clip.Count == 0 && en.SawSegmented && zh.SawSegmented && en.Seen > 60 && zh.Seen > 60,
-                $"双语各扫 {en.Seen}/{zh.Seen} 段文字，分段控件 {en.SawSegmented}/{zh.SawSegmented}；"
+                clip.Count == 0 && en.Seen > 60 && zh.Seen > 60,
+                $"双语各扫 {en.Seen}/{zh.Seen} 段文字；"
                 + (clip.Count == 0 ? "无裁字" : $"{clip.Count} 处：" + string.Join(" | ", clip.Take(4))));
             Chk("T195b-text-not-pinned-high", pin.Count == 0,
                 pin.Count == 0 ? "没有比行盒更高却居中的文字" : $"{pin.Count} 处：" + string.Join(" | ", pin.Take(4)));
@@ -7456,13 +7435,14 @@ static partial class SelfTest
             Chk("T252-duration-unit-outside", delayBox != null && delayBox.Width <= 62 && DurationUnitOf(pages[1], "settings-duration-delay") == Loc.T(K.Settings.SecondsUnit), $"单位在框外：框宽 {delayBox?.Width}，右侧写着「{DurationUnitOf(pages[1], "settings-duration-delay")}」");
 
             // 键位录入全在「快捷键」页：两条绑定的键帽 + 确认 / 取消 + 复制键，都在带小标题的那张卡里。
-            // 编辑器键位那几组也在这页上，所以不数总数，认的是「确认与取消」「截图后的复制键」这两行的标签。
+            // 编辑器键位那几组也在这页上，所以不数总数，认的是这枚三行各自的标签。
             var keysCap = Of(1, typeof(FrameCapture.Core.ChordCaptureBox));
             var hotTexts = Of(0, typeof(System.Windows.Controls.TextBlock)).OfType<System.Windows.Controls.TextBlock>()
                 .Select(t => t.Text).ToList();
             Chk("T251-ui-keys-on-hotkeys-page",
-                hotTexts.Contains(Loc.T(K.Settings.ConfirmCancelKeysHint)) && hotTexts.Contains(Loc.T(K.Settings.CopyKey)),
-                $"快捷键页上找得到「{Loc.T(K.Settings.ConfirmCancelKeysHint)}」与「{Loc.T(K.Settings.CopyKey)}」两行");
+                hotTexts.Contains(Loc.T(K.Capture.ConfirmSelection)) && hotTexts.Contains(Loc.T(K.Capture.CancelSelection))
+                    && hotTexts.Contains(Loc.T(K.Settings.CopyKey)),
+                $"快捷键页上找得到「{Loc.T(K.Capture.ConfirmSelection)}」「{Loc.T(K.Capture.CancelSelection)}」「{Loc.T(K.Settings.CopyKey)}」三行");
             Chk("T251-keys-not-on-capture-page", keysCap.Count == 0,
                 $"截图页上还剩 {keysCap.Count} 个键位框");
             Chk("T251-ui-keys-labelled", hotTexts.Contains(Loc.T(K.Hotkeys.UiKeys)),

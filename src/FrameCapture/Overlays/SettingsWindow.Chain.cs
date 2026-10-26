@@ -33,6 +33,9 @@ public sealed partial class SettingsWindow : Window
         readonly Popup _pop = new() { AllowsTransparency = true, StaysOpen = true, Placement = PlacementMode.Right };
         Border _add = null!;
 
+        /// <summary>芯片与加号统一的行高：两者都按它取最小高度，一行里只剩加号时高度不会掉下来。</summary>
+        const double ChipHeight = 27;
+
         /// <summary>正在拖的那枚芯片；null 表示没在拖。</summary>
         Border? _drag;
 
@@ -131,6 +134,7 @@ public sealed partial class SettingsWindow : Window
             var chip = new Border
             {
                 CornerRadius = new CornerRadius(6),
+                MinHeight = ChipHeight,   // 与加号芯片同高：行里空了也不塌
                 Padding = new Thickness(10, 5, 8, 5),
                 Margin = new Thickness(2),
                 Background = Theme.RowBgBrush,
@@ -474,6 +478,7 @@ public sealed partial class SettingsWindow : Window
             var add = new Border
             {
                 CornerRadius = new CornerRadius(6),
+                MinHeight = ChipHeight,   // 没有步骤时也占满一行的高度：加号矮一档，卡片跟着一缩一伸
                 Padding = new Thickness(9, 5, 9, 5),
                 Margin = new Thickness(2),
                 Background = Theme.RowBgBrush,

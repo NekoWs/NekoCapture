@@ -26,10 +26,6 @@ public sealed partial class SettingsWindow : Window
     /// <value>由行首的点击维护；删除展开中的那条时清空。</value>
     string _hotOpen = "";
 
-    /// <summary>「完成后」「失败时」是否处于高级形态：简单形态这两行不出现，高级形态才长出来。
-    /// 整页一个开关，切语言或重建列表不重置。</summary>
-    /// <value>默认 false。</value>
-    bool _hotAdvanced;
 
     /// <summary>快捷键行的容器，重建时清空重铺。</summary>
     StackPanel? _hotList;
@@ -37,8 +33,6 @@ public sealed partial class SettingsWindow : Window
     /// <summary>每条快捷键的键位录入框，按绑定 Id 索引。新增后据此让新行当场进入录入态。</summary>
     readonly Dictionary<string, ChordCaptureBox> _hotBoxes = new();
 
-    /// <summary>把界面上的一小块按 <see cref="_hotAdvanced"/> 重铺的回调，简单/高级切换时统一走一遍。</summary>
-    readonly List<Action> _hotModeSync = new();
 
     /// <summary>每行重画「撞车」描边的回调：改组合键、改触发、增删条目之后都要重新比一遍。</summary>
     readonly List<Action> _hotClashSync = new();
@@ -67,7 +61,7 @@ public sealed partial class SettingsWindow : Window
             BorderThickness = new Thickness(1),
             BorderBrush = Theme.StrokeBrush,
             Background = Theme.CardBgBrush,
-            Padding = new Thickness(8, 6, 8, 8),
+            Padding = new Thickness(8, 4, 8, 5),
             Child = _hotList,
         };
         Fluent.Elevate(card, blur: 24, depth: 6);
@@ -78,7 +72,8 @@ public sealed partial class SettingsWindow : Window
         // 它们跟上面那份列表是同一类东西，散到各自功能的分页里，找键位就得挨个翻。
         var ui = new StackPanel();
         ui.Children.Add(SectionHeader(Loc.T(K.Hotkeys.UiKeys)));
-        ui.Children.Add(UiKeyPill(PickerKeysRow()));
+        ui.Children.Add(UiKeyPill(ConfirmKeyRow()));
+        ui.Children.Add(UiKeyPill(CancelKeyRow()));
         ui.Children.Add(UiKeyPill(ToastCopyRow()));
         Cardify(ui);
         panel.Children.Add(ui);
@@ -93,7 +88,6 @@ public sealed partial class SettingsWindow : Window
         _hotList.Children.Clear();
         _hotRows.Clear();
         _hotBoxes.Clear();
-        _hotModeSync.Clear();
         _hotClashSync.Clear();
         _folds.Clear();   // 行的容器整个换了一批，上一批容器的记账跟着一起丢
         foreach (var b in _settings.Current.Gestures.Bindings)
@@ -108,8 +102,8 @@ public sealed partial class SettingsWindow : Window
         var add = new Border
         {
             CornerRadius = new CornerRadius(6),
-            Padding = new Thickness(10, 7, 10, 7),
-            Margin = new Thickness(0, 4, 0, 4),
+            Padding = new Thickness(10, 5, 10, 5),
+            Margin = new Thickness(0, 2, 0, 2),
             BorderBrush = Theme.StrokeSoftBrush,
             BorderThickness = new Thickness(1),
             Cursor = Cursors.Hand,
@@ -263,7 +257,7 @@ public sealed partial class SettingsWindow : Window
             BorderBrush = Theme.StrokeSoftBrush,
             BorderThickness = new Thickness(1),
             Background = Theme.RowBgBrush,
-            Padding = new Thickness(10, 7, 8, 7),
+            Padding = new Thickness(10, 4, 8, 4),
             Cursor = Cursors.Hand,
             Child = head,
         };
@@ -295,7 +289,7 @@ public sealed partial class SettingsWindow : Window
         var row = new Border
         {
             CornerRadius = new CornerRadius(6),
-            Margin = new Thickness(0, 4, 0, 4),
+            Margin = new Thickness(0, 2, 0, 2),
             Background = Brushes.Transparent,
             Child = stack,
         };
@@ -357,13 +351,11 @@ public sealed partial class SettingsWindow : Window
             i => ActionCatalog(step: true, first: i == 0),
             list => { chain = list; b.Actions = list; CommitHotkeys(); }));
 
-        rows.Children.Add(AdvancedSwitch());
-
         string[] done = b.OnComplete, fail = b.OnFail;
         rows.Children.Add(OverrideRow(Loc.T(K.Hotkeys.OnCompletion), () => done, Loc.T(K.Hotkeys.DefaultToast),
-            list => { done = list; b.OnComplete = list; CommitHotkeys(); }, Width, 0));
+            list => { done = list; b.OnComplete = list; CommitHotkeys(); }));
         rows.Children.Add(OverrideRow(Loc.T(K.Hotkeys.OnFailure), () => fail, Loc.T(K.Hotkeys.DefaultNothing),
-            list => { fail = list; b.OnFail = list; CommitHotkeys(); }, Width, 1));
+            list => { fail = list; b.OnFail = list; CommitHotkeys(); }));
         return body;
     }
 
@@ -488,18 +480,14 @@ public sealed partial class SettingsWindow : Window
         LabeledRow(label, new ChainEditor(get, candidates, set).Root,
             Loc.T(K.Hotkeys.RunsInOrderDragToReorder));
 
-    /// <summary>「完成后」「失败时」一行：简单形态整行不出现，高级形态整行长出来，
-    /// 长出来之后显示的是可编辑的序列。两行按 <paramref name="order"/> 一先一后地长与收，
-    /// 一起动就只是一块东西闪一下，看不出是两条独立的设置。</summary>
+    /// <summary>「完成后」「失败时」一行：不填就走产品的默认落点，填了就跑这一串。
+    /// 这一步有几条由芯片自己说：一条一枚卡片，空序列就只剩那枚加号。</summary>
     /// <param name="label">行标签。</param>
     /// <param name="get">取当前覆盖序列，空数组表示不覆盖。</param>
-    /// <param name="defaultText">不覆盖时显示的默认落点。</param>
+    /// <param name="defaultText">不覆盖时落在哪，交给提示说。</param>
     /// <param name="set">改定后的写回动作，内部负责落盘。</param>
-    /// <param name="width">这一行的排版宽度，长出来要先按它量出目标高度。</param>
-    /// <param name="order">这一行在覆盖区里的次序：0 = 完成后，1 = 失败时。</param>
     /// <returns>一行容器。</returns>
-    FrameworkElement OverrideRow(string label, Func<string[]> get, string defaultText,
-        Action<string[]> set, Func<double> width, int order)
+    FrameworkElement OverrideRow(string label, Func<string[]> get, string defaultText, Action<string[]> set)
     {
         var host = new StackPanel { HorizontalAlignment = HorizontalAlignment.Left };
         var editor = new ChainEditor(get, _ => ActionCatalog(step: false, first: false), list =>
@@ -507,7 +495,6 @@ public sealed partial class SettingsWindow : Window
             set(list);
             Paint();
         });
-        // 这一步有几条由芯片自己说：一条一枚卡片，空序列就只剩那枚加号。
         // 不覆盖时落在哪交给提示——多摆一行字会把「这里能放几步」的那点版面挤没。
         void Paint() => host.ToolTip = get().Length == 0 ? defaultText : null;
         host.Children.Add(editor.Root);
@@ -525,31 +512,8 @@ public sealed partial class SettingsWindow : Window
         g.Children.Add(lbl);
         g.Children.Add(host);
         g.Margin = new Thickness(0, 5, 0, 5);
-
-        void ApplyMode()
-        {
-            if (_hotAdvanced)
-            {
-                if (g.Visibility != Visibility.Visible)
-                {
-                    if (g.IsLoaded) RevealRow(g, width(), order * RowStep.TotalMilliseconds);
-                    else { g.MaxHeight = double.PositiveInfinity; g.Visibility = Visibility.Visible; }
-                }
-            }
-            else if (g.Visibility == Visibility.Visible)
-            {
-                // 收起按倒序：后长出来的那条先收回去，来回看着是同一条路径往返
-                if (g.IsLoaded) PlayCollapse(g, (1 - order) * RowStep.TotalMilliseconds);
-                else { g.BeginAnimation(MaxHeightProperty, null); g.MaxHeight = 0; g.Visibility = Visibility.Collapsed; }
-            }
-            editor.Render();
-            Paint();
-        }
-        _hotModeSync.Add(ApplyMode);
-        ApplyMode();
         return g;
     }
-
     /// <summary>一行的通用骨架：左侧固定标签 + 右侧内容。</summary>
     /// <param name="label">标签文字。</param>
     /// <param name="content">右侧内容。</param>

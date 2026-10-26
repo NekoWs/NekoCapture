@@ -49,7 +49,6 @@ static partial class SelfTest
             {
                 case "settings": BuildSettingsAudit(app, rows, "settings", -1); break;
                 case "settings-open": BuildSettingsAudit(app, rows, "settings-open", 0); break;
-                case "settings-adv": BuildSettingsAudit(app, rows, "settings-adv", 0, advanced: true); break;
                 case "settings-clash": BuildSettingsAudit(app, rows, "settings-clash", 0, clash: true); break;
             // 另外七个分区各开一次：分区是同一套行控件搭的，但文案不同、控件组合不同，
             // 只量第一个分区等于其余七页从来没进过探针。
@@ -101,7 +100,7 @@ static partial class SelfTest
     /// <summary>可审计的界面名，驱动脚本按这份清单跑满矩阵。</summary>
     internal static readonly string[] Surfaces =
     {
-        "settings", "settings-open", "settings-adv", "settings-clash", "settings-narrow", "settings-longpath", "settings-longname",
+        "settings", "settings-open", "settings-clash", "settings-narrow", "settings-longpath", "settings-longname",
         // 八个分区各扫一遍：分区由 BuildSettingsAudit 的 cat 参数指定（走 _restoreCat）。
         "settings-cap", "settings-rec", "settings-out", "settings-edit", "settings-pin", "settings-look", "settings-sys",
         "help", "editor", "editor-still", "pin", "ocr", "ocr-msg",
@@ -112,9 +111,9 @@ static partial class SelfTest
 
     // ---- 逐界面建窗 ----
 
-    /// <summary>设置窗：折叠态、展开某条绑定、高级形态、撞车描边、最小尺寸各扫一遍，
+    /// <summary>设置窗：折叠态、展开某条绑定、撞车描边、最小尺寸各扫一遍，
     /// 另外七个分区由 <paramref name="cat"/> 指定，各扫一遍。</summary>
-    static void BuildSettingsAudit(Application app, List<string> rows, string surface, int openAt, bool advanced = false, bool clash = false,
+    static void BuildSettingsAudit(Application app, List<string> rows, string surface, int openAt, bool clash = false,
         double? forceW = null, double? forceH = null, string? savePath = null, string? bindingName = null, int cat = -1)
     {
         var svc = AppHost.Current.Settings!.Current;
@@ -135,10 +134,6 @@ static partial class SelfTest
             });
         }
         var w = new SettingsWindow();
-        if (advanced)
-            typeof(SettingsWindow).GetField("_hotAdvanced",
-                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
-                .SetValue(w, true);
         // 分页靠 _restoreCat 切：Build 末尾就是用它停在原分页的（ShowCat 是 Build 里的局部函数，反射拿不到）。
         // 探针不点侧栏就永远停在第一个分页，其余七页从来没量过。
         if (cat >= 0)
