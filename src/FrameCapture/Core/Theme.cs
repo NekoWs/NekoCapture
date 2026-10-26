@@ -1,6 +1,5 @@
-using System;
+﻿using System;
 using System.Windows.Media;
-using System.Windows.Media.Animation;
 
 namespace FrameCapture.Core;
 
@@ -167,37 +166,27 @@ public static class Theme
             || ReferenceEquals(b, PanelBgSolidPaint)
             || ReferenceEquals(b, AccentPaint));
 
-    /// <summary>把解析好的颜色推给共享画刷。</summary>
-    /// <param name="animate">按 <see cref="Fluent.Motion.StateMs"/> 走一段颜色动画。
-    /// 首次同步（画刷还是透明）与拖动取色器时不动画——逐帧动画会落在指针后面。</param>
-    static void SyncPaints(bool animate)
+    /// <summary>把解析好的颜色推给共享画刷。当帧落色，不给画刷挂颜色动画：
+    /// 动画在飞的时候 <see cref="SolidColorBrush.Color"/> 读到的是动画值而不是终点，
+    /// 渲染节拍没跟上时甚至会一直停在起始色——悬停克隆、断言、下一次比较全被带偏。
+    /// 深浅互换的过渡由 <see cref="Fluent.MaskFade"/> 那层遮罩负责，画刷只管把当前色答对。</summary>
+    static void SyncPaints()
     {
-        for (int i = 0; i < Paints.Length; i++) SetPaint(Paints[i], Resolved[i], animate);
-        SetPaint(WindowBgSolidPaint, Opaque(Resolved[(int)Slot.WindowBg]), animate);
-        SetPaint(PanelBgSolidPaint, Opaque(Resolved[(int)Slot.PanelBg]), animate);
-        SetPaint(AccentPaint, Accent, animate);
-    }
-
-    static void SetPaint(SolidColorBrush b, Color to, bool animate)
-    {
-        if (b.Color == to) return;
-        if (!animate || b.Color == Colors.Transparent) { b.Color = to; return; }
-        b.BeginAnimation(SolidColorBrush.ColorProperty,
-            new ColorAnimation(to, TimeSpan.FromMilliseconds(Fluent.Motion.StateMs))
-            {
-                EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut },
-            });
+        for (int i = 0; i < Paints.Length; i++) Paints[i].Color = Resolved[i];
+        WindowBgSolidPaint.Color = Opaque(Resolved[(int)Slot.WindowBg]);
+        PanelBgSolidPaint.Color = Opaque(Resolved[(int)Slot.PanelBg]);
+        AccentPaint.Color = Accent;
     }
 
     static string ModeKey(bool dark, string key) => (dark ? "dark." : "light.") + key;
 
-    static void Recompute(bool animate = false)
+    static void Recompute()
     {
         bool dark = EffectiveDark;
         for (int i = 0; i < Registry.Length; i++)
             Resolved[i] = Customs.TryGetValue(ModeKey(dark, Registry[i].Key), out var c)
                 ? c : Registry[i].Default(dark);
-        SyncPaints(animate);
+        SyncPaints();
     }
 
     static bool Same(Color[] a)
@@ -225,7 +214,7 @@ public static class Theme
             try { Accent = (Color)ColorConverter.ConvertFromString(accentHex); }
             catch { /* 保持当前强调色 */ }
         }
-        Recompute(true);
+        Recompute();
         if (EffectiveDark != oldDark || Accent != oldAcc || !Same(old))
         {
             try { Changed(); } catch { /* 某窗口换色失败不影响其余 */ }
@@ -267,7 +256,7 @@ public static class Theme
         var mk = ModeKey(dark, key);
         if (Customs.TryGetValue(mk, out var cur) && cur == color) return false;
         Customs[mk] = color;
-        Recompute(false);   // 取色器拖动中逐帧调用：动画会落在指针后面，这里要的是当帧落色
+        Recompute();
         try { Changed(); } catch { }
         return true;
     }
@@ -279,7 +268,7 @@ public static class Theme
     public static bool ClearCustom(string key, bool dark)
     {
         if (!Customs.Remove(ModeKey(dark, key))) return false;
-        Recompute(true);
+        Recompute();
         try { Changed(); } catch { }
         return true;
     }
@@ -289,7 +278,7 @@ public static class Theme
     {
         if (Customs.Count == 0) return;
         Customs.Clear();
-        Recompute(true);
+        Recompute();
         try { Changed(); } catch { }
     }
 
@@ -314,7 +303,7 @@ public static class Theme
                 if (c != null) Customs[k] = c.Value;
             }
         }
-        Recompute(true);
+        Recompute();
         if (!Same(old))
         {
             try { Changed(); } catch { }
@@ -345,7 +334,7 @@ public static class Theme
     {
         if (Accent == DefaultAccent) return;
         Accent = DefaultAccent;
-        SyncPaints(true);
+        SyncPaints();
         try { Changed(); } catch { }
     }
 
@@ -355,7 +344,7 @@ public static class Theme
     {
         if (Accent == c) return;
         Accent = c;
-        SyncPaints(false);
+        SyncPaints();
         try { Changed(); } catch { }
     }
 

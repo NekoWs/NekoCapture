@@ -74,7 +74,7 @@ public sealed partial class SettingsWindow : Window
 
     #region 预设与恢复
 
-    /// <summary>预设卡：每套预设一枚芯片，芯片上是那套配色的四段色带，点了整套套用。</summary>
+    /// <summary>预设卡：每套预设一枚芯片，芯片上是那套配色上下两行色带（上浅色侧、下深色侧），点了整套套用。</summary>
     /// <param name="card">预设那一节的容器。</param>
     void PresetCard(StackPanel card)
     {
@@ -82,13 +82,20 @@ public sealed partial class SettingsWindow : Window
         var strip = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 3, 0, 4) };
         foreach (var p in ColorPresets.All)
         {
+            // 色带两行：上一行是这套配色的浅色侧，下一行是深色侧。
+            // 只摆当前那一侧的话，浅色主题下几套预设看上去几乎一模一样——差别全在另一侧。
             var bands = new List<Border>();
-            var bandHost = new StackPanel { Orientation = Orientation.Horizontal };
-            for (int i = 0; i < 4; i++)
+            var bandHost = new StackPanel { Orientation = Orientation.Vertical };
+            for (int side = 0; side < 2; side++)
             {
-                var b = new Border { Width = 15, Height = 20, Margin = i == 0 ? new Thickness(0) : new Thickness(1, 0, 0, 0) };
-                bandHost.Children.Add(b);
-                bands.Add(b);
+                var row = new StackPanel { Orientation = Orientation.Horizontal };
+                for (int i = 0; i < 4; i++)
+                {
+                    var b = new Border { Width = 15, Height = 10, Margin = new Thickness(i == 0 ? 0 : 1, side == 0 ? 0 : 1, 0, 0) };
+                    row.Children.Add(b);
+                    bands.Add(b);
+                }
+                bandHost.Children.Add(row);
             }
             // 浅色那几段和芯片底色差不到一档，描一圈细边才看得出这是一条带子
             var bandCard = new Border
@@ -121,15 +128,22 @@ public sealed partial class SettingsWindow : Window
             Fluent.ChipHover(el);
             _repaint.Add(() =>
             {
-                var sw = p.Swatches(Theme.IsDark);
-                for (int i = 0; i < bands.Count; i++) bands[i].Background = new SolidColorBrush(sw[i]);
+                var lt = p.Swatches(false);
+                var dk = p.Swatches(true);
+                for (int i = 0; i < 4; i++)
+                {
+                    bands[i].Background = new SolidColorBrush(lt[i]);
+                    bands[4 + i].Background = new SolidColorBrush(dk[i]);
+                }
                 bandCard.BorderBrush = Theme.StrokeSoftBrush;
                 // 设置里没写预设标识 = 谁都没套过，亮起来的是出厂那一枚
                 var cur = _settings.Current.ColorPreset;
                 bool on = string.IsNullOrEmpty(cur) ? p.Id == "default" : cur == p.Id;
-                el.Background = new SolidColorBrush(on ? Fluent.AccentOn(Theme.CardBg, 0.18) : Theme.RowBg);
+                Color back = on ? Fluent.AccentOn(Theme.CardBg, 0.18) : Theme.RowBg;
+                el.Background = new SolidColorBrush(back);
                 el.BorderBrush = new SolidColorBrush(on ? Theme.Accent : Theme.StrokeSoft);
-                name.Foreground = new SolidColorBrush(on ? Fluent.AccentText() : Theme.Text);
+                // 选中那枚的名字压在强调色淡底上，按这块真正的底判色才读得清
+                name.Foreground = new SolidColorBrush(on ? Fluent.AccentTextOn(back) : Theme.Text);
             });
             strip.Children.Add(el);
         }

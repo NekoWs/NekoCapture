@@ -256,9 +256,11 @@ public sealed partial class SettingsWindow : Window
             Cursor = Cursors.Hand,
             Child = head,
         };
-        HoverFill(pill, Theme.RowBg, Theme.RowHover);
+        HoverFill(pill, () => Theme.RowBg, () => Theme.RowHover);
         // 撞了车的那条描边发红：同一个组合键与触发上挂着多条，引擎按优先级与顺序只走第一条，这条永远不响。
-        var pillStroke = (SolidColorBrush)pill.BorderBrush;
+        // 描边用这一行自己的画刷：共享实例上挂动画等于让全窗所有软描边一起发红。
+        var pillStroke = new SolidColorBrush(Theme.StrokeSoft);
+        pill.BorderBrush = pillStroke;
         void PaintClash()
         {
             bool hit = _settings.Current.Gestures.ConflictIds().Contains(b.Id);

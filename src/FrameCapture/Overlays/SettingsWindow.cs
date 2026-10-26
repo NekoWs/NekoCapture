@@ -328,14 +328,15 @@ panel.Children.Add(ToggleRow("\uE7C8", Loc.T(K.Settings.ClickAWindowToCapture), 
         {
             if (tb.Foreground is SolidColorBrush b)
             {
-                if (!animate) { b.Color = to; return; }
+                // 不动画 = 调色板刚变，要当帧落色：先摘掉在飞的动画，否则它盖着基值，写了也看不见
+                if (!animate) { b.BeginAnimation(SolidColorBrush.ColorProperty, null); b.Color = to; return; }
                 b.BeginAnimation(SolidColorBrush.ColorProperty, new ColorAnimation(to, TimeSpan.FromMilliseconds(Fluent.Motion.StateMs)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
             }
             else tb.Foreground = new SolidColorBrush(to);
         }
         void AnimBrush(SolidColorBrush b, Color to, bool animate, int ms)
         {
-            if (!animate) { b.Color = to; return; }
+            if (!animate) { b.BeginAnimation(SolidColorBrush.ColorProperty, null); b.Color = to; return; }
             b.BeginAnimation(SolidColorBrush.ColorProperty, new ColorAnimation(to, TimeSpan.FromMilliseconds(ms)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
         }
 
@@ -422,13 +423,14 @@ panel.Children.Add(ToggleRow("\uE7C8", Loc.T(K.Settings.ClickAWindowToCapture), 
         for (int i = 0; i < cats.Count; i++)
         {
             int captured = i;
-            var icon = new TextBlock { Text = cats[i].Glyph, FontFamily = iconFont, FontSize = 15, Foreground = Theme.TextDimBrush, VerticalAlignment = VerticalAlignment.Center, Width = 22, TextAlignment = TextAlignment.Center };
+            var icon = new TextBlock { Text = cats[i].Glyph, FontFamily = iconFont, FontSize = 15, Foreground = new SolidColorBrush(Theme.TextDim), VerticalAlignment = VerticalAlignment.Center, Width = 22, TextAlignment = TextAlignment.Center };
             // Tag 是给版面探针认路用的：文案里的「设置 · X」指路句必须指着侧栏真存在的某一页，
             // 侧栏写 Hotkeys 而帮助页说 Shortcuts，新用户就会照着说明去找一个不存在的页。
-            var label = new TextBlock { Text = cats[i].Name, Tag = "settings-page", FontSize = 13, Foreground = Theme.TextBrush, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0, 0, 0) };
+            var label = new TextBlock { Text = cats[i].Name, Tag = "settings-page", FontSize = 13, Foreground = new SolidColorBrush(Theme.Text), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0, 0, 0) };
             var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(15, 0, 10, 0) };
             row.Children.Add(icon); row.Children.Add(label);
-            var bg = Theme.NavBgBrush;
+            // 每项一支私有画刷：三态要各自淡变，挂在共享刷上等于把这一行的悬停涂到全窗每一处用侧栏底色的地方。
+            var bg = new SolidColorBrush(Theme.NavBg);
             var el = new Border
             {
                 CornerRadius = new CornerRadius(6),
@@ -451,6 +453,12 @@ panel.Children.Add(ToggleRow("\uE7C8", Loc.T(K.Settings.ClickAWindowToCapture), 
             navItems.Add((el, bg, icon, label));
             navPanel.Children.Add(el);
         }
+        // 侧栏三态是算在 NavBg 上的颜色，各项拿着私有画刷：调色板一动就当帧重算一遍，胶囊的影也跟着换色。
+        _repaint.Add(() =>
+        {
+            PaintNav(false);
+            selBar.Effect = new System.Windows.Media.Effects.DropShadowEffect { Color = Theme.Accent, BlurRadius = 9, ShadowDepth = 0, Opacity = 0.75 };
+        });
         var navInner = new Grid();
         navInner.Children.Add(navPanel);    // 项在下层
         navInner.Children.Add(navCanvas);   // 竖条在上层，落在药丸左缘、不压文字

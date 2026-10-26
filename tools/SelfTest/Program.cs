@@ -1,4 +1,4 @@
-// SelfTest：无头功能测试（不碰鼠标键盘、不开任何窗口）
+﻿// SelfTest：无头功能测试（不碰鼠标键盘、不开任何窗口）
 // 覆盖：GIF 编码往返/调色板 RGB 序、标注烘焙、裁剪、视觉暂留、快捷键解析、抽帧、胶片条
 using System.Diagnostics;
 using System.Drawing;
@@ -6960,6 +6960,95 @@ static partial class SelfTest
 
         }
         catch (Exception e) { Chk("T240-adjust-geometry", false, e.Message); }
+
+        // 调色板的实例形态：界面颜色挂在共享画刷上，改配色当场落到在屏元素，不靠重建窗口。
+        // 深浅互换则盖一层退场侧的底色再淡出——幕布走 Adorner 层，不进布局，走完自己摘掉。
+        try
+        {
+            bool keepDark = Theme.IsDark;
+            var cardBefore = Theme.CardBg;
+            Chk("T241-brush-matches-token", Theme.CardBgBrush.Color == cardBefore, "共享画刷与令牌值同源");
+            Chk("T241-brush-is-shared", Theme.IsPaletteBrush(Theme.CardBgBrush) && Theme.IsPaletteBrush(Theme.AccentBrush),
+                "调色板画刷该被认成共享实例");
+            Chk("T241-brush-private-not-shared", !Theme.IsPaletteBrush(new System.Windows.Media.SolidColorBrush(Theme.CardBg)),
+                "自己 new 的那份不算共享实例");
+
+            var probe = System.Windows.Media.Color.FromRgb(0x33, 0x66, 0x99);
+            bool hit = Theme.SetCustom("CardBg", Theme.IsDark, probe);
+            Chk("T241-custom-lands-in-brush", hit && Theme.CardBgBrush.Color == probe,
+                "改一枚令牌，画刷当场跟着变——没有任何窗口参与");
+            Theme.ClearCustom("CardBg", Theme.IsDark);
+            Chk("T241-clear-restores-brush", Theme.CardBgBrush.Color == cardBefore, "去掉自定义，画刷回到出厂值");
+
+            // 交互面必须是不透明实色：半透明底上混出来的也要实色，否则同一处压在什么上面就读出什么颜色。
+            var veil = System.Windows.Media.Color.FromArgb(0x80, 0x20, 0x30, 0x40);
+            Chk("T241-mixes-opaque",
+                Fluent.HoverOn(veil).A == 0xFF && Fluent.PressOn(veil).A == 0xFF && Fluent.AccentOn(veil, 0.26).A == 0xFF,
+                "半透明底上混出的悬停/按下/选中都是实色");
+            double Lum(System.Windows.Media.Color c) => 0.2126 * c.R + 0.7152 * c.G + 0.0722 * c.B;
+            var hov = Fluent.HoverOn(Theme.NavBg);
+            var press = Fluent.PressOn(Theme.NavBg);
+            Chk("T241-press-steps-past-hover",
+                Math.Abs(Lum(press) - Lum(hov)) > 0.5 && (Theme.IsDark ? Lum(press) > Lum(hov) : Lum(press) < Lum(hov)),
+                $"按下恒比悬停多走一档：悬停 {Lum(hov):F1} → 按下 {Lum(press):F1}");
+
+            // 选中项的文字压在「强调色淡底」上，比卡片底亮，照抄 AccentText 会糊；按真实底色判。
+            foreach (var which in new[] { "light", "dark" })
+            {
+                Theme.Apply(which, null);
+                var tint = Fluent.AccentOn(Theme.NavBg, 0.26);
+                double r = Fluent.ContrastRatio(Fluent.AccentTextOn(tint), tint);
+                Chk($"T241-accent-text-on-tint-{which}", r >= 4.5, $"{which} 态淡底上的强调色文字对比 {r:F2}");
+            }
+            Theme.Apply(keepDark ? "dark" : "light", null);
+
+            // 整套预设与设置文件的清洗
+            var mid = ColorPresets.Find("midnight");
+            var ps = new AppSettings { ColorPreset = mid.Id };
+            ps.Colors = new Dictionary<string, string>(mid.Colors, StringComparer.Ordinal);
+            ps.ApplyPalette();
+            Chk("T241-preset-applies", Theme.Custom("WindowBg") != null && Theme.Custom("PanelBg") != null,
+                "预设整套落进调色板");
+            Theme.ClearAllCustoms();
+            Chk("T241-preset-clears", Theme.Custom("WindowBg") == null, "清掉自定义后回到出厂值");
+
+            var junk = new AppSettings();
+            junk.Colors["dark.CardBg"] = "#123456";
+            junk.Colors["dark.NotAToken"] = "#123456";
+            junk.Colors["light.CardBg"] = "#GGGGGG";
+            junk.Colors["light.RowBg"] = HexColor.Format(Theme.DefaultColor("RowBg", false));
+            junk.Normalize();
+            Chk("T241-normalize-drops-junk", junk.Colors.Count == 1 && junk.Colors["dark.CardBg"] == "#123456",
+                "未知键、非法色、与出厂值相同的条目都在归一时丢掉：" + string.Join(",", junk.Colors.Keys));
+            var badPreset = new AppSettings { ColorPreset = "nope" };
+            badPreset.Normalize();
+            Chk("T241-normalize-preset-id", badPreset.ColorPreset == "", "认不出的预设标识在归一时清空");
+
+            // 换色遮罩：盖在 Adorner 层上，淡出走完自己摘掉
+            var mw = new System.Windows.Window
+            {
+                Content = new System.Windows.Controls.Grid { Background = System.Windows.Media.Brushes.Transparent },
+                Width = 220,
+                Height = 140,
+                WindowStartupLocation = WindowStartupLocation.Manual,
+                Left = -4000,
+                Top = -4000,
+                ShowInTaskbar = false,
+            };
+            mw.Show();
+            PumpMs(80);
+            var rootEl = (System.Windows.UIElement)mw.Content;
+            Fluent.MaskFade(mw, System.Windows.Media.Color.FromRgb(0x11, 0x22, 0x33));
+            PumpMs(30);
+            var layer = System.Windows.Documents.AdornerLayer.GetAdornerLayer(rootEl);
+            var on = layer?.GetAdorners(rootEl);
+            Chk("T241-mask-on", on != null && on.Length == 1, "换色遮罩出现在 Adorner 层上，不占布局");
+            PumpMs(Fluent.Motion.ThemeMs + 260);
+            var off = layer?.GetAdorners(rootEl);
+            Chk("T241-mask-gone", off == null || off.Length == 0, "淡出走完遮罩自己摘掉");
+            mw.Close();
+        }
+        catch (Exception e) { Chk("T241-palette-live", false, e.Message); }
         // 语义判定：按钮/链接/输入框算控件；匿名容器与整页文档不算。
         try
         {

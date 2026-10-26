@@ -17,28 +17,32 @@ public sealed partial class SettingsWindow : Window
 {
     /// <summary>悬停时浮出底色的填充：<paramref name="rest"/> 是静止底色，<paramref name="hover"/> 是
     /// 指针进来时的底色，指针离开回到静止底色。默认静止全透明——给没有底色的元素用；
-    /// 已经在层次台阶上的行传进 <see cref="Theme.RowBg"/> 与 <see cref="Theme.RowHover"/>，
-    /// 悬停就在台阶上再走一档，而不是把底色抹掉再混一层白。</summary>
+    /// 已经在层次台阶上的行传进 <c>() => Theme.RowBg</c> 与 <c>() => Theme.RowHover</c>，
+    /// 悬停就在台阶上再走一档，而不是把底色抹掉再混一层白。
+    /// 底色交的是取色函数而不是构造期抄下的那一份：配色随时在改，抄死的值在改色后就停在旧档上。</summary>
     /// <param name="bd">目标框；<c>Background</c> 被换成本方法持有的可动画画刷。</param>
-    /// <param name="rest">静止底色，省略即全透明。</param>
-    /// <param name="hover">悬停底色，省略即 <see cref="Theme.Hover"/>。</param>
-    static void HoverFill(Border bd, Color? rest = null, Color? hover = null)
+    /// <param name="rest">静止底色的取色函数，省略即全透明。</param>
+    /// <param name="hover">悬停底色的取色函数，省略即 <see cref="Theme.Hover"/>。</param>
+    static void HoverFill(Border bd, Func<Color>? rest = null, Func<Color>? hover = null)
     {
-        var restColor = rest ?? Colors.Transparent;
-        var hoverColor = hover ?? Theme.Hover;
-        // 按压色 = 底上再压一层半透明白：暗色更亮一档、亮色更暗一档，方向跟着主题走。
-        // 静止全透明的幽灵按钮没有底色可压，就拿悬停色当底，否则按下去什么变化都没有。
-        var pressColor = Fluent.Mix(restColor.A > 0 ? restColor : hoverColor, Theme.Press);
-        var bg = new SolidColorBrush(restColor);
+        Color Rest() => rest != null ? rest() : Colors.Transparent;
+        Color Hover() => hover != null ? hover() : Theme.Hover;
+        var bg = new SolidColorBrush(Rest());
         bd.Background = bg;
         bool inside = false;
         void TintBg(Color to, int ms) => bg.BeginAnimation(SolidColorBrush.ColorProperty,
             new ColorAnimation(to, new Duration(TimeSpan.FromMilliseconds(ms))));
-        bd.MouseEnter += (_, _) => { inside = true; TintBg(hoverColor, Fluent.Motion.HoverMs); };
-        bd.MouseLeave += (_, _) => { inside = false; TintBg(restColor, Fluent.Motion.ExitMs); };
-        bd.PreviewMouseLeftButtonDown += (_, _) => TintBg(pressColor, Fluent.Motion.PressMs);
+        bd.MouseEnter += (_, _) => { inside = true; TintBg(Hover(), Fluent.Motion.HoverMs); };
+        bd.MouseLeave += (_, _) => { inside = false; TintBg(Rest(), Fluent.Motion.ExitMs); };
+        bd.PreviewMouseLeftButtonDown += (_, _) =>
+        {
+            // 按压色 = 底上再压一层：暗色更亮一档、亮色更暗一档，方向跟着主题走。
+            // 静止全透明的幽灵按钮没有底色可压，就拿悬停色当底，否则按下去什么变化都没有。
+            var under = Rest();
+            TintBg(Fluent.Mix(under.A > 0 ? under : Hover(), Theme.Press), Fluent.Motion.PressMs);
+        };
         // 抬起回到指针所在的这一档：还在框里就停悬停色，已经滑出去才回静止色。
-        bd.MouseLeftButtonUp += (_, _) => TintBg(inside ? hoverColor : restColor, Fluent.Motion.QuickMs);
+        bd.MouseLeftButtonUp += (_, _) => TintBg(inside ? Hover() : Rest(), Fluent.Motion.QuickMs);
     }
 
     /// <summary>逐行错位的间隔：取分层错位间隔的三分之一，四五行走完仍落在一次入场时长里。</summary>
