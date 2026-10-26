@@ -1,5 +1,6 @@
 # 全站配色的双主题取证：编辑器与贴图窗各拍一张明暗对照。
 # 这两扇是「压在图片上的界面」——工具条、画布四周、贴图描边都要在明暗两套下各自读得清。
+# 就绪卡与各类提示条不在射程：它们几秒就走，探针等不到自己那扇窗，拍到的是屏幕上别的东西。
 # 用法：pwsh -NoProfile -File scripts/cap-surfaces.ps1
 param(
     [string]$OutDir = 'test-out/surfaces',
