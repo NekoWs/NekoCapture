@@ -1,11 +1,14 @@
-# 换色遮罩取证：真进程里把主题从暗翻到亮，连拍一串帧，逐帧量「窗口中心」与「远角」两块的平均亮度。
-# 深浅互换时设置窗从圆心推开一层进场侧的窗口底：中心先翻、远角后翻，两条曲线之间拉开一段距离。
+# 换色遮罩取证：真进程里把主题从一档翻到另一档（默认暗→亮，-From light -To dark 反过来），
+# 连拍一串帧，逐帧量「窗口中心」与「远角」两块的平均亮度。
+# 深浅互换时设置窗从圆心推开一层：中心先翻、远角后翻，两条曲线之间拉开一段距离。
 # 整片淡变的话两块同时翻，两条曲线会贴在一起；没有遮罩则两条都是直接跳档，中间不留过渡值。
 # 逐帧用本进程截屏（每帧十几毫秒）：另起进程去截，一帧的开销比整段动画还长，采不到边界走过的那几帧。
-# 用法：pwsh -NoProfile -File scripts/cap-mask.ps1
+# 用法：pwsh -NoProfile -File scripts/cap-mask.ps1 [-From dark] [-To light]
 param(
     [string]$OutDir = 'test-out/mask',
     [string]$SettingsDir = 'test-out/mask-settings',
+    [string]$From = 'dark',
+    [string]$To = 'light',
     [int]$Frames = 60,
     [int]$GapMs = 12,
     [int]$KeepEvery = 6
@@ -29,7 +32,7 @@ $user = Join-Path $env:APPDATA 'FrameCapture\settings.json'
 $scratchFile = Join-Path $scratch 'settings.json'
 if (Test-Path $user) { Copy-Item $user $scratchFile -Force }
 $set = Get-Content $scratchFile -Raw | ConvertFrom-Json
-$set.Theme = 'dark'
+$set.Theme = $From
 $set | ConvertTo-Json -Depth 40 | Set-Content $scratchFile -Encoding utf8
 
 if (-not ('RaiseWin' -as [type])) {
@@ -83,16 +86,21 @@ function Get-Luma([System.Drawing.Bitmap]$bmp, [int]$x0, [int]$y0, [int]$x1, [in
 }
 # 第一帧越过两档中点的帧号：这块面「什么时候翻过去」看的是中点，不是终点——
 # 中心那块里有正文和卡片，亮度是混合值，用终点当门槛会把几帧的先后抹平。
-function Get-Arrival($series, [double]$dark, [double]$light) {
-    $mid = ($dark + $light) / 2
-    for ($i = 0; $i -lt $series.Count; $i++) { if ($series[$i] -ge $mid) { return $i } }
+# 翻的方向由两端的亮度大小定：亮翻暗时序列往下走，门槛要往下找。
+function Get-Arrival($series, [double]$from, [double]$to) {
+    $mid = ($from + $to) / 2
+    $up = $to -gt $from
+    for ($i = 0; $i -lt $series.Count; $i++) {
+        if ($up) { if ($series[$i] -ge $mid) { return $i } }
+        else { if ($series[$i] -le $mid) { return $i } }
+    }
     return 999
 }
 
 Get-Process FrameCapture -ErrorAction SilentlyContinue | Stop-Process -Force
 Start-Sleep -Milliseconds 350
 $env:FC_SETTINGS_DIR = $scratch
-$env:FC_THEME = 'dark'
+$env:FC_THEME = $From
 $env:FC_SETTINGS_PAGE = 'appearance'
 $p = Start-Process $exe -ArgumentList '--settings' -PassThru
 try {
@@ -114,16 +122,16 @@ try {
     $cx0 = [int]($rc[2] / 2) - 70; $cx1 = [int]($rc[2] / 2) + 70
     $cy0 = [int]($rc[3] / 2) - 45; $cy1 = [int]($rc[3] / 2) + 45
     $nx0 = 8; $nx1 = 96; $ny0 = $rc[3] - 96; $ny1 = $rc[3] - 8
-    $darkC = Get-Luma $base $cx0 $cy0 $cx1 $cy1
-    $darkN = Get-Luma $base $nx0 $ny0 $nx1 $ny1
-    $base.Save((Join-Path $out 'mask-000-dark.png'))
+    $startC = Get-Luma $base $cx0 $cy0 $cx1 $cy1
+    $startN = Get-Luma $base $nx0 $ny0 $nx1 $ny1
+    $base.Save((Join-Path $out ("mask-000-{0}.png" -f $From)))
     $base.Dispose()
 
-    # 翻到亮档：进程按 settings.json 的外部改动热重载（500ms 防抖），遮罩在应用新调色板那一刻从圆心推开
-    $set.Theme = 'light'
+    # 翻到另一档：进程按 settings.json 的外部改动热重载（500ms 防抖），遮罩在应用新调色板那一刻从圆心推开
+    $set.Theme = $To
     $set | ConvertTo-Json -Depth 40 | Set-Content $scratchFile -Encoding utf8
 
-    $centre = @($darkC); $corner = @($darkN)
+    $centre = @($startC); $corner = @($startN)
     for ($i = 1; $i -le $Frames; $i++) {
         Start-Sleep -Milliseconds $GapMs
         $f = Grab $rc[0] $rc[1] $rc[2] $rc[3]
@@ -132,12 +140,12 @@ try {
         if ($i % $KeepEvery -eq 0) { $f.Save((Join-Path $out ("mask-{0:d3}.png" -f $i))) }
         $f.Dispose()
     }
-    $lightC = $centre[-1]; $lightN = $corner[-1]
-    Write-Host ("中心 {0} → {1}    远角 {2} → {3}" -f $darkC, $lightC, $darkN, $lightN)
+    $endC = $centre[-1]; $endN = $corner[-1]
+    Write-Host ("{0} → {1}：中心 {2} → {3}    远角 {4} → {5}" -f $From, $To, $startC, $endC, $startN, $endN)
     Write-Host ("中心序列：" + ($centre -join ' '))
     Write-Host ("远角序列：" + ($corner -join ' '))
-    $arrC = Get-Arrival $centre $darkC $lightC
-    $arrN = Get-Arrival $corner $darkN $lightN
+    $arrC = Get-Arrival $centre $startC $endC
+    $arrN = Get-Arrival $corner $startN $endN
     Write-Host ("中心越过中点在第 {0} 帧，远角在第 {1} 帧（早 {2} 帧）" -f $arrC, $arrN, ($arrN - $arrC))
     if (($arrN - $arrC) -ge 3) { Write-Host 'RIPPLE VISIBLE' } else { Write-Host 'NO RIPPLE' }
 }
