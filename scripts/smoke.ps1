@@ -11,6 +11,7 @@ Add-Type -Namespace W32 -Name U32 -MemberDefinition @'
 [StructLayout(LayoutKind.Sequential)] public struct CURSORINFO { public int cb; public int flags; public System.IntPtr hCursor; public POINTL ptScreenPos; }
 [StructLayout(LayoutKind.Sequential)] public struct POINTL { public long x, y; }
 '@
+$env:FC_NO_ELEVATE = "1"   # 冒烟不提权：这里等的是进程自己起来，UAC 会把它挡在门外
 Start-Process -FilePath $exe
 Start-Sleep 2.5
 "hotkey: press"

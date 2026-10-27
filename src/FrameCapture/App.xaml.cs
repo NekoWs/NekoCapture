@@ -50,6 +50,8 @@ public partial class App : Application
         Core.MsaaSnap.DebugLog = Core.Trace.Log;
         Core.ElementSnap.DebugLog = Core.Trace.Log;
 
+    /// <summary>「已经为提权试过一次」的标记参数：UAC 被取消时新实例带着它起来，就不会再来回弹 UAC。</summary>
+    const string ElevationAttemptArg = "--elevated-attempt";
         // 单实例
         _mutex = new Mutex(true, @"Local\FrameCapture.SingleInstance", out bool owned);
         if (!owned)
@@ -77,6 +79,29 @@ public partial class App : Application
 
         Services.AppHost.Current.Startup();
         StartMessageSink();
+
+        // 「以管理员身份运行」开着而这一次不是提权实例：换成提权实例（UAC 一次），本进程退出。
+        // 只试一次——带上 --elevated-attempt 再起，UAC 被取消时新实例就在当前权限下继续跑，
+        // 不会来回弹。登录自启有另一条路（计划任务直接以最高权限拉起），那时这里根本不会触发。
+        // 脚本与取证一律不提权：那些宿主把这个进程当子进程等结果，弹一次 UAC 就卡在那儿。
+        // 认得三种标记——FC_NO_ELEVATE=1、FC_TEST_NO_FG=1、以及任何用了独立设置目录的启动（FC_SETTINGS_DIR）。
+        bool scripted = Environment.GetEnvironmentVariable("FC_NO_ELEVATE") == "1"
+            || Environment.GetEnvironmentVariable("FC_TEST_NO_FG") == "1"
+            || !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("FC_SETTINGS_DIR"));
+        if (!scripted
+            && !Services.StartupService.IsElevated
+            && Services.AppHost.Current.Settings.Current.RunAsAdmin
+            && !e.Args.Any(a => string.Equals(a, ElevationAttemptArg, StringComparison.OrdinalIgnoreCase)))
+        {
+            var forwarded = string.Join(" ", e.Args.Append(ElevationAttemptArg));
+            if (Services.StartupService.RelaunchElevated(forwarded))
+            {
+                Core.Trace.Log("elevate→relaunch");
+                Shutdown();
+                return;
+            }
+            Core.Trace.Log("elevate→cancelled, keep running unelevated");
+        }
 
         // 每次启动都弹就绪卡：首启那张常驻（还没看见就说明不了什么），之后几张按时自己走。
         // 点破两个热键 + 关键手感——新用户装完只见托盘图标、不知按什么键是头号上手摩擦。

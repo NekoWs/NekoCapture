@@ -284,11 +284,10 @@ public static partial class K
             "settings.rememberTheLastToolColor",
             "记住上次的工具/颜色/粗细",
             "Remember the last tool, color, and width");
-        public static readonly Str ElevatedNow = new("settings.elevatedNow", "当前以管理员身份运行：Win 组合键与高权限窗口上的按键都抓得住", "Running as administrator: Win chords and keys over elevated windows are captured");
-        public static readonly Str ElevationNeedsRestart = new(
-            "settings.elevationNeedsRestart",
-            "以管理员身份运行需要换成提权实例，现在会重启一次并弹出 UAC。继续吗",
-            "Running as administrator needs an elevated instance. FrameCapture will restart and Windows will ask for permission. Continue");
+        public static readonly Str ElevationPending = new(
+            "settings.elevationPending",
+            "已开启「以管理员身份运行」，但当前实例未提权：重启后生效，也可以现在点这一条换成提权实例",
+            "Run as administrator is on, but this instance is not elevated. It takes effect after a restart; clicking this line elevates right now");        public static readonly Str ElevatedNow = new("settings.elevatedNow", "当前以管理员身份运行：Win 组合键与高权限窗口上的按键都抓得住", "Running as administrator: Win chords and keys over elevated windows are captured");
         public static readonly Str ElevationRelaunchFailed = new(
             "settings.elevationRelaunchFailed",
             "提权启动被取消，仍在当前权限下运行——Win 组合键可能被系统先接走",

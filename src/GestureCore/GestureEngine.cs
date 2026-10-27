@@ -132,9 +132,9 @@ public sealed class GestureEngine
                 bool f2 = FireTrigger(kv.Key, TriggerKind.Chord);
                 // 独占吞键候选：组合键带具体键(非纯修饰键)、正是本次事件键。
                 bool claim = kv.Key.Key != 0 && kv.Key.Key == triggerKey;
-                // 确有 KeyDown/Chord 动作成功触发 → 吞。
-                if ((f1 || f2) && claim) _swallowThisEvent = true;
-                // 键盘点按/按住：按下即认领（吞键，前台收不到），tap/hold 待抬起或阈值判定。
+                // 这个键归这一条绑定：动作被守卫挡下（比如正在录制）也照样吞。
+                // 放行会让系统与别的软件也收到它——用户把键绑给我们，结果 Windows 自己弹了截图工具。
+                if (claim && (f1 || f2 || HasKeyboardTrigger(kv.Key))) _swallowThisEvent = true;
                 if (HasTapHold(kv.Key))
                 {
                     st.KeyDownTime = nowMs; st.KeyPending = true; st.HoldFired = false;
@@ -320,6 +320,12 @@ public sealed class GestureEngine
         t == TriggerKind.Tap || t == TriggerKind.Hold || t == TriggerKind.HoldRelease;
 
     /// <summary>该组合键是否绑了键盘点按/按住类触发（按下即认领吞键、抬起/阈值判定 tap 或 hold）。</summary>
+    /// <summary>该组合键是否绑了键盘触发（KeyDown / KeyUp / Chord）。绑了键盘触发的组合键，
+    /// 本键按下就归它——动作是否被守卫放行是另一件事，放行与否都不该让键漏给系统。</summary>
+    bool HasKeyboardTrigger(KeyChord c) =>
+        _triggers.TryGetValue(c, out var s) &&
+        (s.Contains(TriggerKind.KeyDown) || s.Contains(TriggerKind.KeyUp) || s.Contains(TriggerKind.Chord));
+
     bool HasTapHold(KeyChord c) =>
         _triggers.TryGetValue(c, out var s) &&
         (s.Contains(TriggerKind.Tap) || s.Contains(TriggerKind.Hold) || s.Contains(TriggerKind.HoldRelease));

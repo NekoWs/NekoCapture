@@ -237,6 +237,18 @@ if (-not $Full) {
 } elseif ($okBuild) {
     # e2e 会改设置（主题、热键、手势配置都写在 settings.json）——那些写全落在上面起的临时目录里，
     # 用户那份碰不到。这里只保证一件事：中途抛异常也要记一条 FAIL，别让汇总看起来像全跑过。
+    #
+    # 先清场：任何还在跑的实例都会让脚本新起的那个变成「第二实例」——新进程把参数转发给旧进程就退出，
+    # 旧进程又没带测试开关，于是每一项都表现为「编辑器没出现」。杀不掉的实例（多半是提权起的）
+    # 会让整段 e2e 全部报错，而错因不在被测代码上：那种情况如实记 SKIP 并写明原因。
+    Get-Process FrameCapture -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+    Start-Sleep -Milliseconds 800
+    $leftover = @(Get-Process FrameCapture -ErrorAction SilentlyContinue)
+    if ($leftover.Count -gt 0) {
+        $why = "有 " + $leftover.Count + " 个 FrameCapture 实例杀不掉（多半是提权起的），先退出它再跑 -Full"
+        foreach ($t in $e2e) { Add-Result $t.n "SKIP" $why }
+        $e2e = @()
+    }
     try {
         foreach ($t in $e2e) {
             # 焦点安全是全套里唯一必须真注入 OS 级按键的一项：注入期间 Ctrl 真的会被按住约 900ms，

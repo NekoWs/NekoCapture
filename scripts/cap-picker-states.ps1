@@ -27,6 +27,13 @@ if (Test-Path $scratch) { Remove-Item $scratch -Recurse -Force }
 New-Item -ItemType Directory -Force -Path $scratch | Out-Null
 $userCfg = Join-Path $env:APPDATA 'FrameCapture\settings.json'
 if (Test-Path $userCfg) { Copy-Item $userCfg (Join-Path $scratch 'settings.json') -Force }
+# 取证期间一律不提权：RunAsAdmin 开着会让每次启动都弹 UAC
+$cfg = Join-Path $scratch 'settings.json'
+if (Test-Path $cfg) {
+    $s0 = Get-Content $cfg -Raw | ConvertFrom-Json
+    $s0 | Add-Member -NotePropertyName RunAsAdmin -NotePropertyValue $false -Force
+    $s0 | ConvertTo-Json -Depth 40 | Set-Content $cfg -Encoding utf8
+}
 $env:FC_SETTINGS_DIR = $scratch
 $env:FC_LANG = $Lang
 $env:FC_THEME = $Theme

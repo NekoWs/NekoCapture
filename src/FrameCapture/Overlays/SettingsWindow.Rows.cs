@@ -431,7 +431,7 @@ public sealed partial class SettingsWindow : Window
     /// <summary>一行只读小字：说当前状态，不带控件。挂在卡片里与设置行同一列节奏。</summary>
     /// <param name="text">已取好词的文字。</param>
     /// <returns>可直接加进分页的一行。</returns>
-    static FrameworkElement UiNote(string text) => new TextBlock
+    static TextBlock UiNote(string text) => new()
     {
         Text = text,
         FontSize = 11.5,

@@ -47,13 +47,6 @@ public sealed partial class RegionPickerWindow : Window
     // 置顶带巡检定时器：Loaded 起每 400ms 重插一次，防被游戏等霸屏窗压住；窗口不可见即停
     readonly System.Windows.Threading.DispatcherTimer _topTimer;
 
-    static System.Windows.Media.Animation.DoubleAnimation MaskAnim(double to, int ms, int delay)
-        => new(to, TimeSpan.FromMilliseconds(ms))
-        {
-            BeginTime = TimeSpan.FromMilliseconds(delay),
-            EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut },
-        };
-
     void ReassertTop()
     {
         var h = new System.Windows.Interop.WindowInteropHelper(this).Handle;
@@ -535,6 +528,8 @@ public sealed partial class RegionPickerWindow : Window
         // Esc/Enter/C/F/Tab 全部由 HotkeyManager 全局钩子代收（见类末 OnPickerKey）。
         // 右键关整层：与 Esc 同一条出口，设置里可以关掉（网页里想右键复制时不至于把选区弄丢）
         MouseRightButtonUp += (_, _) => { if (_rightClickCancel) Finish(null); };
+        // 模式开关常显在屏幕上方：它不属于某个选区，还没拖框就要能切
+        BuildModeSwitch(Width);
         MouseLeftButtonDown += OnDown;
         MouseMove += OnMove;
         MouseLeftButtonUp += OnUp;
@@ -574,11 +569,11 @@ public sealed partial class RegionPickerWindow : Window
     private void OnDown(object sender, MouseButtonEventArgs e)
     {
         var dipDown = e.GetPosition(this);
+        if (HitModeSwitch(dipDown)) return;   // 先判模式开关：不依赖选区在不在
         // 调整态：先看勾/叉按钮，再看是抓边角还是整块移动；点到框外就重开一个选区
         if (_sel != null)
         {
             if (OverButton(dipDown, _okButton)) { ConfirmSelection(); return; }
-            if (HitModeSwitch(dipDown)) return;
             if (OverButton(dipDown, _cancelButton)) { Finish(null); return; }
             var kindDown = ProbeAt(dipDown);
             if (kindDown != GrabKind.None)
@@ -601,6 +596,10 @@ public sealed partial class RegionPickerWindow : Window
     private void OnMove(object sender, MouseEventArgs e)
     {
         var dipMove = e.GetPosition(this);
+        // 模式开关常显在屏幕上方：指针停在它上面给手型，但拖框与抓边角期间不打断
+        if (_grab == GrabKind.None && !_dragging
+            && (OverButton(dipMove, _modeCapture) || OverButton(dipMove, _modeRecord)))
+        { Cursor = Cursors.Hand; return; }
         if (_grab != GrabKind.None) { DragAdjust(dipMove); return; }
         if (_sel != null) { ProbeAt(dipMove); return; }
         var dip = e.GetPosition(this);

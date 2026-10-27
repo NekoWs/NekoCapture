@@ -15,6 +15,13 @@ namespace FrameCapture.Overlays;
 /// </summary>
 public sealed partial class RegionPickerWindow
 {
+    static System.Windows.Media.Animation.DoubleAnimation MaskAnim(double to, int ms, int delay)
+        => new(to, TimeSpan.FromMilliseconds(ms))
+        {
+            BeginTime = TimeSpan.FromMilliseconds(delay),
+            EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut },
+        };
+
     /// <summary>当前调整中的选区（物理像素）；null 表示还在拖框新建阶段。</summary>
     private RectI? _sel;
 
@@ -112,23 +119,6 @@ public sealed partial class RegionPickerWindow
         _cancelButton = AdjustButton(Loc.T(K.Common.Cancel), null, false, Loc.T(K.Capture.CancelSelection));
         _canvas.Children.Add(_okButton);
         _canvas.Children.Add(_cancelButton);
-        // 模式开关：这次选区落下去是截图还是起录。贴在勾按钮左边，与两个按钮同一行
-        _modeSwitch = new Border
-        {
-            Width = ModeSwitchWidth,
-            Height = ButtonHeight,
-            CornerRadius = new CornerRadius(7),
-            Background = new SolidColorBrush(CancelFill),
-            BorderBrush = new SolidColorBrush(Color.FromArgb(0x33, 0xFF, 0xFF, 0xFF)),
-            BorderThickness = new Thickness(1),
-            Visibility = Visibility.Collapsed,
-        };
-        _modeCapture = ModeSegment(Loc.T(K.Common.Capture), false);
-        _modeRecord = ModeSegment(Loc.T(K.Common.Recording), true);
-        _canvas.Children.Add(_modeSwitch);
-        _canvas.Children.Add(_modeCapture);
-        _canvas.Children.Add(_modeRecord);
-        PaintModeSwitch();
     }
 
     /// <summary>做一个圆形按钮：勾用强调色底，叉用深色底。</summary>
@@ -203,9 +193,6 @@ public sealed partial class RegionPickerWindow
         foreach (var h in _handles) h.Visibility = Visibility.Collapsed;
         if (_okButton != null) _okButton.Visibility = Visibility.Collapsed;
         if (_cancelButton != null) _cancelButton.Visibility = Visibility.Collapsed;
-        if (_modeSwitch != null) _modeSwitch.Visibility = Visibility.Collapsed;
-        if (_modeCapture != null) _modeCapture.Visibility = Visibility.Collapsed;
-        if (_modeRecord != null) _modeRecord.Visibility = Visibility.Collapsed;
         if (_hintLabel != null) _hintLabel.Text = Loc.T(K.Capture.DragToSelectHover);
         ShowSpot(null);
     }
@@ -236,12 +223,6 @@ public sealed partial class RegionPickerWindow
         bx = Math.Max(4, bx);
         by = Math.Max(4, by);
         if (_okButton != null) { Canvas.SetLeft(_okButton, bx); Canvas.SetTop(_okButton, by); _okButton.Visibility = Visibility.Visible; }
-        if (_modeSwitch != null)
-        {
-            double sx = Math.Max(4, bx - 8 - ModeSwitchWidth);
-            Canvas.SetLeft(_modeSwitch, sx); Canvas.SetTop(_modeSwitch, by); _modeSwitch.Visibility = Visibility.Visible;
-            LayoutModeSegments(sx, by);
-        }
         if (_cancelButton != null) { Canvas.SetLeft(_cancelButton, bx + ButtonWidth + between); Canvas.SetTop(_cancelButton, by); _cancelButton.Visibility = Visibility.Visible; }
     }
 
@@ -300,6 +281,36 @@ public sealed partial class RegionPickerWindow
         },
         ToolTip = record ? Loc.T(K.Settings.StartRecordingAfterSelecting) : Loc.T(K.Capture.ConfirmSelection),
     };
+
+    /// <summary>建一枚常显的模式开关，贴在屏幕上方居中：不依赖可调整选区，还没拖框就能决定这一次要截图还是起录。</summary>
+    /// <param name="screenWidth">本窗的 DIP 宽度，用来居中。</param>
+    private void BuildModeSwitch(double screenWidth)
+    {
+        _modeSwitch = new Border
+        {
+            Width = ModeSwitchWidth,
+            Height = ButtonHeight,
+            CornerRadius = new CornerRadius(7),
+            Background = new SolidColorBrush(CancelFill),
+            BorderBrush = new SolidColorBrush(Color.FromArgb(0x33, 0xFF, 0xFF, 0xFF)),
+            BorderThickness = new Thickness(1),
+        };
+        _modeCapture = ModeSegment(Loc.T(K.Common.Capture), false);
+        _modeRecord = ModeSegment(Loc.T(K.Common.Recording), true);
+        double x = Math.Max(8, (screenWidth - ModeSwitchWidth) / 2);
+        const double y = 56;   // 上方居中：离屏幕上缘一条标题栏的距离，显眼又不挡窗口自己的标题
+        Canvas.SetLeft(_modeSwitch, x);
+        Canvas.SetTop(_modeSwitch, y);
+        // 压在遮罩之上：遮罩是画布里第一个孩子，靠插入顺序排已经不够稳，显式给一层
+        Panel.SetZIndex(_modeSwitch, 10);
+        Panel.SetZIndex(_modeCapture, 11);
+        Panel.SetZIndex(_modeRecord, 12);
+        _canvas.Children.Add(_modeSwitch);
+        _canvas.Children.Add(_modeCapture);
+        _canvas.Children.Add(_modeRecord);
+        LayoutModeSegments(x, y);
+        PaintModeSwitch();
+    }
 
     /// <summary>把两段摆进开关里：左截图、右录制。</summary>
     /// <param name="x">开关左缘（DIP）。</param>
