@@ -3018,3 +3018,13 @@ ShowCat 是 Build 里的局部函数，反射拿不到），组合 44 → 56。�
   落盘与重装都在 UI 线程上发生。
 
 断言 `T267-capture-*`（Ctrl+A、Shift+Win+S、Esc 解绑、裸字母）。
+
+### 单键也能当热键
+
+`HotkeySpec.Parse` 原先只放行「带修饰键」与 F1–F24，裸字母一律拒收：录入框录得下 `A`，存进绑定表时被
+`ToBinding()` 判非法、那条绑定静默消失——看着像「录上了但不生效」。现在裸键一律收，只拒修饰键本身
+（Ctrl/Shift/Alt/Win 单独按下没有意义）。
+
+语义要写明白：裸键当热键就是**在全局顶替这个键本来的用途**——绑 `A` 之后，任何软件里的 `A` 都不会再落到
+前台（这正是 PrtSc 想要的，也是普通字母的代价）。断言 `T5c-parse-bare-letter`、`T5c2-parse-modifier-only-null`、
+`T131b-modifier-only-rejected`、`T131d-default-skips-bad-key`、`T265-bare-letter-accepted`。

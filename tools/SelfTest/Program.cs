@@ -1304,9 +1304,10 @@ static partial class SelfTest
             Chk("T5a-parse-ctrl-shift-r", s1 != null && s1.Ctrl && s1.Shift && s1.Key == System.Windows.Forms.Keys.R);
             var s2 = HotkeySpec.Parse("F5");
             Chk("T5b-parse-bare-fkey", s2 != null && s2.Key == System.Windows.Forms.Keys.F5 && !s2.Ctrl);
-            Chk("T5c-parse-bare-letter-null", HotkeySpec.Parse("A") == null);
-            Chk("T5d-parse-empty-null", HotkeySpec.Parse("") == null);
-            Chk("T5e-roundtrip", s1 != null && HotkeySpec.Parse(s1.ToString())?.ToString() == s1.ToString());
+            // 裸键也收：录得下就必须触发得了；修饰键本身仍然不行
+            var s1b = HotkeySpec.Parse("A");
+            Chk("T5c-parse-bare-letter", s1b != null && s1b.Key == System.Windows.Forms.Keys.A && s1b.ToString() == "A");
+            Chk("T5c2-parse-modifier-only-null", HotkeySpec.Parse("Ctrl") == null);
         }
         catch (Exception e) { Chk("T5-hotkey", false, e.Message); }
 
@@ -4229,9 +4230,8 @@ static partial class SelfTest
                 && b.Chord.Key == 0x47 && b.Trigger == GE.TriggerKind.Chord,
                 "Ctrl+Shift+G→Chord(Control|Shift, VK G=0x47)，实得 " + (b == null ? "null" : $"{b.Chord.Mods}/{b.Chord.Key:X}/{b.Trigger}"));
 
-            Chk("T131b-bare-key-rejected", new GestureBindingDto { Chord = "G", Trigger = "Chord", Actions = new[] { GestureActions.CaptureFrame } }.ToBinding() == null,
-                "裸键 G（不安全）解析失败→ToBinding null（复用 HotkeySpec 安全规则）");
-
+            Chk("T131b-modifier-only-rejected", new GestureBindingDto { Chord = "Ctrl", Trigger = "Chord", Actions = new[] { GestureActions.CaptureFrame } }.ToBinding() == null,
+                "只有修饰键的串解析失败→ToBinding null");
             var def = GestureConfig.DefaultQqSet("Ctrl+Alt+A", "Ctrl+Alt+R");
             Chk("T131c-default-capture-chain", def.Count == 2
                 && def[0].Actions.SequenceEqual(new[] { GestureActions.ScopeSelect, GestureActions.CaptureStored })
@@ -4242,9 +4242,8 @@ static partial class SelfTest
                 && def[1].OnComplete.SequenceEqual(new[] { GestureActions.EditLastVideo }),
                 "默认录制键 = 选区→开始/停止录制，完成后覆盖成打开编辑器");
 
-            Chk("T131d-default-skips-bad-key", GestureConfig.DefaultQqSet("G", "Ctrl+Alt+R").Count == 1,
-                "非法键串那一条不生成（裸键 G 不安全），另一条照生成");
-
+            Chk("T131d-default-skips-bad-key", GestureConfig.DefaultQqSet("Ctrl", "Ctrl+Alt+R").Count == 1,
+                "非法键串那一条不生成（只有修饰键），另一条照生成");
             var cfg = new GestureConfig { Enabled = true, Bindings = GestureConfig.DefaultQqSet("Ctrl+Alt+A", "Ctrl+Alt+R") };
             var json = System.Text.Json.JsonSerializer.Serialize(cfg);
             var back = System.Text.Json.JsonSerializer.Deserialize<GestureConfig>(json)!;
@@ -7556,8 +7555,8 @@ static partial class SelfTest
                 prtsc != null && prtsc.Key == System.Windows.Forms.Keys.PrintScreen && !prtsc.Ctrl && !prtsc.Alt && !prtsc.Shift && !prtsc.Win,
                 $"PrtSc 单键解析：{prtsc?.ToString() ?? "null"}");
             Chk("T265-bare-prtsc-roundtrip", prtsc != null && prtsc.ToString() == "PrtSc", "存进设置的串读回来还是 PrtSc");
-            Chk("T265-bare-letter-still-rejected", FrameCapture.Core.HotkeySpec.Parse("A") == null,
-                "裸字母仍然拒收：热键在窗口外也生效，收下裸键等于劫持别人的输入");
+            var bare265 = FrameCapture.Core.HotkeySpec.Parse("A");
+            Chk("T265-bare-letter-accepted", bare265 != null && bare265.ToString() == "A", "裸字母能当热键");
             var winShiftS = FrameCapture.Core.HotkeySpec.Parse("Win+Shift+S");
             Chk("T265-win-chord-parses",
                 winShiftS != null && winShiftS.Win && winShiftS.Shift && !winShiftS.Ctrl && winShiftS.Key == System.Windows.Forms.Keys.S,

@@ -4,9 +4,9 @@ using WinFormsKeys = System.Windows.Forms.Keys;
 
 namespace FrameCapture.Core;
 
-/// <summary>
-/// 全局快捷键描述："Ctrl+Shift+G"、"F9"、"Alt+F4"…
-/// F1..F24 允许无修饰键；其他键必须带至少一个修饰键，防止劫持普通输入。
+/// 全局快捷键描述："Ctrl+Shift+G"、"F9"、"Alt+F4"、"PrtSc"、"A"。
+/// 修饰键可选：写成裸键就是让这个键在全局顶替本来的用途（PrtSc 天然如此，普通字母等于从所有软件手里收走它）。
+/// 修饰键本身不能单独当热键。
 /// </summary>
 public sealed partial class HotkeySpec
 {
@@ -87,21 +87,17 @@ public sealed partial class HotkeySpec
         }
 
         if (key == null) return null;
-        bool hasMod = ctrl || alt || shift || win;
-        // 裸键只放行两类：F1–F24（本来就不参与输入）与 PrintScreen（系统里它就只为截图存在）。
-        // 其余裸键一律拒收——热键在窗口外也生效，收下裸字母等于劫持别的软件的输入。
-        bool safeSingle = IsFunctionKey(key.Value) || key.Value is WinFormsKeys.PrintScreen or WinFormsKeys.Snapshot;
-        if (!hasMod && !safeSingle) return null;
+        // 裸键也收：用户把某个键单独绑成热键，就是要它在全局顶替本来的用途（PrtSc 天然如此，
+        // 普通字母则等于把这个字母从所有软件手里收走）。唯一的例外是修饰键本身——它单独按下没有意义。
         if (KeyIsModifierStatic(key.Value)) return null;
 
         return new HotkeySpec { Ctrl = ctrl, Alt = alt, Shift = shift, Win = win, Key = key.Value };
     }
 
-    static bool IsFunctionKey(WinFormsKeys k) => k >= WinFormsKeys.F1 && k <= WinFormsKeys.F24;
-
     static bool KeyIsModifierStatic(WinFormsKeys k) =>
-        new HotkeySpec { Key = k }.KeyIsModifier;
-
+        k is WinFormsKeys.ControlKey or WinFormsKeys.ShiftKey or WinFormsKeys.Menu
+            or WinFormsKeys.LWin or WinFormsKeys.RWin or WinFormsKeys.LShiftKey or WinFormsKeys.RShiftKey
+            or WinFormsKeys.LControlKey or WinFormsKeys.RControlKey or WinFormsKeys.LMenu or WinFormsKeys.RMenu;
     static string KeyName(WinFormsKeys k) => k switch
     {
         WinFormsKeys.ControlKey => "Ctrl",
@@ -118,7 +114,7 @@ public sealed partial class HotkeySpec
         if (Enum.TryParse<WinFormsKeys>(tok, ignoreCase: true, out var k) && k != WinFormsKeys.None)
         {
             // Enum.TryParse 会把 "Shift Left" 之类也接受；限制为基础键
-            if ((k & WinFormsKeys.KeyCode) == k || IsFunctionKey(k)) return (k & WinFormsKeys.KeyCode);
+            if ((k & WinFormsKeys.KeyCode) == k) return (k & WinFormsKeys.KeyCode);
         }
         // 数字 "0".."9" 需要转 D0..D9（Enum 名是 D0）
         if (tok.Length == 1 && char.IsBetween(tok[0], '0', '9'))
