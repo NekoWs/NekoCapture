@@ -165,7 +165,12 @@ public sealed class TrayService : IDisposable
         if (AppHost.IsElevated)
             Item(Loc.T(K.Tray.RunningAsAdministrator), () => { }, checkable: true, isChecked: true); // 勾选标记由 checkable 呈现，文本里不重复打勾
         else
-            Item(Loc.T(K.Tray.RunAsAdministrator), () => _host.RestartAsAdmin());
+            Item(Loc.T(K.Tray.RunAsAdministrator), () =>
+            {
+                // 托盘这一下与设置里那枚开关是同一件事：都记成「要提权」，再换成提权实例
+                _host.Settings.Mutate(s => s.RunAsAdmin = true);
+                _host.RestartAsAdmin();
+            });
         Sep();
         Item(Loc.T(K.Tray.Exit), () =>
         {

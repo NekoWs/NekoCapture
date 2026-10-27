@@ -141,20 +141,27 @@ public sealed class AppHost
         }
     }
 
-    /// <summary>以管理员权限重启本程序（UAC 确认一次）；取消则维持现状。</summary>
-    public void RestartAsAdmin()
+    /// <summary>以管理员权限重启本程序（UAC 确认一次）；取消则维持现状，本进程继续跑。
+    /// 交接是「先起提权实例、再关自己」：反过来的话新实例会撞上单实例互斥、把参数转发给正在退出的旧进程再退。
+    /// 旧进程必须真的退出，提权实例才拿得到那个互斥。</summary>
+    /// <param name="args">交给提权实例的参数，如 <c>--settings --page system</c>。</param>
+    /// <returns>提权实例已起来（本进程随后退出）返回 true；用户取消 UAC 返回 false。</returns>
+    public bool RestartAsAdmin(string? args = null)
     {
         try
         {
             var exe = Environment.ProcessPath ?? System.Reflection.Assembly.GetExecutingAssembly().Location;
-            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(exe)
-            { UseShellExecute = true, Verb = "runas" });
+            var psi = new System.Diagnostics.ProcessStartInfo(exe, args ?? "")
+            { UseShellExecute = true, Verb = "runas" };
+            using var p = System.Diagnostics.Process.Start(psi);
+            if (p == null) return false;
             Trace.Log("relaunch requested: elevated");
             Shutdown();
             System.Windows.Application.Current?.Shutdown();
+            return true;
         }
-        catch (System.ComponentModel.Win32Exception) { /* 用户取消了 UAC */ }
-        catch (Exception ex) { Trace.Log($"elevate failed: {ex.GetType().Name}"); }
+        catch (System.ComponentModel.Win32Exception) { return false; }   // 用户取消了 UAC
+        catch (Exception ex) { Trace.Log($"elevate failed: {ex.GetType().Name}"); return false; }
     }
 
     /// <summary>把钩子动作投递到 UI 线程，绝不阻塞。

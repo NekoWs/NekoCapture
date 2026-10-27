@@ -7574,6 +7574,14 @@ static partial class SelfTest
                 Actions = new[] { FrameCapture.Core.GestureActions.ScopeSelect, FrameCapture.Core.GestureActions.CaptureStored },
             };
             Chk("T265-bare-prtsc-reaches-engine", dto265.ToBinding() != null, "裸 PrtSc 能变成引擎绑定（不再是空）");
+            // 提权交接回来的页名解析：--page system 要落到「系统」那一页
+            var parsePage = typeof(FrameCapture.Overlays.SettingsWindow).GetMethod("ParsePage",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!;
+            Chk("T266-page-arg-system", (int)parsePage.Invoke(null, new object?[] { "system" })! == 8,
+                "页名 system 落到第 9 页（系统）");
+            Chk("T266-page-arg-index", (int)parsePage.Invoke(null, new object?[] { "3" })! == 3, "下标 3 直接当页序");
+            Chk("T266-page-arg-junk", (int)parsePage.Invoke(null, new object?[] { "nonsense" })! == -1
+                && (int)parsePage.Invoke(null, new object?[] { null })! == -1, "认不出的页名与空值都回 -1");
             var ed265 = FrameCapture.Core.EditorChord.Parse("PrtSc");
             Chk("T265-editor-chord-prtsc",
                 ed265 != null && ed265.Value.Key == System.Windows.Input.Key.PrintScreen && ed265.Value.ToString() == "PrtSc"

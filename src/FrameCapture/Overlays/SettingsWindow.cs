@@ -14,6 +14,9 @@ public sealed partial class SettingsWindow : Window
 {
     readonly SettingsService _settings;
     int _cat;           // 当前分页索引
+    /// <summary>切页的入口：<c>ShowCat</c> 是 <c>Build</c> 里的局部函数，构造时把它记下来给外部调用。</summary>
+    Action<int, bool>? _gotoCat;
+
     int _restoreCat = -1;    // 重建（改主题/强调色）时要恢复的分页索引；-1 = 没指定，走默认第一页
 
     /// <summary>选中项左侧那枚滑条：位置由选中项的真实行位算，切换时滑到新行。</summary>
@@ -56,18 +59,40 @@ public sealed partial class SettingsWindow : Window
     }
 
     /// <summary>
-    /// 打开设置窗；已有实例时只激活它，全进程同时最多一个设置窗。
+    /// 打开设置窗；已有实例时只激活它并切到请求的那一页，全进程同时最多一个设置窗。
     /// 必须在 UI 线程调用（遍历 <c>Application.Current.Windows</c> 找现存实例）。
     /// </summary>
-    public static void ShowOrFocus()
+    /// <param name="page">开局停在哪一页：页名或下标；空或认不出回第一页。提权交接回来时用它停到「系统」。</param>
+    public static void ShowOrFocus(string? page = null)
     {
-        var app = Application.Current;
         var existing = Find();
-        if (existing != null) { existing.Activate(); return; }
-        var w = new SettingsWindow();
+        // 已经开着一扇窗：只把它激活，并按这次请求切到那一页（提权交接回来说的就是「系统」）
+        if (existing != null) { existing.Activate(); existing.GotoPage(page); return; }
+        var w = new SettingsWindow { _restoreCat = ParsePage(page) };
         w.Build();
         w.Show();
         w.Activate();
+    }
+
+    /// <summary>把已开着的窗切到某一页；页名为空或认不出就不动。</summary>
+    /// <param name="page">页名或下标，与 <c>FC_SETTINGS_PAGE</c> 同一套写法。</param>
+    void GotoPage(string? page)
+    {
+        int at = ParsePage(page);
+        if (at >= 0 && IsLoaded) _gotoCat?.Invoke(at, true);
+    }
+
+    /// <summary>页名或下标 → 分页序号；认不出返回 -1。</summary>
+    /// <param name="page">形如 <c>system</c> 或 <c>8</c> 的串。</param>
+    /// <returns>分页序号，认不出为 -1。</returns>
+    static int ParsePage(string? page)
+    {
+        if (string.IsNullOrWhiteSpace(page)) return -1;
+        var raw = page.Trim().ToLowerInvariant();
+        string[] names = { "hotkeys", "capture", "record", "output", "editor", "pin", "appearance", "palette", "system" };
+        int at = Array.IndexOf(names, raw);
+        if (at >= 0) return at;
+        return int.TryParse(raw, out var n) && n >= 0 && n < names.Length ? n : -1;
     }
 
     static SettingsWindow? Find()
@@ -301,9 +326,10 @@ panel.Children.Add(ToggleRow("\uE768", Loc.T(K.Settings.StartRecordingAfterSelec
                 if (!v) { ApplyStartup(); return; }
                 // 已经提权：只把登录入口换成任务形式，不必重启
                 if (StartupService.IsElevated) { ApplyStartup(); return; }
-                // 没提权：直接换成提权实例——这一档的全部意义就是让钩子抓住 Win 组合键与高权限窗口上的键，
-                // 而 UAC 本身就是那次确认
-                if (StartupService.RelaunchElevated()) { Fluent.CloseWithFade(this); return; }
+                // 没提权：换成提权实例。交接必须「先起新的、再退出旧的」——旧进程不退，新实例会撞上单实例互斥、
+                // 把参数转发给正在退出的它再退掉，结果一个提权实例都没有（托盘也因此一直不勾）。
+                // 新实例带 --settings --page system：用户刚在这一页按的开关，提权回来后还停在这一页。
+                if (AppHost.Current.RestartAsAdmin("--settings --page system")) return;
                 // 提权没成（UAC 被取消）：开关关回去，别留下「开着却没提权」的半截状态
                 _settings.Mutate(s => s.RunAsAdmin = false);
                 MessageBox.Show(this, Loc.T(K.Settings.ElevationRelaunchFailed), Loc.T(K.Tray.RunAsAdministrator),
@@ -535,6 +561,7 @@ panel.Children.Add(ToggleRow("\uE768", Loc.T(K.Settings.StartRecordingAfterSelec
         Grid.SetColumn(navHost, 0); Grid.SetColumn(divider, 1); Grid.SetColumn(rightPanel, 2);
         body.Children.Add(navHost); body.Children.Add(divider); body.Children.Add(rightPanel);
 
+        _gotoCat = ShowCat;
         ShowCat(Math.Clamp(_restoreCat >= 0 ? _restoreCat : StartupPage(), 0, cats.Count - 1), false);   // 重建时停在原类别
 
 

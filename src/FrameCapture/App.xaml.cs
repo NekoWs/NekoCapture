@@ -118,7 +118,7 @@ public partial class App : Application
 
         // 调试/常驻入口：FrameCapture.exe --settings | --help | --edit-last
         if (e.Args.Any(a => string.Equals(a, "--settings", StringComparison.OrdinalIgnoreCase)))
-            Dispatcher.BeginInvoke(() => Overlays.SettingsWindow.ShowOrFocus(),
+            Dispatcher.BeginInvoke(() => Overlays.SettingsWindow.ShowOrFocus(PageArg(e.Args)),
                 System.Windows.Threading.DispatcherPriority.ApplicationIdle);
         if (e.Args.Any(a => string.Equals(a, "--help", StringComparison.OrdinalIgnoreCase)))
             Dispatcher.BeginInvoke(() => Overlays.HelpWindow.ShowOrFocus(),
@@ -345,6 +345,16 @@ public partial class App : Application
 
     /// <summary>二次实例转发的命令表：命令行开关 ↔ 注册消息名。转发与受理共用这一张表，
     /// 不会出现「主实例收得到、二次实例却转不出去」的半条命令。</summary>
+    /// <summary>取 <c>--page</c> 后面那个页名（提权交接回来说「系统」时用它），没有就返回 null。</summary>
+    /// <param name="args">命令行参数。</param>
+    /// <returns>页名；没给返回 null。</returns>
+    static string? PageArg(string[] args)
+    {
+        for (int i = 0; i + 1 < args.Length; i++)
+            if (string.Equals(args[i], "--page", StringComparison.OrdinalIgnoreCase)) return args[i + 1];
+        return null;
+    }
+
     static readonly (string Flag, string Msg)[] Forwarded =
     {
         ("--settings", MsgOpenSettings), ("--help", MsgOpenHelp), ("--edit-last", MsgEditLast),
@@ -368,7 +378,7 @@ public partial class App : Application
         {
             _msgSink = new MsgSink(new (string, Action<IntPtr, IntPtr>)[]
             {
-                (MsgOpenSettings, (_, _) => OnUi(() => Overlays.SettingsWindow.ShowOrFocus())),
+        (MsgOpenSettings, (_, _) => OnUi(() => Overlays.SettingsWindow.ShowOrFocus(PageArg(Environment.GetCommandLineArgs())))),
                 (MsgOpenHelp,     (_, _) => OnUi(() => Overlays.HelpWindow.ShowOrFocus())),
                 (MsgEditLast,     (_, _) => OnUi(() => Services.AppHost.Current.Controller.EditLastStill())),
                 (MsgScroll,       (_, _) => OnUi(() => Services.AppHost.Current.Controller.BeginScrollCapture())),
