@@ -7582,6 +7582,54 @@ static partial class SelfTest
             Chk("T266-page-arg-index", (int)parsePage.Invoke(null, new object?[] { "3" })! == 3, "下标 3 直接当页序");
             Chk("T266-page-arg-junk", (int)parsePage.Invoke(null, new object?[] { "nonsense" })! == -1
                 && (int)parsePage.Invoke(null, new object?[] { null })! == -1, "认不出的页名与空值都回 -1");
+
+        // 录入态：键经全局钩子进来，修饰键自己记账（吞键之后系统队列里没有 Ctrl，读系统键态读不到）
+        try
+        {
+            var npKey = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+            var tyBox = typeof(FrameCapture.Core.ChordCaptureBox);
+            var onKey = tyBox.GetMethod("OnGlobalKey", npKey)!;
+            var fCap = tyBox.GetField("_capturing", npKey)!;
+            var fMods = tyBox.GetField("_heldMods", npKey)!;
+            (FrameCapture.Core.ChordCaptureBox box, List<string> picked) NewBox()
+            {
+                var b = new FrameCapture.Core.ChordCaptureBox();
+                var got = new List<string>();
+                b.Picked += c => got.Add(c);
+                fCap.SetValue(b, true);
+                fMods.SetValue(b, (GestureCore.ModifierKeys)0);
+                return (b, got);
+            }
+            bool Send(FrameCapture.Core.ChordCaptureBox b, uint vk, bool down, GestureCore.ModifierKeys mods)
+                => (bool)onKey.Invoke(b, new object[] { vk, down, mods, 0L })!;
+
+            var (b1, p1) = NewBox();
+            bool sw1 = Send(b1, 0x11, true, GestureCore.ModifierKeys.Control);   // Ctrl 按下：只记账、吞掉
+            bool sw2 = Send(b1, 0x41, true, GestureCore.ModifierKeys.None);      // A：修饰键要来自自记的那份
+            PumpMs(60);
+            Chk("T267-capture-ctrl-chord", sw1 && sw2 && p1.Count == 1 && p1[0] == "Ctrl+A",
+                $"Ctrl 按下被吞且不落键，A 落下时带上 Ctrl：{string.Join("/", p1)}");
+
+            var (b2, p2) = NewBox();
+            Send(b2, 0x5B, true, GestureCore.ModifierKeys.Win);
+            Send(b2, 0x10, true, GestureCore.ModifierKeys.Win | GestureCore.ModifierKeys.Shift);
+            Send(b2, 0x53, true, GestureCore.ModifierKeys.None);
+            PumpMs(60);
+            // 键位串的顺序按仓库既定写法：Ctrl → Alt → Shift → Win，主键在最后
+            Chk("T267-capture-win-chord", p2.Count == 1 && p2[0] == "Shift+Win+S",
+                $"Win+Shift+S 录成键位：{string.Join("/", p2)}");
+
+            var (b3, p3) = NewBox();
+            Send(b3, 0x1B, true, GestureCore.ModifierKeys.None);
+            PumpMs(60);
+            Chk("T267-capture-esc-unbinds", p3.Count == 1 && p3[0] == "", "录入态按 Esc 解绑（报空串）");
+
+            var (b4, p4) = NewBox();
+            Send(b4, 0x41, true, GestureCore.ModifierKeys.None);
+            PumpMs(60);
+            Chk("T267-capture-bare-letter", p4.Count == 1 && p4[0] == "A", $"裸字母照样录得下来：{string.Join("/", p4)}");
+        }
+        catch (Exception e) { Chk("T267-capture-via-hook", false, e.Message); }
             var ed265 = FrameCapture.Core.EditorChord.Parse("PrtSc");
             Chk("T265-editor-chord-prtsc",
                 ed265 != null && ed265.Value.Key == System.Windows.Input.Key.PrintScreen && ed265.Value.ToString() == "PrtSc"

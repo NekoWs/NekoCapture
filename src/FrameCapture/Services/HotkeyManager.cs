@@ -89,6 +89,11 @@ public sealed class HotkeyManager : IDisposable
     /// <b>在钩子回调内被同步调用</b>，实现方只做判断与投递，不在这里做重活。</summary>
     public static Func<uint, bool, GestureCore.ModifierKeys, long, bool>? CaptureSink;
 
+    /// <summary>此刻真实的修饰键状态（读系统键态）。录入框在开始录入时拿它当起点：
+    /// 录入开始前就按住的修饰键也要算进第一枚键位里。</summary>
+    /// <returns>Ctrl/Shift/Alt/Win 的按位或。</returns>
+    public static GestureCore.ModifierKeys ReadMods() => CurrentMods();
+
     static GestureCore.ModifierKeys CurrentMods()
     {
         GestureCore.ModifierKeys m = 0;

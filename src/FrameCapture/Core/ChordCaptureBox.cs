@@ -20,6 +20,10 @@ public sealed class ChordCaptureBox : Border
     readonly Grid _host = new();
     bool _capturing;
     string _chord = "";
+
+    /// <summary>录入期间自己记的修饰键状态。吞键之后 Ctrl/Shift/Win 不会进系统的输入队列，
+    /// 读 <c>GetAsyncKeyState</c> 会读到「没按」——组合键于是被记成裸键。这里在钩子里自己记账。</summary>
+    GestureCore.ModifierKeys _heldMods;
     string _emptyHint = Loc.T(K.Hotkeys.ClickToSet);
 
     /// <summary>键位改定：参数是新的键位串，空串表示解绑。</summary>
@@ -86,6 +90,7 @@ public sealed class ChordCaptureBox : Border
     {
         if (_capturing) return;
         _capturing = true;
+        _heldMods = Services.HotkeyManager.ReadMods();   // 开始录入前就按住的修饰键也算数
         CaptureBegan?.Invoke();
         // 录入期间把全局钩子的键汇接到自己身上：Win 组合键与 PrtSc 到不了窗口事件，
         // 中文输入法下 Shift+字母还会被标成 ImeProcessed。钩子是唯一能拿到真键的入口。
@@ -111,35 +116,56 @@ public sealed class ChordCaptureBox : Border
         Cancelled?.Invoke();
     }
 
-    /// <summary>钩子送来的一个键：修饰键本身不落账，Esc 解绑，其余连同当前修饰键定成一个键位。
-    /// 返回 true 表示这一击归录入框——吞掉之后前台与系统都收不到，Win+Shift+S 不会再弹系统截图工具。</summary>
+    /// <summary>钩子送来的一个键：修饰键只记账，Esc 解绑，其余连同自记的修饰键状态定成一个键位。
+    /// 返回 true 表示这一击归录入框——吞掉之后前台与系统都收不到，Win+Shift+S 不会再弹系统截图工具。
+    /// 修饰键自己也要吞：放行的话 Win 松开会弹开始菜单，而吞掉之后系统的输入队列里就没有它了，
+    /// 所以状态只能在这里自己记（<see cref="_heldMods"/>），不能再去问 <c>GetAsyncKeyState</c>。</summary>
     bool OnGlobalKey(uint vk, bool isDown, GestureCore.ModifierKeys mods, long time)
     {
         if (!_capturing) return false;
-        // 按下与抬起都吞：只吞按下会在松开时漏一个「抬起而没有按下」的畸形键给前台
+        // 修饰键：按下与抬起都只更新自己的账，不落键位
+        var bit = vk switch
+        {
+            0x11 or 0xA2 or 0xA3 => GestureCore.ModifierKeys.Control,
+            0x10 or 0xA0 or 0xA1 => GestureCore.ModifierKeys.Shift,
+            0x12 or 0xA4 or 0xA5 => GestureCore.ModifierKeys.Alt,
+            0x5B or 0x5C => GestureCore.ModifierKeys.Win,
+            _ => GestureCore.ModifierKeys.None,
+        };
+        if (bit != GestureCore.ModifierKeys.None)
+        {
+            if (isDown) _heldMods |= bit; else _heldMods &= ~bit;
+            return true;   // 修饰键也吞：放行 Win 会在松开时弹出开始菜单
+        }
+        // 主键的抬起只吞不落账：吞掉按下之后，抬起漏出去会变成「只抬起没按下」的畸形键
         if (!isDown) return true;
-        // 修饰键本身（Ctrl/Shift/Alt/Win）不落账，等主键
-        if (vk is 0x10 or 0x11 or 0x12 or 0x5B or 0x5C or 0xA0 or 0xA1 or 0xA2 or 0xA3 or 0xA4 or 0xA5) return true;
         if (vk == 0x1B) { Commit(""); return true; }
         var key = KeyInterop.KeyFromVirtualKey((int)vk);
         if (key == Key.None) return true;
         var wpfMods = ModifierKeys.None;
-        if ((mods & GestureCore.ModifierKeys.Control) != 0) wpfMods |= ModifierKeys.Control;
-        if ((mods & GestureCore.ModifierKeys.Alt) != 0) wpfMods |= ModifierKeys.Alt;
-        if ((mods & GestureCore.ModifierKeys.Shift) != 0) wpfMods |= ModifierKeys.Shift;
-        if ((mods & GestureCore.ModifierKeys.Win) != 0) wpfMods |= ModifierKeys.Windows;
+        if ((_heldMods & GestureCore.ModifierKeys.Control) != 0) wpfMods |= ModifierKeys.Control;
+        if ((_heldMods & GestureCore.ModifierKeys.Alt) != 0) wpfMods |= ModifierKeys.Alt;
+        if ((_heldMods & GestureCore.ModifierKeys.Shift) != 0) wpfMods |= ModifierKeys.Shift;
+        if ((_heldMods & GestureCore.ModifierKeys.Win) != 0) wpfMods |= ModifierKeys.Windows;
         Commit(EditorChord.FromKey(wpfMods, key).ToString());
         return true;
     }
 
-    /// <summary>录成一枚键位：先把钩子上的汇摘掉再报出去，宿主随后重装热键时不会撞上自己。</summary>
+    /// <summary>录成一枚键位。钩子回调里只记账并把收尾投递到 UI 线程：
+    /// 宿主拿到键位会落盘、重装全局钩子，那是不能在钩子回调里做的事（在钩子内部卸钩会把它自己打断）。</summary>
     /// <param name="chord">键位串；空串=解绑。</param>
     void Commit(string chord)
     {
         Services.HotkeyManager.CaptureSink = null;
         _chord = chord;
-        Picked?.Invoke(chord);
-        EndCapture();
+        // 钩子线程 → UI 线程：回调里只做一次 BeginInvoke，绝不在输入链上落盘或重装钩子
+        var dispatcher = Dispatcher;
+        if (dispatcher != null) dispatcher.BeginInvoke(new Action(() =>
+        {
+            Picked?.Invoke(chord);
+            EndCapture();
+        }));
+        else { Picked?.Invoke(chord); EndCapture(); }
     }
 
     void OnPreviewKeyDown(object sender, KeyEventArgs e)
