@@ -24,6 +24,15 @@ $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
 
+function Remove-ReleaseDirectory([string]$path) {
+    $full = [IO.Path]::GetFullPath($path)
+    $allowed = [IO.Path]::GetFullPath($root).TrimEnd('\') + '\'
+    if (-not $full.StartsWith($allowed, [StringComparison]::OrdinalIgnoreCase)) { throw "发布目录越界: $full" }
+    if (Test-Path -LiteralPath $full) { Remove-Item -LiteralPath $full -Recurse -Force }
+}
+$resolvedOut = [IO.Path]::GetFullPath($OutDir)
+if (-not $resolvedOut.StartsWith($root.TrimEnd('\') + '\', [StringComparison]::OrdinalIgnoreCase)) { throw "输出目录必须位于仓库内: $resolvedOut" }
+
 function Step($msg) { Write-Host "`n=== $msg ===" -ForegroundColor Cyan }
 
 # 版本号：程序集版本每段必须 <= 65535 且最多四段，不合规矩在这里就拦下
@@ -79,7 +88,7 @@ foreach ($proj in @(Get-ChildItem $root\src -Directory)) {
         if (-not (Test-Path $d)) { continue }
         foreach ($rel in @(Get-ChildItem $d -Directory -Recurse -Filter 'Release')) {
             if (-not (Test-Path $rel.FullName)) { continue }
-            Remove-Item $rel.FullName -Recurse -Force
+            Remove-ReleaseDirectory $rel.FullName
             $cleaned++
         }
     }
@@ -103,11 +112,12 @@ $results = @()
 foreach ($v in $variants) {
     $stage = Join-Path $OutDir "staging\$($v.Key)"
     Step "发布 $($v.Suffix)"
-    if (Test-Path $stage) { Remove-Item $stage -Recurse -Force }
+    Remove-ReleaseDirectory $stage
     $p = dotnet publish $csproj -c Release -r win-x64 --self-contained $v.SelfContained `
          -p:Platform=x64 -o $stage -v q --nologo 2>&1 | Out-String
+    $publishCode = $LASTEXITCODE
     $perr = @($p -split "`n" | ForEach-Object{ $_.Trim() } | Where-Object{ $_ -match ': error' })
-    if ($perr.Count) { $perr | ForEach-Object{ Write-Host "  $_" -ForegroundColor Red }; throw "发布 $($v.Suffix) 失败" }
+    if ($publishCode -ne 0 -or $perr.Count) { $perr | ForEach-Object{ Write-Host "  $_" -ForegroundColor Red }; throw "发布 $($v.Suffix) 失败" }
     $rawSize = (Get-ChildItem $stage -Recurse -File | Measure-Object Length -Sum).Sum
     Write-Host ("  发布目录 {0:N1} MB / {1} 个文件" -f ($rawSize / 1MB), @(Get-ChildItem $stage -Recurse -File).Count)
 
@@ -125,8 +135,9 @@ foreach ($v in $variants) {
         # 必须传绝对路径：EmbeddedResource 的 Include 按工程目录解析，相对路径会被拼到 src\Setup 下
         $sb = dotnet build $setupProj -c Release -p:PayloadZip="$(Resolve-Path $zip)" -p:Company=$Publisher `
               -v q --nologo 2>&1 | Out-String
+        $setupCode = $LASTEXITCODE
         $serr = @($sb -split "`n" | ForEach-Object{ $_.Trim() } | Where-Object{ $_ -match ': error' })
-        if ($serr.Count) { $serr | ForEach-Object{ Write-Host "  $_" -ForegroundColor Red }; throw '引导器构建失败' }
+        if ($setupCode -ne 0 -or $serr.Count) { $serr | ForEach-Object{ Write-Host "  $_" -ForegroundColor Red }; throw '引导器构建失败' }
         $built = Join-Path $root 'src\Setup\bin\Release\net48\FrameCapture-Setup.exe'
         if (-not (Test-Path $built)) { throw "引导器未产出 $built" }
 
@@ -167,7 +178,7 @@ if ($offlineRow.Count -eq 0) {
 } else {
     $smoke = Join-Path $root 'test-out\release-smoke'
     $smokeCfg = Join-Path $root 'test-out\release-smoke-settings'
-    foreach ($d in @($smoke, $smokeCfg)) { if (Test-Path $d) { Remove-Item $d -Recurse -Force } }
+    foreach ($d in @($smoke, $smokeCfg)) { Remove-ReleaseDirectory $d }
     New-Item -ItemType Directory -Path $smoke | Out-Null
     Add-Type -AssemblyName System.IO.Compression.FileSystem
     [IO.Compression.ZipFile]::ExtractToDirectory((Join-Path $root (Join-Path $OutDir $offlineRow[0].'包')), $smoke)
@@ -176,7 +187,7 @@ if ($offlineRow.Count -eq 0) {
     $env:FC_SETTINGS_DIR = $smokeCfg
     $env:FC_TEST_NO_FG = '1'
     try {
-        $proc = Start-Process $smokeExe -PassThru
+        $proc = Start-Process $smokeExe -WindowStyle Hidden -PassThru
         Start-Sleep -Seconds 6
         $up = Get-Process -Id $proc.Id -ErrorAction SilentlyContinue
         if (-not $up) { throw '离线包解出来起不来：6 秒内进程已退出' }
@@ -187,7 +198,7 @@ if ($offlineRow.Count -eq 0) {
     } finally {
         Remove-Item Env:FC_SETTINGS_DIR, Env:FC_TEST_NO_FG -ErrorAction SilentlyContinue
         Get-Process FrameCapture -ErrorAction SilentlyContinue | Stop-Process -Force
-        foreach ($d in @($smoke, $smokeCfg)) { Remove-Item $d -Recurse -Force -ErrorAction SilentlyContinue }
+        foreach ($d in @($smoke, $smokeCfg)) { Remove-ReleaseDirectory $d }
     }
 }
 
@@ -196,5 +207,5 @@ $results | Format-Table -AutoSize | Out-String -Width 200 | ForEach-Object{ $_ -
 Write-Host "  完整哈希：Get-FileHash release\FrameCapture-*.exe, release\FrameCapture-*.zip -Algorithm SHA256"
 if ($wasRunning) {
     $exe = 'src\FrameCapture\bin\x64\Debug\net8.0-windows10.0.19041.0\FrameCapture.exe'
-    if (Test-Path $exe) { Start-Process (Join-Path $root $exe); Write-Host '  已把开发实例重新拉起' }
+    if (Test-Path $exe) { Start-Process (Join-Path $root $exe) -WindowStyle Hidden; Write-Host '  已把开发实例重新拉起' }
 }

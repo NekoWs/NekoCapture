@@ -10,6 +10,7 @@ namespace FrameCapture.Core;
 /// </summary>
 public sealed class GestureBindingDto
 {
+    /// <summary>绑定的稳定标识。</summary>
     public string Id { get; set; } = "";
     /// <summary>这条快捷键的名字，列表折叠时就是它。用户自己写，存的就是他写的原文——
     /// 界面语言表不认识它，切语言也不会改它。空名在界面上按序列推导显示。</summary>
@@ -20,11 +21,11 @@ public sealed class GestureBindingDto
     public string Chord { get; set; } = "";
     /// <summary>GestureCore.TriggerKind 名：KeyDown/KeyUp/Click/DoubleClick/TripleClick/LongPress/Chord。</summary>
     public string Trigger { get; set; } = "Chord";
-    /// <summary>触发时执行的动作名序列（见 <see cref="GestureActions"/>）。首步是「选区」时，其余动作等选区落地后才执行。</summary>
+    /// <summary>按序执行的完整动作链，异步步骤完成后继续。</summary>
     public string[] Actions { get; set; } = Array.Empty<string>();
-    /// <summary>完成后序列：主动作全部成功后再跑（如"停止录制后→打开编辑器"）。
-    /// 空=不覆盖，由宿主按默认落点收尾（截图默认弹提示浮窗）。</summary>
-    public string[] OnComplete { get; set; } = Array.Empty<string>();
+    /// <summary>导入时接入主链末尾的完成序列；规范配置保存时省略。</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string[]? OnComplete { get; set; }
     /// <summary>失败时序列：主动作有步失败或选区被取消时再跑。空=不覆盖，失败静默。</summary>
     public string[] OnFail { get; set; } = Array.Empty<string>();
     /// <summary>GestureCore.FallbackPolicy 名：Stop/SkipStep/NextBinding（逐条显式，非引擎硬编码）。</summary>
@@ -55,8 +56,8 @@ public sealed class GestureBindingDto
             Id = Id,
             Chord = new GC.KeyChord(mods, (int)spec.VirtualKey),
             Trigger = trig,
-            Actions = Actions.Where(GestureActions.IsValid).ToList(),
-            OnComplete = (OnComplete ?? Array.Empty<string>()).Where(GestureActions.IsValid).ToList(),
+            Actions = (Actions ?? Array.Empty<string>()).Concat(OnComplete ?? Array.Empty<string>())
+                .Where(GestureActions.IsValid).Select(GestureActions.Canonical).ToList(),
             OnFail = (OnFail ?? Array.Empty<string>()).Where(GestureActions.IsValid).ToList(),
             Fallback = fb,
             Priority = Priority,
@@ -79,19 +80,53 @@ public sealed class GestureBindingDto
         var chord = mods.Count == 0 ? keyName : string.Join("+", mods) + "+" + keyName;
         return new GestureBindingDto
         {
-            Id = b.Id, Chord = chord, Trigger = b.Trigger.ToString(), Actions = b.Actions.ToArray(),
-            OnComplete = b.OnComplete.ToArray(), OnFail = b.OnFail.ToArray(),
+            Id = b.Id, Chord = chord, Trigger = b.Trigger.ToString(), Actions = b.Actions.Concat(b.OnComplete).Select(GestureActions.Canonical).ToArray(), OnFail = b.OnFail.ToArray(),
             Fallback = b.Fallback.ToString(), Priority = b.Priority,
             DoubleClickMs = b.DoubleClickMs, LongPressMs = b.LongPressMs,
         };
     }
 }
 
-/// <summary>快捷键配置（存于 settings.json 的 gestures 段），功能触发的唯一入口。
-/// 首次 Normalize 时播种默认两条：截图键 = 选区→截图，录制键 = 选区→开始/停止录制 + 完成后打开编辑器
-/// （<see cref="SeedIfNeeded"/>）。</summary>
+/// <summary>快捷键的绑定、迁移与出厂配置。</summary>
 public sealed class GestureConfig
 {
+    /// <summary>动作链存储版本。</summary>
+    public int ChainRevision { get; set; }
+
+    /// <summary>将可读的完成序列并入动作链，规范动作名；重复调用保持相同结果。</summary>
+    /// <returns>是否需要写回配置。</returns>
+    public bool Migrate()
+    {
+        Bindings ??= new();
+        bool changed = ChainRevision < 2;
+        foreach (var b in Bindings)
+        {
+            var actions = (b.Actions ?? Array.Empty<string>()).Concat(b.OnComplete ?? Array.Empty<string>())
+                .Select(GestureActions.Canonical).ToArray();
+            if (ChainRevision < 2)
+            {
+                var expanded = new List<string>();
+                bool region = false;
+                foreach (var name in actions)
+                {
+                    if (name == GestureActions.RecordStart && !region)
+                    {
+                        expanded.Add(GestureActions.StoredScope);
+                        region = true;
+                    }
+                    expanded.Add(name);
+                    region |= name is GestureActions.Select or GestureActions.StoredScope;
+                }
+                actions = expanded.ToArray();
+            }
+            changed |= b.OnComplete != null || !actions.SequenceEqual(b.Actions ?? Array.Empty<string>());
+            b.Actions = actions;
+            b.OnComplete = null;
+        }
+        ChainRevision = Math.Max(ChainRevision, 2);
+        return changed;
+    }
+
     /// <summary>「启用快捷键」总开关，默认 true。关掉后不向引擎喂键、不装鼠标钩子——快捷键完全不参与，
     /// 键照常放行给前台。开着时命中带具体键的组合键即吞键，前台收不到那一键；
     /// 纯修饰键组合（无具体键，如 Ctrl+Alt 本身）永不吞，防止 Ctrl+C 等被劫持。</summary>
@@ -124,7 +159,7 @@ public sealed class GestureConfig
         => new GestureBindingDto
         {
             Id = id, Chord = chord, Trigger = trig, Actions = acts,
-            OnComplete = onDone ?? Array.Empty<string>(), OnFail = onFail ?? Array.Empty<string>(),
+            OnComplete = onDone, OnFail = onFail ?? Array.Empty<string>(),
             Fallback = fb, Priority = prio, DoubleClickMs = dbl, LongPressMs = lp,
         };
 
@@ -135,25 +170,19 @@ public sealed class GestureConfig
     /// <summary>默认录制键：与 QQ 一致，按一下起录、再按一下停。</summary>
     public const string DefaultRecordKey = "Ctrl+Alt+R";
 
-    /// <summary>默认键位集，也是出厂形态的唯一事实源：
-    /// 截图键 = 选区 → 截图，完成后不覆盖（默认弹提示浮窗）；
-    /// 录制键 = 选区 → 开始/停止录制，完成后覆盖成打开编辑器。
-    /// 两条都以「选区」开头，后续动作等选区落地才执行；录制中再按一次时范围已定，选区这一步直接通过。
-    /// 两条都是 Chord——组合键本身即触发，没有轻点与按住的歧义。
-    /// 名字留空：列表折叠时按序列推导显示，界面语言切换时跟着换，用户改名即冻结成他自己的原文。</summary>
-    /// <param name="captureKey">截图键串；非法则跳过该条。</param>
-    /// <param name="recordKey">录制键串；非法则跳过该条。</param>
-    /// <returns>0～2 条绑定，Id 为 <c>default.capture</c> / <c>default.record</c>。</returns>
+    /// <summary>出厂截图链为选区与静图；录制链为选区、录制切换与编辑。默认名称按显示语言推导。</summary>
+    /// <param name="captureKey">截图键串；非法则跳过。</param>
+    /// <param name="recordKey">录制键串；非法则跳过。</param>
+    /// <returns>包含有效键位的出厂绑定。</returns>
     public static List<GestureBindingDto> DefaultQqSet(string captureKey, string recordKey)
     {
         var list = new List<GestureBindingDto>();
         if (HotkeySpec.Parse(captureKey) != null)
             list.Add(B("default.capture", captureKey, "Chord",
-                new[] { GestureActions.ScopeSelect, GestureActions.CaptureStored }));
+                new[] { GestureActions.Select, GestureActions.GrabStill }));
         if (HotkeySpec.Parse(recordKey) != null)
             list.Add(B("default.record", recordKey, "Chord",
-                new[] { GestureActions.ScopeSelect, GestureActions.RecordToggle },
-                onDone: new[] { GestureActions.EditLastVideo }));
+                new[] { GestureActions.Select, GestureActions.RecordToggle, GestureActions.EditLastVideo }));
         return list;
     }
 
@@ -172,23 +201,21 @@ public sealed class GestureConfig
         Seeded = true;
     }
 
-    /// <summary>把出厂默认的两条绑定补齐成「先选区，后执行」的形态：
-    /// 截图那条只有「选区」一步，录制那条只有「开始/停止录制」一步——各自补上缺的那一步。
-    /// 只认 <c>default.capture</c> / <c>default.record</c> 这两个出厂 Id，用户自己建的绑定不命中；
-    /// 完成后一栏只在空着的时候补默认落点，用户写过的原样保留。
-    /// 补齐后的形状多了一步，条件落空，重复调用没有副作用。</summary>
+    /// <summary>为仅含单个入口动作的出厂绑定补齐动作链；自定义 Id 与完整动作链保持原值。</summary>
     public void UpgradeStockDefaults()
     {
+        if (ChainRevision >= 2) return;
         foreach (var b in Bindings)
         {
-            if (b.Id == "default.capture" && b.Actions.Length == 1 && b.Actions[0] == GestureActions.ScopeSelect)
-                b.Actions = new[] { GestureActions.ScopeSelect, GestureActions.CaptureStored };
+            if (b.Id == "default.capture" && b.Actions.Length == 1 && GestureActions.Canonical(b.Actions[0]) == GestureActions.Select)
+                b.Actions = new[] { GestureActions.Select, GestureActions.GrabStill };
             else if (b.Id == "default.record" && b.Actions.Length == 1 && b.Actions[0] == GestureActions.RecordToggle)
             {
-                b.Actions = new[] { GestureActions.ScopeSelect, GestureActions.RecordToggle };
-                if (b.OnComplete.Length == 0) b.OnComplete = new[] { GestureActions.EditLastVideo };
+                b.Actions = new[] { GestureActions.Select, GestureActions.RecordToggle };
+                if (b.OnComplete == null || b.OnComplete.Length == 0) b.OnComplete = new[] { GestureActions.EditLastVideo };
             }
         }
+        Migrate();
     }
 
     /// <summary>哪些启用中的绑定在「组合键 + 触发方式」上撞了车：同一个键位触发上挂着多条，
@@ -215,7 +242,7 @@ public sealed class GestureConfig
     /// 读者会以为还要多按几下。</summary>
     /// <returns>键位文案；一条都没绑时为「未设键」。</returns>
     public string CaptureKeyText()
-        => DescribeChordsFor(GestureActions.CaptureStored, GestureActions.CaptureFrame);
+        => DescribeChordsFor(GestureActions.GrabStill, GestureActions.CaptureStored, GestureActions.CaptureFrame);
 
     /// <summary>「录制」键位文案：按一下切换、按下起录松开停录，两种写法都算录制键；同样只列组合键。</summary>
     /// <returns>键位文案；一条都没绑时为「未设键」。</returns>

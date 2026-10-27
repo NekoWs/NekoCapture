@@ -22,7 +22,7 @@ public sealed partial class SettingsWindow : Window
     /// 指针进来时的底色，指针离开回到静止底色。默认静止全透明——给没有底色的元素用；
     /// 已经在层次台阶上的行传进 <c>() => Theme.RowBg</c> 与 <c>() => Theme.RowHover</c>，
     /// 悬停就在台阶上再走一档，而不是把底色抹掉再混一层白。
-    /// 底色交的是取色函数而不是构造期抄下的那一份：配色随时在改，抄死的值在改色后就停在旧档上。</summary>
+    /// 底色交的是取色函数而不是构造期抄下的那一份：配色随时在改，抄死的值在改色后就停在切换前的档位上。</summary>
     /// <param name="bd">目标框；<c>Background</c> 被换成本方法持有的可动画画刷。</param>
     /// <param name="rest">静止底色的取色函数，省略即全透明。</param>
     /// <param name="hover">悬停底色的取色函数，省略即 <see cref="Theme.Hover"/>。</param>

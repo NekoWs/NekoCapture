@@ -53,7 +53,7 @@ public sealed class HelpWindow : Window
     /// <summary>换色那一刻画面上的窗口底：幕布拿它当退场色，落新调色板之后就取不到了。</summary>
     Color _maskFrom = Theme.WindowBgSolid;
 
-    /// <summary>调色板即将重算：这一次要翻深浅档，就趁画面还是旧调色板记下退场色。</summary>
+    /// <summary>主题切换前保存退场颜色。</summary>
     /// <param name="dark">重算之后的深浅档。</param>
     void OnPaletteChanging(bool dark)
     {
@@ -61,7 +61,7 @@ public sealed class HelpWindow : Window
     }
 
     /// <summary>调色板变更：深浅档换了就整片盖一层退场色再淡开，正文按新色重排一遍。
-    /// 换色不再重建整窗——颜色挂在共享画刷上，重建会把用户正在读的那一页连滚动位置一起丢掉。</summary>
+    /// 换色保留窗口与滚动位置——颜色挂在共享画刷上，重建会把用户正在读的那一页连滚动位置一起丢掉。</summary>
     void OnPaletteChanged()
     {
         bool dark = Theme.IsDark;

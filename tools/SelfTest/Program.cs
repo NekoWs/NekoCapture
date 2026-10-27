@@ -1,4 +1,4 @@
-// SelfTest：无头功能测试（不碰鼠标键盘、不开任何窗口）
+// SelfTest：功能与界面测试；默认窗口位于屏幕外，不注入 OS 级鼠标输入
 // 覆盖：GIF 编码往返/调色板 RGB 序、标注烘焙、裁剪、视觉暂留、快捷键解析、抽帧、胶片条
 using System.Diagnostics;
 using System.Drawing;
@@ -320,7 +320,7 @@ static partial class SelfTest
     /// <param name="catName">类别文案：快捷键 / 截图 / 录制 / 产物 / 编辑器 / 贴图 / 外观 / 系统。</param>
     /// <param name="scale">渲染倍率，1 表示 96dpi 原尺寸；宣传页按 1.5 出图。</param>
     /// <param name="openAt">展开第几条快捷键再拍，-1 表示全部折叠。</param>
-    /// <param name="advanced">true = 完成后与失败时按高级形态铺开。</param>
+    /// <param name="advanced">保留的渲染选项，不影响布局。</param>
     /// <param name="clash">true = 再挂一条与第一条同键同触发的绑定，拍撞车那条的描边。</param>
     /// <returns>恒为 0。</returns>
     static int RenderSettings(string outPath, Str catName, double scale = 1, int openAt = -1, bool advanced = false, bool clash = false, bool down = false)
@@ -353,11 +353,6 @@ static partial class SelfTest
             });
         }
         var w = new FrameCapture.Overlays.SettingsWindow();
-        // 「adv」：先把完成后/失败时切到高级形态再建内容——行的形态在建行时按这个开关铺一次。
-        if (advanced)
-            typeof(FrameCapture.Overlays.SettingsWindow)
-                .GetField("_hotAdvanced", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
-                .SetValue(w, true);
         // Build 与构造分开（ShowOrFocus 先 Build 再 Show），离屏渲染同样要先建内容
         typeof(FrameCapture.Overlays.SettingsWindow)
             .GetMethod("Build", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
@@ -1098,26 +1093,24 @@ static partial class SelfTest
         return (frames, img.Width, img.Height, c0);
     }
 
-    /// <summary>
-    /// 把设置目录整个挪进仓库内的临时目录再开跑。测试里构造的窗口和用户用的一样会写设置
-    /// （关掉编辑器就记住上次用的标注工具），落在 <c>%APPDATA%</c> 等于改了用户机器的行为，
-    /// 下一次跑还反过来影响断言的起点。内容每次从用户那份重新种一遍：
-    /// 断言看到的仍是同一份配置，写盘全进 scratch。
-    /// </summary>
+    /// <summary>每个测试进程使用仓库内独立的设置与临时目录；用户配置只读。</summary>
     static void SettingsScratch()
     {
+        var repository = new DirectoryInfo(AppContext.BaseDirectory);
+        while (repository != null && !File.Exists(Path.Combine(repository.FullName, "FrameCapture.slnx"))) repository = repository.Parent;
+        if (repository == null) throw new InvalidOperationException("SelfTest requires a repository checkout");
+        var runtime = Path.Combine(repository.FullName, "test-out", "selftest-runtime", Environment.ProcessId.ToString());
+        Directory.CreateDirectory(runtime);
+        Environment.SetEnvironmentVariable("TEMP", runtime);
+        Environment.SetEnvironmentVariable("TMP", runtime);
         if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("FC_SETTINGS_DIR"))) return;
-        try
-        {
-            var user = Path.Combine(SettingsService.Dir, "settings.json");
-            var scratch = Path.Combine(AppContext.BaseDirectory, "settings-scratch");
-            Directory.CreateDirectory(scratch);
-            var mine = Path.Combine(scratch, "settings.json");
-            if (File.Exists(mine)) File.Delete(mine);
-            if (File.Exists(user)) File.Copy(user, mine);
-            Environment.SetEnvironmentVariable("FC_SETTINGS_DIR", scratch);
-        }
-        catch { /* 种不上就照默认目录跑，不让测试起不来 */ }
+        var user = Path.Combine(SettingsService.Dir, "settings.json");
+        var scratch = Path.Combine(runtime, "settings");
+        Directory.CreateDirectory(scratch);
+        var mine = Path.Combine(scratch, "settings.json");
+        if (File.Exists(mine)) File.Delete(mine);
+        if (File.Exists(user)) File.Copy(user, mine);
+        Environment.SetEnvironmentVariable("FC_SETTINGS_DIR", scratch);
     }
 
     /// <summary>
@@ -1196,6 +1189,14 @@ static partial class SelfTest
             return RenderDrag(args[1], new System.Windows.Point(dx, dy));
         }
         if (args.Length == 3 && args[0] == "stitch") return StitchMode(args[1], args[2]);
+        if (args.Length == 1 && args[0] == "chains")
+        {
+            var chainApp = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
+            Fluent.ApplyGlobalStyles();
+            OrthogonalChains();
+            Console.WriteLine($"RESULT PASS={pass} FAIL={fail}");
+            return fail == 0 ? 0 : 1;
+        }
         string tmp = Path.Combine(Path.GetTempPath(), "FrameCapture", "selftest");
         Directory.CreateDirectory(tmp);
 
@@ -1476,7 +1477,7 @@ static partial class SelfTest
             Chk("T10-ui-glyphs-resolve", all && ok, "tofu risk");
 
             // 悬停动效要让位给外部换色：点选芯片时选中态会整块换掉画刷，
-            // 抬起时的悬停动画若照旧盖回去，选中态当场就没了（芯片看着和没选中一样）。
+            // 抬起时的悬停动画若覆盖选中画刷，选中态当场就没了（芯片看着和没选中一样）。
             try
             {
                 var chipT = new System.Windows.Controls.Border
@@ -2736,7 +2737,7 @@ static partial class SelfTest
         }
 
         // 捕获状态机入口守卫（纯逻辑决策表）：
-        // 回归护栏 = "只有 StartCapture 允许隐藏范围轮廓"：编辑器开着再按捕获键等失败分支
+        // 行为护栏 = "只有 StartCapture 允许隐藏范围轮廓"：编辑器开着再按捕获键等失败分支
         // 一律不得触碰常显轮廓，否则轮廓被永久弄没且无任何报错。
         {
             var idle = CaptureGuards.OnCaptureHotkey(false, false, false);
@@ -2885,7 +2886,7 @@ static partial class SelfTest
                 bool undoCrop = ao.UndoPopsCrop(hasAnns: true);
                 ao.CropUndone();     // → 裁剪进重做栈
                 ao.AnnStepped();     // seq3 标注流撤销完成（标注此刻可 redo）
-                bool redoAnnFirst = !ao.RedoPopsCrop(annCanRedo: true);   // 标注比裁剪旧 → 先 redo 标注
+                bool redoAnnFirst = !ao.RedoPopsCrop(annCanRedo: true);   // 标注先于裁剪 → 先 redo 标注
                 ao.AnnStepped();     // seq4 标注 redo 完成
                 bool redoCropNext = ao.RedoPopsCrop(annCanRedo: false);   // 标注流没了 → 轮到裁剪
                 ao.CropRedone();
@@ -3630,19 +3631,14 @@ static partial class SelfTest
                     && Same(PinRotate.Rotate(orig, 5), PinRotate.Rotate(orig, 1))
                     && Same(PinRotate.Rotate(orig, -1), PinRotate.Rotate(orig, 3)), "steps=0 同实例；5≡1、-1≡3");
             }
-            // 截图后行为解析（，AfterCapture 纯函数）
             {
-                Chk("T116a-editor", AfterCapture.Resolve("editor") == AfterCaptureAction.Editor, "editor→Editor");
-                Chk("T116b-copy", AfterCapture.Resolve("copy") == AfterCaptureAction.Copy, "copy→Copy");
-                Chk("T116c-toast", AfterCapture.Resolve("toast") == AfterCaptureAction.Toast, "toast→Toast");
-                Chk("T116d-dirty", AfterCapture.Resolve(null) == AfterCaptureAction.Toast
-                    && AfterCapture.Resolve("") == AfterCaptureAction.Toast
-                    && AfterCapture.Resolve("Editor") == AfterCaptureAction.Toast
-                    && AfterCapture.Resolve("garbage") == AfterCaptureAction.Toast, "null/空/大小写/脏值→回落 Toast");
-                Chk("T116e-pin", AfterCapture.Resolve("pin") == AfterCaptureAction.Pin, "R117 pin→Pin");
-            Chk("T116h-none", AfterCapture.Resolve("none") == AfterCaptureAction.None,
-                    "none→None：这条手势在「完成后」里自己写了落点，默认弹提示让位");
-            // 完成后/失败时是两份可选序列，随 DTO↔引擎绑定往返；空=不覆盖，由宿主按默认落点收尾
+                Chk("T116a-editor", GestureActions.InfoOf(GestureActions.EditLastStill).Class == VerbClass.Terminal);
+                Chk("T116b-copy", GestureActions.InfoOf(GestureActions.CopyLast).Class == VerbClass.Terminal);
+                Chk("T116c-toast", GestureActions.InfoOf(GestureActions.NotifyToast).Class == VerbClass.Terminal);
+                Chk("T116d-dirty", !GestureActions.IsValid(null) && !GestureActions.IsValid("")
+                    && !GestureActions.IsValid("Editor") && !GestureActions.IsValid("garbage"));
+                Chk("T116e-pin", GestureActions.InfoOf(GestureActions.PinSelection).Class == VerbClass.Terminal);
+                Chk("T116h-none", !GestureActions.IsValid("none"));
             var dtoOv = new GestureBindingDto
             {
                 Chord = "F6", Trigger = "Chord", Actions = new[] { GestureActions.ScopeSelect, GestureActions.CaptureStored },
@@ -3651,13 +3647,13 @@ static partial class SelfTest
             var engOv = dtoOv.ToBinding()!;
             var backOv = GestureBindingDto.FromBinding(engOv);
             Chk("T116f-override-roundtrip",
-                engOv.OnComplete.SequenceEqual(new[] { GestureActions.EditLastVideo })
+                engOv.Actions.SequenceEqual(new[] { GestureActions.Select, GestureActions.GrabStill, GestureActions.EditLastVideo }) && engOv.OnComplete.Count == 0
                 && engOv.OnFail.SequenceEqual(new[] { GestureActions.NotifyToast })
-                && backOv.OnComplete.SequenceEqual(new[] { GestureActions.EditLastVideo })
+                && backOv.Actions.SequenceEqual(engOv.Actions) && backOv.OnComplete == null
                 && backOv.OnFail.SequenceEqual(new[] { GestureActions.NotifyToast }),
                 "完成后/失败时两份序列随 DTO↔引擎绑定往返");
             Chk("T116g-override-default-empty",
-                new GestureBindingDto().OnComplete.Length == 0 && new GestureBindingDto().OnFail.Length == 0
+                new GestureBindingDto().OnComplete == null && new GestureBindingDto().OnFail.Length == 0
                 && new GE.GestureBinding().OnComplete.Count == 0 && new GE.GestureBinding().OnFail.Count == 0,
                 "缺省不覆盖：settings.json 里没有这两份序列时，行为与不写它一致");
             var cl = new GE.GestureBinding { OnComplete = { GestureActions.NotifyToast }, OnFail = { GestureActions.CopyLast } }.Clone();
@@ -4234,12 +4230,12 @@ static partial class SelfTest
                 "只有修饰键的串解析失败→ToBinding null");
             var def = GestureConfig.DefaultQqSet("Ctrl+Alt+A", "Ctrl+Alt+R");
             Chk("T131c-default-capture-chain", def.Count == 2
-                && def[0].Actions.SequenceEqual(new[] { GestureActions.ScopeSelect, GestureActions.CaptureStored })
-                && def[0].OnComplete.Length == 0,
+                && def[0].Actions.SequenceEqual(new[] { GestureActions.Select, GestureActions.GrabStill })
+                && def[0].OnComplete == null,
                 "默认截图键 = 选区→截图，完成后不覆盖（默认弹提示），实得 " + string.Join("+", def[0].Actions));
             Chk("T131c2-default-record-chain",
-                def[1].Actions.SequenceEqual(new[] { GestureActions.ScopeSelect, GestureActions.RecordToggle })
-                && def[1].OnComplete.SequenceEqual(new[] { GestureActions.EditLastVideo }),
+                def[1].Actions.SequenceEqual(new[] { GestureActions.Select, GestureActions.RecordToggle, GestureActions.EditLastVideo })
+                && def[1].OnComplete == null,
                 "默认录制键 = 选区→开始/停止录制，完成后覆盖成打开编辑器");
 
             Chk("T131d-default-skips-bad-key", GestureConfig.DefaultQqSet("Ctrl", "Ctrl+Alt+R").Count == 1,
@@ -4249,8 +4245,8 @@ static partial class SelfTest
             var back = System.Text.Json.JsonSerializer.Deserialize<GestureConfig>(json)!;
             var eb = back.ToBindings();
             Chk("T131e-json-roundtrip", back.Enabled && eb.Count == 2
-                && eb.All(x => x.Actions[0] == GestureActions.ScopeSelect)
-                && eb.Any(x => x.OnComplete.Count == 1 && x.OnComplete[0] == GestureActions.EditLastVideo),
+                && eb.All(x => x.Actions[0] == GestureActions.Select && x.OnComplete.Count == 0)
+                && eb.Any(x => x.Actions.SequenceEqual(new[] { GestureActions.Select, GestureActions.RecordToggle, GestureActions.EditLastVideo })),
                 "默认集 JSON 往返：Enabled + 两条都以选区开头 + 完成序列存活，实得 " + eb.Count + " 条");
 
             var bad = new GestureBindingDto { Chord = "F6", Trigger = "Click", Actions = new[] { GestureActions.CaptureFrame, "no.such.action" } };
@@ -4306,16 +4302,16 @@ static partial class SelfTest
             Chk("T135b-shot-chord-parse",
                 b1 != null && b1.Chord.Key == 0x41 && (b1.Chord.Mods & GE.ModifierKeys.Control) != 0 &&
                 (b1.Chord.Mods & GE.ModifierKeys.Alt) != 0 && b1.Trigger == GE.TriggerKind.Chord &&
-                b1.Actions.SequenceEqual(new[] { "scope.select", "capture.stored" }),
+                b1.Actions.SequenceEqual(new[] { "select", "grab.still" }),
                 "Ctrl+Alt+A → Chord(Ctrl+Alt+A) → 选区+截图 解析正确");
             var d2 = new GestureBindingDto { Id = "qq.rec", Chord = "Ctrl+Alt+R", Trigger = "Chord", Actions = new[] { "scope.select", "record.toggle" } };
             var b2 = d2.ToBinding();
             Chk("T135c-rec-chord-parse",
                 b2 != null && b2.Chord.Key == 0x52 && b2.Trigger == GE.TriggerKind.Chord &&
-                b2.Actions.SequenceEqual(new[] { "scope.select", "record.toggle" }),
+                b2.Actions.SequenceEqual(new[] { "select", "record.toggle" }),
                 "Ctrl+Alt+R → Chord → 选区+开始/停止录制 解析正确");
         }
-        // 录制同键起停 + 即时截图动作（B2 用户实测修正）
+        // 录制同键起停与即时截图动作
         {
             Chk("T136a-record-toggle-registered", GestureActions.IsValid("record.toggle"), "record.toggle 动作已注册");
             Chk("T136b-capture-frame-still-valid", GestureActions.IsValid("capture.frame"), "capture.frame 仍在（改为即时抓取，名不变）");
@@ -4465,7 +4461,7 @@ static partial class SelfTest
             Chk("T143j-skipstep-keeps-going", M.Log.SequenceEqual(new[] { "Cap", "Pin", "Done" }),
                 "SkipStep：失败步跳过继续跑后续与完成后，失败时序列不跑，实得 " + string.Join(",", M.Log));
         }
-        // 录制动作无默认行为：停止/同键起停不自动开编辑器；开编辑器是独立动作、配在完成后序列
+        // 录制动作无默认行为：停止/同键起停不自动开编辑器；开编辑器是独立的链尾动作
         {
             Chk("T144a-edit-lastvideo-exists", GestureActions.IsValid("edit.lastvideo"),
                 "新增『打开编辑器（上次录制）』动作");
@@ -4476,8 +4472,8 @@ static partial class SelfTest
             Chk("T144c-record-toggle-no-default-editor", rt.Description.Contains("不自动进编辑器"),
                 $"同键起停文案明确不进编辑器：{rt.Description}");
             var lv = GestureActions.All.First(a => a.Name == "edit.lastvideo");
-            Chk("T144d-edit-lastvideo-guides-oncomplete", lv.Description.Contains("完成后"),
-                $"打开编辑器动作文案引导配到完成后序列：{lv.Description}");
+            Chk("T144d-edit-lastvideo-guides-chain-tail", lv.Description.Contains("录制步骤后"),
+                $"打开编辑器动作文案说明停录后编辑：{lv.Description}");
         }
         // 裁剪视图居中：非居中裁剪后，裁剪子区中心必落在视口中心+pan。
         // 定位裁剪中心若用 s 而非整帧显示宽 w，非居中裁剪会把画面甩出视口、中键拖不回。
@@ -4560,8 +4556,8 @@ static partial class SelfTest
             Chk("T147a-default-set-shape",
                 set.Count == 2
                 && set.All(b => b.Trigger == "Chord")
-                && set.All(b => b.Actions.Length > 0 && b.Actions[0] == "scope.select")
-                && set[0].Actions.Contains("capture.stored") && set[1].Actions.Contains("record.toggle"),
+                && set.All(b => b.Actions.Length > 0 && b.Actions[0] == "select")
+                && set[0].Actions.Contains("grab.still") && set[1].Actions.Contains("record.toggle"),
                 $"默认集=两条 Chord、都以选区开头，实得 {set.Count} 条");
             Chk("T147b-default-name-empty", set.All(b => string.IsNullOrEmpty(b.Name)),
                 "默认集名字留空：折叠时按序列推导显示，界面语言切换时跟着换");
@@ -4570,7 +4566,7 @@ static partial class SelfTest
             cfg.SeedIfNeeded(GestureConfig.DefaultCaptureKey, GestureConfig.DefaultRecordKey);
             Chk("T147c-seed-empty",
                 cfg.Bindings.Count == 2 && cfg.Enabled && cfg.Seeded
-                && cfg.Bindings.Any(b => b.Chord == GestureConfig.DefaultCaptureKey && b.Trigger == "Chord" && b.Actions.Contains("scope.select"))
+                && cfg.Bindings.Any(b => b.Chord == GestureConfig.DefaultCaptureKey && b.Trigger == "Chord" && b.Actions.Contains("select"))
                 && cfg.Bindings.Any(b => b.Chord == GestureConfig.DefaultRecordKey && b.Trigger == "Chord" && b.Actions.Contains("record.toggle")),
                 $"播种=QQ 键位（{GestureConfig.DefaultCaptureKey} 进选区 / {GestureConfig.DefaultRecordKey} 录制切换），实得 {cfg.Bindings.Count} 条");
             Chk("T147f-qq-set-skips-bad-chord",
@@ -4666,16 +4662,16 @@ static partial class SelfTest
             cfg.Bindings.Add(new GestureBindingDto { Id = "default.record", Chord = "Ctrl+Alt+R", Actions = new[] { "record.toggle" } });
             cfg.UpgradeStockDefaults();
             Chk("T190a-stock-capture-gains-verb",
-                cfg.Bindings[0].Actions.SequenceEqual(new[] { "scope.select", "capture.stored" }),
+                cfg.Bindings[0].Actions.SequenceEqual(new[] { "select", "grab.still" }),
                 "截图那条补上「截图」这一步：" + string.Join(",", cfg.Bindings[0].Actions));
             Chk("T190b-stock-record-gains-scope-and-oncomplete",
-                cfg.Bindings[1].Actions.SequenceEqual(new[] { "scope.select", "record.toggle" })
-                && cfg.Bindings[1].OnComplete.SequenceEqual(new[] { "edit.lastvideo" }),
+                cfg.Bindings[1].Actions.SequenceEqual(new[] { "select", "record.toggle", "edit.lastvideo" })
+                && cfg.Bindings[1].OnComplete == null,
                 "录制那条补上「选区」这一步，完成后补「打开编辑器」：" + string.Join(",", cfg.Bindings[1].Actions));
             cfg.UpgradeStockDefaults();
             Chk("T190c-upgrade-idempotent",
-                cfg.Bindings[0].Actions.Length == 2 && cfg.Bindings[1].Actions.Length == 2
-                && cfg.Bindings[1].OnComplete.Length == 1,
+                cfg.Bindings[0].Actions.Length == 2 && cfg.Bindings[1].Actions.Length == 3
+                && cfg.Bindings[1].OnComplete == null,
                 "再跑一次不重复追加");
 
             var mine = new GestureConfig();
@@ -4686,7 +4682,7 @@ static partial class SelfTest
             Chk("T190d-user-shapes-untouched",
                 mine.Bindings[0].Actions.Length == 2 && mine.Bindings[0].Actions[1] == "ocr.selection"
                 && mine.Bindings[1].Actions.Length == 1
-                && mine.Bindings[2].OnComplete.SequenceEqual(new[] { "copy.clipboard" }),
+                && mine.Bindings[2].Actions.SequenceEqual(new[] { "select", "record.toggle", "copy.clipboard" }) && mine.Bindings[2].OnComplete == null,
                 "改过动作的出厂条与非出厂 Id 不动；用户自己写的完成后保留");
         }
 
@@ -4737,7 +4733,7 @@ static partial class SelfTest
             Chk("T194c-unknown-action-dropped",
                 !got.Any(x => x.Id == "badact")
                 && got.FirstOrDefault(x => x.Id == "halfbad") is { } hb
-                && hb.Actions.SequenceEqual(new[] { "scope.select" }) && hb.OnComplete.Count == 0,
+                && hb.Actions.SequenceEqual(new[] { "select" }) && hb.OnComplete.Count == 0,
                 "认不出的动作名被丢掉：只剩坏动作的整条不进引擎，好动作原样保留");
             var wild = got.FirstOrDefault(x => x.Id == "wild");
             Chk("T194d-timing-clamped", wild != null && wild.DoubleClickMs == 2000 && wild.LongPressMs == 100,
@@ -4759,7 +4755,7 @@ static partial class SelfTest
                 "未知触发名与 null 都返回空文案（配置里写了认不出的触发不会崩）");
         }
 
-        // 快捷键行的展开动效：正文从 0 长高、逐行淡入、走完放开限高；完成后与失败时只在高级形态里长出来
+        // 快捷键行的展开动效：正文从 0 长高、逐行淡入、走完放开限高；正文包含动作链与失败链
         try
         {
             var appHot = System.Windows.Application.Current ?? new System.Windows.Application();
@@ -4844,7 +4840,7 @@ static partial class SelfTest
         }
         catch (Exception e) { Chk("T191-hotkey-expand-animation", false, e.Message); }
 
-        // 快捷键页这一轮的形态：默认名按语言、名字在胶囊上就地改、键位框宽度跟着键帽走、
+        // 快捷键页：默认名按语言、名字在胶囊上就地改、键位框宽度跟着键帽走、
         // 滚动条浮在内容上、等键的框自己接住 Esc、芯片只拖不点、加号在右侧点开候选卡。
         // 芯片编辑器单独实例化，get/set 用测试自己的闭包：拖动与选动作都不会写进用户的配置。
         try
@@ -5061,7 +5057,7 @@ static partial class SelfTest
         }
         catch (Exception e) { Chk("T196-hotkey-page-round", false, e.Message); }
 
-        // 芯片编辑器这一轮：抬起的芯片不再占位、预览排不到加号之后、候选卡跟着宿主窗走、
+        // 芯片编辑器：抬起的芯片不占位、预览排不到加号之后、候选卡跟着宿主窗走、
         // 候选条目悬停真的叠得出底色。编辑器单独实例化，get/set 是本用例自己的闭包——
         // 拖动与选动作都不写用户的配置。合成鼠标事件带不了坐标，拖动直接驱动它自己的三步。
         try
@@ -5217,8 +5213,8 @@ static partial class SelfTest
         }
         catch (Exception e) { Chk("T197-chip-editor-round", false, e.Message); }
 
-        // 设置窗这一轮：覆盖行不再多摆一行文字（这一步有几条由芯片自己说），
-        // 编辑器绑键那一段左边留出呼吸、指针划过不再换底色。
+        // 设置窗：覆盖行不重复显示说明（这一步有几条由芯片自己说），
+        // 编辑器绑键那一段左边留出呼吸、悬停时保持底色。
         try
         {
             var svc8 = new FrameCapture.Core.SettingsService();
@@ -6396,7 +6392,7 @@ static partial class SelfTest
             Chk("T221-tool-strip-buttons-match-catalog", list.Count == order.Length,
                 $"工具按钮 {list.Count} 枚，工具目录 {order.Length} 把");
             // 浏览不是目录里的一把工具，是「没在画」这个状态：整条没有高亮才是它对的样子。
-            // 怎么回浏览这件事写在编辑器首次打开的引导里（再点同一枚 = 回浏览），表面不再多占一个字。
+            // 怎么回浏览这件事写在编辑器首次打开的引导里（再点同一枚 = 回浏览），表面只显示工具名。
             Chk("T221-browse-state-paints-nothing",
                 Equals(CurTool(), Enum.Parse(toolType, "Browse")) && list.Count(Active) == 0,
                 $"当前={CurTool()}，高亮 {list.Count(Active)} 枚");
@@ -7158,7 +7154,7 @@ static partial class SelfTest
             PumpMs(60);
         }
         catch (Exception e) { Chk("T243-editor-mask", false, e.Message); }
-        // 语言三档的文字色跟着调色板走：三段是构造期取色的私有画刷，漏登记重画就会在换深浅档后停在旧档的灰度上
+        // 语言三档的文字色跟着调色板走：三段是构造期取色的私有画刷，漏登记重画就会在换深浅档后停在切换前的档位的灰度上
         try
         {
             var npLang = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
@@ -7207,7 +7203,7 @@ static partial class SelfTest
             string? prevDir = Environment.GetEnvironmentVariable("FC_SETTINGS_DIR");
             string scratchDel = Path.Combine(Path.GetTempPath(), "fc-selftest-hotkeys");
             Directory.CreateDirectory(scratchDel);
-            // 上一轮写下的 settings.json 里已经少了一条绑定：不清掉，这一轮就是接着上一轮的残局跑
+            // 测试设置从完整绑定集开始
             string scratchFileDel = Path.Combine(scratchDel, "settings.json");
             if (File.Exists(scratchFileDel)) File.Delete(scratchFileDel);
             Environment.SetEnvironmentVariable("FC_SETTINGS_DIR", scratchDel);
@@ -7516,7 +7512,7 @@ static partial class SelfTest
         {
             int started264 = 0, stopped264 = 0;
             FrameCapture.Overlays.RecordPanelWindow.ShowArmed(new FrameCapture.Capture.RectI(100, 100, 400, 300), "",
-                () => started264++, () => stopped264++);
+                () => { started264++; FrameCapture.Overlays.RecordPanelWindow.Current?.SwitchToRecording(); }, () => stopped264++);
             PumpMs(220);
             var panel264 = FrameCapture.Overlays.RecordPanelWindow.Current;
             Chk("T264-record-panel-shows", panel264 != null && panel264.IsVisible, "选区切到录制后面板出现在屏幕上方");
@@ -8111,6 +8107,7 @@ static partial class SelfTest
         }
         catch (Exception e) { Chk("T234-toast-actions", false, e.Message); }
 
+        OrthogonalChains();
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");
         return fail == 0 ? 0 : 1;
     }

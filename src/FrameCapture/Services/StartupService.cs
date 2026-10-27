@@ -7,7 +7,7 @@ namespace FrameCapture.Services;
 /// <summary>开机自启：普通自启走 HKCU 的 Run 项，提权自启走计划任务。
 /// 两者互斥——同一个程序只留一条入口，否则登录时会起来两个实例。
 /// 提权那条要建"最高权限"的计划任务，建的那一刻需要管理员（UAC 一次），
-/// 之后每次登录由任务计划程序直接以管理员身份拉起，不再弹 UAC。</summary>
+/// 之后每次登录由任务计划程序直接以管理员身份拉起，无需 UAC。</summary>
 public static class StartupService
 {
     const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";

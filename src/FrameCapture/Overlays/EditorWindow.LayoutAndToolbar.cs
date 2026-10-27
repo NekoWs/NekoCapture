@@ -124,7 +124,7 @@ public sealed partial class EditorWindow : Window
     /// <summary>换色那一刻画面上的窗口底：幕布拿它当退场色，落新调色板之后就取不到了。</summary>
     Color _maskFrom = Theme.WindowBgSolid;
 
-    /// <summary>调色板即将重算：这一次要翻深浅档，就趁画面还是旧调色板记下退场色。</summary>
+    /// <summary>主题切换前保存退场颜色。</summary>
     /// <param name="dark">重算之后的深浅档。</param>
     void OnPaletteChanging(bool dark)
     {

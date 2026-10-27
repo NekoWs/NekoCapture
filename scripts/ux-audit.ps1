@@ -24,7 +24,8 @@ $dir = Split-Path -Parent $Out
 New-Item -ItemType Directory -Force -Path $dir | Out-Null
 
 # 每一项跑完把输出写进自己的临时文件：并发时 stdout 会互相穿插，落文件才拼得回来。
-$scratch = Join-Path ([System.IO.Path]::GetTempPath()) ("uxaudit-" + [guid]::NewGuid().ToString("N"))
+$scratchRoot = [IO.Path]::GetFullPath((Join-Path $root 'test-out/uxaudit-runtime'))
+$scratch = Join-Path $scratchRoot ([guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Force -Path $scratch | Out-Null
 $pairs = foreach ($s in $Surfaces) { foreach ($l in @("zh", "en")) { [pscustomobject]@{ Surface = $s; Lang = $l } } }
 
@@ -35,6 +36,7 @@ try
         $scratch = $using:scratch
         $name = "$($_.Lang)-$($_.Surface)"
         $o = & $exe uxaudit $_.Lang $_.Surface 2>&1 | Out-String
+        Set-Content -LiteralPath (Join-Path $scratch "$name.exit") -Value $LASTEXITCODE
         Set-Content -LiteralPath (Join-Path $scratch "$name.txt") -Value $o -Encoding utf8
     } -ThrottleLimit $Throttle | Out-Null
 
@@ -45,14 +47,22 @@ try
         $o = if (Test-Path $file) { Get-Content -LiteralPath $file -Raw } else { "" }
         $hit = @($o -split "`r?`n" | ForEach-Object { $_.Trim() } | Where-Object { $_ -like "UXA|*" })
         $scan = (@($o -split "`r?`n" | ForEach-Object { $_.Trim() } | Where-Object { $_ -like "UXS|*" }) | Select-Object -First 1) -replace '^UXS\|[^|]+\|', ''
+        $code = Get-Content -LiteralPath (Join-Path $scratch ("$($p.Lang)-$($p.Surface).exit")) -ErrorAction SilentlyContinue
+        if (-not $scan -or ($code -ne '0' -and $hit.Count -eq 0)) {
+            $rows.Add("UXA|$($p.Lang)|$($p.Surface)|运行失败|exit=$code; missing scan or result")
+        }
         foreach ($h in $hit) { $rows.Add(($h -replace '^UXA\|', "UXA|$($p.Lang)|")) }
         if (-not $Quiet) { "{0,-16} {1}  缺陷 {2,-3} 扫到 {3}" -f $p.Surface, $p.Lang, $hit.Count, $scan }
     }
 }
-finally { Remove-Item -LiteralPath $scratch -Recurse -Force -ErrorAction SilentlyContinue }
+finally {
+    $resolved = [IO.Path]::GetFullPath($scratch)
+    if (-not $resolved.StartsWith($scratchRoot + '\', [StringComparison]::OrdinalIgnoreCase)) { throw "审计目录越界: $resolved" }
+    Remove-Item -LiteralPath $resolved -Recurse -Force -ErrorAction SilentlyContinue
+}
 
-# 空管道不会截断文件：全绿那一轮若直接管道给 Set-Content，上一轮的缺陷清单会留在原地冒充本轮结果。
-Set-Content -LiteralPath $Out -Encoding utf8 -Value $(if ($rows.Count) { $rows } else { @("（本轮无缺陷）") })
+# 空报告也覆盖输出文件。
+Set-Content -LiteralPath $Out -Encoding utf8 -Value $(if ($rows.Count) { $rows } else { @("（无缺陷）") })
 if (-not $Quiet)
 {
     ""

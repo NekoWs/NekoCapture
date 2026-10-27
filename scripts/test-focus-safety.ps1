@@ -13,9 +13,7 @@ Get-Process FrameCapture -EA SilentlyContinue | Stop-Process -Force   # 先杀�
 Start-Sleep 0.5
 $bak = Set-FcTestGestureConfig   # 钉成统一测试手势集（Ctrl+Shift+G 已绑定），结束（含各 SKIP 出口）一律还原
 try {
-    # 逐键日志受隐私开关管：全局钩子看得见用户所有按键，默认一条都不记。
-    # 本项自己注入自己的键，开它只记这几个键；不开的话下面找的证据根本不会出现，
-    # 于是这项每次都从「注入被拦截」出口静默跳过。
+    # 测试实例仅在本项启用逐键日志，以判定注入键是否到达钩子。
     $env:FC_TRACE_KEYS = "1"
     $p = Start-Process $exe -PassThru
     Start-Sleep 1.5
@@ -38,7 +36,7 @@ try {
     }
     $clean = $out -match "SWALLOW text=\[ABCDEF\]"
     # 捕获发生的证据：编辑器出现，或 trace 里有手势动作落地（录制/选区）
-    $captured = ($ed -match "^rect") -or ($tr -match "gesture act (record\.start|capture\.selection)")
+    $captured = ($ed -match "^rect") -or ($tr -match "chain recording started")
     Write-Host $out.Trim()
     Write-Host "editor=[$ed]"
     if ($clean -and $captured) { Write-Host "FOCUS-SAFETY PASS"; exit 0 }

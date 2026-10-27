@@ -1,19 +1,19 @@
 using System;
 using System.IO;
 using System.Reflection;
+using System.Linq;
 using FrameCapture.Setup;
 
 /// <summary>
-/// 安装器目录搬运的实机探针：在真机上把一棵目录搬到别的卷、再搬回来。
-/// 装到非系统盘的那台机器上整次安装失败，本机装的是系统盘，那条路径在本机走不到，
-/// 只能把搬运逻辑单独拎出来跑。全程只在仓库内与临时目录写，不碰注册表、不动已装程序。
+/// 安装器目录搬运探针：在仓库内验证卷判定、移动与复制恢复，文件内容与源保留均需完整。
 /// </summary>
 internal static class Program
 {
     static readonly Type Engine = typeof(InstallEngine);
 
     static object Call(string name, params object[] args) =>
-        Engine.GetMethod(name, BindingFlags.NonPublic | BindingFlags.Static)!.Invoke(null, args);
+        Engine.GetMethod(name, BindingFlags.NonPublic | BindingFlags.Static, null,
+            args.Select(a => a.GetType()).ToArray(), null)!.Invoke(null, args);
 
     static int Main()
     {
@@ -41,7 +41,7 @@ internal static class Program
         // 仓库内的暂存根：与系统盘不同卷时，这里就是「装到非系统盘」的那个现场
         var root = Path.Combine(RepoRoot(), "test-out", "setup-probe", Guid.NewGuid().ToString("N"));
         var app = Path.Combine(root, "FrameCapture");
-        var temp = Path.Combine(Path.GetTempPath(), "fc-setup-probe-" + Guid.NewGuid().ToString("N"));
+        var temp = Path.Combine(root, "copy-backup");
         try
         {
             Directory.CreateDirectory(Path.Combine(app, "runtimes"));
@@ -69,19 +69,21 @@ internal static class Program
                 !(bool)Call("SameVolume", @"D:\a", @"C:\b") && (bool)Call("SameVolume", @"D:\a", @"d:\c"),
                 "同卷与跨卷判定", "");
 
-            // 4) 跨卷只能复制：复制到另一卷（临时目录在系统盘），源留着
+            // 复制分支保留源目录
             Call("CopyTree", app, temp);
             Report(ref fail,
                 Directory.Exists(app) && File.Exists(Path.Combine(temp, "FrameCapture.exe"))
                 && File.Exists(Path.Combine(temp, "runtimes", "GestureCore.dll")),
-                "跨卷复制保留源并落到目标卷", "");
+                "目录复制保留源与完整内容", "");
 
-            // 5) 跨卷回滚：复制回去，不该抛
+            // 复制恢复使用明确的卷判定，文件操作限定在仓库内
             try
             {
-                Call("RestoreBackup", temp, app);
-                Report(ref fail, File.Exists(Path.Combine(app, "FrameCapture.exe")),
-                    "跨卷回滚把内容放回程序目录", "");
+                Call("RestoreBackup", temp, app, false);
+                Report(ref fail, File.ReadAllText(Path.Combine(app, "FrameCapture.exe")) == "exe"
+                    && File.ReadAllText(Path.Combine(app, "runtimes", "GestureCore.dll")) == "dll"
+                    && File.Exists(Path.Combine(temp, "FrameCapture.exe")),
+                    "复制恢复完整内容并保留备份", "");
             }
             catch (Exception ex)
             {
@@ -96,8 +98,10 @@ internal static class Program
         }
         finally
         {
-            try { if (Directory.Exists(root)) Directory.Delete(root, true); } catch { }
-            try { if (Directory.Exists(temp)) Directory.Delete(temp, true); } catch { }
+            var allowed = Path.GetFullPath(Path.Combine(RepoRoot(), "test-out", "setup-probe")) + Path.DirectorySeparatorChar;
+            var resolved = Path.GetFullPath(root);
+            if (!resolved.StartsWith(allowed, StringComparison.OrdinalIgnoreCase)) throw new InvalidOperationException("Probe path outside workspace");
+            try { if (Directory.Exists(resolved)) Directory.Delete(resolved, true); } catch { }
         }
         Console.WriteLine(fail == 0 ? "SETUP-PROBE PASS" : "SETUP-PROBE FAIL " + fail);
         return fail;

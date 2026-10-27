@@ -12,7 +12,7 @@ namespace FrameCapture.Overlays;
 // 本 partial 职责：快捷键列表的行级增删动画——删一行先淡出右滑，其余行补上空缺；
 // 加一行先占位淡入，其余行让开。
 /// <summary>
-/// 快捷键列表的增删过渡：沿用芯片行的位移做法（记下旧位置、改完布局再让每行从旧位置
+/// 快捷键列表的增删过渡：沿用芯片行的位移做法（记下布局前的位置、改完布局再让每行从布局前的位置
 /// 滑到新位置），所以这里不做高度动画，被删的那一行退回布局之后，下面的行自然被带走。
 /// 这种「列表项移除后，下方内容带动画补上空位」的做法通常叫 <b>FLIP 补位动画</b>
 /// （First–Last–Invert–Play）：先记位置、改布局、再按差值倒推起点播放。
@@ -34,7 +34,7 @@ public sealed partial class SettingsWindow
         return map;
     }
 
-    /// <summary>改完布局后，让每行从记下的旧位置滑到当前位置；状态间隔与缓动与芯片行一致。</summary>
+    /// <summary>改完布局后，让每行从记下的布局前的位置滑到当前位置；状态间隔与缓动与芯片行一致。</summary>
     /// <param name="before">改布局前记下的行位置。</param>
     /// <param name="skip">不做补位动画的行（正在淡出的那一行）。</param>
     private void PlayReflow(Dictionary<FrameworkElement, double> before, FrameworkElement? skip = null)

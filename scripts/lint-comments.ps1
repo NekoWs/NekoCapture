@@ -3,12 +3,13 @@
 # 语义：
 #   FAIL —— 违反即护栏失败（硬禁词 / 编号 / 超长 / 注释掉的代码 / #region 其他 / 缺文档 / 超长文件）
 #   WARN —— 人工判定（歧义词：旧 / 不再 / 回归 / 修复 / 坑 / bug）
-# 只扫注释文本：字符串字面量里的中文与编号不算违规（设置页文案里就有「此前」）。
+# 只扫描注释文本，字符串字面量不参与检查。
 # 豁免：行尾加  // lint-comments:ignore <一句理由>   —— 必须带理由。
 #
 # 用法: pwsh -NoProfile -File scripts/lint-comments.ps1 [-Paths a,b] [-WarnOnly] [-Quiet]
 param(
     [string[]]$Paths = @(),
+    [switch]$RequireDocumentation,
     [switch]$WarnOnly,
     [switch]$Quiet
 )
@@ -19,6 +20,7 @@ if ($Paths.Count -eq 0) { $Paths = @((Join-Path $root "src"), (Join-Path $root "
 # ---- 词表（§3.1 / §3.2 / §8 / §6 / §7）----
 $HardWords    = @('此前','之前','原来','曾经','曾把','曾让','退役','弃用','改为','修掉','教训','历史','早期','当时','过去')
 $AmbigWords   = @('旧','不再','回归','修复','坑','bug')
+$NarrativeRx  = '本轮|这轮|这一轮|上一轮|上轮|第\s*\d+\s*轮|改前|改后(?!面)|原先|现已|本批次'
 $TagRx        = '\b[RT]\d{1,3}[a-z]?\b|\bR\d{2,3}\s[A-Z]\d\b'
 $CommitRx     = '\bcommit\s+[0-9a-f]{7,40}\b'
 $RegionMiscRx = '^#region\s*(其他|杂项|其它|Other|Misc|通用|工具方法|私有方法)\s*$'
@@ -97,6 +99,7 @@ function Get-CommentText {
 # 注释内容规则（§3 / §6 / §7 / §8）
 function Invoke-CommentRules {
     param([string]$text, [int]$ln, [string]$rel)
+    if ($text -match $NarrativeRx) { Add-V '变更叙述' 'FAIL' $rel $ln $text }
     if ($text -match 'lint-comments:ignore') {
         $script:exemptCount++
         if ($text -notmatch 'lint-comments:ignore\s+\S.{3,}') { Add-V "豁免缺理由（§12）" "FAIL" $rel $ln $text }
@@ -120,6 +123,7 @@ function Invoke-CommentRules {
 # 解析成员声明：返回 @{ Name; Before; Args; Count }，非方法返回 $null
 function Resolve-MethodDecl {
     param([string[]]$lines, [int]$idx)
+    if ($lines[$idx] -match '^\s*(?:public|internal)\s+(?:(?:sealed|static|abstract|readonly|partial)\s+)*(?:class|struct|enum|interface|record)\b') { return $null }
     $decl = ''; $k = $idx; $done = $false
     while ($k -lt $lines.Count -and $k -le $idx + 8 -and -not $done) {
         $seg = $lines[$k]
@@ -147,7 +151,7 @@ function Resolve-MethodDecl {
     if ($name -notmatch '^[A-Za-z_]\w*$' -or $name -eq 'new') { return $null }
     $before = $decl.Substring(0, $nameStart)
     $after = $decl.Substring($lastOpen + $lastArgs.Length + 2)
-    # 排除字段/属性初始化器（参数表之前出现 '='）与 new(...) 表达式
+    # 排除字段/属性初始化器（参数表前出现 '='）与 new(...) 表达式
     if ($before -match '=' -or $after -match '=') { return $null }
     # 排除事件与操作符：event / operator 关键字不是方法
     if ($before -match '\b(event|delegate|operator|when|get|set|init|value)\b') { return $null }
@@ -191,7 +195,7 @@ $files = @($files | Where-Object { $_.FullName -notmatch '\\(bin|obj)\\' })
 
 foreach ($f in $files) {
     $rel = $f.FullName.Substring($root.Length + 1)
-    $inSrc = $rel -like 'src\*'
+    $inSrc = $RequireDocumentation -or $rel -like 'src\*'
     $lines = @(Get-Content $f.FullName)
     $st = @{ Kind = 'code' }
 

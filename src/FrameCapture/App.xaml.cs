@@ -396,7 +396,7 @@ public partial class App : Application
     }
 
     /// <summary>把一次组合键的按下与抬起喂给手势引擎：与低级键盘钩子同一个 <c>KeySink</c> 入口，
-    /// 区别只在于不产生 OS 级输入——回归测试因此能在用户正用电脑时跑完整链路，
+    /// 区别只在于不产生 OS 级输入——行为测试因此能在用户正用电脑时跑完整链路，
     /// 也不会把按键落到前台的其他软件上。按住时长交给 <see cref="Task.Delay(int)"/>：
     /// UI 线程必须空出来跑引擎的 Tick 泵，否则「按住到阈值触发 Hold」永远不会命中。</summary>
     /// <param name="w">主键 VK（低 8 位）与修饰键位（左移 8 位）的打包值。</param>

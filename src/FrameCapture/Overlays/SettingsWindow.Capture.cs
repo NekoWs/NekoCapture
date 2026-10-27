@@ -47,7 +47,7 @@ public sealed partial class SettingsWindow : Window
             chips.Children.Add(chip);
         }
         g.Children.Add(chips);
-        // 芯片的选中态是构造期算的配色：改配色时按当前值重排一遍，不然选中那颗会停在旧强调色上。
+        // 芯片的选中态是构造期算的配色：配色变化时重排选中态。
         _repaint.Add(() => RefreshChips(chipList, _settings.Current.ColorCopyFormat));
         return g;
     }

@@ -13,18 +13,18 @@ using FrameCapture.Core;
 
 namespace FrameCapture.Overlays;
 
-// 本 partial 职责：动作序列的芯片编辑器——快捷键页的「触发时 / 完成后 / 失败时」三行共用这一套控件。
+// 本 partial 职责：动作序列的芯片编辑器——动作链与失败链共用控件。
 /// <summary>
 /// 设置窗里编辑动作序列的那部分。
 /// 芯片按顺序排开，末尾一枚加号：加号在右侧点开一张候选卡，选中即追加到末尾。
-/// 芯片本身只用来拖动排序——点它不改这一步，要换一步就删掉它再从加号里挑一个。
+/// 芯片可拖动或通过箭头改序，叉号删除，数据徽标显示前置值与产出。
 /// </summary>
 public sealed partial class SettingsWindow : Window
 {
     /// <summary>
     /// 一条动作序列的芯片编辑器：横向芯片，末尾一枚加号。
     /// </summary>
-    sealed class ChainEditor
+    sealed partial class ChainEditor
     {
         readonly Func<string[]> _get;
         readonly Func<int, IEnumerable<GestureAction>> _candidates;
@@ -81,7 +81,7 @@ public sealed partial class SettingsWindow : Window
         /// <value>挂进设置行即可用。</value>
         public StackPanel Root { get; }
 
-        /// <summary>按当前序列重铺芯片。写回之后由编辑器自己调用，外部只在切换简单/高级时调用一次。</summary>
+        /// <summary>按当前序列重铺芯片。写回之后由编辑器自己调用，外部可在绑定内容变化后调用。</summary>
         public void Render()
         {
             // 重铺清空芯片行，而正在手里的那枚早已不在行里：不先从装饰层摘掉，它会悬在屏幕上不走
@@ -96,16 +96,19 @@ public sealed partial class SettingsWindow : Window
             for (int i = 0; i < list.Count; i++)
             {
                 int idx = i;
-                _chips.Children.Add(StepChip(GestureActions.LabelOf(list[i]), () =>
+                var chip = StepChip(GestureActions.LabelOf(list[i]), () =>
                 {
                     var now = _get().ToList();
                     if (idx < now.Count) now.RemoveAt(idx);
                     _set(now.ToArray());
                     Render();
-                }, idx));
+                }, idx);
+                DecorateChip(chip, list, idx);
+                _chips.Children.Add(chip);
             }
             _add = AddChip();
             _chips.Children.Add(_add);
+            PaintEmptyHint(list.Count == 0);
         }
 
         /// <summary>一枚已选步骤的芯片：动作短名 + 一个删掉这一步的叉。芯片本体是拖动手柄。</summary>
@@ -135,12 +138,12 @@ public sealed partial class SettingsWindow : Window
             {
                 CornerRadius = new CornerRadius(6),
                 MinHeight = ChipHeight,   // 与加号芯片同高：行里空了也不塌
-                Padding = new Thickness(10, 5, 8, 5),
+                Padding = new Thickness(10, 1.5, 8, 1.5),
                 Margin = new Thickness(2),
                 Background = Theme.RowBgBrush,
                 Cursor = Cursors.SizeAll,
                 Child = body,
-                ToolTip = Loc.T(K.Settings.DragThisStepToReorder),
+                ToolTip = Loc.T(K.Hotkeys.RunsInOrderDragToReorder),
             };
             Fluent.ChipHover(chip);
             chip.MouseLeftButtonDown += (_, e) =>
@@ -491,7 +494,7 @@ public sealed partial class SettingsWindow : Window
                     Foreground = Theme.TextDimBrush,
                     VerticalAlignment = VerticalAlignment.Center,
                 },
-                ToolTip = Loc.T(K.Settings.AddAStepAfterThis),
+                ToolTip = Loc.T(K.Hotkeys.AddStep),
             };
             Fluent.ChipHover(add);
             add.MouseLeftButtonUp += (_, e) => { if (_pop.IsOpen) ClosePicker(); else OpenPicker(); e.Handled = true; };

@@ -33,7 +33,7 @@ if ($Lang) {
     $s | ConvertTo-Json -Depth 40 | Set-Content $f -Encoding utf8
 }
 
-# 拍之前把设置窗提到最前：桌面 BitBlt 拍的是屏幕合成，别的窗压在它上面就会拍进别人。
+# 拍摄时将设置窗置于最前：桌面 BitBlt 拍的是屏幕合成，别的窗压在它上面就会拍进别人。
 if (-not ('RaiseWin' -as [type])) {
     Add-Type -TypeDefinition @'
 using System;using System.Runtime.InteropServices;

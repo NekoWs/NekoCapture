@@ -121,7 +121,7 @@ static partial class SelfTest
         if (bindingName != null && svc.Gestures.Bindings.Count > 0)
         {
             svc.Gestures.Bindings[0].Name = bindingName;
-            // 这份名字是这一档现造的，早先快照的 _userData 里没有；不登记就会被当成我们的漏翻文案
+            // 这份名字是这一档现造的，_userData 需要登记；不登记就会被当成我们的漏翻文案
             _userData.Add(bindingName);
         }
         if (clash && svc.Gestures.Bindings.Count > 0)
@@ -604,7 +604,7 @@ static partial class SelfTest
                 // 同一段字在同一个位置出现两次：模板里 ContentPresenter 套 TextBlock 的常见形状，不是叠字
                 if (boxes[i].Text == boxes[j].Text
                     && ox >= Math.Min(a.Width, b.Width) - 2 && oy >= Math.Min(a.Height, b.Height) - 2) continue;
-                // 两个矩形都写出来：只报「压住 26px」分不清是谁越界、还是量到的是上一轮的几何
+                // 输出两个矩形，便于判断越界与测量范围
                 rows.Add($"UXA|{surface}|叠字|{At(boxes[i].Tb, root)} {Cut(boxes[i].Text, 22)} × {Cut(boxes[j].Text, 22)} 压住{ox:F0}px"
                     + $" [{a.X:F0},{a.Y:F0} {a.Width:F0}×{a.Height:F0}] [{b.X:F0},{b.Y:F0} {b.Width:F0}×{b.Height:F0}]");
             }

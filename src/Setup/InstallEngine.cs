@@ -285,8 +285,15 @@ internal static class InstallEngine
     /// <param name="backup">备份目录。</param>
     /// <param name="installDir">程序目录。</param>
     private static void RestoreBackup(string backup, string installDir)
+        => RestoreBackup(backup, installDir, SameVolume(backup, installDir));
+
+    /// <summary>按卷判定恢复备份；同卷移动，跨卷复制并保留源。</summary>
+    /// <param name="backup">备份目录。</param>
+    /// <param name="installDir">恢复目录。</param>
+    /// <param name="sameVolume">两目录是否位于同一卷。</param>
+    private static void RestoreBackup(string backup, string installDir, bool sameVolume)
     {
-        if (SameVolume(backup, installDir)) Directory.Move(backup, installDir);
+        if (sameVolume) Directory.Move(backup, installDir);
         else CopyTree(backup, installDir);   // 跨卷没有「移回去」，临时那份交给系统清
     }
 

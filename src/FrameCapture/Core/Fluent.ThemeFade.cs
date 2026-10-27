@@ -12,7 +12,7 @@ namespace FrameCapture.Core;
 public static partial class Fluent
 {
     /// <summary>换色幕布：整窗盖一层换色那一刻的窗口底，按 <see cref="Motion.ThemeMs"/> 淡出后自摘。
-    /// 深浅互换时几十处颜色在同一帧里同时跳，眼睛抓不到落点；盖一层旧窗口底再整片淡开，
+    /// 深浅互换时几十处颜色在同一帧里同时跳，眼睛抓不到落点；盖一层换色前的窗口底再整片淡开，
     /// 新调色板在幕布后面就位，淡出期间看到的是同一块面在换色，而不是零散地这里黑一块那里白一块。
     /// 幕布走 Adorner 层：不进布局，不会把 DockPanel 的填充位抢走，也不会挤动任何一行。</summary>
     /// <param name="w">盖幕布的窗口。</param>

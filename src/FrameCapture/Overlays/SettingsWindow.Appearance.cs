@@ -45,7 +45,7 @@ public sealed partial class SettingsWindow : Window
     /// <summary>换色那一刻画面上的窗口底：幕布拿它当退场色，落新调色板之后就取不到了。</summary>
     Color _maskFrom = Theme.WindowBgSolid;
 
-    /// <summary>调色板即将重算：这一次要翻深浅档，就趁画面还是旧调色板记下退场色。</summary>
+    /// <summary>主题切换前保存退场颜色。</summary>
     /// <param name="dark">重算之后的深浅档。</param>
     void OnPaletteChanging(bool dark)
     {
@@ -112,7 +112,7 @@ public sealed partial class SettingsWindow : Window
             };
             first = false;
             Fluent.ChipHover(seg);   // 悬停只改底色带过渡，不缩放
-            // 三段是构造期取色建的私有画刷：不登记重画，深浅档一翻，轨道跟着换了而字还停在旧档的灰度上
+            // 主题切换时同步更新三个分段的私有画刷
             _repaint.Add(() =>
             {
                 ((TextBlock)seg.Child).Foreground = new SolidColorBrush(sel ? Fluent.OnAccentColor(Theme.Accent) : Theme.TextDim);
@@ -167,7 +167,7 @@ public sealed partial class SettingsWindow : Window
             cells.Add((chip, icon, captured));
             // 芯片坐在卡片上，底色是实心色：未选中是行底，选中是强调色。
             // 拿半透明叠加层当底色，透出来的是什么取决于卡片背后压着什么，明暗两套读出来是两个颜色；
-            // 悬停也只是同一块底再深一档，不再往上盖第二层半透明。
+            // 悬停也只是同一块底再深一档，不叠加半透明层。
             Color Base() => captured == _settings.Current.Theme ? Theme.Accent : Theme.RowBg;
             void AnimateTo(Color to, int ms)
             {

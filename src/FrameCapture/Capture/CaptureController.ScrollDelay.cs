@@ -5,20 +5,14 @@ using FrameCapture.Overlays;
 namespace FrameCapture.Services;
 
 // 本 partial 职责：滚动截图的步进拼接循环，与延时截图的倒计时状态机。
-/// <summary>
-/// <see cref="CaptureController"/> 的滚动/延时分部：两条路径全程不改 <c>Phase</c>，
-/// 各自用独立字段持有会话；产物按 <c>AfterCapture</c> 就地分派，不经 <see cref="DispatchStill"/>。
-/// </summary>
+/// <summary>滚动拼接与倒计时使用独立会话，静图经统一出口登记并继续动作链。</summary>
 public sealed partial class CaptureController : IDisposable
 {
     #region 滚动截图
     /// <summary>托盘/入口调用：复用选区流程选一块要滚的区域，选完进入步进拼接循环。</summary>
     public void BeginScrollCapture()
     {
-        Trace.Log("scroll capture→picker");
-        _sessionAfter = _pendingAfter; _pendingAfter = "";   // 捕获本条手势的截图后
-        BeginScopeSelection();
-        _scrollAfterSelect = true;
+        BeginChain(new[] { GestureActions.Select, GestureActions.ScrollCapture }, Array.Empty<string>());
     }
 
     /// <summary>选区确认后进入步进拼接循环：先抓基准帧，之后每 280ms 抓一帧按重叠行数追加——
@@ -27,7 +21,7 @@ public sealed partial class CaptureController : IDisposable
     void StartScrollLoop(RectI region, string device)
     {
         var f = LiveCapture.Grab(region);
-        if (f == null) { Trace.Log("scroll: first grab null"); return; }
+        if (f == null) { Trace.Log("scroll: first grab null"); _scrollCompletion?.TrySetResult(false); return; }
         _scrollResume = null;   // 新起一次，手里那张就不该再挂在托盘上
         ResetScrollSession(f.Bgra, f.W, f.H, region, device);
         ShowScrollStage(f.Bgra, region, device);
@@ -213,35 +207,8 @@ public sealed partial class CaptureController : IDisposable
         // 完成不等于收工：滚早了头是这条路径最常见的失手。刚落盘的这张 PNG 就是「继续滚动」的基准帧，
         // 像素不进内存——长图动辄上百 MB，而它本来就已经在磁盘上了。
         _scrollResume = System.IO.File.Exists(pth) ? (pth, reg, dev) : null;
-        SaveService.MaybeSavePng(frame);
-        if (_settings.Current.CaptureSound) CaptureSound.Play(_settings.Current.CustomSoundPath);
-        Trace.Log($"scroll done {frame.W}x{frame.H} segs={segs} {pth}");
-        // 剪贴板由用户的动作写：点提示浮窗、编辑器里点 √，或这条落点本身就是「复制到剪贴板」。
-        switch (AfterCapture.Resolve(_sessionAfter))
-        {
-            case AfterCaptureAction.Editor:
-                OpenEditorForFrame(frame, reg, dev);
-                break;
-            case AfterCaptureAction.Copy:
-                Encoding.ClipboardService.SetFrame(frame);
-                break;
-            case AfterCaptureAction.Pin:
-                PinFrameAt(frame, reg);
-                break;
-            case AfterCaptureAction.None:
-                break; // 这条手势在「完成后」里自己写了落点
-            default:
-                Overlays.CaptureToast.Show(frame, reg, dev,
-                    () =>
-                    {
-                        Encoding.ClipboardService.SetFrame(frame);
-                        OpenEditorForFrame(frame, reg, dev);
-                    },
-                    () => Encoding.ClipboardService.SetFrame(frame));
-                break;
-        }
-        _lastStill.Set(frame, reg, dev);
-        RunScopedTail("scroll");
+        DispatchStill(frame, reg, dev);
+        _scrollCompletion?.TrySetResult(true);
     }
 
     /// <summary>取消滚动拼接：停表、还原注轮借走的光标、收起取景层与预览卡、关控制条、丢弃已拼接的内容（不落盘、不进剪贴板）。
@@ -255,6 +222,7 @@ public sealed partial class CaptureController : IDisposable
         var bar = _scrollBar; _scrollBar = null; _scrollAcc = null; _scrollPrevB = null; _scrollSegs = 0; _scrollAuto = false;
         bar?.CloseSelf();
         Trace.Log("scroll cancel");
+        _scrollCompletion?.TrySetResult(false);
     }
 
     /// <summary>手里是否留着一张「完成」后没接着滚的长图。托盘据此决定给不给「继续上次滚动」。</summary>
@@ -299,7 +267,6 @@ public sealed partial class CaptureController : IDisposable
     public void BeginDelayedCapture()
     {
         if (_delayWindow != null) { Trace.Log("delay: already running, ignore"); return; }
-        _sessionAfter = _pendingAfter; _pendingAfter = "";   // 捕获本条手势的截图后
         int secs = Math.Clamp(_settings.Current.DelayCaptureSeconds, 0, 60);
         var region = StoredRegion() ?? FullMonitorAtCursor();
         string label = StoredRegion() != null ? Loc.F(K.Capture.Region, region.Bounds.W, region.Bounds.H) : Loc.T(K.Capture.FullScreen);
@@ -351,6 +318,7 @@ public sealed partial class CaptureController : IDisposable
         var win = _delayWindow; _delayWindow = null;
         win?.CloseSelf();
         Trace.Log("delay cancel");
+        _delayCompletion?.TrySetResult(false);
     }
 
     void DelayFire(ScreenRegion region)
@@ -358,33 +326,9 @@ public sealed partial class CaptureController : IDisposable
         HideDelayOutline();   // 收起倒计时范围高亮（轮廓本就不入镜，这里只是收尾）
         var reg = region.Bounds; var dev = region.DeviceName;
         var f = LiveCapture.Grab(reg);
-        if (f == null) { Trace.Log("delay: grab null"); return; }
-        SaveService.MaybeSavePng(f);
-        if (_settings.Current.CaptureSound) CaptureSound.Play(_settings.Current.CustomSoundPath);
-        Trace.Log($"delay fire {f.W}x{f.H}");
-        // 剪贴板由用户的动作写：点提示浮窗、编辑器里点 √，或这条落点本身就是「复制到剪贴板」。
-        switch (AfterCapture.Resolve(_sessionAfter))
-        {
-            case AfterCaptureAction.Editor:
-                OpenEditorForFrame(f, reg, dev);
-                break;
-            case AfterCaptureAction.Copy:
-                Encoding.ClipboardService.SetFrame(f);
-                break;
-            case AfterCaptureAction.Pin:
-                PinFrameAt(f, reg);
-                break;
-            default:
-                Overlays.CaptureToast.Show(f, reg, dev,
-                    () =>
-                    {
-                        Encoding.ClipboardService.SetFrame(f);
-                        OpenEditorForFrame(f, reg, dev);
-                    },
-                    () => Encoding.ClipboardService.SetFrame(f));
-                break;
-        }
-        _lastStill.Set(f, reg, dev);
+        if (f == null) { Trace.Log("delay: grab null"); _delayCompletion?.TrySetResult(false); return; }
+        DispatchStill(f, reg, dev);
+        _delayCompletion?.TrySetResult(true);
         // 范围闪一下作"截好了"的反馈（只复制模式没有浮窗，这一下尤其重要）
         if (_settings.Current.AlwaysShowRegionOutline) ShowOutline(reg);
         else { FlashOutline(reg); _outline!.FadeAway(_settings.Current.OutlineFadeSeconds); }

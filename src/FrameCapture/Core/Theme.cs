@@ -115,7 +115,7 @@ public static class Theme
         Tok(Slot.StrokeSoft, ColorGroup.Line, C(0x1F, 0, 0, 0), C(0x24, 0xFF, 0xFF, 0xFF)),
         // 控件描边：键帽、芯片、输入框、开关轨道这一圈。与卡片外框分开，调细调淡不必连卡片一起动
         Tok(Slot.StrokeField, ColorGroup.Line, C(0x1F, 0, 0, 0), C(0x24, 0xFF, 0xFF, 0xFF)),
-        // 交互：按下恒比悬停再走一档，两套主题同方向；行悬停是不透明色，落在行底色上不再叠第二层
+        // 交互：按下恒比悬停再走一档，两套主题同方向；行悬停是不透明色，落在行底色上不叠第二层
         Tok(Slot.Hover, ColorGroup.Interaction, C(0x14, 0, 0, 0), C(0x1E, 0xFF, 0xFF, 0xFF)),
         Tok(Slot.Press, ColorGroup.Interaction, C(0x24, 0, 0, 0), C(0x30, 0xFF, 0xFF, 0xFF)),
         Tok(Slot.RowHover, ColorGroup.Interaction, O(0xE9, 0xEB, 0xF0), O(0x36, 0x3A, 0x41)),
@@ -414,7 +414,7 @@ public static class Theme
     /// 给行一个方向正确的底色，边界靠明度说话，描边退回成一根细线。</summary>
     public static Color RowBg => Resolved[(int)Slot.RowBg];
 
-    /// <summary>行悬停底色：在 <see cref="RowBg"/> 上再走一档，方向与它一致。不透明，铺上去不再叠第二层。</summary>
+    /// <summary>行悬停底色：在 <see cref="RowBg"/> 上再走一档，方向与它一致。不透明，铺上去不叠第二层。</summary>
     public static Color RowHover => Resolved[(int)Slot.RowHover];
 
     /// <summary>侧栏导航的承托面：导航项的静止、悬停、选中三态都算在这块底色上。</summary>

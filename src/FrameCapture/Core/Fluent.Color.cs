@@ -107,7 +107,7 @@ public static partial class Fluent
     public const double NavTintHot = 0.36;
 
     /// <summary>侧栏一项在某状态下的底色：静止项就是侧栏底色，选中项是强调色按浓度染过的那块。
-    /// 两个状态都算在侧栏底色上，落出来都是不透明实色，不再往上半透明地叠。</summary>
+    /// 两个状态都算在侧栏底色上，落出来都是不透明实色，不叠加半透明层。</summary>
     /// <param name="navBg">侧栏底色令牌。</param>
     /// <param name="selected">是否为选中项。</param>
     /// <param name="hovered">指针是否压在这一项上。</param>

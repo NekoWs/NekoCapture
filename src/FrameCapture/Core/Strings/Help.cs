@@ -12,8 +12,8 @@ public static partial class K
         public static readonly Str AfterCapture = new("help.afterCapture", "截图后", "After capture");
         public static readonly Str AfterCaptureIsSetPer = new(
             "help.afterCaptureIsSetPer",
-            "「截图后」在「设置 · 快捷键」每条快捷键的完成后一栏设置；托盘还能「编辑上次截图」。",
-            "The After column on Settings · Hotkeys sets this per hotkey; the tray also offers Edit Last Screenshot.");
+            "选区之后做什么由动作链决定；链里没有产物步骤时由选区开关决定。复制、保存和编辑直接放在链尾。",
+            "The action chain determines what follows selection. The selection switch applies only when the chain has no product step. Add copy, save or edit to the chain.");
         public static readonly Str AfterRecording = new("help.afterRecording", "录完", "After recording");
         public static readonly Str AnyRectangleTheWheelResizes = new(
             "help.anyRectangleTheWheelResizes",

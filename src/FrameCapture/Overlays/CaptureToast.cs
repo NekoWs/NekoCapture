@@ -132,7 +132,6 @@ public sealed class CaptureToast : Window
         grid.Children.Add(close);
 
         // 操作行：这张卡现在能做什么，一件事一枚芯片，键位写在名字后面。
-        // 原先那行「点击或按 Enter 继续标注 · Esc 关闭」是灰字说明——读的人先得把它翻译成操作。
         var acts = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 8, 0, 0) };
         acts.Children.Add(ActionChip(Loc.T(K.Editor.Annotate), "Enter", () =>
         {

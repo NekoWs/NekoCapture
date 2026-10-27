@@ -44,7 +44,7 @@ public enum TriggerKind
 }
 
 /// <summary>动作序列中某步失败（invoker 返回 false / 抛异常）后的处理策略。<b>逐条绑定显式指定</b>，
-/// 引擎不内置任何宿主语义（用户明确要求：复用库里失败策略是每条绑定的数据，而非硬编码）。</summary>
+/// 失败策略由每条绑定提供。</summary>
 public enum FallbackPolicy
 {
     /// <summary>中止本条绑定剩余动作，也不顺延到其它绑定。</summary>

@@ -303,7 +303,7 @@ panel.Children.Add(ToggleRow("\uE768", Loc.T(K.Settings.StartRecordingAfterSelec
 
         #region 系统
         panel = Cat(Loc.T(K.Settings.System), "\uE713");
-        // 自启与提权是同一件事的两半：两个都开走计划任务（登录时不再弹 UAC），只开自启走 Run 项。
+        // 自启与提权是同一件事的两半：两个都开走计划任务（登录时无需 UAC），只开自启走 Run 项。
         // 每次改动都把两条入口一起摆正——只改一半会留下两个入口，登录时起来两个实例。
         void ApplyStartup()
         {
@@ -326,7 +326,7 @@ panel.Children.Add(ToggleRow("\uE768", Loc.T(K.Settings.StartRecordingAfterSelec
                 if (!v) { ApplyStartup(); return; }
                 // 已经提权：只把登录入口换成任务形式，不必重启
                 if (StartupService.IsElevated) { ApplyStartup(); return; }
-                // 没提权：换成提权实例。交接必须「先起新的、再退出旧的」——旧进程不退，新实例会撞上单实例互斥、
+                // 没提权：换成提权实例。交接必须「先起新的、再退出当前进程」——当前进程不退，新实例会撞上单实例互斥、
                 // 把参数转发给正在退出的它再退掉，结果一个提权实例都没有（托盘也因此一直不勾）。
                 // 新实例带 --settings --page system：用户刚在这一页按的开关，提权回来后还停在这一页。
                 if (AppHost.Current.RestartAsAdmin("--settings --page system")) return;
@@ -371,7 +371,7 @@ panel.Children.Add(ToggleRow("\uE768", Loc.T(K.Settings.StartRecordingAfterSelec
         var navCanvas = new Canvas { IsHitTestVisible = false };
         navCanvas.Children.Add(selBar);
 
-        // 每项高 38 + 上下边距各 1 = 40；滑条按这一项的真实位置算中线，不再用写死的行顶偏移——
+        // 每项高 38 + 上下边距各 1 = 40；滑条按导航项的实际位置计算中线——
         // 行顶偏移一改（外层内衬变了、边距变了），写死的那个数就让滑条整体偏出中线几像素
         const double RowPitch = 40, RowH = 38, BarH = 18;
         double RowTopOf(int idx)
@@ -476,9 +476,9 @@ panel.Children.Add(ToggleRow("\uE768", Loc.T(K.Settings.StartRecordingAfterSelec
         }
 
         // 左栏：一块侧栏底板上摆竖向导航项。静止项与底板同色（读作「还没被碰」），
-        // 悬停浮起一枚药丸、选中项被强调色染过，两者叠加时按「选中底色上再走一档」算，不再叠第二层透明。
+        // 悬停浮起一枚药丸、选中项被强调色染过，两者叠加时按「选中底色上再走一档」算，不叠第二层透明。
         var navPanel = new StackPanel { VerticalAlignment = VerticalAlignment.Top };
-        _navRows.Clear();   // 原地重建会再走一遍这里：不清掉，行位表会叠上一层旧窗口的元素
+        _navRows.Clear();   // 原地重建会再走一遍这里：不清掉，行位表会保留重建前的元素
         for (int i = 0; i < cats.Count; i++)
         {
             int captured = i;
@@ -503,7 +503,7 @@ panel.Children.Add(ToggleRow("\uE768", Loc.T(K.Settings.StartRecordingAfterSelec
             el.MouseLeftButtonDown += (_, e) => { ShowCat(captured, true); e.Handled = true; };
             el.KeyDown += (_, e) => { if (e.Key is Key.Space or Key.Enter) { ShowCat(captured, true); e.Handled = true; } };
             // 悬停走 MouseEnter/MouseLeave 而不是 IsMouseOver 触发器：三态要一起算，
-            // 触发器只会改底色这一项，文字与图标会停在旧色上，选中项还会被触发器的透明悬停盖回脏色。
+            // 触发器只会改底色这一项，文字与图标颜色无法同步，选中项还会被触发器的透明悬停盖回脏色。
             el.MouseEnter += (_, _) => { navHover = captured; PaintNav(true); };
             el.MouseLeave += (_, _) => { if (navHover == captured) { navHover = -1; PaintNav(true); } };
             // 键盘焦点环：与 toggle/chip/试听 同款——Tab 聚焦时描边转强调色，失焦归零

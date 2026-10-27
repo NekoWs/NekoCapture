@@ -1,6 +1,6 @@
 # 手势点按/按住语义端到端：统一测试手势集（Ctrl+Shift+G 轻点→选区+截图 / 按住→录制→编辑器）。
 # 轻点(短按)→以「选区」开头的序列整体交给控制器→弹选区窗；按住(长按)→record.start→record.stop→edit.lastvideo→编辑器 frames>1。
-# 断言走 fc-trace「scoped arm lead=Still」与「open editor frames=N」，结束一律还原用户设置。
+# 断言走 fc-trace「chain picker open」与「open editor frames=N」，结束一律还原用户设置。
 $ErrorActionPreference = "Stop"
 $root = Split-Path $PSScriptRoot
 . (Join-Path $PSScriptRoot "lib-hotkey.ps1")
@@ -32,9 +32,9 @@ try {
     Restart-App
 
     # 场景1：轻点 80ms（< 250ms 阈值）→ 选区+截图 → 选区窗
-    $pk0 = Count-Trace "scoped arm lead=Still"
+    $pk0 = Count-Trace "chain picker open"
     Invoke-FcSynthetic $exe $capHk 80; Start-Sleep 1.8
-    $pk1 = Count-Trace "scoped arm lead=Still"
+    $pk1 = Count-Trace "chain picker open"
     $pkWin = & $shot rect "FrameCapture Region" 2>$null
     "tap80: picker_trace_delta=$($pk1 - $pk0) win=[$pkWin]"
     & $shot keyw "FrameCapture Region" 27 2>$null | Out-Null; Start-Sleep 0.6

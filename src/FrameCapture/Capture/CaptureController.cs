@@ -26,26 +26,8 @@ public sealed partial class CaptureController : IDisposable
     /// <summary>本次捕获的范围与锁定状态：选区录制时由选区窗交来（可能锁定到某个窗口本体），
     /// 热键直接起录时按存好的范围或光标所在屏现造一个。起录时改写成本次实际捕获范围，供收尾开编辑器用。</summary>
     private Selection? _pendingSel;
-    /// <summary>点按总是先显示选区：本次选区确认后立即截一帧静态图。</summary>
-    private bool _captureAfterSelect;
-    /// <summary>「选区录制」——本次选区确认后立即对该区域起录。</summary>
-    private bool _recordAfterSelect;
-    /// <summary>本次录制是选区面板起的（不是快捷键）：REC 与时长归面板说，右上角徽标不亮。</summary>
+    /// <summary>录制状态由选区旁的面板显示。</summary>
     private bool _panelRecording;
-    /// <summary>本条手势的「截图后」落点（引擎 BeginBinding 设，截图发起时捕获进 <see cref="_sessionAfter"/>）。
-    /// 空=不覆盖，走默认弹提示；"none"=这条手势在「完成后」里自己写了落点。</summary>
-    private string _pendingAfter = "";
-    /// <summary>本次截图会话的「截图后」（发起时从 <see cref="_pendingAfter"/> 捕获，完成时分派）。
-    /// 单独存一份是为防选区拖框期间触发的别的手势把 _pendingAfter 覆盖掉。</summary>
-    private string _sessionAfter = "";
-    /// <summary>引擎在跑某条手势动作前告知本条的「完成后」是否覆盖了默认落点，同时收回上一次运行的产物资格。
-    /// 落点真正生效在截图发起时捕获；产物资格只在本条手势内有效。</summary>
-    /// <param name="v">落点名；null 与空串等价，都按「默认弹提示」处理。</param>
-    public void SetPendingAfterCapture(string? v)
-    {
-        _pendingAfter = string.IsNullOrEmpty(v) ? "" : v;
-        _tailProduct = false;
-    }
     /// <summary>选区完成后到真正抓取/起录之间的留白(ms)。选区窗已 WDA_EXCLUDEFROMCAPTURE，抓取本就拍不到它；
     /// 这里只留极短一拍让选区窗 Close 走完（防 WDA 万一失效时把选区界面截进画面）。再长就是纯等，用户能感觉到截图变慢。</summary>
     private const int PickerExitMs = 40;
@@ -54,10 +36,9 @@ public sealed partial class CaptureController : IDisposable
     // 保留最近一次静态截图帧，供托盘「编辑上次截图」在托盘找回编辑器
     private readonly LastStill _lastStill = new();
     // 录制产物留在内存（不落盘、不自动开编辑器）。停止录制只暂存，进编辑器由 edit.lastvideo 动作显式触发。
-    // 新录制完成会释放上一条（含 spool 文件）；从未进编辑器就再次录制/清空 → 上一条丢弃（用户明确要的"关掉就丢"）。
+    // 新录制完成会释放上一条（含 spool 文件）；从未进编辑器就再次录制/清空 → 上一条丢弃。
     private CapturedSequence? _lastSequence;
     // 滚动截图——选区后自动检测滚动并拼接（目标窗保持焦点，用户只管滚）
-    private bool _scrollAfterSelect;
     private Overlays.ScrollHintWindow? _scrollBar;
     private Overlays.ScrollStageWindow? _scrollStage;       // 取景层：范围外压暗 + 范围描边，鼠标穿透
     private Overlays.ScrollPreviewWindow? _scrollPreview;   // 选区右侧的已拼接长图实时预览
@@ -87,6 +68,7 @@ public sealed partial class CaptureController : IDisposable
     private int _delayLeft;
     private bool _delayOutlineShown;   // 倒计时期间是否显示了范围高亮，收尾时只收自己显示的
 
+    /// <summary>捕获控制器的当前阶段。</summary>
     public Phase State { get; private set; } = Phase.Idle;
 
     /// <summary>构造捕获控制器。必须在 UI 线程创建：内部全部使用 <c>DispatcherTimer</c>，且所有方法都按 UI 线程调用设计。</summary>
@@ -100,7 +82,7 @@ public sealed partial class CaptureController : IDisposable
         _live.Faulted += _ => System.Windows.Application.Current?.Dispatcher.BeginInvoke(() =>
         {
             // 捕获线程触发 → 回 UI 线程停录；已录内容照常进编辑器，绝不静默丢帧
-            if (State == Phase.Capturing) FinishCapture();
+            if (State == Phase.Capturing) FinishCapture(openEditor: false);
         });
         _recBadgeTimer = new System.Windows.Threading.DispatcherTimer();
         _recBadgeTimer.Tick += (_, _) =>
@@ -175,176 +157,58 @@ public sealed partial class CaptureController : IDisposable
         return (liveRegion(region), region, false);
     }
 
-    /// <summary>
-    /// 打开全屏选区窗（热键与托盘共用）。录制中忽略；选取中再按一次只把选取层顶到最前，不重建选区窗。
-    /// 结果回调按 <c>_scrollAfterSelect</c> / <c>_recordAfterSelect</c> / <c>_captureAfterSelect</c> 分流到
-    /// 滚动拼接、选区起录、单帧静图，都不成立时只记录范围。调用方在返回后置位这些意图标志即可——回调必然晚于返回。
-    /// </summary>
-    public void BeginScopeSelection()
-    {
-        // 防状态卡死：选取窗被异常途径关闭（Alt+F4 等）时复位
-        if (State == Phase.SelectingScope && _picker == null) State = Phase.Idle;
-        var scopeIntent = Core.CaptureGuards.OnScopeHotkey(
-            State == Phase.Capturing, State == Phase.SelectingScope, _picker != null);
-        if (scopeIntent == Core.CaptureGuards.ScopeIntent.Ignore) return;
-        if (scopeIntent == Core.CaptureGuards.ScopeIntent.RefocusPicker)
-        {
-            // 再按一次热键：把选取层重新顶到所有窗口最前（游戏等霸屏窗口会盖住它）
-            _picker!.Show(); // 只顶 Z 序，不抢焦点（原因见本方法末尾）
-            return;
-        }
-        CloseEditor();
+    /// <summary>打开选区，产物由选区开关决定。</summary>
+    public void BeginScopeSelection() => BeginChain(new[] { GestureActions.Select }, Array.Empty<string>());
 
+    void OpenChainPicker(RunContext context, bool showSwitch)
+    {
+        CloseEditor();
         var cursor = Win32Wrap.GetCursorPosition();
         var monitor = Monitors.Nearest(cursor.X, cursor.Y);
-
         State = Phase.SelectingScope;
-        // 进入全屏选区前，收起一切残留半透明浮窗（截图提示浮窗 / 轮廓），否则它们会和选区窗叠着闪几下。
-        Overlays.CaptureToast.DismissCurrent();
+        CaptureToast.DismissCurrent();
         HideOutline();
-        var swOpen = System.Diagnostics.Stopwatch.StartNew();
-        // 定格开：先把整屏抓下来再建窗，帧直接当窗底 → 选区窗做成不透明全屏窗，
-        // 不必为「先透明、再等定格帧到位」走 AllowsTransparency 的软件合成。
-        // 抓取本身几十毫秒，换来窗口一出现就是完整画面；残留浮窗都带 WDA_EXCLUDEFROMCAPTURE，拍不进去。
-        CapturedFrame? frozen = _settings.Current.FreezeOnSelect ? LiveCapture.Grab(monitor.Bounds) : null;
-        long grabMs = swOpen.ElapsedMilliseconds;
-        // ShowLastRegion 关=干净屏选区（不传 existing 矩形），此时 Enter「确认上次选区」随之无意义
-        _picker = new RegionPickerWindow(monitor, existing: _settings.Current.ShowLastRegion ? StoredRegion()?.Bounds : null,
+        var frozen = _settings.Current.FreezeOnSelect ? LiveCapture.Grab(monitor.Bounds) : null;
+        _picker = new RegionPickerWindow(monitor,
+            existing: _settings.Current.ShowLastRegion ? StoredRegion()?.Bounds : null,
             snapContent: _settings.Current.SnapContentArea, magnifier: _settings.Current.PickerMagnifier,
             colorFormat: Core.ColorFormat.Parse(_settings.Current.ColorCopyFormat),
-            windowCapture: _settings.Current.WindowCaptureEnabled || _settings.Current.RecordWindowClean,
-            freeze: _settings.Current.FreezeOnSelect, pregrabMax: _settings.Current.FreezePregrabMaxWindows,
-            windowShadow: _settings.Current.WindowCaptureShadow,
-            frozenScreen: frozen,
-            // 开窗这一刻意图还没定（调用方在返回后才置位），初值按「截图」给，随后 SetRecordMode 摆正
-            rightClickCancel: _settings.Current.PickerRightClickCancel);
-        Trace.Log($"picker ctor done dt={swOpen.ElapsedMilliseconds}ms freezeGrab={grabMs}ms magnifier={_settings.Current.PickerMagnifier}");
+            windowCapture: true, freeze: _settings.Current.FreezeOnSelect,
+            pregrabMax: _settings.Current.FreezePregrabMaxWindows,
+            windowShadow: _settings.Current.WindowCaptureShadow, frozenScreen: frozen,
+            rightClickCancel: _settings.Current.PickerRightClickCancel, showModeSwitch: showSwitch);
         _picker.Result += (region, hwnd) =>
         {
-            var pk = _picker; // 定格帧/预抓缓存挂在选区窗上，先留引用（下面 _picker 置空、窗随即关闭）
+            var picker = _picker;
             _picker = null;
             State = Phase.Idle;
-            // 挂着「先选区再执行」时全局「选区自动截取」让位：序列里写了截图才有截图，没写就只定范围
-            bool stillAfterSelect = _captureAfterSelect || (_settings.Current.AutoCaptureOnSelect && _tailRun == null);
-            // 这一次落下去是录制还是截图，以选区窗上的开关为准（开窗后调用方才定下意图，开关是唯一活着的那份状态）；
-            // 标志在这里一次性清掉：用户在开关上切回截图、或直接取消，都不能把它留给下一次选区。
-            bool wantRecord = pk?.RecordMode ?? _recordAfterSelect;
-            _recordAfterSelect = false;
-            _captureAfterSelect = false;
-            // 范围一落地就把这条手势写的落点接进本次会话：拖框期间别的手势可能已经改写 _pendingAfter，
-            // 而选完还是取消都不该把它留给下一次捕获。
-            _sessionAfter = _pendingAfter; _pendingAfter = "";
-            if (region is null) { RunScopedFail(); return; }
-            // 选区跑完就交出这一份参数：矩形 + 点中的窗口 + 所在屏。后面截图还是录制都读它，
-            // 各自用 WithWindowHonor 过一遍自己的开关，不再各存各的临时状态。
-            var sel = new Selection(monitor.DeviceName, region.Value, hwnd);
-            _settings.Mutate(s =>
+            if (region != null)
             {
-                s.RegionMonitorId = monitor.DeviceName;
-                s.RegionX = region.Value.X; s.RegionY = region.Value.Y;
-                s.RegionW = region.Value.W; s.RegionH = region.Value.H;
-            });
-            if (_scrollAfterSelect)
-            {
-                // 滚动截图：选区即进入步进拼接循环（选区窗已 WDA 排除，只留一拍让 Close 走完，别把选区界面截进首帧）
-                _scrollAfterSelect = false;
-                HideOutline();
-                var sreg = region.Value; var sdev = monitor.DeviceName;
-                var st = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(PickerExitMs) };
-                st.Tick += (_, _) => { st.Stop(); StartScrollLoop(sreg, sdev); };
-                st.Start();
-                return;
-            }
-            if (wantRecord)
-            {
-                // 选区录制：区域已由上方 Mutate 存好（RegionX/Y/W/H），选区窗已 WDA 排除，选区窗关闭后起录。
-                // 锁定到窗口且「只录窗口」开着 → 起录时录该窗口本体；存好的矩形仍是取不到窗口时的回退范围。
-                _pendingSel = sel.WithWindowHonor(_settings.Current.RecordWindowClean);
-                // 范围框一直亮着：从「选区落定」到「录完」这段时间它都在，用户随时看得到要录哪一块
-                if (_settings.Current.ShowRecordingBorder) ShowCaptureScope(region.Value); else HideOutline();
-                var reg = region.Value; var dev = monitor.DeviceName;
-                var st0 = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(PickerExitMs) };
-                st0.Tick += (_, _) =>
+                context.Selected = true;
+                context.Region = region;
+                context.DeviceName = monitor.DeviceName;
+                context.Window = hwnd;
+                context.RecordMode = showSwitch && picker?.RecordMode == true;
+                context.Frozen = picker?.FrozenFrame;
+                context.FrozenOrigin = picker?.FrozenOrigin ?? monitor.Bounds;
+                context.FrozenWindow = null;
+                if (picker != null && picker.TryGetCachedWindow(hwnd, out var frame, out var bounds))
                 {
-                    st0.Stop();
-                    if (_settings.Current.RecordNeedsStartClick)
-                    {
-                        // 先按开始：选区定完不等于马上开录。面板就在刚才那枚开关的位置上，
-                        // 点「开始录制」之后原地变成「计时 + 停止」
-                        Overlays.RecordPanelWindow.ShowArmed(reg, dev,
-                            () =>
-                            {
-                                Overlays.RecordPanelWindow.Current?.SwitchToRecording();
-                                var rt2 = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(PickerExitMs) };
-                                rt2.Tick += (_, _) => { rt2.Stop(); _panelRecording = true; BeginCaptureCore(); };
-                                rt2.Start();
-                            },
-                            () => StopRecording());
-                    }
-                    else
-                    {
-                        _panelRecording = true;
-                        Overlays.RecordPanelWindow.ShowRecording(reg, dev, () => StopRecording());
-                        var rt = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(PickerExitMs) };
-                        rt.Tick += (_, _) => { rt.Stop(); BeginCaptureCore(); };
-                        rt.Start();
-                    }
-                };
-                st0.Start();
-                return;
-            }
-            if (stillAfterSelect)
-            {
-                // 选区完成即截一帧**静态图**（PNG + 剪贴板），不进 GIF 管线、不开编辑器。
-                // 选区窗已 WDA_EXCLUDEFROMCAPTURE，抓取拍不到它；只留一拍让 Close 走完（防 WDA 万一失效）。
-                HideOutline();
-                var t = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(PickerExitMs) };
-                t.Tick += (_, _) =>
+                    context.FrozenWindow = frame;
+                    context.FrozenWindowRegion = bounds;
+                }
+                _settings.Mutate(s =>
                 {
-                    t.Stop();
-                    // 取帧来源的裁定在 ChooseStillFrame：定格开着就一律不出实时帧。
-                    // 同一个选取状态先过「干净窗口截图」开关——认窗口才按窗口算，不认就按矩形算。
-                    var winSel = sel.WithWindowHonor(_settings.Current.WindowCaptureEnabled);
-                    // 定格瞬间预抓到这只窗口的干净画面：查一次，取帧与日志共用这一个结果。
-                    CapturedFrame pf = null!; RectI pr = default;
-                    bool pregrabbed = pk != null && pk.TryGetCachedWindow(winSel.Window, out pf, out pr);
-                    var (f, capReg, winCap) = ChooseStillFrame(
-                        _settings.Current.FreezeOnSelect, winSel.LockedToWindow,
-                        () => pregrabbed ? (pf, pr) : null,
-                        () =>
-                        {
-                            try
-                            {
-                                var (wf, wreg) = WindowCapture.Grab(winSel.Window, _settings.Current.WindowCaptureShadow);
-                                return (wf, wreg);
-                            }
-                            catch (Exception ex) { Trace.Log($"winCap fail→region: {ex.Message}"); return null; }
-                        },
-                        pk?.FrozenFrame, pk?.FrozenOrigin ?? monitor.Bounds, region.Value,
-                        r => LiveCapture.Grab(r));
-                    // 这一帧从哪条分支来要在日志里站得住：句柄、预抓是否命中、最终是否按窗口截的。
-                    Trace.Log($"still frame hwnd=0x{winSel.Window.ToInt64():X} pregrab={pregrabbed} " +
-                        $"winCap={winCap} {capReg.W}x{capReg.H}");
-                    if (f != null) DispatchStill(f, capReg, monitor.DeviceName, windowCapture: winCap);
-                    if (_settings.Current.AlwaysShowRegionOutline) ShowOutline(capReg);
-                    else { FlashOutline(capReg); _outline!.FadeAway(_settings.Current.OutlineFadeSeconds); }
-                };
-                t.Start();
+                    s.RegionMonitorId = monitor.DeviceName;
+                    s.RegionX = region.Value.X; s.RegionY = region.Value.Y;
+                    s.RegionW = region.Value.W; s.RegionH = region.Value.H;
+                });
             }
-            else if (_settings.Current.AlwaysShowRegionOutline) ShowOutline(region.Value);
-            else
-            {
-                // 选区确认反馈：亮起→强调停顿→柔和退场，非常显模式下这是唯一的"范围已定"信号
-                FlashOutline(region.Value);
-                _outline!.FadeAway(_settings.Current.OutlineFadeSeconds);
-            }
-            // 范围已定且没有专门的收尾路径：尾巴就地交回宿主，各动作自己读已存范围
-            if (!stillAfterSelect) RunScopedTail("scope");
+            else context.Cancelled = true;
+            _selectionCompletion?.TrySetResult(region != null);
         };
         _picker.Show();
-        // 选区窗不调 ForceForeground：它是非激活窗，抢前台会把焦点从目标窗（如浏览器）夺走，
-        // Z 序/前台一变，选区里就截到别的软件。Topmost + ReassertTop 已保证视觉置顶，键走全局钩子代收。
-        Trace.Log($"picker Show returned dt={swOpen.ElapsedMilliseconds}ms");
+        Trace.Log("chain picker open");
     }
     #endregion
 
@@ -355,6 +219,7 @@ public sealed partial class CaptureController : IDisposable
     /// 起录失败（GDI 也起不来）时回滚 spool 文件并留在 <see cref="Phase.Idle"/>。</summary>
     void BeginCaptureCore()
     {
+        if (_disposed) return;
         // 轮廓绝不能入镜：快捷键起录时先把边框收掉；面板录制反之——那一圈正是用户要看的范围，留着
         if (!_panelRecording) HideOutline();
 
@@ -371,7 +236,7 @@ public sealed partial class CaptureController : IDisposable
         {
             // 捕获线程触发 → 回 UI 线程停录；已录内容照常进编辑器，绝不静默丢帧
             Trace.Log($"disk low {free >> 20}MB → auto-stop");
-            if (State == Phase.Capturing) FinishCapture();
+            if (State == Phase.Capturing) FinishCapture(openEditor: false);
         });
         var monitor = Monitors.ByDevice(sel.DeviceName) ?? Monitors.Nearest(sel.Bounds.X, sel.Bounds.Y);
 
@@ -414,6 +279,7 @@ public sealed partial class CaptureController : IDisposable
 
         // 无录制时长上限——录到用户停为止；护栏是磁盘（FrameSpool.DiskLow 自动停）。
         State = Phase.Capturing;
+        Trace.Log("chain recording started");
         // 系统 WGC 提示边框已关闭，改用自家按范围绘制的轮廓做"正在录制"提示。
         // 该窗以 WDA_EXCLUDEFROMCAPTURE 排除，不会进产物；关掉开关即完全不提示。
         if (_settings.Current.ShowRecordingBorder)
@@ -470,7 +336,7 @@ public sealed partial class CaptureController : IDisposable
     /// false = 未起录：当前态不允许，或 WGC 与 GDI 后端都启动失败；调用方可据此顺延。</returns>
     public bool StartRecording()
     {
-        if (State != Phase.Idle) return false;
+        if (_disposed || State != Phase.Idle) return false;
         BeginCaptureCore();
         return State == Phase.Capturing;
     }
@@ -520,7 +386,7 @@ public sealed partial class CaptureController : IDisposable
                 }
                 catch { }
             }
-            if (frames.Count == 0) { RetireCaptureOutline(); spoolList?.Dispose(); State = Phase.Idle; return; }
+            if (frames.Count == 0) { RetireCaptureOutline(); spoolList?.Dispose(); State = Phase.Idle; _recordCompletion?.TrySetResult(false); return; }
         }
 
         // 点按/长按的判定在手势引擎（Tap→截图动作、Hold/HoldRelease→录制）；
@@ -544,7 +410,7 @@ public sealed partial class CaptureController : IDisposable
         {
             // 编辑器构造 + 首帧解码是 UI 线程同步重活会冻结界面：先把 REC 徽标转「处理中…」并强制刷一帧，
             // 让用户在冻结期看到反馈。⚠ 这句 Dispatcher.Invoke 会泵动消息队列——只在开编辑器分支做：
-            // 否则会把「完成后序列」投递的 edit.lastvideo 提前跑（此刻 State 还没置 Idle、_lastSequence 还没存）。
+            // 动作链的继续点位于状态与产物登记之后
             _outline?.SetRecProcessing();
             try { System.Windows.Application.Current?.Dispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.Render); } catch { }
             _lastSequence = null;
@@ -552,14 +418,11 @@ public sealed partial class CaptureController : IDisposable
         }
         else { _lastSequence = seq; State = Phase.Idle; }
         RetireCaptureOutline();
-        // 录制停止才是这条手势的「完成」：挂在选区上的尾巴到这一刻才交回宿主，
-        // 必须排在 State 置 Idle 之后——『打开编辑器』只在空闲时才接产物。
-        RunScopedTail("record");
+        // 产物与空闲状态就绪后再唤醒动作链
+        _recordCompletion?.TrySetResult(true);
     }
 
-    /// <summary>录制/截图收尾时退场范围提示：停徽标、复位边框，再按「常显轮廓」设置决定保留常显还是淡出。
-    /// 从 FinishCapture 开头移到各产物就绪的出口，使录制路径能在编辑器构造前挂住「处理中…」。
-    /// 决策见 CaptureGuards.OnCaptureFinished：常显模式且录的是已存范围 → 带回常显轮廓；否则淡出。</summary>
+    /// <summary>产物就绪后停录制徽标，按设置保留范围轮廓或淡出。</summary>
     void RetireCaptureOutline()
     {
         _outline?.StopRecBadge();
@@ -675,6 +538,21 @@ public sealed partial class CaptureController : IDisposable
     /// </summary>
     public void Dispose()
     {
+        if (_disposed) return;
+        _disposed = true;
+        if (_chainContext != null) _chainContext.Cancelled = true;
+        _selectionCompletion?.TrySetResult(false);
+        _recordCompletion?.TrySetResult(false);
+        _scrollCompletion?.TrySetResult(false);
+        _delayCompletion?.TrySetResult(false);
+        _scrollTimer?.Stop();
+        _delayTimer?.Stop();
+        _recBadgeTimer?.Stop();
+        if (_picker != null) { _picker.Close(); _picker = null; }
+        if (_recordCompletion != null) RecordPanelWindow.Dismiss();
+        try { _wgc?.Stop(); _wgc?.Dispose(); } catch { }
+        _wgc = null;
+        _spool?.Abandon(); _spool = null;
         RestoreAutoCursor();
         _lastStill.Clear(); // 释放保留帧（最大可达数十 MB）
         (_lastSequence?.Frames as IDisposable)?.Dispose(); // 留在内存、从未进编辑器的录制产物

@@ -1,11 +1,7 @@
 
 namespace FrameCapture.Core;
 
-/// <summary>
-/// 手势动作词汇表：把「功能」抽象成稳定的动作名，供 GestureCore 绑定序列引用。
-/// 名与 UI 文案分离——名是持久化/引擎用的稳定标识（改名会破坏已存 settings.json，故用英文小写点分），
-/// 文案是给人看的。新增功能 = 在此加一条 + 在 GestureInvoker 里接上实现。
-/// </summary>
+/// <summary>动作的稳定标识、界面名称与说明。</summary>
 public readonly struct GestureAction
 {
     /// <summary>稳定动作名，持久化与引擎只认这个。</summary>
@@ -37,6 +33,16 @@ public static class GestureActions
 {
     // 稳定动作名常量（持久化标识，勿随意改名）
     public const string CaptureFrame = "capture.frame";
+    /// <summary>选取运行区域。</summary>
+    public const string Select = "select";
+    /// <summary>读取已存区域，没有时使用光标所在屏幕。</summary>
+    public const string StoredScope = "scope.stored";
+    /// <summary>抓取运行区域或光标屏静图。</summary>
+    public const string GrabStill = "grab.still";
+    /// <summary>抓取选区命中的窗口。</summary>
+    public const string GrabWindow = "grab.window";
+    /// <summary>保存运行静图。</summary>
+    public const string SavePng = "save.png";
     public const string ScopeSelect = "scope.select";
     public const string CaptureStored = "capture.stored";
     public const string RecordToggle = "record.toggle";
@@ -53,11 +59,14 @@ public static class GestureActions
     public const string SettingsOpen = "settings.open";
     public const string HelpOpen = "help.open";
 
-    /// <summary>全部可用动作（顺序即建议展示顺序）。GestureInvoker 必须覆盖每一个，否则该动作视为未实现（执行失败）。</summary>
+    /// <summary>按稳定顺序排列的规范动作目录，供界面展示与运行时校验。</summary>
     public static readonly GestureAction[] All =
     {
-        new(ScopeSelect, K.Actions.ScopeSelectLabel, K.Actions.ScopeSelectDesc),
-        new(CaptureStored, K.Common.Capture, K.Actions.CaptureStoredDesc),
+        new(Select, K.Actions.ScopeSelectLabel, K.Actions.ScopeSelectDesc),
+        new(StoredScope, K.Hotkeys.StoredScope, K.Hotkeys.StoredScopeDesc),
+        new(GrabStill, K.Common.Capture, K.Actions.CaptureStoredDesc),
+        new(GrabWindow, K.Hotkeys.GrabWindow, K.Hotkeys.GrabWindowDesc),
+        new(SavePng, K.Hotkeys.SavePng, K.Hotkeys.SavePngDesc),
         new(CaptureFrame, K.Actions.CaptureFrameLabel, K.Actions.CaptureFrameDesc),
         new(RecordToggle, K.Actions.RecordToggleLabel, K.Actions.RecordToggleDesc),
         new(RecordStart, K.Actions.RecordStartLabel, K.Actions.RecordStartDesc),
@@ -74,13 +83,63 @@ public static class GestureActions
         new(HelpOpen, K.Actions.HelpOpenLabel, K.Actions.HelpOpenDesc),
     };
 
+    /// <summary>持久化动作名归一化。</summary>
+    /// <param name="name">动作名。</param>
+    /// <returns>规范动作名。</returns>
+    public static string Canonical(string name) => name switch
+    {
+        ScopeSelect => Select,
+        CaptureStored => GrabStill,
+        _ => name,
+    };
+
+    /// <summary>动作的数据契约。</summary>
+    /// <param name="name">动作名。</param>
+    /// <returns>动作类别、所需值与产出值。</returns>
+    public static VerbInfo InfoOf(string name) => Canonical(name) switch
+    {
+        Select => new(VerbClass.Input, RunValue.None, RunValue.Region),
+        StoredScope => new(VerbClass.Input, RunValue.None, RunValue.Region),
+        GrabStill or CaptureFrame or DelayedCapture => new(VerbClass.Product, RunValue.None, RunValue.Still),
+        GrabWindow => new(VerbClass.Product, RunValue.Window, RunValue.Still),
+        RecordStart => new(VerbClass.Product, RunValue.Region, RunValue.Video),
+        RecordToggle => new(VerbClass.Product, RunValue.None, RunValue.Video),
+        RecordStop => new(VerbClass.Product, RunValue.Recording, RunValue.Video),
+        ScrollCapture => new(VerbClass.Product, RunValue.Region, RunValue.Still),
+        SavePng => new(VerbClass.Terminal, RunValue.Still, RunValue.None),
+        _ => new(VerbClass.Terminal, RunValue.None, RunValue.None),
+    };
+
+    /// <summary>是否由选区开关选择产物。</summary>
+    /// <param name="chain">完整动作链。</param>
+    /// <returns>含选区且没有显式产物步骤时为真。</returns>
+    public static bool FollowsSwitch(IEnumerable<string> chain)
+        => chain.Any(n => Canonical(n) == Select) && !chain.Any(n => InfoOf(n).Class == VerbClass.Product);
+
+    /// <summary>每一步静态缺少的前置值。</summary>
+    /// <param name="chain">完整动作链。</param>
+    /// <returns>与步骤一一对应的缺失值；录制状态由运行时提供。</returns>
+    public static RunValue[] MissingInputs(IReadOnlyList<string> chain)
+    {
+        var values = RunValue.None;
+        var missing = new RunValue[chain.Count];
+        for (int i = 0; i < chain.Count; i++)
+        {
+            var info = InfoOf(chain[i]);
+            missing[i] = info.Needs & ~values;
+            values |= info.Produces;
+            if (Canonical(chain[i]) == Select) values |= RunValue.Window;
+        }
+        return missing;
+    }
+
     static readonly HashSet<string> Names =
         new(Enumerable.Select(All, a => a.Name));
 
     /// <summary>名字是否在本词汇表里。</summary>
     /// <param name="name">待校验的动作名，区分大小写。</param>
     /// <returns>null 或表外名为 false；设置文件里的未知动作名据此判为未实现，而不是崩在分发处。</returns>
-    public static bool IsValid(string? name) => name != null && Names.Contains(name);
+    public static bool IsValid(string? name) => name != null && Names.Contains(Canonical(name));
 
     /// <summary>动作名 → 中文短名（供设置窗「当前生效键位」等处展示）。</summary>
     /// <param name="name">动作名；null 或空串按空名处理。</param>
@@ -88,6 +147,7 @@ public static class GestureActions
     public static string LabelOf(string? name)
     {
         if (string.IsNullOrEmpty(name)) return "";
+        name = Canonical(name);
         foreach (var a in All) if (a.Name == name) return a.Label;
         return name!;
     }

@@ -19,7 +19,7 @@ namespace FrameCapture.Core;
 /// </summary>
 public static class UiaSnap
 {
-    /// <summary>快照有效期：超过就后台重建，重建期间继续用旧快照，不卡鼠标。</summary>
+    /// <summary>快照有效期：超过就后台重建，重建期间继续用缓存快照，不卡鼠标。</summary>
     static readonly TimeSpan Ttl = TimeSpan.FromMilliseconds(1200);   // lint-motion:ignore 缓存过期时间，不是动效
     /// <summary>一份快照最多收多少个元素：再多的树，元素本身也太碎，吸了没意义。</summary>
     const int MaxItems = 4000;
@@ -68,7 +68,7 @@ public static class UiaSnap
             if (snap.Items.Count == 0) BuildSync(hwnd, snap);
         }
         var pick = Best(snap.Items, physX, physY);
-        // 过期就后台刷新：这次仍用旧数据，鼠标不会被卡住
+        // 过期就后台刷新：这次仍用缓存数据，鼠标不会被卡住
         if (!snap.Building && DateTime.UtcNow - snap.At > Ttl) Build(hwnd, snap);
         return pick;
     }

@@ -142,8 +142,8 @@ public sealed class AppHost
     }
 
     /// <summary>以管理员权限重启本程序（UAC 确认一次）；取消则维持现状，本进程继续跑。
-    /// 交接是「先起提权实例、再关自己」：反过来的话新实例会撞上单实例互斥、把参数转发给正在退出的旧进程再退。
-    /// 旧进程必须真的退出，提权实例才拿得到那个互斥。</summary>
+    /// 交接是「先起提权实例、再关自己」：反过来的话新实例会撞上单实例互斥、把参数转发给正在退出的当前进程再退。
+    /// 当前进程必须真的退出，提权实例才拿得到那个互斥。</summary>
     /// <param name="args">交给提权实例的参数，如 <c>--settings --page system</c>。</param>
     /// <returns>提权实例已起来（本进程随后退出）返回 true；用户取消 UAC 返回 false。</returns>
     public bool RestartAsAdmin(string? args = null)

@@ -13,7 +13,7 @@ public sealed class TrayService : IDisposable
     private System.Windows.Window? _menuAnchor;
     private ContextMenu? _menu;
     // 两枚图标一次画好备用：暂停切换时只是换个引用，不反复造 GDI 句柄。
-    // 强调色改动会重画它们——图标是位图，画出来就定死了，不重画会停在旧强调色上。
+    // 强调色改动会重画它们——图标是位图，画出来就定死了，不重画会停在构造时的强调色上。
     private Icon _iconOn, _iconPaused;
     private readonly Action _onPalette;
 
@@ -53,7 +53,7 @@ public sealed class TrayService : IDisposable
         var prevPaused = _iconPaused;
         _iconOn = MakeIcon(paused: false);
         _iconPaused = MakeIcon(paused: true);
-        UpdateTip();          // 先让 _icon.Icon 指向新画的那枚，旧句柄才谈得上释放
+        UpdateTip();          // 先让 _icon.Icon 指向新画的那枚，被替换的句柄才谈得上释放
         prevOn.Dispose();
         prevPaused.Dispose();
     }

@@ -553,7 +553,7 @@ internal static partial class Win32
     /// <summary>把对象选入 DC，返回被换出的对象。</summary>
     /// <param name="hdc">目标内存 DC。</param>
     /// <param name="h">待选入的位图或画笔句柄。</param>
-    /// <returns>原先选中的对象句柄。<b>用完必须把它选回去再 DeleteDC</b>，否则 DC 删不掉、GDI 泄漏。</returns>
+    /// <returns>调用前选中的对象句柄。<b>用完必须把它选回去再 DeleteDC</b>，否则 DC 删不掉、GDI 泄漏。</returns>
     [DllImport("gdi32.dll", SetLastError = true)]
     public static extern IntPtr SelectObject(IntPtr hdc, IntPtr h);
 

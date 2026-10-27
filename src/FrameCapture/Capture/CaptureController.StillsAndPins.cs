@@ -17,14 +17,10 @@ public sealed partial class CaptureController : IDisposable
     /// <summary>「选区录制」——选一块区域，选完立即对该区域起录。</summary>
     public void BeginRecordSelection()
     {
-        Trace.Log("record-selection→picker");
-        BeginScopeSelection();
-        _recordAfterSelect = true;
-        _picker?.SetRecordMode(true);   // 开窗之后才定下的意图，摆到选区窗的开关上
+        BeginChain(new[] { GestureActions.Select, GestureActions.RecordStart }, Array.Empty<string>());
     }
 
-    /// <summary>录制中→停止（产物留内存，不进编辑器）；否则→选区起录。一个键承担开始/结束两面。
-    /// 本动作任何时候都不开编辑器；进编辑器请在「完成后序列」加『打开编辑器（上次录制）』。</summary>
+    /// <summary>录制中停止并保留产物，空闲时开始选区录制。</summary>
     public void ToggleRecordSelection()
     {
         if (State == Phase.Capturing)
@@ -42,7 +38,6 @@ public sealed partial class CaptureController : IDisposable
     public void CaptureInstantStill()
     {
         if (State != Phase.Idle) return;
-        _sessionAfter = _pendingAfter; _pendingAfter = "";   // 捕获本条手势的截图后
         var region = FullMonitorAtCursor();
         var f = LiveCapture.Grab(region.Bounds);
         if (f == null) { Trace.Log("instant still: grab null"); return; }
@@ -50,12 +45,10 @@ public sealed partial class CaptureController : IDisposable
         DispatchStill(f, region.Bounds, region.DeviceName);
     }
 
-    /// <summary>托盘「立即捕获（按当前范围）」——对已存范围（无则光标屏全屏）截一帧静态图（PNG，不是 GIF），
-    /// 走统一「截图后」分派。要干净全屏用 <see cref="CaptureInstantStill"/>。</summary>
+    /// <summary>对已存区域或光标屏截静图，保存最近产物并显示浮窗。</summary>
     public void CaptureStoredStill()
     {
         if (State != Phase.Idle) return;
-        _sessionAfter = _pendingAfter; _pendingAfter = "";   // 捕获本条手势的截图后（托盘触发时 _pendingAfter 已空=默认弹提示）
         var region = StoredRegion() ?? FullMonitorAtCursor();
         var f = LiveCapture.Grab(region.Bounds);
         if (f == null) { Trace.Log("stored still: grab null"); return; }
@@ -67,18 +60,21 @@ public sealed partial class CaptureController : IDisposable
     /// 结果按 <see cref="OcrService.Route"/> 分流：
     /// 结果窗 / 复制+轻确认 / 无引擎提示 / 空提示（反馈统一走可截图审查的 OcrResultWindow）。
     /// 帧像素在首个 await 前同步拷入 SoftwareBitmap，与关窗/释放无竞态；无语言包优雅降级不抛。</summary>
-    public async void OcrStoredStill()
+    public async void OcrStoredStill() => await RecognizeStoredStillAsync();
+
+    async Task<bool> RecognizeStoredStillAsync()
     {
-        if (State != Phase.Idle) return;
+        if (State != Phase.Idle) return false;
         // 刚截好的那一帧就是用户看见的那一帧：定格画面、窗口本体的透明边都在里面，重抓会换成另一个时刻。
-        CapturedFrame? shot = _tailProduct && _lastStill.TryGet(out var just, out _, out _) ? just : null;
+        CapturedFrame? shot = _chainContext?.Still;
         var region = StoredRegion() ?? FullMonitorAtCursor();
         var f = shot ?? LiveCapture.Grab(region.Bounds);
-        if (f == null) { Trace.Log("ocr-still: grab null"); return; }
+        if (f == null) { Trace.Log("ocr-still: grab null"); return false; }
         try
         {
             var outcome = await OcrService.RecognizeAsync(f);
             var text = OcrService.Normalize(outcome.Text);
+            if (_chainContext != null) _chainContext.Text = text;
             switch (OcrService.Route(outcome.Status, _settings.Current.OcrShowResult))
             {
                 case OcrRoute.ResultWindow:
@@ -99,11 +95,13 @@ public sealed partial class CaptureController : IDisposable
                     Trace.Log("ocr-still empty");
                     break;
             }
+            return outcome.Status == OcrStatus.Success;
         }
         catch (Exception ex)
         {
             Trace.Log($"ocr-still failed: {ex.Message}");
             OcrResultWindow.ShowMessage(Loc.T(K.Common.RecognitionFailed));
+            return false;
         }
     }
     #region 从剪贴板贴图
@@ -229,50 +227,26 @@ public sealed partial class CaptureController : IDisposable
         PinFrameAt(f, new RectI(b.X + (b.W - f.W) / 2, b.Y + (b.H - f.H) / 2, f.W, f.H));
     }
 
-    /// <summary>单帧静图完成后的统一处理：按本条手势的开关决定写不写剪贴板 + 自动保存副本 + 提示音
-    /// + 「截图后」落点四选一 + 记录上次截图。
-    /// 这是单帧产物<b>唯一</b>的完成路径：选区拖框、点按直出、即时截图都必须走这里，
-    /// 绕开它的那条路径会整体丢掉「截图后」设置与提示音。</summary>
-    /// <param name="f">已裁好的 BGRA 帧；本方法不拷贝它，剪贴板/浮窗/贴图/上次截图缓存共享同一份像素。</param>
-    /// <param name="reg">帧对应的捕获矩形：物理像素、虚拟桌面绝对坐标，用于浮窗定位与贴图落点。</param>
-    /// <param name="device">捕获所在显示器设备名。</param>
-    /// <param name="windowCapture">true = 带 alpha 的窗口截图，剪贴板额外写 PNG 格式以保住透明通道。</param>
+    /// <summary>登记静图，应用自动保存与提示音；链内更新上下文，独立截图显示浮窗。</summary>
+    /// <param name="f">只读共享的 BGRA 帧。</param>
+    /// <param name="reg">物理像素，虚拟桌面绝对坐标。</param>
+    /// <param name="device">显示器设备名。</param>
+    /// <param name="windowCapture">是否保留窗口透明通道。</param>
     void DispatchStill(CapturedFrame f, RectI reg, string device, bool windowCapture = false)
     {
-        // 这张帧不进任何临时文件：剪贴板、浮窗、贴图、「上次截图」共享同一份内存像素，
-        // 中间那张 PNG 写了没人读，只会把临时目录撑大（实测一台机器上积了两千多个文件）。
-        SaveService.MaybeSavePng(f); // 自动保存副本（关=零副作用）
-        Trace.Log($"still ready {f.W}x{f.H} win={windowCapture}");
-        if (_settings.Current.CaptureSound) CaptureSound.Play(_settings.Current.CustomSoundPath); // 提示音（关=零副作用）
-        // 截图后落点：弹提示浮窗 / 直接进编辑器 / 什么都不做 / 贴图——四态覆盖不同人群。
-        // 剪贴板由用户的动作写，不由截图写：点提示浮窗、编辑器里点 √，或这条落点本身就是「复制到剪贴板」。
-        switch (AfterCapture.Resolve(_sessionAfter))
+        _lastStill.Set(f, reg, device, windowCapture);
+        SaveService.MaybeSavePng(f);
+        if (_settings.Current.CaptureSound) CaptureSound.Play(_settings.Current.CustomSoundPath);
+        if (_chainContext is { } context)
         {
-            case AfterCaptureAction.Editor:
-                OpenEditorForFrame(f, reg, device);
-                break;
-            case AfterCaptureAction.Copy:
-                Encoding.ClipboardService.SetFrame(f, includePng: windowCapture);
-                break; // 这条落点就是剪贴板本身；下方轮廓闪一下作反馈
-            case AfterCaptureAction.Pin:
-                PinFrameAt(f, reg); // 截图后直接原地钉屏
-                break;
-            case AfterCaptureAction.None:
-                break; // 这条手势在「完成后」里自己写了落点，默认反馈让位给它
-            default:
-                // 拍完即见：缩略浮窗确认这一张截到了。点它＝要这张图：此刻才写剪贴板，并原地进编辑器标注，不抢焦点。
-                Overlays.CaptureToast.Show(f, reg, device,
-                    () =>
-                    {
-                        Encoding.ClipboardService.SetFrame(f, includePng: windowCapture);
-                        OpenEditorForFrame(f, reg, device);
-                    },
-                    () => Encoding.ClipboardService.SetFrame(f, includePng: windowCapture));
-                break;
+            context.Still = f;
+            context.Text = null;
+            context.StillRegion = reg;
+            context.StillDevice = device;
+            context.WindowCapture = windowCapture;
+            return;
         }
-        _lastStill.Set(f, reg, device, windowCapture); // 浮窗消失后仍可经托盘找回编辑器
-        _tailProduct = true;            // 尾巴里的动作认的就是这一帧
-        RunScopedTail("still");         // 这条手势挂在选区上的尾巴：完成后/失败时的覆盖序列在这里交回
+        ShowLastStillToast();
     }
 
     /// <summary>是否有可重新编辑的最近静态截图。</summary>
@@ -293,9 +267,9 @@ public sealed partial class CaptureController : IDisposable
         if (State != Phase.Idle) return;
         // 刚截好的那一帧就在手上：钉它。对范围重抓会丢掉窗口截图的透明通道与投影，
         // 而且选区窗刚关闭，重抓拿到的是选区之后的画面。
-        if (_tailProduct && _lastStill.TryGet(out var just, out var justReg, out _))
+        if (_chainContext?.Still is { } just)
         {
-            PinFrameAt(just, justReg);
+            PinFrameAt(just, _chainContext.StillRegion);
             Trace.Log($"pin-run {just.W}x{just.H}");
             return;
         }

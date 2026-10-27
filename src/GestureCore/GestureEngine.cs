@@ -361,6 +361,7 @@ public sealed class GestureEngine
     bool RunActions(GestureBinding b)
     {
         try { _invoker.BeginBinding(b); } catch { }   // 把本条绑定的元数据交给宿主作本次序列的上下文
+        if (_invoker is IChainInvoker chain) return Safe(() => chain.InvokeChain(b));
         var prelude = _prelude;
         if (prelude != null && b.Actions.Count > 0 && Safe(() => prelude.IsPrelude(b.Actions[0])))
         {

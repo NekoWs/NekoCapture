@@ -12,14 +12,7 @@ using FrameCapture.Services;
 namespace FrameCapture.Overlays;
 
 // 本 partial 职责：设置 · 快捷键页——总开关 + 逐条快捷键的内联编辑。
-/// <summary>
-/// 设置窗的快捷键页：一条快捷键一行，折叠时只有名字与键帽，展开后逐步可改。
-/// 每次改动当场写盘并热重载引擎与键盘钩子，页面上没有「保存」按钮。
-/// 一条快捷键就是 <c>[选区]? → 动作 → 动作…</c>：「选区」只能排在第一步，它是整条序列唯一等待用户的地方，
-/// 后面的动作等范围落地才执行。「完成后」「失败时」是可选覆盖，不填就走产品的默认落点，
-/// 简单形态根本不出现，切到高级才长出来。
-/// 行首那颗胶囊是这条快捷键的全部入口：名字、删除、启用开关、键位。
-/// </summary>
+/// <summary>快捷键页：绑定、触发方式、动作链、失败链与界面键位。编辑后立即保存并应用。</summary>
 public sealed partial class SettingsWindow : Window
 {
     /// <summary>展开着的那条快捷键的 Id，空串表示全部折叠。列表重建后据此把展开位放回去。</summary>
@@ -328,10 +321,9 @@ public sealed partial class SettingsWindow : Window
         return box;
     }
 
-    /// <summary>展开态的正文：触发方式、触发时，其下是简单/高级切换，
-    /// 完成后与失败时只在高级形态里出现。名字不在这里——它在胶囊上就地改。</summary>
-    /// <param name="b">这条绑定。</param>
-    /// <returns>正文容器，收起状态由调用方定。</returns>
+    /// <summary>绑定正文：触发方式、动作链与失败链。</summary>
+    /// <param name="b">绑定。</param>
+    /// <returns>正文容器。</returns>
     Border HotkeyBody(GestureBindingDto b)
     {
         var rows = new StackPanel();
@@ -341,19 +333,16 @@ public sealed partial class SettingsWindow : Window
             Margin = new Thickness(24, 2, 4, 8),
             Child = rows,
         };
-        double Width() => Math.Max(240, body.ActualWidth);
 
         rows.Children.Add(TriggerRow(b));
 
         string[] chain = b.Actions;
-        rows.Children.Add(ChainRow(Loc.T(K.Hotkeys.OnTrigger),
+        rows.Children.Add(ChainRow(Loc.T(K.Hotkeys.ChainTitle),
             () => chain,
-            i => ActionCatalog(step: true, first: i == 0),
+            _ => ActionCatalog(),
             list => { chain = list; b.Actions = list; CommitHotkeys(); }));
 
-        string[] done = b.OnComplete, fail = b.OnFail;
-        rows.Children.Add(OverrideRow(Loc.T(K.Hotkeys.OnCompletion), () => done, Loc.T(K.Hotkeys.DefaultToast),
-            list => { done = list; b.OnComplete = list; CommitHotkeys(); }));
+        string[] fail = b.OnFail;
         rows.Children.Add(OverrideRow(Loc.T(K.Hotkeys.OnFailure), () => fail, Loc.T(K.Hotkeys.DefaultNothing),
             list => { fail = list; b.OnFail = list; CommitHotkeys(); }));
         return body;
@@ -480,17 +469,16 @@ public sealed partial class SettingsWindow : Window
         LabeledRow(label, new ChainEditor(get, candidates, set).Root,
             Loc.T(K.Hotkeys.RunsInOrderDragToReorder));
 
-    /// <summary>「完成后」「失败时」一行：不填就走产品的默认落点，填了就跑这一串。
-    /// 这一步有几条由芯片自己说：一条一枚卡片，空序列就只剩那枚加号。</summary>
+    /// <summary>失败链编辑行；空链不执行失败动作。</summary>
     /// <param name="label">行标签。</param>
-    /// <param name="get">取当前覆盖序列，空数组表示不覆盖。</param>
-    /// <param name="defaultText">不覆盖时落在哪，交给提示说。</param>
-    /// <param name="set">改定后的写回动作，内部负责落盘。</param>
-    /// <returns>一行容器。</returns>
+    /// <param name="get">读取序列。</param>
+    /// <param name="defaultText">空链提示。</param>
+    /// <param name="set">保存序列。</param>
+    /// <returns>编辑行。</returns>
     FrameworkElement OverrideRow(string label, Func<string[]> get, string defaultText, Action<string[]> set)
     {
         var host = new StackPanel { HorizontalAlignment = HorizontalAlignment.Left };
-        var editor = new ChainEditor(get, _ => ActionCatalog(step: false, first: false), list =>
+        var editor = new ChainEditor(get, _ => ActionCatalog(), list =>
         {
             set(list);
             Paint();
@@ -538,13 +526,10 @@ public sealed partial class SettingsWindow : Window
         return g;
     }
 
-    /// <summary>可选动作清单。</summary>
-    /// <param name="step">true = 「触发时」的某一步，false = 完成后/失败时的序列。</param>
-    /// <param name="first">true = 这一步排在序列第一位。</param>
-    /// <returns>可挑的动作条目。「选区」只在「触发时」的第一步出现：它是整条序列唯一的前置任务，
-    /// 排在中间等于让后面的动作各等一次框选，出现在完成后更是无的放矢。</returns>
-    static IEnumerable<GestureAction> ActionCatalog(bool step, bool first) =>
-        GestureActions.All.Where(a => a.Name != GestureActions.ScopeSelect || (step && first));
+    /// <summary>动作编辑器的完整目录。</summary>
+    /// <returns>按稳定顺序排列的规范动作。</returns>
+    static IEnumerable<GestureAction> ActionCatalog() =>
+        GestureActions.All;
 
     /// <summary>折叠行的名字：用户写过就是他的原文；没写过时，出厂那两条按界面语言取自己的名字，
     /// 用户新建的取「新配置」。名字是用户数据，他改过之后就固定成他写下的那串，语言切换动不了它。</summary>

@@ -18,10 +18,6 @@ public static partial class K
             "settings.aCustomOggWavFile",
             "自定义提示音文件 ogg / wav，点击可重新选择",
             "A custom ogg / wav file; click to pick another");
-        public static readonly Str AddAStepAfterThis = new(
-            "settings.addAStepAfterThis",
-            "在后面加一步",
-            "Add a step after this");
         public static readonly Str AFlashConfirmsIt = new(
             "settings.aFlashConfirmsIt",
             "快闪：确认一下就走",
@@ -65,8 +61,8 @@ public static partial class K
             "A soft built-in beep as an audible confirmation");
         public static readonly Str AsSoonAsASelection = new(
             "settings.asSoonAsASelection",
-            "完成选区后立即截取一帧 PNG 静态图，同时复制到剪贴板",
-            "As soon as a selection is complete, one PNG frame is captured and copied to the clipboard");
+            "动作链没有产物步骤时，显示截图与录制开关。关闭则只记录区域，显式产物步骤仍照常执行",
+            "Show the capture and record switch when the chain has no product step. Turn off to select only; explicit product steps still run");
         public static readonly Str AutoSaveACopy = new("settings.autoSaveACopy", "自动保存副本", "Auto-save a copy");
         public static readonly Str BorderFillColor = new(
             "settings.borderFillColor",
@@ -82,8 +78,8 @@ public static partial class K
             "Brisk: enough to catch a glance");
         public static readonly Str CaptureOnSelection = new(
             "settings.captureOnSelection",
-            "选区自动截取",
-            "Capture on selection");
+            "选区模式开关",
+            "Selection mode switch");
         public static readonly Str CaptureSound = new("settings.captureSound", "截图提示音", "Capture sound");
         public static readonly Str Change = new("settings.change", "更改", "Change");
         public static readonly Str Chime = new("settings.chime", "轻弹", "Chime");
@@ -101,7 +97,7 @@ public static partial class K
             "Click a window to capture the whole window");
         public static readonly Str ClickingAWindowThePicker = new(
             "settings.clickingAWindowThePicker",
-            "选区窗里点一个吸附到的窗口，不再按屏幕矩形抓像素，而是真正截取该窗口本体——Win11 圆角处透明、浏览器/GPU 窗也干净，背景透明。关掉则点窗恢复旧的「按矩形区域截图」。拖框选区域不受影响；目标窗被别的窗遮挡或取帧失败时自动回退区域截图",
+            "选区命中窗口时截取窗口本体并保留透明边缘；关闭时按区域截图。画面不可用时回退区域截图",
             "Clicking a window the picker snapped to no longer grabs screen pixels by rectangle; it captures the window itself — transparent at Win11's rounded corners, clean on browser and GPU-composited windows, transparent behind. Off, clicking a window goes back to capturing the rectangle. Dragging a box is unaffected, and a covered window or a failed frame falls back to a rectangle capture");        public static readonly Str ClickToHearTheCurrent = new(
             "settings.clickToHearTheCurrent",
             "点一下试听当前提示音，选「自定义…」后也会立刻放一声让你确认",
@@ -145,10 +141,6 @@ public static partial class K
             "settings.draggingAPinSnapsIt",
             "拖动贴图时实时吸附对齐：贴近所在屏幕边缘则停靠四边/四角；贴近同屏其他贴图、以及浏览器或资源管理器等任何应用窗口的边或中线则与之对齐，把贴图摆齐像吸附网格一样自然。阈值调低为「贴边才吸」，不会隔空乱跳。关闭则松手停在原地",
             "Dragging a pin snaps it into alignment: near a screen edge it docks to an edge or a corner, and near another pin on the same screen or the edge or center line of any app window — a browser or File Explorer included — it lines up with it. A lower threshold means it only grabs when close, so nothing jumps across the screen. Off, a pin stops where you let go");
-        public static readonly Str DragThisStepToReorder = new(
-            "settings.dragThisStepToReorder",
-            "按住拖动调整顺序",
-            "Drag to reorder this step");
         public static readonly Str DuringARecordingTheReal = new(
             "settings.duringARecordingTheReal",
             "录制期间按真实捕获范围高亮描边，只提示、不录进产物。取代 Windows 11 那条绕整屏的黄色系统捕获边框——WGC 只能整显示器捕获，系统边框必然全屏、与所选范围无关",
@@ -268,8 +260,8 @@ public static partial class K
         public static readonly Str StartRecordingAfterSelecting = new("settings.startRecordingAfterSelecting", "选区后先按开始", "Start after selecting");
         public static readonly Str StartRecordingAfterSelectingTip = new(
             "settings.startRecordingAfterSelectingTip",
-            "切到录制并确认选区之后，不马上开录，先在选区旁边摆一个「开始录制」按钮：摆好窗口、清干净桌面再点下去。关掉则确认选区即起录",
-            "After switching to record and confirming a region, recording does not begin at once — a Start Recording button waits beside the region, so you can arrange the window and tidy the desktop first. Turn it off and confirming starts recording right away");
+            "动作链或选区开关选择录制时，先显示开始按钮；关闭则直接起录",
+            "When the chain or selection switch chooses recording, show a Start button first. Turn off to start immediately");
         public static readonly Str RecordAtFullMonitorRefresh = new(
             "settings.recordAtFullMonitorRefresh",
             "跟随显示器刷新率录满",

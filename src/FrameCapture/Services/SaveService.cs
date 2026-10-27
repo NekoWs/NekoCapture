@@ -11,6 +11,20 @@ namespace FrameCapture.Services;
 /// </summary>
 public static class SaveService
 {
+    /// <summary>将静图保存为 PNG，与自动保存开关无关。</summary>
+    /// <param name="frame">只读 BGRA 帧。</param>
+    /// <returns>文件是否完整保存。</returns>
+    public static bool SavePng(CapturedFrame frame)
+    {
+        try
+        {
+            var dir = ResolveFolder();
+            BgraImage.SavePng(frame, Path.Combine(dir, UniqueName(dir, Stamp(), "png")));
+            return true;
+        }
+        catch (Exception ex) { Trace.Log($"save png failed: {ex.Message}"); return false; }
+    }
+
     /// <summary>解析保存目录：设置指定路径优先（自动建目录），空或非法回退 图片\FrameCapture。</summary>
     /// <returns>绝对路径，目录已尽力创建。设置里的路径建不出来（非法字符 / 无写权限）时
     /// 直接回退默认目录——绝不因设置炸掉捕获；默认目录本身建不出来也照样返回，写盘失败由调用方吞掉。</returns>

@@ -40,6 +40,7 @@ public sealed partial class RegionPickerWindow
 
     /// <summary>这次选区落下去要做什么：true = 起录，false = 截图。初值由调用方的意图给，用户在开关上可以改。</summary>
     public bool RecordMode { get; private set; }
+    readonly bool _showModeSwitch;
 
     /// <summary>模式开关的两段（截图 / 录制）；点它改的是上面那个属性，不落盘。</summary>
     private Border? _modeSwitch;
@@ -48,7 +49,7 @@ public sealed partial class RegionPickerWindow
     /// <summary>右键关掉整层：Esc 之外的第二只手，设置里可关。</summary>
     private readonly bool _rightClickCancel;
 
-    /// <summary>点选窗口时记下它的句柄与边界：选区一动就不再按窗口抓，留给普通区域截图。</summary>
+    /// <summary>点选窗口时记下它的句柄与边界：选区变化后使用区域截图。</summary>
     private IntPtr _selHwnd;
     private RectI _selHwndBounds;
 

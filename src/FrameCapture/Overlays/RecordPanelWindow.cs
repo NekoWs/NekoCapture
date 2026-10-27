@@ -15,7 +15,7 @@ namespace FrameCapture.Overlays;
 /// 选区录制上方那条控制面板：待开始时是「开始录制」，录制中变成「● 0:05.3 + 停止」。
 /// 它在选区确认之后出现、贴在屏幕上方居中，与选区里那个「截图 / 录制」开关同一个位置——
 /// 用户的眼睛已经在上面了，状态就不该再跑到右上角去。录制中的 REC 点与时长都在这里，
-/// 不再由 <see cref="RegionOutlineWindow"/> 的右上角徽标说话（那条只服务快捷键起录）。
+/// 范围轮廓的 REC 徽标仅用于直接录制。
 /// </summary>
 public sealed class RecordPanelWindow : Window
 {
@@ -64,6 +64,8 @@ public sealed class RecordPanelWindow : Window
     /// <summary>把手里那条面板切到录制态（开始计时，按钮换成「停止」）。</summary>
     public void SwitchToRecording()
     {
+        _stopText.Text = Loc.T(K.Actions.RecordStopLabel);
+        _stop.ToolTip = Loc.T(K.Actions.RecordStopLabel);
         _start.Visibility = Visibility.Collapsed;
         _dot.Visibility = Visibility.Visible;
         _time.Visibility = Visibility.Visible;
@@ -83,8 +85,10 @@ public sealed class RecordPanelWindow : Window
         _startText.Visibility = Visibility.Visible;
         _dot.Visibility = Visibility.Collapsed;
         _time.Visibility = Visibility.Collapsed;
-        _stop.Visibility = Visibility.Collapsed;
-        _stopText.Visibility = Visibility.Collapsed;
+        _stop.Visibility = Visibility.Visible;
+        _stopText.Visibility = Visibility.Visible;
+        _stopText.Text = Loc.T(K.Common.Cancel);
+        _stop.ToolTip = Loc.T(K.Common.Cancel);
         _start.MouseLeftButtonUp += (_, e) => { _start.IsHitTestVisible = false; onStart(); e.Handled = true; };
     }
 

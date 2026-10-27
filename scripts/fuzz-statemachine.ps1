@@ -9,7 +9,7 @@ $exe = Join-Path $root "src\FrameCapture\bin\x64\Debug\net8.0-windows10.0.19041.
 $shot = Join-Path $root "tools\Shot\bin\x64\Debug\net8.0-windows\Shot.exe"
 $err = (Get-FcLogPath 'error.log')
 $e0 = if (Test-Path $err) { (Get-Item $err).Length } else { 0 }
-# R126 B2：钉成统一测试手势集，让乱键压测 tap/hold/holdrelease 状态机（轻点→选区窗 / 长按→录制→编辑器）。
+# 钉成统一测试手势集，让乱键压测 tap/hold/holdrelease 状态机（轻点→选区窗 / 长按→录制→编辑器）。
 $capHk = 'Ctrl+Shift+G'
 $scopeHk = 'Ctrl+Shift+R'
 "capture_hotkey=$capHk scope_hotkey=$scopeHk"

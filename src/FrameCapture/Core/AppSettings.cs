@@ -46,7 +46,7 @@ public sealed class AppSettings
     /// </summary>
     public bool ShowRecordingBorder { get; set; } = true;
 
-    /// <summary>完成选区后立即截取一帧（复用托盘同款按下→自动松手链路）。</summary>
+    /// <summary>无显式产物的选区链显示模式开关并跟随所选产物；关闭时仅提供区域。</summary>
     public bool AutoCaptureOnSelect { get; set; } = true;
 
     /// <summary>选区吸附取客户区（排除窗口边框/标题栏，适合游戏画面）。</summary>
@@ -152,7 +152,7 @@ public bool EditableSelection { get; set; } = false;
     public bool RunAtStartup { get; set; }
 
     /// <summary>以管理员身份运行（默认关）：全局键盘钩子要抓住 Win 组合键、以及焦点落在高权限窗口上的按键，
-    /// 都需要当前进程已提权。开启时用一次 UAC 换成提权实例，此后自启走计划任务、不再弹 UAC。</summary>
+    /// 都需要当前进程已提权。开启时用一次 UAC 换成提权实例，此后自启走计划任务、无需 UAC。</summary>
     public bool RunAsAdmin { get; set; }
 
     /// <summary>启动气泡提示（默认开）：启动完成后在屏幕右下角弹一条「FrameCapture 已启动」，
@@ -286,7 +286,8 @@ public bool EditableSelection { get; set; } = false;
         Colors = CleanColors(Colors);
         Gestures ??= new GestureConfig();
         Gestures.SeedIfNeeded(GestureConfig.DefaultCaptureKey, GestureConfig.DefaultRecordKey);   // 一次性：空配置播种 QQ 键位（截图 / 录制）
-        Gestures.UpgradeStockDefaults();   // 出厂默认的两条补齐成「先选区，后执行」，用户改过的不碰
+        Gestures.UpgradeStockDefaults();
+        Gestures.Migrate();
         ToastSeconds = ToastSeconds <= 0 ? 0 : Math.Clamp(ToastSeconds, 0.5, 60);
         DelayCaptureSeconds = Math.Clamp(DelayCaptureSeconds, 0, 120);
         FreezePregrabMaxWindows = Math.Clamp(FreezePregrabMaxWindows, 0, 16);
@@ -399,22 +400,49 @@ public sealed class SettingsService
 
     private static AppSettings Load()
     {
+        AppSettings? loaded = null;
+        string? json = null;
         try
         {
             if (File.Exists(FilePath))
             {
-                var s = JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(FilePath));
-                if (s != null) { s.Normalize(); return s; }
+                json = File.ReadAllText(FilePath);
+                loaded = JsonSerializer.Deserialize<AppSettings>(json);
             }
         }
-        catch
+        catch (Exception ex) { Trace.Log($"settings load failed: {ex.Message}"); }
+        if (loaded == null)
         {
-            // 损坏的设置直接重置
-            try { Directory.CreateDirectory(Dir); File.Delete(FilePath); } catch { }
+            var defaults = new AppSettings();
+            defaults.Normalize();
+            return defaults;
         }
-        var def = new AppSettings();
-        def.Normalize();
-        return def;
+        int revision = loaded.Gestures?.ChainRevision ?? 0;
+        bool migrate = revision < 2 || loaded.Gestures?.Bindings.Any(b => b.OnComplete != null
+            || (b.Actions ?? Array.Empty<string>()).Any(n => n != GestureActions.Canonical(n))) == true;
+        bool backedUp = false;
+        if (migrate)
+        {
+            try
+            {
+                string backup = FilePath + ".bak." + revision;
+                if (!File.Exists(backup)) File.WriteAllText(backup, json!);
+                backedUp = true;
+            }
+            catch (Exception ex) { Trace.Log($"settings backup failed: {ex.Message}"); }
+        }
+        loaded.Normalize();
+        if (migrate && backedUp)
+        {
+            try
+            {
+                var tmp = FilePath + ".tmp";
+                File.WriteAllText(tmp, JsonSerializer.Serialize(loaded, JsonOpts));
+                File.Move(tmp, FilePath, overwrite: true);
+            }
+            catch (Exception ex) { Trace.Log($"settings migration save failed: {ex.Message}"); }
+        }
+        return loaded;
     }
 
     /// <summary>落盘：先 Normalize，再写同目录 <c>.tmp</c> 后 <c>File.Move</c> 覆盖——读者永远只会看到完整文件。

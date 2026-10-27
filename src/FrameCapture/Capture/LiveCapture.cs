@@ -99,7 +99,7 @@ public sealed class LiveCapture : IDisposable
     /// <summary>抓取虚拟桌面坐标 region 的一帧 BGRA（任意线程可调）。
     /// 走 GetDC(NULL) + BitBlt(SRCCOPY | CAPTUREBLT)：CAPTUREBLT 让分层窗口（指针、部分置顶窗）也进画面。
     /// 暂存位图按尺寸缓存复用：全屏抓取里新建一块十几 MB 的 DIB 要花十几毫秒，而它每帧都被整块覆盖。
-    /// 缓存只为少建位图，返回值仍是新分配的帧，调用方照旧独占自己的像素。</summary>
+    /// 缓存只为少建位图，返回值仍是新分配的帧，调用方独占自己的像素。</summary>
     /// <param name="region">物理像素、虚拟桌面绝对坐标；宽或高小于 2 直接返回 null。</param>
     /// <returns>新分配的 BGRA 帧，top-down、无 padding；<c>TimeMs</c> 恒为 0——单帧抓取没有计时基准。
     /// 取屏 DC 失败静默返回 null；建 DIBSection、建兼容 DC、BitBlt 失败各记一条 trace（前者与 BitBlt 带 Win32 错误码）。</returns>

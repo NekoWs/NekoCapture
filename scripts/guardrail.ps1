@@ -1,21 +1,8 @@
-# E 回归护栏（UIAUDIT.md E 条目）：一条命令跑完整闸门——
-#   静态扫描 → 构建 0 error → SelfTest 全过（≥基线数）→ 产物起得来 → 控制器响应探针 → e2e
-# 默认路径零 OS 级输入：合成键经主实例的消息专用窗喂进手势引擎，用户正用电脑时也能跑完，
-# 键盘鼠标一下都不动。
-# 焦点安全是唯一例外——它测的就是「全局热键会不会漏字符进前台应用」，不经真实注入测不到，
-# 因此默认 SKIP；要跑请显式加 -AllowInjection，加了之后仍有安静窗口闸兜底。
-# 语义：SKIP（本轮没跑的项）≠ FAIL；缺 PASS 标记一律按 FAIL（不信任无结果的运行）。
-# 静态扫描不依赖构建，与构建并行起跑；SelfTest、双语审计、安装器探针互不相干，也并行跑。
-# 两档：
-#   默认档（< 1 分钟）——静态扫描 / 构建 / SelfTest / 双语审计 / 安装器探针 / 启动冒烟 / 控制器探针。
-#   -Full（约 3 分钟）——再加整套 e2e（每项都要重启一次主程序，串行是硬约束：单实例）。
-#   发布脚本走 -Full，平时改代码走默认档。
-# 三档速度：
-#   -Quick  只跑静态扫描 + 构建（约 10 秒）——改代码时用这个
-#   默认    再加 SelfTest / 双语审计 / 安装器探针 / 启动冒烟（约 55 秒，静默）
-#   -Full   再加控制器探针与整套 e2e（约 3 分钟）——发布前用
-# 用法: pwsh -NoProfile -File scripts/guardrail.ps1 [-Quick] [-Full] [-SkipE2e] [-AllowInjection] [-MinSelfTestPass 711]
-param([switch]$Full, [switch]$Quick, [switch]$SkipE2e, [switch]$AllowInjection, [int]$MinSelfTestPass = 709)
+# 构建、静态扫描、SelfTest、双语审计、启动探针与端到端检查。
+# 默认不注入 OS 级输入；-Full 包含应用内消息驱动的端到端检查。
+# -AllowInjection 显式启用焦点安全检查；SKIP 不表示验证通过。
+# -Quick 仅构建与静态扫描；-SkipE2e 跳过端到端检查。
+param([switch]$Full, [switch]$Quick, [switch]$SkipE2e, [switch]$AllowInjection, [int]$MinSelfTestPass = 914)
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 . (Join-Path $PSScriptRoot "lib-hotkey.ps1")
@@ -25,7 +12,13 @@ $stExe  = Join-Path $root "tools/SelfTest/bin/x64/Debug/net8.0-windows10.0.19041
 $outDir = Join-Path $root "test-out"
 $tmp    = Join-Path $outDir "guardrail-tmp"
 New-Item -ItemType Directory -Force -Path $outDir | Out-Null
-if (Test-Path $tmp) { Remove-Item $tmp -Recurse -Force }
+function Remove-TestDirectory([string]$path) {
+    $full = [IO.Path]::GetFullPath($path)
+    $allowed = [IO.Path]::GetFullPath($outDir).TrimEnd('\') + '\'
+    if (-not $full.StartsWith($allowed, [StringComparison]::OrdinalIgnoreCase)) { throw "测试目录越界: $full" }
+    if (Test-Path -LiteralPath $full) { Remove-Item -LiteralPath $full -Recurse -Force }
+}
+Remove-TestDirectory $tmp
 New-Item -ItemType Directory -Force -Path $tmp | Out-Null
 $transcript = Join-Path $outDir "guardrail-last-run.txt"
 $logLines = [System.Collections.Generic.List[string]]::new()
@@ -41,22 +34,43 @@ function Add-Result([string]$name, [string]$status, [string]$note = "", [double]
 function Start-Async([string]$tag, [string]$filePath, [string[]]$argList) {
     $o = Join-Path $tmp "$tag.out"; $e = Join-Path $tmp "$tag.err"
     $quoted = foreach ($a in $argList) { if ($a -match '\s') { '"' + $a + '"' } else { $a } }
-    $p = Start-Process -FilePath $filePath -ArgumentList $quoted -NoNewWindow -PassThru `
+    $p = Start-Process -FilePath $filePath -ArgumentList $quoted -WindowStyle Hidden -PassThru `
         -RedirectStandardOutput $o -RedirectStandardError $e -WorkingDirectory $root
     return [pscustomobject]@{ Proc = $p; Out = $o; Err = $e }
 }
 function Wait-Async($h) {
     $h.Proc.WaitForExit()
     $s = ""
-    foreach ($f in @($h.Out, $h.Err)) { if (Test-Path $f) { $s += [IO.File]::ReadAllText($f) } }
+    foreach ($f in @($h.Out, $h.Err)) {
+        if (-not (Test-Path $f)) { continue }
+        $bytes = [IO.File]::ReadAllBytes($f)
+        try { $s += [Text.UTF8Encoding]::new($false, $true).GetString($bytes) }
+        catch {
+            [Text.Encoding]::RegisterProvider([Text.CodePagesEncodingProvider]::Instance)
+            $s += [Text.Encoding]::GetEncoding(936).GetString($bytes)
+        }
+    }
     # 报进程自己的存活时间：从发起到收卷的墙钟把「排队等 SelfTest」也算进去了
     $sec = ($h.Proc.ExitTime - $h.Proc.StartTime).TotalSeconds
     return [pscustomobject]@{ Text = $s; Code = $h.Proc.ExitCode; Sec = $sec }
 }
 
+$savedEnvironment = @{}
+foreach ($name in @('TEMP', 'TMP', 'FC_SETTINGS_DIR', 'FC_TEST_NO_FG')) {
+    $savedEnvironment[$name] = [Environment]::GetEnvironmentVariable($name)
+}
+$runtimeTemp = Join-Path $outDir 'guardrail-runtime'
+New-Item -ItemType Directory -Force -Path $runtimeTemp | Out-Null
+$lockingInstances = @()
+try {
+    $env:TEMP = $runtimeTemp
+    $env:TMP = $runtimeTemp
+    $env:FC_TEST_NO_FG = '1'
 # 0) 静态扫描：每个扫描器自己打一行 `LINT-XXX PASS|FAIL …`，这里按同一套规则收
 $lints = @(
     @{ n = "lint:comments";      f = "lint-comments.ps1";      mark = "LINT-COMMENTS" },
+    @{ n = "lint:current-docs";  f = "lint-current-docs.ps1";  mark = "LINT-DOCS" },
+    @{ n = "lint:comment-parser"; f = "test-comment-guard.ps1"; mark = "COMMENT-GUARD" },
     @{ n = "lint:motion-tokens"; f = "lint-motion-tokens.ps1"; mark = "LINT-MOTION" },
     @{ n = "lint:copy-parens";   f = "lint-copy-parens.ps1";   mark = "LINT-COPY" },
     @{ n = "lint:i18n-coverage"; f = "lint-i18n-coverage.ps1"; mark = "LINT-I18N" },
@@ -92,16 +106,14 @@ foreach ($k in $buildJobs.Keys) {
     $r = Wait-Async $buildJobs[$k]
     $nErr = ([regex]::Matches($r.Text, ': error')).Count
     $missing = @($buildExe[$k] | Where-Object { -not (Test-Path $_) })
-    $ok = ($nErr -eq 0 -and $missing.Count -eq 0)
+    $ok = ($r.Code -eq 0 -and $nErr -eq 0 -and $missing.Count -eq 0)
     Add-Result $k $(if ($ok) { "PASS" } else { "FAIL" }) ("errors={0}{1}" -f $nErr,
         $(if ($missing.Count) { " 缺产物: " + (($missing | ForEach-Object { Split-Path $_ -Leaf }) -join ',') } else { "" })) $r.Sec
     if (-not $ok) { Say $r.Text; $okBuild = $false }
 }
 
-# 3) 三件互不相干的事并行起跑：SelfTest（42 s 上下）、双语版面审计（17 s）、安装器搬运探针。
-#    它们都不碰主程序实例，也不写同一批文件；串行跑等于白等两轮。
+# SelfTest 与安装器文件探针并行；批量建窗审计在动画采样结束后运行。
 $auditJob = $null
-if (-not $Quick) { $auditJob = Start-Async "ux-audit" "pwsh" @("-NoProfile", "-File", (Join-Path $PSScriptRoot "ux-audit.ps1"), "-Quiet") }
 $spJob = $null
 if (-not $Quick) {
     $spJob = Start-Async "setup-probe" "pwsh" @("-NoProfile", "-Command",
@@ -113,20 +125,24 @@ $stJob = if ($okBuild -and -not $Quick) { Start-Async "selftest" $stExe @() } el
 if ($stJob) {
     $r = Wait-Async $stJob
     $so = $r.Text
+    Set-Content -LiteralPath (Join-Path $outDir 'selftest-last-run.txt') -Value $so -Encoding utf8
     $stSec = $r.Sec
     $m = [regex]::Match($so, 'RESULT PASS=(\d+) FAIL=(\d+)')
     if ($m.Success) {
         $p = [int]$m.Groups[1].Value; $f = [int]$m.Groups[2].Value
-        $ok = ($f -eq 0) -and ($p -ge $MinSelfTestPass)
+        $ok = ($r.Code -eq 0) -and ($f -eq 0) -and ($p -ge $MinSelfTestPass)
         Add-Result "selftest" $(if ($ok) { "PASS" } else { "FAIL" }) "PASS=$p FAIL=$f (floor $MinSelfTestPass)" $stSec
         if (-not $ok) { Say (($so -split "`n" | Select-String '^FAIL' | Select-Object -First 12) -join "`n") }
         $names = ([regex]::Matches($so, '(?m)^(?:PASS|FAIL) (\S+)') | ForEach-Object { $_.Groups[1].Value })
         $dup = @($names | Group-Object | Where-Object Count -gt 1)
-        Add-Result "selftest:names-unique" $(if ($dup.Count -eq 0) { "PASS" } else { "FAIL" }) `
+        Add-Result "selftest:names-unique" $(if ($dup.Count -eq 0 -and $names.Count -eq $p + $f) { "PASS" } else { "FAIL" }) `
             ("{0} 条用例，重名 {1}" -f $names.Count, $dup.Count) 0
         if ($dup.Count) { Say (($dup | ForEach-Object { "  重名 {0} ×{1}" -f $_.Name, $_.Count }) -join "`n") }
     } else { Add-Result "selftest" "FAIL" "无 RESULT 行" $stSec; Say (($so -split "`n" | Select-Object -Last 12) -join "`n") }
 } elseif ($Quick) { Add-Result "selftest" "SKIP" "-Quick（只扫静态与构建）"; Add-Result "selftest:names-unique" "SKIP" "-Quick" } else { Add-Result "selftest" "SKIP" "构建失败"; Add-Result "selftest:names-unique" "SKIP" "构建失败" }
+
+# 动画采样与批量建窗审计分开运行，避免渲染负载改变采样时刻。
+if (-not $Quick) { $auditJob = Start-Async "ux-audit" "pwsh" @("-NoProfile", "-File", (Join-Path $PSScriptRoot "ux-audit.ps1"), "-Quiet") }
 
 # 4) 收静态扫描结果：SelfTest 跑的时候它们一直在旁边跑
 foreach ($t in $lints) {
@@ -173,7 +189,7 @@ if (-not $uxR) { Add-Result "lint:ux-bilingual" "SKIP" "-Quick" } elseif ($uxLin
 # 中途崩了、被人掐了，都不会在他机器上留下测试态（主题、热键、强调色停在测试钉的那一套）。
 $fcDir = Join-Path $PSScriptRoot '..\test-out\guardrail-settings'
 $fcUser = Join-Path $env:APPDATA 'FrameCapture\settings.json'
-if (Test-Path $fcDir) { Remove-Item $fcDir -Recurse -Force -EA SilentlyContinue }
+Remove-TestDirectory $fcDir
 New-Item -ItemType Directory -Force -Path $fcDir | Out-Null
 if (Test-Path $fcUser) { Copy-Item $fcUser (Join-Path $fcDir 'settings.json') -Force }
 $env:FC_SETTINGS_DIR = $fcDir
@@ -192,7 +208,7 @@ if ($hadUserInstance) {
         }
     }
     $t0 = [Diagnostics.Stopwatch]::StartNew()
-    $p = Start-Process $exe -PassThru
+    $p = Start-Process $exe -WindowStyle Hidden -PassThru
     Start-Sleep 2.5
     $alive = Get-Process -Id $p.Id -EA SilentlyContinue
     $note = if ($alive) { "进程存活，托盘就绪" } else { "退出码 $($p.ExitCode)" }
@@ -207,7 +223,7 @@ if (-not $Full) {
 } elseif ($okBuild) {
     $t0 = [Diagnostics.Stopwatch]::StartNew()
     $env:FC_TEST_NO_FG = "1"
-    Start-Process $exe -ArgumentList '--picker' -PassThru | Out-Null
+    Start-Process $exe -WindowStyle Hidden -ArgumentList '--picker' -PassThru | Out-Null
     # 窗口可能比两秒慢：轮询到 8 秒（判据不变：选区窗必须出现）
     $pkProbe = "not-found"
     $deadline = (Get-Date).AddSeconds(8)
@@ -281,7 +297,7 @@ if (-not $Full) {
                     elseif ($status -eq "SKIP") { (($lines | Select-String 'SKIP' | Select-Object -First 1 | ForEach-Object { $_.Line.Trim() }) -join " / ") }
                     else { "" }
             # 显式要求跑注入项（-AllowInjection）却没跑成，按 FAIL 处理：
-            # 「永远 SKIP」和「通过」在汇总表里长得一模一样，这项曾因此静默跳过很久。
+            # 显式要求的验证必须实际执行。
             if ($t.gated -and $AllowInjection -and $status -eq "SKIP") {
                 $note = "显式要求注入却仍跳过：" + $note
                 $status = "FAIL"
@@ -295,16 +311,19 @@ if (-not $Full) {
     }
 } else { foreach ($t in $e2e) { Add-Result $t.n "SKIP" "构建失败" } }
 
-# 8) 恢复稳态：护栏开始前用户实例在跑，就跑一个新的回来
-# 只恢复「被我们杀掉的那类」实例（从构建目录跑起来的）；用户自己那份一直没动，不能替它再起一个
-if ($lockingInstances.Count) { Start-Process $exe; Say "  (已恢复被构建打断的实例)" }
-
 # 汇总
 $failN = @($results | Where-Object Status -eq "FAIL").Count
 $skipN = @($results | Where-Object Status -eq "SKIP").Count
 Say ""
 Say ("GUARDRAIL {0}  (FAIL={1} SKIP={2} 共 {3} 项)" -f $(if ($failN -eq 0) { "PASS" } else { "FAIL" }), $failN, $skipN, $results.Count)
-# 空管道不截断文件：本轮若无日志行，上一轮的记录会留在原地冒充本轮。
-Set-Content $transcript -Encoding UTF8 -Value $(if ($logLines.Count) { $logLines } else { @("（本轮无日志行）") })
-Remove-Item $tmp -Recurse -Force -EA SilentlyContinue
+# 使用显式值写入，空结果也覆盖输出文件。
+Set-Content $transcript -Encoding UTF8 -Value $(if ($logLines.Count) { $logLines } else { @("（无日志行）") })
+Remove-TestDirectory $tmp
 exit $(if ($failN -eq 0) { 0 } else { 1 })
+
+} finally {
+    foreach ($name in $savedEnvironment.Keys) {
+        [Environment]::SetEnvironmentVariable($name, $savedEnvironment[$name])
+    }
+    if ($lockingInstances.Count) { Start-Process $exe -WindowStyle Hidden }
+}

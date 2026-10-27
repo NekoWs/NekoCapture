@@ -89,7 +89,7 @@ function Get-FcCaptureHotkey {
 
 # e2e 统一测试手势集——把 settings.json 的 gestures 段钉成一套已知绑定，
 # 让注入键位与断言与用户自定义解耦。一套喂饱全部 e2e：
-#   Ctrl+Shift+G 轻点→选区+截图（弹选区窗）；按住→起录，松手→停止并进编辑器（OnComplete edit.lastvideo）
+#   Ctrl+Shift+G 轻点→选区+截图（弹选区窗）；按住→起录，松手→停止并进编辑器，链尾打开编辑器
 #   Ctrl+Shift+R 组合键→选区
 # 返回原 settings.json 原文（调用方负责结束还原）。
 function Set-FcTestGestureConfig {
@@ -100,15 +100,15 @@ function Set-FcTestGestureConfig {
     $s = if ($bak) { $bak | ConvertFrom-Json } else { [pscustomobject]@{} }
     $bindings = @(
         [pscustomobject]@{ Id='t.cap.tap'; Enabled=$true; Chord='Ctrl+Shift+G'; Trigger='Tap';
-            Actions=@('scope.select','capture.stored'); OnComplete=@(); OnFail=@(); Fallback='Stop'; Priority=0; DoubleClickMs=400; LongPressMs=250 },
+            Actions=@('select','grab.still'); OnFail=@(); Fallback='Stop'; Priority=0; DoubleClickMs=400; LongPressMs=250 },
         [pscustomobject]@{ Id='t.cap.hold'; Enabled=$true; Chord='Ctrl+Shift+G'; Trigger='Hold';
-            Actions=@('record.start'); OnComplete=@(); OnFail=@(); Fallback='Stop'; Priority=0; DoubleClickMs=400; LongPressMs=250 },
+            Actions=@('scope.stored','record.start'); OnFail=@(); Fallback='Stop'; Priority=0; DoubleClickMs=400; LongPressMs=250 },
         [pscustomobject]@{ Id='t.cap.holdrelease'; Enabled=$true; Chord='Ctrl+Shift+G'; Trigger='HoldRelease';
-            Actions=@('record.stop'); OnComplete=@('edit.lastvideo'); OnFail=@(); Fallback='Stop'; Priority=0; DoubleClickMs=400; LongPressMs=250 },
+            Actions=@('record.stop','edit.lastvideo'); OnFail=@(); Fallback='Stop'; Priority=0; DoubleClickMs=400; LongPressMs=250 },
         [pscustomobject]@{ Id='t.scope'; Enabled=$true; Chord='Ctrl+Shift+R'; Trigger='Chord';
-            Actions=@('scope.select'); OnComplete=@(); OnFail=@(); Fallback='Stop'; Priority=0; DoubleClickMs=400; LongPressMs=500 }
+            Actions=@('select'); OnFail=@(); Fallback='Stop'; Priority=0; DoubleClickMs=400; LongPressMs=500 }
     )
-    $gestures = [pscustomobject]@{ Enabled=$true; Bindings=$bindings; Seeded=$true }
+    $gestures = [pscustomobject]@{ Enabled=$true; Bindings=$bindings; Seeded=$true; ChainRevision=2 }
     # 注意：app 的 JsonSerializer 大小写敏感，属性名须 PascalCase（"Gestures"），否则整段被忽略→回退默认播种集。
     $s | Add-Member -Force Gestures $gestures
     # 首启引导会吞掉进编辑器后的头几次按键：测试直投按键测的是键位本身，先把引导记成已看过
@@ -130,7 +130,7 @@ function Invoke-FcHotkey {
     & $Shot hkm $p.vk $p.ctrl $p.shift $p.alt $p.win $HoldMs
 }
 
-# 幽灵修饰键护栏（R51）：keyw 是 PostMessage 裸键，而 WPF 修饰键读真实键盘状态——
+# 修饰键护栏：keyw 是 PostMessage 裸键，而 WPF 修饰键读真实键盘状态——
 # 用户正在打字（中文 IME 常按 Shift/Ctrl）时注入的裸键会被记成 Shift+End 之类，断言假失败。
 # 注入裸键前等物理修饰键全部松开；超时仍注入（宁可红一次，不死等；也不主动替用户"松开"按键）。
 if (-not ('FcMods.Kb' -as [type])) {
