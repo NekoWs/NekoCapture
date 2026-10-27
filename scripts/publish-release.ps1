@@ -197,7 +197,12 @@ if ($offlineRow.Count -eq 0) {
             @(Get-ChildItem $smoke -Recurse -File).Count, ($up.WorkingSet64 / 1MB))
     } finally {
         Remove-Item Env:FC_SETTINGS_DIR, Env:FC_TEST_NO_FG -ErrorAction SilentlyContinue
-        Get-Process FrameCapture -ErrorAction SilentlyContinue | Stop-Process -Force
+        foreach ($instance in @(Get-Process FrameCapture -ErrorAction SilentlyContinue)) {
+            try {
+                $instance.Kill()
+                if (-not $instance.WaitForExit(5000)) { throw '抽验进程未退出，保留目录供检查' }
+            } finally { $instance.Dispose() }
+        }
         foreach ($d in @($smoke, $smokeCfg)) { Remove-ReleaseDirectory $d }
     }
 }
