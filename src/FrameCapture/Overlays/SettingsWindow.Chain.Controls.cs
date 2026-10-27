@@ -37,11 +37,13 @@ public sealed partial class SettingsWindow
             var missing = GestureActions.MissingInputs(list)[index];
             string values = Loc.F(K.Hotkeys.StepValues, ValueLabel(info.Needs), ValueLabel(info.Produces));
             if (missing != RunValue.None) values = Loc.F(K.Hotkeys.MissingValues, ValueLabel(missing)) + " · " + values;
-            chip.ToolTip = values;
+            bool followsSwitch = SelectionCapture.IsSwitchTarget(list, index);
+            chip.ToolTip = followsSwitch ? Loc.T(K.Hotkeys.SwitchStepHint) + " · " + values : values;
             if (info.Needs == RunValue.None && info.Produces == RunValue.None) return;
             body.Children.Insert(2, new TextBlock
             {
-                Text = missing != RunValue.None ? Loc.F(K.Hotkeys.MissingValues, ValueLabel(missing))
+                Text = followsSwitch ? Loc.T(K.Hotkeys.FollowsSwitch)
+                    : missing != RunValue.None ? Loc.F(K.Hotkeys.MissingValues, ValueLabel(missing))
                     : ValueLabel(info.Produces != RunValue.None ? info.Produces : info.Needs),
                 Foreground = missing != RunValue.None ? Theme.AccentBrush : Theme.TextDimBrush,
                 FontSize = 10, Margin = new Thickness(6, 0, 2, 0), VerticalAlignment = VerticalAlignment.Center,

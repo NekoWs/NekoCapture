@@ -1,3 +1,5 @@
+using FrameCapture.Core;
+
 namespace FrameCapture.Capture;
 
 /// <summary>一条动作链独占的输入与产物。帧像素只读共享，录制帧的释放归控制器或编辑器。</summary>
@@ -19,6 +21,8 @@ public sealed class RunContext
     public bool WindowCapture { get; set; }
     /// <summary>本链的录制产物。</summary>
     public CapturedSequence? Video { get; set; }
+    /// <summary>本链最近产物的类型。</summary>
+    public RunValue LatestProduct { get; set; }
     /// <summary>录制是否进行中。</summary>
     public bool Recording { get; set; }
     /// <summary>产物是否由选区开关决定。</summary>

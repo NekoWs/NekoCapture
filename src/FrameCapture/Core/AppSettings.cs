@@ -46,9 +46,6 @@ public sealed class AppSettings
     /// </summary>
     public bool ShowRecordingBorder { get; set; } = true;
 
-    /// <summary>无显式产物的选区链显示模式开关并跟随所选产物；关闭时仅提供区域。</summary>
-    public bool AutoCaptureOnSelect { get; set; } = true;
-
     /// <summary>选区吸附取客户区（排除窗口边框/标题栏，适合游戏画面）。</summary>
     public bool SnapContentArea { get; set; } = false;
 
@@ -418,7 +415,7 @@ public sealed class SettingsService
             return defaults;
         }
         int revision = loaded.Gestures?.ChainRevision ?? 0;
-        bool migrate = revision < 2 || loaded.Gestures?.Bindings.Any(b => b.OnComplete != null
+        bool migrate = revision < GestureConfig.CurrentChainRevision || loaded.Gestures?.Bindings.Any(b => b.OnComplete != null
             || (b.Actions ?? Array.Empty<string>()).Any(n => n != GestureActions.Canonical(n))) == true;
         bool backedUp = false;
         if (migrate)

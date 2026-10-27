@@ -51,6 +51,8 @@ public static class GestureActions
     public const string ScrollCapture = "scroll.capture";
     public const string DelayedCapture = "capture.delayed";
     public const string EditLastStill = "edit.last";
+    /// <summary>编辑本链最近产出的静图或录制。</summary>
+    public const string EditResult = "edit.result";
     public const string EditLastVideo = "edit.lastvideo";
     public const string OcrSelection = "ocr.selection";
     public const string PinSelection = "pin.selection";
@@ -75,6 +77,7 @@ public static class GestureActions
         new(DelayedCapture, K.Common.DelayedCapture, K.Actions.DelayedCaptureDesc),
         new(OcrSelection, K.Common.RecognizeText, K.Actions.OcrSelectionDesc),
         new(PinSelection, K.Common.Pin, K.Actions.PinSelectionDesc),
+        new(EditResult, K.Hotkeys.EditResult, K.Hotkeys.EditResultDesc),
         new(EditLastStill, K.Tray.EditLastScreenshot, K.Actions.EditLastStillDesc),
         new(EditLastVideo, K.Actions.EditLastVideoLabel, K.Actions.EditLastVideoDesc),
         new(NotifyToast, K.Actions.NotifyToastLabel, K.Actions.NotifyToastDesc),
@@ -107,14 +110,16 @@ public static class GestureActions
         RecordStop => new(VerbClass.Product, RunValue.Recording, RunValue.Video),
         ScrollCapture => new(VerbClass.Product, RunValue.Region, RunValue.Still),
         SavePng => new(VerbClass.Terminal, RunValue.Still, RunValue.None),
+        EditLastStill => new(VerbClass.Terminal, RunValue.Still, RunValue.None),
+        EditLastVideo => new(VerbClass.Terminal, RunValue.Video, RunValue.None),
         _ => new(VerbClass.Terminal, RunValue.None, RunValue.None),
     };
 
     /// <summary>是否由选区开关选择产物。</summary>
     /// <param name="chain">完整动作链。</param>
-    /// <returns>含选区且没有显式产物步骤时为真。</returns>
+    /// <returns>含选区时为真。</returns>
     public static bool FollowsSwitch(IEnumerable<string> chain)
-        => chain.Any(n => Canonical(n) == Select) && !chain.Any(n => InfoOf(n).Class == VerbClass.Product);
+        => chain.Any(n => Canonical(n) == Select);
 
     /// <summary>每一步静态缺少的前置值。</summary>
     /// <param name="chain">完整动作链。</param>

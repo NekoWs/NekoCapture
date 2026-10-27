@@ -10,6 +10,10 @@ public static partial class K
     public static partial class Hotkeys
     {
         public static readonly Str ChainTitle = new("hotkeys.chainTitle", "动作链", "Action chain");
+        public static readonly Str FollowsSwitch = new("hotkeys.followsSwitch", "跟随开关", "Follows switch");
+        public static readonly Str SwitchStepHint = new("hotkeys.switchStepHint", "选区上方开关控制随后第一个捕获步骤，其余步骤按顺序执行", "The selection switch controls the next capture step; all other steps run in order");
+        public static readonly Str EditResult = new("hotkeys.editResult", "编辑捕获结果", "Edit capture result");
+        public static readonly Str EditResultDesc = new("hotkeys.editResultDesc", "编辑本链最近产出的静图或录制，不使用其他运行的产物", "Edit the latest still or recording from this chain, without using a result from another run");
         public static readonly Str StoredScope = new("hotkeys.storedScope", "使用当前范围", "Use current region");
         public static readonly Str StoredScopeDesc = new("hotkeys.storedScopeDesc", "读取已存范围，没有时使用光标所在屏幕", "Use the stored region, or the screen under the cursor if none is stored");
         public static readonly Str ChainEmptyHint = new("hotkeys.chainEmptyHint", "添加步骤后按顺序执行", "Add steps to run in order");

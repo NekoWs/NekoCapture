@@ -240,6 +240,7 @@ public sealed partial class CaptureController : IDisposable
         if (_chainContext is { } context)
         {
             context.Still = f;
+            context.LatestProduct = RunValue.Still;
             context.Text = null;
             context.StillRegion = reg;
             context.StillDevice = device;

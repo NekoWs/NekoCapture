@@ -12,8 +12,8 @@ public static partial class K
         public static readonly Str AfterCapture = new("help.afterCapture", "截图后", "After capture");
         public static readonly Str AfterCaptureIsSetPer = new(
             "help.afterCaptureIsSetPer",
-            "选区之后做什么由动作链决定；链里没有产物步骤时由选区开关决定。复制、保存和编辑直接放在链尾。",
-            "The action chain determines what follows selection. The selection switch applies only when the chain has no product step. Add copy, save or edit to the chain.");
+            "选区上方可切换截图与录制，控制随后第一个捕获步骤。其余步骤按链顺序执行，编辑捕获结果跟随本次实际产物。",
+            "The selection switch controls the next capture step. Other steps run in order; Edit capture result follows the actual output.");
         public static readonly Str AfterRecording = new("help.afterRecording", "录完", "After recording");
         public static readonly Str AnyRectangleTheWheelResizes = new(
             "help.anyRectangleTheWheelResizes",

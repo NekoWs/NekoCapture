@@ -90,6 +90,9 @@ public sealed class GestureBindingDto
 /// <summary>快捷键的绑定、迁移与出厂配置。</summary>
 public sealed class GestureConfig
 {
+    /// <summary>当前动作链存储版本。</summary>
+    public const int CurrentChainRevision = 3;
+
     /// <summary>动作链存储版本。</summary>
     public int ChainRevision { get; set; }
 
@@ -98,7 +101,7 @@ public sealed class GestureConfig
     public bool Migrate()
     {
         Bindings ??= new();
-        bool changed = ChainRevision < 2;
+        bool changed = ChainRevision < CurrentChainRevision;
         foreach (var b in Bindings)
         {
             var actions = (b.Actions ?? Array.Empty<string>()).Concat(b.OnComplete ?? Array.Empty<string>())
@@ -119,11 +122,14 @@ public sealed class GestureConfig
                 }
                 actions = expanded.ToArray();
             }
+            if (ChainRevision < 3 && b.Id == "default.record" && actions.SequenceEqual(new[]
+                { GestureActions.Select, GestureActions.RecordToggle, GestureActions.EditLastVideo }))
+                actions[2] = GestureActions.EditResult;
             changed |= b.OnComplete != null || !actions.SequenceEqual(b.Actions ?? Array.Empty<string>());
             b.Actions = actions;
             b.OnComplete = null;
         }
-        ChainRevision = Math.Max(ChainRevision, 2);
+        ChainRevision = Math.Max(ChainRevision, CurrentChainRevision);
         return changed;
     }
 
@@ -182,7 +188,7 @@ public sealed class GestureConfig
                 new[] { GestureActions.Select, GestureActions.GrabStill }));
         if (HotkeySpec.Parse(recordKey) != null)
             list.Add(B("default.record", recordKey, "Chord",
-                new[] { GestureActions.Select, GestureActions.RecordToggle, GestureActions.EditLastVideo }));
+                new[] { GestureActions.Select, GestureActions.RecordToggle, GestureActions.EditResult }));
         return list;
     }
 

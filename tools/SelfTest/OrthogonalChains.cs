@@ -36,7 +36,7 @@ static partial class SelfTest
             Chk("T270-chain-migrate-direct-start", imported.Bindings[2].Actions.SequenceEqual(new[] { "scope.stored", "record.start" }));
             Chk("T270-chain-migrate-scroll", imported.Bindings[3].Actions.SequenceEqual(new[] { "select", "scroll.capture", "copy.clipboard" }));
             string first = System.Text.Json.JsonSerializer.Serialize(imported);
-            Chk("T270-chain-migrate-idempotent", !imported.Migrate() && imported.ChainRevision == 2
+            Chk("T270-chain-migrate-idempotent", !imported.Migrate() && imported.ChainRevision == GestureConfig.CurrentChainRevision
                 && first == System.Text.Json.JsonSerializer.Serialize(imported) && !first.Contains("OnComplete"));
             Chk("T270-chain-legacy-alias", GestureActions.IsValid("scope.select") && GestureActions.IsValid("capture.stored")
                 && GestureActions.LabelOf("scope.select") == GestureActions.LabelOf("select")
@@ -58,8 +58,8 @@ static partial class SelfTest
                     .All(v => v == RunValue.None));
             Chk("T270-chain-switch-policy", GestureActions.FollowsSwitch(new[] { "select" })
                 && GestureActions.FollowsSwitch(new[] { "select", "ocr.selection", "copy.clipboard" })
-                && !GestureActions.FollowsSwitch(new[] { "select", "record.start" })
-                && !GestureActions.FollowsSwitch(new[] { "select", "grab.window" })
+                && GestureActions.FollowsSwitch(new[] { "select", "record.start" })
+                && GestureActions.FollowsSwitch(new[] { "select", "grab.window" })
                 && !GestureActions.FollowsSwitch(new[] { "help.open" }));
 
             var order = new List<string>();
@@ -138,7 +138,7 @@ static partial class SelfTest
             if (File.Exists(backup)) File.Delete(backup);
             var service = new SettingsService();
             Chk("T270-chain-settings-backup", File.ReadAllText(backup) == json
-                && service.Current.Accent == "#7F75FF" && service.Current.Gestures.ChainRevision == 2
+                && service.Current.Accent == "#7F75FF" && service.Current.Gestures.ChainRevision == GestureConfig.CurrentChainRevision
                 && !File.ReadAllText(SettingsService.FilePath).Contains("OnComplete"));
             string contents = File.ReadAllText(SettingsService.FilePath);
             service.Reload();
@@ -160,7 +160,6 @@ static partial class SelfTest
         service.Current.ShowRecordingBorder = false;
         service.Current.FreezeOnSelect = true;
         service.Current.FreezePregrabMaxWindows = 0;
-        service.Current.AutoCaptureOnSelect = true;
         service.Current.AutoSavePath = Path.Combine(SettingsService.Dir, "chain-images");
         var monitor = Monitors.All().First();
         var region = new RectI(monitor.Bounds.X + 4, monitor.Bounds.Y + 4, 32, 32);
@@ -172,12 +171,14 @@ static partial class SelfTest
             while (!done() && clock.ElapsedMilliseconds < 4000) PumpMs(20);
             return done();
         }
-        void Select(CaptureController controller, bool record, bool switchVisible)
+        void Select(CaptureController controller, bool record, bool expectedInitialRecord)
         {
             var picker = (RegionPickerWindow)type.GetField("_picker", flags)!.GetValue(controller)!;
+            int number = pickerNumber++;
+            Chk("T270-chain-picker-initial-mode-" + number, picker.RecordMode == expectedInitialRecord);
+            Chk("T270-chain-picker-switch-visible-" + number,
+                typeof(RegionPickerWindow).GetField("_modeSwitch", flags)!.GetValue(picker) != null);
             picker.SetRecordMode(record);
-            Chk("T270-chain-picker-switch-" + (switchVisible ? "implicit" : "explicit") + "-" + record + "-" + pickerNumber++,
-                (typeof(RegionPickerWindow).GetField("_modeSwitch", flags)!.GetValue(picker) != null) == switchVisible);
             var result = (Action<RectI?, IntPtr>)typeof(RegionPickerWindow).GetField("Result", flags)!.GetValue(picker)!;
             result(region, IntPtr.Zero);
             picker.Close();
@@ -185,7 +186,7 @@ static partial class SelfTest
         using (var c = new CaptureController(service))
         {
             c.BeginChain(new[] { "select" }, Array.Empty<string>());
-            Select(c, false, true);
+            Select(c, false, false);
             Chk("T270-chain-no-product-follows-still", WaitUntil(() => TaskOf(c).IsCompleted)
                 && TaskOf(c).Result && c.HasLastStill && c.State == CaptureController.Phase.Idle);
             CaptureToast.DismissCurrent();
@@ -193,7 +194,7 @@ static partial class SelfTest
         using (var c = new CaptureController(service))
         {
             c.BeginChain(new[] { "select" }, Array.Empty<string>());
-            Select(c, true, true);
+            Select(c, true, false);
             bool recording = WaitUntil(() => c.State == CaptureController.Phase.Capturing);
             bool suspended = !TaskOf(c).IsCompleted;
             c.StopRecording();
@@ -203,18 +204,16 @@ static partial class SelfTest
         using (var c = new CaptureController(service))
         {
             c.BeginChain(new[] { "select", "record.start" }, Array.Empty<string>());
-            Select(c, false, false);
-            bool recording = WaitUntil(() => c.State == CaptureController.Phase.Capturing);
-            c.StopRecording();
+            Select(c, false, true);
             bool finished = WaitUntil(() => TaskOf(c).IsCompleted);
-            Chk("T270-chain-explicit-product-ignores-switch", recording && finished
-                && TaskOf(c).Result && c.HasLastVideo && !c.HasLastStill,
-                $"recording={recording} finished={finished} state={c.State} video={c.HasLastVideo} still={c.HasLastStill}");
+            Chk("T270-chain-explicit-product-follows-switch", finished
+                && TaskOf(c).Result && !c.HasLastVideo && c.HasLastStill && c.State == CaptureController.Phase.Idle);
+            CaptureToast.DismissCurrent();
         }
         using (var c = new CaptureController(service))
         {
             c.BeginChain(new[] { "select", "grab.still", "record.start", "save.png" }, Array.Empty<string>());
-            Select(c, true, false);
+            Select(c, false, false);
             bool recording = WaitUntil(() => c.State == CaptureController.Phase.Capturing);
             bool still = c.HasLastStill;
             string folder = service.Current.AutoSavePath;
@@ -223,6 +222,50 @@ static partial class SelfTest
             Chk("T270-chain-multi-product", recording && still && WaitUntil(() => TaskOf(c).IsCompleted)
                 && TaskOf(c).Result && c.HasLastVideo && Directory.GetFiles(folder, "*.png").Length == before + 1);
             Chk("T270-chain-explicit-consumer-no-toast", typeof(CaptureToast).GetField("_current", BindingFlags.NonPublic | BindingFlags.Static)!.GetValue(null) == null);
+        }
+        using (var c = new CaptureController(service))
+        {
+            var chain = new[] { "select", "grab.still", "edit.result" };
+            c.BeginChain(chain, Array.Empty<string>());
+            Select(c, true, false);
+            bool recording = WaitUntil(() => c.State == CaptureController.Phase.Capturing);
+            var original = TaskOf(c);
+            c.BeginChain(chain, Array.Empty<string>());
+            Chk("T271-switched-screenshot-key-stops-and-edits-video", recording && WaitUntil(() => original.IsCompleted)
+                && original.Result && c.State == CaptureController.Phase.Editing && !c.HasLastStill && !c.HasLastVideo);
+            type.GetMethod("CloseEditor", flags)!.Invoke(c, null);
+        }
+        foreach (bool dynamicEditor in new[] { true, false })
+        {
+            using var c = new CaptureController(service);
+            var retained = new CapturedSequence
+            {
+                Frames = new List<CapturedFrame> { Solid(24, 24, 10, 20, 30) },
+                Region = region, MonitorBounds = monitor.Bounds, MonitorDevice = monitor.DeviceName,
+            };
+            type.GetField("_lastSequence", flags)!.SetValue(c, retained);
+            c.BeginChain(new[] { "select", "record.start", dynamicEditor ? "edit.result" : "edit.lastvideo" }, Array.Empty<string>());
+            Select(c, false, true);
+            bool finished = WaitUntil(() => TaskOf(c).IsCompleted);
+            Chk("T271-switched-record-key-editor-" + dynamicEditor, finished && TaskOf(c).Result == dynamicEditor
+                && c.HasLastStill && c.HasLastVideo
+                && ReferenceEquals(type.GetField("_lastSequence", flags)!.GetValue(c), retained)
+                && c.State == (dynamicEditor ? CaptureController.Phase.Editing : CaptureController.Phase.Idle));
+            type.GetMethod("CloseEditor", flags)!.Invoke(c, null);
+            CaptureToast.DismissCurrent();
+        }
+        using (var c = new CaptureController(service))
+        {
+            var chain = new[] { "select", "grab.still", "record.start" };
+            c.BeginChain(chain, Array.Empty<string>());
+            Select(c, true, false);
+            bool first = WaitUntil(() => c.State == CaptureController.Phase.Capturing);
+            c.BeginChain(chain, Array.Empty<string>());
+            bool second = WaitUntil(() => c.State == CaptureController.Phase.Capturing);
+            bool pending = !TaskOf(c).IsCompleted;
+            c.BeginChain(chain, Array.Empty<string>());
+            Chk("T271-switch-preserves-second-recording", first && second && pending && WaitUntil(() => TaskOf(c).IsCompleted)
+                && TaskOf(c).Result && c.HasLastVideo && !c.HasLastStill);
         }
         using (var c = new CaptureController(service))
         {
@@ -236,7 +279,7 @@ static partial class SelfTest
         {
             var chain = new[] { "select", "record.toggle", "edit.lastvideo" };
             c.BeginChain(chain, Array.Empty<string>());
-            Select(c, false, false);
+            Select(c, true, true);
             bool recording = WaitUntil(() => c.State == CaptureController.Phase.Capturing);
             var original = TaskOf(c);
             c.BeginChain(chain, Array.Empty<string>());
@@ -257,7 +300,7 @@ static partial class SelfTest
         using (var c = new CaptureController(service))
         {
             c.BeginChain(new[] { "select", "record.start", "record.start" }, Array.Empty<string>());
-            Select(c, false, false);
+            Select(c, true, true);
             bool armed = WaitUntil(() => RecordPanelWindow.Current != null);
             void StartPanel()
             {
@@ -283,7 +326,7 @@ static partial class SelfTest
         using (var c = new CaptureController(service))
         {
             c.BeginChain(new[] { "select", "record.start" }, Array.Empty<string>());
-            Select(c, false, false);
+            Select(c, true, true);
             bool armed = WaitUntil(() => RecordPanelWindow.Current != null);
             var panel = RecordPanelWindow.Current;
             var blocks = new List<DependencyObject>();
@@ -294,7 +337,6 @@ static partial class SelfTest
             Chk("T270-chain-armed-cancel", armed && cancel?.IsVisible == false && WaitUntil(() => TaskOf(c).IsCompleted)
                 && !TaskOf(c).Result && !c.HasLastVideo && c.State == CaptureController.Phase.Idle);
         }
-        service.Current.AutoCaptureOnSelect = false;
         using (var c = new CaptureController(service))
         {
             var existing = Application.Current.Windows.OfType<PinWindow>().ToHashSet();
@@ -309,8 +351,9 @@ static partial class SelfTest
         {
             c.BeginChain(new[] { "select" }, Array.Empty<string>());
             Select(c, false, false);
-            Chk("T270-chain-switch-disabled-only-selects", WaitUntil(() => TaskOf(c).IsCompleted)
-                && TaskOf(c).Result && !c.HasLastStill && !c.HasLastVideo && c.State == CaptureController.Phase.Idle);
+            Chk("T270-chain-select-alone-keeps-switch", WaitUntil(() => TaskOf(c).IsCompleted)
+                && TaskOf(c).Result && c.HasLastStill && !c.HasLastVideo && c.State == CaptureController.Phase.Idle);
+            CaptureToast.DismissCurrent();
         }
     }
 

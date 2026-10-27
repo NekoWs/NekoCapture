@@ -212,8 +212,7 @@ public sealed partial class RegionPickerWindow : Window
     /// 窗口出现即有内容；null 且 <c>freeze</c> 为 true 则本窗做分层透明，定格帧在 Show 之后异步补。</param>
     /// <param name="recordMode">初始录制模式。</param>
     /// <param name="rightClickCancel">右键是否取消选区。</param>
-    /// <param name="showModeSwitch">是否显示截图与录制开关。</param>
-    public RegionPickerWindow(MonitorInfo monitor, RectI? existing, bool snapContent = false, bool magnifier = false, Core.ColorCopyFormat colorFormat = Core.ColorCopyFormat.Hex, bool windowCapture = false, bool freeze = false, int pregrabMax = 0, bool windowShadow = false, CapturedFrame? frozenScreen = null, bool recordMode = false, bool rightClickCancel = true, bool showModeSwitch = true)
+    public RegionPickerWindow(MonitorInfo monitor, RectI? existing, bool snapContent = false, bool magnifier = false, Core.ColorCopyFormat colorFormat = Core.ColorCopyFormat.Hex, bool windowCapture = false, bool freeze = false, int pregrabMax = 0, bool windowShadow = false, CapturedFrame? frozenScreen = null, bool recordMode = false, bool rightClickCancel = true)
     {
         // 覆盖层不需要文本输入：禁用输入法，避免拼音拦截快捷键
         InputMethod.SetIsInputMethodEnabled(this, false);
@@ -225,7 +224,6 @@ public sealed partial class RegionPickerWindow : Window
         _pregrabMax = pregrabMax;
         _windowShadow = windowShadow;
         RecordMode = recordMode;
-        _showModeSwitch = showModeSwitch;
         _rightClickCancel = rightClickCancel;
         _colorFormat = colorFormat;
         _monitorPhys = monitor.Bounds;
@@ -534,7 +532,7 @@ public sealed partial class RegionPickerWindow : Window
         // 右键关整层：与 Esc 同一条出口，设置里可以关掉（网页里想右键复制时不至于把选区弄丢）
         MouseRightButtonUp += (_, _) => { if (_rightClickCancel) Finish(null); };
         // 模式开关常显在屏幕上方：它不属于某个选区，还没拖框就要能切
-        if (_showModeSwitch) BuildModeSwitch(Width);
+        BuildModeSwitch(Width);
         MouseLeftButtonDown += OnDown;
         MouseMove += OnMove;
         MouseLeftButtonUp += OnUp;

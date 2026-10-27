@@ -172,8 +172,6 @@ public sealed partial class SettingsWindow : Window
 
         #region 截图
         panel = Cat(Loc.T(K.Common.Capture), "\uE7A8");
-        panel.Children.Add(ToggleRow("\uE7B5", Loc.T(K.Settings.CaptureOnSelection), Loc.T(K.Settings.AsSoonAsASelection),
-            _settings.Current.AutoCaptureOnSelect, v => _settings.Mutate(s => s.AutoCaptureOnSelect = v)));
         panel.Children.Add(ToggleRow("\uE740", Loc.T(K.Settings.SnapToControls), Loc.T(K.Settings.HoveringSnapsToASpecific),
             _settings.Current.SnapContentArea, v => _settings.Mutate(s => s.SnapContentArea = v)));
         panel.Children.Add(EditableSelectionRow());

@@ -59,10 +59,6 @@ public static partial class K
             "settings.aSoftBuiltInBeep",
             "内置柔和「嘀」声，作听觉确认",
             "A soft built-in beep as an audible confirmation");
-        public static readonly Str AsSoonAsASelection = new(
-            "settings.asSoonAsASelection",
-            "动作链没有产物步骤时，显示截图与录制开关。关闭则只记录区域，显式产物步骤仍照常执行",
-            "Show the capture and record switch when the chain has no product step. Turn off to select only; explicit product steps still run");
         public static readonly Str AutoSaveACopy = new("settings.autoSaveACopy", "自动保存副本", "Auto-save a copy");
         public static readonly Str BorderFillColor = new(
             "settings.borderFillColor",
@@ -76,10 +72,6 @@ public static partial class K
             "settings.briskAGlanceFits",
             "利落：来得及看一眼",
             "Brisk: enough to catch a glance");
-        public static readonly Str CaptureOnSelection = new(
-            "settings.captureOnSelection",
-            "选区模式开关",
-            "Selection mode switch");
         public static readonly Str CaptureSound = new("settings.captureSound", "截图提示音", "Capture sound");
         public static readonly Str Change = new("settings.change", "更改", "Change");
         public static readonly Str Chime = new("settings.chime", "轻弹", "Chime");

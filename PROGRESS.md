@@ -1,18 +1,17 @@
 # 当前状态
 
-版本：0.9.11。动作链契约见 [docs/PLAN-ORTHOGONAL-CHAINS.md](docs/PLAN-ORTHOGONAL-CHAINS.md)。
+源代码版本：0.9.12。动作链契约见 [docs/PLAN-ORTHOGONAL-CHAINS.md](docs/PLAN-ORTHOGONAL-CHAINS.md)。
 
-- 选区、截图、录制、滚动、OCR 与输出动作按同一条链顺序执行，异步步骤等待完成。
-- 设置迁移具有版本、备份和幂等保护；完成动作存储在链尾。
-- 快捷键页提供动作增删、箭头与拖动改序、前置值提示。
-- 开发文档只保存当前契约、验证状态与待处理事项。
+- 选区上方始终保留截图与录制开关，默认档位来自随后第一个捕获步骤。
+- 开关只控制对应步骤，通用动作链、多产物链与失败链按配置执行。
+- 快捷键页用「跟随开关」标记受控步骤；「编辑捕获结果」使用本链最近的实际产物。
+- 配置版本为 3，读取时保留版本备份。
 
-| 验证 | 结果 | 证据 |
-|---|---|---|
-| SelfTest | 914 通过，0 失败；下限 914 | `test-out/selftest-last-run.txt` |
-| 静态护栏与安装器探针 | 全部通过；注释零警告 | `test-out/chain-guardrail-final.txt` |
-| 中英文排版 | 54 个组合通过 | `test-out/chain-guardrail-final.txt` |
-| 启动、控制器与端到端 | 7 项端到端通过 | `test-out/chain-full-pass.txt` |
+验证记录放在 `test-out/selection-switch-quiet/`。
 
-OS 键盘注入的焦点安全项未启用。人工检查范围见 [UIAUDIT.md](UIAUDIT.md)。
-发布产物与 SHA256 见 `release/chain-release-manifest.json`。
+- 独立目录构建：0 错误。
+- 无窗口策略测试：17 通过，0 失败。
+- 静态扫描与扫描器用例：全部通过，注释零警告。
+
+静默验证通过 `FC_TEST_NO_WINDOWS=1` 禁止窗口测试入口，构建使用低优先级独立进程。
+窗口交互、全量 SelfTest、端到端、打包与托盘重启待空闲时执行。

@@ -40,7 +40,6 @@ public sealed partial class RegionPickerWindow
 
     /// <summary>这次选区落下去要做什么：true = 起录，false = 截图。初值由调用方的意图给，用户在开关上可以改。</summary>
     public bool RecordMode { get; private set; }
-    readonly bool _showModeSwitch;
 
     /// <summary>模式开关的两段（截图 / 录制）；点它改的是上面那个属性，不落盘。</summary>
     private Border? _modeSwitch;

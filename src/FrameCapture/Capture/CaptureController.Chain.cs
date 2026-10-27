@@ -12,6 +12,7 @@ public sealed partial class CaptureController
     RunContext? _chainContext;
     bool _disposed;
     Task<bool>? _chainTask;
+    IReadOnlyList<string> _activeChain = Array.Empty<string>();
     TaskCompletionSource<bool>? _selectionCompletion, _recordCompletion, _scrollCompletion, _delayCompletion;
 
     /// <summary>在 UI 线程按序运行一条动作链。录制中再次触发停止动作会结束当前录制。</summary>
@@ -24,14 +25,16 @@ public sealed partial class CaptureController
         if (_disposed) return;
         if (_chainTask is { IsCompleted: false })
         {
-            if (State == Phase.Capturing && chain.Any(n => n is GestureActions.RecordToggle or GestureActions.RecordStop))
+            if (State == Phase.Capturing && SelectionCapture.StopsRecording(chain, _activeChain))
             {
                 var active = _chainTask;
+                bool sameChain = chain.SequenceEqual(_activeChain);
                 StopRecording();
-                if (!chain.Contains(GestureActions.RecordToggle)) ResumeStopChain(active, chain, onFail, fallback);
+                if (!sameChain && chain.Contains(GestureActions.RecordStop) && !chain.Contains(GestureActions.RecordToggle))
+                    ResumeStopChain(active, chain, onFail, fallback);
             }
             else if (State == Phase.Idle && _recordCompletion != null
-                && chain.Any(n => n is GestureActions.RecordToggle or GestureActions.RecordStop))
+                && SelectionCapture.StopsRecording(chain, _activeChain))
             {
                 if (_chainContext != null) _chainContext.Cancelled = true;
                 RecordPanelWindow.Dismiss();
@@ -45,25 +48,50 @@ public sealed partial class CaptureController
     async void ResumeStopChain(Task<bool> active, IReadOnlyList<string> chain, IReadOnlyList<string> onFail, FallbackPolicy fallback)
     {
         await active;
-        BeginChain(chain.Where(n => GestureActions.Canonical(n) != GestureActions.Select
-            && n != GestureActions.RecordStop).ToArray(), onFail, fallback);
+        if (_disposed) return;
+        var context = new RunContext { Video = _lastSequence,
+            LatestProduct = _lastSequence != null ? RunValue.Video : RunValue.None };
+        _chainTask = RunChainAsync(chain.Where(n => GestureActions.Canonical(n) != GestureActions.Select
+            && n != GestureActions.RecordStop).ToArray(), onFail, fallback, context);
     }
 
-    async Task<bool> RunChainAsync(IReadOnlyList<string> chain, IReadOnlyList<string> onFail, FallbackPolicy fallback)
+    async Task<bool> RunChainAsync(IReadOnlyList<string> chain, IReadOnlyList<string> onFail, FallbackPolicy fallback,
+        RunContext? initialContext = null)
     {
-        var context = new RunContext();
+        var context = initialContext ?? new RunContext();
         _chainContext = context;
-        bool followsSwitch = GestureActions.FollowsSwitch(chain) && _settings.Current.AutoCaptureOnSelect;
+        _activeChain = chain.ToArray();
+        var switchTargets = new[] { -1, -1 };
         try
         {
-            bool ok = await ActionChain.RunAsync(chain, onFail, fallback, async name =>
+            bool ok = await ActionChain.RunIndexedAsync(chain, onFail, fallback, async (index, name) =>
             {
-                bool result = await RunChainStepAsync(name, context, followsSwitch);
-                if (result && name == GestureActions.Select && followsSwitch)
+                int origin = index < 0 ? 1 : 0;
+                int position = index < 0 ? ~index : index;
+                var sequence = origin == 0 ? chain : onFail;
+                bool result;
+                if (name == GestureActions.Select)
                 {
-                    context.FromSwitch = true;
-                    result = await RunChainStepAsync(context.RecordMode ? GestureActions.RecordStart : GestureActions.GrabStill,
-                        context, false);
+                    int target = SelectionCapture.TargetIndex(sequence, position);
+                    switchTargets[origin] = target;
+                    bool initialRecord = target >= 0 && SelectionCapture.IsRecording(sequence[target]);
+                    result = await RunChainStepAsync(name, context, initialRecord);
+                    if (result && target < 0)
+                    {
+                        context.FromSwitch = true;
+                        result = await RunChainStepAsync(context.RecordMode ? GestureActions.RecordStart : GestureActions.GrabStill,
+                            context, false);
+                    }
+                }
+                else
+                {
+                    if (position == switchTargets[origin])
+                    {
+                        switchTargets[origin] = -1;
+                        context.FromSwitch = true;
+                        name = SelectionCapture.Resolve(name, context.RecordMode);
+                    }
+                    result = await RunChainStepAsync(name, context, false);
                 }
                 Trace.Log($"chain step {name} ok={result}");
                 return result;
@@ -78,11 +106,12 @@ public sealed partial class CaptureController
         {
             _selectionCompletion = _recordCompletion = _scrollCompletion = _delayCompletion = null;
             _chainContext = null;
+            _activeChain = Array.Empty<string>();
         }
     }
 
     static bool ConsumesStill(string name) => name is GestureActions.CopyLast or GestureActions.EditLastStill
-        or GestureActions.PinSelection or GestureActions.OcrSelection or GestureActions.NotifyToast or GestureActions.SavePng;
+        or GestureActions.EditResult or GestureActions.PinSelection or GestureActions.OcrSelection or GestureActions.NotifyToast or GestureActions.SavePng;
 
     static TaskCompletionSource<bool> Completion() => new(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -95,7 +124,7 @@ public sealed partial class CaptureController
         return completion.Task;
     }
 
-    async Task<bool> RunChainStepAsync(string name, RunContext context, bool followsSwitch)
+    async Task<bool> RunChainStepAsync(string name, RunContext context, bool initialRecordMode)
     {
         if (_disposed || (context.Cancelled && GestureActions.InfoOf(name).Class != VerbClass.Terminal)) return false;
         var values = (context.Region != null ? RunValue.Region : RunValue.None)
@@ -103,6 +132,11 @@ public sealed partial class CaptureController
             | (context.Still != null ? RunValue.Still : RunValue.None)
             | (context.Video != null ? RunValue.Video : RunValue.None)
             | (State == Phase.Capturing ? RunValue.Recording : RunValue.None);
+        if (context.LatestProduct == RunValue.None)
+        {
+            if (HasLastStill) values |= RunValue.Still;
+            if (HasLastVideo) values |= RunValue.Video;
+        }
         if ((GestureActions.InfoOf(name).Needs & ~values) != RunValue.None) return false;
         switch (name)
         {
@@ -113,18 +147,18 @@ public sealed partial class CaptureController
                 context.Selected = false;
                 return true;
             case GestureActions.Select:
-                context.Still = null; context.Text = null;
                 if (State == Phase.Editing) CloseEditor();
                 if (State == Phase.Capturing)
                 {
                     if (_pendingSel == null) return false;
+                    context.RecordMode = initialRecordMode;
                     context.Region = _pendingSel.Value.Bounds;
                     context.DeviceName = _pendingSel.Value.DeviceName;
                     return true;
                 }
                 if (State != Phase.Idle || _scrollTimer != null || _delayTimer != null) return false;
                 _selectionCompletion = Completion();
-                OpenChainPicker(context, followsSwitch);
+                OpenChainPicker(context, initialRecordMode);
                 bool selected = await _selectionCompletion.Task;
                 if (selected) await WaitPickerExitAsync();
                 return selected;
@@ -136,7 +170,13 @@ public sealed partial class CaptureController
 
             case GestureActions.RecordToggle when State == Phase.Capturing:
             case GestureActions.RecordStop:
-                return StopRecording();
+                bool stopped = StopRecording();
+                if (stopped)
+                {
+                    context.Video = _lastSequence;
+                    context.LatestProduct = RunValue.Video;
+                }
+                return stopped;
 
             case GestureActions.RecordStart:
             case GestureActions.RecordToggle:
@@ -191,6 +231,7 @@ public sealed partial class CaptureController
                 bool recorded = await recordingCompletion.Task;
                 context.Recording = false;
                 context.Video = recorded ? _lastSequence : null;
+                if (recorded) context.LatestProduct = RunValue.Video;
                 return recorded;
 
             case GestureActions.ScrollCapture:
@@ -214,14 +255,22 @@ public sealed partial class CaptureController
                     Encoding.ClipboardService.SetFrame(context.Still, includePng: context.WindowCapture);
                     return true;
                 }
-                if (!HasLastStill) return false;
+                if (context.LatestProduct != RunValue.None || !HasLastStill) return false;
                 CopyLastStill(); return true;
+            case GestureActions.EditResult:
+                if (State != Phase.Idle) return false;
+                if (context.LatestProduct == RunValue.Video) return context.Video != null && EditLastVideo();
+                if (context.LatestProduct != RunValue.Still || context.Still == null) return false;
+                OpenEditorForFrame(context.Still, context.StillRegion, context.StillDevice);
+                return true;
             case GestureActions.EditLastStill:
+                if (context.LatestProduct != RunValue.None && context.Still == null) return false;
                 if (State != Phase.Idle || !HasLastStill) return false;
                 if (context.Still != null) OpenEditorForFrame(context.Still, context.StillRegion, context.StillDevice);
                 else EditLastStill();
                 return true;
             case GestureActions.EditLastVideo:
+                if (context.LatestProduct != RunValue.None && context.Video == null) return false;
                 return EditLastVideo();
             case GestureActions.PinSelection:
                 if (State != Phase.Idle) return false;
@@ -229,7 +278,7 @@ public sealed partial class CaptureController
                 PinFrameAt(context.Still!, context.StillRegion); return true;
             case GestureActions.NotifyToast:
                 if (context.Still != null) ShowContextToast(context);
-                else if (HasLastStill) ShowLastStillToast();
+                else if (context.LatestProduct == RunValue.None && HasLastStill) ShowLastStillToast();
                 else return false;
                 return true;
             case GestureActions.SavePng:

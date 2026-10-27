@@ -1146,6 +1146,17 @@ static partial class SelfTest
     {
         Console.OutputEncoding = System.Text.Encoding.UTF8;
         SettingsScratch();
+        if (args.Length == 1 && args[0] == "switch-policy")
+        {
+            SelectionSwitchPolicy();
+            Console.WriteLine($"RESULT PASS={pass} FAIL={fail}");
+            return fail == 0 ? 0 : 1;
+        }
+        if (Environment.GetEnvironmentVariable("FC_TEST_NO_WINDOWS") == "1")
+        {
+            Console.Error.WriteLine("Window tests are disabled in this process");
+            return 2;
+        }
         InstallQuietWindows();
         // 版面与双语审计：一次进程一个界面，矩阵由 scripts/ux-audit.ps1 铺开
         if (args.Length >= 3 && args[0] == "uxaudit") return UxAudit(args[1], args[2]);
@@ -4234,7 +4245,7 @@ static partial class SelfTest
                 && def[0].OnComplete == null,
                 "默认截图键 = 选区→截图，完成后不覆盖（默认弹提示），实得 " + string.Join("+", def[0].Actions));
             Chk("T131c2-default-record-chain",
-                def[1].Actions.SequenceEqual(new[] { GestureActions.Select, GestureActions.RecordToggle, GestureActions.EditLastVideo })
+                def[1].Actions.SequenceEqual(new[] { GestureActions.Select, GestureActions.RecordToggle, GestureActions.EditResult })
                 && def[1].OnComplete == null,
                 "默认录制键 = 选区→开始/停止录制，完成后覆盖成打开编辑器");
 
@@ -4246,7 +4257,7 @@ static partial class SelfTest
             var eb = back.ToBindings();
             Chk("T131e-json-roundtrip", back.Enabled && eb.Count == 2
                 && eb.All(x => x.Actions[0] == GestureActions.Select && x.OnComplete.Count == 0)
-                && eb.Any(x => x.Actions.SequenceEqual(new[] { GestureActions.Select, GestureActions.RecordToggle, GestureActions.EditLastVideo })),
+                && eb.Any(x => x.Actions.SequenceEqual(new[] { GestureActions.Select, GestureActions.RecordToggle, GestureActions.EditResult })),
                 "默认集 JSON 往返：Enabled + 两条都以选区开头 + 完成序列存活，实得 " + eb.Count + " 条");
 
             var bad = new GestureBindingDto { Chord = "F6", Trigger = "Click", Actions = new[] { GestureActions.CaptureFrame, "no.such.action" } };
@@ -4665,7 +4676,7 @@ static partial class SelfTest
                 cfg.Bindings[0].Actions.SequenceEqual(new[] { "select", "grab.still" }),
                 "截图那条补上「截图」这一步：" + string.Join(",", cfg.Bindings[0].Actions));
             Chk("T190b-stock-record-gains-scope-and-oncomplete",
-                cfg.Bindings[1].Actions.SequenceEqual(new[] { "select", "record.toggle", "edit.lastvideo" })
+                cfg.Bindings[1].Actions.SequenceEqual(new[] { "select", "record.toggle", "edit.result" })
                 && cfg.Bindings[1].OnComplete == null,
                 "录制那条补上「选区」这一步，完成后补「打开编辑器」：" + string.Join(",", cfg.Bindings[1].Actions));
             cfg.UpgradeStockDefaults();
@@ -8107,6 +8118,7 @@ static partial class SelfTest
         }
         catch (Exception e) { Chk("T234-toast-actions", false, e.Message); }
 
+        SelectionSwitchPolicy();
         OrthogonalChains();
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");
         return fail == 0 ? 0 : 1;
