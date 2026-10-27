@@ -1,4 +1,4 @@
-﻿namespace FrameCapture.Core;
+namespace FrameCapture.Core;
 
 /// <summary>
 /// 文案 · 捕获过程与各种浮窗。一行一句：稳定 id、中文原文、英文译名。

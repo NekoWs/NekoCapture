@@ -82,6 +82,13 @@ public sealed class HotkeyManager : IDisposable
     /// null=手势层关闭，零开销，且 <see cref="Install"/> 不装钩子。Paused 时不喂（用户要求不拦截键）。</summary>
     public Func<uint, bool, GestureCore.ModifierKeys, long, bool>? KeySink;
 
+    /// <summary>录入态（设置里「按一下录一个键」）的全局键汇：非 null 时优先交给它，先于暂停与手势层。
+    /// 走钩子而不是窗口键盘事件，是因为 Win 组合键与 PrtSc 在窗口那条路上根本到不了——
+    /// Win+Shift+S 会被系统先接走，中文输入法下的 Shift+字母还会变成 ImeProcessed。
+    /// 返回 true 表示这一击归录入框（吞掉，前台与系统都收不到）。
+    /// <b>在钩子回调内被同步调用</b>，实现方只做判断与投递，不在这里做重活。</summary>
+    public static Func<uint, bool, GestureCore.ModifierKeys, long, bool>? CaptureSink;
+
     static GestureCore.ModifierKeys CurrentMods()
     {
         GestureCore.ModifierKeys m = 0;
@@ -155,6 +162,10 @@ public sealed class HotkeyManager : IDisposable
         // 隐私：绝不记录用户按键（全局钩子可见所有键击）。仅调试注入链路时设 FC_TRACE_KEYS=1 才逐键记录。
         if (TraceKeys)
             Core.Trace.Log($"hook key={info.vkCode} down={isDown} installed={Installed}");
+
+        // 录入态最优先：此刻用户在设置里按一个键给我们，任何别的判定都不该先把这一击拿走。
+        // 连 Paused 都不看——录入时宿主就是把全局热键暂停掉的，那恰恰是要录的那个键。
+        if (CaptureSink != null && CaptureSink(vk, isDown, CurrentMods(), info.time)) return true;
 
         // 手势引擎喂键（唯一的全局触发路径）。手势层关闭时 KeySink=null，零开销。
         // Paused 时不喂：用户暂停全局热键=要求不拦截任何键，手势层同样避让。

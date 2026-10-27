@@ -87,6 +87,9 @@ public sealed class ChordCaptureBox : Border
         if (_capturing) return;
         _capturing = true;
         CaptureBegan?.Invoke();
+        // 录入期间把全局钩子的键汇接到自己身上：Win 组合键与 PrtSc 到不了窗口事件，
+        // 中文输入法下 Shift+字母还会被标成 ImeProcessed。钩子是唯一能拿到真键的入口。
+        Services.HotkeyManager.CaptureSink = OnGlobalKey;
         Focus();
         Render();
     }
@@ -95,6 +98,7 @@ public sealed class ChordCaptureBox : Border
     {
         if (!_capturing) return;
         _capturing = false;
+        Services.HotkeyManager.CaptureSink = null;
         CaptureEnded?.Invoke();
         Render();
     }
@@ -107,6 +111,37 @@ public sealed class ChordCaptureBox : Border
         Cancelled?.Invoke();
     }
 
+    /// <summary>钩子送来的一个键：修饰键本身不落账，Esc 解绑，其余连同当前修饰键定成一个键位。
+    /// 返回 true 表示这一击归录入框——吞掉之后前台与系统都收不到，Win+Shift+S 不会再弹系统截图工具。</summary>
+    bool OnGlobalKey(uint vk, bool isDown, GestureCore.ModifierKeys mods, long time)
+    {
+        if (!_capturing) return false;
+        // 按下与抬起都吞：只吞按下会在松开时漏一个「抬起而没有按下」的畸形键给前台
+        if (!isDown) return true;
+        // 修饰键本身（Ctrl/Shift/Alt/Win）不落账，等主键
+        if (vk is 0x10 or 0x11 or 0x12 or 0x5B or 0x5C or 0xA0 or 0xA1 or 0xA2 or 0xA3 or 0xA4 or 0xA5) return true;
+        if (vk == 0x1B) { Commit(""); return true; }
+        var key = KeyInterop.KeyFromVirtualKey((int)vk);
+        if (key == Key.None) return true;
+        var wpfMods = ModifierKeys.None;
+        if ((mods & GestureCore.ModifierKeys.Control) != 0) wpfMods |= ModifierKeys.Control;
+        if ((mods & GestureCore.ModifierKeys.Alt) != 0) wpfMods |= ModifierKeys.Alt;
+        if ((mods & GestureCore.ModifierKeys.Shift) != 0) wpfMods |= ModifierKeys.Shift;
+        if ((mods & GestureCore.ModifierKeys.Win) != 0) wpfMods |= ModifierKeys.Windows;
+        Commit(EditorChord.FromKey(wpfMods, key).ToString());
+        return true;
+    }
+
+    /// <summary>录成一枚键位：先把钩子上的汇摘掉再报出去，宿主随后重装热键时不会撞上自己。</summary>
+    /// <param name="chord">键位串；空串=解绑。</param>
+    void Commit(string chord)
+    {
+        Services.HotkeyManager.CaptureSink = null;
+        _chord = chord;
+        Picked?.Invoke(chord);
+        EndCapture();
+    }
+
     void OnPreviewKeyDown(object sender, KeyEventArgs e)
     {
         if (!_capturing)
@@ -115,7 +150,14 @@ public sealed class ChordCaptureBox : Border
             return;
         }
         e.Handled = true;   // 录入态吞掉一切：窗口的 Esc 关闭、Tab 换焦点都不该在这时候发生
-        var k = e.Key == Key.System ? e.SystemKey : e.Key;
+        // 三条路都要认：System = Alt/带修饰的键，ImeProcessed = 输入法把这一击拿走时标成的形态
+        var k = e.Key switch
+        {
+            Key.System => e.SystemKey,
+            Key.ImeProcessed => e.ImeProcessedKey,
+            Key.DeadCharProcessed => e.DeadCharProcessedKey,
+            _ => e.Key,
+        };
         // 只按下修饰键不算录成，等主键
         if (k is Key.LeftCtrl or Key.RightCtrl or Key.LeftShift or Key.RightShift
             or Key.LeftAlt or Key.RightAlt or Key.System or Key.LWin or Key.RWin) return;

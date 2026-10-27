@@ -208,8 +208,14 @@ if (-not $Full) {
     $t0 = [Diagnostics.Stopwatch]::StartNew()
     $env:FC_TEST_NO_FG = "1"
     Start-Process $exe -ArgumentList '--picker' -PassThru | Out-Null
-    Start-Sleep 2.0
-    $pkProbe = & $shot rect "FrameCapture Region" 2>$null
+    # 窗口可能比两秒慢：轮询到 8 秒（判据不变：选区窗必须出现）
+    $pkProbe = "not-found"
+    $deadline = (Get-Date).AddSeconds(8)
+    while ((Get-Date) -lt $deadline) {
+        Start-Sleep -Milliseconds 400
+        $pkProbe = & $shot rect "FrameCapture Region" 2>$null
+        if ("$pkProbe" -notmatch "not-found") { break }
+    }
     Add-Result "probe:controller-responds" $(if ($pkProbe -notmatch "not-found") { "PASS" } else { "FAIL" }) $pkProbe $t0.Elapsed.TotalSeconds
     & $shot keyw "FrameCapture Region" 27 2>$null | Out-Null
     Start-Sleep 0.4

@@ -30,6 +30,8 @@ public sealed partial class CaptureController : IDisposable
     private bool _captureAfterSelect;
     /// <summary>「选区录制」——本次选区确认后立即对该区域起录。</summary>
     private bool _recordAfterSelect;
+    /// <summary>本次录制是选区面板起的（不是快捷键）：REC 与时长归面板说，右上角徽标不亮。</summary>
+    private bool _panelRecording;
     /// <summary>本条手势的「截图后」落点（引擎 BeginBinding 设，截图发起时捕获进 <see cref="_sessionAfter"/>）。
     /// 空=不覆盖，走默认弹提示；"none"=这条手势在「完成后」里自己写了落点。</summary>
     private string _pendingAfter = "";
@@ -258,29 +260,37 @@ public sealed partial class CaptureController : IDisposable
                 // 选区录制：区域已由上方 Mutate 存好（RegionX/Y/W/H），选区窗已 WDA 排除，选区窗关闭后起录。
                 // 锁定到窗口且「只录窗口」开着 → 起录时录该窗口本体；存好的矩形仍是取不到窗口时的回退范围。
                 _pendingSel = sel.WithWindowHonor(_settings.Current.RecordWindowClean);
-                HideOutline();
-                // 先按开始：选区定完不等于马上开录，摆一条「开始录制」在旁边等用户点
-                if (_settings.Current.RecordNeedsStartClick)
+                // 范围框一直亮着：从「选区落定」到「录完」这段时间它都在，用户随时看得到要录哪一块
+                if (_settings.Current.ShowRecordingBorder) ShowCaptureScope(region.Value); else HideOutline();
+                var reg = region.Value; var dev = monitor.DeviceName;
+                var st0 = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(PickerExitMs) };
+                st0.Tick += (_, _) =>
                 {
-                    var startReg = region.Value; var startDev = monitor.DeviceName;
-                    var st0 = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(PickerExitMs) };
-                    st0.Tick += (_, _) =>
+                    st0.Stop();
+                    if (_settings.Current.RecordNeedsStartClick)
                     {
-                        st0.Stop();
-                        Overlays.RecordStartWindow.Show(startReg, startDev, () =>
-                        {
-                            var rt2 = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(PickerExitMs) };
-                            rt2.Tick += (_, _) => { rt2.Stop(); BeginCaptureCore(); };
-                            rt2.Start();
-                        });
-                    };
-                    st0.Start();
-                    return;
-                }
-                HideOutline();
-                var rt = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(PickerExitMs) };
-                rt.Tick += (_, _) => { rt.Stop(); BeginCaptureCore(); };
-                rt.Start();
+                        // 先按开始：选区定完不等于马上开录。面板就在刚才那枚开关的位置上，
+                        // 点「开始录制」之后原地变成「计时 + 停止」
+                        Overlays.RecordPanelWindow.ShowArmed(reg, dev,
+                            () =>
+                            {
+                                Overlays.RecordPanelWindow.Current?.SwitchToRecording();
+                                var rt2 = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(PickerExitMs) };
+                                rt2.Tick += (_, _) => { rt2.Stop(); _panelRecording = true; BeginCaptureCore(); };
+                                rt2.Start();
+                            },
+                            () => StopRecording());
+                    }
+                    else
+                    {
+                        _panelRecording = true;
+                        Overlays.RecordPanelWindow.ShowRecording(reg, dev, () => StopRecording());
+                        var rt = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(PickerExitMs) };
+                        rt.Tick += (_, _) => { rt.Stop(); BeginCaptureCore(); };
+                        rt.Start();
+                    }
+                };
+                st0.Start();
                 return;
             }
             if (stillAfterSelect)
@@ -345,7 +355,8 @@ public sealed partial class CaptureController : IDisposable
     /// 起录失败（GDI 也起不来）时回滚 spool 文件并留在 <see cref="Phase.Idle"/>。</summary>
     void BeginCaptureCore()
     {
-        HideOutline(); // 轮廓绝不能入镜：仅真正起录时隐藏
+        // 轮廓绝不能入镜：快捷键起录时先把边框收掉；面板录制反之——那一圈正是用户要看的范围，留着
+        if (!_panelRecording) HideOutline();
 
         // 选区录制带着选区交来的状态（可能锁定到某个窗口本体）；热键直接起录则按存好的范围现造一个。
         Selection sel = _pendingSel ?? (StoredRegion() ?? FullMonitorAtCursor()).ToSelection();
@@ -409,8 +420,12 @@ public sealed partial class CaptureController : IDisposable
         {
             ShowCaptureScope(sel.Bounds);
             // 起录后延迟点亮 REC 徽标——"正在录"从隐性约定变成看得见的状态
-            _recBadgeTimer!.Interval = TimeSpan.FromMilliseconds(RecBadgeDelayMs);
-            _recBadgeTimer.Start();
+            // 面板录制时 REC 点与时长由上方面板说话，右上角那枚不亮
+            if (!_panelRecording)
+            {
+                _recBadgeTimer!.Interval = TimeSpan.FromMilliseconds(RecBadgeDelayMs);
+                _recBadgeTimer.Start();
+            }
         }
     }
 
@@ -471,6 +486,9 @@ public sealed partial class CaptureController : IDisposable
 
     private void FinishCapture(long holdMs = -1, bool openEditor = true)
     {
+        // 面板录制结束：上方面板与范围框一起收，标志清掉——下一次起录重新按新流程走
+        Overlays.RecordPanelWindow.Dismiss();
+        _panelRecording = false;
         Trace.Log("FinishCapture");
         _recBadgeTimer?.Stop();
         // 徽标与轮廓的退场延后到产物就绪（见 RetireCaptureOutline）：录制路径期间先挂「处理中…」，

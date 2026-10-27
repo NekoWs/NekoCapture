@@ -7512,28 +7512,42 @@ static partial class SelfTest
             pickNoRight.Close();
         }
         catch (Exception e) { Chk("T262-picker-mode", false, e.Message); }
-        // 「开始录制」那一条：摆出来、点开始会回调、取消会收走
+        // 录制面板：待开始是「开始录制」，起录后原地变成「计时 + 停止」，点停止走停止录制
         try
         {
-            int started264 = 0;
-            FrameCapture.Overlays.RecordStartWindow.Show(new FrameCapture.Capture.RectI(100, 100, 400, 300), "",
-                () => started264++);
+            int started264 = 0, stopped264 = 0;
+            FrameCapture.Overlays.RecordPanelWindow.ShowArmed(new FrameCapture.Capture.RectI(100, 100, 400, 300), "",
+                () => started264++, () => stopped264++);
             PumpMs(220);
-            var bar264 = Application.Current.Windows.OfType<FrameCapture.Overlays.RecordStartWindow>().FirstOrDefault();
-            Chk("T264-record-start-bar-shows", bar264 != null && bar264.IsVisible, "选区切到录制后摆在旁边的那一条出现了");
-            var buttons264 = new List<System.Windows.DependencyObject>();
-            if (bar264 != null) CollectTyped(bar264, typeof(System.Windows.Controls.Border), buttons264);
-            var startBtn264 = buttons264.OfType<System.Windows.Controls.Border>()
+            var panel264 = FrameCapture.Overlays.RecordPanelWindow.Current;
+            Chk("T264-record-panel-shows", panel264 != null && panel264.IsVisible, "选区切到录制后面板出现在屏幕上方");
+            var blocks264 = new List<System.Windows.DependencyObject>();
+            if (panel264 != null) CollectTyped(panel264, typeof(System.Windows.Controls.Border), blocks264);
+            var startBtn264 = blocks264.OfType<System.Windows.Controls.Border>()
                 .FirstOrDefault(b => b.Child is System.Windows.Controls.TextBlock t && t.Text == Loc.T(K.Actions.RecordStartLabel));
             startBtn264?.RaiseEvent(new System.Windows.Input.MouseButtonEventArgs(
                 System.Windows.Input.Mouse.PrimaryDevice, 0, System.Windows.Input.MouseButton.Left)
             { RoutedEvent = System.Windows.UIElement.MouseLeftButtonUpEvent, Source = startBtn264 });
+            PumpMs(120);
+            Chk("T264-record-panel-starts", started264 == 1 && panel264 != null && panel264.IsVisible,
+                $"点「开始录制」起录并留在原地：回调 {started264} 次");
+            var texts264 = new List<System.Windows.DependencyObject>();
+            if (panel264 != null) CollectTyped(panel264, typeof(System.Windows.Controls.TextBlock), texts264);
+            var shown264 = texts264.OfType<System.Windows.Controls.TextBlock>().Select(t => t.Text).ToList();
+            Chk("T264-record-panel-times", panel264 != null && shown264.Contains(Loc.T(K.Actions.RecordStopLabel))
+                && shown264.Any(t => t.Length > 0 && t.Contains(":")),
+                "起录后原地变成计时与停止按钮：" + string.Join(" | ", shown264.Where(t => t.Length > 0)));
+            var stopBtn264 = blocks264.OfType<System.Windows.Controls.Border>()
+                .FirstOrDefault(b => b.Child is System.Windows.Controls.TextBlock t && t.Text == Loc.T(K.Actions.RecordStopLabel));
+            stopBtn264?.RaiseEvent(new System.Windows.Input.MouseButtonEventArgs(
+                System.Windows.Input.Mouse.PrimaryDevice, 0, System.Windows.Input.MouseButton.Left)
+            { RoutedEvent = System.Windows.UIElement.MouseLeftButtonUpEvent, Source = stopBtn264 });
             PumpMs(160);
-            Chk("T264-record-start-bar-starts", started264 == 1 && bar264 != null && !bar264.IsVisible,
-                $"点「开始录制」走起录回调并收走那一条：回调 {started264} 次");
-            FrameCapture.Overlays.RecordStartWindow.DismissCurrent();
+            Chk("T264-record-panel-stops", stopped264 == 1 && FrameCapture.Overlays.RecordPanelWindow.Current == null,
+                $"点「停止录制」走停止回调并收走面板：回调 {stopped264} 次");
+            FrameCapture.Overlays.RecordPanelWindow.Dismiss();
         }
-        catch (Exception e) { Chk("T264-record-start-bar", false, e.Message); }
+        catch (Exception e) { Chk("T264-record-panel", false, e.Message); }
         // 单键绑定与 Win 组合键：PrtSc 这种只属于截图的裸键要能绑，Win+Shift+S 这类系统先接手的也要能绑
         try
         {

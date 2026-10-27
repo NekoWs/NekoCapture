@@ -288,17 +288,6 @@ panel.Children.Add(ToggleRow("\uE768", Loc.T(K.Settings.StartRecordingAfterSelec
                     Loc.T(r == StartupResult.Cancelled ? K.Settings.StartupTaskCancelled : K.Settings.StartupTaskFailed),
                     Loc.T(K.Common.StartWithWindows), MessageBoxButton.OK, MessageBoxImage.Warning);
         }
-        // 当前是否提权直接摆出来：绑了 Win 组合键却抓不到时，这一行是第一个该看的地方。
-        // 文案随「开关开着但没提权」这一档改口，不是构造期写死的一句话
-        var elevNote = UiNote("");
-        void RefreshElevationNote()
-        {
-            bool wantUp = _settings.Current.RunAsAdmin;
-            bool up = Services.StartupService.IsElevated;
-            elevNote.Text = up ? Loc.T(K.Settings.ElevatedNow)
-                : wantUp ? Loc.T(K.Settings.ElevationPending) : Loc.T(K.Settings.NotElevated);
-        }
-        RefreshElevationNote();
         panel.Children.Add(ToggleRow("\uE7E8", Loc.T(K.Common.StartWithWindows), Loc.T(K.Settings.StartsFramecaptureWhenYouSign),
             _settings.Current.RunAtStartup, v =>
             {
@@ -309,16 +298,17 @@ panel.Children.Add(ToggleRow("\uE768", Loc.T(K.Settings.StartRecordingAfterSelec
             _settings.Current.RunAsAdmin, v =>
             {
                 _settings.Mutate(s => s.RunAsAdmin = v);
-                if (!v) { ApplyStartup(); RefreshElevationNote(); return; }
+                if (!v) { ApplyStartup(); return; }
                 // 已经提权：只把登录入口换成任务形式，不必重启
                 if (StartupService.IsElevated) { ApplyStartup(); return; }
-                // 没提权：直接换成提权实例。这一档的全部意义就是让钩子抓住 Win 组合键与高权限窗口上的键，
-                // 而 UAC 本身就是那次确认——自己再弹一个「要不要提权」只是多一次点击
+                // 没提权：直接换成提权实例——这一档的全部意义就是让钩子抓住 Win 组合键与高权限窗口上的键，
+                // 而 UAC 本身就是那次确认
                 if (StartupService.RelaunchElevated()) { Fluent.CloseWithFade(this); return; }
+                // 提权没成（UAC 被取消）：开关关回去，别留下「开着却没提权」的半截状态
+                _settings.Mutate(s => s.RunAsAdmin = false);
                 MessageBox.Show(this, Loc.T(K.Settings.ElevationRelaunchFailed), Loc.T(K.Tray.RunAsAdministrator),
                     MessageBoxButton.OK, MessageBoxImage.Warning);
             }));
-        panel.Children.Add(elevNote);
         panel.Children.Add(ToggleRow("\uE8B9", Loc.T(K.Settings.CaptureTheAppItself), Loc.T(K.Settings.WhenOnTheEditorTheRecord),
             _settings.Current.CaptureSelf, v =>
             {
