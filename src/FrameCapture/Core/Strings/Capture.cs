@@ -21,11 +21,7 @@ public static partial class K
         "确认选区",
         "Confirm the selection");
 
-    /// <summary>叉按钮的悬停提示。</summary>
-    public static readonly Str CancelSelection = new(
-        "capture.cancelSelection",
-        "取消选区",
-        "Cancel the selection");
+
     public static readonly Str AutoScroll = new("capture.autoScroll", "自动滚动", "Auto-Scroll");
         public static readonly Str AutoScrollingStops = new(
             "capture.autoScrollingStops",

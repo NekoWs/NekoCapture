@@ -21,12 +21,16 @@ public sealed class GestureBindingDto
     public string Chord { get; set; } = "";
     /// <summary>GestureCore.TriggerKind 名：KeyDown/KeyUp/Click/DoubleClick/TripleClick/LongPress/Chord。</summary>
     public string Trigger { get; set; } = "Chord";
-    /// <summary>按序执行的完整动作链，异步步骤完成后继续。</summary>
+    /// <summary>快捷键进入的共享行为入口；空值用于导入动作链。</summary>
+    public string EntryId { get; set; } = "";
+    /// <summary>入口选区的初始模式：空值取节点设置，still 为截图，record 为录制。</summary>
+    public string EntryMode { get; set; } = "";
+    /// <summary>导入用的有序动作；入口标识非空时执行行为图。</summary>
     public string[] Actions { get; set; } = Array.Empty<string>();
     /// <summary>导入时接入主链末尾的完成序列；规范配置保存时省略。</summary>
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public string[]? OnComplete { get; set; }
-    /// <summary>失败时序列：主动作有步失败或选区被取消时再跑。空=不覆盖，失败静默。</summary>
+    /// <summary>动作链导入的失败与取消序列。</summary>
     public string[] OnFail { get; set; } = Array.Empty<string>();
     /// <summary>GestureCore.FallbackPolicy 名：Stop/SkipStep/NextBinding（逐条显式，非引擎硬编码）。</summary>
     public string Fallback { get; set; } = "Stop";
@@ -56,7 +60,8 @@ public sealed class GestureBindingDto
             Id = Id,
             Chord = new GC.KeyChord(mods, (int)spec.VirtualKey),
             Trigger = trig,
-            Actions = (Actions ?? Array.Empty<string>()).Concat(OnComplete ?? Array.Empty<string>())
+            Actions = EntryId.Length > 0 ? new List<string> { GestureActions.CallBehavior }
+                : (Actions ?? Array.Empty<string>()).Concat(OnComplete ?? Array.Empty<string>())
                 .Where(GestureActions.IsValid).Select(GestureActions.Canonical).ToList(),
             OnFail = (OnFail ?? Array.Empty<string>()).Where(GestureActions.IsValid).ToList(),
             Fallback = fb,
@@ -68,7 +73,7 @@ public sealed class GestureBindingDto
 
     /// <summary>由引擎绑定回推 DTO（供导出/展示）。组合键串用修饰键名 + 主键枚举名重建。</summary>
     /// <param name="b">引擎侧绑定；<c>Chord.Key</c> 按 <c>System.Windows.Forms.Keys</c> 枚举名渲染。</param>
-    /// <returns>等价的 DTO。不做时长钳制：引擎侧数值原样带出。</returns>
+    /// <returns>包含引擎字段的 DTO；名称与行为入口由宿主配置保留。时长使用引擎原值。</returns>
     public static GestureBindingDto FromBinding(GC.GestureBinding b)
     {
         var mods = new List<string>();
@@ -88,7 +93,7 @@ public sealed class GestureBindingDto
 }
 
 /// <summary>快捷键的绑定、迁移与出厂配置。</summary>
-public sealed class GestureConfig
+public sealed partial class GestureConfig
 {
     /// <summary>当前动作链存储版本。</summary>
     public const int CurrentChainRevision = 3;
@@ -96,7 +101,7 @@ public sealed class GestureConfig
     /// <summary>动作链存储版本。</summary>
     public int ChainRevision { get; set; }
 
-    /// <summary>将可读的完成序列并入动作链，规范动作名；重复调用保持相同结果。</summary>
+    /// <summary>规范动作名并导入行为图；重复调用保持相同结果。</summary>
     /// <returns>是否需要写回配置。</returns>
     public bool Migrate()
     {
@@ -104,6 +109,13 @@ public sealed class GestureConfig
         bool changed = ChainRevision < CurrentChainRevision;
         foreach (var b in Bindings)
         {
+            b.EntryId ??= ""; b.EntryMode ??= "";
+            if (Enum.TryParse<GC.TriggerKind>(b.Trigger, true, out var trigger) && b.Trigger != trigger.ToString())
+            { b.Trigger = trigger.ToString(); changed = true; }
+            string mode = b.EntryMode.ToLowerInvariant();
+            if (mode is not (BehaviorPorts.Still or BehaviorPorts.Record)) mode = "";
+            if (b.EntryMode != mode) { b.EntryMode = mode; changed = true; }
+            b.OnFail = (b.OnFail ?? Array.Empty<string>()).Select(GestureActions.Canonical).ToArray();
             var actions = (b.Actions ?? Array.Empty<string>()).Concat(b.OnComplete ?? Array.Empty<string>())
                 .Select(GestureActions.Canonical).ToArray();
             if (ChainRevision < 2)
@@ -130,7 +142,7 @@ public sealed class GestureConfig
             b.OnComplete = null;
         }
         ChainRevision = Math.Max(ChainRevision, CurrentChainRevision);
-        return changed;
+        return EnsureGraph() || changed;
     }
 
     /// <summary>「启用快捷键」总开关，默认 true。关掉后不向引擎喂键、不装鼠标钩子——快捷键完全不参与，
@@ -152,7 +164,7 @@ public sealed class GestureConfig
         var list = new List<GC.GestureBinding>();
         foreach (var d in Bindings)
         {
-            if (!d.Enabled) continue;   // 禁用的绑定不进引擎（保留配置、不触发）
+            if (!d.Enabled || !HasRunnableEntry(d)) continue;
             var b = d.ToBinding();
             if (b != null && b.Actions.Count > 0) list.Add(b);
         }
@@ -233,7 +245,7 @@ public sealed class GestureConfig
         var clash = new HashSet<string>();
         foreach (var b in Bindings)
         {
-            if (!b.Enabled) continue;
+            if (!b.Enabled || !HasRunnableEntry(b)) continue;
             var spec = HotkeySpec.Parse(b.Chord);
             if (spec == null) continue;
             // 组合键按解析结果比，不按字符串比：Ctrl+Alt+A 与 ALT+CTRL+A 是同一个键。
@@ -281,7 +293,7 @@ public sealed class GestureConfig
         var chords = new List<string>();
         foreach (var b in Bindings)
         {
-            if (!b.Enabled || !b.Actions.Any(a => actionNames.Contains(a))) continue;
+            if (!b.Enabled || !HasRunnableEntry(b) || !(b.EntryId.Length > 0 ? FlowActions(b.EntryId, b.EntryMode) : b.Actions).Any(a => actionNames.Contains(a))) continue;
             if (HotkeySpec.Parse(b.Chord) == null) continue;
             if (!chords.Contains(b.Chord)) chords.Add(b.Chord);
         }
@@ -298,7 +310,7 @@ public sealed class GestureConfig
         var byChord = new Dictionary<string, List<string>>();
         foreach (var b in Bindings)
         {
-            if (!b.Enabled || !b.Actions.Any(a => actionNames.Contains(a))) continue;
+            if (!b.Enabled || !HasRunnableEntry(b) || !(b.EntryId.Length > 0 ? FlowActions(b.EntryId, b.EntryMode) : b.Actions).Any(a => actionNames.Contains(a))) continue;
             if (HotkeySpec.Parse(b.Chord) == null) continue;
             if (!byChord.TryGetValue(b.Chord, out var list)) byChord[b.Chord] = list = new List<string>();
             var suf = Loc.T(TriggerLabel(b.Trigger));

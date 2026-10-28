@@ -116,7 +116,7 @@ public sealed partial class RegionPickerWindow
             _canvas.Children.Add(h);
         }
         _okButton = AdjustButton(Loc.T(K.Common.Confirm), Theme.Accent, true, Loc.T(K.Capture.ConfirmSelection));
-        _cancelButton = AdjustButton(Loc.T(K.Common.Cancel), null, false, Loc.T(K.Capture.CancelSelection));
+        _cancelButton = AdjustButton(Loc.T(K.Common.Cancel), null, false, Loc.T(K.Common.CancelSelection));
         _canvas.Children.Add(_okButton);
         _canvas.Children.Add(_cancelButton);
     }

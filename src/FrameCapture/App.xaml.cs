@@ -395,25 +395,22 @@ public partial class App : Application
         catch (Exception ex) { LogCrash(ex, "MsgSink"); }
     }
 
-    /// <summary>把一次组合键的按下与抬起喂给手势引擎：与低级键盘钩子同一个 <c>KeySink</c> 入口，
-    /// 区别只在于不产生 OS 级输入——行为测试因此能在用户正用电脑时跑完整链路，
-    /// 也不会把按键落到前台的其他软件上。按住时长交给 <see cref="Task.Delay(int)"/>：
-    /// UI 线程必须空出来跑引擎的 Tick 泵，否则「按住到阈值触发 Hold」永远不会命中。</summary>
+    /// <summary>向独立的测试手势状态投递按下与抬起，不产生 OS 输入。
+    /// 按住时长使用单调时钟与异步延时，UI 线程保持可运行 Tick 泵。</summary>
     /// <param name="w">主键 VK（低 8 位）与修饰键位（左移 8 位）的打包值。</param>
     /// <param name="l">按住毫秒数。</param>
     void SynthesizeChord(IntPtr w, IntPtr l)
     {
         // 只在测试专用开关下受理：用户环境永不置位 FC_TEST_NO_FG，发行出去的进程不接受任何合成键。
         if (Environment.GetEnvironmentVariable("FC_TEST_NO_FG") != "1") { Core.Trace.Log("sink→synthetic refused"); return; }
-        var sink = Services.AppHost.Current.Hotkeys.KeySink;
-        if (sink == null || Services.HotkeyManager.Paused) return;
+        var gestures = Services.AppHost.Current.Gestures;
+        if (gestures == null || Services.HotkeyManager.Paused) return;
         uint vk = (uint)(w.ToInt64() & 0xFF);
         var mods = (GestureCore.ModifierKeys)((w.ToInt64() >> 8) & 0xF);
         int holdMs = Math.Max(0, (int)l.ToInt64());
-        // 时间戳与钩子同源：KBDLLHOOKSTRUCT.time 就是 GetTickCount 毫秒，引擎只取差值判定时长。
-        sink(vk, true, mods, Environment.TickCount);
+        gestures.FeedSyntheticKey(vk, true, mods, Environment.TickCount64);
         _ = Task.Delay(holdMs).ContinueWith(_ => Dispatcher.BeginInvoke(() =>
-            Services.AppHost.Current.Hotkeys.KeySink?.Invoke(vk, false, mods, Environment.TickCount)));
+            gestures.FeedSyntheticKey(vk, false, mods, Environment.TickCount64)));
     }
 
     /// <summary>真正的 message-only 窗（HWND_MESSAGE 父）：不可见、不进任务栏、绝不抢前台。

@@ -160,7 +160,7 @@ public sealed partial class CaptureController : IDisposable
     /// <summary>打开选区，产物由选区开关决定。</summary>
     public void BeginScopeSelection() => BeginChain(new[] { GestureActions.Select }, Array.Empty<string>());
 
-    void OpenChainPicker(RunContext context, bool initialRecordMode)
+    void OpenChainPicker(RunContext context, bool initialRecordMode, bool showModeSwitch = true)
     {
         CloseEditor();
         var cursor = Win32Wrap.GetCursorPosition();
@@ -176,7 +176,8 @@ public sealed partial class CaptureController : IDisposable
             windowCapture: true, freeze: _settings.Current.FreezeOnSelect,
             pregrabMax: _settings.Current.FreezePregrabMaxWindows,
             windowShadow: _settings.Current.WindowCaptureShadow, frozenScreen: frozen,
-            rightClickCancel: _settings.Current.PickerRightClickCancel, recordMode: initialRecordMode);
+            rightClickCancel: _settings.Current.PickerRightClickCancel, recordMode: initialRecordMode,
+            showModeSwitch: showModeSwitch);
         _picker.Result += (region, hwnd) =>
         {
             var picker = _picker;
@@ -545,6 +546,7 @@ public sealed partial class CaptureController : IDisposable
         _recordCompletion?.TrySetResult(false);
         _scrollCompletion?.TrySetResult(false);
         _delayCompletion?.TrySetResult(false);
+        _editorEvent?.TrySetResult(BehaviorPorts.Cancel);
         _scrollTimer?.Stop();
         _delayTimer?.Stop();
         _recBadgeTimer?.Stop();

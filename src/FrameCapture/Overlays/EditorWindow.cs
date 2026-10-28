@@ -17,6 +17,12 @@ public sealed partial class EditorWindow : Window
 {
     /// <summary>窗口关闭时触发且仅触发一次——用户放弃/确定与控制器主动关闭都走它；控制器据此释放帧源。</summary>
     public event Action? ClosedByUser;
+    /// <summary>确认输出或文件成功保存时交出独立于帧源的烘焙结果。</summary>
+    public event Action<CapturedSequence>? OutputReady;
+    /// <summary>输出失败时触发，取消导出不属于失败。</summary>
+    public event Action? OutputFailed;
+    /// <summary>是否由行为图负责确认后的剪贴板与显式保存。</summary>
+    public bool ManagedOutput { get; set; }
 
     private readonly SettingsService _settings;
     private readonly CapturedSequence _seq;

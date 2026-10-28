@@ -139,11 +139,13 @@ static partial class SelfTest
             var service = new SettingsService();
             Chk("T270-chain-settings-backup", File.ReadAllText(backup) == json
                 && service.Current.Accent == "#7F75FF" && service.Current.Gestures.ChainRevision == GestureConfig.CurrentChainRevision
-                && !File.ReadAllText(SettingsService.FilePath).Contains("OnComplete"));
+                && !File.ReadAllText(SettingsService.FilePath).Contains("OnComplete"),
+                $"backup={File.ReadAllText(backup) == json} accent={service.Current.Accent} revision={service.Current.Gestures.ChainRevision} completion={File.ReadAllText(SettingsService.FilePath).Contains("OnComplete")}");
             string contents = File.ReadAllText(SettingsService.FilePath);
             service.Reload();
             Chk("T270-chain-settings-reload-idempotent", File.ReadAllText(SettingsService.FilePath) == contents
-                && File.ReadAllText(backup) == json && service.Current.Gestures.Bindings.Single().Id == "mine");
+                && File.ReadAllText(backup) == json && service.Current.Gestures.Bindings.Single().Id == "mine",
+                $"file={File.ReadAllText(SettingsService.FilePath) == contents} backup={File.ReadAllText(backup) == json} binding={service.Current.Gestures.Bindings.Single().Id}");
         }
         finally { Environment.SetEnvironmentVariable("FC_SETTINGS_DIR", saved); _ = new SettingsService(); }
     }
@@ -334,8 +336,9 @@ static partial class SelfTest
             var cancel = blocks.OfType<Border>().FirstOrDefault(b => b.Child is TextBlock t && t.Text == Loc.T(K.Common.Cancel));
             cancel?.RaiseEvent(new System.Windows.Input.MouseButtonEventArgs(System.Windows.Input.Mouse.PrimaryDevice,
                 0, System.Windows.Input.MouseButton.Left) { RoutedEvent = UIElement.MouseLeftButtonUpEvent });
-            Chk("T270-chain-armed-cancel", armed && cancel?.IsVisible == false && WaitUntil(() => TaskOf(c).IsCompleted)
-                && !TaskOf(c).Result && !c.HasLastVideo && c.State == CaptureController.Phase.Idle);
+            Chk("T270-chain-armed-cancel", armed && WaitUntil(() => cancel?.IsVisible == false && TaskOf(c).IsCompleted)
+                && !TaskOf(c).Result && !c.HasLastVideo && c.State == CaptureController.Phase.Idle,
+                $"armed={armed} cancel={cancel != null} visible={cancel?.IsVisible} task={TaskOf(c).Status} video={c.HasLastVideo} phase={c.State}");
         }
         using (var c = new CaptureController(service))
         {
@@ -352,7 +355,8 @@ static partial class SelfTest
             c.BeginChain(new[] { "select" }, Array.Empty<string>());
             Select(c, false, false);
             Chk("T270-chain-select-alone-keeps-switch", WaitUntil(() => TaskOf(c).IsCompleted)
-                && TaskOf(c).Result && c.HasLastStill && !c.HasLastVideo && c.State == CaptureController.Phase.Idle);
+                && TaskOf(c).Result && c.HasLastStill && !c.HasLastVideo && c.State == CaptureController.Phase.Idle,
+                $"task={TaskOf(c).Status} still={c.HasLastStill} video={c.HasLastVideo} phase={c.State}");
             CaptureToast.DismissCurrent();
         }
     }

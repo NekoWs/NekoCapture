@@ -198,7 +198,7 @@ function Wait-FcQuiet {
     return $false
 }
 # 合成一次组合键的按下与抬起：二次实例把参数转发给主实例的消息专用窗（HWND_MESSAGE），
-# 由它喂进手势引擎的 KeySink——与低级键盘钩子同一个入口，只是不产生 OS 级输入。
+# 合成输入使用独立手势状态，复用配置与动作执行器，不产生 OS 级输入。
 # 用户正用电脑时也能跑完整链路，按键不会落到前台的其他软件上。
 # 前提：主实例以 FC_TEST_NO_FG=1 启动（发行进程不接受合成键）。
 function Invoke-FcSynthetic {

@@ -60,6 +60,16 @@ public static class GestureActions
     public const string CopyLast = "copy.clipboard";
     public const string SettingsOpen = "settings.open";
     public const string HelpOpen = "help.open";
+    /// <summary>隐藏模式开关并只选择区域。</summary>
+    public const string SelectOnly = "select.only";
+    /// <summary>读取有效的已存选区。</summary>
+    public const string RequireStored = "scope.saved";
+    /// <summary>清除持续保存的选区。</summary>
+    public const string ClearRegion = "scope.clear";
+    /// <summary>等待本次静图或录制写盘完成。</summary>
+    public const string SaveResult = "save.result";
+    /// <summary>调用一个共享行为入口。</summary>
+    public const string CallBehavior = "behavior.call";
 
     /// <summary>按稳定顺序排列的规范动作目录，供界面展示与运行时校验。</summary>
     public static readonly GestureAction[] All =
@@ -78,12 +88,17 @@ public static class GestureActions
         new(OcrSelection, K.Common.RecognizeText, K.Actions.OcrSelectionDesc),
         new(PinSelection, K.Common.Pin, K.Actions.PinSelectionDesc),
         new(EditResult, K.Hotkeys.EditResult, K.Hotkeys.EditResultDesc),
-        new(EditLastStill, K.Tray.EditLastScreenshot, K.Actions.EditLastStillDesc),
+        new(EditLastStill, K.Behaviors.EditStill, K.Actions.EditLastStillDesc),
         new(EditLastVideo, K.Actions.EditLastVideoLabel, K.Actions.EditLastVideoDesc),
         new(NotifyToast, K.Actions.NotifyToastLabel, K.Actions.NotifyToastDesc),
         new(CopyLast, K.Actions.CopyLastLabel, K.Actions.CopyLastDesc),
         new(SettingsOpen, K.Actions.SettingsOpenLabel, K.Actions.SettingsOpenDesc),
         new(HelpOpen, K.Actions.HelpOpenLabel, K.Actions.HelpOpenDesc),
+        new(SelectOnly, K.Behaviors.SelectOnly, K.Behaviors.SelectOnlyDesc),
+        new(RequireStored, K.Behaviors.StoredRequired, K.Behaviors.StoredRequiredDesc),
+        new(ClearRegion, K.Behaviors.ClearRegion, K.Behaviors.ClearRegionDesc),
+        new(SaveResult, K.Behaviors.SaveResult, K.Behaviors.SaveResultDesc),
+        new(CallBehavior, K.Behaviors.Call, K.Behaviors.CallDesc),
     };
 
     /// <summary>持久化动作名归一化。</summary>
@@ -101,7 +116,7 @@ public static class GestureActions
     /// <returns>动作类别、所需值与产出值。</returns>
     public static VerbInfo InfoOf(string name) => Canonical(name) switch
     {
-        Select => new(VerbClass.Input, RunValue.None, RunValue.Region),
+        Select or SelectOnly or RequireStored => new(VerbClass.Input, RunValue.None, RunValue.Region),
         StoredScope => new(VerbClass.Input, RunValue.None, RunValue.Region),
         GrabStill or CaptureFrame or DelayedCapture => new(VerbClass.Product, RunValue.None, RunValue.Still),
         GrabWindow => new(VerbClass.Product, RunValue.Window, RunValue.Still),
@@ -114,6 +129,36 @@ public static class GestureActions
         EditLastVideo => new(VerbClass.Terminal, RunValue.Video, RunValue.None),
         _ => new(VerbClass.Terminal, RunValue.None, RunValue.None),
     };
+
+    /// <summary>动作可配置的事件出口。</summary>
+    /// <param name="action">规范动作名。</param>
+    /// <returns>按界面顺序排列的事件名。</returns>
+    public static string[] PortsOf(string action) => Canonical(action) switch
+    {
+        Select => new[] { BehaviorPorts.Still, BehaviorPorts.Record, BehaviorPorts.Cancel, BehaviorPorts.Failed },
+        SelectOnly or RecordStart or RecordToggle or ScrollCapture or DelayedCapture =>
+            new[] { BehaviorPorts.Done, BehaviorPorts.Cancel, BehaviorPorts.Failed },
+        EditLastStill or EditLastVideo or EditResult =>
+            new[] { BehaviorPorts.Saved, BehaviorPorts.Closed, BehaviorPorts.Failed },
+        _ => new[] { BehaviorPorts.Done, BehaviorPorts.Failed },
+    };
+
+    /// <summary>事件出口的界面名称。</summary>
+    /// <param name="action">父动作。</param>
+    /// <param name="port">事件名。</param>
+    /// <returns>当前语言的标签。</returns>
+    public static string PortLabel(string action, string port) => Loc.T(port switch
+    {
+        BehaviorPorts.Still => K.Common.Capture,
+        BehaviorPorts.Record => K.Common.Recording,
+        BehaviorPorts.Cancel when action == Select => K.Common.CancelSelection,
+        BehaviorPorts.Cancel => K.Behaviors.Cancel,
+        BehaviorPorts.Failed => K.Hotkeys.OnFailure,
+        BehaviorPorts.Saved => K.Behaviors.Saved,
+        BehaviorPorts.Closed => K.Behaviors.Closed,
+        BehaviorPorts.Done when action is RecordStart or RecordToggle => K.Behaviors.Stopped,
+        _ => K.Behaviors.Done,
+    });
 
     /// <summary>是否由选区开关选择产物。</summary>
     /// <param name="chain">完整动作链。</param>

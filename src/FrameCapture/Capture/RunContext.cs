@@ -23,6 +23,8 @@ public sealed class RunContext
     public CapturedSequence? Video { get; set; }
     /// <summary>本链最近产物的类型。</summary>
     public RunValue LatestProduct { get; set; }
+    /// <summary>最近动作的事件出口，供结果提示使用。</summary>
+    public string LastEvent { get; set; } = "";
     /// <summary>录制是否进行中。</summary>
     public bool Recording { get; set; }
     /// <summary>产物是否由选区开关决定。</summary>

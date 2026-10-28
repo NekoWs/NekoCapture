@@ -70,7 +70,8 @@ foreach ($sf in Get-ChildItem $stringsDir -Filter *.cs) {
         if ($id -cne $id.Trim() -or $id -notmatch '^[a-z][A-Za-z0-9]*(\.[A-Za-z0-9]+)+$') {
             $fail += Write-Fail $rel $line "id 不合式（小写开头的点分驼峰）：$id"
         }
-        if ($id.Split('.')[0] -ne $surface.ToLower()) {
+        # Common 的共享词允许保留稳定 id 的界面段。
+        if ($surface -ne 'Common' -and $id.Split('.')[0] -ne $surface.ToLower()) {
             $fail += Write-Fail $rel $line "id 的界面段与所在文件不符：$id"
         }
         if ($byId.ContainsKey($id)) { $fail += Write-Fail $rel $line "id 重复：$id（$($byId[$id])）" } else { $byId[$id] = $rel }

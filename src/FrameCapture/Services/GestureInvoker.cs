@@ -3,7 +3,7 @@ using GC = GestureCore;
 
 namespace FrameCapture.Services;
 
-/// <summary>把完整动作链投递到 UI 线程，输入钩子内只做受理判定。</summary>
+/// <summary>将行为入口或动作链投递到 UI 线程，输入钩子内只做受理判定。</summary>
 sealed class GestureInvoker : GC.IChainInvoker
 {
     readonly AppHost _host;
@@ -19,6 +19,16 @@ sealed class GestureInvoker : GC.IChainInvoker
     public bool InvokeChain(GC.GestureBinding binding)
     {
         if (binding.Actions.Count == 0) return false;
+        var dto = _host.Settings.Current.Gestures.Bindings.FirstOrDefault(b => b.Id == binding.Id
+            && string.Equals(b.Trigger, binding.Trigger.ToString(), StringComparison.OrdinalIgnoreCase)
+            && b.ToBinding()?.Chord.Equals(binding.Chord) == true);
+        if (dto is { EntryId.Length: > 0 })
+        {
+            var graph = _host.Settings.Current.Gestures.Graph;
+            string entry = dto.EntryId, mode = dto.EntryMode, identity = dto.Id;
+            Post(() => _host.Controller.BeginBehavior(graph.Snapshot(), entry, identity, mode));
+            return true;
+        }
         var chain = binding.Actions.Concat(binding.OnComplete).Select(GestureActions.Canonical).ToArray();
         var failures = binding.OnFail.ToArray();
         Post(() => _host.Controller.BeginChain(chain, failures, binding.Fallback));

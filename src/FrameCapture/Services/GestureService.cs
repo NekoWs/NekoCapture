@@ -20,6 +20,7 @@ public sealed class GestureService : IDisposable
 {
     readonly AppHost _host;
     readonly GC.GestureEngine _engine;
+    readonly GC.GestureEngine _syntheticEngine;
     readonly GestureInvoker _invoker;
     IntPtr _mouseHook;
     Win32.LowLevelMouseProc? _mouseProc;
@@ -34,6 +35,7 @@ public sealed class GestureService : IDisposable
         _host = host;
         _invoker = new GestureInvoker(host);
         _engine = new GC.GestureEngine(_invoker);
+        _syntheticEngine = new GC.GestureEngine(_invoker);
     }
 
     /// <summary>应用手势配置（UI 线程调用，来自 AppHost.InstallHotkeys / 设置热重载）。</summary>
@@ -46,6 +48,7 @@ public sealed class GestureService : IDisposable
         _swallow = on;
         var bindings = on ? cfg!.ToBindings() : new List<GC.GestureBinding>();
         _engine.SetBindings(bindings);
+        _syntheticEngine.SetBindings(bindings);
         Trace.Log($"gesture apply on={on} n={bindings.Count} [" +
             string.Join(", ", bindings.Select(b => $"mods={b.Chord.Mods} key={b.Chord.Key}/{b.Trigger}/oc={b.OnComplete.Count}")) + "]");
         bool hasMouse = bindings.Any(b => IsMouse(b.Trigger));
@@ -68,8 +71,21 @@ public sealed class GestureService : IDisposable
     /// 前台收不到这一键；纯修饰键组合与未命中的键照常放行。</summary>
     bool FeedKey(uint vk, bool down, GC.ModifierKeys mods, long time)
     {
-        bool candidate = down ? _engine.OnKeyDown((int)vk, mods, time) : _engine.OnKeyUp((int)vk, mods, time);
+        long tick = GestureClock.Expand(time, Environment.TickCount64);
+        bool candidate = down ? _engine.OnKeyDown((int)vk, mods, tick) : _engine.OnKeyUp((int)vk, mods, tick);
         return _swallow && candidate;
+    }
+
+    /// <summary>将测试输入送入独立手势状态，复用同一配置和动作执行器。</summary>
+    /// <param name="vk">主键虚拟键码。</param>
+    /// <param name="down">是否按下。</param>
+    /// <param name="mods">合成输入的修饰键。</param>
+    /// <param name="time">完整的单调毫秒数。</param>
+    /// <returns>测试输入是否匹配绑定。</returns>
+    public bool FeedSyntheticKey(uint vk, bool down, GC.ModifierKeys mods, long time)
+    {
+        if (Environment.GetEnvironmentVariable("FC_TEST_NO_FG") != "1") return false;
+        return down ? _syntheticEngine.OnKeyDown((int)vk, mods, time) : _syntheticEngine.OnKeyUp((int)vk, mods, time);
     }
 
     #region 鼠标钩子 / Tick 泵
@@ -98,8 +114,9 @@ public sealed class GestureService : IDisposable
             {
                 var info = System.Runtime.InteropServices.Marshal.PtrToStructure<Win32.MSLLHOOKSTRUCT>(lParam);
                 var mods = CurrentMods();
-                if (down) _engine.OnMouseDown(msg, mods, info.time);
-                else _engine.OnMouseUp(msg, mods, info.time);
+                long time = GestureClock.Expand(info.time, Environment.TickCount64);
+                if (down) _engine.OnMouseDown(msg, mods, time);
+                else _engine.OnMouseUp(msg, mods, time);
             }
         }
         catch { /* 钩子回调内绝不抛出 */ }
@@ -121,7 +138,7 @@ public sealed class GestureService : IDisposable
     {
         if (_tick != null) return;
         _tick = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(40) };
-        _tick.Tick += (_, _) => _engine.Tick(Environment.TickCount64);
+        _tick.Tick += (_, _) => { long now = Environment.TickCount64; _engine.Tick(now); _syntheticEngine.Tick(now); };
         _tick.Start();
     }
     void StopTick() { _tick?.Stop(); _tick = null; }

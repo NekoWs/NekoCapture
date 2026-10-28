@@ -30,7 +30,7 @@ public static partial class K
         public static readonly Str RecordStopLabel = new("actions.recordStopLabel", "停止录制", "Stop Recording");
         public static readonly Str RecordToggleDesc = new("actions.recordToggleDesc", "空闲时对本链或当前范围起录；录制中停止并继续动作链。本动作不自动进编辑器", "Record this chain's region or the current region when idle; stop an active recording, then continue the chain. Opening an editor requires an edit step");
         public static readonly Str RecordToggleLabel = new("actions.recordToggleLabel", "开始/停止录制", "Start/Stop Recording");
-        public static readonly Str ScopeSelectDesc = new("actions.scopeSelectDesc", "选择区域；上方开关控制随后第一个捕获步骤", "Pick a region; the switch controls the next capture step");
+        public static readonly Str ScopeSelectDesc = new("actions.scopeSelectDesc", "选择区域，上方模式按钮决定截图或录制分支", "Select a region; the mode switch chooses the screenshot or recording branch");
         public static readonly Str ScopeSelectLabel = new("actions.scopeSelectLabel", "选区", "Selection");
         public static readonly Str ScrollCaptureDesc = new("actions.scrollCaptureDesc", "对当前范围做滚动长截图", "Takes a scrolling long capture of the current region");
         public static readonly Str SettingsOpenDesc = new("actions.settingsOpenDesc", "打开设置窗口", "Opens the settings window");

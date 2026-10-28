@@ -10,8 +10,8 @@ public static partial class K
     public static partial class Hotkeys
     {
         public static readonly Str ChainTitle = new("hotkeys.chainTitle", "动作链", "Action chain");
-        public static readonly Str FollowsSwitch = new("hotkeys.followsSwitch", "跟随开关", "Follows switch");
-        public static readonly Str SwitchStepHint = new("hotkeys.switchStepHint", "选区上方开关控制随后第一个捕获步骤，其余步骤按顺序执行", "The selection switch controls the next capture step; all other steps run in order");
+        public static readonly Str FollowsSwitch = new("hotkeys.followsSwitch", "模式出口", "Mode exit");
+        public static readonly Str SwitchStepHint = new("hotkeys.switchStepHint", "模式按钮选择截图或录制出口，子链完成后继续同级动作", "The mode switch chooses the screenshot or recording exit; sibling actions continue after the child chain");
         public static readonly Str EditResult = new("hotkeys.editResult", "编辑捕获结果", "Edit capture result");
         public static readonly Str EditResultDesc = new("hotkeys.editResultDesc", "编辑本链最近产出的静图或录制，不使用其他运行的产物", "Edit the latest still or recording from this chain, without using a result from another run");
         public static readonly Str StoredScope = new("hotkeys.storedScope", "使用当前范围", "Use current region");
@@ -58,7 +58,7 @@ public static partial class K
             "hotkeys.oneKeyCombinationCanCarry",
             "同一个组合键可以配多条不同触发：组合键即按即触发，轻点与按住用来让一个键分出两件事",
             "One key combination can carry several triggers: a shortcut fires the moment it is pressed, while tap and hold split one key into two jobs.");
-        public static readonly Str OnFailure = new("hotkeys.onFailure", "失败时", "On failure");
+        public static readonly Str OnFailure = new("hotkeys.onFailure", "失败后", "After failure");
         public static readonly Str PressANewKeyEsc = new(
             "hotkeys.pressANewKeyEsc",
             "按新键 · Esc 解绑",

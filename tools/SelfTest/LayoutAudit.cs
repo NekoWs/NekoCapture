@@ -52,13 +52,21 @@ static partial class SelfTest
                 case "settings-clash": BuildSettingsAudit(app, rows, "settings-clash", 0, clash: true); break;
             // 另外七个分区各开一次：分区是同一套行控件搭的，但文案不同、控件组合不同，
             // 只量第一个分区等于其余七页从来没进过探针。
-            case "settings-cap": BuildSettingsAudit(app, rows, "settings-cap", -1, cat: 1); break;
-            case "settings-rec": BuildSettingsAudit(app, rows, "settings-rec", -1, cat: 2); break;
-            case "settings-out": BuildSettingsAudit(app, rows, "settings-out", -1, cat: 3); break;
-            case "settings-edit": BuildSettingsAudit(app, rows, "settings-edit", -1, cat: 4); break;
-            case "settings-pin": BuildSettingsAudit(app, rows, "settings-pin", -1, cat: 5); break;
-            case "settings-look": BuildSettingsAudit(app, rows, "settings-look", -1, cat: 6); break;
-            case "settings-sys": BuildSettingsAudit(app, rows, "settings-sys", -1, cat: 7); break;
+            case "settings-behaviors": BuildSettingsAudit(app, rows, "settings-behaviors", -1, cat: 1); break;
+            case "settings-behaviors-narrow": BuildSettingsAudit(app, rows, "settings-behaviors-narrow", -1,
+                cat: 1, forceW: 680, forceH: 460, behaviorStage: "select"); break;
+            case "settings-behaviors-editor": BuildSettingsAudit(app, rows, "settings-behaviors-editor", -1,
+                cat: 1, behaviorStage: "editor"); break;
+            case "settings-behaviors-record": BuildSettingsAudit(app, rows, "settings-behaviors-record", -1,
+                cat: 1, behaviorStage: "record"); break;
+            case "settings-cap": BuildSettingsAudit(app, rows, "settings-cap", -1, cat: 2); break;
+            case "settings-rec": BuildSettingsAudit(app, rows, "settings-rec", -1, cat: 3); break;
+            case "settings-out": BuildSettingsAudit(app, rows, "settings-out", -1, cat: 4); break;
+            case "settings-edit": BuildSettingsAudit(app, rows, "settings-edit", -1, cat: 5); break;
+            case "settings-pin": BuildSettingsAudit(app, rows, "settings-pin", -1, cat: 6); break;
+            case "settings-look": BuildSettingsAudit(app, rows, "settings-look", -1, cat: 7); break;
+            case "settings-palette": BuildSettingsAudit(app, rows, "settings-palette", -1, cat: 8); break;
+            case "settings-sys": BuildSettingsAudit(app, rows, "settings-sys", -1, cat: 9); break;
 
             // 拖到最小尺寸那一档：MinWidth/MinHeight 是用户能压到的极限，长说明文字在这一档最容易挤。
             case "settings-narrow": BuildSettingsAudit(app, rows, "settings-narrow", 0, forceW: 680, forceH: 460); break;
@@ -102,7 +110,8 @@ static partial class SelfTest
     {
         "settings", "settings-open", "settings-clash", "settings-narrow", "settings-longpath", "settings-longname",
         // 八个分区各扫一遍：分区由 BuildSettingsAudit 的 cat 参数指定（走 _restoreCat）。
-        "settings-cap", "settings-rec", "settings-out", "settings-edit", "settings-pin", "settings-look", "settings-sys",
+        "settings-behaviors", "settings-behaviors-narrow", "settings-behaviors-editor", "settings-behaviors-record",
+        "settings-cap", "settings-rec", "settings-out", "settings-edit", "settings-pin", "settings-look", "settings-palette", "settings-sys",
         "help", "editor", "editor-still", "pin", "ocr", "ocr-msg",
 
         "notice", "welcome", "toast", "countdown", "scroll", "filmstrip",
@@ -114,7 +123,8 @@ static partial class SelfTest
     /// <summary>设置窗：折叠态、展开某条绑定、撞车描边、最小尺寸各扫一遍，
     /// 另外七个分区由 <paramref name="cat"/> 指定，各扫一遍。</summary>
     static void BuildSettingsAudit(Application app, List<string> rows, string surface, int openAt, bool clash = false,
-        double? forceW = null, double? forceH = null, string? savePath = null, string? bindingName = null, int cat = -1)
+        double? forceW = null, double? forceH = null, string? savePath = null, string? bindingName = null, int cat = -1,
+        string? behaviorStage = null)
     {
         var svc = AppHost.Current.Settings!.Current;
         if (savePath != null) svc.AutoSavePath = savePath;
@@ -134,6 +144,28 @@ static partial class SelfTest
             });
         }
         var w = new SettingsWindow();
+        if (behaviorStage != null)
+        {
+            var graph = svc.Gestures.Graph;
+            var select = graph.Add(GestureActions.Select);
+            var edit = graph.Add(GestureActions.EditLastStill);
+            edit.Branches[BehaviorPorts.Saved] = new() { graph.Add(GestureActions.SaveResult).Id, graph.Add(GestureActions.CopyLast).Id };
+            select.Branches[BehaviorPorts.Still] = new() { graph.Add(GestureActions.GrabStill).Id, edit.Id };
+            var record = graph.Add(GestureActions.RecordStart);
+            record.Branches[BehaviorPorts.Done] = new() { graph.Add(GestureActions.EditLastVideo).Id };
+            select.Branches[BehaviorPorts.Record] = new() { record.Id };
+            var entry = new BehaviorFlow { Steps = new() { select.Id } };graph.Flows.Add(entry);
+            var hidden = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+            typeof(SettingsWindow).GetField("_behaviorFlow", hidden)!.SetValue(w, entry.Id);
+            var path = (List<string>)typeof(SettingsWindow).GetField("_behaviorPath", hidden)!.GetValue(w)!;
+            path.Add(select.Id);
+            if (behaviorStage == "editor") path.Add(edit.Id);
+            if (behaviorStage == "record")
+            {
+                path.Add(record.Id);
+                ((Dictionary<string, string>)typeof(SettingsWindow).GetField("_behaviorPorts", hidden)!.GetValue(w)!)[select.Id] = BehaviorPorts.Record;
+            }
+        }
         // 分页靠 _restoreCat 切：Build 末尾就是用它停在原分页的（ShowCat 是 Build 里的局部函数，反射拿不到）。
         // 探针不点侧栏就永远停在第一个分页，其余七页从来没量过。
         if (cat >= 0)

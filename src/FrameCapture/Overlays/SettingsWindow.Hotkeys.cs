@@ -12,7 +12,7 @@ using FrameCapture.Services;
 namespace FrameCapture.Overlays;
 
 // 本 partial 职责：设置 · 快捷键页——总开关 + 逐条快捷键的内联编辑。
-/// <summary>快捷键页：绑定、触发方式、动作链、失败链与界面键位。编辑后立即保存并应用。</summary>
+/// <summary>快捷键页：绑定、触发方式、行为入口与界面键位。编辑后立即保存并应用。</summary>
 public sealed partial class SettingsWindow : Window
 {
     /// <summary>展开着的那条快捷键的 Id，空串表示全部折叠。列表重建后据此把展开位放回去。</summary>
@@ -130,7 +130,7 @@ public sealed partial class SettingsWindow : Window
         return add;
     }
 
-    /// <summary>追加一条空白快捷键：默认序列「选区 → 截图」，键位留空等用户按，新行当场进入录入态。</summary>
+    /// <summary>追加一条快捷键，连接首个行为入口并立即进入录键态。</summary>
     void AddHotkey()
     {
         var b = new GestureBindingDto
@@ -138,7 +138,7 @@ public sealed partial class SettingsWindow : Window
             Id = "user." + Guid.NewGuid().ToString("N")[..8],
             Chord = "",
             Trigger = "Chord",
-            Actions = new[] { GestureActions.ScopeSelect, GestureActions.CaptureStored },
+            EntryId = _settings.Current.Gestures.Graph.Flows.FirstOrDefault()?.Id ?? "",
         };
         _settings.Mutate(s => s.Gestures.Bindings.Add(b));
         AppHost.Current.InstallHotkeys();
@@ -321,7 +321,7 @@ public sealed partial class SettingsWindow : Window
         return box;
     }
 
-    /// <summary>绑定正文：触发方式、动作链与失败链。</summary>
+    /// <summary>绑定正文：触发方式、时长与共享行为入口。</summary>
     /// <param name="b">绑定。</param>
     /// <returns>正文容器。</returns>
     Border HotkeyBody(GestureBindingDto b)
@@ -336,16 +336,44 @@ public sealed partial class SettingsWindow : Window
 
         rows.Children.Add(TriggerRow(b));
 
-        string[] chain = b.Actions;
-        rows.Children.Add(ChainRow(Loc.T(K.Hotkeys.ChainTitle),
-            () => chain,
-            _ => ActionCatalog(),
-            list => { chain = list; b.Actions = list; CommitHotkeys(); }));
-
-        string[] fail = b.OnFail;
-        rows.Children.Add(OverrideRow(Loc.T(K.Hotkeys.OnFailure), () => fail, Loc.T(K.Hotkeys.DefaultNothing),
-            list => { fail = list; b.OnFail = list; CommitHotkeys(); }));
+        if (b.Trigger is "Tap" or "Hold" or "HoldRelease" or "LongPress")
+            rows.Children.Add(GestureTimingRow(K.Behaviors.HoldMs, b.LongPressMs, 100, 5000, value =>
+            {
+                var chord = b.ToBinding()?.Chord;
+                foreach (var peer in _settings.Current.Gestures.Bindings.Where(x => x.ToBinding()?.Chord.Equals(chord) == true))
+                    peer.LongPressMs = value;
+                b.LongPressMs = value; CommitHotkeys();
+            }));
+        if (b.Trigger is "Click" or "DoubleClick" or "TripleClick")
+            rows.Children.Add(GestureTimingRow(K.Behaviors.ClickMs, b.DoubleClickMs, 50, 2000,
+                value => { b.DoubleClickMs = value; CommitHotkeys(); }));
+        rows.Children.Add(BehaviorEntryRow(b.EntryId, id =>
+        {
+            b.EntryId = id;
+            if (id.Length == 0) { b.Actions = b.OnFail = Array.Empty<string>(); b.OnComplete = null; }
+            CommitHotkeys();
+        }));
+        rows.Children.Add(LabeledRow(Loc.T(K.Behaviors.InitialMode), ModeCombo(b.EntryMode, true,
+            mode => { b.EntryMode = mode; CommitHotkeys(); }), Loc.T(K.Actions.ScopeSelectDesc)));
+        rows.Children.Add(BehaviorButton(Loc.T(K.Behaviors.EditCurrent), () =>
+        {
+            _behaviorFlow = b.EntryId; _behaviorPath.Clear(); GotoPage("behaviors"); RenderBehaviors();
+        }));
         return body;
+    }
+
+    FrameworkElement GestureTimingRow(Str label, int current, int min, int max, Action<int> save)
+    {
+        var combo = new ComboBox { Width = 132, IsEditable = true, Text = current.ToString(),
+            HorizontalAlignment = HorizontalAlignment.Left, ToolTip = Loc.T(K.Behaviors.TimingHint) };
+        foreach (int value in new[] { 150, 300, 400, 500, 750, 1000 }) combo.Items.Add(value.ToString());
+        Fluent.StyleCombo(combo);
+        combo.LostKeyboardFocus += (_, _) =>
+        {
+            if (!int.TryParse(combo.Text, out int value)) value = current;
+            value = Math.Clamp(value, min, max); combo.Text = value.ToString(); save(value);
+        };
+        return LabeledRow(Loc.T(label), combo, Loc.T(K.Behaviors.TimingHint));
     }
 
     /// <summary>名字右侧那枚小编辑按钮：只有图标，「改名」这句话交给 tooltip。</summary>

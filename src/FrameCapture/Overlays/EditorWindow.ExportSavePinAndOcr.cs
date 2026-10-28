@@ -26,8 +26,12 @@ public sealed partial class EditorWindow : Window
         StartEncode(null, null, (seq, gif) =>
         {
             Trace.Log($"gif encoded bytes={gif!.Length} frames={seq.Frames.Count}");
-            ClipboardService.SetCapture(seq, gif, idx);
-            SaveService.MaybeSaveArtifact(seq, gif); // 自动保存副本：单帧 PNG / 多帧按 RecordFormat（视频后台编码；关=零副作用）
+            if (!ManagedOutput)
+            {
+                ClipboardService.SetCapture(seq, gif, idx);
+            }
+            SaveService.MaybeSaveArtifact(seq, gif);
+            OutputReady?.Invoke(seq);
             Fluent.CloseWithFade(this);
         });
     }
@@ -240,6 +244,7 @@ public sealed partial class EditorWindow : Window
                 {
                     Trace.Log($"encode failed: {t.Exception}");
                     _hud.Text = t.Exception?.InnerException is InvalidOperationException ? Loc.T(K.Editor.FfmpegNotFound) : Loc.T(K.Editor.ExportFailed);
+                    OutputFailed?.Invoke();
                     return;
                 }
                 onDone(t.Result.seq, t.Result.gif);
@@ -249,6 +254,7 @@ public sealed partial class EditorWindow : Window
         {
             _encoding = false;
             Trace.Log($"encode start failed: {ex}");
+            OutputFailed?.Invoke();
         }
     }
 
@@ -341,7 +347,10 @@ public sealed partial class EditorWindow : Window
     {
         var dlg = NewSaveDialog(Loc.T(K.Common.PngImagePng), $"frame-{_times[_index] / 1000.0:0.0}.png");
         if (dlg.ShowDialog(this) != true) return;
-        BgraImage.SavePng(ExportFrame(_index), EnsureExt(dlg.FileName, ".png"));
+        var frame = ExportFrame(_index);
+        BgraImage.SavePng(frame, EnsureExt(dlg.FileName, ".png"));
+        OutputReady?.Invoke(new CapturedSequence { Frames = new[] { frame }, Region = _seq.Region,
+            MonitorBounds = _seq.MonitorBounds, MonitorDevice = _seq.MonitorDevice });
     }
 
     void SaveRecording()
@@ -378,19 +387,20 @@ public sealed partial class EditorWindow : Window
             }
             var fmt = ext == ".mp4" ? VideoFormat.Mp4 : VideoFormat.WebM;
             path = EnsureExt(path, ext);
-            StartEncode(fmt, path, (_, _) =>
+            StartEncode(fmt, path, (output, _) =>
             {
                 _hud.Text = Loc.F(K.Editor.Exported, System.IO.Path.GetFileName(path));
                 Trace.Log($"video saved {path}");
+                OutputReady?.Invoke(output);
             });
         }
         else
         {
             path = EnsureExt(path, ".gif");
-            StartEncode(null, null, (_, gif) =>
+            StartEncode(null, null, (output, gif) =>
             {
-                try { File.WriteAllBytes(path, gif!); Trace.Log($"gif saved {path} {gif!.Length}B"); }
-                catch (Exception ex) { Trace.Log($"gif save failed: {ex.Message}"); _hud.Text = Loc.T(K.Common.SaveFailed); }
+                try { File.WriteAllBytes(path, gif!); Trace.Log($"gif saved {path} {gif!.Length}B"); OutputReady?.Invoke(output); }
+                catch (Exception ex) { Trace.Log($"gif save failed: {ex.Message}"); _hud.Text = Loc.T(K.Common.SaveFailed); OutputFailed?.Invoke(); }
                 Show(_index);
             });
         }

@@ -65,7 +65,13 @@ try {
             if ($ed -notmatch "not-found") { break }
         }
         if ($ed -match "not-found") { Write-Host "MEM-PROBE FAIL 第 $i 轮编辑器没出现"; exit 1 }
-        & $shot keyw "FrameCapture Editor" 27 2>$null | Out-Null
+        $closed = $false
+        for ($w = 0; $w -lt 24; $w++) {
+            if ((& $shot rect "FrameCapture Editor" 2>$null) -match 'not-found') { $closed = $true; break }
+            if ($w % 6 -eq 0) { Invoke-FcEditorKey $exe 27 }
+            Start-Sleep -Milliseconds 100
+        }
+        if (-not $closed) { Write-Host "MEM-PROBE FAIL 第 $i 轮编辑器未关闭"; exit 1 }
         Start-Sleep -Milliseconds 1200
         $m = Snap ("3-cycle-{0}" -f $i)
         if (-not $m) { Write-Host "MEM-PROBE FAIL 第 $i 轮之后进程不见了"; exit 1 }

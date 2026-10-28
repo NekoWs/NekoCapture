@@ -363,7 +363,8 @@ static partial class SelfTest
         // Mica 在场时窗口底是透明的，拍出来会没底色，这里按窗口底色平涂。
         w.WindowStartupLocation = WindowStartupLocation.Manual;
         w.Left = -20000; w.Top = -20000;
-        w.Background = new System.Windows.Media.SolidColorBrush(FrameCapture.Core.Theme.WindowBg);
+        w.Background = FrameCapture.Core.Theme.WindowBgSolidBrush;
+        if (root is System.Windows.Controls.Border renderRoot) renderRoot.Background = FrameCapture.Core.Theme.WindowBgSolidBrush;
         w.Show();
         PumpMs(400);
         var src = PresentationSource.FromVisual(w);
@@ -579,11 +580,9 @@ static partial class SelfTest
     /// <returns>命中的 Border；没有则 null。</returns>
     static System.Windows.DependencyObject? FindNavText(System.Windows.DependencyObject node, string text)
     {
-        if (node is System.Windows.Controls.Border b && b.Child is System.Windows.Controls.Grid g)
-            foreach (var ch in g.Children)
-                if (ch is System.Windows.Controls.StackPanel sp)
-                    foreach (var c2 in sp.Children)
-                        if (c2 is System.Windows.Controls.TextBlock tb && tb.Text == text) return b;
+        if (node is System.Windows.Controls.Border b && b.Focusable && b.Child is System.Windows.Controls.StackPanel sp)
+            foreach (var child in sp.Children)
+                if (child is System.Windows.Controls.TextBlock tb && (tb.Tag as string) == "settings-page" && tb.Text == text) return b;
         int n = System.Windows.Media.VisualTreeHelper.GetChildrenCount(node);
         for (int i = 0; i < n; i++)
         {
@@ -1146,6 +1145,12 @@ static partial class SelfTest
     {
         Console.OutputEncoding = System.Text.Encoding.UTF8;
         SettingsScratch();
+        if (args.Length == 1 && args[0] == "behavior-policy")
+        {
+            BehaviorPolicy();
+            Console.WriteLine($"RESULT PASS={pass} FAIL={fail}");
+            return fail == 0 ? 0 : 1;
+        }
         if (args.Length == 1 && args[0] == "switch-policy")
         {
             SelectionSwitchPolicy();
@@ -1181,7 +1186,7 @@ static partial class SelfTest
             return RenderPicker(args[1], args.Length < 3 || args[2] != "layered");
         if (args.Length >= 2 && args[0] == "rendersettings")
         {
-            Str[] catNames = { K.Settings.Hotkeys, K.Common.Capture, K.Common.Recording, K.Settings.Output, K.Common.Editor, K.Common.Pin, K.Common.Appearance, K.Common.Palette, K.Settings.System };
+            Str[] catNames = { K.Settings.Hotkeys, K.Behaviors.Title, K.Common.Capture, K.Common.Recording, K.Settings.Output, K.Common.Editor, K.Common.Pin, K.Common.Appearance, K.Common.Palette, K.Settings.System };
             int ci = args.Length >= 3 && int.TryParse(args[2], out var sc) ? sc : 0;
             return RenderSettings(args[1], catNames[Math.Clamp(ci, 0, catNames.Length - 1)], ScaleArg(args),
                 args.Contains("open2") ? 1 : args.Contains("open") ? 0 : -1, args.Contains("adv"), args.Contains("clash"),
@@ -1200,6 +1205,15 @@ static partial class SelfTest
             return RenderDrag(args[1], new System.Windows.Point(dx, dy));
         }
         if (args.Length == 3 && args[0] == "stitch") return StitchMode(args[1], args[2]);
+        if (args.Length == 1 && args[0] == "behaviors")
+        {
+            var behaviorApp = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
+            Fluent.ApplyGlobalStyles();
+            BehaviorPolicy();
+            BehaviorIntegration();
+            Console.WriteLine($"RESULT PASS={pass} FAIL={fail}");
+            return fail == 0 ? 0 : 1;
+        }
         if (args.Length == 1 && args[0] == "chains")
         {
             var chainApp = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
@@ -6797,7 +6811,7 @@ static partial class SelfTest
         {
             var sw = new FrameCapture.Overlays.SettingsWindow();
             var np = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
-            typeof(FrameCapture.Overlays.SettingsWindow).GetField("_restoreCat", np)!.SetValue(sw, 6);   // 外观
+            typeof(FrameCapture.Overlays.SettingsWindow).GetField("_restoreCat", np)!.SetValue(sw, 7);   // 外观
             typeof(FrameCapture.Overlays.SettingsWindow).GetMethod("Build", np)!.Invoke(sw, null);
             sw.Left = -3000; sw.Top = -3000; sw.ShowInTaskbar = false; sw.Show(); PumpMs(200);
             var segs = new List<System.Windows.Controls.Border>();
@@ -6825,7 +6839,7 @@ static partial class SelfTest
             string before = svc.Current.AutoSavePath;
             var sw = new FrameCapture.Overlays.SettingsWindow();
             var np = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
-            typeof(FrameCapture.Overlays.SettingsWindow).GetField("_restoreCat", np)!.SetValue(sw, 3);   // 产物
+            typeof(FrameCapture.Overlays.SettingsWindow).GetField("_restoreCat", np)!.SetValue(sw, 4);   // 产物
             typeof(FrameCapture.Overlays.SettingsWindow).GetMethod("Build", np)!.Invoke(sw, null);
             sw.Left = -3000; sw.Top = -3000; sw.ShowInTaskbar = false; sw.Show(); PumpMs(200);
             var boxes = new List<System.Windows.Controls.TextBox>();
@@ -7170,7 +7184,7 @@ static partial class SelfTest
         {
             var npLang = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
             var swLang = new FrameCapture.Overlays.SettingsWindow();
-            typeof(FrameCapture.Overlays.SettingsWindow).GetField("_restoreCat", npLang)!.SetValue(swLang, 6);   // 外观
+            typeof(FrameCapture.Overlays.SettingsWindow).GetField("_restoreCat", npLang)!.SetValue(swLang, 7);   // 外观
             typeof(FrameCapture.Overlays.SettingsWindow).GetMethod("Build", npLang)!.Invoke(swLang, null);
             swLang.WindowStartupLocation = WindowStartupLocation.Manual;
             swLang.Left = -20000; swLang.Top = -20000; swLang.ShowInTaskbar = false;
@@ -7332,7 +7346,7 @@ static partial class SelfTest
                     Chk($"T247-preset-fill-ink-{p.Id}", fill >= 4.5, $"{p.Id} 的强调色上压字对比 {fill:F2}");
                 }
                 var swPre = new FrameCapture.Overlays.SettingsWindow();
-                tyPre.GetField("_restoreCat", npPre)!.SetValue(swPre, 7);   // 配色
+                tyPre.GetField("_restoreCat", npPre)!.SetValue(swPre, 8);   // 配色
                 tyPre.GetMethod("Build", npPre)!.Invoke(swPre, null);
                 swPre.WindowStartupLocation = WindowStartupLocation.Manual;
                 swPre.Left = -20000; swPre.Top = -20000; swPre.ShowInTaskbar = false;
@@ -7371,7 +7385,7 @@ static partial class SelfTest
             var npPg = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
             var tyPg = typeof(FrameCapture.Overlays.SettingsWindow);
             var winPg = new FrameCapture.Overlays.SettingsWindow();
-            tyPg.GetField("_restoreCat", npPg)!.SetValue(winPg, 7);
+            tyPg.GetField("_restoreCat", npPg)!.SetValue(winPg, 8);
             tyPg.GetMethod("Build", npPg)!.Invoke(winPg, null);
             winPg.WindowStartupLocation = WindowStartupLocation.Manual;
             winPg.Left = -20000; winPg.Top = -20000; winPg.ShowInTaskbar = false;
@@ -7381,7 +7395,7 @@ static partial class SelfTest
             CollectTyped(winPg, typeof(System.Windows.Controls.ScrollViewer), svsPg);
             var hostPg = (svsPg.Count > 0 ? (svsPg[0] as System.Windows.Controls.ScrollViewer)?.Content : null) as System.Windows.Controls.Grid;
             var pages = hostPg?.Children.Cast<FrameworkElement>().ToList() ?? new List<FrameworkElement>();
-            Chk("T248-pages-built", pages.Count >= 9, $"分页 {pages.Count} 个");
+            Chk("T248-pages-built", pages.Count == 10, $"分页 {pages.Count} 个");
 
             List<System.Windows.DependencyObject> Of(int page, Type t)
             {
@@ -7391,9 +7405,9 @@ static partial class SelfTest
             }
 
             // 强调色：色块与十六进制都在「配色」页（第 8 页），外观页上没有它
-            var swatches = Of(7, typeof(System.Windows.Controls.Border)).OfType<System.Windows.Controls.Border>()
+            var swatches = Of(8, typeof(System.Windows.Controls.Border)).OfType<System.Windows.Controls.Border>()
                 .Where(b => (b.Tag as string) == "settings-accent-swatch").ToList();
-            var hexes = Of(7, typeof(System.Windows.Controls.TextBlock)).OfType<System.Windows.Controls.TextBlock>()
+            var hexes = Of(8, typeof(System.Windows.Controls.TextBlock)).OfType<System.Windows.Controls.TextBlock>()
                 .Where(t => (t.Tag as string) == "settings-accent-hex").ToList();
             Chk("T248-accent-entry-present", swatches.Count == 1 && hexes.Count == 1,
                 $"配色页上强调色：色块 {swatches.Count} 枚，十六进制 {hexes.Count} 枚");
@@ -7405,18 +7419,18 @@ static partial class SelfTest
             Chk("T248-accent-entry-shows-hex", hexes.Count == 1 && hexes[0].Text == HexColor.Format(Theme.Accent),
                 $"色块旁边写着当前值：{hexes.FirstOrDefault()?.Text}");
             Chk("T248-accent-not-on-appearance",
-                Of(6, typeof(System.Windows.Controls.Border)).OfType<System.Windows.Controls.Border>()
+                Of(7, typeof(System.Windows.Controls.Border)).OfType<System.Windows.Controls.Border>()
                     .All(b => (b.Tag as string) != "settings-accent-swatch"),
                 "外观页上没有单独的强调色");
 
             // 时长：截图页（第 2 页）上两枚可输入下拉框，候选档都在，框里写着当前值。
             // 先切到那一页再找——收起的页不参与排版，模板还没套上去，模板里的部件一个都取不到。
             var navRowsPg = tyPg.GetField("_navRows", npPg)!.GetValue(winPg) as List<System.Windows.Controls.Border>;
-            navRowsPg![1].RaiseEvent(new System.Windows.Input.MouseButtonEventArgs(
+            navRowsPg![2].RaiseEvent(new System.Windows.Input.MouseButtonEventArgs(
                 System.Windows.Input.Mouse.PrimaryDevice, 0, System.Windows.Input.MouseButton.Left)
-            { RoutedEvent = System.Windows.UIElement.MouseLeftButtonDownEvent, Source = navRowsPg[1] });
+            { RoutedEvent = System.Windows.UIElement.MouseLeftButtonDownEvent, Source = navRowsPg[2] });
             PumpMs(520);
-            var combos = Of(1, typeof(System.Windows.Controls.ComboBox)).OfType<System.Windows.Controls.ComboBox>().ToList();
+            var combos = Of(2, typeof(System.Windows.Controls.ComboBox)).OfType<System.Windows.Controls.ComboBox>().ToList();
             var delayBox = combos.FirstOrDefault(c => (c.Tag as string) == "settings-duration-delay");
             var toastBox = combos.FirstOrDefault(c => (c.Tag as string) == "settings-duration-toast");
             Chk("T252-duration-boxes", delayBox != null && toastBox != null,
@@ -7448,23 +7462,23 @@ static partial class SelfTest
             delayBox.IsDropDownOpen = false;
             PumpMs(140);
             Chk("T252-duration-shows-current", delayBox != null && double.TryParse(delayBox.Text, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out _), $"延时的框里写着当前值且只有数字：{delayBox?.Text}");
-            Chk("T252-duration-unit-outside", delayBox != null && delayBox.Width <= 62 && DurationUnitOf(pages[1], "settings-duration-delay") == Loc.T(K.Settings.SecondsUnit), $"单位在框外：框宽 {delayBox?.Width}，右侧写着「{DurationUnitOf(pages[1], "settings-duration-delay")}」");
+            Chk("T252-duration-unit-outside", delayBox != null && delayBox.Width <= 62 && DurationUnitOf(pages[2], "settings-duration-delay") == Loc.T(K.Settings.SecondsUnit), $"单位在框外：框宽 {delayBox?.Width}，右侧写着「{DurationUnitOf(pages[2], "settings-duration-delay")}」");
 
             // 键位录入全在「快捷键」页：两条绑定的键帽 + 确认 / 取消 + 复制键，都在带小标题的那张卡里。
             // 编辑器键位那几组也在这页上，所以不数总数，认的是这枚三行各自的标签。
-            var keysCap = Of(1, typeof(FrameCapture.Core.ChordCaptureBox));
+            var keysCap = Of(2, typeof(FrameCapture.Core.ChordCaptureBox));
             var hotTexts = Of(0, typeof(System.Windows.Controls.TextBlock)).OfType<System.Windows.Controls.TextBlock>()
                 .Select(t => t.Text).ToList();
             Chk("T251-ui-keys-on-hotkeys-page",
-                hotTexts.Contains(Loc.T(K.Capture.ConfirmSelection)) && hotTexts.Contains(Loc.T(K.Capture.CancelSelection))
+                hotTexts.Contains(Loc.T(K.Capture.ConfirmSelection)) && hotTexts.Contains(Loc.T(K.Common.CancelSelection))
                     && hotTexts.Contains(Loc.T(K.Settings.CopyKey)),
-                $"快捷键页上找得到「{Loc.T(K.Capture.ConfirmSelection)}」「{Loc.T(K.Capture.CancelSelection)}」「{Loc.T(K.Settings.CopyKey)}」三行");
+                $"快捷键页上找得到「{Loc.T(K.Capture.ConfirmSelection)}」「{Loc.T(K.Common.CancelSelection)}」「{Loc.T(K.Settings.CopyKey)}」三行");
             Chk("T251-keys-not-on-capture-page", keysCap.Count == 0,
                 $"截图页上还剩 {keysCap.Count} 个键位框");
             Chk("T251-ui-keys-labelled", hotTexts.Contains(Loc.T(K.Hotkeys.UiKeys)),
                 "快捷键页给这组键位写了小标题");
             // 「恢复出厂配色」与卡片同一族：圆角、描边、投影都对得上，不是一块没有边的灰条
-            var restoreBtn = Of(7, typeof(System.Windows.Controls.Border)).OfType<System.Windows.Controls.Border>()
+            var restoreBtn = Of(8, typeof(System.Windows.Controls.Border)).OfType<System.Windows.Controls.Border>()
                 .FirstOrDefault(b => (b.Tag as string) == "settings-restore");
             Chk("T261-restore-looks-like-card",
                 restoreBtn != null && restoreBtn.CornerRadius.TopLeft == 8 && restoreBtn.BorderThickness.Left == 1
@@ -7472,7 +7486,7 @@ static partial class SelfTest
                     && restoreBtn.Effect is System.Windows.Media.Effects.DropShadowEffect,
                 "恢复出厂配色：圆角 8、1px 描边、带投影，与卡片同一族");
             // 预览卡里三枚芯片的右间距一致：中间那枚原本一点右间距都没有，两枚贴在一起
-            System.Windows.Controls.Border? ChipOf(Str s) => Of(7, typeof(System.Windows.Controls.Border))
+            System.Windows.Controls.Border? ChipOf(Str s) => Of(8, typeof(System.Windows.Controls.Border))
                 .OfType<System.Windows.Controls.Border>()
                 .FirstOrDefault(b => b.Child is System.Windows.Controls.TextBlock tb && tb.Text == Loc.T(s));
             var chipOnB = ChipOf(K.Settings.Accent);
@@ -7481,8 +7495,8 @@ static partial class SelfTest
                 chipOnB != null && chipOffB != null && chipOnB.Margin.Right == 6 && chipOffB.Margin.Right == 6,
                 $"预览芯片右间距：{chipOnB?.Margin.Right} / {chipOffB?.Margin.Right}");
             // 新增的两枚开关各在它该在的那一页上，且默认都是开
-            var capTexts = Of(1, typeof(System.Windows.Controls.TextBlock)).OfType<System.Windows.Controls.TextBlock>().Select(t => t.Text).ToList();
-            var recTexts = Of(2, typeof(System.Windows.Controls.TextBlock)).OfType<System.Windows.Controls.TextBlock>().Select(t => t.Text).ToList();
+            var capTexts = Of(2, typeof(System.Windows.Controls.TextBlock)).OfType<System.Windows.Controls.TextBlock>().Select(t => t.Text).ToList();
+            var recTexts = Of(3, typeof(System.Windows.Controls.TextBlock)).OfType<System.Windows.Controls.TextBlock>().Select(t => t.Text).ToList();
             Chk("T263-rightclick-toggle-on-capture-page", capTexts.Contains(Loc.T(K.Settings.RightClickCancelsPicker)),
                 "「右键关闭选区」在截图页上");
             Chk("T263-startclick-toggle-on-record-page", recTexts.Contains(Loc.T(K.Settings.StartRecordingAfterSelecting)),
@@ -7583,8 +7597,8 @@ static partial class SelfTest
             // 提权交接回来的页名解析：--page system 要落到「系统」那一页
             var parsePage = typeof(FrameCapture.Overlays.SettingsWindow).GetMethod("ParsePage",
                 System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!;
-            Chk("T266-page-arg-system", (int)parsePage.Invoke(null, new object?[] { "system" })! == 8,
-                "页名 system 落到第 9 页（系统）");
+            Chk("T266-page-arg-system", (int)parsePage.Invoke(null, new object?[] { "system" })! == 9,
+                "页名 system 落到系统页");
             Chk("T266-page-arg-index", (int)parsePage.Invoke(null, new object?[] { "3" })! == 3, "下标 3 直接当页序");
             Chk("T266-page-arg-junk", (int)parsePage.Invoke(null, new object?[] { "nonsense" })! == -1
                 && (int)parsePage.Invoke(null, new object?[] { null })! == -1, "认不出的页名与空值都回 -1");
@@ -7757,7 +7771,7 @@ static partial class SelfTest
             try
             {
                 var winDu = new FrameCapture.Overlays.SettingsWindow();
-                tyDu.GetField("_restoreCat", npDu)!.SetValue(winDu, 1);   // 截图
+                tyDu.GetField("_restoreCat", npDu)!.SetValue(winDu, 2);   // 截图
                 tyDu.GetMethod("Build", npDu)!.Invoke(winDu, null);
                 winDu.WindowStartupLocation = WindowStartupLocation.Manual;
                 winDu.Left = -20000; winDu.Top = -20000; winDu.ShowInTaskbar = false;
@@ -7950,7 +7964,7 @@ static partial class SelfTest
             var svsTk = new List<System.Windows.DependencyObject>();
             CollectTyped(winTk, typeof(System.Windows.Controls.ScrollViewer), svsTk);
             var hostTk = (svsTk.Count > 0 ? (svsTk[0] as System.Windows.Controls.ScrollViewer)?.Content : null) as System.Windows.Controls.Grid;
-            var pageCap = hostTk?.Children.Count > 1 ? hostTk.Children[1] as FrameworkElement : null;
+            var pageCap = hostTk?.Children.Count > 2 ? hostTk.Children[2] as FrameworkElement : null;
             var textsTk = new List<System.Windows.DependencyObject>();
             if (pageCap != null) CollectTyped(pageCap, typeof(System.Windows.Controls.TextBlock), textsTk);
             var rgbChip = textsTk.OfType<System.Windows.Controls.TextBlock>()
@@ -8120,6 +8134,8 @@ static partial class SelfTest
 
         SelectionSwitchPolicy();
         OrthogonalChains();
+        BehaviorPolicy();
+        BehaviorIntegration();
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");
         return fail == 0 ? 0 : 1;
     }

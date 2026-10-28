@@ -10,10 +10,7 @@ public static partial class K
     public static partial class Help
     {
         public static readonly Str AfterCapture = new("help.afterCapture", "截图后", "After capture");
-        public static readonly Str AfterCaptureIsSetPer = new(
-            "help.afterCaptureIsSetPer",
-            "选区上方可切换截图与录制，控制随后第一个捕获步骤。其余步骤按链顺序执行，编辑捕获结果跟随本次实际产物。",
-            "The selection switch controls the next capture step. Other steps run in order; Edit capture result follows the actual output.");
+        public static readonly Str AfterCaptureIsSetPer = new("help.afterCaptureIsSetPer", "快捷键进入行为，选区上方按钮决定截图或录制分支。点击动作卡片配置事件出口，录制停止、编辑器保存和关闭后分别执行所配动作。", "Shortcuts enter behaviors. The selection switch chooses the screenshot or recording branch. Open action cards to configure exits after recording stops or the editor saves or closes.");
         public static readonly Str AfterRecording = new("help.afterRecording", "录完", "After recording");
         public static readonly Str AnyRectangleTheWheelResizes = new(
             "help.anyRectangleTheWheelResizes",

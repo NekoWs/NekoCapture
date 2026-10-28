@@ -10,7 +10,6 @@ using Loc = FrameCapture.Core.Loc;
 using K = FrameCapture.Core.K;
 
 namespace FrameCapture.Overlays;
-
 /// <summary>
 /// 全屏区域选择器：拖框选择，悬停窗口吸附（单击即选），Esc 取消。
 /// </summary>
@@ -31,7 +30,8 @@ public sealed partial class RegionPickerWindow : Window
     private readonly bool _snapContent;
     private readonly bool _windowCapture; // 点吸附窗口时走「真·窗口截图」
     private readonly bool _magnifier;
-    private readonly bool _freeze;       // 选区时定格画面（显示/放大镜/截图都用定格帧）
+    private readonly bool _freeze;
+    readonly bool _showModeSwitch;
 
     /// <summary>整屏定格帧在建窗时就已到手 → 本窗按不透明全屏窗实现，不做分层透明窗。</summary>
     private readonly bool _opaqueFreeze;
@@ -212,8 +212,10 @@ public sealed partial class RegionPickerWindow : Window
     /// 窗口出现即有内容；null 且 <c>freeze</c> 为 true 则本窗做分层透明，定格帧在 Show 之后异步补。</param>
     /// <param name="recordMode">初始录制模式。</param>
     /// <param name="rightClickCancel">右键是否取消选区。</param>
-    public RegionPickerWindow(MonitorInfo monitor, RectI? existing, bool snapContent = false, bool magnifier = false, Core.ColorCopyFormat colorFormat = Core.ColorCopyFormat.Hex, bool windowCapture = false, bool freeze = false, int pregrabMax = 0, bool windowShadow = false, CapturedFrame? frozenScreen = null, bool recordMode = false, bool rightClickCancel = true)
+    /// <param name="showModeSwitch">是否显示截图与录制模式按钮。</param>
+    public RegionPickerWindow(MonitorInfo monitor, RectI? existing, bool snapContent = false, bool magnifier = false, Core.ColorCopyFormat colorFormat = Core.ColorCopyFormat.Hex, bool windowCapture = false, bool freeze = false, int pregrabMax = 0, bool windowShadow = false, CapturedFrame? frozenScreen = null, bool recordMode = false, bool rightClickCancel = true, bool showModeSwitch = true)
     {
+        _showModeSwitch = showModeSwitch;
         // 覆盖层不需要文本输入：禁用输入法，避免拼音拦截快捷键
         InputMethod.SetIsInputMethodEnabled(this, false);
         _monitor = monitor;
@@ -531,8 +533,8 @@ public sealed partial class RegionPickerWindow : Window
         // Esc/Enter/C/F/Tab 全部由 HotkeyManager 全局钩子代收（见类末 OnPickerKey）。
         // 右键关整层：与 Esc 同一条出口，设置里可以关掉（网页里想右键复制时不至于把选区弄丢）
         MouseRightButtonUp += (_, _) => { if (_rightClickCancel) Finish(null); };
-        // 模式开关常显在屏幕上方：它不属于某个选区，还没拖框就要能切
-        BuildModeSwitch(Width);
+        // 启用的模式开关位于屏幕上方，尚未选区时即可切换。
+        if (_showModeSwitch) BuildModeSwitch(Width);
         MouseLeftButtonDown += OnDown;
         MouseMove += OnMove;
         MouseLeftButtonUp += OnUp;

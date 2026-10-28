@@ -89,7 +89,7 @@ public sealed partial class SettingsWindow : Window
     {
         if (string.IsNullOrWhiteSpace(page)) return -1;
         var raw = page.Trim().ToLowerInvariant();
-        string[] names = { "hotkeys", "capture", "record", "output", "editor", "pin", "appearance", "palette", "system" };
+        string[] names = { "hotkeys", "behaviors", "capture", "record", "output", "editor", "pin", "appearance", "palette", "system" };
         int at = Array.IndexOf(names, raw);
         if (at >= 0) return at;
         return int.TryParse(raw, out var n) && n >= 0 && n < names.Length ? n : -1;
@@ -124,7 +124,7 @@ public sealed partial class SettingsWindow : Window
         var raw = Environment.GetEnvironmentVariable("FC_SETTINGS_PAGE");
         if (string.IsNullOrWhiteSpace(raw)) return -1;
         raw = raw.Trim().ToLowerInvariant();
-        string[] names = { "hotkeys", "capture", "record", "output", "editor", "pin", "appearance", "palette", "system" };
+        string[] names = { "hotkeys", "behaviors", "capture", "record", "output", "editor", "pin", "appearance", "palette", "system" };
         int at = Array.IndexOf(names, raw);
         return at >= 0 ? at : int.TryParse(raw, out var n) ? n : -1;
     }
@@ -171,6 +171,8 @@ public sealed partial class SettingsWindow : Window
         BuildEditorKeys(panel);
 
         #region 截图
+        panel = Cat(Loc.T(K.Behaviors.Title), "\uE7A8");
+        BuildBehaviors(panel);
         panel = Cat(Loc.T(K.Common.Capture), "\uE7A8");
         panel.Children.Add(ToggleRow("\uE740", Loc.T(K.Settings.SnapToControls), Loc.T(K.Settings.HoveringSnapsToASpecific),
             _settings.Current.SnapContentArea, v => _settings.Mutate(s => s.SnapContentArea = v)));

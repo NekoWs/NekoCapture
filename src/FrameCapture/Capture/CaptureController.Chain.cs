@@ -118,13 +118,14 @@ public sealed partial class CaptureController
     static Task WaitPickerExitAsync()
     {
         var completion = Completion();
-        var timer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(PickerExitMs) };
+        var timer = new System.Windows.Threading.DispatcherTimer(System.Windows.Threading.DispatcherPriority.Normal)
+            { Interval = TimeSpan.FromMilliseconds(PickerExitMs) };
         timer.Tick += (_, _) => { timer.Stop(); completion.TrySetResult(true); };
         timer.Start();
         return completion.Task;
     }
 
-    async Task<bool> RunChainStepAsync(string name, RunContext context, bool initialRecordMode)
+    async Task<bool> RunChainStepAsync(string name, RunContext context, bool initialRecordMode, bool showModeSwitch = true)
     {
         if (_disposed || (context.Cancelled && GestureActions.InfoOf(name).Class != VerbClass.Terminal)) return false;
         var values = (context.Region != null ? RunValue.Region : RunValue.None)
@@ -158,7 +159,7 @@ public sealed partial class CaptureController
                 }
                 if (State != Phase.Idle || _scrollTimer != null || _delayTimer != null) return false;
                 _selectionCompletion = Completion();
-                OpenChainPicker(context, initialRecordMode);
+                OpenChainPicker(context, initialRecordMode, showModeSwitch);
                 bool selected = await _selectionCompletion.Task;
                 if (selected) await WaitPickerExitAsync();
                 return selected;

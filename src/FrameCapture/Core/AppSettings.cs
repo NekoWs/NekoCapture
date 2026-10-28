@@ -415,7 +415,7 @@ public sealed class SettingsService
             return defaults;
         }
         int revision = loaded.Gestures?.ChainRevision ?? 0;
-        bool migrate = revision < GestureConfig.CurrentChainRevision || loaded.Gestures?.Bindings.Any(b => b.OnComplete != null
+        bool migrate = loaded.Gestures?.GraphRevision < 1 || revision < GestureConfig.CurrentChainRevision || loaded.Gestures?.Bindings.Any(b => b.OnComplete != null
             || (b.Actions ?? Array.Empty<string>()).Any(n => n != GestureActions.Canonical(n))) == true;
         bool backedUp = false;
         if (migrate)
@@ -433,9 +433,7 @@ public sealed class SettingsService
         {
             try
             {
-                var tmp = FilePath + ".tmp";
-                File.WriteAllText(tmp, JsonSerializer.Serialize(loaded, JsonOpts));
-                File.Move(tmp, FilePath, overwrite: true);
+                WriteAtomic(loaded);
             }
             catch (Exception ex) { Trace.Log($"settings migration save failed: {ex.Message}"); }
         }
@@ -455,12 +453,26 @@ public sealed class SettingsService
             try
             {
                 Directory.CreateDirectory(Dir);
-                var tmp = FilePath + ".tmp";
-                File.WriteAllText(tmp, JsonSerializer.Serialize(settings, JsonOpts));
-                File.Move(tmp, FilePath, overwrite: true);
+                WriteAtomic(settings);
             }
             catch { /* 保存失败不影响运行 */ }
         }
+    }
+
+    static void WriteAtomic(AppSettings settings)
+    {
+        string tmp = FilePath + "." + Guid.NewGuid().ToString("N") + ".tmp";
+        try
+        {
+            File.WriteAllText(tmp, JsonSerializer.Serialize(settings, JsonOpts));
+            for (int attempt = 0; ; attempt++)
+            {
+                try { File.Move(tmp, FilePath, overwrite: true); return; }
+                catch (Exception ex) when (attempt < 5 && ex is IOException or UnauthorizedAccessException)
+                { Thread.Sleep(10 << attempt); }
+            }
+        }
+        finally { try { if (File.Exists(tmp)) File.Delete(tmp); } catch { } }
     }
 
     DateTime _selfWriteUtc = DateTime.MinValue;

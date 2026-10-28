@@ -84,7 +84,7 @@ public sealed partial class SettingsWindow : Window
 
     // 取消选区：可调整的框出现后，按这枚键把这一框作废
     FrameworkElement CancelKeyRow() =>
-        KeyRow(Loc.T(K.Capture.CancelSelection), Loc.T(K.Settings.ConfirmCancelKeysTip),
+        KeyRow(Loc.T(K.Common.CancelSelection), Loc.T(K.Settings.ConfirmCancelKeysTip),
             () => _settings.Current.PickerCancelChord,
             c => _settings.Mutate(s => s.PickerCancelChord = c));
 

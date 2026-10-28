@@ -9,6 +9,7 @@ public static partial class K
     /// <summary>两个界面以上共用的文案的文案。</summary>
     public static partial class Common
     {
+        public static readonly Str CancelSelection = new("capture.cancelSelection", "取消选区", "Cancel the selection");
         public static readonly Str Appearance = new("common.appearance", "外观", "Appearance");
         public static readonly Str Confirm = new("common.confirm", "确认", "Confirm");
     public static readonly Str Cancel = new("common.cancel", "取消", "Cancel");

@@ -25,6 +25,12 @@ function Restart-App {
 
 # 钉成统一测试手势集（返回用户原设置原文，末尾还原）
 $bak = Set-FcTestGestureConfig
+# 手势时长断言使用固定帧率的 GDI，帧数不依赖 WGC 的画面变化通知。
+$fixed = Get-FcSettings
+$fixed | Add-Member -Force UseWgc $false
+$fixed | Add-Member -Force Fps 30
+$fixed | Add-Member -Force FollowMonitorRefresh $false
+$fixed | ConvertTo-Json -Depth 32 | Set-Content (Get-FcSettingsPath) -Encoding UTF8
 $capHk = 'Ctrl+Shift+G'
 "capture_key=$capHk (test gesture set)"
 
@@ -58,7 +64,7 @@ try {
     $f3 = Last-Frames $n3
     "hold1300: frames=$f3"
     Invoke-FcEditorKey $exe 27; Start-Sleep 0.6
-    $longOk = $f3 -gt 1
+    $longOk = ($f3 -gt 1) -and ($f3 -gt $f2)
 }
 finally {
     Get-Process FrameCapture -ErrorAction SilentlyContinue | Stop-Process -Force
