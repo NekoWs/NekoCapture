@@ -143,6 +143,7 @@ static partial class SelfTest
             Chk("T273-graph-ui-uses-native-chain-editor", editors.Cast<object>().Any(e => e.GetType().Name == "ChainEditor"));
             var boxes = new List<DependencyObject>();CollectTyped((DependencyObject)typeof(SettingsWindow).GetField("_behaviorPanel", flags)!.GetValue(settings)!, typeof(ChordCaptureBox), boxes);
             Chk("T273-graph-ui-key-entry-stays-on-hotkeys", boxes.Count == 0);
+            BehaviorNavigationChecks(settings, selection);
             typeof(SettingsWindow).GetField("_behaviorFlow", flags)!.SetValue(settings, editing.Id);
             ((List<string>)typeof(SettingsWindow).GetField("_behaviorPath", flags)!.GetValue(settings)!).Clear();
             typeof(SettingsWindow).GetMethod("RenderBehaviors", flags)!.Invoke(settings, null);

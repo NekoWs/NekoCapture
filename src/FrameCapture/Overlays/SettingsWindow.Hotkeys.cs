@@ -364,10 +364,10 @@ public sealed partial class SettingsWindow : Window
 
     FrameworkElement GestureTimingRow(Str label, int current, int min, int max, Action<int> save)
     {
-        var combo = new ComboBox { Width = 132, IsEditable = true, Text = current.ToString(),
+        var combo = new ComboBox { IsEditable = true, Text = current.ToString(),
             HorizontalAlignment = HorizontalAlignment.Left, ToolTip = Loc.T(K.Behaviors.TimingHint) };
         foreach (int value in new[] { 150, 300, 400, 500, 750, 1000 }) combo.Items.Add(value.ToString());
-        Fluent.StyleCombo(combo);
+        Fluent.StyleComboEditable(combo);
         combo.LostKeyboardFocus += (_, _) =>
         {
             if (!int.TryParse(combo.Text, out int value)) value = current;
@@ -460,7 +460,7 @@ public sealed partial class SettingsWindow : Window
     /// <returns>一行容器。</returns>
     FrameworkElement TriggerRow(GestureBindingDto b)
     {
-        var combo = new ComboBox { Width = 132, HorizontalAlignment = HorizontalAlignment.Left };
+        var combo = new ComboBox { HorizontalAlignment = HorizontalAlignment.Left };
         Fluent.StyleCombo(combo);
         string[] kinds =
         {

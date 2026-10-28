@@ -104,7 +104,6 @@ public sealed partial class SettingsWindow : Window
 
         var combo = new ComboBox
         {
-            Width = 60,   // 三位数 + 箭头；「秒」搬出去之后不必再给汉字留位
             Tag = tag,
             VerticalAlignment = VerticalAlignment.Center,
             ToolTip = tip,
@@ -279,7 +278,7 @@ public sealed partial class SettingsWindow : Window
 
         // 开关+固定音 → 三选下拉「关闭 / 轻弹 / 自定义…」。选「自定义…」弹文件选择窗（ogg/wav）；
         // 取消则回退上一个选项，绝不出现「选了自定义却没文件」的悬空态。
-        var combo = new ComboBox { Width = 118, VerticalAlignment = VerticalAlignment.Center };
+        var combo = new ComboBox { VerticalAlignment = VerticalAlignment.Center };
         Fluent.StyleCombo(combo);
         combo.Items.Add(Loc.T(K.Settings.NoSound));
         combo.Items.Add(Loc.T(K.Settings.Chime));

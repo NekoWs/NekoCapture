@@ -15,6 +15,7 @@ public sealed partial class SettingsWindow
     readonly List<string> _behaviorPath = new();
     readonly List<ChainEditor> _behaviorEditors = new();
     ChainEditor? _behaviorRootEditor;
+    TabControl? _behaviorFlowTabs, _behaviorBranchTabs;
 
     void BuildBehaviors(StackPanel panel)
     {
@@ -25,24 +26,29 @@ public sealed partial class SettingsWindow
     void RenderBehaviors()
     {
         if (_behaviorPanel == null) return;
+        bool refocus = _behaviorFlowTabs?.IsKeyboardFocusWithin == true;
         var cfg = _settings.Current.Gestures;
         var graph = cfg.Graph;
         var flow = graph.Flow(_behaviorFlow) ?? graph.Flows.FirstOrDefault();
         _behaviorFlow = flow?.Id ?? "";
         _behaviorPanel.Children.Clear();
         _behaviorEditors.Clear();
-        var tabs = new WrapPanel { Margin = new Thickness(0, 4, 0, 12) };
-        foreach (var entry in graph.Flows)
-            tabs.Children.Add(BehaviorButton(cfg.FlowName(entry), () =>
-            {
-                _behaviorFlow = entry.Id; _behaviorPath.Clear(); RenderBehaviors();
-            }, entry.Id == _behaviorFlow, Theme.WindowBgSolid));
-        tabs.Children.Add(BehaviorButton(Loc.T(K.Behaviors.Add), () =>
+        var tabs = new DockPanel { Margin = new Thickness(0, 4, 0, 12), LastChildFill = true };
+        var add = BehaviorButton(Loc.T(K.Behaviors.Add), () =>
         {
             var entry = new BehaviorFlow();
             graph.Flows.Add(entry); _behaviorFlow = entry.Id; _behaviorPath.Clear();
             CommitBehaviorGraph(); RenderBehaviors();
-        }, backing: Theme.WindowBgSolid));
+        }, backing: Theme.WindowBgSolid);
+        add.BorderBrush = Theme.StrokeSoftBrush;
+        add.VerticalAlignment = VerticalAlignment.Top;
+        DockPanel.SetDock(add, Dock.Right); tabs.Children.Add(add);
+        _behaviorFlowTabs = BehaviorTabs(graph.Flows.Select(entry => (cfg.FlowName(entry), (Action)(() =>
+            {
+                _behaviorFlow = entry.Id; _behaviorPath.Clear(); RenderBehaviors();
+            }))), graph.Flows.IndexOf(flow!), Theme.WindowBgSolid);
+        tabs.Children.Add(_behaviorFlowTabs);
+        if (refocus) FocusBehaviorTab(_behaviorFlowTabs);
         _behaviorPanel.Children.Add(tabs);
         if (flow == null) return;
         if (!graph.IsValid(flow.Id))
@@ -130,17 +136,21 @@ public sealed partial class SettingsWindow
     void RenderBehaviorDetails()
     {
         if (_behaviorDetails == null) return;
+        bool refocus = _behaviorBranchTabs?.IsKeyboardFocusWithin == true;
+        _behaviorBranchTabs = null;
         _behaviorDetails.Children.Clear();
         _behaviorEditors.RemoveAll(e => !ReferenceEquals(e, _behaviorRootEditor));
         var cfg = _settings.Current.Gestures;
         var graph = cfg.Graph;
         _behaviorPath.RemoveAll(id => graph.Node(id) == null);
+        if (_behaviorPath.Count == 0 && graph.Flow(_behaviorFlow)?.Steps.FirstOrDefault() is { } first)
+            _behaviorPath.Add(first);
         if (_behaviorPath.Count == 0 || graph.Node(_behaviorPath[^1]) is not { } node) return;
         _behaviorDetails.Children.Add(new Border { Height = 1, Background = Theme.StrokeSoftBrush,
             Margin = new Thickness(2, 0, 2, 8) });
         var path = new WrapPanel { Margin = new Thickness(0, 0, 0, 7) };
         if (graph.Flow(_behaviorFlow) is { } flow)
-            path.Children.Add(BehaviorButton(cfg.FlowName(flow), () => { _behaviorPath.Clear(); RenderBehaviorDetails(); }));
+            path.Children.Add(BehaviorButton(cfg.FlowName(flow), () => NavigateBehaviorPath(1)));
         for (int i = 0; i < _behaviorPath.Count; i++)
         {
             int at = i;
@@ -148,7 +158,7 @@ public sealed partial class SettingsWindow
                 Foreground = Theme.TextDimBrush, FontSize = 9, Margin = new Thickness(4, 0, 4, 0),
                 VerticalAlignment = VerticalAlignment.Center });
             path.Children.Add(BehaviorButton(GestureActions.LabelOf(graph.Node(_behaviorPath[i])!.Action), () =>
-            { _behaviorPath.RemoveRange(at + 1, _behaviorPath.Count - at - 1); RenderBehaviorDetails(); }, i + 1 == _behaviorPath.Count));
+            { NavigateBehaviorPath(at + 1); }, i + 1 == _behaviorPath.Count));
         }
         _behaviorDetails.Children.Add(path);
         if (node.Action == GestureActions.Select)
@@ -162,11 +172,12 @@ public sealed partial class SettingsWindow
             _behaviorDetails.Children.Add(BehaviorEntryRow(node.TargetId, id => { node.TargetId = id; CommitBehaviorGraph(); }));
         var ports = GestureActions.PortsOf(node.Action);
         string selected = _behaviorPorts.TryGetValue(node.Id, out string? value) && ports.Contains(value) ? value : ports[0];
-        var tabs = new WrapPanel { Margin = new Thickness(0, 4, 0, 8) };
-        foreach (string port in ports)
-            tabs.Children.Add(BehaviorButton(GestureActions.PortLabel(node.Action, port), () =>
-            { _behaviorPorts[node.Id] = port; RenderBehaviorDetails(); }, selected == port));
+        var tabs = BehaviorTabs(ports.Select(port => (GestureActions.PortLabel(node.Action, port), (Action)(() =>
+            { _behaviorPorts[node.Id] = port; RenderBehaviorDetails(); }))), Array.IndexOf(ports, selected), Theme.CardBg);
+        _behaviorBranchTabs = tabs;
+        tabs.Margin = new Thickness(0, 4, 0, 8);
         _behaviorDetails.Children.Add(tabs);
+        if (refocus) FocusBehaviorTab(tabs);
         if (!node.Branches.ContainsKey(selected)) node.Branches[selected] = new();
         var chain = BehaviorChain(() => node.Branches[selected], list => node.Branches[selected] = list, node);
         _behaviorDetails.Children.Add(chain.Root);
@@ -178,6 +189,13 @@ public sealed partial class SettingsWindow
     }
 
     readonly Dictionary<string, string> _behaviorPorts = new();
+
+    void NavigateBehaviorPath(int depth)
+    {
+        if (_behaviorPath.Count > depth) _behaviorPath.RemoveRange(depth, _behaviorPath.Count - depth);
+        RenderBehaviorDetails();
+        foreach (var editor in _behaviorEditors.ToArray()) editor.Render();
+    }
 
     void CommitBehaviorGraph()
     {
@@ -191,7 +209,7 @@ public sealed partial class SettingsWindow
     FrameworkElement BehaviorEntryRow(string selected, Action<string> save)
     {
         var cfg = _settings.Current.Gestures;
-        var combo = new ComboBox { MinWidth = 145, MaxWidth = 260, HorizontalAlignment = HorizontalAlignment.Left };
+        var combo = new ComboBox { MaxWidth = 260, HorizontalAlignment = HorizontalAlignment.Left };
         Fluent.StyleCombo(combo);
         combo.Items.Add(new ComboBoxItem { Content = Loc.T(K.Behaviors.Empty), Tag = "" });
         foreach (var flow in cfg.Graph.Flows)
@@ -210,7 +228,7 @@ public sealed partial class SettingsWindow
 
     static ComboBox ModeCombo(string selected, bool includeDefault, Action<string> save)
     {
-        var combo = new ComboBox { Width = 150, HorizontalAlignment = HorizontalAlignment.Left };
+        var combo = new ComboBox { HorizontalAlignment = HorizontalAlignment.Left };
         Fluent.StyleCombo(combo);
         if (includeDefault) combo.Items.Add(new ComboBoxItem { Content = Loc.T(K.Behaviors.NodeDefault), Tag = "" });
         combo.Items.Add(new ComboBoxItem { Content = Loc.T(K.Common.Capture), Tag = BehaviorPorts.Still });

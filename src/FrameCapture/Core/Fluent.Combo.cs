@@ -3,6 +3,7 @@ using System;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using System.Windows.Documents;
 using System.Windows.Markup;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
@@ -17,13 +18,14 @@ public static partial class Fluent
     const string XamlX = "http://schemas.microsoft.com/winfx/2006/xaml";
 
     /// <summary>给下拉框套上跟随主题的模板：卡片底 + 描边 + 自绘弹层，明暗主题都可读。
+    /// 非编辑区整框可展开；宽度适配最长候选内容，可编辑时同时容纳当前文本。
     /// 每次展开弹层做一次 0.94→1.0 的 BackEase 缩放，条目再逐条淡入。
     /// 可重复调用：换配色后重新套一遍即可，展开动画只挂一次。</summary>
     /// <param name="c">目标下拉框，就地改其前景、底色、描边、模板与条目样式资源。</param>
-    public static void StyleCombo(ComboBox c) => ComboSkin(c, editable: false);
+    public static void StyleCombo(ComboBox c) => ComboSkin(c, editable: c.IsEditable);
 
     /// <summary>可输入下拉框的模板：左侧是一枚可以打字的文本框，右侧是展开箭头，候选条目照样从下方落下来。
-    /// 调用方须先置 <c>IsEditable = true</c>——模板里的 <c>PART_EditableTextBox</c> 只在可编辑时才被接管。</summary>
+    /// 本方法启用编辑，宽度容纳最长候选与当前文本。</summary>
     /// <param name="c">目标下拉框，就地改其模板与条目样式资源。</param>
     public static void StyleComboEditable(ComboBox c)
     {
@@ -51,24 +53,24 @@ public static partial class Fluent
             ? $@"<TextBox x:Name=""PART_EditableTextBox"" Grid.Column=""0"" Background=""Transparent"" BorderThickness=""0""
         Foreground=""{hexText}"" CaretBrush=""{hexAccent}"" FontSize=""12.5"" Height=""28""
         Padding=""7,0,0,0"" VerticalContentAlignment=""Center""/>"
-            : $@"<ContentPresenter Grid.Column=""0"" Margin=""10,0,0,0"" VerticalAlignment=""Center""
+            : $@"<ContentPresenter Grid.Column=""0"" Margin=""10,0,0,0"" VerticalAlignment=""Center"" IsHitTestVisible=""False""
         Content=""{{Binding SelectionBoxItem, RelativeSource={{RelativeSource AncestorType={{x:Type ComboBox}}}}}}""
         ContentTemplate=""{{Binding SelectionBoxItemTemplate, RelativeSource={{RelativeSource AncestorType={{x:Type ComboBox}}}}}}""/>";
         string xaml =
             $@"<ControlTemplate TargetType=""ComboBox"" xmlns=""{XamlPres}"" xmlns:x=""{XamlX}"">
   <Grid>
-    <Border x:Name=""root"" Background=""{hexCard}"" BorderBrush=""{hexField}"" BorderThickness=""1"" CornerRadius=""6""
+    <Border x:Name=""root"" Background=""{hexCard}"" BorderBrush=""{hexField}"" BorderThickness=""1"" CornerRadius=""10""
         TextElement.Foreground=""{hexText}"">
       <Grid>
         <Grid.ColumnDefinitions><ColumnDefinition Width=""*""/><ColumnDefinition Width=""Auto""/></Grid.ColumnDefinitions>
         {content}
-        <ToggleButton Grid.Column=""1"" Focusable=""False"" ClickMode=""Press""
+        <ToggleButton x:Name=""dropToggle"" Grid.Column=""{(editable ? 1 : 0)}"" Grid.ColumnSpan=""{(editable ? 1 : 2)}"" Focusable=""False"" ClickMode=""Press""
             IsChecked=""{{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={{RelativeSource AncestorType={{x:Type ComboBox}}}}}}"">
           <ToggleButton.Template>
             <ControlTemplate TargetType=""ToggleButton"">
               <Border Background=""Transparent"" Padding=""9,9,9,9"">
                 <TextBlock Text=""&#xE70D;"" FontFamily=""Segoe Fluent Icons, Segoe MDL2 Assets""
-                    FontSize=""10"" Foreground=""{hexDim}"" VerticalAlignment=""Center""/>
+                    FontSize=""10"" Foreground=""{hexDim}"" VerticalAlignment=""Center"" HorizontalAlignment=""Right""/>
               </Border>
             </ControlTemplate>
           </ToggleButton.Template>
@@ -92,14 +94,13 @@ public static partial class Fluent
   </ControlTemplate.Triggers>
 </ControlTemplate>";
         c.Template = (ControlTemplate)XamlReader.Parse(xaml);
-        // 点文字那一截也要能开列表：模板里只有箭头是开关，点正文只会把光标放进去，看着就是「点了没反应」。
-        // 处理器挂在文本框自己身上：TextBox 会把鼠标事件标成已处理，挂在 ComboBox 上的隧道处理器在真实输入下收不到。
+        // 可编辑区保留文本输入，点击抬起时展开候选列表。
         c.ApplyTemplate();
         if (editable && c.Template?.FindName("PART_EditableTextBox", c) is TextBox tbBox)
         {
             tbBox.PreviewMouseLeftButtonUp += (_, _) => { if (!c.IsDropDownOpen) c.IsDropDownOpen = true; };
         }
-        WireDropDown(c);
+        WireCombo(c);
         // 条目：透明底 + 悬停高亮；选中底 = accent 实心，前景按 accent 明度自适应（亮 accent→黑字、暗 accent→白字）。
         c.Resources[typeof(ComboBoxItem)] = (Style)XamlReader.Parse(
             $@"<Style TargetType=""ComboBoxItem"" xmlns=""{XamlPres}"" xmlns:x=""{XamlX}"">
@@ -125,17 +126,58 @@ public static partial class Fluent
 </Style>");
     }
 
-    /// <summary>已经挂过展开动画的下拉框。模板可以重套，展开动画只该挂一次。</summary>
+    /// <summary>已接入弹层动画与内容宽度同步的下拉框。</summary>
     static readonly System.Runtime.CompilerServices.ConditionalWeakTable<ComboBox, object> ComboWired = new();
 
-    /// <summary>给下拉框挂上展开那一段：弹层缩放 + 条目逐条淡入。</summary>
+    /// <summary>接入内容宽度更新、弹层缩放与条目淡入。</summary>
     /// <param name="c">目标下拉框。</param>
-    static void WireDropDown(ComboBox c)
+    static void WireCombo(ComboBox c)
     {
         if (ComboWired.TryGetValue(c, out _)) return;
         ComboWired.Add(c, new object());
+        c.Loaded += (_, _) => FitComboWidth(c);
+        bool pending = false;
+        void QueueWidth()
+        {
+            if (!c.IsLoaded || pending) return;
+            pending = true;
+            c.Dispatcher.BeginInvoke(new Action(() => { pending = false; FitComboWidth(c); }),
+                System.Windows.Threading.DispatcherPriority.Loaded);
+        }
+        ((System.Collections.Specialized.INotifyCollectionChanged)c.Items).CollectionChanged += (_, _) => QueueWidth();
+        c.AddHandler(TextBoxBase.TextChangedEvent, new TextChangedEventHandler((_, _) => QueueWidth()));
         c.DropDownOpened += (_, _) => PopDropDown(c);
         c.DropDownClosed += (_, _) => ResetItems(c, 1);
+    }
+
+    static void FitComboWidth(ComboBox c)
+    {
+        double longest = 0;
+        void Measure(object? content, DataTemplate? template = null)
+        {
+            if (content is UIElement element)
+            {
+                element.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+                longest = Math.Max(longest, element.DesiredSize.Width);
+                return;
+            }
+            var presenter = new ContentPresenter { Content = content, ContentTemplate = template ?? c.ItemTemplate,
+                ContentStringFormat = c.ItemStringFormat, FlowDirection = c.FlowDirection };
+            TextElement.SetFontFamily(presenter, c.FontFamily);
+            TextElement.SetFontSize(presenter, c.IsEditable ? 12.5 : c.FontSize);
+            TextElement.SetFontWeight(presenter, c.FontWeight);
+            TextElement.SetFontStyle(presenter, c.FontStyle);
+            presenter.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            longest = Math.Max(longest, presenter.DesiredSize.Width);
+        }
+        foreach (var item in c.Items)
+        {
+            if (item is ComboBoxItem choice) Measure(choice.Content, choice.ContentTemplate);
+            else Measure(item);
+        }
+        if (c.IsEditable) Measure(c.Text);
+        c.SetCurrentValue(FrameworkElement.WidthProperty, Math.Ceiling(longest + 40));
+        if (c.HorizontalAlignment == HorizontalAlignment.Stretch) c.HorizontalAlignment = HorizontalAlignment.Left;
     }
 
     /// <summary>弹层入场：卡片从 0.94 弹到 1，一帧之后条目按序淡入。
