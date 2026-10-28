@@ -227,7 +227,7 @@ public sealed partial class CaptureController : IDisposable
         PinFrameAt(f, new RectI(b.X + (b.W - f.W) / 2, b.Y + (b.H - f.H) / 2, f.W, f.H));
     }
 
-    /// <summary>登记静图，应用自动保存与提示音；链内更新上下文，独立截图显示浮窗。</summary>
+    /// <summary>登记静图，应用自动保存、提示音与范围反馈；链内更新上下文，独立截图显示浮窗。</summary>
     /// <param name="f">只读共享的 BGRA 帧。</param>
     /// <param name="reg">物理像素，虚拟桌面绝对坐标。</param>
     /// <param name="device">显示器设备名。</param>
@@ -237,6 +237,12 @@ public sealed partial class CaptureController : IDisposable
         _lastStill.Set(f, reg, device, windowCapture);
         SaveService.MaybeSavePng(f);
         if (_settings.Current.CaptureSound) CaptureSound.Play(_settings.Current.CustomSoundPath);
+        if (_settings.Current.AlwaysShowRegionOutline) ShowOutline(reg);
+        else if (_settings.Current.OutlineFadeSeconds > 0)
+        {
+            FlashOutline(reg);
+            _outline!.FadeAway(_settings.Current.OutlineFadeSeconds);
+        }
         if (_chainContext is { } context)
         {
             context.Still = f;

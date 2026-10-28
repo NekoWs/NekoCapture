@@ -35,6 +35,9 @@ public sealed partial class SettingsWindow : Window
         readonly WrapPanel _chips = new();
         readonly Popup _pop = new() { AllowsTransparency = true, StaysOpen = true, Placement = PlacementMode.Right };
         Border _add = null!;
+        string[] _paintedIds = Array.Empty<string>();
+        int _chipMotionGeneration, _pickerGeneration;
+        bool _pickerClosing;
 
         /// <summary>芯片与加号统一的行高：两者都按它取最小高度，一行里只剩加号时高度不会掉下来。</summary>
         const double ChipHeight = 27;
@@ -89,7 +92,11 @@ public sealed partial class SettingsWindow : Window
             // 挂在这两种地方之外都会断线——芯片一离开这一行就再也收不到鼠标事件。
             Root.MouseMove += (_, e) => DragMove(e.GetPosition(Root));
             Root.MouseLeftButtonUp += (_, e) => Drop(e.GetPosition(Root));
-            Root.Unloaded += (_, _) => { ClosePicker(); DetachLift(); Root.ReleaseMouseCapture(); };
+            Root.Unloaded += (_, _) =>
+            {
+                ClosePicker(); DetachLift(); Root.ReleaseMouseCapture();
+                _chipMotionGeneration++; Root.BeginAnimation(HeightProperty, null); Root.Height = double.NaN;
+            };
             Render();
         }
 
@@ -100,6 +107,9 @@ public sealed partial class SettingsWindow : Window
         /// <summary>按当前序列重铺芯片。写回之后由编辑器自己调用，外部可在绑定内容变化后调用。</summary>
         public void Render()
         {
+            var list = _get().ToList();
+            var previous = CaptureChipLayout(list);
+            double oldHeight = Root.ActualHeight;
             // 重铺清空芯片行，而正在手里的那枚早已不在行里：不先从装饰层摘掉，它会悬在屏幕上不走
             DetachLift();
             _drag = null;
@@ -108,7 +118,6 @@ public sealed partial class SettingsWindow : Window
             // 重铺之后手上那枚已经不存在了，捕获留在 Root 上会把之后的鼠标事件都吸过来
             Root.ReleaseMouseCapture();
             _chips.Children.Clear();
-            var list = _get().ToList();
             for (int i = 0; i < list.Count; i++)
             {
                 int idx = i;
@@ -135,6 +144,8 @@ public sealed partial class SettingsWindow : Window
             _add = AddChip();
             _chips.Children.Add(_add);
             PaintEmptyHint(list.Count == 0);
+            PlayChipChanges(previous, list, oldHeight);
+            _paintedIds = list.ToArray();
         }
 
         /// <summary>一枚已选步骤的芯片：动作短名 + 一个删掉这一步的叉。芯片本体是拖动手柄。</summary>
@@ -230,13 +241,15 @@ public sealed partial class SettingsWindow : Window
                 ToolTip = Loc.T(K.Hotkeys.AddStep),
             };
             Fluent.ChipHover(add);
-            add.MouseLeftButtonUp += (_, e) => { if (_pop.IsOpen) ClosePicker(); else OpenPicker(); e.Handled = true; };
+            add.MouseLeftButtonUp += (_, e) =>
+            { if (_pop.IsOpen && !_pickerClosing) ClosePicker(); else OpenPicker(); e.Handled = true; };
             return add;
         }
 
         /// <summary>在加号右侧点开候选卡：卡片先就位，条目再从右逐条滑进来。</summary>
         void OpenPicker()
         {
+            int generation = ++_pickerGeneration; _pickerClosing = false;
             var list = new StackPanel { Margin = new Thickness(4) };
             foreach (var a in _candidates(_get().Length))
             {
@@ -270,8 +283,8 @@ public sealed partial class SettingsWindow : Window
             // 设置窗那道 Esc 关窗的闸收不到这一记。
             card.PreviewLostKeyboardFocus += (_, e) =>
             {
-                if (!_pop.IsOpen) return;
-                e.Handled = true;
+                if (!_pop.IsOpen || generation != _pickerGeneration || !ReferenceEquals(_pop.Child, card)
+                    || IsInside(card, e.NewFocus as DependencyObject)) return;
                 ClosePicker();
             };
             _pop.Child = card;
@@ -359,6 +372,9 @@ public sealed partial class SettingsWindow : Window
                 _hostWin = null;
             }
             if (!_pop.IsOpen || _pop.Child is not Border card) { _pop.IsOpen = false; return; }
+            if (_pickerClosing) return;
+            _pickerClosing = true;
+            int generation = ++_pickerGeneration;
             if (card.Child is ScrollViewer sv && sv.Content is Panel list)
             {
                 int i = 0;
@@ -376,7 +392,11 @@ public sealed partial class SettingsWindow : Window
             }
             var fade = new DoubleAnimation(1, 0, new Duration(TimeSpan.FromMilliseconds(Fluent.Motion.ExitMs)))
             { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseIn } };
-            fade.Completed += (_, _) => { _pop.IsOpen = false; _pop.Child = null; };
+            fade.Completed += (_, _) =>
+            {
+                if (generation != _pickerGeneration || !ReferenceEquals(_pop.Child, card)) return;
+                _pop.IsOpen = false; _pop.Child = null; _pickerClosing = false;
+            };
             card.BeginAnimation(OpacityProperty, fade);
         }
 

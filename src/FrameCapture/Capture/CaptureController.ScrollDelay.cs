@@ -329,9 +329,6 @@ public sealed partial class CaptureController : IDisposable
         if (f == null) { Trace.Log("delay: grab null"); _delayCompletion?.TrySetResult(false); return; }
         DispatchStill(f, reg, dev);
         _delayCompletion?.TrySetResult(true);
-        // 范围闪一下作"截好了"的反馈（只复制模式没有浮窗，这一下尤其重要）
-        if (_settings.Current.AlwaysShowRegionOutline) ShowOutline(reg);
-        else { FlashOutline(reg); _outline!.FadeAway(_settings.Current.OutlineFadeSeconds); }
     }
     #endregion
 

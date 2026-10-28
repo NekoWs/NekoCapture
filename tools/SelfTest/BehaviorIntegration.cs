@@ -24,6 +24,7 @@ static partial class SelfTest
             service.Current.CaptureSound = false; service.Current.AutoSaveCopy = false;
             service.Current.RecordNeedsStartClick = false; service.Current.UseWgc = false;
             service.Current.ShowRecordingBorder = false; service.Current.FreezeOnSelect = true;
+            service.Current.AlwaysShowRegionOutline = false; service.Current.OutlineFadeSeconds = 0.3;
             service.Current.FreezePregrabMaxWindows = 0;
             service.Current.AutoSavePath = Path.Combine(SettingsService.Dir, "behavior-products-" + Guid.NewGuid().ToString("N"));
             var mon = Monitors.All().First();
@@ -65,6 +66,18 @@ static partial class SelfTest
                 Chk("T273-graph-record-key-selects-screenshot-branch", Wait(() => Running(c).IsCompleted)
                     && Running(c).Result && c.HasLastStill && !c.HasLastVideo
                     && Directory.GetFiles(service.Current.AutoSavePath, "*.png").Length == 1);
+                var outline = (RegionOutlineWindow?)controllerType.GetField("_outline", flags)!.GetValue(c);
+                Chk("still-capture-shows-excluded-outline", outline is { IsVisible: true } && outline.EnsureExcludedFromCapture());
+                PumpMs((int)(service.Current.OutlineFadeSeconds * 1000) + Fluent.Motion.DissolveMs + 100);
+                Chk("still-capture-outline-retires", outline is { IsVisible: false },
+                    $"visible={outline?.IsVisible}, opacity={outline?.Opacity}, seconds={service.Current.OutlineFadeSeconds}");
+                service.Current.AlwaysShowRegionOutline = true;
+                c.BeginBehavior(graph.Snapshot(), entry.Id, "record", "still"); Choose(c, false);
+                bool ready = Wait(() => Running(c).IsCompleted);
+                PumpMs(Fluent.Motion.DissolveMs + 100);
+                Chk("still-capture-outline-respects-persistent-setting", ready && outline is { IsVisible: true },
+                    $"ready={ready}, phase={c.State}, visible={outline?.IsVisible}, opacity={outline?.Opacity}");
+                service.Current.AlwaysShowRegionOutline = false;
             }
             var only = graph.Add(GestureActions.SelectOnly);
             var onlyEntry = new BehaviorFlow { Steps = new() { only.Id } };graph.Flows.Add(onlyEntry);
@@ -144,6 +157,8 @@ static partial class SelfTest
             var boxes = new List<DependencyObject>();CollectTyped((DependencyObject)typeof(SettingsWindow).GetField("_behaviorPanel", flags)!.GetValue(settings)!, typeof(ChordCaptureBox), boxes);
             Chk("T273-graph-ui-key-entry-stays-on-hotkeys", boxes.Count == 0);
             BehaviorNavigationChecks(settings, selection);
+            BehaviorMotionChecks(settings, selection);
+            ChainMotionChecks();
             typeof(SettingsWindow).GetField("_behaviorFlow", flags)!.SetValue(settings, editing.Id);
             ((List<string>)typeof(SettingsWindow).GetField("_behaviorPath", flags)!.GetValue(settings)!).Clear();
             typeof(SettingsWindow).GetMethod("RenderBehaviors", flags)!.Invoke(settings, null);

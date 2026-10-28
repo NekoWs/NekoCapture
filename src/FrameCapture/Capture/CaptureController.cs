@@ -550,6 +550,7 @@ public sealed partial class CaptureController : IDisposable
         _scrollTimer?.Stop();
         _delayTimer?.Stop();
         _recBadgeTimer?.Stop();
+        _outline?.HideSilently(); _outline?.Close(); _outline = null;
         if (_picker != null) { _picker.Close(); _picker = null; }
         if (_recordCompletion != null) RecordPanelWindow.Dismiss();
         try { _wgc?.Stop(); _wgc?.Dispose(); } catch { }

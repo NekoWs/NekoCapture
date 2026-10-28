@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Markup;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using FrameCapture.Core;
 
 namespace FrameCapture.Overlays;
@@ -10,15 +11,14 @@ namespace FrameCapture.Overlays;
 /// <summary>行为与事件出口的页签导航。</summary>
 public sealed partial class SettingsWindow
 {
-    static void FocusBehaviorTab(TabControl tabs)
+    void UpdateBehaviorTab(TabControl tabs, int index)
     {
-        tabs.Dispatcher.BeginInvoke(new Action(() =>
-        {
-            if (tabs.IsLoaded && tabs.SelectedItem is TabItem selected) selected.Focus();
-        }), System.Windows.Threading.DispatcherPriority.Loaded);
+        _behaviorTabSync = true;
+        try { tabs.SelectedIndex = index; }
+        finally { _behaviorTabSync = false; }
     }
 
-    static TabControl BehaviorTabs(IEnumerable<(string Label, Action Select)> entries, int selected, Color backing)
+    TabControl BehaviorTabs(IEnumerable<(string Label, Action Select)> entries, int selected, Color backing)
     {
         var choices = entries.ToArray();
         var tabs = new TabControl { BorderThickness = new Thickness(0), Background = Brushes.Transparent,
@@ -29,9 +29,17 @@ public sealed partial class SettingsWindow
             <ControlTemplate TargetType="TabControl"
                 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-              <Border BorderBrush="{{Theme.StrokeSoft}}" BorderThickness="0,0,0,1">
-                <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Contained"/>
-              </Border>
+              <Grid>
+                <Border BorderBrush="{{Theme.StrokeSoft}}" BorderThickness="0,0,0,1">
+                  <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Contained"/>
+                </Border>
+                <Canvas IsHitTestVisible="False">
+                  <Border x:Name="selectionIndicator" Height="3" Width="0" CornerRadius="1.5"
+                      Background="{{Theme.Accent}}" Visibility="Collapsed">
+                    <Border.RenderTransform><TranslateTransform/></Border.RenderTransform>
+                  </Border>
+                </Canvas>
+              </Grid>
             </ControlTemplate>
             """);
         var panel = new FrameworkElementFactory(typeof(WrapPanel));
@@ -39,11 +47,41 @@ public sealed partial class SettingsWindow
         tabs.ItemContainerStyle = BehaviorTabStyle(backing);
         foreach (var choice in choices) tabs.Items.Add(new TabItem { Header = choice.Label });
         tabs.SelectedIndex = Math.Clamp(selected, -1, choices.Length - 1);
+        int active = tabs.SelectedIndex;
+        void Move() => tabs.Dispatcher.BeginInvoke(new Action(() => MoveBehaviorIndicator(tabs)),
+            System.Windows.Threading.DispatcherPriority.Loaded);
+        tabs.Loaded += (_, _) => Move();
+        tabs.SizeChanged += (_, _) => Move();
         tabs.SelectionChanged += (_, e) =>
         {
-            if (e.OriginalSource == tabs && tabs.SelectedIndex >= 0) choices[tabs.SelectedIndex].Select();
+            if (e.OriginalSource != tabs || tabs.SelectedIndex < 0) return;
+            int next = tabs.SelectedIndex;
+            _behaviorSlideDirection = next < active ? -1 : 1;
+            active = next; Move();
+            if (!_behaviorTabSync) choices[next].Select();
         };
         return tabs;
+    }
+
+    static void MoveBehaviorIndicator(TabControl tabs)
+    {
+        if (!tabs.IsLoaded || tabs.SelectedItem is not TabItem selected || selected.ActualWidth <= 0
+            || tabs.Template.FindName("selectionIndicator", tabs) is not Border indicator) return;
+        var at = selected.TranslatePoint(new Point(10, selected.ActualHeight - 3), tabs);
+        double width = Math.Max(20, selected.ActualWidth - 20);
+        var shift = (TranslateTransform)indicator.RenderTransform;
+        if (shift.IsFrozen) { shift = shift.CloneCurrentValue(); indicator.RenderTransform = shift; }
+        bool animate = indicator.Visibility == Visibility.Visible;
+        double fromWidth = indicator.Width, fromX = shift.X, fromY = shift.Y;
+        indicator.BeginAnimation(WidthProperty, null);
+        shift.BeginAnimation(TranslateTransform.XProperty, null); shift.BeginAnimation(TranslateTransform.YProperty, null);
+        indicator.Width = width; shift.X = at.X; shift.Y = at.Y; indicator.Visibility = Visibility.Visible;
+        if (!animate) return;
+        var duration = new Duration(TimeSpan.FromMilliseconds(Fluent.Motion.StateMs));
+        var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
+        indicator.BeginAnimation(WidthProperty, new DoubleAnimation(fromWidth, width, duration) { EasingFunction = ease });
+        shift.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(fromX, at.X, duration) { EasingFunction = ease });
+        shift.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(fromY, at.Y, duration) { EasingFunction = ease });
     }
 
     static Style BehaviorTabStyle(Color backing)
@@ -64,8 +102,7 @@ public sealed partial class SettingsWindow
                       <Border x:Name="active" CornerRadius="10,10,0,0" Background="{{Fluent.AccentOn(backing, 0.09)}}" Opacity="0"/>
                       <ContentPresenter x:Name="label" ContentSource="Header" Margin="{TemplateBinding Padding}"
                           HorizontalAlignment="Center" VerticalAlignment="Center" TextElement.Foreground="{TemplateBinding Foreground}"/>
-                      <Border x:Name="indicator" Height="3" MinWidth="20" Margin="10,0" CornerRadius="1.5"
-                          VerticalAlignment="Bottom" Background="{{Theme.Accent}}" Opacity="0"/>
+                      <Border x:Name="focus" CornerRadius="10,10,0,0" BorderBrush="{{Theme.StrokeSoft}}" BorderThickness="1" Opacity="0"/>
                     </Grid>
                     <ControlTemplate.Triggers>
                       <Trigger Property="IsMouseOver" Value="True">
@@ -82,15 +119,13 @@ public sealed partial class SettingsWindow
                         <Setter TargetName="label" Property="TextElement.Foreground" Value="{{Fluent.AccentTextOn(Fluent.AccentOn(backing, 0.09))}}"/>
                         <Trigger.EnterActions><BeginStoryboard><Storyboard>
                           <DoubleAnimation Storyboard.TargetName="active" Storyboard.TargetProperty="Opacity" To="1" Duration="{{duration}}"/>
-                          <DoubleAnimation Storyboard.TargetName="indicator" Storyboard.TargetProperty="Opacity" To="1" Duration="{{duration}}"/>
                         </Storyboard></BeginStoryboard></Trigger.EnterActions>
                         <Trigger.ExitActions><BeginStoryboard><Storyboard>
                           <DoubleAnimation Storyboard.TargetName="active" Storyboard.TargetProperty="Opacity" To="0" Duration="{{duration}}"/>
-                          <DoubleAnimation Storyboard.TargetName="indicator" Storyboard.TargetProperty="Opacity" To="0" Duration="{{duration}}"/>
                         </Storyboard></BeginStoryboard></Trigger.ExitActions>
                       </Trigger>
                       <Trigger Property="IsKeyboardFocused" Value="True">
-                        <Setter TargetName="indicator" Property="Opacity" Value="1"/>
+                        <Setter TargetName="focus" Property="Opacity" Value="1"/>
                       </Trigger>
                     </ControlTemplate.Triggers>
                   </ControlTemplate>
