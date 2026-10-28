@@ -36,13 +36,13 @@ public sealed partial class SettingsWindow
             tabs.Children.Add(BehaviorButton(cfg.FlowName(entry), () =>
             {
                 _behaviorFlow = entry.Id; _behaviorPath.Clear(); RenderBehaviors();
-            }, entry.Id == _behaviorFlow));
+            }, entry.Id == _behaviorFlow, Theme.WindowBgSolid));
         tabs.Children.Add(BehaviorButton(Loc.T(K.Behaviors.Add), () =>
         {
             var entry = new BehaviorFlow();
             graph.Flows.Add(entry); _behaviorFlow = entry.Id; _behaviorPath.Clear();
             CommitBehaviorGraph(); RenderBehaviors();
-        }));
+        }, backing: Theme.WindowBgSolid));
         _behaviorPanel.Children.Add(tabs);
         if (flow == null) return;
         if (!graph.IsValid(flow.Id))
@@ -58,15 +58,6 @@ public sealed partial class SettingsWindow
             _behaviorPath.Clear(); _behaviorFlow = "";
             CommitBehaviorGraph(); RebuildHotkeys(); RenderBehaviors();
         }));
-        foreach (var binding in cfg.Bindings.Where(b => b.EntryId == flow.Id && b.Enabled))
-        {
-            var caps = Keycaps.Row(binding.Chord, new KeycapTheme { Face = Theme.RowBg, Text = Theme.Text,
-                Stroke = Theme.StrokeSoft, Dim = Theme.TextDim, Size = 11 });
-            var hit = new Border { Child = caps, MinHeight = 28, MinWidth = 28,
-                Padding = new Thickness(3), Margin = new Thickness(5, 0, 0, 0), Cursor = Cursors.Hand };
-            hit.MouseLeftButtonUp += (_, _) => GotoPage("hotkeys");
-            right.Children.Add(hit);
-        }
         DockPanel.SetDock(right, Dock.Right); header.Children.Add(right);
         var title = new StackPanel { Orientation = Orientation.Horizontal };
         var name = new TextBlock { Text = cfg.FlowName(flow), Foreground = Theme.TextBrush, FontSize = 13,
@@ -195,25 +186,6 @@ public sealed partial class SettingsWindow
         _settings.Mutate(s => s.Gestures = cfg);
         AppHost.Current.InstallHotkeys();
         if (!cfg.Graph.IsValid()) NoticeToast.Show(Loc.T(K.Behaviors.Invalid));
-    }
-
-    static Button BehaviorButton(string text, Action click, bool selected = false)
-    {
-        var button = new Button { Content = text, FontSize = 12, Foreground = Theme.TextBrush,
-            Background = selected ? Theme.RowBgBrush : Brushes.Transparent, BorderBrush = selected ? Theme.AccentBrush : Brushes.Transparent,
-            BorderThickness = new Thickness(0, 0, 0, selected ? 2 : 0), Padding = new Thickness(8, 4, 8, 4),
-            Margin = new Thickness(2, 1, 2, 1), Cursor = Cursors.Hand };
-        button.Click += (_, _) => click();
-        return button;
-    }
-
-    static Button BehaviorIcon(string glyph, Str tip, Action click)
-    {
-        var button = new Button { Content = glyph, FontFamily = new FontFamily("Segoe Fluent Icons"),
-            ToolTip = Loc.T(tip), Foreground = Theme.TextDimBrush, Background = Brushes.Transparent,
-            BorderThickness = new Thickness(0), Padding = new Thickness(6), Margin = new Thickness(3, 0, 3, 0) };
-        button.Click += (_, _) => click();
-        return button;
     }
 
     FrameworkElement BehaviorEntryRow(string selected, Action<string> save)
