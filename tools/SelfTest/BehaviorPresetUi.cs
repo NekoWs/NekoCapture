@@ -24,6 +24,12 @@ static partial class SelfTest
             Pick(BehaviorPresets.Dual); PumpMs(Fluent.Motion.EnterMs + 50);
             Chk("preset-ui-click-replaces-scheme", service.Current.Gestures.ActivePreset == BehaviorPresets.Dual
                 && service.Current.Gestures.Bindings.Count == 2 && service.Current.Gestures.Graph.Flows.Count == 1);
+            var body = (Border)typeof(SettingsWindow).GetMethod("HotkeyBody", flags)!.Invoke(window,
+                new object[] { service.Current.Gestures.Bindings[0] })!;
+            var labels = new List<DependencyObject>(); CollectTyped(body, typeof(TextBlock), labels);
+            Chk("hotkey-settings-only-link-behavior-entry", labels.OfType<TextBlock>().Any(t => t.Text == Loc.T(K.Behaviors.Entry))
+                && labels.OfType<TextBlock>().All(t => t.Text != Loc.T(K.Behaviors.InitialMode))
+                && ((StackPanel)body.Child).Children.Count == 2);
             Pick(BehaviorPresets.Separate); PumpMs(Fluent.Motion.EnterMs + 50);
             var boxes = (Dictionary<string, ChordCaptureBox>)typeof(SettingsWindow).GetField("_hotBoxes", flags)!.GetValue(window)!;
             Chk("preset-ui-refreshes-binding-editors", boxes.Count == 4 && service.Current.Gestures.ToBindings().Count == 4);

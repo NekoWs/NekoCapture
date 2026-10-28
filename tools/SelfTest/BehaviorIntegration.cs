@@ -146,6 +146,7 @@ static partial class SelfTest
                     && Directory.GetFiles(service.Current.AutoSavePath, "*.png").Length == count + 1);
             }
             hostSettings.SetValue(AppHost.Current, service);
+            RecordingBranchIntegration(service);
             BehaviorInputIsolation(service);
             service.Current.Gestures.Graph = graph;service.Current.Gestures.GraphRevision = 1;
             var settings = new SettingsWindow();

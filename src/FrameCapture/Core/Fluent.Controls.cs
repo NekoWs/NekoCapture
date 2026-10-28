@@ -388,6 +388,7 @@ public static partial class Fluent
         Color baseColor = Colors.Transparent;
         bool hasBase = false;
         SolidColorBrush? ours = null;   // 我们持有并驱动动画的那份画刷（实例身份=「底色还是我们的」）
+        SolidColorBrush? paletteBase = null;
         // Background 分别定义在 Border / Control 上（FrameworkElement 没有）——只读取当前画刷做颜色动画
         SolidColorBrush? Bg() => el is Border bd ? bd.Background as SolidColorBrush
                             : el is Control cc ? cc.Background as SolidColorBrush : null;
@@ -400,6 +401,7 @@ public static partial class Fluent
             // 两种情况都先换成当前色的私有副本，动画只归这个元素。
             if (cur == null || cur.IsFrozen || Theme.IsPaletteBrush(cur))
             {
+                paletteBase = cur != null && Theme.IsPaletteBrush(cur) ? cur : null;
                 var nb = new SolidColorBrush(from);
                 SetBg(nb);
                 cur = nb;
@@ -407,6 +409,17 @@ public static partial class Fluent
             ours = cur;
             cur.BeginAnimation(SolidColorBrush.ColorProperty, new ColorAnimation(to, new Duration(TimeSpan.FromMilliseconds(ms))));
         }
+        void RefreshTheme()
+        {
+            if (paletteBase != null && ours != null && ReferenceEquals(Bg(), ours))
+            {
+                baseColor = paletteBase.Color;
+                ours.BeginAnimation(SolidColorBrush.ColorProperty, null);
+                ours.Color = el.IsMouseOver ? Mix(baseColor, Theme.Hover) : baseColor;
+            }
+        }
+        el.Loaded += (_, _) => { Theme.Changed -= RefreshTheme; Theme.Changed += RefreshTheme; RefreshTheme(); };
+        el.Unloaded += (_, _) => Theme.Changed -= RefreshTheme;
         el.MouseEnter += (_, _) =>
         {
             var sb = Bg();

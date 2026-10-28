@@ -44,6 +44,7 @@ public sealed partial class SettingsWindow : Window
 
     /// <summary>换色那一刻画面上的窗口底：幕布拿它当退场色，落新调色板之后就取不到了。</summary>
     Color _maskFrom = Theme.WindowBgSolid;
+    bool _refreshingTheme;
 
     /// <summary>主题切换前保存退场颜色。</summary>
     /// <param name="dark">重算之后的深浅档。</param>
@@ -58,6 +59,15 @@ public sealed partial class SettingsWindow : Window
         bool dark = Theme.IsDark;
         if (dark != _maskDark) Fluent.MaskFade(this, _maskFrom);
         _maskDark = dark;
+        foreach (var (id, card) in _presetCards)
+        {
+            TintPresetCard(card, id == _settings.Current.Gestures.ActivePreset);
+            card.Resources["preset-hover"] = new SolidColorBrush(Theme.Hover);
+        }
+        foreach (var paint in _hotClashSync) paint();
+        _refreshingTheme = true;
+        try { _behaviorFlowTabs = null; RenderBehaviors(); }
+        finally { _refreshingTheme = false; }
     }
 
     /// <summary>

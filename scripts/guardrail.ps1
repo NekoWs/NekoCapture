@@ -2,7 +2,7 @@
 # 默认不注入 OS 级输入；-Full 包含应用内消息驱动的端到端检查。
 # -AllowInjection 显式启用焦点安全检查；SKIP 不表示验证通过。
 # -Quick 仅构建与静态扫描；-SkipE2e 跳过端到端检查。
-param([switch]$Full, [switch]$Quick, [switch]$SkipE2e, [switch]$AllowInjection, [int]$MinSelfTestPass = 1059)
+param([switch]$Full, [switch]$Quick, [switch]$SkipE2e, [switch]$AllowInjection, [int]$MinSelfTestPass = 1079)
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 . (Join-Path $PSScriptRoot "lib-hotkey.ps1")

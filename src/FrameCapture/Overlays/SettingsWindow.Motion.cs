@@ -33,6 +33,13 @@ public sealed partial class SettingsWindow : Window
         var bg = new SolidColorBrush(Rest());
         bd.Background = bg;
         bool inside = false;
+        void RefreshTheme()
+        {
+            bg.BeginAnimation(SolidColorBrush.ColorProperty, null);
+            bg.Color = inside ? Hover() : Rest();
+        }
+        bd.Loaded += (_, _) => { Theme.Changed -= RefreshTheme; Theme.Changed += RefreshTheme; RefreshTheme(); };
+        bd.Unloaded += (_, _) => Theme.Changed -= RefreshTheme;
         void TintBg(Color to, int ms) => bg.BeginAnimation(SolidColorBrush.ColorProperty,
             new ColorAnimation(to, new Duration(TimeSpan.FromMilliseconds(ms))));
         bd.MouseEnter += (_, _) => { inside = true; TintBg(Hover(), Fluent.Motion.HoverMs); };

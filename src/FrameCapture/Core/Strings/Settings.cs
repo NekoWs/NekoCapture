@@ -10,42 +10,18 @@ public static partial class K
     public static partial class Settings
     {
         public static readonly Str Accent = new("settings.accent", "强调色", "Accent");
-        public static readonly Str AccentColorEditorSelectionsSwitches = new(
-            "settings.accentColorEditorSelectionsSwitches",
-            "强调色：编辑器选中、开关、滑杆、进度都用它",
-            "Accent color — editor selections, switches, sliders, and progress all use it");
-        public static readonly Str ACustomOggWavFile = new(
-            "settings.aCustomOggWavFile",
-            "自定义提示音文件 ogg / wav，点击可重新选择",
-            "A custom ogg / wav file; click to pick another");
+        public static readonly Str AccentColorEditorSelectionsSwitches = new("settings.accentColorEditorSelectionsSwitches", "用于选中、开关和进度", "Used for selections, switches, and progress");
+        public static readonly Str ACustomOggWavFile = new("settings.aCustomOggWavFile", "自定义 OGG/WAV，点击更换", "Custom OGG/WAV; click to change");
         public static readonly Str AFlashConfirmsIt = new(
             "settings.aFlashConfirmsIt",
             "快闪：确认一下就走",
             "A quick flash: confirms it, then gone");
-        public static readonly Str AfterACaptureOnTop = new(
-            "settings.afterACaptureOnTop",
-            "捕获完成后，除复制到剪贴板外，再存一份文件到本地目录：截图存 PNG，录制按上面的「录制格式」存 MP4/WebM，未装 ffmpeg 则回退 GIF。视频在后台编码、文件稍后出现。写盘失败不影响剪贴板，捕获永远成功",
-            "After a capture, on top of the clipboard copy, a file also goes to a local folder: stills as PNG, recordings as MP4 or WebM in the recording format above, falling back to GIF when ffmpeg is missing. Video encodes in the background, so the file shows up a moment later. A failed write never touches the clipboard — the capture always succeeds");
-        public static readonly Str AfterASuccessfulRecognition = new(
-            "settings.afterASuccessfulRecognition",
-            "「识别文字」成功后弹出结果窗预览：可查看/编辑识别文本、鼠标悬停部分选中复制、一键复制全部——预览即选取入口，此时不再自动写剪贴板，要哪段选哪段。关闭则退回快速路径：直接写剪贴板 + 轻提示，不弹窗",
-            "After a successful recognition a result window previews the text: read it, edit it, hover to select part of it and copy, or copy everything at once. The preview is the selection entry, so nothing is written to the clipboard on its own — take the part you want. Off, the fast path returns: straight to the clipboard with a toast, no window");
-        public static readonly Str AfterStartupANoticeAppears = new(
-            "settings.afterStartupANoticeAppears",
-            "启动完成后在屏幕右下角弹一条「FrameCapture 已启动」，确认它真的在后台待命了。关掉后启动静默进托盘，只剩托盘图标",
-            "After startup a notice appears in the bottom-right corner saying FrameCapture has started, confirming it is waiting in the background. Off, startup goes quietly to the tray and only the icon remains");
-        public static readonly Str AfterTheSelectionHotkey = new(
-            "settings.afterTheSelectionHotkey",
-            "按下选区快捷键后，用虚线框显示上次的选区位置，按 Enter 直接确认重选同区域；关闭后每次都是干净屏",
-            "After the selection hotkey a dashed box marks where the last selection was, and Enter confirms that same region again. Off, every session starts on a clean screen");
-        public static readonly Str AfterTheTraySDelayed = new(
-            "settings.afterTheTraySDelayed",
-            "托盘「延时截图」触发后倒数这么久再截当前范围，留时间打开右键菜单/悬停提示/下拉框这类一动就消失的界面",
-            "After the tray's Delayed Capture is triggered, counts down this long before capturing the current region, leaving time to open a context menu, a tooltip, or a dropdown — the kind of interface that vanishes the moment you move");
-        public static readonly Str AlwaysShowTheCaptureOutline = new(
-            "settings.alwaysShowTheCaptureOutline",
-            "常显捕获范围轮廓",
-            "Always show the capture outline");
+        public static readonly Str AfterACaptureOnTop = new("settings.afterACaptureOnTop", "另存本地副本。截图为 PNG，录制按所选格式保存；视频编码在后台完成", "Save a local copy: PNG for screenshots, the selected format for recordings. Video encodes in the background.");
+        public static readonly Str AfterASuccessfulRecognition = new("settings.afterASuccessfulRecognition", "开启时预览并选择复制；关闭时直接复制全文", "Preview and copy selected text, or turn off to copy all text directly.");
+        public static readonly Str AfterStartupANoticeAppears = new("settings.afterStartupANoticeAppears", "启动时显示通知；关闭后静默进入托盘", "Show a startup notice; turn off for a quiet tray startup.");
+        public static readonly Str AfterTheSelectionHotkey = new("settings.afterTheSelectionHotkey", "显示上次选区，可按确认键复用", "Show the last region; confirm to reuse it.");
+        public static readonly Str AfterTheTraySDelayed = new("settings.afterTheTraySDelayed", "延时截图的倒计时时长", "Countdown before a delayed capture");
+        public static readonly Str AlwaysShowTheCaptureOutline = new("settings.alwaysShowTheCaptureOutline", "常显范围边框", "Keep region outline visible");
         public static readonly Str AnAnimatedImageThatPlays = new(
             "settings.anAnimatedImageThatPlays",
             "通用动图，任何地方都能放；受格式封顶约 50fps、体积大",
@@ -64,10 +40,7 @@ public static partial class K
             "settings.borderFillColor",
             "边框填充色",
             "Border fill color");
-        public static readonly Str BorderFlashAfterACapture = new(
-            "settings.borderFlashAfterACapture",
-            "截图后边框显示时间",
-            "Border flash after a capture");
+        public static readonly Str BorderFlashAfterACapture = new("settings.borderFlashAfterACapture", "截图边框时长", "Screenshot outline duration");
         public static readonly Str BriskAGlanceFits = new(
             "settings.briskAGlanceFits",
             "利落：来得及看一眼",
@@ -79,33 +52,12 @@ public static partial class K
             "settings.chooseANotificationSound",
             "选择提示音",
             "Choose a notification sound");
-        public static readonly Str ChooseTheSaveFolderAuto = new(
-            "settings.chooseTheSaveFolderAuto",
-            "选择保存文件夹，自动保存副本和导出对话框都用它",
-            "Choose the save folder; auto-saved copies and export dialogs all use it");
-        public static readonly Str ClickAWindowToCapture = new(
-            "settings.clickAWindowToCapture",
-            "点击窗口时截取完整窗口",
-            "Click a window to capture the whole window");
-        public static readonly Str ClickingAWindowThePicker = new(
-            "settings.clickingAWindowThePicker",
-            "选区命中窗口时截取窗口本体并保留透明边缘；关闭时按区域截图。画面不可用时回退区域截图",
-            "Clicking a window the picker snapped to no longer grabs screen pixels by rectangle; it captures the window itself — transparent at Win11's rounded corners, clean on browser and GPU-composited windows, transparent behind. Off, clicking a window goes back to capturing the rectangle. Dragging a box is unaffected, and a covered window or a failed frame falls back to a rectangle capture");        public static readonly Str ClickToHearTheCurrent = new(
-            "settings.clickToHearTheCurrent",
-            "点一下试听当前提示音，选「自定义…」后也会立刻放一声让你确认",
-            "Click to hear the current sound; choosing Custom also plays one right away so you can confirm it");
-        public static readonly Str ClickToPickAnAccent = new(
-            "settings.clickToPickAnAccent",
-            "点击自定义强调色，取色器与编辑器同款；右键恢复跟随系统",
-            "Click to pick an accent color with the editor's own picker; right-click to follow the system");
-        public static readonly Str ClickToPickTheFillColor = new(
-            "settings.clickToPickTheFillColor",
-            "点击选择填充色，取色器与编辑器同款",
-            "Click to pick the fill color with the editor's own picker");
-        public static readonly Str ClosingTheEditorRemembers = new(
-            "settings.closingTheEditorRemembers",
-            "关闭编辑器时记住你最后用的标注工具、颜色和线宽，下次打开直接是它们，省去每次重选。关闭后每次打开都回到默认：浏览 / 红 / 中",
-            "Closing the editor remembers the annotation tool, color, and line width you last used, so the next opening starts with them instead of making you pick again. Off, every opening returns to the default: Pan / Red / Medium");
+        public static readonly Str ChooseTheSaveFolderAuto = new("settings.chooseTheSaveFolderAuto", "选择副本与导出的默认目录", "Choose the default folder for copies and exports");
+        public static readonly Str ClickAWindowToCapture = new("settings.clickAWindowToCapture", "捕获窗口本体", "Capture whole windows");
+        public static readonly Str ClickingAWindowThePicker = new("settings.clickingAWindowThePicker", "点击窗口时保留透明边缘；捕获失败时使用屏幕区域", "Keep transparent window edges; fall back to the screen region if capture fails.");        public static readonly Str ClickToHearTheCurrent = new("settings.clickToHearTheCurrent", "试听当前提示音", "Preview the current sound");
+        public static readonly Str ClickToPickAnAccent = new("settings.clickToPickAnAccent", "点击选色；右键跟随系统", "Click to choose a color; right-click to follow the system.");
+        public static readonly Str ClickToPickTheFillColor = new("settings.clickToPickTheFillColor", "选择填充颜色", "Choose a fill color");
+        public static readonly Str ClosingTheEditorRemembers = new("settings.closingTheEditorRemembers", "下次打开沿用工具、颜色和线宽", "Reuse the tool, color, and line width next time.");
         public static readonly Str ColorFormat = new("settings.colorFormat", "取色格式", "Color format");
         public static readonly Str ComfortableEnoughToExpand = new(
             "settings.comfortableEnoughToExpand",
@@ -129,14 +81,8 @@ public static partial class K
             "settings.deleteThisHotkey",
             "删除这条快捷键",
             "Delete this hotkey");
-        public static readonly Str DraggingAPinSnapsIt = new(
-            "settings.draggingAPinSnapsIt",
-            "拖动贴图时实时吸附对齐：贴近所在屏幕边缘则停靠四边/四角；贴近同屏其他贴图、以及浏览器或资源管理器等任何应用窗口的边或中线则与之对齐，把贴图摆齐像吸附网格一样自然。阈值调低为「贴边才吸」，不会隔空乱跳。关闭则松手停在原地",
-            "Dragging a pin snaps it into alignment: near a screen edge it docks to an edge or a corner, and near another pin on the same screen or the edge or center line of any app window — a browser or File Explorer included — it lines up with it. A lower threshold means it only grabs when close, so nothing jumps across the screen. Off, a pin stops where you let go");
-        public static readonly Str DuringARecordingTheReal = new(
-            "settings.duringARecordingTheReal",
-            "录制期间按真实捕获范围高亮描边，只提示、不录进产物。取代 Windows 11 那条绕整屏的黄色系统捕获边框——WGC 只能整显示器捕获，系统边框必然全屏、与所选范围无关",
-            "During a recording the real capture region is outlined in a highlight, as a hint only — it never lands in the output. It stands in for the yellow system capture border Windows 11 draws around the whole screen: WGC captures a whole monitor, so that border is always full-screen and says nothing about your selection");
+        public static readonly Str DraggingAPinSnapsIt = new("settings.draggingAPinSnapsIt", "拖动时对齐屏幕、窗口和其他贴图的边缘或中线", "Snap to screen, window, and pin edges or centers while dragging.");
+        public static readonly Str DuringARecordingTheReal = new("settings.duringARecordingTheReal", "标出实际录制区域，边框不进入产物", "Outline the recording region without including the outline in the output.");
         public static readonly Str FfmpegDetected = new(
             "settings.ffmpegDetected",
             " · 已检测到 ffmpeg",
@@ -149,63 +95,36 @@ public static partial class K
             "settings.ffmpegNotFoundInstallFfmpeg",
             " · 未检测到 ffmpeg，装 FFmpeg 后可选",
             " · ffmpeg not found; install FFmpeg to enable");
-        public static readonly Str FfmpegNotFoundMp4 = new(
-            "settings.ffmpegNotFoundMp4",
-            "未检测到 ffmpeg · 导出 MP4/WebM 需先安装，见帮助 F1，GIF 不受影响",
-            "ffmpeg not found · MP4 and WebM export needs it installed first, see the F1 help; GIF is unaffected");
+        public static readonly Str FfmpegNotFoundMp4 = new("settings.ffmpegNotFoundMp4", "MP4/WebM 需要 ffmpeg，安装方式见 F1；GIF 可直接导出", "MP4/WebM need ffmpeg; see F1 to install. GIF is available.");
         public static readonly Str FillsTheShadowBandFor = new(
             "settings.fillsTheShadowBandFor",
             "给不支持透明度的格式填充边框与阴影",
             "Fills the border and shadow band for formats without transparency");
         public static readonly Str FollowSystem = new("settings.followSystem", "跟随系统", "Follow system");
-        public static readonly Str FramesCapturedPerSecondWhile = new(
-            "settings.framesCapturedPerSecondWhile",
-            "录制时每秒捕获的帧数；开启下方「跟随显示器刷新率」时本项隐藏，由刷新率取代",
-            "Frames captured per second while recording. With Record at full monitor refresh below on, this row hides and the refresh rate takes over");
-        public static readonly Str FreezeTheScreenWhileSelecting = new(
-            "settings.freezeTheScreenWhileSelecting",
-            "选区时定格画面",
-            "Freeze the screen while selecting");
+        public static readonly Str FramesCapturedPerSecondWhile = new("settings.framesCapturedPerSecondWhile", "每秒捕获帧数；跟随刷新率时自动设置", "Frames per second; set automatically when matching the refresh rate.");
+        public static readonly Str FreezeTheScreenWhileSelecting = new("settings.freezeTheScreenWhileSelecting", "选区时定格", "Freeze during selection");
         public static readonly Str GroupInteraction = new("settings.groupInteraction", "交互", "Interaction");
         public static readonly Str GroupLine = new("settings.groupLine", "描边", "Lines");
         public static readonly Str GroupSemantic = new("settings.groupSemantic", "语义", "Semantic");
         public static readonly Str GroupSurface = new("settings.groupSurface", "表面", "Surfaces");
         public static readonly Str GroupText = new("settings.groupText", "文字色", "Text");
-        public static readonly Str HighRefreshPanelsAtHz = new(
-            "settings.highRefreshPanelsAtHz",
-            "144 / 165 / 240Hz 这类高刷屏录满才丝滑；MP4/WebM 可录满，GIF 受格式封顶约 50fps",
-            "High-refresh panels at 144 / 165 / 240Hz only look smooth when recorded at the full rate; MP4 and WebM can take it, GIF is capped near 50fps by the format");
+        public static readonly Str HighRefreshPanelsAtHz = new("settings.highRefreshPanelsAtHz", "MP4/WebM 支持高帧率，GIF 约限 50 fps", "MP4/WebM support high frame rates; GIF is limited to about 50 fps.");
         public static readonly Str Hotkeys = new("settings.hotkeys", "快捷键", "Hotkeys");
-        public static readonly Str HoveringSnapsToASpecific = new(
-            "settings.hoveringSnapsToASpecific",
-            "悬停自动吸附窗口内的具体控件：输入框、按钮、链接、文字、图片、列表项等，按 Tab 可上钻到父容器。依赖应用暴露无障碍元素——浏览器与多数原生应用可以；基于 Electron 的应用多数只暴露整窗，会退化成整窗吸附",
-            "Hovering snaps to a specific control inside the window — input boxes, buttons, links, text, images, list items — and Tab steps up to the parent container. It depends on the app exposing accessibility elements: browsers and most native apps do; Electron-based apps usually expose only the whole window, so snapping degrades to the window");
-        public static readonly Str HowLongTheCopiedThumbnail = new(
-            "settings.howLongTheCopiedThumbnail",
-            "截完弹出的「已复制」缩略浮窗停留多久自动消失。悬停其上会暂停计时、移开再给满时长。想拍完即走调小、想留着慢慢点进编辑器调大或常驻。",
-            "How long the copied thumbnail toast stays before dismissing itself. Hovering pauses the timer, and moving away gives it the full duration again. Turn it down to move on at once, or up — or choose Resident — to keep it around and click into the editor at leisure.");
+        public static readonly Str HoveringSnapsToASpecific = new("settings.hoveringSnapsToASpecific", "悬停吸附控件，Tab 切换父容器；应用需支持无障碍接口", "Hover to snap to a control; Tab selects its parent. Requires accessibility support.");
+        public static readonly Str HowLongTheCopiedThumbnail = new("settings.howLongTheCopiedThumbnail", "截图浮窗停留时间；悬停暂停，移开重新计时", "Screenshot toast duration; hovering pauses it and leaving restarts the timer.");
         public static readonly Str HslHSLCommon = new(
             "settings.hslHSLCommon",
             "hsl(h, s%, l%) 调色和设计常用",
             "hsl(h, s%, l%), common for color and design work");
-        public static readonly Str IncludeTheMousePointer = new(
-            "settings.includeTheMousePointer",
-            "录制包含鼠标指针",
-            "Include the mouse pointer");
-        public static readonly Str IncludeTheShadowInWindow = new(
-            "settings.includeTheShadowInWindow",
-            "窗口截图包含投影",
-            "Include the shadow in window captures");
+        public static readonly Str IncludeTheMousePointer = new("settings.includeTheMousePointer", "录制鼠标指针", "Record cursor");
+        public static readonly Str IncludeTheShadowInWindow = new("settings.includeTheShadowInWindow", "包含窗口投影", "Include window shadow");
         public static readonly Str InkClear = new("settings.inkClear", "正文在这四种底色上都读得清", "Body text reads clearly on all four surfaces");
         public static readonly Str InkLowOnSurfaces = new("settings.inkLowOnSurfaces", "{0} 处正文和它压着的底色对比不足", "{0} spots where body text lacks contrast against the surface under it");
-        public static readonly Str KeepsTheCurrentCaptureRegion = new(
-            "settings.keepsTheCurrentCaptureRegion",
-            "在屏幕上持续显示当前捕获范围的边框，开/关立刻生效。尚未设置范围时没有可显示的边框——先用托盘「设置捕获范围」",
-            "Keeps the current capture region's border on screen, and switching takes effect at once. With no region set there is nothing to show — set one first from the tray under Set Capture Region");
+        public static readonly Str KeepsTheCurrentCaptureRegion = new("settings.keepsTheCurrentCaptureRegion", "持续显示已选区域的边框，切换立即生效", "Keep the selected region outlined; changes apply immediately.");
         public static readonly Str Language = new("settings.language", "界面语言", "Language");
         public static readonly Str Light = new("settings.light", "浅色", "Light");
         public static readonly Str ListSeparator = new("settings.listSeparator", "、", ", ");
-        public static readonly Str LowContrastOnSurfaces = new("settings.lowContrastOnSurfaces", "这个颜色和它要压着的底色对比不足，正文会读不清", "Low contrast against the surfaces this text sits on — body text will be hard to read");
+        public static readonly Str LowContrastOnSurfaces = new("settings.lowContrastOnSurfaces", "文字与底色对比不足", "Low text contrast against the background");
         public static readonly Str NeverDisappearsOnItsOwn = new(
             "settings.neverDisappearsOnItsOwn",
             "不自动消失，点一下或 Esc 才关",
@@ -249,33 +168,18 @@ public static partial class K
             "快速：够移一下鼠标",
             "Quick: enough to move the mouse");
         public static readonly Str QuotedName = new("settings.quotedName", "「{0}」", "“{0}”");
-        public static readonly Str StartRecordingAfterSelecting = new("settings.startRecordingAfterSelecting", "选区后先按开始", "Start after selecting");
-        public static readonly Str StartRecordingAfterSelectingTip = new(
-            "settings.startRecordingAfterSelectingTip",
-            "动作链或选区开关选择录制时，先显示开始按钮；关闭则直接起录",
-            "When the chain or selection switch chooses recording, show a Start button first. Turn off to start immediately");
-        public static readonly Str RecordAtFullMonitorRefresh = new(
-            "settings.recordAtFullMonitorRefresh",
-            "跟随显示器刷新率录满",
-            "Record at full monitor refresh");
+        public static readonly Str StartRecordingAfterSelecting = new("settings.startRecordingAfterSelecting", "录制前确认", "Confirm before recording");
+        public static readonly Str StartRecordingAfterSelectingTip = new("settings.startRecordingAfterSelectingTip", "选区后显示准备面板；关闭后直接录制", "Show a ready panel after selection; turn off to record immediately.");
+        public static readonly Str RecordAtFullMonitorRefresh = new("settings.recordAtFullMonitorRefresh", "跟随刷新率", "Match refresh rate");
         public static readonly Str RecordingFormat = new("settings.recordingFormat", "录制格式", "Recording format");
         public static readonly Str RecordingFrameRate = new(
             "settings.recordingFrameRate",
             "录制帧率",
             "Recording frame rate");
         public static readonly Str RecordWindowOnly = new("settings.recordWindowOnly", "只录窗口", "Record window only");
-        public static readonly Str RememberTheLastToolColor = new(
-            "settings.rememberTheLastToolColor",
-            "记住上次的工具/颜色/粗细",
-            "Remember the last tool, color, and width");
-        public static readonly Str RunAsAdministratorTip = new(
-            "settings.runAsAdministratorTip",
-            "全局键盘钩子要抓住 Win+Shift+S、单点 PrtSc 这类系统先接手的键，以及焦点在高权限窗口上的按键，就得提权。开启时换一次提权实例，Windows 会问一次权限；同时开着开机自启，登录时由计划任务直接以管理员身份拉起，不再弹 UAC",
-            "The global keyboard hook needs elevation to catch keys Windows handles first — Win+Shift+S, a bare PrtSc — and keys pressed while an elevated window has focus. Turning it on restarts once as administrator, which costs one Windows permission prompt. With Start with Windows also on, a scheduled task launches it elevated at sign-in and no UAC appears");
-        public static readonly Str ElevationRelaunchFailed = new(
-            "settings.elevationRelaunchFailed",
-            "提权没成功，开关已关回去：仍在当前权限下运行，Win 组合键可能被系统先接走",
-            "Elevation did not go through and the switch is back off: FrameCapture keeps running as it is, so Windows may still take Win chords first");        public static readonly Str StartupTaskCancelled = new(
+        public static readonly Str RememberTheLastToolColor = new("settings.rememberTheLastToolColor", "记住工具样式", "Remember tool settings");
+        public static readonly Str RunAsAdministratorTip = new("settings.runAsAdministratorTip", "捕获系统组合键与高权限窗口中的按键；开启时请求提权", "Capture system shortcuts and keys in elevated apps; enabling requests elevation.");
+        public static readonly Str ElevationRelaunchFailed = new("settings.elevationRelaunchFailed", "提权未成功，继续以当前权限运行", "Elevation failed; continuing with current permissions.");        public static readonly Str StartupTaskCancelled = new(
             "settings.startupTaskCancelled",
             "建提权自启需要管理员，这一步被取消了：自启没有生效，可以再点一次",
             "Creating the elevated start-up entry needs administrator rights and was cancelled, so nothing was set up. Try again");
@@ -283,10 +187,7 @@ public static partial class K
             "settings.startupTaskFailed",
             "提权自启的计划任务没建成，可能被组策略禁用；自启没有生效",
             "The elevated start-up task could not be created — group policy may block it — so the start-up entry is not in place");        public static readonly Str RightClickCancelsPicker = new("settings.rightClickCancelsPicker", "右键关闭选区", "Right-click closes the picker");
-        public static readonly Str RightClickCancelsPickerTip = new(
-            "settings.rightClickCancelsPickerTip",
-            "选区层上按右键等同于 Esc：整层关掉，什么都不截。关掉它，右键在选区层上就不做事——在网页里想右键复制时不会被选区吃掉",
-            "On the picker, a right click acts like Esc and closes the whole layer without capturing anything. Turn it off and the right button does nothing there, so copying from a page with the context menu is safe");
+        public static readonly Str RightClickCancelsPickerTip = new("settings.rightClickCancelsPickerTip", "右键取消选区，不执行捕获", "Right-click to cancel selection without capturing.");
         public static readonly Str Reset = new("settings.reset", "恢复", "Reset");
         public static readonly Str Resident = new("settings.resident", "常驻", "Resident");
         public static readonly Str RestoreAllDefaultKeys = new(
@@ -302,10 +203,7 @@ public static partial class K
             "#RRGGBB 通用格式",
             "#RRGGBB, the common form");
         public static readonly Str SecondsUnit = new("settings.secondsUnit", "秒", "s");
-        public static readonly Str SaveFolderAutoSavedCopies = new(
-            "settings.saveFolderAutoSavedCopies",
-            "保存文件夹：自动保存副本存到这里，编辑器/贴图「另存为」对话框也默认打开这里",
-            "Save folder: auto-saved copies go here, and the editor and pin Save As dialogs open here by default");
+        public static readonly Str SaveFolderAutoSavedCopies = new("settings.saveFolderAutoSavedCopies", "副本与导出的默认文件夹", "Default folder for copies and exports");
         public static readonly Str SelectionMagnifier = new(
             "settings.selectionMagnifier",
             "选区放大镜",
@@ -319,31 +217,19 @@ public static partial class K
             "settings.showTheLastSelection",
             "显示上次选区",
             "Show the last selection");
-        public static readonly Str ShowTheRegionBorderWhile = new(
-            "settings.showTheRegionBorderWhile",
-            "录制时显示范围边框",
-            "Show the region border while recording");
-        public static readonly Str ShowTheResultWindowAfter = new(
-            "settings.showTheResultWindowAfter",
-            "识别文字后显示结果窗",
-            "Show the result window after recognizing text");
+        public static readonly Str ShowTheRegionBorderWhile = new("settings.showTheRegionBorderWhile", "录制范围边框", "Recording outline");
+        public static readonly Str ShowTheResultWindowAfter = new("settings.showTheResultWindowAfter", "OCR 结果预览", "OCR preview");
         /// <summary>「可调整选区」标题（默认关闭）。</summary>
         public static readonly Str EditableSelection = new("settings.editableSelection", "可调整选区", "Adjustable selection");
 
         /// <summary>说明：松手后的框能拖边角改大小、可整块移动，确认才出图。</summary>
-        public static readonly Str EditableSelectionDesc = new(
-            "settings.editableSelectionDesc",
-            "松手后先给一个能拖边角改大小、可整块移动的框，确认或按 Enter 才出图；关着时松手立刻出图",
-            "After releasing, keep an adjustable frame — drag an edge or corner to resize, drag inside to move, confirm with Enter before the shot is taken. When off, releasing captures right away");
+        public static readonly Str EditableSelectionDesc = new("settings.editableSelectionDesc", "松手后可调整位置与大小，确认后捕获", "Adjust position and size after dragging, then confirm to capture.");
 
 
         /// <summary>键位行的说明：什么时候生效。</summary>
 
         /// <summary>上面那一行键位的长说明，放 ToolTip，不占行内宽度。</summary>
-        public static readonly Str ConfirmCancelKeysTip = new(
-            "settings.confirmCancelKeysTip",
-            "可调整的框出现后生效，点右侧的键位可录入其他键",
-            "Takes effect once the adjustable frame is up; click a field to record another key");
+        public static readonly Str ConfirmCancelKeysTip = new("settings.confirmCancelKeysTip", "用于选区确认与取消", "Confirm or cancel selection");
         public static readonly Str SnapToControls = new("settings.snapToControls", "吸附到控件", "Snap to controls");
         public static readonly Str SoundsOggWavOggWav = new(
             "settings.soundsOggWavOggWav",
@@ -381,65 +267,29 @@ public static partial class K
         public static readonly Str TokenTrack = new("settings.tokenTrack", "轨道", "Track");
         public static readonly Str TokenWarning = new("settings.tokenWarning", "注意", "Warning");
         public static readonly Str TokenWindowBg = new("settings.tokenWindowBg", "窗口底色", "Window");
-        public static readonly Str WhenOnTheEditorTheRecord = new(
-            "settings.whenOnTheEditorTheRecord",
-            "打开后，编辑器、录制控制条、选区遮罩都会出现在你的截图和录屏里——想录一段界面演示时用；平时关着，浮窗与轮廓不会进产物",
-            "When on, the editor, the recording bar and the selection mask all show up in your shots and recordings - use it to demo the UI; leave it off and toasts and outlines stay out of the result");
+        public static readonly Str WhenOnTheEditorTheRecord = new("settings.whenOnTheEditorTheRecord", "将编辑器、控制条和选区界面包含在捕获中", "Include the editor, controls, and selection UI in captures.");
         public static readonly Str CopyKey = new(
             "settings.copyKey",
             "截图后的复制键",
             "Key to copy a shot");
-        public static readonly Str TheToastAlsoAccepts = new(
-            "settings.theToastAlsoAccepts",
-            "截图浮窗还在的那几秒里，这个组合键直接复制这张图；只认完全一致的修饰键，别的组合照常留给你正在用的软件",
-            "While the capture card is up, this chord copies the shot; only the exact modifier set is taken - other combinations still go to the app you are using");
-        public static readonly Str TheReadyCardLists = new(
-            "settings.theReadyCardLists",
-            "就绪卡会在名字旁边列出当前生效的截图键与录制键；对键位已经上手后可以关掉，卡片只留标题和帮助入口",
-            "The ready card lists the capture and record keys that are live right now, next to their names. Once your keys are muscle memory, turn it off and the card keeps only its title and the help entry");
+        public static readonly Str TheToastAlsoAccepts = new("settings.theToastAlsoAccepts", "浮窗显示时按此键复制截图", "Copy the screenshot while its toast is visible.");
+        public static readonly Str TheReadyCardLists = new("settings.theReadyCardLists", "就绪卡显示截图与录制快捷键", "Show capture and recording shortcuts on the ready card.");
         public static readonly Str StartupNotification = new(
             "settings.startupNotification",
             "启动气泡提示",
             "Startup notification");
         public static readonly Str System = new("settings.system", "系统", "System");
         public static readonly Str System2 = new("settings.system2", "系统默认", "System");
-        public static readonly Str TheCursorAppears = new(
-            "settings.theCursorAppears",
-            "录出的画面里带上鼠标光标，默认开。关掉后成片干净无光标，适合做教程/演示时后期自己加高亮，或不想让光标乱入",
-            "The cursor appears in the recording, on by default. Off, the output stays clean, which suits tutorials where you add your own highlight afterwards, or times you would rather the cursor kept out");
-        public static readonly Str TheFormatTheEditorS = new(
-            "settings.theFormatTheEditorS",
-            "录制完成后编辑器「导出录制」默认用的格式。MP4/WebM 需本机装有 ffmpeg，自动探测 PATH 与常见安装目录；未装则视频项会提示安装，GIF 始终可用",
-            "The format the editor's Export recording uses by default. MP4 and WebM need ffmpeg on this machine, looked for on PATH and in the usual install folders; without it the video options offer to install it, and GIF is always available");
-        public static readonly Str TheInstantTheSelectionHotkey = new(
-            "settings.theInstantTheSelectionHotkey",
-            "按下选区热键的瞬间抓一张全屏定格帧，整个选区过程画面看起来就定格了——放大镜读定格帧、拖框/区域截图也裁这张定格帧，不再选完后重新抓屏，所见即所得。关掉则全程实时：屏幕实时可见、放大镜每次移动实时跟画面、截图实时重抓",
-            "The instant the selection hotkey goes down a full-screen frame is taken, and the whole selection looks frozen: the magnifier reads the frozen frame, and dragging a box or capturing a region crops that same frame instead of re-capturing the screen afterwards — what you see is what you get. Off, everything is live: the screen keeps moving, the magnifier follows it on every move, and captures re-grab the screen");
+        public static readonly Str TheCursorAppears = new("settings.theCursorAppears", "将鼠标指针包含在录制中", "Include the cursor in recordings.");
+        public static readonly Str TheFormatTheEditorS = new("settings.theFormatTheEditorS", "录制默认导出格式；MP4/WebM 需要 ffmpeg", "Default recording export format; MP4/WebM require ffmpeg.");
+        public static readonly Str TheInstantTheSelectionHotkey = new("settings.theInstantTheSelectionHotkey", "选区和放大镜使用打开时的定格画面；关闭后实时捕获", "Use the opening frame for selection and magnification; turn off for live capture.");
         public static readonly Str Theme = new("settings.theme", "主题", "Theme");
-        public static readonly Str TheMomentACaptureFinishes = new(
-            "settings.theMomentACaptureFinishes",
-            "截完那一下范围边框「亮边闪一下」作确认——这里设它全亮停留多久再淡出。拍完即走调小、想多留一眼确认截对没调大。它与「常显轮廓」和录制边框各自独立",
-            "The moment a capture finishes the region border lights up as confirmation; this sets how long it stays fully lit before fading. Turn it down to move on at once, up to double-check you caught the right thing. It is independent of the always-on outline and of the recording border");
-        public static readonly Str TheMostCompatibleVideoFormat = new(
-            "settings.theMostCompatibleVideoFormat",
-            "兼容性最好的视频格式，用 libx264 编码，浏览器/剪辑软件/社交平台通吃",
-            "The most compatible video format, encoded with libx264, at home in browsers, editors, and social platforms");
-        public static readonly Str TheRecordingFrameRateThen = new(
-            "settings.theRecordingFrameRateThen",
-            "开启后录制帧率自动取当前录制显示器的刷新率，本机暂未检测到主屏刷新率，录制时按实际显示器实时检测，上面的手动帧率随之隐藏。",
-            "The recording frame rate then follows the refresh rate of the display being recorded; no primary refresh rate was detected here, so it is read live from the actual display when recording starts and the manual frame rate above hides.");
-        public static readonly Str TheRecordingFrameRateThen2 = new(
-            "settings.theRecordingFrameRateThen2",
-            "开启后录制帧率自动取当前录制显示器的刷新率，本机主屏检测到 {0}Hz → 录满 {1}fps，上面的手动帧率随之隐藏。",
-            "The recording frame rate then follows the refresh rate of the display being recorded; the primary screen here reads {0}Hz, so recording runs at {1}fps and the manual frame rate above hides.");
-        public static readonly Str TheSoundThatConfirms = new(
-            "settings.theSoundThatConfirms",
-            "静态截图完成时的听觉确认。静音=不放声音；轻弹=内置柔和「嘀」；自定义…=选一个 ogg 或 wav 文件，wav 最稳，ogg 需系统解码器，播不了会自动回退轻弹。随时可「试听」",
-            "The sound that confirms a still capture finished. No sound is silence; Chime is a soft built-in beep; Custom picks an ogg or wav file — wav is the safest, ogg needs a system decoder and falls back to the chime when it cannot play. Preview is always there");
-        public static readonly Str TheTextFormThePicker = new(
-            "settings.theTextFormThePicker",
-            "选区放大镜按 C 复制颜色时的文本形式：#RRGGBB / rgb(r, g, b) / hsl(h, s%, l%)",
-            "The text form the picker's C key copies: #RRGGBB / rgb(r, g, b) / hsl(h, s%, l%)");
+        public static readonly Str TheMomentACaptureFinishes = new("settings.theMomentACaptureFinishes", "截图后边框停留多久再淡出", "How long the screenshot outline stays before fading.");
+        public static readonly Str TheMostCompatibleVideoFormat = new("settings.theMostCompatibleVideoFormat", "H.264 视频，兼容常见播放器与平台", "H.264 video, compatible with common players and platforms");
+        public static readonly Str TheRecordingFrameRateThen = new("settings.theRecordingFrameRateThen", "按录制显示器的刷新率自动设置帧率", "Set the frame rate from the recording display refresh rate.");
+        public static readonly Str TheRecordingFrameRateThen2 = new("settings.theRecordingFrameRateThen2", "主屏 {0} Hz，录制 {1} fps；其他屏幕自动检测", "Primary display: {0} Hz, {1} fps. Other displays are detected automatically.");
+        public static readonly Str TheSoundThatConfirms = new("settings.theSoundThatConfirms", "截图完成时播放。自定义支持 OGG/WAV，播放失败时使用内置音", "Play after a screenshot. Custom OGG/WAV falls back to the built-in sound if playback fails.");
+        public static readonly Str TheTextFormThePicker = new("settings.theTextFormThePicker", "放大镜复制颜色时使用的格式", "Format used when copying a color from the magnifier");
         public static readonly Str ToastLifetime = new("settings.toastLifetime", "悬浮窗存在时间", "Toast lifetime");
         public static readonly Str ToolbarEntranceAnimation = new(
             "settings.toolbarEntranceAnimation",
@@ -449,30 +299,15 @@ public static partial class K
             "settings.usualEnoughToOpen",
             "常用：够打开一个菜单",
             "Usual: enough to open a menu");
-        public static readonly Str WhenBothFreezeTheScreen = new(
-            "settings.whenBothFreezeTheScreen",
-            "「定格画面」与「点击窗口时截取完整窗口」都开着时，定格瞬间后台按 Z 序、当前聚焦窗最优先，预抓这么多「完整可见」窗口的干净画面；点窗口即用缓存＝定格+干净圆角+投影，没缓存好则实时抓兜底。0 = 不预抓，点窗口一律实时抓",
-            "When both Freeze the screen while selecting and Click a window to capture the whole window are on, the moment of the freeze pre-captures clean images of up to this many fully visible windows in Z order, focused window first. Clicking a window then reads the cache: freeze plus clean rounded corners plus shadow, with a live capture as the fallback. 0 means no pre-capture, so every window click captures live");
-        public static readonly Str WhenTheEditorOpens = new(
-            "settings.whenTheEditorOpens",
-            "打开编辑器时，底部两排图标逐项落定，视线跟着落到工具上。关闭后工具栏随窗口直接出现，一个动画都不放",
-            "When the editor opens, the two rows of icons at the bottom settle one by one and the eye lands on the tools with them. Off, the toolbar appears with the window and no animation plays");
-        public static readonly Str WhenYouClickAWindow = new(
-            "settings.whenYouClickAWindow",
-            "录制选区里点一个窗口起录时，录的是这个窗口本体而不是那块屏幕矩形：别的窗口盖上来、窗口挪位置都不会进画面，成片里只有它。圆角处按白底拍平，GIF 与 MP4 没有透明通道。关掉则一律按屏幕矩形录",
-            "When you click a window in the recording selection, it records that window itself rather than the screen rectangle: another window covering it, or moving it around, never enters the frame — the output holds only that window. Rounded corners are flattened onto white, because GIF and MP4 carry no transparency. Off, everything records as a screen rectangle");
-        public static readonly Str WhileYouDragOrHover = new(
-            "settings.whileYouDragOrHover",
-            "拖框或悬停选区时，光标旁显示高倍像素放大镜、坐标/尺寸读数与光标下像素颜色，按 C 复制颜色、格式见下，便于像素级精确选区/取色；关闭可省一点开销",
-            "While you drag or hover a selection, a high-magnification pixel view sits beside the cursor with coordinate and size readouts and the color under the cursor. C copies that color in the format set below, for pixel-precise selection and picking. Off saves a little overhead");
+        public static readonly Str WhenBothFreezeTheScreen = new("settings.whenBothFreezeTheScreen", "定格时预抓可见窗口，点击后直接使用；0 表示实时抓取", "Cache visible windows when freezing; use 0 for live window capture.");
+        public static readonly Str WhenTheEditorOpens = new("settings.whenTheEditorOpens", "编辑器工具栏逐项入场", "Animate editor toolbar items on opening");
+        public static readonly Str WhenYouClickAWindow = new("settings.whenYouClickAWindow", "录制窗口本体，不受遮挡或移动影响", "Record the window independently of overlap or movement.");
+        public static readonly Str WhileYouDragOrHover = new("settings.whileYouDragOrHover", "显示像素、坐标与颜色；按 C 复制颜色", "Show pixels, coordinates, and color; press C to copy the color.");
         public static readonly Str Windows = new("settings.windows", "{0} 个", "{0} windows");
         public static readonly Str WindowsPreCapturedOnFreeze = new(
             "settings.windowsPreCapturedOnFreeze",
             "定格时预抓窗口数",
             "Windows pre-captured on freeze");
-        public static readonly Str WithTheSwitchAbove = new(
-            "settings.withTheSwitchAbove",
-            "在上面开关开启时，额外把窗口边缘的真实投影截进来、外缘柔和渐隐到透明。关掉则只截窗口本体，圆角透明、无投影",
-            "With the switch above on, the real shadow along the window's edge is captured too, its outer edge fading softly to transparent. Off, only the window body is captured: transparent corners, no shadow");
+        public static readonly Str WithTheSwitchAbove = new("settings.withTheSwitchAbove", "保留窗口边缘的投影与透明渐变", "Keep window shadows and transparent edges.");
     }
 }

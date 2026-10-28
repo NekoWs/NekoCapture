@@ -125,7 +125,8 @@ public sealed partial class CaptureController
         return completion.Task;
     }
 
-    async Task<bool> RunChainStepAsync(string name, RunContext context, bool initialRecordMode, bool showModeSwitch = true)
+    async Task<bool> RunChainStepAsync(string name, RunContext context, bool initialRecordMode, bool showModeSwitch = true,
+        Func<Task>? recordingStarted = null)
     {
         if (_disposed || (context.Cancelled && GestureActions.InfoOf(name).Class != VerbClass.Terminal)) return false;
         var values = (context.Region != null ? RunValue.Region : RunValue.None)
@@ -192,6 +193,7 @@ public sealed partial class CaptureController
                     .WithWindowHonor(_settings.Current.RecordWindowClean);
                 context.Frozen = null; context.FrozenWindow = null;
                 var recordingCompletion = _recordCompletion = Completion();
+                var startedSignal = Completion();
                 if (context.Selected && _settings.Current.RecordNeedsStartClick)
                 {
                     if (_settings.Current.ShowRecordingBorder) ShowCaptureScope(context.Region.Value);
@@ -206,7 +208,7 @@ public sealed partial class CaptureController
                                 RecordPanelWindow.Dismiss();
                                 recordingCompletion.TrySetResult(false);
                             }
-                            else context.Recording = true;
+                            else { context.Recording = true; startedSignal.TrySetResult(true); }
                         }, () =>
                         {
                             if (!StopRecording())
@@ -225,10 +227,22 @@ public sealed partial class CaptureController
                         RecordPanelWindow.ShowRecording(context.Region.Value, context.DeviceName, () => StopRecording());
                     }
                     if (!StartRecording()) { RecordPanelWindow.Dismiss(); _panelRecording = false; return false; }
+                    startedSignal.TrySetResult(true);
                 }
                 if (RecordPanelWindow.Current is { } panel)
                     panel.Closed += (_, _) => { if (State != Phase.Capturing) recordingCompletion.TrySetResult(false); };
                 context.Recording = State == Phase.Capturing;
+                await Task.WhenAny(startedSignal.Task, recordingCompletion.Task);
+                if (startedSignal.Task.IsCompletedSuccessfully && recordingStarted != null)
+                {
+                    try { await recordingStarted(); }
+                    catch
+                    {
+                        if (State == Phase.Capturing) StopRecording();
+                        await recordingCompletion.Task;
+                        throw;
+                    }
+                }
                 bool recorded = await recordingCompletion.Task;
                 context.Recording = false;
                 context.Video = recorded ? _lastSequence : null;

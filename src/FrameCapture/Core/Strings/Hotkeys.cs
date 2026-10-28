@@ -14,7 +14,7 @@ public static partial class K
         public static readonly Str PresetSeparate = new("hotkeys.presetSeparate", "选区与捕获", "Select, then capture");
         public static readonly Str PresetSingle = new("hotkeys.presetSingle", "单快捷键", "One shortcut");
         public static readonly Str PresetCustom = new("hotkeys.presetCustom", "自定义", "Custom");
-        public static readonly Str PresetHint = new("hotkeys.presetHint", "选择方案会替换快捷键与行为；修改后自动保存到自定义", "Selecting a scheme replaces shortcuts and behaviors. Edits are saved to Custom.");
+        public static readonly Str PresetHint = new("hotkeys.presetHint", "应用方案替换快捷键与行为，修改后存入自定义", "Apply to replace shortcuts and behaviors; edits are saved to Custom.");
         public static readonly Str PresetDualDesc = new("hotkeys.presetDualDesc", "两个快捷键分别进入截图与录制", "Two keys open capture or recording.");
         public static readonly Str PresetSeparateDesc = new("hotkeys.presetSeparateDesc", "保存并复用选区，另一键控制捕获", "Reuse a region; tap or hold the other key.");
         public static readonly Str PresetSingleDesc = new("hotkeys.presetSingleDesc", "同一入口，截图与录制由按钮切换", "One key opens selection; buttons choose the mode.");
@@ -27,9 +27,9 @@ public static partial class K
         public static readonly Str PresetCustomSummary = new("hotkeys.presetCustomSummary", "{0} 条快捷键 · {1} 个行为", "Shortcuts {0} · Behaviors {1}");
         public static readonly Str ChainTitle = new("hotkeys.chainTitle", "动作链", "Action chain");
         public static readonly Str FollowsSwitch = new("hotkeys.followsSwitch", "模式出口", "Mode exit");
-        public static readonly Str SwitchStepHint = new("hotkeys.switchStepHint", "模式按钮选择截图或录制出口，子链完成后继续同级动作", "The mode switch chooses the screenshot or recording exit; sibling actions continue after the child chain");
+        public static readonly Str SwitchStepHint = new("hotkeys.switchStepHint", "模式按钮决定截图或录制分支", "The mode switch chooses the capture or recording branch.");
         public static readonly Str EditResult = new("hotkeys.editResult", "编辑捕获结果", "Edit capture result");
-        public static readonly Str EditResultDesc = new("hotkeys.editResultDesc", "编辑本链最近产出的静图或录制，不使用其他运行的产物", "Edit the latest still or recording from this chain, without using a result from another run");
+        public static readonly Str EditResultDesc = new("hotkeys.editResultDesc", "编辑本次捕获的最新产物", "Edit the latest result from this run.");
         public static readonly Str StoredScope = new("hotkeys.storedScope", "使用当前范围", "Use current region");
         public static readonly Str StoredScopeDesc = new("hotkeys.storedScopeDesc", "读取已存范围，没有时使用光标所在屏幕", "Use the stored region, or the screen under the cursor if none is stored");
         public static readonly Str ChainEmptyHint = new("hotkeys.chainEmptyHint", "添加步骤后按顺序执行", "Add steps to run in order");
@@ -48,14 +48,8 @@ public static partial class K
         public static readonly Str ValueRecording = new("hotkeys.valueRecording", "录制中", "Recording");
         public static readonly Str ValueNone = new("hotkeys.valueNone", "无", "None");
         public static readonly Str AddAHotkey = new("hotkeys.addAHotkey", "添加快捷键", "Add a hotkey");
-        public static readonly Str AddsOnePressAKey = new(
-            "hotkeys.addsOnePressAKey",
-            "新增一条：先给它按一个组合键，再挑要执行的动作",
-            "Add one: press a key combination first, then pick what it should do.");
-        public static readonly Str AnotherHotkeyAlreadyUsesThis = new(
-            "hotkeys.anotherHotkeyAlreadyUsesThis",
-            "同一个组合键与触发方式上挂着多条快捷键，只有排在前面那条会触发",
-            "Another hotkey already uses this shortcut and trigger — only the first one in the list fires.");
+        public static readonly Str AddsOnePressAKey = new("hotkeys.addsOnePressAKey", "添加按键并选择行为入口", "Add a key and choose a behavior entry.");
+        public static readonly Str AnotherHotkeyAlreadyUsesThis = new("hotkeys.anotherHotkeyAlreadyUsesThis", "按键与触发方式重复，仅首条生效", "Duplicate key and trigger; only the first binding runs.");
         public static readonly Str ClickThenPressAKey = new(
             "hotkeys.clickThenPressAKey",
             "点击按键",
@@ -66,23 +60,14 @@ public static partial class K
         public static readonly Str EnableHotkeys = new("hotkeys.enableHotkeys", "启用快捷键", "Enable hotkeys");
         public static readonly Str NewPresetName = new("hotkeys.newPresetName", "新配置", "New preset");
         public static readonly Str RenameThisHotkey = new("hotkeys.renameThisHotkey", "改名", "Rename");
-        public static readonly Str OffStepsTheWholeHotkey = new(
-            "hotkeys.offStepsTheWholeHotkey",
-            "关掉后快捷键整体不参与：不吞键、不触发，按键照常交给当前窗口",
-            "Off, the whole hotkey layer steps back: no swallowed keys, no triggering — every keypress goes to the window in front.");
-        public static readonly Str OneKeyCombinationCanCarry = new(
-            "hotkeys.oneKeyCombinationCanCarry",
-            "同一个组合键可以配多条不同触发：组合键即按即触发，轻点与按住用来让一个键分出两件事",
-            "One key combination can carry several triggers: a shortcut fires the moment it is pressed, while tap and hold split one key into two jobs.");
+        public static readonly Str OffStepsTheWholeHotkey = new("hotkeys.offStepsTheWholeHotkey", "关闭后保留配置，按键交给当前应用", "Keep settings when disabled; keys pass to the active app.");
+        public static readonly Str OneKeyCombinationCanCarry = new("hotkeys.oneKeyCombinationCanCarry", "同一按键可配置轻点、长按等手势", "Assign tap, hold, and other gestures to the same key.");
         public static readonly Str OnFailure = new("hotkeys.onFailure", "失败后", "After failure");
         public static readonly Str PressANewKeyEsc = new(
             "hotkeys.pressANewKeyEsc",
             "按新键 · Esc 解绑",
             "Press a new key · Esc clears it");
-        public static readonly Str RunsInOrderDragToReorder = new(
-            "hotkeys.runsInOrderDragToReorder",
-            "按顺序执行；箭头或拖动调整顺序，加号添加步骤。录制步骤等待停止后继续",
-            "Runs in order. Use arrows or drag to reorder; use plus to add a step. Recording waits until stopped.");
+        public static readonly Str RunsInOrderDragToReorder = new("hotkeys.runsInOrderDragToReorder", "拖动排序，点击加号添加；录制等待停止", "Drag to reorder; use plus to add. Recording waits for stopping.");
         public static readonly Str Shortcut = new("hotkeys.shortcut", "组合键", "Shortcut");
         public static readonly Str Trigger = new("hotkeys.trigger", "触发方式", "Trigger");
         public static readonly Str UiKeys = new("hotkeys.uiKeys", "界面键位", "Interface keys");

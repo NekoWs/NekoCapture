@@ -11,8 +11,8 @@ public static partial class K
     {
         public static readonly Str RecordReady = new("capture.recordReady", "准备录制", "Ready to record");
         public static readonly Str RecordActive = new("capture.recordActive", "正在录制", "Recording in progress");
-        public static readonly Str RecordReadyHint = new("capture.recordReadyHint", "选区已确认，点击开始后才会录制。", "Selection confirmed. Recording starts only when you choose Start.");
-        public static readonly Str RecordReadyKeys = new("capture.recordReadyKeys", "{0} 开始 · {1} 取消", "{0} to start · {1} to cancel");
+        public static readonly Str RecordStartKey = new("capture.recordStartKey", "开始录制 · {0}", "Start recording · {0}");
+        public static readonly Str RecordCancelKey = new("capture.recordCancelKey", "取消录制 · {0}", "Cancel recording · {0}");
         public static readonly Str RecordSelectHint = new("capture.recordSelectHint", "拖框选择录制范围 · {0} 取消", "Drag to select the recording region · {0} to cancel");
         public static readonly Str RecordAdjustHint = new("capture.recordAdjustHint", "拖边角调整录制范围 · {0} 确认 · {1} 取消", "Adjust the recording region · {0} to confirm · {1} to cancel");
         /// <summary>调整选区期间的提示条：怎么改、怎么确认。</summary>

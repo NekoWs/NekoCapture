@@ -136,7 +136,9 @@ public static class GestureActions
     public static string[] PortsOf(string action) => Canonical(action) switch
     {
         Select => new[] { BehaviorPorts.Still, BehaviorPorts.Record, BehaviorPorts.Cancel, BehaviorPorts.Failed },
-        SelectOnly or RecordStart or RecordToggle or ScrollCapture or DelayedCapture =>
+        RecordStart or RecordToggle =>
+            new[] { BehaviorPorts.Started, BehaviorPorts.Cancel, BehaviorPorts.Done, BehaviorPorts.Failed },
+        SelectOnly or ScrollCapture or DelayedCapture =>
             new[] { BehaviorPorts.Done, BehaviorPorts.Cancel, BehaviorPorts.Failed },
         EditLastStill or EditLastVideo or EditResult =>
             new[] { BehaviorPorts.Saved, BehaviorPorts.Closed, BehaviorPorts.Failed },
@@ -156,6 +158,7 @@ public static class GestureActions
         BehaviorPorts.Failed => K.Hotkeys.OnFailure,
         BehaviorPorts.Saved => K.Behaviors.Saved,
         BehaviorPorts.Closed => K.Behaviors.Closed,
+        BehaviorPorts.Started => K.Behaviors.Started,
         BehaviorPorts.Done when action is RecordStart or RecordToggle => K.Behaviors.Stopped,
         _ => K.Behaviors.Done,
     });

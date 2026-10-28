@@ -9,7 +9,7 @@ public static partial class K
     /// <summary>动作词汇表的短名与它做什么。</summary>
     public static partial class Actions
     {
-        public static readonly Str CaptureFrameDesc = new("actions.captureFrameDesc", "按下立即抓光标所在屏幕的当下这一帧，不走选区、不带延时、不抢焦点，适合游戏", "Grabs the exact frame on the screen under the cursor the moment you press: no selection, no delay, no focus steal — usable in games");
+        public static readonly Str CaptureFrameDesc = new("actions.captureFrameDesc", "立即截取光标所在屏幕，不打开选区", "Capture the screen under the cursor without opening selection.");
         public static readonly Str CaptureFrameLabel = new("actions.captureFrameLabel", "全屏即时截图", "Instant Full-screen Capture");
         public static readonly Str CaptureStoredDesc = new("actions.captureStoredDesc", "截取本链区域，没有区域时截光标所在屏幕", "Capture this chain's region, or the screen under the cursor if no region is set");
         public static readonly Str CopyLastDesc = new("actions.copyLastDesc", "复制本链文字或静图，独立使用时复制上次截图", "Copy this chain's text or still image; when used alone, copy the last still");
@@ -22,13 +22,13 @@ public static partial class K
         public static readonly Str HelpOpenLabel = new("actions.helpOpenLabel", "打开帮助", "Open Help");
         public static readonly Str NotifyToastDesc = new("actions.notifyToastDesc", "显示本链静图浮窗，独立使用时显示上次截图", "Show this chain's still image as a toast; when used alone, show the last still");
         public static readonly Str NotifyToastLabel = new("actions.notifyToastLabel", "提示", "Notify");
-        public static readonly Str OcrSelectionDesc = new("actions.ocrSelectionDesc", "对当前范围做 OCR：开「识别后显示结果窗」则弹可编辑结果窗，否则直接复制文本", "Runs OCR on the current region: with Show the result window after recognizing text on, an editable result window appears, otherwise the text is copied directly");
+        public static readonly Str OcrSelectionDesc = new("actions.ocrSelectionDesc", "识别当前范围的文字，预览或直接复制", "Recognize text in the region; preview or copy it.");
         public static readonly Str PinSelectionDesc = new("actions.pinSelectionDesc", "把当前范围钉在屏幕上", "Pins the current region on screen");
-        public static readonly Str RecordStartDesc = new("actions.recordStartDesc", "对本链区域开始录制，停止后继续动作链", "Record this chain's region and continue the chain when stopped");
+        public static readonly Str RecordStartDesc = new("actions.recordStartDesc", "录制当前区域，分别配置开始、取消与停止后的动作", "Record the region; configure actions after starting, cancelling, and stopping.");
         public static readonly Str RecordStartLabel = new("actions.recordStartLabel", "开始录制", "Start Recording");
-        public static readonly Str RecordStopDesc = new("actions.recordStopDesc", "停止录制，产物留在内存，不自动进编辑器", "Stops recording and keeps the result in memory; it does not open the editor on its own");
+        public static readonly Str RecordStopDesc = new("actions.recordStopDesc", "停止录制并保留产物，不自动进编辑器", "Stop and keep the result without opening the editor.");
         public static readonly Str RecordStopLabel = new("actions.recordStopLabel", "停止录制", "Stop Recording");
-        public static readonly Str RecordToggleDesc = new("actions.recordToggleDesc", "空闲时对本链或当前范围起录；录制中停止并继续动作链。本动作不自动进编辑器", "Record this chain's region or the current region when idle; stop an active recording, then continue the chain. Opening an editor requires an edit step");
+        public static readonly Str RecordToggleDesc = new("actions.recordToggleDesc", "空闲起录，再次触发停止；不自动进编辑器", "Start when idle or stop when recording, without opening the editor.");
         public static readonly Str RecordToggleLabel = new("actions.recordToggleLabel", "开始/停止录制", "Start/Stop Recording");
         public static readonly Str ScopeSelectDesc = new("actions.scopeSelectDesc", "选择区域，上方模式按钮决定截图或录制分支", "Select a region; the mode switch chooses the screenshot or recording branch");
         public static readonly Str ScopeSelectLabel = new("actions.scopeSelectLabel", "选区", "Selection");

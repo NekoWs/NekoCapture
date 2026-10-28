@@ -36,10 +36,7 @@ public static partial class K
             "editor.dragToSelectARange",
             "拖拽选择片段",
             "Drag to select a range");
-        public static readonly Str DragWithTheCropTool = new(
-            "editor.dragWithTheCropTool",
-            "裁剪工具拖框，框外压暗并显示网格提示，松开即应用；Ctrl+Z 可撤销",
-            "Drag with the Crop tool: everything outside the box dims and a grid appears, release to apply. Ctrl+Z undoes it.");
+        public static readonly Str DragWithTheCropTool = new("editor.dragWithTheCropTool", "拖框裁剪，Ctrl+Z 撤销", "Drag to crop; Ctrl+Z to undo.");
         public static readonly Str EnterCopiesToTheClipboard = new(
             "editor.enterCopiesToTheClipboard",
             "Enter 写入剪贴板 · Esc 关闭 · 图钉=总在最前",
@@ -86,10 +83,7 @@ public static partial class K
             "MP4 视频|*.mp4|WebM 视频|*.webm|GIF 动图|*.gif",
             "MP4 video|*.mp4|WebM video|*.webm|GIF animation|*.gif");
         public static readonly Str NextFrame = new("editor.nextFrame", "下一帧", "Next frame");
-        public static readonly Str PickATool = new(
-            "editor.pickATool",
-            "底部工具条选 线/矩形 R/圆 O/箭头/手绘/文字 T/马赛克 M，再点同一工具退出绘制；选中 V 可点选已画标注拖动/删除",
-            "Pick a tool on the bottom bar: Line, Rectangle R, Ellipse O, Arrow, Freehand, Text T, Mosaic M. Press the same tool again to stop drawing. Select V clicks an annotation so you can move or delete it.");
+        public static readonly Str PickATool = new("editor.pickATool", "选择工具绘制，再次点击退出；V 选择、移动或删除标注", "Choose a tool to draw; click again to exit. V selects, moves, or deletes annotations.");
         public static readonly Str PinToScreen = new("editor.pinToScreen", "钉到屏幕", "Pin to screen");
         public static readonly Str PlayPauseSpace = new(
             "editor.playPauseSpace",
@@ -107,10 +101,7 @@ public static partial class K
             "松开应用裁剪",
             "Release to apply the crop");
         public static readonly Str RgbaPalette = new("editor.rgbaPalette", "RGBA 调色板", "RGBA palette");
-        public static readonly Str SamplesTheCurrentRecordingInto = new(
-            "editor.samplesTheCurrentRecordingInto",
-            "从当前录制抽样拼成一张逐帧图，含裁剪与标注，共 {0} 帧，确定后复制到剪贴板",
-            "Samples the current recording into one image, crop and annotations included, {0} frames in all. Choosing Done copies it to the clipboard.");
+        public static readonly Str SamplesTheCurrentRecordingInto = new("editor.samplesTheCurrentRecordingInto", "将 {0} 帧拼为长图，含裁剪与标注，确认后复制", "Combine {0} frames with crops and annotations; confirm to copy.");
         public static readonly Str SaveAfterimageComposite = new(
             "editor.saveAfterimageComposite",
             "保存视觉暂留合成图",

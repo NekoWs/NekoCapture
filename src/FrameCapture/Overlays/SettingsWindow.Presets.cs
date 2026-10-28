@@ -75,11 +75,12 @@ public sealed partial class SettingsWindow
             Background = new SolidColorBrush(Theme.CardBg), Foreground = Theme.TextBrush,
             Template = PresetCardTemplate(), ToolTip = Loc.T(description) };
         AutomationProperties.SetName(button, Loc.T(BehaviorPresets.Label(id)));
+        button.Resources["preset-hover"] = new SolidColorBrush(Theme.Hover);
         button.Click += (_, _) => ApplyBehaviorPreset(id);
         return button;
     }
 
-    static FrameworkElement PresetFlowRow(string chord, string result)
+    FrameworkElement PresetFlowRow(string chord, string result)
     {
         var grid = new Grid { Margin = new Thickness(0, 3, 0, 0) };
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -87,6 +88,12 @@ public sealed partial class SettingsWindow
         grid.ColumnDefinitions.Add(new ColumnDefinition());
         grid.Children.Add(Keycaps.Row(chord, new KeycapTheme { Face = Theme.RowBg, Text = Theme.Text,
             Stroke = Theme.StrokeSoft, Dim = Theme.TextDim, Size = 9.5 }));
+        _repaint.Add(() =>
+        {
+            grid.Children.RemoveAt(0);
+            grid.Children.Insert(0, Keycaps.Row(chord, new KeycapTheme { Face = Theme.RowBg, Text = Theme.Text,
+                Stroke = Theme.StrokeSoft, Dim = Theme.TextDim, Size = 9.5 }));
+        });
         var arrow = new TextBlock { Text = "\uE76C", FontFamily = new FontFamily("Segoe Fluent Icons"),
             FontSize = 8, Foreground = Theme.TextDimBrush, Margin = new Thickness(4, 4, 4, 0) };
         Grid.SetColumn(arrow, 1); grid.Children.Add(arrow);

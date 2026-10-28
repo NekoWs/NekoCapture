@@ -81,9 +81,9 @@ public sealed partial class CaptureController
         _consumeStop = consumeStop;
         try
         {
-            return await BehaviorRunner.RunAsync(graph, entryId, async node =>
+            return await BehaviorRunner.RunAsync(graph, entryId, async (node, emit) =>
             {
-                string port = await RunBehaviorNodeAsync(node, context);
+                string port = await RunBehaviorNodeAsync(node, context, emit);
                 context.LastEvent = port;
                 return port;
             }, () => _disposed);
@@ -97,7 +97,7 @@ public sealed partial class CaptureController
         }
     }
 
-    async Task<string> RunBehaviorNodeAsync(BehaviorNode node, RunContext context)
+    async Task<string> RunBehaviorNodeAsync(BehaviorNode node, RunContext context, Func<string, Task<bool>> emit)
     {
         if (_disposed) return BehaviorPorts.Cancel;
         string action = node.Action;
@@ -166,7 +166,10 @@ public sealed partial class CaptureController
         }
         if (action is GestureActions.EditResult or GestureActions.EditLastStill or GestureActions.EditLastVideo)
             return await RunBehaviorEditorAsync(action, context);
-        ok = await RunChainStepAsync(action, context, false);
+        ok = await RunChainStepAsync(action, context, false, recordingStarted: async () =>
+        {
+            if (!await emit(BehaviorPorts.Started)) throw new InvalidOperationException("Recording start branch failed");
+        });
         bool wasCancelled = context.Cancelled;
         context.Cancelled = false;
         Trace.Log($"behavior {action} ok={ok}");

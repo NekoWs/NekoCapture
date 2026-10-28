@@ -430,6 +430,7 @@ panel.Children.Add(ToggleRow("\uE768", Loc.T(K.Settings.StartRecordingAfterSelec
             // 重复点击当前已选类别：内容/胶囊/标题都已在位，直接返回，不重播进入动画。
             if (animate && prev == idx) return;
             _cat = idx;
+            if (prev != idx && prev >= 0 && prev < cats.Count) CancelContentTransitions(cats[prev].Body);
             bool doFade = animate && prev != idx && prev >= 0 && prev < cats.Count;
             // 内容切换（对标 PCL2 平滑切页）：离开的面板淡出后收起、进入的面板淡入 + 轻微上浮。
             // 面板同处一个 Grid（重叠），故可交叉淡入；快速连切时先把无关面板动画清零并收起，避免竞态残留。
@@ -542,6 +543,7 @@ panel.Children.Add(ToggleRow("\uE768", Loc.T(K.Settings.StartRecordingAfterSelec
         foreach (var c in cats) host.Children.Add(c.Body);
         scroller = new ScrollViewer
         {
+            Focusable = false,
             Content = host,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,

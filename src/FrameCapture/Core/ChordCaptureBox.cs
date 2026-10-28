@@ -82,6 +82,8 @@ public sealed class ChordCaptureBox : Border
         };
         PreviewKeyDown += OnPreviewKeyDown;
         LostFocus += (_, _) => CancelIfCapturing();
+        Loaded += (_, _) => { Theme.Changed -= Render; Theme.Changed += Render; Render(); };
+        Unloaded += (_, _) => { Theme.Changed -= Render; CancelIfCapturing(); };
         Render();
     }
 

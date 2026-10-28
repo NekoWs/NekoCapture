@@ -68,7 +68,7 @@ public sealed partial class RecordPanelWindow : Window
         _armed = true; _onStart = onStart;
         _readyDetails.Visibility = _start.Visibility = Visibility.Visible;
         _recordStatus.Visibility = _dot.Visibility = _time.Visibility = Visibility.Collapsed;
-        _stopText.Text = Loc.T(K.Common.Cancel); _stop.ToolTip = _stopText.Text;
+        _stopText.Text = Loc.T(K.Common.Cancel); _stop.ToolTip = Loc.F(K.Capture.RecordCancelKey, _cancelChord);
         Services.HotkeyManager.ArmedRecordKey = HandleReadyKey;
         ResizePanel();
     }
@@ -127,16 +127,12 @@ public sealed partial class RecordPanelWindow : Window
         _confirmChord = ValidPanelChord(settings?.PickerConfirmChord, "Enter");
         _cancelChord = ValidPanelChord(settings?.PickerCancelChord, "Esc");
         _confirmKey = PanelChord(_confirmChord); _cancelKey = PanelChord(_cancelChord);
-        _readyDetails = new StackPanel { Width = Math.Min(300, _workDip.Width - 40), Margin = new Thickness(0, 0, 0, 10) };
+        _readyDetails = new StackPanel { MaxWidth = Math.Min(300, _workDip.Width - 40), Margin = new Thickness(0, 0, 0, 10) };
         _readyDetails.Children.Add(new TextBlock { Text = Loc.T(K.Capture.RecordReady), FontSize = 13,
             FontWeight = FontWeights.SemiBold, Foreground = Theme.TextBrush });
         _readyDetails.Children.Add(new TextBlock { Text = Loc.F(K.Capture.Region, region.W, region.H), FontSize = 11,
-            Foreground = Theme.TextDimBrush, Margin = new Thickness(0, 3, 0, 6) });
-        _readyDetails.Children.Add(new TextBlock { Text = Loc.T(K.Capture.RecordReadyHint), FontSize = 11.5,
-            Foreground = Theme.TextBrush, TextWrapping = TextWrapping.Wrap });
-        _readyDetails.Children.Add(new TextBlock { Text = Loc.F(K.Capture.RecordReadyKeys, _confirmChord, _cancelChord), FontSize = 11,
-            Foreground = Theme.TextDimBrush, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 5, 0, 0),
-            Visibility = Services.AppHost.Current.Hotkeys is { Installed: false } ? Visibility.Collapsed : Visibility.Visible });
+            Foreground = Theme.TextBrush, Margin = new Thickness(0, 3, 0, 0) });
+        _start.ToolTip = Loc.F(K.Capture.RecordStartKey, _confirmChord);
         _card = new Border { Background = Theme.CardBgBrush, BorderBrush = Fluent.CardEdge(), BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(10), Padding = new Thickness(12, 9, 12, 9),
             Child = new StackPanel { Children = { _readyDetails, row } } };

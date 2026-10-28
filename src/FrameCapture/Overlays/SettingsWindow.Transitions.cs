@@ -48,12 +48,18 @@ public sealed partial class SettingsWindow
                 motion.Generation++; motion.Outgoing?.Remove(); motion.Outgoing = null;
                 panel.BeginAnimation(HeightProperty, null); panel.Height = double.NaN;
             };
+            panel.IsVisibleChanged += (_, _) =>
+            {
+                if (panel.IsVisible) return;
+                motion.Generation++; motion.Outgoing?.Remove(); motion.Outgoing = null;
+                panel.BeginAnimation(HeightProperty, null); panel.Height = double.NaN;
+            };
             return motion;
         });
 
     static void TransitionContent(Panel host, Action render, int direction = 1)
     {
-        if (!host.IsLoaded) { render(); return; }
+        if (!host.IsLoaded || !host.IsVisible || host.ActualWidth <= 0) { render(); return; }
         var state = ContentMotionFor(host);
         int generation = ++state.Generation;
         state.Outgoing?.Remove(); state.Outgoing = null;
@@ -78,6 +84,17 @@ public sealed partial class SettingsWindow
         host.BeginAnimation(HeightProperty, height);
         Fluent.CascadeIn(host.Children.OfType<FrameworkElement>().Where(child => child is not TabControl).ToArray(),
             risePx: 0, riseX: direction * 12, budgetMs: Fluent.Motion.EnterMs);
+    }
+
+    static void CancelContentTransitions(DependencyObject root)
+    {
+        if (root is Panel panel && ContentMotions.TryGetValue(panel, out var state))
+        {
+            state.Generation++; state.Outgoing?.Remove(); state.Outgoing = null;
+            panel.BeginAnimation(HeightProperty, null); panel.Height = double.NaN;
+        }
+        for (int i = 0; i < VisualTreeHelper.GetChildrenCount(root); i++)
+            CancelContentTransitions(VisualTreeHelper.GetChild(root, i));
     }
 
     static SnapshotAdorner? DepartingVisual(FrameworkElement host, BitmapSource source, Rect bounds, bool shrink, double offset = 0)
@@ -110,9 +127,14 @@ public sealed partial class SettingsWindow
                 Stretch = Stretch.Fill, RenderTransformOrigin = new Point(0.5, 0.5) };
             AddVisualChild(_image);
             host.Unloaded += OnHostUnloaded;
+            host.IsVisibleChanged += OnHostVisibilityChanged;
         }
 
         void OnHostUnloaded(object sender, RoutedEventArgs e) => Remove();
+        void OnHostVisibilityChanged(object sender, DependencyPropertyChangedEventArgs e)
+        {
+            if (!_host.IsVisible) Remove();
+        }
 
         /// <summary>移除快照并解除宿主订阅。</summary>
         public void Remove()
@@ -120,6 +142,7 @@ public sealed partial class SettingsWindow
             if (_removed) return;
             _removed = true;
             _host.Unloaded -= OnHostUnloaded;
+            _host.IsVisibleChanged -= OnHostVisibilityChanged;
             _layer.Remove(this);
             _image.Source = null;
         }

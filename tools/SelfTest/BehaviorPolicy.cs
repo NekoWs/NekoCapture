@@ -6,6 +6,7 @@ static partial class SelfTest
     static void BehaviorPolicy()
     {
         BehaviorPresetPolicy();
+        RecordingBranchPolicy();
         try
         {
             Chk("T272-input-clock-wrap", GestureClock.Expand(5, 4294967306) == 4294967301

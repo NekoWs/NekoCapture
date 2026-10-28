@@ -83,6 +83,12 @@ public static class BehaviorPresets
             var edit = Node(GestureActions.EditLastVideo);
             edit.Branches[BehaviorPorts.Saved].Add(Node(GestureActions.CopyLast).Id); return edit;
         }
+        BehaviorNode RecordVideo()
+        {
+            var record = Node(GestureActions.RecordStart);
+            record.Branches[BehaviorPorts.Done].Add(EditVideo().Id);
+            return record;
+        }
         if (id == Separate)
         {
             var select = Node(GestureActions.SelectOnly); select.ShowModeSwitch = false;
@@ -90,16 +96,17 @@ public static class BehaviorPresets
             Bind("tap", GestureConfig.DefaultRecordKey, "Tap", Flow("still", Node(GestureActions.RequireStored),
                 Node(GestureActions.GrabStill), Node(GestureActions.NotifyToast)));
             Bind("hold", GestureConfig.DefaultRecordKey, "Hold", Flow("record", Node(GestureActions.RequireStored),
-                Node(GestureActions.RecordStart), EditVideo()));
+                RecordVideo()));
             Bind("release", GestureConfig.DefaultRecordKey, "HoldRelease", Flow("stop", Node(GestureActions.RecordStop)));
         }
         else
         {
             var select = Node(GestureActions.Select);
             select.Branches[BehaviorPorts.Still] = new() { Node(GestureActions.GrabStill).Id, Node(GestureActions.NotifyToast).Id };
-            select.Branches[BehaviorPorts.Record] = new() { Node(GestureActions.RecordStart).Id, EditVideo().Id };
+            select.Branches[BehaviorPorts.Record] = new() { RecordVideo().Id };
             var flow = Flow("capture", select);
-            Bind(id == Dual ? "still" : "capture", GestureConfig.DefaultCaptureKey, "Chord", flow, BehaviorPorts.Still);
+            Bind(id == Dual ? "still" : "capture", GestureConfig.DefaultCaptureKey, "Chord", flow,
+                id == Dual ? BehaviorPorts.Still : "");
             if (id == Dual) Bind("record", GestureConfig.DefaultRecordKey, "Chord", flow, BehaviorPorts.Record);
         }
         return scheme;

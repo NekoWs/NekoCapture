@@ -354,12 +354,6 @@ public sealed partial class SettingsWindow : Window
             if (id.Length == 0) { b.Actions = b.OnFail = Array.Empty<string>(); b.OnComplete = null; }
             CommitHotkeys();
         }));
-        rows.Children.Add(LabeledRow(Loc.T(K.Behaviors.InitialMode), ModeCombo(b.EntryMode, true,
-            mode => { b.EntryMode = mode; CommitHotkeys(); }), Loc.T(K.Actions.ScopeSelectDesc)));
-        rows.Children.Add(BehaviorButton(Loc.T(K.Behaviors.EditCurrent), () =>
-        {
-            _behaviorFlow = b.EntryId; _behaviorPath.Clear(); GotoPage("behaviors"); RenderBehaviors();
-        }));
         return body;
     }
 

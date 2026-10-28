@@ -359,8 +359,8 @@ internal static partial class Win32
     /// <summary>Z 序插入点：置于最顶且不改变其他窗口的相对顺序。</summary>
     public static readonly IntPtr HWND_TOPMOST = new(-1);
 
-    /// <summary>SetWindowPos 的行为位：不改尺寸 / 不改位置 / 不激活 / 顺带显示 / 不级联拥有窗。</summary>
-    public const uint SWP_NOSIZE = 0x0001, SWP_NOMOVE = 0x0002, SWP_NOACTIVATE = 0x0010,
+    /// <summary>SetWindowPos 的尺寸、位置、Z 序、激活、显示与拥有窗行为位。</summary>
+    public const uint SWP_NOSIZE = 0x0001, SWP_NOMOVE = 0x0002, SWP_NOZORDER = 0x0004, SWP_NOACTIVATE = 0x0010,
                        SWP_SHOWWINDOW = 0x0040, SWP_NOOWNERCASCADE = 0x0080;
 
     /// <summary>取桌面壳层窗口句柄，用于在枚举里排除桌面本身。</summary>

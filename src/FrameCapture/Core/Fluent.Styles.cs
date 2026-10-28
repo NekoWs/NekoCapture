@@ -19,7 +19,17 @@ public static partial class Fluent
         if (app == null) return;
         app.Resources[typeof(System.Windows.Controls.ToolTip)] = ToolTipStyle();
         app.Resources[typeof(ScrollBar)] = ScrollBarStyle();
+        app.Resources[SystemParameters.FocusVisualStyleKey] = KeyboardFocusStyle();
     }
+
+    static Style KeyboardFocusStyle() => (Style)System.Windows.Markup.XamlReader.Parse($$"""
+        <Style TargetType="Control" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation">
+          <Setter Property="Template"><Setter.Value><ControlTemplate>
+            <Border CornerRadius="10" BorderThickness="2" BorderBrush="{{Hex(Theme.Accent)}}"
+                Margin="2" IsHitTestVisible="False"/>
+          </ControlTemplate></Setter.Value></Setter>
+        </Style>
+        """);
 
     /// <summary>主题化 ToolTip 样式：去系统底、卡片圆角 + 淡入。</summary>
     /// <returns><c>TargetType=ToolTip</c> 的隐式样式，可直接作 <c>Resources[typeof(ToolTip)]</c> 的键值。</returns>

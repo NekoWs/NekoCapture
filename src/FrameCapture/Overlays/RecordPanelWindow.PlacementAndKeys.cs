@@ -1,12 +1,11 @@
 using System.Windows;
 using System.Windows.Input;
-using System.Windows.Media.Animation;
 using FrameCapture.Core;
 using GC = GestureCore;
 
 namespace FrameCapture.Overlays;
 
-/// <summary>录制面板的选区定位、尺寸过渡与准备阶段按键。</summary>
+/// <summary>录制面板的选区定位、尺寸测量与准备阶段按键。</summary>
 public sealed partial class RecordPanelWindow
 {
     readonly string _confirmChord, _cancelChord;
@@ -40,19 +39,24 @@ public sealed partial class RecordPanelWindow
 
     void ResizePanel()
     {
+        _stop.InvalidateMeasure();
+        if (_stop.Parent is FrameworkElement row) row.InvalidateMeasure();
+        if (_card.Child is FrameworkElement content) content.InvalidateMeasure();
+        _card.InvalidateMeasure();
         _card.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
         var target = _card.DesiredSize;
-        double width = double.IsNaN(Width) ? target.Width : Width;
-        double height = double.IsNaN(Height) ? target.Height : Height;
         BeginAnimation(WidthProperty, null); BeginAnimation(HeightProperty, null);
-        Width = target.Width; Height = target.Height;
         if (IsLoaded)
         {
-            var duration = TimeSpan.FromMilliseconds(Fluent.Motion.StateMs);
-            var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
-            BeginAnimation(WidthProperty, new DoubleAnimation(width, target.Width, duration) { EasingFunction = ease });
-            BeginAnimation(HeightProperty, new DoubleAnimation(height, target.Height, duration) { EasingFunction = ease });
+            // HWND 尺寸一次提交，避免宽高分别更新时呈现中间布局。
+            var dpi = System.Windows.Media.VisualTreeHelper.GetDpi(this);
+            var hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
+            Native.Win32.SetWindowPos(hwnd, IntPtr.Zero, 0, 0,
+                (int)Math.Ceiling(target.Width * dpi.DpiScaleX), (int)Math.Ceiling(target.Height * dpi.DpiScaleY),
+                Native.Win32.SWP_NOMOVE | Native.Win32.SWP_NOZORDER | Native.Win32.SWP_NOACTIVATE);
         }
+        Height = target.Height; Width = target.Width;
+        if (IsLoaded) UpdateLayout();
         PlacePanel();
     }
 

@@ -73,6 +73,8 @@ static partial class SelfTest
             window.Show(); PumpMs(100);
             void Render() => type.GetMethod("Render")!.Invoke(editor, null);
             var chips = (WrapPanel)type.GetField("_chips", flags)!.GetValue(editor)!;
+            Chk("behavior-cards-have-pointer-cursor", chips.Children.OfType<System.Windows.Controls.Border>()
+                .All(chip => chip.Cursor == System.Windows.Input.Cursors.Hand));
             var snapshot = (BitmapSource)typeof(SettingsWindow).GetMethod("CaptureSettingsVisual", BindingFlags.NonPublic | BindingFlags.Static)!
                 .Invoke(null, new object[] { chips.Children[1] })!;
             var center = new byte[4];

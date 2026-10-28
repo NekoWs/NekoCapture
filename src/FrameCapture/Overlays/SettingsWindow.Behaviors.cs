@@ -43,10 +43,12 @@ public sealed partial class SettingsWindow
         if (_behaviorFlowTabs == null || !_behaviorTabEntries.SequenceEqual(entries))
         {
             _behaviorTabEntries = entries;
-            TransitionContent(_behaviorHeader, RenderBehaviorHeader);
+            if (_cat == 1 && !_refreshingTheme) TransitionContent(_behaviorHeader, RenderBehaviorHeader);
+            else RenderBehaviorHeader();
         }
         UpdateBehaviorTab(_behaviorFlowTabs!, graph.Flows.IndexOf(flow!));
-        TransitionContent(_behaviorContent, () => RenderBehaviorBody(flow), _behaviorSlideDirection);
+        if (_cat == 1 && !_refreshingTheme) TransitionContent(_behaviorContent, () => RenderBehaviorBody(flow), _behaviorSlideDirection);
+        else RenderBehaviorBody(flow);
     }
 
     void RenderBehaviorHeader()

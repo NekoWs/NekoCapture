@@ -35,7 +35,7 @@ public sealed partial class SettingsWindow
                 </VisualStateManager.VisualStateGroups>
                 <Border CornerRadius="10" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
                     BorderThickness="{TemplateBinding BorderThickness}"/>
-                <Border x:Name="hover" CornerRadius="10" Background="{{Theme.Hover}}" Opacity="0" IsHitTestVisible="False"/>
+                <Border x:Name="hover" CornerRadius="10" Background="{DynamicResource preset-hover}" Opacity="0" IsHitTestVisible="False"/>
                 <ContentPresenter Margin="{TemplateBinding Padding}" HorizontalAlignment="Stretch" VerticalAlignment="Top"/>
               </Grid>
             </ControlTemplate>

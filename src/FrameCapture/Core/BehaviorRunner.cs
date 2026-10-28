@@ -1,10 +1,12 @@
 namespace FrameCapture.Core;
 
-/// <summary>动作完成后的稳定事件名。</summary>
+/// <summary>动作生命周期中的稳定事件名。</summary>
 public static class BehaviorPorts
 {
     /// <summary>动作完成。</summary>
     public const string Done = "done";
+    /// <summary>录制成功开始。</summary>
+    public const string Started = "started";
     /// <summary>确认截图模式。</summary>
     public const string Still = "still";
     /// <summary>确认录制模式。</summary>
@@ -28,8 +30,18 @@ public static class BehaviorRunner
     /// <param name="execute">执行节点并返回事件；调用行为由运行器解释。</param>
     /// <param name="cancelled">宿主是否结束。</param>
     /// <returns>入口是否完成。</returns>
-    public static async Task<bool> RunAsync(BehaviorGraph graph, string entryId,
+    public static Task<bool> RunAsync(BehaviorGraph graph, string entryId,
         Func<BehaviorNode, Task<string>> execute, Func<bool>? cancelled = null)
+        => RunAsync(graph, entryId, (node, _) => execute(node), cancelled);
+
+    /// <summary>执行入口，允许录制节点在等待停止期间派发开始事件。</summary>
+    /// <param name="graph">运行快照。</param>
+    /// <param name="entryId">入口标识。</param>
+    /// <param name="execute">执行节点；事件回调等待对应子列表完成。</param>
+    /// <param name="cancelled">宿主是否结束。</param>
+    /// <returns>入口是否完成。</returns>
+    public static async Task<bool> RunAsync(BehaviorGraph graph, string entryId,
+        Func<BehaviorNode, Func<string, Task<bool>>, Task<string>> execute, Func<bool>? cancelled = null)
     {
         if (!graph.IsValid(entryId) || graph.Flow(entryId) is not { } entry) return false;
         int budget = 2048;
@@ -44,7 +56,10 @@ public static class BehaviorRunner
                 {
                     port = node.Action == GestureActions.CallBehavior
                         ? await Run(graph.Flow(node.TargetId)!.Steps) ? BehaviorPorts.Done : BehaviorPorts.Failed
-                        : await execute(node);
+                        : await execute(node, port => port == BehaviorPorts.Started
+                            && GestureActions.PortsOf(node.Action).Contains(port)
+                            ? node.Branches.TryGetValue(port, out var active) ? Run(active) : Task.FromResult(true)
+                            : Task.FromResult(false));
                 }
                 catch (OperationCanceledException) { port = BehaviorPorts.Cancel; }
                 catch (Exception ex) { Trace.Log($"behavior {node.Action}: {ex.Message}"); port = BehaviorPorts.Failed; }

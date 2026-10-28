@@ -178,7 +178,7 @@ public sealed partial class SettingsWindow : Window
                 Padding = new Thickness(10, 1.5, 8, 1.5),
                 Margin = new Thickness(2),
                 Background = Theme.RowBgBrush,
-                Cursor = Cursors.SizeAll,
+                Cursor = Cursors.Hand,
                 Child = body,
                 ToolTip = Loc.T(K.Hotkeys.RunsInOrderDragToReorder),
             };
