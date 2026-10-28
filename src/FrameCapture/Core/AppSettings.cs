@@ -285,6 +285,7 @@ public bool EditableSelection { get; set; } = false;
         Gestures.SeedIfNeeded(GestureConfig.DefaultCaptureKey, GestureConfig.DefaultRecordKey);   // 一次性：空配置播种 QQ 键位（截图 / 录制）
         Gestures.UpgradeStockDefaults();
         Gestures.Migrate();
+        Gestures.NormalizePreset();
         ToastSeconds = ToastSeconds <= 0 ? 0 : Math.Clamp(ToastSeconds, 0.5, 60);
         DelayCaptureSeconds = Math.Clamp(DelayCaptureSeconds, 0, 120);
         FreezePregrabMaxWindows = Math.Clamp(FreezePregrabMaxWindows, 0, 16);

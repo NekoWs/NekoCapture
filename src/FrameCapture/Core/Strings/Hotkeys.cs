@@ -9,6 +9,22 @@ public static partial class K
     /// <summary>快捷键页与录键框的文案。</summary>
     public static partial class Hotkeys
     {
+        public static readonly Str PresetBehaviors = new("hotkeys.presetBehaviors", "预设行为", "Behavior presets");
+        public static readonly Str PresetDual = new("hotkeys.presetDual", "双快捷键", "Two shortcuts");
+        public static readonly Str PresetSeparate = new("hotkeys.presetSeparate", "选区与捕获", "Select, then capture");
+        public static readonly Str PresetSingle = new("hotkeys.presetSingle", "单快捷键", "One shortcut");
+        public static readonly Str PresetCustom = new("hotkeys.presetCustom", "自定义", "Custom");
+        public static readonly Str PresetHint = new("hotkeys.presetHint", "选择方案会替换快捷键与行为；修改后自动保存到自定义", "Selecting a scheme replaces shortcuts and behaviors. Edits are saved to Custom.");
+        public static readonly Str PresetDualDesc = new("hotkeys.presetDualDesc", "两个快捷键分别进入截图与录制", "Two keys open capture or recording.");
+        public static readonly Str PresetSeparateDesc = new("hotkeys.presetSeparateDesc", "保存并复用选区，另一键控制捕获", "Reuse a region; tap or hold the other key.");
+        public static readonly Str PresetSingleDesc = new("hotkeys.presetSingleDesc", "同一入口，截图与录制由按钮切换", "One key opens selection; buttons choose the mode.");
+        public static readonly Str PresetCustomDesc = new("hotkeys.presetCustomDesc", "保存你的快捷键与行为，随时恢复", "Keep your own shortcuts and behaviors.");
+        public static readonly Str PresetTapCapture = new("hotkeys.presetTapCapture", "轻点截图", "Tap to capture");
+        public static readonly Str PresetHoldRecord = new("hotkeys.presetHoldRecord", "按住录制", "Hold to record");
+        public static readonly Str PresetReleaseStop = new("hotkeys.presetReleaseStop", "松开停止", "Release to stop");
+        public static readonly Str PresetGestures = new("hotkeys.presetGestures", "轻点截图 · 按住录制 · 松开停止", "Tap to capture · hold to record · release to stop");
+        public static readonly Str PresetModeChoice = new("hotkeys.presetModeChoice", "按钮选择截图或录制", "Buttons choose capture or recording");
+        public static readonly Str PresetCustomSummary = new("hotkeys.presetCustomSummary", "{0} 条快捷键 · {1} 个行为", "Shortcuts {0} · Behaviors {1}");
         public static readonly Str ChainTitle = new("hotkeys.chainTitle", "动作链", "Action chain");
         public static readonly Str FollowsSwitch = new("hotkeys.followsSwitch", "模式出口", "Mode exit");
         public static readonly Str SwitchStepHint = new("hotkeys.switchStepHint", "模式按钮选择截图或录制出口，子链完成后继续同级动作", "The mode switch chooses the screenshot or recording exit; sibling actions continue after the child chain");

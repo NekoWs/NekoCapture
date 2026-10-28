@@ -34,6 +34,8 @@ public sealed partial class SettingsWindow : Window
         // 覆盖层不需要文本输入：禁用输入法，避免拼音拦截快捷键
         InputMethod.SetIsInputMethodEnabled(this, false);
         _settings = AppHost.Current.Settings;
+        _settings.Changed += OnPresetSettingsChanged;
+        Closed += (_, _) => _settings.Changed -= OnPresetSettingsChanged;
         WindowStyle = WindowStyle.None;
         ResizeMode = ResizeMode.CanResize;   // 可拖边缩放（WindowChrome 的 6px 缩放边框）
         // WindowChrome 原生缩放边框 + 原生圆角/阴影（与编辑器同款）；不用 AllowsTransparency——整窗会被推到软件渲染。

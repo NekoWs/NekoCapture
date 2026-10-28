@@ -172,6 +172,7 @@ static partial class SelfTest
             open(0);
             var visiblePath = (List<string>)typeof(SettingsWindow).GetField("_behaviorPath", flags)!.GetValue(settings)!;
             Chk("T273-graph-ui-parent-navigation", visiblePath.SequenceEqual(new[] { edit.Id }));
+            BehaviorPresetUiChecks(settings, service);
             settings.Close();
         }
         catch (Exception ex) { Chk("T273-graph-integration", false, ex.ToString()); }

@@ -67,7 +67,8 @@ public sealed partial class SettingsWindow
                   </VisualStateGroup>
                 </VisualStateManager.VisualStateGroups>
                 <Border.Background><SolidColorBrush Color="{{rest}}"/></Border.Background>
-                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" RecognizesAccessKey="True">
+                <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                    VerticalAlignment="{TemplateBinding VerticalContentAlignment}" RecognizesAccessKey="True">
                   <TextElement.Foreground><SolidColorBrush x:Name="ink" Color="{{Ink(rest)}}"/></TextElement.Foreground>
                 </ContentPresenter>
               </Border>

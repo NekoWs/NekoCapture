@@ -106,6 +106,7 @@ public sealed partial class GestureConfig
     /// <param name="flow">行为入口。</param>
     /// <returns>用户名称或动作名称。</returns>
     public string FlowName(BehaviorFlow flow) => flow.Name.Length > 0 ? flow.Name
+        : BehaviorPresets.FlowLabel(flow.Id) is { } label && label != Str.Empty ? Loc.T(label)
         : flow.Steps.Count > 0 && Graph.Node(flow.Steps[0]) is { } first
             ? first.Action == GestureActions.Select ? Loc.T(K.Behaviors.CaptureFlow) : GestureActions.LabelOf(first.Action)
         : Loc.T(K.Hotkeys.NewPresetName);

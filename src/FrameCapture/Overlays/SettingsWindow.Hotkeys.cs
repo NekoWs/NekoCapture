@@ -46,6 +46,7 @@ public sealed partial class SettingsWindow : Window
                 AppHost.Current.InstallHotkeys();
             }));
 
+        panel.Children.Add(BuildBehaviorPresets());
         _hotList = new StackPanel();
         var card = new Border
         {
@@ -570,7 +571,7 @@ public sealed partial class SettingsWindow : Window
         {
             "default.capture" => Loc.T(K.Common.Capture),
             "default.record" => Loc.T(K.Common.Recording),
-            _ => Loc.T(K.Hotkeys.NewPresetName),
+            _ => Loc.T(BehaviorPresets.BindingLabel(b.Id)),
         };
     }
 

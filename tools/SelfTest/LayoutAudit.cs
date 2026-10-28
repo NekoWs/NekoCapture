@@ -616,7 +616,9 @@ static partial class SelfTest
             if (AllGlyph(text)) continue;   // 图标字形按 em 框量，本来就比格子宽，不算压到谁
             if (!tb.IsVisible) continue;
             var p = tb.TransformToVisual(visRoot).Transform(new Point(0, 0));
-            boxes.Add((new Rect(p.X, p.Y, Math.Max(NaturalWidth(tb), tb.ActualWidth), tb.ActualHeight), text, tb));
+            // Wrap 的绘制受栏宽约束；不换行时按自然宽度检查越界。
+            double width = tb.TextWrapping == TextWrapping.Wrap ? tb.ActualWidth : Math.Max(NaturalWidth(tb), tb.ActualWidth);
+            boxes.Add((new Rect(p.X, p.Y, width, tb.ActualHeight), text, tb));
         }
         for (int i = 0; i < boxes.Count; i++)
             for (int j = i + 1; j < boxes.Count; j++)
