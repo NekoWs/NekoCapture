@@ -30,9 +30,19 @@ $fixed = Get-FcSettings
 $fixed | Add-Member -Force UseWgc $false
 $fixed | Add-Member -Force Fps 30
 $fixed | Add-Member -Force FollowMonitorRefresh $false
+# 手势时序在固定小区域采样，帧数不受桌面分辨率与整屏读回吞吐支配。
+Add-Type -AssemblyName System.Windows.Forms
+$timingMonitor = [System.Windows.Forms.Screen]::PrimaryScreen
+$fixed | Add-Member -Force RegionMonitorId $timingMonitor.DeviceName
+$fixed | Add-Member -Force RegionX ($timingMonitor.Bounds.X + 16)
+$fixed | Add-Member -Force RegionY ($timingMonitor.Bounds.Y + 16)
+$fixed | Add-Member -Force RegionW ([Math]::Min(320, $timingMonitor.Bounds.Width - 32))
+$fixed | Add-Member -Force RegionH ([Math]::Min(240, $timingMonitor.Bounds.Height - 32))
 $fixed | ConvertTo-Json -Depth 32 | Set-Content (Get-FcSettingsPath) -Encoding UTF8
 $capHk = 'Ctrl+Shift+G'
 "capture_key=$capHk (test gesture set)"
+$scopedPattern = "loop start region=$($fixed.RegionX),$($fixed.RegionY) $($fixed.RegionW)x$($fixed.RegionH) interval="
+$scopedBefore = Count-Trace $scopedPattern
 
 try {
     Restart-App
@@ -74,5 +84,7 @@ finally {
 
 $e1 = if (Test-Path $err) { (Get-Item $err).Length } else { 0 }
 "err_delta=$($e1 - $e0)"
-$ok = $tapOk -and $holdOk -and $longOk -and (($e1 - $e0) -eq 0)
+$scopedRuns = (Count-Trace $scopedPattern) - $scopedBefore
+"scoped_loops=$scopedRuns"
+$ok = $tapOk -and $holdOk -and $longOk -and ($scopedRuns -ge 2) -and (($e1 - $e0) -eq 0)
 if ($ok) { "TAP-SEMANTICS PASS"; exit 0 } else { "TAP-SEMANTICS FAIL"; exit 1 }

@@ -90,8 +90,11 @@ static partial class SelfTest
                 case "countdown": BuildCountdownAudit(app, rows); break;
                 case "scroll": BuildScrollAudit(app, rows); break;
                 case "filmstrip": BuildFilmStripAudit(app, rows); break;
+                case "record-ready": BuildRecordPanelAudit(rows, false); break;
+                case "record-active": BuildRecordPanelAudit(rows, true); break;
         case "picker": BuildPickerAudit(rows, loupe: false); break;
         case "picker-loupe": BuildPickerAudit(rows, loupe: true); break;
+        case "picker-record": BuildPickerAudit(rows, loupe: false, record: true); break;
                 default: Console.WriteLine($"UXA|{surface}|未知界面|"); return 0;
             }
         }
@@ -114,9 +117,23 @@ static partial class SelfTest
         "settings-cap", "settings-rec", "settings-out", "settings-edit", "settings-pin", "settings-look", "settings-palette", "settings-sys",
         "help", "editor", "editor-still", "pin", "ocr", "ocr-msg",
 
-        "notice", "welcome", "toast", "countdown", "scroll", "filmstrip",
-        "picker", "picker-loupe",
+        "notice", "welcome", "toast", "countdown", "scroll", "filmstrip", "record-ready", "record-active",
+        "picker", "picker-loupe", "picker-record",
     };
+
+    static void BuildRecordPanelAudit(List<string> rows, bool recording)
+    {
+        var monitor = Monitors.All().First();
+        var region = new RectI(monitor.Bounds.X + 100, monitor.Bounds.Y + 100, 480, 320);
+        if (recording) RecordPanelWindow.ShowRecording(region, monitor.DeviceName, () => { });
+        else RecordPanelWindow.ShowArmed(region, monitor.DeviceName, () => { }, () => { });
+        try
+        {
+            var panel = RecordPanelWindow.Current!; ShowOffscreen(panel); PumpMs(Fluent.Motion.EnterMs + 100);
+            ScanTree(rows, recording ? "record-active" : "record-ready", (UIElement)panel.Content);
+        }
+        finally { RecordPanelWindow.Dismiss(); }
+    }
 
     // ---- 逐界面建窗 ----
 
@@ -365,13 +382,20 @@ static partial class SelfTest
     /// <summary>选区浮层：工具条只在有选区时出现，所以带一个已存在的选区进去建窗。</summary>
     /// <param name="rows">发现汇总，逐条追加。</param>
     /// <param name="loupe">true = 放大镜形态（取色读数、色值格式那一叠），false = 普通框选形态。</param>
-    static void BuildPickerAudit(List<string> rows, bool loupe)
+    static void BuildPickerAudit(List<string> rows, bool loupe, bool record = false)
     {
         var mon = new MonitorInfo(@"\\.\DISPLAY1", new RectI(0, 0, 1600, 900), true);
-        var w = new RegionPickerWindow(mon, new RectI(320, 200, 560, 380), magnifier: loupe);
+        var w = new RegionPickerWindow(mon, new RectI(320, 200, 560, 380), magnifier: loupe, recordMode: record);
         ShowOffscreen(w);
         PumpMs(250);
-        ScanTree(rows, loupe ? "picker-loupe" : "picker", (UIElement)w.Content);
+        ScanTree(rows, record ? "picker-record" : loupe ? "picker-loupe" : "picker", (UIElement)w.Content);
+        if (record)
+        {
+            typeof(RegionPickerWindow).GetMethod("ShowSelection", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
+                .Invoke(w, new object[] { new RectI(320, 200, 560, 380) });
+            PumpMs(Fluent.Motion.EnterMs + 100);
+            ScanTree(rows, "picker-record-adjust", (UIElement)w.Content);
+        }
         w.Close();
     }
 

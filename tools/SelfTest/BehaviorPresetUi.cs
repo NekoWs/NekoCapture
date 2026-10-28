@@ -29,10 +29,11 @@ static partial class SelfTest
             Chk("preset-ui-refreshes-binding-editors", boxes.Count == 4 && service.Current.Gestures.ToBindings().Count == 4);
             service.Mutate(settings => settings.Gestures.Graph.Nodes.First(node => node.Action == GestureActions.SelectOnly).ShowModeSwitch = true);
             Chk("preset-ui-graph-edit-selects-custom", service.Current.Gestures.ActivePreset == BehaviorPresets.Custom
-                && ReferenceEquals(cards[BehaviorPresets.Custom].BorderBrush, Theme.AccentBrush));
+                && System.Windows.Automation.AutomationProperties.GetItemStatus(cards[BehaviorPresets.Custom]) == Loc.T(K.Hotkeys.PresetCustom));
             Pick(BehaviorPresets.Single); Pick(BehaviorPresets.Custom); PumpMs(Fluent.Motion.SpringMs + 100);
             Chk("preset-ui-custom-restores-edited-scheme", service.Current.Gestures.Bindings.Count == 4
                 && service.Current.Gestures.Graph.Nodes.First(node => node.Action == GestureActions.SelectOnly).ShowModeSwitch);
+            PresetFlickerChecks(window, cards);
             PresetWrappedLayoutChecks();
         }
         finally { service.Save(saved); }

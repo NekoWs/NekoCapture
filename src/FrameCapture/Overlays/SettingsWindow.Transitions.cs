@@ -40,10 +40,7 @@ public sealed partial class SettingsWindow
         return bitmap;
     }
 
-    static void TransitionContent(Panel host, Action render, int direction = 1)
-    {
-        if (!host.IsLoaded) { render(); return; }
-        var state = ContentMotions.GetValue(host, panel =>
+    static ContentMotion ContentMotionFor(Panel host) => ContentMotions.GetValue(host, panel =>
         {
             var motion = new ContentMotion();
             panel.Unloaded += (_, _) =>
@@ -53,6 +50,11 @@ public sealed partial class SettingsWindow
             };
             return motion;
         });
+
+    static void TransitionContent(Panel host, Action render, int direction = 1)
+    {
+        if (!host.IsLoaded) { render(); return; }
+        var state = ContentMotionFor(host);
         int generation = ++state.Generation;
         state.Outgoing?.Remove(); state.Outgoing = null;
         double oldHeight = host.ActualHeight, width = host.ActualWidth;

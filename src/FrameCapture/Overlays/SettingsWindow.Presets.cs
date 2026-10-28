@@ -71,8 +71,9 @@ public sealed partial class SettingsWindow
         var button = new Button { Content = contents, Tag = id, Padding = new Thickness(10), MinHeight = 143,
             Margin = new Thickness(3), HorizontalContentAlignment = HorizontalAlignment.Stretch,
             VerticalContentAlignment = VerticalAlignment.Top, Cursor = System.Windows.Input.Cursors.Hand,
-            BorderThickness = new Thickness(1), BorderBrush = Theme.StrokeSoftBrush,
-            Template = BehaviorButtonTemplate(Theme.CardBg, false, Theme.Text), ToolTip = Loc.T(description) };
+            BorderThickness = new Thickness(1), BorderBrush = new SolidColorBrush(Theme.StrokeSoft),
+            Background = new SolidColorBrush(Theme.CardBg), Foreground = Theme.TextBrush,
+            Template = PresetCardTemplate(), ToolTip = Loc.T(description) };
         AutomationProperties.SetName(button, Loc.T(BehaviorPresets.Label(id)));
         button.Click += (_, _) => ApplyBehaviorPreset(id);
         return button;
@@ -103,8 +104,7 @@ public sealed partial class SettingsWindow
             foreach (var (id, card) in _presetCards)
             {
                 bool selected = id == cfg.ActivePreset;
-                card.BorderBrush = selected ? Theme.AccentBrush : Theme.StrokeSoftBrush;
-                card.Template = BehaviorButtonTemplate(Theme.CardBg, selected, Theme.Text);
+                TintPresetCard(card, selected);
                 AutomationProperties.SetItemStatus(card, selected ? Loc.T(BehaviorPresets.Label(id)) : "");
             }
             _paintedPreset = cfg.ActivePreset;
@@ -127,7 +127,7 @@ public sealed partial class SettingsWindow
         _settings.Mutate(settings => settings.Gestures.SelectPreset(id));
         _hotOpen = ""; _behaviorFlow = ""; _behaviorPath.Clear();
         AppHost.Current.InstallHotkeys();
-        if (_hotList != null) TransitionContent(_hotList, RebuildHotkeys);
+        if (_hotList != null) TransitionPresetBindings(_hotList, RebuildHotkeys);
         RenderBehaviors();
     }
 }

@@ -1,202 +1,177 @@
-using System;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
-using System.Windows.Media.Effects;
 using System.Windows.Shapes;
 using FrameCapture.Capture;
 using FrameCapture.Core;
 
 namespace FrameCapture.Overlays;
 
-/// <summary>
-/// 选区录制上方那条控制面板：待开始时是「开始录制」，录制中变成「● 0:05.3 + 停止」。
-/// 它在选区确认之后出现、贴在屏幕上方居中，与选区里那个「截图 / 录制」开关同一个位置——
-/// 用户的眼睛已经在上面了，状态就不该再跑到右上角去。录制中的 REC 点与时长都在这里，
-/// 范围轮廓的 REC 徽标仅用于直接录制。
-/// </summary>
-public sealed class RecordPanelWindow : Window
+/// <summary>贴近选区的录制确认与计时面板；等待、录制和关闭拥有独立状态。</summary>
+public sealed partial class RecordPanelWindow : Window
 {
     static RecordPanelWindow? _current;
-
-    readonly TextBlock _time;
+    readonly TextBlock _time, _startText, _stopText, _recordStatus;
     readonly Ellipse _dot;
-    readonly Border _start;
-    readonly Border _stop;
-    readonly TextBlock _startText;
-    readonly TextBlock _stopText;
+    readonly Border _start, _stop, _card;
+    readonly StackPanel _readyDetails;
     readonly System.Windows.Threading.DispatcherTimer _tick;
+    readonly Rect _regionDip, _workDip;
     System.Diagnostics.Stopwatch? _clock;
-    Action? _onStop;
+    Action? _onStart, _onStop;
+    bool _armed, _finished;
 
-    /// <summary>当前那条面板；没有时为 null。</summary>
+    /// <summary>当前录制面板；没有时为 null。</summary>
     public static RecordPanelWindow? Current => _current;
 
-    /// <summary>摆出「开始录制」那一态：等用户点下去再起录。</summary>
-    /// <param name="region">选中的区域（物理像素），用它找落点。</param>
-    /// <param name="monitorDevice">区域所在显示器，决定 DPI 与工作区。</param>
-    /// <param name="onStart">点「开始录制」要跑的动作。</param>
-    /// <param name="onStop">点「停止」要跑的动作。</param>
+    /// <summary>显示已确认的录制范围，等待点击或确认键后起录。</summary>
+    /// <param name="region">选中的物理像素区域。</param>
+    /// <param name="monitorDevice">区域所在显示器。</param>
+    /// <param name="onStart">开始录制的回调。</param>
+    /// <param name="onStop">取消或停止的回调。</param>
     public static void ShowArmed(RectI region, string monitorDevice, Action onStart, Action onStop)
     {
         Dismiss();
-        var w = new RecordPanelWindow(region, monitorDevice, onStop);
-        _current = w;
-        w.SetArmed(onStart);
-        w.Show();
+        var window = new RecordPanelWindow(region, monitorDevice, onStop);
+        _current = window; window.SetArmed(onStart); window.Show();
     }
 
-    /// <summary>直接摆出录制态：不经「开始」那一步起录的场合用它，面板一出现就在计时。</summary>
-    /// <param name="region">选中的区域（物理像素）。</param>
+    /// <summary>显示正在录制的时长和停止按钮。</summary>
+    /// <param name="region">选中的物理像素区域。</param>
     /// <param name="monitorDevice">区域所在显示器。</param>
-    /// <param name="onStop">点「停止」要跑的动作。</param>
+    /// <param name="onStop">停止录制的回调。</param>
     public static void ShowRecording(RectI region, string monitorDevice, Action onStop)
     {
         Dismiss();
-        var w = new RecordPanelWindow(region, monitorDevice, onStop);
-        _current = w;
-        w.Show();
-        w.SwitchToRecording();
+        var window = new RecordPanelWindow(region, monitorDevice, onStop);
+        _current = window; window.SwitchToRecording(); window.Show();
     }
 
-    /// <summary>把手里那条面板切到录制态（开始计时，按钮换成「停止」）。</summary>
+    /// <summary>切到录制状态，释放准备阶段的按键接管并开始计时。</summary>
     public void SwitchToRecording()
     {
-        _stopText.Text = Loc.T(K.Actions.RecordStopLabel);
-        _stop.ToolTip = Loc.T(K.Actions.RecordStopLabel);
+        _armed = false; ReleaseReadyKeys();
+        _readyDetails.Visibility = Visibility.Collapsed;
         _start.Visibility = Visibility.Collapsed;
-        _dot.Visibility = Visibility.Visible;
-        _time.Visibility = Visibility.Visible;
-        _stop.Visibility = Visibility.Visible;
-        _stopText.Visibility = Visibility.Visible;
-        _clock = System.Diagnostics.Stopwatch.StartNew();
-        UpdateTime();
-        _tick.Start();
-        var pulse = new DoubleAnimation(1, 0.35, new Duration(TimeSpan.FromSeconds(1)))
-        { AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever };
-        _dot.BeginAnimation(OpacityProperty, pulse);
+        _recordStatus.Visibility = _dot.Visibility = _time.Visibility = Visibility.Visible;
+        _stopText.Text = Loc.T(K.Actions.RecordStopLabel); _stop.ToolTip = _stopText.Text;
+        _clock = System.Diagnostics.Stopwatch.StartNew(); UpdateTime(); _tick.Start();
+        _dot.BeginAnimation(OpacityProperty, new DoubleAnimation(1, 0.35, TimeSpan.FromSeconds(1))
+            { AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever });
+        ResizePanel();
     }
 
     void SetArmed(Action onStart)
     {
-        _start.Visibility = Visibility.Visible;
-        _startText.Visibility = Visibility.Visible;
-        _dot.Visibility = Visibility.Collapsed;
-        _time.Visibility = Visibility.Collapsed;
-        _stop.Visibility = Visibility.Visible;
-        _stopText.Visibility = Visibility.Visible;
-        _stopText.Text = Loc.T(K.Common.Cancel);
-        _stop.ToolTip = Loc.T(K.Common.Cancel);
-        _start.MouseLeftButtonUp += (_, e) => { _start.IsHitTestVisible = false; onStart(); e.Handled = true; };
+        _armed = true; _onStart = onStart;
+        _readyDetails.Visibility = _start.Visibility = Visibility.Visible;
+        _recordStatus.Visibility = _dot.Visibility = _time.Visibility = Visibility.Collapsed;
+        _stopText.Text = Loc.T(K.Common.Cancel); _stop.ToolTip = _stopText.Text;
+        Services.HotkeyManager.ArmedRecordKey = HandleReadyKey;
+        ResizePanel();
     }
 
-    /// <summary>收起面板（停止、取消、重新选区都走它）。计时器与红点一起停。</summary>
+    void StartRequested()
+    {
+        if (!_armed || _finished || !ReferenceEquals(_current, this)) return;
+        _armed = false; ReleaseReadyKeys(); _start.IsHitTestVisible = false;
+        var start = _onStart; _onStart = null; start?.Invoke();
+    }
+
+    void StopRequested()
+    {
+        if (_finished) return;
+        _finished = true;
+        var stop = _onStop; _onStop = null;
+        Dismiss(); stop?.Invoke();
+    }
+
+    /// <summary>关闭当前面板并停止其计时和会话按键接管。</summary>
     public static void Dismiss()
     {
-        var w = _current;
-        _current = null;
-        if (w == null) return;
-        try { w.Close(); } catch { }
+        var window = _current; _current = null;
+        window?.Close();
     }
 
     RecordPanelWindow(RectI region, string monitorDevice, Action onStop)
     {
         _onStop = onStop;
         Title = "FrameCapture Record Panel";
-        Fluent.BorderlessOverlay(this);
-        var mon = Monitors.ByDevice(monitorDevice) ?? Monitors.Nearest(region.X, region.Y);
-        var (sx, sy) = Monitors.DpiScaleOf(mon);
-        Width = 196;
-        Height = 44;
-        Left = (mon.Bounds.X + mon.Bounds.W / 2) / sx - Width / 2;
-        Top = mon.Bounds.Y / sy + 56;   // 与选区里那枚「截图 / 录制」开关同一条线
-
-        _dot = new Ellipse
-        {
-            Width = 9,
-            Height = 9,
-            Fill = new SolidColorBrush(Color.FromRgb(0xF2, 0x4B, 0x3F)),
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 0, 8, 0),
-            Visibility = Visibility.Collapsed,
-        };
-        _time = new TextBlock
-        {
-            Text = "0:00.0",
-            FontSize = 13,
-            Foreground = new SolidColorBrush(Color.FromArgb(0xE6, 0xFF, 0xFF, 0xFF)),
-            VerticalAlignment = VerticalAlignment.Center,
-            Visibility = Visibility.Collapsed,
-            Width = 56,
-        };
-        _startText = new TextBlock
-        {
-            Text = Loc.T(K.Actions.RecordStartLabel),
-            FontSize = 12.5,
-            Foreground = new SolidColorBrush(Fluent.OnAccentColor(Theme.Accent)),
-            VerticalAlignment = VerticalAlignment.Center,
-        };
-        _start = new Border
-        {
-            CornerRadius = new CornerRadius(6),
-            Background = Theme.AccentBrush,
-            Padding = new Thickness(12, 5, 12, 5),
-            Cursor = Cursors.Hand,
-            Focusable = true,
-            Child = _startText,
-            ToolTip = Loc.T(K.Settings.StartRecordingAfterSelectingTip),
-        };
-        _stopText = new TextBlock
-        {
-            Text = Loc.T(K.Actions.RecordStopLabel),
-            FontSize = 12.5,
-            Foreground = Theme.TextBrush,
-            VerticalAlignment = VerticalAlignment.Center,
-        };
-        _stop = new Border
-        {
-            CornerRadius = new CornerRadius(6),
-            Background = Theme.RowBgBrush,
-            Padding = new Thickness(12, 5, 12, 5),
-            Margin = new Thickness(8, 0, 0, 0),
-            Cursor = Cursors.Hand,
-            Focusable = true,
-            Child = _stopText,
-            ToolTip = Loc.T(K.Actions.RecordStopLabel),
-        };
-        Fluent.ChipHover(_start);
-        Fluent.ChipHover(_stop);
-        _stop.MouseLeftButtonUp += (_, e) => { Dismiss(); _onStop?.Invoke(); e.Handled = true; };
-
-        var row = new StackPanel { Orientation = Orientation.Horizontal, Children = { _dot, _time, _start, _stop } };
-        Content = new Border
-        {
-            Background = Theme.CardBgBrush,
-            BorderBrush = Fluent.CardEdge(),
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(10),
-            Padding = new Thickness(12, 7, 12, 7),
-            Effect = new DropShadowEffect { BlurRadius = 18, ShadowDepth = 2, Opacity = 0.35, Color = Colors.Black },
-            Child = row,
-        };
-
+        Fluent.BorderlessOverlay(this); SizeToContent = SizeToContent.Manual;
+        var monitor = Monitors.ByDevice(monitorDevice) ?? Monitors.Nearest(region.X, region.Y);
+        var (sx, sy) = Monitors.DpiScaleOf(monitor);
+        var work = System.Windows.Forms.Screen.AllScreens.FirstOrDefault(screen => screen.DeviceName == monitor.DeviceName)?.WorkingArea
+            ?? new System.Drawing.Rectangle(monitor.Bounds.X, monitor.Bounds.Y, monitor.Bounds.W, monitor.Bounds.H);
+        _workDip = new Rect(work.X / sx, work.Y / sy, work.Width / sx, work.Height / sy);
+        _regionDip = new Rect(region.X / sx, region.Y / sy, region.W / sx, region.H / sy);
+        _dot = new Ellipse { Width = 9, Height = 9, Fill = new SolidColorBrush(Theme.Danger),
+            VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
+        _time = new TextBlock { Text = "0:00.0", FontSize = 13, Foreground = Theme.TextBrush,
+            VerticalAlignment = VerticalAlignment.Center, Width = 62 };
+        _recordStatus = new TextBlock { Text = Loc.T(K.Capture.RecordActive), FontSize = 11.5,
+            Foreground = Theme.TextBrush, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
+        _startText = new TextBlock { Text = Loc.T(K.Actions.RecordStartLabel), FontSize = 12.5,
+            Foreground = new SolidColorBrush(Fluent.OnAccentColor(Theme.Accent)) };
+        _stopText = new TextBlock { FontSize = 12.5, Foreground = Theme.TextBrush };
+        _start = PanelButton(_startText, Theme.AccentBrush);
+        _stop = PanelButton(_stopText, Theme.RowBgBrush); _stop.Margin = new Thickness(8, 0, 0, 0);
+        _start.MouseLeftButtonUp += (_, e) => { StartRequested(); e.Handled = true; };
+        _stop.MouseLeftButtonUp += (_, e) => { StopRequested(); e.Handled = true; };
+        _start.KeyDown += (_, e) => { if (e.Key is Key.Space or Key.Enter) { StartRequested(); e.Handled = true; } };
+        _stop.KeyDown += (_, e) => { if (e.Key is Key.Space or Key.Enter) { StopRequested(); e.Handled = true; } };
+        var row = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center,
+            Children = { _recordStatus, _dot, _time, _start, _stop } };
+        var settings = Services.AppHost.Current.Settings?.Current;
+        _confirmChord = ValidPanelChord(settings?.PickerConfirmChord, "Enter");
+        _cancelChord = ValidPanelChord(settings?.PickerCancelChord, "Esc");
+        _confirmKey = PanelChord(_confirmChord); _cancelKey = PanelChord(_cancelChord);
+        _readyDetails = new StackPanel { Width = Math.Min(300, _workDip.Width - 40), Margin = new Thickness(0, 0, 0, 10) };
+        _readyDetails.Children.Add(new TextBlock { Text = Loc.T(K.Capture.RecordReady), FontSize = 13,
+            FontWeight = FontWeights.SemiBold, Foreground = Theme.TextBrush });
+        _readyDetails.Children.Add(new TextBlock { Text = Loc.F(K.Capture.Region, region.W, region.H), FontSize = 11,
+            Foreground = Theme.TextDimBrush, Margin = new Thickness(0, 3, 0, 6) });
+        _readyDetails.Children.Add(new TextBlock { Text = Loc.T(K.Capture.RecordReadyHint), FontSize = 11.5,
+            Foreground = Theme.TextBrush, TextWrapping = TextWrapping.Wrap });
+        _readyDetails.Children.Add(new TextBlock { Text = Loc.F(K.Capture.RecordReadyKeys, _confirmChord, _cancelChord), FontSize = 11,
+            Foreground = Theme.TextDimBrush, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 5, 0, 0),
+            Visibility = Services.AppHost.Current.Hotkeys is { Installed: false } ? Visibility.Collapsed : Visibility.Visible });
+        _card = new Border { Background = Theme.CardBgBrush, BorderBrush = Fluent.CardEdge(), BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(10), Padding = new Thickness(12, 9, 12, 9),
+            Child = new StackPanel { Children = { _readyDetails, row } } };
+        Content = _card;
         _tick = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
         _tick.Tick += (_, _) => UpdateTime();
+        SizeChanged += (_, _) => PlacePanel();
+        SourceInitialized += (_, _) =>
+        {
+            var hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
+            uint style = Native.Win32.GetWindowLongW(hwnd, Native.Win32.GWL_EXSTYLE);
+            Native.Win32.SetWindowLongW(hwnd, Native.Win32.GWL_EXSTYLE,
+                style | Native.Win32.WS_EX_NOACTIVATE | Native.Win32.WS_EX_TOOLWINDOW);
+            Fluent.ExcludeFromCapture(hwnd);
+        };
         Closed += (_, _) =>
         {
-            _tick.Stop();
-            _clock = null;
+            _armed = false; _finished = true; ReleaseReadyKeys(); _tick.Stop(); _clock = null;
+            _dot.BeginAnimation(OpacityProperty, null);
             if (ReferenceEquals(_current, this)) _current = null;
         };
         Fluent.FadeIn(this, Fluent.Motion.EnterMs, 8, offscreenFirstFrame: true);
     }
 
+    static Border PanelButton(TextBlock text, Brush fill)
+    {
+        var button = new Border { Child = text, Background = fill, CornerRadius = new CornerRadius(10),
+            Padding = new Thickness(12, 6, 12, 6), Cursor = Cursors.Hand, Focusable = true };
+        Fluent.ChipHover(button); return button;
+    }
+
     void UpdateTime()
     {
         if (_clock == null) return;
-        var t = _clock.Elapsed;
-        _time.Text = $"{(int)t.TotalMinutes}:{t.Seconds:00}.{t.Milliseconds / 100}";
+        var time = _clock.Elapsed;
+        _time.Text = $"{(int)time.TotalMinutes}:{time.Seconds:00}.{time.Milliseconds / 100}";
     }
 }

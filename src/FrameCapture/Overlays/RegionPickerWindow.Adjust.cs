@@ -182,7 +182,7 @@ public sealed partial class RegionPickerWindow
         _sel = sel;
         ShowSpot(sel);
         LayoutAdjustChrome(sel);
-        if (_hintLabel != null) _hintLabel.Text = Loc.T(K.Capture.AdjustHint);
+        UpdateRecordingHint();
     }
 
     /// <summary>退出调整态：藏起控制点与按钮，提示条回到拖框文案。</summary>
@@ -193,7 +193,7 @@ public sealed partial class RegionPickerWindow
         foreach (var h in _handles) h.Visibility = Visibility.Collapsed;
         if (_okButton != null) _okButton.Visibility = Visibility.Collapsed;
         if (_cancelButton != null) _cancelButton.Visibility = Visibility.Collapsed;
-        if (_hintLabel != null) _hintLabel.Text = Loc.T(K.Capture.DragToSelectHover);
+        UpdateRecordingHint();
         ShowSpot(null);
     }
 
@@ -345,6 +345,17 @@ public sealed partial class RegionPickerWindow
         }
         if (_okButton != null)
             _okButton.ToolTip = Loc.T(RecordMode ? K.Actions.RecordStartLabel : K.Capture.ConfirmSelection);
+        UpdateRecordingHint();
+    }
+
+    void UpdateRecordingHint()
+    {
+        if (_hintLabel == null) return;
+        var settings = Services.AppHost.Current.Settings?.Current;
+        string confirm = settings?.PickerConfirmChord ?? "Enter", cancel = settings?.PickerCancelChord ?? "Esc";
+        _hintLabel.Text = RecordMode
+            ? _sel != null ? Loc.F(K.Capture.RecordAdjustHint, confirm, cancel) : Loc.F(K.Capture.RecordSelectHint, cancel)
+            : _sel != null ? Loc.T(K.Capture.AdjustHint) : Loc.T(K.Capture.DragToSelectHover);
     }
 
     /// <summary>点模式开关的某一段，或由调用方在开窗之后摆正初值：改的是这一次选区的去向，不落盘。</summary>

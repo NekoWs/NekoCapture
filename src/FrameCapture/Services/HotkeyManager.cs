@@ -5,8 +5,7 @@ using FrameCapture.Native;
 namespace FrameCapture.Services;
 
 /// <summary>
-/// 基于低级键盘钩子的全局键事件源。本类自身不做热键决策，钩子只承载三件事——手势层喂键
-/// （<see cref="KeySink"/>，唯一的全局触发路径）、滚动截图 Esc 全局取消、截图浮窗 Enter/Esc。
+/// 基于低级键盘钩子的键事件源，向手势层喂键并路由选区、录制准备、倒计时与浮窗的会话按键。
 ///
 /// 回调占着全系统输入链：<b>绝不抛异常、绝不做耗时操作</b>，动作一律经 AppHost.Dispatch 非阻塞投递到 UI 线程。
 /// 回调耗时超过 LowLevelHooksTimeout 会被系统<b>静默摘钩</b>——热键无声失效，系统侧不留任何痕迹。
@@ -68,16 +67,17 @@ public sealed class HotkeyManager : IDisposable
     /// <value>选区窗的键判定，入参 vk，返回 true=本键归选区窗（被吞）。<b>在钩子回调内被同步调用</b>，
     /// 实现方只做判断、把副作用投递出去；选区窗 Closed 时必须置回 null。</value>
     public static Func<uint, bool>? PickerKey;
-    /// <summary>暂停全局热键：为 true 时不喂手势、不吞任何键，
-    /// 让键完整落到前台应用——游戏/演示/与其他软件热键冲突时临时避让。托盘「暂停全局热键」切换，
-    /// 运行时状态（不持久化，重启自动恢复工作）。滚动会话的 Esc 取消仍优先于本判断。</summary>
+    /// <summary>准备录制面板的会话按键判定。只匹配确认与取消，副作用投递到 UI 线程；起录或关闭时清空。</summary>
+    public static Func<uint, GestureCore.ModifierKeys, bool>? ArmedRecordKey;
+    readonly HashSet<uint> _armedRecordKeyUps = new();
+    /// <summary>暂停用户手势并放行其按键；已有捕获会话的确认与取消仍生效。
+    /// 由托盘切换，仅影响当前进程。</summary>
     public static volatile bool Paused;
 
     /// <value>钩子句柄非零即已装。<see cref="Paused"/> 只让钩子放行，不改本值——暂停态下钩子仍在。</value>
     public bool Installed => _hook != IntPtr.Zero;
 
-    /// <summary>手势引擎键事件汇。非 null 时 <see cref="HandleKey"/> 第一件事就是喂它，先于全部吞键判定，
-    /// 手势层因此与本类<b>共用同一个低级键盘钩子</b>（不额外挂钩、不重复处理）。
+    /// <summary>手势引擎键事件汇，在录键和录制准备的会话按键之后调用，共用同一个低级键盘钩子。
     /// 参数=(vk, 是否按下, 事件时刻修饰键态, 事件时间戳ms)；返回 true=独占吞掉本键。
     /// null=手势层关闭，零开销，且 <see cref="Install"/> 不装钩子。Paused 时不喂（用户要求不拦截键）。</summary>
     public Func<uint, bool, GestureCore.ModifierKeys, long, bool>? KeySink;
@@ -140,6 +140,7 @@ public sealed class HotkeyManager : IDisposable
             _hook = IntPtr.Zero;
         }
         _proc = null;
+        _armedRecordKeyUps.Clear();
     }
 
     private IntPtr HookProc(int nCode, IntPtr wParam, IntPtr lParam)
@@ -170,7 +171,10 @@ public sealed class HotkeyManager : IDisposable
 
         // 录入态最优先：此刻用户在设置里按一个键给我们，任何别的判定都不该先把这一击拿走。
         // 连 Paused 都不看——录入时宿主就是把全局热键暂停掉的，那恰恰是要录的那个键。
+        bool readyRelease = !isDown && _armedRecordKeyUps.Count > 0 && _armedRecordKeyUps.Remove(vk);
         if (CaptureSink != null && CaptureSink(vk, isDown, CurrentMods(), info.time)) return true;
+        if (readyRelease) return true;
+        if ((_armedRecordKeyUps.Count > 0 || ArmedRecordKey != null) && RouteArmedRecordKey(vk, isDown, CurrentMods())) return true;
 
         // 手势引擎喂键（唯一的全局触发路径）。手势层关闭时 KeySink=null，零开销。
         // Paused 时不喂：用户暂停全局热键=要求不拦截任何键，手势层同样避让。
@@ -207,4 +211,15 @@ public sealed class HotkeyManager : IDisposable
 
     /// <summary>卸载钩子，等价于 <see cref="Uninstall"/>；宿主 Shutdown 与本类被丢弃都走这里。</summary>
     public void Dispose() => Uninstall();
+
+    bool RouteArmedRecordKey(uint vk, bool down, GestureCore.ModifierKeys mods)
+    {
+        if (_armedRecordKeyUps.Contains(vk))
+        {
+            if (!down) _armedRecordKeyUps.Remove(vk);
+            return true;
+        }
+        if (!down || ArmedRecordKey?.Invoke(vk, mods) != true) return false;
+        _armedRecordKeyUps.Add(vk); return true;
+    }
 }
