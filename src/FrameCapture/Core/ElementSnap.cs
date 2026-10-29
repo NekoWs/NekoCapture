@@ -68,6 +68,8 @@ public static class ElementSnap
     public static ElementHit? At(int physX, int physY, IntPtr excludeHwnd)
     {
         if (physX == _cacheX && physY == _cacheY && _cacheWindow == excludeHwnd && Environment.TickCount64 < _cacheUntil) return _cache;
+        if (TryTopmostAt(physX, physY, excludeHwnd, out var cachedWindow)
+            && CachedAt(cachedWindow, physX, physY) is { } cachedHit) return cachedHit;
 
         ElementHit? result = null;
         var sw = Stopwatch.StartNew();
@@ -136,7 +138,7 @@ public static class ElementSnap
                             long area = (long)vt.Rect.W * vt.Rect.H;
                             var mon = Monitors.Nearest(physX, physY);
                             long monArea = mon == null ? long.MaxValue : (long)mon.Bounds.W * mon.Bounds.H;
-                            if (area < monArea / 2) result = new ElementHit { Rect = vt.Rect, Element = null };
+                            if (area < monArea / 2) result = new ElementHit { Rect = vt.Rect, Element = vt.Element };
                         }
                     }
                 }
@@ -146,6 +148,19 @@ public static class ElementSnap
         _cacheX = physX; _cacheY = physY; _cache = result;
         _cacheWindow = excludeHwnd; _cacheUntil = Environment.TickCount64 + 120;
         return result;
+    }
+
+    /// <summary>从已预热的窗口快照命中控件，不执行跨进程查询。</summary>
+    /// <param name="window">目标窗口。</param>
+    /// <param name="x">物理横坐标。</param>
+    /// <param name="y">物理纵坐标。</param>
+    /// <returns>尺寸可用的控件；未预热或仅有整屏容器时为空。</returns>
+    internal static ElementHit? CachedAt(IntPtr window, int x, int y)
+    {
+        if (window == IntPtr.Zero || UiaSnap.CachedAt(window, x, y) is not { } hit) return null;
+        var monitor = Monitors.Nearest(x, y);
+        if (monitor != null && (long)hit.Rect.W * hit.Rect.H >= (long)monitor.Bounds.W * monitor.Bounds.H / 2) return null;
+        return new ElementHit { Rect = hit.Rect, Element = hit.Element };
     }
 
     /// <summary>这枚元素是不是「说得出口」的控件：语义类型，或带非空名字。</summary>

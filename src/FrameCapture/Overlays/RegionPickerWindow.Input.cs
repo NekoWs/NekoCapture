@@ -39,6 +39,8 @@ public sealed partial class RegionPickerWindow
     private void OnMove(object sender, MouseEventArgs e)
     {
         _pointerPending = e.GetPosition(this);
+        if (_snapContent && !_dragging && _grab == GrabKind.None && _sel == null && !_drillLock)
+            ScheduleProbe(_pointerPending.Value);
     }
 
     private void UpdatePointer(Point dipMove)

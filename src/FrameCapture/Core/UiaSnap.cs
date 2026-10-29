@@ -35,6 +35,8 @@ public static class UiaSnap
         public ControlType Type { get; init; }
         /// <summary>无障碍名字，可能为空。</summary>
         public string Name { get; init; }
+        /// <summary>支持后续父容器查询的元素对象。</summary>
+        public AutomationElement? Element { get; init; }
     }
 
     sealed class Snapshot
@@ -83,7 +85,24 @@ public static class UiaSnap
         {
             if (!Cache.TryGetValue(hwnd, out snap)) { snap = new Snapshot(); Cache[hwnd] = snap; }
         }
-        if (!snap.Building) Build(hwnd, snap);
+        lock (Lock)
+            if (!snap.Building && DateTime.UtcNow - snap.At > Ttl) Build(hwnd, snap);
+    }
+
+    /// <summary>只查询已发布的矩形快照，不等待建树或调用无障碍提供程序。</summary>
+    /// <param name="hwnd">目标窗口。</param>
+    /// <param name="physX">物理横坐标。</param>
+    /// <param name="physY">物理纵坐标。</param>
+    /// <returns>缓存中的命中；尚无快照时为空。</returns>
+    internal static Item? CachedAt(IntPtr hwnd, int physX, int physY)
+    {
+        List<Item> items;
+        lock (Lock)
+        {
+            if (!Cache.TryGetValue(hwnd, out var snapshot)) return null;
+            items = snapshot.Items;
+        }
+        return Best(items, physX, physY);
     }
 
     /// <summary>纯逻辑：在快照里挑「包含该点、面积最小、且说得出口」的元素。</summary>
@@ -118,20 +137,27 @@ public static class UiaSnap
         {
             var root = AutomationElement.FromHandle(hwnd);
             if (root == null) return items;
-            var all = root.FindAll(TreeScope.Descendants, System.Windows.Automation.Condition.TrueCondition);
+            var request = new CacheRequest();
+            request.Add(AutomationElement.BoundingRectangleProperty);
+            request.Add(AutomationElement.ControlTypeProperty);
+            request.Add(AutomationElement.NameProperty);
+            AutomationElementCollection all;
+            using (request.Activate())
+                all = root.FindAll(TreeScope.Descendants, System.Windows.Automation.Condition.TrueCondition);
             int n = Math.Min(all.Count, MaxItems);
             for (int i = 0; i < n; i++)
             {
                 var e = all[i];
                 try
                 {
-                    var rc = e.Current.BoundingRectangle;
+                    var cached = e.Cached;
+                    var rc = cached.BoundingRectangle;
                     if (rc == System.Windows.Rect.Empty || rc.Width <= 0 || rc.Height <= 0) continue;
                     items.Add(new Item
                     {
                         Rect = new RectI((int)rc.X, (int)rc.Y, (int)Math.Round(rc.Width), (int)Math.Round(rc.Height)),
-                        Type = e.Current.ControlType,
-                        Name = e.Current.Name ?? "",
+                        Type = cached.ControlType,
+                        Name = cached.Name ?? "", Element = e,
                     });
                 }
                 catch { }

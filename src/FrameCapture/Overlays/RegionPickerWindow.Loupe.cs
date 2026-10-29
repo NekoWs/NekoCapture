@@ -223,14 +223,23 @@ public sealed partial class RegionPickerWindow : Window
 
     private RectI[]? _hoverWindows;
     private long _hoverWindowsUntil;
+    private (IntPtr Hwnd, RectI Bounds)[] _hoverTargets = Array.Empty<(IntPtr, RectI)>();
+    private IntPtr _probeWindow;
 
     private RectI? SnapWindowAt((int X, int Y) p, bool fresh = false)
     {
         if (fresh || _hoverWindows == null || Environment.TickCount64 >= _hoverWindowsUntil)
         {
             var self = new System.Windows.Interop.WindowInteropHelper(this).Handle;
-            _hoverWindows = WindowEnum.ListTopmostCandidates(self).Select(t => _snapContent ? t.Client : t.Bounds).ToArray();
+            var windows = WindowEnum.ListTopmostCandidates(self);
+            _hoverWindows = windows.Select(t => _snapContent ? t.Client : t.Bounds).ToArray();
+            _hoverTargets = windows.Select(t => (t.Hwnd, t.Bounds)).ToArray();
             _hoverWindowsUntil = Environment.TickCount64 + 160;
+        }
+        if (_snapContent)
+        {
+            var target = _hoverTargets.FirstOrDefault(t => t.Bounds.Contains(p.X, p.Y)).Hwnd;
+            if (target != _probeWindow) { _probeWindow = target; Core.UiaSnap.Warm(target); }
         }
         return Core.SnapPick.Pick(_hoverWindows, p.X, p.Y);
     }

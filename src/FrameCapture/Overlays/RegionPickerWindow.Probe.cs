@@ -9,12 +9,15 @@ namespace FrameCapture.Overlays;
 /// <summary>按显示帧合并指针更新，停留后异步查询控件；过期结果不改变选区。</summary>
 public sealed partial class RegionPickerWindow
 {
+    private const int ElementDwellMs = 50;
     private Point? _pointerPending;
     private Point _pointerDip;
     private DispatcherTimer? _elementTimer;
     private long _probeGeneration;
     private bool _clickPending;
     private bool _pointerSubscribed;
+    private long _probeDue;
+    private long _cachedGeneration = -1;
 
     private void StartPointerUpdates()
     {
@@ -22,8 +25,11 @@ public sealed partial class RegionPickerWindow
         _pointerSubscribed = true;
         CompositionTarget.Rendering += PointerFrame;
         if (!_snapContent) return;
-        _elementTimer = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromMilliseconds(85) };
+        _elementTimer = new DispatcherTimer(DispatcherPriority.Input) { Interval = TimeSpan.FromMilliseconds(ElementDwellMs) };
         _elementTimer.Tick += ProbeHover;
+        _pointerDip = new Point(double.NaN, double.NaN);
+        _pointerPending = Mouse.GetPosition(this);
+        ScheduleProbe(_pointerPending.Value);
     }
 
     private void StopPointerUpdates()
@@ -36,15 +42,19 @@ public sealed partial class RegionPickerWindow
 
     private void PointerFrame(object? sender, EventArgs args)
     {
-        if (_pointerPending is not { } point) return;
-        _pointerPending = null;
-        UpdatePointer(point);
+        if (_pointerPending is { } point)
+        {
+            _pointerPending = null;
+            UpdatePointer(point);
+        }
+        TryCachedSnap();
     }
 
     private void ScheduleProbe(Point point)
     {
         if (_clickPending || _pointerDip == point) return;
         _pointerDip = point; _probeGeneration++;
+        _probeDue = Environment.TickCount64 + ElementDwellMs;
         _elementTimer?.Stop(); _elementTimer?.Start();
     }
 
@@ -52,13 +62,15 @@ public sealed partial class RegionPickerWindow
     {
         _elementTimer?.Stop();
         if (_finished || _dragging || _grab != GrabKind.None || _sel != null || _drillLock || _clickPending) return;
+        if (OverButton(_pointerDip, _modeCapture) || OverButton(_pointerDip, _modeRecord)) return;
+        if (TryCachedSnap()) return;
         long generation = _probeGeneration;
         var point = WindowPosToPhys(_pointerDip);
         var self = new System.Windows.Interop.WindowInteropHelper(this).Handle;
         try
         {
             var hit = await ElementProbe.Query(() => ElementSnap.At(point.X, point.Y, self)).WaitAsync(TimeSpan.FromMilliseconds(750));
-            if (_finished || generation != _probeGeneration || _dragging || _sel != null || _drillLock || _clickPending) return;
+            if (_finished || generation != _probeGeneration || _cachedGeneration == generation || _dragging || _sel != null || _drillLock || _clickPending) return;
             var cursor = System.Windows.Forms.Cursor.Position;
             if (Math.Abs(cursor.X - point.X) > 3 || Math.Abs(cursor.Y - point.Y) > 3) return;
             if (hit is not { Rect.W: >= 8, Rect.H: >= 8 } || !hit.Rect.Contains(point.X, point.Y)) return;
@@ -70,7 +82,23 @@ public sealed partial class RegionPickerWindow
 
     private void CancelProbe()
     {
-        _elementTimer?.Stop(); _probeGeneration++; _clickPending = false; _pointerPending = null;
+        _elementTimer?.Stop(); _probeGeneration++; _probeDue = 0; _clickPending = false; _pointerPending = null;
+    }
+
+    private bool TryCachedSnap()
+    {
+        if (!_snapContent || _probeDue == 0 || Environment.TickCount64 < _probeDue
+            || _finished || _dragging || _grab != GrabKind.None || _sel != null || _drillLock || _clickPending) return false;
+        if (OverButton(_pointerDip, _modeCapture) || OverButton(_pointerDip, _modeRecord)) return false;
+        if (_cachedGeneration == _probeGeneration) return true;
+        var point = WindowPosToPhys(_pointerDip);
+        var cursor = System.Windows.Forms.Cursor.Position;
+        if (Math.Abs(cursor.X - point.X) > 3 || Math.Abs(cursor.Y - point.Y) > 3) return false;
+        var hit = ElementSnap.CachedAt(_probeWindow, point.X, point.Y);
+        if (hit == null) return false;
+        _curElem = hit; _cachedGeneration = _probeGeneration;
+        ShowSpot(hit.Rect); UpdateLoupe(_pointerDip, point, hit.Rect);
+        return true;
     }
 
     private async void SelectClickedElement((int X, int Y) point)

@@ -1,6 +1,6 @@
 # 当前状态
 
-源代码版本：0.9.16。契约见 [docs/PLAN-ORTHOGONAL-CHAINS.md](docs/PLAN-ORTHOGONAL-CHAINS.md)。
+源代码版本：0.9.17。契约见 [docs/PLAN-ORTHOGONAL-CHAINS.md](docs/PLAN-ORTHOGONAL-CHAINS.md)。
 
 - 原生组件常驻托盘与全局手势，WPF 服务预热保留；空闲保存产物并释放大图缓存，超过预算时重建服务。
 - 编码、保存、OCR、权限交接和组件安装保持界面进程存活；界面繁忙时仍能接收录制停止请求。
@@ -22,5 +22,5 @@
 - 图版本为 1，动作链导入版本为 3；写回前保留输入备份，文件占用时有限重试。
 - 运行使用配置快照；无效入口不装入手势引擎。物理与测试输入隔离，时间戳使用统一单调时间轴。
 
-本次交互与性能验证由用户进行，不运行完整测试矩阵。构建结果见 `test-out/efficiency-build.log`。
+本次交互与性能验证由用户进行，不运行完整测试矩阵。构建结果见 `test-out/snap50-build.log`。
 人工交互清单见 [UIAUDIT.md](UIAUDIT.md)。
