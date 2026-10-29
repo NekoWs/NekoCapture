@@ -115,6 +115,7 @@ public sealed partial class EditorWindow : Window
     async void OcrCurrentFrame()
     {
         if (_ocrBusy || _seq.Frames.Count == 0) return;
+        using var activity = BackgroundWork.Hold();
         _ocrBusy = true;
         ShowSnack(Loc.T(K.Common.RecognizeText2));
         try
@@ -192,7 +193,7 @@ public sealed partial class EditorWindow : Window
             _commitCts = new CancellationTokenSource();
             var ct = _commitCts.Token;
             _hud.Text = Loc.F(K.Editor.Exporting, verb);
-            Task.Run(() =>
+            BackgroundWork.Run(() =>
             {
                 // 测试专用（与 FC_TEST_NO_FG 同约定）：FC_TEST_ENCODE_FAIL=1 令编码任务必然抛错，
                 // 使"导出失败"HUD 终态可确定性触达并做双主题像素取证（UIAUDIT D9）。正常用户环境永不置位。

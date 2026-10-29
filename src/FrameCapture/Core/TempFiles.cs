@@ -7,7 +7,7 @@ namespace FrameCapture.Core;
 /// 临时目录的管家：截图/长图/编码过程中的中间文件都落在 <c>%TEMP%\FrameCapture</c>。
 /// 这些文件有的只活几秒，有的要留到「继续滚动」用完；没人收拾就会一直涨——
 /// 实测一台天天截图的机器上积到两千多个文件、2.6 GB。
-/// 规则只有一条：超过保留期的自家中间文件，启动时清掉。</summary>
+/// 启动时清理超过保留期且未被最近产物引用的自家中间文件。</summary>
 public static class TempFiles
 {
     /// <summary>中间文件的保留期：超过这个时长的自家文件在下一次启动时清掉。</summary>
@@ -32,10 +32,12 @@ public static class TempFiles
     }
 
     /// <summary>清掉超过保留期的自家中间文件。只认自家的几种前缀，别人的东西一个都不碰。</summary>
+    /// <param name="retained">仍被最近产物引用的完整路径。</param>
     /// <returns>删掉的文件数。</returns>
-    public static int SweepStale()
+    public static int SweepStale(IEnumerable<string>? retained = null)
     {
         int removed = 0;
+        var keep = new HashSet<string>(retained ?? Array.Empty<string>(), StringComparer.OrdinalIgnoreCase);
         try
         {
             if (!Directory.Exists(Dir)) return 0;
@@ -43,6 +45,7 @@ public static class TempFiles
             foreach (var f in Directory.EnumerateFiles(Dir))
             {
                 if (!IsOwn(Path.GetFileName(f))) continue;
+                if (keep.Contains(f)) continue;
                 try
                 {
                     if (File.GetLastWriteTimeUtc(f) >= limit) continue;

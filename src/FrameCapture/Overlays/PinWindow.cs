@@ -473,6 +473,7 @@ public sealed class PinWindow : Window
     /// 否则贴图内浮层提示。无语言包/无文字等优雅降级，浮层给出原因。</summary>
     async void OcrFrame()
     {
+        using var activity = BackgroundWork.Hold();
         Flash(Core.Loc.T(K.Common.RecognizeText2));
         try
         {

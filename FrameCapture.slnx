@@ -7,6 +7,7 @@
       <Platform Project="x64" />
     </Project>
     <Project Path="src/GestureCore/GestureCore.csproj" />
+    <Project Path="src/Resident/Resident.csproj" />
     <Project Path="src/Setup/Setup.csproj">
       <Platform Project="x64" />
     </Project>

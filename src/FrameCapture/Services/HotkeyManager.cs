@@ -11,7 +11,7 @@ namespace FrameCapture.Services;
 /// 回调耗时超过 LowLevelHooksTimeout 会被系统<b>静默摘钩</b>——热键无声失效，系统侧不留任何痕迹。
 /// 慢回调看门狗把违反该不变量的现场写进 trace（"hook slow Nms"），自检脚本 test-outline-lifecycle 断言其永不出现。
 /// </summary>
-public sealed class HotkeyManager : IDisposable
+public sealed partial class HotkeyManager : IDisposable
 {
     private IntPtr _hook = IntPtr.Zero;
     private Win32.LowLevelKeyboardProc? _proc;
@@ -19,15 +19,15 @@ public sealed class HotkeyManager : IDisposable
     public event Action? ScrollCancel;
     /// <summary>滚动截图会话是否活跃（由控制条生命周期置位：Show=true、Closed=false）。
     /// volatile：钩子线程读、UI 线程写。为 true 时全局吞掉 Esc 并触发 ScrollCancel。</summary>
-    public static volatile bool ScrollActive;
+    public static bool ScrollActive { get => _scrollActive; set { _scrollActive = value; SessionsChanged(); } }
     /// <summary>延时截图倒计时活跃时置位：全局吞 Esc 并回调（倒计时窗不抢焦点，键不会进它自己的 HWND）。
     /// 生命周期绑定倒计时窗 Show/Closed，绝不泄漏成"全局 Esc 失灵"。</summary>
-    public static volatile bool CountdownActive;
+    public static bool CountdownActive { get => _countdownActive; set { _countdownActive = value; SessionsChanged(); } }
     /// <value>倒计时期间 Esc 的响应。<b>在钩子回调内被同步调用</b>，赋值方自己投递到 UI 线程。</value>
     public static Action? CountdownEsc;
     /// <summary>截图浮窗（CaptureToast）活跃时置位：全局吞 Enter/Esc 并回调（浮窗不抢焦点，键不会进它自己的
     /// HWND，只能靠全局钩子代劳）。Enter→进编辑器，Esc→关闭。生命周期绑定浮窗 Show/Closed。</summary>
-    public static volatile bool ToastActive;
+    public static bool ToastActive { get => _toastActive; set { _toastActive = value; SessionsChanged(); } }
     /// <value>Enter 的响应，由浮窗 Show 时赋值、Closed 时清空。<b>在钩子回调内被同步调用</b>，
     /// 赋值方必须自己投递（CaptureToast 走 Dispatcher.BeginInvoke），否则回调耗时直接计入摘钩超时。</value>
     public static Action? ToastEnter;
@@ -63,16 +63,17 @@ public sealed class HotkeyManager : IDisposable
     /// 其键不会进选区窗自己的 HWND，只能靠全局钩子代劳（与滚动/浮窗同款会话拦截）。
     /// PickerKey 返回 true=本键归选区窗处理（吞掉，前台收不到）；false=放行。生命周期绑定选区窗 Loaded/Closed，
     /// 绝不泄漏成"全局键失灵"。</summary>
-    public static volatile bool PickerActive;
+    public static bool PickerActive { get => _pickerActive; set { _pickerActive = value; SessionsChanged(); } }
     /// <value>选区窗的键判定，入参 vk，返回 true=本键归选区窗（被吞）。<b>在钩子回调内被同步调用</b>，
     /// 实现方只做判断、把副作用投递出去；选区窗 Closed 时必须置回 null。</value>
     public static Func<uint, bool>? PickerKey;
     /// <summary>准备录制面板的会话按键判定。只匹配确认与取消，副作用投递到 UI 线程；起录或关闭时清空。</summary>
-    public static Func<uint, GestureCore.ModifierKeys, bool>? ArmedRecordKey;
+    public static Func<uint, GestureCore.ModifierKeys, bool>? ArmedRecordKey
+    { get => _armedRecordKey; set { _armedRecordKey = value; SessionsChanged(); } }
     readonly HashSet<uint> _armedRecordKeyUps = new();
     /// <summary>暂停用户手势并放行其按键；已有捕获会话的确认与取消仍生效。
     /// 由托盘切换，仅影响当前进程。</summary>
-    public static volatile bool Paused;
+    public static bool Paused { get => _paused; set { _paused = value; ResidentBridge.PublishPause(value); } }
 
     /// <value>钩子句柄非零即已装。<see cref="Paused"/> 只让钩子放行，不改本值——暂停态下钩子仍在。</value>
     public bool Installed => _hook != IntPtr.Zero;
@@ -87,7 +88,8 @@ public sealed class HotkeyManager : IDisposable
     /// Win+Shift+S 会被系统先接走，中文输入法下的 Shift+字母还会变成 ImeProcessed。
     /// 返回 true 表示这一击归录入框（吞掉，前台与系统都收不到）。
     /// <b>在钩子回调内被同步调用</b>，实现方只做判断与投递，不在这里做重活。</summary>
-    public static Func<uint, bool, GestureCore.ModifierKeys, long, bool>? CaptureSink;
+    public static Func<uint, bool, GestureCore.ModifierKeys, long, bool>? CaptureSink
+    { get => _captureSink; set { _captureSink = value; SessionsChanged(); } }
 
     /// <summary>此刻真实的修饰键状态（读系统键态）。录入框在开始录入时拿它当起点：
     /// 录入开始前就按住的修饰键也要算进第一枚键位里。</summary>
@@ -111,22 +113,14 @@ public sealed class HotkeyManager : IDisposable
     // 隐私：默认关闭，绝不记录用户按键——仅调试注入链路时设 FC_TRACE_KEYS=1 才逐键记录。
     static readonly bool TraceKeys = Environment.GetEnvironmentVariable("FC_TRACE_KEYS") == "1";
 
-    /// <summary>装全局低级键盘钩子。钩子承载三件事：手势喂键（<see cref="KeySink"/>）、滚动截图 Esc 全局取消、
-    /// 截图浮窗 Enter/Esc。<c>KeySink=null</c> 时不装——滚动/浮窗会话只在手势触发时才活跃，无 KeySink 即无会话需求。
-    /// 幂等：内部先卸后装。装失败抛 <see cref="System.ComponentModel.Win32Exception"/>，由调用方决定怎么呈现。</summary>
+    /// <summary>在独立消息线程安装键盘钩子；重装保留会话已认领的抬起事件。
+    /// 无输入源或按需界面无会话时不安装，失败抛 Win32Exception。</summary>
     public void Install()
     {
-        Uninstall();
+        StopInputThread();
         if (KeySink == null) return;
-        _proc = HookProc;
-        _hook = Win32.SetWindowsHookExW(Win32.WH_KEYBOARD_LL, _proc,
-            Win32.GetModuleHandleW(null), 0);
-        Core.Trace.Log($"Install hook={_hook}");
-        if (_hook == IntPtr.Zero)
-        {
-            _proc = null;
-            throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error());
-        }
+        if (ResidentBridge.IsWorker && !HasSessions) return;
+        StartInputThread();
     }
 
     /// <summary>卸载键盘钩子并弃掉委托引用。未装时静默返回，可重复调用。</summary>
@@ -134,13 +128,9 @@ public sealed class HotkeyManager : IDisposable
     /// 否则它的 native thunk 可能被 GC 回收。</remarks>
     public void Uninstall()
     {
-        if (_hook != IntPtr.Zero)
-        {
-            Win32.UnhookWindowsHookEx(_hook);
-            _hook = IntPtr.Zero;
-        }
-        _proc = null;
+        StopInputThread();
         _armedRecordKeyUps.Clear();
+        _captureKeyUps.Clear();
     }
 
     private IntPtr HookProc(int nCode, IntPtr wParam, IntPtr lParam)
@@ -165,6 +155,7 @@ public sealed class HotkeyManager : IDisposable
         var info = Marshal.PtrToStructure<Win32.KBDLLHOOKSTRUCT>(lParam);
         uint vk = info.vkCode;
         bool isDown = (info.flags & Win32.LLKHF_UP) == 0;
+        var mods = Core.GestureModifiers.AfterKeyboardEvent(CurrentMods(), (int)vk, isDown, Win32.IsKeyDown);
         // 隐私：绝不记录用户按键（全局钩子可见所有键击）。仅调试注入链路时设 FC_TRACE_KEYS=1 才逐键记录。
         if (TraceKeys)
             Core.Trace.Log($"hook key={info.vkCode} down={isDown} installed={Installed}");
@@ -172,15 +163,25 @@ public sealed class HotkeyManager : IDisposable
         // 录入态最优先：此刻用户在设置里按一个键给我们，任何别的判定都不该先把这一击拿走。
         // 连 Paused 都不看——录入时宿主就是把全局热键暂停掉的，那恰恰是要录的那个键。
         bool readyRelease = !isDown && _armedRecordKeyUps.Count > 0 && _armedRecordKeyUps.Remove(vk);
-        if (CaptureSink != null && CaptureSink(vk, isDown, CurrentMods(), info.time)) return true;
-        if (readyRelease) return true;
-        if ((_armedRecordKeyUps.Count > 0 || ArmedRecordKey != null) && RouteArmedRecordKey(vk, isDown, CurrentMods())) return true;
+        if (_captureKeyUps.Contains(vk))
+        {
+            if (!isDown) { _captureKeyUps.Remove(vk); CaptureSink?.Invoke(vk, false, mods, info.time); SessionsChanged(); }
+            return true;
+        }
+        if (CaptureSink is { } capture)
+        {
+            if (isDown) _captureKeyUps.Add(vk);
+            if (capture(vk, isDown, mods, info.time)) return true;
+            if (isDown) { _captureKeyUps.Remove(vk); SessionsChanged(); }
+        }
+        if (readyRelease) { SessionsChanged(); return true; }
+        if ((_armedRecordKeyUps.Count > 0 || ArmedRecordKey != null) && RouteArmedRecordKey(vk, isDown, mods)) return true;
 
         // 手势引擎喂键（唯一的全局触发路径）。手势层关闭时 KeySink=null，零开销。
         // Paused 时不喂：用户暂停全局热键=要求不拦截任何键，手势层同样避让。
         // 返回值=是否吞键：命中带具体键的组合键即吞，纯修饰键组合与未命中不吞。
         bool gestureSwallow = false;
-        if (!Paused && KeySink != null) gestureSwallow = KeySink(vk, isDown, CurrentMods(), info.time);
+        if (!Paused && KeySink != null) gestureSwallow = KeySink(vk, isDown, mods, info.time);
 
         // 滚动截图会话中：Esc 全局取消并吞掉（控制条不抢焦点，否则 Esc 会漏给目标窗）。
         // 热路径仅一次 volatile 读 + 一次整数比较；ScrollActive 绑定控制条生命周期，绝不泄漏成"全局 Esc 失灵"。
@@ -210,7 +211,7 @@ public sealed class HotkeyManager : IDisposable
     }
 
     /// <summary>卸载钩子，等价于 <see cref="Uninstall"/>；宿主 Shutdown 与本类被丢弃都走这里。</summary>
-    public void Dispose() => Uninstall();
+    public void Dispose() { Uninstall(); if (ReferenceEquals(_activeManager, this)) _activeManager = null; }
 
     bool RouteArmedRecordKey(uint vk, bool down, GestureCore.ModifierKeys mods)
     {

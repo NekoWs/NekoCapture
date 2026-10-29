@@ -27,7 +27,7 @@ public sealed class AppHost
     public void Startup()
     {
         Trace.Log("Startup begin");
-        Capture.FrameSpool.CleanupStale(); // 清理上次崩溃/强杀残留的磁盘暂存帧文件（>24h）
+        Capture.FrameSpool.CleanupStale(CaptureController.ResidentFiles());
         Settings = new SettingsService();
         Settings.Current.ApplyPalette();
         Loc.Apply(Settings.Current.UiLanguage);
@@ -138,6 +138,7 @@ public sealed class AppHost
     /// <returns>登记成功、取消或失败的结果。</returns>
     public async Task<StartupResult> ConfigureStartupAsync(bool enable, bool elevated, string? arguments = null)
     {
+        using var activity = BackgroundWork.Hold();
         await _startupGate.WaitAsync();
         try
         {
@@ -146,6 +147,7 @@ public sealed class AppHost
             Settings.AcceptStartup(enable, elevated);
             if (change.Restarted)
             {
+                ResidentBridge.RetireHost();
                 Shutdown();
                 System.Windows.Application.Current?.Shutdown();
             }

@@ -20,7 +20,7 @@ public static partial class SaveService
         string dir = ResolveFolder();
         string path = Path.Combine(dir, UniqueName(dir, Stamp(), extension));
         var matte = HexColor.Parse(settings?.VideoMatteColor ?? "#000000");
-        return await Task.Run(() =>
+        return await BackgroundWork.Run(() =>
         {
             string temp = Path.Combine(dir, Guid.NewGuid().ToString("N") + ".tmp." + extension);
             try

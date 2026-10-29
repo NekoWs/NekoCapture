@@ -27,8 +27,7 @@ public sealed partial class EditorWindow : Window
     private readonly SettingsService _settings;
     private readonly CapturedSequence _seq;
     private readonly int _fps;   // 本序列实际帧率：优先 seq.Fps（跟随刷新率录的实际值），回退设置手动值——时间轴/时长/播放都用它
-    // 位图惰性缓存（LRU）——长录制帧数可达数万，全量转 BitmapSource 必 OOM。
-    // 只缓存最近浏览的若干帧；缓存上限按帧字节数自适应（约 600MB 帧数据）。
+    // 预览缓存预算为 64 MB，至少容纳当前一帧。
     private readonly Dictionary<int, BitmapSource> _bmpCache = new();
     private readonly Queue<int> _bmpFifo = new();
     private int _bmpCacheMax;
@@ -84,7 +83,7 @@ public sealed partial class EditorWindow : Window
             if (n > 0) { _frameW = seq.Frames[0].W; _frameH = seq.Frames[0].H; }
         }
         long frameBytes = (long)_frameW * _frameH * 4;
-        _bmpCacheMax = frameBytes > 0 ? (int)Math.Clamp((600L << 20) / frameBytes, 6, 96) : 24;
+        _bmpCacheMax = frameBytes > 0 ? (int)Math.Clamp((64L << 20) / frameBytes, 1, 24) : 1;
 
         WindowStyle = WindowStyle.None;
         ResizeMode = ResizeMode.CanResize;
@@ -171,6 +170,7 @@ public sealed partial class EditorWindow : Window
         PreviewKeyDown += OnKeyDown;
         Closed += (_, _) =>
         {
+            _view.Source = null; _bmpCache.Clear(); _bmpFifo.Clear(); _mosaicCache.Clear();
             if (_userClosed) return;
             _userClosed = true;
             _playTimer.Stop(); // 停播放表，避免释放 spool 后定时器再读已关文件

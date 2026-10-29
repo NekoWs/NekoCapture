@@ -308,6 +308,18 @@ public sealed class GestureEngine
         }
     }
 
+    /// <summary>存在等待连击或长按结算的状态；无等待时宿主可停止计时器。</summary>
+    public bool NeedsTick
+    {
+        get
+        {
+            foreach (var state in _state.Values)
+                if (state.ClickPending || (state.PressDown && !state.LongPressFired)
+                    || (state.KeyPending && !state.HoldFired)) return true;
+            return false;
+        }
+    }
+
     /// <summary>该组合键的长按阈值：取绑了 LongPress 的第一条（优先级最高者），没有则按 500。</summary>
     int BindingLongPressMs(KeyChord c)
     {

@@ -182,10 +182,11 @@ internal static class InstallEngine
         catch (Exception) { return -1; }
     }
 
-    /// <summary>结束所有正在运行的主程序实例，否则被占用的 dll 删不掉也换不掉。</summary>
+    /// <summary>先结束常驻宿主，再结束界面，释放安装文件占用。</summary>
     internal static void KillApp()
     {
-        foreach (var p in Process.GetProcessesByName(AppName))
+        foreach (var name in new[] { AppName + ".Resident", AppName })
+        foreach (var p in Process.GetProcessesByName(name))
         {
             try
             {

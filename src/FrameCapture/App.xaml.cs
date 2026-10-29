@@ -46,15 +46,22 @@ public partial class App : Application
         if (!Services.StartupService.WaitForStandardHandoff(e.Args)) { Shutdown(1); return; }
         Core.Trace.Log("OnStartup enter");
         if (!Services.StartupService.WaitForParent(e.Args)) { Shutdown(); return; }
+        if (Services.ResidentBridge.TryBootstrap(e.Args)) { Shutdown(); return; }
+        if (Services.ResidentBridge.IsWorker && Environment.GetEnvironmentVariable("FC_TEST_NO_FG") == "1"
+            && Environment.GetEnvironmentVariable("FC_TEST_NO_WINDOWS") == "1")
+            EventManager.RegisterClassHandler(typeof(Window), FrameworkElement.LoadedEvent, new RoutedEventHandler((sender, _) =>
+            {
+                if (sender is Window window) { window.Left = -20000; window.Top = -20000; }
+            }));
 
         // 自家中间文件超过保留期就清掉：截图与长图的中间件都在 %TEMP%\FrameCapture，
         // 不收拾会一直涨（实测一台机器上积到两千多个、2.6 GB）。
-        Core.TempFiles.SweepStale();
+        Core.TempFiles.SweepStale(Services.CaptureController.ResidentFiles());
         Core.MsaaSnap.DebugLog = Core.Trace.Log;
         Core.ElementSnap.DebugLog = Core.Trace.Log;
 
         // 单实例
-        _mutex = new Mutex(true, @"Local\FrameCapture.SingleInstance", out bool owned);
+        _mutex = new Mutex(true, Services.ResidentBridge.UiMutexName, out bool owned);
         if (!owned)
         {
             // 已有实例：--settings/--help 转发给它再退——从快捷方式再开一次必须看得见效果，不能静默退出。
@@ -80,6 +87,7 @@ public partial class App : Application
 
         Services.AppHost.Current.Startup();
         StartMessageSink();
+        Services.ResidentBridge.InitializeWorker();
 
         // 自动登录入口不请求 UAC；隔离测试和明确关闭自动提权的启动也不请求授权。
         bool scripted = Environment.GetEnvironmentVariable("FC_NO_ELEVATE") == "1"
@@ -99,13 +107,13 @@ public partial class App : Application
             }
             Core.Trace.Log("elevate→cancelled, keep running unelevated");
         }
-        if (!scripted && Services.StartupService.IsElevated && Services.AppHost.Current.Settings.Current is { RunAtStartup: true, RunAsAdmin: true })
+        if (!scripted && !Services.ResidentBridge.IsWorker && Services.StartupService.IsElevated && Services.AppHost.Current.Settings.Current is { RunAtStartup: true, RunAsAdmin: true })
             Services.StartupService.Apply(true, true);
 
         // 每次启动都弹就绪卡：首启那张常驻（还没看见就说明不了什么），之后几张按时自己走。
         // 点破两个热键 + 关键手感——新用户装完只见托盘图标、不知按什么键是头号上手摩擦。
         // 非激活浮窗不打断输入，ApplicationIdle 时再弹避开与启动抢焦点。
-        if (Services.AppHost.Current.Settings.Current.StartupToast)
+        if (!Services.ResidentBridge.IsWorker && Services.AppHost.Current.Settings.Current.StartupToast)
             _ = Dispatcher.BeginInvoke(() =>
             {
                 var st = Services.AppHost.Current.Settings;
@@ -428,6 +436,7 @@ public partial class App : Application
         }
         protected override void WndProc(ref System.Windows.Forms.Message m)
         {
+            if (m.Msg == 0x004A && Services.ResidentBridge.Receive(m.WParam, m.LParam)) { m.Result = new IntPtr(1); return; }
             if (_byMsg.TryGetValue((uint)m.Msg, out var c))
             {
                 Core.Trace.Log($"sink→{c.Name} w={m.WParam} l={m.LParam}");
@@ -523,6 +532,7 @@ public partial class App : Application
 
     protected override void OnExit(ExitEventArgs e)
     {
+        Services.ResidentBridge.StopWorker();
         try { Services.AppHost.Current.Shutdown(); } catch { }
         // 只有主实例（真正持有者）能释放；二次实例释放会抛"unsynchronized block"炸掉退出路径
         if (_ownsMutex) { try { _mutex?.ReleaseMutex(); } catch { } }

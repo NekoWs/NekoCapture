@@ -428,7 +428,7 @@ internal static partial class Win32
     /// <summary>取窗口所属线程与进程 id。</summary>
     /// <param name="hWnd">目标窗口句柄。</param>
     /// <param name="processId">输出进程 id。声明为 out uint，不关心进程时也要给变量（调用方写 out _）。</param>
-    /// <returns>线程 id；0 = 句柄无效。AttachThreadInput 需要它。</returns>
+    /// <returns>线程 id；0 = 句柄无效。</returns>
     [DllImport("user32.dll")]
     public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
 
@@ -479,11 +479,10 @@ internal static partial class Win32
     }
     #endregion
 
-    #region 前台窗口与线程输入
+    #region 前台窗口与线程标识
     /// <summary>把窗口带到前台。</summary>
     /// <param name="hWnd">目标窗口句柄。</param>
-    /// <returns>true = 已置前台；false = 前台权限校验没过（只有持前台权的进程可改），
-    /// 需走 AttachThreadInput 链或 SwitchToThisWindow 兜底。</returns>
+    /// <returns>true = 已受理；false = 系统未授予前台权限。</returns>
     [DllImport("user32.dll")]
     public static extern bool SetForegroundWindow(IntPtr hWnd);
 
@@ -492,27 +491,13 @@ internal static partial class Win32
     [DllImport("user32.dll")]
     public static extern IntPtr GetForegroundWindow();
 
-    /// <summary>把两个线程的输入队列接起来，让附着的线程获得前台权限。</summary>
-    /// <param name="idAttach">本线程 id。</param>
-    /// <param name="idAttachTo">前台线程 id。</param>
-    /// <param name="fAttach">true = 连接，false = 断开。<b>必须配对断开</b>，否则两线程的焦点与键盘状态互相牵连。</param>
-    /// <returns>true = 本次连接/断开成功；断开失败时队列由系统自行解绑。</returns>
-    [DllImport("user32.dll")]
-    public static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool fAttach);
-
     /// <summary>把窗口提到所属线程的 Z 序顶部。</summary>
     /// <param name="hWnd">目标窗口句柄。</param>
     /// <returns>true = 已调用；不保证窗口真到前台，也不保证激活。</returns>
     [DllImport("user32.dll")]
     public static extern bool BringWindowToTop(IntPtr hWnd);
 
-    /// <summary>切到该窗口，走的是系统自己的切换通道，绕过部分前台权限校验。</summary>
-    /// <param name="hWnd">目标窗口句柄。</param>
-    /// <param name="fAltTab">true = 按 Alt+Tab 的语义切换（最小化窗会被还原）。</param>
-    [DllImport("user32.dll")]
-    public static extern void SwitchToThisWindow(IntPtr hWnd, bool fAltTab);
-
-    /// <summary>本线程 id，AttachThreadInput 的一侧参数。</summary>
+    /// <summary>本线程 id。</summary>
     /// <returns>调用线程的 id，恒非 0。</returns>
     [DllImport("kernel32.dll")]
     public static extern uint GetCurrentThreadId();
@@ -652,26 +637,6 @@ internal static partial class Win32
     /// <summary>BITMAPINFO 的字节数，直接填给 biSize。</summary>
     public static readonly uint SIZEOF_BITMAPINFOHEADER = (uint)Marshal.SizeOf<BITMAPINFO>();
 
-    // 工作集回收：录制/编辑大位图关闭后，.NET 只标垃圾不把页交还 OS，工作集虚高；
-    // 用户手动 MemReduct 就是调 SetProcessWorkingSetSize(-1,-1) 把空闲页踢回系统。我们在大操作收尾主动做同样的事。
-    /// <summary>本进程句柄，伪句柄，无需也不得 CloseHandle。</summary>
-    /// <returns>当前进程的伪句柄。</returns>
-    [DllImport("kernel32.dll")]
-    public static extern IntPtr GetCurrentProcess();
-
-    /// <summary>设置进程工作集上下限。</summary>
-    /// <param name="hProcess">进程句柄，取 GetCurrentProcess。</param>
-    /// <param name="dwMinimumWorkingSetSize">下限；new IntPtr(-1) = 立即把可换出的页踢给系统并按需重设。</param>
-    /// <param name="dwMaximumWorkingSetSize">上限，同上约定。</param>
-    /// <returns>true = 已设置；false = 句柄无效或权限不足。</returns>
-    [DllImport("kernel32.dll", SetLastError = true)]
-    public static extern bool SetProcessWorkingSetSize(IntPtr hProcess, IntPtr dwMinimumWorkingSetSize, IntPtr dwMaximumWorkingSetSize);
-
-    /// <summary>把当前进程工作集裁到最小（空闲页交还 OS）。-1/-1 = 系统按需重设上下限。</summary>
-    public static void TrimWorkingSet()
-    {
-        try { SetProcessWorkingSetSize(GetCurrentProcess(), new IntPtr(-1), new IntPtr(-1)); } catch { }
-    }
     #endregion
 
     #region WinForms 模态框 Owner

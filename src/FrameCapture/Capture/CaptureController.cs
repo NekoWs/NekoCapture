@@ -35,8 +35,7 @@ public sealed partial class CaptureController : IDisposable
     private const int RecBadgeDelayMs = 250; // 固定一拍躲开快速点按的闪徽标；录制本身已是确认动作，时长判定归手势引擎
     // 保留最近一次静态截图帧，供托盘「编辑上次截图」在托盘找回编辑器
     private readonly LastStill _lastStill = new();
-    // 录制产物留在内存（不落盘、不自动开编辑器）。停止录制只暂存，进编辑器由 edit.lastvideo 动作显式触发。
-    // 新录制完成会释放上一条（含 spool 文件）；从未进编辑器就再次录制/清空 → 上一条丢弃。
+    // 录制产物按需读取磁盘帧，进入编辑器由 edit.lastvideo 动作触发。
     private CapturedSequence? _lastSequence;
     // 滚动截图——选区后自动检测滚动并拼接（目标窗保持焦点，用户只管滚）
     private Overlays.ScrollHintWindow? _scrollBar;
@@ -450,8 +449,7 @@ public sealed partial class CaptureController : IDisposable
             // 焦点归还给捕获前正在使用的窗口（测试形态下不做：归还也是一次 SetForegroundWindow）
             try { if (!TestNoForeground && _prevFg != IntPtr.Zero && Native.Win32.IsWindow(_prevFg)) ForegroundNow(_prevFg); } catch { }
             _prevFg = IntPtr.Zero;
-            // 编辑器位图 LRU（封顶约 600MB）此刻已成垃圾，但 .NET 不把页交还 OS、工作集虚高。
-            // 等窗口拆完（ApplicationIdle）再主动全代 GC + 裁工作集，等价用户手动 MemReduct，回到干净基线。
+            // 窗口拆除后请求优化回收，不等待终结器或压缩整堆。
             System.Windows.Application.Current?.Dispatcher.BeginInvoke(
                 () => Memory.Reclaim(),
                 System.Windows.Threading.DispatcherPriority.ApplicationIdle);

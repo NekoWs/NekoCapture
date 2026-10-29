@@ -69,13 +69,38 @@ public sealed class TrayService : IDisposable
             return;
         }
         _icon.Icon = _iconOn;
-        string region = s.RegionW >= 16 ? Loc.F(K.Tray.RegionFps, s.RegionW, s.RegionH, s.Fps) : Loc.T(K.Tray.NoRegionDoubleClick);
-        string tip = Loc.F(K.Tray.FramecaptureGestures, s.Gestures.Bindings.Count, region);
+        string tip = ActiveTip(s);
         _icon.Text = tip.Length <= 63 ? tip : "FrameCapture"; // NotifyIcon.Text 上限 63 字符
     }
 
+    /// <summary>按当前配置生成常规托盘提示。</summary>
+    /// <param name="settings">当前设置。</param>
+    /// <returns>包含快捷键数、范围和帧率的提示。</returns>
+    internal static string ActiveTip(AppSettings settings)
+    {
+        string region = settings.RegionW >= 16 ? Loc.F(K.Tray.RegionFps, settings.RegionW, settings.RegionH, settings.Fps) : Loc.T(K.Tray.NoRegionDoubleClick);
+        return Loc.F(K.Tray.FramecaptureGestures, settings.Gestures.Bindings.Count, region);
+    }
+
+    private static System.Windows.Media.Color? _residentAccent;
+
+    /// <summary>生成原生宿主复用的透明图标，强调色未变化时复用文件。</summary>
+    internal static void SaveResidentIcons()
+    {
+        if (_residentAccent == Theme.Accent && System.IO.File.Exists(System.IO.Path.Combine(SettingsService.Dir, "resident-tray.ico"))) return;
+        foreach (bool paused in new[] { false, true })
+        {
+            string path = System.IO.Path.Combine(SettingsService.Dir, paused ? "resident-tray-paused.ico" : "resident-tray.ico");
+            string temporary = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
+            using (var icon = MakeIcon(paused))
+            using (var file = System.IO.File.Create(temporary)) icon.Save(file);
+            System.IO.File.Move(temporary, path, overwrite: true);
+        }
+        _residentAccent = Theme.Accent;
+    }
+
     /// <summary>让托盘图标可见。构造时故意不可见，宿主装配完再调本方法——避免图标先出现、菜单还点不动的窗口期。</summary>
-    public void Show() => _icon.Visible = true;
+    public void Show() { if (!ResidentBridge.IsWorker) _icon.Visible = true; }
 
     /// <summary>
     /// 提示气泡：托盘动作的轻量反馈（如「剪贴板里没有图片」）。走 <see cref="Overlays.NoticeToast"/>，
@@ -164,6 +189,7 @@ public sealed class TrayService : IDisposable
         Sep();
         Item(Loc.T(K.Tray.Exit), () =>
         {
+            ResidentBridge.RetireHost();
             Dispose();
             System.Windows.Application.Current?.Shutdown();
         });
@@ -246,8 +272,12 @@ public sealed class TrayService : IDisposable
         using var fill = new SolidBrush(accent);
         g.FillEllipse(fill, mid - dot / 2, mid - dot / 2, dot, dot);
         IntPtr hicon = bmp.GetHicon();
-        return Icon.FromHandle(hicon);
+        try { using var borrowed = Icon.FromHandle(hicon); return (Icon)borrowed.Clone(); }
+        finally { DestroyIcon(hicon); }
     }
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern bool DestroyIcon(IntPtr icon);
 
     /// <summary>
     /// 隐藏并释放托盘图标，同时关闭还开着的菜单锚窗。宿主 Shutdown 与托盘「退出」菜单项都走这里。
@@ -258,6 +288,7 @@ public sealed class TrayService : IDisposable
         Theme.Changed -= _onPalette;
         _icon.Visible = false;
         _icon.Dispose();
+        _iconOn.Dispose(); _iconPaused.Dispose();
         _menuAnchor?.Close();
     }
 }

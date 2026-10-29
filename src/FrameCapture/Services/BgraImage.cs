@@ -6,7 +6,7 @@ using FrameCapture.Capture;
 namespace FrameCapture.Services;
 
 /// <summary>BGRA 帧与 WPF BitmapSource 互转 + PNG 编码。</summary>
-public static class BgraImage
+public static partial class BgraImage
 {
     /// <summary>
     /// BGRA 帧 → WPF <see cref="BitmapSource"/>：Bgra32、96×96 DPI、行距 <c>W*4</c>（无 padding），返回已 Freeze 的对象。

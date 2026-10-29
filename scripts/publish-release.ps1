@@ -49,6 +49,7 @@ Write-Host "版本 $Version   发布者 $Publisher   形态 $Flavor"
 # 构建前必须停掉运行中的实例，否则 exe 被占用
 Step '停止运行中的实例'
 $wasRunning = @(Get-Process FrameCapture -ErrorAction SilentlyContinue).Count -gt 0
+Get-Process FrameCapture.Resident -ErrorAction SilentlyContinue | Stop-Process -Force
 Get-Process FrameCapture -ErrorAction SilentlyContinue | Stop-Process -Force
 if ($wasRunning) { Start-Sleep -Milliseconds 800; Write-Host '  已停止' } else { Write-Host '  本来就没在跑' }
 
@@ -112,6 +113,13 @@ if ($Flavor -in 'both', 'self') { $variants += @{ Key = 'self'; SelfContained = 
 if ($Flavor -in 'both', 'fd')   { $variants += @{ Key = 'fd';   SelfContained = 'false'; Suffix = 'framework-dependent' } }
 
 $results = @()
+Step '发布原生常驻组件'
+$residentStage = Join-Path $OutDir 'staging/resident'
+Remove-ReleaseDirectory $residentStage
+$residentPublish = dotnet publish src/Resident/Resident.csproj -c Release -r win-x64 -o $residentStage -v q --nologo 2>&1 | Out-String
+if ($LASTEXITCODE -ne 0) { throw "原生常驻组件发布失败: $residentPublish" }
+$residentExe = Join-Path $residentStage 'FrameCapture.Resident.exe'
+if (-not (Test-Path -LiteralPath $residentExe)) { throw '缺少原生常驻组件' }
 foreach ($v in $variants) {
     $stage = Join-Path $OutDir "staging\$($v.Key)"
     Step "发布 $($v.Suffix)"
@@ -121,6 +129,7 @@ foreach ($v in $variants) {
     $publishCode = $LASTEXITCODE
     $perr = @($p -split "`n" | ForEach-Object{ $_.Trim() } | Where-Object{ $_ -match ': error' })
     if ($publishCode -ne 0 -or $perr.Count) { $perr | ForEach-Object{ Write-Host "  $_" -ForegroundColor Red }; throw "发布 $($v.Suffix) 失败" }
+    Copy-Item -LiteralPath $residentExe -Destination $stage
     $rawSize = (Get-ChildItem $stage -Recurse -File | Measure-Object Length -Sum).Sum
     Write-Host ("  发布目录 {0:N1} MB / {1} 个文件" -f ($rawSize / 1MB), @(Get-ChildItem $stage -Recurse -File).Count)
 

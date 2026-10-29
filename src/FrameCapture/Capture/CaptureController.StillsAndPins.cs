@@ -60,7 +60,11 @@ public sealed partial class CaptureController : IDisposable
     /// 结果按 <see cref="OcrService.Route"/> 分流：
     /// 结果窗 / 复制+轻确认 / 无引擎提示 / 空提示（反馈统一走可截图审查的 OcrResultWindow）。
     /// 帧像素在首个 await 前同步拷入 SoftwareBitmap，与关窗/释放无竞态；无语言包优雅降级不抛。</summary>
-    public async void OcrStoredStill() => await RecognizeStoredStillAsync();
+    public async void OcrStoredStill()
+    {
+        using var activity = BackgroundWork.Hold();
+        await RecognizeStoredStillAsync();
+    }
 
     async Task<bool> RecognizeStoredStillAsync()
     {

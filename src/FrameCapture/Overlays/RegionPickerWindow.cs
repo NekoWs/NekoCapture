@@ -100,6 +100,7 @@ public sealed partial class RegionPickerWindow : Window
     }
     void StartWindowPregrab()
     {
+        if (System.Threading.Interlocked.Exchange(ref _pregrabStarted, 1) != 0) return;
         var self = new System.Windows.Interop.WindowInteropHelper(this).Handle;
         int max = _pregrabMax; bool shadow = _windowShadow; var mon = _monitorPhys;
         _ = Task.Run(() =>
@@ -118,13 +119,17 @@ public sealed partial class RegionPickerWindow : Window
                     visible.Add(cands[i].Hwnd);
                 }
                 var order = Core.SnapPick.PregrabOrder(Win32.GetForegroundWindow(), visible, max);
+                var sizes = cands.ToDictionary(candidate => candidate.Hwnd, candidate => candidate.Bounds);
                 foreach (var h in order)
                 {
                     if (_finished) return; // 选区已结束，别再抓
                     if (System.Threading.Interlocked.Read(ref _pregrabBytes) >= PregrabBudgetBytes) break;
+                    if (sizes.TryGetValue(h, out var expected) && (expected.W + 64L) * (expected.H + 64L) * 4
+                        > PregrabBudgetBytes - System.Threading.Interlocked.Read(ref _pregrabBytes)) continue;
                     try
                     {
                         var (f, r) = WindowCapture.Grab(h, shadow);
+                        if (_finished || f.Bgra.LongLength > PregrabBudgetBytes - System.Threading.Interlocked.Read(ref _pregrabBytes)) continue;
                         _winCache[h] = (f, r);
                         System.Threading.Interlocked.Add(ref _pregrabBytes, (long)f.W * f.H * 4);
                     }
@@ -137,40 +142,19 @@ public sealed partial class RegionPickerWindow : Window
         });
     }
 
-    /// <summary>预抓的内存预算。一片是整窗 BGRA：4K 屏上一个最大化窗口就 33 MB，按数量封顶等于
-    /// 在大屏上放行几百 MB。按 Z 序从高到低抓，预算用完就停——点得着的总是靠上那几个，
-    /// 没缓存到的窗口控制器实时抓兜底，只是慢几十毫秒。</summary>
-    const long PregrabBudgetBytes = 128L << 20;
+    /// <summary>窗口预抓按尺寸估算与实际像素双重限额；未缓存窗口使用定格区域裁剪。</summary>
+    const long PregrabBudgetBytes = 48L << 20;
 
     /// <summary>本次预抓已占用的像素字节数，后台线程累加，选区关闭时读它决定要不要回收。</summary>
     private long _pregrabBytes;
+    private int _pregrabStarted;
 
-    /// <summary>
-    /// 选区关闭后把定格帧与预抓缓存占的大块内存交还操作系统。这些是几十 MB 一片的瞬时数组，
-    /// 放任不管，进程会一直占着这几百 MB 直到 GC 哪天想起来——低配机器上等不到那天。
-    /// 延后两秒在后台线程做：那时结果已派发完，界面也没在动，整堆压缩的停顿没人看见。
-    /// </summary>
-    /// <param name="bigBytes">本次选区瞬时占用的像素字节数，不足 48 MB 不值得为它压缩整堆。</param>
+    /// <summary>大块选区缓存释放后请求优化回收，不强制整堆压缩或等待终结器。</summary>
+    /// <param name="bigBytes">选区瞬时像素字节数，达到 48 MB 才请求回收。</param>
     private static void ReclaimAfterClose(long bigBytes)
     {
         if (bigBytes < 48L << 20) return;
-        System.Threading.Timer? t = null;
-        t = new System.Threading.Timer(_ =>
-        {
-            try
-            {
-                long before = GC.GetTotalMemory(false);
-                System.Runtime.GCSettings.LargeObjectHeapCompactionMode =
-                    System.Runtime.GCLargeObjectHeapCompactionMode.CompactOnce;
-                GC.Collect();
-                GC.WaitForPendingFinalizers();
-                GC.Collect();
-                Core.Trace.Log($"picker memory reclaimed transient={bigBytes >> 20}MB " +
-                    $"heap {before >> 20}→{GC.GetTotalMemory(false) >> 20}MB");
-            }
-            catch { }
-            finally { t?.Dispose(); }
-        }, null, 2000, System.Threading.Timeout.Infinite);
+        Core.Memory.Reclaim();
     }
 
     /// <summary>

@@ -2,7 +2,7 @@
 # 默认不注入 OS 级输入；-Full 包含应用内消息驱动的端到端检查。
 # -AllowInjection 显式启用焦点安全检查；SKIP 不表示验证通过。
 # -Quick 仅构建与静态扫描；-SkipE2e 跳过端到端检查。
-param([switch]$Full, [switch]$Quick, [switch]$SkipE2e, [switch]$AllowInjection, [int]$MinSelfTestPass = 1159)
+param([switch]$Full, [switch]$Quick, [switch]$SkipE2e, [switch]$AllowInjection, [int]$MinSelfTestPass = 1189)
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 . (Join-Path $PSScriptRoot "lib-hotkey.ps1")
@@ -84,6 +84,10 @@ foreach ($t in $lints) {
 # 1) 只杀掉从构建输出目录跑起来的实例：它们锁住 bin 下的文件，MSB3027 会让构建静默失败。
 #    用户自己那份跑在 release\ 或安装目录里，与构建产物不是同一个文件，不必动它。
 $srcRoot = Join-Path $root 'src'
+$lockingResidents = @(Get-Process FrameCapture.Resident -EA SilentlyContinue | Where-Object {
+    try { $_.Path -and $_.Path.StartsWith($root + '\', [StringComparison]::OrdinalIgnoreCase) } catch { $false }
+})
+foreach ($p in $lockingResidents) { Stop-Process -Id $p.Id -Force -EA SilentlyContinue }
 $lockingInstances = @(Get-Process FrameCapture -EA SilentlyContinue | Where-Object {
     try { $_.Path -and $_.Path.StartsWith($srcRoot, [StringComparison]::OrdinalIgnoreCase) } catch { $false }
 })
@@ -99,9 +103,10 @@ $buildJobs = [ordered]@{
     "build:Shot"         = Start-Async "b-shot"     "dotnet" @("build", (Join-Path $root "tools/Shot"), "-c", "Debug", "-p:Platform=x64", "-v", "q", "--nologo")
     "build:Setup"        = Start-Async "b-setup"    "dotnet" @("build", (Join-Path $root "src/Setup"), "-c", "Debug", "-v", "q", "--nologo")
     "build:CodecSetup"   = Start-Async "b-codec"    "dotnet" @("build", (Join-Path $root "src/CodecSetup"), "-c", "Debug", "-v", "q", "--nologo")
+    "build:resident"     = Start-Async "b-resident" "dotnet" @("publish", (Join-Path $root "src/Resident"), "-c", "Release", "-r", "win-x64", "-o", (Join-Path $outDir 'resident-native'), "-v", "q", "--nologo")
 }
 # 每个构建项要求存在的产物：SelfTest 那条同时产出主程序
-$buildExe = @{ "build:app+selftest" = @($exe, $stExe); "build:Shot" = @($shot); "build:Setup" = @();
+$buildExe = @{ "build:app+selftest" = @($exe, $stExe); "build:Shot" = @($shot); "build:Setup" = @(); "build:resident" = @((Join-Path $outDir 'resident-native/FrameCapture.Resident.exe'));
     "build:CodecSetup" = @((Join-Path $root 'src/CodecSetup/bin/Debug/net48/FrameCapture-Codecs-Setup.exe')) }
 $okBuild = $true
 foreach ($k in $buildJobs.Keys) {
@@ -244,6 +249,7 @@ if (-not $Full) {
 # 7) e2e：每一项都要重启一次主程序（单实例是硬约束，串行跑不掉），合计约两分半。
 #    平时改代码走默认档跳过它，发布前用 -Full 跑全套。
 $e2e = @(
+    @{ n = "e2e:resident"; f = "test-resident.ps1"; mark = "RESIDENT" },
     @{ n = "e2e:startup-handoff"; f = "test-startup-handoff.ps1"; mark = "STARTUP-HANDOFF" },
     @{ n = "e2e:editor-keys(捕获→编辑器→Enter→剪贴板三格式)"; f = "test-editor-keys.ps1";    mark = "EDITOR-KEYS" },
     @{ n = "e2e:zoom(1:1/放大/适配 键路由+zoom决策)";             f = "test-zoom.ps1";           mark = "ZOOM" },

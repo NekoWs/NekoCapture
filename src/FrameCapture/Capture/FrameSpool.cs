@@ -127,16 +127,17 @@ public sealed class FrameSpool : IDisposable
         catch { return -1; }
     }
 
-    /// <summary>启动清理：删掉最后写入时间早于 24h 的 spool 残留（崩溃/强杀留下的）。
-    /// 阈值取 24h：正在被编辑器回读的文件，其最后写入时间就在刚刚，不会被误删。</summary>
-    public static void CleanupStale()
+    /// <summary>启动时清理早于 24h 且未被最近产物引用的 spool 文件。</summary>
+    /// <param name="retained">最近录制仍引用的完整路径。</param>
+    public static void CleanupStale(IEnumerable<string>? retained = null)
     {
         try
         {
+            var keep = new HashSet<string>(retained ?? Array.Empty<string>(), StringComparer.OrdinalIgnoreCase);
             var dir = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "FrameCapture");
             if (!Directory.Exists(dir)) return;
             foreach (var f in Directory.EnumerateFiles(dir, "spool-*.fcf"))
-                try { if (File.GetLastWriteTimeUtc(f) < DateTime.UtcNow.AddHours(-24)) File.Delete(f); } catch { }
+                try { if (!keep.Contains(f) && File.GetLastWriteTimeUtc(f) < DateTime.UtcNow.AddHours(-24)) File.Delete(f); } catch { }
         }
         catch { }
     }
@@ -158,7 +159,14 @@ public sealed class FrameSpoolList : IReadOnlyList<CapturedFrame>, IDisposable
     private readonly Entry[] _idx;
     private readonly FileStream _fs;
     private readonly object _gate = new();
-    private readonly bool _ownsFile;
+    private bool _ownsFile;
+
+    /// <summary>导出帧元数据快照，不读取像素。</summary>
+    /// <returns>独立的帧索引数组。</returns>
+    internal Entry[] ExportIndex() => (Entry[])_idx.Clone();
+
+    /// <summary>由持久化会话接管文件删除责任，当前列表只关闭句柄。</summary>
+    internal void RetainFile() { lock (_gate) _ownsFile = false; }
 
     /// <summary>打开 spool 文件的只读视图；<paramref name="ownsFile"/> 决定谁负责删文件。</summary>
     /// <param name="path">spool 文件路径，必须已存在（定格后才打开）。</param>

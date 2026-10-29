@@ -136,8 +136,8 @@ public sealed class CaptureToast : Window
         acts.Children.Add(ActionChip(Loc.T(K.Editor.Annotate), "Enter", () =>
         {
             Trace.Log("toast→edit(chip)");
-            onEdit();
             Dismiss();
+            onEdit();
         }));
         string copyChord = SettingsService.Shared?.Current.ToastCopyChord ?? "";
         if (copyChord.Length > 0)
@@ -158,8 +158,8 @@ public sealed class CaptureToast : Window
         {
             if (e.Source is DependencyObject d && ReferenceEquals(d, close)) return;
             Trace.Log("toast→edit");
-            onEdit();
             Dismiss();
+            onEdit();
         };
         Content = shell;
         // 弹性入场：卡片从 0.85 放大到 1（BackEase 过冲），叠加 FadeIn 的淡入+上浮
@@ -179,7 +179,7 @@ public sealed class CaptureToast : Window
         // 全局钩子代收 标注/复制/关闭（浮窗不抢焦点，只能这样）；生命周期绑定本浮窗，
         // Closed 清零，绝不泄漏成「全局 Enter / Ctrl+C 失灵」。
         Services.HotkeyManager.ToastActive = true;
-        Services.HotkeyManager.ToastEnter = () => Dispatcher.BeginInvoke(() => { Trace.Log("toast→edit(key)"); onEdit(); Dismiss(); });
+        Services.HotkeyManager.ToastEnter = () => Dispatcher.BeginInvoke(() => { Trace.Log("toast→edit(key)"); Dismiss(); onEdit(); });
         Services.HotkeyManager.ToastEsc = () => Dispatcher.BeginInvoke(Dismiss);
         Services.HotkeyManager.ToastCopy = copyChord.Length == 0
             ? null
@@ -199,11 +199,8 @@ public sealed class CaptureToast : Window
             _dismiss.Stop();
             if (ReferenceEquals(_current, this))
             {
+                ClearSession();
                 _current = null;
-                Services.HotkeyManager.ToastActive = false;
-                Services.HotkeyManager.ToastEnter = null;
-                Services.HotkeyManager.ToastEsc = null;
-                Services.HotkeyManager.ToastCopy = null;
             }
         };
 
@@ -216,7 +213,17 @@ public sealed class CaptureToast : Window
         if (_closing) return;
         _closing = true;
         _dismiss.Stop();
+        ClearSession();
         Fluent.CloseWithFade(this);
+    }
+
+    private void ClearSession()
+    {
+        if (!ReferenceEquals(_current, this)) return;
+        Services.HotkeyManager.ToastEnter = null;
+        Services.HotkeyManager.ToastEsc = null;
+        Services.HotkeyManager.ToastCopy = null;
+        Services.HotkeyManager.ToastActive = false;
     }
 
     /// <summary>分隔多条按法：本地化逗号与带空格的斜杠，与就绪卡、帮助页同一份判法。</summary>
@@ -256,9 +263,6 @@ public sealed class CaptureToast : Window
 
     static BitmapSource Thumbnail(CapturedFrame f, double maxW, double maxH)
     {
-        var src = BgraImage.ToSource(f);
-        double k = Math.Min(maxW / f.W, maxH / f.H);
-        if (k >= 1) return src;
-        return new TransformedBitmap(src, new ScaleTransform(k, k));
+        return BgraImage.ToSource(BgraImage.Preview(f, (int)maxW, (int)maxH));
     }
 }

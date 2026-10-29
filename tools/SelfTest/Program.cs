@@ -1153,6 +1153,13 @@ static partial class SelfTest
         }
         Console.OutputEncoding = System.Text.Encoding.UTF8;
         SettingsScratch();
+        if (args.Length == 2 && args[0] == "resident-fixture") return ResidentFixture(args[1]);
+        if (args.Length == 1 && args[0] == "resident")
+        {
+            ResidentChecks();
+            Console.WriteLine($"RESULT PASS={pass} FAIL={fail}");
+            return fail == 0 ? 0 : 1;
+        }
         if (args.Length == 1 && args[0] == "standard-handoff")
         {
             StartupStandardChecks();
@@ -4142,18 +4149,18 @@ static partial class SelfTest
                 }
             }
         }
-        // 内存回收助手：录制/编辑大位图关闭后主动全代 GC + 裁工作集，等价用户手动 MemReduct
+        // 大块对象释放后的优化回收请求。
         {
             bool ok = true;
             try
             {
-                var big = new byte[64 << 20]; // 64MB：制造一次 LOH 分配，Reclaim 应能回收并裁工作集
+                var big = new byte[64 << 20]; // 64 MB LOH 分配
                 big[0] = 1;
                 Memory.Reclaim();
                 GC.KeepAlive(big);
             }
             catch { ok = false; }
-            Chk("T129a-reclaim-no-throw", ok, "Memory.Reclaim() 全代 GC + 裁工作集不抛");
+            Chk("T129a-reclaim-no-throw", ok, "Memory.Reclaim() 请求优化回收不抛");
         }
         // GestureCore 引擎（B1，netstandard2.0 可复用库）：按住/单击/双击消歧/长按/失败策略/修饰键/三击/优先级
         {
@@ -8158,6 +8165,7 @@ static partial class SelfTest
         SelectionSwitchPolicy();
         OrthogonalChains();
         BehaviorPolicy();
+        ResidentChecks();
         BehaviorIntegration();
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");
         return fail == 0 ? 0 : 1;

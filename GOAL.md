@@ -22,6 +22,8 @@ FrameCapture 提供区域截图、录制、滚动截图、OCR、标注与贴图�
 
 ## 验证
 
+原生常驻组件的发布需要 .NET 10 SDK、MSVC x64 工具链与 Windows SDK；发行组件无需 .NET 10 运行时。
+
 ```powershell
 Get-Process FrameCapture -ErrorAction SilentlyContinue | Stop-Process -Force
 dotnet build FrameCapture.slnx -c Debug -v q --nologo

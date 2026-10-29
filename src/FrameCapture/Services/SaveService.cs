@@ -102,7 +102,7 @@ public static partial class SaveService
             var vpath = Path.Combine(dir, UniqueName(dir, Stamp(), ext));
             var frames = seq.Frames; // 已烘焙、内存态，闭包持有，独立于 spool
             var hint = SavingHint.Start(Path.GetFileName(vpath));
-            Task.Run(() =>
+            BackgroundWork.Run(() =>
             {
                 string tmp = Path.Combine(Path.GetTempPath(), $"fc_autosave_{Guid.NewGuid():N}.{ext}");
                 bool ok = false;
@@ -124,8 +124,7 @@ public static partial class SaveService
             }).ContinueWith(t =>
             {
                 hint.Done(t.IsCompletedSuccessfully && t.Result);
-                // 后台编码闭包持有的整段烘焙帧（长录制可达 GB）此刻已随任务委托释放，
-                // 主动全代 GC + 裁工作集，避免"录完视频内存一直虚高、要手动 MemReduct 才回落"。
+                // 编码任务结束后请求优化回收，不主动裁剪工作集。
                 Memory.Reclaim();
             }, TaskScheduler.Default);
         }

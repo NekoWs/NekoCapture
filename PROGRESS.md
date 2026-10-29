@@ -1,6 +1,11 @@
 # 当前状态
 
-源代码版本：0.9.13。契约见 [docs/PLAN-ORTHOGONAL-CHAINS.md](docs/PLAN-ORTHOGONAL-CHAINS.md)。
+源代码版本：0.9.14。契约见 [docs/PLAN-ORTHOGONAL-CHAINS.md](docs/PLAN-ORTHOGONAL-CHAINS.md)。
+
+- 原生组件常驻托盘与全局手势，WPF 界面按需启动，空闲三秒保存最近产物并退出。
+- 编码、保存、OCR、权限交接和组件安装保持界面进程存活；界面繁忙时仍能接收录制停止请求。
+- 最近截图惰性读取原始缓存，录制复用磁盘帧索引；编辑帧缓存预算 64 MB，选区窗口预抓预算 48 MB。
+- 输入线程独立于界面，前台激活不挂接其他进程输入队列，不主动裁剪工作集。
 
 - 快捷键配置输入、触发阈值与共享入口；初始模式由行为和预设提供。
 - 触发方式紧随名称；圆角改名框按内容伸展，支持中文输入并限制在名称列内。静音时试听不可用。
@@ -15,7 +20,7 @@
 - 图版本为 1，动作链导入版本为 3；写回前保留输入备份，文件占用时有限重试。
 - 运行使用配置快照；无效入口不装入手势引擎。物理与测试输入隔离，时间戳使用统一单调时间轴。
 
-1096 项 SelfTest、70 组双语审计和 7 项端到端检查通过。
+1189 项 SelfTest、70 组双语审计和 9 项端到端检查通过。常驻检查包含 34 项断言。
 构建零错误，静态扫描零失败，注释零警告。键盘注入焦点安全测试默认跳过。
-验证产物位于 `test-out/rename-ui-guardrail.txt`、`test-out/record-events-final-guardrail.txt`、`test-out/selftest-last-run.txt` 和 `test-out/uxaudit/`。
+验证产物位于 `test-out/performance-final-guardrail.log`、`test-out/selftest-last-run.txt` 和 `test-out/uxaudit/`。
 人工交互清单见 [UIAUDIT.md](UIAUDIT.md)。

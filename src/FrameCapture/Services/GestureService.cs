@@ -21,6 +21,7 @@ public sealed class GestureService : IDisposable
     readonly AppHost _host;
     readonly GC.GestureEngine _engine;
     readonly GC.GestureEngine _syntheticEngine;
+    readonly object _engineGate = new();
     readonly GestureInvoker _invoker;
     IntPtr _mouseHook;
     Win32.LowLevelMouseProc? _mouseProc;
@@ -47,16 +48,16 @@ public sealed class GestureService : IDisposable
         bool on = cfg != null && cfg.Enabled;
         _swallow = on;
         var bindings = on ? cfg!.ToBindings() : new List<GC.GestureBinding>();
-        _engine.SetBindings(bindings);
+        lock (_engineGate) _engine.SetBindings(bindings);
         _syntheticEngine.SetBindings(bindings);
         Trace.Log($"gesture apply on={on} n={bindings.Count} [" +
             string.Join(", ", bindings.Select(b => $"mods={b.Chord.Mods} key={b.Chord.Key}/{b.Trigger}/oc={b.OnComplete.Count}")) + "]");
-        bool hasMouse = bindings.Any(b => IsMouse(b.Trigger));
+        bool hasMouse = !ResidentBridge.IsWorker && bindings.Any(b => IsMouse(b.Trigger));
         // Tick 泵：鼠标连击/长按消歧需要，键盘「按住到阈值触发 Hold」也需要。
-        bool needsTick = bindings.Any(b => IsMouse(b.Trigger) || b.Trigger == GC.TriggerKind.Hold);
+        bool needsTick = !ResidentBridge.IsWorker && bindings.Any(b => IsMouse(b.Trigger) || b.Trigger == GC.TriggerKind.Hold);
 
         // 键盘：手势开启才挂 sink；关闭时置空，HotkeyManager 因此连键盘钩子都不装，前台键零开销
-        _host.Hotkeys.KeySink = on ? FeedKey : null;
+        _host.Hotkeys.KeySink = on || ResidentBridge.IsWorker ? FeedKey : null;
 
         if (on && hasMouse && !_mouseInstalled) InstallMouseHook();
         if ((!on || !hasMouse) && _mouseInstalled) UninstallMouseHook();
@@ -71,8 +72,10 @@ public sealed class GestureService : IDisposable
     /// 前台收不到这一键；纯修饰键组合与未命中的键照常放行。</summary>
     bool FeedKey(uint vk, bool down, GC.ModifierKeys mods, long time)
     {
+        if (ResidentBridge.IsWorker) return false;
         long tick = GestureClock.Expand(time, Environment.TickCount64);
-        bool candidate = down ? _engine.OnKeyDown((int)vk, mods, tick) : _engine.OnKeyUp((int)vk, mods, tick);
+        bool candidate;
+        lock (_engineGate) candidate = down ? _engine.OnKeyDown((int)vk, mods, tick) : _engine.OnKeyUp((int)vk, mods, tick);
         return _swallow && candidate;
     }
 
@@ -115,8 +118,11 @@ public sealed class GestureService : IDisposable
                 var info = System.Runtime.InteropServices.Marshal.PtrToStructure<Win32.MSLLHOOKSTRUCT>(lParam);
                 var mods = CurrentMods();
                 long time = GestureClock.Expand(info.time, Environment.TickCount64);
-                if (down) _engine.OnMouseDown(msg, mods, time);
-                else _engine.OnMouseUp(msg, mods, time);
+                lock (_engineGate)
+                {
+                    if (down) _engine.OnMouseDown(msg, mods, time);
+                    else _engine.OnMouseUp(msg, mods, time);
+                }
             }
         }
         catch { /* 钩子回调内绝不抛出 */ }
@@ -138,7 +144,7 @@ public sealed class GestureService : IDisposable
     {
         if (_tick != null) return;
         _tick = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(40) };
-        _tick.Tick += (_, _) => { long now = Environment.TickCount64; _engine.Tick(now); _syntheticEngine.Tick(now); };
+        _tick.Tick += (_, _) => { long now = Environment.TickCount64; lock (_engineGate) _engine.Tick(now); _syntheticEngine.Tick(now); };
         _tick.Start();
     }
     void StopTick() { _tick?.Stop(); _tick = null; }
