@@ -177,8 +177,16 @@ public sealed partial class SettingsWindow : Window
         panel = Cat(Loc.T(K.Behaviors.Title), "\uE7A8");
         BuildBehaviors(panel);
         panel = Cat(Loc.T(K.Common.Capture), "\uE7A8");
+        var snapDwellRow = SnapDwellRow();
+        snapDwellRow.IsEnabled = _settings.Current.SnapContentArea;
+        snapDwellRow.Opacity = snapDwellRow.IsEnabled ? 1 : 0.5;
         panel.Children.Add(ToggleRow("\uE740", Loc.T(K.Settings.SnapToControls), Loc.T(K.Settings.HoveringSnapsToASpecific),
-            _settings.Current.SnapContentArea, v => _settings.Mutate(s => s.SnapContentArea = v)));
+            _settings.Current.SnapContentArea, v =>
+            {
+                _settings.Mutate(s => s.SnapContentArea = v);
+                snapDwellRow.IsEnabled = v; snapDwellRow.Opacity = v ? 1 : 0.5;
+            }));
+        panel.Children.Add(snapDwellRow);
         panel.Children.Add(EditableSelectionRow());
 panel.Children.Add(ToggleRow("\uE7C4", Loc.T(K.Settings.RightClickCancelsPicker), Loc.T(K.Settings.RightClickCancelsPickerTip),
             _settings.Current.PickerRightClickCancel, v => _settings.Mutate(s => s.PickerRightClickCancel = v)));

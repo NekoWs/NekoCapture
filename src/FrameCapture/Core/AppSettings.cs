@@ -49,6 +49,9 @@ public sealed class AppSettings
     /// <summary>选区吸附取客户区（排除窗口边框/标题栏，适合游戏画面）。</summary>
     public bool SnapContentArea { get; set; } = false;
 
+    /// <summary>控件吸附的停留时间，单位毫秒；0 表示不等待停留。</summary>
+    public int SnapDwellMs { get; set; } = 50;
+
 /// <summary>可调整选区：松手后先给一个能拖边角改大小、可整块移动的框，确认才出图（默认关）。</summary>
 public bool EditableSelection { get; set; } = false;
 
@@ -289,6 +292,7 @@ public bool EditableSelection { get; set; } = false;
         ToastSeconds = ToastSeconds <= 0 ? 0 : Math.Clamp(ToastSeconds, 0.5, 60);
         DelayCaptureSeconds = Math.Clamp(DelayCaptureSeconds, 0, 120);
         FreezePregrabMaxWindows = Math.Clamp(FreezePregrabMaxWindows, 0, 16);
+        SnapDwellMs = Math.Clamp(SnapDwellMs, 0, 5000);
         if (RegionW < 16 || RegionH < 16)
         {
             RegionMonitorId = null; RegionX = RegionY = RegionW = RegionH = 0;

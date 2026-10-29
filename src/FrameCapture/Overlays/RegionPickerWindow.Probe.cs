@@ -9,7 +9,8 @@ namespace FrameCapture.Overlays;
 /// <summary>按显示帧合并指针更新，停留后异步查询控件；过期结果不改变选区。</summary>
 public sealed partial class RegionPickerWindow
 {
-    private const int ElementDwellMs = 50;
+    private readonly int _snapDwellMs;
+    private bool _immediateProbePending;
     private Point? _pointerPending;
     private Point _pointerDip;
     private DispatcherTimer? _elementTimer;
@@ -25,7 +26,7 @@ public sealed partial class RegionPickerWindow
         _pointerSubscribed = true;
         CompositionTarget.Rendering += PointerFrame;
         if (!_snapContent) return;
-        _elementTimer = new DispatcherTimer(DispatcherPriority.Input) { Interval = TimeSpan.FromMilliseconds(ElementDwellMs) };
+        _elementTimer = new DispatcherTimer(DispatcherPriority.Input) { Interval = TimeSpan.FromMilliseconds(Math.Max(1, _snapDwellMs)) };
         _elementTimer.Tick += ProbeHover;
         _pointerDip = new Point(double.NaN, double.NaN);
         _pointerPending = Mouse.GetPosition(this);
@@ -48,14 +49,21 @@ public sealed partial class RegionPickerWindow
             UpdatePointer(point);
         }
         TryCachedSnap();
+        if (_immediateProbePending)
+        {
+            _immediateProbePending = false;
+            ProbeHover(null, EventArgs.Empty);
+        }
     }
 
     private void ScheduleProbe(Point point)
     {
         if (_clickPending || _pointerDip == point) return;
         _pointerDip = point; _probeGeneration++;
-        _probeDue = Environment.TickCount64 + ElementDwellMs;
-        _elementTimer?.Stop(); _elementTimer?.Start();
+        _probeDue = Environment.TickCount64 + _snapDwellMs;
+        _elementTimer?.Stop();
+        if (_snapDwellMs == 0) _immediateProbePending = true;
+        else _elementTimer?.Start();
     }
 
     private async void ProbeHover(object? sender, EventArgs args)
@@ -82,7 +90,7 @@ public sealed partial class RegionPickerWindow
 
     private void CancelProbe()
     {
-        _elementTimer?.Stop(); _probeGeneration++; _probeDue = 0; _clickPending = false; _pointerPending = null;
+        _elementTimer?.Stop(); _probeGeneration++; _probeDue = 0; _clickPending = false; _pointerPending = null; _immediateProbePending = false;
     }
 
     private bool TryCachedSnap()

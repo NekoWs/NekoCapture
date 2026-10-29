@@ -176,7 +176,7 @@ public sealed partial class CaptureController : IDisposable
             pregrabMax: _settings.Current.FreezePregrabMaxWindows,
             windowShadow: _settings.Current.WindowCaptureShadow, frozenScreen: frozen,
             rightClickCancel: _settings.Current.PickerRightClickCancel, recordMode: initialRecordMode,
-            showModeSwitch: showModeSwitch);
+            showModeSwitch: showModeSwitch, snapDwellMs: _settings.Current.SnapDwellMs);
         _picker.Result += (region, hwnd) =>
         {
             var picker = _picker;

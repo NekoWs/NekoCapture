@@ -9,6 +9,8 @@ public static partial class K
     /// <summary>设置窗的文案。</summary>
     public static partial class Settings
     {
+        public static readonly Str SnapDwell = new("settings.snapDwell", "吸附停留", "Snap delay");
+        public static readonly Str SnapDwellHint = new("settings.snapDwellHint", "0 毫秒为立即获取", "Set to 0 ms to snap immediately.");
         public static readonly Str Accent = new("settings.accent", "强调色", "Accent");
         public static readonly Str AccentColorEditorSelectionsSwitches = new("settings.accentColorEditorSelectionsSwitches", "用于选中、开关和进度", "Used for selections, switches, and progress");
         public static readonly Str ACustomOggWavFile = new("settings.aCustomOggWavFile", "自定义 OGG/WAV，点击更换", "Custom OGG/WAV; click to change");

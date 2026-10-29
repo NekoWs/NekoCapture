@@ -80,9 +80,10 @@ public sealed partial class SettingsWindow : Window
     /// <param name="specialWord">特殊档时单位那一格改成的字。</param>
     /// <param name="tip">框的 tooltip，写明这个数管什么、能打到多大。</param>
     /// <param name="onChange">落定后的写回动作，参数是夹取到 0..<paramref name="max"/> 的值。</param>
+    /// <param name="unitText">常规单位；为空时使用秒。</param>
     /// <returns>已接好事件的「框 + 单位」小组合。</returns>
     FrameworkElement DurationField(string tag, (double Value, Str Tip)[] presets,
-        Func<double> get, double max, double special, string specialWord, string tip, Action<double> onChange)
+        Func<double> get, double max, double special, string specialWord, string tip, Action<double> onChange, string? unitText = null)
     {
         string Num(double v) => v.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
         // 框里的字认三种写法：光秃秃的数字、「3 秒」这种带单位的、以及「关」「常驻」这两个词。
@@ -122,7 +123,7 @@ public sealed partial class SettingsWindow : Window
         };
 
         bool sync = false;   // 回显时挂起提交，免得程序写字把自己当成用户挑档
-        void PaintUnit(double v) => unit.Text = Math.Abs(v - special) < 0.0001 ? specialWord : Loc.T(K.Settings.SecondsUnit);
+        void PaintUnit(double v) => unit.Text = Math.Abs(v - special) < 0.0001 ? specialWord : unitText ?? Loc.T(K.Settings.SecondsUnit);
         void Show(double v)
         {
             sync = true;
@@ -194,6 +195,18 @@ public sealed partial class SettingsWindow : Window
             Loc.T(K.Settings.CustomAnyNumberOfSeconds),
             v => _settings.Mutate(s => s.DelayCaptureSeconds = (int)Math.Round(v)));
         return DurationRow("\uE916", Loc.T(K.Settings.AfterTheTraySDelayed), Loc.T(K.Common.DelayedCapture), field);
+    }
+
+    private FrameworkElement SnapDwellRow()
+    {
+        var hint = K.Settings.SnapDwellHint;
+        var unit = Loc.T(K.Common.Milliseconds);
+        var field = DurationField("settings-duration-snap", new[]
+        {
+            (0.0, hint), (25.0, hint), (50.0, hint), (100.0, hint), (200.0, hint), (500.0, hint), (1000.0, hint)
+        }, () => _settings.Current.SnapDwellMs, 5000, 0, unit, Loc.T(hint),
+            value => _settings.Mutate(settings => settings.SnapDwellMs = (int)Math.Round(value)), unit);
+        return DurationRow("\uE916", Loc.T(hint), Loc.T(K.Settings.SnapDwell), field);
     }
 
     /// <summary>截图后悬浮窗存在时间：截完弹出的「已复制」缩略浮窗停留多久。

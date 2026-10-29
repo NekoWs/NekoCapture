@@ -197,13 +197,15 @@ public sealed partial class RegionPickerWindow : Window
     /// <param name="recordMode">初始录制模式。</param>
     /// <param name="rightClickCancel">右键是否取消选区。</param>
     /// <param name="showModeSwitch">是否显示截图与录制模式按钮。</param>
-    public RegionPickerWindow(MonitorInfo monitor, RectI? existing, bool snapContent = false, bool magnifier = false, Core.ColorCopyFormat colorFormat = Core.ColorCopyFormat.Hex, bool windowCapture = false, bool freeze = false, int pregrabMax = 0, bool windowShadow = false, CapturedFrame? frozenScreen = null, bool recordMode = false, bool rightClickCancel = true, bool showModeSwitch = true)
+    /// <param name="snapDwellMs">控件吸附停留毫秒数；0 表示不等待。</param>
+    public RegionPickerWindow(MonitorInfo monitor, RectI? existing, bool snapContent = false, bool magnifier = false, Core.ColorCopyFormat colorFormat = Core.ColorCopyFormat.Hex, bool windowCapture = false, bool freeze = false, int pregrabMax = 0, bool windowShadow = false, CapturedFrame? frozenScreen = null, bool recordMode = false, bool rightClickCancel = true, bool showModeSwitch = true, int snapDwellMs = 50)
     {
         _showModeSwitch = showModeSwitch;
         // 覆盖层不需要文本输入：禁用输入法，避免拼音拦截快捷键
         InputMethod.SetIsInputMethodEnabled(this, false);
         _monitor = monitor;
         _snapContent = snapContent;
+        _snapDwellMs = Math.Clamp(snapDwellMs, 0, 5000);
         _windowCapture = windowCapture;
         _magnifier = magnifier;
         _freeze = freeze;
