@@ -55,26 +55,29 @@ if ($wasRunning) { Start-Sleep -Milliseconds 800; Write-Host '  已停止' } els
 if (-not $SkipVerify) {
     Step '验证：编译 + 断言 + 护栏'
     $b = dotnet build FrameCapture.slnx -c Debug -v q --nologo 2>&1 | Out-String
+    $buildCode = $LASTEXITCODE
     $err = @($b -split "`n" | ForEach-Object{ $_.Trim() } | Where-Object{ $_ -match ': error' })
-    if ($err.Count) { $err | ForEach-Object{ Write-Host "  $_" -ForegroundColor Red }; throw '编译有错误，不出包' }
+    if ($buildCode -ne 0 -or $err.Count) { $err | ForEach-Object{ Write-Host "  $_" -ForegroundColor Red }; throw '编译有错误，不出包' }
     $warn = @($b -split "`n" | ForEach-Object{ $_.Trim() } | Where-Object{ $_ -match ': warning ' -and $_ -notmatch 'NU1900' } | Select-Object -Unique)
     if ($warn.Count) { $warn | ForEach-Object{ Write-Host "  $_" -ForegroundColor Yellow } }
 
     $selfTest = 'tools\SelfTest\bin\x64\Debug\net8.0-windows10.0.19041.0\SelfTest.exe'
     if (-not (Test-Path $selfTest)) { throw "找不到 $selfTest" }
     $t = & $selfTest 2>&1 | Out-String
-    $line = ($t -split "`n" | Where-Object{ $_ -match 'RESULT' } | Select-Object -First 1)
+    $testCode = $LASTEXITCODE
+    $line = ($t -split "`n" | Where-Object{ $_ -match '^RESULT\s+PASS=\d+\s+FAIL=\d+\s*$' } | Select-Object -Last 1)
     if (-not $line) { throw 'SelfTest 没给出 RESULT' }
     Write-Host "  $($line.Trim())"
-    if ($line -notmatch 'FAIL=0') { throw '断言未全绿，不出包' }
+    if ($testCode -ne 0 -or $line.Trim() -notmatch '\bFAIL=0$') { throw '断言未全绿，不出包' }
 
     # 护栏默认路径零 OS 级输入，用户在场也能跑完；焦点安全那一项要注入，只有 -AllowInjection 才带上。
     $gArgs = @('-NoProfile', '-File', 'scripts/guardrail.ps1', '-Full')
     if ($AllowInjection) { $gArgs += '-AllowInjection' }
     $g = & pwsh @gArgs 2>&1 | Out-String
+    $guardCode = $LASTEXITCODE
     $gLast = ($g -split "`n" | Where-Object{ $_.Trim() } | Select-Object -Last 1)
     Write-Host "  $($gLast.Trim())"
-    if ($gLast -notmatch 'PASS') { throw '护栏未通过，不出包' }
+    if ($guardCode -ne 0 -or $gLast.Trim() -notmatch '^GUARDRAIL PASS\b') { throw '护栏未通过，不出包' }
 }
 
 # 发布必须从干净状态构建：apphost 由 CreateAppHost 生成后带自己的图标，改 <ApplicationIcon>
