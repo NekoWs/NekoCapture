@@ -1,4 +1,4 @@
-# 仅在仓库内启动两个隔离实例，验证提权交接的锁时序；不登记系统入口、不请求 UAC。
+# 在仓库内验证父进程等待与桌面交接的单实例时序；不登记系统入口、不请求 UAC。
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent $PSScriptRoot
 $root = Join-Path $repo 'test-out/startup-handoff'
@@ -9,7 +9,7 @@ $saved = @{}
 foreach ($name in @('FC_SETTINGS_DIR','FC_NO_ELEVATE','FC_TEST_NO_FG','TEMP','TMP')) {
     $saved[$name] = [Environment]::GetEnvironmentVariable($name)
 }
-$first = $null; $second = $null
+$first = $null; $second = $null; $third = $null; $release = $null
 try {
     New-Item -ItemType Directory -Path $runtime -Force | Out-Null
     @{ StartupToast=$false; FirstRunHintShown=$true; RunAtStartup=$true; RunAsAdmin=$true; Gestures=@{Enabled=$false} } |
@@ -42,12 +42,27 @@ public static class StartupWindowProbe {
     $limit.Restart()
     while ([StartupWindowProbe]::Owner() -ne $second.Id -and $limit.ElapsedMilliseconds -lt 6000) { Start-Sleep -Milliseconds 50 }
     if ($second.HasExited -or [StartupWindowProbe]::Owner() -ne $second.Id) { throw 'Handoff child did not acquire ownership' }
-    'STARTUP-HANDOFF PASS: child waits before mutex and becomes the sole primary'
+    $assembly = [Reflection.Assembly]::LoadFrom([IO.Path]::ChangeExtension($exe, '.dll'))
+    $startup = $assembly.GetType('FrameCapture.Services.StartupService')
+    $flags = [Reflection.BindingFlags]'Static,NonPublic'
+    $release = $startup.GetMethod('ReleaseStandardHandoff', $flags)
+    $callArguments = [object[]]@($exe.psobject.BaseObject, '--startup', 0)
+    $third = $startup.GetMethod('BeginStandardHandoff', $flags).Invoke($null, $callArguments)
+    Start-Sleep -Milliseconds 200
+    if ($third.HasExited -or [StartupWindowProbe]::Owner() -ne $second.Id) { throw 'Desktop child did not wait for handoff' }
+    Stop-Process -Id $second.Id -Force
+    $second.WaitForExit()
+    $release.Invoke($null, @())
+    $limit.Restart()
+    while ([StartupWindowProbe]::Owner() -ne $third.Id -and $limit.ElapsedMilliseconds -lt 6000) { Start-Sleep -Milliseconds 50 }
+    if ($third.HasExited -or [StartupWindowProbe]::Owner() -ne $third.Id) { throw 'Desktop child did not acquire ownership' }
+    'STARTUP-HANDOFF PASS: parent wait and desktop pipe handoff each become the sole primary'
 } catch {
     Write-Output ('STARTUP-HANDOFF FAIL: ' + $_.Exception.Message)
     throw
 } finally {
-    foreach ($instance in @($first,$second)) {
+    if ($null -ne $release) { $release.Invoke($null, @()) }
+    foreach ($instance in @($first,$second,$third)) {
         if ($null -ne $instance -and -not $instance.HasExited) { Stop-Process -Id $instance.Id -Force }
     }
     foreach ($name in $saved.Keys) { [Environment]::SetEnvironmentVariable($name,$saved[$name]) }

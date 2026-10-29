@@ -82,6 +82,7 @@ static partial class SelfTest
         using (var native = new WindowsStartupRegistration())
             Chk("startup-native-missing-task-is-unconfigured", native.ReadTask("FrameCapture-Diagnostic-" + Guid.NewGuid().ToString("N")) == null);
         StartupSettingsChecks();
+        StartupStandardChecks();
     }
 
     static void StartupSettingsChecks()

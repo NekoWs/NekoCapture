@@ -41,9 +41,10 @@ public partial class App : Application
 
     protected override async void OnStartup(StartupEventArgs e)
     {
-        Core.Trace.Log("OnStartup enter");
         base.OnStartup(e);
         if (Services.StartupService.TryHandleConfiguration(e.Args, out int configExitCode)) { Shutdown(configExitCode); return; }
+        if (!Services.StartupService.WaitForStandardHandoff(e.Args)) { Shutdown(1); return; }
+        Core.Trace.Log("OnStartup enter");
         if (!Services.StartupService.WaitForParent(e.Args)) { Shutdown(); return; }
 
         // 自家中间文件超过保留期就清掉：截图与长图的中间件都在 %TEMP%\FrameCapture，
@@ -527,6 +528,7 @@ public partial class App : Application
         if (_ownsMutex) { try { _mutex?.ReleaseMutex(); } catch { } }
         _mutex?.Dispose();
         _msgSink?.DestroyHandle(); // NativeWindow 无 Dispose，销毁句柄即可
+        Services.StartupService.ReleaseStandardHandoff();
         base.OnExit(e);
     }
 }

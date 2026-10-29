@@ -131,7 +131,7 @@ public sealed class AppHost
 
     private readonly SemaphoreSlim _startupGate = new(1, 1);
 
-    /// <summary>先登记登录入口，再保存设置；目标权限子进程等待当前进程退出后接管。</summary>
+    /// <summary>先登记登录入口，再保存设置；目标权限子进程等待当前实例释放后接管。</summary>
     /// <param name="enable">是否启用登录自启。</param>
     /// <param name="elevated">是否要求管理员权限。</param>
     /// <param name="arguments">交接后的应用参数。</param>

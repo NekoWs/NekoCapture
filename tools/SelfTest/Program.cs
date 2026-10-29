@@ -1143,6 +1143,7 @@ static partial class SelfTest
     [STAThread]
     static int Main(string[] args)
     {
+        if (args.Contains("--standard-handoff")) return StandardHandoffProbe(args);
         if (args.Length >= 1 && args[0] == "video-component")
         {
             ComponentDownloadChecks();
@@ -1152,6 +1153,12 @@ static partial class SelfTest
         }
         Console.OutputEncoding = System.Text.Encoding.UTF8;
         SettingsScratch();
+        if (args.Length == 1 && args[0] == "standard-handoff")
+        {
+            StartupStandardChecks();
+            Console.WriteLine($"RESULT PASS={pass} FAIL={fail}");
+            return fail == 0 ? 0 : 1;
+        }
         if (args.Length == 1 && args[0] == "startup")
         {
             StartupChecks();

@@ -53,9 +53,23 @@ public static partial class StartupService
         }
         catch (Exception ex)
         {
-            Core.Trace.Log("startup configuration failed: " + ex);
+            ReportStartupFailure("startup configuration", ex);
             return new StartupChange(StartupResult.Failed, false);
         }
+    }
+
+    private static void ReportStartupFailure(string stage, Exception error)
+    {
+        Core.Trace.Log(stage + " failed: " + error);
+        try
+        {
+            System.IO.Directory.CreateDirectory(Core.SettingsService.Dir);
+            string path = System.IO.Path.Combine(Core.SettingsService.Dir, "startup.log");
+            string entry = $"[{DateTimeOffset.Now:O}] {stage}: {error}\n";
+            if (System.IO.File.Exists(path) && new System.IO.FileInfo(path).Length > 131072) System.IO.File.WriteAllText(path, entry);
+            else System.IO.File.AppendAllText(path, entry);
+        }
+        catch { }
     }
 
     /// <summary>入口、设置及权限交接作为一个事务提交，失败时恢复设置与入口。</summary>
@@ -63,7 +77,7 @@ public static partial class StartupService
     /// <param name="enable">目标自启状态。</param>
     /// <param name="elevated">目标管理员偏好。</param>
     /// <param name="settings">持久化目标；null 表示不保存。</param>
-    /// <param name="relaunch">创建等待本进程退出的目标权限实例；null 表示无需重启。</param>
+    /// <param name="relaunch">创建等待当前实例释放的目标权限实例；null 表示无需重启。</param>
     /// <returns>已提交的入口与交接结果；失败抛出异常。</returns>
     internal static StartupChange ApplyLocal(StartupPlan plan, bool enable, bool elevated, Core.SettingsService? settings, Action? relaunch)
     {
@@ -103,5 +117,5 @@ public static partial class StartupService
 
 /// <summary>登录入口登记与目标权限实例交接的结果。</summary>
 /// <param name="Result">入口登记结果。</param>
-/// <param name="Restarted">已创建等待当前进程退出的目标权限实例。</param>
+/// <param name="Restarted">已创建等待当前实例释放的目标权限实例。</param>
 internal readonly record struct StartupChange(StartupResult Result, bool Restarted);

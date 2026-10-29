@@ -29,7 +29,7 @@ public static partial class StartupService
         catch (Win32Exception ex) when (ex.NativeErrorCode == 1223) { return new StartupChange(StartupResult.Cancelled, false); }
         catch (Exception ex)
         {
-            Core.Trace.Log("startup helper failed: " + ex);
+            ReportStartupFailure("startup helper", ex);
             return new StartupChange(StartupResult.Failed, false);
         }
     }
@@ -76,7 +76,7 @@ public static partial class StartupService
                 throw;
             }
         }
-        catch (Exception ex) { Core.Trace.Log("startup helper configuration failed: " + ex); }
+        catch (Exception ex) { ReportStartupFailure("startup helper configuration", ex); }
         return true;
     }
 
