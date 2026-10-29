@@ -19,7 +19,7 @@ public sealed partial class SettingsWindow
         _presetCards.Clear(); _paintedPreset = "";
         var body = new StackPanel { Margin = new Thickness(0, 6, 0, 12) };
         body.Children.Add(SectionHeader(Loc.T(K.Hotkeys.PresetBehaviors)));
-        var grid = new Grid();
+        var grid = new Grid { Tag = "settings-preset-grid" };
         grid.ColumnDefinitions.Add(new ColumnDefinition()); grid.ColumnDefinitions.Add(new ColumnDefinition());
         grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });

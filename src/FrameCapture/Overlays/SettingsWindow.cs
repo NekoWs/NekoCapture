@@ -36,6 +36,7 @@ public sealed partial class SettingsWindow : Window
         _settings = AppHost.Current.Settings;
         _settings.Changed += OnPresetSettingsChanged;
         Closed += (_, _) => _settings.Changed -= OnPresetSettingsChanged;
+        Closed += (_, _) => { _pageMotionGeneration++; ResetPageModules(); };
         WindowStyle = WindowStyle.None;
         ResizeMode = ResizeMode.CanResize;   // 可拖边缩放（WindowChrome 的 6px 缩放边框）
         // WindowChrome 原生缩放边框 + 原生圆角/阴影（与编辑器同款）；不用 AllowsTransparency——整窗会被推到软件渲染。
@@ -430,50 +431,8 @@ panel.Children.Add(ToggleRow("\uE768", Loc.T(K.Settings.StartRecordingAfterSelec
             // 重复点击当前已选类别：内容/胶囊/标题都已在位，直接返回，不重播进入动画。
             if (animate && prev == idx) return;
             _cat = idx;
-            if (prev != idx && prev >= 0 && prev < cats.Count) CancelContentTransitions(cats[prev].Body);
-            bool doFade = animate && prev != idx && prev >= 0 && prev < cats.Count;
-            // 内容切换（对标 PCL2 平滑切页）：离开的面板淡出后收起、进入的面板淡入 + 轻微上浮。
-            // 面板同处一个 Grid（重叠），故可交叉淡入；快速连切时先把无关面板动画清零并收起，避免竞态残留。
-            for (int i = 0; i < cats.Count; i++)
-            {
-                var b = cats[i].Body;
-                if (i == idx || (doFade && i == prev)) continue;
-                b.BeginAnimation(UIElement.OpacityProperty, null);
-                b.Opacity = 1; b.RenderTransform = null; b.Visibility = Visibility.Collapsed;
-            }
-            if (doFade)
-            {
-                var outgoing = cats[prev].Body;
-                outgoing.BeginAnimation(UIElement.OpacityProperty, null);
-                int capturedPrev = prev;
-                var fo = new DoubleAnimation(0, TimeSpan.FromMilliseconds(Fluent.Motion.ExitMs)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseIn } };
-                fo.Completed += (_, __) => { if (_cat != capturedPrev) outgoing.Visibility = Visibility.Collapsed; };
-                outgoing.BeginAnimation(UIElement.OpacityProperty, fo);
-            }
-            var incoming = cats[idx].Body;
-            incoming.Visibility = Visibility.Visible;
-            if (prev != idx) scroller?.ScrollToTop();   // 切类别回到顶部（主题重建 prev==idx 不复位，保留滚动位置）
-            incoming.BeginAnimation(UIElement.OpacityProperty, null);
-            incoming.RenderTransform = null;
-            if (animate)
-            {
-                // 容器只淡入、位移交给行的逐项错位：两层同时位移会叠成明显跳动
-                incoming.Opacity = 0;
-                incoming.BeginAnimation(UIElement.OpacityProperty,
-                    new DoubleAnimation(1, TimeSpan.FromMilliseconds(Fluent.Motion.EnterMs)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
-                Fluent.CascadeRows(incoming);
-            }
-            else
-            {
-                incoming.Opacity = 1;
-                Fluent.ResetCascade(incoming);   // 主题重建等不走动画的路径：把可能在飞的逐项入场清零，避免停在半透明
-            }
-            contentHeader.Text = cats[idx].Name;
-            // 标题随正文一起淡入（改文本时置 0 再淡入，避免文字瞬切的「跳字」）
-            if (animate)
-                contentHeader.BeginAnimation(UIElement.OpacityProperty,
-                    new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(Fluent.Motion.EnterMs)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
-            else contentHeader.Opacity = 1;
+            SwitchSettingsPage(cats.Select(category => category.Body).ToArray(), idx, animate,
+                scroller, contentHeader, cats[idx].Name);
             PaintNav(animate);
             MoveIndicator(idx, animate);
         }

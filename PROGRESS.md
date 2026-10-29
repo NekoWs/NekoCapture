@@ -8,12 +8,13 @@
 - 录制准备显示状态、范围和按钮；按键位于提示中，计时面板直接使用目标尺寸。
 - 行为页使用动作卡片、事件页签和逐层路径，保留拖动、固定落点、占位与弹性落入。
 - 页签指示线、分支进退、卡片增删与布局高度使用过渡；截图成功后按设置显示范围边框。
+- 分页快速退场，模块与预设卡片自上而下错峰进入；连续切页清理中间状态。
 - 选区模式决定完整分支；仅选区隐藏模式按钮并持续保存区域。
 - 录制开始、取消、停止与失败各有有序子列表；编辑器保存和关闭独立配置，支持多产物与共享调用。
 - 图版本为 1，动作链导入版本为 3；写回前保留输入备份，文件占用时有限重试。
 - 运行使用配置快照；无效入口不装入手势引擎。物理与测试输入隔离，时间戳使用统一单调时间轴。
 
-1079 项 SelfTest、70 组双语审计和 7 项端到端检查通过。
+1087 项 SelfTest、70 组双语审计和 7 项端到端检查通过。
 构建零错误，静态扫描零失败，注释零警告。键盘注入焦点安全测试默认跳过。
-验证产物位于 `test-out/record-events-final-guardrail.txt`、`test-out/selftest-last-run.txt` 和 `test-out/uxaudit/`。
+验证产物位于 `test-out/page-motion-guardrail.txt`、`test-out/record-events-final-guardrail.txt`、`test-out/selftest-last-run.txt` 和 `test-out/uxaudit/`。
 人工交互清单见 [UIAUDIT.md](UIAUDIT.md)。
