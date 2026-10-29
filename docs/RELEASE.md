@@ -15,5 +15,11 @@ pwsh -NoProfile -File scripts/publish-release.ps1
 程序安装到 Program Files；安装失败使用备份恢复，卸载清除程序、快捷方式、自启项与卸载登记项。
 安装与卸载需要管理员权限，发行前须在干净机器上人工验证。
 
-离线包包含 PDB 以提供带行号的故障堆栈。FFmpeg 由程序运行时探测，不随包分发。
+离线包包含 PDB 以提供带行号的故障堆栈。主包不包含 FFmpeg。
+发布同时产出 `FrameCapture-Codecs-Setup-<版本>-x64.exe`，用户点击后从 BtbN 下载固定的 LGPL shared x64 归档。
+组件安装器不内嵌 FFmpeg、不修改 PATH、无需提权；校验 SHA256、许可证和 MP4/WebM 编码后提交安装。
+组件位置为 `%LOCALAPPDATA%/FrameCapture/Components/FFmpeg`，移除此目录即可卸载组件。
+升级失败恢复已安装组件；下载失败或取消清理暂存目录。正在使用的备份不能删除时予以保留。
+固定来源、大小和摘要集中在 `FfmpegComponentInfo`；发布者月末构建保留两年，发布前须检查来源仍可下载。
+组件与源码授权边界见 [FFMPEG.md](FFMPEG.md)。
 未签名包可能显示 SmartScreen 提示；发布时应提供校验值与适用的许可证文件。

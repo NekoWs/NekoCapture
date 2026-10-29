@@ -95,7 +95,7 @@ public static partial class K
             "settings.ffmpegNotFoundInstallFfmpeg",
             " · 未检测到 ffmpeg，装 FFmpeg 后可选",
             " · ffmpeg not found; install FFmpeg to enable");
-        public static readonly Str FfmpegNotFoundMp4 = new("settings.ffmpegNotFoundMp4", "MP4/WebM 需要 ffmpeg，安装方式见 F1；GIF 可直接导出", "MP4/WebM need ffmpeg; see F1 to install. GIF is available.");
+        public static readonly Str FfmpegNotFoundMp4 = new("settings.ffmpegNotFoundMp4", "安装视频组件即可导出 MP4/WebM；GIF 可直接导出", "Install the video component for MP4/WebM. GIF is available.");
         public static readonly Str FillsTheShadowBandFor = new(
             "settings.fillsTheShadowBandFor",
             "给不支持透明度的格式填充边框与阴影",

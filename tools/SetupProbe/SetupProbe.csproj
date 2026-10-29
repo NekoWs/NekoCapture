@@ -20,11 +20,15 @@
     <!-- 与引导器工程同一组引用：ZipArchive 与 dynamic 调 WScript.Shell 都要 -->
     <Reference Include="System.IO.Compression" />
     <Reference Include="System.IO.Compression.FileSystem" />
+    <Reference Include="System.Net.Http" />
     <Reference Include="Microsoft.CSharp" />
   </ItemGroup>
 
   <ItemGroup>
     <Compile Include="Program.cs" />
+    <Compile Include="CodecChecks.cs" />
+    <Compile Include="..\..\src\CodecSetup\ComponentInstaller.cs" />
+    <Compile Include="..\..\src\FrameCapture\Encoding\FfmpegComponentInfo.cs" />
     <Compile Include="..\..\src\Setup\InstallEngine.cs" />
     <Compile Include="..\..\src\Setup\DotnetRuntime.cs" />
     <Compile Include="..\..\src\Setup\GlobalUsings.cs" />

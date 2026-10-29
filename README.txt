@@ -24,7 +24,7 @@ FrameCapture 使用说明
   Ctrl+滚轮缩放，中键平移，Home 适配，End 逐像素；空格播放暂停，方向键逐帧。
   时间轴两端把手或 [ / ] 选择导出范围，Backspace 清除。
   Ctrl+S 保存帧、Ctrl+C 复制、Ctrl+P 贴图、Ctrl+O 识别文字、Ctrl+E 导出录制、Ctrl+H 视觉暂留。
-  Enter 提交，Esc 取消。GIF 可直接导出；MP4 和 WebM 需要本机 FFmpeg。
+  Enter 提交，Esc 取消。GIF 可直接导出；MP4 和 WebM 可通过独立视频组件安装器启用，也支持系统 FFmpeg。
 
 贴图与 OCR
   贴图可拖动、磁边、滚轮缩放、Ctrl+滚轮调透明度、R 旋转、方向键微调，Esc 或双击关闭。

@@ -7,12 +7,11 @@ using FrameCapture.Services;
 
 namespace FrameCapture.Encoding;
 
-/// <summary>输出容器与编码器：MP4 走 libx264，WebM 走 libvpx-vp9，两者都固定 yuv420p。</summary>
+/// <summary>视频输出容器；MP4 使用 H.264，WebM 使用 VP9 并按需保留透明。</summary>
 public enum VideoFormat { Mp4 = 0, WebM = 1 }
 
 /// <summary>
-/// 定位本机 ffmpeg。项目离线、不捆绑 ffmpeg（体积 + 许可），因此运行时探测：
-/// 先扫 PATH，再查常见安装目录。找不到返回 null，调用方回退到 GIF 并提示用户安装。
+/// 定位独立安装的 FFmpeg 组件或系统 FFmpeg；不通过主程序加载 FFmpeg DLL。
 /// </summary>
 public static class FfmpegLocator
 {
@@ -20,6 +19,8 @@ public static class FfmpegLocator
     /// <returns>可执行文件绝对路径；null = 本机没有 ffmpeg，调用方须回退 GIF 并提示安装。</returns>
     public static string? Find()
     {
+        var component = FfmpegComponentInfo.ExecutablePath;
+        if (component != null && File.Exists(component)) return component;
         // 1) PATH（用户自行装到 PATH 的情形）
         string pathVar;
         try { pathVar = Environment.GetEnvironmentVariable("PATH") ?? ""; }
@@ -29,7 +30,7 @@ public static class FfmpegLocator
             try
             {
                 var cand = Path.Combine(dir.Trim(), "ffmpeg.exe");
-                if (File.Exists(cand)) return cand;
+                if (Path.IsPathFullyQualified(cand) && File.Exists(cand)) return Path.GetFullPath(cand);
             }
             catch { /* 非法路径片段跳过 */ }
         }
@@ -59,8 +60,7 @@ public static class FfmpegLocator
 }
 
 /// <summary>
-/// 把 BGRA 帧经 stdin 管道喂给 ffmpeg，产出 MP4(libx264) / WebM(libvpx-vp9)。
-/// 高刷录制的正解：GIF 受格式限制封顶 ~50fps 且体积巨大，MP4/WebM 才能忠实落盘高帧率。
+/// 将 BGRA 帧通过标准输入传给独立 FFmpeg 进程，输出 MP4 或 WebM。
 /// </summary>
 public static class VideoEncoder
 {
@@ -102,12 +102,16 @@ public static class VideoEncoder
     /// <param name="alpha">true = 产物要带透明通道：只有 WebM 认，vp9 走 yuva420p 并关掉 alt-ref
     /// （开着时参考帧会把 alpha 抹平）。MP4 的 h264 没有透明通道，这条参数救不了，
     /// 透明由调用方在喂帧前按用户选的填充色拍平。</param>
+    /// <param name="mediaFoundation">MP4 使用 Windows Media Foundation H.264 软件编码。</param>
     /// <returns>ffmpeg 的参数串（不含可执行文件名），可直接给 ProcessStartInfo.Arguments。</returns>
-    public static string BuildArgs(int w, int h, double fps, VideoFormat fmt, string outPath, bool alpha = false)
+    public static string BuildArgs(int w, int h, double fps, VideoFormat fmt, string outPath, bool alpha = false,
+        bool mediaFoundation = false)
     {
         string fpsS = fps.ToString("0.###", CultureInfo.InvariantCulture);
         string codec = fmt == VideoFormat.Mp4
-            ? "-c:v libx264 -pix_fmt yuv420p -preset ultrafast -movflags +faststart"
+            ? mediaFoundation
+                ? $"-c:v h264_mf -hw_encoding 0 -pix_fmt nv12 -b:v {Math.Clamp((long)(w * (double)h * fps * 0.15), 4_000_000, 100_000_000)} -movflags +faststart"
+                : "-c:v libx264 -pix_fmt yuv420p -preset ultrafast -movflags +faststart"
             : alpha
                 ? "-c:v libvpx-vp9 -pix_fmt yuva420p -auto-alt-ref 0 -b:v 0 -crf 40"
                 : "-c:v libvpx-vp9 -pix_fmt yuv420p -b:v 0 -crf 40";
@@ -149,7 +153,8 @@ public static class VideoEncoder
         bool alpha = fmt == VideoFormat.WebM && hasAlpha;
         bool flatten = fmt == VideoFormat.Mp4 && hasAlpha && matte is { } mt;
 
-        var psi = new ProcessStartInfo(ffmpegPath, BuildArgs(w, h, fps, fmt, outPath, alpha))
+        bool mediaFoundation = fmt == VideoFormat.Mp4 && FfmpegCapabilities.UsesMediaFoundation(ffmpegPath);
+        var psi = new ProcessStartInfo(ffmpegPath, BuildArgs(w, h, fps, fmt, outPath, alpha, mediaFoundation))
         {
             RedirectStandardInput = true,
             RedirectStandardError = true,
@@ -158,9 +163,14 @@ public static class VideoEncoder
         };
 
         Process? p = null;
+        using var cancellation = ct.Register(() =>
+        {
+            try { if (p is { HasExited: false }) p.Kill(entireProcessTree: true); } catch { }
+        });
         try
         {
             p = Process.Start(psi) ?? throw new InvalidOperationException("ffmpeg start returned null");
+            ct.ThrowIfCancellationRequested();
             // 先挂上 stderr 异步读取：ffmpeg 写日志时若 stderr 缓冲满会阻塞，与 stdin 写互锁 → 死锁。
             Task<string> errTask = p.StandardError.ReadToEndAsync();
 
@@ -180,9 +190,10 @@ public static class VideoEncoder
             stdin.Flush();
             stdin.Close();
 
-            string err = errTask.GetAwaiter().GetResult();
             if (!p.WaitForExit(120000))
                 throw new TimeoutException("ffmpeg 未在 120s 内退出");
+            ct.ThrowIfCancellationRequested();
+            string err = errTask.GetAwaiter().GetResult();
             if (p.ExitCode != 0)
                 throw new InvalidOperationException($"ffmpeg 退出码 {p.ExitCode}：{Tail(err)}");
             if (!File.Exists(outPath) || new FileInfo(outPath).Length == 0)

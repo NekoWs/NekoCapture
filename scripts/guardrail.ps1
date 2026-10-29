@@ -2,7 +2,7 @@
 # 默认不注入 OS 级输入；-Full 包含应用内消息驱动的端到端检查。
 # -AllowInjection 显式启用焦点安全检查；SKIP 不表示验证通过。
 # -Quick 仅构建与静态扫描；-SkipE2e 跳过端到端检查。
-param([switch]$Full, [switch]$Quick, [switch]$SkipE2e, [switch]$AllowInjection, [int]$MinSelfTestPass = 1096)
+param([switch]$Full, [switch]$Quick, [switch]$SkipE2e, [switch]$AllowInjection, [int]$MinSelfTestPass = 1099)
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 . (Join-Path $PSScriptRoot "lib-hotkey.ps1")
@@ -98,9 +98,11 @@ $buildJobs = [ordered]@{
     "build:app+selftest" = Start-Async "b-selftest" "dotnet" @("build", (Join-Path $root "tools/SelfTest"), "-c", "Debug", "-p:Platform=x64", "-v", "q", "--nologo")
     "build:Shot"         = Start-Async "b-shot"     "dotnet" @("build", (Join-Path $root "tools/Shot"), "-c", "Debug", "-p:Platform=x64", "-v", "q", "--nologo")
     "build:Setup"        = Start-Async "b-setup"    "dotnet" @("build", (Join-Path $root "src/Setup"), "-c", "Debug", "-v", "q", "--nologo")
+    "build:CodecSetup"   = Start-Async "b-codec"    "dotnet" @("build", (Join-Path $root "src/CodecSetup"), "-c", "Debug", "-v", "q", "--nologo")
 }
 # 每个构建项要求存在的产物：SelfTest 那条同时产出主程序
-$buildExe = @{ "build:app+selftest" = @($exe, $stExe); "build:Shot" = @($shot); "build:Setup" = @() }
+$buildExe = @{ "build:app+selftest" = @($exe, $stExe); "build:Shot" = @($shot); "build:Setup" = @();
+    "build:CodecSetup" = @((Join-Path $root 'src/CodecSetup/bin/Debug/net48/FrameCapture-Codecs-Setup.exe')) }
 $okBuild = $true
 foreach ($k in $buildJobs.Keys) {
     $r = Wait-Async $buildJobs[$k]

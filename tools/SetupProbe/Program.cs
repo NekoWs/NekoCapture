@@ -7,7 +7,7 @@ using FrameCapture.Setup;
 /// <summary>
 /// 安装器目录搬运探针：在仓库内验证卷判定、移动与复制恢复，文件内容与源保留均需完整。
 /// </summary>
-internal static class Program
+internal static partial class Program
 {
     static readonly Type Engine = typeof(InstallEngine);
 
@@ -95,6 +95,7 @@ internal static class Program
             long none = InstallEngine.FreeBytes(@"\\no-such-host\share");
             Report(ref fail, free > 0 && none == -1, "剩余空间可查，查不到的卷按不拦",
                 "本卷 " + (free >> 20) + " MB，坏路径 " + none);
+            CodecChecks(root, ref fail);
         }
         finally
         {

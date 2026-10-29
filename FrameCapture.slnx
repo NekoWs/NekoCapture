@@ -1,5 +1,8 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/CodecSetup/CodecSetup.csproj">
+      <Platform Project="x64" />
+    </Project>
     <Project Path="src/FrameCapture/FrameCapture.csproj">
       <Platform Project="x64" />
     </Project>

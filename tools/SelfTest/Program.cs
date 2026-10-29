@@ -1143,6 +1143,12 @@ static partial class SelfTest
     [STAThread]
     static int Main(string[] args)
     {
+        if (args.Length >= 1 && args[0] == "video-component")
+        {
+            VideoComponentChecks(args.Length > 1 ? args[1] : null);
+            Console.WriteLine($"RESULT PASS={pass} FAIL={fail}");
+            return fail == 0 ? 0 : 1;
+        }
         Console.OutputEncoding = System.Text.Encoding.UTF8;
         SettingsScratch();
         if (args.Length == 1 && args[0] == "behavior-policy")
@@ -4039,7 +4045,8 @@ static partial class SelfTest
                 Chk("T126h-refresh-real", hz > 0, $"本机主屏刷新率检测 → {hz}Hz");
             }
 
-            // 视频编码（，VideoEncoder/FfmpegLocator）：定位 + 命令行拼装 + 帧率推算 + 真实 ffmpeg 编码
+            VideoComponentChecks();
+            // 视频编码：定位、参数、帧率与真实编码。
             {
                 string? ff = FfmpegLocator.Find();
                 Chk("T127a-ffmpeg-find", ff == null || File.Exists(ff), ff ?? "未找到 ffmpeg（PATH/常见目录，将回退 GIF）");
