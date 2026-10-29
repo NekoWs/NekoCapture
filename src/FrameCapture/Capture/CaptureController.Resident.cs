@@ -5,7 +5,7 @@ using FrameCapture.Core;
 
 namespace FrameCapture.Services;
 
-/// <summary>界面空闲退出时保存可复用产物，恢复时只读取元数据。</summary>
+/// <summary>空闲时保存可复用产物，释放像素后以元数据恢复。</summary>
 public sealed partial class CaptureController
 {
     private const string SessionFile = "resident-session.json";
@@ -13,6 +13,15 @@ public sealed partial class CaptureController
 
     /// <summary>当前无捕获、编辑或待完成的行为，允许常驻宿主收起界面进程。</summary>
     internal bool CanSuspend => !_disposed && State == Phase.Idle && (_chainTask == null || _chainTask.IsCompleted);
+
+    /// <summary>已保存快照后释放捕获像素，重新接入惰性产物，保留可立即响应的界面服务。</summary>
+    internal void ReleaseResidentBuffers()
+    {
+        _lastStill.Clear();
+        (_lastSequence?.Frames as IDisposable)?.Dispose(); _lastSequence = null;
+        _live.ReleaseIdleBuffers();
+        RestoreResidentSession();
+    }
 
     /// <summary>最近产物仍引用的临时文件，过期清理必须保留。</summary>
     /// <returns>录制与滚动截图缓存路径。</returns>

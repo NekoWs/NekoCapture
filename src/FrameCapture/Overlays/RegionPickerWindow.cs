@@ -340,12 +340,12 @@ public sealed partial class RegionPickerWindow : Window
         rootGrid.Children.Add(_hint);
         Content = rootGrid;
 
-        Loaded += (_, _) => _topTimer.Start();
+        Loaded += (_, _) => { _topTimer.Start(); StartPointerUpdates(); };
         Closed += (_, _) =>
         {
             _topTimer.Stop();
-            // 预抓缓存不在这里清：控制器在选区窗关闭之后的一拍里才读它（定格 + 干净窗口截图）。
-            // 它随选区窗实例一起交还 GC，Closed 里那次延后两秒的堆压缩就是它的释放点。
+            StopPointerUpdates();
+            // 控制器在关闭回调后读取预抓缓存，缓存随窗口实例释放。
             Services.HotkeyManager.PickerActive = false;
             Services.HotkeyManager.PickerKey = null; // 清零全局键拦截，绝不泄漏成失灵后无人重挂
             var sf = _snapFrame;

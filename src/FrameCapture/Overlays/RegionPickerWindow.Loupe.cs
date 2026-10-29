@@ -123,11 +123,15 @@ public sealed partial class RegionPickerWindow : Window
     }
 
     // Tab 上钻控件层级：输入框 → 表单容器 → … → 整窗。锁定结果，光标微动不会被 hover 抢回子控件。
-    private void DrillUpElement()
+    private async void DrillUpElement()
     {
-        if (_curElem == null) return;
-        var up = Core.ElementSnap.Parent(_curElem);
-        if (up != null)
+        if (_curElem is not { } current) return;
+        CancelProbe();
+        long generation = _probeGeneration;
+        Core.ElementHit? up;
+        try { up = await Core.ElementProbe.Query(() => Core.ElementSnap.Parent(current)).WaitAsync(TimeSpan.FromMilliseconds(750)); }
+        catch (TimeoutException) { return; }
+        if (!_finished && generation == _probeGeneration && !_dragging && _sel == null && up != null)
         {
             _curElem = up;
             _drillLock = true;
@@ -217,12 +221,18 @@ public sealed partial class RegionPickerWindow : Window
         _loupe.Visibility = Visibility.Visible;
     }
 
-    private RectI? SnapWindowAt((int X, int Y) p)
+    private RectI[]? _hoverWindows;
+    private long _hoverWindowsUntil;
+
+    private RectI? SnapWindowAt((int X, int Y) p, bool fresh = false)
     {
-        var self = new System.Windows.Interop.WindowInteropHelper(this).Handle;
-        // snapContent: prefer client-area rects (exclude window frame / title bar, e.g. game viewport)
-        return Core.SnapPick.Pick(
-            WindowEnum.ListTopmostCandidates(self).Select(t => _snapContent ? t.Client : t.Bounds), p.X, p.Y);
+        if (fresh || _hoverWindows == null || Environment.TickCount64 >= _hoverWindowsUntil)
+        {
+            var self = new System.Windows.Interop.WindowInteropHelper(this).Handle;
+            _hoverWindows = WindowEnum.ListTopmostCandidates(self).Select(t => _snapContent ? t.Client : t.Bounds).ToArray();
+            _hoverWindowsUntil = Environment.TickCount64 + 160;
+        }
+        return Core.SnapPick.Pick(_hoverWindows, p.X, p.Y);
     }
 
     private void ShowSpot(RectI? phys)

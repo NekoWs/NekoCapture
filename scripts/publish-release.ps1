@@ -49,9 +49,11 @@ Write-Host "版本 $Version   发布者 $Publisher   形态 $Flavor"
 # 构建前必须停掉运行中的实例，否则 exe 被占用
 Step '停止运行中的实例'
 $wasRunning = @(Get-Process FrameCapture -ErrorAction SilentlyContinue).Count -gt 0
-Get-Process FrameCapture.Resident -ErrorAction SilentlyContinue | Stop-Process -Force
-Get-Process FrameCapture -ErrorAction SilentlyContinue | Stop-Process -Force
-if ($wasRunning) { Start-Sleep -Milliseconds 800; Write-Host '  已停止' } else { Write-Host '  本来就没在跑' }
+Get-Process FrameCapture.Resident -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+Get-Process FrameCapture -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+if (@(Get-Process FrameCapture,FrameCapture.Resident -ErrorAction SilentlyContinue).Count) {
+    Write-Host '  当前权限无法关闭的实例保留，文件占用由构建和发布报告'
+} elseif ($wasRunning) { Start-Sleep -Milliseconds 800; Write-Host '  已停止' } else { Write-Host '  本来就没在跑' }
 
 if (-not $SkipVerify) {
     Step '验证：编译 + 断言 + 护栏'

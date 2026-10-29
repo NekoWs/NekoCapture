@@ -55,6 +55,8 @@ public static class ElementSnap
     // 同一点位的悬停高频重复：按 (x, y) 缓存一次完整命中
     private static int _cacheX = int.MinValue, _cacheY;
     private static ElementHit? _cache;
+    private static IntPtr _cacheWindow;
+    private static long _cacheUntil;
     private static bool _warmed;
 
     /// <summary>返回光标物理点所在的最深控件边界；没有可用控件时为 null。
@@ -65,8 +67,7 @@ public static class ElementSnap
     /// <returns>命中结果；同一坐标重复调用走缓存。命中的是匿名容器、或 UIA 抛异常时为 null。</returns>
     public static ElementHit? At(int physX, int physY, IntPtr excludeHwnd)
     {
-        if (physX == _cacheX && physY == _cacheY && _cache != null) return _cache;
-        if (physX == _cacheX && physY == _cacheY && _cache == null) return null;
+        if (physX == _cacheX && physY == _cacheY && _cacheWindow == excludeHwnd && Environment.TickCount64 < _cacheUntil) return _cache;
 
         ElementHit? result = null;
         var sw = Stopwatch.StartNew();
@@ -142,9 +143,8 @@ public static class ElementSnap
             }
         }
         catch { result = null; } // UIA 对提权进程/死句柄会抛 COMException
-    done:
-
         _cacheX = physX; _cacheY = physY; _cache = result;
+        _cacheWindow = excludeHwnd; _cacheUntil = Environment.TickCount64 + 120;
         return result;
     }
 

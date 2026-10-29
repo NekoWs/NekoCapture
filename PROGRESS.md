@@ -1,8 +1,8 @@
 # 当前状态
 
-源代码版本：0.9.14。契约见 [docs/PLAN-ORTHOGONAL-CHAINS.md](docs/PLAN-ORTHOGONAL-CHAINS.md)。
+源代码版本：0.9.15。契约见 [docs/PLAN-ORTHOGONAL-CHAINS.md](docs/PLAN-ORTHOGONAL-CHAINS.md)。
 
-- 原生组件常驻托盘与全局手势，WPF 界面按需启动，空闲三秒保存最近产物并退出。
+- 原生组件常驻托盘与全局手势，WPF 服务预热保留；空闲保存产物并释放大图缓存，超过预算时重建服务。
 - 编码、保存、OCR、权限交接和组件安装保持界面进程存活；界面繁忙时仍能接收录制停止请求。
 - 最近截图惰性读取原始缓存，录制复用磁盘帧索引；编辑帧缓存预算 64 MB，选区窗口预抓预算 48 MB。
 - 输入线程独立于界面，前台激活不挂接其他进程输入队列，不主动裁剪工作集。
@@ -20,7 +20,5 @@
 - 图版本为 1，动作链导入版本为 3；写回前保留输入备份，文件占用时有限重试。
 - 运行使用配置快照；无效入口不装入手势引擎。物理与测试输入隔离，时间戳使用统一单调时间轴。
 
-1189 项 SelfTest、70 组双语审计和 9 项端到端检查通过。常驻检查包含 37 项断言。
-构建零错误，静态扫描零失败，注释零警告。键盘注入焦点安全测试默认跳过。
-验证产物位于 `test-out/performance-final-guardrail.log`、`test-out/selftest-last-run.txt` 和 `test-out/uxaudit/`。
+本次交互与性能验证由用户进行，不运行完整测试矩阵。构建结果见 `test-out/responsiveness-build.log`。
 人工交互清单见 [UIAUDIT.md](UIAUDIT.md)。

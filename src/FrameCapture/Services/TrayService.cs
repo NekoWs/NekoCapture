@@ -6,7 +6,7 @@ using WinForms = System.Windows.Forms;
 namespace FrameCapture.Services;
 
 /// <summary>托盘常驻：图标 + WPF Fluent 右键菜单（随主题着色、悬停高亮、可勾选）。</summary>
-public sealed class TrayService : IDisposable
+public sealed partial class TrayService : IDisposable
 {
     private readonly AppHost _host;
     private readonly WinForms.NotifyIcon _icon;
@@ -16,12 +16,14 @@ public sealed class TrayService : IDisposable
     // 强调色改动会重画它们——图标是位图，画出来就定死了，不重画会停在构造时的强调色上。
     private Icon _iconOn, _iconPaused;
     private readonly Action _onPalette;
+    private System.Windows.ResourceDictionary? _menuResources;
 
     /// <summary>建托盘图标并订阅设置变更以刷新悬停提示。图标此刻 <c>Visible=false</c>，由 <see cref="Show"/> 点亮。</summary>
     /// <param name="host">宿主，用于把菜单项动作转给 <see cref="CaptureController"/> 与设置服务；须已完成装配。</param>
     public TrayService(AppHost host)
     {
         _host = host;
+        _menuResources = Fluent.MenuResources();
         _iconOn = MakeIcon(paused: false);
         _iconPaused = MakeIcon(paused: true);
 
@@ -49,6 +51,7 @@ public sealed class TrayService : IDisposable
     /// <summary>按当前强调色重画两枚托盘图标，再把托盘切到新引用上。</summary>
     void RebuildIcons()
     {
+        _menuResources = null;
         var prevOn = _iconOn;
         var prevPaused = _iconPaused;
         _iconOn = MakeIcon(paused: false);
@@ -128,7 +131,7 @@ public sealed class TrayService : IDisposable
     {
         Trace.Log("tray menu open");
         if (_menu != null) _menu.IsOpen = false; // 再次右键：先关掉已开着的菜单，连带回收它的锚窗
-        var menu = new ContextMenu { Resources = Fluent.MenuResources() };
+        var menu = new ContextMenu { Resources = _menuResources ??= Fluent.MenuResources(), StaysOpen = false };
         _menu = menu;
 
         void Item(string text, Action act, bool checkable = false, bool isChecked = false)
@@ -211,9 +214,10 @@ public sealed class TrayService : IDisposable
             Top = WinForms.Cursor.Position.Y,
         };
         _menuAnchor = anchor;
+        WatchMenu(menu, anchor);
+        anchor.Deactivated += (_, _) => { menu.IsOpen = false; };
         anchor.Show();
         anchor.Activate();
-        anchor.Deactivated += (_, _) => { menu.IsOpen = false; }; // 点其他应用/切窗 → 菜单即收
         menu.Closed += (_, _) =>
         {
             if (ReferenceEquals(_menu, menu)) _menu = null;
@@ -285,6 +289,7 @@ public sealed class TrayService : IDisposable
     /// <remarks>调用后实例不可再用：<see cref="WinForms.NotifyIcon"/> 已释放，再调 <see cref="Show"/> 会抛异常。</remarks>
     public void Dispose()
     {
+        if (_menu != null) _menu.IsOpen = false;
         Theme.Changed -= _onPalette;
         _icon.Visible = false;
         _icon.Dispose();

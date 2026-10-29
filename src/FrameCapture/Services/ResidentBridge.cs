@@ -10,7 +10,7 @@ using Trace = FrameCapture.Core.Trace;
 
 namespace FrameCapture.Services;
 
-/// <summary>界面按需唤起、输入快照与空闲产物保存；常驻进程独立维护托盘和全局手势。</summary>
+/// <summary>预热界面服务、同步输入快照并整理空闲缓存；常驻进程独立维护托盘和全局手势。</summary>
 internal static class ResidentBridge
 {
     private static readonly string[] Arguments = Environment.GetCommandLineArgs();
@@ -23,7 +23,9 @@ internal static class ResidentBridge
             : Path.Combine(AppContext.BaseDirectory, "FrameCapture.Resident.exe");
     private static readonly Queue<string[]> Deferred = new();
     private static DispatcherTimer? _idle;
-    private static bool _saving, _retiring;
+    private static bool _saving, _retiring, _idlePrepared;
+    private static long _nextMemoryCheck;
+    private const long WarmWorkerBudget = 88L << 20;
     private static long _activity, _quietSince;
     private static SettingsService? _settings;
 
@@ -147,6 +149,7 @@ internal static class ResidentBridge
     {
         if (!IsWorker || _retiring || ResidentProtocol.Receive(sender, payload, ResidentPath) is not { } arguments) return false;
         _activity++; _quietSince = Environment.TickCount64;
+        _idlePrepared = false;
         Application.Current.Dispatcher.BeginInvoke(() =>
         {
             if (_saving) Deferred.Enqueue(arguments);
@@ -209,15 +212,30 @@ internal static class ResidentBridge
     {
         if (_saving) return;
         bool visible = Application.Current.Windows.Cast<Window>().Any(window => window.IsVisible);
-        if (visible || Busy) { _quietSince = Environment.TickCount64; return; }
+        if (visible || Busy) { _quietSince = Environment.TickCount64; _idlePrepared = false; return; }
         if (Environment.TickCount64 - _quietSince < 3000) return;
+        if (_idlePrepared)
+        {
+            if (Environment.TickCount64 < _nextMemoryCheck) return;
+            _nextMemoryCheck = Environment.TickCount64 + 15000;
+            using var process = Process.GetCurrentProcess();
+            if (process.PrivateMemorySize64 > WarmWorkerBudget)
+            { _idle?.Stop(); _retiring = true; Application.Current.Shutdown(); }
+            return;
+        }
         _saving = true; long generation = _activity;
         try
         {
             await AppHost.Current.Controller.SaveResidentSessionAsync();
             if (generation == _activity && Deferred.Count == 0 && !Busy)
             {
-                _idle?.Stop(); _retiring = true; Application.Current.Shutdown(); return;
+                AppHost.Current.Controller.ReleaseResidentBuffers();
+                if (ElementProbe.Stalled)
+                { _idle?.Stop(); _retiring = true; Application.Current.Shutdown(); return; }
+                Memory.Reclaim(); _idlePrepared = true;
+                _nextMemoryCheck = Environment.TickCount64 + 15000;
+                Trace.Log("resident idle-ready");
+                return;
             }
         }
         catch (Exception error)

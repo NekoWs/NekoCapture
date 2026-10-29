@@ -49,7 +49,12 @@ function Invoke-Ui([string[]]$commands) {
     } finally { $process.Dispose() }
 }
 function Key([int]$key, [string]$direction) { Invoke-Ui @('--resident-test-key', "$key", '7', $direction) }
-function Idle { Wait-For { @(Workers).Count -eq 0 } 15000 }
+$lastIdle = 0
+function Idle {
+    $ready = Wait-For { (Trace-Count 'resident idle-ready') -gt $script:lastIdle -and @(Workers).Count -eq 1 } 15000
+    if ($ready) { $script:lastIdle = Trace-Count 'resident idle-ready' }
+    return $ready
+}
 function Products { @(Get-ChildItem -LiteralPath (Join-Path $fixture 'products') -Filter '*.png' -ErrorAction SilentlyContinue).Count }
 function Trace-Count([string]$text) {
     if (-not (Test-Path -LiteralPath $env:FC_TRACE_FILE)) { return 0 }
@@ -86,7 +91,8 @@ try {
         $null -ne $script:native
     }
     Check 'native-startup' $found
-    Check 'idle-without-wpf' (Idle)
+    Check 'idle-with-prewarmed-ui' (Idle)
+    Check 'combined-idle-commit-under-100mb' (($native.PrivateMemorySize64 + (@(Workers) | Measure-Object PrivateMemorySize64 -Sum).Sum) -lt 100MB)
     $native.Refresh(); $cpu = $native.TotalProcessorTime.TotalMilliseconds
     Start-Sleep -Seconds 2
     $native.Refresh(); $cpuDelta = $native.TotalProcessorTime.TotalMilliseconds - $cpu
@@ -97,43 +103,47 @@ try {
     "memory: private_commit=$($native.PrivateMemorySize64) private_working_set=$($working.WorkingSetPrivate) total_working_set=$($native.WorkingSet64) cpu_2s_ms=$cpuDelta"
 
     Invoke-Ui @('--run-binding', 'still')
-    Check 'cold-capture-saves-product' (Wait-For { (Products) -eq 1 })
-    Check 'capture-worker-retires' (Idle)
+    Check 'warm-capture-saves-product' (Wait-For { (Products) -eq 1 })
+    Check 'capture-releases-idle-cache' (Idle)
     $session = Session
     Check 'still-retained-on-disk' ($session.Still -and (Test-Path -LiteralPath $session.Still.Path))
     $before = Trace-Count 'open editor frames=1'
     Invoke-Ui @('--edit-last')
-    Check 'reopen-last-still-after-worker-exit' (Wait-For { (Trace-Count 'open editor frames=1') -gt $before })
+    Check 'reopen-last-still-from-idle-cache' (Wait-For { (Trace-Count 'open editor frames=1') -gt $before })
     Invoke-Ui @('--editorkey', '27')
     Check 'editor-close-restores-idle' (Idle)
 
     $loops = Trace-Count 'loop start region='
     Key 135 'down'
-    Check 'hold-starts-cold-worker-recording' (Wait-For { (Trace-Count 'loop start region=') -gt $loops })
+    Check 'hold-starts-warm-recording' (Wait-For { (Trace-Count 'loop start region=') -gt $loops })
     Check 'hold-keeps-ui-alive' (@(Workers).Count -eq 1)
     Invoke-Ui @('--resident-test-stall', '1500')
     Start-Sleep -Milliseconds 100
     Key 135 'up'
     Check 'release-through-busy-ui-reaches-stop' (Idle)
     $session = Session
-    Check 'recording-spool-survives-worker-exit' ($session.Video -and $session.Video.Index.Count -gt 1 -and (Test-Path -LiteralPath $session.Video.Path))
+    Check 'recording-spool-retained-in-idle-cache' ($session.Video -and $session.Video.Index.Count -gt 1 -and (Test-Path -LiteralPath $session.Video.Path))
+    $previousWorker = @(Workers)[0]
+    $previousWorkerId = $previousWorker.Id
+    $previousWorker.Kill(); [void]$previousWorker.WaitForExit(3000); $previousWorker.Dispose()
+    Check 'worker-prewarms-after-recycle' ((Idle) -and @(Workers)[0].Id -ne $previousWorkerId)
     $before = Trace-Count 'open editor frames='
     Invoke-Ui @('--run-binding', 'edit-video')
-    Check 'last-video-reopens-after-worker-exit' (Wait-For { (Trace-Count 'open editor frames=') -gt $before })
+    Check 'last-video-reopens-after-recycle' (Wait-For { (Trace-Count 'open editor frames=') -gt $before })
     Invoke-Ui @('--editorkey', '27')
-    Check 'video-editor-retires' (Idle)
+    Check 'video-editor-restores-warm-idle' (Idle)
 
     Invoke-Ui @('--pause-toggle')
-    Check 'pause-worker-retires' (Idle)
+    Check 'pause-restores-warm-idle' (Idle)
     $before = Products
     Key 134 'down'; Key 134 'up'
     Start-Sleep -Milliseconds 800
-    Check 'paused-native-ignores-gesture' ((Products) -eq $before -and @(Workers).Count -eq 0)
+    Check 'paused-native-ignores-gesture' ((Products) -eq $before -and @(Workers).Count -eq 1)
     Invoke-Ui @('--pause-toggle')
-    Check 'resume-worker-retires' (Idle)
+    Check 'resume-restores-warm-idle' (Idle)
     Key 134 'down'; Key 134 'up'
     Check 'resume-native-routes-gesture' (Wait-For { (Products) -eq $before + 1 })
-    Check 'resumed-capture-retires' (Idle)
+    Check 'resumed-capture-restores-warm-idle' (Idle)
 
     $settingsFile = Join-Path $fixture 'settings.json'
     $settings = Get-Content -LiteralPath $settingsFile -Raw | ConvertFrom-Json
@@ -142,16 +152,16 @@ try {
     Check 'external-settings-disable-reaches-native' (Wait-For {
         -not (Read-Json (Join-Path $fixture 'resident-inputs.json')).Enabled
     })
-    Check 'settings-sync-worker-retires' (Idle)
+    Check 'settings-sync-restores-warm-idle' (Idle)
     $before = Products
     Key 134 'down'; Key 134 'up'
-    Check 'disabled-native-ignores-gesture' ((Products) -eq $before -and @(Workers).Count -eq 0)
+    Check 'disabled-native-ignores-gesture' ((Products) -eq $before -and @(Workers).Count -eq 1)
     $settings.Gestures.Enabled = $true
     $settings | ConvertTo-Json -Depth 64 | Set-Content -LiteralPath $settingsFile -Encoding utf8
     Check 'external-settings-enable-reaches-native' (Wait-For {
         (Read-Json (Join-Path $fixture 'resident-inputs.json')).Enabled
     })
-    Check 'enabled-settings-sync-retires' (Idle)
+    Check 'enabled-settings-sync-restores-warm-idle' (Idle)
 
     foreach ($cycle in 1..2) {
         $before = Products

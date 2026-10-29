@@ -25,6 +25,7 @@ internal sealed partial class ResidentHost : IDisposable, IChainInvoker
     private volatile bool _stopping, _paused;
     private bool _workerReady, _syncRequested, _tickActive;
     private long _manifestTicks = -1;
+    private long _workerStarted;
     private ResidentManifest _manifest = new();
     private ResidentManifest? _inputSnapshot;
     private GestureBinding[] _runtimeBindings = [];
@@ -144,7 +145,7 @@ internal sealed partial class ResidentHost : IDisposable, IChainInvoker
                     {
                         case "--reload-inputs": ReloadInputs(); break;
                         case "--update-icon": UpdateIcon(); break;
-                        case "--retry-ui": if (_pending.Count > 0) { StartWorker(); FlushPending(); } break;
+                        case "--retry-ui": StartWorker(); FlushPending(); break;
                         case "--resident-error": Log(new InvalidOperationException(args.ElementAtOrDefault(1))); break;
                         case "--resident-retire": PostMessage(_window, 0x0010, IntPtr.Zero, IntPtr.Zero); break;
                         case "--resident-ready":
@@ -153,7 +154,12 @@ internal sealed partial class ResidentHost : IDisposable, IChainInvoker
                         case "--resident-worker-exited":
                             if (_worker == null || args.ElementAtOrDefault(1) != _worker.Id.ToString()) break;
                             _worker?.Dispose(); _worker = null; _workerReady = false;
-                            if (_pending.Count > 0) StartWorker();
+                            if (Environment.TickCount64 - _workerStarted >= 3000) StartWorker();
+                            else
+                            {
+                                _retry ??= new Timer(_ => QueueWork(["--retry-ui"]));
+                                _retry.Change(1000, Timeout.Infinite);
+                            }
                             break;
                         case "--refresh-worker-hook":
                             if (_workerReady) { _pending.Enqueue(["--resident-refresh-hook"]); FlushPending(); }
@@ -185,6 +191,7 @@ internal sealed partial class ResidentHost : IDisposable, IChainInvoker
         bool stale = stamp == 0 || (File.Exists(settings) && File.GetLastWriteTimeUtc(settings).Ticks != _manifest.SourceTicks);
         if (stale && !_syncRequested) { _syncRequested = true; _pending.Enqueue(["--resident-sync"]); StartWorker(); FlushPending(); }
         if (!stale) _syncRequested = false;
+        StartWorker();
     }
 
     private void StartWorker()
@@ -196,6 +203,7 @@ internal sealed partial class ResidentHost : IDisposable, IChainInvoker
         start.ArgumentList.Add("--elevated-attempt");
         start.ArgumentList.Add("--resident-paused"); start.ArgumentList.Add(_paused ? "1" : "0");
         _worker?.Dispose();
+        _workerReady = false; _workerStarted = Environment.TickCount64;
         _worker = Process.Start(start) ?? throw new InvalidOperationException("UI worker did not start");
         int workerId = _worker.Id;
         _worker.EnableRaisingEvents = true;

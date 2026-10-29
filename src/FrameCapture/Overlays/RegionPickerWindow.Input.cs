@@ -10,6 +10,7 @@ public sealed partial class RegionPickerWindow
 {
     private void OnDown(object sender, MouseButtonEventArgs e)
     {
+        CancelProbe();
         var dipDown = e.GetPosition(this);
         if (HitModeSwitch(dipDown)) return;   // 先判模式开关：不依赖选区在不在
         // 调整态：先看勾/叉按钮，再看是抓边角还是整块移动；点到框外就重开一个选区
@@ -37,14 +38,18 @@ public sealed partial class RegionPickerWindow
 
     private void OnMove(object sender, MouseEventArgs e)
     {
-        var dipMove = e.GetPosition(this);
+        _pointerPending = e.GetPosition(this);
+    }
+
+    private void UpdatePointer(Point dipMove)
+    {
         // 模式开关常显在屏幕上方：指针停在它上面给手型，但拖框与抓边角期间不打断
         if (_grab == GrabKind.None && !_dragging
             && (OverButton(dipMove, _modeCapture) || OverButton(dipMove, _modeRecord)))
         { Cursor = Cursors.Hand; return; }
         if (_grab != GrabKind.None) { DragAdjust(dipMove); return; }
         if (_sel != null) { ProbeAt(dipMove); return; }
-        var dip = e.GetPosition(this);
+        var dip = dipMove;
         var p = WindowPosToPhys(dip);
         if (_dragging)
         {
@@ -64,12 +69,11 @@ public sealed partial class RegionPickerWindow
                 }
                 _drillLock = false;   // 明显移动→解锁，恢复常规吸附
             }
-            // 控件级吸附：UIA 语义元素 → MSAA 窗口内命中（在 ElementSnap 内部依次尝试）→ 整窗
             if (_snapContent)
             {
-                var selfH = new System.Windows.Interop.WindowInteropHelper(this).Handle;
-                var eh = Core.ElementSnap.At(p.X, p.Y, selfH);
-                if (eh != null && eh.Rect.W >= 8 && eh.Rect.H >= 8)
+                ScheduleProbe(dip);
+                var eh = _curElem;
+                if (eh != null && eh.Rect.Contains(p.X, p.Y))
                 {
                     _curElem = eh;
                     ShowSpot(eh.Rect);
@@ -95,43 +99,42 @@ public sealed partial class RegionPickerWindow
         var rect = RectI.FromCorners(_dragX1, _dragY1, p.X, p.Y);
         if (rect.W < 8 || rect.H < 8)
         {
-            // 视为点击：优先当前吸附的控件，其次窗口，再次沿用 existing
-            if (_snapContent)
-            {
-                var selfH = new System.Windows.Interop.WindowInteropHelper(this).Handle;
-                var eh = Core.ElementSnap.At(p.X, p.Y, selfH);
-                if (eh != null && eh.Rect.W >= 8 && eh.Rect.H >= 8)
-                {
-                    _selHwnd = IntPtr.Zero;
-                    if (!Editable) { Finish(eh.Rect); return; }
-                    ShowSelection(eh.Rect);
-                    return;
-                }
-            }
-            // 点吸附到的窗口 → 真·窗口截图（开关开 + 未被遮挡 + 吸附到的是窗口而非 UIA 子元素）
-            if (_windowCapture)
-            {
-                var wc = WindowHitForCapture(p);
-                if (wc != null)
-                {
-                    if (!Editable) { Finish(wc.Value.Bounds, wc.Value.Hwnd); return; }
-                    ShowSelection(wc.Value.Bounds);
-                    _selHwnd = wc.Value.Hwnd;
-                    _selHwndBounds = wc.Value.Bounds;
-                    return;
-                }
-            }
-            var hit = SnapWindowAt(p);
-            _selHwnd = IntPtr.Zero;
-            var baseRect = hit ?? _existing ?? _monitorPhys;
-            if (!Editable) { Finish(baseRect); return; }
-            ShowSelection(baseRect);
+            if (_snapContent) SelectClickedElement(p);
+            else CompleteClick(p, null);
             return;
         }
-        // 松手先给可调整的框：拖边角还能改，Enter 或勾才真的出图
+        CancelProbe();
         _selHwnd = IntPtr.Zero;
         if (!Editable) { Finish(rect); return; }
         ShowSelection(rect);
+    }
+
+    private void CompleteClick((int X, int Y) p, ElementHit? element)
+    {
+        if (element is { Rect.W: >= 8, Rect.H: >= 8 } && element.Rect.Contains(p.X, p.Y))
+        {
+            _selHwnd = IntPtr.Zero;
+            if (!Editable) { Finish(element.Rect); return; }
+            ShowSelection(element.Rect);
+            return;
+        }
+        if (_windowCapture)
+        {
+            var wc = WindowHitForCapture(p);
+            if (wc != null)
+            {
+                if (!Editable) { Finish(wc.Value.Bounds, wc.Value.Hwnd); return; }
+                ShowSelection(wc.Value.Bounds);
+                _selHwnd = wc.Value.Hwnd;
+                _selHwndBounds = wc.Value.Bounds;
+                return;
+            }
+        }
+        var hit = SnapWindowAt(p, fresh: true);
+        _selHwnd = IntPtr.Zero;
+        var baseRect = hit ?? _existing ?? _monitorPhys;
+        if (!Editable) { Finish(baseRect); return; }
+        ShowSelection(baseRect);
     }
 
 }

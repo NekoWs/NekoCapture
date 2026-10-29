@@ -182,6 +182,15 @@ public sealed class LiveCapture : IDisposable
         _stageW = _stageH = 0;
     }
 
+    /// <summary>空闲时丢弃最近帧并尽力释放共享 GDI 暂存区，不等待其他截图线程。</summary>
+    internal void ReleaseIdleBuffers()
+    {
+        if (_running) return;
+        lock (_gate) _latest = null;
+        if (!Monitor.TryEnter(StageLock)) return;
+        try { ReleaseStage(); } finally { Monitor.Exit(StageLock); }
+    }
+
     /// <summary>停止捕获：置停止位后 Join 等待循环退出，上限 500ms——UI 线程调用时最坏会等这么久。</summary>
     public void Stop()
     {
