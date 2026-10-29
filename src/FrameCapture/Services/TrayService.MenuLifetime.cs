@@ -14,6 +14,7 @@ public sealed partial class TrayService
         var timer = new DispatcherTimer(DispatcherPriority.Input) { Interval = TimeSpan.FromMilliseconds(20) };
         IntPtr foreground = IntPtr.Zero;
         int previousButtons = 0;
+        bool ownedForeground = false;
         static int Buttons() => (Win32.IsKeyDown(1) ? 1 : 0) | (Win32.IsKeyDown(2) ? 2 : 0) | (Win32.IsKeyDown(4) ? 4 : 0);
         menu.Opened += (_, _) =>
         {
@@ -25,8 +26,10 @@ public sealed partial class TrayService
             if (!menu.IsOpen || !anchor.IsVisible) { timer.Stop(); return; }
             var popup = (PresentationSource.FromVisual(menu) as HwndSource)?.Handle ?? IntPtr.Zero;
             var current = Win32.GetForegroundWindow();
-            if (current != foreground && current != popup && current != new WindowInteropHelper(anchor).Handle)
+            bool owned = (popup != IntPtr.Zero && current == popup) || current == new WindowInteropHelper(anchor).Handle;
+            if (!owned && (ownedForeground || current != foreground))
             { menu.IsOpen = false; return; }
+            ownedForeground |= owned;
             int buttons = Buttons(), pressed = buttons & ~previousButtons;
             previousButtons = buttons;
             if (pressed == 0 || popup == IntPtr.Zero || !Win32.GetWindowRect(popup, out var rect)) return;

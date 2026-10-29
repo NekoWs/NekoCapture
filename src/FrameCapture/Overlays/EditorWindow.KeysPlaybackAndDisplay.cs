@@ -182,7 +182,7 @@ public sealed partial class EditorWindow : Window
     BitmapSource Bmp(int i)
     {
         if (_bmpCache.TryGetValue(i, out var hit)) return hit;
-        var bmp = BgraImage.ToSource(_seq.Frames[i]);
+        var bmp = BgraImage.ToSource(i == _index ? Cur() : _seq.Frames[i]);
         _bmpCache[i] = bmp; _bmpFifo.Enqueue(i);
         while (_bmpFifo.Count > _bmpCacheMax)
         {

@@ -120,7 +120,7 @@ public sealed class CapturedSequence
 
     /// <summary>序列时长（毫秒）。</summary>
     /// <value>末帧的 <c>TimeMs</c>，不是 帧数/Fps——节流丢帧后两者并不相等；空序列为 0。</value>
-    public double TotalMs => Frames.Count == 0 ? 0 : Frames is FrameSpoolList spool ? spool.Meta(spool.Count - 1).TimeMs : Frames[^1].TimeMs;
+    public double TotalMs => Frames.Count == 0 ? 0 : FrameMetadata.TimeAt(Frames, Frames.Count - 1);
     /// <summary>帧数不超过 1。</summary>
     /// <value>空序列也算单帧，所以它不等于"恰好一张静图"。</value>
     public bool IsSingle => Frames.Count <= 1;

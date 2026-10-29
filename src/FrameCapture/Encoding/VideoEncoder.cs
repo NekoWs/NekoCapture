@@ -70,7 +70,7 @@ public static class VideoEncoder
     public static double FpsFromFrames(IReadOnlyList<CapturedFrame> frames)
     {
         if (frames.Count < 2) return 30;
-        double dur = frames[^1].TimeMs - frames[0].TimeMs;
+        double dur = FrameMetadata.TimeAt(frames, frames.Count - 1) - FrameMetadata.TimeAt(frames, 0);
         if (dur <= 0) return 30;
         return Math.Clamp((frames.Count - 1) / (dur / 1000.0), 1, 240);
     }

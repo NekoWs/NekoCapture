@@ -144,7 +144,7 @@ public sealed class FrameSpool : IDisposable
 }
 
 /// <summary>惰性帧列表：Count/索引器按需从 spool 文件回读单帧（读句柄常驻 + 锁，
-/// 后台导出与 UI 拖动可并发）。Slice 共享文件与句柄、只切索引段——导出裁剪零物化。</summary>
+/// 后台导出与 UI 拖动可并发）。Slice 共享文件并使用独立读取句柄，只复制索引段。</summary>
 public sealed class FrameSpoolList : IReadOnlyList<CapturedFrame>, IDisposable
 {
     /// <summary>一帧在 spool 文件里的定位与元数据：写帧时同步登记，回读时按它 Seek。</summary>
@@ -176,7 +176,7 @@ public sealed class FrameSpoolList : IReadOnlyList<CapturedFrame>, IDisposable
     internal FrameSpoolList(string path, Entry[] idx, bool ownsFile = true)
     {
         Path = path; _idx = idx; _ownsFile = ownsFile;
-        _fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, 1 << 20);
+        _fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 1 << 20);
     }
 
     /// <summary>spool 文件路径；切片与母列表指向同一个文件。</summary>
@@ -218,7 +218,7 @@ public sealed class FrameSpoolList : IReadOnlyList<CapturedFrame>, IDisposable
     /// <summary>范围切片（导出用）：不复制帧数据，读时按段索引。</summary>
     /// <param name="from">起始帧序号，越界被钳到 [0, Count-1]；空索引时钳到 0。</param>
     /// <param name="len">帧数，与 <paramref name="from"/> 一起钳到不超过 <see cref="Count"/>。</param>
-    /// <returns>共享同一文件与读句柄的切片，自身不持有文件所有权——释放它不会删文件。</returns>
+    /// <returns>持有独立读取句柄的切片，自身不删文件；母列表释放后，已打开的切片仍可读。</returns>
     public FrameSpoolList Slice(int from, int len)
     {
         from = Math.Clamp(from, 0, Math.Max(0, _idx.Length - 1));

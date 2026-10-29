@@ -171,6 +171,7 @@ public sealed partial class EditorWindow : Window
         Closed += (_, _) =>
         {
             _view.Source = null; _bmpCache.Clear(); _bmpFifo.Clear(); _mosaicCache.Clear();
+            _curFrame = null; _curFrameIndex = -1; _commitCts?.Cancel();
             if (_userClosed) return;
             _userClosed = true;
             _playTimer.Stop(); // 停播放表，避免释放 spool 后定时器再读已关文件
@@ -277,6 +278,7 @@ public sealed partial class EditorWindow : Window
     {
         if (_userClosed) return;
         _userClosed = true;
+        _commitCts?.Cancel();
         _playTimer.Stop(); // 停播放表，避免释放 spool 后定时器再读已关文件
         ClosedByUser?.Invoke();
         Fluent.CloseWithFade(this);

@@ -35,7 +35,7 @@ public static partial class SaveService
                 {
                     int fallback = 1000 / Math.Max(1, sequence.Fps);
                     var delays = Enumerable.Range(0, frames.Count).Select(i => i + 1 < frames.Count
-                        ? Math.Max(10, (int)(frames[i + 1].TimeMs - frames[i].TimeMs)) : Math.Max(10, fallback)).ToArray();
+                        ? Math.Max(10, (int)(FrameMetadata.TimeAt(frames, i + 1) - FrameMetadata.TimeAt(frames, i))) : Math.Max(10, fallback)).ToArray();
                     File.WriteAllBytes(temp, GifEncoder.Encode(frames, delays));
                 }
                 File.Move(temp, path);

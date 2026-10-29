@@ -21,13 +21,20 @@ public sealed class FilmStripDialog : Window
     public const int PreviewCell = 96;
 
     readonly int _total;
-    readonly Func<int, BitmapSource?> _renderPreview;
+    readonly Func<int, CancellationToken, BitmapSource?> _renderPreview;
     readonly TextBlock _value = new();
     readonly TextBlock _summary = new();
     readonly Image _preview = new();
     readonly DispatcherTimer _debounce;
-    /// <summary>预览请求序号。连拖滑杆会攒下多次渲染，只有最新一次的图贴得上，慢到的那次直接丢。</summary>
+    /// <summary>预览代数，过期结果不更新界面。</summary>
     int _previewSeq;
+    int? _pendingPreview;
+    bool _previewRunning, _previewClosed;
+    CancellationTokenSource? _previewCancellation;
+    Task _previewTask = Task.CompletedTask;
+
+    /// <summary>关闭后等待正在取消的预览结束，调用方随后可释放帧源。</summary>
+    internal Task PreviewFinished => _previewTask;
 
     /// <summary>
     /// 构造预览式参数小窗：Enter=生成 / Esc=取消。
@@ -39,6 +46,14 @@ public sealed class FilmStripDialog : Window
     /// <param name="renderPreview">按抽帧数渲染一张小胶片条的回调，在后台线程上调用，
     /// 因此它闭包里的帧与标注必须已在 UI 线程快照好。返回 null = 这一档画不出来，预览留空。</param>
     public FilmStripDialog(Window owner, int totalFrames, int desired, Func<int, BitmapSource?> renderPreview)
+        : this(owner, totalFrames, desired, (count, _) => renderPreview(count)) { }
+
+    /// <summary>创建可逐格取消、只渲染最新请求的预览窗口。</summary>
+    /// <param name="owner">宿主编辑器。</param>
+    /// <param name="totalFrames">可抽样帧数。</param>
+    /// <param name="desired">初始抽样帧数。</param>
+    /// <param name="renderPreview">后台渲染入口与取消信号。</param>
+    internal FilmStripDialog(Window owner, int totalFrames, int desired, Func<int, CancellationToken, BitmapSource?> renderPreview)
     {
         Owner = owner;
         _total = Math.Max(1, totalFrames);
@@ -95,6 +110,11 @@ public sealed class FilmStripDialog : Window
         };
         Refresh(take, now: true);
         Loaded += (_, _) => slider.Focus();
+        Closed += (_, _) =>
+        {
+            _previewClosed = true; _pendingPreview = null; _previewSeq++;
+            _debounce.Stop(); _previewCancellation?.Cancel(); _preview.Source = null;
+        };
     }
 
     UIElement Build(Slider slider)
@@ -180,24 +200,35 @@ public sealed class FilmStripDialog : Window
         else { _debounce.Stop(); _debounce.Start(); }
     }
 
-    /// <summary>后台渲一张小胶片条贴进预览。渲染在别的线程跑，滑杆不卡；
-    /// 只有序号仍是最新时才贴图，早先那次慢到了就直接丢。</summary>
+    /// <summary>替换尚未执行的请求并取消当前预览，后台最多同时执行一个渲染。</summary>
     void RequestPreview(int take)
     {
-        int seq = ++_previewSeq;
-        var dispatcher = Dispatcher;
-        Task.Run(() =>
+        if (_previewClosed) return;
+        _pendingPreview = take; _previewSeq++; _previewCancellation?.Cancel();
+        if (_previewRunning) return;
+        _previewRunning = true;
+        _previewTask = Dispatcher.InvokeAsync(new Func<Task>(RenderPreviewsAsync)).Task.Unwrap();
+    }
+
+    private async Task RenderPreviewsAsync()
+    {
+        try
         {
-            BitmapSource? img = null;
-            try { img = _renderPreview(take); }
-            catch (Exception ex) { Trace.Log("filmstrip preview: " + ex.Message); }
-            var got = img;
-            dispatcher.BeginInvoke(() =>
+            while (!_previewClosed && _pendingPreview is { } take)
             {
-                if (seq != _previewSeq || got == null) return;
-                _preview.Source = got;
-            });
-        });
+                _pendingPreview = null;
+                int generation = _previewSeq;
+                using var cancellation = new CancellationTokenSource();
+                _previewCancellation = cancellation;
+                BitmapSource? image = null;
+                try { image = await Services.BackgroundWork.Run(() => _renderPreview(take, cancellation.Token), cancellation.Token); }
+                catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { }
+                catch (Exception ex) { Trace.Log("filmstrip preview: " + ex.Message); }
+                finally { _previewCancellation = null; }
+                if (!_previewClosed && generation == _previewSeq && image != null) _preview.Source = image;
+            }
+        }
+        finally { _previewRunning = false; }
     }
 
     Button ChipBtn(string text, bool accent)

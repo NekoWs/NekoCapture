@@ -7,10 +7,7 @@ using FrameCapture.Services;
 
 namespace FrameCapture.Encoding;
 
-/// <summary>
-/// 给 Agent 看的逐帧序列单图：横向胶片条（每行最多 8 格），每格带帧号与时间码。
-/// 目标：一张 PNG 传达整段动画，省 Token。
-/// </summary>
+/// <summary>按帧号与时间码排列的胶片条，每行最多八格。</summary>
 public static class AgentStrip
 {
     /// <summary>抽样索引——先按步长 everyN 取（1=逐帧），若超过 desired 上限再均匀稀释到 desired。
@@ -21,16 +18,15 @@ public static class AgentStrip
     /// <returns>升序且不重复的帧下标，首帧恒在列；发生均匀稀释时末帧同样入选。</returns>
     public static List<int> SampleIndices(int n, int desired, int everyN)
     {
-        var list = new List<int>();
-        if (n <= 0) return list;
+        if (n <= 0) return new List<int>();
         everyN = Math.Max(1, everyN);
-        for (int i = 0; i < n; i += everyN) list.Add(i);
-        if (desired > 0 && list.Count > desired)
+        int count = (n - 1) / everyN + 1;
+        int take = desired > 0 ? Math.Min(count, desired) : count;
+        var list = new List<int>(take);
+        for (int i = 0; i < take; i++)
         {
-            var thin = new List<int>(desired);
-            for (int k = 0; k < desired; k++)
-                thin.Add(list[(int)Math.Round(k * (list.Count - 1) / (double)Math.Max(1, desired - 1))]);
-            return thin;
+            int sample = take < count ? (int)Math.Round(i * (count - 1d) / Math.Max(1, take - 1)) : i;
+            list.Add(sample * everyN);
         }
         return list;
     }
@@ -52,17 +48,31 @@ public static class AgentStrip
     public static BitmapSource Render(IReadOnlyList<CapturedFrame> frames, IReadOnlyList<int> idxs,
         int cellTargetW = 288, bool decimate = false)
     {
+        if (frames.Count < idxs.Count) throw new ArgumentException("Insufficient strip frames");
+        return RenderMapped(i => frames[i], idxs, cellTargetW, decimate);
+    }
+
+    /// <summary>逐格读取和渲染，只保留格子尺寸的图像，支持取消。</summary>
+    /// <param name="frameAt">按格子下标读取或烘焙一帧。</param>
+    /// <param name="idxs">各格标注的原始帧号。</param>
+    /// <param name="cellTargetW">格子目标宽度。</param>
+    /// <param name="decimate">是否使用快速预览抽稀。</param>
+    /// <param name="cancellation">逐格检查的取消信号。</param>
+    /// <returns>可跨线程使用的冻结位图。</returns>
+    internal static BitmapSource RenderMapped(Func<int, CapturedFrame> frameAt, IReadOnlyList<int> idxs,
+        int cellTargetW = 288, bool decimate = false, CancellationToken cancellation = default)
+    {
         int take = idxs.Count;
         if (take == 0) throw new ArgumentException("empty strip");
-        if (frames.Count < take)
-            throw new ArgumentException($"frames={frames.Count} < idxs={take}：每格都要有自己的帧");
+        cancellation.ThrowIfCancellationRequested();
+        CapturedFrame? first = frameAt(0);
         cellTargetW = Math.Max(24, cellTargetW);
 
         int cols = Math.Min(take, 8);
         int rows = (take + cols - 1) / cols;
 
         // 单元格尺寸：宽 = 目标宽，高按帧宽高比并封顶 1.25 倍格宽
-        int srcW = frames[0].W, srcH = frames[0].H;
+        int srcW = first.W, srcH = first.H;
         int cellW = cellTargetW;
         int cellH = Math.Min((int)Math.Round(srcH * (cellW / (double)srcW)), cellW * 5 / 4);
         int pad = Math.Max(3, cellW / 36), label = Math.Max(11, cellW / 16);
@@ -81,11 +91,13 @@ public static class AgentStrip
             var typeface = new Typeface(new FontFamily("Consolas"), FontStyles.Normal, FontWeights.Normal, FontStretches.Normal);
             for (int i = 0; i < take; i++)
             {
+                cancellation.ThrowIfCancellationRequested();
                 int r = i / cols, c = i % cols;
                 int x = pad + c * (cellW + pad);
                 int y = pad + r * ((int)fh + label + pad);
-                var frame = frames[i];
-                var bmp = decimate ? DecimatedSource(frame, cellW) : BgraImage.ToSource(frame);
+                var frame = i == 0 ? first! : frameAt(i);
+                first = null;
+                var bmp = decimate ? DecimatedSource(frame, cellW) : CellSource(frame, cellW, Math.Max(1, (int)fh));
                 dc.DrawImage(bmp, new Rect(x, y, fw, fh));
                 var ft = new FormattedText(
                     $"F{idxs[i]:00}  {frame.TimeMs / 1000.0:0.00}s",
@@ -100,6 +112,16 @@ public static class AgentStrip
         rtb.Render(dv);
         rtb.Freeze();
         return rtb;
+    }
+
+    private static BitmapSource CellSource(CapturedFrame frame, int width, int height)
+    {
+        var visual = new DrawingVisual();
+        using (var drawing = visual.RenderOpen())
+            drawing.DrawImage(BgraImage.ToSource(frame), new Rect(0, 0, width, height));
+        var bitmap = new RenderTargetBitmap(width, height, 96, 96, PixelFormats.Pbgra32);
+        bitmap.Render(visual); bitmap.Freeze();
+        return bitmap;
     }
 
     /// <summary>按格子大小整数倍抽稀后出图：每格取 step×step 块的四角均值，输出约等于格子分辨率。
@@ -138,7 +160,7 @@ public static class AgentStrip
     public static string Generate(CapturedSequence seq, int desiredFrames, string path)
     {
         var idxs = SampleIndices(seq.Frames.Count, desiredFrames, 1);
-        var img = Render(idxs.Select(i => seq.Frames[i]).ToList(), idxs);
+        var img = RenderMapped(i => seq.Frames[idxs[i]], idxs);
         var enc = new PngBitmapEncoder();
         enc.Frames.Add(BitmapFrame.Create(img));
         using var fs = File.Create(path);

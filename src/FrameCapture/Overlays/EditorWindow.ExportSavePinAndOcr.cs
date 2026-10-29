@@ -190,13 +190,12 @@ public sealed partial class EditorWindow : Window
 
             _encoding = true;
             SetOkBusy(true);
-            _commitCts = new CancellationTokenSource();
-            var ct = _commitCts.Token;
+            var cancellation = _commitCts = new CancellationTokenSource();
+            var ct = cancellation.Token;
             _hud.Text = Loc.F(K.Editor.Exporting, verb);
-            BackgroundWork.Run(() =>
+            WithFrameReaderAsync(subset, () =>
             {
-                // 测试专用（与 FC_TEST_NO_FG 同约定）：FC_TEST_ENCODE_FAIL=1 令编码任务必然抛错，
-                // 使"导出失败"HUD 终态可确定性触达并做双主题像素取证（UIAUDIT D9）。正常用户环境永不置位。
+                // 隔离测试可强制触发编码失败，校验失败反馈。
                 if (Environment.GetEnvironmentVariable("FC_TEST_ENCODE_FAIL") == "1")
                     throw new InvalidOperationException("forced encode failure (FC_TEST_ENCODE_FAIL=1)");
                 // 裁剪=视图状态：导出瞬间一次性折算（像素级等价：先裁剪后烘焙 ≡ 先烘焙后裁剪）
@@ -233,7 +232,10 @@ public sealed partial class EditorWindow : Window
                 return (seq, gif: (byte[]?)null);
             }, ct).ContinueWith(t =>
             {
+                if (ReferenceEquals(_commitCts, cancellation)) _commitCts = null;
+                cancellation.Dispose();
                 _encoding = false;
+                if (_userClosed) { _ = t.Exception; return; }
                 SetOkBusy(false);
                 if (t.IsCanceled || (t.Exception?.InnerException is OperationCanceledException))
                 {
@@ -259,15 +261,21 @@ public sealed partial class EditorWindow : Window
         }
     }
 
+    private static async Task<T> WithFrameReaderAsync<T>(IReadOnlyList<CapturedFrame> frames, Func<T> work, CancellationToken cancellation)
+    {
+        using var reader = frames as FrameSpoolList;
+        return await BackgroundWork.Run(work, cancellation).ConfigureAwait(false);
+    }
+
     static List<int> ComputeDelays(IReadOnlyList<CapturedFrame> frames, int fps)
     {
         int defaultDelay = 1000 / fps;
         var delays = new List<int>(frames.Count);
-        double total = frames.Count > 0 ? frames[^1].TimeMs : 0;
+        double total = frames.Count > 0 ? FrameMetadata.TimeAt(frames, frames.Count - 1) : 0;
         for (int i = 0; i < frames.Count; i++)
         {
-            double t0 = frames[i].TimeMs;
-            double t1 = i + 1 < frames.Count ? frames[i + 1].TimeMs : total;
+            double t0 = FrameMetadata.TimeAt(frames, i);
+            double t1 = i + 1 < frames.Count ? FrameMetadata.TimeAt(frames, i + 1) : total;
             int d = (int)(t1 - t0);
             // 环形缓冲丢帧会造成巨大时间洞；洞两侧用默认间隔，避免播放停顿
             delays.Add(d > 0 && d < 250 ? Math.Clamp(d, 10, 200) : defaultDelay);
@@ -282,6 +290,7 @@ public sealed partial class EditorWindow : Window
     async void GenerateFilmStrip()
     {
         if (_encoding || !_seq.Frames.Any()) return;
+        using var activity = BackgroundWork.Hold();
         var (a, b) = TrimRange;
         int count = b - a + 1;
         // UI 线程快照（后台只读）：弹窗预览与成片读同一批帧，抽样口径一致
@@ -291,36 +300,40 @@ public sealed partial class EditorWindow : Window
         var anns = new List<Drawing.Annotation>(_anns.Items);
         var cropSnap = _crop.Current; bool cropOn = _crop.IsCropped;
 
-        // 预览画的是原始帧小图：裁剪与标注在 96 像素的格子里看不出来，不值得每档都烘焙一遍全尺寸帧
-        var dlg = new FilmStripDialog(this, count, _settings.Current.AgentStripFrames, k =>
-        {
-            var preview = AgentStrip.SampleIndices(count, k, 1);
-            return AgentStrip.Render(preview.Select(i => subset[i]).ToList(), preview,
-                FilmStripDialog.PreviewCell, decimate: true);
-        }) { Owner = this };
-        if (dlg.ShowDialog() != true) return;
-        int frames = dlg.Frames;
-        _settings.Mutate(s => s.AgentStripFrames = frames);   // 小窗参数持久化，下次沿用
-
-        var picks = AgentStrip.SampleIndices(count, frames, 1);
-        var sampled = picks.Select(i => subset[i]).ToList();
-
+        using var reader = subset as FrameSpoolList;
         _encoding = true; SetOkBusy(true);
-        ShowSnack(Loc.T(K.Editor.BuildingFilmStrip));
         try
         {
-            var baked = await Task.Run(() => BakeForStrip(sampled, anns, cropSnap, cropOn));
-            var img = AgentStrip.Render(baked, picks);
+            var dlg = new FilmStripDialog(this, count, _settings.Current.AgentStripFrames, (k, token) =>
+            {
+                var preview = AgentStrip.SampleIndices(count, k, 1);
+                return AgentStrip.RenderMapped(i => subset[preview[i]], preview,
+                    FilmStripDialog.PreviewCell, decimate: true, cancellation: token);
+            });
+            bool confirmed = dlg.ShowDialog() == true;
+            await dlg.PreviewFinished;
+            if (!confirmed || _userClosed) return;
+            int frames = dlg.Frames;
+            _settings.Mutate(s => s.AgentStripFrames = frames);
+            var picks = AgentStrip.SampleIndices(count, frames, 1);
+            using var cancellation = new CancellationTokenSource();
+            _commitCts = cancellation;
+            ShowSnack(Loc.T(K.Editor.BuildingFilmStrip));
+            var img = await BackgroundWork.Run(() => AgentStrip.RenderMapped(
+                i => BakeForStrip(new[] { subset[picks[i]] }, anns, cropSnap, cropOn)[0], picks,
+                cancellation: cancellation.Token), cancellation.Token);
+            if (_userClosed) return;
             try { Clipboard.SetImage(img); ShowSnack(Loc.F(K.Editor.FilmStripCopiedFrames, picks.Count)); }
             catch { ShowSnack(Loc.T(K.Editor.TheClipboardIsBusySo)); }
             Trace.Log($"filmstrip {picks.Count}/{count} frames");
         }
+        catch (OperationCanceledException) { }
         catch (Exception ex)
         {
             Trace.Log("filmstrip: " + ex.Message);
-            ShowSnack(Loc.T(K.Editor.FilmStripFailed));
+            if (!_userClosed) ShowSnack(Loc.T(K.Editor.FilmStripFailed));
         }
-        finally { _encoding = false; SetOkBusy(false); }
+        finally { _commitCts = null; _encoding = false; if (!_userClosed) SetOkBusy(false); }
     }
 
     /// <summary>按时间轴裁剪与标注烘焙给定帧，与导出同口径；只烘焙要上格的那几帧，长录制也秒级。</summary>
