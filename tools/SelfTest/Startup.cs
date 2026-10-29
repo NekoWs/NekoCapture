@@ -32,7 +32,7 @@ static partial class SelfTest
         storage.Operations.Clear();
         plan = new StartupPlan(storage, exe, sid, true, true);
         Chk("startup-valid-task-needs-no-new-authorization", !plan.NeedsElevation && plan.Apply() == StartupResult.Task
-            && !storage.Operations.Contains("write-task"));
+            && storage.Operations.Count == 0);
         string moved = @"D:\Moved\FrameCapture.exe";
         plan = new StartupPlan(storage, moved, sid, true, true);
         Chk("startup-moved-executable-updates-task", plan.NeedsElevation && plan.Apply() == StartupResult.Task

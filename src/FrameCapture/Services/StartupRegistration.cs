@@ -72,8 +72,8 @@ internal sealed class StartupPlan
             }
             else if (_task != null) { _taskTouched = true; _storage.DeleteTask(_name); }
             if (_legacy != null) { _legacyTouched = true; _storage.DeleteTask("FrameCapture"); }
-            _runTouched = true;
-            _storage.RunValue = _enable && !_elevated ? $"\"{_exe}\" --startup" : null;
+            string? run = _enable && !_elevated ? $"\"{_exe}\" --startup" : null;
+            if (_run != run) { _runTouched = true; _storage.RunValue = run; }
             return !_enable ? StartupResult.Off : _elevated ? StartupResult.Task : StartupResult.RunKey;
         }
         catch { Restore(); throw; }
