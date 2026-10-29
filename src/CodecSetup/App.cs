@@ -60,7 +60,7 @@ internal sealed class ComponentWindow : Window
     /// <summary>创建使用主程序主题与控件样式的组件安装窗口。</summary>
     internal ComponentWindow()
     {
-        Title = "FrameCapture · " + Loc.T(K.CodecSetup.Title);
+        Title = "FrameCapture · " + Loc.T(K.Common.VideoComponent);
         Width = 560;
         SizeToContent = SizeToContent.Height;
         ResizeMode = ResizeMode.NoResize;
@@ -72,7 +72,7 @@ internal sealed class ComponentWindow : Window
         body.Children.Add(new TextBlock { Text = Title, FontSize = 24, FontWeight = FontWeights.SemiBold });
         body.Children.Add(new TextBlock
         {
-            Text = Loc.T(K.CodecSetup.Description), FontSize = 14, Margin = new Thickness(0, 12, 0, 12),
+            Text = Loc.T(K.Common.VideoComponentDescription), FontSize = 14, Margin = new Thickness(0, 12, 0, 12),
         });
         body.Children.Add(new TextBlock
         {
@@ -88,7 +88,7 @@ internal sealed class ComponentWindow : Window
         Link(links, Loc.T(K.CodecSetup.License), "https://www.gnu.org/licenses/lgpl-3.0.html");
         body.Children.Add(links);
         var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
-        _install = Fluent.RoundButton(Loc.T(K.CodecSetup.Download), Theme.Accent, Theme.WindowBg, 22, true);
+        _install = Fluent.RoundButton(Loc.T(K.Common.DownloadAndInstall), Theme.Accent, Fluent.InkOn(Theme.Accent, Theme.Text), 22, true);
         _install.Click += async (_, _) => await Install();
         _close = Fluent.RoundButton(Loc.T(K.Common.Cancel), Theme.CardBg, Theme.Text, 18, true);
         _close.Margin = new Thickness(10, 0, 0, 0);
@@ -128,10 +128,11 @@ internal sealed class ComponentWindow : Window
         _install.IsEnabled = false;
         try
         {
-            var progress = new Progress<double>(value =>
+            var progress = new Progress<ComponentProgress>(value =>
             {
-                _progress.Value = value;
-                _status.Text = value < 100 ? Loc.F(K.CodecSetup.Downloading, (int)value) : Loc.T(K.CodecSetup.Verifying);
+                _progress.Value = value.Percent;
+                _status.Text = value.Verifying ? Loc.T(K.Common.ComponentVerifying)
+                    : Loc.F(K.CodecSetup.Downloading, (int)value.Percent);
             });
             await ComponentInstaller.InstallAsync(progress, _cancel.Token);
             _status.Text = Loc.T(K.CodecSetup.Ready);
@@ -139,7 +140,7 @@ internal sealed class ComponentWindow : Window
             _close.Visibility = Visibility.Collapsed;
             _finished = true;
         }
-        catch (OperationCanceledException) { _status.Text = Loc.T(K.CodecSetup.Stopped); }
+        catch (OperationCanceledException) { _status.Text = Loc.T(K.Common.ComponentCancelled); }
         catch (Exception ex)
         {
             _status.Text = Loc.T(K.CodecSetup.Failed);

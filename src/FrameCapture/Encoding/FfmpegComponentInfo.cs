@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 
 namespace FrameCapture.Encoding;
@@ -12,6 +13,13 @@ public static class FfmpegComponentInfo
     public const string Archive = "ffmpeg-n8.1.3-9-g29e619e767-win64-lgpl-shared-8.1.zip";
     /// <summary>固定构建的下载地址；不跟随 latest。</summary>
     public const string DownloadUrl = "https://github.com/BtbN/FFmpeg-Builds/releases/download/" + Release + "/" + Archive;
+    /// <summary>下载时竞速的 HTTPS 加速源和上游；全部使用同一份固定摘要。</summary>
+    public static IReadOnlyList<string> DownloadUrls { get; } = Array.AsReadOnly(new[]
+    {
+        "https://gh-proxy.com/" + DownloadUrl,
+        "https://gh-proxy.org/" + DownloadUrl,
+        DownloadUrl,
+    });
     /// <summary>由发布者 GitHub Release 资产摘要核对的归档 SHA256。</summary>
     public const string Sha256 = "3e47bda1607740550141e37c0e49d1e5182b34699f15adfd137ee266d346811a";
     /// <summary>下载大小，单位字节；同时限制下载流的最大长度。</summary>

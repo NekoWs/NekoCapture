@@ -29,5 +29,8 @@
     <Compile Include="..\FrameCapture\Core\Strings\CodecSetup.cs" Link="Shared\Strings.cs" />
     <Compile Include="..\FrameCapture\Core\Strings\Common.cs" Link="Shared\Common.cs" />
     <Compile Include="..\FrameCapture\Encoding\FfmpegComponentInfo.cs" Link="Shared\FfmpegComponentInfo.cs" />
+    <Compile Include="..\FrameCapture\Encoding\ComponentInstaller.cs" Link="Shared\ComponentInstaller.cs" />
+    <Compile Include="..\FrameCapture\Encoding\ComponentDownloader.cs" Link="Shared\ComponentDownloader.cs" />
+    <Compile Include="..\FrameCapture\Encoding\ComponentProgress.cs" Link="Shared\ComponentProgress.cs" />
   </ItemGroup>
 </Project>

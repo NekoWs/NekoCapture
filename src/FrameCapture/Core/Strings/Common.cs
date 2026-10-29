@@ -9,6 +9,11 @@ public static partial class K
     /// <summary>两个界面以上共用的文案的文案。</summary>
     public static partial class Common
     {
+        public static readonly Str VideoComponent = new("codecsetup.title", "视频组件", "Video component");
+        public static readonly Str VideoComponentDescription = new("codecsetup.description", "支持 MP4 与透明 WebM 导出", "Enable MP4 and transparent WebM export");
+        public static readonly Str DownloadAndInstall = new("codecsetup.download", "下载并安装", "Download and install");
+        public static readonly Str ComponentVerifying = new("codecsetup.verifying", "正在校验与测试编码", "Verifying and testing encoders");
+        public static readonly Str ComponentCancelled = new("codecsetup.stopped", "已取消安装", "Installation cancelled");
         public static readonly Str CancelSelection = new("capture.cancelSelection", "取消选区", "Cancel the selection");
         public static readonly Str Appearance = new("common.appearance", "外观", "Appearance");
         public static readonly Str Confirm = new("common.confirm", "确认", "Confirm");

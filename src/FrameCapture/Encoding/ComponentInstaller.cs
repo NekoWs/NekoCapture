@@ -1,21 +1,18 @@
 using System.Diagnostics;
+using System.IO;
 using System.IO.Compression;
-using System.Net;
-using System.Net.Http;
 using System.Security.Cryptography;
-using System.Text;
-using FrameCapture.Encoding;
 
-namespace FrameCapture.CodecSetup;
+namespace FrameCapture.Encoding;
 
 /// <summary>校验独立下载的 LGPL 组件，在用户目录完成编码自检后提交安装。</summary>
 internal static class ComponentInstaller
 {
     /// <summary>下载固定构建；取消或失败时保留已安装组件。</summary>
-    /// <param name="progress">下载百分比；100 表示开始校验和安装。</param>
+    /// <param name="progress">下载和校验进度。</param>
     /// <param name="ct">下载和安装的取消令牌。</param>
     /// <returns>组件成功提交后完成的任务。</returns>
-    internal static async Task InstallAsync(IProgress<double> progress, CancellationToken ct)
+    internal static async Task InstallAsync(IProgress<ComponentProgress> progress, CancellationToken ct)
     {
         string target = FfmpegComponentInfo.InstallDirectory
             ?? throw new InvalidOperationException("LocalApplicationData is unavailable");
@@ -29,39 +26,11 @@ internal static class ComponentInstaller
         try
         {
             string archive = Path.Combine(work, "download.zip");
-            await Download(archive, progress, ct).ConfigureAwait(false);
+            await ComponentDownloader.DownloadAsync(archive, progress, ct).ConfigureAwait(false);
+            progress.Report(new ComponentProgress(FfmpegComponentInfo.DownloadBytes, 0, true));
             await Task.Run(() => InstallArchive(archive, target, work, ct), ct).ConfigureAwait(false);
         }
         finally { TryRemove(work); }
-    }
-
-    private static async Task Download(string path, IProgress<double> progress, CancellationToken ct)
-    {
-        ServicePointManager.SecurityProtocol |= SecurityProtocolType.Tls12;
-        using var client = new HttpClient { Timeout = TimeSpan.FromMinutes(30) };
-        client.DefaultRequestHeaders.UserAgent.ParseAdd("FrameCapture-Codecs-Setup");
-        using var response = await client.GetAsync(FfmpegComponentInfo.DownloadUrl,
-            HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
-        response.EnsureSuccessStatusCode();
-        if (response.Content.Headers.ContentLength is { } size && size != FfmpegComponentInfo.DownloadBytes)
-            throw new InvalidDataException("FFmpeg archive size mismatch");
-        using var source = await response.Content.ReadAsStreamAsync().ConfigureAwait(false);
-        using var file = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.None, 65536, true);
-        var buffer = new byte[65536];
-        long total = 0;
-        int lastPercent = -1;
-        progress.Report(0);
-        while (true)
-        {
-            int count = await source.ReadAsync(buffer, 0, buffer.Length, ct).ConfigureAwait(false);
-            if (count == 0) break;
-            total += count;
-            if (total > FfmpegComponentInfo.DownloadBytes) throw new InvalidDataException("FFmpeg archive exceeds size limit");
-            await file.WriteAsync(buffer, 0, count, ct).ConfigureAwait(false);
-            int percent = (int)(total * 100 / FfmpegComponentInfo.DownloadBytes);
-            if (percent != lastPercent) { progress.Report(percent); lastPercent = percent; }
-        }
-        if (total != FfmpegComponentInfo.DownloadBytes) throw new InvalidDataException("FFmpeg archive is incomplete");
     }
 
     /// <summary>校验归档、测试编码后原子替换组件；替换失败恢复已安装目录。</summary>

@@ -274,13 +274,11 @@ public sealed partial class SettingsWindow : Window
         var chips = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
         Grid.SetColumn(chips, 2);
         var cur = _settings.Current.RecordFormat;
-        bool hasFf = Encoding.FfmpegLocator.Find() != null;
-        string ffNote = hasFf ? Loc.T(K.Settings.FfmpegDetected) : Loc.T(K.Settings.FfmpegNotFoundInstallFfmpeg);
         var opts = new (RecordFormat id, string text, string tip)[]
         {
             (RecordFormat.Gif, "GIF", Loc.T(K.Settings.AnAnimatedImageThatPlays)),
-            (RecordFormat.Mp4, "MP4", Loc.T(K.Settings.TheMostCompatibleVideoFormat) + ffNote),
-            (RecordFormat.WebM, "WebM", Loc.T(K.Settings.AnOpenVideoFormatEncoded) + ffNote),
+            (RecordFormat.Mp4, "MP4", Loc.T(K.Settings.TheMostCompatibleVideoFormat)),
+            (RecordFormat.WebM, "WebM", Loc.T(K.Settings.AnOpenVideoFormatEncoded)),
         };
         var chipList = new List<(Border chip, RecordFormat id)>();
         // 边框填充色只在 MP4 下出现：h264 没有透明通道，透明边得拍平到一个颜色才读得出阴影。
@@ -308,30 +306,8 @@ public sealed partial class SettingsWindow : Window
         }
         g.Children.Add(chips);
         _repaint.Add(() => RefreshChips(chipList, _settings.Current.RecordFormat));   // 改配色后选中那颗芯片跟着换色
-        // 未检测到 ffmpeg 时在行下方直接写明（芯片 tooltip 要悬停才读到，这行一眼可见）；
-        // 用绘制的小圆点而非字形，规避未验证字形；只读、开设置时算一次
-        var status = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(32, 3, 0, 0) };
-        var dotColor = hasFf ? Theme.Success : Theme.Warning;
-        status.Children.Add(new Ellipse
-        {
-            Width = 7,
-            Height = 7,
-            Fill = new SolidColorBrush(dotColor),
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 0, 7, 0),
-        });
-        status.Children.Add(new TextBlock
-        {
-            Text = hasFf ? Loc.T(K.Settings.FfmpegDetectedMp4AndWebm)
-                         : Loc.T(K.Settings.FfmpegNotFoundMp4),
-            FontSize = 11.5,
-            Foreground = Theme.TextDimBrush,
-            VerticalAlignment = VerticalAlignment.Center,
-            TextWrapping = TextWrapping.Wrap,
-        });
         var wrap = new StackPanel();
         wrap.Children.Add(g);
-        wrap.Children.Add(status);
         wrap.Children.Add(matte);
         return wrap;
     }

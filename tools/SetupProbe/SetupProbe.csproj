@@ -27,7 +27,9 @@
   <ItemGroup>
     <Compile Include="Program.cs" />
     <Compile Include="CodecChecks.cs" />
-    <Compile Include="..\..\src\CodecSetup\ComponentInstaller.cs" />
+    <Compile Include="..\..\src\FrameCapture\Encoding\ComponentInstaller.cs" />
+    <Compile Include="..\..\src\FrameCapture\Encoding\ComponentDownloader.cs" />
+    <Compile Include="..\..\src\FrameCapture\Encoding\ComponentProgress.cs" />
     <Compile Include="..\..\src\FrameCapture\Encoding\FfmpegComponentInfo.cs" />
     <Compile Include="..\..\src\Setup\InstallEngine.cs" />
     <Compile Include="..\..\src\Setup\DotnetRuntime.cs" />

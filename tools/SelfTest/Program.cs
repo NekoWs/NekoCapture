@@ -1145,6 +1145,7 @@ static partial class SelfTest
     {
         if (args.Length >= 1 && args[0] == "video-component")
         {
+            ComponentDownloadChecks();
             VideoComponentChecks(args.Length > 1 ? args[1] : null);
             Console.WriteLine($"RESULT PASS={pass} FAIL={fail}");
             return fail == 0 ? 0 : 1;
@@ -4045,6 +4046,7 @@ static partial class SelfTest
                 Chk("T126h-refresh-real", hz > 0, $"本机主屏刷新率检测 → {hz}Hz");
             }
 
+            ComponentDownloadChecks();
             VideoComponentChecks();
             // 视频编码：定位、参数、帧率与真实编码。
             {

@@ -16,7 +16,8 @@ pwsh -NoProfile -File scripts/publish-release.ps1
 安装与卸载需要管理员权限，发行前须在干净机器上人工验证。
 
 离线包包含 PDB 以提供带行号的故障堆栈。主包不包含 FFmpeg。
-发布同时产出 `FrameCapture-Codecs-Setup-<版本>-x64.exe`，用户点击后从 BtbN 下载固定的 LGPL shared x64 归档。
+录制设置提供视频组件的安装和进度。发布同时产出 `FrameCapture-Codecs-Setup-<版本>-x64.exe`。
+两个入口共用下载与安装逻辑，从公共加速入口或 GitHub 上游获取固定的 LGPL shared x64 归档。
 组件安装器不内嵌 FFmpeg、不修改 PATH、无需提权；校验 SHA256、许可证和 MP4/WebM 编码后提交安装。
 组件位置为 `%LOCALAPPDATA%/FrameCapture/Components/FFmpeg`，移除此目录即可卸载组件。
 升级失败恢复已安装组件；下载失败或取消清理暂存目录。正在使用的备份不能删除时予以保留。

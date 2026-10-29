@@ -58,8 +58,8 @@ public static partial class K
         public static readonly Str FfmpegNotFound = new("editor.ffmpegNotFound", "未找到 ffmpeg", "ffmpeg not found");
         public static readonly Str FfmpegNotFoundSoVideo = new(
             "editor.ffmpegNotFoundSoVideo",
-            "请先安装视频组件，详情见 F1",
-            "Install the video component first. See F1 for details.");
+            "请在「设置 · 录制」安装视频组件",
+            "Install the video component in Settings · Recording.");
         public static readonly Str FilmStrip = new("editor.filmStrip", "生成胶片条", "Film strip");
         public static readonly Str FilmStripCopiedFrames = new(
             "editor.filmStripCopiedFrames",

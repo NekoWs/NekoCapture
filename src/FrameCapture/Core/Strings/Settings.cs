@@ -83,19 +83,14 @@ public static partial class K
             "Delete this hotkey");
         public static readonly Str DraggingAPinSnapsIt = new("settings.draggingAPinSnapsIt", "拖动时对齐屏幕、窗口和其他贴图的边缘或中线", "Snap to screen, window, and pin edges or centers while dragging.");
         public static readonly Str DuringARecordingTheReal = new("settings.duringARecordingTheReal", "标出实际录制区域，边框不进入产物", "Outline the recording region without including the outline in the output.");
-        public static readonly Str FfmpegDetected = new(
-            "settings.ffmpegDetected",
-            " · 已检测到 ffmpeg",
-            " · ffmpeg detected");
         public static readonly Str FfmpegDetectedMp4AndWebm = new(
             "settings.ffmpegDetectedMp4AndWebm",
             "已检测到 ffmpeg · 可导出 MP4 / WebM",
             "ffmpeg detected · MP4 and WebM export available");
-        public static readonly Str FfmpegNotFoundInstallFfmpeg = new(
-            "settings.ffmpegNotFoundInstallFfmpeg",
-            " · 未检测到 ffmpeg，装 FFmpeg 后可选",
-            " · ffmpeg not found; install FFmpeg to enable");
-        public static readonly Str FfmpegNotFoundMp4 = new("settings.ffmpegNotFoundMp4", "安装视频组件即可导出 MP4/WebM；GIF 可直接导出", "Install the video component for MP4/WebM. GIF is available.");
+        public static readonly Str ComponentNotInstalled = new("settings.componentNotInstalled", "未安装 · 下载约 {0} MiB", "Not installed · About {0} MiB to download");
+        public static readonly Str ComponentConnecting = new("settings.componentConnecting", "正在连接下载源…", "Connecting to download sources…");
+        public static readonly Str ComponentDownloading = new("settings.componentDownloading", "下载 {0}% · {1} / {2} MiB · {3}", "Downloading {0}% · {1} / {2} MiB · {3}");
+        public static readonly Str ComponentInstallFailed = new("settings.componentInstallFailed", "安装失败，点击重试", "Installation failed. Click to retry.");
         public static readonly Str FillsTheShadowBandFor = new(
             "settings.fillsTheShadowBandFor",
             "给不支持透明度的格式填充边框与阴影",
@@ -281,7 +276,7 @@ public static partial class K
         public static readonly Str System = new("settings.system", "系统", "System");
         public static readonly Str System2 = new("settings.system2", "系统默认", "System");
         public static readonly Str TheCursorAppears = new("settings.theCursorAppears", "将鼠标指针包含在录制中", "Include the cursor in recordings.");
-        public static readonly Str TheFormatTheEditorS = new("settings.theFormatTheEditorS", "录制默认导出格式；MP4/WebM 需要 ffmpeg", "Default recording export format; MP4/WebM require ffmpeg.");
+        public static readonly Str TheFormatTheEditorS = new("settings.theFormatTheEditorS", "录制默认导出格式；MP4/WebM 需要视频组件", "Default recording export format; MP4/WebM require the video component.");
         public static readonly Str TheInstantTheSelectionHotkey = new("settings.theInstantTheSelectionHotkey", "选区和放大镜使用打开时的定格画面；关闭后实时捕获", "Use the opening frame for selection and magnification; turn off for live capture.");
         public static readonly Str Theme = new("settings.theme", "主题", "Theme");
         public static readonly Str TheMomentACaptureFinishes = new("settings.theMomentACaptureFinishes", "截图后边框停留多久再淡出", "How long the screenshot outline stays before fading.");

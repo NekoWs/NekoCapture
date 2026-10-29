@@ -1,5 +1,4 @@
 using System.IO.Compression;
-using FrameCapture.CodecSetup;
 using FrameCapture.Encoding;
 
 internal static partial class Program
@@ -73,10 +72,12 @@ internal static partial class Program
         if (Environment.GetEnvironmentVariable("FC_CODEC_TEST_DOWNLOAD") == "1")
         {
             supplied = Path.Combine(root, "download.zip");
-            var download = typeof(ComponentInstaller).GetMethod("Download", System.Reflection.BindingFlags.NonPublic |
-                System.Reflection.BindingFlags.Static)!;
-            ((Task)download.Invoke(null, new object[] { supplied, new Progress<double>(), CancellationToken.None })!)
-                .GetAwaiter().GetResult();
+            using var client = new System.Net.Http.HttpClient(new System.Net.Http.HttpClientHandler
+                { UseProxy = false, MaxConnectionsPerServer = 8 });
+            var clock = System.Diagnostics.Stopwatch.StartNew();
+            ComponentDownloader.DownloadAsync(supplied, new Progress<ComponentProgress>(), CancellationToken.None,
+                client: client).GetAwaiter().GetResult();
+            Console.WriteLine($"CODEC-DOWNLOAD PASS seconds={clock.Elapsed.TotalSeconds:F1} bytes={new FileInfo(supplied).Length} UseProxy=false");
         }
         if (string.IsNullOrWhiteSpace(supplied)) { Console.WriteLine("  SKIP codec-real-archive: FC_CODEC_TEST_ARCHIVE is unset"); return; }
         string realWork = Path.Combine(root, "real-work");

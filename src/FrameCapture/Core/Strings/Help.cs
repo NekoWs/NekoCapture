@@ -70,8 +70,8 @@ public static partial class K
         public static readonly Str FrameRate = new("help.frameRate", "帧率", "Frame rate");
         public static readonly Str GifPlaysEverywhereMp4Webm = new(
             "help.gifPlaysEverywhereMp4Webm",
-            "GIF 可直接导出；MP4 / WebM 可运行视频组件安装器启用",
-            "GIF works directly; run the video component installer for MP4 / WebM");
+            "GIF 可直接导出；MP4 / WebM 可在「设置 · 录制」安装视频组件",
+            "GIF works directly; install the video component in Settings · Recording for MP4 / WebM");
         public static readonly Str GlobalHotkeysAndTheEditor = new(
             "help.globalHotkeysAndTheEditor",
             "全局快捷键与编辑器里的键都在「设置 · 快捷键」这一页改",

@@ -176,6 +176,7 @@ static partial class SelfTest
             BehaviorPresetUiChecks(settings, service);
             SettingsPageMotionChecks(settings);
             SettingsEditingChecks(settings, service);
+            VideoComponentSettingsChecks(settings);
             RecordingReadyChecks(service);
             settings.Close();
         }
