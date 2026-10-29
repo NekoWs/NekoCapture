@@ -39,10 +39,12 @@ public partial class App : Application
     [System.Runtime.InteropServices.DllImport("user32.dll")]
     static extern bool PostMessageW(IntPtr h, uint msg, IntPtr w, IntPtr l);
 
-    protected override void OnStartup(StartupEventArgs e)
+    protected override async void OnStartup(StartupEventArgs e)
     {
         Core.Trace.Log("OnStartup enter");
         base.OnStartup(e);
+        if (Services.StartupService.TryHandleConfiguration(e.Args, out int configExitCode)) { Shutdown(configExitCode); return; }
+        if (!Services.StartupService.WaitForParent(e.Args)) { Shutdown(); return; }
 
         // 自家中间文件超过保留期就清掉：截图与长图的中间件都在 %TEMP%\FrameCapture，
         // 不收拾会一直涨（实测一台机器上积到两千多个、2.6 GB）。
@@ -50,8 +52,6 @@ public partial class App : Application
         Core.MsaaSnap.DebugLog = Core.Trace.Log;
         Core.ElementSnap.DebugLog = Core.Trace.Log;
 
-    /// <summary>「已经为提权试过一次」的标记参数：UAC 被取消时新实例带着它起来，就不会再来回弹 UAC。</summary>
-    const string ElevationAttemptArg = "--elevated-attempt";
         // 单实例
         _mutex = new Mutex(true, @"Local\FrameCapture.SingleInstance", out bool owned);
         if (!owned)
@@ -80,21 +80,17 @@ public partial class App : Application
         Services.AppHost.Current.Startup();
         StartMessageSink();
 
-        // 「以管理员身份运行」开着而这一次不是提权实例：换成提权实例（UAC 一次），本进程退出。
-        // 只试一次——带上 --elevated-attempt 再起，UAC 被取消时新实例就在当前权限下继续跑，
-        // 不会来回弹。登录自启有另一条路（计划任务直接以最高权限拉起），那时这里根本不会触发。
-        // 脚本与取证一律不提权：那些宿主把这个进程当子进程等结果，弹一次 UAC 就卡在那儿。
-        // 认得三种标记——FC_NO_ELEVATE=1、FC_TEST_NO_FG=1、以及任何用了独立设置目录的启动（FC_SETTINGS_DIR）。
+        // 自动登录入口不请求 UAC；隔离测试和明确关闭自动提权的启动也不请求授权。
         bool scripted = Environment.GetEnvironmentVariable("FC_NO_ELEVATE") == "1"
             || Environment.GetEnvironmentVariable("FC_TEST_NO_FG") == "1"
             || !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("FC_SETTINGS_DIR"));
-        if (!scripted
-            && !Services.StartupService.IsElevated
-            && Services.AppHost.Current.Settings.Current.RunAsAdmin
-            && !e.Args.Any(a => string.Equals(a, ElevationAttemptArg, StringComparison.OrdinalIgnoreCase)))
+        if (Services.StartupService.ShouldElevate(e.Args, scripted, Services.StartupService.IsElevated,
+                Services.AppHost.Current.Settings.Current.RunAsAdmin))
         {
-            var forwarded = string.Join(" ", e.Args.Append(ElevationAttemptArg));
-            if (Services.StartupService.RelaunchElevated(forwarded))
+            var forwarded = Services.StartupService.QuoteArguments(e.Args);
+            var result = await Services.AppHost.Current.ConfigureStartupAsync(Services.AppHost.Current.Settings.Current.RunAtStartup,
+                true, forwarded);
+            if (result is not (Services.StartupResult.Cancelled or Services.StartupResult.Failed))
             {
                 Core.Trace.Log("elevate→relaunch");
                 Shutdown();
@@ -102,12 +98,14 @@ public partial class App : Application
             }
             Core.Trace.Log("elevate→cancelled, keep running unelevated");
         }
+        if (!scripted && Services.StartupService.IsElevated && Services.AppHost.Current.Settings.Current is { RunAtStartup: true, RunAsAdmin: true })
+            Services.StartupService.Apply(true, true);
 
         // 每次启动都弹就绪卡：首启那张常驻（还没看见就说明不了什么），之后几张按时自己走。
         // 点破两个热键 + 关键手感——新用户装完只见托盘图标、不知按什么键是头号上手摩擦。
         // 非激活浮窗不打断输入，ApplicationIdle 时再弹避开与启动抢焦点。
         if (Services.AppHost.Current.Settings.Current.StartupToast)
-            Dispatcher.BeginInvoke(() =>
+            _ = Dispatcher.BeginInvoke(() =>
             {
                 var st = Services.AppHost.Current.Settings;
                 bool firstRun = !st.Current.FirstRunHintShown;
@@ -118,42 +116,42 @@ public partial class App : Application
 
         // 调试/常驻入口：FrameCapture.exe --settings | --help | --edit-last
         if (e.Args.Any(a => string.Equals(a, "--settings", StringComparison.OrdinalIgnoreCase)))
-            Dispatcher.BeginInvoke(() => Overlays.SettingsWindow.ShowOrFocus(PageArg(e.Args)),
+            _ = Dispatcher.BeginInvoke(() => Overlays.SettingsWindow.ShowOrFocus(PageArg(e.Args)),
                 System.Windows.Threading.DispatcherPriority.ApplicationIdle);
         if (e.Args.Any(a => string.Equals(a, "--help", StringComparison.OrdinalIgnoreCase)))
-            Dispatcher.BeginInvoke(() => Overlays.HelpWindow.ShowOrFocus(),
+            _ = Dispatcher.BeginInvoke(() => Overlays.HelpWindow.ShowOrFocus(),
                 System.Windows.Threading.DispatcherPriority.ApplicationIdle);
         // 把最近一次静态截图重新拉回编辑器（与托盘「编辑上次截图」同一入口，也便于脚本调用）
         if (e.Args.Any(a => string.Equals(a, "--edit-last", StringComparison.OrdinalIgnoreCase)))
-            Dispatcher.BeginInvoke(() => Services.AppHost.Current.Controller.EditLastStill(),
+            _ = Dispatcher.BeginInvoke(() => Services.AppHost.Current.Controller.EditLastStill(),
                 System.Windows.Threading.DispatcherPriority.ApplicationIdle);
         // 滚动截图入口（托盘「滚动截图」同一入口，也便于脚本/e2e 调用）
         if (e.Args.Any(a => string.Equals(a, "--scroll", StringComparison.OrdinalIgnoreCase)))
-            Dispatcher.BeginInvoke(() => Services.AppHost.Current.Controller.BeginScrollCapture(),
+            _ = Dispatcher.BeginInvoke(() => Services.AppHost.Current.Controller.BeginScrollCapture(),
                 System.Windows.Threading.DispatcherPriority.ApplicationIdle);
         // 延时截图入口（托盘「延时截图」同一入口，也便于脚本/e2e 调用）
         if (e.Args.Any(a => string.Equals(a, "--delay", StringComparison.OrdinalIgnoreCase)))
-            Dispatcher.BeginInvoke(() => Services.AppHost.Current.Controller.BeginDelayedCapture(),
+            _ = Dispatcher.BeginInvoke(() => Services.AppHost.Current.Controller.BeginDelayedCapture(),
                 System.Windows.Threading.DispatcherPriority.ApplicationIdle);
         // 从剪贴板贴图入口（托盘「从剪贴板贴图」同一入口，也便于脚本/e2e 调用）
         if (e.Args.Any(a => string.Equals(a, "--pin-clip", StringComparison.OrdinalIgnoreCase)))
-            Dispatcher.BeginInvoke(() => Services.AppHost.Current.Controller.PinFromClipboard(),
+            _ = Dispatcher.BeginInvoke(() => Services.AppHost.Current.Controller.PinFromClipboard(),
                 System.Windows.Threading.DispatcherPriority.ApplicationIdle);
         // 切换「暂停全局热键」（托盘同一入口；也便于用户用 Windows 快捷方式/脚本绑一个暂停热键）
         if (e.Args.Any(a => string.Equals(a, "--pause-toggle", StringComparison.OrdinalIgnoreCase)))
-            Dispatcher.BeginInvoke(() => Services.AppHost.Current.Tray.TogglePause(),
+            _ = Dispatcher.BeginInvoke(() => Services.AppHost.Current.Tray.TogglePause(),
                 System.Windows.Threading.DispatcherPriority.ApplicationIdle);
         // 对当前范围 OCR（手势「识别文字」同一入口，也便于脚本/e2e 调用）
         if (e.Args.Any(a => string.Equals(a, "--ocr", StringComparison.OrdinalIgnoreCase)))
-            Dispatcher.BeginInvoke(() => Services.AppHost.Current.Controller.OcrStoredStill(),
+            _ = Dispatcher.BeginInvoke(() => Services.AppHost.Current.Controller.OcrStoredStill(),
                 System.Windows.Threading.DispatcherPriority.ApplicationIdle);
         // 打开托盘右键菜单（同一入口，便于脚本/e2e 调用与截图审查；用户也可绑一个热键唤出）
         if (e.Args.Any(a => string.Equals(a, "--tray-menu", StringComparison.OrdinalIgnoreCase)))
-            Dispatcher.BeginInvoke(() => Services.AppHost.Current.Tray.ShowMenu(),
+            _ = Dispatcher.BeginInvoke(() => Services.AppHost.Current.Tray.ShowMenu(),
                 System.Windows.Threading.DispatcherPriority.ApplicationIdle);
         // 打开滚动截图控制条（模拟拼接进度，便于脚本/e2e 调用与截图审查；不启动真实滚动捕获）
         if (e.Args.Any(a => string.Equals(a, "--scroll-hint", StringComparison.OrdinalIgnoreCase)))
-            Dispatcher.BeginInvoke(() =>
+            _ = Dispatcher.BeginInvoke(() =>
             {
                 var mon = Capture.Monitors.All().FirstOrDefault(m => m.IsPrimary) ?? Capture.Monitors.Nearest(0, 0);
                 var region = new Capture.RectI(mon.Bounds.X + mon.Bounds.W / 2 - 220, mon.Bounds.Y + mon.Bounds.H / 2 - 160, 440, 320);
@@ -168,11 +166,11 @@ public partial class App : Application
             }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
         // 打开首次启动欢迎卡（便于脚本/e2e 调用与截图审查；不改动 FirstRunHintShown，纯查看）
         if (e.Args.Any(a => string.Equals(a, "--welcome", StringComparison.OrdinalIgnoreCase)))
-            Dispatcher.BeginInvoke(ShowWelcomeCard, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+            _ = Dispatcher.BeginInvoke(ShowWelcomeCard, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
 
         // 打开选区窗（截图/选区同一入口，便于脚本/e2e 验证「不抢焦点」与全局键代收）
         if (e.Args.Any(a => string.Equals(a, "--picker", StringComparison.OrdinalIgnoreCase)))
-            Dispatcher.BeginInvoke(() => Services.AppHost.Current.Controller.BeginScopeSelection(),
+            _ = Dispatcher.BeginInvoke(() => Services.AppHost.Current.Controller.BeginScopeSelection(),
                 System.Windows.Threading.DispatcherPriority.ApplicationIdle);
         // 调试/e2e：以一张 PNG 当静图产物直接开编辑器，供 UICap 审查编辑器版面（不走真实捕获链路）。
         // FrameCapture.exe --editor <png 路径>
@@ -180,7 +178,7 @@ public partial class App : Application
         if (edi >= 0)
         {
             string png = edi + 1 < e.Args.Length ? e.Args[edi + 1] : "";
-            Dispatcher.BeginInvoke(() => Services.AppHost.Current.Controller.OpenEditorWithPng(png),
+            _ = Dispatcher.BeginInvoke(() => Services.AppHost.Current.Controller.OpenEditorWithPng(png),
                 System.Windows.Threading.DispatcherPriority.ApplicationIdle);
         }
         // 调试/e2e：以一张 PNG 当静图产物直接钉成贴图，供 UICap 审查贴图窗口版面。
@@ -189,7 +187,7 @@ public partial class App : Application
         if (pni >= 0)
         {
             string png = pni + 1 < e.Args.Length ? e.Args[pni + 1] : "";
-            Dispatcher.BeginInvoke(() => Services.AppHost.Current.Controller.PinWithPng(png),
+            _ = Dispatcher.BeginInvoke(() => Services.AppHost.Current.Controller.PinWithPng(png),
                 System.Windows.Threading.DispatcherPriority.ApplicationIdle);
         }
         // 调试/e2e：摆出滚动截图的取景层 + 实时预览 + 控制条（喂一张合成长图，不启动真实滚动捕获），
@@ -199,7 +197,7 @@ public partial class App : Application
         {
             string spOut = spi + 1 < e.Args.Length ? e.Args[spi + 1]
                 : Path.Combine(Path.GetTempPath(), "FrameCapture", "scrollpreview.png");
-            Dispatcher.BeginInvoke(() => ShowScrollPreviewScene(spOut),
+            _ = Dispatcher.BeginInvoke(() => ShowScrollPreviewScene(spOut),
                 System.Windows.Threading.DispatcherPriority.ApplicationIdle);
         }
         // 调试/e2e：按标题子串截取一个窗口（WGC 本体 + 可选投影），存 PNG，便于取证 alpha/圆角/投影。
@@ -211,7 +209,7 @@ public partial class App : Application
             string outp = wi + 2 < e.Args.Length ? e.Args[wi + 2]
                 : Path.Combine(Path.GetTempPath(), "FrameCapture", "wincap.png");
             bool shadow = !e.Args.Any(a => string.Equals(a, "--noshadow", StringComparison.OrdinalIgnoreCase));
-            Dispatcher.BeginInvoke(() =>
+            _ = Dispatcher.BeginInvoke(() =>
             {
                 try
                 {
@@ -232,7 +230,7 @@ public partial class App : Application
         {
             string outp = ffi + 1 < e.Args.Length ? e.Args[ffi + 1]
                 : Path.Combine(Path.GetTempPath(), "FrameCapture", "freezetest.png");
-            Dispatcher.BeginInvoke(() =>
+            _ = Dispatcher.BeginInvoke(() =>
             {
                 try
                 {

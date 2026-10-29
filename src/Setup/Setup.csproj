@@ -33,6 +33,7 @@
     <Reference Include="System.Net.Http" />
     <Reference Include="System.IO.Compression" />
     <Reference Include="System.IO.Compression.FileSystem" />
+    <Reference Include="System.Xml.Linq" />
     <!-- dynamic 调 WScript.Shell 建快捷方式所需 -->
     <Reference Include="Microsoft.CSharp" />
   </ItemGroup>
@@ -40,6 +41,8 @@
   <ItemGroup>
     <!-- 与主程序共用同一份视觉语言源文件，不是复刻：颜色、动效令牌、控件模板单一来源 -->
     <Compile Include="..\FrameCapture\Core\Theme.cs" Link="Shared\Theme.cs" />
+    <Compile Include="..\FrameCapture\Services\StartupRegistration.cs" Link="Shared\StartupRegistration.cs" />
+    <Compile Include="..\FrameCapture\Services\StartupResult.cs" Link="Shared\StartupResult.cs" />
     <Compile Include="..\FrameCapture\Core\Fluent.cs" Link="Shared\Fluent.cs" />
     <Compile Include="..\FrameCapture\Core\Fluent.ThemeFade.cs" Link="Shared\Fluent.ThemeFade.cs" />
     <Compile Include="..\FrameCapture\Core\Fluent.Controls.cs" Link="Shared\Fluent.Controls.cs" />

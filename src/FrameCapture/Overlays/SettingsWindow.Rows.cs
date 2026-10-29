@@ -77,6 +77,9 @@ public sealed partial class SettingsWindow : Window
     #region 开关行与保存位置、录制格式选择行
 
     FrameworkElement ToggleRow(string glyph, string label, string tip, bool initial, Action<bool> onChange)
+        => ToggleRow(glyph, label, tip, initial, onChange, out _);
+
+    FrameworkElement ToggleRow(string glyph, string label, string tip, bool initial, Action<bool> onChange, out Action<bool> setValue)
     {
         var g = Row();
         // 整行可点，与手势编辑器开关同一命中范围：Grid 底色为 null 时空白处不参与命中测试，
@@ -125,6 +128,11 @@ public sealed partial class SettingsWindow : Window
         track.Child = knob;
         bool on = initial;
         bool focused = false, hovered = false;
+        setValue = value =>
+        {
+            on = value;
+            Fluent.SlideToggle(knob, track, on, 20);
+        };
         void Flip()
         {
             on = !on;

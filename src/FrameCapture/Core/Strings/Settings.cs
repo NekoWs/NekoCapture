@@ -173,15 +173,8 @@ public static partial class K
             "Recording frame rate");
         public static readonly Str RecordWindowOnly = new("settings.recordWindowOnly", "只录窗口", "Record window only");
         public static readonly Str RememberTheLastToolColor = new("settings.rememberTheLastToolColor", "记住工具样式", "Remember tool settings");
-        public static readonly Str RunAsAdministratorTip = new("settings.runAsAdministratorTip", "捕获系统组合键与高权限窗口中的按键；开启时请求提权", "Capture system shortcuts and keys in elevated apps; enabling requests elevation.");
-        public static readonly Str ElevationRelaunchFailed = new("settings.elevationRelaunchFailed", "提权未成功，继续以当前权限运行", "Elevation failed; continuing with current permissions.");        public static readonly Str StartupTaskCancelled = new(
-            "settings.startupTaskCancelled",
-            "建提权自启需要管理员，这一步被取消了：自启没有生效，可以再点一次",
-            "Creating the elevated start-up entry needs administrator rights and was cancelled, so nothing was set up. Try again");
-        public static readonly Str StartupTaskFailed = new(
-            "settings.startupTaskFailed",
-            "提权自启的计划任务没建成，可能被组策略禁用；自启没有生效",
-            "The elevated start-up task could not be created — group policy may block it — so the start-up entry is not in place");        public static readonly Str RightClickCancelsPicker = new("settings.rightClickCancelsPicker", "右键关闭选区", "Right-click closes the picker");
+        public static readonly Str RunAsAdministratorTip = new("settings.runAsAdministratorTip", "开启时授权；同时启用开机自启后，登录时免 UAC 启动", "Authorize when enabling; with Start with Windows enabled, sign-in starts without UAC.");
+        public static readonly Str RightClickCancelsPicker = new("settings.rightClickCancelsPicker", "右键关闭选区", "Right-click closes the picker");
         public static readonly Str RightClickCancelsPickerTip = new("settings.rightClickCancelsPickerTip", "右键取消选区，不执行捕获", "Right-click to cancel selection without capturing.");
         public static readonly Str Reset = new("settings.reset", "恢复", "Reset");
         public static readonly Str Resident = new("settings.resident", "常驻", "Resident");

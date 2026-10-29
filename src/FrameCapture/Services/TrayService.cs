@@ -152,10 +152,10 @@ public sealed class TrayService : IDisposable
             Overlays.WelcomeToast.Show(g.CaptureKeyText(), g.RecordKeyText());
         });
         Item(Loc.T(K.Tray.Help), OpenHelp);
-        Item(Loc.T(K.Common.StartWithWindows), () =>
+        Item(Loc.T(K.Common.StartWithWindows), async () =>
         {
-            _host.Settings.Mutate(s => s.RunAtStartup = !s.RunAtStartup);
-            StartupService.Apply(_host.Settings.Current.RunAtStartup, _host.Settings.Current.RunAsAdmin);
+            var result = await _host.ConfigureStartupAsync(!_host.Settings.Current.RunAtStartup, _host.Settings.Current.RunAsAdmin);
+            if (result == StartupResult.Failed) System.Windows.MessageBox.Show(Loc.T(K.Common.StartupTaskFailed));
         }, checkable: true, isChecked: _host.Settings.Current.RunAtStartup);
         // 暂停全局热键——游戏/演示/与其他软件热键冲突时临时让位，键完整落到前台应用。
         // 运行时状态（不持久化），重启自动恢复工作。
@@ -165,11 +165,10 @@ public sealed class TrayService : IDisposable
         if (AppHost.IsElevated)
             Item(Loc.T(K.Tray.RunningAsAdministrator), () => { }, checkable: true, isChecked: true); // 勾选标记由 checkable 呈现，文本里不重复打勾
         else
-            Item(Loc.T(K.Tray.RunAsAdministrator), () =>
+            Item(Loc.T(K.Tray.RunAsAdministrator), async () =>
             {
-                // 托盘这一下与设置里那枚开关是同一件事：都记成「要提权」，再换成提权实例
-                _host.Settings.Mutate(s => s.RunAsAdmin = true);
-                _host.RestartAsAdmin();
+                var result = await _host.ConfigureStartupAsync(_host.Settings.Current.RunAtStartup, true);
+                if (result == StartupResult.Failed) System.Windows.MessageBox.Show(Loc.T(K.Common.StartupTaskFailed));
             });
         Sep();
         Item(Loc.T(K.Tray.Exit), () =>

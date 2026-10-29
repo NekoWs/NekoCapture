@@ -243,13 +243,14 @@ foreach ($f in $files) {
                 Add-V "缺 XML 文档（$scope 成员，§4.4）" "FAIL" $rel $ln $raw.Trim()
             } else {
                 $docTxt = $doc -join ' '
-                if ($m.Count -gt 0 -and $docTxt -notmatch '<param\s') {
+                $inherited = $docTxt -match '<inheritdoc\b[^>]*/>'
+                if (-not $inherited -and $m.Count -gt 0 -and $docTxt -notmatch '<param\s') {
                     Add-V "缺 <param>（§4.4）" "FAIL" $rel $ln $raw.Trim()
                 }
                 $head = $m.Before -replace '\b(public|internal|static|sealed|override|async|unsafe|partial|readonly|virtual|extern|new)\b', ''
                 $retTok = ($head.Trim() -split '\s+') | Where-Object { $_ -ne '' } | Select-Object -Last 1
                 $voidRet = [string]::IsNullOrEmpty($retTok) -or $retTok -eq 'void'
-                if (-not $voidRet -and $docTxt -notmatch '<returns>') {
+                if (-not $inherited -and -not $voidRet -and $docTxt -notmatch '<returns>') {
                     Add-V "缺 <returns>（§4.4）" "FAIL" $rel $ln $raw.Trim()
                 }
             }

@@ -10,7 +10,13 @@ $cases = @(
 public readonly record struct Data(int Value);' },
     @{ Name = 'method'; Pass = $false; Source = '/// <summary>查询数据。</summary>
 public static int Read() => 1;' },
-    @{ Name = 'narrative'; Pass = $false; Source = '// 本轮完成字段调整' }
+    @{ Name = 'narrative'; Pass = $false; Source = '// 本轮完成字段调整' },
+    @{ Name = 'inheritdoc'; Pass = $true; Source = '/// <summary>继承实现。</summary>
+internal class Derived : Base
+{
+    /// <inheritdoc/>
+    public override int Read(int value) => value;
+}' }
 )
 $failed = 0
 foreach ($case in $cases) {

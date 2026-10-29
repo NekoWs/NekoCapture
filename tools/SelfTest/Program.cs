@@ -1152,6 +1152,12 @@ static partial class SelfTest
         }
         Console.OutputEncoding = System.Text.Encoding.UTF8;
         SettingsScratch();
+        if (args.Length == 1 && args[0] == "startup")
+        {
+            StartupChecks();
+            Console.WriteLine($"RESULT PASS={pass} FAIL={fail}");
+            return fail == 0 ? 0 : 1;
+        }
         if (args.Length == 1 && args[0] == "behavior-policy")
         {
             BehaviorPolicy();
@@ -4046,6 +4052,7 @@ static partial class SelfTest
                 Chk("T126h-refresh-real", hz > 0, $"本机主屏刷新率检测 → {hz}Hz");
             }
 
+            StartupChecks();
             ComponentDownloadChecks();
             VideoComponentChecks();
             // 视频编码：定位、参数、帧率与真实编码。

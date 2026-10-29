@@ -350,6 +350,10 @@ internal static class InstallEngine
             log.Report("正在结束运行中的主程序");
             KillApp();
 
+            log.Report("正在清除开机自启");
+            using (var startup = new FrameCapture.Services.WindowsStartupRegistration())
+                startup.RemoveForExecutable(Path.Combine(InstallDir, "FrameCapture.exe"));
+
             log.Report("正在删除程序目录 " + InstallDir);
             TryDeleteDir(InstallDir);
 

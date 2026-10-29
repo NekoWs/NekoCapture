@@ -1,161 +1,76 @@
-using System.Diagnostics;
 using System.Security.Principal;
-using Microsoft.Win32;
 
 namespace FrameCapture.Services;
 
-/// <summary>开机自启：普通自启走 HKCU 的 Run 项，提权自启走计划任务。
-/// 两者互斥——同一个程序只留一条入口，否则登录时会起来两个实例。
-/// 提权那条要建"最高权限"的计划任务，建的那一刻需要管理员（UAC 一次），
-/// 之后每次登录由任务计划程序直接以管理员身份拉起，无需 UAC。</summary>
-public static class StartupService
+/// <summary>普通自启使用用户 Run 项；提权自启使用当前用户的交互式高权限登录任务。</summary>
+public static partial class StartupService
 {
-    const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
-    const string ValueName = "FrameCapture";
-
-    /// <summary>提权自启用的计划任务名。删它同样需要管理员。</summary>
+    /// <summary>全局任务名称，用于识别本程序登记的兼容入口。</summary>
     public const string TaskName = "FrameCapture";
+    /// <summary>登录入口标记；此入口禁止自动弹出 UAC。</summary>
+    internal const string StartupArg = "--startup";
 
-    /// <summary>当前进程是否以管理员身份运行。提权自启与全局钩子抓住系统键都靠它。</summary>
+    /// <summary>当前进程是否拥有管理员令牌。</summary>
     public static bool IsElevated
     {
         get
         {
             try
             {
-                using var id = WindowsIdentity.GetCurrent();
-                return new WindowsPrincipal(id).IsInRole(WindowsBuiltInRole.Administrator);
+                using var identity = WindowsIdentity.GetCurrent();
+                return new WindowsPrincipal(identity).IsInRole(WindowsBuiltInRole.Administrator);
             }
             catch { return false; }
         }
     }
 
-    /// <summary>按「要不要自启」与「要不要以管理员身份运行」摆好登录入口。
-    /// 两个都开 → 建最高权限的计划任务并清掉 Run 项；否则 → 写 Run 项并删掉计划任务。
-    /// 建/删计划任务需要管理员：当前没提权时用 <c>runas</c> 起一个 <c>schtasks</c>（UAC 一次），
-    /// 用户在 UAC 上点取消就当作失败，不去偷偷改成 Run 项。</summary>
-    /// <param name="enable">是否随登录自启。</param>
-    /// <param name="elevated">是否要求以管理员身份运行。</param>
-    /// <returns>这一步的结果，设置页据此回话。</returns>
-    public static StartupResult Apply(bool enable, bool elevated)
-    {
-        if (!enable)
-        {
-            DeleteTask();
-            ApplyRun(false);
-            return StartupResult.Off;
-        }
-        if (!elevated)
-        {
-            DeleteTask();
-            ApplyRun(true);
-            return StartupResult.RunKey;
-        }
-        // 提权自启：先建任务，建成了才清 Run 项（建失败时至少还有个普通自启兜底）
-        var ok = EnsureTask(out var cancelled);
-        if (!ok) return cancelled ? StartupResult.Cancelled : StartupResult.Failed;
-        ApplyRun(false);
-        return StartupResult.Task;
-    }
+    /// <summary>按用户请求切换登录入口；失败时保留当前入口。</summary>
+    /// <param name="enable">是否启用登录自启。</param>
+    /// <param name="elevated">是否使用最高权限任务。</param>
+    /// <returns>登记结果；仅在成功后保存设置。</returns>
+    public static StartupResult Apply(bool enable, bool elevated) => Configure(enable, elevated, false, null).Result;
 
-    /// <summary>HKCU Run 项：普通自启的入口。</summary>
-    /// <param name="enable">true 写、false 删。</param>
-    static void ApplyRun(bool enable)
+    /// <summary>登记登录入口，并按需交接到同一用户的提权实例。</summary>
+    /// <param name="enable">是否启用登录自启。</param>
+    /// <param name="elevated">是否要求管理员权限。</param>
+    /// <param name="restart">是否需要启动提权实例。</param>
+    /// <param name="arguments">已正确引用的应用参数。</param>
+    /// <param name="settings">需要与登录入口一并保存的设置；null 只登记入口。</param>
+    /// <returns>登记结果及实例交接状态。</returns>
+    internal static StartupChange Configure(bool enable, bool elevated, bool restart, string? arguments, Core.SettingsService? settings = null)
     {
         try
         {
-            using var key = Registry.CurrentUser.OpenSubKey(RunKey, writable: true)
-                            ?? Registry.CurrentUser.CreateSubKey(RunKey);
-            if (enable)
-            {
-                var exe = Environment.ProcessPath;
-                if (!string.IsNullOrEmpty(exe)) key.SetValue(ValueName, $"\"{exe}\"");
-            }
-            else key.DeleteValue(ValueName, throwOnMissingValue: false);
+            string exe = Environment.ProcessPath ?? throw new InvalidOperationException("Executable path unavailable");
+            using var identity = WindowsIdentity.GetCurrent();
+            string sid = identity.User?.Value ?? throw new InvalidOperationException("User SID unavailable");
+            using var registration = new WindowsStartupRegistration();
+            var plan = new StartupPlan(registration, exe, sid, enable, elevated);
+            if (!IsElevated && (restart || plan.NeedsElevation)) return RunConfigurationHelper(enable, elevated, restart, arguments, sid);
+            var result = plan.Apply();
+            if (settings != null && !settings.TrySaveStartup(enable, elevated))
+            { plan.Restore(); return new StartupChange(StartupResult.Failed, false); }
+            return new StartupChange(result, false);
         }
-        catch { /* 注册表被策略禁用时后果只是自启没生效 */ }
-    }
-
-    /// <summary>建/更新最高权限的登录任务。任务已存在时覆盖（<c>/F</c>），
-    /// 路径变了也会指向新的 exe。</summary>
-    /// <param name="cancelled">UAC 被用户取消时为 true。</param>
-    /// <returns>任务建成返回 true。</returns>
-    static bool EnsureTask(out bool cancelled)
-    {
-        cancelled = false;
-        var exe = Environment.ProcessPath;
-        if (string.IsNullOrEmpty(exe)) return false;
-        var args = $"/Create /TN \"{TaskName}\" /TR \"\\\"{exe}\\\"\" /SC ONLOGON /RL HIGHEST /F";
-        var r = RunSchtasks(args, out cancelled);
-        return r == 0;
-    }
-
-    /// <summary>删掉提权自启任务；本来就没有也算成功。</summary>
-    static void DeleteTask() => RunSchtasks($"/Delete /TN \"{TaskName}\" /F", out _);
-
-    /// <summary>跑一次 schtasks。已提权就直接跑；没提权走 <c>runas</c>（UAC 一次）。
-    /// 不弹窗、不阻塞等待：调 schtasks 是为了让它把任务落盘，返回值用 <c>/F</c> 的退出码判。</summary>
-    /// <param name="args">schtasks 的参数。</param>
-    /// <param name="cancelled">用户取消 UAC 时为 true。</param>
-    /// <returns>schtasks 退出码；起不来进程时 -1。</returns>
-    static int RunSchtasks(string args, out bool cancelled)
-    {
-        cancelled = false;
-        try
+        catch (Exception ex)
         {
-            var psi = new ProcessStartInfo("schtasks.exe", args)
-            {
-                UseShellExecute = true,
-                WindowStyle = ProcessWindowStyle.Hidden,
-                CreateNoWindow = true,
-            };
-            if (!IsElevated) psi.Verb = "runas";
-            using var p = Process.Start(psi);
-            if (p == null) return -1;
-            p.WaitForExit(15000);
-            return p.HasExited ? p.ExitCode : -1;
+            Core.Trace.Log("startup configuration failed: " + ex);
+            return new StartupChange(StartupResult.Failed, false);
         }
-        catch (System.ComponentModel.Win32Exception)
-        {
-            // 1223 = ERROR_CANCELLED：用户在 UAC 上点了「否」
-            cancelled = true;
-            return -1;
-        }
-        catch { return -1; }
     }
 
-    /// <summary>以管理员身份重新启动本程序（当前实例随后退出）。用户取消 UAC 时返回 false。</summary>
-    /// <param name="extraArgs">附带给新实例的参数，如 <c>--settings</c>。</param>
-    /// <returns>新实例起来了返回 true。</returns>
-    public static bool RelaunchElevated(string? extraArgs = null)
-    {
-        var exe = Environment.ProcessPath;
-        if (string.IsNullOrEmpty(exe)) return false;
-        try
-        {
-            var psi = new ProcessStartInfo(exe, extraArgs ?? "")
-            {
-                UseShellExecute = true,
-                Verb = "runas",
-            };
-            using var p = Process.Start(psi);
-            return p != null;
-        }
-        catch { return false; }
-    }
+    /// <summary>是否允许本次启动自动请求提权。</summary>
+    /// <param name="arguments">应用启动参数。</param>
+    /// <param name="scripted">是否为隔离测试或明确禁用自动提权。</param>
+    /// <param name="elevated">当前是否已提权。</param>
+    /// <param name="requested">是否保存了管理员运行偏好。</param>
+    /// <returns>只有交互式普通启动可自动请求一次提权。</returns>
+    internal static bool ShouldElevate(IReadOnlyList<string> arguments, bool scripted, bool elevated, bool requested)
+        => !scripted && !elevated && requested && !arguments.Any(a =>
+            a.Equals(StartupArg, StringComparison.OrdinalIgnoreCase) || a.Equals("--elevated-attempt", StringComparison.OrdinalIgnoreCase));
 }
 
-/// <summary><see cref="StartupService.Apply"/> 的实际落点。</summary>
-public enum StartupResult
-{
-    /// <summary>已关闭自启：Run 项与计划任务都清掉。</summary>
-    Off,
-    /// <summary>普通自启：只写 HKCU Run 项。</summary>
-    RunKey,
-    /// <summary>提权自启：最高权限的登录任务已建好，Run 项已清掉。</summary>
-    Task,
-    /// <summary>需要管理员但用户在 UAC 上取消了。</summary>
-    Cancelled,
-    /// <summary>计划任务没建成（策略禁用、路径取不到、schtasks 报错）。</summary>
-    Failed,
-}
+/// <summary>登录入口登记与提权实例交接的结果。</summary>
+/// <param name="Result">入口登记结果。</param>
+/// <param name="Restarted">已创建等待当前进程退出的提权实例。</param>
+internal readonly record struct StartupChange(StartupResult Result, bool Restarted);

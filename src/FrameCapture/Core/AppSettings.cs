@@ -490,6 +490,37 @@ public sealed class SettingsService
     /// <value>无参无返回的 <c>Action</c>。处理器内不得阻塞——它在 UI 线程锁外同步执行。</value>
     public event Action? Changed;
 
+    /// <summary>严格保存自启与权限偏好；写盘失败保持内存值不变，不触发界面通知。</summary>
+    /// <param name="enable">是否启用登录自启。</param>
+    /// <param name="elevated">是否要求管理员权限。</param>
+    /// <returns>设置已原子写入时为 true。</returns>
+    internal bool TrySaveStartup(bool enable, bool elevated)
+    {
+        lock (_gate)
+        {
+            try
+            {
+                var copy = JsonSerializer.Deserialize<AppSettings>(JsonSerializer.Serialize(_current, JsonOpts), JsonOpts)!;
+                copy.RunAtStartup = enable; copy.RunAsAdmin = elevated;
+                Directory.CreateDirectory(Dir);
+                WriteAtomic(copy);
+                _current.RunAtStartup = enable; _current.RunAsAdmin = elevated;
+                _selfWriteUtc = DateTime.UtcNow;
+                return true;
+            }
+            catch { return false; }
+        }
+    }
+
+    /// <summary>在 UI 线程接收已完成登记和持久化的自启偏好，并通知界面。</summary>
+    /// <param name="enable">已保存的登录自启值。</param>
+    /// <param name="elevated">已保存的权限偏好。</param>
+    internal void AcceptStartup(bool enable, bool elevated)
+    {
+        lock (_gate) { _current.RunAtStartup = enable; _current.RunAsAdmin = elevated; }
+        Changed?.Invoke();
+    }
+
     /// <summary>改设置的标准入口：锁内改 <see cref="Current"/> → Normalize → Save，出锁后再触发 <see cref="Changed"/>。
     /// 事件放在锁外是因为处理器常回读 Current，锁内回调等于把重入塞进临界区。</summary>
     /// <param name="mutate">对当前设置实例的原地修改；在锁内执行，里面别做 IO，也不要在其中再调 Mutate。</param>

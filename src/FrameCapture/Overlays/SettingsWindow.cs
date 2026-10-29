@@ -307,38 +307,7 @@ panel.Children.Add(ToggleRow("\uE768", Loc.T(K.Settings.StartRecordingAfterSelec
 
         #region 系统
         panel = Cat(Loc.T(K.Settings.System), "\uE713");
-        // 自启与提权是同一件事的两半：两个都开走计划任务（登录时无需 UAC），只开自启走 Run 项。
-        // 每次改动都把两条入口一起摆正——只改一半会留下两个入口，登录时起来两个实例。
-        void ApplyStartup()
-        {
-            var r = StartupService.Apply(_settings.Current.RunAtStartup, _settings.Current.RunAsAdmin);
-            if (r is StartupResult.Cancelled or StartupResult.Failed)
-                MessageBox.Show(this,
-                    Loc.T(r == StartupResult.Cancelled ? K.Settings.StartupTaskCancelled : K.Settings.StartupTaskFailed),
-                    Loc.T(K.Common.StartWithWindows), MessageBoxButton.OK, MessageBoxImage.Warning);
-        }
-        panel.Children.Add(ToggleRow("\uE7E8", Loc.T(K.Common.StartWithWindows), Loc.T(K.Settings.StartsFramecaptureWhenYouSign),
-            _settings.Current.RunAtStartup, v =>
-            {
-                _settings.Mutate(s => s.RunAtStartup = v);
-                ApplyStartup();
-            }));
-        panel.Children.Add(ToggleRow("\uE7EF", Loc.T(K.Tray.RunAsAdministrator), Loc.T(K.Settings.RunAsAdministratorTip),
-            _settings.Current.RunAsAdmin, v =>
-            {
-                _settings.Mutate(s => s.RunAsAdmin = v);
-                if (!v) { ApplyStartup(); return; }
-                // 已经提权：只把登录入口换成任务形式，不必重启
-                if (StartupService.IsElevated) { ApplyStartup(); return; }
-                // 没提权：换成提权实例。交接必须「先起新的、再退出当前进程」——当前进程不退，新实例会撞上单实例互斥、
-                // 把参数转发给正在退出的它再退掉，结果一个提权实例都没有（托盘也因此一直不勾）。
-                // 新实例带 --settings --page system：用户刚在这一页按的开关，提权回来后还停在这一页。
-                if (AppHost.Current.RestartAsAdmin("--settings --page system")) return;
-                // 提权没成（UAC 被取消）：开关关回去，别留下「开着却没提权」的半截状态
-                _settings.Mutate(s => s.RunAsAdmin = false);
-                MessageBox.Show(this, Loc.T(K.Settings.ElevationRelaunchFailed), Loc.T(K.Tray.RunAsAdministrator),
-                    MessageBoxButton.OK, MessageBoxImage.Warning);
-            }));
+        panel.Children.Add(StartupOptions());
         panel.Children.Add(ToggleRow("\uE8B9", Loc.T(K.Settings.CaptureTheAppItself), Loc.T(K.Settings.WhenOnTheEditorTheRecord),
             _settings.Current.CaptureSelf, v =>
             {

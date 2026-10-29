@@ -9,6 +9,8 @@ public static partial class K
     /// <summary>两个界面以上共用的文案的文案。</summary>
     public static partial class Common
     {
+        public static readonly Str StartupTaskCancelled = new("settings.startupTaskCancelled", "已取消修改", "Change cancelled");
+        public static readonly Str StartupTaskFailed = new("settings.startupTaskFailed", "自启设置未完成，请重试", "Could not update startup settings. Try again.");
         public static readonly Str VideoComponent = new("codecsetup.title", "视频组件", "Video component");
         public static readonly Str VideoComponentDescription = new("codecsetup.description", "支持 MP4 与透明 WebM 导出", "Enable MP4 and transparent WebM export");
         public static readonly Str DownloadAndInstall = new("codecsetup.download", "下载并安装", "Download and install");

@@ -14,6 +14,7 @@ pwsh -NoProfile -File scripts/publish-release.ps1
 安装器使用 .NET Framework 4.8，运行时检测与主程序要求一致。
 程序安装到 Program Files；安装失败使用备份恢复，卸载清除程序、快捷方式、自启项与卸载登记项。
 安装与卸载需要管理员权限，发行前须在干净机器上人工验证。
+自启提权验证包含两种勾选顺序、授权取消、注销后免 UAC 启动、关闭自启与卸载后的任务清理。
 
 离线包包含 PDB 以提供带行号的故障堆栈。主包不包含 FFmpeg。
 录制设置提供视频组件的安装和进度。发布同时产出 `FrameCapture-Codecs-Setup-<版本>-x64.exe`。

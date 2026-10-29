@@ -141,27 +141,30 @@ public sealed class AppHost
         }
     }
 
-    /// <summary>以管理员权限重启本程序（UAC 确认一次）；取消则维持现状，本进程继续跑。
-    /// 交接是「先起提权实例、再关自己」：反过来的话新实例会撞上单实例互斥、把参数转发给正在退出的当前进程再退。
-    /// 当前进程必须真的退出，提权实例才拿得到那个互斥。</summary>
-    /// <param name="args">交给提权实例的参数，如 <c>--settings --page system</c>。</param>
-    /// <returns>提权实例已起来（本进程随后退出）返回 true；用户取消 UAC 返回 false。</returns>
-    public bool RestartAsAdmin(string? args = null)
+    private readonly SemaphoreSlim _startupGate = new(1, 1);
+
+    /// <summary>先登记登录入口，再保存设置；提权子进程等待当前进程退出后接管。</summary>
+    /// <param name="enable">是否启用登录自启。</param>
+    /// <param name="elevated">是否要求管理员权限。</param>
+    /// <param name="arguments">交接后的应用参数。</param>
+    /// <returns>登记成功、取消或失败的结果。</returns>
+    public async Task<StartupResult> ConfigureStartupAsync(bool enable, bool elevated, string? arguments = null)
     {
+        await _startupGate.WaitAsync();
         try
         {
-            var exe = Environment.ProcessPath ?? System.Reflection.Assembly.GetExecutingAssembly().Location;
-            var psi = new System.Diagnostics.ProcessStartInfo(exe, args ?? "")
-            { UseShellExecute = true, Verb = "runas" };
-            using var p = System.Diagnostics.Process.Start(psi);
-            if (p == null) return false;
-            Trace.Log("relaunch requested: elevated");
-            Shutdown();
-            System.Windows.Application.Current?.Shutdown();
-            return true;
+            var change = await Task.Run(() => StartupService.Configure(enable, elevated, elevated && !IsElevated, arguments, Settings));
+            if (change.Result is StartupResult.Cancelled or StartupResult.Failed) return change.Result;
+            Settings.AcceptStartup(enable, elevated);
+            if (change.Restarted)
+            {
+                Shutdown();
+                System.Windows.Application.Current?.Shutdown();
+            }
+            return change.Result;
         }
-        catch (System.ComponentModel.Win32Exception) { return false; }   // 用户取消了 UAC
-        catch (Exception ex) { Trace.Log($"elevate failed: {ex.GetType().Name}"); return false; }
+        catch (Exception ex) { Trace.Log("startup preference failed: " + ex); return StartupResult.Failed; }
+        finally { _startupGate.Release(); }
     }
 
     /// <summary>把钩子动作投递到 UI 线程，绝不阻塞。

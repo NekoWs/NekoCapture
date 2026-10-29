@@ -2,7 +2,7 @@
 # 默认不注入 OS 级输入；-Full 包含应用内消息驱动的端到端检查。
 # -AllowInjection 显式启用焦点安全检查；SKIP 不表示验证通过。
 # -Quick 仅构建与静态扫描；-SkipE2e 跳过端到端检查。
-param([switch]$Full, [switch]$Quick, [switch]$SkipE2e, [switch]$AllowInjection, [int]$MinSelfTestPass = 1116)
+param([switch]$Full, [switch]$Quick, [switch]$SkipE2e, [switch]$AllowInjection, [int]$MinSelfTestPass = 1143)
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 . (Join-Path $PSScriptRoot "lib-hotkey.ps1")
@@ -244,6 +244,7 @@ if (-not $Full) {
 # 7) e2e：每一项都要重启一次主程序（单实例是硬约束，串行跑不掉），合计约两分半。
 #    平时改代码走默认档跳过它，发布前用 -Full 跑全套。
 $e2e = @(
+    @{ n = "e2e:startup-handoff"; f = "test-startup-handoff.ps1"; mark = "STARTUP-HANDOFF" },
     @{ n = "e2e:editor-keys(捕获→编辑器→Enter→剪贴板三格式)"; f = "test-editor-keys.ps1";    mark = "EDITOR-KEYS" },
     @{ n = "e2e:zoom(1:1/放大/适配 键路由+zoom决策)";             f = "test-zoom.ps1";           mark = "ZOOM" },
     @{ n = "e2e:esc-layers(绘制态Esc不丢捕获)";                   f = "test-esc-layers.ps1";     mark = "ESC-LAYERS" },
