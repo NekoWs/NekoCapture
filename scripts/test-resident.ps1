@@ -65,6 +65,11 @@ function Read-Json([string]$path) {
     $reader = [IO.StreamReader]::new($file)
     try { return $reader.ReadToEnd() | ConvertFrom-Json } finally { $reader.Dispose() }
 }
+function Find-Resident {
+    Get-Process FrameCapture.Resident -ErrorAction SilentlyContinue | Where-Object {
+        $_.Path -eq $env:FC_RESIDENT_PATH -and $_.StartTime -gt (Get-Item -LiteralPath $fixture).CreationTime
+    } | Sort-Object StartTime -Descending | Select-Object -First 1
+}
 try {
     $env:TEMP = $runtime; $env:TMP = $runtime; $env:FC_SETTINGS_DIR = $fixture
     $env:FC_TEST_NO_FG = '1'; $env:FC_TEST_NO_WINDOWS = '1'; $env:FC_NO_ELEVATE = '1'
@@ -77,9 +82,7 @@ try {
     if ($LASTEXITCODE -ne 0) { throw '隔离配置生成失败' }
     Invoke-Ui @()
     $found = Wait-For {
-        $script:native = Get-Process FrameCapture.Resident -ErrorAction SilentlyContinue | Where-Object {
-            $_.Path -eq $env:FC_RESIDENT_PATH -and $_.StartTime -gt (Get-Item -LiteralPath $fixture).CreationTime
-        } | Sort-Object StartTime -Descending | Select-Object -First 1
+        $script:native = Find-Resident
         $null -ne $script:native
     }
     Check 'native-startup' $found
@@ -161,6 +164,20 @@ try {
     "memory_after_use: private_commit=$($native.PrivateMemorySize64) private_working_set=$($working.WorkingSetPrivate) total_working_set=$($native.WorkingSet64)"
     Check 'used-resident-private-commit-under-10mb' ($native.PrivateMemorySize64 -lt 10MB)
     Check 'input-snapshots-publish-without-contention' ((Trace-Count 'resident inputs:') -eq 0)
+    $settings = Read-Json $settingsFile
+    $settings.StartupToast = $true; $settings.FirstRunHintShown = $false
+    $settings | ConvertTo-Json -Depth 64 | Set-Content -LiteralPath $settingsFile -Encoding utf8
+    Check 'first-startup-settings-sync' ((Wait-For {
+        (Read-Json (Join-Path $fixture 'resident-inputs.json')).SourceTicks -eq (Get-Item -LiteralPath $settingsFile).LastWriteTimeUtc.Ticks
+    }) -and (Idle))
+    Stop-Process -Id $native.Id -Force; [void]$native.WaitForExit(3000); $native.Dispose(); $native = $null
+    Invoke-Ui @()
+    Check 'first-startup-records-welcome-shown' (Wait-For {
+        $script:native = Find-Resident
+        $script:native -and (Read-Json $settingsFile).FirstRunHintShown -and @(Workers).Count -eq 1
+    })
+    Start-Sleep -Seconds 4
+    Check 'first-welcome-keeps-ui-alive' (@(Workers).Count -eq 1)
     foreach ($log in @('error.log', 'resident.log')) {
         $file = Join-Path $fixture $log
         Check "empty-$log" (-not (Test-Path -LiteralPath $file) -or (Get-Item -LiteralPath $file).Length -eq 0)

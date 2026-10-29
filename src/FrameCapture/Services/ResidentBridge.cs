@@ -61,7 +61,7 @@ internal static class ResidentBridge
                 var wait = Stopwatch.StartNew();
                 while (ResidentProtocol.FindHost() == IntPtr.Zero && wait.ElapsedMilliseconds < 3000) Thread.Sleep(20);
                 if (!ResidentProtocol.Send(ResidentProtocol.FindHost(), request)) return false;
-                if (request.Length == 0 && settings.Current.StartupToast) ResidentProtocol.Send(ResidentProtocol.FindHost(), ["--welcome"]);
+                if (request.Length == 0 && settings.Current.StartupToast) ResidentProtocol.Send(ResidentProtocol.FindHost(), ["--resident-welcome"]);
                 return true;
             }
             finally { bootstrap.ReleaseMutex(); }
@@ -173,6 +173,11 @@ internal static class ResidentBridge
             case "--pin-clip": host.Controller.PinFromClipboard(); break;
             case "--pause-toggle": host.Tray.TogglePause(); break;
             case "--ocr": host.Controller.OcrStoredStill(); break;
+            case "--resident-welcome":
+                bool firstRun = !host.Settings.Current.FirstRunHintShown;
+                if (firstRun) host.Settings.Mutate(settings => settings.FirstRunHintShown = true);
+                WelcomeToast.Show(host.Settings.Current.Gestures.CaptureKeyText(), host.Settings.Current.Gestures.RecordKeyText(), sticky: firstRun);
+                break;
             case "--welcome":
                 var gestures = host.Settings.Current.Gestures;
                 WelcomeToast.Show(gestures.CaptureKeyText(), gestures.RecordKeyText());

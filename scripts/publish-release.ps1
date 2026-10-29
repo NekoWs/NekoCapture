@@ -120,6 +120,15 @@ $residentPublish = dotnet publish src/Resident/Resident.csproj -c Release -r win
 if ($LASTEXITCODE -ne 0) { throw "原生常驻组件发布失败: $residentPublish" }
 $residentExe = Join-Path $residentStage 'FrameCapture.Resident.exe'
 if (-not (Test-Path -LiteralPath $residentExe)) { throw '缺少原生常驻组件' }
+$residentAssets = Get-Content -LiteralPath 'src/Resident/obj/project.assets.json' -Raw | ConvertFrom-Json -AsHashtable
+$runtimeDependency = @($residentAssets.project.frameworks.Values | ForEach-Object { $_.downloadDependencies } |
+    Where-Object name -eq 'Microsoft.NETCore.App.Runtime.NativeAOT.win-x64' | Select-Object -First 1)
+if (-not $runtimeDependency.Count) { throw '缺少 NativeAOT 运行库版本' }
+$runtimeVersion = [regex]::Match($runtimeDependency[0].version, '\d+\.\d+\.\d+(?:-[\w.]+)?').Value
+$runtimePackage = @($residentAssets.packageFolders.Keys | ForEach-Object {
+    Join-Path $_ "microsoft.netcore.app.runtime.nativeaot.win-x64/$runtimeVersion"
+} | Where-Object { Test-Path -LiteralPath (Join-Path $_ 'LICENSE.TXT') } | Select-Object -First 1)
+if (-not $runtimePackage.Count) { throw '缺少 NativeAOT 运行库许可文件' }
 foreach ($v in $variants) {
     $stage = Join-Path $OutDir "staging\$($v.Key)"
     Step "发布 $($v.Suffix)"
@@ -130,6 +139,11 @@ foreach ($v in $variants) {
     $perr = @($p -split "`n" | ForEach-Object{ $_.Trim() } | Where-Object{ $_ -match ': error' })
     if ($publishCode -ne 0 -or $perr.Count) { $perr | ForEach-Object{ Write-Host "  $_" -ForegroundColor Red }; throw "发布 $($v.Suffix) 失败" }
     Copy-Item -LiteralPath $residentExe -Destination $stage
+    $runtimeNotices = Join-Path $stage 'licenses/dotnet'
+    New-Item -ItemType Directory -Force -Path $runtimeNotices | Out-Null
+    foreach ($name in @('LICENSE.TXT', 'THIRD-PARTY-NOTICES.TXT')) {
+        Copy-Item -LiteralPath (Join-Path $runtimePackage[0] $name) -Destination $runtimeNotices
+    }
     $rawSize = (Get-ChildItem $stage -Recurse -File | Measure-Object Length -Sum).Sum
     Write-Host ("  发布目录 {0:N1} MB / {1} 个文件" -f ($rawSize / 1MB), @(Get-ChildItem $stage -Recurse -File).Count)
 

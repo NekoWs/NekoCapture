@@ -20,7 +20,7 @@
 - 图版本为 1，动作链导入版本为 3；写回前保留输入备份，文件占用时有限重试。
 - 运行使用配置快照；无效入口不装入手势引擎。物理与测试输入隔离，时间戳使用统一单调时间轴。
 
-1189 项 SelfTest、70 组双语审计和 9 项端到端检查通过。常驻检查包含 34 项断言。
+1189 项 SelfTest、70 组双语审计和 9 项端到端检查通过。常驻检查包含 37 项断言。
 构建零错误，静态扫描零失败，注释零警告。键盘注入焦点安全测试默认跳过。
 验证产物位于 `test-out/performance-final-guardrail.log`、`test-out/selftest-last-run.txt` 和 `test-out/uxaudit/`。
 人工交互清单见 [UIAUDIT.md](UIAUDIT.md)。
