@@ -29,7 +29,7 @@ public sealed partial class EditorWindow
             _colorPop = new Popup
             {
                 Child = Core.Fluent.PopupCard(_colorView),
-                Placement = PlacementMode.Top,
+                Placement = PlacementMode.Bottom,
                 StaysOpen = false,
                 AllowsTransparency = true,
                 PopupAnimation = PopupAnimation.Fade,

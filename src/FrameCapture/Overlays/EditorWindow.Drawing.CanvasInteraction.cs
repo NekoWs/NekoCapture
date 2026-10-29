@@ -24,6 +24,7 @@ public sealed partial class EditorWindow
             if (e.ClickCount == 2 && e.ChangedButton == MouseButton.Left) ZoomToggleActual();
             return;
         }
+        Focus();
         e.Handled = true;
         if (_tool == Tool.Select)
         {
@@ -323,7 +324,6 @@ public sealed partial class EditorWindow
 
     readonly List<(UIElement el, Annotation a)> _annEls = new();
 
-    void SetSelection(Annotation? a) { _sel = a; RedrawAnns(); UpdateFontStepper(); }
     #endregion
 
     #region 字号步进器：文字工具/选中文字时可见，A−/A+ 调字号
@@ -470,6 +470,7 @@ public sealed partial class EditorWindow
         Core.Trace.Log($"editor ann delete kind={_sel.Kind}");
         _sel = null;
         RedrawAnns();
+        RefreshToolOptions();
     }
 
     /// <summary>选中已有标注时改颜色/粗细——原位替换（可撤销），同时该项已是当前默认（后续新标注沿用）。

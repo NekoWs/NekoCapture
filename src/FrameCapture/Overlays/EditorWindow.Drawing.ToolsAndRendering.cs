@@ -121,6 +121,7 @@ public sealed partial class EditorWindow
             Padding = new Thickness(5, 2, 5, 2),
             AcceptsReturn = false,
         };
+        StyleAnnotationInput(box);
         if (editing != null && editing.Points.Count > 0)
         {
             box.Text = editing.Text;

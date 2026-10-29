@@ -21,6 +21,8 @@ public sealed partial class EditorWindow : Window
     /// <summary>确定：后台烘焙+编码 GIF（HUD 进度，Esc 可取消）→ 剪贴板（文件+位图+自定义格式）。</summary>
     void Commit()
     {
+        if (_encoding) return;
+        CommitTextInput();
         int idx = Math.Clamp(_index - TrimRange.a, 0, TrimRange.b - TrimRange.a);
         // 胶片条只由工具栏「生成胶片条」按钮显式触发，确定路径不自动生成。
         StartEncode(null, null, (seq, gif) =>
@@ -159,6 +161,7 @@ public sealed partial class EditorWindow : Window
     /// <summary>确定按钮忙态：编码期间淡到 0.55 半透明（带过渡动画），结束恢复 1.0。</summary>
     void SetOkBusy(bool busy)
     {
+        SetWorkspaceBusy(busy);
         foreach (var b in _okBtns)
         {
             b.BeginAnimation(OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(busy ? 0.55 : 1.0,
@@ -200,6 +203,7 @@ public sealed partial class EditorWindow : Window
 
         using var reader = subset as IDisposable;
         _encoding = true; SetOkBusy(true);
+        SetExportProgress(Loc.T(K.Editor.BuildingFilmStrip));
         try
         {
             var dlg = new FilmStripDialog(this, count, _settings.Current.AgentStripFrames, (k, token) =>
@@ -216,7 +220,7 @@ public sealed partial class EditorWindow : Window
             var picks = AgentStrip.SampleIndices(count, frames, 1);
             using var cancellation = new CancellationTokenSource();
             _commitCts = cancellation;
-            ShowSnack(Loc.T(K.Editor.BuildingFilmStrip));
+            SetExportProgress(Loc.T(K.Editor.BuildingFilmStrip));
             var img = await BackgroundWork.Run(() => AgentStrip.RenderMapped(
                 i => BakeForStrip(new[] { subset[picks[i]] }, anns, cropSnap, cropOn)[0], picks,
                 cancellation: cancellation.Token), cancellation.Token);
@@ -257,6 +261,8 @@ public sealed partial class EditorWindow : Window
 
     void SaveFrame()
     {
+        if (_encoding) return;
+        CommitTextInput();
         var dlg = NewSaveDialog(Loc.T(K.Common.PngImagePng), $"frame-{_times[_index] / 1000.0:0.0}.png");
         if (dlg.ShowDialog(this) != true) return;
         var frame = ExportFrame(_index);
@@ -268,6 +274,7 @@ public sealed partial class EditorWindow : Window
     void SaveRecording()
     {
         if (_encoding) return;
+        CommitTextInput();
         // 测试专用（与 FC_TEST_ENCODE_FAIL 同约定）：置 FC_TEST_EXPORT=<路径> 则跳过存盘对话框，
         // 直接按扩展名导出，使「录制→编辑器→ffmpeg 落盘」全链路可确定性 e2e + ffprobe 核对。正常用户环境永不置位。
         string? testExport = Environment.GetEnvironmentVariable("FC_TEST_EXPORT");
@@ -294,14 +301,14 @@ public sealed partial class EditorWindow : Window
         {
             if (FfmpegLocator.Find() == null)
             {
-                _hud.Text = Loc.T(K.Editor.FfmpegNotFoundSoVideo);
+                ShowSnack(Loc.T(K.Editor.FfmpegNotFoundSoVideo));
                 return;
             }
             var fmt = ext == ".mp4" ? VideoFormat.Mp4 : VideoFormat.WebM;
             path = EnsureExt(path, ext);
             StartEncode(fmt, path, (output, _) =>
             {
-                _hud.Text = Loc.F(K.Editor.Exported, System.IO.Path.GetFileName(path));
+                ShowSnack(Loc.F(K.Editor.Exported, System.IO.Path.GetFileName(path)));
                 Trace.Log($"video saved {path}");
                 PublishOutput(output);
             });
@@ -312,6 +319,7 @@ public sealed partial class EditorWindow : Window
             StartEncode(null, path, (output, _) =>
             {
                 Trace.Log($"gif saved {path}");
+                ShowSnack(Loc.F(K.Editor.Exported, System.IO.Path.GetFileName(path)));
                 Show(_index);
                 PublishOutput(output);
             });

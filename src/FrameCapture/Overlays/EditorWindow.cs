@@ -22,7 +22,12 @@ public sealed partial class EditorWindow : Window
     /// <summary>输出失败时触发，取消导出不属于失败。</summary>
     public event Action? OutputFailed;
     /// <summary>是否由行为图负责确认后的剪贴板与显式保存。</summary>
-    public bool ManagedOutput { get; set; }
+    public bool ManagedOutput
+    {
+        get => _managedOutput;
+        set { _managedOutput = value; UpdateEditorStatus(); }
+    }
+    bool _managedOutput;
 
     private readonly SettingsService _settings;
     private readonly CapturedSequence _seq;
@@ -53,7 +58,7 @@ public sealed partial class EditorWindow : Window
     private static Color DarkBg => Theme.WindowBg;
     private Button? _bPlay;
     private Border? _playPanel, _toolPanel;
-    private StackPanel? _toolsBar; // 底部工具条，用于让 MinWidth 跟随其实际宽度（防窄图裁切两端工具）
+    private WrapPanel? _toolsBar;
     private bool _toolsCascaded;   // 工具条逐项落定只播一次
     readonly bool _mica;           // 背板在场停靠面板才透明，缺席必须平涂，否则黑面板
 
@@ -105,20 +110,16 @@ public sealed partial class EditorWindow : Window
         };
         // 窗底交给背板：画布四周的中性暗底由 viewHost 自己涂，停靠面板透明才透出 Mica。
         Background = _mica ? Brushes.Transparent : new SolidColorBrush(DarkBg);
-        MouseLeftButtonDown += (_, e) => { if (e.ButtonState == MouseButtonState.Pressed) { try { DragMove(); } catch { } } };
-
         var mon = Monitors.ByDevice(seq.MonitorDevice) ?? Monitors.Nearest(seq.Region.X, seq.Region.Y);
-        // 812 DIP 只是地板值。FitMinWidthToToolbar 按工具条实测宽度动态抬高 MinWidth
-        // （工具/色板/最近用色/宽度/撤销重做/保存·复制·图钉·OCR·确定·取消/置顶·设置·帮助），
-        // 这里只留一个不会更小的地板值。
-        MinWidth = 812;
-        Width = Math.Min(1600, Math.Max(812, seq.Region.W + 120));
-        Height = Math.Min(1000, Math.Max(420, seq.Region.H + (seq.Frames.Count > 1 ? 250 : 210))); // 停靠面板占位：播放+工具 / 仅工具
+        FitMinWidthToToolbar();
+        Width = Math.Min(SystemParameters.WorkArea.Width, Math.Min(1440, Math.Max(900, seq.Region.W + 100)));
+        Height = Math.Min(SystemParameters.WorkArea.Height, Math.Min(1000, Math.Max(660, seq.Region.H + 200)));
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
         if (mon != null)
         {
-            Left = mon.Bounds.X + mon.Bounds.W / 2.0 - Width / 2;
-            Top = mon.Bounds.Y + mon.Bounds.H / 2.0 - Height / 2;
+            var (sx, sy) = Monitors.DpiScaleOf(mon);
+            Left = (mon.Bounds.X + mon.Bounds.W / 2.0) / sx - Width / 2;
+            Top = (mon.Bounds.Y + mon.Bounds.H / 2.0) / sy - Height / 2;
         }
 
         _view = new Image { Stretch = Stretch.Fill }; // 尺寸/偏移由 ApplyImageView 按 _imgRect 驱动（缩放/平移）
@@ -147,8 +148,7 @@ public sealed partial class EditorWindow : Window
         InitDrawing();
         BuildLayout();
         RestoreEditorPrefs(); // 恢复上次的工具/颜色/粗细（关=保持默认）
-        FitMinWidthToToolbar(); // 工具条列（含最近用色）实测宽 → MinWidth，窄图下两端工具也不被裁切
-        if (_toolsBar != null) _toolsBar.SizeChanged += (_, _) => FitMinWidthToToolbar(); // 最近用色增减时跟随
+        RefreshToolOptions();
         if (!_settings.Current.EditorGuideShown) ShowGuide(); // 首次打开：一次性上手引导
         Theme.Changed += Editor_OnTheme;
         Theme.Changing += OnPaletteChanging;
@@ -162,6 +162,9 @@ public sealed partial class EditorWindow : Window
         PreviewKeyDown += OnKeyDown;
         Closed += (_, _) =>
         {
+            if (_workspaceMenu != null) _workspaceMenu.IsOpen = false;
+            if (_colorPop != null) _colorPop.IsOpen = false;
+            if (_widthPop != null) _widthPop.IsOpen = false;
             _view.Source = null; _bmpCache.Clear(); _bmpFifo.Clear(); _mosaicCache.Clear();
             _curFrame = null; _curFrameIndex = -1; _commitCts?.Cancel();
             if (_userClosed) return;
@@ -243,6 +246,7 @@ public sealed partial class EditorWindow : Window
             Child = card,
         };
         _guide.MouseLeftButtonUp += (_, _) => CloseGuide(); // 点空白处也可关
+        Grid.SetRowSpan(_guide, _root.RowDefinitions.Count);
         System.Windows.Controls.Panel.SetZIndex(_guide, 99);
         _root.Children.Add(_guide);
         _guide.BeginAnimation(OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(0, 1,

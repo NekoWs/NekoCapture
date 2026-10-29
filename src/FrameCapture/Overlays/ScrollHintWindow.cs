@@ -118,7 +118,7 @@ public sealed class ScrollHintWindow : Window
         // 按钮行：自动滚动（开关）· 完成（强调）· 取消
         var btns = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 12, 0, 0) };
         // 完成按钮前景随强调色明暗自适应（浅强调色→黑字，深→白字），同 OCR 窗 OnAccentColor，避免浅底白字不可读
-        var done = MakeBtn(Loc.T(K.Capture.Done), Theme.Accent, Fluent.OnAccentColor(Theme.Accent));
+        var done = MakeBtn(Loc.T(K.Common.Done), Theme.Accent, Fluent.OnAccentColor(Theme.Accent));
         done.Click += (_, _) => OnDone?.Invoke();
         var cancel = MakeBtn(Loc.T(K.Common.Cancel), Theme.Hover, Theme.TextDim);
         cancel.Click += (_, _) => OnCancel?.Invoke();

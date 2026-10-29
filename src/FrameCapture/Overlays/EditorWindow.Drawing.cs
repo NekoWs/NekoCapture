@@ -58,11 +58,10 @@ public sealed partial class EditorWindow
     // 时间轴范围
     readonly Core.RangeDragState _rd = new();
     // Background 必须非 null（透明即可）：null 时画布空白区不参与命中测试，轨道点选/拖动会失效
-    Canvas _rangeCanvas = new()
+    TimelineSurface _rangeCanvas = new()
     {
-        Height = 26,
-        Cursor = Cursors.IBeam,
-        Background = Brushes.Transparent,
+        Height = 46,
+        Cursor = Cursors.Hand,
         ToolTip = Loc.T(K.Editor.DragToPickARange),
     };
     bool _tlHover;
@@ -88,10 +87,12 @@ public sealed partial class EditorWindow
             SetZoom(_zoom * (e.Delta > 0 ? 1.15 : 1 / 1.15), p.X, p.Y);
             e.Handled = true;
         };
+        _viewGrid.PreviewMouseDown += (_, _) => { if (_textInput == null) Focus(); };
         _viewGrid.MouseDown += Pan_Down;
         _viewGrid.MouseMove += Pan_Move;
         _viewGrid.MouseUp += Pan_Up;
 
+        _rangeCanvas.Paint = PaintTimeline;
         var rangeBorder = new Border { Child = _rangeCanvas };
         _rangeCanvas.MouseLeftButtonDown += Range_Down;
         // 悬停提示可裁剪：未裁剪时两端也画出淡把手（PR 式 affordance，不悬停不打扰）
@@ -99,6 +100,7 @@ public sealed partial class EditorWindow
         _rangeCanvas.MouseLeave += (_, _) => { _tlHover = false; DrawRange(); };
         _rangeCanvas.MouseMove += Range_Move;
         _rangeCanvas.MouseLeftButtonUp += Range_Up;
+        _rangeCanvas.LostMouseCapture += (_, _) => { _tlMode = 0; DrawRange(); };
         _rangeCanvas.SizeChanged += (_, _) => DrawRange();
         _rangeHost = rangeBorder;
     }
@@ -143,6 +145,7 @@ public sealed partial class EditorWindow
         var (rx, ry, rw, rh) = Core.ZoomMath.CropViewRect(cw, ch, f.W, f.H, c.X, c.Y, c.W, c.H, s, px, py);
         _imgRect = new Rect(rx, ry, rw, rh);
         ApplyImageView();
+        UpdateEditorStatus();
     }
 
     (double W, double H) CropPx(int fw, int fh)
@@ -247,23 +250,26 @@ public sealed partial class EditorWindow
 
     void SetTool(Tool t)
     {
+        if (_encoding) return;
+        if (_playing) TogglePlay();
+        CommitTextInput();
+        CancelPendingStroke();
         // 再点当前工具=回到浏览态（与线宽/颜色的单选切换同一语义，纯逻辑见 ToolToggle）
         _tool = Core.ToolToggle.Select(_tool, t, Tool.Browse);
         _sel = null; // 换工具即丢选中（选中只属于选中工具）
         _canvas.IsHitTestVisible = _tool != Tool.Browse;   // 浏览态画布不可命中（标注仍显示、平移穿透），绘制态可命中
         _canvas.Cursor = _tool switch { Tool.Browse or Tool.Select => Cursors.Arrow, Tool.Text => Cursors.IBeam, _ => Cursors.Cross };
         RefreshToolHighlight();
-        UpdateFontStepper();
+        RefreshToolOptions();
     }
 
     void Highlight(Button b, bool on) => Core.Fluent.HighlightBtn(b, on);
 
-    /// <summary>把当前工具那颗按钮刷成选中态。建完工具条、换肤、切换工具都走这里：
-    /// 选中态只有一处算法，三处各写一遍迟早分叉。浏览态没有任何一把被刷——
-    /// 浏览是「没在画」这个状态，不是工具目录里的一把工具。</summary>
+    /// <summary>同步工具栏及浏览按钮的单选状态。</summary>
     void RefreshToolHighlight()
     {
         for (int i = 0; i < _toolBtns.Count; i++) Highlight(_toolBtns[i], ToolOrder[i] == _tool);
+        if (_browseButton != null) Highlight(_browseButton, _tool == Tool.Browse);
     }
     #endregion
 
@@ -353,167 +359,6 @@ public sealed partial class EditorWindow
         }
         return Bake.Apply(frames, anns)[0];
     }
-    #endregion
-
-    #region 时间轴范围
-
-    int _tlMode; // 0 空闲 1 拖动跳转/待拉选段 2 拖范围左端 3 拖范围右端 4 拉选段中
-    double _tlPressX; int _tlPressIdx;   // 时间轴按下点（拖过阈值从此点拉选段）
-
-    void Range_Down(object sender, MouseButtonEventArgs e)
-    {
-        _rd.Count = _seq.Frames.Count;
-        _rd.Width = _rangeCanvas.ActualWidth;
-        double x = e.GetPosition(_rangeCanvas).X;
-        _tlPressX = x;
-        _tlPressIdx = Core.RangeDragState.XToIdx(x, _rangeCanvas.ActualWidth, _seq.Frames.Count);
-        _tlMode = 1;   // 暂定 scrub；Move 中若拖过阈值转为「拉选段」
-        if (_rd.A >= 0 && _seq.Frames.Count > 1)
-        {
-            var (a, b) = TrimRange;
-            double xa = _rd.FrameX(a), xb = _rd.FrameX(b);
-            if (Math.Abs(x - xb) <= 10) _tlMode = 3;
-            else if (Math.Abs(x - xa) <= 10) _tlMode = 2;
-        }
-        if (_tlMode == 1) { if (_playing) TogglePlay(); Show(_tlPressIdx); }
-        _rangeCanvas.CaptureMouse();
-        e.Handled = true;
-    }
-
-    void Range_Move(object sender, MouseEventArgs e)
-    {
-        double x = e.GetPosition(_rangeCanvas).X;
-        if (_tlMode == 0)
-        {
-            if (_rd.Width != _rangeCanvas.ActualWidth) _rd.Width = _rangeCanvas.ActualWidth;
-            var (a, b) = TrimRange;
-            bool near = _rd.A >= 0 && _seq.Frames.Count > 1 &&
-                (Math.Abs(x - _rd.FrameX(a)) <= 10 || Math.Abs(x - _rd.FrameX(b)) <= 10);
-            _rangeCanvas.Cursor = near ? Cursors.SizeWE : Cursors.IBeam;
-            return;
-        }
-        int idx = Core.RangeDragState.XToIdx(x, _rangeCanvas.ActualWidth, _seq.Frames.Count);
-        if (_tlMode == 1 && Math.Abs(x - _tlPressX) > 4)
-            _tlMode = 4;   // 拖过阈值：从按下点开始拉选段（[ ] 键同样可设入/出点）
-        switch (_tlMode)
-        {
-            case 1: Show(idx); break;   // 未过阈值=scrub 跳帧
-            case 4:
-                _rd.A = Math.Min(_tlPressIdx, idx); _rd.B = Math.Max(_tlPressIdx, idx);
-                Show(idx); DrawRange(); break;
-            case 2: _rd.SetA(idx); DrawRange(); break;
-            case 3: _rd.SetB(idx); DrawRange(); break;
-        }
-        e.Handled = true;
-    }
-
-    void Range_Up(object sender, MouseButtonEventArgs e)
-    {
-        if (_tlMode == 4 && _rd.B - _rd.A < 1) { _rd.A = _rd.B = -1; }   // 退化拖（几乎没动）=清除，不留 1 帧选段
-        _tlMode = 0;
-        _rangeCanvas.ReleaseMouseCapture();
-        DrawRange();
-        e.Handled = true;
-    }
-
-    static Rectangle TlBar(double x, double y, double w, double h, double r, Color col)
-    {
-        var rect = new Rectangle { Width = Math.Max(0.5, w), Height = h, RadiusX = r, RadiusY = r, Fill = new SolidColorBrush(col) };
-        Canvas.SetLeft(rect, x); Canvas.SetTop(rect, y);
-        return rect;
-    }
-
-    void DrawRange()
-    {
-        var c = _rangeCanvas;
-        c.Children.Clear();
-        double cw = c.ActualWidth, ch = c.ActualHeight;
-        if (cw < 8) return;
-        int n = Math.Max(2, _seq.Frames.Count);
-        int fps = _fps;   // 实际帧率（跟随刷新率时=刷新率），时间轴刻度间距按它算
-        double px = cw / (n - 1.0);
-        var tick = Color.FromArgb(0xC8, Theme.Stroke.R, Theme.Stroke.G, Theme.Stroke.B);
-
-        // PR 式刻度尺：逐帧小刻度（太密则抽稀）；长刻度+秒标步长走 Core.TimelineScale 决策表
-        int step = px >= 3 ? 1 : Math.Max(1, (int)Math.Ceiling(3.0 / px));
-        int fStep = Core.TimelineScale.LabelStepFrames(px, fps);
-        for (int i = 0; i < n; i += step)
-            c.Children.Add(TlBar(i * px, 13, 1, 6, 0.5, tick));
-        for (int i = fStep; i < n; i += fStep)
-        {
-            double x = i * px;
-            c.Children.Add(TlBar(x, 9, 1, 10, 0.5, tick));
-            var tb = new TextBlock
-            {
-                Text = (i / (double)fps).ToString("0.##") + "s",
-                FontSize = 8.5,
-                FontFamily = new FontFamily("Segoe UI"),
-                Foreground = new SolidColorBrush(Color.FromArgb(0xB0, Theme.Text.R, Theme.Text.G, Theme.Text.B)),
-            };
-            tb.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-            Canvas.SetLeft(tb, Math.Clamp(x - tb.DesiredSize.Width / 2, 0, Math.Max(0, cw - tb.DesiredSize.Width)));
-            Canvas.SetTop(tb, 0);
-            c.Children.Add(tb);
-        }
-
-        // 底轨 + 已走到位置的填充
-        double ty = ch - 5;
-        c.Children.Add(TlBar(0, ty, cw, 4, 2, Theme.TrackBg));
-        double xm = _index / (n - 1.0) * cw;
-        if (xm > 1) c.Children.Add(TlBar(0, ty, xm, 4, 2, Core.Theme.Accent));
-
-        // 裁剪范围：范围外整列压暗，两端强调色把手（通高，PR 入/出点感）
-        var (a, b) = TrimRange;
-        if (_rd.A >= 0 && b > a)
-        {
-            double xa = a * px, xb = b * px;
-            if (xa > 1) c.Children.Add(TlBar(0, 0, xa, ch, 0, Color.FromArgb(0x99, 0x0A, 0x0A, 0x0C)));
-            if (cw - xb > 1) c.Children.Add(TlBar(xb, 0, cw - xb, ch, 0, Color.FromArgb(0x99, 0x0A, 0x0A, 0x0C)));
-            c.Children.Add(TlBar(xa - 1.5, 2, 3, ch - 4, 1.5, Core.Theme.Accent));
-            c.Children.Add(TlBar(xb - 1.5, 2, 3, ch - 4, 1.5, Core.Theme.Accent));
-        }
-        // 首尾端线常驻：提示"两端可拖出全范围"的把手位；线内缘精确贴 x=0 / x=cw。
-        // 设了裁剪范围时由强调色把手接管，不叠加。
-        if (_rd.A < 0)
-        {
-            var edge = Color.FromArgb((byte)(_tlHover ? 0xD0 : 0x76), Theme.Stroke.R, Theme.Stroke.G, Theme.Stroke.B);
-            c.Children.Add(TlBar(0, 2, 3, ch - 4, 1.5, edge));
-            c.Children.Add(TlBar(cw - 3, 2, 3, ch - 4, 1.5, edge));
-            // 悬停且未选段时提示可拖拽选段
-            if (_tlHover)
-            {
-                var hint = new TextBlock
-                {
-                    Text = Loc.T(K.Editor.DragToSelectARange),
-                    FontSize = 9,
-                    FontFamily = new FontFamily("Segoe UI"),
-                    Foreground = new SolidColorBrush(Color.FromArgb(0xB0, Theme.TextDim.R, Theme.TextDim.G, Theme.TextDim.B)),
-                };
-                hint.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-                Canvas.SetLeft(hint, Math.Max(6, cw - hint.DesiredSize.Width - 8));
-                Canvas.SetTop(hint, ch / 2 - 6);
-                c.Children.Add(hint);
-            }
-        }
-
-        // 播放头：主题色竖线 + 顶部圆形旋钮（现代滑块语言，与设置窗滑杆圆点同族）
-        // 浅色主题下白色会隐身，跟 Theme.Text 走；旋钮描边用面板底色做"悬浮"留白环
-        var ph = Color.FromArgb(0xFF, Theme.Text.R, Theme.Text.G, Theme.Text.B);
-        c.Children.Add(TlBar(xm - 0.75, 7, 1.5, ch - 7, 0.75, ph));
-        var knob = new Ellipse
-        {
-            Width = 8,
-            Height = 8,
-            Fill = new SolidColorBrush(ph),
-            Stroke = Theme.PanelBgBrush,
-            StrokeThickness = 1.5,
-        };
-        Canvas.SetLeft(knob, xm - 4);
-        Canvas.SetTop(knob, 0.5);
-        c.Children.Add(knob);
-    }
-
-    (int a, int b) TrimRange { get { _rd.Count = _seq.Frames.Count; return _rd.Effective; } }
     #endregion
 
 }

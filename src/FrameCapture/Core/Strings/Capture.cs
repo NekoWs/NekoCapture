@@ -45,7 +45,6 @@ public static partial class K
         public static readonly Str Copied = new("capture.copied", "已复制 ", "Copied ");
 
         public static readonly Str CopyAll = new("capture.copyAll", "复制全部", "Copy all");
-        public static readonly Str Done = new("capture.done", "完成", "Done");
         public static readonly Str DragToSelectHover = new(
             "capture.dragToSelectHover",
             "拖框选择 · 悬停点击吸附窗口 · Enter 确认上次选区 · Esc 取消",

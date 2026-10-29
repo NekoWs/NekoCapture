@@ -9,6 +9,27 @@ public static partial class K
     /// <summary>标注与视频编辑器的文案。</summary>
     public static partial class Editor
     {
+        public static readonly Str StillWorkspace = new("editor.stillWorkspace", "截图编辑", "Image editor");
+        public static readonly Str VideoWorkspace = new("editor.videoWorkspace", "录制编辑", "Recording editor");
+        public static readonly Str Browse = new("editor.browse", "浏览", "Browse");
+        public static readonly Str SaveOutput = new("editor.saveOutput", "保存", "Save");
+        public static readonly Str ContinueBehavior = new("editor.continueBehavior", "应用编辑并继续行为", "Apply edits and continue");
+        public static readonly Str CopyAndComplete = new("editor.copyAndComplete", "复制并完成", "Copy and finish");
+        public static readonly Str BrowseHint = new("editor.browseHint", "Ctrl + 滚轮缩放 · 中键拖动平移", "Ctrl + wheel to zoom · Middle-drag to pan");
+        public static readonly Str SelectHint = new("editor.selectHint", "点击标注以移动、调整或删除", "Select an annotation to move, resize, or delete");
+        public static readonly Str CropHint = new("editor.cropHint", "拖动裁剪 · 撤销可恢复", "Drag to crop · Undo to restore");
+        public static readonly Str ResetCrop = new("editor.resetCrop", "还原裁剪", "Reset crop");
+        public static readonly Str FitView = new("editor.fitView", "适配", "Fit");
+        public static readonly Str TrimStart = new("editor.trimStart", "设为起点", "Set start");
+        public static readonly Str TrimEnd = new("editor.trimEnd", "设为终点", "Set end");
+        public static readonly Str ResetTrim = new("editor.resetTrim", "还原选段", "Reset trim");
+        public static readonly Str FullRecording = new("editor.fullRecording", "完整录制", "Full recording");
+        public static readonly Str SelectedDuration = new("editor.selectedDuration", "选段 {0} · {1} 帧", "Selection {0} · {1} frames");
+        public static readonly Str FramePosition = new("editor.framePosition", "第 {0} / {1} 帧", "Frame {0} / {1}");
+        public static readonly Str CancelExport = new("editor.cancelExport", "取消导出", "Cancel export");
+        public static readonly Str CancelingExport = new("editor.cancelingExport", "正在取消…", "Canceling…");
+        public static readonly Str ExportProgress = new("editor.exportProgress", "{0} · {1}%", "{0} · {1}%");
+        public static readonly Str CompletedChanges = new("editor.completedChanges", "已编辑 {0} 处", "{0} edits");
         public static readonly Str AlwaysOnTop = new("editor.alwaysOnTop", "总在最前", "Always on top");
         public static readonly Str Annotate = new("editor.annotate", "标注", "Annotate");
         public static readonly Str BackOneSecond = new("editor.backOneSecond", "上一秒", "Back one second");
@@ -27,7 +48,7 @@ public static partial class K
             "自定义线宽…",
             "Custom stroke width…");
         public static readonly Str Done = new("editor.done", "确定", "Done");
-        public static readonly Str DoneCancel = new("editor.doneCancel", "确定/取消", "Done / cancel");
+        public static readonly Str DoneCancel = new("editor.doneCancel", "完成与关闭", "Done and close");
         public static readonly Str DragToPickARange = new(
             "editor.dragToPickARange",
             "拖拽选片段 · [ / ] 设入出点",
@@ -37,10 +58,7 @@ public static partial class K
             "拖拽选择片段",
             "Drag to select a range");
         public static readonly Str DragWithTheCropTool = new("editor.dragWithTheCropTool", "拖框裁剪，Ctrl+Z 撤销", "Drag to crop; Ctrl+Z to undo.");
-        public static readonly Str EnterCopiesToTheClipboard = new(
-            "editor.enterCopiesToTheClipboard",
-            "Enter 写入剪贴板 · Esc 关闭 · 图钉=总在最前",
-            "Enter copies to the clipboard · Esc closes · the pin keeps the window on top");
+        public static readonly Str EnterCopiesToTheClipboard = new("editor.enterCopiesToTheClipboard", "完成后应用编辑，关闭可放弃", "Finish to apply edits; close to discard.");
         public static readonly Str EveryNFramesRowsCols = new(
             "editor.everyNFramesRowsCols",
             "每 {0} 帧取一次 · {1} 行 × {2} 格",

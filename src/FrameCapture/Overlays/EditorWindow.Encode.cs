@@ -39,11 +39,11 @@ public sealed partial class EditorWindow : Window
             };
             var matte = HexColor.Parse(_settings.Current.VideoMatteColor);
             string verb = videoFmt == null ? "GIF" : videoFmt == VideoFormat.Mp4 ? "MP4" : "WebM";
-            _hud.Text = Loc.F(K.Editor.Exporting, verb);
+            SetExportProgress(Loc.F(K.Editor.Exporting, verb));
             var progress = new ExportProgress(frames.Count, done => Dispatcher.BeginInvoke(() =>
             {
-                if (!_userClosed && ReferenceEquals(_commitCts, cancellation))
-                    _hud.Text = Loc.F(K.Editor.Exporting2, verb, done, frames.Count);
+                if (!_userClosed && !ct.IsCancellationRequested && ReferenceEquals(_commitCts, cancellation))
+                    SetExportProgress(verb, done, frames.Count);
             }, System.Windows.Threading.DispatcherPriority.Background));
             byte[]? gif = await BackgroundWork.Run(() =>
             {
@@ -94,6 +94,7 @@ public sealed partial class EditorWindow : Window
             if (!_userClosed)
             {
                 _hud.Text = Loc.T(K.Editor.ExportFailed);
+                ShowSnack(Loc.T(K.Editor.ExportFailed));
                 OutputFailed?.Invoke();
             }
         }

@@ -27,7 +27,8 @@ public sealed class CropState
 
     /// <summary>当前可视区（无裁剪 = 全帧）。</summary>
     public Norm Current => _stack.Count == 0 ? Norm.Full : _stack[^1];
-    public bool IsCropped => _stack.Count > 0;
+    /// <summary>当前可视区是否小于完整帧。</summary>
+    public bool IsCropped => Current != Norm.Full;
     public int Depth => _stack.Count;
     public bool CanRedo => _redo.Count > 0;
 
@@ -51,6 +52,16 @@ public sealed class CropState
         double t = Math.Max(y0, c.Y), b = Math.Min(y1, c.Bottom);
         if (r - l <= minW || b - t <= minH) return false;
         _stack.Add(new Norm(l, t, r - l, b - t));
+        _redo.Clear();
+        return true;
+    }
+
+    /// <summary>把完整帧作为一次可撤销的视图编辑入栈。</summary>
+    /// <returns>当前已有裁剪并完成还原时返回真。</returns>
+    internal bool RestoreFull()
+    {
+        if (!IsCropped) return false;
+        _stack.Add(Norm.Full);
         _redo.Clear();
         return true;
     }

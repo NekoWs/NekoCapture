@@ -20,13 +20,27 @@ public sealed partial class EditorWindow : Window
     Dictionary<(ModifierKeys Mods, Key Key), List<string>>? _keyMap;
 
     /// <summary>设置变更：丢掉分派表，下一次按键按新键位重建。</summary>
-    void Editor_OnKeysChanged() => _keyMap = null;
+    void Editor_OnKeysChanged()
+    {
+        _keyMap = null;
+        foreach (var (button, command, label, _) in _workspaceButtons)
+            if (command != null) button.ToolTip = CommandTip(command, label);
+        UpdateEditorStatus();
+    }
 
     void OnKeyDown(object sender, KeyEventArgs e)
     {
         var mods = e.KeyboardDevice.Modifiers;
         // Alt 组合在 WPF 里报成 Key.System，真身在 SystemKey 里，不还原就永远命不中键位表
         var key = e.Key == Key.System ? e.SystemKey : e.Key;
+        if (_workspaceMenu is { IsOpen: true }) return;
+        if (_colorPop is { IsOpen: true } || _widthPop is { IsOpen: true })
+        {
+            if (key == Key.Escape) { CloseStep(); e.Handled = true; }
+            return;
+        }
+        if (_textInput == null && Keyboard.FocusedElement is System.Windows.Controls.Button or System.Windows.Controls.Border
+            && mods == ModifierKeys.None && key is Key.Enter or Key.Space) return;
         DispatchKey(mods, key, e);
     }
 
@@ -66,6 +80,9 @@ public sealed partial class EditorWindow : Window
     /// <returns>命令成立并已执行返回真；条件不成立返回假，同一个键位上的下一条命令接着试。</returns>
     bool Run(string id, KeyEventArgs? e)
     {
+        if (_encoding && id is not ("close" or "help" or "zoom-in" or "zoom-out" or "zoom-fit" or "zoom-one")) return true;
+        if (!MultiFrame && id is "play-toggle" or "frame-prev" or "frame-next" or "sec-prev" or "sec-next"
+            or "speed-up" or "speed-down" or "speed-reset" or "save-recording" or "trim-a" or "trim-b" or "trim-clear") return false;
         switch (id)
         {
             // 选中工具下 Delete/Backspace=删对象：这条只在有选中时成立，落空就交给同键的撤销 / 清裁剪
@@ -79,7 +96,7 @@ public sealed partial class EditorWindow : Window
             case "width-popup": if (_widthMoreBtn == null) return false; ShowWidthPopup(_widthMoreBtn); return true;
 
             case "save-frame": SaveFrame(); return true;
-            case "copy-frame": ClipboardService.SetFrame(ExportFrame(_index)); return true;
+            case "copy-frame": CopyCurrentFrame(); return true;
             case "pin-frame": PinCurrentFrame(); return true;
             case "ocr": OcrCurrentFrame(); return true;
             case "save-recording": SaveRecording(); return true;
@@ -93,16 +110,16 @@ public sealed partial class EditorWindow : Window
             case "play-toggle": TogglePlay(); return true;
             case "frame-prev": Step(-1); return true;
             case "frame-next": Step(+1); return true;
-            case "sec-prev": Step(-_fps); return true;
-            case "sec-next": Step(+_fps); return true;
+            case "sec-prev": StepSeconds(-1); return true;
+            case "sec-next": StepSeconds(1); return true;
             case "speed-up": SetSpeed(_speed * 2); return true;
             case "speed-down": SetSpeed(_speed / 2); return true;
             case "speed-reset": SetSpeed(1.0); return true;
 
             // 时间轴裁剪：端点=当前帧，钳位保证至少 2 帧
-            case "trim-a": _rd.Count = _seq.Frames.Count; _rd.SetA(_index); Show(_index); return true;
-            case "trim-b": _rd.Count = _seq.Frames.Count; _rd.SetB(_index); Show(_index); return true;
-            case "trim-clear": _rd.A = _rd.B = -1; Show(_index); return true;
+            case "trim-a": SetTrimPoint(true); return true;
+            case "trim-b": SetTrimPoint(false); return true;
+            case "trim-clear": ResetTrim(); return true;
 
             case "commit": Commit(); return true;
             case "help": HelpWindow.ShowOrFocus(); return true;
@@ -135,10 +152,11 @@ public sealed partial class EditorWindow : Window
     {
         // 弹层打开时：Esc 只收弹层（分层语义的第一层）
         if (_colorPop is { IsOpen: true }) { _colorPop.IsOpen = false; return true; }
+        if (_workspaceMenu is { IsOpen: true }) { _workspaceMenu.IsOpen = false; return true; }
         if (_widthPop is { IsOpen: true }) { _widthPop.IsOpen = false; return true; }
         switch (EscStep.Select(_encoding, _tool != Tool.Browse, _sel != null))
         {
-            case EscAction.CancelEncode: _commitCts?.Cancel(); return true;
+            case EscAction.CancelEncode: CancelExport(); return true;
             case EscAction.ClearSelection:
                 SetSelection(null);
                 Trace.Log("editor esc→deselect");
@@ -159,8 +177,16 @@ public sealed partial class EditorWindow : Window
 
     void TogglePlay()
     {
+        if (!MultiFrame || _encoding && !_playing) return;
+        var (a, b) = TrimRange;
+        if (!_playing && (_index < a || _index > b)) Show(a);
         _playing = !_playing;
-        if (_bPlay != null) _bPlay.Content = _playing ? "" : "";
+        UpdatePlaybackInterval();
+        if (_bPlay != null)
+        {
+            _bPlay.Content = _playing ? "" : "";
+            Fluent.HighlightBtn(_bPlay, _playing);
+        }
         Trace.Log($"play={_playing}");
         if (_playing) _playTimer.Start();
         else _playTimer.Stop();
@@ -172,8 +198,7 @@ public sealed partial class EditorWindow : Window
     void SetSpeed(double s)
     {
         _speed = Math.Clamp(s, 0.25, 8.0);
-        _playTimer.Interval = TimeSpan.FromMilliseconds(
-            Math.Max(1000.0 / _fps, 20) / _speed);
+        UpdatePlaybackInterval();
         Show(_index);
     }
 
@@ -197,25 +222,9 @@ public sealed partial class EditorWindow : Window
         _index = Math.Clamp(index, 0, _seq.Frames.Count - 1);
         _view.Source = Bmp(_index);
         UpdateMosaicBrushes(); // 马赛克=区域滤镜：内容随帧走，不是静止贴图
-        // 计数区时间用「帧号/帧率」= 播放基准，与时间轴刻度(DrawRange 同用 i/fps)一致；
-        // 不用 _times 实际捕获时间戳（首帧非 0，与刻度是两套基准，显示会不一致）
-        int fps = _fps;
-        double eff = _imgRect.Width / Math.Max(1, _frameW);
-        string zoomTxt = _zoom <= 1.001 ? "" : (Math.Abs(eff - 1.0) < 0.02 ? "  1:1" : $"  {eff * 100:0}%");
-        string cropTxt = "";
-        if (_crop.IsCropped)
-        {
-            var (cqW, cqH) = CropPx(_frameW, _frameH);
-            cropTxt = Loc.F(K.Editor.Crop, (int)Math.Round(cqW), (int)Math.Round(cqH));
-        }
-        var (ta, tb2) = TrimRange;
-        // 含两端闭区间 [a,b]：1-based 显示须 tb+1；全范围=未裁剪不显示（tb2<count-1 才算裁过）
-        string trimTxt = _rd.A >= 0 && tb2 > ta && (ta > 0 || tb2 < _seq.Frames.Count - 1) ? Loc.F(K.Editor.Export, ta + 1, tb2 + 1) : "";
-        // 计数区：帧号 + 当前帧时刻 / 总时长（末帧时刻，与刻度/播放同基准）；总时长让用户一眼看到录制长度
-        _hud.Text = $"{_index + 1}/{_seq.Frames.Count}  {_index / (double)fps:0.00}s / {(_seq.Frames.Count - 1) / (double)fps:0.00}s"
-            + (_speed != 1.0 ? $"  ×{_speed:0.###}" : "")
-            + zoomTxt + cropTxt + trimTxt
-            + (_seq.DroppedFrames > 0 ? Loc.F(K.Editor.FramesDroppedByTheMemory, _seq.DroppedFrames) : "");
+        UpdateEditorStatus();
+        RefreshToolOptions();
+        if (_playing) UpdatePlaybackInterval();
         DrawRange();
     }
     #endregion

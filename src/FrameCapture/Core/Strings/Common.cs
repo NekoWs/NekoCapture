@@ -9,6 +9,7 @@ public static partial class K
     /// <summary>两个界面以上共用的文案的文案。</summary>
     public static partial class Common
     {
+        public static readonly Str Done = new("capture.done", "完成", "Done");
         public static readonly Str Milliseconds = new("common.milliseconds", "毫秒", "ms");
         public static readonly Str RunAsAdministrator = new("tray.runAsAdministrator", "以管理员身份运行", "Run As Administrator");
         public static readonly Str StartupTaskCancelled = new("settings.startupTaskCancelled", "已取消修改", "Change cancelled");
