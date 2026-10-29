@@ -21,7 +21,7 @@ public sealed partial class EditorWindow : Window
     /// <summary>确定：后台烘焙+编码 GIF（HUD 进度，Esc 可取消）→ 剪贴板（文件+位图+自定义格式）。</summary>
     void Commit()
     {
-        int idx = Math.Clamp(_index, 0, _seq.Frames.Count - 1);
+        int idx = Math.Clamp(_index - TrimRange.a, 0, TrimRange.b - TrimRange.a);
         // 胶片条只由工具栏「生成胶片条」按钮显式触发，确定路径不自动生成。
         StartEncode(null, null, (seq, gif) =>
         {
@@ -31,7 +31,7 @@ public sealed partial class EditorWindow : Window
                 ClipboardService.SetCapture(seq, gif, idx);
             }
             SaveService.MaybeSaveArtifact(seq, gif);
-            OutputReady?.Invoke(seq);
+            PublishOutput(seq);
             Fluent.CloseWithFade(this);
         });
     }
@@ -167,106 +167,6 @@ public sealed partial class EditorWindow : Window
         }
     }
 
-    /// <summary>
-    /// 导出录制。videoFmt==null → GIF（onDone 收字节）；否则 ffmpeg 编码到 outPath（onDone 收 null）。
-    /// 子集/裁剪/烘焙两路共用，只在末步分派编码器。
-    /// </summary>
-    void StartEncode(VideoFormat? videoFmt, string? outPath, Action<CapturedSequence, byte[]?> onDone)
-    {
-        if (_encoding) return;
-        try
-        {
-            var (a, b) = TrimRange;
-            // 导出子集：spool 用 Slice（共享文件、只切索引，不整块物化）；内存表用 GetRange。
-            // 后续 Bake 会按需物化裁剪范围——导出体量由时间轴裁剪范围决定，与总录制时长解耦。
-            IReadOnlyList<CapturedFrame> subset = _seq.Frames is FrameSpoolList spl
-                ? spl.Slice(a, b - a + 1)
-                : _seq.Frames.Skip(a).Take(b - a + 1).ToList();
-            var anns = new List<Drawing.Annotation>(_anns.Items);
-            var region = _seq.Region; var monBounds = _seq.MonitorBounds; var monDev = _seq.MonitorDevice;
-            int fps = _fps;
-            var cropSnap = _crop.Current; bool cropOn = _crop.IsCropped; // UI 线程快照，后台只读
-            string verb = videoFmt == null ? "GIF" : videoFmt == VideoFormat.Mp4 ? "MP4" : "WebM";
-
-            _encoding = true;
-            SetOkBusy(true);
-            var cancellation = _commitCts = new CancellationTokenSource();
-            var ct = cancellation.Token;
-            _hud.Text = Loc.F(K.Editor.Exporting, verb);
-            WithFrameReaderAsync(subset, () =>
-            {
-                // 隔离测试可强制触发编码失败，校验失败反馈。
-                if (Environment.GetEnvironmentVariable("FC_TEST_ENCODE_FAIL") == "1")
-                    throw new InvalidOperationException("forced encode failure (FC_TEST_ENCODE_FAIL=1)");
-                // 裁剪=视图状态：导出瞬间一次性折算（像素级等价：先裁剪后烘焙 ≡ 先烘焙后裁剪）
-                var frames = subset; var outAnns = anns; var outRegion = region;
-                if (cropOn && frames.Count > 0)
-                {
-                    int fw = frames[0].W, fh = frames[0].H;
-                    var (cx, cy, cw, ch) = CropState.ToPixelOf(cropSnap, fw, fh);
-                    frames = Drawing.Bake.Crop(frames, cx, cy, cw, ch);
-                    outAnns = CropRemap.Remap(anns, (double)cx / fw, (double)cy / fh, (double)cw / fw, (double)ch / fh);
-                    outRegion = new RectI(region.X + cx, region.Y + cy, cw, ch);
-                }
-                var baked = Drawing.Bake.Apply(frames, outAnns);
-                var seq = new CapturedSequence
-                {
-                    Frames = baked,
-                    Region = outRegion,
-                    MonitorBounds = monBounds,
-                    MonitorDevice = monDev,
-                };
-                var prog = new Progress<int>(d => Dispatcher.BeginInvoke(() => _hud.Text = Loc.F(K.Editor.Exporting2, verb, d, baked.Count)));
-                if (videoFmt == null)
-                {
-                    byte[] gif = GifEncoder.Encode(baked, ComputeDelays(baked, fps), true, prog, ct);
-                    return (seq, gif: (byte[]?)gif);
-                }
-                string ff = FfmpegLocator.Find()
-                    ?? throw new InvalidOperationException("未找到 ffmpeg，无法导出视频");
-                // 用帧时间戳推实际帧率：静态段少帧 → 低 fps，但总时长与录制一致（播放速度正确）
-                double vfps = VideoEncoder.FpsFromFrames(baked);
-                // MP4 没有透明通道：喂帧前按「边框填充色」拍平；WebM 带 alpha，这个颜色对它不起作用。
-                var matte = Core.HexColor.Parse(_settings.Current.VideoMatteColor);
-                VideoEncoder.Encode(baked, ff, outPath!, videoFmt.Value, vfps, prog, ct, matte);
-                return (seq, gif: (byte[]?)null);
-            }, ct).ContinueWith(t =>
-            {
-                if (ReferenceEquals(_commitCts, cancellation)) _commitCts = null;
-                cancellation.Dispose();
-                _encoding = false;
-                if (_userClosed) { _ = t.Exception; return; }
-                SetOkBusy(false);
-                if (t.IsCanceled || (t.Exception?.InnerException is OperationCanceledException))
-                {
-                    Trace.Log("encode cancelled");
-                    Show(_index); // 恢复 HUD
-                    return;
-                }
-                if (t.IsFaulted)
-                {
-                    Trace.Log($"encode failed: {t.Exception}");
-                    _hud.Text = t.Exception?.InnerException is InvalidOperationException ? Loc.T(K.Editor.FfmpegNotFound) : Loc.T(K.Editor.ExportFailed);
-                    OutputFailed?.Invoke();
-                    return;
-                }
-                onDone(t.Result.seq, t.Result.gif);
-            }, TaskScheduler.FromCurrentSynchronizationContext());
-        }
-        catch (Exception ex)
-        {
-            _encoding = false;
-            Trace.Log($"encode start failed: {ex}");
-            OutputFailed?.Invoke();
-        }
-    }
-
-    private static async Task<T> WithFrameReaderAsync<T>(IReadOnlyList<CapturedFrame> frames, Func<T> work, CancellationToken cancellation)
-    {
-        using var reader = frames as FrameSpoolList;
-        return await BackgroundWork.Run(work, cancellation).ConfigureAwait(false);
-    }
-
     static List<int> ComputeDelays(IReadOnlyList<CapturedFrame> frames, int fps)
     {
         int defaultDelay = 1000 / fps;
@@ -289,18 +189,16 @@ public sealed partial class EditorWindow : Window
     /// 渲染成一张逐帧图直接复制剪贴板（不落盘）。生成中复用 _encoding 互斥锁防并发导出。</summary>
     async void GenerateFilmStrip()
     {
-        if (_encoding || !_seq.Frames.Any()) return;
+        if (_encoding || _seq.Frames.Count == 0) return;
         using var activity = BackgroundWork.Hold();
         var (a, b) = TrimRange;
         int count = b - a + 1;
         // UI 线程快照（后台只读）：弹窗预览与成片读同一批帧，抽样口径一致
-        IReadOnlyList<CapturedFrame> subset = _seq.Frames is FrameSpoolList spl
-            ? spl.Slice(a, count)
-            : _seq.Frames.Skip(a).Take(count).ToList();
+        IReadOnlyList<CapturedFrame> subset = BakedFrameList.RetainRange(_seq.Frames, a, count);
         var anns = new List<Drawing.Annotation>(_anns.Items);
         var cropSnap = _crop.Current; bool cropOn = _crop.IsCropped;
 
-        using var reader = subset as FrameSpoolList;
+        using var reader = subset as IDisposable;
         _encoding = true; SetOkBusy(true);
         try
         {
@@ -363,7 +261,7 @@ public sealed partial class EditorWindow : Window
         if (dlg.ShowDialog(this) != true) return;
         var frame = ExportFrame(_index);
         BgraImage.SavePng(frame, EnsureExt(dlg.FileName, ".png"));
-        OutputReady?.Invoke(new CapturedSequence { Frames = new[] { frame }, Region = _seq.Region,
+        PublishOutput(new CapturedSequence { Frames = new[] { frame }, Region = _seq.Region,
             MonitorBounds = _seq.MonitorBounds, MonitorDevice = _seq.MonitorDevice });
     }
 
@@ -405,17 +303,17 @@ public sealed partial class EditorWindow : Window
             {
                 _hud.Text = Loc.F(K.Editor.Exported, System.IO.Path.GetFileName(path));
                 Trace.Log($"video saved {path}");
-                OutputReady?.Invoke(output);
+                PublishOutput(output);
             });
         }
         else
         {
             path = EnsureExt(path, ".gif");
-            StartEncode(null, null, (output, gif) =>
+            StartEncode(null, path, (output, _) =>
             {
-                try { File.WriteAllBytes(path, gif!); Trace.Log($"gif saved {path} {gif!.Length}B"); OutputReady?.Invoke(output); }
-                catch (Exception ex) { Trace.Log($"gif save failed: {ex.Message}"); _hud.Text = Loc.T(K.Common.SaveFailed); OutputFailed?.Invoke(); }
+                Trace.Log($"gif saved {path}");
                 Show(_index);
+                PublishOutput(output);
             });
         }
     }

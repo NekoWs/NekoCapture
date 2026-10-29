@@ -78,15 +78,19 @@ public static class VideoEncoder
     /// <summary>这组帧里有没有要保留的透明。抽首/中/末三帧看 alpha 通道：
     /// 窗口录制的透明从第一帧起就在（圆角与投影全程都在），区域录制全程不透明。</summary>
     /// <param name="frames">待编码帧。</param>
+    /// <param name="ct">在抽样与扫描中检查的取消令牌。</param>
     /// <returns>true = 至少一帧有 alpha 不满的像素。</returns>
-    public static bool CarriesAlpha(IReadOnlyList<CapturedFrame> frames)
+    public static bool CarriesAlpha(IReadOnlyList<CapturedFrame> frames, CancellationToken ct = default)
     {
         if (frames.Count == 0) return false;
-        foreach (int i in new[] { 0, frames.Count / 2, frames.Count - 1 })
+        foreach (int i in new[] { 0, frames.Count / 2, frames.Count - 1 }.Distinct())
         {
-            var bgra = frames[i].Bgra;
+            var bgra = BakedFrameList.Read(frames, i, ct).Bgra;
             for (int o = 3; o < bgra.Length; o += 4)
+            {
+                if ((o & 16383) == 3) ct.ThrowIfCancellationRequested();
                 if (bgra[o] < 250) return true;
+            }
         }
         return false;
     }
@@ -118,7 +122,7 @@ public static class VideoEncoder
         string vf = (w % 2 != 0 || h % 2 != 0)
             ? " -vf \"scale=trunc(iw/2)*2:trunc(ih/2)*2\""
             : "";
-        return $"-hide_banner -loglevel error -y -f rawvideo -pix_fmt bgra -s {w}x{h} -framerate {fpsS} -i pipe:0{vf} {codec} \"{outPath}\"";
+        return $"-hide_banner -loglevel error -y -f rawvideo -pix_fmt bgra -s {w}x{h} -framerate {fpsS} -i pipe:0{vf} {codec} -threads 2 \"{outPath}\"";
     }
 
     /// <summary>
@@ -145,11 +149,12 @@ public static class VideoEncoder
     {
         if (frames.Count == 0) throw new ArgumentException("no frames");
         if (!File.Exists(ffmpegPath)) throw new FileNotFoundException("ffmpeg not found", ffmpegPath);
-        int w = frames[0].W, h = frames[0].H;
+        var first = FrameMetadata.At(frames, 0);
+        int w = first.W, h = first.H;
         if (w <= 0 || h <= 0) throw new ArgumentException($"bad size {w}x{h}");
         fps = Math.Clamp(fps, 1, 240);
 
-        bool hasAlpha = CarriesAlpha(frames);
+        bool hasAlpha = CarriesAlpha(frames, ct);
         bool alpha = fmt == VideoFormat.WebM && hasAlpha;
         bool flatten = fmt == VideoFormat.Mp4 && hasAlpha && matte is { } mt;
 
@@ -171,6 +176,7 @@ public static class VideoEncoder
         {
             p = Process.Start(psi) ?? throw new InvalidOperationException("ffmpeg start returned null");
             ct.ThrowIfCancellationRequested();
+            try { p.PriorityClass = ProcessPriorityClass.BelowNormal; } catch { }
             // 先挂上 stderr 异步读取：ffmpeg 写日志时若 stderr 缓冲满会阻塞，与 stdin 写互锁 → 死锁。
             Task<string> errTask = p.StandardError.ReadToEndAsync();
 
@@ -179,9 +185,10 @@ public static class VideoEncoder
             for (int i = 0; i < frames.Count; i++)
             {
                 ct.ThrowIfCancellationRequested();
+                var frame = BakedFrameList.Read(frames, i, ct);
                 byte[] bgra = flatten
-                    ? BgraImage.FlattenOver(frames[i], mt.R, mt.G, mt.B).Bgra
-                    : frames[i].Bgra;
+                    ? BgraImage.FlattenOver(frame, mt.R, mt.G, mt.B).Bgra
+                    : frame.Bgra;
                 if (bgra.Length < frameBytes)
                     throw new InvalidOperationException($"frame {i} too small: {bgra.Length} < {frameBytes}");
                 stdin.Write(bgra, 0, frameBytes);
@@ -203,6 +210,7 @@ public static class VideoEncoder
         {
             try { if (p is { HasExited: false }) p.Kill(entireProcessTree: true); } catch { }
             try { if (File.Exists(outPath)) File.Delete(outPath); } catch { }
+            ct.ThrowIfCancellationRequested();
             throw;
         }
         finally { p?.Dispose(); }

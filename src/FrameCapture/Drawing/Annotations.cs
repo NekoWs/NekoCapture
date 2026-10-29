@@ -174,34 +174,46 @@ public static class Bake
     /// <b>anns 为空时返回的是原帧实例组成的新列表</b>，此时调用方不得就地改像素。</returns>
     public static List<Capture.CapturedFrame> Apply(IReadOnlyList<Capture.CapturedFrame> frames, IReadOnlyList<Annotation> anns)
     {
-        if (anns.Count == 0) return frames.ToList();
-        var outFrames = new List<Capture.CapturedFrame>(frames.Count);
-        foreach (var f in frames)
+        return frames.Select(f => ApplyFrame(f, anns)).ToList();
+    }
+
+    /// <summary>只烘焙一帧；无标注时直接复用源帧。</summary>
+    /// <param name="f">只读源帧。</param>
+    /// <param name="anns">已固定的标注快照。</param>
+    /// <param name="ct">在每项标注之间检查的取消令牌。</param>
+    /// <returns>包含全部标注的只读帧。</returns>
+    internal static Capture.CapturedFrame ApplyFrame(Capture.CapturedFrame f, IReadOnlyList<Annotation> anns, CancellationToken ct = default)
+    {
+        ct.ThrowIfCancellationRequested();
+        if (anns.Count == 0) return f;
+        byte[] copy = (byte[])f.Bgra.Clone();
+        // 马赛克是字节级运算（与编辑器预览同一 MosaicInPlace），先铺底；矢量标注叠在其上
+        foreach (var a in anns)
         {
-            byte[] copy = (byte[])f.Bgra.Clone();
-            // 马赛克是字节级运算（与编辑器预览同一 MosaicInPlace），先铺底；矢量标注叠在其上
-            foreach (var a in anns)
-                if (a.Kind == AnnKind.Mosaic && a.Points.Count >= 2)
-                {
-                    int mx = (int)Math.Round(Math.Min(a.Points[0].X, a.Points[1].X) * f.W);
-                    int my = (int)Math.Round(Math.Min(a.Points[0].Y, a.Points[1].Y) * f.H);
-                    int mw = (int)Math.Round(Math.Abs(a.Points[1].X - a.Points[0].X) * f.W);
-                    int mh = (int)Math.Round(Math.Abs(a.Points[1].Y - a.Points[0].Y) * f.H);
-                    Services.BgraImage.MosaicInPlace(copy, f.W, f.H, mx, my, mw, mh,
-                        Core.MosaicBlock.Px(a.Thickness, f.W, f.H));
-                }
-            var gch = System.Runtime.InteropServices.GCHandle.Alloc(copy, System.Runtime.InteropServices.GCHandleType.Pinned);
-            try
+            ct.ThrowIfCancellationRequested();
+            if (a.Kind == AnnKind.Mosaic && a.Points.Count >= 2)
             {
-                using var bmp = new Bitmap(f.W, f.H, 4 * f.W, PixelFormat.Format32bppArgb, gch.AddrOfPinnedObject());
-                using var g = Graphics.FromImage(bmp);
-                foreach (var a in anns)
-                    if (a.Kind != AnnKind.Mosaic) a.Render(g, f.W, f.H);
+                int mx = (int)Math.Round(Math.Min(a.Points[0].X, a.Points[1].X) * f.W);
+                int my = (int)Math.Round(Math.Min(a.Points[0].Y, a.Points[1].Y) * f.H);
+                int mw = (int)Math.Round(Math.Abs(a.Points[1].X - a.Points[0].X) * f.W);
+                int mh = (int)Math.Round(Math.Abs(a.Points[1].Y - a.Points[0].Y) * f.H);
+                Services.BgraImage.MosaicInPlace(copy, f.W, f.H, mx, my, mw, mh,
+                    Core.MosaicBlock.Px(a.Thickness, f.W, f.H));
             }
-            finally { gch.Free(); }
-            outFrames.Add(new Capture.CapturedFrame { Bgra = copy, W = f.W, H = f.H, TimeMs = f.TimeMs });
         }
-        return outFrames;
+        var gch = System.Runtime.InteropServices.GCHandle.Alloc(copy, System.Runtime.InteropServices.GCHandleType.Pinned);
+        try
+        {
+            using var bmp = new Bitmap(f.W, f.H, 4 * f.W, PixelFormat.Format32bppArgb, gch.AddrOfPinnedObject());
+            using var g = Graphics.FromImage(bmp);
+            foreach (var a in anns)
+            {
+                ct.ThrowIfCancellationRequested();
+                if (a.Kind != AnnKind.Mosaic) a.Render(g, f.W, f.H);
+            }
+        }
+        finally { gch.Free(); }
+        return new Capture.CapturedFrame { Bgra = copy, W = f.W, H = f.H, TimeMs = f.TimeMs };
     }
 
     /// <summary>对每一帧套用同一个裁剪框。</summary>

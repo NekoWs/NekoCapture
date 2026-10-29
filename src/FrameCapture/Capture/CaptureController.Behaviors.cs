@@ -61,6 +61,7 @@ public sealed partial class CaptureController
     async void ResumeBehaviorAfterStop(Task<bool> active, BehaviorGraph graph, string entryId, string bindingId,
         string initialMode, RunContext context)
     {
+        using var videoLease = context.HoldVideo();
         try
         {
             await active;
@@ -74,6 +75,7 @@ public sealed partial class CaptureController
     {
         var stored = StoredRegion();
         var context = initial ?? new RunContext { Region = stored?.Bounds, DeviceName = stored?.DeviceName ?? "" };
+        using var videoLease = context.HoldVideo();
         _chainContext = context;
         _behaviorBinding = bindingId;
         _behaviorInitialMode = initialMode;
@@ -200,6 +202,7 @@ public sealed partial class CaptureController
                 context.Still = output.Frames[0];
                 context.StillRegion = output.Region; context.StillDevice = output.MonitorDevice;
                 _lastStill.Set(context.Still, context.StillRegion, context.StillDevice, context.WindowCapture);
+                (output.Frames as BakedFrameList)?.Dispose();
             }
             CloseEditor();
             done.TrySetResult(BehaviorPorts.Saved);

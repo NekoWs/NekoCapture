@@ -11,7 +11,7 @@ public static class GifEncoder
 {
     /// <summary>
     /// frames 为 BGRA 帧；delaysMs 每帧显示时长；loop=true 无限循环。
-    /// progress 报告已完成帧数；ct 可取消（抛 OperationCanceledException）。多帧自动并行。
+    /// progress 报告已完成帧数；ct 可取消（抛 OperationCanceledException）。逐帧顺序写出。
     /// </summary>
     /// <param name="frames">BGRA 帧序列。<b>逻辑屏幕描述符只写首帧的宽高</b>，因此全部帧必须同宽同高。</param>
     /// <param name="delaysMs">与 frames 一一对应的显示时长（毫秒）；厘秒量化可能删帧，见 Core.GifTiming。</param>
@@ -23,85 +23,59 @@ public static class GifEncoder
     public static byte[] Encode(IReadOnlyList<CapturedFrame> frames, IReadOnlyList<int> delaysMs, bool loop = true,
         IProgress<int>? progress = null, CancellationToken ct = default)
     {
-        if (frames.Count == 0) throw new ArgumentException("no frames");
-        // 厘秒重采样：60fps 直存会整体提速 1.2×；重采样保总时长（Core.GifTiming 纯逻辑，断言）
-        var (keep, qDelays) = Core.GifTiming.Resample(delaysMs);
-        if (keep.Count < frames.Count)
-        {
-            var kf = new List<CapturedFrame>(keep.Count);
-            foreach (var i in keep) kf.Add(frames[i]);
-            frames = kf;
-        }
-        delaysMs = qDelays; // 即使不丢帧（30fps 的 33→30/40 交替）也要用量化后的延迟
-        int w = frames[0].W, h = frames[0].H;
-        using var ms = new MemoryStream();
-        using var bw = new BinaryWriter(ms);
+        using var stream = new MemoryStream();
+        Write(stream, frames, delaysMs, loop, progress, ct);
+        return stream.ToArray();
+    }
 
-        void B(byte v) => bw.Write(v);
-        void W16(int v) => bw.Write((ushort)v);
-
+    /// <summary>逐帧写入 GIF；重采样只保存帧索引，不汇集像素或编码片段。</summary>
+    /// <param name="destination">由调用方关闭的输出流。</param>
+    /// <param name="frames">尺寸一致的只读 BGRA 帧。</param>
+    /// <param name="delaysMs">与帧一一对应的毫秒时长。</param>
+    /// <param name="loop">是否无限循环。</param>
+    /// <param name="progress">报告源序列中已处理到的帧数。</param>
+    /// <param name="ct">取消令牌；失败时调用方丢弃输出流。</param>
+    internal static void Write(Stream destination, IReadOnlyList<CapturedFrame> frames, IReadOnlyList<int> delaysMs,
+        bool loop = true, IProgress<int>? progress = null, CancellationToken ct = default)
+    {
+        if (frames.Count == 0 || frames.Count != delaysMs.Count) throw new ArgumentException("invalid frames or delays");
+        ct.ThrowIfCancellationRequested();
+        var (keep, delays) = Core.GifTiming.Resample(delaysMs);
+        var first = FrameMetadata.At(frames, 0);
+        var scratch = new QuantizerScratch(first.W);
+        using var bw = new BinaryWriter(destination, System.Text.Encoding.ASCII, leaveOpen: true);
         bw.Write(System.Text.Encoding.ASCII.GetBytes("GIF89a"));
-        W16(w); W16(h);
-        B(0); B(0); B(0); // 无全局色表
-
+        bw.Write((ushort)first.W); bw.Write((ushort)first.H);
+        bw.Write((byte)0); bw.Write((byte)0); bw.Write((byte)0);
         if (loop)
         {
-            B(0x21); B(0xFF); B(11);
+            bw.Write(new byte[] { 0x21, 0xFF, 11 });
             bw.Write(System.Text.Encoding.ASCII.GetBytes("NETSCAPE2.0"));
-            B(3); B(1); W16(0); B(0);
+            bw.Write(new byte[] { 3, 1, 0, 0, 0 });
         }
-
-        var parts = EncodeFrames(frames, delaysMs, progress, ct);
-        foreach (var part in parts) bw.Write(part);
-
-        B(0x3B);
+        for (int i = 0; i < keep.Count; i++)
+        {
+            ct.ThrowIfCancellationRequested();
+            var frame = BakedFrameList.Read(frames, keep[i], ct);
+            if (frame.W != first.W || frame.H != first.H) throw new ArgumentException("frame size mismatch");
+            WriteOne(bw, frame, delays[i], scratch, ct);
+            progress?.Report(i + 1 == keep.Count ? frames.Count : keep[i] + 1);
+        }
+        ct.ThrowIfCancellationRequested();
+        bw.Write((byte)0x3B);
         bw.Flush();
-        return ms.ToArray();
     }
 
-    /// <summary>逐帧独立编码（可并行）：每帧产出一段完整 GIF 记录（GCE+描述符+色表+LZW）。</summary>
-    static byte[][] EncodeFrames(IReadOnlyList<CapturedFrame> frames, IReadOnlyList<int> delaysMs,
-        IProgress<int>? progress, CancellationToken ct)
-    {
-        int n = frames.Count;
-        var parts = new byte[n][];
-        int done = 0;
-        if (n > 3 && Environment.ProcessorCount > 1)
-        {
-            Parallel.For(0, n,
-                new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount, CancellationToken = ct },
-                fi =>
-                {
-                    ct.ThrowIfCancellationRequested();
-                    parts[fi] = EncodeOne(frames[fi], delaysMs[fi]);
-                    int d = Interlocked.Increment(ref done);
-                    progress?.Report(d);
-                });
-        }
-        else
-        {
-            for (int fi = 0; fi < n; fi++)
-            {
-                ct.ThrowIfCancellationRequested();
-                parts[fi] = EncodeOne(frames[fi], delaysMs[fi]);
-                progress?.Report(++done);
-            }
-        }
-        return parts;
-    }
-
-    static byte[] EncodeOne(CapturedFrame frame, int delayMs)
+    static void WriteOne(BinaryWriter bw, CapturedFrame frame, int delayMs, QuantizerScratch scratch, CancellationToken ct)
     {
         int w = frame.W, h = frame.H;
-        using var ms = new MemoryStream();
-        using var bw = new BinaryWriter(ms);
         void B(byte v) => bw.Write(v);
         void W16(int v) => bw.Write((ushort)v);
         {
             int delay = Math.Clamp(delayMs, 10, 655_350) / 10;
             if (delay == 1) delay = 2; // 避免某些播放器把 1cs 当 0
 
-            var (indices, palette, entryBits, transparent) = Quantize(frame.Bgra, w, h);
+            var (indices, palette, entryBits, transparent) = Quantize(frame.Bgra, w, h, scratch, ct);
 
             // GCE
             B(0x21); B(0xF9); B(4);
@@ -123,10 +97,8 @@ public static class GifEncoder
 
             // LZW
             B((byte)entryBits);
-            LzwCompress(indices, entryBits, bw);
+            LzwCompress(indices, entryBits, bw, ct);
         }
-        bw.Flush();
-        return ms.ToArray();
     }
 
     #region 量化：median-cut → ≤256 色
@@ -138,22 +110,26 @@ public static class GifEncoder
     /// <param name="bgra">帧像素，行主序 BGRA。</param>
     /// <param name="w">帧宽（像素）。</param>
     /// <param name="h">帧高（像素）。</param>
+    /// <param name="scratch">仅在当前导出期间复用的工作区。</param>
+    /// <param name="ct">逐行及分段检查的取消令牌。</param>
     /// <returns>Indices 是逐像素调色板索引；Palette 是 tableSize×3 的 RGB；
     /// EntryBits 是 LZW 起始位宽；Transparent 为真时索引 0 即透明色，写 GCE 的调用方据此声明。</returns>
-    static (byte[] Indices, byte[] Palette, int EntryBits, bool Transparent) Quantize(byte[] bgra, int w, int h)
+    static (byte[] Indices, byte[] Palette, int EntryBits, bool Transparent) Quantize(byte[] bgra, int w, int h, QuantizerScratch scratch, CancellationToken ct)
     {
         int total = w * h;
+        ct.ThrowIfCancellationRequested();
         bool transparent = HasPartialAlpha(bgra, total);
         // GIF 的透明是 1 bit：alpha=0 干净透明，软投影这类渐变靠 Bayer 抖动摊成透明/实心两种像素，
         // 硬阈值会把一圈渐变压成死黑边。
         int maxColors = transparent ? 255 : 256;
 
         // 1) 收集样本颜色（大步长抽样）。6bit 归约键：5bit 会把暗渐变灰与暗杂色并进同桶，
-        // 桶均值被拉离灰轴 → 渐变端头整段同档（抓到）
+        // 桶均值保留暗色渐变的变化。
         int step = Math.Max(1, total / 60_000);
         var counts = new Dictionary<int, int>();
         for (int p = 0; p < total; p += step)
         {
+            ct.ThrowIfCancellationRequested();
             int o = p * 4;
             if (transparent && bgra[o + 3] < 250) continue; // 透明与抖动像素不进配色
             int key = (bgra[o + 2] >> 2 << 12) | (bgra[o + 1] >> 2 << 6) | (bgra[o] >> 2);
@@ -168,6 +144,7 @@ public static class GifEncoder
         boxes.Add(new ColorBox(all));
         while (boxes.Count < maxColors)
         {
+            ct.ThrowIfCancellationRequested();
             ColorBox? best = null; long bestScore = -1; int bestAxis = 0;
             foreach (var box in boxes)
             {
@@ -214,21 +191,26 @@ public static class GifEncoder
         }
 
         // 4) 像素 → 最近调色板色 + Floyd–Steinberg 误差扩散（蛇形扫描）。
-        // 无抖动的中位切割在暗渐变上出明显带状纹（逐帧审查 GIF 产物发现）；
         // 误差全为 0 的平坦区直接跳过传播，文字边缘不引入噪点。
-        // 7bit 键缓存：6bit 的 4 宽桶会把误差反馈量化成 4px 周期竖纹（真实帧 3x 放大抓到）
-        var cache = NnCache(out int gen);
+        // 7bit 键缓存保留误差反馈精度，避免渐变出现周期竖纹。
+        var cache = scratch.Colors;
+        int gen = scratch.NextGeneration();
         var indices = new byte[total];
-        var errBuf = ErrBuf(total);
+        var errBuf = scratch.Errors;
+        Array.Clear(errBuf);
         for (int y = 0; y < h; y++)
         {
+            ct.ThrowIfCancellationRequested();
+            int errorRow = (y & 1) * w;
+            int nextErrorRow = ((y + 1) & 1) * w;
+            Array.Clear(errBuf, nextErrorRow * 3, w * 3);
             bool ltr = (y & 1) == 0;
             int sx = ltr ? 1 : -1;
             int rowBase = y * w;
             for (int xi = 0; xi < w; xi++)
             {
                 int x = ltr ? xi : w - 1 - xi;
-                int p = rowBase + x, o = p * 4, pe = p * 3;
+                int p = rowBase + x, o = p * 4, pe = (errorRow + x) * 3;
                 if (transparent)
                 {
                     int a = bgra[o + 3];
@@ -268,16 +250,16 @@ public static class GifEncoder
                 if (aer + aeg + aeb <= 2) continue;
                 if (x + sx >= 0 && x + sx < w)
                 {
-                    int q = (p + sx) * 3;
+                    int q = (errorRow + x + sx) * 3;
                     errBuf[q] += er * 7f / 16f; errBuf[q + 1] += eg * 7f / 16f; errBuf[q + 2] += eb * 7f / 16f;
                 }
                 if (y + 1 < h)
                 {
-                    int q = (p + w) * 3;
+                    int q = (nextErrorRow + x) * 3;
                     errBuf[q] += er * 5f / 16f; errBuf[q + 1] += eg * 5f / 16f; errBuf[q + 2] += eb * 5f / 16f;
                     if (x - sx >= 0 && x - sx < w)
                     {
-                        int q2 = (p + w - sx) * 3;
+                        int q2 = (nextErrorRow + x - sx) * 3;
                         errBuf[q2] += er * 1f / 16f; errBuf[q2 + 1] += eg * 1f / 16f; errBuf[q2 + 2] += eb * 1f / 16f;
                     }
                 }
@@ -315,40 +297,34 @@ public static class GifEncoder
     /// <returns>0–15 的阈值格值，越小越早判成透明。</returns>
     static int Bayer(int x, int y) => _bayer[(y & 3) * 4 + (x & 3)];
 
-    // 误差缓冲按帧复用（LOH 分配，逐帧 new 会造成 GC 抖动）
-    [ThreadStatic] private static float[]? _errBuf;
-    private static float[] ErrBuf(int total)
+    /// <summary>工作区只活到本次导出结束，不由线程池线程长期持有。</summary>
+    sealed class QuantizerScratch
     {
-        var b = _errBuf;
-        if (b == null || b.Length < total * 3) { b = new float[total * 3]; _errBuf = b; }
-        else Array.Clear(b, 0, total * 3);
-        return b;
-    }
+        /// <summary>最近色缓存，条目由世代戳区分所属帧。</summary>
+        internal readonly int[] Colors = new int[2097152];
+        /// <summary>当前行和下一行的 RGB 误差。</summary>
+        internal readonly float[] Errors;
+        int _generation;
 
-    /// <summary>最近色查找表：按线程复用，免掉每帧 8MB 的 LOH 分配。</summary>
-    [ThreadStatic] private static int[]? _nnCache;
-    /// <summary>缓存世代戳：每次 Quantize 递增，写入值高位带世代，跨帧自动失效。</summary>
-    [ThreadStatic] private static int _nnGen;
+        /// <summary>分配一次导出所需的固定工作区。</summary>
+        /// <param name="width">输出像素宽度。</param>
+        internal QuantizerScratch(int width)
+        {
+            Errors = new float[checked(width * 6)];
+            Array.Fill(Colors, -1);
+        }
 
-    // 取本线程的查找表并开启新世代：整表只在首次分配时清零，之后靠世代戳区分帧
-    private static int[] NnCache(out int gen)
-    {
-        var c = _nnCache;
-        if (c == null)
+        /// <summary>开启下一帧的缓存世代，溢出前清空。</summary>
+        /// <returns>可写入缓存高位的世代戳。</returns>
+        internal int NextGeneration()
         {
-            c = new int[2097152];
-            Array.Fill(c, -1);
-            _nnCache = c;
-            _nnGen = 1;
+            if (++_generation == 1 << 23)
+            {
+                Array.Fill(Colors, -1);
+                _generation = 1;
+            }
+            return _generation;
         }
-        else if (++_nnGen == 1 << 23)
-        {
-            // 世代再进一位就要溢出符号位：整表清零后从 1 重新计数
-            Array.Fill(c, -1);
-            _nnGen = 1;
-        }
-        gen = _nnGen;
-        return c;
     }
 
     sealed class ColorBox
@@ -397,7 +373,7 @@ public static class GifEncoder
     /// 字节再攒成最长 255 的子块并前置长度字节，末尾补 0 结束子块链。
     /// 位流方向反了解码器不会报错，只会读出满屏花码——方向属于格式契约，不是实现细节。
     /// </summary>
-    static void LzwCompress(byte[] indices, int entryBits, BinaryWriter bw)
+    static void LzwCompress(byte[] indices, int entryBits, BinaryWriter bw, CancellationToken ct)
     {
         int minCodeSize = entryBits;
         int clearCode = 1 << minCodeSize;
@@ -442,6 +418,7 @@ public static class GifEncoder
         int prefix = indices[0];
         for (int i = 1; i < indices.Length; i++)
         {
+            if ((i & 4095) == 0) ct.ThrowIfCancellationRequested();
             int idx = indices[i];
             int combined = ((prefix << 8) | idx) & 0xFFFFFF;
             if (dict.TryGetValue(combined, out int found)) { prefix = found; continue; }

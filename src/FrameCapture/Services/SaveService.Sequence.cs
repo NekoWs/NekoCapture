@@ -13,6 +13,8 @@ public static partial class SaveService
     /// <returns>目标文件是否完整保存。</returns>
     public static async Task<bool> SaveSequenceAsync(CapturedSequence sequence)
     {
+        sequence = BakedFrameList.Retain(sequence);
+        using var reader = sequence.Frames as BakedFrameList;
         var settings = SettingsService.Shared?.Current;
         var format = settings?.RecordFormat ?? RecordFormat.Gif;
         string? ffmpeg = format == RecordFormat.Gif ? null : FfmpegLocator.Find();
@@ -36,7 +38,8 @@ public static partial class SaveService
                     int fallback = 1000 / Math.Max(1, sequence.Fps);
                     var delays = Enumerable.Range(0, frames.Count).Select(i => i + 1 < frames.Count
                         ? Math.Max(10, (int)(FrameMetadata.TimeAt(frames, i + 1) - FrameMetadata.TimeAt(frames, i))) : Math.Max(10, fallback)).ToArray();
-                    File.WriteAllBytes(temp, GifEncoder.Encode(frames, delays));
+                    using var file = new FileStream(temp, FileMode.CreateNew, FileAccess.Write, FileShare.None);
+                    GifEncoder.Write(file, frames, delays);
                 }
                 File.Move(temp, path);
                 return true;

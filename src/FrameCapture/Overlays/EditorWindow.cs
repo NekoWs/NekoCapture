@@ -17,7 +17,7 @@ public sealed partial class EditorWindow : Window
 {
     /// <summary>窗口关闭时触发且仅触发一次——用户放弃/确定与控制器主动关闭都走它；控制器据此释放帧源。</summary>
     public event Action? ClosedByUser;
-    /// <summary>确认输出或文件成功保存时交出独立于帧源的烘焙结果。</summary>
+    /// <summary>确认输出或保存成功时交出结果；接收者负责释放惰性烘焙帧的独立租约。</summary>
     public event Action<CapturedSequence>? OutputReady;
     /// <summary>输出失败时触发，取消导出不属于失败。</summary>
     public event Action? OutputFailed;
@@ -72,16 +72,8 @@ public sealed partial class EditorWindow : Window
         // 元数据抽入平行数组 + 位图缓存上限按帧字节自适应（见字段注释）
         int n = seq.Frames.Count;
         _times = new double[n];
-        if (seq.Frames is FrameSpoolList sl)
-        {
-            for (int i = 0; i < n; i++) _times[i] = sl.Meta(i).TimeMs;
-            if (n > 0) { var e0 = sl.Meta(0); _frameW = e0.W; _frameH = e0.H; }
-        }
-        else
-        {
-            for (int i = 0; i < n; i++) _times[i] = seq.Frames[i].TimeMs;
-            if (n > 0) { _frameW = seq.Frames[0].W; _frameH = seq.Frames[0].H; }
-        }
+        for (int i = 0; i < n; i++) _times[i] = FrameMetadata.TimeAt(seq.Frames, i);
+        if (n > 0) { var first = FrameMetadata.At(seq.Frames, 0); _frameW = first.W; _frameH = first.H; }
         long frameBytes = (long)_frameW * _frameH * 4;
         _bmpCacheMax = frameBytes > 0 ? (int)Math.Clamp((64L << 20) / frameBytes, 1, 24) : 1;
 

@@ -437,6 +437,7 @@ public sealed partial class CaptureController : IDisposable
     /// <summary>打开编辑器并接管生命周期（关闭→Idle→焦点归还）。调用方负责 seq 组装。</summary>
     void OpenEditor(CapturedSequence seq)
     {
+        seq = BakedFrameList.Retain(seq);
         State = Phase.Editing;
         Trace.Log($"open editor frames={seq.Frames.Count}");
         _editor = new EditorWindow(_settings, seq);
@@ -444,7 +445,7 @@ public sealed partial class CaptureController : IDisposable
         {
             _editor = null;
             State = Phase.Idle;
-            // 磁盘暂存帧列表随编辑器释放（删 spool 文件）
+            // 释放编辑器持有的磁盘句柄或烘焙帧租约。
             (seq.Frames as IDisposable)?.Dispose();
             // 焦点归还给捕获前正在使用的窗口（测试形态下不做：归还也是一次 SetForegroundWindow）
             try { if (!TestNoForeground && _prevFg != IntPtr.Zero && Native.Win32.IsWindow(_prevFg)) ForegroundNow(_prevFg); } catch { }

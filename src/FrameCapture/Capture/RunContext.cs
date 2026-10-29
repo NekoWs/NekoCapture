@@ -2,7 +2,7 @@ using FrameCapture.Core;
 
 namespace FrameCapture.Capture;
 
-/// <summary>一条动作链独占的输入与产物。帧像素只读共享，录制帧的释放归控制器或编辑器。</summary>
+/// <summary>一条动作链独占的输入与产物。帧像素只读共享，烘焙帧租约持续到本链及交接完成。</summary>
 public sealed class RunContext
 {
     /// <summary>捕获区域，物理像素、虚拟桌面绝对坐标。</summary>
@@ -20,7 +20,38 @@ public sealed class RunContext
     /// <summary>静图是否包含窗口透明通道。</summary>
     public bool WindowCapture { get; set; }
     /// <summary>本链的录制产物。</summary>
-    public CapturedSequence? Video { get; set; }
+    public CapturedSequence? Video
+    {
+        get => _video;
+        set
+        {
+            if (ReferenceEquals(_video, value)) return;
+            (_video?.Frames as BakedFrameList)?.Dispose();
+            _video = value;
+        }
+    }
+    CapturedSequence? _video;
+    int _users;
+
+    /// <summary>在动作链或交接期间保留烘焙结果；最后一个使用者退出时释放。</summary>
+    /// <returns>由调用方释放的使用凭据。</returns>
+    internal IDisposable HoldVideo()
+    {
+        Interlocked.Increment(ref _users);
+        return new VideoLease(this);
+    }
+
+    sealed class VideoLease(RunContext context) : IDisposable
+    {
+        int _disposed;
+        /// <summary>结束本次使用，最后一次结束时归还烘焙帧租约。</summary>
+        public void Dispose()
+        {
+            if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+            if (Interlocked.Decrement(ref context._users) == 0 && context.Video?.Frames is BakedFrameList)
+                context.Video = null;
+        }
+    }
     /// <summary>本链最近产物的类型。</summary>
     public RunValue LatestProduct { get; set; }
     /// <summary>最近动作的事件出口，供结果提示使用。</summary>

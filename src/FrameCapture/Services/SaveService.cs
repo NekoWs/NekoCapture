@@ -67,7 +67,7 @@ public static partial class SaveService
     /// （MP4/WebM 且装了 ffmpeg → 后台编码，不阻塞编辑器关闭；否则 GIF）。均为已烘焙标注/裁剪的最终产物。
     /// </summary>
     /// <param name="seq">编辑器提交的序列。<c>Frames</c> 可能是磁盘暂存的惰性列表，本方法只在需要时按索引取帧，
-    /// 不整段物化。视频分支把 <c>Frames</c> 交给后台任务持有，闭包释放后主动回收内存。</param>
+    /// 不整段物化。视频分支持有独立烘焙帧租约，任务完成时释放。</param>
     /// <param name="gif">已编码好的 GIF 字节：无 ffmpeg 时它就是产物，视频编码失败时是兜底产物。调用方必然备妥。</param>
     public static void MaybeSaveArtifact(CapturedSequence seq, byte[] gif)
     {
@@ -78,8 +78,9 @@ public static partial class SaveService
             if (seq.Frames.Count == 1)
             {
                 var path = Path.Combine(dir, UniqueName(dir, Stamp(), "png"));
-                BgraImage.SavePng(seq.Frames[0], path);
-                Trace.Log($"autosave png {path} {seq.Frames[0].W}x{seq.Frames[0].H}");
+                var frame = seq.Frames[0];
+                BgraImage.SavePng(frame, path);
+                Trace.Log($"autosave png {path} {frame.W}x{frame.H}");
                 return;
             }
 
@@ -100,17 +101,18 @@ public static partial class SaveService
             var matte = Core.HexColor.Parse(SettingsService.Shared.Current.VideoMatteColor);
             string ext = vfmt == VideoFormat.Mp4 ? "mp4" : "webm";
             var vpath = Path.Combine(dir, UniqueName(dir, Stamp(), ext));
-            var frames = seq.Frames; // 已烘焙、内存态，闭包持有，独立于 spool
             var hint = SavingHint.Start(Path.GetFileName(vpath));
+            var frames = BakedFrameList.Retain(seq).Frames;
             BackgroundWork.Run(() =>
             {
-                string tmp = Path.Combine(Path.GetTempPath(), $"fc_autosave_{Guid.NewGuid():N}.{ext}");
+                using var reader = frames as BakedFrameList;
+                string tmp = Path.Combine(dir, $".fc-autosave-{Guid.NewGuid():N}.{ext}");
                 bool ok = false;
                 try
                 {
                     VideoEncoder.Encode(frames, ff, tmp, vfmt, VideoEncoder.FpsFromFrames(frames),
                         matte: matte);
-                    File.Copy(tmp, vpath, overwrite: true);
+                    File.Move(tmp, vpath, overwrite: true);
                     Trace.Log($"autosave {ext} {vpath} {new FileInfo(vpath).Length}B {frames.Count}f");
                     ok = true;
                 }

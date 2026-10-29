@@ -59,6 +59,7 @@ public sealed partial class CaptureController
         RunContext? initialContext = null)
     {
         var context = initialContext ?? new RunContext();
+        using var videoLease = context.HoldVideo();
         _chainContext = context;
         _activeChain = chain.ToArray();
         var switchTargets = new[] { -1, -1 };
