@@ -469,8 +469,8 @@ public sealed partial class EditorWindow : Window
             };
             var bd = new Border
             {
-                Child = inner, Width = 20, Height = 20, Margin = new Thickness(2, 0, 0, 0),
-                CornerRadius = new CornerRadius(10), Background = Brushes.Transparent,
+                Child = inner, Width = 26, Height = 26, Margin = new Thickness(2, 0, 0, 0),
+                CornerRadius = new CornerRadius(13), Background = Brushes.Transparent,
                 Cursor = Cursors.Hand, ToolTip = Loc.F(K.Editor.RecentColor, hex),
             };
             Fluent.ChipHover(bd);

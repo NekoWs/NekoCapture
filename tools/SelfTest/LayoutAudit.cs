@@ -250,11 +250,17 @@ static partial class SelfTest
             MonitorBounds = new RectI(0, 0, 1920, 1080),
             Fps = 30,
         };
-        var w = new EditorWindow(svc, seq);
-        ShowOffscreen(w);
-        PumpMs(250);
-        ScanTree(rows, "editor", (UIElement)w.Content);
-        w.Close();
+        var colors = svc.Current.CustomColors;
+        EditorWindow? w = null;
+        try
+        {
+            svc.Current.CustomColors = new() { "#E81123", "#FFFFFF" };
+            w = new EditorWindow(svc, seq);
+            ShowOffscreen(w);
+            PumpMs(250);
+            ScanTree(rows, "editor", (UIElement)w.Content);
+        }
+        finally { svc.Current.CustomColors = colors; w?.Close(); }
     }
 
     /// <summary>贴图：含右键菜单之外的常驻版面（贴图本体 + 浮层提示条）。</summary>
