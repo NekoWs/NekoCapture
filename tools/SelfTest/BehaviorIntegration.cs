@@ -175,6 +175,7 @@ static partial class SelfTest
             Chk("T273-graph-ui-parent-navigation", visiblePath.SequenceEqual(new[] { edit.Id }));
             BehaviorPresetUiChecks(settings, service);
             SettingsPageMotionChecks(settings);
+            SettingsEditingChecks(settings, service);
             RecordingReadyChecks(service);
             settings.Close();
         }

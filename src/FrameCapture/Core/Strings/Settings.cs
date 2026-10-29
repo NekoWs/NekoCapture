@@ -110,7 +110,7 @@ public static partial class K
         public static readonly Str GroupText = new("settings.groupText", "文字色", "Text");
         public static readonly Str HighRefreshPanelsAtHz = new("settings.highRefreshPanelsAtHz", "MP4/WebM 支持高帧率，GIF 约限 50 fps", "MP4/WebM support high frame rates; GIF is limited to about 50 fps.");
         public static readonly Str Hotkeys = new("settings.hotkeys", "快捷键", "Hotkeys");
-        public static readonly Str HoveringSnapsToASpecific = new("settings.hoveringSnapsToASpecific", "悬停吸附控件，Tab 切换父容器；应用需支持无障碍接口", "Hover to snap to a control; Tab selects its parent. Requires accessibility support.");
+        public static readonly Str HoveringSnapsToASpecific = new("settings.hoveringSnapsToASpecific", "悬停吸附控件；应用需支持无障碍接口", "Hover to snap to a control; requires accessibility support.");
         public static readonly Str HowLongTheCopiedThumbnail = new("settings.howLongTheCopiedThumbnail", "截图浮窗停留时间；悬停暂停，移开重新计时", "Screenshot toast duration; hovering pauses it and leaving restarts the timer.");
         public static readonly Str HslHSLCommon = new(
             "settings.hslHSLCommon",

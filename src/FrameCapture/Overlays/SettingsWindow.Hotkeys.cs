@@ -177,24 +177,33 @@ public sealed partial class SettingsWindow : Window
             VerticalAlignment = VerticalAlignment.Center,
             TextTrimming = TextTrimming.CharacterEllipsis,
         };
-        // 名字右侧一枚小编辑按钮：正文里那条「名字」输入框整行占位，改个名要先把行展开。
-        // 这里必须是 Grid：横向 StackPanel 用无限宽度量孩子，nameText 上的 TextTrimming 永远不生效，
-        // 用户起的长名字会直接画到右边的键帽上。星型列把宽度还给名字，省略号才可能出现。
-        var nameCell = new Grid { VerticalAlignment = VerticalAlignment.Center };
+        var suffix = new TextBlock
+        {
+            Text = Loc.T(GestureConfig.TriggerLabel(b.Trigger)), FontSize = 12,
+            Foreground = Theme.TextDimBrush, VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(8, 0, 0, 0),
+        };
+        // 名称按可用宽度省略，触发方式与改名按钮紧随名称。
+        var nameCell = new Grid { VerticalAlignment = VerticalAlignment.Center,
+            HorizontalAlignment = HorizontalAlignment.Left, ClipToBounds = true };
         nameCell.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        nameCell.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         nameCell.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         Border edit = null!;
         void ShowName()
         {
             nameCell.Children.Clear();
+            nameCell.HorizontalAlignment = HorizontalAlignment.Left;
             Grid.SetColumn(nameText, 0);
-            Grid.SetColumn(edit, 1);
+            Grid.SetColumn(suffix, 1); Grid.SetColumn(edit, 2);
             nameCell.Children.Add(nameText);
+            nameCell.Children.Add(suffix);
             nameCell.Children.Add(edit);
         }
         void BeginRename()
         {
             nameCell.Children.Clear();
+            nameCell.HorizontalAlignment = HorizontalAlignment.Stretch;
             var rb = RenameBox(nameText.Text, v =>
             {
                 b.Name = v.Trim();
@@ -203,18 +212,12 @@ public sealed partial class SettingsWindow : Window
                 ShowName();
             }, ShowName);
             Grid.SetColumn(rb, 0);
+            Grid.SetColumnSpan(rb, 3);
+            rb.SetBinding(MaxWidthProperty, new System.Windows.Data.Binding(nameof(ActualWidth)) { Source = nameCell });
             nameCell.Children.Add(rb);
         }
         edit = RenameIconButton(BeginRename);
         ShowName();
-        var suffix = new TextBlock
-        {
-            Text = Loc.T(GestureConfig.TriggerLabel(b.Trigger)),
-            FontSize = 12,
-            Foreground = Theme.TextDimBrush,
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(8, 0, 0, 0),
-        };
         var box = NewChordBox(b);
         _hotBoxes[b.Id] = box;
 
@@ -234,12 +237,11 @@ public sealed partial class SettingsWindow : Window
         head.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         head.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         head.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        head.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         var del = DeleteIconButton(b);
         var sw = EnableSwitch(b, PaintEnabled);
-        Grid.SetColumn(chevron, 0); Grid.SetColumn(nameCell, 1); Grid.SetColumn(suffix, 2);
-        Grid.SetColumn(del, 3); Grid.SetColumn(sw, 4); Grid.SetColumn(box, 5);
-        head.Children.Add(chevron); head.Children.Add(nameCell); head.Children.Add(suffix);
+        Grid.SetColumn(chevron, 0); Grid.SetColumn(nameCell, 1);
+        Grid.SetColumn(del, 2); Grid.SetColumn(sw, 3); Grid.SetColumn(box, 4);
+        head.Children.Add(chevron); head.Children.Add(nameCell);
         head.Children.Add(del); head.Children.Add(sw); head.Children.Add(box);
 
         // 名字与键帽坐在一条胶囊上：文字直接浮在卡片里没有落点。胶囊比卡片亮一档（暗色）/暗一档（亮色），
@@ -400,54 +402,6 @@ public sealed partial class SettingsWindow : Window
         // 改名不是展开这一行：这一击停在按钮上，别冒到胶囊去
         btn.MouseLeftButtonUp += (_, e) => { onClick(); e.Handled = true; };
         return btn;
-    }
-
-    /// <summary>就地改名的输入框：宽度跟着内容走，光标不会顶到框边，也不会占住整行。
-    /// 回车落定，Esc 作废，走开（失焦）按落定处理。</summary>
-    /// <param name="current">当前名字，作为初值。</param>
-    /// <param name="commit">落定：参数是输入框里的原文。</param>
-    /// <param name="cancel">作废：把名字放回没改时的样子。</param>
-    /// <returns>已接好键位与失焦的输入框容器。</returns>
-    static FrameworkElement RenameBox(string current, Action<string> commit, Action cancel)
-    {
-        // 隐藏的同款文字用来量宽：TextBox 不会自己跟着内容长，绑住它的实测宽度才做得到自适应
-        var measure = new TextBlock
-        {
-            Text = current.Length == 0 ? " " : current,
-            FontSize = 13,
-            FontWeight = FontWeights.SemiBold,
-            Visibility = Visibility.Hidden,
-            IsHitTestVisible = false,
-        };
-        var box = new TextBox
-        {
-            Text = current,
-            FontSize = 13,
-            FontWeight = FontWeights.SemiBold,
-            Background = Theme.CardBgBrush,
-            BorderBrush = Theme.AccentBrush,
-            BorderThickness = new Thickness(1),
-            CaretBrush = Theme.AccentBrush,
-            Foreground = Theme.TextBrush,
-            Padding = new Thickness(5, 1, 5, 1),
-            MinWidth = 60,
-            VerticalContentAlignment = VerticalAlignment.Center,
-        };
-        box.SetBinding(WidthProperty, new System.Windows.Data.Binding(nameof(TextBlock.ActualWidth)) { Source = measure });
-        box.TextChanged += (_, _) => measure.Text = box.Text.Length == 0 ? " " : box.Text;
-        // 落定与作废只认第一次：Esc 之后紧跟着的失焦不能把「作废」翻成「落定」
-        bool done = false;
-        box.Loaded += (_, _) => { box.Focus(); box.SelectAll(); };
-        box.PreviewKeyDown += (_, e) =>
-        {
-            if (e.Key == Key.Enter) { if (!done) { done = true; commit(box.Text); } e.Handled = true; }
-            else if (e.Key == Key.Escape) { if (!done) { done = true; cancel(); } e.Handled = true; }
-        };
-        box.LostFocus += (_, _) => { if (!done) { done = true; commit(box.Text); } };
-        var g = new Grid { HorizontalAlignment = HorizontalAlignment.Left };
-        g.Children.Add(measure);
-        g.Children.Add(box);
-        return g;
     }
 
     /// <summary>触发方式行：同一个组合键配多条不同触发，这一列就是那些变化所在。</summary>

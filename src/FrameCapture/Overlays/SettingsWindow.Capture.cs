@@ -251,7 +251,7 @@ public sealed partial class SettingsWindow : Window
         var right = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center };
         Grid.SetColumn(right, 2);
 
-        // 试听：按当前选择（含自定义文件）立刻放一声
+        // 试听遵循当前音效设置。
         var preview = new Border
         {
             CornerRadius = new CornerRadius(6),
@@ -267,8 +267,17 @@ public sealed partial class SettingsWindow : Window
             ToolTip = Loc.T(K.Settings.ClickToHearTheCurrent),
             Focusable = true,
         };
-        void DoPreview() => CaptureSound.Play(
-            _settings.Current.CaptureSound ? _settings.Current.CustomSoundPath : "");
+        void DoPreview()
+        {
+            if (_settings.Current.CaptureSound) CaptureSound.Play(_settings.Current.CustomSoundPath);
+        }
+        void SyncPreview()
+        {
+            preview.IsEnabled = _settings.Current.CaptureSound;
+            preview.Opacity = preview.IsEnabled ? 1 : 0.45;
+            preview.Cursor = preview.IsEnabled ? Cursors.Hand : Cursors.Arrow;
+        }
+        SyncPreview();
         preview.MouseLeftButtonDown += (_, e) => { DoPreview(); e.Handled = true; };
         preview.KeyDown += (_, e) => { if (e.Key is Key.Space or Key.Enter) { DoPreview(); e.Handled = true; } };
         preview.GotKeyboardFocus += (_, _) => { preview.BorderBrush = Theme.AccentBrush; preview.BorderThickness = new Thickness(1); };
@@ -310,6 +319,7 @@ public sealed partial class SettingsWindow : Window
             else _settings.Mutate(s => { s.CaptureSound = true; s.CustomSoundPath = ""; });
             last = combo.SelectedIndex;
             combo.ToolTip = SoundTip(last);
+            SyncPreview();
         };
         right.Children.Add(combo);
 

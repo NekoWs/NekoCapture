@@ -3,6 +3,7 @@
 源代码版本：0.9.13。契约见 [docs/PLAN-ORTHOGONAL-CHAINS.md](docs/PLAN-ORTHOGONAL-CHAINS.md)。
 
 - 快捷键配置输入、触发阈值与共享入口；初始模式由行为和预设提供。
+- 触发方式紧随名称；圆角改名框按内容伸展，支持中文输入并限制在名称列内。静音时试听不可用。
 - 快捷键页提供双快捷键、选区与捕获、单快捷键预设；自定义方案独立保存，修改预设时自动接管。
 - 预设卡片随主题刷新颜色；隐藏页不生成快照，键盘焦点使用强调色圆角描边。
 - 录制准备显示状态、范围和按钮；按键位于提示中，计时面板直接使用目标尺寸。
@@ -14,7 +15,7 @@
 - 图版本为 1，动作链导入版本为 3；写回前保留输入备份，文件占用时有限重试。
 - 运行使用配置快照；无效入口不装入手势引擎。物理与测试输入隔离，时间戳使用统一单调时间轴。
 
-1087 项 SelfTest、70 组双语审计和 7 项端到端检查通过。
+1096 项 SelfTest、70 组双语审计和 7 项端到端检查通过。
 构建零错误，静态扫描零失败，注释零警告。键盘注入焦点安全测试默认跳过。
-验证产物位于 `test-out/page-motion-guardrail.txt`、`test-out/record-events-final-guardrail.txt`、`test-out/selftest-last-run.txt` 和 `test-out/uxaudit/`。
+验证产物位于 `test-out/rename-ui-guardrail.txt`、`test-out/record-events-final-guardrail.txt`、`test-out/selftest-last-run.txt` 和 `test-out/uxaudit/`。
 人工交互清单见 [UIAUDIT.md](UIAUDIT.md)。
