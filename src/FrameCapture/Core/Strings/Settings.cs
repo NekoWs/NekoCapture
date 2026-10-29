@@ -173,7 +173,9 @@ public static partial class K
             "Recording frame rate");
         public static readonly Str RecordWindowOnly = new("settings.recordWindowOnly", "只录窗口", "Record window only");
         public static readonly Str RememberTheLastToolColor = new("settings.rememberTheLastToolColor", "记住工具样式", "Remember tool settings");
-        public static readonly Str RunAsAdministratorTip = new("settings.runAsAdministratorTip", "开启时授权；同时启用开机自启后，登录时免 UAC 启动", "Authorize when enabling; with Start with Windows enabled, sign-in starts without UAC.");
+        public static readonly Str RunAsAdministratorTip = new("settings.runAsAdministratorTip", "显示当前权限；切换后重启应用", "Shows current privileges; switching restarts the app.");
+        public static readonly Str AdministratorChanging = new("settings.administratorChanging", "正在切换权限…", "Switching privileges…");
+        public static readonly Str AdministratorChangeFailed = new("settings.administratorChangeFailed", "权限切换失败，请重试", "Could not switch privileges. Try again.");
         public static readonly Str RightClickCancelsPicker = new("settings.rightClickCancelsPicker", "右键关闭选区", "Right-click closes the picker");
         public static readonly Str RightClickCancelsPickerTip = new("settings.rightClickCancelsPickerTip", "右键取消选区，不执行捕获", "Right-click to cancel selection without capturing.");
         public static readonly Str Reset = new("settings.reset", "恢复", "Reset");

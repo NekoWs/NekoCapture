@@ -79,6 +79,8 @@ static partial class SelfTest
         finally { FreeStartupArguments(argv); }
         Chk("startup-handoff-invalid-parent-is-rejected", !StartupService.WaitForParent(new[] { "--wait-parent", "invalid", "1" })
             && !StartupService.WaitForParent(new[] { "--wait-parent", Environment.ProcessId.ToString(), "1" }));
+        using (var native = new WindowsStartupRegistration())
+            Chk("startup-native-missing-task-is-unconfigured", native.ReadTask("FrameCapture-Diagnostic-" + Guid.NewGuid().ToString("N")) == null);
         StartupSettingsChecks();
     }
 
@@ -94,6 +96,24 @@ static partial class SelfTest
             Chk("startup-preferences-write-both-flags-together", settings.TrySaveStartup(true, true)
                 && settings.Current.RunAtStartup && settings.Current.RunAsAdmin
                 && File.ReadAllText(SettingsService.FilePath).Contains("\"RunAsAdmin\": true"));
+            const string sid = "S-1-5-21-100-200-300-1001", exe = @"D:\Apps\FrameCapture.exe";
+            string name = StartupPlan.NameFor(sid), xml = StartupPlan.BuildXml(exe, sid);
+            var storage = new StartupMemory(); storage.Tasks[name] = xml;
+            bool failed = false;
+            try
+            {
+                StartupService.ApplyLocal(new StartupPlan(storage, exe, sid, true, false), true, false, settings,
+                    () => throw new IOException("Standard instance could not start"));
+            }
+            catch (AggregateException) { failed = true; }
+            Chk("startup-downgrade-launch-failure-restores-entries", failed && storage.RunValue == null && storage.Tasks[name] == xml);
+            Chk("startup-downgrade-launch-failure-restores-preferences", settings.Current.RunAtStartup && settings.Current.RunAsAdmin
+                && File.ReadAllText(SettingsService.FilePath).Contains("\"RunAsAdmin\": true"));
+            bool launched = false;
+            var change = StartupService.ApplyLocal(new StartupPlan(storage, exe, sid, false, false), false, false, settings, () => launched = true);
+            Chk("startup-downgrade-commits-before-handoff", launched && change.Restarted && change.Result == StartupResult.Off
+                && storage.Tasks.Count == 0 && storage.RunValue == null && !settings.Current.RunAtStartup && !settings.Current.RunAsAdmin);
+            settings.TrySaveStartup(true, true);
             File.Delete(SettingsService.FilePath); Directory.CreateDirectory(SettingsService.FilePath);
             Chk("startup-preferences-failed-write-keeps-memory-state", !settings.TrySaveStartup(false, false)
                 && settings.Current.RunAtStartup && settings.Current.RunAsAdmin);

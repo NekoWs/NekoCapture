@@ -66,14 +66,6 @@ public static partial class K
             "tray.resumedCaptureHotkeysAreActive",
             "已恢复：截图热键重新生效",
             "Resumed: capture hotkeys are active again");
-        public static readonly Str RunAsAdministrator = new(
-            "tray.runAsAdministrator",
-            "以管理员身份运行",
-            "Run As Administrator");
-        public static readonly Str RunningAsAdministrator = new(
-            "tray.runningAsAdministrator",
-            "管理员权限运行",
-            "Running As Administrator");
         public static readonly Str SetCaptureRegion = new("tray.setCaptureRegion", "设置捕获范围", "Set Capture Region");
         public static readonly Str Settings = new("tray.settings", "设置…", "Settings…");
     }

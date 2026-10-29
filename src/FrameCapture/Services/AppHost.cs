@@ -127,23 +127,11 @@ public sealed class AppHost
     }
 
     /// <summary>当前是否以管理员权限运行。</summary>
-    public static bool IsElevated
-    {
-        get
-        {
-            try
-            {
-                using var id = System.Security.Principal.WindowsIdentity.GetCurrent();
-                return new System.Security.Principal.WindowsPrincipal(id)
-                    .IsInRole(System.Security.Principal.WindowsBuiltInRole.Administrator);
-            }
-            catch { return false; }
-        }
-    }
+    public static bool IsElevated => StartupService.IsElevated;
 
     private readonly SemaphoreSlim _startupGate = new(1, 1);
 
-    /// <summary>先登记登录入口，再保存设置；提权子进程等待当前进程退出后接管。</summary>
+    /// <summary>先登记登录入口，再保存设置；目标权限子进程等待当前进程退出后接管。</summary>
     /// <param name="enable">是否启用登录自启。</param>
     /// <param name="elevated">是否要求管理员权限。</param>
     /// <param name="arguments">交接后的应用参数。</param>
@@ -153,7 +141,7 @@ public sealed class AppHost
         await _startupGate.WaitAsync();
         try
         {
-            var change = await Task.Run(() => StartupService.Configure(enable, elevated, elevated && !IsElevated, arguments, Settings));
+            var change = await Task.Run(() => StartupService.Configure(enable, elevated, elevated != IsElevated, arguments, Settings));
             if (change.Result is StartupResult.Cancelled or StartupResult.Failed) return change.Result;
             Settings.AcceptStartup(enable, elevated);
             if (change.Restarted)

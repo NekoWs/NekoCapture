@@ -148,8 +148,8 @@ public bool EditableSelection { get; set; } = false;
     /// 登录时不弹 UAC，直接以管理员身份起来。</summary>
     public bool RunAtStartup { get; set; }
 
-    /// <summary>以管理员身份运行（默认关）：全局键盘钩子要抓住 Win 组合键、以及焦点落在高权限窗口上的按键，
-    /// 都需要当前进程已提权。开启时用一次 UAC 换成提权实例，此后自启走计划任务、无需 UAC。</summary>
+    /// <summary>管理员启动偏好，默认关闭；当前权限由进程令牌决定。
+    /// 开启时授权并重启为管理员，关闭时重启为普通权限；同时启用自启时使用最高权限登录任务。</summary>
     public bool RunAsAdmin { get; set; }
 
     /// <summary>启动气泡提示（默认开）：启动完成后在屏幕右下角弹一条「FrameCapture 已启动」，

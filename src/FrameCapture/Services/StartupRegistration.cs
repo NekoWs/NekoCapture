@@ -196,7 +196,7 @@ internal sealed class WindowsStartupRegistration : IStartupRegistration, IDispos
     {
         dynamic? task = null;
         try { task = Folder.GetTask(name); return (string)task.Xml; }
-        catch (COMException ex) when (ex.HResult == unchecked((int)0x80070002)) { return null; }
+        catch (Exception ex) when (ex.HResult == unchecked((int)0x80070002)) { return null; }
         finally { if (task != null) Marshal.FinalReleaseComObject(task); }
     }
 
@@ -211,7 +211,7 @@ internal sealed class WindowsStartupRegistration : IStartupRegistration, IDispos
     public void DeleteTask(string name)
     {
         try { Folder.DeleteTask(name, 0); }
-        catch (COMException ex) when (ex.HResult == unchecked((int)0x80070002)) { }
+        catch (Exception ex) when (ex.HResult == unchecked((int)0x80070002)) { }
     }
 
     /// <summary>卸载时移除指向指定程序的各用户登录任务。</summary>

@@ -96,7 +96,7 @@ public sealed class TrayService : IDisposable
     }
 
     /// <summary>
-    /// 在鼠标处弹出托盘菜单。菜单项每次重建，因此始终反映当前设置（延时秒数、自启勾选、是否已提权）。
+    /// 在鼠标处弹出托盘菜单，菜单项按当前捕获与自启状态重建。
     /// 同一时刻只保留一份菜单与其锚窗：再次右键会先关掉上一份。
     /// </summary>
     public void ShowMenu()
@@ -154,22 +154,13 @@ public sealed class TrayService : IDisposable
         Item(Loc.T(K.Tray.Help), OpenHelp);
         Item(Loc.T(K.Common.StartWithWindows), async () =>
         {
-            var result = await _host.ConfigureStartupAsync(!_host.Settings.Current.RunAtStartup, _host.Settings.Current.RunAsAdmin);
+            var result = await _host.ConfigureStartupAsync(!_host.Settings.Current.RunAtStartup, AppHost.IsElevated);
             if (result == StartupResult.Failed) System.Windows.MessageBox.Show(Loc.T(K.Common.StartupTaskFailed));
         }, checkable: true, isChecked: _host.Settings.Current.RunAtStartup);
         // 暂停全局热键——游戏/演示/与其他软件热键冲突时临时让位，键完整落到前台应用。
         // 运行时状态（不持久化），重启自动恢复工作。
         Item(Loc.T(K.Tray.PauseGlobalHotkeys), () => TogglePause(),
             checkable: true, isChecked: Services.HotkeyManager.Paused);
-        // 按需提权：解决被更高权限窗口（管理员终端/游戏）压住、快捷键盲区的问题
-        if (AppHost.IsElevated)
-            Item(Loc.T(K.Tray.RunningAsAdministrator), () => { }, checkable: true, isChecked: true); // 勾选标记由 checkable 呈现，文本里不重复打勾
-        else
-            Item(Loc.T(K.Tray.RunAsAdministrator), async () =>
-            {
-                var result = await _host.ConfigureStartupAsync(_host.Settings.Current.RunAtStartup, true);
-                if (result == StartupResult.Failed) System.Windows.MessageBox.Show(Loc.T(K.Common.StartupTaskFailed));
-            });
         Sep();
         Item(Loc.T(K.Tray.Exit), () =>
         {
