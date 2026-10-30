@@ -112,7 +112,7 @@ public sealed partial class RecordPanelWindow : Window
             VerticalAlignment = VerticalAlignment.Center, Width = 62 };
         _recordStatus = new TextBlock { Text = Loc.T(K.Capture.RecordActive), FontSize = 11.5,
             Foreground = Theme.TextBrush, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
-        _startText = new TextBlock { Text = Loc.T(K.Actions.RecordStartLabel), FontSize = 12.5,
+        _startText = new TextBlock { Text = Loc.T(K.Common.RecordStartLabel), FontSize = 12.5,
             Foreground = new SolidColorBrush(Fluent.OnAccentColor(Theme.Accent)) };
         _stopText = new TextBlock { FontSize = 12.5, Foreground = Theme.TextBrush };
         _start = PanelButton(_startText, Theme.AccentBrush);

@@ -81,7 +81,7 @@ public static class GestureActions
         new(SavePng, K.Hotkeys.SavePng, K.Hotkeys.SavePngDesc),
         new(CaptureFrame, K.Actions.CaptureFrameLabel, K.Actions.CaptureFrameDesc),
         new(RecordToggle, K.Actions.RecordToggleLabel, K.Actions.RecordToggleDesc),
-        new(RecordStart, K.Actions.RecordStartLabel, K.Actions.RecordStartDesc),
+        new(RecordStart, K.Common.RecordStartLabel, K.Actions.RecordStartDesc),
         new(RecordStop, K.Actions.RecordStopLabel, K.Actions.RecordStopDesc),
         new(ScrollCapture, K.Common.ScrollingCapture, K.Actions.ScrollCaptureDesc),
         new(DelayedCapture, K.Common.DelayedCapture, K.Actions.DelayedCaptureDesc),

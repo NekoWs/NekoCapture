@@ -35,13 +35,10 @@ public sealed partial class SettingsWindow : Window
     /// 以及外观页主题芯片的选中态。共享画刷管颜色，这里管「哪一项算选中」这类构造期算出来的判断。</summary>
     readonly List<Action> _repaint = new();
 
-    /// <summary>装配配色分页：预设 → 预览 → 强调色 → 按组分节的令牌行 → 恢复出厂。</summary>
+    /// <summary>配色预设、实时预览、强调色与自定义颜色入口。</summary>
     /// <param name="panel">这一页的容器，由 <c>Build</c> 创建并交给分页表。</param>
     void BuildPalette(StackPanel panel)
     {
-        _repaintHandler = () => { foreach (var f in _repaint) f(); };
-        Theme.Changed += _repaintHandler;
-        Closed += (_, _) => { if (_repaintHandler != null) Theme.Changed -= _repaintHandler; };
 
         var presets = new StackPanel();
         PresetCard(presets);
@@ -57,6 +54,13 @@ public sealed partial class SettingsWindow : Window
         AccentCard(accent);
         Cardify(accent);
         panel.Children.Add(accent);
+
+        panel.Children.Add(SettingsPageEntry("colors"));
+        foreach (var paint in _repaint.ToArray()) paint();
+    }
+
+    private void BuildCustomColors(StackPanel panel)
+    {
 
         foreach (var group in (ColorGroup[])Enum.GetValues(typeof(ColorGroup)))
         {
@@ -74,8 +78,7 @@ public sealed partial class SettingsWindow : Window
         restore.Children.Add(RestoreRow());
         panel.Children.Add(restore);
 
-        // 每段重绘只在 Theme.Changed 上挂；建完页先跑一遍，色块与十六进制才有出厂值，不必等第一次改动。
-        foreach (var f in _repaint) f();
+        foreach (var paint in _repaint.ToArray()) paint();
     }
 
     #region 预设与恢复

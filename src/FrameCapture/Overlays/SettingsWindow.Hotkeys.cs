@@ -34,45 +34,24 @@ public sealed partial class SettingsWindow : Window
     bool _hotHookWasPaused;
 
     /// <summary>装配快捷键页：总开关在最上，其下是逐条快捷键。</summary>
-    /// <param name="panel">本页的内容容器，编辑器键位一节由调用方接在后面。</param>
+    /// <param name="panel">快捷键概要与下级入口的容器。</param>
     void BuildHotkeys(StackPanel panel)
     {
-        panel.Children.Add(ToggleRow("\uE765", Loc.T(K.Hotkeys.EnableHotkeys),
-            Loc.T(K.Hotkeys.OffStepsTheWholeHotkey),
-            _settings.Current.Gestures.Enabled, v =>
+        var enabled = new StackPanel();
+        enabled.Children.Add(ToggleRow("\uE765", Loc.T(K.Hotkeys.EnableHotkeys), Loc.T(K.Hotkeys.OffStepsTheWholeHotkey),
+            _settings.Current.Gestures.Enabled, value =>
             {
-                _settings.Mutate(s => s.Gestures.Enabled = v);
-                // 总开关当场生效：自写盘会被文件 watcher 跳过，等它就要到下次启动才重载。
+                _settings.Mutate(s => s.Gestures.Enabled = value);
                 AppHost.Current.InstallHotkeys();
             }));
-
-        panel.Children.Add(BuildBehaviorPresets());
-        _hotList = new StackPanel();
-        var card = new Border
-        {
-            Margin = new Thickness(0, 2, 0, 2),
-            CornerRadius = new CornerRadius(8),   // 卡片 8、行 6：外圆包内圆
-            BorderThickness = new Thickness(1),
-            BorderBrush = Theme.StrokeBrush,
-            Background = Theme.CardBgBrush,
-            Padding = new Thickness(8, 4, 8, 5),
-            Child = _hotList,
-        };
-        Fluent.Elevate(card, blur: 24, depth: 6);
-        panel.Children.Add(card);
-        RebuildHotkeys();
-
-        // 界面上每一处「按一下录一个键」都归这一页：确认与取消在选区框上生效，复制键在截完那张浮窗上生效。
-        // 它们跟上面那份列表是同一类东西，散到各自功能的分页里，找键位就得挨个翻。
-        var ui = new StackPanel();
-        ui.Children.Add(SectionHeader(Loc.T(K.Hotkeys.UiKeys)));
-        ui.Children.Add(UiKeyPill(ConfirmKeyRow()));
-        ui.Children.Add(UiKeyPill(CancelKeyRow()));
-        ui.Children.Add(UiKeyPill(ToastCopyRow()));
-        Cardify(ui);
-        panel.Children.Add(ui);
+        Cardify(enabled); panel.Children.Add(enabled);
+        panel.Children.Add(SectionHeader(Loc.T(K.SettingsNavigation.MyHotkeys)));
+        _hotList = new StackPanel(); panel.Children.Add(_hotList); RebuildHotkeys();
+        panel.Children.Add(SectionHeader(Loc.T(K.SettingsNavigation.More)));
+        panel.Children.Add(SettingsPageEntry("presets"));
+        panel.Children.Add(SettingsPageEntry("ui-keys"));
+        panel.Children.Add(SettingsPageEntry("behaviors"));
     }
-
 
     /// <summary>按当前配置重铺快捷键列表：逐条一行，末尾一枚「添加快捷键」。
     /// 增删与改触发方式走整表重建；行内改名字、改序列由各自的编辑器就地更新。</summary>
@@ -85,8 +64,9 @@ public sealed partial class SettingsWindow : Window
         _hotClashSync.Clear();
         _folds.Clear();   // 行的容器整个换了一批，上一批容器的记账跟着一起丢
         foreach (var b in _settings.Current.Gestures.Bindings)
-            _hotList.Children.Add(HotkeyRow(b));
+            _hotList.Children.Add(HotkeyOverviewRow(b));
         _hotList.Children.Add(AddHotkeyButton());
+        RefreshSettingsBindingDetail();
     }
 
     /// <summary>列表末尾的「添加快捷键」。</summary>
@@ -145,21 +125,28 @@ public sealed partial class SettingsWindow : Window
         AppHost.Current.InstallHotkeys();
         _hotOpen = b.Id;
         InsertHotkeyAnimated(b);
+        OpenSettingsBinding(b);
         if (_hotBoxes.TryGetValue(b.Id, out var box))
-            // 新行刚进树，焦点要等布局走完才落得住。
-            Dispatcher.BeginInvoke(new Action(box.BeginCapture), System.Windows.Threading.DispatcherPriority.Loaded);
+        {
+            var timer = new System.Windows.Threading.DispatcherTimer
+                { Interval = TimeSpan.FromMilliseconds(Fluent.Motion.QuickMs + Fluent.Motion.EnterMs) };
+            timer.Tick += (_, _) => { timer.Stop(); if (box.IsVisible && _currentSettingsPage == "binding:" + b.Id) box.BeginCapture(); };
+            timer.Start();
+        }
     }
 
     /// <summary>一条快捷键的一行。折叠态是那颗胶囊：名字、删除、启用开关、键位；
     /// 展开态在胶囊下面长出正文，高度动画走完再放开限高。</summary>
     /// <param name="b">这条绑定，就地改它再落盘。</param>
+    /// <param name="detail">是否在独立详情页保持展开。</param>
     /// <returns>行容器，可直接放进列表。</returns>
-    FrameworkElement HotkeyRow(GestureBindingDto b)
+    FrameworkElement HotkeyRow(GestureBindingDto b, bool detail = false)
     {
-        bool open = _hotOpen == b.Id;
+        bool open = detail || _hotOpen == b.Id;
         var chevron = new TextBlock
         {
             Text = open ? "\uE70E" : "\uE70D",
+            Visibility = detail ? Visibility.Collapsed : Visibility.Visible,
             FontFamily = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets, Segoe UI Symbol"),
             FontSize = 11,
             Foreground = Theme.TextDimBrush,
@@ -292,7 +279,7 @@ public sealed partial class SettingsWindow : Window
         // 整条胶囊可点展开；点在键位框上时不跟着展开——那一击是去改键的。
         pill.MouseLeftButtonUp += (_, e) =>
         {
-            if (InBox(e.OriginalSource as DependencyObject)) return;
+            if (detail || InBox(e.OriginalSource as DependencyObject)) return;
             open = !open;
             _hotOpen = open ? b.Id : "";
             chevron.Text = open ? "\uE70E" : "\uE70D";
@@ -532,6 +519,8 @@ public sealed partial class SettingsWindow : Window
         _settings.Mutate(s => s.Gestures = cfg);
         AppHost.Current.InstallHotkeys();
         foreach (var f in _hotClashSync) f();
+        if (_settingsPages.TryGetValue(_currentSettingsPage, out var page))
+        { _settingsHeader.Text = page.Label; RenderSettingsBreadcrumbs(); }
     }
 
     /// <summary>事件源是否落在某个正在等键的键位录入框里。窗口的 Esc 关窗挂在前置事件上，

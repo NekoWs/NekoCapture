@@ -80,7 +80,7 @@ static partial class SelfTest
             var service = new SettingsService(); service.Current.OcrEngine = OcrService.SystemEngine;
             hostProperty.SetValue(AppHost.Current, service);
             window = new SettingsWindow { Left = -20000, Top = -20000, ShowActivated = false, ShowInTaskbar = false };
-            typeof(SettingsWindow).GetField("_restoreCat", flags)!.SetValue(window, 5);
+            typeof(SettingsWindow).GetField("_restoreSettingsPage", flags)!.SetValue(window, "ocr");
             typeof(SettingsWindow).GetMethod("Build", flags)!.Invoke(window, null);
             window.Show(); PumpMs(Fluent.Motion.SpringMs + 60);
             var objects = new List<DependencyObject>(); CollectTyped((DependencyObject)window.Content, typeof(ComboBox), objects);

@@ -30,7 +30,7 @@ static partial class SelfTest
             service.Current.Gestures.Graph = graph; service.Current.Gestures.GraphRevision = 1;
             property.SetValue(AppHost.Current, service);
             window = new SettingsWindow { Left = -20000, Top = -20000, ShowInTaskbar = false, ShowActivated = false };
-            typeof(SettingsWindow).GetField("_restoreCat", flags)!.SetValue(window, 1);
+            typeof(SettingsWindow).GetField("_restoreSettingsPage", flags)!.SetValue(window, "flow");
             typeof(SettingsWindow).GetMethod("Build", flags)!.Invoke(window, null);
             window.Show(); PumpMs(Fluent.Motion.SpringMs + 100);
             BehaviorNavigationChecks(window, selection);

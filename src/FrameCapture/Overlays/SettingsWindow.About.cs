@@ -37,7 +37,12 @@ public sealed partial class SettingsWindow
         product.Children.Add(new TextBlock { Text = Loc.T(K.About.Description), Foreground = Theme.TextBrush, FontSize = 13, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(38, 6, 0, 0) });
         product.Children.Add(new TextBlock { Text = Loc.F(K.About.Version, UpdateService.CurrentVersion), Foreground = Theme.TextDimBrush, FontSize = 12, Margin = new Thickness(38, 5, 0, 0) });
         panel.Children.Add(product);
-        panel.Children.Add(AboutCard(AboutUpdateOptions()));
+        panel.Children.Add(SettingsPageEntry("updates"));
+        panel.Children.Add(SettingsPageEntry("project"));
+    }
+
+    private void BuildAboutProject(StackPanel panel)
+    {
         var links = new StackPanel();
         links.Children.Add(new TextBlock
         {

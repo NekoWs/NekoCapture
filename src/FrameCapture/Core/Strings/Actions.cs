@@ -25,7 +25,6 @@ public static partial class K
         public static readonly Str OcrSelectionDesc = new("actions.ocrSelectionDesc", "识别当前范围的文字，预览或直接复制", "Recognize text in the region; preview or copy it.");
         public static readonly Str PinSelectionDesc = new("actions.pinSelectionDesc", "把当前范围钉在屏幕上", "Pins the current region on screen");
         public static readonly Str RecordStartDesc = new("actions.recordStartDesc", "录制当前区域，分别配置开始、取消与停止后的动作", "Record the region; configure actions after starting, cancelling, and stopping.");
-        public static readonly Str RecordStartLabel = new("actions.recordStartLabel", "开始录制", "Start Recording");
         public static readonly Str RecordStopDesc = new("actions.recordStopDesc", "停止录制并保留产物，不自动进编辑器", "Stop and keep the result without opening the editor.");
         public static readonly Str RecordStopLabel = new("actions.recordStopLabel", "停止录制", "Stop Recording");
         public static readonly Str RecordToggleDesc = new("actions.recordToggleDesc", "空闲起录，再次触发停止；不自动进编辑器", "Start when idle or stop when recording, without opening the editor.");

@@ -353,6 +353,10 @@ static partial class SelfTest
             });
         }
         var w = new FrameCapture.Overlays.SettingsWindow();
+        Str[] settingsCategories = { K.Settings.Hotkeys, K.Behaviors.Title, K.Common.Capture, K.Common.Recording,
+            K.Settings.Output, K.Common.Editor, K.Common.Pin, K.Common.Appearance, K.Common.Palette, K.Settings.System, K.About.Title };
+        typeof(FrameCapture.Overlays.SettingsWindow).GetField("_restoreCat", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
+            .SetValue(w, Array.IndexOf(settingsCategories, catName));
         // Build 与构造分开（ShowOrFocus 先 Build 再 Show），离屏渲染同样要先建内容
         typeof(FrameCapture.Overlays.SettingsWindow)
             .GetMethod("Build", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
@@ -1203,6 +1207,8 @@ static partial class SelfTest
             return 2;
         }
         InstallQuietWindows();
+        if (args.Length == 1 && args[0] == "settings-hierarchy")
+        { SettingsHierarchyChecks(); Console.WriteLine($"SelfTest pass={pass} fail={fail}"); return fail == 0 ? 0 : 1; }
         if (args.Length == 1 && args[0] == "settings-audit")
         {
             SettingsAuditChecks();
@@ -7673,7 +7679,7 @@ static partial class SelfTest
             var blocks264 = new List<System.Windows.DependencyObject>();
             if (panel264 != null) CollectTyped(panel264, typeof(System.Windows.Controls.Border), blocks264);
             var startBtn264 = blocks264.OfType<System.Windows.Controls.Border>()
-                .FirstOrDefault(b => b.Child is System.Windows.Controls.TextBlock t && t.Text == Loc.T(K.Actions.RecordStartLabel));
+                .FirstOrDefault(b => b.Child is System.Windows.Controls.TextBlock t && t.Text == Loc.T(K.Common.RecordStartLabel));
             startBtn264?.RaiseEvent(new System.Windows.Input.MouseButtonEventArgs(
                 System.Windows.Input.Mouse.PrimaryDevice, 0, System.Windows.Input.MouseButton.Left)
             { RoutedEvent = System.Windows.UIElement.MouseLeftButtonUpEvent, Source = startBtn264 });

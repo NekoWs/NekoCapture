@@ -112,7 +112,7 @@ public sealed partial class TrayService : IDisposable
     /// <param name="msg">气泡正文，单行短文本；停留 4 秒后自动消失，不阻塞调用。</param>
     public void Notify(string msg) => Dispatch(() => Overlays.NoticeToast.Show(msg));
 
-    /// <summary>切换「暂停全局热键」。托盘菜单项与 `--pause-toggle` IPC 共用；返回切换后的状态。</summary>
+    /// <summary>通过 `--pause-toggle` IPC 切换全局热键暂停状态。</summary>
     /// <returns>切换后的暂停态：true = 已暂停（钩子不喂手势、不吞任何键），false = 恢复正常工作。</returns>
     public bool TogglePause()
     {
@@ -134,67 +134,26 @@ public sealed partial class TrayService : IDisposable
         var menu = new ContextMenu { Resources = _menuResources ??= Fluent.MenuResources(), StaysOpen = false };
         _menu = menu;
 
-        void Item(string text, Action act, bool checkable = false, bool isChecked = false)
+        void Item(string text, Action act)
         {
-            var mi = new MenuItem { Header = text, IsCheckable = checkable, IsChecked = isChecked };
+            var mi = new MenuItem { Header = text };
             mi.Click += (_, _) => { menu.IsOpen = false; act(); };
             menu.Items.Add(mi);
         }
         void Sep() => menu.Items.Add(new Separator());
 
-        Item(Loc.T(K.Tray.SetCaptureRegion), () => _host.Controller.BeginScopeSelection());
-        Item(Loc.T(K.Tray.ClearCaptureRegion), () => _host.Controller.ClearStoredRegion());
-        Sep();
         Item(Loc.T(K.Tray.CaptureNow), () => _host.Controller.CaptureStoredStill());
-        // 静态截图的确认浮窗会自动消失，留一个入口把最近那张重新拉回编辑器标注
-        if (_host.Controller.HasLastStill)
-            Item(Loc.T(K.Tray.EditLastScreenshot), () => _host.Controller.EditLastStill());
         Item(Loc.T(K.Common.ScrollingCapture), () => _host.Controller.BeginScrollCapture());
-        // 滚早了头不必从头再来：只有手里真留着半张长图时这一条才出现
-        if (_host.Controller.HasScrollResume)
-            Item(Loc.T(K.Tray.ContinueTheLastScroll), () => _host.Controller.ResumeScrollCapture());
         Item(Loc.T(K.Common.DelayedCapture), () => _host.Controller.BeginDelayedCapture());
         Item(Loc.T(K.Tray.PinFromClipboard), async () =>
         {
-            if (!await _host.Controller.PinFromClipboardAsync())
-                Notify(Loc.T(K.Tray.NoImageOnTheClipboard));
+            if (!await _host.Controller.PinFromClipboardAsync()) Notify(Loc.T(K.Tray.NoImageOnTheClipboard));
         });
-        // 开了自动保存后，用户常想知道文件落到哪——直接打开保存目录
-        if (_host.Settings.Current.AutoSaveCopy)
-            Item(Loc.T(K.Tray.OpenSaveFolder), () =>
-            {
-                try
-                {
-                    var dir = SaveService.ResolveFolder();
-                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("explorer.exe", $"\"{dir}\"") { UseShellExecute = true });
-                }
-                catch (Exception ex) { Trace.Log($"open folder failed: {ex.Message}"); Notify(Loc.T(K.Tray.CouldNotOpenTheSave)); }
-            });
         Sep();
-        Item(Loc.T(K.Tray.Settings), OpenSettings);
-        // 就绪卡只在首启弹一次；老手想再看一眼自己现在绑的是哪个键，从托盘直接叫出来，
-        // 不必为一行键位去开帮助窗。
-        Item(Loc.T(K.Tray.ShowKeyHints), () =>
-        {
-            var g = _host.Settings.Current.Gestures;
-            Overlays.WelcomeToast.Show(g.CaptureKeyText(), g.RecordKeyText());
-        });
-        Item(Loc.T(K.Tray.Help), OpenHelp);
-        Item(Loc.T(K.Common.StartWithWindows), async () =>
-        {
-            var result = await _host.ConfigureStartupAsync(!_host.Settings.Current.RunAtStartup, AppHost.IsElevated);
-            if (result == StartupResult.Failed) System.Windows.MessageBox.Show(Loc.T(K.Common.StartupTaskFailed));
-        }, checkable: true, isChecked: _host.Settings.Current.RunAtStartup);
-        // 暂停全局热键——游戏/演示/与其他软件热键冲突时临时让位，键完整落到前台应用。
-        // 运行时状态（不持久化），重启自动恢复工作。
-        Item(Loc.T(K.Tray.PauseGlobalHotkeys), () => TogglePause(),
-            checkable: true, isChecked: Services.HotkeyManager.Paused);
-        Sep();
+        Item(Loc.T(K.Common.Settings), OpenSettings);
         Item(Loc.T(K.Tray.Exit), () =>
         {
-            ResidentBridge.RetireHost();
-            Dispose();
-            System.Windows.Application.Current?.Shutdown();
+            ResidentBridge.RetireHost(); Dispose(); System.Windows.Application.Current?.Shutdown();
         });
 
         // 透明锚点窗：保证菜单在鼠标处弹出、并能在关闭时回收。
@@ -238,7 +197,6 @@ public sealed partial class TrayService : IDisposable
 
     void OpenSettings() => Overlays.SettingsWindow.ShowOrFocus();
 
-    void OpenHelp() => Overlays.HelpWindow.ShowOrFocus();
 
     /// <summary>
     /// 托盘图标：与 <c>scripts/make-icon.py</c> 同一枚取景框标记，比例常量取自那份源图

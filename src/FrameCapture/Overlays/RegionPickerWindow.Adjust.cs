@@ -344,7 +344,7 @@ public sealed partial class RegionPickerWindow
                 : new SolidColorBrush(Color.FromArgb(0xCC, 0xFF, 0xFF, 0xFF));
         }
         if (_okButton != null)
-            _okButton.ToolTip = Loc.T(RecordMode ? K.Actions.RecordStartLabel : K.Capture.ConfirmSelection);
+            _okButton.ToolTip = Loc.T(RecordMode ? K.Common.RecordStartLabel : K.Capture.ConfirmSelection);
         UpdateRecordingHint();
     }
 

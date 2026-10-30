@@ -26,6 +26,10 @@ public sealed partial class SettingsWindow : Window
         var oldw = this;
         var nw = new SettingsWindow();
         nw._restoreCat = oldw._cat;   // 重建后停在原分页，不跳回首页
+        nw._restoreSettingsPage = oldw._currentSettingsPage;
+        nw._settingsTrail.AddRange(oldw._settingsTrail);
+        foreach (var pair in oldw._settingsScroll) nw._settingsScroll[pair.Key] = pair.Value;
+        nw._settingsScroll[oldw._currentSettingsPage] = oldw._settingsScroller.VerticalOffset;
         nw.Build();
         // 构造里是 CenterScreen，Show 时会覆盖下面手设的 Left/Top，窗口会弹回屏幕中心。
         // 重建必须走 Manual，才尊重原位置。

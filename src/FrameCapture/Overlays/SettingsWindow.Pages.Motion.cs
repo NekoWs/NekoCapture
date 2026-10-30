@@ -56,7 +56,7 @@ public sealed partial class SettingsWindow
     }
 
     void SwitchSettingsPage(IReadOnlyList<StackPanel> pages, int index, bool animate,
-        ScrollViewer? scroller, TextBlock header, string title)
+        ScrollViewer? scroller, TextBlock header, string title, double scrollOffset = 0)
     {
         int generation = ++_pageMotionGeneration;
         var incoming = pages[index];
@@ -87,7 +87,11 @@ public sealed partial class SettingsWindow
                 page.RenderTransform = null;
             }
             ResetPageModules();
-            scroller?.ScrollToTop();
+            scroller?.ScrollToVerticalOffset(scrollOffset);
+            Dispatcher.BeginInvoke(() =>
+            {
+                if (generation == _pageMotionGeneration) scroller?.ScrollToVerticalOffset(scrollOffset);
+            }, System.Windows.Threading.DispatcherPriority.Loaded);
             header.Text = title; header.Opacity = 1;
             incoming.IsHitTestVisible = true;
             if (!animate) { incoming.Visibility = Visibility.Visible; return; }

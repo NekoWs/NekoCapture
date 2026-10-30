@@ -132,6 +132,7 @@ public sealed partial class SettingsWindow
         var cfg = _settings.Current.Gestures;
         if (cfg.ActivePreset == id) return;
         _settings.Mutate(settings => settings.Gestures.SelectPreset(id));
+        InvalidateSettingsBindings();
         _hotOpen = ""; _behaviorFlow = ""; _behaviorPath.Clear();
         AppHost.Current.InstallHotkeys();
         if (_hotList != null) TransitionPresetBindings(_hotList, RebuildHotkeys);

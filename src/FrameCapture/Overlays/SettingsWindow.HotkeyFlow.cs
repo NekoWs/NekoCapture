@@ -59,6 +59,10 @@ public sealed partial class SettingsWindow
     /// <param name="b">要删的绑定。</param>
     void DetachHotkeyAnimated(GestureBindingDto b)
     {
+        if (_currentSettingsPage == "binding:" + b.Id)
+        {
+            RemoveHotkeyNow(b); RebuildHotkeys(); NavigateSettings("hotkeys", true); return;
+        }
         if (_hotList == null) return;
         if (!_hotRows.TryGetValue(b.Id, out var row) || row.Parent is not Panel host)
         {
@@ -105,7 +109,7 @@ public sealed partial class SettingsWindow
     /// <returns>新行的容器。</returns>
     FrameworkElement InsertHotkeyAnimated(GestureBindingDto b)
     {
-        var row = HotkeyRow(b);
+        var row = HotkeyOverviewRow(b);
         if (_hotList == null) return row;
         var before = SnapshotRows();
         int at = Math.Max(0, _hotList.Children.Count - 1);

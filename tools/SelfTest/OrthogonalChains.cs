@@ -308,7 +308,7 @@ static partial class SelfTest
             {
                 var blocks = new List<DependencyObject>();
                 CollectTyped(RecordPanelWindow.Current!, typeof(Border), blocks);
-                var start = blocks.OfType<Border>().Single(b => b.Child is TextBlock t && t.Text == Loc.T(K.Actions.RecordStartLabel));
+                var start = blocks.OfType<Border>().Single(b => b.Child is TextBlock t && t.Text == Loc.T(K.Common.RecordStartLabel));
                 start.RaiseEvent(new System.Windows.Input.MouseButtonEventArgs(System.Windows.Input.Mouse.PrimaryDevice,
                     0, System.Windows.Input.MouseButton.Left) { RoutedEvent = UIElement.MouseLeftButtonUpEvent });
             }

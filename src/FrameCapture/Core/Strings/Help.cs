@@ -203,8 +203,8 @@ public static partial class K
             "The recording border is a hint and never lands in the clip; Include cursor can be turned off.");
         public static readonly Str TheSnappingSwitchLives = new(
             "help.theSnappingSwitchLives",
-            "吸附开关在设置「贴图」页。",
-            "The snapping switch lives on the Pins page in Settings.");
+            "吸附开关位于设置的「截图 › 贴图」。",
+            "Find snapping in Settings under Capture › Pin.");
         public static readonly Str TheThemeFollowsTheSystem = new(
             "help.theThemeFollowsTheSystem",
             "主题跟随系统，强调色可自定义",

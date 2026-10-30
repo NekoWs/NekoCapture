@@ -150,7 +150,7 @@ static partial class SelfTest
             BehaviorInputIsolation(service);
             service.Current.Gestures.Graph = graph;service.Current.Gestures.GraphRevision = 1;
             var settings = new SettingsWindow();
-            typeof(SettingsWindow).GetField("_restoreCat", flags)!.SetValue(settings, 1);
+            typeof(SettingsWindow).GetField("_restoreSettingsPage", flags)!.SetValue(settings, "flow");
             typeof(SettingsWindow).GetMethod("Build", flags)!.Invoke(settings, null);
             settings.Left = -20000;settings.Top = -20000;settings.ShowInTaskbar = false;settings.Show();PumpMs(100);
             var editors = (System.Collections.IEnumerable)typeof(SettingsWindow).GetField("_behaviorEditors", flags)!.GetValue(settings)!;
