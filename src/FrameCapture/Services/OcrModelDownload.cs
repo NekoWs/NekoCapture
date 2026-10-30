@@ -4,27 +4,34 @@ using FrameCapture.Encoding;
 namespace FrameCapture.Services;
 
 /// <summary>模型下载的国内直连与系统代理路由、测速选源和分段续传。</summary>
-internal static partial class OcrSmallComponent
+internal sealed partial class OcrModelComponent
 {
-    static readonly HttpClient Client = new(new ModelDownloadRouter()) { Timeout = Timeout.InfiniteTimeSpan };
+    static readonly HttpClient Client = CreateClient();
 
-    static Task Download(string package, string hash, long length, long prior, string target, CancellationToken cancellation)
+    static HttpClient CreateClient()
+    {
+        var client = new HttpClient(new ModelDownloadRouter()) { Timeout = Timeout.InfiniteTimeSpan };
+        client.DefaultRequestHeaders.UserAgent.ParseAdd("FrameCapture-Components");
+        return client;
+    }
+
+    Task Download(string package, string hash, long length, long prior, string target, CancellationToken cancellation)
     {
         string suffix = $"{package}/1.0.0/{package}.1.0.0.nupkg";
         string[] sources = ["https://repo.huaweicloud.com/artifactory/api/nuget/v3/nuget-remote/" + suffix,
             "https://api.nuget.org/v3-flatcontainer/" + suffix];
-        return ComponentDownloader.DownloadAsync(target, new ModelProgress(prior), cancellation, Client, sources, length, hash,
+        return ComponentDownloader.DownloadAsync(target, new ModelProgress(this, prior), cancellation, Client, sources, length, hash,
             reportVerification: true);
     }
 
-    sealed class ModelProgress(long prior) : IProgress<ComponentProgress>
+    sealed class ModelProgress(OcrModelComponent owner, long prior) : IProgress<ComponentProgress>
     {
         /// <inheritdoc/>
         public void Report(ComponentProgress value)
         {
             var phase = value.Verifying ? OcrComponentPhase.Verifying
                 : value.Bytes == 0 ? OcrComponentPhase.Connecting : OcrComponentPhase.Downloading;
-            CurrentProgress = new(phase, prior + value.Bytes, value.Speed); Changed?.Invoke();
+            owner.CurrentProgress = new(phase, prior + value.Bytes, value.Speed); owner.Changed?.Invoke();
         }
     }
 

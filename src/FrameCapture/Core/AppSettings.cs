@@ -187,7 +187,7 @@ public bool EditableSelection { get; set; } = false;
     /// <summary>识别成功后在原图上选字；关闭时直接复制全文。</summary>
     public bool OcrShowResult { get; set; } = true;
 
-    /// <summary>识别引擎，默认使用系统内置 OCR；small 使用可下载的 PP-OCRv6 模型。</summary>
+    /// <summary>识别引擎，默认使用系统内置 OCR；small 和 medium 使用可下载的 PP-OCRv6 模型。</summary>
     public string OcrEngine { get; set; } = OcrService.SystemEngine;
 
     /// <summary>贴图磁边（默认开）：拖动贴图松手时，若某条边贴近所在屏幕工作区边缘则自动吸附贴合，
@@ -268,7 +268,7 @@ public bool EditableSelection { get; set; } = false;
         AgentStripFrames = Math.Clamp(AgentStripFrames, 2, 48);
         if (Theme is not ("system" or "light" or "dark")) Theme = "system";
         if (UiLanguage is not ("system" or "zh" or "en")) UiLanguage = "system";
-        if (OcrEngine is not (OcrService.SystemEngine or OcrService.SmallEngine)) OcrEngine = OcrService.SystemEngine;
+        if (OcrEngine is not (OcrService.SystemEngine or OcrService.SmallEngine or OcrService.MediumEngine)) OcrEngine = OcrService.SystemEngine;
         if (ColorPresets.All.All(p => p.Id != ColorPreset)) ColorPreset = "";
         Colors = CleanColors(Colors);
         Gestures ??= GestureConfig.CreateCurrentDefaults();

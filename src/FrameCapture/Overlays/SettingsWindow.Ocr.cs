@@ -7,7 +7,7 @@ using FrameCapture.Services;
 
 namespace FrameCapture.Overlays;
 
-/// <summary>系统内置 OCR 与可选 small 模型的选择和下载。</summary>
+/// <summary>OCR 引擎选择与所选模型的按需下载提示。</summary>
 public sealed partial class SettingsWindow
 {
     void BuildOcrSettings(StackPanel panel)
@@ -16,62 +16,89 @@ public sealed partial class SettingsWindow
         var combo = new ComboBox { HorizontalAlignment = HorizontalAlignment.Right };
         Fluent.StyleCombo(combo);
         combo.Items.Add(new ComboBoxItem { Content = Loc.T(K.Ocr.SystemEngine), Tag = OcrService.SystemEngine });
-        var small = new ComboBoxItem { Content = Loc.T(K.Ocr.SmallEngine), Tag = OcrService.SmallEngine };
-        combo.Items.Add(small);
-        combo.SelectedIndex = _settings.Current.OcrEngine == OcrService.SmallEngine ? 1 : 0;
-        combo.SelectionChanged += (_, _) =>
-        {
-            if (combo.SelectedItem is ComboBoxItem { Tag: string engine }) _settings.Mutate(s => s.OcrEngine = engine);
-        };
+        foreach (var model in OcrModelComponent.All)
+            combo.Items.Add(new ComboBoxItem { Content = Loc.T(model.Label), Tag = model.Engine });
+        combo.SelectedItem = combo.Items.Cast<ComboBoxItem>().FirstOrDefault(item => item.Tag as string == _settings.Current.OcrEngine)
+            ?? combo.Items[0];
         Grid.SetColumn(combo, 2); row.Children.Add(combo); panel.Children.Add(row);
-        var component = ChipRow("\uE8C1", Loc.T(K.Ocr.DownloadSize), Loc.T(K.Ocr.Component));
-        var download = Fluent.RoundButton(Loc.T(K.Common.DownloadAndInstall), Theme.Accent, Fluent.OnAccentColor(Theme.Accent), 12, true);
-        Grid.SetColumn(download, 2); component.Children.Add(download);
-        var status = new TextBlock { FontSize = 11.5, Foreground = Theme.TextDimBrush,
-            Margin = new Thickness(32, 0, 0, 4), TextWrapping = TextWrapping.Wrap };
-        var fill = new Border { CornerRadius = new CornerRadius(10), Background = Theme.AccentBrush,
-            RenderTransform = new ScaleTransform(0, 1), RenderTransformOrigin = new Point(0, 0.5) };
-        var progress = new Border { Height = 4, Background = Theme.TrackBgBrush, Child = fill,
-            CornerRadius = new CornerRadius(10), ClipToBounds = true, Margin = new Thickness(32, 0, 0, 8) };
-        var content = new StackPanel(); content.Children.Add(component); content.Children.Add(status); content.Children.Add(progress);
-        panel.Children.Add(content);
-        void Refresh()
+        var prompt = new StackPanel { Margin = new Thickness(32, 0, 0, 0), Tag = "ocr-model-download" };
+        panel.Children.Add(prompt);
+        OcrModelComponent? shown = null;
+        TextBlock? status = null;
+        Button? download = null;
+        Border? progress = null, fill = null;
+        double displayedProgress = -1;
+
+        void UpdateStatus(OcrModelComponent model)
         {
-            bool available = OcrSmallComponent.Available, busy = OcrSmallComponent.Busy;
-            var snapshot = OcrSmallComponent.CurrentProgress;
-            small.IsEnabled = available;
-            component.Visibility = available ? Visibility.Collapsed : Visibility.Visible;
-            download.Visibility = available ? Visibility.Collapsed : Visibility.Visible;
+            if (status == null || download == null || progress == null || fill == null) return;
+            var snapshot = model.CurrentProgress;
+            bool busy = model.Busy;
             download.Content = Loc.T(busy ? K.Common.Cancel : K.Common.DownloadAndInstall);
             progress.Visibility = busy ? Visibility.Visible : Visibility.Collapsed;
-            ((ScaleTransform)fill.RenderTransform).BeginAnimation(ScaleTransform.ScaleXProperty,
-                new DoubleAnimation(OcrSmallComponent.Progress, TimeSpan.FromMilliseconds(Fluent.Motion.StateMs)));
-            status.Text = available ? Loc.T(K.Ocr.Installed) : snapshot.Phase switch
+            double fraction = Math.Clamp(snapshot.Bytes / (double)model.DownloadBytes, 0, 1);
+            if (fraction != displayedProgress)
+            {
+                displayedProgress = fraction;
+                ((ScaleTransform)fill.RenderTransform).BeginAnimation(ScaleTransform.ScaleXProperty,
+                    new DoubleAnimation(fraction, TimeSpan.FromMilliseconds(Fluent.Motion.StateMs)));
+            }
+            status.Text = snapshot.Phase switch
             {
                 OcrComponentPhase.Connecting => Loc.T(K.Settings.ComponentConnecting),
-                OcrComponentPhase.Downloading => Loc.F(K.Settings.ComponentDownloading, (int)(OcrSmallComponent.Progress * 100),
-                    (snapshot.Bytes / 1048576d).ToString("0.0"), (OcrSmallComponent.DownloadBytes / 1048576d).ToString("0.0"),
+                OcrComponentPhase.Downloading => Loc.F(K.Settings.ComponentDownloading, (int)(fraction * 100),
+                    (snapshot.Bytes / 1048576d).ToString("0.0"), (model.DownloadBytes / 1048576d).ToString("0.0"),
                     snapshot.Speed >= 1048576 ? $"{snapshot.Speed / 1048576:0.0} MiB/s" : $"{snapshot.Speed / 1024:0} KiB/s"),
                 OcrComponentPhase.Verifying => Loc.T(K.Ocr.Verifying),
                 OcrComponentPhase.Installing => Loc.T(K.Ocr.Installing),
                 OcrComponentPhase.Cancelled => Loc.T(K.Common.ComponentCancelled),
                 OcrComponentPhase.Failed => Loc.T(K.Ocr.InstallFailed),
-                _ => Loc.T(K.Ocr.DownloadSize),
+                _ => Loc.F(K.Ocr.NeedsDownload, Loc.T(model.Label), (model.DownloadBytes / 1048576d).ToString("0")),
             };
         }
+
+        void RenderPrompt(OcrModelComponent? model)
+        {
+            prompt.Children.Clear(); status = null; download = null; progress = fill = null; displayedProgress = -1;
+            if (model == null) return;
+            var line = new Grid { Margin = new Thickness(0, 2, 0, 6) };
+            line.ColumnDefinitions.Add(new ColumnDefinition());
+            line.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            status = new TextBlock { FontSize = 12, Foreground = Theme.TextDimBrush, VerticalAlignment = VerticalAlignment.Center,
+                TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 12, 0) };
+            download = Fluent.RoundButton(Loc.T(K.Common.DownloadAndInstall), Theme.Accent, Fluent.OnAccentColor(Theme.Accent), 12, true);
+            download.Click += async (_, _) => { if (model.Busy) model.Cancel(); else await model.InstallAsync(); };
+            Grid.SetColumn(download, 1); line.Children.Add(status); line.Children.Add(download); prompt.Children.Add(line);
+            fill = new Border { CornerRadius = new CornerRadius(10), Background = Theme.AccentBrush,
+                RenderTransform = new ScaleTransform(0, 1), RenderTransformOrigin = new Point(0, 0.5) };
+            progress = new Border { Height = 4, Background = Theme.TrackBgBrush, Child = fill,
+                CornerRadius = new CornerRadius(10), ClipToBounds = true, Margin = new Thickness(0, 0, 0, 8) };
+            prompt.Children.Add(progress); UpdateStatus(model);
+        }
+
+        void Refresh(bool animate)
+        {
+            var selected = OcrModelComponent.For(_settings.Current.OcrEngine);
+            var needed = selected is { Available: false } ? selected : null;
+            if (ReferenceEquals(shown, needed)) { if (needed != null) UpdateStatus(needed); return; }
+            shown = needed;
+            if (animate) TransitionContent(prompt, () => RenderPrompt(needed));
+            else RenderPrompt(needed);
+        }
+
         void Changed()
         {
             if (Dispatcher.HasShutdownStarted) return;
-            if (Dispatcher.CheckAccess()) Refresh();
-            else Dispatcher.BeginInvoke(new Action(Refresh));
+            if (Dispatcher.CheckAccess()) Refresh(animate: true);
+            else Dispatcher.BeginInvoke(new Action(() => Refresh(animate: true)));
         }
-        download.Click += async (_, _) =>
+        combo.SelectionChanged += (_, _) =>
         {
-            if (OcrSmallComponent.Busy) OcrSmallComponent.Cancel();
-            else await OcrSmallComponent.InstallAsync();
+            if (combo.SelectedItem is not ComboBoxItem { Tag: string engine } || engine == _settings.Current.OcrEngine) return;
+            _settings.Mutate(s => s.OcrEngine = engine); Refresh(animate: true);
         };
-        content.Loaded += (_, _) => { OcrSmallComponent.Changed += Changed; Refresh(); };
-        content.Unloaded += (_, _) => OcrSmallComponent.Changed -= Changed;
-        Refresh();
+        prompt.Loaded += (_, _) => { foreach (var model in OcrModelComponent.All) model.Changed += Changed; Refresh(animate: false); };
+        prompt.Unloaded += (_, _) => { foreach (var model in OcrModelComponent.All) model.Changed -= Changed; };
+        Refresh(animate: false);
     }
 }

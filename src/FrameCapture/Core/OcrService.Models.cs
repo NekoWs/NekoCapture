@@ -10,26 +10,26 @@ using FrameCapture.Services;
 
 namespace FrameCapture.Core;
 
-/// <summary>可选 small 引擎的隔离进程通信和逐字坐标映射。</summary>
+/// <summary>可选模型的隔离进程通信和逐字坐标映射。</summary>
 public static partial class OcrService
 {
-    static async Task<OcrOutcome> RecognizeSmallAsync(CapturedFrame frame, bool includeImage)
+    static async Task<OcrOutcome> RecognizeModelAsync(CapturedFrame frame, bool includeImage, OcrModelComponent model)
     {
-        if (!OcrSmallComponent.Available) return new(OcrStatus.ComponentMissing, "");
+        if (!model.Available) return new(OcrStatus.ComponentMissing, "");
         await RecognitionGate.WaitAsync().ConfigureAwait(false);
         using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(3));
-        using var process = new Process { StartInfo = new ProcessStartInfo(OcrSmallComponent.WorkerPath)
+        using var process = new Process { StartInfo = new ProcessStartInfo(OcrModelComponent.WorkerPath)
         {
             UseShellExecute = false, CreateNoWindow = true, RedirectStandardInput = true,
             RedirectStandardOutput = true, RedirectStandardError = true,
             StandardOutputEncoding = System.Text.Encoding.UTF8, StandardErrorEncoding = System.Text.Encoding.UTF8,
-            WorkingDirectory = Path.GetDirectoryName(OcrSmallComponent.WorkerPath)!,
+            WorkingDirectory = Path.GetDirectoryName(OcrModelComponent.WorkerPath)!,
         } };
         try
         {
             if (frame.W <= 0 || frame.H <= 0 || (long)frame.W * frame.H > OcrWorkerProtocol.MaxPixels
                 || (long)frame.W * frame.H * 4 != frame.Bgra.LongLength) return new(OcrStatus.Failed, "");
-            process.StartInfo.ArgumentList.Add(OcrSmallComponent.ModelDirectory!);
+            process.StartInfo.ArgumentList.Add(model.ModelDirectory!);
             process.StartInfo.Environment["DOTNET_PROCESSOR_COUNT"] = "2";
             process.Start();
             try { process.PriorityClass = ProcessPriorityClass.BelowNormal; }
@@ -48,13 +48,13 @@ public static partial class OcrService
             var result = JsonSerializer.Deserialize(json, OcrWorkerJson.Default.OcrWorkerResult);
             if (process.ExitCode != 0 || result == null || result.Error.Length > 0)
                 throw new InvalidOperationException(result?.Error + diagnostic);
-            Trace.Log("small " + diagnostic.Trim());
+            Trace.Log(model.Engine + " " + diagnostic.Trim());
             var lines = result.Lines.Where(line => line.Confidence >= 0.35 && !string.IsNullOrWhiteSpace(line.Text))
-                .Select(ConvertSmallLine).Where(line => line.Words.Count > 0).ToArray();
+                .Select(ConvertModelLine).Where(line => line.Words.Count > 0).ToArray();
             string text = string.Join("\n", lines.Select(line => line.Text));
             return new(Classify(text), text) { Lines = lines, Image = includeImage && text.Length > 0 ? BgraImage.ToSource(frame) : null };
         }
-        catch (Exception error) { Trace.Log("small OCR: " + error); return new(OcrStatus.Failed, ""); }
+        catch (Exception error) { Trace.Log(model.Engine + " OCR: " + error); return new(OcrStatus.Failed, ""); }
         finally
         {
             try { if (process.Id != 0 && !process.HasExited) process.Kill(entireProcessTree: true); }
@@ -63,7 +63,7 @@ public static partial class OcrService
         }
     }
 
-    static OcrLineInfo ConvertSmallLine(OcrWorkerLine line)
+    static OcrLineInfo ConvertModelLine(OcrWorkerLine line)
     {
         var first = line.Characters.FirstOrDefault(character => character.Quad.Length == 8);
         if (first == null) return new(line.Text, [], 0, new Point());

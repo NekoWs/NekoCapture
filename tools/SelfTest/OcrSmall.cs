@@ -19,10 +19,11 @@ static partial class SelfTest
             Chk("ocr-default-stays-system", new AppSettings().OcrEngine == OcrService.SystemEngine);
             var config = new AppSettings { OcrEngine = "unavailable-engine" }; config.Normalize();
             Chk("ocr-unknown-setting-uses-system", config.OcrEngine == OcrService.SystemEngine);
-            const BindingFlags flags = BindingFlags.Static | BindingFlags.NonPublic;
-            var component = typeof(OcrService).Assembly.GetType("FrameCapture.Services.OcrSmallComponent")!;
-            ((Task)component.GetMethod("InstallAsync", flags)!.Invoke(null, null)!).GetAwaiter().GetResult();
-            bool available = (bool)component.GetProperty("Available", flags)!.GetValue(null)!;
+            const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic;
+            var component = typeof(OcrService).Assembly.GetType("FrameCapture.Services.OcrModelComponent")!;
+            var session = component.GetProperty("Small", BindingFlags.Static | BindingFlags.NonPublic)!.GetValue(null)!;
+            ((Task)component.GetMethod("InstallAsync", flags)!.Invoke(session, null)!).GetAwaiter().GetResult();
+            bool available = (bool)component.GetProperty("Available", flags)!.GetValue(session)!;
             Chk("ocr-small-component-installs-verified-models", available);
             if (!available) return;
             int systemErrors = 0, smallErrors = 0;
@@ -57,7 +58,7 @@ static partial class SelfTest
             Console.WriteLine($"SMALL SAMPLE ERRORS system={systemErrors}, small={smallErrors}");
             Chk("ocr-small-worker-exits-after-request", Process.GetProcessesByName("FrameCapture.OcrWorker").Length == 0);
             Chk("ocr-small-missing-component-has-specific-feedback", OcrService.Route(OcrStatus.ComponentMissing, true) == OcrRoute.NoEngineHint
-                && OcrService.Feedback(OcrStatus.ComponentMissing, 0).Contains("Small"));
+                && OcrService.Feedback(OcrStatus.ComponentMissing, 0) == Loc.T(K.Ocr.Missing));
             if (preview is { } result) OcrSmallUiChecks(result);
         }
         catch (Exception error) { Chk("ocr-small-integration", false, error.ToString()); }

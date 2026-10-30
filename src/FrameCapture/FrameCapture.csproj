@@ -42,7 +42,7 @@
     <!-- 可复用「自定义手势/键位」引擎（netstandard2.0 零 UI 依赖，见 src/GestureCore） -->
     <ProjectReference Include="..\GestureCore\GestureCore.csproj" />
     <ProjectReference Include="..\OcrWorker\OcrWorker.csproj" ReferenceOutputAssembly="false" SkipGetTargetFrameworkProperties="true" AdditionalProperties="Platform=x64" />
-    <Content Include="..\..\assets\licenses\ocr-small\*.txt" Link="third-party\ocr-small\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="..\..\assets\licenses\ocr\*.txt" Link="third-party\ocr\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
   <Target Name="CopyOcrWorker" AfterTargets="Build">

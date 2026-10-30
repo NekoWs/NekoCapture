@@ -12,8 +12,8 @@ public enum OcrStatus { Success, NoEngine, Empty, ComponentMissing, Failed }
 public enum OcrRoute { ResultWindow, CopyThenConfirm, NoEngineHint, EmptyHint }
 
 /// <summary>
-/// 系统 OCR 或可选 small 模型的离线识别。系统引擎按用户语言识别并复核英文行。
-/// 小字增强、图像分块与识别位置统一在后台生成；small 在单独的 CPU 进程执行。
+/// 系统 OCR 或可选模型的离线识别。系统引擎按用户语言识别并复核英文行。
+/// 小字增强、图像分块与识别位置统一在后台生成；可选模型在单独的 CPU 进程执行。
 /// 引擎创建、像素复制与识别均在后台执行；传入帧的像素在任务完成前保持只读。
 /// </summary>
 public static partial class OcrService
@@ -22,9 +22,11 @@ public static partial class OcrService
     public const string SystemEngine = "system";
     /// <summary>可选 PP-OCRv6 small 引擎的设置值。</summary>
     public const string SmallEngine = "small";
+    /// <summary>可选 PP-OCRv6 medium 引擎的设置值。</summary>
+    public const string MediumEngine = "medium";
     /// <summary>当前选择的识别引擎是否可用。</summary>
-    public static bool EngineAvailable => SettingsService.Shared?.Current.OcrEngine == SmallEngine
-        ? Services.OcrSmallComponent.Available : GetEngine() is not null;
+    public static bool EngineAvailable => Services.OcrModelComponent.For(SettingsService.Shared?.Current.OcrEngine ?? SystemEngine) is { } model
+        ? model.Available : GetEngine() is not null;
 
     static OcrEngine? GetEngine()
     {
@@ -101,7 +103,8 @@ public static partial class OcrService
     {
         using var activity = Services.BackgroundWork.Hold();
         engine ??= SettingsService.Shared?.Current.OcrEngine ?? SystemEngine;
-        return await Task.Run(() => engine == SmallEngine ? RecognizeSmallAsync(frame, includeImage)
+        var model = Services.OcrModelComponent.For(engine);
+        return await Task.Run(() => model != null ? RecognizeModelAsync(frame, includeImage, model)
             : RecognizeCoreAsync(frame, includeImage)).ConfigureAwait(false);
     }
 
