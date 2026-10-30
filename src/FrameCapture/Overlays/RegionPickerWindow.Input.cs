@@ -115,6 +115,7 @@ public sealed partial class RegionPickerWindow
     {
         var window = _windowCapture ? WindowHitForCapture(p) : null;
         bool wholeWindow = element != null && window is { } target && IsWholeWindowElement(element.Rect, target.Hwnd, target.Bounds);
+        Trace.Log($"picker click candidate={window?.Hwnd ?? IntPtr.Zero} element={element?.Rect} wholeWindow={wholeWindow}");
         if (!wholeWindow && element is { Rect.W: >= 8, Rect.H: >= 8 } && element.Rect.Contains(p.X, p.Y))
         {
             _selHwnd = IntPtr.Zero;
@@ -139,9 +140,11 @@ public sealed partial class RegionPickerWindow
 
     private static bool IsWholeWindowElement(RectI element, IntPtr hwnd, RectI frame)
     {
-        if (element.Equals(frame)) return true;
+        uint dpi = Native.Win32.GetDpiForWindow(hwnd);
+        if (SnapPick.MatchesWindowBounds(element, frame, dpi)) return true;
         return Native.Win32.GetWindowRect(hwnd, out var bounds)
-            && element.Equals(new RectI(bounds.Left, bounds.Top, bounds.Right - bounds.Left, bounds.Bottom - bounds.Top));
+            && SnapPick.MatchesWindowBounds(element,
+                new RectI(bounds.Left, bounds.Top, bounds.Right - bounds.Left, bounds.Bottom - bounds.Top), dpi);
     }
 
 }

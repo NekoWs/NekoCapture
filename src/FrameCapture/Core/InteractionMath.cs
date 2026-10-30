@@ -139,8 +139,23 @@ public static class SnapPick
         return null;
     }
 
+    /// <summary>按窗口 DPI 判断 UIA 边界是否代表完整窗口，容忍两逻辑像素的取整及描边偏差。</summary>
+    /// <param name="selected">控件吸附边界，虚拟桌面物理像素。</param>
+    /// <param name="window">完整窗口边界，坐标系与 selected 相同。</param>
+    /// <param name="dpi">目标窗口 DPI；零按 96 处理。</param>
+    /// <returns>四条边均位于容差内时为真；尺寸无效时为假。</returns>
+    public static bool MatchesWindowBounds(Capture.RectI selected, Capture.RectI window, uint dpi)
+    {
+        if (selected.W < 8 || selected.H < 8 || window.W < 8 || window.H < 8) return false;
+        long tolerance = (long)Math.Ceiling(Math.Max(96u, dpi) * 2.0 / 96);
+        return Math.Abs((long)selected.X - window.X) <= tolerance
+            && Math.Abs((long)selected.Y - window.Y) <= tolerance
+            && Math.Abs(selected.X + (long)selected.W - window.X - window.W) <= tolerance
+            && Math.Abs(selected.Y + (long)selected.H - window.Y - window.H) <= tolerance;
+    }
+
     /// <summary>遮挡判定：z 序里索引小于 idx（即排在目标之上）的候选窗，是否有任一与 target 相交。
-    /// 有 → 目标窗被遮挡 → 窗口截图应回退区域截图（否则投影环会掺进上层窗内容）。</summary>
+    /// 遮挡窗口不进入定格预抓缓存；按需 WGC 本体捕获不受此限制。</summary>
     /// <param name="zTopFirst">全部候选矩形，按 z 序自上而下。</param>
     /// <param name="idx">目标窗在序列中的下标；只看它上面的那些。</param>
     /// <param name="target">目标窗矩形，与候选同一坐标空间。</param>

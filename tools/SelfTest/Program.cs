@@ -5568,6 +5568,17 @@ static partial class SelfTest
             Chk("T165w5-pickwindow", pk != null && pk.Value.Hwnd == new IntPtr(2) && pkNone == null,
                 $"pk={pk?.Hwnd} none={pkNone == null}");
 
+            var windowBounds = new RectI(782, 436, 1924, 1234);
+            var uiaBounds = new RectI(785, 437, 1921, 1234);
+            Chk("window-uia-rounding-at-150-percent", SnapPick.MatchesWindowBounds(uiaBounds, windowBounds, 144),
+                "150% 缩放下整窗边界的三像素偏差应保留窗口捕获");
+            Chk("window-uia-96dpi-tolerance", !SnapPick.MatchesWindowBounds(uiaBounds, windowBounds, 96),
+                "容差应根据目标 DPI 缩放");
+            Chk("window-uia-child-is-not-a-window", !SnapPick.MatchesWindowBounds(new RectI(800, 490, 1850, 1140), windowBounds, 144),
+                "真正的子控件边界不能升级为窗口本体");
+            Chk("window-uia-invalid-bounds", !SnapPick.MatchesWindowBounds(new RectI(0, 0, 0, 0), windowBounds, 144),
+                "无效边界不能命中整窗");
+
             // 遮挡判定：更靠上的窗与目标相交→遮挡；仅更靠下相交→不算
             var z = new List<RectI>
             {
