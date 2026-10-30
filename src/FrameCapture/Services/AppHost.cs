@@ -17,6 +17,9 @@ public sealed class AppHost
     public TrayService Tray { get; private set; } = null!;
     public CaptureController Controller { get; private set; } = null!;
 
+    /// <summary>稳定版检查与安装服务。</summary>
+    internal Updates.UpdateService Updates { get; private set; } = null!;
+
     private AppHost() { }
 
     /// <summary>
@@ -49,6 +52,8 @@ public sealed class AppHost
         Controller.Initialize();
         Tray.Show();
         WatchSettingsFile();
+        Updates = new Updates.UpdateService(Settings, Controller);
+        Updates.Start();
         // 设计审查专用：FC_UIPREVIEW=settings|help 启动后自动打开对应窗口（仅调试，不影响正常流）
         var preview = Environment.GetEnvironmentVariable("FC_UIPREVIEW");
         if (preview is "settings" or "help")
@@ -69,6 +74,7 @@ public sealed class AppHost
     /// <remarks>Startup 只跑了一半时也可调用：未就位的服务是 null，<c>?.</c> 直接跳过。</remarks>
     public void Shutdown()
     {
+        try { Updates?.Dispose(); } catch { }
         try { Hotkeys?.Uninstall(); } catch { }
         try { Gestures?.Dispose(); } catch { }
         try { Tray?.Dispose(); } catch { }

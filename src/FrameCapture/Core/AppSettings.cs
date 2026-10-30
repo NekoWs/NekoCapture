@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Text.Json;
 
 namespace FrameCapture.Core;
@@ -6,6 +6,15 @@ namespace FrameCapture.Core;
 /// <summary>应用设置。全部字段带默认值；损坏的设置文件会被重置。</summary>
 public sealed class AppSettings
 {
+    /// <summary>当前配置结构版本；跨结构升级由安装器执行。</summary>
+    public const int CurrentConfigVersion = 1;
+    /// <summary>此配置文件的结构版本。</summary>
+    public int ConfigVersion { get; set; } = CurrentConfigVersion;
+    /// <summary>启动时是否检查稳定版更新。</summary>
+    public bool AutoCheckUpdates { get; set; } = true;
+    /// <summary>用户选择跳过的具体版本；其他新版本仍可提示。</summary>
+    public string SkippedUpdateVersion { get; set; } = "";
+
     /// <summary>捕获帧率范围（单一事实源：设置滑条 / Normalize / 捕获引擎 / 编辑器全部引用）。
     /// 上限 240 覆盖高刷屏（144/165/240Hz）；GIF 输出受格式封顶 ~50fps，MP4/WebM 可录满。</summary>
     public const int FpsMin = 10;
@@ -136,10 +145,8 @@ public bool EditableSelection { get; set; } = false;
     /// 套预设之后单改某枚颜色，这个字段留着——它记的是「从哪套起步」，与逐枚覆盖互不冲突。</summary>
     public string ColorPreset { get; set; } = "";
 
-    /// <summary><see cref="Colors"/> 这份副本的版本：设置文件里那份是套用预设那一刻抄下来的，
-    /// 预设表本身会随代码演进（同一组色值换了字节顺序也算）。版本落后时按预设表重取一份——
-    /// 这份副本记的是读不对的那组字节，留着只会继续读错。</summary>
-    public int PresetRevision { get; set; }
+    /// <summary>配色预设格式版本，由安装器迁移时更新。</summary>
+    public int PresetRevision { get; set; } = ColorPresets.Revision;
 
     /// <summary>界面语言: system | zh | en。中文是源语言，缺译的文案回退中文。</summary>
     public string UiLanguage { get; set; } = "system";
@@ -206,11 +213,9 @@ public bool EditableSelection { get; set; } = false;
     /// 设置里给 关/1/3/5/10 秒预设 chip，是功能可选项而非任意数值。</summary>
     public int DelayCaptureSeconds { get; set; } = 3;
 
-    /// <summary>自定义手势配置：把功能触发方式拆成「组合键 + 触发方式 → 动作序列」，可分离/组合键绑定。
-    /// 默认启用，且 <see cref="Normalize"/> 会给空配置播种「截图 / 录制」两条组合键（都是 Chord：组合键本身即触发，
-    /// 见 <see cref="GestureConfig.DefaultQqSet"/>）——手势层就是功能触发的主路径。
-    /// 关掉后不喂键、不装鼠标钩子。引擎在独立的 GestureCore 库里。</summary>
-    public GestureConfig Gestures { get; set; } = new();
+    /// <summary>快捷键与触发方式连接共享行为入口，默认使用双快捷键方案。
+    /// 关闭后不向 GestureCore 手势引擎投递输入。</summary>
+    public GestureConfig Gestures { get; set; } = GestureConfig.CreateCurrentDefaults();
 
     /// <summary>截图后悬浮窗（CaptureToast）存在时间（秒，默认 3.2）：截完弹出的「已复制」缩略浮窗停留多久自动消失。
     /// 悬停其上会暂停计时、移开再给满时长（不受本值影响地重数）。0 = 常驻（不自动消失，点一下或 Esc 才关）。
@@ -269,25 +274,8 @@ public bool EditableSelection { get; set; } = false;
         if (UiLanguage is not ("system" or "zh" or "en")) UiLanguage = "system";
         if (ColorPresets.All.All(p => p.Id != ColorPreset)) ColorPreset = "";
         if (ColorPresets.All.All(p => p.Id != ColorPreset)) ColorPreset = "";
-        if (PresetRevision < ColorPresets.Revision)
-        {
-            // 只换那几条读错位的：存下来是不透明、表里这条本是半透明（透明度那一字节被当成红通道了）。
-            // 逐条对，别整张表覆盖——用户在这套预设上手改过的其它颜色得留着。
-            var table = ColorPresets.Find(ColorPreset).Colors;
-            foreach (var kv in table)
-            {
-                if (!Colors.TryGetValue(kv.Key, out var stored)) continue;
-                var was = HexColor.Parse(stored);
-                var now = HexColor.Parse(kv.Value);
-                if (was != null && now != null && was.Value.A >= 255 && now.Value.A < 255) Colors[kv.Key] = kv.Value;
-            }
-            PresetRevision = ColorPresets.Revision;
-        }
         Colors = CleanColors(Colors);
-        Gestures ??= new GestureConfig();
-        Gestures.SeedIfNeeded(GestureConfig.DefaultCaptureKey, GestureConfig.DefaultRecordKey);   // 一次性：空配置播种 QQ 键位（截图 / 录制）
-        Gestures.UpgradeStockDefaults();
-        Gestures.Migrate();
+        Gestures ??= GestureConfig.CreateCurrentDefaults();
         Gestures.NormalizePreset();
         ToastSeconds = ToastSeconds <= 0 ? 0 : Math.Clamp(ToastSeconds, 0.5, 60);
         DelayCaptureSeconds = Math.Clamp(DelayCaptureSeconds, 0, 120);
@@ -356,7 +344,7 @@ public enum RecordFormat
     WebM = 2,
 }
 
-/// <summary>JSON 设置存取，带并发保护与损坏自愈。</summary>
+/// <summary>接收当前配置结构，文件操作与内存设置锁分离。</summary>
 public sealed partial class SettingsService
 {
     /// <summary>进程内唯一实例（帮助窗等无 DI 场景读取当前快捷键用）。</summary>
@@ -402,46 +390,17 @@ public sealed partial class SettingsService
 
     private static AppSettings Load()
     {
-        AppSettings? loaded = null;
-        string? json = null;
-        try
+        if (!File.Exists(FilePath))
         {
-            if (File.Exists(FilePath))
-            {
-                json = File.ReadAllText(FilePath);
-                loaded = JsonSerializer.Deserialize<AppSettings>(json);
-            }
+            var defaults = new AppSettings(); defaults.Normalize(); return defaults;
         }
-        catch (Exception ex) { Trace.Log($"settings load failed: {ex.Message}"); }
-        if (loaded == null)
-        {
-            var defaults = new AppSettings();
-            defaults.Normalize();
-            return defaults;
-        }
-        int revision = loaded.Gestures?.ChainRevision ?? 0;
-        bool migrate = loaded.Gestures?.GraphRevision < 1 || revision < GestureConfig.CurrentChainRevision || loaded.Gestures?.Bindings.Any(b => b.OnComplete != null
-            || (b.Actions ?? Array.Empty<string>()).Any(n => n != GestureActions.Canonical(n))) == true;
-        bool backedUp = false;
-        if (migrate)
-        {
-            try
-            {
-                string backup = FilePath + ".bak." + revision;
-                if (!File.Exists(backup)) File.WriteAllText(backup, json!);
-                backedUp = true;
-            }
-            catch (Exception ex) { Trace.Log($"settings backup failed: {ex.Message}"); }
-        }
+        string json = File.ReadAllText(FilePath);
+        using var document = JsonDocument.Parse(json);
+        int version = document.RootElement.TryGetProperty(nameof(AppSettings.ConfigVersion), out var value) ? value.GetInt32() : 0;
+        if (version != AppSettings.CurrentConfigVersion)
+            throw new InvalidDataException(Loc.T(version > AppSettings.CurrentConfigVersion ? K.Updates.ConfigNewer : K.Updates.ConfigUpgrade));
+        var loaded = JsonSerializer.Deserialize<AppSettings>(json) ?? throw new InvalidDataException("Settings document is empty");
         loaded.Normalize();
-        if (migrate && backedUp)
-        {
-            try
-            {
-                WriteAtomic(loaded);
-            }
-            catch (Exception ex) { Trace.Log($"settings migration save failed: {ex.Message}"); }
-        }
         return loaded;
     }
 
@@ -476,7 +435,7 @@ public sealed partial class SettingsService
     DateTime _selfWriteUtc = DateTime.MinValue;
     public bool RecentlySelfWritten => (DateTime.UtcNow - _selfWriteUtc).TotalSeconds < 1.5;
 
-    /// <summary>从磁盘重载（外部编辑 settings.json 后热重载）；损坏自愈。</summary>
+    /// <summary>重载当前结构的磁盘配置；读取失败保留内存并向调用方抛出。</summary>
     public void Reload()
     {
         lock (_writeGate)

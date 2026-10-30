@@ -68,6 +68,7 @@ public sealed partial class SettingsWindow : Window
     /// <param name="page">开局停在哪一页：页名或下标；空或认不出回第一页。提权交接回来时用它停到「系统」。</param>
     public static void ShowOrFocus(string? page = null)
     {
+        if (AppHost.Current.Controller?.UpdateReserved == true) return;
         var existing = Find();
         // 已经开着一扇窗：只把它激活，并按这次请求切到那一页（提权交接回来说的就是「系统」）
         if (existing != null) { existing.Activate(); existing.GotoPage(page); return; }
@@ -316,6 +317,7 @@ panel.Children.Add(ToggleRow("\uE768", Loc.T(K.Settings.StartRecordingAfterSelec
         #region 系统
         panel = Cat(Loc.T(K.Settings.System), "\uE713");
         panel.Children.Add(StartupOptions());
+        panel.Children.Add(UpdateOptions());
         panel.Children.Add(ToggleRow("\uE8B9", Loc.T(K.Settings.CaptureTheAppItself), Loc.T(K.Settings.WhenOnTheEditorTheRecord),
             _settings.Current.CaptureSelf, v =>
             {

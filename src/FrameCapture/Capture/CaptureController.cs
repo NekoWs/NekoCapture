@@ -230,7 +230,7 @@ public sealed partial class CaptureController : IDisposable
     /// <summary>打开编辑器并接管生命周期（关闭→Idle→焦点归还）。调用方负责 seq 组装。</summary>
     async Task<bool> OpenEditorAsync(CapturedSequence seq)
     {
-        if (_disposed || State != Phase.Idle) return false;
+        if (_disposed || _updateReserved || State != Phase.Idle) return false;
         seq = BakedFrameList.Retain(seq);
         State = Phase.PreparingEditor;
         (CapturedFrame Frame, System.Windows.Media.Imaging.BitmapSource Bitmap) first;

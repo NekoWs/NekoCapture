@@ -1,5 +1,8 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/ConfigUpgrade/ConfigUpgrade.csproj">
+      <Platform Project="x64" />
+    </Project>
     <Project Path="src/CodecSetup/CodecSetup.csproj">
       <Platform Project="x64" />
     </Project>

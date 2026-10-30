@@ -90,7 +90,16 @@ public partial class App : Application
             e.Handled = true; // 单点异常不拖垮整个应用
         };
 
-        Services.AppHost.Current.Startup();
+        try { Services.AppHost.Current.Startup(); }
+        catch (Exception error) when (error is System.IO.InvalidDataException or System.Text.Json.JsonException
+            or System.IO.IOException or UnauthorizedAccessException)
+        {
+            Core.Trace.Log("configuration startup: " + error);
+            MessageBox.Show(error.Message, "FrameCapture", MessageBoxButton.OK, MessageBoxImage.Information);
+            if (Services.ResidentBridge.IsWorker)
+                Runtime.ResidentProtocol.Send(Runtime.ResidentProtocol.FindHost(), ["--resident-retire"]);
+            Shutdown(1); return;
+        }
         StartMessageSink();
         Services.ResidentBridge.InitializeWorker();
 

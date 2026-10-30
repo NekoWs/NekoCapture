@@ -40,6 +40,9 @@
 
   <ItemGroup>
     <!-- 与主程序共用同一份视觉语言源文件，不是复刻：颜色、动效令牌、控件模板单一来源 -->
+    <Compile Include="..\FrameCapture\Core\Str.cs" Link="Shared\Str.cs" />
+    <Compile Include="..\FrameCapture\Core\Strings\Common.cs" Link="Shared\Strings\Common.cs" />
+    <Compile Include="..\FrameCapture\Core\Strings\Setup.cs" Link="Shared\Strings\Setup.cs" />
     <Compile Include="..\FrameCapture\Core\Theme.cs" Link="Shared\Theme.cs" />
     <Compile Include="..\FrameCapture\Services\StartupRegistration.cs" Link="Shared\StartupRegistration.cs" />
     <Compile Include="..\FrameCapture\Services\StartupResult.cs" Link="Shared\StartupResult.cs" />

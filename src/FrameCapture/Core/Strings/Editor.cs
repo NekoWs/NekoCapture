@@ -41,39 +41,36 @@ public static partial class K
         public static readonly Str Color = new("editor.color", "颜色", "Color");
         public static readonly Str CopyCurrentFrame = new("editor.copyCurrentFrame", "复制当前帧", "Copy current frame");
         public static readonly Str Create = new("editor.create", "生成", "Create");
-        public static readonly Str Crop = new("editor.crop", "  裁剪 {0}×{1}", "  Crop {0}×{1}");
+
         public static readonly Str Crop2 = new("editor.crop2", "裁剪", "Crop");
         public static readonly Str CustomStrokeWidth = new(
             "editor.customStrokeWidth",
             "自定义线宽…",
             "Custom stroke width…");
-        public static readonly Str Done = new("editor.done", "确定", "Done");
+
         public static readonly Str DoneCancel = new("editor.doneCancel", "完成与关闭", "Done and close");
         public static readonly Str DragToPickARange = new(
             "editor.dragToPickARange",
             "拖拽选片段 · [ / ] 设入出点",
             "Drag to pick a range · [ and ] set the in and out points");
-        public static readonly Str DragToSelectARange = new(
-            "editor.dragToSelectARange",
-            "拖拽选择片段",
-            "Drag to select a range");
+
         public static readonly Str DragWithTheCropTool = new("editor.dragWithTheCropTool", "拖框裁剪，Ctrl+Z 撤销", "Drag to crop; Ctrl+Z to undo.");
         public static readonly Str EnterCopiesToTheClipboard = new("editor.enterCopiesToTheClipboard", "完成后应用编辑，关闭可放弃", "Finish to apply edits; close to discard.");
         public static readonly Str EveryNFramesRowsCols = new(
             "editor.everyNFramesRowsCols",
             "每 {0} 帧取一次 · {1} 行 × {2} 格",
             "One every {0} frames · {1} rows × {2} cells");
-        public static readonly Str Export = new("editor.export", "  导出 {0}–{1}", "  Export {0}–{1}");
+
         public static readonly Str Exported = new("editor.exported", "已导出 {0}", "Exported {0}");
         public static readonly Str ExportFailed = new("editor.exportFailed", "导出失败", "Export failed");
         public static readonly Str Exporting = new("editor.exporting", "导出 {0}…", "Exporting {0}…");
-        public static readonly Str Exporting2 = new("editor.exporting2", "导出 {0}… {1}/{2}", "Exporting {0}… {1}/{2}");
+
         public static readonly Str ExportRecording = new("editor.exportRecording", "导出录制", "Export recording");
         public static readonly Str F1OpensTheFullHelp = new(
             "editor.f1OpensTheFullHelp",
             "F1 完整帮助，任意按钮悬停有说明",
             "F1 opens the full help; every button explains itself on hover");
-        public static readonly Str FfmpegNotFound = new("editor.ffmpegNotFound", "未找到 ffmpeg", "ffmpeg not found");
+
         public static readonly Str FfmpegNotFoundSoVideo = new(
             "editor.ffmpegNotFoundSoVideo",
             "请在「设置 · 录制」安装视频组件",
@@ -103,17 +100,11 @@ public static partial class K
         public static readonly Str NextFrame = new("editor.nextFrame", "下一帧", "Next frame");
         public static readonly Str PickATool = new("editor.pickATool", "选择工具绘制，再次点击退出；V 选择、移动或删除标注", "Choose a tool to draw; click again to exit. V selects, moves, or deletes annotations.");
         public static readonly Str PinToScreen = new("editor.pinToScreen", "钉到屏幕", "Pin to screen");
-        public static readonly Str PlayPauseSpace = new(
-            "editor.playPauseSpace",
-            "播放/暂停 · 空格",
-            "Play / pause · Space");
+
         public static readonly Str PreviousFrame = new("editor.previousFrame", "上一帧", "Previous frame");
         public static readonly Str RecentColor = new("editor.recentColor", "最近用色 {0}", "Recent color {0}");
         public static readonly Str Redo = new("editor.redo", "重做", "Redo");
-        public static readonly Str RedoTheLastEditSteps = new(
-            "editor.redoTheLastEditSteps",
-            "重做上一笔 · 可重做 {0} 步",
-            "Redo the last edit · {0} steps to redo");
+
         public static readonly Str ReleaseToApplyTheCrop = new(
             "editor.releaseToApplyTheCrop",
             "松开应用裁剪",
@@ -128,16 +119,10 @@ public static partial class K
         public static readonly Str SmallerText = new("editor.smallerText", "字号减小", "Smaller text");
         public static readonly Str StartHere = new("editor.startHere", "开始使用", "Start here");
         public static readonly Str Stroke = new("editor.stroke", "{0}笔画", "{0} stroke");
-        public static readonly Str TheClipboardIsBusySo = new(
-            "editor.theClipboardIsBusySo",
-            "剪贴板被占用，生成失败",
-            "The clipboard is busy, so nothing was created");
+
         public static readonly Str Thin = new("editor.thin", "细", "Thin");
         public static readonly Str Undo = new("editor.undo", "撤销", "Undo");
-        public static readonly Str UndoTheLastEditSteps = new(
-            "editor.undoTheLastEditSteps",
-            "撤销上一笔 · 可撤 {0} 步",
-            "Undo the last edit · {0} steps to undo");
+
         public static readonly Str WelcomeToTheFramecaptureEditor = new(
             "editor.welcomeToTheFramecaptureEditor",
             "欢迎用 FrameCapture 编辑器",

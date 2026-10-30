@@ -80,6 +80,13 @@ foreach ($sf in Get-ChildItem $stringsDir -Filter *.cs) {
     }
 }
 
+# 安装器宿主的取词参与覆盖，链接的业务源文件仍须由调用方提供文案。
+foreach ($hostFile in Get-ChildItem (Join-Path $root 'src/Setup') -Filter *.cs) {
+    foreach ($m in [regex]::Matches((Get-Content $hostFile.FullName -Raw -Encoding UTF8), '\bK\.([A-Z]\w*)\.([A-Za-z]\w*)')) {
+        $used["$($m.Groups[1].Value).$($m.Groups[2].Value)"] = $true
+    }
+}
+
 # ---------- 4：死串 ----------
 $declared = @{}
 foreach ($sf in Get-ChildItem $stringsDir -Filter *.cs) {

@@ -15,7 +15,7 @@ public sealed partial class CaptureController
     /// <returns>后端是否成功启动。</returns>
     public Task<bool> StartRecordingAsync()
     {
-        if (_disposed || State != Phase.Idle) return Task.FromResult(false);
+        if (_disposed || _updateReserved || State != Phase.Idle) return Task.FromResult(false);
         State = Phase.Starting;
         _recordStopTask = null;
         return _recordStartTask = StartRecordingCoreAsync();

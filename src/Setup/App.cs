@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Diagnostics;
 using System.IO;
 using System.Security.Principal;
@@ -11,7 +11,7 @@ namespace FrameCapture.Setup;
 /// 引导器入口。命令行形态：
 /// 无参数 = 界面；<c>--install</c> = 提权后执行安装，可跟 <c>--dir "&lt;目录&gt;"</c> 指定安装位置；
 /// <c>--uninstall</c> = 卸载（内部再派生临时副本以删掉安装目录里那份）；
-/// <c>--purge</c> = 等某进程退出后删掉一个文件。
+/// <c>--purge</c> = 等某进程退出后删掉一个文件；<c>--silent</c> = 无确认页升级，<c>--restart</c> = 完成后启动软件。
 /// </summary>
 internal static class App
 {
@@ -35,6 +35,27 @@ internal static class App
         // 自删除排在最前：这个形态只负责等另一个进程退出、删一个文件，不该拉起样式与窗口
         if (args.Length >= 3 && args[0] == ArgPurge) { Purge(args[1], args[2]); return; }
 
+        InstallEngine.InstallDir = InstallEngine.DiscoverInstallDir();
+        InstallEngine.SettingsFile = ValueAfter(args, "--settings");
+        if (ValueAfter(args, "--language") is string language) Loc.IsEnglish = language == "en";
+        string? requestedDir = ValueAfter(args, ArgDir);
+        if (requestedDir != null)
+        {
+            if (!InstallEngine.TryTarget(requestedDir, out var requested, out var why))
+            {
+                Environment.ExitCode = 1;
+                if (Array.IndexOf(args, "--silent") < 0) MessageBox.Show(why, "FrameCapture");
+                return;
+            }
+            InstallEngine.InstallDir = requested;
+        }
+        if (Array.IndexOf(args, "--silent") >= 0)
+        {
+            Environment.ExitCode = SilentInstall.Run(args);
+            if (Elevated) SilentInstall.ScheduleCleanup();
+            return;
+        }
+
         var app = new Application { ShutdownMode = ShutdownMode.OnMainWindowClose };
         Fluent.ApplyGlobalStyles();
         Theme.Apply(ThemeModeFromRegistry(), "#4CC2FF");
@@ -52,7 +73,15 @@ internal static class App
             Preview.Render(args[1], mode);
             return;
         }
-        if (Array.IndexOf(args, ArgInstall) >= 0) { app.Run(new SetupWindow(SetupWindow.Mode.Install)); return; }
+        if (Array.IndexOf(args, ArgInstall) >= 0)
+        {
+            if (!Elevated)
+            {
+                Environment.ExitCode = RelaunchElevated(string.Join(" ", args.Select(InstallEngine.QuoteArgument))) ? 0 : 1223;
+                return;
+            }
+            app.Run(new SetupWindow(SetupWindow.Mode.Install)); return;
+        }
         if (Array.IndexOf(args, ArgUninstall) >= 0)
         {
             // 卸载要找的是登记过的那个目录：装在哪由用户定，只有注册表知道

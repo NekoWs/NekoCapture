@@ -22,7 +22,7 @@ public sealed partial class CaptureController
     public void BeginChain(IReadOnlyList<string> chain, IReadOnlyList<string> onFail,
         FallbackPolicy fallback = FallbackPolicy.Stop)
     {
-        if (_disposed) return;
+        if (_disposed || _updateReserved) return;
         if (_chainTask is { IsCompleted: false })
         {
             if (State is Phase.Starting or Phase.Capturing && _recordStopTask == null && SelectionCapture.StopsRecording(chain, _activeChain))

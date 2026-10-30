@@ -286,7 +286,7 @@ public sealed partial class CaptureController : IDisposable
     /// 那张 PNG 读不回来（临时目录被清、文件损坏）就当没有这次可继续，清掉并记 trace。</remarks>
     public async void ResumeScrollCapture()
     {
-        if (_disposed || State != Phase.Idle || _scrollStarting || _scrollBar != null || _chainTask is { IsCompleted: false }) return;
+        if (_disposed || _updateReserved || State != Phase.Idle || _scrollStarting || _scrollBar != null || _chainTask is { IsCompleted: false }) return;
         if (_scrollResume is not { } resume) return;
         int generation = ++_scrollGeneration;
         _scrollStarting = true;
@@ -309,6 +309,7 @@ public sealed partial class CaptureController : IDisposable
     /// 独立于点按/录制状态机——只借完成路径，不碰 Phase，避免与按住录制的模式交互。</summary>
     public void BeginDelayedCapture()
     {
+        if (_updateReserved) return;
         if (_delayWindow != null || _delayFiring) { Trace.Log("delay: already running, ignore"); return; }
         int secs = Math.Clamp(_settings.Current.DelayCaptureSeconds, 0, 60);
         var region = StoredRegion() ?? FullMonitorAtCursor();

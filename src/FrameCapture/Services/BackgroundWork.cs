@@ -5,6 +5,9 @@ internal static class BackgroundWork
 {
     private static int _active;
 
+    /// <summary>当前持有的后台任务凭据数量。</summary>
+    internal static int ActiveCount => Volatile.Read(ref _active);
+
     /// <summary>仍有任务持有尚未完成的产物。</summary>
     internal static bool Busy => Volatile.Read(ref _active) != 0;
 

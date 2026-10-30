@@ -16,6 +16,7 @@ param(
     [ValidateSet('both', 'self', 'fd')] [string]$Flavor = 'both',
     [string]$OutDir = 'release',
     [switch]$SkipVerify,
+    [switch]$NoRestart,
     # 焦点安全是唯一会注入 OS 级按键的回归项，默认跳过；确认无人使用电脑时再显式打开。
     [switch]$AllowInjection
 )
@@ -149,6 +150,10 @@ foreach ($v in $variants) {
     $rawSize = (Get-ChildItem $stage -Recurse -File | Measure-Object Length -Sum).Sum
     Write-Host ("  发布目录 {0:N1} MB / {1} 个文件" -f ($rawSize / 1MB), @(Get-ChildItem $stage -Recurse -File).Count)
 
+    Step '发布配置升级程序'
+    $upgrade = dotnet publish src/ConfigUpgrade/ConfigUpgrade.csproj -c Release -r win-x64 --self-contained $v.SelfContained -p:Platform=x64 -o $stage -v q --nologo 2>&1 | Out-String
+    if ($LASTEXITCODE -ne 0) { throw "配置升级程序发布失败: $upgrade" }
+
     if ($v.Key -eq 'fd') {
         # 框架依赖形态是发行主体：载荷内嵌进引导器，用户只下一个 exe
         Step '打包引导器载荷'
@@ -249,7 +254,7 @@ $results += [pscustomobject]@{
 Step '产物'
 $results | Format-Table -AutoSize | Out-String -Width 200 | ForEach-Object{ $_ -split "`n" } | Where-Object{ $_.Trim() } | ForEach-Object{ "  $_" }
 Write-Host "  完整哈希：Get-FileHash release\FrameCapture-*.exe, release\FrameCapture-*.zip -Algorithm SHA256"
-if ($wasRunning) {
+if ($wasRunning -and -not $NoRestart) {
     $exe = 'src\FrameCapture\bin\x64\Debug\net8.0-windows10.0.19041.0\FrameCapture.exe'
     if (Test-Path $exe) { Start-Process (Join-Path $root $exe) -WindowStyle Hidden; Write-Host '  已把开发实例重新拉起' }
 }

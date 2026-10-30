@@ -42,7 +42,7 @@ public sealed partial class CaptureController : IDisposable
 
     private async Task CaptureStandaloneAsync(bool stored)
     {
-        if (_disposed || State != Phase.Idle || _chainTask is { IsCompleted: false }) return;
+        if (_disposed || _updateReserved || State != Phase.Idle || _chainTask is { IsCompleted: false }) return;
         State = Phase.CapturingStill;
         using var activity = BackgroundWork.Hold();
         try
@@ -80,7 +80,7 @@ public sealed partial class CaptureController : IDisposable
         {
             var outcome = await OcrService.RecognizeAsync(f);
             var text = OcrService.Normalize(outcome.Text);
-            if (_disposed) return false;
+            if (_disposed || _updateReserved) return false;
             if (context != null) context.Text = text;
             switch (OcrService.Route(outcome.Status, _settings.Current.OcrShowResult))
             {
@@ -118,15 +118,16 @@ public sealed partial class CaptureController : IDisposable
     /// <returns>true = 已钉出贴图；false = 剪贴板里没有可用图片（含读取抛异常），此时不创建任何窗口。</returns>
     public async Task<bool> PinFromClipboardAsync()
     {
+        if (_updateReserved) return false;
         var f = await Encoding.ClipboardService.ReadImageAsync();
-        if (_disposed) return false;
+        if (_disposed || _updateReserved) return false;
         if (f == null) { Trace.Log("pin-clip: no image"); return false; }
         Native.Win32.GetCursorPos(out var pt);
         var mon = Capture.Monitors.Nearest(pt.X, pt.Y);
         int x = Math.Max(mon.Bounds.X, Math.Min(pt.X - f.W / 2, mon.Bounds.X + mon.Bounds.W - f.W));
         int y = Math.Max(mon.Bounds.Y, Math.Min(pt.Y - f.H / 2, mon.Bounds.Y + mon.Bounds.H - f.H));
         var bitmap = await BackgroundWork.Run(() => BgraImage.ToSource(f));
-        if (_disposed) return false;
+        if (_disposed || _updateReserved) return false;
         var w = new Overlays.PinWindow(f, new Capture.RectI(x, y, f.W, f.H), initialBitmap: bitmap);
         w.Show();
         Trace.Log($"pin-clip {f.W}x{f.H} at {x},{y}");
@@ -138,7 +139,7 @@ public sealed partial class CaptureController : IDisposable
     async Task<bool> PinFrameAtAsync(CapturedFrame f, RectI reg)
     {
         var bitmap = await BackgroundWork.Run(() => BgraImage.ToSource(f));
-        if (_disposed) return false;
+        if (_disposed || _updateReserved) return false;
         var w = new Overlays.PinWindow(f, reg, activateOnShow: false, initialBitmap: bitmap);
         w.Show();
         Trace.Log($"pin-at {f.W}x{f.H} @ {reg.X},{reg.Y}");
@@ -177,7 +178,7 @@ public sealed partial class CaptureController : IDisposable
 
     private async Task<bool> OpenEditorForFrameAsync(CapturedFrame f, RectI region, string device)
     {
-        if (_disposed || State != Phase.Idle) return false; // 编辑器/录制/选取占用中：浮窗点击不重入
+        if (_disposed || _updateReserved || State != Phase.Idle) return false; // 编辑器/录制/选取占用中：浮窗点击不重入
         var fg = Native.Win32.GetForegroundWindow();
         _prevFg = fg != IntPtr.Zero && Native.Win32.GetWindowThreadProcessId(fg, out uint fgp) != Native.Win32.GetCurrentThreadId()
             ? fg : IntPtr.Zero;
@@ -219,9 +220,9 @@ public sealed partial class CaptureController : IDisposable
     /// <param name="path">PNG 路径。</param>
     public async void OpenEditorWithPng(string path)
     {
-        if (State != Phase.Idle) return; // 编辑器/录制/选取占用中：不重入
+        if (_updateReserved || State != Phase.Idle) return; // 编辑器/录制/选取占用中：不重入
         var f = await BackgroundWork.Run(() => FrameFromPng(path));
-        if (_disposed || State != Phase.Idle) return;
+        if (_disposed || _updateReserved || State != Phase.Idle) return;
         if (f == null) return;
         var mon = PrimaryMonitor();
         var bounds = mon?.Bounds ?? new RectI(0, 0, f.W, f.H);
@@ -239,7 +240,7 @@ public sealed partial class CaptureController : IDisposable
     public async void PinWithPng(string path)
     {
         var f = await BackgroundWork.Run(() => FrameFromPng(path));
-        if (_disposed || State != Phase.Idle) return;
+        if (_disposed || _updateReserved || State != Phase.Idle) return;
         if (f == null) return;
         var b = PrimaryMonitor()?.Bounds ?? new RectI(0, 0, f.W, f.H);
         await PinFrameAtAsync(f, new RectI(b.X + (b.W - f.W) / 2, b.Y + (b.H - f.H) / 2, f.W, f.H));
@@ -284,9 +285,9 @@ public sealed partial class CaptureController : IDisposable
 
     private async Task<bool> EditLastStillAsync()
     {
-        if (_disposed || State != Phase.Idle) return false;
+        if (_disposed || _updateReserved || State != Phase.Idle) return false;
         var snapshot = await _lastStill.ReadAsync();
-        if (_disposed || State != Phase.Idle || snapshot == null) return false;
+        if (_disposed || _updateReserved || State != Phase.Idle || snapshot == null) return false;
         return await OpenEditorForFrameAsync(snapshot.Frame, snapshot.Region, snapshot.Device);
     }
 
@@ -294,7 +295,7 @@ public sealed partial class CaptureController : IDisposable
     /// 与托盘的「粘贴即贴图」各走各的：这里钉的是屏幕上的范围，不看剪贴板。</summary>
     public async void PinStoredStill()
     {
-        if (State != Phase.Idle) return;
+        if (_updateReserved || State != Phase.Idle) return;
         // 刚截好的那一帧就在手上：钉它。对范围重抓会丢掉窗口截图的透明通道与投影，
         // 而且选区窗刚关闭，重抓拿到的是选区之后的画面。
         if (_chainContext?.Still is { } just)
@@ -305,7 +306,7 @@ public sealed partial class CaptureController : IDisposable
         }
         var region = StoredRegion() ?? FullMonitorAtCursor();
         var f = await BackgroundWork.Run(() => LiveCapture.Grab(region.Bounds));
-        if (_disposed || State != Phase.Idle) return;
+        if (_disposed || _updateReserved || State != Phase.Idle) return;
         if (f == null) { Trace.Log("pin-stored: grab null"); return; }
         await PinFrameAtAsync(f, region.Bounds);
         Trace.Log($"pin-stored {f.W}x{f.H}");
@@ -317,7 +318,7 @@ public sealed partial class CaptureController : IDisposable
     private async Task<bool> ShowLastStillToastAsync()
     {
         var snapshot = await _lastStill.ReadAsync();
-        if (_disposed || snapshot == null) return false;
+        if (_disposed || _updateReserved || snapshot == null) return false;
         var f = snapshot.Frame; var reg = snapshot.Region; var dev = snapshot.Device;
         Overlays.CaptureToast.Show(f, reg, dev, () => OpenEditorForFrame(f, reg, dev), async () =>
         {
@@ -333,7 +334,7 @@ public sealed partial class CaptureController : IDisposable
     public async Task<bool> CopyLastStillAsync()
     {
         var snapshot = await _lastStill.ReadAsync();
-        if (_disposed || snapshot == null) return false;
+        if (_disposed || _updateReserved || snapshot == null) return false;
         var f = snapshot.Frame;
         bool result = await Encoding.ClipboardService.SetFrameAsync(f, includePng: snapshot.WindowCapture);
         Trace.Log($"copy-last still {f.W}x{f.H} success={result}");

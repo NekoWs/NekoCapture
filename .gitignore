@@ -1,4 +1,4 @@
-# build outputs
+﻿# build outputs
 bin/
 obj/
 *.user
@@ -22,3 +22,7 @@ scripts/glyph-matrix.png
 
 # 站点预览临时页：拍浅色主题或切换标签用，不进仓库
 site/_pv-*.html
+
+# update signing key
+.release-keys/
+*.private.pem

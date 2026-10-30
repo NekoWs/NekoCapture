@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
@@ -9,10 +9,10 @@ using Microsoft.Win32;
 namespace FrameCapture.Setup;
 
 /// <summary>
-/// 把载荷落到 Program Files 并登记，或反向撤销。
+/// 将载荷写入目标目录并登记，在安装阶段迁移配置。
 /// 每机器安装：一次 UAC，之后所有账户可用，程序目录不被普通权限进程改写。
 /// </summary>
-internal static class InstallEngine
+internal static partial class InstallEngine
 {
     /// <summary>程序目录名，位于 64 位 Program Files 下。</summary>
     internal const string AppFolder = "FrameCapture";
@@ -182,7 +182,7 @@ internal static class InstallEngine
         catch (Exception) { return -1; }
     }
 
-    /// <summary>先结束常驻宿主，再结束界面，释放安装文件占用。</summary>
+    /// <summary>仅结束安装目标目录中的宿主与界面，释放文件占用。</summary>
     internal static void KillApp()
     {
         foreach (var name in new[] { AppName + ".Resident", AppName })
@@ -190,6 +190,8 @@ internal static class InstallEngine
         {
             try
             {
+                string expected = Path.GetFullPath(Path.Combine(InstallDir, name + ".exe"));
+                if (!string.Equals(p.MainModule?.FileName, expected, StringComparison.OrdinalIgnoreCase)) continue;
                 p.Kill();
                 p.WaitForExit(5000);
             }
@@ -204,8 +206,13 @@ internal static class InstallEngine
     internal static bool Install(IProgress<string> log)
     {
         string? backup = null;
+        bool created = false;
+        var registration = CaptureRegistration();
         try
         {
+            if (!TryTarget(InstallDir, out var target, out var why)) throw new IOException(why);
+            InstallDir = target;
+            if (InstalledVersion is { } installed && installed > PackageVersion) throw new InvalidOperationException(Core.Loc.T(Core.K.Setup.NewerInstalled));
             log.Report("正在结束运行中的主程序");
             KillApp();
 
@@ -217,7 +224,7 @@ internal static class InstallEngine
             }
 
             log.Report("正在释放文件");
-            Directory.CreateDirectory(InstallDir);
+            Directory.CreateDirectory(InstallDir); created = true;
             using (var zip = OpenPayload())
             using (var archive = new ZipArchive(zip, ZipArchiveMode.Read))
             {
@@ -242,6 +249,8 @@ internal static class InstallEngine
             Register();
             if (!CreateShortcut()) log.Report("没能创建开始菜单快捷方式，程序目录里的 exe 仍可直接运行");
 
+            if (backup != null) PreserveEmbeddedSettings(backup);
+            UpgradeConfigurations(log);
             if (backup != null) { TryDeleteDir(backup); }
             log.Report("完成");
             return true;
@@ -252,7 +261,9 @@ internal static class InstallEngine
             // 新装没成功就把原样搬回去，用户至少还有上一个可用版本
             try
             {
-                if (backup != null && !Directory.Exists(InstallDir)) RestoreBackup(backup, InstallDir);
+                if (created) TryDeleteDir(InstallDir);
+                if (backup != null) RestoreBackup(backup, InstallDir);
+                RestoreRegistration(registration);
             }
             catch { /* 回滚失败已无更优解，日志里已留下失败原因 */ }
             return false;

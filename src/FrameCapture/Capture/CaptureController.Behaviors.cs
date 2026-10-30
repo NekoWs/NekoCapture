@@ -20,7 +20,7 @@ public sealed partial class CaptureController
     /// <param name="initialMode">首个选区的模式覆盖，空值使用节点设置。</param>
     public void BeginBehavior(BehaviorGraph graph, string entryId, string bindingId, string initialMode = "")
     {
-        if (_disposed || !graph.IsValid(entryId) || graph.Flow(entryId) == null) return;
+        if (_disposed || _updateReserved || !graph.IsValid(entryId) || graph.Flow(entryId) == null) return;
         if (_chainTask is { IsCompleted: false })
         {
             bool stop = bindingId == _behaviorBinding || EntryStopsRecording(graph, entryId);

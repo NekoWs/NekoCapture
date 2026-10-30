@@ -1,0 +1,95 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: windows-2025
+    timeout-minutes: 35
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+      DOTNET_NOLOGO: '1'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Prepare workspace
+        run: |
+          $isolated = Join-Path $env:GITHUB_WORKSPACE 'test-out/ci-runtime'
+          New-Item -ItemType Directory -Force -Path $isolated | Out-Null
+          "TEMP=$isolated" >> $env:GITHUB_ENV
+          "TMP=$isolated" >> $env:GITHUB_ENV
+          "DOTNET_CLI_HOME=$env:GITHUB_WORKSPACE/test-out/cli-home" >> $env:GITHUB_ENV
+          "NUGET_PACKAGES=$env:GITHUB_WORKSPACE/test-out/packages" >> $env:GITHUB_ENV
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+      - name: Validate release version
+        id: version
+        run: |
+          [xml]$project = Get-Content src/FrameCapture/FrameCapture.csproj -Raw
+          $version = [string]$project.Project.PropertyGroup.Version | Where-Object { $_ }
+          if ($version -notmatch '^d+.d+.d+$') { throw '产品版本必须是 major.minor.patch' }
+          $tag = "v$version"
+          if ($env:GITHUB_REF_TYPE -eq 'tag' -and $env:GITHUB_REF_NAME -ne $tag) { throw '标签与产品版本不匹配' }
+          $existing = git tag --list $tag
+          if ($existing) {
+            $commit = git rev-list -n 1 $tag
+            if ($commit -ne $env:GITHUB_SHA) { throw '版本标签指向其他提交' }
+          }
+          "tag=$tag" >> $env:GITHUB_OUTPUT
+      - name: Check signing configuration
+        env:
+          UPDATE_SIGNING_KEY: ${{ secrets.UPDATE_SIGNING_KEY }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:UPDATE_SIGNING_KEY)) { throw '请先配置 UPDATE_SIGNING_KEY secret' }
+      - name: Build
+        run: |
+          dotnet build FrameCapture.slnx -c Debug -v q --nologo
+          if ($LASTEXITCODE -ne 0) { throw '构建失败' }
+      - name: Check isolated configuration upgrade
+        run: ./scripts/check-config-upgrade.ps1 -Upgrader src/ConfigUpgrade/bin/x64/Debug/net8.0-windows10.0.19041.0/FrameCapture.ConfigUpgrade.exe
+      - name: Package
+        run: ./scripts/publish-release.ps1 -Flavor fd -SkipVerify -NoRestart -OutDir release/github
+      - name: Sign update manifest
+        env:
+          UPDATE_SIGNING_KEY: ${{ secrets.UPDATE_SIGNING_KEY }}
+        run: ./scripts/sign-update.ps1 -OutDir release/github -Repository $env:GITHUB_REPOSITORY
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          $files = @(Get-ChildItem release/github -File | Where-Object { $_.Extension -eq '.exe' -or $_.Name -in 'update.json', 'SHA256SUMS.txt' } | ForEach-Object FullName)
+          $latest = gh release view --json tagName 2>$null
+          if ($LASTEXITCODE -eq 0) {
+            $latestTag = ($latest | ConvertFrom-Json).tagName.TrimStart('v')
+            if ([version]$latestTag -gt [version]$env:RELEASE_TAG.TrimStart('v')) { throw '不能用较早版本替换最新发行版' }
+          }
+          $existing = gh release view $env:RELEASE_TAG --json isDraft 2>$null
+          if ($LASTEXITCODE -eq 0) {
+            if (-not ($existing | ConvertFrom-Json).isDraft) { throw '此版本已经发布，请递增产品版本' }
+            gh release upload $env:RELEASE_TAG @files --clobber
+          } else {
+            gh release create $env:RELEASE_TAG @files --draft --title $env:RELEASE_TAG --generate-notes --target $env:GITHUB_SHA
+          }
+          if ($LASTEXITCODE -ne 0) { throw '上传发行附件失败' }
+          gh release edit $env:RELEASE_TAG --draft=false --latest
+          if ($LASTEXITCODE -ne 0) { throw '发布 Release 失败' }

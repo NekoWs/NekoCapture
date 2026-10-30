@@ -95,6 +95,15 @@ public sealed class GestureBindingDto
 /// <summary>快捷键的绑定、迁移与出厂配置。</summary>
 public sealed partial class GestureConfig
 {
+    /// <summary>创建当前格式的出厂快捷键与行为图，不经过配置迁移。</summary>
+    /// <returns>独立的双快捷键方案。</returns>
+    public static GestureConfig CreateCurrentDefaults()
+    {
+        var scheme = BehaviorPresets.Create(BehaviorPresets.Dual);
+        return new GestureConfig { Bindings = scheme.Bindings, Graph = scheme.Graph, GraphRevision = 1,
+            ChainRevision = CurrentChainRevision, Seeded = true, ActivePreset = BehaviorPresets.Dual };
+    }
+
     /// <summary>当前动作链存储版本。</summary>
     public const int CurrentChainRevision = 3;
 
