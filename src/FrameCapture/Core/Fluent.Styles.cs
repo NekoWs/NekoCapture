@@ -189,6 +189,7 @@ public static partial class Fluent
                 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
               <Style TargetType="ContextMenu">
+                <Setter Property="FontFamily" Value="Segoe UI, Microsoft YaHei UI"/>
                 <Setter Property="OverridesDefaultStyle" Value="True"/>
                 <Setter Property="TextElement.Foreground" Value="{Hex(Theme.Text)}"/>
                 <Setter Property="MinWidth" Value="176"/>
@@ -233,6 +234,7 @@ public static partial class Fluent
                 </Setter>
               </Style>
               <Style TargetType="MenuItem">
+                <Setter Property="FontFamily" Value="Segoe UI, Microsoft YaHei UI"/>
                 <Setter Property="OverridesDefaultStyle" Value="True"/>
                 <Setter Property="FontSize" Value="12"/>
                 <Setter Property="Template">

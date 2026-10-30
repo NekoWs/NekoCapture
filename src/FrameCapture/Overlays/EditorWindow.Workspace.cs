@@ -137,10 +137,10 @@ public sealed partial class EditorWindow
     FrameworkElement BuildToolRail()
     {
         var tools = new StackPanel();
-        _browseButton = TextButton(K.Editor.Browse, () => { if (!_encoding) SetTool(Tool.Browse); }, "tool.X");
-        _browseButton.Padding = new Thickness(4, 0, 4, 0);
-        _browseButton.FontSize = 11;
-        _browseButton.MinWidth = 46;
+        _browseButton = CommandIcon("\uE7C9", K.Editor.Browse, "tool.X", () => SetTool(Tool.Browse));
+        _browseButton.Width = 38;
+        _browseButton.Height = 32;
+        _browseButton.Margin = new Thickness(4, 1, 4, 1);
         tools.Children.Add(_browseButton);
         for (int i = 0; i < ToolOrder.Length; i++)
         {
