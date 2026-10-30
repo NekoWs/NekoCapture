@@ -18,28 +18,47 @@ public sealed partial class SettingsWindow
     private FrameworkElement AboutUpdateOptions()
     {
         var service = AppHost.Current.Updates;
-        var panel = new StackPanel { Margin = new Thickness(0, 4, 0, 4) };
-        var row = ChipRow("\uE946", Loc.T(K.Updates.Check), Loc.T(K.Updates.Software));
-        var check = AboutButton(K.Updates.Check);
-        Grid.SetColumn(check, 2); row.Children.Add(check); panel.Children.Add(row);
+        var panel = new StackPanel();
+        var row = new Grid();
+        row.ColumnDefinitions.Add(new ColumnDefinition());
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.Children.Add(new TextBlock
+        {
+            Text = Loc.T(K.Updates.Software), FontSize = 13, FontWeight = FontWeights.SemiBold,
+            Foreground = Theme.TextBrush, VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(2, 0, 12, 0), TextWrapping = TextWrapping.Wrap,
+        });
+        var check = AboutButton(K.Updates.Check, accent: true);
+        Grid.SetColumn(check, 1); row.Children.Add(check); panel.Children.Add(row);
+        var details = new StackPanel { Margin = new Thickness(2, 14, 2, 0), Visibility = Visibility.Collapsed };
+        panel.Children.Add(details);
         var result = new TextBlock
         {
             Foreground = Theme.TextBrush, FontSize = 12.5, TextWrapping = TextWrapping.Wrap,
-            Margin = new Thickness(32, 8, 4, 4), Visibility = Visibility.Collapsed,
+            Visibility = Visibility.Collapsed,
         };
         AutomationProperties.SetLiveSetting(result, AutomationLiveSetting.Polite);
         var progress = new ProgressBar
         {
             Minimum = 0, Maximum = 100, Height = 4, BorderThickness = new Thickness(0),
             Foreground = Theme.AccentBrush, Background = Theme.TrackBgBrush,
-            Margin = new Thickness(32, 6, 4, 8), Visibility = Visibility.Collapsed,
+            Margin = new Thickness(0, 10, 0, 0), Visibility = Visibility.Collapsed,
         };
-        var skip = new CheckBox { Content = Loc.T(K.Updates.Skip), Foreground = Theme.TextBrush, Margin = new Thickness(32, 8, 0, 4) };
-        var actions = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 6, 0, 0) };
+        var amount = new TextBlock { Foreground = Theme.TextDimBrush, FontSize = 11.5, Margin = new Thickness(0, 6, 0, 0), Visibility = Visibility.Collapsed };
+        var footer = new Grid { Margin = new Thickness(0, 14, 0, 0) };
+        footer.ColumnDefinitions.Add(new ColumnDefinition());
+        footer.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        var skip = new CheckBox
+        {
+            Content = new TextBlock { Text = Loc.T(K.Updates.Skip), TextWrapping = TextWrapping.Wrap },
+            Foreground = Theme.TextBrush, FontSize = 12, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 12, 0),
+        };
+        var actions = new StackPanel { Orientation = Orientation.Horizontal };
+        Grid.SetColumn(actions, 1); footer.Children.Add(skip); footer.Children.Add(actions);
         var cancel = AboutButton(K.Common.Cancel);
         var update = AboutButton(K.Updates.Update, accent: true);
         cancel.Margin = new Thickness(0, 0, 8, 0); actions.Children.Add(cancel); actions.Children.Add(update);
-        panel.Children.Add(result); panel.Children.Add(progress); panel.Children.Add(skip); panel.Children.Add(actions);
+        details.Children.Add(result); details.Children.Add(progress); details.Children.Add(amount); details.Children.Add(footer);
         string? offer = null;
         UpdateStage? prior = null;
         bool attached = false;
@@ -59,7 +78,7 @@ public sealed partial class SettingsWindow
                 UpdateStage.Current => Loc.T(K.Updates.Current),
                 UpdateStage.Available => Loc.F(K.Updates.Available, release!.Version),
                 UpdateStage.CheckFailed => Loc.T(K.Updates.CheckFailed),
-                UpdateStage.Downloading => Loc.F(K.Updates.Progress, (service?.Downloaded ?? 0) / 1048576.0, release!.Length / 1048576.0),
+                UpdateStage.Downloading => Loc.T(K.Updates.Downloading),
                 UpdateStage.Waiting => Loc.T(K.Updates.Waiting),
                 UpdateStage.Installing => Loc.T(K.Updates.Installing),
                 UpdateStage.Cancelling => Loc.T(K.Updates.Cancelling),
@@ -72,8 +91,12 @@ public sealed partial class SettingsWindow
             progress.Visibility = transferring || stage == UpdateStage.Checking ? Visibility.Visible : Visibility.Collapsed;
             progress.IsIndeterminate = stage != UpdateStage.Downloading;
             progress.Value = release is { Length: > 0 } ? 100.0 * (service?.Downloaded ?? 0) / release.Length : 0;
+            amount.Text = stage == UpdateStage.Downloading
+                ? Loc.F(K.Updates.Progress, (service?.Downloaded ?? 0) / 1048576.0, release!.Length / 1048576.0) : "";
+            amount.Visibility = amount.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
             skip.Visibility = available ? Visibility.Visible : Visibility.Collapsed;
-            actions.Visibility = available || transferring ? Visibility.Visible : Visibility.Collapsed;
+            footer.Visibility = available || transferring ? Visibility.Visible : Visibility.Collapsed;
+            details.Visibility = result.Visibility == Visibility.Visible || progress.Visibility == Visibility.Visible ? Visibility.Visible : Visibility.Collapsed;
             update.Visibility = available ? Visibility.Visible : Visibility.Collapsed;
             update.Content = Loc.T(stage == UpdateStage.Failed ? K.Updates.Retry : K.Updates.Update);
             cancel.IsEnabled = stage is not (UpdateStage.Installing or UpdateStage.Cancelling);
@@ -86,7 +109,8 @@ public sealed partial class SettingsWindow
         {
             check.IsEnabled = false;
             check.Content = Loc.T(K.Updates.Checking);
-            result.Visibility = Visibility.Collapsed; progress.Visibility = Visibility.Visible;
+            result.Visibility = Visibility.Collapsed; progress.Visibility = Visibility.Visible; details.Visibility = Visibility.Visible;
+            footer.Visibility = Visibility.Collapsed; amount.Visibility = Visibility.Collapsed;
             progress.IsIndeterminate = true;
             await Dispatcher.Yield(DispatcherPriority.Render);
             try

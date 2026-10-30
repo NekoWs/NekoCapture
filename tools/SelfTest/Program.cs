@@ -383,7 +383,7 @@ static partial class SelfTest
             nav.RaiseEvent(new System.Windows.Input.KeyEventArgs(
                 System.Windows.Input.Keyboard.PrimaryDevice, src, 0, System.Windows.Input.Key.Enter)
             { RoutedEvent = System.Windows.Input.Keyboard.KeyDownEvent, Source = nav });
-            PumpMs(500); // 切类别的淡入淡出走完再拍
+            PumpMs(Fluent.Motion.QuickMs + Fluent.Motion.EnterMs + Fluent.Motion.StaggerMs * 12);
         }
         Layout();
         // 「open」/「open2」：展开第几条快捷键再拍——折叠态与展开态是两套版面，只拍折叠态看不到序列编辑区。
@@ -1238,7 +1238,7 @@ static partial class SelfTest
             return RenderPicker(args[1], args.Length < 3 || args[2] != "layered");
         if (args.Length >= 2 && args[0] == "rendersettings")
         {
-            Str[] catNames = { K.Settings.Hotkeys, K.Behaviors.Title, K.Common.Capture, K.Common.Recording, K.Settings.Output, K.Common.Editor, K.Common.Pin, K.Common.Appearance, K.Common.Palette, K.Settings.System };
+            Str[] catNames = { K.Settings.Hotkeys, K.Behaviors.Title, K.Common.Capture, K.Common.Recording, K.Settings.Output, K.Common.Editor, K.Common.Pin, K.Common.Appearance, K.Common.Palette, K.Settings.System, K.About.Title };
             int ci = args.Length >= 3 && int.TryParse(args[2], out var sc) ? sc : 0;
             return RenderSettings(args[1], catNames[Math.Clamp(ci, 0, catNames.Length - 1)], ScaleArg(args),
                 args.Contains("open2") ? 1 : args.Contains("open") ? 0 : -1, args.Contains("adv"), args.Contains("clash"),

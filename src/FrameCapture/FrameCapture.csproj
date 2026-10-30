@@ -28,6 +28,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Resource Include="..\..\assets\FrameCapture-256.png" Link="Assets\FrameCapture.png" />
     <!-- 使用说明随包发布，改 README.txt 即改交付物 -->
     <EmbeddedResource Include="..\..\assets\update-public.pem" LogicalName="FrameCapture.update-public.pem" />
     <None Include="..\..\LICENSE" Link="LICENSE.txt" CopyToOutputDirectory="PreserveNewest" />
