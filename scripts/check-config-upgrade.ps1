@@ -1,4 +1,4 @@
-param([Parameter(Mandatory)] [string]$Upgrader)
+﻿param([Parameter(Mandatory)] [string]$Upgrader)
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 $isolated = Join-Path $root ('test-out/config-upgrade/' + [Guid]::NewGuid().ToString('N'))
@@ -25,3 +25,5 @@ try {
     & $exe $first $future *> (Join-Path $isolated 'rejected.log')
     Chk 'future-format-rejected-without-partial-migration' ($LASTEXITCODE -ne 0 -and [IO.File]::ReadAllText($first) -eq $before -and [IO.File]::ReadAllText($future) -eq $futureBefore)
 } finally { $env:TEMP = $savedTemp; $env:TMP = $savedTmp; $env:FC_SETTINGS_DIR = $savedSettings }
+
+$global:LASTEXITCODE = 0
