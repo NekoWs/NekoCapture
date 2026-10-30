@@ -18,6 +18,7 @@ public sealed partial class SettingsWindow
     private ScrollViewer _settingsScroller = null!;
     private TextBlock _settingsHeader = null!;
     private WrapPanel _settingsCrumbs = null!;
+    private Border _settingsCrumbHost = null!;
     private TextBox _settingsSearchBox = null!;
 
     private FrameworkElement BuildSettingsShell()
@@ -54,8 +55,10 @@ public sealed partial class SettingsWindow
         side.Children.Add(navFrame); layout.Children.Add(side);
         var divider = new Border { Background = Theme.StrokeBrush }; Grid.SetColumn(divider, 1); layout.Children.Add(divider);
         var right = new DockPanel();
-        _settingsCrumbs = new WrapPanel { Margin = new Thickness(20, 11, 20, 0), Visibility = Visibility.Collapsed };
-        DockPanel.SetDock(_settingsCrumbs, Dock.Top); right.Children.Add(_settingsCrumbs);
+        _settingsCrumbs = new WrapPanel { Margin = new Thickness(0, 11, 0, 0) };
+        _settingsCrumbHost = new Border { Child = _settingsCrumbs, Margin = new Thickness(20, 0, 20, 0),
+            Visibility = Visibility.Collapsed, ClipToBounds = true };
+        DockPanel.SetDock(_settingsCrumbHost, Dock.Top); right.Children.Add(_settingsCrumbHost);
         _settingsHeader = new TextBlock { FontSize = 17, FontWeight = FontWeights.SemiBold, Foreground = Theme.TextBrush,
             Margin = new Thickness(22, 16, 22, 4), TextWrapping = TextWrapping.Wrap };
         DockPanel.SetDock(_settingsHeader, Dock.Top); right.Children.Add(_settingsHeader);

@@ -56,7 +56,7 @@ public sealed partial class SettingsWindow
     }
 
     void SwitchSettingsPage(IReadOnlyList<StackPanel> pages, int index, bool animate,
-        ScrollViewer? scroller, TextBlock header, string title, double scrollOffset = 0)
+        ScrollViewer? scroller, TextBlock header, string title, double scrollOffset = 0, Action? prepareChrome = null)
     {
         int generation = ++_pageMotionGeneration;
         var incoming = pages[index];
@@ -87,6 +87,7 @@ public sealed partial class SettingsWindow
                 page.RenderTransform = null;
             }
             ResetPageModules();
+            prepareChrome?.Invoke();
             scroller?.ScrollToVerticalOffset(scrollOffset);
             Dispatcher.BeginInvoke(() =>
             {
@@ -108,6 +109,7 @@ public sealed partial class SettingsWindow
         }
 
         if (!animate || outgoing == null) { Reveal(); return; }
+        ExitSettingsBreadcrumbs();
         var shift = new TranslateTransform(); outgoing.RenderTransform = shift;
         var duration = TimeSpan.FromMilliseconds(Fluent.Motion.QuickMs);
         shift.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(outgoingShift, -6, duration)

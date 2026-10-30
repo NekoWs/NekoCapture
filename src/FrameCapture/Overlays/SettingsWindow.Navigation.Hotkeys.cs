@@ -52,18 +52,13 @@ public sealed partial class SettingsWindow
         string id = "binding:" + binding.Id;
         _settingsPages[id] = new(id, "hotkeys", "hotkeys", K.Hotkeys.Shortcut, Str.Empty, "\uE765", 0,
             panel => BuildSettingsBindingDetail(panel, binding), () => HotkeyDisplayName(binding));
-        NavigateSettings(id, true);
+        NavigateSettings(id, true, canonical: true);
     }
 
     private void BuildSettingsBindingDetail(StackPanel panel, GestureBindingDto binding)
     {
-        panel.Children.Add(HotkeyRow(binding, detail: true));
-        panel.Children.Add(SettingsEntry(Loc.T(K.SettingsNavigation.Execute), Loc.T(K.SettingsNavigation.ExecuteHint), "\uE7A8",
-            () =>
-            {
-                if (_settings.Current.Gestures.Graph.Flow(binding.EntryId) == null) NavigateSettings("behaviors", true);
-                else OpenSettingsFlow(binding.EntryId);
-            }));
+        panel.Children.Add(BuildBindingInputCard(binding));
+        panel.Children.Add(BuildBindingBehaviorCard(binding));
     }
 
     private void RefreshSettingsBindingDetail()

@@ -17,6 +17,7 @@ public sealed partial class SettingsWindow
     private bool _settingsSearchSync;
     private bool? _settingsSearchPaused;
     private string? _settingsSearchReturn;
+    private string _settingsSearchResultSignature = "";
     private bool SettingsSearchActive => !string.IsNullOrWhiteSpace(_settingsSearchBox?.Text);
 
     private FrameworkElement BuildSettingsSearchBox()
@@ -35,19 +36,24 @@ public sealed partial class SettingsWindow
             FontSize = 12, VerticalAlignment = VerticalAlignment.Center, IsHitTestVisible = false };
         field.Children.Add(_settingsSearchBox); field.Children.Add(placeholder);
         var clear = AboutButton(K.SettingsNavigation.ClearSearch); clear.Content = Fluent.Glyph("\uE711", 11, Theme.TextDimBrush);
-        clear.Padding = new Thickness(4); clear.Visibility = Visibility.Collapsed; clear.ToolTip = Loc.T(K.SettingsNavigation.ClearSearch);
-        Grid.SetColumn(clear, 2); grid.Children.Add(clear);
+        clear.Padding = new Thickness(4); clear.ToolTip = Loc.T(K.SettingsNavigation.ClearSearch);
+        var clearHost = new Border { Child = clear, ClipToBounds = true, Width = 0, Opacity = 0, Visibility = Visibility.Collapsed };
+        Grid.SetColumn(clearHost, 2); grid.Children.Add(clearHost);
+        var frame = new Border { Child = grid, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(8),
+            Padding = new Thickness(9, 5, 6, 5), Margin = new Thickness(0, 20, 0, 0), Tag = "settings-search-field" };
+        var showTextActions = WireSettingsSearchMotion(frame, icon, placeholder, clearHost);
         clear.Click += (_, _) => { _settingsSearchBox.Clear(); _settingsSearchBox.Focus(); };
-        _settingsSearchBox.GotKeyboardFocus += (_, _) =>
-        { _settingsSearchPaused ??= HotkeyManager.Paused; HotkeyManager.Paused = true; };
         void ReleaseSearchKeys()
         { if (_settingsSearchPaused is bool paused) { _settingsSearchPaused = null; HotkeyManager.Paused = paused; } }
-        _settingsSearchBox.LostKeyboardFocus += (_, _) => ReleaseSearchKeys();
+        frame.IsKeyboardFocusWithinChanged += (_, _) =>
+        {
+            if (frame.IsKeyboardFocusWithin) { _settingsSearchPaused ??= HotkeyManager.Paused; HotkeyManager.Paused = true; }
+            else ReleaseSearchKeys();
+        };
         Closed += (_, _) => ReleaseSearchKeys();
         _settingsSearchBox.TextChanged += (_, _) =>
         {
-            placeholder.Visibility = _settingsSearchBox.Text.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
-            clear.Visibility = _settingsSearchBox.Text.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
+            showTextActions(_settingsSearchBox.Text.Length > 0);
             if (!_settingsSearchSync) RenderSettingsSearch();
         };
         _settingsSearchBox.PreviewKeyDown += (_, e) =>
@@ -60,8 +66,7 @@ public sealed partial class SettingsWindow
                 e.Handled = true;
             }
         };
-        return new Border { Child = grid, Background = Theme.CardBgBrush, BorderBrush = Theme.StrokeFieldBrush,
-            BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(8), Padding = new Thickness(9, 5, 6, 5), Margin = new Thickness(0, 20, 0, 0) };
+        return frame;
     }
 
     private void ClearSettingsSearchText()
@@ -115,24 +120,33 @@ public sealed partial class SettingsWindow
             _settingsScroll[_currentSettingsPage] = _settingsScroller.VerticalOffset;
         }
         _settingsPages["search"] = new("search", null, "search", K.SettingsNavigation.Search, Str.Empty, "\uE721", _cat, _ => { });
-        var body = GetSettingsBody("search"); body.Children.Clear();
-        var matches = FindSettingsMatches().ToArray();
-        foreach (var item in matches)
-        {
-            var page = _settingsPages[item.Page];
-            string path = string.Join(" › ", CanonicalSettingsPath(item.Page).Select(id => _settingsPages[id].Label));
-            body.Children.Add(SettingsEntry(Loc.T(item.Title), path, page.Glyph, () => OpenSettingsSearchResult(item)));
-        }
-        if (matches.Length == 0)
-        {
-            body.Children.Add(SectionHeader(Loc.T(K.SettingsNavigation.NoResults)));
-            body.Children.Add(UiNote(Loc.T(K.SettingsNavigation.TryAnother)));
-        }
         bool entering = _currentSettingsPage != "search";
-        _currentSettingsPage = "search"; _settingsCrumbs.Visibility = Visibility.Collapsed; PaintSettingsNavigation();
+        var body = GetSettingsBody("search");
+        var matches = FindSettingsMatches().ToArray();
+        string signature = string.Join("|", matches.Select(item => item.Page + ":" + item.Title.Id));
+        if (!entering && signature == _settingsSearchResultSignature) return;
+        _settingsSearchResultSignature = signature;
+        void RenderResults()
+        {
+            body.Children.Clear();
+            foreach (var item in matches)
+            {
+                var page = _settingsPages[item.Page];
+                string path = string.Join(" › ", CanonicalSettingsPath(item.Page).Select(id => _settingsPages[id].Label));
+                body.Children.Add(SettingsEntry(Loc.T(item.Title), path, page.Glyph, () => OpenSettingsSearchResult(item)));
+            }
+            if (matches.Length == 0)
+            {
+                body.Children.Add(SectionHeader(Loc.T(K.SettingsNavigation.NoResults)));
+                body.Children.Add(UiNote(Loc.T(K.SettingsNavigation.TryAnother)));
+            }
+        }
+        if (entering) RenderResults(); else TransitionContent(body, RenderResults, direction: 0);
+        _currentSettingsPage = "search"; PaintSettingsNavigation();
         if (!entering) { _settingsScroller.ScrollToTop(); return; }
         var bodies = _settingsBodies.Values.ToArray();
-        SwitchSettingsPage(bodies, Array.IndexOf(bodies, body), false, _settingsScroller, _settingsHeader, Loc.T(K.SettingsNavigation.Search));
+        SwitchSettingsPage(bodies, Array.IndexOf(bodies, body), true, _settingsScroller, _settingsHeader,
+            Loc.T(K.SettingsNavigation.Search), prepareChrome: () => RenderSettingsBreadcrumbs(true));
     }
 
     private void OpenSettingsSearchResult(SettingsSearchItem item)

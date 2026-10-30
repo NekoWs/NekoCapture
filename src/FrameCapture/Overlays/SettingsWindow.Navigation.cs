@@ -43,17 +43,18 @@ public sealed partial class SettingsWindow
         if (id == "hotkeys") RebuildHotkeys();
         else if (cached && id.StartsWith("binding:", StringComparison.Ordinal)) RefreshSettingsBindingDetail();
         if (id == "behaviors") { incoming.Children.Clear(); BuildSharedBehaviorList(incoming); }
-        RenderSettingsBreadcrumbs(); PaintSettingsNavigation();
+        PaintSettingsNavigation();
         var bodies = _settingsBodies.Values.ToArray();
         SwitchSettingsPage(bodies, Array.IndexOf(bodies, incoming), animate, _settingsScroller, _settingsHeader, page.Label,
-            _settingsScroll.GetValueOrDefault(id));
+            _settingsScroll.GetValueOrDefault(id), () => RenderSettingsBreadcrumbs(animate));
     }
 
-    private void RenderSettingsBreadcrumbs()
+    private void RenderSettingsBreadcrumbs(bool animate = false)
     {
+        double fromHeight = _settingsCrumbHost.Visibility == Visibility.Visible ? _settingsCrumbHost.ActualHeight : 0;
         _settingsCrumbs.Children.Clear();
-        _settingsCrumbs.Visibility = _settingsTrail.Count > 1 ? Visibility.Visible : Visibility.Collapsed;
-        if (_settingsTrail.Count < 2) return;
+        bool visible = _settingsTrail.Count > 1 && !SettingsSearchActive;
+        if (!visible) { AnimateSettingsBreadcrumbs(false, fromHeight, animate); return; }
         void Link(string title, string id)
         {
             var button = Fluent.RoundButton(title, Colors.Transparent, Theme.TextDim, 5, false);
@@ -75,6 +76,7 @@ public sealed partial class SettingsWindow
             else _settingsCrumbs.Children.Add(new TextBlock { Text = _settingsPages[id].Label, Foreground = Theme.TextBrush,
                 FontSize = 12, Margin = new Thickness(5, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center });
         }
+        AnimateSettingsBreadcrumbs(true, fromHeight, animate);
     }
 
     private void OpenSettingsFlow(string flowId)

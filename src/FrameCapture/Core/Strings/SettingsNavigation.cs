@@ -12,6 +12,8 @@ public static partial class K
         public static readonly Str NoResults = new("settingsnavigation.noResults", "没有找到相关设置", "No matching settings");
         public static readonly Str TryAnother = new("settingsnavigation.tryAnother", "试试功能名称或换一个说法", "Try a feature name or another term");
         public static readonly Str MyHotkeys = new("settingsnavigation.myHotkeys", "我的快捷键", "My shortcuts");
+        public static readonly Str BindingName = new("settingsnavigation.bindingName", "名称", "Name");
+        public static readonly Str KeysAndTrigger = new("settingsnavigation.keysAndTrigger", "按键与触发", "Keys and trigger");
         public static readonly Str More = new("settingsnavigation.more", "更多设置", "More settings");
         public static readonly Str Presets = new("settingsnavigation.presets", "预设方案", "Presets");
         public static readonly Str PresetsHint = new("settingsnavigation.presetsHint", "快捷键与行为的预设方案", "Ready-made shortcuts and behaviors");

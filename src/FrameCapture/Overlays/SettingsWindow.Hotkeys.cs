@@ -313,8 +313,9 @@ public sealed partial class SettingsWindow : Window
 
     /// <summary>绑定正文：触发方式、时长与共享行为入口。</summary>
     /// <param name="b">绑定。</param>
+    /// <param name="includeEntry">是否包含共享行为入口选择。</param>
     /// <returns>正文容器。</returns>
-    Border HotkeyBody(GestureBindingDto b)
+    Border HotkeyBody(GestureBindingDto b, bool includeEntry = true)
     {
         var rows = new StackPanel();
         var body = new Border
@@ -337,7 +338,7 @@ public sealed partial class SettingsWindow : Window
         if (b.Trigger is "Click" or "DoubleClick" or "TripleClick")
             rows.Children.Add(GestureTimingRow(K.Behaviors.ClickMs, b.DoubleClickMs, 50, 2000,
                 value => { b.DoubleClickMs = value; CommitHotkeys(); }));
-        rows.Children.Add(BehaviorEntryRow(b.EntryId, id =>
+        if (includeEntry) rows.Children.Add(BehaviorEntryRow(b.EntryId, id =>
         {
             b.EntryId = id;
             if (id.Length == 0) { b.Actions = b.OnFail = Array.Empty<string>(); b.OnComplete = null; }
@@ -520,7 +521,10 @@ public sealed partial class SettingsWindow : Window
         AppHost.Current.InstallHotkeys();
         foreach (var f in _hotClashSync) f();
         if (_settingsPages.TryGetValue(_currentSettingsPage, out var page))
-        { _settingsHeader.Text = page.Label; RenderSettingsBreadcrumbs(); }
+        {
+            _settingsHeader.Text = page.Label;
+            if (_settingsCrumbs.Children.OfType<TextBlock>().LastOrDefault() is { } label) label.Text = page.Label;
+        }
     }
 
     /// <summary>事件源是否落在某个正在等键的键位录入框里。窗口的 Esc 关窗挂在前置事件上，
