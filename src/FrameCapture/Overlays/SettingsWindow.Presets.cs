@@ -17,7 +17,7 @@ public sealed partial class SettingsWindow
     FrameworkElement BuildBehaviorPresets()
     {
         _presetCards.Clear(); _paintedPreset = "";
-        var body = new StackPanel { Margin = new Thickness(0, 6, 0, 12) };
+        var body = new StackPanel { Margin = SettingsCardMargin };
         body.Children.Add(SectionHeader(Loc.T(K.Hotkeys.PresetBehaviors)));
         var grid = new Grid { Tag = "settings-preset-grid" };
         grid.ColumnDefinitions.Add(new ColumnDefinition()); grid.ColumnDefinitions.Add(new ColumnDefinition());
@@ -27,12 +27,14 @@ public sealed partial class SettingsWindow
         {
             string id = BehaviorPresets.All[i];
             var card = PresetCard(id);
+            card.Margin = new Thickness(i % 2 == 0 ? 0 : SettingsCardGap / 2, i >= 2 ? SettingsCardGap : 0,
+                i % 2 == 0 ? SettingsCardGap / 2 : 0, 0);
             Grid.SetColumn(card, i % 2); Grid.SetRow(card, i / 2);
             grid.Children.Add(card); _presetCards[id] = card;
         }
         body.Children.Add(grid);
         body.Children.Add(new TextBlock { Text = Loc.T(K.Hotkeys.PresetHint), Foreground = Theme.TextDimBrush,
-            FontSize = 11, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(3, 5, 3, 0) });
+            FontSize = 11, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, SettingsCardGap, 0, 0) });
         SyncBehaviorPresets();
         return body;
     }
@@ -69,13 +71,14 @@ public sealed partial class SettingsWindow
                 FontSize = 11, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 5, 0, 0) });
         }
         var button = new Button { Content = contents, Tag = id, Padding = new Thickness(10), MinHeight = 143,
-            Margin = new Thickness(3), HorizontalContentAlignment = HorizontalAlignment.Stretch,
+            Margin = new Thickness(0), HorizontalContentAlignment = HorizontalAlignment.Stretch,
             VerticalContentAlignment = VerticalAlignment.Top, Cursor = System.Windows.Input.Cursors.Hand,
             BorderThickness = new Thickness(1), BorderBrush = new SolidColorBrush(Theme.StrokeSoft),
             Background = new SolidColorBrush(Theme.CardBg), Foreground = Theme.TextBrush,
             Template = PresetCardTemplate(), ToolTip = Loc.T(description) };
         AutomationProperties.SetName(button, Loc.T(BehaviorPresets.Label(id)));
         button.Resources["preset-hover"] = new SolidColorBrush(Theme.Hover);
+        StyleSettingsCard(button, outerSpacing: false);
         button.Click += (_, _) => ApplyBehaviorPreset(id);
         return button;
     }

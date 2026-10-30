@@ -55,14 +55,20 @@ public sealed partial class SettingsWindow
         _settingsCrumbs.Children.Clear();
         bool visible = _settingsTrail.Count > 1 && !SettingsSearchActive;
         if (!visible) { AnimateSettingsBreadcrumbs(false, fromHeight, animate); return; }
-        void Link(string title, string id)
+        void Link(string title, string id, bool back = false)
         {
             var button = Fluent.RoundButton(title, Colors.Transparent, Theme.TextDim, 5, false);
             button.Background = Brushes.Transparent; button.Foreground = Theme.TextDimBrush;
+            if (back)
+            {
+                button.Content = Fluent.Glyph("\uE72B", 14, Theme.TextDimBrush);
+                button.ToolTip = title; button.Padding = new Thickness(6);
+                System.Windows.Automation.AutomationProperties.SetName(button, title);
+            }
             button.Click += (_, _) => NavigateSettings(id, true);
             _settingsCrumbs.Children.Add(button);
         }
-        Link(Loc.T(K.SettingsNavigation.Back), _settingsTrail[^2]);
+        Link(Loc.T(K.SettingsNavigation.Back), _settingsTrail[^2], back: true);
         for (int i = 0; i < _settingsTrail.Count; i++)
         {
             if (i > 0)
@@ -98,7 +104,6 @@ public sealed partial class SettingsWindow
         };
         panel.Children.Add(add);
         foreach (var flow in _settings.Current.Gestures.Graph.Flows)
-            panel.Children.Add(SettingsEntry(_settings.Current.Gestures.FlowName(flow), Loc.T(K.SettingsNavigation.ExecuteHint), "\uE7A8",
-                () => OpenSettingsFlow(flow.Id)));
+            panel.Children.Add(BuildBehaviorOverviewEntry(flow));
     }
 }

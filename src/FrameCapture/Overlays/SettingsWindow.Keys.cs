@@ -218,7 +218,7 @@ public sealed partial class SettingsWindow : Window
             var card = new Border
             {
                 // 一张卡一组命令：分组由标题说出来，卡与卡之间就是同一档留白
-                Margin = new Thickness(0, 2, 0, 2),
+                Margin = SettingsCardMargin,
                 CornerRadius = new CornerRadius(8),   // 卡片 8、行 6：外圆包内圆
                 BorderThickness = new Thickness(1),
                 BorderBrush = Theme.StrokeBrush,
@@ -226,7 +226,7 @@ public sealed partial class SettingsWindow : Window
                 Padding = new Thickness(12, 6, 12, 6),
                 Child = stack,
             };
-            Fluent.Elevate(card, blur: 24, depth: 6);
+            StyleSettingsCard(card);
             panel.Children.Add(card);
         }
         foreach (var g in EditorCommands.Groups) EditorKeyGroup(g);

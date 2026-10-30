@@ -17,35 +17,7 @@ public sealed partial class SettingsWindow
         BuildEditorKeys(panel);
     }
 
-    private FrameworkElement HotkeyOverviewRow(GestureBindingDto binding)
-    {
-        var cfg = _settings.Current.Gestures;
-        var flow = cfg.Graph.Flow(binding.EntryId);
-        string summary = flow == null ? Loc.T(K.SettingsNavigation.ExecuteHint)
-            : string.Join(" → ", flow.Steps.Select(id => cfg.Graph.Node(id)).Where(node => node != null).Select(node => GestureActions.LabelOf(node!.Action)));
-        var entry = SettingsEntry(HotkeyDisplayName(binding), summary, "\uE765", () => OpenSettingsBinding(binding));
-        if (entry.Content is Grid grid)
-        {
-            grid.ColumnDefinitions.Insert(2, new ColumnDefinition { Width = GridLength.Auto });
-            var arrow = grid.Children[^1]; Grid.SetColumn(arrow, 3);
-            var caps = Keycaps.Row(binding.Chord, new KeycapTheme { Face = Theme.RowBg, Text = Theme.Text,
-                Stroke = Theme.StrokeSoft, Dim = Theme.TextDim, Size = 10 });
-            caps.Margin = new Thickness(10, 0, 0, 0); caps.VerticalAlignment = VerticalAlignment.Center;
-            Grid.SetColumn(caps, 2); grid.Children.Add(caps);
-            void RepaintCaps()
-            {
-                grid.Children.Remove(caps);
-                caps = Keycaps.Row(binding.Chord, new KeycapTheme { Face = Theme.RowBg, Text = Theme.Text,
-                    Stroke = Theme.StrokeSoft, Dim = Theme.TextDim, Size = 10 });
-                caps.Margin = new Thickness(10, 0, 0, 0); caps.VerticalAlignment = VerticalAlignment.Center;
-                Grid.SetColumn(caps, 2); grid.Children.Add(caps);
-            }
-            entry.Loaded += (_, _) => { Theme.Changed -= RepaintCaps; Theme.Changed += RepaintCaps; RepaintCaps(); };
-            entry.Unloaded += (_, _) => Theme.Changed -= RepaintCaps;
-        }
-        entry.Opacity = binding.Enabled ? 1 : 0.6; _hotRows[binding.Id] = entry;
-        return entry;
-    }
+    private FrameworkElement HotkeyOverviewRow(GestureBindingDto binding) => BuildHotkeyOverviewEntry(binding);
 
     private void OpenSettingsBinding(GestureBindingDto binding)
     {

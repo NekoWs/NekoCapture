@@ -214,7 +214,7 @@ public sealed partial class SettingsWindow : Window
             Tag = "settings-restore",
             Child = label,
         };
-        Fluent.Elevate(btn, blur: 24, depth: 6);
+        StyleSettingsCard(btn, outerSpacing: false);
         HoverFill(btn, () => Theme.RowBg, () => Theme.RowHover);
         btn.GotKeyboardFocus += (_, _) => btn.BorderBrush = Theme.AccentBrush;
         btn.LostKeyboardFocus += (_, _) => btn.BorderBrush = Theme.StrokeBrush;

@@ -92,6 +92,7 @@ public sealed partial class SettingsWindow : Window
                 VerticalAlignment = VerticalAlignment.Center,
             },
             ToolTip = Loc.T(K.Settings.DeleteThisHotkey),
+            Focusable = true,
         };
         Fluent.ChipHover(btn);
         btn.MouseLeftButtonUp += (_, e) =>
@@ -99,6 +100,12 @@ public sealed partial class SettingsWindow : Window
             e.Handled = true;
             DetachHotkeyAnimated(b);
         };
+        btn.KeyDown += (_, e) =>
+        {
+            if (e.Key is Key.Enter or Key.Space) { e.Handled = true; DetachHotkeyAnimated(b); }
+        };
+        btn.GotKeyboardFocus += (_, _) => { btn.BorderBrush = Theme.AccentBrush; btn.BorderThickness = new Thickness(1); };
+        btn.LostKeyboardFocus += (_, _) => btn.BorderThickness = new Thickness(0);
         return btn;
     }
 

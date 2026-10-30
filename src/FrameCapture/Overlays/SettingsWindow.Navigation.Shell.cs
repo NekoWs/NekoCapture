@@ -116,7 +116,7 @@ public sealed partial class SettingsWindow
         Grid.SetColumn(label, 1); row.Children.Add(label);
         var arrow = Fluent.Glyph("\uE76C", 11, Theme.TextDimBrush); arrow.Margin = new Thickness(14, 0, 0, 0);
         arrow.VerticalAlignment = VerticalAlignment.Center; Grid.SetColumn(arrow, 2); row.Children.Add(arrow);
-        var button = SettingsSurfaceButton(row); button.Margin = new Thickness(0, 0, 0, 9);
+        var button = SettingsSurfaceButton(row); StyleSettingsCard(button);
         System.Windows.Automation.AutomationProperties.SetName(button, title);
         button.Click += (_, _) => open();
         return button;

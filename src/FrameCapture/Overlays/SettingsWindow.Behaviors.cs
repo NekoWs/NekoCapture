@@ -119,10 +119,11 @@ public sealed partial class SettingsWindow
         body.Children.Add(LabeledRow(Loc.T(K.Hotkeys.ChainTitle), rootEditor.Root, Loc.T(K.Behaviors.Description)));
         _behaviorDetails = new StackPanel { Margin = new Thickness(0, 12, 0, 0) };
         body.Children.Add(_behaviorDetails);
-        _behaviorContent.Children.Add(new Border { CornerRadius = new CornerRadius(10), Background = Theme.CardBgBrush,
-            BorderBrush = Theme.StrokeSoftBrush, BorderThickness = new Thickness(1), Padding = new Thickness(12), Child = body });
+        var card = new Border { CornerRadius = new CornerRadius(10), Background = Theme.CardBgBrush,
+            BorderBrush = Theme.StrokeSoftBrush, BorderThickness = new Thickness(1), Padding = new Thickness(12), Child = body };
+        StyleSettingsCard(card); _behaviorContent.Children.Add(card);
         _behaviorContent.Children.Add(new TextBlock { Text = Loc.T(K.Behaviors.Description), Foreground = Theme.TextDimBrush,
-            FontSize = 11.5, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(2, 10, 2, 0) });
+            FontSize = 11.5, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0) });
         if (_behaviorPath.Count == 0 && flow.Steps.FirstOrDefault() is { } first) _behaviorPath.Add(first);
         rootEditor.Render();
         RenderBehaviorDetails();

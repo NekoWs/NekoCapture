@@ -278,7 +278,7 @@ public sealed partial class SettingsWindow : Window
                     Content = list,
                 },
             };
-            Fluent.Elevate(card, blur: 24, depth: 8);
+            StyleSettingsCard(card, outerSpacing: false);
             // 焦点离开这张卡就是「不挑了」：卡是独立视觉树，Esc 与点击都先落在卡里，
             // 设置窗那道 Esc 关窗的闸收不到这一记。
             card.PreviewLostKeyboardFocus += (_, e) =>

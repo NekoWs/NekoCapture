@@ -400,7 +400,7 @@ public sealed partial class SettingsWindow : Window
         foreach (var k in kids) inner.Children.Add(k);
         var card = new Border
         {
-            Margin = new Thickness(0, 2, 0, 2),
+            Margin = SettingsCardMargin,
             CornerRadius = new CornerRadius(8),   // 卡片 8、行 6：两级圆角差一档，嵌套时外圆包内圆才对得齐
             BorderThickness = new Thickness(1),
             BorderBrush = Theme.StrokeBrush,
@@ -408,7 +408,7 @@ public sealed partial class SettingsWindow : Window
             Padding = new Thickness(12, 6, 12, 6),
             Child = inner,
         };
-        Fluent.Elevate(card, blur: 24, depth: 6);
+        StyleSettingsCard(card);
         p.Children.Add(card);
     }
 

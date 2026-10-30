@@ -93,9 +93,13 @@ public sealed partial class SettingsWindow
         panel.Children.Add(AboutCard(links));
     }
 
-    private static Border AboutCard(FrameworkElement content) => new()
+    private static Border AboutCard(FrameworkElement content)
     {
-        Background = Theme.CardBgBrush, BorderBrush = Theme.StrokeBrush, BorderThickness = new Thickness(1),
-        CornerRadius = new CornerRadius(12), Padding = new Thickness(16), Margin = new Thickness(0, 0, 0, 12), Child = content,
-    };
+        var card = new Border
+        {
+            Background = Theme.CardBgBrush, BorderBrush = Theme.StrokeBrush, BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(12), Padding = new Thickness(16), Child = content,
+        };
+        StyleSettingsCard(card); return card;
+    }
 }

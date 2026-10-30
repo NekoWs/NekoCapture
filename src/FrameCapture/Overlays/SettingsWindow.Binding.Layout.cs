@@ -71,6 +71,7 @@ public sealed partial class SettingsWindow
             else OpenSettingsFlow(binding.EntryId);
         });
         open.Background = Brushes.Transparent; open.BorderThickness = new Thickness(0);
+        open.Effect = null;
         open.Padding = new Thickness(2, 10, 2, 2); open.Margin = new Thickness(0, 5, 0, 0);
         rows.Children.Add(open);
         var card = AboutCard(rows); card.Tag = "settings-binding-behavior";

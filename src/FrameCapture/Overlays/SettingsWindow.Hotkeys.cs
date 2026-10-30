@@ -77,7 +77,7 @@ public sealed partial class SettingsWindow : Window
         {
             CornerRadius = new CornerRadius(6),
             Padding = new Thickness(10, 5, 10, 5),
-            Margin = new Thickness(0, 2, 0, 2),
+            Margin = SettingsCardMargin,
             BorderBrush = Theme.StrokeSoftBrush,
             BorderThickness = new Thickness(1),
             Cursor = Cursors.Hand,
@@ -385,10 +385,12 @@ public sealed partial class SettingsWindow : Window
                 VerticalAlignment = VerticalAlignment.Center,
             },
             ToolTip = Loc.T(K.Hotkeys.RenameThisHotkey),
+            Focusable = true,
         };
         Fluent.ChipHover(btn);
         // 改名不是展开这一行：这一击停在按钮上，别冒到胶囊去
         btn.MouseLeftButtonUp += (_, e) => { onClick(); e.Handled = true; };
+        btn.KeyDown += (_, e) => { if (e.Key is Key.Enter or Key.Space) { e.Handled = true; onClick(); } };
         return btn;
     }
 
