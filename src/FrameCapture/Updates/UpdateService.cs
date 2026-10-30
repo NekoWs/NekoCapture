@@ -138,5 +138,5 @@ internal sealed partial class UpdateService : IDisposable
     }
 
     /// <summary>停止检查与下载，关闭更新提示。</summary>
-    public void Dispose() { _shutdown.Cancel(); _download?.Cancel(); CloseToast(); }
+    public void Dispose() { _currentNoticeTimer?.Stop(); _shutdown.Cancel(); _download?.Cancel(); CloseToast(); }
 }

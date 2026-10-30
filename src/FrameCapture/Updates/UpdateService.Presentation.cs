@@ -4,13 +4,14 @@ using FrameCapture.Services;
 
 namespace FrameCapture.Updates;
 
-/// <summary>共享检查结果与进度，手动检查在页面内反馈，自动提示使用浮窗。</summary>
+/// <summary>共享检查结果与进度，最新版本提示保留四秒；手动检查在页面内反馈，自动提示使用浮窗。</summary>
 internal sealed partial class UpdateService
 {
     private Task<UpdateRelease>? _checkTask;
     private bool _manualRequested;
     private int _inlineViews;
     private UpdateStage _dismissedStage = UpdateStage.Cancelled;
+    private System.Windows.Threading.DispatcherTimer? _currentNoticeTimer;
 
     /// <summary>当前检查或安装状态。</summary>
     internal UpdateStage Stage { get; private set; }
@@ -23,7 +24,21 @@ internal sealed partial class UpdateService
     /// <summary>在界面线程通知状态与进度变更。</summary>
     internal event Action? Changed;
 
-    private void Publish(UpdateStage stage) { Stage = stage; Changed?.Invoke(); }
+    private void Publish(UpdateStage stage)
+    {
+        _currentNoticeTimer?.Stop();
+        Stage = stage;
+        if (stage == UpdateStage.Current)
+        {
+            if (_currentNoticeTimer == null)
+            {
+                _currentNoticeTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(4) };
+                _currentNoticeTimer.Tick += (_, _) => Publish(UpdateStage.Idle);
+            }
+            _currentNoticeTimer.Start();
+        }
+        Changed?.Invoke();
+    }
 
     /// <summary>接入可见的页内更新面板，并接管当前浮窗。</summary>
     internal void AttachInlineView() { _inlineViews++; CloseToast(); }
