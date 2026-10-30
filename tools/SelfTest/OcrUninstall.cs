@@ -45,7 +45,7 @@ static partial class SelfTest
             objects.Clear(); CollectTyped((DependencyObject)window.Content, typeof(Button), objects);
             var uninstall = objects.OfType<Button>().Single(button => button.Tag as string == "ocr-model-uninstall");
             Chk("ocr-system-has-no-uninstall-button", uninstall.Visibility == Visibility.Collapsed);
-            combo.SelectedIndex = 1; window.UpdateLayout();
+            combo.SelectedIndex = 1; PumpMs(Fluent.Motion.SpringMs + 80); window.UpdateLayout();
             Chk("ocr-uninstall-button-precedes-model-combo", uninstall.IsVisible && uninstall.IsEnabled
                 && uninstall.TranslatePoint(new Point(uninstall.ActualWidth, 0), window).X <= combo.TranslatePoint(new Point(), window).X);
             using (var lease = ((Task<IDisposable?>)type.GetMethod("AcquireRecognitionAsync", instance)!.Invoke(small, null)!).GetAwaiter().GetResult())

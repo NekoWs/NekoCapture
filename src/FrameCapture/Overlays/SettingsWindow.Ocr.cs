@@ -22,10 +22,11 @@ public sealed partial class SettingsWindow
             ?? combo.Items[0];
         var controls = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
         var uninstall = Fluent.IconButton("\uE74D", Loc.T(K.Ocr.Uninstall), 28);
-        uninstall.Tag = "ocr-model-uninstall"; uninstall.Margin = new Thickness(0, 0, 6, 0);
+        uninstall.Tag = "ocr-model-uninstall";
         uninstall.VerticalAlignment = VerticalAlignment.Center;
         ToolTipService.SetShowOnDisabled(uninstall, true);
-        controls.Children.Add(uninstall); controls.Children.Add(combo);
+        var deleteMotion = new OcrDeleteMotion(uninstall);
+        controls.Children.Add(deleteMotion.Host); controls.Children.Add(combo);
         Grid.SetColumn(controls, 2); row.Children.Add(controls); panel.Children.Add(row);
         var prompt = new StackPanel { Margin = new Thickness(32, 0, 0, 0), Tag = "ocr-model-download" };
         panel.Children.Add(prompt);
@@ -90,7 +91,7 @@ public sealed partial class SettingsWindow
         void Refresh(bool animate)
         {
             var selected = OcrModelComponent.For(_settings.Current.OcrEngine);
-            uninstall.Visibility = selected == null ? Visibility.Collapsed : Visibility.Visible;
+            deleteMotion.SetVisible(selected != null, animate);
             uninstall.IsEnabled = selected is { HasFiles: true, Busy: false, InUse: false };
             uninstall.Opacity = uninstall.IsEnabled ? 1 : 0.45;
             uninstall.ToolTip = Loc.T(selected?.InUse == true ? K.Ocr.ModelInUse

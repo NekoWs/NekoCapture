@@ -1305,6 +1305,15 @@ static partial class SelfTest
             Console.WriteLine($"RESULT PASS={pass} FAIL={fail}");
             return fail == 0 ? 0 : 1;
         }
+        if (args.Length == 1 && args[0] == "combo-motion")
+        {
+            _ = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
+            Fluent.ApplyGlobalStyles();
+            ComboSelectionMotionChecks();
+            OcrDeleteMotionChecks();
+            Console.WriteLine($"RESULT PASS={pass} FAIL={fail}");
+            return fail == 0 ? 0 : 1;
+        }
         if (args.Length == 1 && args[0] == "behaviors")
         {
             var behaviorApp = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };

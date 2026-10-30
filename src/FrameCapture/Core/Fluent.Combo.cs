@@ -18,7 +18,7 @@ public static partial class Fluent
     const string XamlX = "http://schemas.microsoft.com/winfx/2006/xaml";
 
     /// <summary>给下拉框套上跟随主题的模板：卡片底 + 描边 + 自绘弹层，明暗主题都可读。
-    /// 非编辑区整框可展开；宽度适配最长候选内容，可编辑时同时容纳当前文本。
+    /// 非编辑区整框可展开，选中文字按项目顺序滚动；宽度适配最长候选内容。
     /// 每次展开弹层做一次 0.94→1.0 的 BackEase 缩放，条目再逐条淡入。
     /// 可重复调用：换配色后重新套一遍即可，展开动画只挂一次。</summary>
     /// <param name="c">目标下拉框，就地改其前景、底色、描边、模板与条目样式资源。</param>
@@ -53,9 +53,12 @@ public static partial class Fluent
             ? $@"<TextBox x:Name=""PART_EditableTextBox"" Grid.Column=""0"" Background=""Transparent"" BorderThickness=""0""
         Foreground=""{hexText}"" CaretBrush=""{hexAccent}"" FontSize=""12.5"" Height=""28""
         Padding=""7,0,0,0"" VerticalContentAlignment=""Center""/>"
-            : $@"<ContentPresenter Grid.Column=""0"" Margin=""10,0,0,0"" VerticalAlignment=""Center"" IsHitTestVisible=""False""
+            : $@"<Grid x:Name=""selectionViewport"" Grid.Column=""0"" Margin=""10,0,28,0"" ClipToBounds=""True"" IsHitTestVisible=""False"">
+      <ContentPresenter x:Name=""selectionLabel"" VerticalAlignment=""Center""
         Content=""{{Binding SelectionBoxItem, RelativeSource={{RelativeSource AncestorType={{x:Type ComboBox}}}}}}""
-        ContentTemplate=""{{Binding SelectionBoxItemTemplate, RelativeSource={{RelativeSource AncestorType={{x:Type ComboBox}}}}}}""/>";
+        ContentTemplate=""{{Binding SelectionBoxItemTemplate, RelativeSource={{RelativeSource AncestorType={{x:Type ComboBox}}}}}}""/>
+      <Canvas x:Name=""selectionRoll"" Visibility=""Collapsed""/>
+    </Grid>";
         string xaml =
             $@"<ControlTemplate TargetType=""ComboBox"" xmlns=""{XamlPres}"" xmlns:x=""{XamlX}"">
   <Grid>
@@ -96,6 +99,7 @@ public static partial class Fluent
         c.Template = (ControlTemplate)XamlReader.Parse(xaml);
         // 可编辑区保留文本输入，点击抬起时展开候选列表。
         c.ApplyTemplate();
+        ResetComboSelection(c);
         if (editable && c.Template?.FindName("PART_EditableTextBox", c) is TextBox tbBox)
         {
             tbBox.PreviewMouseLeftButtonUp += (_, _) => { if (!c.IsDropDownOpen) c.IsDropDownOpen = true; };
@@ -129,7 +133,7 @@ public static partial class Fluent
     /// <summary>已接入弹层动画与内容宽度同步的下拉框。</summary>
     static readonly System.Runtime.CompilerServices.ConditionalWeakTable<ComboBox, object> ComboWired = new();
 
-    /// <summary>接入内容宽度更新、弹层缩放与条目淡入。</summary>
+    /// <summary>接入宽度同步、弹层和选中文字的动效。</summary>
     /// <param name="c">目标下拉框。</param>
     static void WireCombo(ComboBox c)
     {
@@ -148,6 +152,7 @@ public static partial class Fluent
         c.AddHandler(TextBoxBase.TextChangedEvent, new TextChangedEventHandler((_, _) => QueueWidth()));
         c.DropDownOpened += (_, _) => PopDropDown(c);
         c.DropDownClosed += (_, _) => ResetItems(c, 1);
+        WireComboSelection(c);
     }
 
     static void FitComboWidth(ComboBox c)
@@ -216,8 +221,7 @@ public static partial class Fluent
         }
     }
 
-    /// <summary>收起之后把条目的透明度放回全亮：淡入被打断在半夜时，条目会停在半透明上，
-    /// 下一次展开就是从一个更暗的起点再淡一遍。</summary>
+    /// <summary>清除候选项淡入动画并恢复指定透明度。</summary>
     /// <param name="c">刚收起或刚重套模板的下拉框。</param>
     /// <param name="to">要落回的透明度。</param>
     static void ResetItems(ComboBox c, double to)
