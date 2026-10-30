@@ -17,6 +17,17 @@ public static partial class OcrService
     {
         if (!model.Available) return new(OcrStatus.ComponentMissing, "");
         await RecognitionGate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            using var modelLease = await model.AcquireRecognitionAsync().ConfigureAwait(false);
+            return modelLease == null ? new(OcrStatus.ComponentMissing, "")
+                : await RunModelWorkerAsync(frame, includeImage, model).ConfigureAwait(false);
+        }
+        finally { RecognitionGate.Release(); }
+    }
+
+    static async Task<OcrOutcome> RunModelWorkerAsync(CapturedFrame frame, bool includeImage, OcrModelComponent model)
+    {
         using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(3));
         using var process = new Process { StartInfo = new ProcessStartInfo(OcrModelComponent.WorkerPath)
         {
@@ -59,7 +70,6 @@ public static partial class OcrService
         {
             try { if (process.Id != 0 && !process.HasExited) process.Kill(entireProcessTree: true); }
             catch (Exception error) when (error is InvalidOperationException or System.ComponentModel.Win32Exception) { }
-            RecognitionGate.Release();
         }
     }
 

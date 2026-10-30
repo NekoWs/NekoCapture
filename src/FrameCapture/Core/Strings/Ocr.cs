@@ -16,5 +16,9 @@ public static partial class K
         public static readonly Str Installing = new("ocr.installing", "正在安装模型…", "Installing models…");
         public static readonly Str InstallFailed = new("ocr.installFailed", "模型安装失败，请重试", "Model installation failed. Try again.");
         public static readonly Str Missing = new("ocr.missing", "请先在编辑器设置中下载所选 OCR 模型", "Download the selected OCR model in Editor settings first.");
+        public static readonly Str Uninstall = new("ocr.uninstall", "卸载模型", "Uninstall model");
+        public static readonly Str Uninstalling = new("ocr.uninstalling", "正在卸载模型…", "Uninstalling model…");
+        public static readonly Str UninstallFailed = new("ocr.uninstallFailed", "模型卸载失败，请重试", "Model uninstallation failed. Try again.");
+        public static readonly Str ModelInUse = new("ocr.modelInUse", "识别完成后可卸载", "Available after recognition finishes");
     }
 }

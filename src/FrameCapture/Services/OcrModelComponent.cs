@@ -48,7 +48,7 @@ internal sealed partial class OcrModelComponent
     /// <summary>识别工作进程的位置；测试可指定隔离的工作进程。</summary>
     internal static string WorkerPath => Environment.GetEnvironmentVariable("FC_OCR_WORKER") is { Length: > 0 } path
         ? path : Path.Combine(AppContext.BaseDirectory, "OcrWorker", "FrameCapture.OcrWorker.exe");
-    /// <summary>当前是否在安装组件。</summary>
+    /// <summary>当前是否在安装或卸载组件。</summary>
     internal bool Busy { get; private set; }
     /// <summary>下载完成比例，取值为 0 至 1。</summary>
     internal double Progress => Math.Clamp(CurrentProgress.Bytes / (double)DownloadBytes, 0, 1);
@@ -63,12 +63,16 @@ internal sealed partial class OcrModelComponent
     {
         get
         {
-            string directory = Path.Combine(SettingsService.Dir, "components", _revision);
+            string directory = InstallDirectory;
             return Complete(directory) ? directory : null;
         }
     }
     /// <summary>模型和工作进程是否均可用。</summary>
     internal bool Available => File.Exists(WorkerPath) && ModelDirectory != null;
+
+    string InstallDirectory => Path.Combine(SettingsService.Dir, "components", _revision);
+    /// <summary>是否存在需要卸载的模型目录。</summary>
+    internal bool HasFiles => Directory.Exists(InstallDirectory);
 
     bool Complete(string directory)
     {

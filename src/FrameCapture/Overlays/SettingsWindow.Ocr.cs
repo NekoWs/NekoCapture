@@ -20,7 +20,13 @@ public sealed partial class SettingsWindow
             combo.Items.Add(new ComboBoxItem { Content = Loc.T(model.Label), Tag = model.Engine });
         combo.SelectedItem = combo.Items.Cast<ComboBoxItem>().FirstOrDefault(item => item.Tag as string == _settings.Current.OcrEngine)
             ?? combo.Items[0];
-        Grid.SetColumn(combo, 2); row.Children.Add(combo); panel.Children.Add(row);
+        var controls = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
+        var uninstall = Fluent.IconButton("\uE74D", Loc.T(K.Ocr.Uninstall), 28);
+        uninstall.Tag = "ocr-model-uninstall"; uninstall.Margin = new Thickness(0, 0, 6, 0);
+        uninstall.VerticalAlignment = VerticalAlignment.Center;
+        ToolTipService.SetShowOnDisabled(uninstall, true);
+        controls.Children.Add(uninstall); controls.Children.Add(combo);
+        Grid.SetColumn(controls, 2); row.Children.Add(controls); panel.Children.Add(row);
         var prompt = new StackPanel { Margin = new Thickness(32, 0, 0, 0), Tag = "ocr-model-download" };
         panel.Children.Add(prompt);
         OcrModelComponent? shown = null;
@@ -34,8 +40,11 @@ public sealed partial class SettingsWindow
             if (status == null || download == null || progress == null || fill == null) return;
             var snapshot = model.CurrentProgress;
             bool busy = model.Busy;
-            download.Content = Loc.T(busy ? K.Common.Cancel : K.Common.DownloadAndInstall);
-            progress.Visibility = busy ? Visibility.Visible : Visibility.Collapsed;
+            bool removing = snapshot.Phase == OcrComponentPhase.Uninstalling;
+            download.Visibility = model.Available ? Visibility.Collapsed : Visibility.Visible;
+            download.IsEnabled = !removing;
+            download.Content = Loc.T(busy && !removing ? K.Common.Cancel : K.Common.DownloadAndInstall);
+            progress.Visibility = busy && !removing ? Visibility.Visible : Visibility.Collapsed;
             double fraction = Math.Clamp(snapshot.Bytes / (double)model.DownloadBytes, 0, 1);
             if (fraction != displayedProgress)
             {
@@ -53,6 +62,8 @@ public sealed partial class SettingsWindow
                 OcrComponentPhase.Installing => Loc.T(K.Ocr.Installing),
                 OcrComponentPhase.Cancelled => Loc.T(K.Common.ComponentCancelled),
                 OcrComponentPhase.Failed => Loc.T(K.Ocr.InstallFailed),
+                OcrComponentPhase.Uninstalling => Loc.T(K.Ocr.Uninstalling),
+                OcrComponentPhase.UninstallFailed => Loc.T(K.Ocr.UninstallFailed),
                 _ => Loc.F(K.Ocr.NeedsDownload, Loc.T(model.Label), (model.DownloadBytes / 1048576d).ToString("0")),
             };
         }
@@ -79,7 +90,13 @@ public sealed partial class SettingsWindow
         void Refresh(bool animate)
         {
             var selected = OcrModelComponent.For(_settings.Current.OcrEngine);
-            var needed = selected is { Available: false } ? selected : null;
+            uninstall.Visibility = selected == null ? Visibility.Collapsed : Visibility.Visible;
+            uninstall.IsEnabled = selected is { HasFiles: true, Busy: false, InUse: false };
+            uninstall.Opacity = uninstall.IsEnabled ? 1 : 0.45;
+            uninstall.ToolTip = Loc.T(selected?.InUse == true ? K.Ocr.ModelInUse
+                : selected?.CurrentProgress.Phase == OcrComponentPhase.Uninstalling ? K.Ocr.Uninstalling : K.Ocr.Uninstall);
+            var needed = selected != null && (!selected.Available || selected.CurrentProgress.Phase == OcrComponentPhase.UninstallFailed)
+                ? selected : null;
             if (ReferenceEquals(shown, needed)) { if (needed != null) UpdateStatus(needed); return; }
             shown = needed;
             if (animate) TransitionContent(prompt, () => RenderPrompt(needed));
@@ -96,6 +113,10 @@ public sealed partial class SettingsWindow
         {
             if (combo.SelectedItem is not ComboBoxItem { Tag: string engine } || engine == _settings.Current.OcrEngine) return;
             _settings.Mutate(s => s.OcrEngine = engine); Refresh(animate: true);
+        };
+        uninstall.Click += async (_, _) =>
+        {
+            if (OcrModelComponent.For(_settings.Current.OcrEngine) is { } model) await model.UninstallAsync();
         };
         prompt.Loaded += (_, _) => { foreach (var model in OcrModelComponent.All) model.Changed += Changed; Refresh(animate: false); };
         prompt.Unloaded += (_, _) => { foreach (var model in OcrModelComponent.All) model.Changed -= Changed; };

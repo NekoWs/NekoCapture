@@ -56,8 +56,8 @@ internal sealed partial class OcrModelComponent
     }
 }
 
-/// <summary>可选模型组件的连接、下载、校验和安装状态。</summary>
-internal enum OcrComponentPhase { Missing, Connecting, Downloading, Verifying, Installing, Available, Cancelled, Failed }
+/// <summary>可选模型组件的下载、校验、安装和卸载状态。</summary>
+internal enum OcrComponentPhase { Missing, Connecting, Downloading, Verifying, Installing, Available, Cancelled, Failed, Uninstalling, UninstallFailed }
 
 /// <summary>模型组件安装的进度快照。</summary>
 /// <param name="Phase">安装阶段。</param>
