@@ -13,6 +13,7 @@ public sealed partial class SettingsWindow
 {
     void UpdateBehaviorTab(TabControl tabs, int index)
     {
+        if (tabs.SelectedIndex == index) return;
         _behaviorTabSync = true;
         try { tabs.SelectedIndex = index; }
         finally { _behaviorTabSync = false; }
@@ -56,6 +57,7 @@ public sealed partial class SettingsWindow
         {
             if (e.OriginalSource != tabs || tabs.SelectedIndex < 0) return;
             int next = tabs.SelectedIndex;
+            if (next == active) return;
             _behaviorSlideDirection = next < active ? -1 : 1;
             active = next; Move();
             if (!_behaviorTabSync) choices[next].Select();

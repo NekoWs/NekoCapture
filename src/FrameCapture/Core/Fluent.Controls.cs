@@ -239,19 +239,20 @@ public static partial class Fluent
     public static void StyleSlider(Slider sl, Color trackColor, Color accentColor)
     {
         string track = Hex(trackColor), acc = Hex(accentColor);
+        string enter = TimeSpan.FromMilliseconds(Motion.StateMs).ToString("c");
+        string exit = TimeSpan.FromMilliseconds(Motion.HoverMs).ToString("c");
         string xaml = $"""
             <ControlTemplate TargetType="Slider"
                              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-              <Grid VerticalAlignment="Center" Height="20">
+              <Grid VerticalAlignment="Center" Height="26">
                 <Border Height="3" CornerRadius="2" Background="{track}"/>
                 <Track x:Name="PART_Track">
                   <Track.DecreaseRepeatButton>
                     <RepeatButton Focusable="False">
                       <RepeatButton.Template>
                         <ControlTemplate TargetType="RepeatButton">
-                          <!-- 负右边距把填充线延到滑块格中心（格宽 22 由光晕决定，圆钮只占 13：
-                               不延伸则线与圆之间露 4.5px 底色缝，用户实测抓到） -->
+                          <!-- 填充线延伸到宽 22 的滑块中心，与圆柄保持衔接。 -->
                           <Border Height="3" CornerRadius="2" Background="{acc}" Opacity="0.9" Margin="0,0,-11,0"/>
                         </ControlTemplate>
                       </RepeatButton.Template>
@@ -270,24 +271,24 @@ public static partial class Fluent
                     <Thumb x:Name="th" Focusable="False">
                       <Thumb.Template>
                         <ControlTemplate TargetType="Thumb">
-                          <Grid>
-                            <Ellipse x:Name="halo" Width="22" Height="22" Fill="{acc}" Opacity="0"/>
-                            <Ellipse x:Name="dot" Width="13" Height="13" Fill="{acc}" Stroke="{track}" StrokeThickness="1"/>
+                          <Grid Width="22" Height="26">
+                            <Ellipse x:Name="halo" Width="22" Height="22" HorizontalAlignment="Center" VerticalAlignment="Center" Fill="{acc}" Opacity="0"/>
+                            <Ellipse x:Name="dot" Width="13" Height="13" HorizontalAlignment="Center" VerticalAlignment="Center" Fill="{acc}" Stroke="{track}" StrokeThickness="1"/>
                           </Grid>
                           <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
                               <Trigger.EnterActions>
                                 <BeginStoryboard><Storyboard>
-                                  <DoubleAnimation Storyboard.TargetName="dot" Storyboard.TargetProperty="Width" To="16" Duration="0:0:0.16"><DoubleAnimation.EasingFunction><BackEase Amplitude="0.6" EasingMode="EaseOut"/></DoubleAnimation.EasingFunction></DoubleAnimation>
-                                  <DoubleAnimation Storyboard.TargetName="dot" Storyboard.TargetProperty="Height" To="16" Duration="0:0:0.16"><DoubleAnimation.EasingFunction><BackEase Amplitude="0.6" EasingMode="EaseOut"/></DoubleAnimation.EasingFunction></DoubleAnimation>
-                                  <DoubleAnimation Storyboard.TargetName="halo" Storyboard.TargetProperty="Opacity" To="0.25" Duration="0:0:0.18"/>
+                                  <DoubleAnimation Storyboard.TargetName="dot" Storyboard.TargetProperty="Width" To="16" Duration="{enter}"><DoubleAnimation.EasingFunction><BackEase Amplitude="0.6" EasingMode="EaseOut"/></DoubleAnimation.EasingFunction></DoubleAnimation>
+                                  <DoubleAnimation Storyboard.TargetName="dot" Storyboard.TargetProperty="Height" To="16" Duration="{enter}"><DoubleAnimation.EasingFunction><BackEase Amplitude="0.6" EasingMode="EaseOut"/></DoubleAnimation.EasingFunction></DoubleAnimation>
+                                  <DoubleAnimation Storyboard.TargetName="halo" Storyboard.TargetProperty="Opacity" To="0.25" Duration="{enter}"/>
                                 </Storyboard></BeginStoryboard>
                               </Trigger.EnterActions>
                               <Trigger.ExitActions>
                                 <BeginStoryboard><Storyboard>
-                                  <DoubleAnimation Storyboard.TargetName="dot" Storyboard.TargetProperty="Width" To="13" Duration="0:0:0.14"/>
-                                  <DoubleAnimation Storyboard.TargetName="dot" Storyboard.TargetProperty="Height" To="13" Duration="0:0:0.14"/>
-                                  <DoubleAnimation Storyboard.TargetName="halo" Storyboard.TargetProperty="Opacity" To="0" Duration="0:0:0.14"/>
+                                  <DoubleAnimation Storyboard.TargetName="dot" Storyboard.TargetProperty="Width" To="13" Duration="{exit}"/>
+                                  <DoubleAnimation Storyboard.TargetName="dot" Storyboard.TargetProperty="Height" To="13" Duration="{exit}"/>
+                                  <DoubleAnimation Storyboard.TargetName="halo" Storyboard.TargetProperty="Opacity" To="0" Duration="{exit}"/>
                                 </Storyboard></BeginStoryboard>
                               </Trigger.ExitActions>
                             </Trigger>
@@ -303,7 +304,7 @@ public static partial class Fluent
         var tpl = (ControlTemplate)System.Windows.Markup.XamlReader.Parse(xaml);
         tpl.Seal();
         sl.Template = tpl;
-        sl.Height = 20;
+        sl.Height = 26;
     }
     #endregion
 

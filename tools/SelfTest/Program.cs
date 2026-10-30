@@ -968,10 +968,10 @@ static partial class SelfTest
         return 0;
     }
 
-    static int RenderSlider(string outPath)
+    static int RenderSlider(string outPath, bool hover = false)
     {
         var app = new Application();
-        // 滑条取证：放大 3 倍看填充线与圆钮接缝是否露底色缝
+        // 显示最小值、中间值与最大值的滑块布局。
         var panel = new System.Windows.Controls.StackPanel { Background = new System.Windows.Media.SolidColorBrush(Theme.PanelBg) };
         foreach (double v in new double[] { 0, 35, 100 })
         {
@@ -982,6 +982,19 @@ static partial class SelfTest
         panel.Measure(new System.Windows.Size(340, 200));
         panel.Arrange(new Rect(0, 0, 340, Math.Max(1, panel.DesiredSize.Height)));
         panel.UpdateLayout();
+        if (hover)
+        {
+            foreach (System.Windows.Controls.Slider slider in panel.Children)
+            {
+                var track = (System.Windows.Controls.Primitives.Track)slider.Template.FindName("PART_Track", slider);
+                var thumb = track.Thumb;
+                thumb.ApplyTemplate();
+                var halo = (System.Windows.Shapes.Ellipse)thumb.Template.FindName("halo", thumb);
+                var dot = (System.Windows.Shapes.Ellipse)thumb.Template.FindName("dot", thumb);
+                halo.Opacity = 0.25; dot.Width = dot.Height = 16;
+            }
+            panel.UpdateLayout();
+        }
         int hh = (int)Math.Ceiling(Math.Max(1, panel.DesiredSize.Height));
         var rtb = new System.Windows.Media.Imaging.RenderTargetBitmap(340, hh, 96, 96, System.Windows.Media.PixelFormats.Pbgra32);
         rtb.Render(panel);
@@ -1219,7 +1232,7 @@ static partial class SelfTest
         if (args.Length >= 3 && args[0] == "overlayct") return OverlayClickThrough(args);
         if (args.Length == 2 && args[0] == "editorwave") return EditorWave(args[1]);
         if (args.Length == 2 && args[0] == "scrollwave") return ScrollWave(args[1]);
-        if (args.Length == 2 && args[0] == "renderslider") return RenderSlider(args[1]);
+        if (args.Length >= 2 && args[0] == "renderslider") return RenderSlider(args[1], args.Contains("hover"));
         // 类别名走命令行会被控制台代码页搅乱，这里按索引取
         if (args.Length >= 2 && args[0] == "renderpicker")
             return RenderPicker(args[1], args.Length < 3 || args[2] != "layered");
@@ -1244,6 +1257,14 @@ static partial class SelfTest
             return RenderDrag(args[1], new System.Windows.Point(dx, dy));
         }
         if (args.Length == 3 && args[0] == "stitch") return StitchMode(args[1], args[2]);
+        if (args.Length == 1 && args[0] == "behavior-navigation")
+        {
+            _ = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
+            Fluent.ApplyGlobalStyles();
+            BehaviorNavigationUiChecks();
+            Console.WriteLine($"RESULT PASS={pass} FAIL={fail}");
+            return fail == 0 ? 0 : 1;
+        }
         if (args.Length == 1 && args[0] == "behaviors")
         {
             var behaviorApp = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };

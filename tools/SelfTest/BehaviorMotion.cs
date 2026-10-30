@@ -17,6 +17,27 @@ static partial class SelfTest
         var type = typeof(SettingsWindow);
         T Field<T>(string name) => (T)type.GetField(name, flags)!.GetValue(settings)!;
         PumpMs(Fluent.Motion.SpringMs + 80);
+        var details = Field<StackPanel>("_behaviorDetails");
+        var crumbs = details.Children.OfType<WrapPanel>().Single();
+        var prefix = crumbs.Children.OfType<Button>().ToArray();
+        var originalBranch = Field<StackPanel>("_behaviorBranchContent");
+        var originalEditor = originalBranch.Children[0];
+        foreach (var button in prefix) button.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+        var rootEditor = Field<object>("_behaviorRootEditor");
+        ((Action<int>)rootEditor.GetType().GetField("_openNode", flags)!.GetValue(rootEditor)!)(0);
+        foreach (string name in new[] { "_behaviorFlowTabs", "_behaviorBranchTabs" })
+        {
+            var current = Field<TabControl>(name);
+            current.RaiseEvent(new SelectionChangedEventArgs(Selector.SelectionChangedEvent,
+                new object[] { current.SelectedItem }, new object[] { current.SelectedItem }));
+        }
+        PumpMs(35);
+        Chk("behavior-current-navigation-is-noop", ReferenceEquals(details, Field<StackPanel>("_behaviorDetails"))
+            && ReferenceEquals(originalBranch, Field<StackPanel>("_behaviorBranchContent"))
+            && ReferenceEquals(originalEditor, originalBranch.Children[0]) && double.IsNaN(details.Height)
+            && originalBranch.Children.OfType<FrameworkElement>().All(child => child.Opacity > 0.99)
+            && (AdornerLayer.GetAdornerLayer(details)?.GetAdorners(details)?.Length ?? 0) == 0
+            && (AdornerLayer.GetAdornerLayer(originalBranch)?.GetAdorners(originalBranch)?.Length ?? 0) == 0);
         var tabs = Field<TabControl>("_behaviorBranchTabs");
         var indicator = (Border)tabs.Template.FindName("selectionIndicator", tabs);
         double start = ((TranslateTransform)indicator.RenderTransform).X;
@@ -37,8 +58,16 @@ static partial class SelfTest
         var path = Field<List<string>>("_behaviorPath");
         path.Add(selection.Branches[BehaviorPorts.Still][0]);
         type.GetMethod("RenderBehaviorDetails", flags)!.Invoke(settings, null); PumpMs(35);
-        var details = Field<StackPanel>("_behaviorDetails");
         Chk("behavior-enter-branch-animates", details.Children.OfType<FrameworkElement>().Any(child => child.Opacity is > 0 and < 1));
+        var nextCrumbs = details.Children.OfType<WrapPanel>().Single();
+        var nextButtons = nextCrumbs.Children.OfType<Button>().ToArray();
+        Chk("behavior-breadcrumb-prefix-stays-stable", ReferenceEquals(crumbs, nextCrumbs)
+            && prefix.Zip(nextButtons).All(pair => ReferenceEquals(pair.First, pair.Second) && pair.Second.Opacity > 0.99)
+            && nextButtons[^1].Opacity is > 0 and < 1 && crumbs.Opacity > 0.99);
+        var outgoing = AdornerLayer.GetAdornerLayer(details)?.GetAdorners(details)?.Single();
+        var bounds = outgoing?.GetType().GetField("_bounds", flags)?.GetValue(outgoing);
+        Chk("behavior-branch-exit-excludes-breadcrumb", bounds is Rect rect
+            && rect.Top >= crumbs.TranslatePoint(new Point(0, crumbs.ActualHeight), details).Y);
         type.GetMethod("NavigateBehaviorPath", flags)!.Invoke(settings, new object[] { 1 });
         PumpMs(Fluent.Motion.SpringMs + 100);
         Chk("behavior-branch-return-releases-height", path.SequenceEqual(new[] { selection.Id }) && double.IsNaN(details.Height)

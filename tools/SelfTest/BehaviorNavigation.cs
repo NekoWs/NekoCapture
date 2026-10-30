@@ -1,13 +1,51 @@
 using System.Reflection;
+using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Media;
+using System.Windows.Threading;
 using FrameCapture.Core;
 using FrameCapture.Overlays;
+using FrameCapture.Services;
 
 static partial class SelfTest
 {
+    static void BehaviorNavigationUiChecks()
+    {
+        const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic;
+        var previousSync = SynchronizationContext.Current;
+        var property = typeof(AppHost).GetProperty("Settings")!;
+        var previous = property.GetValue(AppHost.Current);
+        SettingsWindow? window = null;
+        try
+        {
+            SynchronizationContext.SetSynchronizationContext(new DispatcherSynchronizationContext());
+            var service = new SettingsService();
+            var graph = new BehaviorGraph();
+            var selection = graph.Add(GestureActions.Select);
+            selection.Branches[BehaviorPorts.Still].Add(graph.Add(GestureActions.GrabStill).Id);
+            selection.Branches[BehaviorPorts.Record].Add(graph.Add(GestureActions.RecordStart).Id);
+            graph.Flows.Add(new BehaviorFlow { Steps = new() { selection.Id } });
+            service.Current.Gestures.Graph = graph; service.Current.Gestures.GraphRevision = 1;
+            property.SetValue(AppHost.Current, service);
+            window = new SettingsWindow { Left = -20000, Top = -20000, ShowInTaskbar = false, ShowActivated = false };
+            typeof(SettingsWindow).GetField("_restoreCat", flags)!.SetValue(window, 1);
+            typeof(SettingsWindow).GetMethod("Build", flags)!.Invoke(window, null);
+            window.Show(); PumpMs(Fluent.Motion.SpringMs + 100);
+            BehaviorNavigationChecks(window, selection);
+            BehaviorMotionChecks(window, selection);
+            ChainMotionChecks();
+        }
+        catch (Exception ex) { Chk("behavior-navigation-ui", false, ex.ToString()); }
+        finally
+        {
+            window?.Close();
+            property.SetValue(AppHost.Current, previous);
+            SynchronizationContext.SetSynchronizationContext(previousSync);
+        }
+    }
+
     static void BehaviorNavigationChecks(SettingsWindow settings, BehaviorNode selection)
     {
         const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic;

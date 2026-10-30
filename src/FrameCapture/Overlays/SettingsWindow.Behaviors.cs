@@ -21,6 +21,7 @@ public sealed partial class SettingsWindow
     string[] _behaviorRenderedPath = Array.Empty<string>();
     bool _behaviorTabSync;
     int _behaviorSlideDirection = 1;
+    string _behaviorBranchNode = "", _behaviorBranchPort = "";
 
     void BuildBehaviors(StackPanel panel)
     {
@@ -69,6 +70,7 @@ public sealed partial class SettingsWindow
         DockPanel.SetDock(add, Dock.Right); tabs.Children.Add(add);
         _behaviorFlowTabs = BehaviorTabs(graph.Flows.Select(entry => (cfg.FlowName(entry), (Action)(() =>
             {
+                if (_behaviorFlow == entry.Id) return;
                 _behaviorFlow = entry.Id; _behaviorPath.Clear(); RenderBehaviors();
             }))), graph.Flows.FindIndex(entry => entry.Id == _behaviorFlow), Theme.WindowBgSolid);
         tabs.Children.Add(_behaviorFlowTabs);
@@ -80,6 +82,8 @@ public sealed partial class SettingsWindow
         if (_behaviorContent == null) return;
         _behaviorContent.Children.Clear(); _behaviorEditors.Clear();
         _behaviorRenderedPath = Array.Empty<string>();
+        _behaviorBreadcrumbs = null; _behaviorCrumbs.Clear();
+        _behaviorBranchNode = _behaviorBranchPort = "";
         var cfg = _settings.Current.Gestures;
         var graph = cfg.Graph;
         if (flow == null) { _behaviorDetails = null; return; }
@@ -139,6 +143,8 @@ public sealed partial class SettingsWindow
         }, id => GestureActions.LabelOf(graph.Node(id)?.Action), index =>
         {
             var list = get(); if (index < 0 || index >= list.Count) return;
+            int depth = owner == null ? 0 : _behaviorPath.IndexOf(owner.Id) + 1;
+            if (_behaviorPath.Count == depth + 1 && _behaviorPath[^1] == list[index]) return;
             if (owner == null) _behaviorPath.Clear();
             else
             {
@@ -175,7 +181,10 @@ public sealed partial class SettingsWindow
             _behaviorPath.Add(first);
         if (_behaviorPath.Count == 0 || graph.Node(_behaviorPath[^1]) is not { } node)
         {
+            if (_behaviorDetails.Children.Count == 0) return;
             TransitionContent(_behaviorDetails, () => _behaviorDetails.Children.Clear());
+            _behaviorBreadcrumbs = null; _behaviorCrumbs.Clear();
+            _behaviorBranchNode = _behaviorBranchPort = "";
             _behaviorRenderedPath = Array.Empty<string>(); return;
         }
         if (_behaviorRenderedPath.SequenceEqual(_behaviorPath) && _behaviorBranchContent != null)
@@ -184,31 +193,19 @@ public sealed partial class SettingsWindow
         }
         int direction = _behaviorPath.Count < _behaviorRenderedPath.Length ? -1 : 1;
         _behaviorRenderedPath = _behaviorPath.ToArray();
-        TransitionContent(_behaviorDetails, () => RenderBehaviorDetailsBody(node), direction);
+        TransitionContent(_behaviorDetails, () =>
+        {
+            RenderBehaviorBreadcrumbs(direction);
+            RenderBehaviorDetailsBody(node);
+        }, direction, stableChildren: 2);
     }
 
     void RenderBehaviorDetailsBody(BehaviorNode node)
     {
         if (_behaviorDetails == null) return;
-        var cfg = _settings.Current.Gestures;
-        var graph = cfg.Graph;
-        _behaviorDetails.Children.Clear();
+        if (_behaviorDetails.Children.Count > 2)
+            _behaviorDetails.Children.RemoveRange(2, _behaviorDetails.Children.Count - 2);
         _behaviorEditors.RemoveAll(e => !ReferenceEquals(e, _behaviorRootEditor));
-        _behaviorDetails.Children.Add(new Border { Height = 1, Background = Theme.StrokeSoftBrush,
-            Margin = new Thickness(2, 0, 2, 8) });
-        var path = new WrapPanel { Margin = new Thickness(0, 0, 0, 7) };
-        if (graph.Flow(_behaviorFlow) is { } flow)
-            path.Children.Add(BehaviorButton(cfg.FlowName(flow), () => NavigateBehaviorPath(1)));
-        for (int i = 0; i < _behaviorPath.Count; i++)
-        {
-            int at = i;
-            path.Children.Add(new TextBlock { Text = "\uE76C", FontFamily = new FontFamily("Segoe Fluent Icons"),
-                Foreground = Theme.TextDimBrush, FontSize = 9, Margin = new Thickness(4, 0, 4, 0),
-                VerticalAlignment = VerticalAlignment.Center });
-            path.Children.Add(BehaviorButton(GestureActions.LabelOf(graph.Node(_behaviorPath[i])!.Action), () =>
-            { NavigateBehaviorPath(at + 1); }, i + 1 == _behaviorPath.Count));
-        }
-        _behaviorDetails.Children.Add(path);
         if (node.Action == GestureActions.Select)
         {
             _behaviorDetails.Children.Add(ToggleRow("\uE7A8", Loc.T(K.Behaviors.ShowSwitch),
@@ -226,6 +223,7 @@ public sealed partial class SettingsWindow
         tabs.Margin = new Thickness(0, 4, 0, 8);
         _behaviorDetails.Children.Add(tabs);
         _behaviorBranchContent = new StackPanel();
+        _behaviorBranchNode = _behaviorBranchPort = "";
         _behaviorDetails.Children.Add(_behaviorBranchContent);
         RenderBehaviorBranch(node);
     }
@@ -237,6 +235,8 @@ public sealed partial class SettingsWindow
         string selected = _behaviorPorts.TryGetValue(node.Id, out var value) && ports.Contains(value) ? value : ports[0];
         int target = Array.IndexOf(ports, selected);
         UpdateBehaviorTab(_behaviorBranchTabs, target);
+        if (_behaviorBranchNode == node.Id && _behaviorBranchPort == selected) return;
+        _behaviorBranchNode = node.Id; _behaviorBranchPort = selected;
         TransitionContent(_behaviorBranchContent, () =>
         {
             _behaviorBranchContent.Children.Clear();
@@ -256,7 +256,8 @@ public sealed partial class SettingsWindow
 
     void NavigateBehaviorPath(int depth)
     {
-        if (_behaviorPath.Count > depth) _behaviorPath.RemoveRange(depth, _behaviorPath.Count - depth);
+        if (_behaviorPath.Count <= depth) return;
+        _behaviorPath.RemoveRange(depth, _behaviorPath.Count - depth);
         RenderBehaviorDetails();
         foreach (var editor in _behaviorEditors.ToArray()) editor.Render();
     }

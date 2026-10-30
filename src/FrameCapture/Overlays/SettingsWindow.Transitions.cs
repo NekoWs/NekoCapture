@@ -57,7 +57,7 @@ public sealed partial class SettingsWindow
             return motion;
         });
 
-    static void TransitionContent(Panel host, Action render, int direction = 1)
+    static void TransitionContent(Panel host, Action render, int direction = 1, int stableChildren = 0)
     {
         if (!host.IsLoaded || !host.IsVisible || host.ActualWidth <= 0) { render(); return; }
         var state = ContentMotionFor(host);
@@ -65,13 +65,23 @@ public sealed partial class SettingsWindow
         state.Outgoing?.Remove(); state.Outgoing = null;
         double oldHeight = host.ActualHeight, width = host.ActualWidth;
         var previous = CaptureSettingsVisual(host);
+        double contentTop = host.Children.OfType<FrameworkElement>().Take(stableChildren)
+            .Select(child => child.TranslatePoint(new Point(0, child.ActualHeight), host).Y + child.Margin.Bottom)
+            .DefaultIfEmpty(0).Max();
+        if (previous != null && contentTop > 0)
+        {
+            int top = Math.Clamp((int)Math.Ceiling(contentTop * previous.DpiY / 96), 0, previous.PixelHeight);
+            previous = top < previous.PixelHeight
+                ? new CroppedBitmap(previous, new Int32Rect(0, top, previous.PixelWidth, previous.PixelHeight - top)) : null;
+        }
         host.BeginAnimation(HeightProperty, null); host.Height = double.NaN;
         render();
         host.Measure(new Size(Math.Max(1, width + host.Margin.Left + host.Margin.Right), double.PositiveInfinity));
         double targetHeight = Math.Max(0, host.DesiredSize.Height - host.Margin.Top - host.Margin.Bottom);
         host.ClipToBounds = true;
         if (previous != null)
-            state.Outgoing = DepartingVisual(host, previous, new Rect(0, 0, width, oldHeight), false, -direction * 10);
+            state.Outgoing = DepartingVisual(host, previous,
+                new Rect(0, contentTop, width, Math.Max(0, oldHeight - contentTop)), false, -direction * 10);
         var duration = new Duration(TimeSpan.FromMilliseconds(Fluent.Motion.EnterMs));
         var height = new DoubleAnimation(oldHeight, targetHeight, duration)
             { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } };
@@ -82,7 +92,7 @@ public sealed partial class SettingsWindow
             state.Outgoing?.Remove(); state.Outgoing = null;
         };
         host.BeginAnimation(HeightProperty, height);
-        Fluent.CascadeIn(host.Children.OfType<FrameworkElement>().Where(child => child is not TabControl).ToArray(),
+        Fluent.CascadeIn(host.Children.OfType<FrameworkElement>().Skip(stableChildren).Where(child => child is not TabControl).ToArray(),
             risePx: 0, riseX: direction * 12, budgetMs: Fluent.Motion.EnterMs);
     }
 
