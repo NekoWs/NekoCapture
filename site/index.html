@@ -1,425 +1,117 @@
-<!DOCTYPE html>
-<html lang="zh-CN" data-theme="dark">
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>FrameCapture — Windows 截图与录屏工具</title>
-<meta name="description" content="FrameCapture：Windows 截图与录屏。截完直接进剪贴板，粘走就能用；窗口截图按窗口本体捕获，圆角透明、投影合成，不把屏幕背景截进去。GIF / MP4 录制、标注、贴图、文字识别，全程在本机完成。">
+<title>FrameCapture · 截得干净，用得顺手</title>
+<meta name="description" content="为 Windows 准备的截图、录制、标注与贴图工具。用共享行为与分支配置，让快捷键适合自己的工作方式。GPL-3.0 开源。">
+<meta name="theme-color" content="#f5f7fa">
 <meta property="og:type" content="website">
-<meta property="og:title" content="FrameCapture — Windows 截图与录屏工具">
-<meta property="og:description" content="截完就在剪贴板里：截图带透明通道，录完按 Enter 出 GIF，文件、位图、动图三种形态一起进剪贴板。窗口截图按窗口本体捕获，投影是合成的，不混进屏幕背景。">
-<meta property="og:image" content="assets/shots/editor.png">
-<meta property="og:image:alt" content="FrameCapture 编辑器：一张记事本截图摊在画布上，底部是整条标注工具条">
+<meta property="og:title" content="FrameCapture · 截得干净，用得顺手">
+<meta property="og:description" content="截图、录制、OCR 与标注。快捷键负责开始，后续动作由你决定。">
+<meta property="og:url" content="https://nekows.github.io/FrameCapture/">
+<meta property="og:image" content="https://nekows.github.io/FrameCapture/assets/shots/gesture.png">
 <meta name="twitter:card" content="summary_large_image">
+<link rel="canonical" href="https://nekows.github.io/FrameCapture/">
+<link rel="alternate" hreflang="zh-CN" href="https://nekows.github.io/FrameCapture/">
+<link rel="alternate" hreflang="en" href="https://nekows.github.io/FrameCapture/en/">
+<link rel="alternate" hreflang="x-default" href="https://nekows.github.io/FrameCapture/">
 <link rel="icon" href="assets/FrameCapture-256.png">
-<link rel="alternate" hreflang="zh-CN" href="./">
-<link rel="alternate" hreflang="en" href="en/">
-<link rel="alternate" hreflang="x-default" href="./">
-<meta name="theme-color" media="(prefers-color-scheme: light)" content="#f3f3f3">
-<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#161616">
-<link rel="stylesheet" href="css/tokens.css">
-<link rel="stylesheet" href="css/base.css">
-<link rel="stylesheet" href="css/layout.css">
-<link rel="stylesheet" href="css/components.css">
-<link rel="stylesheet" href="css/motion.css">
-<script>
-/* 首帧之前把主题和静态模式定下来，否则浅色系统会先闪一帧深色。
-   只读同一个 localStorage 键，判定与 js/theme.js 一致。 */
-(function () {
-  var root = document.documentElement;
-  /* 入场动画的初始隐藏挂在 .js 上：脚本没跑，正文照样可见。 */
-  root.classList.add('js');
-  if (/[?&]static=1/.test(window.location.search)) { root.classList.add('is-static'); }
-  var saved = null;
-  try { saved = window.localStorage.getItem('fc-theme'); } catch (e) { saved = null; }
-  if (!saved && window.matchMedia) {
-    saved = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-  }
-  root.setAttribute('data-theme', saved || 'dark');
-})();
-</script>
+<link rel="stylesheet" href="css/site.css">
+<script src="js/theme.js"></script>
+<script defer src="js/main.js"></script>
 </head>
 <body>
-<a class="skip" href="#capabilities">跳到主要内容</a>
-
-<!-- 全站氛围层：Mica 式分层背板，随主题与光标位置变化 -->
-<div class="ambient" aria-hidden="true">
-  <div class="ambient__glow ambient__glow--a"></div>
-  <div class="ambient__glow ambient__glow--b"></div>
-  <div class="ambient__noise"></div>
-</div>
-
-<svg class="mark-def" aria-hidden="true"><symbol id="fc-mark" viewBox="0 0 1024 1024"><path d="M400 150H150v250M624 150h250v250M150 624v250h250M624 874h250V624" fill="none" stroke="currentColor" stroke-width="96" stroke-linejoin="round"/><circle cx="512" cy="512" r="150" fill="currentColor"/></symbol></svg>
-<header class="topbar" id="topbar">
-  <a class="brand" href="#top">
-    <svg class="brand__mark" aria-hidden="true" width="28" height="28"><use href="#fc-mark"/></svg>
-    <span class="brand__name">FrameCapture</span>
-    <span class="brand__ver">0.9 预览</span>
-  </a>
-  <nav class="topnav" aria-label="主导航">
-    <a href="#capabilities">功能</a>
-    <a href="#demo">界面</a>
-    <a href="#keys">快捷键</a>
-    <a href="#requirements">系统要求</a>
-    <a href="#faq">常见问题</a>
-  </nav>
-  <div class="topbar__end">
-    <a class="langbtn" href="./" hreflang="zh-CN" lang="zh-CN" aria-current="true">中文</a>
-    <a class="langbtn" href="en/" hreflang="en" lang="en">EN</a>
-    <button class="iconbtn" id="themeToggle" type="button" aria-label="切换明暗主题" title="切换明暗主题">
-      <span class="iconbtn__glyph" data-glyph-dark="&#xE706;" data-glyph-light="&#xE708;">&#xE706;</span>
-    </button>
-    <a class="btn btn--primary" href="#download">下载</a>
+<a class="skip" href="#content">跳到正文</a>
+<header class="header"><div class="container header-inner">
+  <a class="brand" href="./"><img src="assets/FrameCapture-256.png" width="30" height="30" alt=""><span>FrameCapture</span></a>
+  <nav aria-label="主导航"><a href="#features">功能</a><a href="#workflows">工作方式</a><a href="#faq">常见问题</a></nav>
+  <div class="header-actions"><a class="language" href="en/" lang="en" hreflang="en">EN</a><button id="theme-toggle" type="button" aria-label="切换明暗" data-dark="深色" data-light="浅色">深色</button><a class="header-download" href="#download">下载</a></div>
+</div></header>
+<main id="content">
+<section class="hero container">
+  <div class="hero-copy">
+    <p class="eyebrow"><span class="live-dot"></span>为 WINDOWS 桌面而生</p>
+    <h1>截得干净，<br>用得<span>顺手。</span></h1>
+    <p class="hero-lead">截图、录制、标注与贴图，一套为 Windows 准备的屏幕工具。快捷键负责开始，后续动作由你决定。</p>
+    <div class="hero-actions"><a class="button button-primary download-link" href="https://github.com/NekoWs/FrameCapture/releases/latest">下载 Windows 版</a><a class="text-link" href="#workflows">找到你的用法</a></div>
+    <p class="hero-meta">Windows 10 / 11 · x64<span>GPL-3.0</span></p>
   </div>
-</header>
-
-<p class="langhint" id="langHint">
-  <span>This page is also available in <a href="en/" hreflang="en">English</a>.</span>
-  <button class="langhint__close" type="button">Dismiss</button>
-</p>
-
-<main id="top">
-
-  <!-- ── 首屏 ─────────────────────────────────────────── -->
-  <section class="hero">
-    <div class="hero__copy">
-      <p class="eyebrow" data-reveal>Windows 10 / 11 · x64 · 0.9 预览版</p>
-      <h1 class="hero__title">
-        <span class="line" data-reveal>Windows 截图与录屏，</span>
-        <span class="line" data-reveal><em>截完就在剪贴板里。</em></span>
-      </h1>
-      <p class="lede" data-reveal>
-        截图当场进剪贴板，<b>粘到微信、PPT、文档就能用</b>。窗口截图按窗口本体捕获，圆角处透明、投影是合成的，不会把屏幕背景一起截进去。
-      </p>
-      <div class="cta" data-reveal>
-        <a class="btn btn--primary btn--lg" href="#download">
-          <span class="ico" aria-hidden="true">&#xE896;</span> 下载安装包
-        </a>
-        <a class="btn btn--ghost btn--lg" href="#demo">
-          <span class="ico" aria-hidden="true">&#xE7F4;</span> 先看界面
-        </a>
+  <div class="hero-visual">
+    <div class="hero-frame"><div class="frame-caption"><span>FrameCapture</span><span>录制与标注</span></div><img class="hero-shot" src="assets/shots/editor.png" width="1250" height="900" fetchpriority="high" alt="FrameCapture 录制编辑器，左侧标注工具栏，下方逐帧时间轴"></div>
+    <div class="floating-note"><span class="note-mark" aria-hidden="true"></span>从一块屏幕，到一个清楚的表达。</div>
+    <span class="frame-corner top-left" aria-hidden="true"></span><span class="frame-corner bottom-right" aria-hidden="true"></span>
+    <p class="visual-caption">真实界面 · 录制与标注编辑器</p>
+  </div>
+</section>
+<div class="capability-strip container"><span>截图与录制</span><span>滚动长图</span><span>离线 OCR</span><span>标注与贴图</span></div>
+<section class="section container intro-section" id="features">
+  <div class="section-heading"><p class="eyebrow">随手一截，不止于截图</p><h2>留下想分享的，<br>处理好再送出去。</h2><p>捕获窗口或一块区域，补上箭头和文字，复制、保存，或者直接钉在桌面上。少切几个窗口，多留一点专注。</p></div>
+  <div class="tools-list">
+    <article class="tool-row"><span class="section-label">捕获</span><div><h3>选区域，也选窗口。</h3><p>区域截图、窗口本体捕获和录制，按需要选一种。控件吸附支持自定义停留时间。</p></div></article>
+    <article class="tool-row"><span class="section-label">编辑</span><div><h3>把重点，标得清楚。</h3><p>箭头、文字、荧光笔、马赛克与裁剪。录制可逐帧查看，设置起止点，剪去多余首尾。</p></div></article>
+    <article class="tool-row"><span class="section-label">交付</span><div><h3>下一步，按你的习惯。</h3><p>复制到剪贴板、保存文件、打开编辑器或贴图。把常用动作连起来，不必每次重选。</p></div></article>
+  </div>
+</section>
+<section class="workflow-section" id="workflows"><div class="container">
+  <div class="section-heading"><p class="eyebrow">你的快捷键，你的工作方式</p><h2>从一个入口，<br>走自己的流程。</h2><p>直接应用预设，也可以继续修改。快捷键连接行为入口，选区上的截图与录制按钮，决定接下来走哪个分支。</p></div>
+  <div class="workflow-layout" data-tabs>
+    <div role="tablist" aria-label="快捷键预设" class="preset-tabs" aria-orientation="vertical">
+      <button type="button" role="tab" id="preset-tab-0" aria-controls="preset-0" aria-selected="true" class="preset is-active"><strong>双快捷键</strong><span>截图和录制，各有一个入口。</span></button>
+      <button type="button" role="tab" id="preset-tab-1" aria-controls="preset-1" aria-selected="false" tabindex="-1" class="preset"><strong>选区与捕获</strong><span>先定好范围，再用手势控制捕获。</span></button>
+      <button type="button" role="tab" id="preset-tab-2" aria-controls="preset-2" aria-selected="false" tabindex="-1" class="preset"><strong>单快捷键</strong><span>一个入口，选区时切换截图或录制。</span></button>
+    </div>
+    <div class="diagram">
+      <div id="preset-0" role="tabpanel" aria-labelledby="preset-tab-0" class="preset-panel is-active">
+        <div class="diagram-top"><span class="live-dot"></span>预设行为示意<span class="diagram-name">双快捷键</span></div>
+        <div class="diagram-body">
+          <div class="entry-row"><div><span class="keys"><kbd>Ctrl</kbd><kbd>Alt</kbd><kbd>A</kbd></span><span>截图入口</span></div><div><span class="keys"><kbd>Ctrl</kbd><kbd>Alt</kbd><kbd>R</kbd></span><span>录制入口</span></div></div>
+          <div class="flow-line"></div><div class="flow-node"><i></i>选择区域</div><div class="branch-lines"></div><div class="branch-row"><div class="flow-node small">截图分支</div><div class="flow-node small">录制分支</div></div>
+        </div><p class="diagram-note">两个按键进入各自的初始模式，仍可在选区时切换分支。</p>
       </div>
-      <ul class="trust" data-reveal>
-        <li><span class="ico" aria-hidden="true">&#xE72E;</span> 无账号 · 无遥测</li>
-        <li><span class="ico" aria-hidden="true">&#xE977;</span> 断网也能用全部功能</li>
-        <li><span class="ico" aria-hidden="true">&#xE770;</span> 开机自启由你开关</li>
-      </ul>
-    </div>
-
-    <!-- 首屏主视觉：编辑器窗口的真实截图 -->
-    <div class="hero__stage" data-reveal>
-      <figure class="shot shot--hero">
-        <img fetchpriority="high" src="assets/shots/editor.png" width="1560" height="1076"
-             alt="FrameCapture 编辑器：一张记事本截图摊在画布上，底部是整条标注工具条">
-      </figure>
-    </div>
-  </section>
-
-  <!-- ── 三步 ─────────────────────────────────────────── -->
-  <section class="flow" id="flow">
-    <ol class="flow__list">
-      <li class="flow__step" data-reveal data-stagger>
-        <h3>定范围</h3>
-        <p>全屏、窗口、区域、滚动长图。虚线框随光标改尺寸，吸附到窗口边界与内容边缘。</p>
-      </li>
-      <li class="flow__step" data-reveal data-stagger>
-        <h3>截或录</h3>
-        <p>一个热键，或按住拖一下。录制按住录、松手成片。</p>
-      </li>
-      <li class="flow__step" data-reveal data-stagger>
-        <h3>粘走</h3>
-        <p>截图当场进剪贴板，录完按 Enter 出 GIF。弹提示、进编辑器、原地贴图，每条手势自己定。</p>
-      </li>
-    </ol>
-  </section>
-
-  <!-- ── 能力 ─────────────────────────────────────────── -->
-  <section class="section" id="capabilities">
-    <header class="section__head">
-      <h2 data-reveal>功能</h2>
-      <p data-reveal>八个动作，都在本机跑完。</p>
-    </header>
-
-    <div class="cards">
-      <article class="card" data-reveal data-stagger>
-        <span class="card__ico" aria-hidden="true">&#xE8C8;</span>
-        <h3>一键复制</h3>
-        <p>截图当场进剪贴板；录完按 Enter，GIF 文件与当前帧位图一起进去——接文件的应用拿到动图，只要图片的应用拿到静帧。</p>
-        <span class="card__tag">默认开启</span>
-      </article>
-
-      <article class="card" data-reveal data-stagger>
-        <span class="card__ico" aria-hidden="true">&#xE7B5;</span>
-        <h3>干净窗口截图</h3>
-        <p>按窗口本体捕获，Win11 圆角处透明，浏览器和 GPU 合成窗口也拍得干净。投影按轮廓合成，不抓屏幕背景。录制同理：选区里点一个窗口，成片里只有这个窗口。</p>
-        <span class="card__tag">截图与录制</span>
-      </article>
-
-      <article class="card" data-reveal data-stagger>
-        <span class="card__ico" aria-hidden="true">&#xE714;</span>
-        <h3>录制</h3>
-        <p>按一下起录，再按一下停。指针入不入画可开关，帧率跟显示器刷新率。</p>
-        <span class="combo"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Alt</kbd><span class="plus">+</span><kbd>R</kbd></span>
-      </article>
-
-      <article class="card" data-reveal data-stagger>
-        <span class="card__ico" aria-hidden="true">&#xE70F;</span>
-        <h3>编辑器</h3>
-        <p>看、剪、标、复制。逐帧走、设入出点、拖两端把手裁掉首尾。</p>
-        <span class="card__tag">点浮窗即进</span>
-      </article>
-
-      <article class="card" data-reveal data-stagger>
-        <span class="card__ico" aria-hidden="true">&#xE71C;</span>
-        <h3>绘制工具</h3>
-        <p>单键切换：直线、矩形、圆圈、箭头、手绘、荧光笔、文字、马赛克、裁剪、序号。</p>
-        <span class="card__tag">Shift 锁 45°</span>
-      </article>
-
-      <article class="card" data-reveal data-stagger>
-        <span class="card__ico" aria-hidden="true">&#xE718;</span>
-        <h3>贴图</h3>
-        <p>把图钉在屏幕上。滚轮缩放、拖角变形、透明度可调，永远在最前。</p>
-        <span class="combo"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>P</kbd></span>
-      </article>
-
-      <article class="card" data-reveal data-stagger>
-        <span class="card__ico" aria-hidden="true">&#xE8C1;</span>
-        <h3>识别文字</h3>
-        <p>图里的字变成可复制的文本。走 Windows 内置 OCR，不联网。</p>
-        <span class="combo"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>O</kbd></span>
-      </article>
-
-      <article class="card" data-reveal data-stagger>
-        <span class="card__ico" aria-hidden="true">&#xE74A;</span>
-        <h3>滚动截图</h3>
-        <p>滚动区域自动拼成长图，边滚边预览结果。</p>
-        <span class="card__tag">实时拼接</span>
-      </article>
-    </div>
-    <p class="section__foot" data-reveal>
-      <kbd>Ctrl+P</kbd> 和 <kbd>Ctrl+O</kbd> 是编辑器窗口内的键，设置里逐条能改。
-    </p>
-  </section>
-
-  <!-- ── 演示切换 ─────────────────────────────────────── -->
-  <section class="section" id="demo">
-    <header class="section__head">
-      <h2 data-reveal>界面</h2>
-      <p data-reveal>四个窗口，切换标签看每一块。</p>
-    </header>
-
-    <div class="demo" data-reveal>
-      <div class="tabs" role="tablist" aria-label="界面截图">
-        <button class="tab is-on" role="tab" aria-selected="true" aria-controls="p-edit" data-panel="p-edit" type="button">
-          <span class="ico" aria-hidden="true">&#xE70F;</span> 编辑器
-        </button>
-        <button class="tab" role="tab" aria-selected="false" aria-controls="p-gesture" data-panel="p-gesture" type="button">
-          <span class="ico" aria-hidden="true">&#xE765;</span> 手势配置
-        </button>
-        <button class="tab" role="tab" aria-selected="false" aria-controls="p-set" data-panel="p-set" type="button">
-          <span class="ico" aria-hidden="true">&#xE713;</span> 设置
-        </button>
-        <button class="tab" role="tab" aria-selected="false" aria-controls="p-pin" data-panel="p-pin" type="button">
-          <span class="ico" aria-hidden="true">&#xE718;</span> 贴图
-        </button>
+      <div id="preset-1" role="tabpanel" aria-labelledby="preset-tab-1" class="preset-panel" hidden>
+        <div class="diagram-top"><span class="live-dot"></span>预设行为示意<span class="diagram-name">选区与捕获</span></div>
+        <div class="diagram-body"><div class="entry-row single"><span class="keys"><kbd>Ctrl</kbd><kbd>Alt</kbd><kbd>A</kbd></span><span>仅选择区域</span></div><div class="reuse">区域持续复用，直到重新选择或清除</div><div class="gesture-key"><span class="keys"><kbd>Ctrl</kbd><kbd>Alt</kbd><kbd>R</kbd></span></div><div class="gesture-row"><div><small>轻点</small><strong>截图</strong></div><div><small>按住</small><strong>录制</strong></div><div><small>放开</small><strong>停止录制</strong></div></div></div>
+        <p class="diagram-note">选择与捕获分开，同一个范围可以反复使用。</p>
       </div>
-
-      <div class="panels">
-        <div class="panel is-on" id="p-edit" role="tabpanel">
-          <figure class="shot">
-            <img loading="lazy" decoding="async" src="assets/shots/editor.png" width="1560" height="1076"
-                 alt="FrameCapture 编辑器：一张记事本截图摊在画布上，底部是整条标注工具条">
-          </figure>
-          <div class="panel__copy">
-            <h3>逐帧走，随手剪</h3>
-            <p>← → 走单帧，Shift+← → 走一秒，[ ] 设入出点，空格播放。</p>
-          </div>
-        </div>
-
-        <div class="panel" id="p-gesture" role="tabpanel">
-          <figure class="shot">
-            <img loading="lazy" decoding="async" src="assets/shots/gesture.png" width="1140" height="840"
-                 alt="手势配置窗口：左侧是绑定列表，右侧是这条绑定的组合键、触发方式、动作序列与截图后行为">
-          </figure>
-          <div class="panel__copy">
-            <h3>键位是你定的</h3>
-            <p>组合键、按住、双击、长按四种触发；一条手势串多个动作；截完之后写不写剪贴板也按手势定。</p>
-          </div>
-        </div>
-
-        <div class="panel" id="p-set" role="tabpanel">
-          <figure class="shot">
-            <img loading="lazy" decoding="async" src="assets/shots/settings.png" width="1140" height="990"
-                 alt="FrameCapture 设置窗口：左侧八个分组，右侧是快捷键页——全局键位与逐条可改的编辑器键位，每行末尾有加号按钮">
-          </figure>
-          <div class="panel__copy">
-            <h3>八组设置，改完即生效</h3>
-            <p>快捷键、截图、录制、产物、编辑器、贴图、外观、系统。</p>
-          </div>
-        </div>
-
-        <div class="panel" id="p-pin" role="tabpanel">
-          <figure class="shot">
-            <img loading="lazy" decoding="async" src="assets/shots/pin.png" width="1143" height="553"
-                 alt="一段快捷键小抄钉在屏幕上：没有标题栏和边框，直接压在桌面上">
-          </figure>
-          <div class="panel__copy">
-            <h3>钉在屏幕上，比切窗口快</h3>
-            <p>对照着填表、临时记住一段代码、把设计稿压在实现截图上比对。滚轮缩放，Ctrl+滚轮调透明度，双击关闭。</p>
-          </div>
-        </div>
+      <div id="preset-2" role="tabpanel" aria-labelledby="preset-tab-2" class="preset-panel" hidden>
+        <div class="diagram-top"><span class="live-dot"></span>预设行为示意<span class="diagram-name">单快捷键</span></div>
+        <div class="diagram-body"><div class="entry-row single"><span class="keys"><kbd>Ctrl</kbd><kbd>Alt</kbd><kbd>A</kbd></span><span>选择区域</span></div><div class="flow-line"></div><div class="mode-preview"><span>截图</span><span>录制</span></div><p class="mode-caption">选区上方按钮</p><div class="flow-line"></div><div class="flow-node">编辑、复制、保存…</div></div>
+        <p class="diagram-note">截图与录制共用入口，各分支的后续动作独立配置。</p>
       </div>
     </div>
-  </section>
-
-  <!-- ── 快捷键 ───────────────────────────────────────── -->
-  <section class="section" id="keys">
-    <header class="section__head">
-      <h2 data-reveal>快捷键</h2>
-      <p data-reveal>全局两条，其余在编辑器窗口内。两处都能在设置里改，全局键还能在手势配置器里加。</p>
-    </header>
-
-    <div class="keys__grid">
-      <div class="keys" data-reveal>
-        <h3 class="keys__cap">全局</h3>
-        <div class="keys__cols">
-          <div class="keys__col">
-            <div class="keys__row"><span>选区截图</span><span class="keys__k"><kbd>Ctrl</kbd><kbd>Alt</kbd><kbd>A</kbd></span></div>
-          </div>
-          <div class="keys__col">
-            <div class="keys__row"><span>开始/停止录制</span><span class="keys__k"><kbd>Ctrl</kbd><kbd>Alt</kbd><kbd>R</kbd></span></div>
-          </div>
-        </div>
-      </div>
-
-      <div class="keys" data-reveal>
-        <h3 class="keys__cap">编辑器内</h3>
-        <div class="keys__cols">
-          <div class="keys__col">
-            <div class="keys__row"><span>保存帧 / 导出录制</span><span class="keys__k"><kbd>Ctrl</kbd><kbd>S</kbd><kbd>E</kbd></span></div>
-            <div class="keys__row"><span>复制到剪贴板</span><span class="keys__k"><kbd>Ctrl</kbd><kbd>C</kbd></span></div>
-            <div class="keys__row"><span>贴图 / 识别文字</span><span class="keys__k"><kbd>Ctrl</kbd><kbd>P</kbd><kbd>O</kbd></span></div>
-            <div class="keys__row"><span>视觉暂留合成</span><span class="keys__k"><kbd>Ctrl</kbd><kbd>H</kbd></span></div>
-            <div class="keys__row"><span>撤销 / 重做</span><span class="keys__k"><kbd>Ctrl</kbd><kbd>Z</kbd><kbd>Y</kbd></span></div>
-          </div>
-          <div class="keys__col">
-            <div class="keys__row"><span>放大 / 缩小 / 适配 / 1:1</span><span class="keys__k"><kbd>Ctrl</kbd><kbd>+</kbd><kbd>−</kbd><kbd>0</kbd><kbd>1</kbd></span></div>
-            <div class="keys__row"><span>逐帧 / 播放</span><span class="keys__k"><kbd>&#x2190;</kbd><kbd>&#x2192;</kbd><kbd>Space</kbd></span></div>
-            <div class="keys__row"><span>设入点 / 出点</span><span class="keys__k"><kbd>[</kbd><kbd>]</kbd></span></div>
-            <div class="keys__row"><span>切工具</span><span class="keys__k"><kbd>X</kbd><kbd>V</kbd><kbd>L</kbd><kbd>R</kbd><kbd>O</kbd><kbd>A</kbd><kbd>P</kbd><kbd>H</kbd><kbd>T</kbd><kbd>M</kbd><kbd>C</kbd><kbd>N</kbd></span></div>
-            <div class="keys__row"><span>确定 / 分级退出 / 帮助</span><span class="keys__k"><kbd>Enter</kbd><kbd>Esc</kbd><kbd>F1</kbd></span></div>
-          </div>
-        </div>
-      </div>
+  </div>
+</div></section>
+<section class="section container gallery-section">
+  <div class="section-heading"><p class="eyebrow">看得见，也改得动</p><h2>顺手的界面，<br>留出自定义的空间。</h2><p>从快捷键到行为分支，都在设置里完成。先用起来，再调整成自己的习惯。</p></div>
+  <div class="gallery" data-tabs>
+    <div class="screen-tabs" role="tablist" aria-label="界面预览">
+      <button type="button" role="tab" id="screen-tab-0" aria-controls="screen-0" aria-selected="true" class="screen-tab is-active">行为配置</button>
+      <button type="button" role="tab" id="screen-tab-1" aria-controls="screen-1" aria-selected="false" tabindex="-1" class="screen-tab">快捷键</button>
+      <button type="button" role="tab" id="screen-tab-2" aria-controls="screen-2" aria-selected="false" tabindex="-1" class="screen-tab">标注编辑</button>
+      <button type="button" role="tab" id="screen-tab-3" aria-controls="screen-3" aria-selected="false" tabindex="-1" class="screen-tab">桌面贴图</button>
     </div>
-  </section>
-
-  <!-- ── 下载 ─────────────────────────────────────────── -->
-  <section class="section download" id="download">
-    <div class="dl" data-reveal>
-      <h2>下载</h2>
-      <p>
-        装完待在托盘，截完就能粘走。0.9 预览版，先自己用一段时间再定发布节奏。
-      </p>
-      <div class="cta">
-        <a class="btn btn--primary btn--lg" id="dlBtn" href="../release/FrameCapture-Setup-0.9.0-x64.exe" download>
-          <span class="ico" aria-hidden="true">&#xE896;</span> FrameCapture-Setup-0.9.0-x64.exe
-        </a>
-        <a class="btn btn--ghost btn--lg" href="#capabilities">
-          <span class="ico" aria-hidden="true">&#xE7F4;</span> 先看功能
-        </a>
-      </div>
-      <dl class="specs dl__scope">
-        <div><dt>这一版能用</dt><dd>截图与录屏一键复制，干净窗口截图，滚动长图，GIF · MP4 · WebM 录制，逐帧标注，贴图，文字识别，手势自定义。</dd></div>
-        <div><dt>这一版没有</dt><dd>代码签名、自动更新、公开下载通道。0.9 先把工具本身跑稳。</dd></div>
-      </dl>
-      <p class="dl__hint" id="dlHint">这个链接指向仓库 <code>release/</code> 下当前构建产物。</p>
+    <div class="gallery-panels">
+      <figure id="screen-0" role="tabpanel" aria-labelledby="screen-tab-0" class="screen-panel is-active"><div class="screen-image"><img src="assets/shots/gesture.png" alt="行为设置页，包含选区和截图、录制、取消选区与失败分支" width="950" height="825" loading="lazy" decoding="async"></div><figcaption>拖动动作卡片排序，为截图、录制、取消和失败分别配置动作。</figcaption></figure>
+      <figure id="screen-1" role="tabpanel" aria-labelledby="screen-tab-1" class="screen-panel" hidden><div class="screen-image"><img src="assets/shots/settings.png" alt="快捷键设置页，展示预设卡片和按键配置" width="950" height="825" loading="lazy" decoding="async"></div><figcaption>内置三种预设与自定义方案，按键和手势各自设置。</figcaption></figure>
+      <figure id="screen-2" role="tabpanel" aria-labelledby="screen-tab-2" class="screen-panel" hidden><div class="screen-image"><img src="assets/shots/editor.png" alt="FrameCapture 标注与录制编辑器" width="1250" height="900" loading="lazy" decoding="async"></div><figcaption>绘制工具与录制时间轴，在同一个编辑器里。</figcaption></figure>
+      <figure id="screen-3" role="tabpanel" aria-labelledby="screen-tab-3" class="screen-panel" hidden><div class="screen-image"><img src="assets/shots/pin.png" alt="固定在桌面上的参考贴图" width="1143" height="553" loading="lazy" decoding="async"></div><figcaption>让参考图留在桌面上，随时缩放和查看。</figcaption></figure>
     </div>
-  </section>
-
-  <!-- ── 系统要求 ─────────────────────────────────────── -->
-  <section class="section" id="requirements">
-    <header class="section__head">
-      <h2 data-reveal>系统要求</h2>
-    </header>
-    <dl class="specs" data-reveal>
-      <div><dt>系统</dt><dd>Windows 10 19041 及以上，x64</dd></div>
-      <div><dt>安装器</dt><dd>6.9 MB，安装位置自己选</dd></div>
-      <div><dt>依赖</dt><dd>安装版需 .NET 8 桌面运行时；离线包自带，无需另装</dd></div>
-      <div><dt>文字识别</dt><dd>用系统内置 OCR 语言包，不联网</dd></div>
-      <div><dt>卸载</dt><dd>系统「设置 → 应用」里卸，或跑安装器的卸载入口</dd></div>
-      <div><dt>数据</dt><dd>配置在 <code>%APPDATA%\FrameCapture</code>，删掉即回到全新状态</dd></div>
-    </dl>
-  </section>
-
-  <!-- ── 常见问题 ─────────────────────────────────────── -->
-  <section class="section" id="faq">
-    <header class="section__head">
-      <h2 data-reveal>常见问题</h2>
-    </header>
-    <div class="faq" data-reveal>
-      <details name="faq">
-        <summary>截完的东西都在哪？</summary>
-        <p>默认直接进剪贴板，粘走就能用。要留档就在设置里开自动保存：单帧存 PNG，多帧按你选的格式存 GIF / MP4 / WebM。</p>
-      </details>
-      <details name="faq">
-        <summary>窗口截图为什么圆角是透明的？</summary>
-        <p>按窗口本体捕获，不去抓它后面的屏幕。圆角外是真透明，投影也是按窗口轮廓合成的，所以窗口压着别的软件时，边上一圈不会混进背景文字。</p>
-      </details>
-      <details name="faq">
-        <summary>录制也能只录一个窗口？</summary>
-        <p>能。录制选区里点一个窗口起录，录的是这个窗口本体——别的窗口盖上来、窗口挪位置都不会进画面。设置里的「只录窗口」可以关掉，关掉后按屏幕矩形录。</p>
-      </details>
-      <details name="faq">
-        <summary>会上传到服务器吗？</summary>
-        <p>不会。捕获、编码、识字都在本机进程里完成，没有账号，也不发网络请求。文字识别用系统自带的 OCR 语言包。</p>
-      </details>
-      <details name="faq">
-        <summary>需要管理员权限吗？</summary>
-        <p>只有安装那一步需要，要写程序目录和卸载注册表项。装完日常运行是普通权限，收在托盘里。</p>
-      </details>
-      <details name="faq">
-        <summary>装的时候 Windows 会拦一下吗？</summary>
-        <p>会。安装包没有代码签名，SmartScreen 会提示未知发布者，点「仍要运行」即可继续。预览版没买证书。</p>
-      </details>
-      <details name="faq">
-        <summary>热键跟别的软件撞了怎么办？</summary>
-        <p>全局键在手势配置器里改，编辑器里的键在设置 · 快捷键里改。默认只占 <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>A</kbd> 与 <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>R</kbd> 两条。独占吞键开着时按键不传给后台，关掉照常传递。</p>
-      </details>
-      <details name="faq">
-        <summary>录制有长度限制吗？</summary>
-        <p>帧按到达顺序落盘，不驻留内存，长度只受磁盘限制。产物导出 GIF、MP4、WebM 三种。</p>
-      </details>
-      <details name="faq">
-        <summary>多显示器和高缩放能用吗？</summary>
-        <p>每个显示器独立选区，按物理像素采集。150% 缩放下不会糊，副屏拖到主屏边上照样能框。</p>
-      </details>
-      <details name="faq">
-        <summary>会自动更新吗？</summary>
-        <p>不会，也没有后台更新进程。升级就是再装一次，配置在 <code>%APPDATA%\FrameCapture</code>，重装不动它。</p>
-      </details>
-      <details name="faq">
-        <summary>卸载干净吗？</summary>
-        <p>卸载器删程序目录与注册表项。配置和已保存的产物保留不动，删掉 <code>%APPDATA%\FrameCapture</code> 就回到全新状态。</p>
-      </details>
-    </div>
-  </section>
+  </div>
+</section>
+<section class="extra-section container"><h2>还有这些，<br>也放在手边。</h2><div class="extra-tools">
+  <article><span class="section-label">滚动截图</span><h3>长页面，一张图。</h3><p>滚动取帧并拼接成长图，边捕获边查看结果。</p></article>
+  <article><span class="section-label">文字识别</span><h3>图里的字，接着用。</h3><p>使用 Windows 内置 OCR，在本机识别并复制文字。</p></article>
+  <article><span class="section-label">桌面贴图</span><h3>参考资料，随时看。</h3><p>把图片固定在屏幕上，拖动、缩放，也能调整透明度。</p></article>
+</div></section>
+<section class="section container faq-section" id="faq"><h2>开始前，你可能想问</h2><div class="faq-list">
+  <details><summary>支持哪些系统？<span aria-hidden="true">+</span></summary><p>支持 Windows 10 2004 及以上和 Windows 11，适用于 x64。主程序使用 .NET 8 Desktop Runtime，安装器会检测并按需下载安装。</p></details>
+  <details><summary>Codecs-Setup 需要安装吗？<span aria-hidden="true">+</span></summary><p>它是可选的视频组件安装器，用于准备 FFmpeg。截图和 GIF 导出不需要它；导出 MP4 或 WebM 时，可直接到录制设置里下载安装组件。</p></details>
+  <details><summary>截图和文字识别需要联网吗？<span aria-hidden="true">+</span></summary><p>捕获、编辑和 Windows OCR 在本机执行。检查更新、下载安装包或视频组件时需要联网。</p></details>
+  <details><summary>可以重新配置快捷键和后续动作吗？<span aria-hidden="true">+</span></summary><p>可以。快捷键负责连接行为入口，截图、录制、停止、取消和失败等事件都能配置后续动作，预设修改后自动保存到自定义方案。</p></details>
+</div></section>
+<section class="download-section" id="download"><div class="container download-inner"><div><p class="eyebrow">FRAMECAPTURE FOR WINDOWS</p><h2>下一张截图，<br>顺手一点。</h2><p>从一个快捷键开始，把屏幕上的内容，变成你需要的样子。</p></div><div class="download-actions"><a class="button button-primary download-link" href="https://github.com/NekoWs/FrameCapture/releases/latest">下载 Windows 版</a><p class="release-status" aria-live="polite" data-prefix="最新版本" data-suffix="Windows x64 安装包">Windows 10 / 11 · x64</p><p class="download-note">免费开源 · GPL-3.0</p><a class="text-link source-link" href="https://github.com/NekoWs/FrameCapture">查看源代码</a></div></div></section>
 </main>
-
-<footer class="foot">
-  <svg class="foot__mark" aria-hidden="true" width="22" height="22"><use href="#fc-mark"/></svg>
-  <span>FrameCapture · 本地运行的截图与录制工具</span>
-  <span class="foot__spacer"></span>
-  <span class="foot__theme">0.9 预览版</span>
-</footer>
-
-<script src="js/tokens.js"></script>
-<script src="js/theme.js"></script>
-<script src="js/lang.js"></script>
-<script src="js/reveal.js"></script>
-<script src="js/tabs.js"></script>
-<script src="js/pointer.js"></script>
-<script src="js/main.js"></script>
+<footer class="container footer"><div><a class="brand" href="#content"><img src="assets/FrameCapture-256.png" width="24" height="24" alt=""><span>FrameCapture</span></a><p>截图、录制，以及顺手的下一步。</p></div><nav aria-label="项目链接"><a href="https://github.com/NekoWs/FrameCapture">GitHub</a><a href="https://github.com/NekoWs/FrameCapture/issues">反馈问题</a><a href="https://github.com/NekoWs/FrameCapture/blob/main/LICENSE">开源许可</a></nav><span class="footer-credit">Made by NekoWs</span></footer>
 </body>
 </html>

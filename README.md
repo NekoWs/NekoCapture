@@ -2,6 +2,8 @@
 
 可配置的截图、录制、滚动截图、OCR、标注与贴图工具，支持 Windows x64。
 
+[宣传页面](https://nekows.github.io/FrameCapture/) · [English](https://nekows.github.io/FrameCapture/en/)
+
 从 [Releases](https://github.com/NekoWs/FrameCapture/releases/latest) 下载安装包。
 安装器识别已安装版本并支持升级；视频组件可在录制设置中按需下载。
 

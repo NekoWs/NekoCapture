@@ -1,419 +1,117 @@
-<!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<!doctype html>
+<html lang="en" data-theme="light">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>FrameCapture — Screenshot and screen recording for Windows</title>
-<meta name="description" content="FrameCapture for Windows: a capture goes straight to the clipboard, paste it and you are done. Window capture grabs the window itself — transparent rounded corners, composited shadow, never the desktop behind it. GIF and MP4 recording, annotation, pins, text recognition, all finished on your machine.">
+<title>FrameCapture · Capture cleanly. Work your way.</title>
+<meta name="description" content="A Windows toolkit for screenshots, recording, annotation, and pinned images. Configure shortcuts and behavior branches around your workflow. Open source under GPL-3.0.">
+<meta name="theme-color" content="#f5f7fa">
 <meta property="og:type" content="website">
-<meta property="og:title" content="FrameCapture — Screenshot and screen recording for Windows">
-<meta property="og:description" content="Captures land in the clipboard: stills carry a transparency channel, a recording gives you a GIF on Enter — file, bitmap and animation all three go in together. Window capture grabs the window itself, and the shadow is composited rather than mixed with the desktop.">
-<meta property="og:image" content="../assets/shots/en/editor.png">
-<meta property="og:image:alt" content="The FrameCapture editor: a captured text-editor window on the canvas with the full annotation toolbar along the bottom">
+<meta property="og:title" content="FrameCapture · Capture cleanly. Work your way.">
+<meta property="og:description" content="Screenshots, recording, OCR, and annotation. A shortcut gets you started. You decide what happens next.">
+<meta property="og:url" content="https://nekows.github.io/FrameCapture/en/">
+<meta property="og:image" content="https://nekows.github.io/FrameCapture/assets/shots/en/gesture.png">
 <meta name="twitter:card" content="summary_large_image">
+<link rel="canonical" href="https://nekows.github.io/FrameCapture/en/">
+<link rel="alternate" hreflang="zh-CN" href="https://nekows.github.io/FrameCapture/">
+<link rel="alternate" hreflang="en" href="https://nekows.github.io/FrameCapture/en/">
+<link rel="alternate" hreflang="x-default" href="https://nekows.github.io/FrameCapture/">
 <link rel="icon" href="../assets/FrameCapture-256.png">
-<link rel="alternate" hreflang="zh-CN" href="../">
-<link rel="alternate" hreflang="en" href="./">
-<link rel="alternate" hreflang="x-default" href="../">
-<meta name="theme-color" media="(prefers-color-scheme: light)" content="#f3f3f3">
-<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#161616">
-<link rel="stylesheet" href="../css/tokens.css">
-<link rel="stylesheet" href="../css/base.css">
-<link rel="stylesheet" href="../css/layout.css">
-<link rel="stylesheet" href="../css/components.css">
-<link rel="stylesheet" href="../css/motion.css">
-<script>
-  /* Decide theme and static mode before the first paint, otherwise a light system flashes a dark frame.
-     Reads the same localStorage key, same decision as ../js/theme.js. */
-  (function () {
-    var root = document.documentElement;
-    /* The initial hidden state of the reveal animation hangs off .js: if the script never runs, the text stays visible. */
-    root.classList.add('js');
-    if (/[?&]static=1/.test(window.location.search)) { root.classList.add('is-static'); }
-    var saved = null;
-    try { saved = window.localStorage.getItem('fc-theme'); } catch (e) { saved = null; }
-    if (!saved && window.matchMedia) {
-      saved = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-    }
-    root.setAttribute('data-theme', saved || 'dark');
-  })();
-</script>
+<link rel="stylesheet" href="../css/site.css">
+<script src="../js/theme.js"></script>
+<script defer src="../js/main.js"></script>
 </head>
 <body>
-<a class="skip" href="#capabilities">Skip to main content</a>
-
-<!-- Site-wide ambience: a Mica-like layered backplate that follows the theme and the cursor -->
-<div class="ambient" aria-hidden="true">
-  <div class="ambient__glow ambient__glow--a"></div>
-  <div class="ambient__glow ambient__glow--b"></div>
-  <div class="ambient__noise"></div>
-</div>
-
-<svg class="mark-def" aria-hidden="true"><symbol id="fc-mark" viewBox="0 0 1024 1024"><path d="M400 150H150v250M624 150h250v250M150 624v250h250M624 874h250V624" fill="none" stroke="currentColor" stroke-width="96" stroke-linejoin="round"/><circle cx="512" cy="512" r="150" fill="currentColor"/></symbol></svg>
-<header class="topbar" id="topbar">
-  <a class="brand" href="#top">
-    <svg class="brand__mark" aria-hidden="true" width="28" height="28"><use href="#fc-mark"/></svg>
-    <span class="brand__name">FrameCapture</span>
-    <span class="brand__ver">0.9 preview</span>
-  </a>
-  <nav class="topnav" aria-label="Main navigation">
-    <a href="#capabilities">Features</a>
-    <a href="#demo">Interface</a>
-    <a href="#keys">Keyboard</a>
-    <a href="#requirements">Requirements</a>
-    <a href="#faq">Questions</a>
-  </nav>
-  <div class="topbar__end">
-    <a class="langbtn" href="../" hreflang="zh-CN" lang="zh-CN">中文</a>
-    <a class="langbtn" href="./" hreflang="en" lang="en" aria-current="true">EN</a>
-    <button class="iconbtn" id="themeToggle" type="button" aria-label="Toggle light and dark theme" title="Toggle light and dark theme">
-      <span class="iconbtn__glyph" data-glyph-dark="&#xE706;" data-glyph-light="&#xE708;">&#xE706;</span>
-    </button>
-    <a class="btn btn--primary" href="#download">Download</a>
+<a class="skip" href="#content">Skip to content</a>
+<header class="header"><div class="container header-inner">
+  <a class="brand" href="../"><img src="../assets/FrameCapture-256.png" width="30" height="30" alt=""><span>FrameCapture</span></a>
+  <nav aria-label="Main navigation"><a href="#features">Features</a><a href="#workflows">Workflows</a><a href="#faq">FAQ</a></nav>
+  <div class="header-actions"><a class="language" href="../" lang="zh-CN" hreflang="zh-CN">中文</a><button id="theme-toggle" type="button" aria-label="Switch appearance" data-dark="Dark" data-light="Light">Dark</button><a class="header-download" href="#download">Download</a></div>
+</div></header>
+<main id="content">
+<section class="hero container">
+  <div class="hero-copy">
+    <p class="eyebrow"><span class="live-dot"></span>MADE FOR YOUR WINDOWS DESKTOP</p>
+    <h1>Capture cleanly.<br>Work <span>your way.</span></h1>
+    <p class="hero-lead">Screenshots, recording, annotation, and pinned images in one Windows toolkit. A shortcut gets you started. You decide what happens next.</p>
+    <div class="hero-actions"><a class="button button-primary download-link" href="https://github.com/NekoWs/FrameCapture/releases/latest">Download for Windows</a><a class="text-link" href="#workflows">Find your workflow</a></div>
+    <p class="hero-meta">Windows 10 / 11 · x64<span>GPL-3.0</span></p>
   </div>
-</header>
-
-<main id="top">
-
-  <!-- ── Hero ──────────────────────────────────────────── -->
-  <section class="hero">
-    <div class="hero__copy">
-      <p class="eyebrow" data-reveal>Windows 10 / 11 · x64 · 0.9 preview</p>
-      <h1 class="hero__title">
-        <span class="line" data-reveal>Screenshots and screen recording for Windows,</span>
-        <span class="line" data-reveal><em>straight into the clipboard.</em></span>
-      </h1>
-      <p class="lede" data-reveal>
-        A still lands in the clipboard on the spot, <b>paste it into a chat, a deck or a document and it works</b>. Window capture grabs the window itself: transparent at the rounded corners, a composited shadow, never the desktop behind it.
-      </p>
-      <div class="cta" data-reveal>
-        <a class="btn btn--primary btn--lg" href="#download">
-          <span class="ico" aria-hidden="true">&#xE896;</span> Download the installer
-        </a>
-        <a class="btn btn--ghost btn--lg" href="#demo">
-          <span class="ico" aria-hidden="true">&#xE7F4;</span> See the interface
-        </a>
+  <div class="hero-visual">
+    <div class="hero-frame"><div class="frame-caption"><span>FrameCapture</span><span>Record & annotate</span></div><img class="hero-shot" src="../assets/shots/en/editor.png" width="1250" height="900" fetchpriority="high" alt="FrameCapture recording editor with annotation tools and a frame timeline"></div>
+    <div class="floating-note"><span class="note-mark" aria-hidden="true"></span>From something on screen to something worth sharing.</div>
+    <span class="frame-corner top-left" aria-hidden="true"></span><span class="frame-corner bottom-right" aria-hidden="true"></span>
+    <p class="visual-caption">Actual interface · Record & annotate编辑器</p>
+  </div>
+</section>
+<div class="capability-strip container"><span>Screenshots & recording</span><span>Scrolling capture</span><span>Offline OCR</span><span>Annotations & pinning</span></div>
+<section class="section container intro-section" id="features">
+  <div class="section-heading"><p class="eyebrow">MORE THAN A SCREENSHOT</p><h2>Keep what matters.<br>Make it clear.</h2><p>Capture a window or region, add an arrow or a note, then copy, save, or pin it to your desktop. Stay with the task in front of you.</p></div>
+  <div class="tools-list">
+    <article class="tool-row"><span class="section-label">Capture</span><div><h3>A region. A window. Your choice.</h3><p>Capture regions, record your screen, or capture a window itself. Set the dwell time for snapping to controls.</p></div></article>
+    <article class="tool-row"><span class="section-label">Edit</span><div><h3>Point to what matters.</h3><p>Arrows, text, highlights, mosaic, and cropping. Step through recordings and set in/out points to trim the ends.</p></div></article>
+    <article class="tool-row"><span class="section-label">Deliver</span><div><h3>Keep the next step familiar.</h3><p>Copy to the clipboard, save a file, open the editor, or pin an image. Connect the actions you use most.</p></div></article>
+  </div>
+</section>
+<section class="workflow-section" id="workflows"><div class="container">
+  <div class="section-heading"><p class="eyebrow">YOUR SHORTCUTS, YOUR WORKFLOW</p><h2>One starting point.<br>Your own next steps.</h2><p>Start with a preset and make it yours. Shortcuts enter a shared behavior. The screenshot and recording controls above a selection choose the branch to follow.</p></div>
+  <div class="workflow-layout" data-tabs>
+    <div role="tablist" aria-label="Shortcut presets" class="preset-tabs" aria-orientation="vertical">
+      <button type="button" role="tab" id="preset-tab-0" aria-controls="preset-0" aria-selected="true" class="preset is-active"><strong>Two shortcuts</strong><span>Separate starting points for screenshots and recording.</span></button>
+      <button type="button" role="tab" id="preset-tab-1" aria-controls="preset-1" aria-selected="false" tabindex="-1" class="preset"><strong>Select, then capture</strong><span>Keep a region and use gestures to capture it.</span></button>
+      <button type="button" role="tab" id="preset-tab-2" aria-controls="preset-2" aria-selected="false" tabindex="-1" class="preset"><strong>One shortcut</strong><span>Choose screenshot or recording above your selection.</span></button>
+    </div>
+    <div class="diagram">
+      <div id="preset-0" role="tabpanel" aria-labelledby="preset-tab-0" class="preset-panel is-active">
+        <div class="diagram-top"><span class="live-dot"></span>Preset illustration<span class="diagram-name">Two shortcuts</span></div>
+        <div class="diagram-body">
+          <div class="entry-row"><div><span class="keys"><kbd>Ctrl</kbd><kbd>Alt</kbd><kbd>A</kbd></span><span>Screenshot entry</span></div><div><span class="keys"><kbd>Ctrl</kbd><kbd>Alt</kbd><kbd>R</kbd></span><span>Recording entry</span></div></div>
+          <div class="flow-line"></div><div class="flow-node"><i></i>Select a region</div><div class="branch-lines"></div><div class="branch-row"><div class="flow-node small">Screenshot branch</div><div class="flow-node small">Recording branch</div></div>
+        </div><p class="diagram-note">Each shortcut enters its initial mode. You can still switch branches while selecting.</p>
       </div>
-      <ul class="trust" data-reveal>
-        <li><span class="ico" aria-hidden="true">&#xE72E;</span> No account · no telemetry</li>
-        <li><span class="ico" aria-hidden="true">&#xE977;</span> Every feature works offline</li>
-        <li><span class="ico" aria-hidden="true">&#xE770;</span> Starting with Windows is your switch</li>
-      </ul>
-    </div>
-
-    <!-- Hero visual: a real screenshot of the editor window -->
-    <div class="hero__stage" data-reveal>
-      <figure class="shot shot--hero">
-        <img fetchpriority="high" src="../assets/shots/en/editor.png" width="1561" height="1179"
-             alt="The FrameCapture editor: a captured text-editor window on the canvas with the full annotation toolbar along the bottom">
-      </figure>
-    </div>
-  </section>
-
-  <!-- ── Three steps ───────────────────────────────────── -->
-  <section class="flow" id="flow">
-    <ol class="flow__list">
-      <li class="flow__step" data-reveal data-stagger>
-        <h3>Pick a scope</h3>
-        <p>Full screen, window, region, or a scrolling page. The dashed box resizes with the cursor and snaps to window and content edges.</p>
-      </li>
-      <li class="flow__step" data-reveal data-stagger>
-        <h3>Capture or record</h3>
-        <p>One hotkey, or hold and drag. A recording runs while you hold and becomes a file when you let go.</p>
-      </li>
-      <li class="flow__step" data-reveal data-stagger>
-        <h3>Paste it</h3>
-        <p>Stills go to the clipboard on the spot; a recording gives you a GIF on Enter. Toast, editor, or pinned in place — each gesture decides.</p>
-      </li>
-    </ol>
-  </section>
-
-  <!-- ── Capabilities ──────────────────────────────────── -->
-  <section class="section" id="capabilities">
-    <header class="section__head">
-      <h2 data-reveal>Features</h2>
-      <p data-reveal>Eight actions, every one of them finished on your machine.</p>
-    </header>
-
-    <div class="cards">
-      <article class="card" data-reveal data-stagger>
-        <span class="card__ico" aria-hidden="true">&#xE8C8;</span>
-        <h3>Copy in one step</h3>
-        <p>Stills go straight to the clipboard. A recording hands over the GIF file and the current frame as a bitmap together — apps that take files get the animation, apps that take images get a still.</p>
-        <span class="card__tag">On by default</span>
-      </article>
-
-      <article class="card" data-reveal data-stagger>
-        <span class="card__ico" aria-hidden="true">&#xE7B5;</span>
-        <h3>Clean window capture</h3>
-        <p>Captures the window itself, transparent at Win11's rounded corners, clean on browser and GPU-composited windows. The shadow is composited from the outline instead of grabbing the screen behind. Recording works the same way: click a window in the selection and only that window ends up in the output.</p>
-        <span class="card__tag">Capture and recording</span>
-      </article>
-
-      <article class="card" data-reveal data-stagger>
-        <span class="card__ico" aria-hidden="true">&#xE714;</span>
-        <h3>Recording</h3>
-        <p>Press once to start, press again to stop. Whether the cursor appears is a switch, and the frame rate follows the display refresh rate.</p>
-        <span class="combo"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Alt</kbd><span class="plus">+</span><kbd>R</kbd></span>
-      </article>
-
-      <article class="card" data-reveal data-stagger>
-        <span class="card__ico" aria-hidden="true">&#xE70F;</span>
-        <h3>Editor</h3>
-        <p>Look, trim, annotate, copy. Step frame by frame, set in and out points, drag the handles at both ends to cut the head and the tail.</p>
-        <span class="card__tag">Click the toast to open</span>
-      </article>
-
-      <article class="card" data-reveal data-stagger>
-        <span class="card__ico" aria-hidden="true">&#xE71C;</span>
-        <h3>Drawing tools</h3>
-        <p>Single-key switching: line, rectangle, ellipse, freehand, highlighter, text, mosaic, crop, numbered marker.</p>
-        <span class="card__tag">Shift locks 45°</span>
-      </article>
-
-      <article class="card" data-reveal data-stagger>
-        <span class="card__ico" aria-hidden="true">&#xE718;</span>
-        <h3>Pins</h3>
-        <p>Pin an image onto the screen. Scroll to scale, drag a corner to reshape, opacity is adjustable, always on top.</p>
-        <span class="combo"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>P</kbd></span>
-      </article>
-
-      <article class="card" data-reveal data-stagger>
-        <span class="card__ico" aria-hidden="true">&#xE8C1;</span>
-        <h3>Text recognition</h3>
-        <p>Text in an image becomes text you can copy. Runs on the OCR built into Windows, no network.</p>
-        <span class="combo"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>O</kbd></span>
-      </article>
-
-      <article class="card" data-reveal data-stagger>
-        <span class="card__ico" aria-hidden="true">&#xE74A;</span>
-        <h3>Scrolling capture</h3>
-        <p>Scroll a region and it stitches into one long image, previewing the result as it goes.</p>
-        <span class="card__tag">Stitched live</span>
-      </article>
-    </div>
-    <p class="section__foot" data-reveal>
-      <kbd>Ctrl+P</kbd> and <kbd>Ctrl+O</kbd> are keys inside the editor window. Every one of them can be changed in Settings.
-    </p>
-  </section>
-
-  <!-- ── Interface tabs ────────────────────────────────── -->
-  <section class="section" id="demo">
-    <header class="section__head">
-      <h2 data-reveal>Interface</h2>
-      <p data-reveal>Four windows. Switch the tabs to look at each one.</p>
-    </header>
-
-    <div class="demo" data-reveal>
-      <div class="tabs" role="tablist" aria-label="Interface screenshots">
-        <button class="tab is-on" role="tab" aria-selected="true" aria-controls="p-edit" data-panel="p-edit" type="button">
-          <span class="ico" aria-hidden="true">&#xE70F;</span> Editor
-        </button>
-        <button class="tab" role="tab" aria-selected="false" aria-controls="p-gesture" data-panel="p-gesture" type="button">
-          <span class="ico" aria-hidden="true">&#xE765;</span> Gestures
-        </button>
-        <button class="tab" role="tab" aria-selected="false" aria-controls="p-set" data-panel="p-set" type="button">
-          <span class="ico" aria-hidden="true">&#xE713;</span> Settings
-        </button>
-        <button class="tab" role="tab" aria-selected="false" aria-controls="p-pin" data-panel="p-pin" type="button">
-          <span class="ico" aria-hidden="true">&#xE718;</span> Pins
-        </button>
+      <div id="preset-1" role="tabpanel" aria-labelledby="preset-tab-1" class="preset-panel" hidden>
+        <div class="diagram-top"><span class="live-dot"></span>Preset illustration<span class="diagram-name">Select, then capture</span></div>
+        <div class="diagram-body"><div class="entry-row single"><span class="keys"><kbd>Ctrl</kbd><kbd>Alt</kbd><kbd>A</kbd></span><span>Select only</span></div><div class="reuse">Reuse the region until you select again or clear it</div><div class="gesture-key"><span class="keys"><kbd>Ctrl</kbd><kbd>Alt</kbd><kbd>R</kbd></span></div><div class="gesture-row"><div><small>Tap</small><strong>Screenshot</strong></div><div><small>Hold</small><strong>Recording</strong></div><div><small>Release</small><strong>Stop recording</strong></div></div></div>
+        <p class="diagram-note">Keep selection separate from capture, and use the same region again.</p>
       </div>
-
-      <div class="panels">
-        <div class="panel is-on" id="p-edit" role="tabpanel">
-          <figure class="shot">
-            <img loading="lazy" decoding="async" src="../assets/shots/en/editor.png" width="1561" height="1179"
-                 alt="The FrameCapture editor: a captured text-editor window on the canvas with the full annotation toolbar along the bottom">
-          </figure>
-          <div class="panel__copy">
-            <h3>Step through frames, trim on the spot</h3>
-            <p>← → step one frame, Shift+← → step a second, [ ] set the in and out points, Space plays.</p>
-          </div>
-        </div>
-
-        <div class="panel" id="p-gesture" role="tabpanel">
-          <figure class="shot">
-            <img loading="lazy" decoding="async" src="../assets/shots/en/gesture.png" width="1140" height="840"
-                 alt="The gesture configurator: bindings down the left, and on the right the chord, trigger, action sequence and after-capture behaviour for the selected binding">
-          </figure>
-          <div class="panel__copy">
-            <h3>The keys are yours</h3>
-            <p>Four triggers: chord, hold, double press, long press. One gesture can chain several actions, and whether a capture writes the clipboard is set per gesture too.</p>
-          </div>
-        </div>
-
-        <div class="panel" id="p-set" role="tabpanel">
-          <figure class="shot">
-            <img loading="lazy" decoding="async" src="../assets/shots/en/settings.png" width="1140" height="990"
-                 alt="The FrameCapture settings window: eight groups down the left, and on the right the hotkeys page — global keys plus editor keys you can rebind one by one, each row ending in a plus button">
-          </figure>
-          <div class="panel__copy">
-            <h3>Eight groups, applied as you change them</h3>
-            <p>Hotkeys, Screenshot, Recording, Output, Editor, Pins, Appearance, System.</p>
-          </div>
-        </div>
-
-        <div class="panel" id="p-pin" role="tabpanel">
-          <figure class="shot">
-            <img loading="lazy" decoding="async" src="../assets/shots/en/pin.png" width="1140" height="735"
-                 alt="A cheat sheet of shortcuts pinned to the screen: no title bar, no border, sitting straight on the desktop">
-          </figure>
-          <div class="panel__copy">
-            <h3>Pinned to the screen beats switching windows</h3>
-            <p>Fill a form against a capture, keep a stretch of code in view, lay a mockup over a screenshot of the implementation and compare. Scroll to scale, Ctrl+scroll for opacity, double-click to close.</p>
-          </div>
-        </div>
+      <div id="preset-2" role="tabpanel" aria-labelledby="preset-tab-2" class="preset-panel" hidden>
+        <div class="diagram-top"><span class="live-dot"></span>Preset illustration<span class="diagram-name">One shortcut</span></div>
+        <div class="diagram-body"><div class="entry-row single"><span class="keys"><kbd>Ctrl</kbd><kbd>Alt</kbd><kbd>A</kbd></span><span>Select a region</span></div><div class="flow-line"></div><div class="mode-preview"><span>Screenshot</span><span>Recording</span></div><p class="mode-caption">Controls above the selection</p><div class="flow-line"></div><div class="flow-node">Edit, copy, save…</div></div>
+        <p class="diagram-note">Share one entry point, with independent actions for each branch.</p>
       </div>
     </div>
-  </section>
-
-  <!-- ── Keyboard ──────────────────────────────────────── -->
-  <section class="section" id="keys">
-    <header class="section__head">
-      <h2 data-reveal>Keyboard</h2>
-      <p data-reveal>Two are global, the rest live inside the editor. Both places are editable in Settings, and global keys can be added in the gesture configurator.</p>
-    </header>
-
-    <div class="keys__grid">
-      <div class="keys" data-reveal>
-        <h3 class="keys__cap">Global</h3>
-        <div class="keys__cols">
-          <div class="keys__col">
-            <div class="keys__row"><span>Region capture</span><span class="keys__k"><kbd>Ctrl</kbd><kbd>Alt</kbd><kbd>A</kbd></span></div>
-          </div>
-          <div class="keys__col">
-            <div class="keys__row"><span>Start / stop recording</span><span class="keys__k"><kbd>Ctrl</kbd><kbd>Alt</kbd><kbd>R</kbd></span></div>
-          </div>
-        </div>
-      </div>
-
-      <div class="keys" data-reveal>
-        <h3 class="keys__cap">In the editor</h3>
-        <div class="keys__cols">
-          <div class="keys__col">
-            <div class="keys__row"><span>Save frame / export recording</span><span class="keys__k"><kbd>Ctrl</kbd><kbd>S</kbd><kbd>E</kbd></span></div>
-            <div class="keys__row"><span>Copy to clipboard</span><span class="keys__k"><kbd>Ctrl</kbd><kbd>C</kbd></span></div>
-            <div class="keys__row"><span>Pin / recognize text</span><span class="keys__k"><kbd>Ctrl</kbd><kbd>P</kbd><kbd>O</kbd></span></div>
-            <div class="keys__row"><span>Persistence blend</span><span class="keys__k"><kbd>Ctrl</kbd><kbd>H</kbd></span></div>
-            <div class="keys__row"><span>Undo / redo</span><span class="keys__k"><kbd>Ctrl</kbd><kbd>Z</kbd><kbd>Y</kbd></span></div>
-          </div>
-          <div class="keys__col">
-            <div class="keys__row"><span>Zoom in / out / fit / 1:1</span><span class="keys__k"><kbd>Ctrl</kbd><kbd>+</kbd><kbd>−</kbd><kbd>0</kbd><kbd>1</kbd></span></div>
-            <div class="keys__row"><span>Step / play</span><span class="keys__k"><kbd>&#x2190;</kbd><kbd>&#x2192;</kbd><kbd>Space</kbd></span></div>
-            <div class="keys__row"><span>Set in / out point</span><span class="keys__k"><kbd>[</kbd><kbd>]</kbd></span></div>
-            <div class="keys__row"><span>Switch tool</span><span class="keys__k"><kbd>X</kbd><kbd>V</kbd><kbd>L</kbd><kbd>R</kbd><kbd>O</kbd><kbd>A</kbd><kbd>P</kbd><kbd>H</kbd><kbd>T</kbd><kbd>M</kbd><kbd>C</kbd><kbd>N</kbd></span></div>
-            <div class="keys__row"><span>Confirm / step out / help</span><span class="keys__k"><kbd>Enter</kbd><kbd>Esc</kbd><kbd>F1</kbd></span></div>
-          </div>
-        </div>
-      </div>
+  </div>
+</div></section>
+<section class="section container gallery-section">
+  <div class="section-heading"><p class="eyebrow">FAMILIAR, WITH ROOM TO MAKE IT YOURS</p><h2>A desktop interface.<br>Made to fit your habits.</h2><p>Configure keys and behavior branches in Settings. Start simple, then adjust the details as you go.</p></div>
+  <div class="gallery" data-tabs>
+    <div class="screen-tabs" role="tablist" aria-label="Interface previews">
+      <button type="button" role="tab" id="screen-tab-0" aria-controls="screen-0" aria-selected="true" class="screen-tab is-active">Behaviors</button>
+      <button type="button" role="tab" id="screen-tab-1" aria-controls="screen-1" aria-selected="false" tabindex="-1" class="screen-tab">Shortcuts</button>
+      <button type="button" role="tab" id="screen-tab-2" aria-controls="screen-2" aria-selected="false" tabindex="-1" class="screen-tab">Editor</button>
+      <button type="button" role="tab" id="screen-tab-3" aria-controls="screen-3" aria-selected="false" tabindex="-1" class="screen-tab">Pinned images</button>
     </div>
-  </section>
-
-  <!-- ── Download ──────────────────────────────────────── -->
-  <section class="section download" id="download">
-    <div class="dl" data-reveal>
-      <h2>Download</h2>
-      <p>
-        Install it, let it sit in the tray, paste when you are done. 0.9 preview — living with it for a while is what sets the release schedule.
-      </p>
-      <div class="cta">
-        <a class="btn btn--primary btn--lg" id="dlBtn" href="../../release/FrameCapture-Setup-0.9.0-x64.exe" download>
-          <span class="ico" aria-hidden="true">&#xE896;</span> FrameCapture-Setup-0.9.0-x64.exe
-        </a>
-        <a class="btn btn--ghost btn--lg" href="#capabilities">
-          <span class="ico" aria-hidden="true">&#xE7F4;</span> Read the features first
-        </a>
-      </div>
-      <dl class="specs dl__scope">
-        <div><dt>This build does</dt><dd>One-step copy for stills and recordings, clean window capture, long scrolling images, GIF · MP4 · WebM recording, frame-by-frame annotation, pins, text recognition, gestures you define.</dd></div>
-        <div><dt>This build does not</dt><dd>Code signing, automatic updates, a public download channel. 0.9 is about making the tool itself solid.</dd></div>
-      </dl>
-      <p class="dl__hint" id="dlHint">This link points at the current build under <code>release/</code> in the repository.</p>
+    <div class="gallery-panels">
+      <figure id="screen-0" role="tabpanel" aria-labelledby="screen-tab-0" class="screen-panel is-active"><div class="screen-image"><img src="../assets/shots/en/gesture.png" alt="Behavior settings showing capture actions and event branches" width="950" height="825" loading="lazy" decoding="async"></div><figcaption>Drag action cards to reorder them. Configure screenshot, recording, cancellation, and failure branches.</figcaption></figure>
+      <figure id="screen-1" role="tabpanel" aria-labelledby="screen-tab-1" class="screen-panel" hidden><div class="screen-image"><img src="../assets/shots/en/settings.png" alt="Shortcut settings with preset cards and key bindings" width="950" height="825" loading="lazy" decoding="async"></div><figcaption>Three presets plus your custom scheme, with configurable keys and gestures.</figcaption></figure>
+      <figure id="screen-2" role="tabpanel" aria-labelledby="screen-tab-2" class="screen-panel" hidden><div class="screen-image"><img src="../assets/shots/en/editor.png" alt="FrameCapture annotation and recording editor" width="1250" height="900" loading="lazy" decoding="async"></div><figcaption>Annotation tools and a recording timeline in one editor.</figcaption></figure>
+      <figure id="screen-3" role="tabpanel" aria-labelledby="screen-tab-3" class="screen-panel" hidden><div class="screen-image"><img src="../assets/shots/en/pin.png" alt="A reference image pinned on the desktop" width="1140" height="735" loading="lazy" decoding="async"></div><figcaption>Keep a reference on your desktop, ready to move and zoom.</figcaption></figure>
     </div>
-  </section>
-
-  <!-- ── Requirements ──────────────────────────────────── -->
-  <section class="section" id="requirements">
-    <header class="section__head">
-      <h2 data-reveal>System requirements</h2>
-    </header>
-    <dl class="specs" data-reveal>
-      <div><dt>System</dt><dd>Windows 10 19041 or newer, x64</dd></div>
-      <div><dt>Installer</dt><dd>6.9 MB, and you choose where it goes</dd></div>
-      <div><dt>Dependencies</dt><dd>The installed build needs the .NET 8 Desktop Runtime; the offline package carries its own</dd></div>
-      <div><dt>Text recognition</dt><dd>Uses the OCR language packs already in Windows, no network</dd></div>
-      <div><dt>Uninstall</dt><dd>From the system Settings under Apps, or the uninstaller entry</dd></div>
-      <div><dt>Data</dt><dd>Configuration lives in <code>%APPDATA%\FrameCapture</code>; delete it and you are back to a clean slate</dd></div>
-    </dl>
-  </section>
-
-  <!-- ── Questions ─────────────────────────────────────── -->
-  <section class="section" id="faq">
-    <header class="section__head">
-      <h2 data-reveal>Questions</h2>
-    </header>
-    <div class="faq" data-reveal>
-      <details name="faq">
-        <summary>Where does a capture end up?</summary>
-        <p>In the clipboard by default, ready to paste. To keep files, turn on auto-save in Settings: single frames go out as PNG, recordings in the format you picked — GIF, MP4 or WebM.</p>
-      </details>
-      <details name="faq">
-        <summary>Why are the rounded corners transparent on a window capture?</summary>
-        <p>It captures the window itself instead of grabbing the screen behind it. Outside the rounded corners is real transparency, and the shadow is composited from the window outline, so when a window sits on top of another app the ring around it never picks up background text.</p>
-      </details>
-      <details name="faq">
-        <summary>Can a recording follow just one window?</summary>
-        <p>Yes. Click a window in the recording selection and it records that window itself — another window covering it, or moving it around, never enters the frame. The setting is called Record window only, and turning it off goes back to recording the screen rectangle.</p>
-      </details>
-      <details name="faq">
-        <summary>Does anything go to a server?</summary>
-        <p>No. Capture, encoding and text recognition all finish inside your own process. There is no account and no network request. Text recognition uses the OCR language packs that ship with Windows.</p>
-      </details>
-      <details name="faq">
-        <summary>Does it need administrator rights?</summary>
-        <p>Only the install step, which writes to the program folder and the uninstall registry entry. Day to day it runs with ordinary rights and sits in the tray.</p>
-      </details>
-      <details name="faq">
-        <summary>Will Windows complain during install?</summary>
-        <p>It will. The installer is not code signed, so SmartScreen warns about an unknown publisher; choose Run anyway to continue. The preview has no certificate.</p>
-      </details>
-      <details name="faq">
-        <summary>What if a hotkey collides with another app?</summary>
-        <p>Global keys change in the gesture configurator, editor keys change in Settings under Hotkeys. By default it takes only <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>A</kbd> and <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>R</kbd>. With exclusive key capture on, keys are not passed through; turn it off and they are.</p>
-      </details>
-      <details name="faq">
-        <summary>Is there a recording length limit?</summary>
-        <p>Frames go to disk in the order they arrive and do not sit in memory, so length is bounded by disk space. Export is GIF, MP4 or WebM.</p>
-      </details>
-      <details name="faq">
-        <summary>Does it work on multiple monitors and high scaling?</summary>
-        <p>Each monitor has its own selection and captures are taken at physical pixels. Nothing blurs at 150% scaling, and a second screen next to the main one can still be framed.</p>
-      </details>
-      <details name="faq">
-        <summary>Will it update itself?</summary>
-        <p>No, and there is no background updater. Upgrading means installing again; configuration lives in <code>%APPDATA%\FrameCapture</code> and a reinstall leaves it alone.</p>
-      </details>
-      <details name="faq">
-        <summary>Does uninstalling leave anything behind?</summary>
-        <p>The uninstaller removes the program folder and the registry entry. Your configuration and saved output stay put; delete <code>%APPDATA%\FrameCapture</code> for a clean slate.</p>
-      </details>
-    </div>
-  </section>
+  </div>
+</section>
+<section class="extra-section container"><h2>A few more things,<br>within reach.</h2><div class="extra-tools">
+  <article><span class="section-label">Scrolling capture</span><h3>A long page. One image.</h3><p>Capture and stitch scrolling content, with a preview as you go.</p></article>
+  <article><span class="section-label">Text recognition</span><h3>Text in an image. Ready to use.</h3><p>Recognize and copy text locally with Windows OCR.</p></article>
+  <article><span class="section-label">Pinned images</span><h3>Keep a reference nearby.</h3><p>Pin an image above other windows. Move, zoom, and adjust its opacity.</p></article>
+</div></section>
+<section class="section container faq-section" id="faq"><h2>Before you get started</h2><div class="faq-list">
+  <details><summary>Which Windows versions are supported?<span aria-hidden="true">+</span></summary><p>Windows 10 version 2004 or later, and Windows 11, on x64. The app uses .NET 8 Desktop Runtime. The installer checks for it and downloads it when needed.</p></details>
+  <details><summary>Do I need Codecs-Setup?<span aria-hidden="true">+</span></summary><p>It is an optional installer for the FFmpeg video component. Screenshots and GIF export work without it. For MP4 or WebM export, download the component from Recording settings.</p></details>
+  <details><summary>Do capture and OCR need an internet connection?<span aria-hidden="true">+</span></summary><p>Capture, editing, and Windows OCR run locally. Checking for updates, downloading an installer, or installing the video component requires internet access.</p></details>
+  <details><summary>Can I change shortcuts and what happens afterward?<span aria-hidden="true">+</span></summary><p>Yes. Shortcuts connect to behavior entries. Configure actions for screenshots, recordings, stopping, cancellation, and failure. Editing a preset saves it to your custom scheme.</p></details>
+</div></section>
+<section class="download-section" id="download"><div class="container download-inner"><div><p class="eyebrow">FRAMECAPTURE FOR WINDOWS</p><h2>Make the next capture<br>feel effortless.</h2><p>Start with a shortcut. Turn what is on your screen into what you need.</p></div><div class="download-actions"><a class="button button-primary download-link" href="https://github.com/NekoWs/FrameCapture/releases/latest">Download for Windows</a><p class="release-status" aria-live="polite" data-prefix="Latest release" data-suffix="Windows x64 installer">Windows 10 / 11 · x64</p><p class="download-note">Free and open source · GPL-3.0</p><a class="text-link source-link" href="https://github.com/NekoWs/FrameCapture">View source</a></div></div></section>
 </main>
-
-<footer class="foot">
-  <svg class="foot__mark" aria-hidden="true" width="22" height="22"><use href="#fc-mark"/></svg>
-  <span>FrameCapture · a screenshot and recording tool that runs on your machine</span>
-  <span class="foot__spacer"></span>
-  <span class="foot__theme">0.9 preview</span>
-</footer>
-
-<script src="../js/tokens.js"></script>
-<script src="../js/theme.js"></script>
-<script src="../js/reveal.js"></script>
-<script src="../js/tabs.js"></script>
-<script src="../js/pointer.js"></script>
-<script src="../js/main.js"></script>
+<footer class="container footer"><div><a class="brand" href="#content"><img src="../assets/FrameCapture-256.png" width="24" height="24" alt=""><span>FrameCapture</span></a><p>Capture, record, and take the next step.</p></div><nav aria-label="Project links"><a href="https://github.com/NekoWs/FrameCapture">GitHub</a><a href="https://github.com/NekoWs/FrameCapture/issues">Report an issue</a><a href="https://github.com/NekoWs/FrameCapture/blob/main/LICENSE">License</a></nav><span class="footer-credit">Made by NekoWs</span></footer>
 </body>
 </html>
