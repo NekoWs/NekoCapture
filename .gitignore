@@ -32,3 +32,35 @@ site/_pv-*.html
 # update signing key
 .release-keys/
 *.private.pem
+
+# local agent instructions and working documents
+AGENTS.md
+AGENTS.local.md
+AGENTS.override.md
+CLAUDE.md
+CLAUDE.local.md
+GEMINI.md
+CODEX.md
+MEMORY.md
+SKILL.md
+PLAN-*.md
+PLAN.md
+.cursorrules
+.windsurfrules
+.codex/
+.claude/
+.agents/
+.agent/
+.cursor/
+.windsurf/
+/.github/copilot-instructions.md
+/.github/instructions/
+/.github/prompts/
+/GOAL.md
+/DECISIONS.md
+/PROGRESS.md
+/TODO.md
+/UIAUDIT.md
+/TEST-CHECKLIST.md
+/docs/
+/site/README.md

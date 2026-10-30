@@ -76,7 +76,7 @@ static partial class SelfTest
             // 用户自己起的长绑定名：折叠行里名字与键帽、开关、垃圾桶抢同一行宽度
             case "settings-longname": BuildSettingsAudit(app, rows, "settings-longname", 0, forceW: 680, forceH: 460,
                 bindingName: LongBindingName); break;
-            // OCR 正文在 TextBox 里，探针只扫 TextBlock，长 URL 这一档量不到东西——见 TODO「辅助功能暴露面」一节
+            // OCR 正文位于 TextBox，TextBlock 探针不覆盖正文中的长 URL。
                 case "help": BuildHelpAudit(rows); break;
                 case "editor": BuildEditorAudit(app, rows, 3); break;
                 case "editor-still": BuildEditorAudit(app, rows, 1); break;

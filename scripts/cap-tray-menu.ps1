@@ -1,4 +1,4 @@
-# D8 取证：托盘右键菜单双主题像素档案（UIAUDIT.md D8）
+# 托盘右键菜单双主题像素档案。
 # 依据：托盘菜单不是系统原生渲染——TrayService.ShowMenu 用 WPF ContextMenu + Fluent.MenuResources()
 #       自绘并随主题着色（见 src/FrameCapture/Services/TrayService.cs）。像素取证完全可行。
 # 机制（全部在自动化边界内）：对自家 NotifyIcon 隐藏窗 PostMessage 托盘回调消息

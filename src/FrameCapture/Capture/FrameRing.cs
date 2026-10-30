@@ -15,7 +15,7 @@ public sealed class FrameRing
     public FrameRing(long? budgetBytes = null) => _budget = budgetBytes ?? TestBudget();
 
     /// <summary>测试专用（与 FC_TEST_NO_FG 同约定）：FC_TEST_RING_BUDGET_MB 把帧预算钉到给定 MB，
-    /// 令「⚠内存预算已丢 N 帧」HUD 边界态可确定性触达并做像素取证（UIAUDIT D9）。用户环境永不置位。</summary>
+    /// 用于确定性触发帧预算边界；用户环境不设置此变量。</summary>
     private static long TestBudget()
     {
         if (long.TryParse(Environment.GetEnvironmentVariable("FC_TEST_RING_BUDGET_MB"), out var mb) && mb > 0) return mb << 20;

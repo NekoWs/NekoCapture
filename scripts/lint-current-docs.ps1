@@ -2,9 +2,9 @@
 param([switch]$Quiet)
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
-$files = @(Get-ChildItem -LiteralPath $root -File -Filter '*.md') +
-    @(Get-ChildItem -LiteralPath (Join-Path $root 'docs') -File -Filter '*.md') +
-    @(Get-Item -LiteralPath (Join-Path $root 'README.txt'))
+$files = @('README.md', 'README.txt') | ForEach-Object {
+    Get-Item -LiteralPath (Join-Path $root $_)
+}
 $pattern = '本轮|这轮|这一轮|上一轮|上轮|第\s*\d+\s*轮|改前|改后(?!面)|原先|此前|之前|原来|曾经|退役|弃用|改为|修掉|教训|历史|\b[RT]\d{2,3}\b|\bRound\s+\d+'
 $failures = @()
 foreach ($file in $files) {

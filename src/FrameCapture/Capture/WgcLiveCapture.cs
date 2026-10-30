@@ -250,7 +250,6 @@ public sealed class WgcLiveCapture : IDisposable
 
     private SizeInt32? CopyAndEmit(Direct3D11CaptureFrame frame)
     {
-        // 实测：无拷贝时 WGC 投递仍 ~47fps（见 PROGRESS），拷贝不是瓶颈，故不做 staging 优化。
         return CopyViaSoftwareBitmap(frame);
     }
 

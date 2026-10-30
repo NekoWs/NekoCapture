@@ -1,4 +1,4 @@
-# 轮廓生命周期回归（UIAUDIT：CaptureGuards 决策表）
+# 检查轮廓生命周期与 CaptureGuards 决策。
 # 证明两件事（全在自动化边界内：合成键经消息专用窗喂进引擎 + 自家窗 keyw + 桌面 BitBlt，无 OS 级输入）：
 #  1) 常显模式下一次"录制→编辑器"之后，范围轮廓必须回到屏上
 #     （旧版 FinishCapture 无条件 FadeAway，注释谎称"由后续分支重新点亮"）。
