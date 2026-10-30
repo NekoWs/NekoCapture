@@ -388,6 +388,7 @@ public sealed partial class SettingsWindow : Window
             Focusable = true,
         };
         Fluent.ChipHover(btn);
+        OwnSettingsPointerPress(btn);
         // 改名不是展开这一行：这一击停在按钮上，别冒到胶囊去
         btn.MouseLeftButtonUp += (_, e) => { onClick(); e.Handled = true; };
         btn.KeyDown += (_, e) => { if (e.Key is Key.Enter or Key.Space) { e.Handled = true; onClick(); } };

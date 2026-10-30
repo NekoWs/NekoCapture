@@ -49,6 +49,7 @@ public sealed partial class SettingsWindow
         string summary = flow == null ? Loc.T(K.SettingsNavigation.ExecuteHint)
             : string.Join(" → ", flow.Steps.Select(id => cfg.Graph.Node(id)).Where(node => node != null).Select(node => GestureActions.LabelOf(node!.Action)));
         var entry = SettingsEntry(HotkeyDisplayName(binding), summary, "\uE765", () => OpenSettingsBinding(binding));
+        entry.Tag = "settings-overview";
         var label = (StackPanel)((Grid)entry.Content).Children[1]; label.Children.RemoveAt(0);
         var name = SettingsOverviewName(() => HotkeyDisplayName(binding), value =>
         {
@@ -63,7 +64,8 @@ public sealed partial class SettingsWindow
             name.Opacity = label.Children[1].Opacity = caps.Opacity = binding.Enabled ? 1 : 0.55;
         }
         var delete = DeleteIconButton(binding); delete.Tag = "settings-hotkey-delete:" + binding.Id;
-        actions.Children.Add(delete); actions.Children.Add(EnableSwitch(binding, PaintEnabled));
+        var enabled = EnableSwitch(binding, PaintEnabled); enabled.Tag = "settings-hotkey-enabled:" + binding.Id;
+        actions.Children.Add(delete); actions.Children.Add(enabled);
         void RepaintCaps()
         {
             if (caps != null) actions.Children.Remove(caps);
@@ -90,6 +92,7 @@ public sealed partial class SettingsWindow
     {
         var cfg = _settings.Current.Gestures;
         var entry = SettingsEntry(cfg.FlowName(flow), Loc.T(K.SettingsNavigation.ExecuteHint), "\uE7A8", () => OpenSettingsFlow(flow.Id));
+        entry.Tag = "settings-overview";
         var label = (StackPanel)((Grid)entry.Content).Children[1]; label.Children.RemoveAt(0);
         label.Children.Insert(0, SettingsOverviewName(() => cfg.FlowName(flow), value =>
         {

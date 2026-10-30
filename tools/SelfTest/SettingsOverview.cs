@@ -20,9 +20,22 @@ static partial class SelfTest
         Chk("settings-shortcut-delete-is-visible-in-overview", delete.IsVisible && delete.ActualWidth >= 24 && delete.Focusable);
         Chk("settings-shortcut-rename-remains-in-overview", Descendants(list).OfType<Border>()
             .Any(item => item.IsVisible && item.ToolTip as string == Loc.T(K.Hotkeys.RenameThisHotkey) && item.Focusable));
+        void Press(FrameworkElement control)
+        {
+            var down = new MouseButtonEventArgs(Mouse.PrimaryDevice, 0, MouseButton.Left)
+                { RoutedEvent = UIElement.PreviewMouseLeftButtonDownEvent };
+            control.RaiseEvent(down);
+            Chk("settings-inner-control-owns-pointer-press", down.Handled && Mouse.Captured is not Button);
+            control.RaiseEvent(new MouseButtonEventArgs(Mouse.PrimaryDevice, 0, MouseButton.Left)
+                { RoutedEvent = UIElement.MouseLeftButtonUpEvent });
+        }
+        var enabled = Descendants(list).OfType<Border>().Single(item => item.Tag as string == "settings-hotkey-enabled:" + binding.Id);
+        bool wasEnabled = binding.Enabled;
+        Press(enabled);
+        Chk("settings-shortcut-switch-click-updates-binding", binding.Enabled != wasEnabled);
+        Chk("settings-shortcut-switch-does-not-open-detail", (string)type.GetField("_currentSettingsPage", flags)!.GetValue(window)! == "hotkeys");
         int before = settings.Current.Gestures.Bindings.Count;
-        delete.RaiseEvent(new MouseButtonEventArgs(Mouse.PrimaryDevice, 0, MouseButton.Left)
-            { RoutedEvent = UIElement.MouseLeftButtonUpEvent });
+        Press(delete);
         PumpMs(Fluent.Motion.StateMs + 80);
         Chk("settings-shortcut-overview-delete-removes-binding", settings.Current.Gestures.Bindings.Count == before - 1
             && settings.Current.Gestures.Bindings.All(item => item.Id != binding.Id));

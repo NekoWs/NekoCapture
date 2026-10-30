@@ -50,6 +50,7 @@ public sealed partial class SettingsWindow : Window
             RenderTransform = new TranslateTransform(b.Enabled ? 14 : 0, 0),
         };
         track.Child = knob;
+        OwnSettingsPointerPress(track);
         bool on = b.Enabled;
         void Flip()
         {
@@ -95,6 +96,7 @@ public sealed partial class SettingsWindow : Window
             Focusable = true,
         };
         Fluent.ChipHover(btn);
+        OwnSettingsPointerPress(btn);
         btn.MouseLeftButtonUp += (_, e) =>
         {
             e.Handled = true;
