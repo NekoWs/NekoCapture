@@ -13,7 +13,8 @@ public static partial class K
         public static readonly Str Component = new("ocr.component", "Small 模型", "Small model");
         public static readonly Str DownloadSize = new("ocr.downloadSize", "可选下载 · 约 26 MB", "Optional download · about 26 MB");
         public static readonly Str Installed = new("ocr.installed", "Small 模型已安装", "Small model installed");
-        public static readonly Str Downloading = new("ocr.downloading", "下载模型 {0}%", "Downloading models {0}%");
+        public static readonly Str Verifying = new("ocr.verifying", "正在校验模型…", "Verifying models…");
+        public static readonly Str Installing = new("ocr.installing", "正在安装模型…", "Installing models…");
         public static readonly Str InstallFailed = new("ocr.installFailed", "模型安装失败，请重试", "Model installation failed. Try again.");
         public static readonly Str Missing = new("ocr.missing", "请先在编辑器设置中下载 Small 模型", "Download the Small model in Editor settings first.");
     }

@@ -38,6 +38,7 @@ public sealed partial class SettingsWindow
         void Refresh()
         {
             bool available = OcrSmallComponent.Available, busy = OcrSmallComponent.Busy;
+            var snapshot = OcrSmallComponent.CurrentProgress;
             small.IsEnabled = available;
             component.Visibility = available ? Visibility.Collapsed : Visibility.Visible;
             download.Visibility = available ? Visibility.Collapsed : Visibility.Visible;
@@ -45,10 +46,25 @@ public sealed partial class SettingsWindow
             progress.Visibility = busy ? Visibility.Visible : Visibility.Collapsed;
             ((ScaleTransform)fill.RenderTransform).BeginAnimation(ScaleTransform.ScaleXProperty,
                 new DoubleAnimation(OcrSmallComponent.Progress, TimeSpan.FromMilliseconds(Fluent.Motion.StateMs)));
-            status.Text = available ? Loc.T(K.Ocr.Installed) : busy ? Loc.F(K.Ocr.Downloading, (int)(OcrSmallComponent.Progress * 100))
-                : OcrSmallComponent.Failed ? Loc.T(K.Ocr.InstallFailed) : Loc.T(K.Ocr.DownloadSize);
+            status.Text = available ? Loc.T(K.Ocr.Installed) : snapshot.Phase switch
+            {
+                OcrComponentPhase.Connecting => Loc.T(K.Settings.ComponentConnecting),
+                OcrComponentPhase.Downloading => Loc.F(K.Settings.ComponentDownloading, (int)(OcrSmallComponent.Progress * 100),
+                    (snapshot.Bytes / 1048576d).ToString("0.0"), (OcrSmallComponent.DownloadBytes / 1048576d).ToString("0.0"),
+                    snapshot.Speed >= 1048576 ? $"{snapshot.Speed / 1048576:0.0} MiB/s" : $"{snapshot.Speed / 1024:0} KiB/s"),
+                OcrComponentPhase.Verifying => Loc.T(K.Ocr.Verifying),
+                OcrComponentPhase.Installing => Loc.T(K.Ocr.Installing),
+                OcrComponentPhase.Cancelled => Loc.T(K.Common.ComponentCancelled),
+                OcrComponentPhase.Failed => Loc.T(K.Ocr.InstallFailed),
+                _ => Loc.T(K.Ocr.DownloadSize),
+            };
         }
-        void Changed() { if (!Dispatcher.HasShutdownStarted) Dispatcher.BeginInvoke(new Action(Refresh)); }
+        void Changed()
+        {
+            if (Dispatcher.HasShutdownStarted) return;
+            if (Dispatcher.CheckAccess()) Refresh();
+            else Dispatcher.BeginInvoke(new Action(Refresh));
+        }
         download.Click += async (_, _) =>
         {
             if (OcrSmallComponent.Busy) OcrSmallComponent.Cancel();

@@ -152,6 +152,9 @@ foreach ($v in $variants) {
     $ocrDirectory = Join-Path $stage 'OcrWorker'
     New-Item -ItemType Directory -Force -Path $ocrDirectory | Out-Null
     Copy-Item -LiteralPath $ocrExe -Destination $ocrDirectory
+    if (Get-ChildItem -LiteralPath $stage -Recurse -File | Where-Object { $_.Extension -eq '.onnx' -or $_.Name -like 'Sdcb.SimdPaddleOCR.Models.*' }) {
+        throw 'OCR 模型只能按需下载，不得包含在主安装包中'
+    }
     $runtimeNotices = Join-Path $stage 'licenses/dotnet'
     New-Item -ItemType Directory -Force -Path $runtimeNotices | Out-Null
     foreach ($name in @('LICENSE.TXT', 'THIRD-PARTY-NOTICES.TXT')) {

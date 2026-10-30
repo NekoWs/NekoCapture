@@ -1,6 +1,6 @@
 namespace FrameCapture.Encoding;
 
-/// <summary>独立视频组件的下载字节数、速度及校验状态。</summary>
+/// <summary>独立组件的下载字节数、速度及校验状态。</summary>
 internal readonly struct ComponentProgress
 {
     /// <summary>创建组件进度快照。</summary>

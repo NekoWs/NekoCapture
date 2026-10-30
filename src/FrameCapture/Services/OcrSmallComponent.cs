@@ -1,21 +1,17 @@
 using System.Buffers.Binary;
 using System.IO;
 using System.IO.Compression;
-using System.Net.Http;
 using System.Reflection.Metadata;
 using System.Reflection.PortableExecutable;
-using System.Security.Cryptography;
 using FrameCapture.Core;
 
 namespace FrameCapture.Services;
 
 /// <summary>可选 small 模型的下载、校验与资源提取；不加载第三方程序集。</summary>
-internal static class OcrSmallComponent
+internal static partial class OcrSmallComponent
 {
     const string Revision = "ppocr-v6-small-1.0.0";
     static readonly string[] ModelFiles = ["det.onnx", "rec.onnx", "cls.onnx", "dict.txt"];
-    static readonly HttpClient Client = new(new SocketsHttpHandler { ConnectTimeout = TimeSpan.FromSeconds(5) })
-        { Timeout = Timeout.InfiniteTimeSpan };
     static CancellationTokenSource? _cancellation;
     static readonly SemaphoreSlim InstallGate = new(1, 1);
 
@@ -27,14 +23,22 @@ internal static class OcrSmallComponent
     /// <summary>当前是否在安装组件。</summary>
     internal static bool Busy { get; private set; }
     /// <summary>下载完成比例，取值为 0 至 1。</summary>
-    internal static double Progress { get; private set; }
+    internal static double Progress => Math.Clamp(CurrentProgress.Bytes / (double)DownloadBytes, 0, 1);
+    /// <summary>可见安装阶段与下载统计的不可变快照。</summary>
+    internal static OcrComponentProgress CurrentProgress { get; private set; } = new(OcrComponentPhase.Missing, 0, 0);
     /// <summary>最近一次安装是否失败。</summary>
-    internal static bool Failed { get; private set; }
+    internal static bool Failed => CurrentProgress.Phase == OcrComponentPhase.Failed;
     /// <summary>下载状态改变；订阅方负责回到界面线程。</summary>
     internal static event Action? Changed;
     /// <summary>完整模型所在目录；不存在时为空。</summary>
-    internal static string? ModelDirectory => new[] { Path.Combine(SettingsService.Dir, "components", Revision),
-        Path.Combine(AppContext.BaseDirectory, "components", Revision) }.FirstOrDefault(Complete);
+    internal static string? ModelDirectory
+    {
+        get
+        {
+            string directory = Path.Combine(SettingsService.Dir, "components", Revision);
+            return Complete(directory) ? directory : null;
+        }
+    }
     /// <summary>模型和工作进程是否均可用。</summary>
     internal static bool Available => File.Exists(WorkerPath) && ModelDirectory != null;
 
@@ -54,9 +58,11 @@ internal static class OcrSmallComponent
     internal static async Task InstallAsync()
     {
         if (!await InstallGate.WaitAsync(0)) return;
+        if (Available) { InstallGate.Release(); return; }
         using var activity = BackgroundWork.Hold();
         using var cancellation = new CancellationTokenSource();
-        _cancellation = cancellation; Busy = true; Failed = false; Progress = 0; Changed?.Invoke();
+        _cancellation = cancellation; Busy = true;
+        CurrentProgress = new(OcrComponentPhase.Connecting, 0, 0); Changed?.Invoke();
         string parent = Path.Combine(SettingsService.Dir, "components");
         string staging = Path.Combine(parent, "ocr-download-" + Guid.NewGuid().ToString("N"));
         try
@@ -68,6 +74,7 @@ internal static class OcrSmallComponent
                     26_114_884, 0, Path.Combine(staging, "small.zip"), cancellation.Token);
                 await Download("sdcb.simdpaddleocr.models.textlineorientation", "D925F70D542C4A2E829E423BE24B3BA17508BDE3215C7BDC0799D98E741303D8",
                     961_574, 26_114_884, Path.Combine(staging, "cls.zip"), cancellation.Token);
+                CurrentProgress = new(OcrComponentPhase.Installing, DownloadBytes, 0); Changed?.Invoke();
                 ExtractModels(Path.Combine(staging, "small.zip"), "Sdcb.SimdPaddleOCR.Models.ChineseV6Small", staging,
                     new Dictionary<string, string> { ["det.onnx"] = "det.onnx", ["rec.onnx"] = "rec.onnx", ["dict.txt"] = "dict.txt" });
                 ExtractModels(Path.Combine(staging, "cls.zip"), "Sdcb.SimdPaddleOCR.Models.TextLineOrientation", staging,
@@ -82,57 +89,20 @@ internal static class OcrSmallComponent
                 if (File.Exists(license)) File.Copy(license, Path.Combine(target, "Apache-2.0.txt"), true);
                 File.WriteAllText(Path.Combine(target, "ready"), Revision);
             });
+            CurrentProgress = new(OcrComponentPhase.Available, DownloadBytes, 0);
         }
-        catch (OperationCanceledException) { }
-        catch (Exception error) { Failed = true; Trace.Log("OCR component: " + error); }
+        catch (OperationCanceledException) { CurrentProgress = CurrentProgress with { Phase = OcrComponentPhase.Cancelled, Speed = 0 }; }
+        catch (Exception error)
+        {
+            CurrentProgress = CurrentProgress with { Phase = OcrComponentPhase.Failed, Speed = 0 };
+            Trace.Log("OCR component: " + error);
+        }
         finally
         {
             try { if (Directory.Exists(staging)) Directory.Delete(staging, true); }
             catch (Exception error) when (error is IOException or UnauthorizedAccessException) { Trace.Log("OCR staging cleanup: " + error.Message); }
             _cancellation = null; Busy = false; InstallGate.Release(); Changed?.Invoke();
         }
-    }
-
-    static async Task Download(string package, string hash, long length, long prior, string target, CancellationToken cancellation)
-    {
-        Exception? lastError = null;
-        foreach (string origin in new[] { "https://api.nuget.org/v3-flatcontainer/",
-            "https://repo.huaweicloud.com/artifactory/api/nuget/v3/nuget-remote/" })
-        {
-            try
-            {
-                using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellation);
-                timeout.CancelAfter(TimeSpan.FromMinutes(4));
-                using var response = await Client.GetAsync($"{origin}{package}/1.0.0/{package}.1.0.0.nupkg",
-                    HttpCompletionOption.ResponseHeadersRead, timeout.Token);
-                response.EnsureSuccessStatusCode();
-                if (response.Content.Headers.ContentLength is { } reported && reported != length)
-                    throw new InvalidDataException("Unexpected OCR package size.");
-                await using var source = await response.Content.ReadAsStreamAsync(timeout.Token);
-                await using (var file = new FileStream(target, FileMode.Create, FileAccess.Write, FileShare.None, 65536, true))
-                {
-                    var buffer = new byte[65536]; long received = 0;
-                    var watch = System.Diagnostics.Stopwatch.StartNew();
-                    while (true)
-                    {
-                        int count = await source.ReadAsync(buffer, timeout.Token).AsTask().WaitAsync(TimeSpan.FromSeconds(15), timeout.Token);
-                        if (count == 0) break;
-                        received += count;
-                        if (received > length) throw new InvalidDataException("OCR package exceeds its expected size.");
-                        await file.WriteAsync(buffer.AsMemory(0, count), timeout.Token);
-                        if (watch.ElapsedMilliseconds < 100 && received != length) continue;
-                        Progress = (prior + received) / (double)DownloadBytes; watch.Restart(); Changed?.Invoke();
-                    }
-                    if (received != length) throw new InvalidDataException("Incomplete OCR package.");
-                }
-                using var verify = File.OpenRead(target);
-                string actual = Convert.ToHexString(await SHA256.HashDataAsync(verify, cancellation));
-                if (actual != hash) throw new InvalidDataException("OCR package hash mismatch.");
-                return;
-            }
-            catch (Exception error) when (!cancellation.IsCancellationRequested) { lastError = error; }
-        }
-        throw new IOException("Cannot download the OCR component.", lastError);
     }
 
     static void ExtractModels(string package, string assembly, string directory, Dictionary<string, string> resources)

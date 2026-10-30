@@ -23,9 +23,11 @@ internal static class ComponentDownloader
     /// <param name="sources">使用相同字节内容的 HTTPS 下载源，最后一项为可信上游。</param>
     /// <param name="expectedBytes">归档字节数；缺省使用固定组件大小。</param>
     /// <param name="expectedHash">归档 SHA256；缺省使用固定组件摘要。</param>
+    /// <param name="reportVerification">是否在核对摘要前报告校验状态。</param>
     /// <returns>完整性验证成功后完成的任务。</returns>
     internal static async Task DownloadAsync(string path, IProgress<ComponentProgress> progress, CancellationToken ct,
-        HttpClient? client = null, IReadOnlyList<string>? sources = null, long? expectedBytes = null, string? expectedHash = null)
+        HttpClient? client = null, IReadOnlyList<string>? sources = null, long? expectedBytes = null, string? expectedHash = null,
+        bool reportVerification = false)
     {
         if (!Path.IsPathRooted(path) || File.Exists(path)) throw new IOException("Download requires a new absolute path");
         var urls = (sources ?? FfmpegComponentInfo.DownloadUrls).ToArray();
@@ -39,7 +41,7 @@ internal static class ComponentDownloader
             ? new HttpClient(new HttpClientHandler { MaxConnectionsPerServer = 8 }) { Timeout = Timeout.InfiniteTimeSpan }
             : null;
         var http = client ?? ownedClient!;
-        http.DefaultRequestHeaders.UserAgent.ParseAdd("FrameCapture-Codecs-Setup");
+        if (!http.DefaultRequestHeaders.UserAgent.Any()) http.DefaultRequestHeaders.UserAgent.ParseAdd("FrameCapture-Components");
         bool created = false;
         try
         {
@@ -48,11 +50,13 @@ internal static class ComponentDownloader
             var ordered = new[] { winner }.Concat(urls.Where(u => u != winner)).ToArray();
             await Transfer(http, ordered, path, size, progress, ct).ConfigureAwait(false);
             created = true;
+            if (reportVerification) progress.Report(new ComponentProgress(size, 0, verifying: true));
             if (!MatchesHash(path, hash))
             {
                 File.Delete(path);
                 await Transfer(http, new[] { urls[urls.Length - 1] }, path, size, progress, ct).ConfigureAwait(false);
-                if (!MatchesHash(path, hash)) throw new InvalidDataException("FFmpeg SHA256 mismatch");
+                if (reportVerification) progress.Report(new ComponentProgress(size, 0, verifying: true));
+                if (!MatchesHash(path, hash)) throw new InvalidDataException("Component SHA256 mismatch");
             }
             ct.ThrowIfCancellationRequested();
         }

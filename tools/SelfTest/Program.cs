@@ -1281,6 +1281,14 @@ static partial class SelfTest
             Console.WriteLine($"RESULT PASS={pass} FAIL={fail}");
             return fail == 0 ? 0 : 1;
         }
+        if (args.Length == 1 && args[0] == "ocr-download")
+        {
+            _ = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
+            Fluent.ApplyGlobalStyles();
+            OcrDownloadChecks();
+            Console.WriteLine($"RESULT PASS={pass} FAIL={fail}");
+            return fail == 0 ? 0 : 1;
+        }
         if (args.Length == 1 && args[0] == "behaviors")
         {
             var behaviorApp = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
