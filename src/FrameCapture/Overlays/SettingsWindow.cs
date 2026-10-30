@@ -140,6 +140,7 @@ public sealed partial class SettingsWindow : Window
         NavigateSettings(initial, false);
         Theme.Changed += OnPaletteChanged;
         Theme.Changing += OnPaletteChanging;
+        PreviewMouseDown += OnSettingsBackgroundMouseDown;
         Closed += (_, _) => { Theme.Changed -= OnPaletteChanged; Theme.Changing -= OnPaletteChanging; };
         PreviewKeyDown += (_, e) =>
         {

@@ -29,6 +29,7 @@ public sealed partial class SettingsWindow
         icon.VerticalAlignment = VerticalAlignment.Center; grid.Children.Add(icon);
         var field = new Grid(); Grid.SetColumn(field, 1); grid.Children.Add(field);
         _settingsSearchBox = new TextBox { Background = Brushes.Transparent, Foreground = Theme.TextBrush,
+            CaretBrush = Theme.TextBrush, SelectionBrush = Theme.AccentBrush, SelectionOpacity = 0.3, SelectionTextBrush = Theme.TextBrush,
             BorderThickness = new Thickness(0), FontSize = 12, Padding = new Thickness(0, 3, 0, 3), VerticalContentAlignment = VerticalAlignment.Center };
         InputMethod.SetIsInputMethodEnabled(_settingsSearchBox, true);
         System.Windows.Automation.AutomationProperties.SetName(_settingsSearchBox, Loc.T(K.SettingsNavigation.Search));
@@ -42,6 +43,10 @@ public sealed partial class SettingsWindow
         var frame = new Border { Child = grid, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(8),
             Padding = new Thickness(9, 5, 6, 5), Margin = new Thickness(0, 20, 0, 0), Tag = "settings-search-field" };
         var showTextActions = WireSettingsSearchMotion(frame, icon, placeholder, clearHost);
+        frame.PreviewMouseLeftButtonDown += (_, e) =>
+        {
+            if (!SettingsInputContains(clear, e.OriginalSource as DependencyObject)) _settingsSearchBox.Focus();
+        };
         clear.Click += (_, _) => { _settingsSearchBox.Clear(); _settingsSearchBox.Focus(); };
         void ReleaseSearchKeys()
         { if (_settingsSearchPaused is bool paused) { _settingsSearchPaused = null; HotkeyManager.Paused = paused; } }

@@ -184,6 +184,10 @@ public static partial class Fluent
     /// <returns>可直接赋给 <c>ContextMenu.Resources</c> 的字典；每次调用重新解析，返回新实例。</returns>
     public static ResourceDictionary MenuResources()
     {
+        string enterDuration = TimeSpan.FromMilliseconds(Motion.EnterMs).ToString("c", System.Globalization.CultureInfo.InvariantCulture);
+        string quickDuration = TimeSpan.FromMilliseconds(Motion.QuickMs).ToString("c", System.Globalization.CultureInfo.InvariantCulture);
+        string hoverDuration = TimeSpan.FromMilliseconds(Motion.HoverMs).ToString("c", System.Globalization.CultureInfo.InvariantCulture);
+        string exitDuration = TimeSpan.FromMilliseconds(Motion.ExitMs).ToString("c", System.Globalization.CultureInfo.InvariantCulture);
         string xaml = $"""
             <ResourceDictionary
                 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
@@ -200,8 +204,8 @@ public static partial class Fluent
                            BackEase 过冲(>1.0)与投影会被窗缘裁掉，Q 弹弹到一半被切；留白后完整。
                            只留右下（缩放原点 0,0，过冲只向右下扩），卡片仍贴鼠标点，不留缝。 -->
                       <Border Padding="0,0,24,24">
-                        <Border x:Name="bd" CornerRadius="8" Background="{Hex(Theme.CardBg)}"
-                                BorderBrush="{Hex(Theme.Stroke)}" BorderThickness="1" Padding="3,4,3,4" MinWidth="176"
+                        <Border x:Name="bd" CornerRadius="10" Background="{Hex(Theme.CardBg)}"
+                                BorderBrush="{Hex(Theme.Stroke)}" BorderThickness="1" Padding="4" MinWidth="176"
                                 RenderTransformOrigin="0,0" Opacity="0" HorizontalAlignment="Left" VerticalAlignment="Top">
                           <Border.RenderTransform><ScaleTransform ScaleX="0.92" ScaleY="0.92"/></Border.RenderTransform>
                           <Border.Effect><DropShadowEffect BlurRadius="16" ShadowDepth="4" Opacity="{(Theme.IsDark ? 0.4 : 0.15):0.00}"/></Border.Effect>
@@ -210,11 +214,11 @@ public static partial class Fluent
                             <EventTrigger RoutedEvent="FrameworkElement.Loaded">
                               <BeginStoryboard><Storyboard>
                                 <DoubleAnimation Storyboard.TargetName="bd" Storyboard.TargetProperty="Opacity"
-                                                 To="1" Duration="0:0:0.11"><DoubleAnimation.EasingFunction><CubicEase EasingMode="EaseOut"/></DoubleAnimation.EasingFunction></DoubleAnimation>
+                                                 To="1" Duration="{quickDuration}"><DoubleAnimation.EasingFunction><CubicEase EasingMode="EaseOut"/></DoubleAnimation.EasingFunction></DoubleAnimation>
                                 <DoubleAnimation Storyboard.TargetName="bd" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)"
-                                                 To="1" Duration="0:0:0.2"><DoubleAnimation.EasingFunction><BackEase Amplitude="0.45" EasingMode="EaseOut"/></DoubleAnimation.EasingFunction></DoubleAnimation>
+                                                 To="1" Duration="{enterDuration}"><DoubleAnimation.EasingFunction><BackEase Amplitude="0.45" EasingMode="EaseOut"/></DoubleAnimation.EasingFunction></DoubleAnimation>
                                 <DoubleAnimation Storyboard.TargetName="bd" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)"
-                                                 To="1" Duration="0:0:0.2"><DoubleAnimation.EasingFunction><BackEase Amplitude="0.45" EasingMode="EaseOut"/></DoubleAnimation.EasingFunction></DoubleAnimation>
+                                                 To="1" Duration="{enterDuration}"><DoubleAnimation.EasingFunction><BackEase Amplitude="0.45" EasingMode="EaseOut"/></DoubleAnimation.EasingFunction></DoubleAnimation>
                               </Storyboard></BeginStoryboard>
                             </EventTrigger>
                           </Border.Triggers>
@@ -236,28 +240,34 @@ public static partial class Fluent
               <Style TargetType="MenuItem">
                 <Setter Property="FontFamily" Value="Segoe UI, Microsoft YaHei UI"/>
                 <Setter Property="OverridesDefaultStyle" Value="True"/>
-                <Setter Property="FontSize" Value="12"/>
+                <Setter Property="FontSize" Value="12.5"/>
+                <Setter Property="Foreground" Value="{Hex(Theme.Text)}"/>
                 <Setter Property="Template">
                   <Setter.Value>
                     <ControlTemplate TargetType="MenuItem">
-                      <Grid><Border x:Name="bd" CornerRadius="5" Background="Transparent">
-                        <Grid Height="27">
+                      <Grid><Border x:Name="bd" CornerRadius="6">
+                        <Border.Background><SolidColorBrush Color="Transparent"/></Border.Background>
+                        <Grid Height="30">
                           <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="24"/>
+                            <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="Auto"/>
                           </Grid.ColumnDefinitions>
-                          <TextBlock x:Name="chk" Grid.Column="0" Text="" FontFamily="Segoe Fluent Icons"
-                                     FontSize="11" HorizontalAlignment="Center" VerticalAlignment="Center"
-                                     Foreground="{Hex(Theme.Accent)}"/>
-                          <ContentPresenter Grid.Column="1" ContentSource="Header" VerticalAlignment="Center" Margin="0,0,14,0"/><TextBlock Grid.Column="2" Text="&#123;TemplateBinding InputGestureText&#125;" FontSize="11" Foreground="{Hex(Theme.TextDim)}" VerticalAlignment="Center" Margin="0,0,10,0"/><TextBlock x:Name="arrow" Grid.Column="3" Text="&#xE76C;" FontFamily="Segoe Fluent Icons" FontSize="10" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,10,0" Foreground="{Hex(Theme.Text)}" Visibility="Collapsed"/>
+                          <Grid x:Name="leading" Grid.Column="0" Width="16" Margin="9,0,8,0">
+                            <ContentPresenter x:Name="icon" ContentSource="Icon" VerticalAlignment="Center" HorizontalAlignment="Center"/>
+                            <TextBlock x:Name="chk" Text="" FontFamily="Segoe Fluent Icons"
+                                       FontSize="12" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{Hex(Theme.Accent)}"/>
+                          </Grid>
+                          <ContentPresenter x:Name="header" Grid.Column="1" ContentSource="Header" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                          <TextBlock x:Name="gesture" Grid.Column="2" Text="&#123;TemplateBinding InputGestureText&#125;" FontSize="11" Foreground="{Hex(Theme.TextDim)}" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                          <TextBlock x:Name="arrow" Grid.Column="3" Text="&#xE76C;" FontFamily="Segoe Fluent Icons" FontSize="10" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,10,0" Foreground="{Hex(Theme.Text)}" Visibility="Collapsed"/>
                         </Grid>
                       </Border>
                       <Popup x:Name="PART_Popup" AllowsTransparency="True" Focusable="False" Placement="Right"
                              HorizontalOffset="-4" PopupAnimation="Fade">
-                        <Border CornerRadius="8" Background="{Hex(Theme.CardBg)}" BorderBrush="{Hex(Theme.Stroke)}"
-                                BorderThickness="1" Padding="3,4,3,4" Margin="0,0,10,10">
+                        <Border CornerRadius="10" Background="{Hex(Theme.CardBg)}" BorderBrush="{Hex(Theme.Stroke)}"
+                                BorderThickness="1" Padding="4" Margin="0,0,10,10">
                           <Border.Effect><DropShadowEffect BlurRadius="16" ShadowDepth="4" Opacity="{(Theme.IsDark ? 0.4 : 0.15):0.00}"/></Border.Effect>
                           <ItemsPresenter/>
                         </Border>
@@ -265,10 +275,30 @@ public static partial class Fluent
                       </Grid>
                       <ControlTemplate.Triggers>
                         <Trigger Property="IsHighlighted" Value="True">
-                          <Setter TargetName="bd" Property="Background" Value="{Hex(Theme.Hover)}"/>
+                          <Trigger.EnterActions><BeginStoryboard><Storyboard>
+                            <ColorAnimation Storyboard.TargetName="bd" Storyboard.TargetProperty="(Border.Background).(SolidColorBrush.Color)" To="{Hex(Theme.Hover)}" Duration="{hoverDuration}"/>
+                          </Storyboard></BeginStoryboard></Trigger.EnterActions>
+                          <Trigger.ExitActions><BeginStoryboard><Storyboard>
+                            <ColorAnimation Storyboard.TargetName="bd" Storyboard.TargetProperty="(Border.Background).(SolidColorBrush.Color)" To="Transparent" Duration="{exitDuration}"/>
+                          </Storyboard></BeginStoryboard></Trigger.ExitActions>
                         </Trigger>
+                        <Trigger Property="Icon" Value="&#123;x:Null&#125;">
+                          <Setter TargetName="leading" Property="Visibility" Value="Collapsed"/>
+                          <Setter TargetName="header" Property="Margin" Value="10,0,12,0"/>
+                        </Trigger>
+                        <Trigger Property="IsCheckable" Value="True">
+                          <Setter TargetName="leading" Property="Visibility" Value="Visible"/>
+                          <Setter TargetName="header" Property="Margin" Value="0,0,12,0"/>
+                        </Trigger>
+                        <Trigger Property="InputGestureText" Value="">
+                          <Setter TargetName="gesture" Property="Visibility" Value="Collapsed"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False"><Setter TargetName="bd" Property="Opacity" Value="0.45"/></Trigger>
                         <Trigger Property="IsChecked" Value="True">
-                          <Setter TargetName="chk" Property="Text" Value="&#xE73E;"/></Trigger><Trigger Property="Role" Value="SubmenuHeader"><Setter TargetName="arrow" Property="Visibility" Value="Visible"/>
+                          <Setter TargetName="leading" Property="Visibility" Value="Visible"/>
+                          <Setter TargetName="header" Property="Margin" Value="0,0,12,0"/>
+                          <Setter TargetName="icon" Property="Visibility" Value="Collapsed"/>
+                          <Setter TargetName="chk" Property="Text" Value="&#xE73E;"/></Trigger><Trigger Property="HasItems" Value="True"><Setter TargetName="arrow" Property="Visibility" Value="Visible"/>
                         </Trigger>
                       </ControlTemplate.Triggers>
                     </ControlTemplate>

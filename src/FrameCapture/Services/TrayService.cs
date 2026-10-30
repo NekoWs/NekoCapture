@@ -124,7 +124,7 @@ public sealed partial class TrayService : IDisposable
     }
 
     /// <summary>
-    /// 在鼠标处弹出托盘菜单，菜单项按当前捕获与自启状态重建。
+    /// 在鼠标处弹出捕获、设置与退出菜单。
     /// 同一时刻只保留一份菜单与其锚窗：再次右键会先关掉上一份。
     /// </summary>
     public void ShowMenu()
@@ -134,24 +134,24 @@ public sealed partial class TrayService : IDisposable
         var menu = new ContextMenu { Resources = _menuResources ??= Fluent.MenuResources(), StaysOpen = false };
         _menu = menu;
 
-        void Item(string text, Action act)
+        void Item(string text, string glyph, Action act)
         {
-            var mi = new MenuItem { Header = text };
+            var mi = new MenuItem { Header = text, Icon = Fluent.Glyph(glyph, 15, Theme.TextDimBrush) };
             mi.Click += (_, _) => { menu.IsOpen = false; act(); };
             menu.Items.Add(mi);
         }
         void Sep() => menu.Items.Add(new Separator());
 
-        Item(Loc.T(K.Tray.CaptureNow), () => _host.Controller.CaptureStoredStill());
-        Item(Loc.T(K.Common.ScrollingCapture), () => _host.Controller.BeginScrollCapture());
-        Item(Loc.T(K.Common.DelayedCapture), () => _host.Controller.BeginDelayedCapture());
-        Item(Loc.T(K.Tray.PinFromClipboard), async () =>
+        Item(Loc.T(K.Tray.CaptureNow), "\uE7A8", () => _host.Controller.CaptureStoredStill());
+        Item(Loc.T(K.Common.ScrollingCapture), "\uE8CB", () => _host.Controller.BeginScrollCapture());
+        Item(Loc.T(K.Common.DelayedCapture), "\uE823", () => _host.Controller.BeginDelayedCapture());
+        Item(Loc.T(K.Tray.PinFromClipboard), "\uE718", async () =>
         {
             if (!await _host.Controller.PinFromClipboardAsync()) Notify(Loc.T(K.Tray.NoImageOnTheClipboard));
         });
         Sep();
-        Item(Loc.T(K.Common.Settings), OpenSettings);
-        Item(Loc.T(K.Tray.Exit), () =>
+        Item(Loc.T(K.Common.Settings), "\uE713", OpenSettings);
+        Item(Loc.T(K.Tray.Exit), "\uE8BB", () =>
         {
             ResidentBridge.RetireHost(); Dispose(); System.Windows.Application.Current?.Shutdown();
         });
