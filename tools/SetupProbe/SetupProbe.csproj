@@ -27,6 +27,7 @@
 
   <ItemGroup>
     <Compile Include="Program.cs" />
+    <Compile Include="BackupLockChecks.cs" />
     <Compile Include="CodecChecks.cs" />
     <Compile Include="..\..\src\FrameCapture\Encoding\ComponentInstaller.cs" />
     <Compile Include="..\..\src\FrameCapture\Encoding\ComponentDownloader.cs" />

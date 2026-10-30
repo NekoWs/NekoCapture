@@ -37,6 +37,12 @@ internal static partial class InstallEngine
     /// <summary>本次要装到 / 要从哪里卸掉的目录。用户在安装界面里换过位置就是换过的那个。</summary>
     internal static string InstallDir { get; set; } = DefaultInstallDir;
 
+    /// <summary>最近一次安装失败的异常，供恢复界面解释原因。</summary>
+    internal static Exception? LastFailure { get; private set; }
+
+    /// <summary>释放继承的安装目录句柄，避免工作目录阻止备份与删除。</summary>
+    internal static void ReleaseWorkingDirectory() => Directory.SetCurrentDirectory(Path.GetTempPath());
+
     /// <summary>卸载时定位程序目录：以登记项里写下的 InstallLocation 为准——装在哪由用户定，
     /// 只有登记知道。读不到（登记被手工删过、老包没写）才按默认目录处理。</summary>
     /// <returns>登记过的目录，取不到时为 <see cref="DefaultInstallDir"/>。</returns>
@@ -205,6 +211,7 @@ internal static partial class InstallEngine
     /// <returns>true = 安装并登记成功。</returns>
     internal static bool Install(IProgress<string> log)
     {
+        LastFailure = null;
         string? backup = null;
         bool created = false;
         var registration = CaptureRegistration();
@@ -213,6 +220,7 @@ internal static partial class InstallEngine
             if (!TryTarget(InstallDir, out var target, out var why)) throw new IOException(why);
             InstallDir = target;
             if (InstalledVersion is { } installed && installed > PackageVersion) throw new InvalidOperationException(Core.Loc.T(Core.K.Setup.NewerInstalled));
+            ReleaseWorkingDirectory();
             log.Report("正在结束运行中的主程序");
             KillApp();
 
@@ -221,6 +229,7 @@ internal static partial class InstallEngine
                 log.Report("正在备份已装版本");
                 try { backup = BackupAside(InstallDir); }
                 catch (Exception ex) { throw new InvalidOperationException("备份 " + InstallDir + " 失败：" + ex.Message, ex); }
+                log.Report("Backup: " + backup);
             }
 
             log.Report("正在释放文件");
@@ -257,40 +266,31 @@ internal static partial class InstallEngine
         }
         catch (Exception ex)
         {
-            log.Report("失败：" + ex.Message);
-            // 新装没成功就把原样搬回去，用户至少还有上一个可用版本
+            LastFailure = ex;
+            log.Report(ex.ToString());
+            // 只在新目录已创建时删除它，备份失败不触碰源目录。
             try
             {
                 if (created) TryDeleteDir(InstallDir);
                 if (backup != null) RestoreBackup(backup, InstallDir);
                 RestoreRegistration(registration);
             }
-            catch { /* 回滚失败已无更优解，日志里已留下失败原因 */ }
+            catch (Exception rollback) { log.Report("Rollback failed: " + rollback); }
             return false;
         }
     }
 
-    /// <summary>把已装版本整目录挪去备份，返回备份位置。</summary>
+    /// <summary>将已装版本同级重命名为备份；失败时保留源目录。</summary>
     /// <param name="installDir">程序目录。</param>
     /// <returns>备份目录。</returns>
-    /// <remarks>备份优先落在程序目录的同级：只有同一卷才谈得上「移动」，
-    /// 把 D:\FrameCapture 移到系统盘的临时目录，<see cref="Directory.Move"/> 直接抛
-    /// 「源路径和目标路径必须具有相同的根」。跨卷只能复制再删，而删除窗口里只要有一个文件
-    /// 被占用，原版本就停在半删状态，所以同级能写就一定用同级。</remarks>
+    /// <remarks>备份不采用复制后删除，避免目录占用时留下部分删除的安装。</remarks>
     private static string BackupAside(string installDir)
     {
         var name = "FrameCapture.backup-" + Guid.NewGuid().ToString("N");
         var parent = Path.GetDirectoryName(
             installDir.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
-        if (!string.IsNullOrEmpty(parent) && Directory.Exists(parent))
-        {
-            try { return MoveAside(installDir, Path.Combine(parent, name)); }
-            catch (Exception) { /* 同级不让写：盘根 ACL 收紧、目录在只读介质上，退回临时目录 */ }
-        }
-        var temp = Path.Combine(Path.GetTempPath(), name);
-        CopyTree(installDir, temp);
-        DeleteWithRetry(installDir);
-        return temp;
+        if (string.IsNullOrEmpty(parent) || !Directory.Exists(parent)) throw new IOException("Installation parent not found");
+        return MoveAside(installDir, Path.Combine(parent, name));
     }
 
     /// <summary>把备份放回原位。</summary>
@@ -315,7 +315,11 @@ internal static partial class InstallEngine
     /// <returns>目标目录，便于调用处一行拿到落点。</returns>
     private static string MoveAside(string src, string dst)
     {
-        Directory.Move(src, dst);
+        for (int attempt = 0; ; attempt++)
+        {
+            try { Directory.Move(src, dst); break; }
+            catch (IOException ex) when (attempt < 6 && (ex.HResult & 0xffff) is 32 or 33) { Thread.Sleep(250); }
+        }
         return dst;
     }
 
@@ -338,17 +342,6 @@ internal static partial class InstallEngine
             CopyTree(d, Path.Combine(to, Path.GetFileName(d)));
     }
 
-    /// <summary>删目录，被占用时重试：主程序刚被结束，文件句柄常常还挂着几百毫秒。</summary>
-    /// <param name="dir">目标目录。</param>
-    private static void DeleteWithRetry(string dir)
-    {
-        for (var i = 0; ; i++)
-        {
-            try { Directory.Delete(dir, true); return; }
-            catch (Exception) when (i < 6) { Thread.Sleep(300); }
-        }
-    }
-
     /// <summary>执行卸载。调用方负责提权，且需从临时副本运行以删掉自己那份。</summary>
     /// <param name="log">进度与结果文本。</param>
     /// <returns>true = 程序目录、快捷方式、开机自启、个人设置与登记项都已清除。</returns>
@@ -358,6 +351,7 @@ internal static partial class InstallEngine
         {
             // 装在哪由用户定，只有登记知道：先按登记定位，再动手删
             InstallDir = RecordedInstallDir();
+            ReleaseWorkingDirectory();
 
             log.Report("正在结束运行中的主程序");
             KillApp();

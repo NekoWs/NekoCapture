@@ -16,6 +16,20 @@ internal static class Preview
     internal static void Render(string path, SetupWindow.Mode mode)
     {
         var w = new SetupWindow(mode);
+        RenderWindow(path, w);
+    }
+
+    /// <summary>离屏渲染目录占用时的升级恢复界面，不执行安装。</summary>
+    /// <param name="path">输出 PNG 路径。</param>
+    internal static void RenderFailure(string path)
+    {
+        var error = new IOException("Installation directory is in use", unchecked((int)0x80070020));
+        var window = new UpdateFailureWindow(error, Path.Combine(Path.GetTempPath(), "FrameCapture", "setup.log"), () => error);
+        RenderWindow(path, window);
+    }
+
+    private static void RenderWindow(string path, Window w)
+    {
         var width = (int)w.Width;
         var content = (FrameworkElement)w.Content;
         // 窗口高度由内容决定（SizeToContent），这里按同样的方式量一次：

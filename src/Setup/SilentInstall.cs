@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.IO;
+using System.Windows;
 using FrameCapture.Core;
 
 namespace FrameCapture.Setup;
@@ -16,6 +17,25 @@ internal static class SilentInstall
         string logPath = Path.Combine(Path.GetTempPath(), "FrameCapture", "setup.log");
         Directory.CreateDirectory(Path.GetDirectoryName(logPath)!);
         var log = new LogProgress(logPath);
+        Exception? failure = Attempt(log);
+        bool installed = failure == null;
+        if (!installed)
+        {
+            var app = new Application { ShutdownMode = ShutdownMode.OnMainWindowClose };
+            Fluent.ApplyGlobalStyles();
+            Theme.Apply(ThemeMode(), "#4CC2FF");
+            var window = new UpdateFailureWindow(failure!, logPath, () => Attempt(log));
+            app.Run(window);
+            installed = window.Completed;
+        }
+        if (args.Contains("--restart")) LaunchApp(args.Contains("--restart-elevated"));
+        return installed ? 0 : 1;
+    }
+
+    private static Exception? Attempt(LogProgress log)
+    {
+        log.Report("Setup " + InstallEngine.PackageVersion + " cwd=" + Environment.CurrentDirectory
+            + " target=" + InstallEngine.InstallDir);
         try
         {
             if (!InstallEngine.TryTarget(InstallEngine.InstallDir, out var target, out var why)) throw new IOException(why);
@@ -32,12 +52,20 @@ internal static class SilentInstall
                 }
                 finally { try { File.Delete(runtime); } catch { } }
             }
-            bool installed = InstallEngine.Install(log);
-            if (args.Contains("--restart")) LaunchApp(args.Contains("--restart-elevated"));
-            if (!installed) System.Windows.MessageBox.Show(Loc.T(K.Setup.Failed), "FrameCapture");
-            return installed ? 0 : 1;
+            return InstallEngine.Install(log) ? null : InstallEngine.LastFailure ?? new IOException("Installation failed");
         }
-        catch (Exception ex) { log.Report(ex.ToString()); return 1; }
+        catch (Exception ex) { log.Report(ex.ToString()); return ex; }
+    }
+
+    private static string ThemeMode()
+    {
+        try
+        {
+            using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(
+                @"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize");
+            return key?.GetValue("AppsUseLightTheme") is int value && value != 0 ? "light" : "dark";
+        }
+        catch { return "dark"; }
     }
 
     private static void LaunchApp(bool elevated)

@@ -41,18 +41,19 @@ internal static class App
         string? requestedDir = ValueAfter(args, ArgDir);
         if (requestedDir != null)
         {
-            if (!InstallEngine.TryTarget(requestedDir, out var requested, out var why))
+            if (Array.IndexOf(args, "--silent") >= 0) InstallEngine.InstallDir = requestedDir;
+            else if (!InstallEngine.TryTarget(requestedDir, out var requested, out var why))
             {
                 Environment.ExitCode = 1;
                 if (Array.IndexOf(args, "--silent") < 0) MessageBox.Show(why, "FrameCapture");
                 return;
             }
-            InstallEngine.InstallDir = requested;
+            else InstallEngine.InstallDir = requested;
         }
         if (Array.IndexOf(args, "--silent") >= 0)
         {
             Environment.ExitCode = SilentInstall.Run(args);
-            if (Elevated) SilentInstall.ScheduleCleanup();
+            if (Elevated && Environment.ExitCode == 0) SilentInstall.ScheduleCleanup();
             return;
         }
 
@@ -65,6 +66,7 @@ internal static class App
 
         if (args.Length >= 2 && args[0] == "--preview")
         {
+            if (args.Length >= 3 && args[2] == "failed") { Preview.RenderFailure(args[1]); return; }
             // 出图核对界面：建窗但不显示，取内容离屏渲染。
             // 不显示就不会走 ContentRendered 里的自动动作，核对卸载界面不必真的去要管理员权限。
             var mode = args.Length >= 3 && args[2] == "uninstall"

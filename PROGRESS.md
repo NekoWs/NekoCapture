@@ -1,12 +1,13 @@
 ﻿# 当前状态
 
-源代码版本：0.9.29。契约见 [docs/PLAN-ORTHOGONAL-CHAINS.md](docs/PLAN-ORTHOGONAL-CHAINS.md)，发布见 [docs/RELEASE.md](docs/RELEASE.md)。
+源代码版本：0.9.30。契约见 [docs/PLAN-ORTHOGONAL-CHAINS.md](docs/PLAN-ORTHOGONAL-CHAINS.md)，发布见 [docs/RELEASE.md](docs/RELEASE.md)。
 
 - GitHub Release 工作流按版本标签构建、签名并发布，附件完整后才公开；签名密钥由仓库 Secret 提供。
 - 系统页控制自动检查；关于页展示产品信息、GPL 许可、源码链接和手动检查。
 - 手动检查在页面内显示进度与结果，更新操作就地展开；启动提示及离开页面后的下载使用右下角浮窗。
 - 更新优先 GitHub，失败、停滞或过慢时切换公共镜像；清单签名与安装包哈希共同校验。
 - 静默升级等待后台任务并预留交接；权限不足时请求 UAC，取消或失败后恢复操作。
+- 安装器释放工作目录后同级备份；失败保留安装包，恢复窗口提供重试、文件位置与日志。
 - 配置结构版本为 1；安装器调用独立工具迁移并备份，主程序仅接收当前结构。
 - 原生组件常驻托盘与全局手势，WPF 服务预热保留；空闲保存产物并释放大图缓存，超过预算时重建服务。
 - 录制后端启停与帧仓收尾在后台串行执行；启动期间可停止，产物就绪后继续动作与事件分支。
@@ -43,6 +44,6 @@
 - 图版本为 1，动作链导入版本为 3；写回前保留输入备份，文件占用时有限重试。
 - 运行使用配置快照；无效入口不装入手势引擎。物理与测试输入隔离，时间戳使用统一单调时间轴。
 
-交互、UAC 与真实安装验证由用户进行。构建结果见 `test-out/about-updates-build.log`，隔离配置迁移见 `test-out/updates-config-contract.log`。
+交互、UAC 与真实安装验证由用户进行。构建结果见 `test-out/update-recovery-build.log`，目录占用与备份检查见 `test-out/update-recovery-probe.log`，隔离配置迁移见 `test-out/updates-config-contract.log`。
 剪贴板超时隔离的定向结果见 `test-out/async-clipboard-probe/result.log`。
 人工交互清单见 [UIAUDIT.md](UIAUDIT.md)。

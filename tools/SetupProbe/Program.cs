@@ -95,6 +95,7 @@ internal static partial class Program
             long none = InstallEngine.FreeBytes(@"\\no-such-host\share");
             Report(ref fail, free > 0 && none == -1, "剩余空间可查，查不到的卷按不拦",
                 "本卷 " + (free >> 20) + " MB，坏路径 " + none);
+            BackupLockChecks(app, ref fail);
             CodecChecks(root, ref fail);
         }
         finally

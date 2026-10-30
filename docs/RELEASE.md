@@ -21,7 +21,7 @@ Get-Content -Raw .release-keys/release.private.pem | gh secret set UPDATE_SIGNIN
 
 ```powershell
 git push origin HEAD:main
-git push origin v0.9.29
+git push origin v0.9.30
 ```
 
 `Release` 工作流使用 Windows、.NET 8 与 .NET 10，校验标签和产品版本一致，构建解决方案、检查隔离配置迁移并打包。
@@ -34,6 +34,8 @@ Actions 页也可手动运行，标签取当前产品版本。
 系统页提供自动检查开关，关于页提供手动检查。自动检查在同一次常驻会话中仅执行一次，默认开启。
 手动检查立即显示进度，结果与更新操作在关于页内展示；并发检查共享请求，启动提示使用右下角浮窗。
 关于页可接管正在下载的进度，离开后在右下角继续显示。
+安装前释放工作目录，备份使用同级重命名；目录占用时保留源文件。
+安装失败显示恢复窗口，保留安装包，提供重试、安装包位置和日志。
 更新与下载依次尝试 GitHub、GH-Proxy 和 GHFast；连接超时、停滞或速度过低时切换来源。
 清单使用 RSA-SHA256 签名，安装包验证签名清单中的 SHA256 与长度；镜像不能修改版本与安装包。
 

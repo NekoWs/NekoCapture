@@ -11,7 +11,7 @@
 # 规则：Directory.Move 只允许出现在 MoveAside 与 RestoreBackup 两个方法里——
 #       前者只被同卷分支调用，后者自己先判 SameVolume。别处要挪目录，走这两个入口。
 #       已知文件夹先取进局部变量、判过空，再进 Path.Combine。
-# 跨卷只能复制再删，那是 CopyTree + DeleteWithRetry 的活，不是 Move 的活。
+# 安装备份只做同级重命名；跨卷恢复使用 CopyTree 并保留源。
 #
 # 用法: pwsh -NoProfile -File scripts/lint-setup-paths.ps1 [-Quiet]
 param(

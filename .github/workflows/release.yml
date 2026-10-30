@@ -67,6 +67,10 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw '构建失败' }
       - name: Check isolated configuration upgrade
         run: ./scripts/check-config-upgrade.ps1 -Upgrader src/ConfigUpgrade/bin/x64/Debug/net8.0-windows10.0.19041.0/FrameCapture.ConfigUpgrade.exe
+      - name: Check isolated installer backup
+        run: |
+          & tools/SetupProbe/bin/Debug/net48/SetupProbe.exe
+          if ($LASTEXITCODE -ne 0) { throw '安装备份检查失败' }
       - name: Package
         run: ./scripts/publish-release.ps1 -Flavor fd -SkipVerify -NoRestart -OutDir release/github
       - name: Sign update manifest

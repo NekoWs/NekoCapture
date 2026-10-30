@@ -16,7 +16,16 @@ public static partial class K
         public static readonly Str Existing = new("setup.existing", "已安装 {0}，升级到 {1}", "Version {0} installed. Upgrade to {1}");
         public static readonly Str Completed = new("setup.completed", "升级完成", "Upgrade complete");
         public static readonly Str Migrating = new("setup.migrating", "正在升级配置", "Upgrading settings");
-        public static readonly Str Failed = new("setup.failed", "升级未完成，请重新运行安装包", "Upgrade did not finish. Run the installer again.");
+        public static readonly Str Failed = new("setup.failed", "升级未完成", "Upgrade did not finish");
+        public static readonly Str RecoveryHint = new("setup.recoveryHint", "可以重试升级，或查看日志了解原因。", "Retry the upgrade, or view the log for details.");
+        public static readonly Str FilesInUse = new("setup.filesInUse", "程序目录被占用，请关闭占用它的窗口或程序后重试。", "The app folder is in use. Close the windows or programs using it, then retry.");
+        public static readonly Str RetryUpgrade = new("setup.retryUpgrade", "重试升级", "Retry upgrade");
+        public static readonly Str Retrying = new("setup.retrying", "正在重试升级…", "Retrying upgrade…");
+        public static readonly Str InstallerFile = new("setup.installerFile", "安装包", "Installer");
+        public static readonly Str LogFile = new("setup.logFile", "安装日志", "Installation log");
+        public static readonly Str OpenInstallerFolder = new("setup.openInstallerFolder", "打开安装包位置", "Show installer");
+        public static readonly Str ViewLog = new("setup.viewLog", "查看日志", "View log");
+        public static readonly Str OpenFileFailed = new("setup.openFileFailed", "无法打开，请使用上方文件路径。", "Unable to open. Use the file path above.");
         public static readonly Str NewerInstalled = new("setup.newerInstalled", "已安装更新的版本", "A newer version is installed");
         public static readonly Str UninstallTitle = new("setup.uninstallTitle", "卸载 FrameCapture", "Uninstall FrameCapture");
         public static readonly Str Uninstall = new("setup.uninstall", "卸载", "Uninstall");

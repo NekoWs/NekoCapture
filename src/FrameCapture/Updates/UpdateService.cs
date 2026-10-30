@@ -103,7 +103,7 @@ internal sealed partial class UpdateService : IDisposable
             cancellation.Token.ThrowIfCancellationRequested();
             Publish(UpdateStage.Installing);
             _toast?.SetWaiting(true);
-            var start = new ProcessStartInfo(installer) { UseShellExecute = true };
+            var start = new ProcessStartInfo(installer) { UseShellExecute = true, WorkingDirectory = Path.GetDirectoryName(installer)! };
             if (!StartupService.IsElevated) start.Verb = "runas";
             start.Arguments = "--silent --restart --dir \"" + AppContext.BaseDirectory.TrimEnd('\\')
                 + "\" --settings \"" + SettingsService.FilePath + "\" --language " + (Loc.IsEnglish ? "en" : "zh")
@@ -112,6 +112,10 @@ internal sealed partial class UpdateService : IDisposable
             await process.WaitForExitAsync(cancellation.Token);
             if (process.ExitCode != 0) throw new IOException("Installer exit code " + process.ExitCode);
             CloseToast();
+        }
+        catch (System.ComponentModel.Win32Exception ex) when (ex.NativeErrorCode == 1223)
+        {
+            Publish(UpdateStage.Cancelled); CloseToast();
         }
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
         {
@@ -126,8 +130,9 @@ internal sealed partial class UpdateService : IDisposable
             _download = null; Changed?.Invoke();
             if (reserved) _controller.ReleaseUpdate();
             foreach (var item in disabled) item.Window.IsEnabled = item.Enabled;
+            bool retainInstaller = Stage == UpdateStage.Failed && verifiedInstaller != null;
             verifiedInstaller?.Dispose();
-            if (installer != null)
+            if (installer != null && !retainInstaller)
                 try { await BackgroundWork.Run(() => { File.Delete(installer); Directory.Delete(Path.GetDirectoryName(installer)!); return true; }); } catch { }
         }
     }
