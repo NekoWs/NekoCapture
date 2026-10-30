@@ -1,5 +1,6 @@
 $ErrorActionPreference = "Continue"
 $root = "D:\Backup\Capture\tools\elev"
+New-Item -ItemType Directory -Force -Path "$root\queue", "$root\results" | Out-Null
 $pidFile = "$root\elevator.pid"
 $log = "$root\elevator.log"
 Set-Content -Path $pidFile -Value $PID
