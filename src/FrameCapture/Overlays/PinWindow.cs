@@ -37,6 +37,7 @@ public sealed class PinWindow : Window
     DispatcherTimer? _snackTimer;
     DispatcherTimer? _refreshTimer; // 「更新内容」的 200ms 延迟定时器，关窗时要停掉
     bool _closed;                   // 窗口已关闭：在途的刷新 Tick 不得再 Show()
+    bool _ocrBusy;
     // 贴图显示时是否抢焦点。默认 true（编辑器 Ctrl+P / 剪贴板贴图，用户正盯着它）；
     // 「截图后=贴图」传 false——贴图静默出现不抢焦点，符合"钉住参考后继续原应用操作"意图，点击时才激活。
     readonly bool _activateOnShow;
@@ -477,23 +478,25 @@ public sealed class PinWindow : Window
         return list;
     }
 
-    /// <summary>识别贴图里的印刷文字（Windows 内置 OCR）→ 写剪贴板；开「识别后显示结果窗」则弹结果窗，
-    /// 否则贴图内浮层提示。无语言包/无文字等优雅降级，浮层给出原因。</summary>
+    /// <summary>识别贴图文字，在原图上选字或直接复制全文；失败时在贴图内提示。</summary>
     async void OcrFrame()
     {
+        if (_ocrBusy) return;
+        _ocrBusy = true;
         using var activity = BackgroundWork.Hold();
         Flash(Core.Loc.T(K.Common.RecognizeText2));
         try
         {
-            var outcome = await Core.OcrService.RecognizeAsync(_frame);
+            bool preview = Core.SettingsService.Shared?.Current.OcrShowResult == true;
+            var outcome = await Core.OcrService.RecognizeAsync(_frame, preview);
+            if (!IsVisible) return;
             if (outcome.Status == Core.OcrStatus.Success)
             {
                 var text = Core.OcrService.Normalize(outcome.Text);
-                // 预览优先：开结果窗时以「预览选取」为主，不自动写剪贴板；关结果窗才走快速复制路径。
-                if (Core.SettingsService.Shared?.Current.OcrShowResult == true)
+                if (preview)
                 {
                     HideSnack();
-                    OcrResultWindow.Show(text);
+                    OcrResultWindow.Show(outcome);
                 }
                 else
                 {
@@ -513,6 +516,7 @@ public sealed class PinWindow : Window
             Core.Trace.Log($"pin ocr failed: {ex.Message}");
             Flash(Core.Loc.T(K.Common.RecognitionFailed));
         }
+        finally { _ocrBusy = false; }
     }
 
     /// <summary>贴图内浮层提示：淡入、停留 ~1.6s、淡出。重复调用会重置计时与文案。</summary>

@@ -113,7 +113,7 @@ public sealed partial class EditorWindow : Window
         _snackTimer.Stop();
         _snackTimer.Start();
     }
-    /// <summary>识别当前帧文字（Windows 内置 OCR）→ 纯文本写剪贴板 → 轻提示。
+    /// <summary>识别当前帧，在原图上选字或按设置直接复制全文。
     /// 后台任务持有只读帧直到识别完成；关窗后跳过界面反馈。</summary>
     async void OcrCurrentFrame()
     {
@@ -124,16 +124,15 @@ public sealed partial class EditorWindow : Window
         try
         {
             var frame = Cur();
-            var outcome = await OcrService.RecognizeAsync(frame);
+            bool preview = _settings.Current.OcrShowResult;
+            var outcome = await OcrService.RecognizeAsync(frame, preview);
             if (_userClosed) return; // 识别期间关窗：跳过提示
             switch (outcome.Status)
             {
                 case OcrStatus.Success:
                     var text = OcrService.Normalize(outcome.Text);
-                    // 预览优先：开结果窗时以「预览选取」为主，不自动写剪贴板（要哪段选哪段 / 点复制全部）；
-                    // 关结果窗才走快速路径——直接复制 + 轻提示。
-                    if (_settings.Current.OcrShowResult)
-                        OcrResultWindow.Show(text);
+                    if (preview)
+                        OcrResultWindow.Show(outcome);
                     else
                     {
                         if (!await ClipboardService.SetTextAsync(text)) { ShowSnack(Loc.T(K.Common.ClipboardUnavailable)); break; }

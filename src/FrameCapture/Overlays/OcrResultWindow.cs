@@ -3,148 +3,123 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using FrameCapture.Core;
+using FrameCapture.Encoding;
 
 namespace FrameCapture.Overlays;
 
-/// <summary>OCR 结果预览窗（可选，设置「识别后显示结果窗」开启时弹出）。
-/// 显示识别文本（可编辑、可部分选中复制），底部「复制全部」+ 字数统计。
-/// 非模态——编辑器仍可继续操作；Esc / 关闭钮淡出关闭。</summary>
+/// <summary>在原图上选择识别文字，按选区或全文复制；消息模式显示识别反馈。</summary>
 public sealed class OcrResultWindow : Window
 {
-    /// <summary>弹出识别结果窗（非模态）：新建一窗、显示并激活；不阻塞调用方。</summary>
-    /// <param name="text">识别文本，原样进可编辑框（用户可编辑、部分选中复制）。</param>
-    public static void Show(string text)
+    readonly OcrImageView? _view;
+
+    /// <summary>打开非模态原图选字窗口。</summary>
+    /// <param name="result">带原图和文字坐标的成功识别结果。</param>
+    public static void Show(OcrOutcome result)
     {
-        var w = new OcrResultWindow(text);
-        w.Show();
-        w.Activate();
+        if (result.Image == null || result.Lines.Count == 0) { ShowMessage(Loc.T(K.Capture.NoTextRecognized)); return; }
+        var window = new OcrResultWindow(result, null);
+        window.Show(); window.Activate();
     }
 
-    /// <summary>消息模式：无结果窗可展示时（未识别到文字 / 未装语言包 / 已复制轻确认）用同一窗体给一句可读反馈。
-    /// 与结果窗共用外壳与淡入淡出，保证「识别文字」功能只有一个可截图审查的反馈面。</summary>
-    /// <param name="msg">消息文本，居中一句展示，无编辑框与复制钮。</param>
-    public static void ShowMessage(string msg)
+    /// <summary>打开识别反馈消息。</summary>
+    /// <param name="message">待显示的短句。</param>
+    public static void ShowMessage(string message)
     {
-        var w = new OcrResultWindow(msg, message: true);
-        w.Show();
-        w.Activate();
+        var window = new OcrResultWindow(null, message);
+        window.Show(); window.Activate();
     }
 
-    OcrResultWindow(string text, bool message = false)
+    OcrResultWindow(OcrOutcome? result, string? message)
     {
-        WindowStyle = WindowStyle.None;
-        ResizeMode = ResizeMode.NoResize;
-        AllowsTransparency = true;
-        Background = Brushes.Transparent;
-        ShowInTaskbar = false;
-        Topmost = true;
-        Title = "FrameCapture OCR";
-        Width = message ? 400 : 500;
-        Height = message ? 210 : 460;
+        WindowStyle = WindowStyle.None; AllowsTransparency = true; Background = Brushes.Transparent;
+        ShowInTaskbar = false; Topmost = true; Title = "FrameCapture OCR";
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
-
-        var root = new Border
-        {
-            CornerRadius = new CornerRadius(12),
-            Background = Theme.WindowBgSolidBrush,
-            BorderBrush = Theme.StrokeBrush,
-            BorderThickness = new Thickness(1),
-            Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 24, ShadowDepth = 2, Opacity = 0.5 },
-        };
-        var dock = new DockPanel { LastChildFill = true };
-
+        ResizeMode = result == null ? ResizeMode.NoResize : ResizeMode.CanResizeWithGrip;
+        var area = SystemParameters.WorkArea;
+        Width = result == null ? 400 : Math.Min(Math.Clamp(result.Value.Image!.PixelWidth + 30, 620, 1040), area.Width * 0.85);
+        double fit = result == null ? 1 : Math.Min(1, (Width - 30) / result.Value.Image!.PixelWidth);
+        Height = result == null ? 210 : Math.Min(Math.Clamp(result.Value.Image!.PixelHeight * fit + 100, 340, 760), area.Height * 0.85);
+        if (result != null) { MinWidth = Math.Min(560, Width); MinHeight = Math.Min(340, Height); }
+        var root = new Border { CornerRadius = new CornerRadius(12), Background = Theme.WindowBgSolidBrush,
+            BorderBrush = Theme.StrokeBrush, BorderThickness = new Thickness(1) };
+        var dock = new DockPanel();
         var (bar, close) = Fluent.TitleBar("\uE8C1", Loc.T(K.Common.RecognizeText), Loc.T(K.Common.Close));
         close.Click += (_, _) => Fluent.CloseWithFade(this);
-        DockPanel.SetDock(bar, Dock.Top);
-        dock.Children.Add(bar);
-
-        if (message)
+        DockPanel.SetDock(bar, Dock.Top); dock.Children.Add(bar);
+        if (result is { } document)
         {
-            // 消息模式：居中一句提示，无编辑框/字数/复制钮。
-            dock.Children.Add(new TextBlock
-            {
-                Text = text,
-                FontSize = 14,
-                Foreground = Theme.TextBrush,
-                FontFamily = new FontFamily("Segoe UI"),
-                TextWrapping = TextWrapping.Wrap,
-                TextAlignment = TextAlignment.Center,
-                HorizontalAlignment = HorizontalAlignment.Center,
-                VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(28, 10, 28, 18),
-            });
-            root.Child = dock;
-            Content = root;
-            Fluent.InstallCaptionDrag(this, close);
-            KeyDown += (_, e) => { if (e.Key == Key.Escape) Fluent.CloseWithFade(this); };
-            Fluent.PopupEnter(this);
-            return;
+            _view = new OcrImageView(document);
+            BuildImageContent(dock, document);
         }
-
-        // 底部：字数（左）+ 复制全部（右）
-        var bottom = new Grid { Margin = new Thickness(14, 6, 14, 12) };
-        bottom.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        bottom.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        var count = new TextBlock
-        {
-            Text = Loc.F(K.Capture.Characters, text.Length),
-            FontSize = 12,
-            Foreground = Theme.TextDimBrush,
-            VerticalAlignment = VerticalAlignment.Center,
-        };
-        bottom.Children.Add(count);
-
-        var copyBox = new Border
-        {
-            CornerRadius = new CornerRadius(6),
-            Background = Theme.AccentBrush,
-            Padding = new Thickness(14, 6, 14, 6),
-            Cursor = Cursors.Hand,
-            VerticalAlignment = VerticalAlignment.Center,
-        };
-        var copyLabel = new TextBlock
-        {
-            Text = Loc.T(K.Capture.CopyAll),
-            FontSize = 13,
-            Foreground = new SolidColorBrush(Fluent.OnAccentColor(Theme.Accent)),
-            HorizontalAlignment = HorizontalAlignment.Center,
-        };
-        copyBox.Child = copyLabel;
-        Fluent.ChipHover(copyBox);   // 悬停只改底色带过渡（与全站按钮同款）
-        Grid.SetColumn(copyBox, 1);
-        bottom.Children.Add(copyBox);
-        DockPanel.SetDock(bottom, Dock.Bottom);
-        dock.Children.Add(bottom);
-
-        var box = new TextBox
-        {
-            Text = text,
-            AcceptsReturn = true,
-            TextWrapping = TextWrapping.Wrap,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            Background = Theme.PanelBgSolidBrush,
-            Foreground = Theme.TextBrush,
-            CaretBrush = Theme.TextBrush,
-            BorderThickness = new Thickness(1),
-            BorderBrush = Theme.StrokeBrush,
-            FontSize = 13,
-            Padding = new Thickness(10, 8, 6, 8),
-            Margin = new Thickness(14, 10, 14, 4),
-        };
-        dock.Children.Add(box); // 填充剩余空间
-
-        root.Child = dock;
-        Content = root;
+        else dock.Children.Add(new TextBlock { Text = message, FontSize = 14, Foreground = Theme.TextBrush,
+            TextWrapping = TextWrapping.Wrap, TextAlignment = TextAlignment.Center, Margin = new Thickness(28, 10, 28, 18),
+            HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center });
+        root.Child = dock; Content = root;
         Fluent.InstallCaptionDrag(this, close);
-        KeyDown += (_, e) => { if (e.Key == Key.Escape) Fluent.CloseWithFade(this); };
+        KeyDown += (_, e) => { if (e.Key == Key.Escape) { e.Handled = true; Fluent.CloseWithFade(this); } };
+        Fluent.PopupEnter(this);
+    }
 
-        copyBox.MouseLeftButtonUp += async (_, _) =>
+    void BuildImageContent(DockPanel dock, OcrOutcome document)
+    {
+        var view = _view!;
+        var scroll = new ScrollViewer { Content = view, HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Background = Theme.PanelBgSolidBrush,
+            CanContentScroll = false, Margin = new Thickness(14, 0, 14, 6) };
+        var footer = new DockPanel { Margin = new Thickness(14, 6, 14, 14), LastChildFill = true };
+        var commands = new StackPanel { Orientation = Orientation.Horizontal };
+        var copy = Fluent.RoundButton(Loc.T(K.Capture.CopySelection), Theme.Accent, Fluent.OnAccentColor(Theme.Accent), 12, true);
+        copy.IsEnabled = false; copy.Opacity = 0.45; copy.Margin = new Thickness(0, 0, 8, 0);
+        var all = Fluent.RoundButton(Loc.T(K.Capture.CopyAll), Theme.CardBg, Theme.Text, 12, true);
+        commands.Children.Add(copy); commands.Children.Add(all);
+        DockPanel.SetDock(commands, Dock.Right); footer.Children.Add(commands);
+        var zoom = new ComboBox { MinWidth = 88, Margin = new Thickness(0, 0, 12, 0), VerticalAlignment = VerticalAlignment.Center };
+        Fluent.StyleCombo(zoom);
+        zoom.Items.Add(new ComboBoxItem { Content = Loc.T(K.Capture.FitImage), Tag = 0.0 });
+        foreach (double value in new[] { 1.0, 1.5, 2.0, 3.0 })
+            zoom.Items.Add(new ComboBoxItem { Content = value.ToString("P0"), Tag = value });
+        DockPanel.SetDock(zoom, Dock.Left); footer.Children.Add(zoom);
+        var status = new TextBlock { Text = Loc.T(K.Capture.SelectTextOnImage), Foreground = Theme.TextDimBrush,
+            FontSize = 12, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis };
+        footer.Children.Add(status); DockPanel.SetDock(footer, Dock.Bottom); dock.Children.Add(footer);
+        dock.Children.Add(scroll);
+        copy.Click += async (_, _) => await Copy(view.SelectedText);
+        all.Click += async (_, _) => await Copy(document.Text);
+        void RefreshZoom()
         {
-            bool copied = await Encoding.ClipboardService.SetTextAsync(box.Text);
-            if (IsVisible) copyLabel.Text = Loc.T(copied ? K.Common.Copied : K.Common.ClipboardUnavailable);
+            if (zoom.SelectedItem is not ComboBoxItem { Tag: double scale }) return;
+            view.Zoom = scale > 0 ? scale : Math.Min(1, Math.Min(Math.Max(1, scroll.ViewportWidth - 2) / document.Image!.PixelWidth,
+                Math.Max(1, scroll.ViewportHeight - 2) / document.Image.PixelHeight));
+        }
+        zoom.SelectionChanged += (_, _) => RefreshZoom();
+        scroll.SizeChanged += (_, _) => RefreshZoom();
+        view.SelectionChanged += () =>
+        {
+            copy.IsEnabled = view.SelectedText.Length > 0;
+            copy.Opacity = copy.IsEnabled ? 1 : 0.45;
+            status.Text = copy.IsEnabled ? Loc.F(K.Capture.SelectedCharacters, view.SelectedText.Length) : Loc.T(K.Capture.SelectTextOnImage);
         };
-        Loaded += (_, _) => { box.Focus(); box.SelectAll(); box.ScrollToHome(); };
-        Fluent.PopupEnter(this);   // 入场淡入（与退场 CloseWithFade 对称；分层窗=淡入，同 HelpWindow）
+        async Task Copy(string text)
+        {
+            if (text.Length == 0) return;
+            bool copied = await ClipboardService.SetTextAsync(text);
+            if (IsVisible) status.Text = Loc.T(copied ? K.Common.Copied : K.Common.ClipboardUnavailable);
+        }
+        PreviewKeyDown += async (_, e) =>
+        {
+            if ((Keyboard.Modifiers & ModifierKeys.Control) == 0 || e.Key != Key.C) return;
+            e.Handled = true; await Copy(view.SelectedText);
+        };
+        var menu = new ContextMenu { Background = Theme.PanelBgSolidBrush, Foreground = Theme.TextBrush };
+        var menuCopy = new MenuItem { Header = Loc.T(K.Capture.CopySelection) };
+        menuCopy.Click += async (_, _) => await Copy(view.SelectedText);
+        var menuAll = new MenuItem { Header = Loc.T(K.Capture.CopyAll) };
+        menuAll.Click += async (_, _) => await Copy(document.Text);
+        var selectAll = new MenuItem { Header = Loc.T(K.Common.SelectAll) };
+        selectAll.Click += (_, _) => view.SelectAll();
+        menu.Items.Add(menuCopy); menu.Items.Add(menuAll); menu.Items.Add(new Separator()); menu.Items.Add(selectAll);
+        menu.Opened += (_, _) => menuCopy.IsEnabled = view.SelectedText.Length > 0;
+        view.ContextMenu = menu;
+        Loaded += (_, _) => { zoom.SelectedIndex = 0; RefreshZoom(); view.Focus(); };
     }
 }

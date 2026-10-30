@@ -229,10 +229,7 @@ public static partial class K
             "Turn the text in an image into real text.");
         public static readonly Str PrevArrow = new("help.prevArrow", "← 上一页", "← Previous");
         public static readonly Str UsageGuide = new("help.usageGuide", "使用指南", "Usage Guide");
-        public static readonly Str UsesTheBuiltInWindows = new(
-            "help.usesTheBuiltInWindows",
-            "用 Windows 内置 OCR，离线可用；关「显示结果窗」则直接全文进剪贴板。",
-            "Uses the built-in Windows OCR and works offline; turn off Show result window and everything goes to the clipboard.");
+        public static readonly Str UsesTheBuiltInWindows = new("help.usesTheBuiltInWindows", "离线识别，在原图上拖选文字；关闭「OCR 选字预览」则直接复制全文。", "Recognize offline and select text on the image; turn off OCR text selection to copy all text directly.");
         public static readonly Str WatchTrimAnnotateCopy = new(
             "help.watchTrimAnnotateCopy",
             "看、剪、标、复制。",

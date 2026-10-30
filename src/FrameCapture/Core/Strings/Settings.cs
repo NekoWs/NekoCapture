@@ -19,7 +19,7 @@ public static partial class K
             "快闪：确认一下就走",
             "A quick flash: confirms it, then gone");
         public static readonly Str AfterACaptureOnTop = new("settings.afterACaptureOnTop", "另存本地副本。截图为 PNG，录制按所选格式保存；视频编码在后台完成", "Save a local copy: PNG for screenshots, the selected format for recordings. Video encodes in the background.");
-        public static readonly Str AfterASuccessfulRecognition = new("settings.afterASuccessfulRecognition", "开启时预览并选择复制；关闭时直接复制全文", "Preview and copy selected text, or turn off to copy all text directly.");
+        public static readonly Str AfterASuccessfulRecognition = new("settings.afterASuccessfulRecognition", "在原图上选字复制；关闭后直接复制全文", "Select text on the image; turn off to copy all text directly.");
         public static readonly Str AfterStartupANoticeAppears = new("settings.afterStartupANoticeAppears", "启动时显示通知；关闭后静默进入托盘", "Show a startup notice; turn off for a quiet tray startup.");
         public static readonly Str AfterTheSelectionHotkey = new("settings.afterTheSelectionHotkey", "显示上次选区，可按确认键复用", "Show the last region; confirm to reuse it.");
         public static readonly Str AfterTheTraySDelayed = new("settings.afterTheTraySDelayed", "延时截图的倒计时时长", "Countdown before a delayed capture");
@@ -210,7 +210,7 @@ public static partial class K
             "显示上次选区",
             "Show the last selection");
         public static readonly Str ShowTheRegionBorderWhile = new("settings.showTheRegionBorderWhile", "录制范围边框", "Recording outline");
-        public static readonly Str ShowTheResultWindowAfter = new("settings.showTheResultWindowAfter", "OCR 结果预览", "OCR preview");
+        public static readonly Str ShowTheResultWindowAfter = new("settings.showTheResultWindowAfter", "OCR 选字预览", "OCR text selection");
         /// <summary>「可调整选区」标题（默认关闭）。</summary>
         public static readonly Str EditableSelection = new("settings.editableSelection", "可调整选区", "Adjustable selection");
 

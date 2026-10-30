@@ -9,6 +9,10 @@ public static partial class K
     /// <summary>捕获过程与各种浮窗的文案。</summary>
     public static partial class Capture
     {
+        public static readonly Str CopySelection = new("capture.copySelection", "复制所选", "Copy selection");
+        public static readonly Str FitImage = new("capture.fitImage", "适合窗口", "Fit to window");
+        public static readonly Str SelectTextOnImage = new("capture.selectTextOnImage", "在图片上拖选文字", "Drag over text to select");
+        public static readonly Str SelectedCharacters = new("capture.selectedCharacters", "已选 {0} 字", "{0} characters selected");
         public static readonly Str RecordReady = new("capture.recordReady", "准备录制", "Ready to record");
         public static readonly Str RecordActive = new("capture.recordActive", "正在录制", "Recording in progress");
         public static readonly Str RecordStartKey = new("capture.recordStartKey", "开始录制 · {0}", "Start recording · {0}");
@@ -41,7 +45,6 @@ public static partial class K
             "capture.bottomOfTheContentReached",
             "已到内容底部，点「完成」出图",
             "Bottom of the content reached — choose Done to stitch");
-        public static readonly Str Characters = new("capture.characters", "{0} 字", "{0} characters");
         public static readonly Str Copied = new("capture.copied", "已复制 ", "Copied ");
 
         public static readonly Str CopyAll = new("capture.copyAll", "复制全部", "Copy all");
@@ -58,10 +61,7 @@ public static partial class K
             "FrameCapture 已就绪",
             "FrameCapture is ready");
         public static readonly Str FullScreen = new("capture.fullScreen", "全屏", "Full screen");
-        public static readonly Str NoOcrLanguagePack = new(
-            "capture.noOcrLanguagePack",
-            "未安装 OCR 语言包，请到 设置 › 时间和语言 › 语音 添加",
-            "No OCR language pack is installed — add one in Settings › Time & Language › Speech");
+        public static readonly Str NoOcrLanguagePack = new("capture.noOcrLanguagePack", "未安装 OCR 语言包，请在 Windows 语言选项中添加文字识别", "No OCR language pack. Add optical character recognition in Windows language options.");
         public static readonly Str NoTextRecognized = new("capture.noTextRecognized", "未识别到文字", "No text recognized");
         public static readonly Str RecognizedCharactersCopied = new(
             "capture.recognizedCharactersCopied",

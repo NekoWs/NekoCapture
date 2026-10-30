@@ -78,14 +78,15 @@ public sealed partial class CaptureController : IDisposable
         if (f == null) { Trace.Log("ocr-still: grab null"); return false; }
         try
         {
-            var outcome = await OcrService.RecognizeAsync(f);
+            bool preview = _settings.Current.OcrShowResult;
+            var outcome = await OcrService.RecognizeAsync(f, preview);
             var text = OcrService.Normalize(outcome.Text);
             if (_disposed || _updateReserved) return false;
             if (context != null) context.Text = text;
-            switch (OcrService.Route(outcome.Status, _settings.Current.OcrShowResult))
+            switch (OcrService.Route(outcome.Status, preview))
             {
                 case OcrRoute.ResultWindow:
-                    OcrResultWindow.Show(text);
+                    OcrResultWindow.Show(outcome);
                     Trace.Log($"ocr-still ok {text.Length}");
                     break;
                 case OcrRoute.CopyThenConfirm:

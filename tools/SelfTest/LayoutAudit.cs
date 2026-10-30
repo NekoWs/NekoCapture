@@ -76,7 +76,6 @@ static partial class SelfTest
             // 用户自己起的长绑定名：折叠行里名字与键帽、开关、垃圾桶抢同一行宽度
             case "settings-longname": BuildSettingsAudit(app, rows, "settings-longname", 0, forceW: 680, forceH: 460,
                 bindingName: LongBindingName); break;
-            // OCR 正文位于 TextBox，TextBlock 探针不覆盖正文中的长 URL。
                 case "help": BuildHelpAudit(rows); break;
                 case "editor": BuildEditorAudit(app, rows, 3); break;
                 case "editor-still": BuildEditorAudit(app, rows, 1); break;
@@ -294,11 +293,11 @@ static partial class SelfTest
         return n;
     }
 
-    /// <summary>OCR 结果窗的两种形态：可编辑结果与单条消息。</summary>
+    /// <summary>OCR 结果窗的原图选字与单条消息。</summary>
     static void BuildOcrAudit(Application app, List<string> rows, bool message)
     {
         if (message) OcrResultWindow.ShowMessage(Loc.T(K.Capture.NoOcrLanguagePack));
-        else OcrResultWindow.Show("识别结果示例\nLine of english text for width probing\n第三行混排 text");
+        else OcrResultWindow.Show(OcrPreviewFixture());
         var w = LastWindow(app);
         if (w == null) { rows.Add("UXA|ocr|建窗失败|没拿到窗口"); return; }
         PumpMs(250);

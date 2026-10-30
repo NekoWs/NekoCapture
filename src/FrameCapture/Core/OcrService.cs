@@ -1,6 +1,4 @@
-using System.Runtime.InteropServices.WindowsRuntime;
 using Windows.Globalization;
-using Windows.Graphics.Imaging;
 using Windows.Media.Ocr;
 using FrameCapture.Capture;
 using K = FrameCapture.Core.K;
@@ -10,22 +8,16 @@ namespace FrameCapture.Core;
 /// <summary>一次 OCR 的结局。NoEngine=系统里没有任何可用识别语言包；Empty=引擎跑了但没提出文字。</summary>
 public enum OcrStatus { Success, NoEngine, Empty }
 
-/// <summary>OCR 结果：状态 + 识别文本（Success 时有效）。</summary>
-/// <param name="Status">识别结局。</param>
-/// <param name="Text">识别文本；非 Success 时为空串。已 Trim，未做行归一（那是 <see cref="OcrService.Normalize"/> 的活）。</param>
-/// <returns>不可变结果值；Success 与 Empty 由 <see cref="OcrService.Classify"/> 按文本是否全空白判定。</returns>
-public readonly record struct OcrOutcome(OcrStatus Status, string Text);
-
 /// <summary>OCR 结果的用户可见路由（纯决策，供单测）。编辑器与「手势/范围 OCR」共用，保证两处一致：
 /// ResultWindow=开结果窗；CopyThenConfirm=直接复制并轻确认；NoEngineHint/EmptyHint=对应提示。</summary>
 public enum OcrRoute { ResultWindow, CopyThenConfirm, NoEngineHint, EmptyHint }
 
 /// <summary>
-/// Windows 内置 OCR（Windows.Media.Ocr，无需联网/第三方）。引擎优先用户配置文件语言，
-/// 回退到任一已装识别语言；都没有则 NoEngine（调用方提示装语言包，绝不抛）。
+/// Windows 内置 OCR 离线识别，优先使用用户语言；纯英文行由已安装的英文引擎复核。
+/// 小字增强、图像分块与识别位置统一在后台生成；无可用语言时返回 NoEngine。
 /// 引擎创建、像素复制与识别均在后台执行；传入帧的像素在任务完成前保持只读。
 /// </summary>
-public static class OcrService
+public static partial class OcrService
 {
     /// <summary>是否存在可用识别引擎（任一语言）。编辑器可据此提前置灰按钮。</summary>
     public static bool EngineAvailable => GetEngine() is not null;
@@ -96,28 +88,14 @@ public static class OcrService
         return sb.ToString().Trim('\n');
     }
 
-    /// <summary>识别一帧的印刷文字。Bgra8 帧直接拷入 SoftwareBitmap（无 PNG 往返）。
-    /// 引擎内部异常一律吞成 Empty，调用方只需按状态走 <see cref="Route"/>。</summary>
+    /// <summary>后台识别印刷文字，保留原图和文字位置；小字放大，超限图分块串行处理。</summary>
     /// <param name="frame">待识别帧，须为 Bgra8 且 W/H 有效；任务完成前不得改写像素。</param>
+    /// <param name="includeImage">是否为选字预览保留原图；直接复制时可关闭。</param>
     /// <returns>识别结果；无引擎为 NoEngine，识别失败或无文字为 Empty，成功为 Success（文本已 Trim）。</returns>
-    public static async Task<OcrOutcome> RecognizeAsync(CapturedFrame frame)
+    public static async Task<OcrOutcome> RecognizeAsync(CapturedFrame frame, bool includeImage = true)
     {
         using var activity = Services.BackgroundWork.Hold();
-        return await Task.Run(() => RecognizeCoreAsync(frame)).ConfigureAwait(false);
+        return await Task.Run(() => RecognizeCoreAsync(frame, includeImage)).ConfigureAwait(false);
     }
 
-    private static async Task<OcrOutcome> RecognizeCoreAsync(CapturedFrame frame)
-    {
-        var eng = GetEngine();
-        if (eng is null) return new(OcrStatus.NoEngine, "");
-        try
-        {
-            using var bmp = SoftwareBitmap.CreateCopyFromBuffer(
-                frame.Bgra.AsBuffer(), BitmapPixelFormat.Bgra8, frame.W, frame.H);
-            var res = await eng.RecognizeAsync(bmp);
-            string text = (res.Text ?? "").Trim();
-            return new(Classify(text), text);
-        }
-        catch { return new(OcrStatus.Empty, ""); }
-    }
 }
