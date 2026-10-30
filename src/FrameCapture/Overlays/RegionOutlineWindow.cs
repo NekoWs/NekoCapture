@@ -9,22 +9,15 @@ using K = FrameCapture.Core.K;
 namespace FrameCapture.Overlays;
 
 /// <summary>
-/// 捕获范围轮廓：点击穿透、不抢焦点、**不进屏幕捕获**。
-///
-/// 两种用法：
-/// - 选区确认反馈 / 常显（<c>AlwaysShowRegionOutline</c>）：Flash + FadeAway；
-/// - 录制中范围指示（<c>ShowCaptureScope</c>）：录制期间常亮，松开后淡出。
-///
-/// 之所以必须"不进捕获"：Windows 11 的系统捕获提示边框（#FFD11C）由 WGC 按"被捕获对象"绘制，
-/// 而 WGC 只能整显示器捕获，于是它永远绕整个屏幕、与我们选的范围无关。关掉它
-/// （<c>IGraphicsCaptureSession3.IsBorderRequired=false</c>）之后，范围提示就由本窗按真实区域画；
-/// 因为 WGC/GDI 都是整屏抓，本窗只要在录制期间上屏就必须被排除，否则会被录进产物。
+/// 捕获范围轮廓：点击穿透、不抢焦点，描边位于捕获范围外。
+/// 范围与 REC 徽标始终通过 WDA 排除，不受捕获软件自身的设置影响；
+/// 排除失败时保持隐藏，测试取证开关除外。
 /// </summary>
 public sealed class RegionOutlineWindow : Window
 {
     private readonly Border _border;
-    private readonly System.Windows.Threading.DispatcherTimer _flashTimer;
     private bool _captureExcluded;
+    private bool _borderVisible = true;
 
     // REC 徽标：按住超过点按阈值才出现——"还在按 = 正在录"一眼看懂，附实时时长
     private readonly Border _recBadge;
@@ -56,6 +49,8 @@ public sealed class RegionOutlineWindow : Window
             BorderBrush = new SolidColorBrush(AccentCol(0xC0)),
             BorderThickness = new Thickness(Stroke),
             Background = Brushes.Transparent,
+            UseLayoutRounding = false,
+            SnapsToDevicePixels = true,
         };
 
         _recDot = new System.Windows.Shapes.Ellipse
@@ -97,21 +92,11 @@ public sealed class RegionOutlineWindow : Window
         { Interval = TimeSpan.FromMilliseconds(100) };
         _recTimer.Tick += (_, _) => UpdateRecText();
 
-        _flashTimer = new System.Windows.Threading.DispatcherTimer
-        { Interval = TimeSpan.FromMilliseconds(600) };
-        _flashTimer.Tick += (_, _) =>
-        {
-            _flashTimer.Stop();
-            _border.BorderBrush = new SolidColorBrush(AccentCol(0x60));
-            _border.BorderThickness = new Thickness(Stroke);
-        };
-
         // 先把 HWND 建好（此刻还未上屏），再打上"不进捕获"，避免第一帧被录进去
         new System.Windows.Interop.WindowInteropHelper(this).EnsureHandle();
         EnsureExcludedFromCapture();
 
-        // WPF 布局会用 DIP 覆写 SetWindowPos 的物理定位（实测 681→454）：位置一变就钉回去，
-        // guard 防自激，最终稳定在物理坐标。
+        // WPF 使用 DIP，原生位置使用物理像素；位置变化后同步两套坐标。
         LocationChanged += (_, _) =>
         {
             if (_placeGuard || _region.W <= 0) return;
@@ -135,42 +120,37 @@ public sealed class RegionOutlineWindow : Window
         // 物理像素窗口：直接用 SetWindowPos 精确定位
         Place(region);
         if (IsLoaded) Place(region);
-        Dispatcher.BeginInvoke(() => Place(region));
+        Dispatcher.BeginInvoke(() => Place(_region));
     }
 
     /// <summary>显示并复位到常态（用于录制期间的常亮范围指示）。</summary>
     public void ShowNoActivate()
     {
+        if (!EnsureExcludedFromCapture() && !TestShowInCapture)
+        {
+            HideSilently();
+            return;
+        }
         _fadeTimer?.Stop();
         BeginAnimation(OpacityProperty, null);
         Opacity = 1;
         ResetBorder();
         if (!IsVisible) Show();
-        // WPF 的 Show/布局会用 Left/Top(DIP) 覆写我们 SetWindowPos 的物理定位（实测 681→454=÷1.5，
-        // 逐帧抓到：录制轮廓整体偏左上）。Show 之后重新按物理像素钉死，再兜一拍防布局回写。
+        // 显示后的布局同步物理位置，延迟回写始终读取当前区域。
         Place(_region);
         Dispatcher.BeginInvoke(() => Place(_region));
-        EnsureExcludedFromCapture();
     }
 
     /// <summary>
     /// 让本窗不出现在屏幕捕获里（BitBlt 与 WGC 都排除）。幂等：已排除过直接返回 true。
     /// </summary>
-    /// <returns>true = 已排除；false = 取证开关打开（故意让轮廓可被截到）、HWND 尚未就绪，
-    /// 或系统不支持（Win10 1803 以下）/ 权限不足。返回 false 时本窗一旦上屏就会被录进捕获产物。</returns>
+    /// <returns>true 表示已排除；false 表示取证开关打开、句柄未就绪或系统调用失败。</returns>
     public bool EnsureExcludedFromCapture()
     {
         if (_captureExcluded) return true;
         if (TestShowInCapture) return false; // 仅取证：让轮廓能被截到，便于人工核对位置
         var hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
         if (hwnd == IntPtr.Zero) return false;
-        // 允许「截到自己」时这一层要留在产物里：它正是用户想录下来的那个界面元素
-        if (Core.Fluent.CaptureSelfAllowed)
-        {
-            _captureExcluded = true;
-            Core.Trace.Log("outline: shown in capture by setting");
-            return true;
-        }
         if (!Win32.SetWindowDisplayAffinity(hwnd, Win32.WDA_EXCLUDEFROMCAPTURE))
         {
             Core.Trace.Log("outline: SetWindowDisplayAffinity failed err="
@@ -192,7 +172,7 @@ public sealed class RegionOutlineWindow : Window
         _border.BeginAnimation(Border.BorderThicknessProperty, null);
         if (_border.BorderBrush is SolidColorBrush sb) sb.BeginAnimation(SolidColorBrush.ColorProperty, null);
         _border.BorderBrush = new SolidColorBrush(AccentCol(0xC0));
-        _border.BorderThickness = new Thickness(Stroke);
+        UpdateStroke();
     }
 
     static Color AccentCol(byte a)
@@ -257,10 +237,11 @@ public sealed class RegionOutlineWindow : Window
     }
 
     /// <summary>边框显隐：免按住录制且用户关了「录制边框」时，窗口只挂 REC 徽标不画框。</summary>
-    /// <param name="visible">false = 描边宽度置 0（窗口与 REC 徽标仍在，只是不画框）；true = 恢复 2px 描边。</param>
+    /// <param name="visible">是否绘制两物理像素的描边；不影响 REC 徽标。</param>
     public void SetBorderVisible(bool visible)
     {
-        _border.BorderThickness = new Thickness(visible ? 2 : 0);
+        _borderVisible = visible;
+        UpdateStroke();
     }
 
     void UpdateRecText()
@@ -293,23 +274,29 @@ public sealed class RegionOutlineWindow : Window
         _fadeTimer.Start();
     }
 
-    /// <summary>一次强调：描边瞬时加亮到 alpha 0xFF / 3px，随后 450ms cubic-out 回落到淡色常态（0x60 / 2px）。</summary>
-    /// <remarks>淡色常态由本动画落到；下一次 <see cref="ShowNoActivate"/> 会经 ResetBorder 复位到 0xC0 / 2px。</remarks>
+    /// <summary>描边瞬时加亮，按强调动效时长回落到淡色常态；宽度始终保持两物理像素。</summary>
     public void Flash()
     {
         // 亮起后按 FlashMs 单向往落到常态，cubic-out 中途不分档，避免看到"跳一下"
-        _flashTimer.Stop();
         var b = new SolidColorBrush(AccentCol(0xFF));
         _border.BorderBrush = b;
-        _border.BorderThickness = new Thickness(3);
+        UpdateStroke();
         var ca = new System.Windows.Media.Animation.ColorAnimation(AccentCol(0x60),
             new Duration(TimeSpan.FromMilliseconds(Core.Fluent.Motion.FlashMs)))
         { EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut } };
         b.BeginAnimation(SolidColorBrush.ColorProperty, ca);
-        var ta = new System.Windows.Media.Animation.ThicknessAnimation(new Thickness(Stroke),
-            new Duration(TimeSpan.FromMilliseconds(Core.Fluent.Motion.FlashMs)))
-        { EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut } };
-        _border.BeginAnimation(Border.BorderThicknessProperty, ta);
+    }
+
+    private static Thickness StrokeThickness(DpiScale dpi) =>
+        new(Stroke / dpi.DpiScaleX, Stroke / dpi.DpiScaleY, Stroke / dpi.DpiScaleX, Stroke / dpi.DpiScaleY);
+
+    private void UpdateStroke() =>
+        _border.BorderThickness = _borderVisible ? StrokeThickness(VisualTreeHelper.GetDpi(this)) : new Thickness(0);
+
+    protected override void OnDpiChanged(DpiScale oldDpi, DpiScale newDpi)
+    {
+        base.OnDpiChanged(oldDpi, newDpi);
+        UpdateStroke();
     }
 
     /// <summary>描边窗口要盖住的物理矩形：比捕获范围四周各外扩一个描边宽度。
@@ -322,14 +309,11 @@ public sealed class RegionOutlineWindow : Window
     {
         var hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
         if (hwnd == IntPtr.Zero) return;
-        // 描边画在捕获范围**外面**：窗口铺满 region 时 2px 的边框会压在最外圈像素上，
-        // 截图/录制的产物边缘就被自己的边框吃掉一圈。把窗口四周各外扩描边宽度，
-        // 边框恰好落在范围外，范围里的像素一个都不碰。
         var outer = OuterRect(region);
         Win32.SetWindowPos(hwnd, Win32.HWND_TOPMOST, outer.X, outer.Y, outer.W, outer.H,
-            Win32.SWP_NOACTIVATE | Win32.SWP_SHOWWINDOW);
-        // 上屏后 WPF 布局会用 Left/Top/Width/Height(DIP) 回写窗口位置（实测把 681 覆写成 454=÷1.5）。
-        // 把同一物理矩形换算成 DIP 同步给 WPF，令它的回写变成幂等，两套坐标收敛到同一个物理矩形。
+            Win32.SWP_NOACTIVATE);
+        UpdateStroke();
+        // 定位不改变显隐；原生位置与 WPF 布局共享同一物理矩形。
         if (IsLoaded && !_syncing)
         {
             _syncing = true;

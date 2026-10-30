@@ -11,6 +11,7 @@
 - 配置结构版本为 1；安装器调用独立工具迁移并备份，主程序仅接收当前结构。
 - 原生组件常驻托盘与全局手势，WPF 服务预热保留；空闲保存产物并释放大图缓存，超过预算时重建服务。
 - 录制后端启停与帧仓收尾在后台串行执行；启动期间可停止，产物就绪后继续动作与事件分支。
+- 范围轮廓与 REC 徽标始终排除于捕获；描边按物理像素保持在区域外，定位不改变显隐。
 - 滚动取帧和拼接不重叠，完成等待在途步进；取消与重启丢弃过期结果。
 - 延时取帧、OCR、恢复静图、编辑器首帧及贴图准备异步执行；后台任务保持界面进程存活。
 - 选区配置异步保存，文件操作不持有内存设置锁；较早快照不能覆盖较新的设置。
@@ -44,6 +45,7 @@
 - 图版本为 1，动作链导入版本为 3；写回前保留输入备份，文件占用时有限重试。
 - 运行使用配置快照；无效入口不装入手势引擎。物理与测试输入隔离，时间戳使用统一单调时间轴。
 
-交互、UAC 与真实安装验证由用户进行。构建结果见 `test-out/update-recovery-build.log`，目录占用与备份检查见 `test-out/update-recovery-probe.log`，隔离配置迁移见 `test-out/updates-config-contract.log`。
+交互、UAC 与真实安装验证由用户进行。构建结果见 `test-out/outline-capture-build.log`，轮廓排除与多 DPI 像素检查见 `test-out/outline-capture-check.log`。
+目录占用与备份检查见 `test-out/update-recovery-probe.log`，隔离配置迁移见 `test-out/updates-config-contract.log`。
 剪贴板超时隔离的定向结果见 `test-out/async-clipboard-probe/result.log`。
 人工交互清单见 [UIAUDIT.md](UIAUDIT.md)。

@@ -19,6 +19,7 @@ FrameCapture 提供区域截图、录制、滚动截图、OCR、标注与贴图�
 - 不改动 `tools/Shot`、`tools/UICap` 的命令约定。
 - 测试对用户设置的临时改动必须在 `finally` 中还原；优先使用 `FC_SETTINGS_DIR` 隔离。
 - 完成一次连贯改动后验证并提交。版本唯一来源是 `src/FrameCapture/FrameCapture.csproj`。
+- 只有用户明确要求更新版本时才递增版本、创建版本标签和发布 Release；常规修改只验证并提交。
 
 ## 验证
 

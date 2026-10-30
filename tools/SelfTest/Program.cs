@@ -1190,6 +1190,12 @@ static partial class SelfTest
             return 2;
         }
         InstallQuietWindows();
+        if (args.Length == 1 && args[0] == "outline-capture")
+        {
+            OutlineCaptureChecks();
+            Console.WriteLine($"RESULT PASS={pass} FAIL={fail}");
+            return fail == 0 ? 0 : 1;
+        }
         // 版面与双语审计：一次进程一个界面，矩阵由 scripts/ux-audit.ps1 铺开
         if (args.Length >= 3 && args[0] == "uxaudit") return UxAudit(args[1], args[2]);
         if (args.Length == 2 && args[0] == "uxaudit" && args[1] == "list")

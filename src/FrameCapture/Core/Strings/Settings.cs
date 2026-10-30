@@ -259,7 +259,7 @@ public static partial class K
         public static readonly Str TokenTrack = new("settings.tokenTrack", "轨道", "Track");
         public static readonly Str TokenWarning = new("settings.tokenWarning", "注意", "Warning");
         public static readonly Str TokenWindowBg = new("settings.tokenWindowBg", "窗口底色", "Window");
-        public static readonly Str WhenOnTheEditorTheRecord = new("settings.whenOnTheEditorTheRecord", "将编辑器、控制条和选区界面包含在捕获中", "Include the editor, controls, and selection UI in captures.");
+        public static readonly Str WhenOnTheEditorTheRecord = new("settings.whenOnTheEditorTheRecord", "捕获软件界面，范围边框除外", "Include the app UI, excluding capture outlines.");
         public static readonly Str CopyKey = new(
             "settings.copyKey",
             "截图后的复制键",

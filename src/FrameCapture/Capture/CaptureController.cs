@@ -326,8 +326,7 @@ public sealed partial class CaptureController : IDisposable
     }
 
     /// <summary>
-    /// 录制期间按**真实捕获范围**常亮范围边框（系统那条 WGC 全屏黄框已在后端关掉）。
-    /// 轮廓窗走 WDA_EXCLUDEFROMCAPTURE，所以 WGC/GDI 整屏抓也拍不到它。
+    /// 按实际捕获范围显示录制轮廓；描边位于区域外，窗口必须通过 WDA 排除才能显示。
     /// </summary>
     void ShowCaptureScope(RectI region)
     {
