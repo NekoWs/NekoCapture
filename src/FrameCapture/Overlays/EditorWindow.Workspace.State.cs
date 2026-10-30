@@ -66,7 +66,7 @@ public sealed partial class EditorWindow
         if (_activeToolLabel.Text != name)
         {
             _activeToolLabel.Text = name;
-            if (IsLoaded && _settings.Current.EditorToolbarAnim)
+            if (IsLoaded)
                 _activeToolLabel.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(Fluent.Motion.QuickMs)));
         }
         bool style = _sel != null || _tool is not (Tool.Browse or Tool.Select or Tool.Crop);

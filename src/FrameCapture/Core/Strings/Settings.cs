@@ -283,16 +283,11 @@ public static partial class K
         public static readonly Str TheSoundThatConfirms = new("settings.theSoundThatConfirms", "截图完成时播放。自定义支持 OGG/WAV，播放失败时使用内置音", "Play after a screenshot. Custom OGG/WAV falls back to the built-in sound if playback fails.");
         public static readonly Str TheTextFormThePicker = new("settings.theTextFormThePicker", "放大镜复制颜色时使用的格式", "Format used when copying a color from the magnifier");
         public static readonly Str ToastLifetime = new("settings.toastLifetime", "悬浮窗存在时间", "Toast lifetime");
-        public static readonly Str ToolbarEntranceAnimation = new(
-            "settings.toolbarEntranceAnimation",
-            "底部工具栏入场动效",
-            "Toolbar entrance animation");
         public static readonly Str UsualEnoughToOpen = new(
             "settings.usualEnoughToOpen",
             "常用：够打开一个菜单",
             "Usual: enough to open a menu");
         public static readonly Str WhenBothFreezeTheScreen = new("settings.whenBothFreezeTheScreen", "定格时预抓可见窗口，点击后直接使用；0 表示实时抓取", "Cache visible windows when freezing; use 0 for live window capture.");
-        public static readonly Str WhenTheEditorOpens = new("settings.whenTheEditorOpens", "编辑器工具栏逐项入场", "Animate editor toolbar items on opening");
         public static readonly Str WhenYouClickAWindow = new("settings.whenYouClickAWindow", "录制窗口本体，不受遮挡或移动影响", "Record the window independently of overlap or movement.");
         public static readonly Str WhileYouDragOrHover = new("settings.whileYouDragOrHover", "显示像素、坐标与颜色；按 C 复制颜色", "Show pixels, coordinates, and color; press C to copy the color.");
         public static readonly Str Windows = new("settings.windows", "{0} 个", "{0} windows");

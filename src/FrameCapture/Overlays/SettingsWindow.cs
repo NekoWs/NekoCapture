@@ -283,8 +283,6 @@ panel.Children.Add(ToggleRow("\uE768", Loc.T(K.Settings.StartRecordingAfterSelec
 
         #region 编辑器
         panel = Cat(Loc.T(K.Common.Editor), "\uE70F");
-        panel.Children.Add(ToggleRow("\uE8A9", Loc.T(K.Settings.ToolbarEntranceAnimation), Loc.T(K.Settings.WhenTheEditorOpens),
-            _settings.Current.EditorToolbarAnim, v => _settings.Mutate(s => s.EditorToolbarAnim = v)));
         panel.Children.Add(ToggleRow("\uEDD7", Loc.T(K.Settings.RememberTheLastToolColor), Loc.T(K.Settings.ClosingTheEditorRemembers),
             _settings.Current.RememberEditorTools, v => _settings.Mutate(s => s.RememberEditorTools = v)));
         panel.Children.Add(ToggleRow("\uE8C1", Loc.T(K.Settings.ShowTheResultWindowAfter), Loc.T(K.Settings.AfterASuccessfulRecognition),

@@ -1190,6 +1190,12 @@ static partial class SelfTest
             return 2;
         }
         InstallQuietWindows();
+        if (args.Length == 1 && args[0] == "settings-audit")
+        {
+            SettingsAuditChecks();
+            Console.WriteLine($"RESULT PASS={pass} FAIL={fail}");
+            return fail == 0 ? 0 : 1;
+        }
         if (args.Length == 1 && args[0] == "outline-capture")
         {
             OutlineCaptureChecks();
@@ -1922,7 +1928,6 @@ static partial class SelfTest
         try
         {
             var stW = new SettingsService();
-            stW.Mutate(s => s.EditorToolbarAnim = true);   // 这条测的就是逐项落定，起点不能取决于用户关没关这个开关
             var seqW = new CapturedSequence
             {
                 Frames = new List<CapturedFrame> { MovingSquare(160, 90, 0, 1) },

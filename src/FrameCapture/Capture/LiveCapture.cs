@@ -8,7 +8,7 @@ namespace FrameCapture.Capture;
 /// 基于 GDI BitBlt 的区域实时捕获（DPI 感知下为物理像素，兼容性最好）。
 /// 独立线程按 fps 拉帧，回调携带已裁剪的 BGRA 帧。
 /// </summary>
-public sealed class LiveCapture : IDisposable
+public sealed partial class LiveCapture : IDisposable
 {
     private Thread? _loop;
     private volatile bool _running;
@@ -17,6 +17,7 @@ public sealed class LiveCapture : IDisposable
     private CapturedFrame? _latest;
     private readonly object _gate = new();
     private bool _disposed;
+    private bool _includeCursor;
     private RectI _region; // 虚拟桌面物理坐标
 
     /// <summary>采样回调（捕获线程）。帧为区域裁剪后的 BGRA。</summary>
@@ -45,11 +46,13 @@ public sealed class LiveCapture : IDisposable
     /// <param name="monitor">目标显示器，仅作记录；实际抓取完全按 <paramref name="region"/> 的虚拟桌面坐标进行。</param>
     /// <param name="region">虚拟桌面物理像素区域，可跨屏。宽或高小于 2 时循环每轮都取不到帧。</param>
     /// <param name="fps">目标帧率，先钳到 AppSettings 的上下限，再换算成双精度采样间隔。</param>
-    public void Start(MonitorInfo monitor, RectI region, int fps)
+    /// <param name="includeCursor">是否将当前可见的鼠标指针合成到帧内。</param>
+    public void Start(MonitorInfo monitor, RectI region, int fps, bool includeCursor = false)
     {
         Stop();
         TargetMonitor = monitor;
         _region = region;
+        _includeCursor = includeCursor;
         _intervalMs = FpsThrottle.IntervalMs(Math.Clamp(fps, AppSettings.FpsMin, AppSettings.FpsMax));
         lock (_gate) _latest = null;
 
@@ -74,7 +77,7 @@ public sealed class LiveCapture : IDisposable
             }
             nextDue = _clock.ElapsedMilliseconds + (long)Math.Round(_intervalMs);
 
-            var f = Grab(_region);
+            var f = Grab(_region, _includeCursor);
             if (f != null)
             {
                 grabbed++;
@@ -97,13 +100,14 @@ public sealed class LiveCapture : IDisposable
     }
 
     /// <summary>抓取虚拟桌面坐标 region 的一帧 BGRA（任意线程可调）。
-    /// 走 GetDC(NULL) + BitBlt(SRCCOPY | CAPTUREBLT)：CAPTUREBLT 让分层窗口（指针、部分置顶窗）也进画面。
+    /// 走 GetDC(NULL) + BitBlt(SRCCOPY | CAPTUREBLT)；指针按参数单独合成。
     /// 暂存位图按尺寸缓存复用：全屏抓取里新建一块十几 MB 的 DIB 要花十几毫秒，而它每帧都被整块覆盖。
     /// 缓存只为少建位图，返回值仍是新分配的帧，调用方独占自己的像素。</summary>
     /// <param name="region">物理像素、虚拟桌面绝对坐标；宽或高小于 2 直接返回 null。</param>
+    /// <param name="includeCursor">是否合成可见指针；普通截图默认不包含指针。</param>
     /// <returns>新分配的 BGRA 帧，top-down、无 padding；<c>TimeMs</c> 恒为 0——单帧抓取没有计时基准。
     /// 取屏 DC 失败静默返回 null；建 DIBSection、建兼容 DC、BitBlt 失败各记一条 trace（前者与 BitBlt 带 Win32 错误码）。</returns>
-    public static CapturedFrame? Grab(RectI region)
+    public static CapturedFrame? Grab(RectI region, bool includeCursor = false)
     {
         if (region.W < 2 || region.H < 2) return null;
         IntPtr hsrc = Win32.GetDC(IntPtr.Zero);
@@ -150,6 +154,7 @@ public sealed class LiveCapture : IDisposable
                         FrameCapture.Core.Trace.Log("grab: BitBlt fail err=" + System.Runtime.InteropServices.Marshal.GetLastWin32Error());
                         return null;
                     }
+                    if (includeCursor) DrawCursor(_stageDc, region);
                     Win32.GdiFlush();
                 }
                 finally

@@ -97,14 +97,11 @@ public sealed partial class EditorWindow : Window
         Fluent.BorderlessNative(this); // 真无框：消 DWM 非客户区白条，原生圆角+阴影
         _mica = Fluent.MicaBackdrop(this);
         Fluent.FadeIn(this, Fluent.Motion.EditorEnterMs, 14, offscreenFirstFrame: true);
-        // 工具条逐项落定，整段压在窗口淡入（EditorEnterMs）之内完成：
-        // 淡入结束那一帧工具条必须已经到位，不能出现「窗口在、工具条还在路上」的空窗。
-        // 开关关掉就一个动画都不挂：元素以常态直接可见，没有需要清零的中间态。
+        // 上下文工具与时间轴的入场在窗口淡入期间完成。
         ContentRendered += (_, _) =>
         {
             if (_toolsCascaded) return;
             _toolsCascaded = true;
-            if (!_settings.Current.EditorToolbarAnim) return;
             if (_playPanel?.Child is Panel play)
                 Fluent.CascadeRows(play, risePx: 6, itemMs: Fluent.Motion.PressMs,
                     budgetMs: Fluent.Motion.QuickMs);

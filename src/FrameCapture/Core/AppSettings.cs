@@ -3,7 +3,7 @@ using System.Text.Json;
 
 namespace FrameCapture.Core;
 
-/// <summary>应用设置。全部字段带默认值；损坏的设置文件会被重置。</summary>
+/// <summary>应用设置。字段带默认值，读取与保存时收敛受限参数；不兼容结构由安装器迁移。</summary>
 public sealed class AppSettings
 {
     /// <summary>当前配置结构版本；跨结构升级由安装器执行。</summary>
@@ -20,6 +20,9 @@ public sealed class AppSettings
     public const int FpsMin = 10;
     public const int FpsMax = 240;
 
+    /// <summary>延时截图允许的最长等待时间，单位为秒。</summary>
+    public const int DelayCaptureSecondsMax = 120;
+
     public bool UseWgc { get; set; } = true;
 
     /// <summary>长按捕获帧率。</summary>
@@ -29,11 +32,10 @@ public sealed class AppSettings
     /// 关闭时用上面的手动 Fps。检测失败则回退手动值。</summary>
     public bool FollowMonitorRefresh { get; set; } = false;
 
-    /// <summary>录制产物格式：Gif 通用轻量（封顶 ~50fps）；Mp4/WebM 真视频，可录满高刷（需系统装有 ffmpeg）。</summary>
+    /// <summary>录制产物格式：GIF 使用内置编码器，MP4/WebM 使用可选的 FFmpeg 组件。</summary>
     public RecordFormat RecordFormat { get; set; } = RecordFormat.Gif;
 
-    /// <summary>录制是否包含鼠标指针：默认开（保持既有手感）。关掉后录出的画面干净无光标，
-    /// 适合做教程/演示时后期自己加高亮，或不想让光标乱入成片。</summary>
+    /// <summary>录制是否包含系统鼠标指针；WGC 与 GDI 后端均遵循此值。</summary>
     public bool RecordIncludeCursor { get; set; } = true;
 
     /// <summary>「生成胶片条」小窗的记忆参数：抽帧数（2–48）。胶片条是编辑器里按需生成的功能，
@@ -103,10 +105,6 @@ public bool EditableSelection { get; set; } = false;
     /// <summary>编辑器记住上次的工具/颜色/粗细（默认开）：下次打开直接是上次用的标注设置，
     /// 省去每次重选。关闭则每次打开回到默认（浏览 / 红 / 中）。关闭时不读写下面三项。</summary>
     public bool RememberEditorTools { get; set; } = true;
-
-    /// <summary>编辑器底部两排图标的逐项入场动效（默认开）。关闭后工具栏随窗口直接以常态出现，
-    /// 不挂任何位移动画。</summary>
-    public bool EditorToolbarAnim { get; set; } = true;
 
     /// <summary>上次编辑器选中的工具（Tool 枚举名）；空 = 默认浏览。</summary>
     public string LastTool { get; set; } = "";
@@ -208,9 +206,7 @@ public bool EditableSelection { get; set; } = false;
     /// 无法识别的值回退 hex：手写 settings.json 写错也不会炸。</summary>
     public string ColorCopyFormat { get; set; } = "hex";
 
-    /// <summary>延时截图秒数（默认 3）：托盘「延时截图」触发后倒数这么久再截当前范围，
-    /// 留时间打开右键菜单/悬停提示/下拉框这类一动就消失的界面。0=立即（无延时）。
-    /// 设置里给 关/1/3/5/10 秒预设 chip，是功能可选项而非任意数值。</summary>
+    /// <summary>延时截图等待秒数，范围为 0 至 <see cref="DelayCaptureSecondsMax"/>；0 表示立即捕获。</summary>
     public int DelayCaptureSeconds { get; set; } = 3;
 
     /// <summary>快捷键与触发方式连接共享行为入口，默认使用双快捷键方案。
@@ -233,8 +229,7 @@ public bool EditableSelection { get; set; } = false;
     /// 只认修饰键完全一致的那一条；空串表示不设，浮窗上只剩标注与关闭。</summary>
     public string ToastCopyChord { get; set; } = "Ctrl+C";
 
-    /// <summary>允许把本程序自己的窗口拍进截图/录屏（默认 false：浮窗与轮廓只是反馈，不该进产物）。
-    /// 打开后编辑器、录制控制条、选区遮罩都会出现在产物里——要录界面演示时用。</summary>
+    /// <summary>是否允许捕获本程序界面；范围轮廓与 REC 徽标始终排除。</summary>
     public bool CaptureSelf { get; set; }
 
     #region 上次捕获范围（物理像素，虚拟桌面绝对坐标；null 表示全屏主屏）
@@ -273,12 +268,11 @@ public bool EditableSelection { get; set; } = false;
         if (Theme is not ("system" or "light" or "dark")) Theme = "system";
         if (UiLanguage is not ("system" or "zh" or "en")) UiLanguage = "system";
         if (ColorPresets.All.All(p => p.Id != ColorPreset)) ColorPreset = "";
-        if (ColorPresets.All.All(p => p.Id != ColorPreset)) ColorPreset = "";
         Colors = CleanColors(Colors);
         Gestures ??= GestureConfig.CreateCurrentDefaults();
         Gestures.NormalizePreset();
         ToastSeconds = ToastSeconds <= 0 ? 0 : Math.Clamp(ToastSeconds, 0.5, 60);
-        DelayCaptureSeconds = Math.Clamp(DelayCaptureSeconds, 0, 120);
+        DelayCaptureSeconds = Math.Clamp(DelayCaptureSeconds, 0, DelayCaptureSecondsMax);
         FreezePregrabMaxWindows = Math.Clamp(FreezePregrabMaxWindows, 0, 16);
         SnapDwellMs = Math.Clamp(SnapDwellMs, 0, 5000);
         if (RegionW < 16 || RegionH < 16)

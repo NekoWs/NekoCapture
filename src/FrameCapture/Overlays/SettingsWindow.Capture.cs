@@ -191,7 +191,7 @@ public sealed partial class SettingsWindow : Window
             (10.0, K.Settings.PlentyEnoughToLineUp),
             (30.0, K.Settings.PlentyEnoughToLineUp),
             (60.0, K.Settings.PlentyEnoughToLineUp),
-        }, () => _settings.Current.DelayCaptureSeconds, 120, 0, Loc.T(K.Settings.Off),
+        }, () => _settings.Current.DelayCaptureSeconds, AppSettings.DelayCaptureSecondsMax, 0, Loc.T(K.Settings.Off),
             Loc.T(K.Settings.CustomAnyNumberOfSeconds),
             v => _settings.Mutate(s => s.DelayCaptureSeconds = (int)Math.Round(v)));
         return DurationRow("\uE916", Loc.T(K.Settings.AfterTheTraySDelayed), Loc.T(K.Common.DelayedCapture), field);

@@ -311,7 +311,7 @@ public sealed partial class CaptureController : IDisposable
     {
         if (_updateReserved) return;
         if (_delayWindow != null || _delayFiring) { Trace.Log("delay: already running, ignore"); return; }
-        int secs = Math.Clamp(_settings.Current.DelayCaptureSeconds, 0, 60);
+        int secs = Math.Clamp(_settings.Current.DelayCaptureSeconds, 0, AppSettings.DelayCaptureSecondsMax);
         var region = StoredRegion() ?? FullMonitorAtCursor();
         string label = StoredRegion() != null ? Loc.F(K.Capture.Region, region.Bounds.W, region.Bounds.H) : Loc.T(K.Capture.FullScreen);
         Trace.Log($"delay capture start {secs}s {region.Bounds.W}x{region.Bounds.H}");

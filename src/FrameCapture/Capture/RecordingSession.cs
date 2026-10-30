@@ -11,6 +11,7 @@ internal sealed class RecordingSession : IDisposable
     private readonly Selection _selection;
     private readonly MonitorInfo _monitor;
     private readonly int _fps;
+    private bool _includeCursor;
     private readonly System.Diagnostics.Stopwatch _clock = new();
 
     /// <summary>创建独立帧仓并连接捕获回调。</summary>
@@ -33,6 +34,7 @@ internal sealed class RecordingSession : IDisposable
     /// <param name="shadow">窗口录制是否保留投影。</param>
     internal void Start(bool useWgc, bool cursor, bool shadow)
     {
+        _includeCursor = cursor;
         _clock.Start();
         if (useWgc)
         {
@@ -43,7 +45,7 @@ internal sealed class RecordingSession : IDisposable
             }
             catch (Exception ex) { Trace.Log("wgc unavailable: " + ex.Message); }
         }
-        _live.Start(_monitor, _selection.Bounds, _fps);
+        _live.Start(_monitor, _selection.Bounds, _fps, cursor);
         Trace.Log("capture backend=gdi");
     }
 
@@ -93,7 +95,7 @@ internal sealed class RecordingSession : IDisposable
             if (frames == null || frames.Count == 0)
             {
                 (frames as IDisposable)?.Dispose(); frames = null;
-                if (LiveCapture.Grab(_selection.Bounds) is not { } frame) return null;
+                if (LiveCapture.Grab(_selection.Bounds, _includeCursor) is not { } frame) return null;
                 frames = new[] { frame };
             }
             return new CapturedSequence
