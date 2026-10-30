@@ -93,7 +93,7 @@ public sealed partial class SettingsWindow : Window
     {
         if (string.IsNullOrWhiteSpace(page)) return -1;
         var raw = page.Trim().ToLowerInvariant();
-        string[] names = { "hotkeys", "behaviors", "capture", "record", "output", "editor", "pin", "appearance", "palette", "system" };
+        string[] names = { "hotkeys", "behaviors", "capture", "record", "output", "editor", "pin", "appearance", "palette", "system", "about" };
         int at = Array.IndexOf(names, raw);
         if (at >= 0) return at;
         return int.TryParse(raw, out var n) && n >= 0 && n < names.Length ? n : -1;
@@ -128,7 +128,7 @@ public sealed partial class SettingsWindow : Window
         var raw = Environment.GetEnvironmentVariable("FC_SETTINGS_PAGE");
         if (string.IsNullOrWhiteSpace(raw)) return -1;
         raw = raw.Trim().ToLowerInvariant();
-        string[] names = { "hotkeys", "behaviors", "capture", "record", "output", "editor", "pin", "appearance", "palette", "system" };
+        string[] names = { "hotkeys", "behaviors", "capture", "record", "output", "editor", "pin", "appearance", "palette", "system", "about" };
         int at = Array.IndexOf(names, raw);
         return at >= 0 ? at : int.TryParse(raw, out var n) ? n : -1;
     }
@@ -317,7 +317,7 @@ panel.Children.Add(ToggleRow("\uE768", Loc.T(K.Settings.StartRecordingAfterSelec
         #region 系统
         panel = Cat(Loc.T(K.Settings.System), "\uE713");
         panel.Children.Add(StartupOptions());
-        panel.Children.Add(UpdateOptions());
+        panel.Children.Add(AutoUpdateOption());
         panel.Children.Add(ToggleRow("\uE8B9", Loc.T(K.Settings.CaptureTheAppItself), Loc.T(K.Settings.WhenOnTheEditorTheRecord),
             _settings.Current.CaptureSelf, v =>
             {
@@ -333,6 +333,9 @@ panel.Children.Add(ToggleRow("\uE768", Loc.T(K.Settings.StartRecordingAfterSelec
 
         Cardify(panel); // 系统页行归入卡片
         #endregion
+
+        panel = Cat(Loc.T(K.About.Title), "\uE946");
+        BuildAbout(panel);
 
         #region 主从式装配：左栏竖向导航 + 右栏内容，中间细分隔线
         var iconFont = new FontFamily(Fluent.IconFontChain);
@@ -415,6 +418,7 @@ panel.Children.Add(ToggleRow("\uE768", Loc.T(K.Settings.StartRecordingAfterSelec
                 scroller, contentHeader, cats[idx].Name);
             PaintNav(animate);
             MoveIndicator(idx, animate);
+            if (idx < _navRows.Count && _navRows[idx].IsLoaded) _navRows[idx].BringIntoView();
         }
 
         // 左栏：一块侧栏底板上摆竖向导航项。静止项与底板同色（读作「还没被碰」），
@@ -464,6 +468,13 @@ panel.Children.Add(ToggleRow("\uE768", Loc.T(K.Settings.StartRecordingAfterSelec
         var navInner = new Grid();
         navInner.Children.Add(navPanel);    // 项在下层
         navInner.Children.Add(navCanvas);   // 竖条在上层，落在药丸左缘、不压文字
+        var navScroller = new ScrollViewer { Content = navInner, Focusable = false,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
+        Fluent.OverlayScroll(navScroller);
+        navScroller.Loaded += (_, _) => Dispatcher.BeginInvoke(() =>
+        {
+            if (IsLoaded && _cat >= 0 && _cat < _navRows.Count) _navRows[_cat].BringIntoView();
+        }, System.Windows.Threading.DispatcherPriority.Loaded);
         var navHost = new Border
         {
             Width = 200,
@@ -474,7 +485,7 @@ panel.Children.Add(ToggleRow("\uE768", Loc.T(K.Settings.StartRecordingAfterSelec
             BorderBrush = Theme.StrokeSoftBrush,
             BorderThickness = new Thickness(1),
             Padding = new Thickness(6),
-            Child = navInner,
+            Child = navScroller,
         };
 
         // 右栏：内容标题 + 可滚动内容宿主

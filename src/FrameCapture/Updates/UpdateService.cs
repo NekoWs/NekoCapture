@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.IO;
 using FrameCapture.Core;
 using FrameCapture.Overlays;
@@ -8,7 +8,7 @@ using Trace = FrameCapture.Core.Trace;
 namespace FrameCapture.Updates;
 
 /// <summary>管理启动检查、版本跳过、下载与安装交接。</summary>
-internal sealed class UpdateService : IDisposable
+internal sealed partial class UpdateService : IDisposable
 {
     private readonly SettingsService _settings;
     private readonly CaptureController _controller;
@@ -16,7 +16,6 @@ internal sealed class UpdateService : IDisposable
     private CancellationTokenSource? _download;
     private UpdateToast? _toast;
     private IDisposable? _toastLease;
-    private bool _checking;
 
     /// <summary>创建更新服务，所有界面操作从 UI 线程进入。</summary>
     /// <param name="settings">配置服务。</param>
@@ -49,46 +48,6 @@ internal sealed class UpdateService : IDisposable
         catch (Exception ex) { Trace.Log("update startup: " + ex.Message); }
     }
 
-    /// <summary>检查最新稳定版，手动检查允许再次查看已跳过的版本。</summary>
-    /// <param name="manual">是否由用户主动检查。</param>
-    /// <returns>检查及提示完成的任务。</returns>
-    internal async Task CheckAsync(bool manual = true)
-    {
-        if (_checking || _download != null || _shutdown.IsCancellationRequested) return;
-        if (_toast != null) { _toast.Show(); return; }
-        _checking = true;
-        using var activity = BackgroundWork.Hold();
-        try
-        {
-            var release = await Task.Run(() => UpdateTransport.CheckAsync(_shutdown.Token));
-            if (_shutdown.IsCancellationRequested || !manual && !_settings.Current.AutoCheckUpdates) return;
-            if (Version.Parse(release.Version) <= Version.Parse(CurrentVersion))
-            {
-                if (manual) NoticeToast.Show(Loc.T(K.Updates.Current));
-                return;
-            }
-            if (!manual && Version.TryParse(_settings.Current.SkippedUpdateVersion, out var skipped)
-                && Version.Parse(release.Version) <= skipped) return;
-            _toastLease = BackgroundWork.Hold();
-            _toast = new UpdateToast(CurrentVersion, release.Version, () => Install(release), skip => Cancel(release, skip));
-            _toast.Show();
-        }
-        catch (OperationCanceledException) when (_shutdown.IsCancellationRequested) { }
-        catch (Exception ex) { Trace.Log("update check: " + ex.Message); if (manual) NoticeToast.Show(Loc.T(K.Updates.CheckFailed)); }
-        finally { _checking = false; }
-    }
-
-    private async void Cancel(UpdateRelease release, bool skip)
-    {
-        _download?.Cancel();
-        CloseToast();
-        if (skip)
-        {
-            try { await _settings.MutateAsync(s => s.SkippedUpdateVersion = release.Version); }
-            catch (Exception ex) { Trace.Log("update skip: " + ex.Message); }
-        }
-    }
-
     private void CloseToast()
     {
         if (_toast is { } toast) { toast.IsHitTestVisible = false; Fluent.CloseWithFade(toast); }
@@ -98,7 +57,7 @@ internal sealed class UpdateService : IDisposable
 
     private async void Install(UpdateRelease release)
     {
-        if (_download != null || _toast is not { } toast) return;
+        if (_download != null || _shutdown.IsCancellationRequested) return;
         using var activity = BackgroundWork.Hold();
         using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(_shutdown.Token);
         _download = cancellation;
@@ -108,9 +67,16 @@ internal sealed class UpdateService : IDisposable
         var disabled = new List<(System.Windows.Window Window, bool Enabled)>();
         try
         {
-            toast.SetProgress(0, release.Length);
-            var progress = new Progress<long>(done => toast.SetProgress(done, release.Length));
+            Downloaded = 0;
+            Publish(UpdateStage.Downloading);
+            _toast?.SetProgress(0, release.Length);
+            var progress = new Progress<long>(done =>
+            {
+                if (Stage != UpdateStage.Downloading) return;
+                Downloaded = done; _toast?.SetProgress(done, release.Length); Changed?.Invoke();
+            });
             installer = await Task.Run(() => UpdateTransport.DownloadAsync(release, progress, cancellation.Token));
+            cancellation.Token.ThrowIfCancellationRequested();
             verifiedInstaller = await BackgroundWork.Run(() =>
             {
                 var file = new FileStream(installer, FileMode.Open, FileAccess.Read, FileShare.Read);
@@ -122,18 +88,21 @@ internal sealed class UpdateService : IDisposable
                 }
                 catch { file.Dispose(); throw; }
             });
-            toast.SetWaiting(false);
-            while (BackgroundWork.ActiveCount > 2 || !_controller.TryReserveUpdate())
+            cancellation.Token.ThrowIfCancellationRequested();
+            Publish(UpdateStage.Waiting);
+            _toast?.SetWaiting(false);
+            while (BackgroundWork.ActiveCount > (_toastLease != null ? 2 : 1) || !_controller.TryReserveUpdate())
                 await Task.Delay(250, cancellation.Token);
             reserved = true;
             foreach (System.Windows.Window window in System.Windows.Application.Current.Windows)
             {
-                if (ReferenceEquals(window, toast)) continue;
+                if (ReferenceEquals(window, _toast)) continue;
                 disabled.Add((window, window.IsEnabled)); window.IsEnabled = false;
             }
             await _controller.SaveResidentSessionAsync();
             cancellation.Token.ThrowIfCancellationRequested();
-            toast.SetWaiting(true);
+            Publish(UpdateStage.Installing);
+            _toast?.SetWaiting(true);
             var start = new ProcessStartInfo(installer) { UseShellExecute = true };
             if (!StartupService.IsElevated) start.Verb = "runas";
             start.Arguments = "--silent --restart --dir \"" + AppContext.BaseDirectory.TrimEnd('\\')
@@ -144,11 +113,17 @@ internal sealed class UpdateService : IDisposable
             if (process.ExitCode != 0) throw new IOException("Installer exit code " + process.ExitCode);
             CloseToast();
         }
-        catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { }
-        catch (Exception ex) { Trace.Log("update install: " + ex); toast.SetFailed(); }
+        catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
+        {
+            if (!_shutdown.IsCancellationRequested) Publish(_dismissedStage);
+        }
+        catch (Exception ex)
+        {
+            Trace.Log("update install: " + ex); Publish(UpdateStage.Failed); _toast?.SetFailed();
+        }
         finally
         {
-            _download = null;
+            _download = null; Changed?.Invoke();
             if (reserved) _controller.ReleaseUpdate();
             foreach (var item in disabled) item.Window.IsEnabled = item.Enabled;
             verifiedInstaller?.Dispose();

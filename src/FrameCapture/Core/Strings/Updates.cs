@@ -10,6 +10,10 @@ public static partial class K
         public static readonly Str AutoCheck = new("updates.auto", "自动检查更新", "Check for updates automatically");
         public static readonly Str AutoCheckHint = new("updates.autoHint", "启动时检查新版本", "Check for new versions at startup");
         public static readonly Str Check = new("updates.check", "检查更新", "Check for updates");
+        public static readonly Str Checking = new("updates.checking", "正在检查更新…", "Checking for updates…");
+        public static readonly Str Cancelling = new("updates.cancelling", "正在取消更新…", "Cancelling update…");
+        public static readonly Str Cancelled = new("updates.cancelled", "已取消更新", "Update cancelled");
+        public static readonly Str Skipped = new("updates.skipped", "已跳过这个版本", "This version is skipped");
         public static readonly Str Available = new("updates.available", "发现新版本 {0}", "Version {0} is available");
         public static readonly Str Versions = new("updates.versions", "{0} → {1}", "{0} → {1}");
         public static readonly Str Skip = new("updates.skip", "跳过这个版本", "Skip this version");
