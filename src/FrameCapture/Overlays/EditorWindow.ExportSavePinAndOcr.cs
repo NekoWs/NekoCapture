@@ -46,36 +46,29 @@ public sealed partial class EditorWindow : Window
         });
     }
 
-    /// <summary>把当前帧（含标注+裁剪，WYSIWYG）烘焙成一张位图帧，用于钉到屏幕。
-    /// 单帧同步烘焙（快，无需后台任务）；返回帧 + 其对应的物理屏幕矩形（裁剪后随之收缩）。</summary>
-    (CapturedFrame? frame, RectI region) BakeCurrentFrame()
+    /// <summary>后台烘焙当前帧快照，在原捕获位置显示贴图。</summary>
+    async void PinCurrentFrame()
     {
-        int idx = Math.Clamp(_index, 0, _seq.Frames.Count - 1);
-        var frame = _seq.Frames[idx];
-        var anns = new List<Drawing.Annotation>(_anns.Items);
-        var frames = new List<CapturedFrame> { frame };
-        var outAnns = anns;
+        if (_encoding || _userClosed || _seq.Frames.Count == 0) return;
+        using var activity = BackgroundWork.Hold();
         var region = _seq.Region;
         if (_crop.IsCropped)
         {
-            int fw = frame.W, fh = frame.H;
-            var (cx, cy, cw, ch) = CropState.ToPixelOf(_crop.Current, fw, fh);
-            frames = Drawing.Bake.Crop(frames, cx, cy, cw, ch);
-            outAnns = CropRemap.Remap(anns, (double)cx / fw, (double)cy / fh, (double)cw / fw, (double)ch / fh);
-            region = new RectI(region.X + cx, region.Y + cy, cw, ch);
+            var (x, y, w, h) = _crop.ToPixel(_frameW, _frameH);
+            region = new RectI(region.X + x, region.Y + y, w, h);
         }
-        var baked = Drawing.Bake.Apply(frames, outAnns);
-        return (baked.Count > 0 ? baked[0] : null, region);
-    }
-
-    /// <summary>钉到屏幕——烘焙当前帧并在原捕获位置弹出一张贴图（可多张并存）。</summary>
-    void PinCurrentFrame()
-    {
-        var (f, region) = BakeCurrentFrame();
-        if (f == null) return;
-        var w = new PinWindow(f, region);
-        w.Show();
-        Trace.Log($"pin frame {f.W}x{f.H} at {region.X},{region.Y}");
+        try
+        {
+            var frame = await BakeFrameAsync(_index);
+            var bitmap = await BackgroundWork.Run(() => BgraImage.ToSource(frame));
+            if (_userClosed) return;
+            new PinWindow(frame, region, initialBitmap: bitmap).Show();
+        }
+        catch (Exception ex)
+        {
+            Trace.Log("pin frame: " + ex);
+            if (!_userClosed) ShowSnack(Loc.T(K.Editor.ExportFailed));
+        }
     }
 
     /// <summary>预览底部轻提示：从下方 6px 抬起淡入，约 1.8s 后淡出并收起。OCR/复制等即时反馈用。
@@ -121,7 +114,7 @@ public sealed partial class EditorWindow : Window
         _snackTimer.Start();
     }
     /// <summary>识别当前帧文字（Windows 内置 OCR）→ 纯文本写剪贴板 → 轻提示。
-    /// 帧像素在首个 await 前同步拷贝，故与关窗/释放 spool 无竞态；无语言包优雅降级不抛。</summary>
+    /// 后台任务持有只读帧直到识别完成；关窗后跳过界面反馈。</summary>
     async void OcrCurrentFrame()
     {
         if (_ocrBusy || _seq.Frames.Count == 0) return;

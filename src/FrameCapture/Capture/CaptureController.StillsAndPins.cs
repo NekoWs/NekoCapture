@@ -23,10 +23,10 @@ public sealed partial class CaptureController : IDisposable
     /// <summary>录制中停止并保留产物，空闲时开始选区录制。</summary>
     public void ToggleRecordSelection()
     {
-        if (State == Phase.Capturing)
+        if (State is Phase.Starting or Phase.Capturing)
         {
             Trace.Log("record-toggle→stop");
-            FinishCapture(-1, openEditor: false);
+            _ = StopRecordingAsync();
             return;
         }
         BeginRecordSelection();
@@ -35,31 +35,32 @@ public sealed partial class CaptureController : IDisposable
     /// <summary>干净利落的全屏即时截图——直接抓光标所在屏幕全屏当下这一帧，无选区、无点按窗、
     /// 无录制管线、无延时、抓取前不弹任何窗（不抢焦点）。专治游戏「一丢焦点就暂停」：按下即定格此刻画面。
     /// 本动作<b>永远抓光标屏全屏</b>，已存范围与它无关；要按已存范围截用 <see cref="CaptureStoredStill"/>。</summary>
-    public void CaptureInstantStill()
-    {
-        if (State != Phase.Idle) return;
-        var region = FullMonitorAtCursor();
-        var f = LiveCapture.Grab(region.Bounds);
-        if (f == null) { Trace.Log("instant still: grab null"); return; }
-        Trace.Log($"instant still grab {f.W}x{f.H}");
-        DispatchStill(f, region.Bounds, region.DeviceName);
-    }
+    public async void CaptureInstantStill() => await CaptureStandaloneAsync(false);
 
     /// <summary>对已存区域或光标屏截静图，保存最近产物并显示浮窗。</summary>
-    public void CaptureStoredStill()
+    public async void CaptureStoredStill() => await CaptureStandaloneAsync(true);
+
+    private async Task CaptureStandaloneAsync(bool stored)
     {
-        if (State != Phase.Idle) return;
-        var region = StoredRegion() ?? FullMonitorAtCursor();
-        var f = LiveCapture.Grab(region.Bounds);
-        if (f == null) { Trace.Log("stored still: grab null"); return; }
-        Trace.Log($"stored still grab {f.W}x{f.H}");
-        DispatchStill(f, region.Bounds, region.DeviceName);
+        if (_disposed || State != Phase.Idle || _chainTask is { IsCompleted: false }) return;
+        State = Phase.CapturingStill;
+        using var activity = BackgroundWork.Hold();
+        try
+        {
+            var region = stored ? StoredRegion() ?? FullMonitorAtCursor() : FullMonitorAtCursor();
+            var frame = await BackgroundWork.Run(() => LiveCapture.Grab(region.Bounds));
+            if (_disposed || frame == null) return;
+            State = Phase.Idle;
+            DispatchStill(frame, region.Bounds, region.DeviceName);
+        }
+        catch (Exception ex) { Trace.Log("standalone still: " + ex); }
+        finally { if (!_disposed && State == Phase.CapturingStill) State = Phase.Idle; }
     }
 
     /// <summary>手势「识别文字」——对已存范围（无则光标屏全屏）抓一帧做 OCR；这条手势刚截好一帧时认那一帧。
     /// 结果按 <see cref="OcrService.Route"/> 分流：
     /// 结果窗 / 复制+轻确认 / 无引擎提示 / 空提示（反馈统一走可截图审查的 OcrResultWindow）。
-    /// 帧像素在首个 await 前同步拷入 SoftwareBitmap，与关窗/释放无竞态；无语言包优雅降级不抛。</summary>
+    /// 后台任务持有只读帧直到识别完成；无语言包按无引擎路由处理。</summary>
     public async void OcrStoredStill()
     {
         using var activity = BackgroundWork.Hold();
@@ -124,7 +125,9 @@ public sealed partial class CaptureController : IDisposable
         var mon = Capture.Monitors.Nearest(pt.X, pt.Y);
         int x = Math.Max(mon.Bounds.X, Math.Min(pt.X - f.W / 2, mon.Bounds.X + mon.Bounds.W - f.W));
         int y = Math.Max(mon.Bounds.Y, Math.Min(pt.Y - f.H / 2, mon.Bounds.Y + mon.Bounds.H - f.H));
-        var w = new Overlays.PinWindow(f, new Capture.RectI(x, y, f.W, f.H));
+        var bitmap = await BackgroundWork.Run(() => BgraImage.ToSource(f));
+        if (_disposed) return false;
+        var w = new Overlays.PinWindow(f, new Capture.RectI(x, y, f.W, f.H), initialBitmap: bitmap);
         w.Show();
         Trace.Log($"pin-clip {f.W}x{f.H} at {x},{y}");
         return true;
@@ -132,11 +135,14 @@ public sealed partial class CaptureController : IDisposable
 
     /// <summary>截图后=贴图：把刚截的单帧钉在捕获区域原位（原地钉，可多张并存）。
     /// activateOnShow=false：不抢焦点，用户可继续在原应用操作，点贴图才激活。须在 UI 线程调用。</summary>
-    void PinFrameAt(CapturedFrame f, RectI reg)
+    async Task<bool> PinFrameAtAsync(CapturedFrame f, RectI reg)
     {
-        var w = new Overlays.PinWindow(f, reg, activateOnShow: false);
+        var bitmap = await BackgroundWork.Run(() => BgraImage.ToSource(f));
+        if (_disposed) return false;
+        var w = new Overlays.PinWindow(f, reg, activateOnShow: false, initialBitmap: bitmap);
         w.Show();
         Trace.Log($"pin-at {f.W}x{f.H} @ {reg.X},{reg.Y}");
+        return true;
     }
 
     /// <summary>已存的捕获范围（物理像素、虚拟桌面绝对坐标），每次选区确认时写进设置。
@@ -156,21 +162,27 @@ public sealed partial class CaptureController : IDisposable
     }
 
     /// <summary>清掉已存范围（显示器名与矩形一并归零），并收起常显轮廓——范围没了，轮廓也就无处可画。</summary>
-    public void ClearStoredRegion()
+    public async void ClearStoredRegion() => await ClearStoredRegionAsync();
+
+    private async Task ClearStoredRegionAsync()
     {
-        _settings.Mutate(s => { s.RegionMonitorId = null; s.RegionX = s.RegionY = s.RegionW = s.RegionH = 0; });
+        var save = _settings.MutateAsync(s => { s.RegionMonitorId = null; s.RegionX = s.RegionY = s.RegionW = s.RegionH = 0; });
         HideOutline();
+        await save;
     }
 
     /// <summary>截屏浮窗「点击继续标注」：以刚截的帧开单帧编辑器。焦点归还目标=点击前的前台窗。</summary>
-    void OpenEditorForFrame(CapturedFrame f, RectI region, string device)
+    async void OpenEditorForFrame(CapturedFrame f, RectI region, string device)
+        => await OpenEditorForFrameAsync(f, region, device);
+
+    private async Task<bool> OpenEditorForFrameAsync(CapturedFrame f, RectI region, string device)
     {
-        if (State != Phase.Idle) return; // 编辑器/录制/选取占用中：浮窗点击不重入
+        if (_disposed || State != Phase.Idle) return false; // 编辑器/录制/选取占用中：浮窗点击不重入
         var fg = Native.Win32.GetForegroundWindow();
         _prevFg = fg != IntPtr.Zero && Native.Win32.GetWindowThreadProcessId(fg, out uint fgp) != Native.Win32.GetCurrentThreadId()
             ? fg : IntPtr.Zero;
         var monitor = Monitors.ByDevice(device);
-        OpenEditor(new CapturedSequence
+        return await OpenEditorAsync(new CapturedSequence
         {
             Frames = new List<CapturedFrame> { f },
             Region = region,
@@ -205,14 +217,15 @@ public sealed partial class CaptureController : IDisposable
 
     /// <summary>调试/e2e：把一张 PNG 当作刚截好的静图开进编辑器，版面审查不必走真实捕获链路。</summary>
     /// <param name="path">PNG 路径。</param>
-    public void OpenEditorWithPng(string path)
+    public async void OpenEditorWithPng(string path)
     {
         if (State != Phase.Idle) return; // 编辑器/录制/选取占用中：不重入
-        var f = FrameFromPng(path);
+        var f = await BackgroundWork.Run(() => FrameFromPng(path));
+        if (_disposed || State != Phase.Idle) return;
         if (f == null) return;
         var mon = PrimaryMonitor();
         var bounds = mon?.Bounds ?? new RectI(0, 0, f.W, f.H);
-        OpenEditor(new CapturedSequence
+        await OpenEditorAsync(new CapturedSequence
         {
             Frames = new List<CapturedFrame> { f },
             Region = new RectI(bounds.X, bounds.Y, f.W, f.H),
@@ -223,12 +236,13 @@ public sealed partial class CaptureController : IDisposable
 
     /// <summary>调试/e2e：把一张 PNG 钉成贴图，贴图窗口的版面审查不必走真实捕获链路。</summary>
     /// <param name="path">PNG 路径。钉在主屏正中，与真实「原地贴图」同一出口。</param>
-    public void PinWithPng(string path)
+    public async void PinWithPng(string path)
     {
-        var f = FrameFromPng(path);
+        var f = await BackgroundWork.Run(() => FrameFromPng(path));
+        if (_disposed || State != Phase.Idle) return;
         if (f == null) return;
         var b = PrimaryMonitor()?.Bounds ?? new RectI(0, 0, f.W, f.H);
-        PinFrameAt(f, new RectI(b.X + (b.W - f.W) / 2, b.Y + (b.H - f.H) / 2, f.W, f.H));
+        await PinFrameAtAsync(f, new RectI(b.X + (b.W - f.W) / 2, b.Y + (b.H - f.H) / 2, f.W, f.H));
     }
 
     /// <summary>登记静图，应用自动保存、提示音与范围反馈；链内更新上下文，独立截图显示浮窗。</summary>
@@ -236,7 +250,8 @@ public sealed partial class CaptureController : IDisposable
     /// <param name="reg">物理像素，虚拟桌面绝对坐标。</param>
     /// <param name="device">显示器设备名。</param>
     /// <param name="windowCapture">是否保留窗口透明通道。</param>
-    void DispatchStill(CapturedFrame f, RectI reg, string device, bool windowCapture = false)
+    /// <param name="context">接收产物的动作上下文；null 表示独立截图。</param>
+    void DispatchStill(CapturedFrame f, RectI reg, string device, bool windowCapture = false, RunContext? context = null)
     {
         _lastStill.Set(f, reg, device, windowCapture);
         SaveService.MaybeSavePng(f);
@@ -247,7 +262,7 @@ public sealed partial class CaptureController : IDisposable
             FlashOutline(reg);
             _outline!.FadeAway(_settings.Current.OutlineFadeSeconds);
         }
-        if (_chainContext is { } context)
+        if (context != null)
         {
             context.Still = f;
             context.LatestProduct = RunValue.Still;
@@ -257,7 +272,7 @@ public sealed partial class CaptureController : IDisposable
             context.WindowCapture = windowCapture;
             return;
         }
-        ShowLastStillToast();
+        _ = ShowLastStillToastAsync();
     }
 
     /// <summary>是否有可重新编辑的最近静态截图。</summary>
@@ -265,37 +280,51 @@ public sealed partial class CaptureController : IDisposable
     public bool HasLastStill => !_lastStill.Empty;
 
     /// <summary>托盘「编辑上次截图」：确认浮窗已消失时，用最近一次静态截图重开编辑器。</summary>
-    public void EditLastStill()
+    public async void EditLastStill() => await EditLastStillAsync();
+
+    private async Task<bool> EditLastStillAsync()
     {
-        if (!_lastStill.TryGet(out var f, out var reg, out var dev)) return;
-        OpenEditorForFrame(f, reg, dev);
+        if (_disposed || State != Phase.Idle) return false;
+        var snapshot = await _lastStill.ReadAsync();
+        if (_disposed || State != Phase.Idle || snapshot == null) return false;
+        return await OpenEditorForFrameAsync(snapshot.Frame, snapshot.Region, snapshot.Device);
     }
 
     /// <summary>手势「贴图」——对当前范围（无则光标屏全屏）抓一帧钉在原地；这条手势刚截好一帧时钉那一帧。
     /// 与托盘的「粘贴即贴图」各走各的：这里钉的是屏幕上的范围，不看剪贴板。</summary>
-    public void PinStoredStill()
+    public async void PinStoredStill()
     {
         if (State != Phase.Idle) return;
         // 刚截好的那一帧就在手上：钉它。对范围重抓会丢掉窗口截图的透明通道与投影，
         // 而且选区窗刚关闭，重抓拿到的是选区之后的画面。
         if (_chainContext?.Still is { } just)
         {
-            PinFrameAt(just, _chainContext.StillRegion);
+            await PinFrameAtAsync(just, _chainContext.StillRegion);
             Trace.Log($"pin-run {just.W}x{just.H}");
             return;
         }
         var region = StoredRegion() ?? FullMonitorAtCursor();
-        var f = LiveCapture.Grab(region.Bounds);
+        var f = await BackgroundWork.Run(() => LiveCapture.Grab(region.Bounds));
+        if (_disposed || State != Phase.Idle) return;
         if (f == null) { Trace.Log("pin-stored: grab null"); return; }
-        PinFrameAt(f, region.Bounds);
+        await PinFrameAtAsync(f, region.Bounds);
         Trace.Log($"pin-stored {f.W}x{f.H}");
     }
 
     /// <summary>手势「提示」——把上一次截图再以浮窗弹一次，点它仍可进编辑器。没有上次截图时什么都不做。</summary>
-    public void ShowLastStillToast()
+    public async void ShowLastStillToast() => await ShowLastStillToastAsync();
+
+    private async Task<bool> ShowLastStillToastAsync()
     {
-        if (!_lastStill.TryGet(out var f, out var reg, out var dev)) return;
-        Overlays.CaptureToast.Show(f, reg, dev, () => OpenEditorForFrame(f, reg, dev), async () => { if (!await Encoding.ClipboardService.SetFrameAsync(f, _lastStill.WindowCapture)) Overlays.NoticeToast.Show(Loc.T(K.Common.ClipboardUnavailable)); });
+        var snapshot = await _lastStill.ReadAsync();
+        if (_disposed || snapshot == null) return false;
+        var f = snapshot.Frame; var reg = snapshot.Region; var dev = snapshot.Device;
+        Overlays.CaptureToast.Show(f, reg, dev, () => OpenEditorForFrame(f, reg, dev), async () =>
+        {
+            if (!await Encoding.ClipboardService.SetFrameAsync(f, snapshot.WindowCapture))
+                Overlays.NoticeToast.Show(Loc.T(K.Common.ClipboardUnavailable));
+        });
+        return true;
     }
 
     /// <summary>手势「复制到剪贴板」——把上一次截图写进剪贴板。没有上次截图时什么都不做。
@@ -303,8 +332,10 @@ public sealed partial class CaptureController : IDisposable
     /// <returns>剪贴板是否完整写入。</returns>
     public async Task<bool> CopyLastStillAsync()
     {
-        if (!_lastStill.TryGet(out var f, out _, out _)) return false;
-        bool result = await Encoding.ClipboardService.SetFrameAsync(f, includePng: _lastStill.WindowCapture);
+        var snapshot = await _lastStill.ReadAsync();
+        if (_disposed || snapshot == null) return false;
+        var f = snapshot.Frame;
+        bool result = await Encoding.ClipboardService.SetFrameAsync(f, includePng: snapshot.WindowCapture);
         Trace.Log($"copy-last still {f.W}x{f.H} success={result}");
         return result;
     }
@@ -316,13 +347,12 @@ public sealed partial class CaptureController : IDisposable
     /// <summary>手势『打开编辑器（上次录制）』——用留在内存的上次录制打开视频编辑器。
     /// 所有权移交编辑器（_lastSequence 置空，编辑器关闭时自行释放 spool）。空闲且确有产物才开。</summary>
     /// <returns>true = 已打开编辑器并移交产物所有权；false = 非空闲态或没有留存产物，未产生任何副作用。</returns>
-    public bool EditLastVideo()
+    public async Task<bool> EditLastVideoAsync()
     {
         if (State != Phase.Idle || _lastSequence == null) return false;
         var s = _lastSequence;
         _lastSequence = null;
-        OpenEditor(s);
-        return true;
+        return await OpenEditorAsync(s);
     }
 
     ScreenRegion FullMonitorAtCursor()

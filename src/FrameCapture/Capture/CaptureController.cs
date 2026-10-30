@@ -10,19 +10,17 @@ public sealed partial class CaptureController : IDisposable
     /// <summary>
     /// 捕获状态机阶段，<b>唯一</b>写入口是 <see cref="CaptureController"/> 自身，入口方法先读它再决定放行。
     /// <c>Idle</c>=任何捕获入口都可发起、单帧完成路径可开编辑器；<c>SelectingScope</c>=选区窗等待拖框或取消；
-    /// <c>Capturing</c>=帧持续入仓，只有 <c>FinishCapture</c> 能离开；<c>Editing</c>=编辑器持有产物所有权（含 spool 文件）。
+    /// <c>Starting</c> 与 <c>Stopping</c> 等待后台后端；<c>Capturing</c>=帧持续入仓；
+    /// <c>PreparingEditor</c> 等待首帧；<c>CapturingStill</c> 等待独立截图；
+    /// <c>Editing</c>=编辑器持有产物所有权（含 spool 文件）。
     /// </summary>
-    public enum Phase { Idle, SelectingScope, Capturing, Editing }
+    public enum Phase { Idle, SelectingScope, Capturing, Editing, Starting, Stopping, PreparingEditor, CapturingStill }
 
     private readonly SettingsService _settings;
     private readonly LiveCapture _live = new();
-    private WgcLiveCapture? _wgc;
-    private FrameSpool? _spool;
     private RegionPickerWindow? _picker;
     private RegionOutlineWindow? _outline;
     private EditorWindow? _editor;
-    private System.Diagnostics.Stopwatch? _captureClock;
-    private int _captureFps;   // 本次捕获实际帧率（跟随刷新率时=刷新率），随 seq 交给编辑器算时间轴
     /// <summary>本次捕获的范围与锁定状态：选区录制时由选区窗交来（可能锁定到某个窗口本体），
     /// 热键直接起录时按存好的范围或光标所在屏现造一个。起录时改写成本次实际捕获范围，供收尾开编辑器用。</summary>
     private Selection? _pendingSel;
@@ -75,14 +73,6 @@ public sealed partial class CaptureController : IDisposable
     public CaptureController(SettingsService settings)
     {
         _settings = settings;
-        // 只订阅一次：避免多次捕获累积 handler，导致同一帧重复入仓
-        _live.FrameSampled += f => _spool?.Add(f);
-        // 捕获线程写帧失败（磁盘满、句柄失效）会中止捕获线程并在这里回调，同样只订阅一次
-        _live.Faulted += _ => System.Windows.Application.Current?.Dispatcher.BeginInvoke(() =>
-        {
-            // 捕获线程触发 → 回 UI 线程停录；已录内容照常进编辑器，绝不静默丢帧
-            if (State == Phase.Capturing) FinishCapture(openEditor: false);
-        });
         _recBadgeTimer = new System.Windows.Threading.DispatcherTimer();
         _recBadgeTimer.Tick += (_, _) =>
         {
@@ -179,35 +169,44 @@ public sealed partial class CaptureController : IDisposable
             windowShadow: _settings.Current.WindowCaptureShadow, frozenScreen: frozen,
             rightClickCancel: _settings.Current.PickerRightClickCancel, recordMode: initialRecordMode,
             showModeSwitch: showModeSwitch, snapDwellMs: _settings.Current.SnapDwellMs);
-        _picker.Result += (region, hwnd) =>
+        var selectionCompletion = _selectionCompletion;
+        _picker.Result += async (region, hwnd) =>
         {
-            var picker = _picker;
-            _picker = null;
-            State = Phase.Idle;
-            if (region != null)
+            try
             {
-                context.Selected = true;
-                context.Region = region;
-                context.DeviceName = monitor.DeviceName;
-                context.Window = hwnd;
-                context.RecordMode = picker?.RecordMode == true;
-                context.Frozen = picker?.FrozenFrame;
-                context.FrozenOrigin = picker?.FrozenOrigin ?? monitor.Bounds;
-                context.FrozenWindow = null;
-                if (picker != null && picker.TryGetCachedWindow(hwnd, out var frame, out var bounds))
+                var picker = _picker;
+                _picker = null;
+                State = Phase.Idle;
+                if (region != null)
                 {
-                    context.FrozenWindow = frame;
-                    context.FrozenWindowRegion = bounds;
+                    context.Selected = true;
+                    context.Region = region;
+                    context.DeviceName = monitor.DeviceName;
+                    context.Window = hwnd;
+                    context.RecordMode = picker?.RecordMode == true;
+                    context.Frozen = picker?.FrozenFrame;
+                    context.FrozenOrigin = picker?.FrozenOrigin ?? monitor.Bounds;
+                    context.FrozenWindow = null;
+                    if (picker != null && picker.TryGetCachedWindow(hwnd, out var frame, out var bounds))
+                    {
+                        context.FrozenWindow = frame;
+                        context.FrozenWindowRegion = bounds;
+                    }
+                    await _settings.MutateAsync(s =>
+                    {
+                        s.RegionMonitorId = monitor.DeviceName;
+                        s.RegionX = region.Value.X; s.RegionY = region.Value.Y;
+                        s.RegionW = region.Value.W; s.RegionH = region.Value.H;
+                    });
                 }
-                _settings.Mutate(s =>
-                {
-                    s.RegionMonitorId = monitor.DeviceName;
-                    s.RegionX = region.Value.X; s.RegionY = region.Value.Y;
-                    s.RegionW = region.Value.W; s.RegionH = region.Value.H;
-                });
+                else context.Cancelled = true;
+                selectionCompletion?.TrySetResult(region != null && !_disposed);
             }
-            else context.Cancelled = true;
-            _selectionCompletion?.TrySetResult(region != null);
+            catch (Exception ex)
+            {
+                Trace.Log("selection result: " + ex);
+                selectionCompletion?.TrySetResult(false);
+            }
         };
         _picker.Show();
         Trace.Log("chain picker open");
@@ -215,214 +214,6 @@ public sealed partial class CaptureController : IDisposable
     #endregion
 
     #region 捕获
-
-    /// <summary>真正起录的核心（region = 已存范围，无则光标所在显示器全屏）。
-    /// 由手势「开始录制」（<see cref="StartRecording"/>）与选区录制复用；点按/长按的判定在手势引擎，这里只认「起录」。
-    /// 起录失败（GDI 也起不来）时回滚 spool 文件并留在 <see cref="Phase.Idle"/>。</summary>
-    void BeginCaptureCore()
-    {
-        if (_disposed) return;
-        // 轮廓绝不能入镜：快捷键起录时先把边框收掉；面板录制反之——那一圈正是用户要看的范围，留着
-        if (!_panelRecording) HideOutline();
-
-        // 选区录制带着选区交来的状态（可能锁定到某个窗口本体）；热键直接起录则按存好的范围现造一个。
-        Selection sel = _pendingSel ?? (StoredRegion() ?? FullMonitorAtCursor()).ToSelection();
-        _pendingSel = sel;
-        _prevFg = Native.Win32.GetForegroundWindow();
-        // 前台是自家窗口（如从托盘再次触发）则无需归还，避免焦点乒乓
-        if (_prevFg != IntPtr.Zero && Native.Win32.GetWindowThreadProcessId(_prevFg, out uint fgp) == Native.Win32.GetCurrentThreadId())
-            _prevFg = IntPtr.Zero;
-
-        _spool = new FrameSpool();  // 帧逐帧落盘，不驻留内存（容量护栏见 FrameSpool）
-        _spool.DiskLow += free => System.Windows.Application.Current?.Dispatcher.BeginInvoke(() =>
-        {
-            // 捕获线程触发 → 回 UI 线程停录；已录内容照常进编辑器，绝不静默丢帧
-            Trace.Log($"disk low {free >> 20}MB → auto-stop");
-            if (State == Phase.Capturing) FinishCapture(openEditor: false);
-        });
-        var monitor = Monitors.ByDevice(sel.DeviceName) ?? Monitors.Nearest(sel.Bounds.X, sel.Bounds.Y);
-
-        _captureClock = System.Diagnostics.Stopwatch.StartNew();
-
-        var fps = _settings.Current.Fps;
-        // 跟随显示器刷新率：开启且检测成功 → 录满该显示器刷新率（如 160Hz→160fps）；否则用手动值。
-        if (_settings.Current.FollowMonitorRefresh)
-        {
-            int hz = Core.DisplayRefresh.RateOf(monitor.DeviceName);
-            if (hz > 0) fps = Math.Clamp(hz, Core.AppSettings.FpsMin, Core.AppSettings.FpsMax);
-        }
-        _captureFps = fps;   // 随 seq 交给编辑器，时间轴按实际帧率而非手动值
-        bool wgcOk = false;
-        if (_settings.Current.UseWgc)
-        {
-            // 锁定到窗口就先录窗口本体；起不来就退回录这块矩形，用户至少拿到覆盖那片区域的成片。
-            // try 包住调用本身：投影程序集取不到时，异常在编译被调方法的那一刻抛出，落在被调方法自己的 catch 之外。
-            try
-            {
-                if (sel.LockedToWindow) wgcOk = TryStartWgc(sel, monitor, fps);
-                if (!wgcOk) wgcOk = TryStartWgc(sel.WithWindowHonor(false), monitor, fps);
-            }
-            catch (Exception ex) { Trace.Log("wgc unavailable: " + ex.Message.Split('\n')[0] + " → 回退 GDI"); }
-        }
-        if (!wgcOk)
-        {
-            try
-            {
-                _live.Start(monitor, sel.Bounds, fps);
-                Trace.Log("capture backend=gdi");
-            }
-            catch
-            {
-                _spool?.Abandon();
-                _spool = null;
-                return;
-            }
-        }
-
-        // 无录制时长上限——录到用户停为止；护栏是磁盘（FrameSpool.DiskLow 自动停）。
-        State = Phase.Capturing;
-        Trace.Log("chain recording started");
-        // 系统 WGC 提示边框已关闭，改用自家按范围绘制的轮廓做"正在录制"提示。
-        // 该窗以 WDA_EXCLUDEFROMCAPTURE 排除，不会进产物；关掉开关即完全不提示。
-        if (_settings.Current.ShowRecordingBorder)
-        {
-            ShowCaptureScope(sel.Bounds);
-            // 起录后延迟点亮 REC 徽标——"正在录"从隐性约定变成看得见的状态
-            // 面板录制时 REC 点与时长由上方面板说话，右上角那枚不亮
-            if (!_panelRecording)
-            {
-                _recBadgeTimer!.Interval = TimeSpan.FromMilliseconds(RecBadgeDelayMs);
-                _recBadgeTimer.Start();
-            }
-        }
-    }
-
-    /// <summary>
-    /// 起 WGC 采集后端：句柄非零按窗口本体录，否则按这块矩形录。
-    /// WinRT 类型只出现在本方法内，且本方法不被内联——起不来的异常因此不会污染 BeginCaptureCore 的编译，
-    /// 调用方还能在 catch 里退回矩形 / GDI。
-    /// </summary>
-    /// <param name="sel">本次捕获的范围与锁定状态。</param>
-    /// <param name="monitor">范围所在显示器。</param>
-    /// <param name="fps">目标帧率。</param>
-    /// <returns>true = WGC 已在产帧；false = 起不来，调用方按矩形或 GDI 继续。</returns>
-    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
-    bool TryStartWgc(Selection sel, MonitorInfo monitor, int fps)
-    {
-        bool byWindow = sel.LockedToWindow;
-        WgcLiveCapture? w = null;
-        try
-        {
-            w = new WgcLiveCapture();
-            w.FrameSampled += f => _spool?.Add(f);
-            if (byWindow)
-                w.StartWindow(sel.Window, monitor, fps, _settings.Current.RecordIncludeCursor,
-                    _settings.Current.WindowCaptureShadow);
-            else w.Start(monitor, sel.Bounds, fps, _settings.Current.RecordIncludeCursor);
-            _wgc = w;
-            Trace.Log(byWindow ? "capture backend=wgc-window" : "capture backend=wgc");
-            return true;
-        }
-        catch (Exception ex)
-        {
-            try { w?.Dispose(); } catch { }
-            _wgc = null;
-            Trace.Log((byWindow ? "wgc window init failed: " : "wgc init failed: ") + ex.Message.Split('\n')[0] // copyok
-                + (byWindow ? " → 按区域录" : " → 回退 GDI")); // copyok
-            return false;
-        }
-    }
-
-    /// <summary>手势「开始录制」——直接起录（不经点按/长按状态机）。非空闲态一律拒绝且无副作用。</summary>
-    /// <returns>true = 已进入 <see cref="Phase.Capturing"/>。
-    /// false = 未起录：当前态不允许，或 WGC 与 GDI 后端都启动失败；调用方可据此顺延。</returns>
-    public bool StartRecording()
-    {
-        if (_disposed || State != Phase.Idle) return false;
-        BeginCaptureCore();
-        return State == Phase.Capturing;
-    }
-
-    /// <summary>手势「停止录制」——停止录制，产物留在内存供『打开编辑器（上次录制）』取用，不进编辑器。</summary>
-    /// <returns>true = 已收尾；false = 当前未在录，未产生任何副作用。</returns>
-    public bool StopRecording()
-    {
-        if (State != Phase.Capturing) return false;
-        FinishCapture(-1, openEditor: false);
-        return true;
-    }
-
-    private void FinishCapture(long holdMs = -1, bool openEditor = true)
-    {
-        // 面板录制结束：上方面板与范围框一起收，标志清掉——下一次起录重新按新流程走
-        Overlays.RecordPanelWindow.Dismiss();
-        _panelRecording = false;
-        Trace.Log("FinishCapture");
-        _recBadgeTimer?.Stop();
-        // 徽标与轮廓的退场延后到产物就绪（见 RetireCaptureOutline）：录制路径期间先挂「处理中…」，
-        // 免得连按两下结束后、编辑器构造那段 UI 冻结期界面空着像没反应。
-        _live.Stop();
-        long wgcMissed = 0, wgcDelivered = 0, wgcKept = 0;
-        if (_wgc != null) { wgcMissed = _wgc.FramesMissed; wgcDelivered = _wgc.Delivered; wgcKept = _wgc.KeptThrottle; try { _wgc.Stop(); _wgc.Dispose(); } catch { } _wgc = null; }
-
-        double durMs = _captureClock?.ElapsedMilliseconds ?? 0;
-        // durMs = 起录到收尾的墙钟时长（时钟在 BeginCaptureCore 起跳），既用于帧率统计，也用于「够长才自动开编辑器」。
-        // holdMs 是给外部覆盖时长的入口（负值=不覆盖）；当前所有调用方都传 -1，时长一律来自这个时钟。
-        if (holdMs >= 0) durMs = holdMs;
-        _captureClock = null;
-        var spoolList = _spool != null && _spool.Count > 0 ? _spool.OpenReader() : null;
-        _spool = null;
-        IReadOnlyList<CapturedFrame> frames = spoolList ?? (IReadOnlyList<CapturedFrame>)new List<CapturedFrame>();
-        if (durMs > 50)
-            Trace.Log($"wgc stats kept={frames.Count} delivered={wgcDelivered} keptThrottle={wgcKept} missed={wgcMissed} dur={durMs:F0}ms fps={frames.Count / (durMs / 1000.0):F1}");
-        if (frames.Count == 0)
-        {
-            // WGC 脏区语义在极短/全静止场景理论可为 0 帧：GDI 补抓一帧兜底，保证“点按必有产物”
-            var reg = _pendingSel?.Bounds ?? default;
-            if (reg.W > 0 && reg.H > 0)
-            {
-                try
-                {
-                    var one = LiveCapture.Grab(reg);
-                    if (one != null) { frames = new List<CapturedFrame> { one }; Trace.Log("zero-frame safety net (gdi grab)"); }
-                }
-                catch { }
-            }
-            if (frames.Count == 0) { RetireCaptureOutline(); spoolList?.Dispose(); State = Phase.Idle; _recordCompletion?.TrySetResult(false); return; }
-        }
-
-        // 点按/长按的判定在手势引擎（Tap→截图动作、Hold/HoldRelease→录制）；
-        // 走到这里就是「真录制」收尾：产物一律按录制走，没有「点按→单帧」分支。
-        var region = _pendingSel?.Region ?? new ScreenRegion("", frames[0].W > 0 ? new RectI(0, 0, frames[0].W, frames[0].H) : default);
-        var monitor = Monitors.ByDevice(region.DeviceName);
-        var seq = new CapturedSequence
-        {
-            Frames = frames,
-            Region = region.Bounds,
-            MonitorBounds = monitor?.Bounds ?? new RectI(0, 0, frames[0].W, frames[0].H),
-            MonitorDevice = region.DeviceName,
-            DroppedFrames = 0, // 逐帧落盘，录制路径恒为 0
-            Fps = _captureFps, // 实际帧率（跟随刷新率时=刷新率），编辑器时间轴/时长据此而非手动值
-        };
-
-        // 产物先暂存内存。开编辑器时所有权归编辑器（_lastSequence 置空，免下次误回收）；
-        // 不开编辑器时记为「上次录制」供 edit.lastvideo 取用，并释放上一条从未进编辑器的产物（含 spool 文件）。
-        if (!ReferenceEquals(_lastSequence, seq)) (_lastSequence?.Frames as IDisposable)?.Dispose();
-        if (openEditor)
-        {
-            // 编辑器构造 + 首帧解码是 UI 线程同步重活会冻结界面：先把 REC 徽标转「处理中…」并强制刷一帧，
-            // 让用户在冻结期看到反馈。⚠ 这句 Dispatcher.Invoke 会泵动消息队列——只在开编辑器分支做：
-            // 动作链的继续点位于状态与产物登记之后
-            _outline?.SetRecProcessing();
-            try { System.Windows.Application.Current?.Dispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.Render); } catch { }
-            _lastSequence = null;
-            OpenEditor(seq);
-        }
-        else { _lastSequence = seq; State = Phase.Idle; }
-        RetireCaptureOutline();
-        // 产物与空闲状态就绪后再唤醒动作链
-        _recordCompletion?.TrySetResult(true);
-    }
 
     /// <summary>产物就绪后停录制徽标，按设置保留范围轮廓或淡出。</summary>
     void RetireCaptureOutline()
@@ -437,18 +228,41 @@ public sealed partial class CaptureController : IDisposable
     }
 
     /// <summary>打开编辑器并接管生命周期（关闭→Idle→焦点归还）。调用方负责 seq 组装。</summary>
-    void OpenEditor(CapturedSequence seq)
+    async Task<bool> OpenEditorAsync(CapturedSequence seq)
     {
+        if (_disposed || State != Phase.Idle) return false;
         seq = BakedFrameList.Retain(seq);
+        State = Phase.PreparingEditor;
+        (CapturedFrame Frame, System.Windows.Media.Imaging.BitmapSource Bitmap) first;
+        try
+        {
+            first = await BackgroundWork.Run(() =>
+            {
+                var frame = seq.Frames[0];
+                return (frame, BgraImage.ToSource(frame));
+            });
+            if (_disposed)
+            {
+                await BackgroundWork.Run(() => { (seq.Frames as IDisposable)?.Dispose(); return true; });
+                return false;
+            }
+        }
+        catch (Exception ex)
+        {
+            Trace.Log("editor prepare: " + ex);
+            await BackgroundWork.Run(() => { (seq.Frames as IDisposable)?.Dispose(); return true; });
+            if (!_disposed) State = Phase.Idle;
+            return false;
+        }
         State = Phase.Editing;
         Trace.Log($"open editor frames={seq.Frames.Count}");
-        _editor = new EditorWindow(_settings, seq);
+        _editor = new EditorWindow(_settings, seq, first.Frame, first.Bitmap);
         _editor.ClosedByUser += () =>
         {
             _editor = null;
             State = Phase.Idle;
             // 释放编辑器持有的磁盘句柄或烘焙帧租约。
-            (seq.Frames as IDisposable)?.Dispose();
+            ReleaseFrames(seq.Frames);
             // 焦点归还给捕获前正在使用的窗口（测试形态下不做：归还也是一次 SetForegroundWindow）
             try { if (!TestNoForeground && _prevFg != IntPtr.Zero && Native.Win32.IsWindow(_prevFg)) ForegroundNow(_prevFg); } catch { }
             _prevFg = IntPtr.Zero;
@@ -462,6 +276,7 @@ public sealed partial class CaptureController : IDisposable
         _editor.ShowActivated = !TestNoForeground;
         _editor.Show();
         ForceForeground(_editor);
+        return true;
     }
 
     /// <summary>把一次按键直投当前编辑器的分派表。编辑器窗未激活时 WPF 不会路由键盘，
@@ -534,6 +349,12 @@ public sealed partial class CaptureController : IDisposable
         }
     }
 
+    private static async void ReleaseFrames(IReadOnlyList<CapturedFrame> frames)
+    {
+        try { await BackgroundWork.Run(() => { (frames as IDisposable)?.Dispose(); return true; }); }
+        catch (Exception ex) { Trace.Log("frame release: " + ex); }
+    }
+
     /// <summary>
     /// 释放控制器自己持有的产物与后端：上次静图、从未进编辑器的录制序列（含其 spool 文件）、GDI 捕获线程。
     /// 已交给编辑器的产物归编辑器释放，这里不碰。滚动会话还在跑时光标仍被注轮借走，这里负责还回去。
@@ -548,18 +369,16 @@ public sealed partial class CaptureController : IDisposable
         _scrollCompletion?.TrySetResult(false);
         _delayCompletion?.TrySetResult(false);
         _editorEvent?.TrySetResult(BehaviorPorts.Cancel);
-        _scrollTimer?.Stop();
-        _delayTimer?.Stop();
+        ScrollCancel();
+        DelayCancel();
         _recBadgeTimer?.Stop();
         _outline?.HideSilently(); _outline?.Close(); _outline = null;
         if (_picker != null) { _picker.Close(); _picker = null; }
         if (_recordCompletion != null) RecordPanelWindow.Dismiss();
-        try { _wgc?.Stop(); _wgc?.Dispose(); } catch { }
-        _wgc = null;
-        _spool?.Abandon(); _spool = null;
+        ReleaseRecording();
         RestoreAutoCursor();
         _lastStill.Clear(); // 释放保留帧（最大可达数十 MB）
-        (_lastSequence?.Frames as IDisposable)?.Dispose(); // 留在内存、从未进编辑器的录制产物
+        if (_lastSequence != null) ReleaseFrames(_lastSequence.Frames);
         _lastSequence = null;
         _live.Dispose();
     }

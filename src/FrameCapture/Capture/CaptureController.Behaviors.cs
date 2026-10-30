@@ -11,7 +11,7 @@ public sealed partial class CaptureController
     string _behaviorInitialMode = "";
     bool _behaviorModeConsumed;
     TaskCompletionSource<string>? _editorEvent;
-    bool _consumeStop;
+    bool? _consumeStop;
 
     /// <summary>执行行为入口；同一快捷键再次触发或停止入口结束当前录制。</summary>
     /// <param name="graph">独立的运行快照。</param>
@@ -24,13 +24,13 @@ public sealed partial class CaptureController
         if (_chainTask is { IsCompleted: false })
         {
             bool stop = bindingId == _behaviorBinding || EntryStopsRecording(graph, entryId);
-            if (stop && State == Phase.Capturing)
+            if (stop && State is Phase.Starting or Phase.Capturing && _recordStopTask == null)
             {
                 var active = _chainTask;
                 var context = _chainContext;
-                bool stopped = StopRecording();
-                if (stopped && bindingId != _behaviorBinding && EntryStopsRecording(graph, entryId) && context != null)
-                    ResumeBehaviorAfterStop(active, graph, entryId, bindingId, initialMode, context);
+                var stopping = StopRecordingAsync();
+                if (bindingId != _behaviorBinding && EntryStopsRecording(graph, entryId) && context != null)
+                    ResumeBehaviorAfterStop(active, stopping, graph, entryId, bindingId, initialMode, context);
             }
             else if (stop && _recordCompletion != null && State == Phase.Idle)
             {
@@ -58,20 +58,21 @@ public sealed partial class CaptureController
         return graph.Flow(entryId) is { } flow && Stops(flow.Steps);
     }
 
-    async void ResumeBehaviorAfterStop(Task<bool> active, BehaviorGraph graph, string entryId, string bindingId,
+    async void ResumeBehaviorAfterStop(Task<bool> active, Task<bool> stopping, BehaviorGraph graph, string entryId, string bindingId,
         string initialMode, RunContext context)
     {
         using var videoLease = context.HoldVideo();
         try
         {
+            bool stopped = await stopping;
             await active;
-            if (!_disposed) _chainTask = RunBehaviorAsync(graph, entryId, bindingId, initialMode, context, true);
+            if (!_disposed) _chainTask = RunBehaviorAsync(graph, entryId, bindingId, initialMode, context, stopped);
         }
         catch (Exception ex) { Trace.Log($"stop behavior: {ex.Message}"); }
     }
 
     async Task<bool> RunBehaviorAsync(BehaviorGraph graph, string entryId, string bindingId, string initialMode,
-        RunContext? initial = null, bool consumeStop = false)
+        RunContext? initial = null, bool? consumeStop = null)
     {
         var stored = StoredRegion();
         var context = initial ?? new RunContext { Region = stored?.Bounds, DeviceName = stored?.DeviceName ?? "" };
@@ -104,10 +105,10 @@ public sealed partial class CaptureController
         if (_disposed) return BehaviorPorts.Cancel;
         string action = node.Action;
         bool ok;
-        if (_consumeStop && action is GestureActions.RecordStop or GestureActions.RecordToggle)
+        if (_consumeStop is { } stopSucceeded && action is GestureActions.RecordStop or GestureActions.RecordToggle)
         {
-            _consumeStop = false;
-            return BehaviorPorts.Done;
+            _consumeStop = null;
+            return stopSucceeded ? BehaviorPorts.Done : BehaviorPorts.Failed;
         }
         if (action is GestureActions.Select or GestureActions.SelectOnly)
         {
@@ -124,7 +125,7 @@ public sealed partial class CaptureController
         }
         if (action == GestureActions.ClearRegion)
         {
-            ClearStoredRegion();
+            await ClearStoredRegionAsync();
             context.Region = null; context.Window = IntPtr.Zero;
             context.Frozen = context.FrozenWindow = null;
             return BehaviorPorts.Done;
@@ -188,30 +189,43 @@ public sealed partial class CaptureController
         if (video && context.Video is { } sequence && State == Phase.Idle)
         {
             if (ReferenceEquals(_lastSequence, sequence)) _lastSequence = null;
-            OpenEditor(sequence);
+            if (!await OpenEditorAsync(sequence)) return BehaviorPorts.Failed;
         }
         else if (!await RunChainStepAsync(action, context, false)) return BehaviorPorts.Failed;
         if (_editor is not { } editor) return BehaviorPorts.Failed;
         var done = _editorEvent = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
         editor.ManagedOutput = true;
-        void Output(CapturedSequence output)
-        {
-            context.LatestProduct = video ? RunValue.Video : RunValue.Still;
-            context.Text = null;
-            if (video)
-                context.Video = output;
-            else if (output.Frames.Count > 0)
-            {
-                context.Still = output.Frames[0];
-                context.StillRegion = output.Region; context.StillDevice = output.MonitorDevice;
-                _lastStill.Set(context.Still, context.StillRegion, context.StillDevice, context.WindowCapture);
-                (output.Frames as BakedFrameList)?.Dispose();
-            }
-            CloseEditor();
-            done.TrySetResult(BehaviorPorts.Saved);
-        }
         bool outputReady = false;
-        void Saved(CapturedSequence output) { outputReady = true; Output(output); }
+        async void Saved(CapturedSequence output)
+        {
+            outputReady = true;
+            bool adopted = false;
+            try
+            {
+                CapturedFrame? frame = !video && output.Frames.Count > 0
+                    ? await BackgroundWork.Run(() => output.Frames[0]) : null;
+                if (_disposed || done.Task.IsCompleted) return;
+                if (!video && frame == null) throw new InvalidOperationException("Editor output has no still frame");
+                context.LatestProduct = video ? RunValue.Video : RunValue.Still;
+                context.Text = null;
+                if (video) { context.Video = output; adopted = true; }
+                else
+                {
+                    context.Still = frame!;
+                    context.StillRegion = output.Region; context.StillDevice = output.MonitorDevice;
+                    _lastStill.Set(frame!, context.StillRegion, context.StillDevice, context.WindowCapture);
+                }
+                if (ReferenceEquals(_editor, editor)) CloseEditor();
+                done.TrySetResult(BehaviorPorts.Saved);
+            }
+            catch (Exception ex)
+            {
+                Trace.Log("editor output: " + ex);
+                if (ReferenceEquals(_editor, editor)) CloseEditor();
+                done.TrySetResult(BehaviorPorts.Failed);
+            }
+            finally { if (!adopted) ReleaseFrames(output.Frames); }
+        }
         void Closed()
         {
             if (outputReady) return;

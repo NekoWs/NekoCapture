@@ -357,7 +357,7 @@ public enum RecordFormat
 }
 
 /// <summary>JSON 设置存取，带并发保护与损坏自愈。</summary>
-public sealed class SettingsService
+public sealed partial class SettingsService
 {
     /// <summary>进程内唯一实例（帮助窗等无 DI 场景读取当前快捷键用）。</summary>
     public static SettingsService? Shared { get; private set; }
@@ -450,26 +450,19 @@ public sealed class SettingsService
     /// <param name="settings">要保存的设置；就地被 Normalize，保存后它即成为 <see cref="Current"/>。</param>
     public void Save(AppSettings settings)
     {
-        settings.Normalize();
-        lock (_gate)
-        {
-            _current = settings;
-            _selfWriteUtc = DateTime.UtcNow;
-            try
-            {
-                Directory.CreateDirectory(Dir);
-                WriteAtomic(settings);
-            }
-            catch { /* 保存失败不影响运行 */ }
-        }
+        (string Json, long Revision) snapshot;
+        lock (_gate) { _current = settings; snapshot = PrepareSave(); }
+        SaveSnapshot(snapshot);
     }
 
-    static void WriteAtomic(AppSettings settings)
+    static void WriteAtomic(AppSettings settings) => WriteAtomicJson(JsonSerializer.Serialize(settings, JsonOpts));
+
+    static void WriteAtomicJson(string json)
     {
         string tmp = FilePath + "." + Guid.NewGuid().ToString("N") + ".tmp";
         try
         {
-            File.WriteAllText(tmp, JsonSerializer.Serialize(settings, JsonOpts));
+            File.WriteAllText(tmp, json);
             for (int attempt = 0; ; attempt++)
             {
                 try { File.Move(tmp, FilePath, overwrite: true); return; }
@@ -486,7 +479,11 @@ public sealed class SettingsService
     /// <summary>从磁盘重载（外部编辑 settings.json 后热重载）；损坏自愈。</summary>
     public void Reload()
     {
-        lock (_gate) _current = Load();
+        lock (_writeGate)
+        {
+            var loaded = Load();
+            lock (_gate) { _current = loaded; _saveRevision++; }
+        }
         Changed?.Invoke();
     }
 
@@ -500,17 +497,31 @@ public sealed class SettingsService
     /// <returns>设置已原子写入时为 true。</returns>
     internal bool TrySaveStartup(bool enable, bool elevated)
     {
-        lock (_gate)
+        lock (_writeGate)
         {
             try
             {
-                var copy = JsonSerializer.Deserialize<AppSettings>(JsonSerializer.Serialize(_current, JsonOpts), JsonOpts)!;
-                copy.RunAtStartup = enable; copy.RunAsAdmin = elevated;
-                Directory.CreateDirectory(Dir);
-                WriteAtomic(copy);
-                _current.RunAtStartup = enable; _current.RunAsAdmin = elevated;
-                _selfWriteUtc = DateTime.UtcNow;
-                return true;
+                while (true)
+                {
+                    AppSettings copy; long revision;
+                    lock (_gate)
+                    {
+                        copy = JsonSerializer.Deserialize<AppSettings>(JsonSerializer.Serialize(_current, JsonOpts), JsonOpts)!;
+                        revision = _saveRevision;
+                        _selfWriteUtc = DateTime.UtcNow;
+                    }
+                    copy.RunAtStartup = enable; copy.RunAsAdmin = elevated;
+                    Directory.CreateDirectory(Dir);
+                    WriteAtomic(copy);
+                    lock (_gate)
+                    {
+                        if (revision != _saveRevision) continue;
+                        _current.RunAtStartup = enable; _current.RunAsAdmin = elevated;
+                        _saveRevision++;
+                        _selfWriteUtc = DateTime.UtcNow;
+                        return true;
+                    }
+                }
             }
             catch { return false; }
         }
@@ -525,17 +536,13 @@ public sealed class SettingsService
         Changed?.Invoke();
     }
 
-    /// <summary>改设置的标准入口：锁内改 <see cref="Current"/> → Normalize → Save，出锁后再触发 <see cref="Changed"/>。
-    /// 事件放在锁外是因为处理器常回读 Current，锁内回调等于把重入塞进临界区。</summary>
-    /// <param name="mutate">对当前设置实例的原地修改；在锁内执行，里面别做 IO，也不要在其中再调 Mutate。</param>
+    /// <summary>同步更新设置与保存快照，文件操作不占用内存设置锁；完成后通知界面。</summary>
+    /// <param name="mutate">对当前设置的同步修改，不得执行文件操作或再次调用 Mutate。</param>
     public void Mutate(Action<AppSettings> mutate)
     {
-        lock (_gate)
-        {
-            mutate(_current);
-            _current.Normalize();
-            Save(_current);
-        }
+        (string Json, long Revision) snapshot;
+        lock (_gate) { mutate(_current); snapshot = PrepareSave(); }
+        SaveSnapshot(snapshot);
         Changed?.Invoke();
     }
 }

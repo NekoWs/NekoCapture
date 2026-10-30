@@ -12,7 +12,8 @@ public sealed partial class CaptureController
     private static readonly JsonSerializerOptions SessionJson = new() { IncludeFields = true };
 
     /// <summary>当前无捕获、编辑或待完成的行为，允许常驻宿主收起界面进程。</summary>
-    internal bool CanSuspend => !_disposed && State == Phase.Idle && (_chainTask == null || _chainTask.IsCompleted);
+    internal bool CanSuspend => !_disposed && State == Phase.Idle && !_scrollStarting && !_scrollFinishing
+        && _scrollBar == null && _delayWindow == null && !_delayFiring && (_chainTask == null || _chainTask.IsCompleted);
 
     /// <summary>已保存快照后释放捕获像素，重新接入惰性产物，保留可立即响应的界面服务。</summary>
     internal void ReleaseResidentBuffers()

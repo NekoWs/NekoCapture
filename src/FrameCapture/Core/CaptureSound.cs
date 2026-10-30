@@ -76,50 +76,62 @@ public static class CaptureSound
 
     const uint SND_ASYNC = 0x0001, SND_NODEFAULT = 0x0002, SND_MEMORY = 0x0004;
 
-    /// <summary>播放一声（异步，不阻塞 UI 线程）。首次合成后缓存字节。绝不抛——无音频设备等情况静默忽略。
-    /// 自定义音：wav 直接读字节走 winmm（无编解码依赖，保证可播）；ogg/mp3 等走 WPF MediaPlayer（系统媒体管线）。
-    /// 交给播放管线前的失败（文件不存在、非 UI 线程、打开即抛、wav 头畸形）一律回退内置嘀声；
-    /// MediaPlayer 打开后的异步解码失败没有回调，那一趟会无声。</summary>
-    /// <param name="customPath">用户指定的提示音文件；null、空白或文件不存在都直接用内置嘀声。</param>
-    public static void Play(string? customPath = null)
+    private static readonly object SoundGate = new();
+    private static int _request;
+    private static byte[]? _customBytes;
+    private static string _customKey = "";
+    private static System.Windows.Media.MediaPlayer? _mp;
+
+    /// <summary>后台读取和播放 WAV；其他格式在界面线程交给 MediaPlayer。失败时使用内置提示音。</summary>
+    /// <param name="customPath">自定义音效路径；null 或不可读时使用内置音效。</param>
+    public static async void Play(string? customPath = null)
     {
+        int request = Interlocked.Increment(ref _request);
+        bool allowMedia = System.Windows.Application.Current?.Dispatcher.CheckAccess() == true;
+        using var activity = Services.BackgroundWork.Hold();
         try
         {
-            if (!string.IsNullOrWhiteSpace(customPath) && PlayCustom(customPath)) return;
-            _cached ??= MakeWav(Samples());
-            // SND_MEMORY|SND_ASYNC|SND_NODEFAULT：Windows 自持缓冲，fire-and-forget，无对象生命周期问题
-            bool ok = PlaySound(_cached, IntPtr.Zero, SND_MEMORY | SND_ASYNC | SND_NODEFAULT);
-            Trace.Log($"capture sound played={ok} bytes={_cached.Length}");
-        }
-        catch (Exception e) { Trace.Log($"capture sound failed: {e.GetType().Name}"); }
-    }
-
-    static byte[]? _customBytes;
-    static string _customKey = "";
-    static System.Windows.Media.MediaPlayer? _mp;
-
-    /// <summary>返回 true=已交给播放管线（wav 成功或已交给 MediaPlayer）；false=回退内置嘀声。</summary>
-    static bool PlayCustom(string path)
-    {
-        try
-        {
-            if (!File.Exists(path)) return false;
-            if (path.EndsWith(".wav", StringComparison.OrdinalIgnoreCase))
-            {
-                string key = path + "|" + File.GetLastWriteTimeUtc(path);
-                if (_customKey != key) { _customBytes = File.ReadAllBytes(path); _customKey = key; }
-                if (_customBytes != null && PlaySound(_customBytes, IntPtr.Zero, SND_MEMORY | SND_ASYNC | SND_NODEFAULT))
-                    return true;
-                return false;   // wav 播放失败（如畸形头）→ 回退嘀声
-            }
-            // 非 wav：MediaPlayer 需 UI 线程（与 Dispatcher 绑定）；捕获完成都在 UI 线程，异常场景直接回退
-            if (System.Windows.Application.Current?.Dispatcher.CheckAccess() != true) return false;
+            string? media = await Services.BackgroundWork.Run(() => PrepareAndPlay(customPath, allowMedia, request));
+            if (media == null || request != Volatile.Read(ref _request)) return;
             _mp?.Stop(); _mp?.Close();
             _mp = new System.Windows.Media.MediaPlayer();
-            _mp.Open(new Uri(path));
-            _mp.Play();
-            return true;
+            _mp.Open(new Uri(media)); _mp.Play();
         }
-        catch (Exception e) { Trace.Log($"custom sound failed: {e.GetType().Name} → 回退嘀声"); return false; }
+        catch (Exception ex)
+        {
+            Trace.Log("capture sound: " + ex.Message);
+            try { await Services.BackgroundWork.Run(() => PrepareAndPlay(null, false, request)); }
+            catch (Exception error) { Trace.Log("capture sound fallback: " + error.Message); }
+        }
+    }
+
+    private static string? PrepareAndPlay(string? path, bool allowMedia, int request)
+    {
+        lock (SoundGate)
+        {
+            if (request != Volatile.Read(ref _request)) return null;
+            try
+            {
+                if (!string.IsNullOrWhiteSpace(path) && File.Exists(path))
+                {
+                    if (!path.EndsWith(".wav", StringComparison.OrdinalIgnoreCase))
+                    {
+                        if (allowMedia) return path;
+                    }
+                    else
+                    {
+                        string key = path + "|" + File.GetLastWriteTimeUtc(path);
+                        if (_customKey != key) { _customBytes = File.ReadAllBytes(path); _customKey = key; }
+                        if (request != Volatile.Read(ref _request)) return null;
+                        if (_customBytes != null && PlaySound(_customBytes, IntPtr.Zero, SND_MEMORY | SND_ASYNC | SND_NODEFAULT)) return null;
+                    }
+                }
+            }
+            catch (Exception ex) { Trace.Log("custom sound: " + ex.Message); }
+            if (request != Volatile.Read(ref _request)) return null;
+            _cached ??= MakeWav(Samples());
+            PlaySound(_cached, IntPtr.Zero, SND_MEMORY | SND_ASYNC | SND_NODEFAULT);
+            return null;
+        }
     }
 }

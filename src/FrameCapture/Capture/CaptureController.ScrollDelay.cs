@@ -15,17 +15,26 @@ public sealed partial class CaptureController : IDisposable
         BeginChain(new[] { GestureActions.Select, GestureActions.ScrollCapture }, Array.Empty<string>());
     }
 
-    /// <summary>选区确认后进入步进拼接循环：先抓基准帧，之后每 280ms 抓一帧按重叠行数追加——
-    /// 滚动途中就在长，不必等手停下来。停稳帧走完整口径，滚动途中的帧只认全匹配的高置信重叠。
-    /// 基准帧抓不到（区域已被关掉）就直接放弃，不进入循环也不留任何浮层——取景层与预览卡在基准帧之后才创建。</summary>
-    void StartScrollLoop(RectI region, string device)
+    private int _scrollGeneration, _delayGeneration;
+    private Task? _scrollStepTask;
+    private bool _scrollStarting, _scrollFinishing, _delayFiring;
+
+    private async Task StartScrollLoopAsync(RectI region, string device)
     {
-        var f = LiveCapture.Grab(region);
-        if (f == null) { Trace.Log("scroll: first grab null"); _scrollCompletion?.TrySetResult(false); return; }
-        _scrollResume = null;   // 新起一次，手里那张就不该再挂在托盘上
-        ResetScrollSession(f.Bgra, f.W, f.H, region, device);
-        ShowScrollStage(f.Bgra, region, device);
-        Trace.Log($"scroll loop start {region.W}x{region.H}");
+        int generation = ++_scrollGeneration;
+        var completion = _scrollCompletion;
+        _scrollStarting = true;
+        try
+        {
+            var frame = await BackgroundWork.Run(() => LiveCapture.Grab(region));
+            if (_disposed || generation != _scrollGeneration || completion?.Task.IsCompleted == true) return;
+            if (frame == null) { completion?.TrySetResult(false); return; }
+            _scrollResume = null;
+            ResetScrollSession(frame.Bgra, frame.W, frame.H, region, device);
+            ShowScrollStage(frame.Bgra, region, device);
+        }
+        catch (Exception ex) { Trace.Log("scroll start: " + ex); completion?.TrySetResult(false); }
+        finally { if (generation == _scrollGeneration) _scrollStarting = false; }
     }
 
     /// <summary>把一次滚动会话摆成起点：基准像素 + 区域 + 设备，自动滚动的各档状态清零。</summary>
@@ -36,6 +45,7 @@ public sealed partial class CaptureController : IDisposable
     /// <param name="device">该区域所在显示器的设备名。</param>
     void ResetScrollSession(byte[] acc, int w, int h, RectI region, string device)
     {
+        _scrollFinishing = false;
         _scrollAcc = acc; _scrollW = w; _scrollH = h; _scrollRegion = region; _scrollDevice = device; _scrollSegs = 1;
         _scrollPrevB = null; _scrollAuto = false;
         _autoWaitSettle = false; _autoNoNew = 0; _autoNotch = ScrollAutoPolicy.NotchStart; _autoStuckTicks = 0;
@@ -117,7 +127,7 @@ public sealed partial class CaptureController : IDisposable
     /// <param name="obs">本帧观测：画面没变 / 找不到重叠 / 一步太小 / 已拼上。</param>
     void AutoObserve(ScrollAutoObservation obs)
     {
-        if (!_scrollAuto || _scrollBar == null) return;
+        if (_scrollFinishing || !_scrollAuto || _scrollBar == null) return;
         var d = ScrollAutoPolicy.Next(_autoWaitSettle, _autoNoNew, _autoNotch, obs);
         _autoNoNew = d.NoNew; _autoNotch = d.Notch; _autoWaitSettle = d.Waiting;
         if (d.Stop)
@@ -138,45 +148,57 @@ public sealed partial class CaptureController : IDisposable
         Trace.Log("scroll auto cursor restored");
     }
 
-    void ScrollTick()
+    private void ScrollTick()
     {
-        if (_scrollAcc == null || _scrollBar == null) return;
-        var b = LiveCapture.Grab(_scrollRegion);
-        if (b == null) return;
-        // 稳定判定：本帧与上一帧一致（上一帧底部完全包含本帧）才算滚动停稳。停稳与否决定找重叠的口径：
-        // 停稳帧走完整口径（容差趟、兜底照常），滚动途中的帧只认「有信息行全匹配」的高置信重叠。
-        bool stable = _scrollPrevB != null &&
-            ScrollStitch.FindOverlap(_scrollPrevB, _scrollW, _scrollPrevB.Length / (_scrollW * 4), b.Bgra, b.H) >= b.H;
-        _scrollPrevB = b.Bgra;
-        if (!stable && _scrollAuto && _autoWaitSettle && ++_autoStuckTicks >= SettleMaxTicks)
+        if (_scrollFinishing || _scrollStepTask is { IsCompleted: false }) return;
+        _scrollStepTask = ScrollTickAsync();
+    }
+
+    private async Task ScrollTickAsync()
+    {
+        if (_scrollAcc is not { } acc || _scrollBar is not { } bar) return;
+        int generation = _scrollGeneration, width = _scrollW, height = _scrollH;
+        var region = _scrollRegion; var previous = _scrollPrevB;
+        try
         {
-            // 注进去的那一步迟迟没有下文：页面一直在动（视频、闪烁光标、惯性滚动）又一帧都拼不上时，沉默下去等于卡死
-            StopAuto(Loc.T(K.Capture.TheViewKeepsChangingSo));
-            return;
+            var sample = await BackgroundWork.Run(() =>
+            {
+                var frame = LiveCapture.Grab(region);
+                if (frame == null || frame.W != width) return (Frame: (CapturedFrame?)null, Stable: false, Overlap: 0, Appended: (byte[]?)null);
+                bool stable = previous != null && ScrollStitch.FindOverlap(previous, width, previous.Length / (width * 4), frame.Bgra, frame.H) >= frame.H;
+                int overlap = stable ? ScrollStitch.FindOverlap(acc, width, height, frame.Bgra, frame.H)
+                    : ScrollStitch.FindOverlapExact(acc, width, height, frame.Bgra, frame.H);
+                byte[]? appended = overlap > 0 && frame.H - overlap >= (stable ? 3 : 12)
+                    ? ScrollStitch.Append(acc, width, height, frame.Bgra, frame.H, overlap) : null;
+                return (Frame: (CapturedFrame?)frame, Stable: stable, Overlap: overlap, Appended: appended);
+            });
+            if (_disposed || generation != _scrollGeneration || !ReferenceEquals(bar, _scrollBar) || sample.Frame is not { } frame) return;
+            _scrollPrevB = frame.Bgra;
+            bool stable = sample.Stable; int overlap = sample.Overlap;
+            if (!stable && _scrollAuto && _autoWaitSettle && ++_autoStuckTicks >= SettleMaxTicks)
+            {
+                StopAuto(Loc.T(K.Capture.TheViewKeepsChangingSo)); return;
+            }
+            if (stable) { _autoWaitSettle = false; _autoStuckTicks = 0; }
+            if (overlap >= frame.H) { if (stable) AutoObserve(ScrollAutoObservation.NoNewContent); return; }
+            if (overlap <= 0)
+            {
+                if (stable) { bar.FlashHint(Loc.T(K.Capture.ScrolledTooFastToFind)); AutoObserve(ScrollAutoObservation.NoOverlap); }
+                return;
+            }
+            if (sample.Appended == null) { if (stable) AutoObserve(ScrollAutoObservation.TinyStep); return; }
+            _scrollAcc = sample.Appended;
+            _scrollH = _scrollAcc.Length / (width * 4); _scrollSegs++;
+            bar.SetProgress(_scrollSegs, _scrollH);
+            _scrollPreview?.SetImage(_scrollAcc, width, _scrollH);
+            _autoStuckTicks = 0;
+            if (!_scrollFinishing) AutoObserve(ScrollAutoObservation.Appended);
         }
-        if (stable) { _autoWaitSettle = false; _autoStuckTicks = 0; }   // 已停稳：注过的那一步落定
-        int ov = stable
-            ? ScrollStitch.FindOverlap(_scrollAcc, _scrollW, _scrollH, b.Bgra, b.H)
-            : ScrollStitch.FindOverlapExact(_scrollAcc, _scrollW, _scrollH, b.Bgra, b.H);
-        if (ov >= b.H) { if (stable) AutoObserve(ScrollAutoObservation.NoNewContent); return; }   // 画面没再滚（本帧已含于累积底部）
-        // 「滚太快」只有停稳帧才够格下结论：滚动途中凑不出全匹配是常态，一路提示会响成一片
-        if (ov <= 0)
+        catch (Exception ex)
         {
-            if (stable) { _scrollBar.FlashHint(Loc.T(K.Capture.ScrolledTooFastToFind)); AutoObserve(ScrollAutoObservation.NoOverlap); }
-            return;
+            Trace.Log("scroll step: " + ex);
+            if (generation == _scrollGeneration && !_disposed) ScrollCancel();
         }
-        int newRows = b.H - ov;
-        // 停稳帧 3 行起拼；滚动途中 12 行起拼——Append 每次重抄整张长图，为几行蠕动重抄会让长图越滚越卡。
-        // acc 没长，newRows 就一直在攒，慢滚照样会在攒够那一拍拼上。
-        if (newRows < (stable ? 3 : 12)) { if (stable) AutoObserve(ScrollAutoObservation.TinyStep); return; }
-        _scrollAcc = ScrollStitch.Append(_scrollAcc, _scrollW, _scrollH, b.Bgra, b.H, ov);
-        _scrollH = _scrollAcc.Length / (_scrollW * 4);
-        _scrollSegs++;
-        _scrollBar.SetProgress(_scrollSegs, _scrollH);
-        _scrollPreview?.SetImage(_scrollAcc, _scrollW, _scrollH);
-        _autoStuckTicks = 0;   // 拼上了就是进展，停稳等待从头计
-        Trace.Log($"scroll append ov={ov} new={newRows} h={_scrollH} stable={stable}");
-        AutoObserve(ScrollAutoObservation.Appended);
     }
 
     /// <summary>收起取景层与预览卡并清字段。完成与取消两条退出路径都走这里——漏一条就是关不掉的压暗遮罩。</summary>
@@ -190,39 +212,62 @@ public sealed partial class CaptureController : IDisposable
 
     async void ScrollDone()
     {
+        if (_scrollFinishing) return;
+        int generation = _scrollGeneration;
         var completion = _scrollCompletion;
-        Services.HotkeyManager.ScrollActive = false;
-        _scrollTimer?.Stop(); _scrollTimer = null;
-        RestoreAutoCursor();   // 注轮借走的光标在出图前就得还回去，acc 为空提前返回也覆盖
-        CloseScrollStageAndPreview();
-        var acc = _scrollAcc; var bar = _scrollBar;
-        _scrollAcc = null; _scrollBar = null; _scrollPrevB = null; _scrollAuto = false;
-        if (acc == null) { bar?.CloseSelf(); completion?.TrySetResult(false); return; }
-        var frame = new CapturedFrame { Bgra = acc, W = _scrollW, H = _scrollH, TimeMs = 0 };
-        var reg = _scrollRegion; var dev = _scrollDevice; int segs = _scrollSegs; _scrollSegs = 0;
-        bar?.CloseSelf();
-        var previous = _scrollResume?.Png;
-        string? saved = await BackgroundWork.Run(() =>
+        _scrollFinishing = true;
+        _scrollTimer?.Stop();
+        try
         {
-            Core.TempFiles.Drop(previous);
-            try
+            if (_scrollStepTask != null) await _scrollStepTask;
+            if (_disposed || generation != _scrollGeneration || _scrollBar == null) return;
+            Services.HotkeyManager.ScrollActive = false;
+            _scrollTimer = null;
+            RestoreAutoCursor();
+            CloseScrollStageAndPreview();
+            var acc = _scrollAcc; var bar = _scrollBar;
+            _scrollAcc = null; _scrollBar = null; _scrollPrevB = null; _scrollAuto = false;
+            bar?.CloseSelf();
+            if (acc == null) { completion?.TrySetResult(false); return; }
+            var frame = new CapturedFrame { Bgra = acc, W = _scrollW, H = _scrollH, TimeMs = 0 };
+            var region = _scrollRegion; var device = _scrollDevice;
+            var context = _chainContext;
+            _scrollSegs = 0;
+            var previous = _scrollResume?.Png;
+            string? saved = await BackgroundWork.Run(() =>
             {
-                var path = Core.TempFiles.PathOf($"scroll-{Guid.NewGuid():N}.png");
-                BgraImage.SavePng(frame, path);
-                return System.IO.File.Exists(path) ? path : null;
+                Core.TempFiles.Drop(previous);
+                try
+                {
+                    var path = Core.TempFiles.PathOf($"scroll-{Guid.NewGuid():N}.png");
+                    BgraImage.SavePng(frame, path);
+                    return System.IO.File.Exists(path) ? path : null;
+                }
+                catch (Exception ex) { Trace.Log("scroll save: " + ex); return null; }
+            });
+            if (_disposed || generation != _scrollGeneration || completion?.Task.IsCompleted == true)
+            {
+                await BackgroundWork.Run(() => { Core.TempFiles.Drop(saved); return true; });
+                return;
             }
-            catch (Exception error) { Trace.Log($"scroll save: {error.Message}"); return null; }
-        });
-        if (_disposed || completion?.Task.IsCompleted == true) return;
-        _scrollResume = saved != null ? (saved, reg, dev) : null;
-        DispatchStill(frame, reg, dev);
-        completion?.TrySetResult(true);
+            _scrollResume = saved != null ? (saved, region, device) : null;
+            DispatchStill(frame, region, device, context: context);
+            _scrollFinishing = false;
+            completion?.TrySetResult(true);
+        }
+        catch (Exception ex)
+        {
+            Trace.Log("scroll finish: " + ex);
+            completion?.TrySetResult(false);
+        }
+        finally { if (generation == _scrollGeneration) _scrollFinishing = false; }
     }
 
     /// <summary>取消滚动拼接：停表、还原注轮借走的光标、收起取景层与预览卡、关控制条、丢弃已拼接的内容（不落盘、不进剪贴板）。
     /// 退出必须清 <c>HotkeyManager.ScrollActive</c>，否则全局 Esc 会被一直吞掉（控制条 <c>Closed</c> 另有兜底）。</summary>
     public void ScrollCancel()
     {
+        _scrollGeneration++; _scrollStarting = false; _scrollFinishing = false;
         Services.HotkeyManager.ScrollActive = false;
         _scrollTimer?.Stop(); _scrollTimer = null;
         RestoreAutoCursor();
@@ -239,33 +284,23 @@ public sealed partial class CaptureController : IDisposable
     /// <summary>托盘「继续上次滚动」：把上次「完成」留下的那张长图当基准帧，重新进步进拼接循环。</summary>
     /// <remarks>页面在这期间被滚走也不会拼错：重叠找不到就是不追加，宁可少一段也不接出错位的长图。
     /// 那张 PNG 读不回来（临时目录被清、文件损坏）就当没有这次可继续，清掉并记 trace。</remarks>
-    public void ResumeScrollCapture()
+    public async void ResumeScrollCapture()
     {
-        var r = _scrollResume;
-        if (r == null) { Trace.Log("scroll resume: nothing to continue"); return; }
-        var (png, region, device) = r.Value;
-        _scrollResume = null;   // 无论接不接得起来，这一次都已经被用掉了
-        byte[] acc; int w, h;
+        if (_disposed || State != Phase.Idle || _scrollStarting || _scrollBar != null || _chainTask is { IsCompleted: false }) return;
+        if (_scrollResume is not { } resume) return;
+        int generation = ++_scrollGeneration;
+        _scrollStarting = true;
+        _scrollResume = null;
         try
         {
-            var src = new System.Windows.Media.Imaging.BitmapImage();
-            using (var fs = System.IO.File.OpenRead(png))
-            {
-                src.BeginInit();
-                src.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
-                src.StreamSource = fs;
-                src.EndInit();
-            }
-            src.Freeze();
-            var f = BgraImage.FromSource(src);
-            if (f == null) throw new System.IO.InvalidDataException("空图");
-            (acc, w, h) = (f.Bgra, f.W, f.H);
+            var frame = await BackgroundWork.Run(() => FrameFromPng(resume.Png));
+            if (_disposed || generation != _scrollGeneration || State != Phase.Idle || _chainTask is { IsCompleted: false }) return;
+            if (frame == null) return;
+            ResetScrollSession(frame.Bgra, frame.W, frame.H, resume.Region, resume.Device);
+            ShowScrollStage(frame.Bgra, resume.Region, resume.Device);
         }
-        catch (Exception e) { Trace.Log($"scroll resume: 读不回 {png} — {e.Message}"); Core.TempFiles.Drop(png); return; }
-        if (State == Phase.SelectingScope || _scrollBar != null) { Trace.Log("scroll resume: 已有会话在跑"); return; }
-        ResetScrollSession(acc, w, h, region, device);
-        ShowScrollStage(acc, region, device);
-        Trace.Log($"scroll resume {w}x{h} from {png}");
+        catch (Exception ex) { Trace.Log("scroll resume: " + ex); }
+        finally { if (generation == _scrollGeneration) _scrollStarting = false; }
     }
     #endregion
 
@@ -274,7 +309,7 @@ public sealed partial class CaptureController : IDisposable
     /// 独立于点按/录制状态机——只借完成路径，不碰 Phase，避免与按住录制的模式交互。</summary>
     public void BeginDelayedCapture()
     {
-        if (_delayWindow != null) { Trace.Log("delay: already running, ignore"); return; }
+        if (_delayWindow != null || _delayFiring) { Trace.Log("delay: already running, ignore"); return; }
         int secs = Math.Clamp(_settings.Current.DelayCaptureSeconds, 0, 60);
         var region = StoredRegion() ?? FullMonitorAtCursor();
         string label = StoredRegion() != null ? Loc.F(K.Capture.Region, region.Bounds.W, region.Bounds.H) : Loc.T(K.Capture.FullScreen);
@@ -321,6 +356,7 @@ public sealed partial class CaptureController : IDisposable
 
     void DelayCancel()
     {
+        _delayGeneration++; _delayFiring = false;
         HideDelayOutline();
         _delayTimer?.Stop(); _delayTimer = null;
         var win = _delayWindow; _delayWindow = null;
@@ -329,14 +365,23 @@ public sealed partial class CaptureController : IDisposable
         _delayCompletion?.TrySetResult(false);
     }
 
-    void DelayFire(ScreenRegion region)
+    private async void DelayFire(ScreenRegion region)
     {
-        HideDelayOutline();   // 收起倒计时范围高亮（轮廓本就不入镜，这里只是收尾）
-        var reg = region.Bounds; var dev = region.DeviceName;
-        var f = LiveCapture.Grab(reg);
-        if (f == null) { Trace.Log("delay: grab null"); _delayCompletion?.TrySetResult(false); return; }
-        DispatchStill(f, reg, dev);
-        _delayCompletion?.TrySetResult(true);
+        int generation = ++_delayGeneration;
+        var completion = _delayCompletion;
+        var context = _chainContext;
+        _delayFiring = true;
+        HideDelayOutline();
+        try
+        {
+            var frame = await BackgroundWork.Run(() => LiveCapture.Grab(region.Bounds));
+            if (_disposed || generation != _delayGeneration || completion?.Task.IsCompleted == true) return;
+            if (frame == null) { completion?.TrySetResult(false); return; }
+            DispatchStill(frame, region.Bounds, region.DeviceName, context: context);
+            completion?.TrySetResult(true);
+        }
+        catch (Exception ex) { Trace.Log("delay capture: " + ex); completion?.TrySetResult(false); }
+        finally { if (generation == _delayGeneration) _delayFiring = false; }
     }
     #endregion
 

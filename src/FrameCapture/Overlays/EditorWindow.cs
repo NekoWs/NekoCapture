@@ -68,10 +68,14 @@ public sealed partial class EditorWindow : Window
     /// </summary>
     /// <param name="settings">设置服务：fps 回退值、总在最前、引导与标注设置的持久化来源。</param>
     /// <param name="seq">捕获序列：帧来源（内存表或磁盘 spool）、捕获区域与显示器信息；本窗口不拥有它。</param>
-    public EditorWindow(SettingsService settings, CapturedSequence seq)
+    /// <param name="initialFrame">已在后台读取的首帧；null 时按需读取。</param>
+    /// <param name="initialBitmap">已冻结的首帧位图；null 时按需创建。</param>
+    public EditorWindow(SettingsService settings, CapturedSequence seq, CapturedFrame? initialFrame = null, BitmapSource? initialBitmap = null)
     {
         _settings = settings;
         _seq = seq;
+        if (initialFrame != null) { _curFrame = initialFrame; _curFrameIndex = 0; }
+        if (initialBitmap != null) { _bmpCache[0] = initialBitmap; _bmpFifo.Enqueue(0); }
         _fps = _seq.Fps > 0 ? Math.Clamp(_seq.Fps, AppSettings.FpsMin, AppSettings.FpsMax)
                             : Math.Clamp(_settings.Current.Fps, AppSettings.FpsMin, AppSettings.FpsMax);
         // 元数据抽入平行数组 + 位图缓存上限按帧字节自适应（见字段注释）

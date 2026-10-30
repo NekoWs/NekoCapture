@@ -25,13 +25,13 @@ public sealed partial class CaptureController
         if (_disposed) return;
         if (_chainTask is { IsCompleted: false })
         {
-            if (State == Phase.Capturing && SelectionCapture.StopsRecording(chain, _activeChain))
+            if (State is Phase.Starting or Phase.Capturing && _recordStopTask == null && SelectionCapture.StopsRecording(chain, _activeChain))
             {
                 var active = _chainTask;
                 bool sameChain = chain.SequenceEqual(_activeChain);
-                StopRecording();
+                var stopping = StopRecordingAsync();
                 if (!sameChain && chain.Contains(GestureActions.RecordStop) && !chain.Contains(GestureActions.RecordToggle))
-                    ResumeStopChain(active, chain, onFail, fallback);
+                    ResumeStopChain(active, stopping, chain, onFail, fallback);
             }
             else if (State == Phase.Idle && _recordCompletion != null
                 && SelectionCapture.StopsRecording(chain, _activeChain))
@@ -45,14 +45,15 @@ public sealed partial class CaptureController
         _chainTask = RunChainAsync(chain, onFail, fallback);
     }
 
-    async void ResumeStopChain(Task<bool> active, IReadOnlyList<string> chain, IReadOnlyList<string> onFail, FallbackPolicy fallback)
+    async void ResumeStopChain(Task<bool> active, Task<bool> stopping, IReadOnlyList<string> chain, IReadOnlyList<string> onFail, FallbackPolicy fallback)
     {
+        bool stopped = await stopping;
         await active;
         if (_disposed) return;
         var context = new RunContext { Video = _lastSequence,
             LatestProduct = _lastSequence != null ? RunValue.Video : RunValue.None };
         _chainTask = RunChainAsync(chain.Where(n => GestureActions.Canonical(n) != GestureActions.Select
-            && n != GestureActions.RecordStop).ToArray(), onFail, fallback, context);
+            && (!stopped || n != GestureActions.RecordStop)).ToArray(), onFail, fallback, context);
     }
 
     async Task<bool> RunChainAsync(IReadOnlyList<string> chain, IReadOnlyList<string> onFail, FallbackPolicy fallback,
@@ -134,7 +135,7 @@ public sealed partial class CaptureController
             | (context.Window != IntPtr.Zero ? RunValue.Window : RunValue.None)
             | (context.Still != null ? RunValue.Still : RunValue.None)
             | (context.Video != null ? RunValue.Video : RunValue.None)
-            | (State == Phase.Capturing ? RunValue.Recording : RunValue.None);
+            | (State is Phase.Starting or Phase.Capturing ? RunValue.Recording : RunValue.None);
         if (context.LatestProduct == RunValue.None)
         {
             if (HasLastStill) values |= RunValue.Still;
@@ -159,7 +160,7 @@ public sealed partial class CaptureController
                     context.DeviceName = _pendingSel.Value.DeviceName;
                     return true;
                 }
-                if (State != Phase.Idle || _scrollTimer != null || _delayTimer != null) return false;
+                if (State != Phase.Idle || _scrollStarting || _delayFiring || _scrollTimer != null || _delayTimer != null) return false;
                 _selectionCompletion = Completion();
                 await OpenChainPickerAsync(context, initialRecordMode, showModeSwitch);
                 bool selected = await _selectionCompletion.Task;
@@ -171,9 +172,9 @@ public sealed partial class CaptureController
             case GestureActions.CaptureFrame:
                 return await GrabChainStillAsync(context, name);
 
-            case GestureActions.RecordToggle when State == Phase.Capturing:
+            case GestureActions.RecordToggle when State is Phase.Starting or Phase.Capturing:
             case GestureActions.RecordStop:
-                bool stopped = StopRecording();
+                bool stopped = await StopRecordingAsync();
                 if (stopped)
                 {
                     context.Video = _lastSequence;
@@ -199,20 +200,20 @@ public sealed partial class CaptureController
                 {
                     if (_settings.Current.ShowRecordingBorder) ShowCaptureScope(context.Region.Value);
                     RecordPanelWindow.ShowArmed(context.Region.Value, context.DeviceName,
-                        () =>
+                        async () =>
                         {
                             RecordPanelWindow.Current?.SwitchToRecording();
                             _panelRecording = true;
-                            if (!StartRecording())
+                            if (!await StartRecordingAsync())
                             {
                                 _panelRecording = false;
                                 RecordPanelWindow.Dismiss();
                                 recordingCompletion.TrySetResult(false);
                             }
                             else { context.Recording = true; startedSignal.TrySetResult(true); }
-                        }, () =>
+                        }, async () =>
                         {
-                            if (!StopRecording())
+                            if (!await StopRecordingAsync())
                             {
                                 context.Cancelled = true;
                                 RetireCaptureOutline();
@@ -225,13 +226,13 @@ public sealed partial class CaptureController
                     if (context.Selected)
                     {
                         _panelRecording = true;
-                        RecordPanelWindow.ShowRecording(context.Region.Value, context.DeviceName, () => StopRecording());
+                        RecordPanelWindow.ShowRecording(context.Region.Value, context.DeviceName, async () => await StopRecordingAsync());
                     }
-                    if (!StartRecording()) { RecordPanelWindow.Dismiss(); _panelRecording = false; return false; }
+                    if (!await StartRecordingAsync()) { RecordPanelWindow.Dismiss(); _panelRecording = false; return false; }
                     startedSignal.TrySetResult(true);
                 }
                 if (RecordPanelWindow.Current is { } panel)
-                    panel.Closed += (_, _) => { if (State != Phase.Capturing) recordingCompletion.TrySetResult(false); };
+                    panel.Closed += (_, _) => { if (State == Phase.Idle) recordingCompletion.TrySetResult(false); };
                 context.Recording = State == Phase.Capturing;
                 await Task.WhenAny(startedSignal.Task, recordingCompletion.Task);
                 if (startedSignal.Task.IsCompletedSuccessfully && recordingStarted != null)
@@ -239,7 +240,7 @@ public sealed partial class CaptureController
                     try { await recordingStarted(); }
                     catch
                     {
-                        if (State == Phase.Capturing) StopRecording();
+                        if (State is Phase.Starting or Phase.Capturing) await StopRecordingAsync();
                         await recordingCompletion.Task;
                         throw;
                     }
@@ -251,16 +252,17 @@ public sealed partial class CaptureController
                 return recorded;
 
             case GestureActions.ScrollCapture:
-                if (context.Region == null || State != Phase.Idle || _scrollTimer != null) return false;
+                if (context.Region == null || State != Phase.Idle || _scrollStarting || _scrollTimer != null) return false;
                 _scrollCompletion = Completion();
-                StartScrollLoop(context.Region.Value, context.DeviceName);
-                return await _scrollCompletion.Task;
+                var scrollCompletion = _scrollCompletion;
+                await StartScrollLoopAsync(context.Region.Value, context.DeviceName);
+                return await scrollCompletion.Task;
 
             case GestureActions.DelayedCapture:
-                if (State != Phase.Idle || _delayTimer != null) return false;
-                _delayCompletion = Completion();
+                if (State != Phase.Idle || _delayFiring || _delayTimer != null) return false;
+                var delayCompletion = _delayCompletion = Completion();
                 BeginDelayedCapture();
-                return await _delayCompletion.Task;
+                return await delayCompletion.Task;
 
             case GestureActions.OcrSelection:
                 return await RecognizeStoredStillAsync();
@@ -274,26 +276,24 @@ public sealed partial class CaptureController
                 return await CopyLastStillAsync();
             case GestureActions.EditResult:
                 if (State != Phase.Idle) return false;
-                if (context.LatestProduct == RunValue.Video) return context.Video != null && EditLastVideo();
+                if (context.LatestProduct == RunValue.Video) return context.Video != null && await EditLastVideoAsync();
                 if (context.LatestProduct != RunValue.Still || context.Still == null) return false;
-                OpenEditorForFrame(context.Still, context.StillRegion, context.StillDevice);
-                return true;
+                return await OpenEditorForFrameAsync(context.Still, context.StillRegion, context.StillDevice);
             case GestureActions.EditLastStill:
                 if (context.LatestProduct != RunValue.None && context.Still == null) return false;
                 if (State != Phase.Idle || !HasLastStill) return false;
-                if (context.Still != null) OpenEditorForFrame(context.Still, context.StillRegion, context.StillDevice);
-                else EditLastStill();
-                return true;
+                if (context.Still != null) return await OpenEditorForFrameAsync(context.Still, context.StillRegion, context.StillDevice);
+                else return await EditLastStillAsync();
             case GestureActions.EditLastVideo:
                 if (context.LatestProduct != RunValue.None && context.Video == null) return false;
-                return EditLastVideo();
+                return await EditLastVideoAsync();
             case GestureActions.PinSelection:
                 if (State != Phase.Idle) return false;
                 if (context.Still == null && !await GrabChainStillAsync(context, GestureActions.GrabStill, useStoredFallback: true)) return false;
-                PinFrameAt(context.Still!, context.StillRegion); return true;
+                return await PinFrameAtAsync(context.Still!, context.StillRegion);
             case GestureActions.NotifyToast:
                 if (context.Still != null) ShowContextToast(context);
-                else if (context.LatestProduct == RunValue.None && HasLastStill) ShowLastStillToast();
+                else if (context.LatestProduct == RunValue.None && HasLastStill) return await ShowLastStillToastAsync();
                 else return false;
                 return true;
             case GestureActions.SavePng:
@@ -334,7 +334,7 @@ public sealed partial class CaptureController
         if (frame == null || (name == GestureActions.GrabWindow && !windowCapture)) return false;
         Trace.Log($"still source={(windowCapture ? "window" : frozen != null ? "frozen-region" : "live-region")} "
             + $"hwnd={target} cached={cached != null} size={frame.W}x{frame.H}");
-        DispatchStill(frame, captured, region.DeviceName, windowCapture);
+        DispatchStill(frame, captured, region.DeviceName, windowCapture, context);
         return true;
     }
 
@@ -342,9 +342,10 @@ public sealed partial class CaptureController
     {
         if (context.Still == null) return;
         var frame = context.Still;
-        CaptureToast.Show(frame, context.StillRegion, context.StillDevice,
-            () => OpenEditorForFrame(frame, context.StillRegion, context.StillDevice),
-            async () => { if (!await Encoding.ClipboardService.SetFrameAsync(frame, context.WindowCapture)) NoticeToast.Show(Loc.T(K.Common.ClipboardUnavailable)); });
+        var region = context.StillRegion; var device = context.StillDevice; bool window = context.WindowCapture;
+        CaptureToast.Show(frame, region, device,
+            () => OpenEditorForFrame(frame, region, device),
+            async () => { if (!await Encoding.ClipboardService.SetFrameAsync(frame, window)) NoticeToast.Show(Loc.T(K.Common.ClipboardUnavailable)); });
     }
 }
 

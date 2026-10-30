@@ -23,8 +23,7 @@ public enum OcrRoute { ResultWindow, CopyThenConfirm, NoEngineHint, EmptyHint }
 /// <summary>
 /// Windows 内置 OCR（Windows.Media.Ocr，无需联网/第三方）。引擎优先用户配置文件语言，
 /// 回退到任一已装识别语言；都没有则 NoEngine（调用方提示装语言包，绝不抛）。
-/// 帧像素同步拷入 SoftwareBitmap 之后才进入首个 await——拷完即与帧解绑，
-/// 故调用方（编辑器）随后关窗/释放 spool 无竞态。
+/// 引擎创建、像素复制与识别均在后台执行；传入帧的像素在任务完成前保持只读。
 /// </summary>
 public static class OcrService
 {
@@ -99,9 +98,15 @@ public static class OcrService
 
     /// <summary>识别一帧的印刷文字。Bgra8 帧直接拷入 SoftwareBitmap（无 PNG 往返）。
     /// 引擎内部异常一律吞成 Empty，调用方只需按状态走 <see cref="Route"/>。</summary>
-    /// <param name="frame">待识别帧，须为 Bgra8 且 W/H 有效；像素在首个 await 前即被复制走。</param>
+    /// <param name="frame">待识别帧，须为 Bgra8 且 W/H 有效；任务完成前不得改写像素。</param>
     /// <returns>识别结果；无引擎为 NoEngine，识别失败或无文字为 Empty，成功为 Success（文本已 Trim）。</returns>
     public static async Task<OcrOutcome> RecognizeAsync(CapturedFrame frame)
+    {
+        using var activity = Services.BackgroundWork.Hold();
+        return await Task.Run(() => RecognizeCoreAsync(frame)).ConfigureAwait(false);
+    }
+
+    private static async Task<OcrOutcome> RecognizeCoreAsync(CapturedFrame frame)
     {
         var eng = GetEngine();
         if (eng is null) return new(OcrStatus.NoEngine, "");

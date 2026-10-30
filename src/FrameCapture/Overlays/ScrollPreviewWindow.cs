@@ -6,6 +6,7 @@ using System.Windows.Media.Imaging;
 using FrameCapture.Capture;
 using FrameCapture.Core;
 using FrameCapture.Native;
+using FrameCapture.Services;
 
 namespace FrameCapture.Overlays;
 
@@ -139,17 +140,29 @@ public sealed class ScrollPreviewWindow : Window
         Trace.Log($"scroll preview shown well={_maxW}x{_maxH}");
     }
 
-    /// <summary>刷新一帧预览：长图先降采样到图区尺寸再上屏。与上次尺寸相同则直接返回，不重绘。</summary>
+    private int _imageGeneration;
+
+    /// <summary>后台生成一帧预览：长图先降采样到图区尺寸再上屏。与上次尺寸相同则直接返回，不重绘。</summary>
     /// <param name="bgra">已拼接长图本体，行主序 BGRA，行距 <c>w*4</c>。</param>
     /// <param name="w">长图宽，物理像素。</param>
     /// <param name="h">长图高，物理像素。</param>
-    public void SetImage(byte[] bgra, int w, int h)
+    public async void SetImage(byte[] bgra, int w, int h)
     {
         if (_closing || w <= 0 || h <= 0 || (w == _lastW && h == _lastH)) return;
-        var (px, tw, th) = Thumbnail(bgra, w, h, _maxW, _maxH);
-        if (tw <= 0 || th <= 0) return;
-        var src = BitmapSource.Create(tw, th, 96, 96, PixelFormats.Bgra32, null, px, tw * 4);
-        src.Freeze();
+        int generation = ++_imageGeneration, maxWidth = _maxW, maxHeight = _maxH;
+        BitmapSource? src;
+        try
+        {
+            src = await BackgroundWork.Run(() =>
+            {
+                var (pixels, width, height) = Thumbnail(bgra, w, h, maxWidth, maxHeight);
+                if (width <= 0 || height <= 0) return null;
+                var bitmap = BitmapSource.Create(width, height, 96, 96, PixelFormats.Bgra32, null, pixels, width * 4);
+                bitmap.Freeze(); return bitmap;
+            });
+        }
+        catch (Exception ex) { Trace.Log("scroll preview: " + ex); return; }
+        if (_closing || generation != _imageGeneration || src == null) return;
         _img.Source = src;
         _size.Text = $"{w}×{h} px";
         _lastW = w; _lastH = h;

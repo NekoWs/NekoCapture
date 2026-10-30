@@ -59,7 +59,8 @@ public sealed class PinWindow : Window
     /// 因此 W/H 应等于该区域尺寸，否则刷新会按错的尺寸重抓。</param>
     /// <param name="activateOnShow">true = Show 时激活并抢焦点（用户主动钉图，正盯着它）；
     /// false = 静默出现、点击客户区才激活（"截图后=贴图"，不打断原应用操作）。</param>
-    public PinWindow(CapturedFrame frame, RectI physPos, bool activateOnShow = true)
+    /// <param name="initialBitmap">后台准备的冻结位图；null 时按帧创建。</param>
+    public PinWindow(CapturedFrame frame, RectI physPos, bool activateOnShow = true, System.Windows.Media.Imaging.BitmapSource? initialBitmap = null)
     {
         _frame = frame;
         _srcRegion = physPos; // 记住源区域，供「更新内容」原地重抓
@@ -75,7 +76,7 @@ public sealed class PinWindow : Window
         UseLayoutRounding = true;
         Focusable = true;
 
-        var src = BgraImage.ToSource(frame);
+        var src = initialBitmap ?? BgraImage.ToSource(frame);
         src.Freeze();
         _img = new Image { Source = src, Stretch = Stretch.Fill };
         RenderOptions.SetBitmapScalingMode(_img, BitmapScalingMode.HighQuality);

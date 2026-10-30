@@ -199,7 +199,7 @@ static partial class SelfTest
             Select(c, true, false);
             bool recording = WaitUntil(() => c.State == CaptureController.Phase.Capturing);
             bool suspended = !TaskOf(c).IsCompleted;
-            c.StopRecording();
+            _ = c.StopRecordingAsync();
             Chk("T270-chain-no-product-follows-record", recording && suspended && WaitUntil(() => TaskOf(c).IsCompleted)
                 && TaskOf(c).Result && c.HasLastVideo && !c.HasLastStill);
         }
@@ -220,7 +220,7 @@ static partial class SelfTest
             bool still = c.HasLastStill;
             string folder = service.Current.AutoSavePath;
             int before = Directory.Exists(folder) ? Directory.GetFiles(folder, "*.png").Length : 0;
-            c.StopRecording();
+            _ = c.StopRecordingAsync();
             Chk("T270-chain-multi-product", recording && still && WaitUntil(() => TaskOf(c).IsCompleted)
                 && TaskOf(c).Result && c.HasLastVideo && Directory.GetFiles(folder, "*.png").Length == before + 1);
             Chk("T270-chain-explicit-consumer-no-toast", typeof(CaptureToast).GetField("_current", BindingFlags.NonPublic | BindingFlags.Static)!.GetValue(null) == null);
@@ -315,13 +315,13 @@ static partial class SelfTest
             var firstPanel = RecordPanelWindow.Current;
             if (armed) StartPanel();
             bool firstRecording = WaitUntil(() => c.State == CaptureController.Phase.Capturing);
-            c.StopRecording();
+            _ = c.StopRecordingAsync();
             bool secondArmed = WaitUntil(() => RecordPanelWindow.Current != null && !ReferenceEquals(RecordPanelWindow.Current, firstPanel));
             PumpMs(Fluent.Motion.ExitMs + 80);
             bool pending = !TaskOf(c).IsCompleted;
             if (secondArmed) StartPanel();
             bool secondRecording = WaitUntil(() => c.State == CaptureController.Phase.Capturing);
-            c.StopRecording();
+            _ = c.StopRecordingAsync();
             Chk("T270-chain-repeated-record-completions", armed && firstRecording && secondArmed && pending && secondRecording
                 && WaitUntil(() => TaskOf(c).IsCompleted) && TaskOf(c).Result && c.HasLastVideo);
         }
