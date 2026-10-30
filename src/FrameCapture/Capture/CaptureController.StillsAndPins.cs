@@ -70,15 +70,17 @@ public sealed partial class CaptureController : IDisposable
     {
         if (State != Phase.Idle) return false;
         // 刚截好的那一帧就是用户看见的那一帧：定格画面、窗口本体的透明边都在里面，重抓会换成另一个时刻。
-        CapturedFrame? shot = _chainContext?.Still;
+        var context = _chainContext;
+        CapturedFrame? shot = context?.Still;
         var region = StoredRegion() ?? FullMonitorAtCursor();
-        var f = shot ?? LiveCapture.Grab(region.Bounds);
+        var f = shot ?? await BackgroundWork.Run(() => LiveCapture.Grab(region.Bounds));
         if (f == null) { Trace.Log("ocr-still: grab null"); return false; }
         try
         {
             var outcome = await OcrService.RecognizeAsync(f);
             var text = OcrService.Normalize(outcome.Text);
-            if (_chainContext != null) _chainContext.Text = text;
+            if (_disposed) return false;
+            if (context != null) context.Text = text;
             switch (OcrService.Route(outcome.Status, _settings.Current.OcrShowResult))
             {
                 case OcrRoute.ResultWindow:
@@ -86,7 +88,7 @@ public sealed partial class CaptureController : IDisposable
                     Trace.Log($"ocr-still ok {text.Length}");
                     break;
                 case OcrRoute.CopyThenConfirm:
-                    try { System.Windows.Clipboard.SetText(text); } catch { }
+                    if (!await Encoding.ClipboardService.SetTextAsync(text)) return false;
                     OcrResultWindow.ShowMessage(OcrService.Feedback(OcrStatus.Success, text.Length));
                     Trace.Log($"ocr-still copied {text.Length}");
                     break;
@@ -109,16 +111,14 @@ public sealed partial class CaptureController : IDisposable
         }
     }
     #region 从剪贴板贴图
-    /// <summary>托盘/入口调用：把剪贴板里的图片钉成贴图（粘贴即贴图）——
+    /// <summary>托盘/入口调用：后台读取剪贴板图片并钉成贴图（粘贴即贴图）——
     /// 复制任意图片（截图/图片文件/网页图）后一键钉屏参考。剪贴板无图片返回 false（调用方给反馈）。
     /// 落点：光标所在屏、以光标为中心，越界钳进屏内。须在 UI 线程调用（托盘菜单点击即 UI 线程）。</summary>
     /// <returns>true = 已钉出贴图；false = 剪贴板里没有可用图片（含读取抛异常），此时不创建任何窗口。</returns>
-    public bool PinFromClipboard()
+    public async Task<bool> PinFromClipboardAsync()
     {
-        System.Windows.Media.Imaging.BitmapSource? img = null;
-        try { if (System.Windows.Clipboard.ContainsImage()) img = System.Windows.Clipboard.GetImage(); }
-        catch (Exception ex) { Trace.Log($"pin-clip: clipboard err {ex.GetType().Name}"); }
-        var f = BgraImage.FromSource(img);
+        var f = await Encoding.ClipboardService.ReadImageAsync();
+        if (_disposed) return false;
         if (f == null) { Trace.Log("pin-clip: no image"); return false; }
         Native.Win32.GetCursorPos(out var pt);
         var mon = Capture.Monitors.Nearest(pt.X, pt.Y);
@@ -295,16 +295,18 @@ public sealed partial class CaptureController : IDisposable
     public void ShowLastStillToast()
     {
         if (!_lastStill.TryGet(out var f, out var reg, out var dev)) return;
-        Overlays.CaptureToast.Show(f, reg, dev, () => OpenEditorForFrame(f, reg, dev), () => Encoding.ClipboardService.SetFrame(f));
+        Overlays.CaptureToast.Show(f, reg, dev, () => OpenEditorForFrame(f, reg, dev), async () => { if (!await Encoding.ClipboardService.SetFrameAsync(f, _lastStill.WindowCapture)) Overlays.NoticeToast.Show(Loc.T(K.Common.ClipboardUnavailable)); });
     }
 
     /// <summary>手势「复制到剪贴板」——把上一次截图写进剪贴板。没有上次截图时什么都不做。
     /// 上次那张是窗口截图时必须带上 PNG 形态：CF_DIB 不带 alpha，透明边会被读成黑色。</summary>
-    public void CopyLastStill()
+    /// <returns>剪贴板是否完整写入。</returns>
+    public async Task<bool> CopyLastStillAsync()
     {
-        if (!_lastStill.TryGet(out var f, out _, out _)) return;
-        Encoding.ClipboardService.SetFrame(f, includePng: _lastStill.WindowCapture);
-        Trace.Log($"copy-last still {f.W}x{f.H} win={_lastStill.WindowCapture}");
+        if (!_lastStill.TryGet(out var f, out _, out _)) return false;
+        bool result = await Encoding.ClipboardService.SetFrameAsync(f, includePng: _lastStill.WindowCapture);
+        Trace.Log($"copy-last still {f.W}x{f.H} success={result}");
+        return result;
     }
 
     /// <summary>是否有留在内存、可进编辑器的上次录制。</summary>

@@ -154,9 +154,9 @@ public sealed partial class TrayService : IDisposable
         if (_host.Controller.HasScrollResume)
             Item(Loc.T(K.Tray.ContinueTheLastScroll), () => _host.Controller.ResumeScrollCapture());
         Item(Loc.T(K.Common.DelayedCapture), () => _host.Controller.BeginDelayedCapture());
-        Item(Loc.T(K.Tray.PinFromClipboard), () =>
+        Item(Loc.T(K.Tray.PinFromClipboard), async () =>
         {
-            if (!_host.Controller.PinFromClipboard())
+            if (!await _host.Controller.PinFromClipboardAsync())
                 Notify(Loc.T(K.Tray.NoImageOnTheClipboard));
         });
         // 开了自动保存后，用户常想知道文件落到哪——直接打开保存目录

@@ -161,7 +161,7 @@ public sealed partial class CaptureController
                 }
                 if (State != Phase.Idle || _scrollTimer != null || _delayTimer != null) return false;
                 _selectionCompletion = Completion();
-                OpenChainPicker(context, initialRecordMode, showModeSwitch);
+                await OpenChainPickerAsync(context, initialRecordMode, showModeSwitch);
                 bool selected = await _selectionCompletion.Task;
                 if (selected) await WaitPickerExitAsync();
                 return selected;
@@ -265,14 +265,13 @@ public sealed partial class CaptureController
             case GestureActions.OcrSelection:
                 return await RecognizeStoredStillAsync();
             case GestureActions.CopyLast:
-                if (context.Text != null) { System.Windows.Clipboard.SetText(context.Text); return true; }
+                if (context.Text != null) return await Encoding.ClipboardService.SetTextAsync(context.Text);
                 if (context.Still != null)
                 {
-                    Encoding.ClipboardService.SetFrame(context.Still, includePng: context.WindowCapture);
-                    return true;
+                    return await Encoding.ClipboardService.SetFrameAsync(context.Still, includePng: context.WindowCapture);
                 }
                 if (context.LatestProduct != RunValue.None || !HasLastStill) return false;
-                CopyLastStill(); return true;
+                return await CopyLastStillAsync();
             case GestureActions.EditResult:
                 if (State != Phase.Idle) return false;
                 if (context.LatestProduct == RunValue.Video) return context.Video != null && EditLastVideo();
@@ -298,7 +297,7 @@ public sealed partial class CaptureController
                 else return false;
                 return true;
             case GestureActions.SavePng:
-                return context.Still != null && SaveService.SavePng(context.Still);
+                return context.Still != null && await SaveService.SavePngAsync(context.Still);
             case GestureActions.SettingsOpen:
                 SettingsWindow.ShowOrFocus(); return true;
             case GestureActions.HelpOpen:
@@ -344,8 +343,8 @@ public sealed partial class CaptureController
         if (context.Still == null) return;
         var frame = context.Still;
         CaptureToast.Show(frame, context.StillRegion, context.StillDevice,
-            () => { Encoding.ClipboardService.SetFrame(frame, context.WindowCapture); OpenEditorForFrame(frame, context.StillRegion, context.StillDevice); },
-            () => Encoding.ClipboardService.SetFrame(frame, context.WindowCapture));
+            () => OpenEditorForFrame(frame, context.StillRegion, context.StillDevice),
+            async () => { if (!await Encoding.ClipboardService.SetFrameAsync(frame, context.WindowCapture)) NoticeToast.Show(Loc.T(K.Common.ClipboardUnavailable)); });
     }
 }
 

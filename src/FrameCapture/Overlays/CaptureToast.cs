@@ -13,7 +13,7 @@ using FrameCapture.Services;
 namespace FrameCapture.Overlays;
 
 /// <summary>
-/// 截屏成功浮窗（拍完即见）：缩略图 + 「已复制」+ 点击继续标注。
+/// 截屏结果浮窗：缩略图、标注及复制入口。
 /// 不抢焦点、WDA 排除不入镜、悬停暂停自动消失；落点由 Core.ToastPlace 决策（贴刚截完的区域）。
 /// </summary>
 public sealed class CaptureToast : Window
@@ -35,7 +35,7 @@ public sealed class CaptureToast : Window
     /// <param name="frame">刚截下的帧（BGRA），只用于生成缩略图；建窗时即拷成冻结位图，之后改帧字节不影响浮窗。</param>
     /// <param name="region">截图区域，物理像素、虚拟桌面绝对坐标，决定落点。</param>
     /// <param name="monitorDevice">区域所在显示器 device name；按设备取不到时按区域坐标就近回退。</param>
-    /// <param name="onEdit">点「标注」、点卡片或按 Enter 时执行的回调（写剪贴板并进编辑器），在 UI 线程调用，执行后收起浮窗。</param>
+    /// <param name="onEdit">点「标注」、点卡片或按 Enter 时执行的回调（打开编辑器），在 UI 线程调用，执行后收起浮窗。</param>
     /// <param name="onCopy">点「复制」或按浮窗那条复制键时执行的回调（只写剪贴板），在 UI 线程调用，执行后收起浮窗。</param>
     public static void Show(CapturedFrame frame, RectI region, string monitorDevice, Action onEdit, Action onCopy)
     {

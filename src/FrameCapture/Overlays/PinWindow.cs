@@ -356,18 +356,19 @@ public sealed class PinWindow : Window
     }
 
     /// <summary>把贴图当前画面（含旋转后）复制回剪贴板，Ctrl+C / 右键「复制」共用。</summary>
-    void Copy()
+    async void Copy()
     {
-        ClipboardService.SetFrame(_frame);
-        Flash(Core.Loc.T(K.Common.Copied));
+        bool copied = await ClipboardService.SetFrameAsync(_frame, includePng: true);
+        if (IsVisible) Flash(Core.Loc.T(copied ? K.Common.Copied : K.Common.ClipboardUnavailable));
         Core.Trace.Log("pin-copy");
     }
 
     /// <summary>把贴图当前帧（含旋转后状态）另存为 PNG；弹保存框，取消则不留任何文件与提示。</summary>
-    void SaveAs()
+    async void SaveAs()
     {
         // 默认目录与「自动保存副本」一致：尊重自定义 AutoSavePath，回退 Pictures\FrameCapture
-        string dir = SaveService.ResolveFolder();
+        string dir = await BackgroundWork.Run(SaveService.ResolveFolder);
+        if (!IsVisible) return;
         var dlg = new Microsoft.Win32.SaveFileDialog
         {
             Filter = Core.Loc.T(K.Common.PngImagePng),
@@ -377,8 +378,14 @@ public sealed class PinWindow : Window
         if (dlg.ShowDialog(this) != true) return;
         string path = dlg.FileName;
         if (!path.EndsWith(".png", StringComparison.OrdinalIgnoreCase)) path += ".png";
-        try { BgraImage.SavePng(_frame, path); Flash(Core.Loc.T(K.Pin.Saved)); Core.Trace.Log($"pin-save {path}"); }
-        catch { Flash(Core.Loc.T(K.Common.SaveFailed)); }
+        var frame = _frame;
+        try
+        {
+            await BackgroundWork.Run(() => { BgraImage.SavePng(frame, path); return true; });
+            if (IsVisible) Flash(Core.Loc.T(K.Pin.Saved));
+            Core.Trace.Log($"pin-save {path}");
+        }
+        catch { if (IsVisible) Flash(Core.Loc.T(K.Common.SaveFailed)); }
     }
 
     List<(double L, double T, double R, double B)>? _winGuides;   // DIP，拖拽期间有效
@@ -489,8 +496,8 @@ public sealed class PinWindow : Window
                 }
                 else
                 {
-                    try { Clipboard.SetText(text); } catch { }
-                    Flash(Core.OcrService.Feedback(Core.OcrStatus.Success, text.Length));
+                    bool copied = await ClipboardService.SetTextAsync(text);
+                    if (IsVisible) Flash(copied ? Core.OcrService.Feedback(Core.OcrStatus.Success, text.Length) : Core.Loc.T(K.Common.ClipboardUnavailable));
                 }
                 Core.Trace.Log($"pin ocr ok {text.Length} chars");
             }

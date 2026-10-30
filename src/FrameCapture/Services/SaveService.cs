@@ -25,6 +25,11 @@ public static partial class SaveService
         catch (Exception ex) { Trace.Log($"save png failed: {ex.Message}"); return false; }
     }
 
+    /// <summary>在后台保存 PNG，行为链等待文件完整写入。</summary>
+    /// <param name="frame">只读像素帧。</param>
+    /// <returns>保存是否成功。</returns>
+    public static Task<bool> SavePngAsync(CapturedFrame frame) => BackgroundWork.Run(() => SavePng(frame));
+
     /// <summary>解析保存目录：设置指定路径优先（自动建目录），空或非法回退 图片\FrameCapture。</summary>
     /// <returns>绝对路径，目录已尽力创建。设置里的路径建不出来（非法字符 / 无写权限）时
     /// 直接回退默认目录——绝不因设置炸掉捕获；默认目录本身建不出来也照样返回，写盘失败由调用方吞掉。</returns>
@@ -69,27 +74,34 @@ public static partial class SaveService
     /// <param name="seq">编辑器提交的序列。<c>Frames</c> 可能是磁盘暂存的惰性列表，本方法只在需要时按索引取帧，
     /// 不整段物化。视频分支持有独立烘焙帧租约，任务完成时释放。</param>
     /// <param name="gif">已编码好的 GIF 字节：无 ffmpeg 时它就是产物，视频编码失败时是兜底产物。调用方必然备妥。</param>
-    public static void MaybeSaveArtifact(CapturedSequence seq, byte[] gif)
+    public static async void MaybeSaveArtifact(CapturedSequence seq, byte[] gif)
     {
         if (SettingsService.Shared?.Current.AutoSaveCopy != true) return;
+        using var activity = BackgroundWork.Hold();
+        seq = BakedFrameList.Retain(seq);
+        using var sourceLease = seq.Frames as BakedFrameList;
         try
         {
-            var dir = ResolveFolder();
+            var dir = await BackgroundWork.Run(ResolveFolder);
             if (seq.Frames.Count == 1)
             {
-                var path = Path.Combine(dir, UniqueName(dir, Stamp(), "png"));
-                var frame = seq.Frames[0];
-                BgraImage.SavePng(frame, path);
-                Trace.Log($"autosave png {path} {frame.W}x{frame.H}");
+                var path = await BackgroundWork.Run(() => Path.Combine(dir, UniqueName(dir, Stamp(), "png")));
+                await BackgroundWork.Run(() =>
+                {
+                    var frame = seq.Frames[0];
+                    BgraImage.SavePng(frame, path);
+                    Trace.Log($"autosave png {path} {frame.W}x{frame.H}");
+                    return true;
+                });
                 return;
             }
 
             var fmt = SettingsService.Shared.Current.RecordFormat;
-            string? ff = fmt == RecordFormat.Gif ? null : FfmpegLocator.Find();
+            string? ff = fmt == RecordFormat.Gif ? null : await BackgroundWork.Run(FfmpegLocator.Find);
             if (ff == null)
             {
-                var gpath = Path.Combine(dir, UniqueName(dir, Stamp(), "gif"));
-                File.WriteAllBytes(gpath, gif);
+                var gpath = await BackgroundWork.Run(() => Path.Combine(dir, UniqueName(dir, Stamp(), "gif")));
+                await BackgroundWork.Run(() => { File.WriteAllBytes(gpath, gif); return true; });
                 Trace.Log($"autosave gif {gpath} {gif.Length}B {seq.Frames.Count}f");
                 return;
             }
@@ -100,10 +112,10 @@ public static partial class SaveService
             // MP4 没有透明通道：喂帧前按用户选的「边框填充色」拍平；WebM 自己带 alpha，这个颜色对它不起作用。
             var matte = Core.HexColor.Parse(SettingsService.Shared.Current.VideoMatteColor);
             string ext = vfmt == VideoFormat.Mp4 ? "mp4" : "webm";
-            var vpath = Path.Combine(dir, UniqueName(dir, Stamp(), ext));
+            var vpath = await BackgroundWork.Run(() => Path.Combine(dir, UniqueName(dir, Stamp(), ext)));
             var hint = SavingHint.Start(Path.GetFileName(vpath));
             var frames = BakedFrameList.Retain(seq).Frames;
-            BackgroundWork.Run(() =>
+            _ = BackgroundWork.Run(() =>
             {
                 using var reader = frames as BakedFrameList;
                 string tmp = Path.Combine(dir, $".fc-autosave-{Guid.NewGuid():N}.{ext}");
@@ -138,14 +150,18 @@ public static partial class SaveService
     public static void MaybeSavePng(CapturedFrame frame)
     {
         if (SettingsService.Shared?.Current.AutoSaveCopy != true) return;
-        try
+        _ = BackgroundWork.Run(() =>
         {
-            var dir = ResolveFolder();
-            var path = Path.Combine(dir, UniqueName(dir, Stamp(), "png"));
-            BgraImage.SavePng(frame, path);
-            Trace.Log($"autosave png {path} {frame.W}x{frame.H}");
-        }
-        catch (Exception ex) { Trace.Log($"autosave png failed: {ex.Message}"); }
+            try
+            {
+                var dir = ResolveFolder();
+                var path = Path.Combine(dir, UniqueName(dir, Stamp(), "png"));
+                BgraImage.SavePng(frame, path);
+                Trace.Log($"autosave png {path} {frame.W}x{frame.H}");
+            }
+            catch (Exception ex) { Trace.Log($"autosave png failed: {ex.Message}"); }
+            return true;
+        });
     }
 
     /// <summary>

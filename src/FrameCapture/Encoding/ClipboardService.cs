@@ -1,47 +1,78 @@
 using System.IO;
 using System.Windows;
+using System.Windows.Media.Imaging;
 using FrameCapture.Capture;
 using FrameCapture.Services;
 
 namespace FrameCapture.Encoding;
 
-/// <summary>
-/// 剪贴板写入：GIF 文件（CF_HDROP）+ 当前帧位图（CF_DIB）+ 自定义格式（原始 GIF 字节）。
-/// 必须在 UI(STA) 线程调用。
-/// </summary>
+/// <summary>异步剪贴板入口，系统调用由独立 STA 进程执行，调用方须等待真实结果。</summary>
 public static class ClipboardService
 {
+    /// <summary>剪贴板内保存原始 GIF 字节的格式名。</summary>
     public const string GifFormat = "FrameCapture.Gif";
 
-    /// <summary>
-    /// 把一次捕获写成临时 GIF（%TEMP%\FrameCapture\capture-HHmmss.gif）并连同当前帧放上剪贴板。
-    /// 剪贴板被别的应用占用时重试 6 次、每次退避 80ms；<b>6 次全失败则静默返回</b>，不向调用方抛异常。
-    /// </summary>
-    /// <param name="seq">捕获序列，用其帧列表取位图形态。</param>
-    /// <param name="gifBytes">已编码好的完整 GIF 字节，直接落盘，不做二次编码。</param>
-    /// <param name="frameIndex">作为位图形态的帧下标，越界会被钳到有效范围。</param>
-    public static void SetCapture(CapturedSequence seq, byte[] gifBytes, int frameIndex)
+    /// <summary>异步复制完整录制及当前帧，保留独立帧租约直到请求结束。</summary>
+    /// <param name="seq">只读序列。</param>
+    /// <param name="gifBytes">完整 GIF 字节。</param>
+    /// <param name="frameIndex">当前帧下标，自动钳制。</param>
+    /// <param name="cancellation">取消排队或写入。</param>
+    /// <returns>完整写入为真，繁忙、超时或取消为假。</returns>
+    public static async Task<bool> SetCaptureAsync(CapturedSequence seq, byte[] gifBytes, int frameIndex,
+        CancellationToken cancellation = default)
     {
-        string dir = Path.Combine(Path.GetTempPath(), "FrameCapture");
-        Directory.CreateDirectory(dir);
-        string gifPath = Path.Combine(dir, $"capture-{DateTime.Now:HHmmss}.gif");
-        File.WriteAllBytes(gifPath, gifBytes);
-
-        var data = BuildDataObject(seq, gifBytes, frameIndex, gifPath);
-
-        for (int attempt = 0; attempt < 6; attempt++)
+        var frames = BakedFrameList.RetainRange(seq.Frames, 0, seq.Frames.Count);
+        using var lease = frames as IDisposable;
+        string path = Path.Combine(Path.GetTempPath(), "FrameCapture", $"capture-{Guid.NewGuid():N}.gif");
+        bool success = await ClipboardBroker.WriteAsync(ClipboardWire.Capture, writer =>
         {
-            try
-            {
-                Clipboard.SetDataObject(data, true);
-                return;
-            }
-            catch (System.Runtime.InteropServices.COMException)
-            {
-                Thread.Sleep(80); // 目标应用占用剪贴板，重试
-            }
-        }
+            writer.Write(path);
+            ClipboardWire.WriteFrame(writer, BakedFrameList.Read(frames, Math.Clamp(frameIndex, 0, frames.Count - 1), cancellation));
+            writer.Write(gifBytes.Length); writer.Write(gifBytes);
+        }, cancellation).ConfigureAwait(false);
+        if (!success) try { File.Delete(path); } catch { }
+        return success;
     }
+
+    /// <summary>异步复制静图，带 alpha 时同时提供透明 PNG 与白底位图。</summary>
+    /// <param name="frame">调用期间只读的像素帧。</param>
+    /// <param name="includePng">是否提供透明 PNG。</param>
+    /// <param name="cancellation">取消排队或写入。</param>
+    /// <returns>完整写入为真，繁忙、超时或取消为假。</returns>
+    public static Task<bool> SetFrameAsync(CapturedFrame frame, bool includePng = false, CancellationToken cancellation = default) =>
+        ClipboardBroker.WriteAsync(ClipboardWire.Image, writer =>
+        {
+            writer.Write(includePng); ClipboardWire.WriteFrame(writer, frame);
+        }, cancellation);
+
+    /// <summary>异步复制文本。</summary>
+    /// <param name="text">要复制的文本。</param>
+    /// <param name="cancellation">取消排队或写入。</param>
+    /// <returns>完整写入为真，繁忙、超时或取消为假。</returns>
+    public static Task<bool> SetTextAsync(string text, CancellationToken cancellation = default) =>
+        ClipboardBroker.WriteAsync(ClipboardWire.Text, writer => writer.Write(text), cancellation);
+
+    /// <summary>将冻结位图转换为像素后异步复制。</summary>
+    /// <param name="image">可冻结的位图，须在所属线程调用。</param>
+    /// <param name="cancellation">取消转换或写入。</param>
+    /// <returns>完整写入为真，转换失败、繁忙或超时为假。</returns>
+    public static async Task<bool> SetImageAsync(BitmapSource image, CancellationToken cancellation = default)
+    {
+        try
+        {
+            if (!image.IsFrozen) image.Freeze();
+            var frame = await BackgroundWork.Run(() => BgraImage.FromSource(image), cancellation).ConfigureAwait(false);
+            return frame != null && await SetFrameAsync(frame, includePng: true, cancellation).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) { return false; }
+        catch (Exception error) { Core.Trace.Log($"clipboard image conversion: {error}"); return false; }
+    }
+
+    /// <summary>异步读取剪贴板图片，延迟渲染不占用主体线程。</summary>
+    /// <param name="cancellation">取消排队或读取。</param>
+    /// <returns>读取成功的图片；无图片、繁忙或超时为空。</returns>
+    public static Task<CapturedFrame?> ReadImageAsync(CancellationToken cancellation = default) =>
+        ClipboardBroker.ReadImageAsync(cancellation);
 
     /// <summary>组装三格式 DataObject（CF_HDROP 文件 + CF_DIB 位图 + 自定义 GIF 字节）。可独立测试。</summary>
     /// <param name="seq">捕获序列，取当前帧做位图形态。</param>
@@ -70,32 +101,19 @@ public static class ClipboardService
         return data;
     }
 
-    /// <summary>仅复制单帧位图。includePng=true（窗口截图带 alpha）时额外放 "PNG" 格式保透明，
-    /// 并把 CF_DIB 拍平到白底（只认 DIB 的应用不会看到透明区变黑）。
-    /// 剪贴板被占用时重试 6 次、每次退避 80ms，全失败静默返回。</summary>
-    /// <param name="frame">要复制的帧。</param>
-    /// <param name="includePng">帧带有效 alpha 时必须为 true；纯不透明截图传 false 可少编码一份 PNG。</param>
-    public static void SetFrame(CapturedFrame frame, bool includePng = false)
-    {
-        object payload = includePng ? BuildAlphaDataObject(frame) : (object)BgraImage.ToSource(frame);
-        for (int attempt = 0; attempt < 6; attempt++)
-        {
-            try
-            {
-                if (includePng) Clipboard.SetDataObject((DataObject)payload, true);
-                else Clipboard.SetImage((System.Windows.Media.Imaging.BitmapSource)payload);
-                return;
-            }
-            catch (System.Runtime.InteropServices.COMException) { Thread.Sleep(80); }
-        }
-    }
-
-    /// <summary>带 alpha 帧的剪贴板 DataObject：PNG 格式（透明，现代应用）+ 白底拍平位图（CF_DIB 兜底）。</summary>
-    static DataObject BuildAlphaDataObject(CapturedFrame frame)
+    /// <summary>在当前 STA 线程组装静图数据，供后台进程持久化。</summary>
+    /// <param name="frame">只读像素帧。</param>
+    /// <param name="includePng">是否提供透明 PNG 与白底兜底图。</param>
+    /// <returns>尚未写入系统的完整数据对象。</returns>
+    internal static DataObject BuildFrameDataObject(CapturedFrame frame, bool includePng)
     {
         var data = new DataObject();
-        try { data.SetData("PNG", new MemoryStream(BgraImage.PngBytes(frame))); } catch { }
-        try { data.SetImage(BgraImage.ToSource(BgraImage.FlattenOver(frame, 255, 255, 255))); } catch { }
+        if (includePng)
+        {
+            data.SetData("PNG", new MemoryStream(BgraImage.PngBytes(frame)));
+            data.SetImage(BgraImage.ToSource(BgraImage.FlattenOver(frame, 255, 255, 255)));
+        }
+        else data.SetImage(BgraImage.ToSource(frame));
         return data;
     }
 }

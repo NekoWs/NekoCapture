@@ -11,7 +11,7 @@ namespace FrameCapture.Overlays;
 public sealed partial class EditorWindow : Window
 {
     /// <summary>固定编辑状态后逐帧编码；文件输出先写同目录临时文件，成功后替换目标。</summary>
-    async void StartEncode(VideoFormat? videoFmt, string? outPath, Action<CapturedSequence, byte[]?> onDone)
+    async void StartEncode(VideoFormat? videoFmt, string? outPath, Func<CapturedSequence, byte[]?, Task> onDone)
     {
         if (_encoding) return;
         _encoding = true;
@@ -45,6 +45,7 @@ public sealed partial class EditorWindow : Window
                 if (!_userClosed && !ct.IsCancellationRequested && ReferenceEquals(_commitCts, cancellation))
                     SetExportProgress(verb, done, frames.Count);
             }, System.Windows.Threading.DispatcherPriority.Background));
+            bool needsGif = !ManagedOutput || _settings.Current.AutoSaveCopy || outPath != null;
             byte[]? gif = await BackgroundWork.Run(() =>
             {
                 if (Environment.GetEnvironmentVariable("FC_TEST_ENCODE_FAIL") == "1")
@@ -57,6 +58,7 @@ public sealed partial class EditorWindow : Window
                     byte[]? bytes = null;
                     if (videoFmt == null)
                     {
+                        if (!needsGif) return (byte[]?)null;
                         var delays = ComputeDelays(frames, _fps);
                         if (temporary == null) bytes = GifEncoder.Encode(frames, delays, true, progress, ct);
                         else
@@ -81,7 +83,7 @@ public sealed partial class EditorWindow : Window
                     if (temporary != null) try { File.Delete(temporary); } catch { }
                 }
             }, ct);
-            if (!_userClosed) onDone(sequence, gif);
+            if (!_userClosed) await onDone(sequence, gif);
         }
         catch (OperationCanceledException)
         {
@@ -104,6 +106,18 @@ public sealed partial class EditorWindow : Window
             _encoding = false;
             if (!_userClosed) SetOkBusy(false);
         }
+    }
+
+    async Task<CapturedFrame> BakeFrameAsync(int index)
+    {
+        RectI? crop = null;
+        if (_crop.IsCropped)
+        {
+            var (x, y, w, h) = _crop.ToPixel(_frameW, _frameH);
+            crop = new RectI(x, y, w, h);
+        }
+        using var frames = BakedFrameList.Create(_seq.Frames, index, 1, _anns.Items, crop);
+        return await BackgroundWork.Run(() => frames[0]);
     }
 
     void PublishOutput(CapturedSequence sequence)

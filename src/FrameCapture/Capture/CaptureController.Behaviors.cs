@@ -142,18 +142,21 @@ public sealed partial class CaptureController
         {
             ok = context.LatestProduct == RunValue.Video
                 ? context.Video != null && await SaveService.SaveSequenceAsync(context.Video)
-                : context.Still != null && SaveService.SavePng(context.Still);
+                : context.Still != null && await SaveService.SavePngAsync(context.Still);
             return ok ? BehaviorPorts.Done : BehaviorPorts.Failed;
         }
         if (action == GestureActions.CopyLast && context.LatestProduct == RunValue.Video && context.Text == null)
         {
             if (context.Video is not { } video) return BehaviorPorts.Failed;
-            byte[] gif = await Task.Run(() => Encoding.GifEncoder.Encode(video.Frames,
-                Enumerable.Range(0, video.Frames.Count).Select(i => i + 1 < video.Frames.Count
-                    ? Math.Max(10, (int)(video.Frames[i + 1].TimeMs - video.Frames[i].TimeMs))
+            var frames = BakedFrameList.RetainRange(video.Frames, 0, video.Frames.Count);
+            using var reader = frames as IDisposable;
+            byte[] gif = await BackgroundWork.Run(() => Encoding.GifEncoder.Encode(frames,
+                Enumerable.Range(0, frames.Count).Select(i => i + 1 < frames.Count
+                    ? Math.Max(10, (int)(FrameMetadata.TimeAt(frames, i + 1) - FrameMetadata.TimeAt(frames, i)))
                     : 1000 / Math.Max(1, video.Fps)).ToArray()));
-            Encoding.ClipboardService.SetCapture(video, gif, 0);
-            return BehaviorPorts.Done;
+            var output = new CapturedSequence { Frames = frames, Region = video.Region,
+                MonitorBounds = video.MonitorBounds, MonitorDevice = video.MonitorDevice, Fps = video.Fps };
+            return await Encoding.ClipboardService.SetCaptureAsync(output, gif, 0) ? BehaviorPorts.Done : BehaviorPorts.Failed;
         }
         if (action == GestureActions.NotifyToast && (context.Still == null
             || context.LastEvent is BehaviorPorts.Failed or BehaviorPorts.Cancel))

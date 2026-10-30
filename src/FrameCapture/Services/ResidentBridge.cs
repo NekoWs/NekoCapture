@@ -173,7 +173,7 @@ internal static class ResidentBridge
             case "--edit-last": host.Controller.EditLastStill(); break;
             case "--scroll": host.Controller.BeginScrollCapture(); break;
             case "--delay": host.Controller.BeginDelayedCapture(); break;
-            case "--pin-clip": host.Controller.PinFromClipboard(); break;
+            case "--pin-clip": _ = host.Controller.PinFromClipboardAsync(); break;
             case "--pause-toggle": host.Tray.TogglePause(); break;
             case "--ocr": host.Controller.OcrStoredStill(); break;
             case "--resident-welcome":

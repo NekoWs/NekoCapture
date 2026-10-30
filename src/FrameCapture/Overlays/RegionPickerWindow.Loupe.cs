@@ -67,17 +67,19 @@ public sealed partial class RegionPickerWindow : Window
                 if (_loupeHexText.Length == 0) return false;
                 {
                     var t = _loupeHexText;
-                    Dispatcher.BeginInvoke(() =>
+                    var rgb = _lastRgb;
+                    Dispatcher.BeginInvoke(new Action(async () =>
                     {
-                        try { Clipboard.SetText(t); } catch { }
-                        if (_loupeHex != null) _loupeHex.Text = Loc.T(K.Capture.Copied) + t;
+                        bool copied = await Encoding.ClipboardService.SetTextAsync(t);
+                        if (_finished) return;
+                        if (_loupeHex != null) _loupeHex.Text = copied ? Loc.T(K.Capture.Copied) + t : Loc.T(K.Common.ClipboardUnavailable);
                         // 选区时按 C 取过的色并进编辑器「最近用色」：看中的那抹红，
                         // 截完图在调色板第一格就能点到，不用回编辑器手输 HEX。存的永远是 #RRGGBB，
                         // 与当前显示成 RGB/HSL 无关。
-                        if (_lastRgb is { } lc)
+                        if (copied && rgb is { } lc)
                             Services.AppHost.Current.Settings.Mutate(s => s.CustomColors = Core.CustomPick.RememberColor(
                                 s.CustomColors, Core.ColorFormat.Format(lc.r, lc.g, lc.b, Core.ColorCopyFormat.Hex)));
-                    });
+                    }));
                 }
                 return true;
             case 0x46: // F 循环取色复制格式 Hex→RGB→HSL

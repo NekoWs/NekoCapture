@@ -42,6 +42,11 @@ public partial class App : Application
     protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+        if (e.Args.Length == 2 && e.Args[0] == Encoding.ClipboardWire.Argument && int.TryParse(e.Args[1], out int clipboardParent))
+        {
+            Shutdown(Encoding.ClipboardWorker.Run(clipboardParent));
+            return;
+        }
         if (Services.StartupService.TryHandleConfiguration(e.Args, out int configExitCode)) { Shutdown(configExitCode); return; }
         if (!Services.StartupService.WaitForStandardHandoff(e.Args)) { Shutdown(1); return; }
         Core.Trace.Log("OnStartup enter");
@@ -144,7 +149,7 @@ public partial class App : Application
                 System.Windows.Threading.DispatcherPriority.ApplicationIdle);
         // 从剪贴板贴图入口（托盘「从剪贴板贴图」同一入口，也便于脚本/e2e 调用）
         if (e.Args.Any(a => string.Equals(a, "--pin-clip", StringComparison.OrdinalIgnoreCase)))
-            _ = Dispatcher.BeginInvoke(() => Services.AppHost.Current.Controller.PinFromClipboard(),
+            _ = Dispatcher.BeginInvoke(new Action(async () => { await Services.AppHost.Current.Controller.PinFromClipboardAsync(); }),
                 System.Windows.Threading.DispatcherPriority.ApplicationIdle);
         // 切换「暂停全局热键」（托盘同一入口；也便于用户用 Windows 快捷方式/脚本绑一个暂停热键）
         if (e.Args.Any(a => string.Equals(a, "--pause-toggle", StringComparison.OrdinalIgnoreCase)))
@@ -390,7 +395,7 @@ public partial class App : Application
                 (MsgEditLast,     (_, _) => OnUi(() => Services.AppHost.Current.Controller.EditLastStill())),
                 (MsgScroll,       (_, _) => OnUi(() => Services.AppHost.Current.Controller.BeginScrollCapture())),
                 (MsgDelay,        (_, _) => OnUi(() => Services.AppHost.Current.Controller.BeginDelayedCapture())),
-                (MsgPinClip,      (_, _) => OnUi(() => Services.AppHost.Current.Controller.PinFromClipboard())),
+                (MsgPinClip,      (_, _) => OnUi(async () => await Services.AppHost.Current.Controller.PinFromClipboardAsync())),
                 (MsgPauseToggle,  (_, _) => OnUi(() => Services.AppHost.Current.Tray.TogglePause())),
                 (MsgOcr,          (_, _) => OnUi(() => Services.AppHost.Current.Controller.OcrStoredStill())),
                 (MsgWelcome,      (_, _) => OnUi(ShowWelcomeCard)),

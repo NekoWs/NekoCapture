@@ -9,6 +9,8 @@ public static partial class K
     /// <summary>两个界面以上共用的文案的文案。</summary>
     public static partial class Common
     {
+        public static readonly Str ClipboardUnavailable = new("common.clipboardUnavailable", "剪贴板不可用，请重试", "Clipboard unavailable. Try again.");
+        public static readonly Str CopyingClipboard = new("common.copyingClipboard", "正在写入剪贴板…", "Writing to clipboard…");
         public static readonly Str Done = new("capture.done", "完成", "Done");
         public static readonly Str Milliseconds = new("common.milliseconds", "毫秒", "ms");
         public static readonly Str RunAsAdministrator = new("tray.runAsAdministrator", "以管理员身份运行", "Run As Administrator");

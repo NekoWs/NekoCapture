@@ -155,7 +155,7 @@ public sealed partial class CaptureController : IDisposable
     /// <summary>打开选区，产物由选区开关决定。</summary>
     public void BeginScopeSelection() => BeginChain(new[] { GestureActions.Select }, Array.Empty<string>());
 
-    void OpenChainPicker(RunContext context, bool initialRecordMode, bool showModeSwitch = true)
+    async Task OpenChainPickerAsync(RunContext context, bool initialRecordMode, bool showModeSwitch = true)
     {
         CloseEditor();
         var cursor = Win32Wrap.GetCursorPosition();
@@ -163,7 +163,13 @@ public sealed partial class CaptureController : IDisposable
         State = Phase.SelectingScope;
         CaptureToast.DismissCurrent();
         HideOutline();
-        var frozen = _settings.Current.FreezeOnSelect ? LiveCapture.Grab(monitor.Bounds) : null;
+        var frozen = _settings.Current.FreezeOnSelect ? await BackgroundWork.Run(() => LiveCapture.Grab(monitor.Bounds)) : null;
+        if (_disposed || context.Cancelled)
+        {
+            _selectionCompletion?.TrySetResult(false);
+            if (!_disposed) State = Phase.Idle;
+            return;
+        }
         _picker = new RegionPickerWindow(monitor,
             existing: _settings.Current.ShowLastRegion ? StoredRegion()?.Bounds : null,
             snapContent: _settings.Current.SnapContentArea, magnifier: _settings.Current.PickerMagnifier,

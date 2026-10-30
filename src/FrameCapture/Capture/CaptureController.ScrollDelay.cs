@@ -188,27 +188,35 @@ public sealed partial class CaptureController : IDisposable
         prev?.CloseSelf();
     }
 
-    void ScrollDone()
+    async void ScrollDone()
     {
+        var completion = _scrollCompletion;
         Services.HotkeyManager.ScrollActive = false;
         _scrollTimer?.Stop(); _scrollTimer = null;
         RestoreAutoCursor();   // 注轮借走的光标在出图前就得还回去，acc 为空提前返回也覆盖
         CloseScrollStageAndPreview();
         var acc = _scrollAcc; var bar = _scrollBar;
         _scrollAcc = null; _scrollBar = null; _scrollPrevB = null; _scrollAuto = false;
-        if (acc == null) { bar?.CloseSelf(); return; }
+        if (acc == null) { bar?.CloseSelf(); completion?.TrySetResult(false); return; }
         var frame = new CapturedFrame { Bgra = acc, W = _scrollW, H = _scrollH, TimeMs = 0 };
         var reg = _scrollRegion; var dev = _scrollDevice; int segs = _scrollSegs; _scrollSegs = 0;
         bar?.CloseSelf();
-        // 基准帧只留一张：新的一张落下前先把上一张删掉，否则每滚一次就多一个文件。
-        Core.TempFiles.Drop(_scrollResume?.Png);
-        var pth = Core.TempFiles.PathOf($"scroll-{DateTime.Now:HHmmss}.png");
-        try { BgraImage.SavePng(frame, pth); } catch { }
-        // 完成不等于收工：滚早了头是这条路径最常见的失手。刚落盘的这张 PNG 就是「继续滚动」的基准帧，
-        // 像素不进内存——长图动辄上百 MB，而它本来就已经在磁盘上了。
-        _scrollResume = System.IO.File.Exists(pth) ? (pth, reg, dev) : null;
+        var previous = _scrollResume?.Png;
+        string? saved = await BackgroundWork.Run(() =>
+        {
+            Core.TempFiles.Drop(previous);
+            try
+            {
+                var path = Core.TempFiles.PathOf($"scroll-{Guid.NewGuid():N}.png");
+                BgraImage.SavePng(frame, path);
+                return System.IO.File.Exists(path) ? path : null;
+            }
+            catch (Exception error) { Trace.Log($"scroll save: {error.Message}"); return null; }
+        });
+        if (_disposed || completion?.Task.IsCompleted == true) return;
+        _scrollResume = saved != null ? (saved, reg, dev) : null;
         DispatchStill(frame, reg, dev);
-        _scrollCompletion?.TrySetResult(true);
+        completion?.TrySetResult(true);
     }
 
     /// <summary>取消滚动拼接：停表、还原注轮借走的光标、收起取景层与预览卡、关控制条、丢弃已拼接的内容（不落盘、不进剪贴板）。

@@ -139,10 +139,10 @@ public sealed class OcrResultWindow : Window
         Fluent.InstallCaptionDrag(this, close);
         KeyDown += (_, e) => { if (e.Key == Key.Escape) Fluent.CloseWithFade(this); };
 
-        copyBox.MouseLeftButtonUp += (_, _) =>
+        copyBox.MouseLeftButtonUp += async (_, _) =>
         {
-            try { Clipboard.SetText(box.Text); } catch { }
-            copyLabel.Text = Loc.T(K.Common.Copied);
+            bool copied = await Encoding.ClipboardService.SetTextAsync(box.Text);
+            if (IsVisible) copyLabel.Text = Loc.T(copied ? K.Common.Copied : K.Common.ClipboardUnavailable);
         };
         Loaded += (_, _) => { box.Focus(); box.SelectAll(); box.ScrollToHome(); };
         Fluent.PopupEnter(this);   // 入场淡入（与退场 CloseWithFade 对称；分层窗=淡入，同 HelpWindow）

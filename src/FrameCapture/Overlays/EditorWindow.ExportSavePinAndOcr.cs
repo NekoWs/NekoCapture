@@ -18,21 +18,29 @@ public sealed partial class EditorWindow : Window
     bool _encoding;
     CancellationTokenSource? _commitCts;
 
-    /// <summary>确定：后台烘焙+编码 GIF（HUD 进度，Esc 可取消）→ 剪贴板（文件+位图+自定义格式）。</summary>
+    /// <summary>提交编辑快照；按输出需要编码 GIF，独立复制完成后才确认，行为管理模式交给后续动作。</summary>
     void Commit()
     {
         if (_encoding) return;
         CommitTextInput();
         int idx = Math.Clamp(_index - TrimRange.a, 0, TrimRange.b - TrimRange.a);
         // 胶片条只由工具栏「生成胶片条」按钮显式触发，确定路径不自动生成。
-        StartEncode(null, null, (seq, gif) =>
+        StartEncode(null, null, async (seq, gif) =>
         {
-            Trace.Log($"gif encoded bytes={gif!.Length} frames={seq.Frames.Count}");
+            Trace.Log($"editor output gifBytes={gif?.Length ?? 0} frames={seq.Frames.Count}");
             if (!ManagedOutput)
             {
-                ClipboardService.SetCapture(seq, gif, idx);
+                SetExportProgress(Loc.T(K.Common.CopyingClipboard));
+                var cancellation = _commitCts?.Token ?? default;
+                if (!await ClipboardService.SetCaptureAsync(seq, gif!, idx, cancellation))
+                {
+                    cancellation.ThrowIfCancellationRequested();
+                    if (!_userClosed) ShowSnack(Loc.T(K.Common.ClipboardUnavailable));
+                    return;
+                }
             }
-            SaveService.MaybeSaveArtifact(seq, gif);
+            if (_userClosed) return;
+            if (gif != null) SaveService.MaybeSaveArtifact(seq, gif);
             PublishOutput(seq);
             Fluent.CloseWithFade(this);
         });
@@ -135,7 +143,7 @@ public sealed partial class EditorWindow : Window
                         OcrResultWindow.Show(text);
                     else
                     {
-                        try { Clipboard.SetText(text); } catch { }
+                        if (!await ClipboardService.SetTextAsync(text)) { ShowSnack(Loc.T(K.Common.ClipboardUnavailable)); break; }
                         ShowSnack(OcrService.Feedback(OcrStatus.Success, text.Length));
                     }
                     Trace.Log($"ocr ok {text.Length} chars");
@@ -225,8 +233,9 @@ public sealed partial class EditorWindow : Window
                 i => BakeForStrip(new[] { subset[picks[i]] }, anns, cropSnap, cropOn)[0], picks,
                 cancellation: cancellation.Token), cancellation.Token);
             if (_userClosed) return;
-            try { Clipboard.SetImage(img); ShowSnack(Loc.F(K.Editor.FilmStripCopiedFrames, picks.Count)); }
-            catch { ShowSnack(Loc.T(K.Editor.TheClipboardIsBusySo)); }
+            bool copied = await ClipboardService.SetImageAsync(img, cancellation.Token);
+            cancellation.Token.ThrowIfCancellationRequested();
+            if (!_userClosed) ShowSnack(copied ? Loc.F(K.Editor.FilmStripCopiedFrames, picks.Count) : Loc.T(K.Common.ClipboardUnavailable));
             Trace.Log($"filmstrip {picks.Count}/{count} frames");
         }
         catch (OperationCanceledException) { }
@@ -259,16 +268,22 @@ public sealed partial class EditorWindow : Window
         return Drawing.Bake.Apply(frames, outAnns);
     }
 
-    void SaveFrame()
+    async void SaveFrame()
     {
         if (_encoding) return;
         CommitTextInput();
         var dlg = NewSaveDialog(Loc.T(K.Common.PngImagePng), $"frame-{_times[_index] / 1000.0:0.0}.png");
         if (dlg.ShowDialog(this) != true) return;
-        var frame = ExportFrame(_index);
-        BgraImage.SavePng(frame, EnsureExt(dlg.FileName, ".png"));
-        PublishOutput(new CapturedSequence { Frames = new[] { frame }, Region = _seq.Region,
-            MonitorBounds = _seq.MonitorBounds, MonitorDevice = _seq.MonitorDevice });
+        try
+        {
+            var frame = await BakeFrameAsync(_index);
+            await BackgroundWork.Run(() => { BgraImage.SavePng(frame, EnsureExt(dlg.FileName, ".png")); return true; });
+            if (_userClosed) return;
+            ShowSnack(Loc.F(K.Editor.Exported, System.IO.Path.GetFileName(dlg.FileName)));
+            PublishOutput(new CapturedSequence { Frames = new[] { frame }, Region = _seq.Region,
+                MonitorBounds = _seq.MonitorBounds, MonitorDevice = _seq.MonitorDevice });
+        }
+        catch (Exception error) { Trace.Log($"save frame: {error}"); if (!_userClosed) ShowSnack(Loc.T(K.Common.SaveFailed)); }
     }
 
     void SaveRecording()
@@ -311,6 +326,7 @@ public sealed partial class EditorWindow : Window
                 ShowSnack(Loc.F(K.Editor.Exported, System.IO.Path.GetFileName(path)));
                 Trace.Log($"video saved {path}");
                 PublishOutput(output);
+                return Task.CompletedTask;
             });
         }
         else
@@ -322,6 +338,7 @@ public sealed partial class EditorWindow : Window
                 ShowSnack(Loc.F(K.Editor.Exported, System.IO.Path.GetFileName(path)));
                 Show(_index);
                 PublishOutput(output);
+                return Task.CompletedTask;
             });
         }
     }

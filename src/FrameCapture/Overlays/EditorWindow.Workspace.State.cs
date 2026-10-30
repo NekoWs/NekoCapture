@@ -118,11 +118,17 @@ public sealed partial class EditorWindow
         UpdateImgRect(); RedrawAnns(); RefreshUndo(); RefreshToolOptions(); Show(_index);
     }
 
-    void CopyCurrentFrame()
+    async void CopyCurrentFrame()
     {
         if (_encoding) return;
-        try { ClipboardService.SetFrame(ExportFrame(_index)); ShowSnack(Loc.T(K.Common.Copied)); }
-        catch { ShowSnack(Loc.T(K.Editor.TheClipboardIsBusySo)); }
+        try
+        {
+            CommitTextInput();
+            var frame = await BakeFrameAsync(_index);
+            bool copied = await ClipboardService.SetFrameAsync(frame, includePng: true);
+            if (!_userClosed) ShowSnack(Loc.T(copied ? K.Common.Copied : K.Common.ClipboardUnavailable));
+        }
+        catch (Exception error) { Trace.Log($"copy frame: {error}"); if (!_userClosed) ShowSnack(Loc.T(K.Common.ClipboardUnavailable)); }
     }
 
     void ShowWorkspaceMenu(FrameworkElement anchor)
