@@ -142,7 +142,7 @@ public sealed partial class RegionPickerWindow : Window
         });
     }
 
-    /// <summary>窗口预抓按尺寸估算与实际像素双重限额；未缓存窗口使用定格区域裁剪。</summary>
+    /// <summary>窗口预抓按尺寸估算与实际像素双重限额；未缓存窗口按需捕获本体，失败时使用定格区域。</summary>
     const long PregrabBudgetBytes = 48L << 20;
 
     /// <summary>本次预抓已占用的像素字节数，后台线程累加，选区关闭时读它决定要不要回收。</summary>

@@ -169,7 +169,7 @@ public sealed partial class CaptureController
             case GestureActions.GrabStill:
             case GestureActions.GrabWindow:
             case GestureActions.CaptureFrame:
-                return GrabChainStill(context, name);
+                return await GrabChainStillAsync(context, name);
 
             case GestureActions.RecordToggle when State == Phase.Capturing:
             case GestureActions.RecordStop:
@@ -290,7 +290,7 @@ public sealed partial class CaptureController
                 return EditLastVideo();
             case GestureActions.PinSelection:
                 if (State != Phase.Idle) return false;
-                if (context.Still == null && !GrabChainStill(context, GestureActions.GrabStill, useStoredFallback: true)) return false;
+                if (context.Still == null && !await GrabChainStillAsync(context, GestureActions.GrabStill, useStoredFallback: true)) return false;
                 PinFrameAt(context.Still!, context.StillRegion); return true;
             case GestureActions.NotifyToast:
                 if (context.Still != null) ShowContextToast(context);
@@ -308,7 +308,7 @@ public sealed partial class CaptureController
         }
     }
 
-    bool GrabChainStill(RunContext context, string name, bool useStoredFallback = false)
+    async Task<bool> GrabChainStillAsync(RunContext context, string name, bool useStoredFallback = false)
     {
         if (State != Phase.Idle) return false;
         var region = name == GestureActions.CaptureFrame ? FullMonitorAtCursor()
@@ -317,16 +317,24 @@ public sealed partial class CaptureController
         bool window = name != GestureActions.CaptureFrame && (name == GestureActions.GrabWindow
             || (_settings.Current.WindowCaptureEnabled && context.Window != IntPtr.Zero));
         if (name == GestureActions.GrabWindow && context.Window == IntPtr.Zero) return false;
-        var (frame, captured, windowCapture) = ChooseStillFrame(
-            context.Frozen != null, window,
-            () => context.FrozenWindow is { } cached ? (cached, context.FrozenWindowRegion) : null,
+        var frozen = name == GestureActions.CaptureFrame ? null : context.Frozen;
+        var frozenOrigin = context.FrozenOrigin;
+        var cached = context.FrozenWindow;
+        var cachedRegion = context.FrozenWindowRegion;
+        var target = context.Window;
+        bool shadow = _settings.Current.WindowCaptureShadow;
+        var (frame, captured, windowCapture) = await BackgroundWork.Run(() => ChooseStillFrame(
+            frozen != null, window,
+            () => cached != null ? (cached, cachedRegion) : null,
             () =>
             {
-                try { var (f, r) = WindowCapture.Grab(context.Window, _settings.Current.WindowCaptureShadow); return (f, r); }
-                catch { return null; }
-            }, name == GestureActions.CaptureFrame ? null : context.Frozen,
-            context.FrozenOrigin, region.Bounds, r => LiveCapture.Grab(r));
+                try { var (f, r) = WindowCapture.Grab(target, shadow); return (f, r); }
+                catch (Exception ex) { Trace.Log($"window capture failed hwnd={target}: {ex}"); return null; }
+            }, frozen, frozenOrigin, region.Bounds, r => LiveCapture.Grab(r)));
+        if (_disposed || context.Cancelled || State != Phase.Idle) return false;
         if (frame == null || (name == GestureActions.GrabWindow && !windowCapture)) return false;
+        Trace.Log($"still source={(windowCapture ? "window" : frozen != null ? "frozen-region" : "live-region")} "
+            + $"hwnd={target} cached={cached != null} size={frame.W}x{frame.H}");
         DispatchStill(frame, captured, region.DeviceName, windowCapture);
         return true;
     }

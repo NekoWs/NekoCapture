@@ -5391,8 +5391,7 @@ static partial class SelfTest
         }
         catch (Exception e) { Chk("T198-settings-surface-round", false, e.Message); }
 
-        // 定格开着时，截图这一帧必须来自定格帧——包括「点击窗口时截取完整窗口」预抓没排到那只窗的时候。
-        // 取帧来源的裁定是纯函数，四条路各断言一次：谁被调用比像素更好查。
+        // 窗口本体优先预抓缓存，其次按需捕获；区域回退优先使用定格帧。
         try
         {
             var NS9 = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static;
@@ -5424,8 +5423,8 @@ static partial class SelfTest
                 return (fr, (bool)t.GetField("Item3")!.GetValue(r)!);
             }
             var a9 = Run9(true, true, miss, frozen9);
-            Chk("T199a-frozen-frame-beats-live-window", a9.fr?.Bgra[0] == 0xFF && !liveWinCalled && !a9.winCap,
-                "定格开着、预抓没排到这只窗时仍去实时抓窗口本体：屏幕上定着的就是那一帧");
+            Chk("T199a-window-cache-miss-captures-body", a9.fr?.Bgra[0] == 0 && liveWinCalled && !liveRegCalled && a9.winCap,
+                "窗口预抓未命中时应按需捕获本体并保留窗口产物标志");
             var b9 = Run9(false, true, miss, null);
             Chk("T199b-live-window-when-not-frozen", b9.fr?.Bgra[0] == 0 && b9.winCap && liveWinCalled,
                 "定格关着时点窗口仍该实时抓窗口本体（带 alpha 的干净画面）");
@@ -5433,11 +5432,19 @@ static partial class SelfTest
             Chk("T199c-frozen-frame-for-a-plain-region", c9.fr?.Bgra[0] == 0xFF && !liveRegCalled && !c9.winCap,
                 "定格开着、按矩形截时该裁定格帧，不该重抓");
             var d9 = Run9(true, true, hitWin, frozen9);
-            Chk("T199d-pregrabbed-window-wins", d9.fr?.Bgra[0] == 0x7F && d9.winCap,
+            Chk("T199d-pregrabbed-window-wins", d9.fr?.Bgra[0] == 0x7F && d9.winCap && !liveWinCalled && !liveRegCalled,
                 "定格瞬间预抓到的干净窗口该优先于按矩形裁帧（干净圆角与投影）");
             var e9 = Run9(true, false, miss, null);
             Chk("T199e-live-fallback-without-a-frame", e9.fr?.Bgra[0] == 0 && liveRegCalled,
                 "定格帧没到位时实时抓兜底，否则这一枪空放");
+            liveWin = () => { liveWinCalled = true; return null; };
+            var f9 = Run9(true, true, miss, frozen9);
+            Chk("window-body-failure-keeps-frozen-region", f9.fr?.Bgra[0] == 0xFF && liveWinCalled && !liveRegCalled && !f9.winCap,
+                "窗口本体失败后应裁定格帧，不应重抓屏幕或保留窗口标志");
+            var g9 = Run9(false, true, miss, null);
+            Chk("window-body-failure-without-freeze-grabs-region", g9.fr?.Bgra[0] == 0 && liveWinCalled && liveRegCalled && !g9.winCap,
+                "无定格帧且窗口失败时应实时捕获区域");
+
         }
         catch (Exception e) { Chk("T199-frozen-frame-source", false, e.Message); }
 

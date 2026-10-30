@@ -232,7 +232,7 @@ public sealed partial class RegionPickerWindow : Window
         {
             var self = new System.Windows.Interop.WindowInteropHelper(this).Handle;
             var windows = WindowEnum.ListTopmostCandidates(self);
-            _hoverWindows = windows.Select(t => _snapContent ? t.Client : t.Bounds).ToArray();
+            _hoverWindows = windows.Select(t => t.Bounds).ToArray();
             _hoverTargets = windows.Select(t => (t.Hwnd, t.Bounds)).ToArray();
             _hoverWindowsUntil = Environment.TickCount64 + 160;
         }
@@ -283,21 +283,14 @@ public sealed partial class RegionPickerWindow : Window
         Close();
     }
 
-    /// <summary>点/双击吸附到的窗口时，若开关开且该窗未被更靠上的窗遮挡，返回其 (HWND, 整窗 frame)；
-    /// 否则 null（回退区域截图）。frame 用 DWM 扩展边界（含标题栏与投影前的整窗边框）。</summary>
+    /// <summary>按点击点与 Z 序选择完整窗口，使用 DWM 外框并保留句柄；窗口其他部分被遮挡不影响本体捕获。</summary>
+    /// <param name="p">虚拟桌面的物理像素点。</param>
+    /// <returns>点击点命中的窗口及其完整外框，没有候选时为空。</returns>
     private (IntPtr Hwnd, RectI Bounds)? WindowHitForCapture((int X, int Y) p)
     {
         var self = new System.Windows.Interop.WindowInteropHelper(this).Handle;
-        var cands = WindowEnum.ListTopmostCandidates(self).ToList(); // Z 序顶在前
-        var pick = Core.SnapPick.PickWindow(
-            cands.Select(t => (t.Hwnd, _snapContent ? t.Client : t.Bounds)), p.X, p.Y);
-        if (pick == null) return null;
-        int idx = cands.FindIndex(t => t.Hwnd == pick.Value.Hwnd);
-        if (idx < 0) return null;
-        var frame = cands[idx].Bounds;
-        // 更靠上的候选窗与本窗 frame 相交 → 遮挡 → 回退区域截图
-        if (Core.SnapPick.AnyAboveIntersects(cands.Select(t => t.Bounds).ToList(), idx, frame)) return null;
-        return (pick.Value.Hwnd, frame);
+        return Core.SnapPick.PickWindow(
+            WindowEnum.ListTopmostCandidates(self, skipIconic: true).Select(t => (t.Hwnd, t.Bounds)), p.X, p.Y);
     }
     #endregion
 

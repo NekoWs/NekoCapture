@@ -63,7 +63,7 @@ public bool EditableSelection { get; set; } = false;
 
     /// <summary>点击窗口时截取完整窗口（默认开）：选区窗里点一个吸附到的窗口，截的是该窗口本体而非屏幕矩形像素
     /// （WGC 按窗口捕获，Win11 圆角透明、浏览器/GPU 窗也干净），可选带真实投影、
-    /// 背景透明。关掉则按屏幕矩形抓像素。目标窗被遮挡或 WGC 取帧失败时自动回退区域截图。</summary>
+    /// 背景透明。关掉则按屏幕矩形抓像素。目标窗口按 WGC 独立捕获，取帧失败时自动回退区域截图。</summary>
     public bool WindowCaptureEnabled { get; set; } = true;
 
     /// <summary>窗口截图包含投影（默认开）：在上面开关开启时，额外把窗口边缘的真实投影截进来、

@@ -113,30 +113,35 @@ public sealed partial class RegionPickerWindow
 
     private void CompleteClick((int X, int Y) p, ElementHit? element)
     {
-        if (element is { Rect.W: >= 8, Rect.H: >= 8 } && element.Rect.Contains(p.X, p.Y))
+        var window = _windowCapture ? WindowHitForCapture(p) : null;
+        bool wholeWindow = element != null && window is { } target && IsWholeWindowElement(element.Rect, target.Hwnd, target.Bounds);
+        if (!wholeWindow && element is { Rect.W: >= 8, Rect.H: >= 8 } && element.Rect.Contains(p.X, p.Y))
         {
             _selHwnd = IntPtr.Zero;
             if (!Editable) { Finish(element.Rect); return; }
             ShowSelection(element.Rect);
             return;
         }
-        if (_windowCapture)
+        if (window is { } selected)
         {
-            var wc = WindowHitForCapture(p);
-            if (wc != null)
-            {
-                if (!Editable) { Finish(wc.Value.Bounds, wc.Value.Hwnd); return; }
-                ShowSelection(wc.Value.Bounds);
-                _selHwnd = wc.Value.Hwnd;
-                _selHwndBounds = wc.Value.Bounds;
-                return;
-            }
+            if (!Editable) { Finish(selected.Bounds, selected.Hwnd); return; }
+            ShowSelection(selected.Bounds);
+            _selHwnd = selected.Hwnd;
+            _selHwndBounds = selected.Bounds;
+            return;
         }
         var hit = SnapWindowAt(p, fresh: true);
         _selHwnd = IntPtr.Zero;
         var baseRect = hit ?? _existing ?? _monitorPhys;
         if (!Editable) { Finish(baseRect); return; }
         ShowSelection(baseRect);
+    }
+
+    private static bool IsWholeWindowElement(RectI element, IntPtr hwnd, RectI frame)
+    {
+        if (element.Equals(frame)) return true;
+        return Native.Win32.GetWindowRect(hwnd, out var bounds)
+            && element.Equals(new RectI(bounds.Left, bounds.Top, bounds.Right - bounds.Left, bounds.Bottom - bounds.Top));
     }
 
 }

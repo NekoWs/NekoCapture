@@ -115,10 +115,9 @@ public sealed partial class CaptureController : IDisposable
 
     private IntPtr _prevFg; // 触发捕获/选区前的前台窗，关闭编辑器后归还焦点
 
-    /// <summary>选区截图这一帧从哪来。优先级：定格瞬间预抓的干净窗口 → 定格帧裁选区 → 实时抓。
-    /// 定格开着时绝不实时抓窗口本体，也绝不实时抓矩形：屏幕上定着的就是开框那一帧，重抓会把所见即所得
-    /// 变成所见非所得——预抓没排到那只窗，就退一步按矩形裁这一定格帧，拿到的仍是用户看见的画面。</summary>
-    /// <param name="freeze">「选区时定格画面」是否开着。</param>
+    /// <summary>窗口截图优先使用预抓本体，缓存未命中时按需捕获；本体失败才回退区域。
+    /// 普通区域优先裁定格帧，未定格或快照不可用时实时捕获。</summary>
+    /// <param name="freeze">区域回退是否使用开框时的定格帧。</param>
     /// <param name="windowLocked">选区是否吸附到了一只窗口。</param>
     /// <param name="cachedWindow">取定格瞬间预抓到这只窗口的干净画面；没缓存到返回 null。</param>
     /// <param name="liveWindow">实时抓这只窗口的本体；抓不到返回 null。</param>
@@ -138,13 +137,10 @@ public sealed partial class CaptureController : IDisposable
         {
             var hit = cachedWindow();
             if (hit != null) return (hit.Value.f, hit.Value.r, true);
-            if (!freeze)
-            {
-                var live = liveWindow();
-                if (live != null) return (live.Value.f, live.Value.r, true);
-            }
+            var live = liveWindow();
+            if (live != null) return (live.Value.f, live.Value.r, true);
         }
-        if (frozen != null)
+        if (freeze && frozen != null)
         {
             // 跨屏窗口超出本屏的部分裁掉，矩形同步收缩到实际裁出的范围（轮廓不超框）
             int rx = region.X - frozenOrigin.X, ry = region.Y - frozenOrigin.Y;
@@ -173,7 +169,7 @@ public sealed partial class CaptureController : IDisposable
             snapContent: _settings.Current.SnapContentArea, magnifier: _settings.Current.PickerMagnifier,
             colorFormat: Core.ColorFormat.Parse(_settings.Current.ColorCopyFormat),
             windowCapture: true, freeze: _settings.Current.FreezeOnSelect,
-            pregrabMax: _settings.Current.FreezePregrabMaxWindows,
+            pregrabMax: _settings.Current.WindowCaptureEnabled ? _settings.Current.FreezePregrabMaxWindows : 0,
             windowShadow: _settings.Current.WindowCaptureShadow, frozenScreen: frozen,
             rightClickCancel: _settings.Current.PickerRightClickCancel, recordMode: initialRecordMode,
             showModeSwitch: showModeSwitch, snapDwellMs: _settings.Current.SnapDwellMs);
