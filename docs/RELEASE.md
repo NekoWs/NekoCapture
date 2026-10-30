@@ -21,7 +21,7 @@ Get-Content -Raw .release-keys/release.private.pem | gh secret set UPDATE_SIGNIN
 
 ```powershell
 git push origin HEAD:main
-git push origin v0.9.27
+git push origin v0.9.28
 ```
 
 `Release` 工作流使用 Windows、.NET 8 与 .NET 10，校验标签和产品版本一致，构建解决方案、检查隔离配置迁移并打包。

@@ -1,6 +1,6 @@
 ﻿# 当前状态
 
-源代码版本：0.9.27。契约见 [docs/PLAN-ORTHOGONAL-CHAINS.md](docs/PLAN-ORTHOGONAL-CHAINS.md)，发布见 [docs/RELEASE.md](docs/RELEASE.md)。
+源代码版本：0.9.28。契约见 [docs/PLAN-ORTHOGONAL-CHAINS.md](docs/PLAN-ORTHOGONAL-CHAINS.md)，发布见 [docs/RELEASE.md](docs/RELEASE.md)。
 
 - GitHub Release 工作流按版本标签构建、签名并发布，附件完整后才公开；签名密钥由仓库 Secret 提供。
 - 系统设置提供自动与手动检查；启动检查按常驻会话去重，支持跳过版本和右下角下载进度。

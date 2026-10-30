@@ -45,15 +45,17 @@ jobs:
         run: |
           [xml]$project = Get-Content src/FrameCapture/FrameCapture.csproj -Raw
           $version = [string]$project.Project.PropertyGroup.Version | Where-Object { $_ }
-          if ($version -notmatch '^d+.d+.d+$') { throw '产品版本必须是 major.minor.patch' }
+          if ($version -notmatch '^[0-9]+[.][0-9]+[.][0-9]+$') { throw '产品版本必须是 major.minor.patch' }
           $tag = "v$version"
           if ($env:GITHUB_REF_TYPE -eq 'tag' -and $env:GITHUB_REF_NAME -ne $tag) { throw '标签与产品版本不匹配' }
+          $checkoutCommit = git rev-parse HEAD
           $existing = git tag --list $tag
           if ($existing) {
             $commit = git rev-list -n 1 $tag
-            if ($commit -ne $env:GITHUB_SHA) { throw '版本标签指向其他提交' }
+            if ($commit -ne $checkoutCommit) { throw '版本标签指向其他提交' }
           }
           "tag=$tag" >> $env:GITHUB_OUTPUT
+          "commit=$checkoutCommit" >> $env:GITHUB_OUTPUT
       - name: Check signing configuration
         env:
           UPDATE_SIGNING_KEY: ${{ secrets.UPDATE_SIGNING_KEY }}
@@ -76,6 +78,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           RELEASE_TAG: ${{ steps.version.outputs.tag }}
+          RELEASE_COMMIT: ${{ steps.version.outputs.commit }}
         run: |
           $files = @(Get-ChildItem release/github -File | Where-Object { $_.Extension -eq '.exe' -or $_.Name -in 'update.json', 'SHA256SUMS.txt' } | ForEach-Object FullName)
           $latest = gh release view --json tagName 2>$null
@@ -88,7 +91,7 @@ jobs:
             if (-not ($existing | ConvertFrom-Json).isDraft) { throw '此版本已经发布，请递增产品版本' }
             gh release upload $env:RELEASE_TAG @files --clobber
           } else {
-            gh release create $env:RELEASE_TAG @files --draft --title $env:RELEASE_TAG --generate-notes --target $env:GITHUB_SHA
+            gh release create $env:RELEASE_TAG @files --draft --title $env:RELEASE_TAG --generate-notes --target $env:RELEASE_COMMIT
           }
           if ($LASTEXITCODE -ne 0) { throw '上传发行附件失败' }
           gh release edit $env:RELEASE_TAG --draft=false --latest
