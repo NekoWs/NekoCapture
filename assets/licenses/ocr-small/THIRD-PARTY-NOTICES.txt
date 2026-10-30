@@ -1,0 +1,15 @@
+FrameCapture optional OCR component
+
+Sdcb.SimdPaddleOCR 2.0.0
+Copyright: the Sdcb.SimdPaddleOCR contributors
+Source: https://github.com/sdcb/SimdPaddleOCR
+License: Apache License 2.0, included in Apache-2.0.txt
+
+PP-OCRv6 small DET/REC, dictionary, and PP-LCNet TextLineOrientation
+Distributed by Sdcb.SimdPaddleOCR.Models.ChineseV6Small 1.0.0 and
+Sdcb.SimdPaddleOCR.Models.TextLineOrientation 1.0.0.
+Source: https://github.com/PaddlePaddle/PaddleOCR
+Model package source: https://github.com/sdcb/SimdPaddleOCR
+License: Apache License 2.0, included in Apache-2.0.txt
+
+Models are downloaded separately. Model packages are verified by SHA256.

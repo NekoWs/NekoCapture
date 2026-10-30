@@ -123,6 +123,13 @@ $residentPublish = dotnet publish src/Resident/Resident.csproj -c Release -r win
 if ($LASTEXITCODE -ne 0) { throw "原生常驻组件发布失败: $residentPublish" }
 $residentExe = Join-Path $residentStage 'FrameCapture.Resident.exe'
 if (-not (Test-Path -LiteralPath $residentExe)) { throw '缺少原生常驻组件' }
+Step '发布原生 OCR 工作进程'
+$ocrStage = Join-Path $OutDir 'staging/ocr-worker'
+Remove-ReleaseDirectory $ocrStage
+$ocrPublish = dotnet publish src/OcrWorker/OcrWorker.csproj -c Release -r win-x64 --self-contained true -p:Platform=x64 -o $ocrStage -v q --nologo 2>&1 | Out-String
+if ($LASTEXITCODE -ne 0) { throw "OCR 工作进程发布失败: $ocrPublish" }
+$ocrExe = Join-Path $ocrStage 'FrameCapture.OcrWorker.exe'
+if (-not (Test-Path -LiteralPath $ocrExe)) { throw '缺少 OCR 工作进程' }
 $residentAssets = Get-Content -LiteralPath 'src/Resident/obj/project.assets.json' -Raw | ConvertFrom-Json -AsHashtable
 $runtimeDependency = @($residentAssets.project.frameworks.Values | ForEach-Object { $_.downloadDependencies } |
     Where-Object name -eq 'Microsoft.NETCore.App.Runtime.NativeAOT.win-x64' | Select-Object -First 1)
@@ -142,6 +149,9 @@ foreach ($v in $variants) {
     $perr = @($p -split "`n" | ForEach-Object{ $_.Trim() } | Where-Object{ $_ -match ': error' })
     if ($publishCode -ne 0 -or $perr.Count) { $perr | ForEach-Object{ Write-Host "  $_" -ForegroundColor Red }; throw "发布 $($v.Suffix) 失败" }
     Copy-Item -LiteralPath $residentExe -Destination $stage
+    $ocrDirectory = Join-Path $stage 'OcrWorker'
+    New-Item -ItemType Directory -Force -Path $ocrDirectory | Out-Null
+    Copy-Item -LiteralPath $ocrExe -Destination $ocrDirectory
     $runtimeNotices = Join-Path $stage 'licenses/dotnet'
     New-Item -ItemType Directory -Force -Path $runtimeNotices | Out-Null
     foreach ($name in @('LICENSE.TXT', 'THIRD-PARTY-NOTICES.TXT')) {

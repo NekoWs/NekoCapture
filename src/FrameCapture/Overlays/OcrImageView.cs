@@ -46,6 +46,7 @@ internal sealed class OcrImageView : FrameworkElement
                     var bounds = vertical
                         ? new Rect(word.Bounds.X, word.Bounds.Y + at * word.Bounds.Height, word.Bounds.Width, width * word.Bounds.Height)
                         : new Rect(word.Bounds.X + at * word.Bounds.Width, word.Bounds.Y, width * word.Bounds.Width, word.Bounds.Height);
+                    if (word.CharacterBounds?.Count == starts.Length) bounds = word.CharacterBounds[ci];
                     int length = (ci + 1 < starts.Length ? starts[ci + 1] : word.Text.Length) - starts[ci];
                     _cells.Add(new(offset + word.Start + starts[ci], length, bounds, li, wi, vertical)); at += width;
                 }

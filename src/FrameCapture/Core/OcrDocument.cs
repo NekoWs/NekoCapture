@@ -7,7 +7,11 @@ namespace FrameCapture.Core;
 /// <param name="Text">识别文字。</param>
 /// <param name="Bounds">原图像素矩形。</param>
 /// <param name="Start">词在所属行中的 UTF-16 起始位置。</param>
-public sealed record OcrWordInfo(string Text, Rect Bounds, int Start);
+public sealed record OcrWordInfo(string Text, Rect Bounds, int Start)
+{
+    /// <summary>与文字的 grapheme 顺序对应的字符框；为空时由词框估算。</summary>
+    public IReadOnlyList<Rect>? CharacterBounds { get; init; }
+}
 
 /// <summary>识别行及其覆盖原图时所需的旋转信息。</summary>
 /// <param name="Text">按阅读顺序排列的行文字。</param>

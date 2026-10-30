@@ -141,7 +141,9 @@ public sealed partial class EditorWindow : Window
                     Trace.Log($"ocr ok {text.Length} chars");
                     break;
                 case OcrStatus.NoEngine:
-                    ShowSnack(OcrService.Feedback(OcrStatus.NoEngine, 0));
+                case OcrStatus.ComponentMissing:
+                case OcrStatus.Failed:
+                    ShowSnack(OcrService.Feedback(outcome.Status, 0));
                     Trace.Log("ocr no-engine");
                     break;
                 default:

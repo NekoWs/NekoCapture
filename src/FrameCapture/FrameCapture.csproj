@@ -41,7 +41,16 @@
          deps.json 里没有它——Assembly.Load 按名字取不到，WGC 整条路静默失效。 -->
     <!-- 可复用「自定义手势/键位」引擎（netstandard2.0 零 UI 依赖，见 src/GestureCore） -->
     <ProjectReference Include="..\GestureCore\GestureCore.csproj" />
+    <ProjectReference Include="..\OcrWorker\OcrWorker.csproj" ReferenceOutputAssembly="false" SkipGetTargetFrameworkProperties="true" AdditionalProperties="Platform=x64" />
+    <Content Include="..\..\assets\licenses\ocr-small\*.txt" Link="third-party\ocr-small\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
+
+  <Target Name="CopyOcrWorker" AfterTargets="Build">
+    <ItemGroup>
+      <OcrWorkerFiles Include="..\OcrWorker\bin\$(Configuration)\net10.0\$(RuntimeIdentifier)\**\*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(OcrWorkerFiles)" DestinationFiles="@(OcrWorkerFiles->'$(OutDir)OcrWorker\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
+  </Target>
 
   <ItemGroup>
     <!-- WPF/WinForms 同名类型多：去掉全局隐式 using，各文件显式导入 -->

@@ -95,7 +95,7 @@ public sealed partial class CaptureController : IDisposable
                     Trace.Log($"ocr-still copied {text.Length}");
                     break;
                 case OcrRoute.NoEngineHint:
-                    OcrResultWindow.ShowMessage(OcrService.Feedback(OcrStatus.NoEngine, 0));
+                    OcrResultWindow.ShowMessage(OcrService.Feedback(outcome.Status, 0));
                     Trace.Log("ocr-still no-engine");
                     break;
                 default:

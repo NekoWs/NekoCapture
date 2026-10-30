@@ -285,6 +285,7 @@ panel.Children.Add(ToggleRow("\uE768", Loc.T(K.Settings.StartRecordingAfterSelec
         panel = Cat(Loc.T(K.Common.Editor), "\uE70F");
         panel.Children.Add(ToggleRow("\uEDD7", Loc.T(K.Settings.RememberTheLastToolColor), Loc.T(K.Settings.ClosingTheEditorRemembers),
             _settings.Current.RememberEditorTools, v => _settings.Mutate(s => s.RememberEditorTools = v)));
+        BuildOcrSettings(panel);
         panel.Children.Add(ToggleRow("\uE8C1", Loc.T(K.Settings.ShowTheResultWindowAfter), Loc.T(K.Settings.AfterASuccessfulRecognition),
             _settings.Current.OcrShowResult, v => _settings.Mutate(s => s.OcrShowResult = v)));
 

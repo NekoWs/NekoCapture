@@ -184,10 +184,11 @@ public bool EditableSelection { get; set; } = false;
     /// （当前聚焦窗最优先）。0=不预抓（点窗口一律实时抓）。仅在「定格 + 窗口截图」都开启时生效。</summary>
     public int FreezePregrabMaxWindows { get; set; } = 6;
 
-    /// <summary>识别后显示结果窗（默认开，预览优先）：编辑器/贴图「识别文字」成功后弹出可编辑、
-    /// 可部分选中复制的结果窗（含字数、复制全部钮）——预览即选取入口，此时<b>不自动写剪贴板</b>（要哪段选哪段，
-    /// 或点「复制全部」）。关闭则走快速路径：直接写剪贴板 + 轻提示，不弹窗。</summary>
+    /// <summary>识别成功后在原图上选字；关闭时直接复制全文。</summary>
     public bool OcrShowResult { get; set; } = true;
+
+    /// <summary>识别引擎，默认使用系统内置 OCR；small 使用可下载的 PP-OCRv6 模型。</summary>
+    public string OcrEngine { get; set; } = OcrService.SystemEngine;
 
     /// <summary>贴图磁边（默认开）：拖动贴图松手时，若某条边贴近所在屏幕工作区边缘则自动吸附贴合，
     /// 便于把贴图整齐停靠到屏幕四边/四角。关闭则松手停在原地。</summary>
@@ -267,6 +268,7 @@ public bool EditableSelection { get; set; } = false;
         AgentStripFrames = Math.Clamp(AgentStripFrames, 2, 48);
         if (Theme is not ("system" or "light" or "dark")) Theme = "system";
         if (UiLanguage is not ("system" or "zh" or "en")) UiLanguage = "system";
+        if (OcrEngine is not (OcrService.SystemEngine or OcrService.SmallEngine)) OcrEngine = OcrService.SystemEngine;
         if (ColorPresets.All.All(p => p.Id != ColorPreset)) ColorPreset = "";
         Colors = CleanColors(Colors);
         Gestures ??= GestureConfig.CreateCurrentDefaults();
