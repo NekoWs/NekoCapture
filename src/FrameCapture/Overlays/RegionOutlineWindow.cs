@@ -10,8 +10,8 @@ namespace FrameCapture.Overlays;
 
 /// <summary>
 /// 捕获范围轮廓：点击穿透、不抢焦点，描边位于捕获范围外。
-/// 范围与 REC 徽标始终通过 WDA 排除，不受捕获软件自身的设置影响；
-/// 排除失败时保持隐藏，测试取证开关除外。
+/// 范围与 REC 徽标按自身界面捕获开关决定是否通过 WDA 排除；
+/// 普通模式排除失败时保持隐藏。
 /// </summary>
 public sealed class RegionOutlineWindow : Window
 {
@@ -126,7 +126,7 @@ public sealed class RegionOutlineWindow : Window
     /// <summary>显示并复位到常态（用于录制期间的常亮范围指示）。</summary>
     public void ShowNoActivate()
     {
-        if (!EnsureExcludedFromCapture() && !TestShowInCapture)
+        if (!EnsureExcludedFromCapture() && !TestShowInCapture && !Core.Fluent.CaptureSelfAllowed)
         {
             HideSilently();
             return;
@@ -142,11 +142,18 @@ public sealed class RegionOutlineWindow : Window
     }
 
     /// <summary>
-    /// 让本窗不出现在屏幕捕获里（BitBlt 与 WGC 都排除）。幂等：已排除过直接返回 true。
+    /// 按自身界面捕获开关设置范围轮廓的捕获排除，普通模式下幂等复用排除状态。
     /// </summary>
-    /// <returns>true 表示已排除；false 表示取证开关打开、句柄未就绪或系统调用失败。</returns>
+    /// <returns>true 表示已排除；false 表示允许入镜、句柄未就绪或系统调用失败。</returns>
     public bool EnsureExcludedFromCapture()
     {
+        if (Core.Fluent.CaptureSelfAllowed)
+        {
+            _captureExcluded = false;
+            var handle = new System.Windows.Interop.WindowInteropHelper(this).Handle;
+            if (handle != IntPtr.Zero) Win32.SetWindowDisplayAffinity(handle, Win32.WDA_NONE);
+            return false;
+        }
         if (_captureExcluded) return true;
         if (TestShowInCapture) return false; // 仅取证：让轮廓能被截到，便于人工核对位置
         var hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;

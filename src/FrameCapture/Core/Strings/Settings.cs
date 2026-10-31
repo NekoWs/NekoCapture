@@ -1,4 +1,4 @@
-namespace FrameCapture.Core;
+﻿namespace FrameCapture.Core;
 
 /// <summary>
 /// 文案 · 设置窗。一行一句：稳定 id、中文原文、英文译名。
@@ -225,10 +225,7 @@ public static partial class K
             "settings.showTheKeysInTheReady",
             "就绪提示列出键位",
             "Show the keys in the ready card");
-        public static readonly Str CaptureTheAppItself = new(
-            "settings.captureTheAppItself",
-            "允许截到自己",
-            "Allow capturing FrameCapture");
+        public static readonly Str CaptureTheAppItself = new("settings.captureTheAppItself", "录入自身界面", "Include app UI");
         public static readonly Str TokenCardBg = new("settings.tokenCardBg", "卡片底色", "Card");
         public static readonly Str TokenChip = new("settings.tokenChip", "芯片底色", "Chip");
         public static readonly Str TokenChromeBg = new("settings.tokenChromeBg", "标题栏底色", "Title bar");
@@ -251,7 +248,7 @@ public static partial class K
         public static readonly Str TokenTrack = new("settings.tokenTrack", "轨道", "Track");
         public static readonly Str TokenWarning = new("settings.tokenWarning", "注意", "Warning");
         public static readonly Str TokenWindowBg = new("settings.tokenWindowBg", "窗口底色", "Window");
-        public static readonly Str WhenOnTheEditorTheRecord = new("settings.whenOnTheEditorTheRecord", "捕获软件界面，范围边框除外", "Include the app UI, excluding capture outlines.");
+        public static readonly Str WhenOnTheEditorTheRecord = new("settings.whenOnTheEditorTheRecord", "截图和录制包含选区遮罩、提示、面板与范围边框", "Include selection overlays, notices, panels, and capture outlines in screenshots and recordings.");
         public static readonly Str CopyKey = new(
             "settings.copyKey",
             "截图后的复制键",

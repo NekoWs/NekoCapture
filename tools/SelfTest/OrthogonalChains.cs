@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
@@ -245,13 +245,13 @@ static partial class SelfTest
                 Frames = new List<CapturedFrame> { Solid(24, 24, 10, 20, 30) },
                 Region = region, MonitorBounds = monitor.Bounds, MonitorDevice = monitor.DeviceName,
             };
-            type.GetField("_lastSequence", flags)!.SetValue(c, retained);
+            type.GetProperty("_lastSequence", flags)!.SetValue(c, retained);
             c.BeginChain(new[] { "select", "record.start", dynamicEditor ? "edit.result" : "edit.lastvideo" }, Array.Empty<string>());
             Select(c, false, true);
             bool finished = WaitUntil(() => TaskOf(c).IsCompleted);
             Chk("T271-switched-record-key-editor-" + dynamicEditor, finished && TaskOf(c).Result == dynamicEditor
                 && c.HasLastStill && c.HasLastVideo
-                && ReferenceEquals(type.GetField("_lastSequence", flags)!.GetValue(c), retained)
+                && ReferenceEquals(type.GetProperty("_lastSequence", flags)!.GetValue(c), retained)
                 && c.State == (dynamicEditor ? CaptureController.Phase.Editing : CaptureController.Phase.Idle));
             type.GetMethod("CloseEditor", flags)!.Invoke(c, null);
             CaptureToast.DismissCurrent();

@@ -13,7 +13,7 @@ namespace FrameCapture.Overlays;
 /// 延时截图倒计时浮窗：触发后倒数 N 秒再截「当前范围」，给用户时间去打开
 /// 右键菜单 / 悬停提示 / 下拉框这类「鼠标一动就没了」的界面。
 /// 关键手感：ShowActivated=false **不抢焦点**——否则目标窗失焦，正要截的菜单反而被关掉；
-/// WDA_EXCLUDEFROMCAPTURE 排除，倒计时浮窗本身绝不入镜。点「取消」中止（点击不依赖焦点）。
+/// 默认通过 WDA_EXCLUDEFROMCAPTURE 排除，允许捕获自身界面时入镜。点「取消」中止，点击不依赖焦点。
 /// </summary>
 public sealed class CountdownWindow : Window
 {

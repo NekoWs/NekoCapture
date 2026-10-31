@@ -106,8 +106,6 @@ public sealed partial class SettingsWindow
         Page("startup", "system", "system", K.SettingsNavigation.Startup, K.SettingsNavigation.StartupHint, "\uE713", 9, p =>
         {
             p.Children.Add(StartupOptions());
-            p.Children.Add(ToggleRow("\uE8B9", Loc.T(K.Settings.CaptureTheAppItself), Loc.T(K.Settings.WhenOnTheEditorTheRecord),
-                _settings.Current.CaptureSelf, v => { _settings.Mutate(s => s.CaptureSelf = v); foreach (System.Windows.Window w in System.Windows.Application.Current.Windows) ApplyCaptureAffinity(w); }));
             Cardify(p);
         });
         Page("welcome", "system", "system", K.Settings.StartupNotification, K.SettingsNavigation.WelcomeHint, "\uE946", 9, p =>

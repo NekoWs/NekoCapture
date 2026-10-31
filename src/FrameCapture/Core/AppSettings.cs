@@ -53,7 +53,7 @@ public sealed class AppSettings
     /// <summary>
     /// 录制期间显示捕获范围边框。取代 Windows 11 那条由 WGC 绘制的全屏黄色系统边框
     /// （它只按"被捕获对象"画，而 WGC 只能整显示器捕获，所以永远全屏、与所选范围无关）。
-    /// 本窗用 WDA_EXCLUDEFROMCAPTURE 排除，保证只提示、不入镜。
+    /// 默认通过 WDA_EXCLUDEFROMCAPTURE 排除，允许捕获自身界面时入镜。
     /// </summary>
     public bool ShowRecordingBorder { get; set; } = true;
 
@@ -239,8 +239,8 @@ public bool EditableSelection { get; set; } = false;
     /// 只认修饰键完全一致的那一条；空串表示不设，浮窗上只剩标注与关闭。</summary>
     public string ToastCopyChord { get; set; } = "Ctrl+C";
 
-    /// <summary>是否允许捕获本程序界面；范围轮廓与 REC 徽标始终排除。</summary>
-    public bool CaptureSelf { get; set; }
+    /// <summary>是否允许捕获本程序界面、范围轮廓与 REC 徽标，默认关闭。</summary>
+    public bool CaptureSelf { get; set; } = false;
 
     #region 上次捕获范围（物理像素，虚拟桌面绝对坐标；null 表示全屏主屏）
     public string? RegionMonitorId { get; set; }

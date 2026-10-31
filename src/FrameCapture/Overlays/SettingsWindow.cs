@@ -106,6 +106,7 @@ public sealed partial class SettingsWindow : Window
     {
         var h = new System.Windows.Interop.WindowInteropHelper(w).Handle;
         if (h == IntPtr.Zero) return;
+        if (w is RegionOutlineWindow outline) { outline.EnsureExcludedFromCapture(); return; }
         if (Core.Fluent.CaptureSelfAllowed)
         {
             try { Win32.SetWindowDisplayAffinity(h, Win32.WDA_NONE); } catch { }

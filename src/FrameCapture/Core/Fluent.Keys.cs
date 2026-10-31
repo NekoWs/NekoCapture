@@ -68,7 +68,11 @@ public static partial class Fluent
     /// <returns>true = 已排除；false = 按用户意愿放行，或系统不支持这个调用。</returns>
     public static bool ExcludeFromCapture(IntPtr hwnd)
     {
-        if (CaptureSelfAllowed) return false;
+        if (CaptureSelfAllowed)
+        {
+            try { FrameCapture.Native.Win32.SetWindowDisplayAffinity(hwnd, FrameCapture.Native.Win32.WDA_NONE); } catch { }
+            return false;
+        }
         try { return FrameCapture.Native.Win32.SetWindowDisplayAffinity(hwnd, FrameCapture.Native.Win32.WDA_EXCLUDEFROMCAPTURE); }
         catch { return false; }
     }

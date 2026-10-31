@@ -31,22 +31,22 @@ public sealed partial class RecordPanelWindow : Window
     /// <param name="monitorDevice">区域所在显示器。</param>
     /// <param name="onStart">开始录制的回调。</param>
     /// <param name="onStop">取消或停止的回调。</param>
-    public static void ShowArmed(RectI region, string monitorDevice, Action onStart, Action onStop)
+    /// <returns>独立的录制面板。</returns>
+    public static RecordPanelWindow ShowArmed(RectI region, string monitorDevice, Action onStart, Action onStop)
     {
-        Dismiss();
         var window = new RecordPanelWindow(region, monitorDevice, onStop);
-        _current = window; window.SetArmed(onStart); window.Show();
+        RegisterPanel(window); window.SetArmed(onStart); window.Show(); return window;
     }
 
     /// <summary>显示正在录制的时长和停止按钮。</summary>
     /// <param name="region">选中的物理像素区域。</param>
     /// <param name="monitorDevice">区域所在显示器。</param>
     /// <param name="onStop">停止录制的回调。</param>
-    public static void ShowRecording(RectI region, string monitorDevice, Action onStop)
+    /// <returns>独立的录制面板。</returns>
+    public static RecordPanelWindow ShowRecording(RectI region, string monitorDevice, Action onStop)
     {
-        Dismiss();
         var window = new RecordPanelWindow(region, monitorDevice, onStop);
-        _current = window; window.SwitchToRecording(); window.Show();
+        RegisterPanel(window); window.SwitchToRecording(); window.Show(); return window;
     }
 
     /// <summary>切到录制状态，释放准备阶段的按键接管并开始计时。</summary>
@@ -69,13 +69,13 @@ public sealed partial class RecordPanelWindow : Window
         _readyDetails.Visibility = _start.Visibility = Visibility.Visible;
         _recordStatus.Visibility = _dot.Visibility = _time.Visibility = Visibility.Collapsed;
         _stopText.Text = Loc.T(K.Common.Cancel); _stop.ToolTip = Loc.F(K.Capture.RecordCancelKey, _cancelChord);
-        Services.HotkeyManager.ArmedRecordKey = HandleReadyKey;
+        RefreshReadyKeys();
         ResizePanel();
     }
 
     void StartRequested()
     {
-        if (!_armed || _finished || !ReferenceEquals(_current, this)) return;
+        if (!_armed || _finished) return;
         _armed = false; ReleaseReadyKeys(); _start.IsHitTestVisible = false;
         var start = _onStart; _onStart = null; start?.Invoke();
     }
@@ -85,7 +85,7 @@ public sealed partial class RecordPanelWindow : Window
         if (_finished) return;
         _finished = true;
         var stop = _onStop; _onStop = null;
-        Dismiss(); stop?.Invoke();
+        Close(); stop?.Invoke();
     }
 
     /// <summary>关闭当前面板并停止其计时和会话按键接管。</summary>
@@ -152,7 +152,7 @@ public sealed partial class RecordPanelWindow : Window
         {
             _armed = false; _finished = true; ReleaseReadyKeys(); _tick.Stop(); _clock = null;
             _dot.BeginAnimation(OpacityProperty, null);
-            if (ReferenceEquals(_current, this)) _current = null;
+            UnregisterPanel(this);
         };
         Fluent.FadeIn(this, Fluent.Motion.EnterMs, 8, offscreenFirstFrame: true);
     }

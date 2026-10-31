@@ -10,7 +10,7 @@ namespace FrameCapture.Overlays;
 
 /// <summary>
 /// 滚动截图取景层：铺满选区所在显示器，范围外压暗、范围内保持原亮度，范围上叠一圈 accent 描边。
-/// 两条硬要求：整层鼠标穿透（用户要透过它滚目标窗口）、WDA_EXCLUDEFROMCAPTURE（压暗层绝不能被拼进长图）。
+/// 整层鼠标穿透，默认通过 WDA_EXCLUDEFROMCAPTURE 排除；允许捕获自身界面时压暗层入镜。
 /// </summary>
 public sealed class ScrollStageWindow : Window
 {

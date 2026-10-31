@@ -1,4 +1,4 @@
-using FrameCapture.Capture;
+﻿using FrameCapture.Capture;
 using FrameCapture.Core;
 using FrameCapture.Overlays;
 
@@ -8,6 +8,7 @@ namespace FrameCapture.Services;
 public sealed partial class CaptureController
 {
     private RecordingSession? _recordingSession;
+    private RecordPanelWindow? _recordPanel;
     private Task<bool>? _recordStartTask, _recordStopTask;
     private int _recordGeneration;
 
@@ -81,7 +82,7 @@ public sealed partial class CaptureController
             if (!_disposed)
             {
                 State = Phase.Idle;
-                RecordPanelWindow.Dismiss(); _panelRecording = false;
+                DismissRecordPanel(); _panelRecording = false;
                 RetireCaptureOutline();
             }
             _recordCompletion?.TrySetResult(false);
@@ -110,7 +111,7 @@ public sealed partial class CaptureController
             State = Phase.Stopping;
             _recordingSession = null;
             _recBadgeTimer?.Stop();
-            RecordPanelWindow.Dismiss(); _panelRecording = false;
+            DismissRecordPanel(); _panelRecording = false;
             _outline?.SetRecProcessing();
             var sequence = await BackgroundWork.Run(() =>
             {
@@ -124,6 +125,16 @@ public sealed partial class CaptureController
             }
             if (sequence == null) return false;
             var previous = _lastSequence;
+            if (_chainContext is { } context)
+            {
+                context.Video = new CapturedSequence
+                {
+                    Frames = BakedFrameList.Create(sequence.Frames, 0, sequence.Frames.Count, Array.Empty<FrameCapture.Drawing.Annotation>(), null),
+                    Region = sequence.Region, MonitorBounds = sequence.MonitorBounds, MonitorDevice = sequence.MonitorDevice,
+                    Fps = sequence.Fps, DroppedFrames = sequence.DroppedFrames, StartedAt = sequence.StartedAt,
+                };
+                context.LatestProduct = RunValue.Video;
+            }
             _lastSequence = sequence;
             try { await BackgroundWork.Run(() => { (previous?.Frames as IDisposable)?.Dispose(); return true; }); }
             catch (Exception error) { Trace.Log("previous recording release: " + error); }

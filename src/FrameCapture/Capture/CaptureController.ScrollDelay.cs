@@ -1,4 +1,4 @@
-using FrameCapture.Capture;
+﻿using FrameCapture.Capture;
 using FrameCapture.Core;
 using FrameCapture.Overlays;
 
@@ -311,6 +311,7 @@ public sealed partial class CaptureController : IDisposable
     /// 退出必须清 <c>HotkeyManager.ScrollActive</c>，否则全局 Esc 会被一直吞掉（控制条 <c>Closed</c> 另有兜底）。</summary>
     public void ScrollCancel()
     {
+        _nextCapture?.ScrollCancel();
         _scrollGeneration++; _scrollStarting = false; _scrollFinishing = false;
         Services.HotkeyManager.ScrollActive = false;
         _scrollTimer?.Stop(); _scrollTimer = null;

@@ -28,8 +28,8 @@ static partial class SelfTest
                 try
                 {
                     var hwnd = new WindowInteropHelper(outline).Handle;
-                    Chk($"outline-excluded-with-capture-self-{self}",
-                        GetWindowDisplayAffinity(hwnd, out uint affinity) && affinity == 0x11);
+                    Chk($"outline-affinity-follows-capture-self-{self}",
+                        GetWindowDisplayAffinity(hwnd, out uint affinity) && affinity == (self ? 0u : 0x11u));
                     outline.SetRegion(new RectI(-4000, -4000, 64, 48));
                     Chk($"outline-placement-does-not-show-window-{self}",
                         !outline.IsVisible && !FrameCapture.Native.Win32.IsWindowVisible(hwnd));

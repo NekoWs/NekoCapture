@@ -1,4 +1,4 @@
-// SelfTest：功能与界面测试；默认窗口位于屏幕外，不注入 OS 级鼠标输入
+﻿// SelfTest：功能与界面测试；默认窗口位于屏幕外，不注入 OS 级鼠标输入
 // 覆盖：GIF 编码往返/调色板 RGB 序、标注烘焙、裁剪、视觉暂留、快捷键解析、抽帧、胶片条
 using System.Diagnostics;
 using System.Drawing;
@@ -1194,6 +1194,8 @@ static partial class SelfTest
             return 2;
         }
         InstallQuietWindows();
+        if (args.Length == 1 && args[0] == "parallel-capture")
+        { ParallelCaptureChecks(); Console.WriteLine($"SelfTest pass={pass} fail={fail}"); return fail == 0 ? 0 : 1; }
         if (args.Length == 1 && args[0] == "picker-nudge")
         { PickerNudgeChecks(); Console.WriteLine($"SelfTest pass={pass} fail={fail}"); return fail == 0 ? 0 : 1; }
         if (args.Length == 1 && args[0] == "scroll-sampling")
@@ -6342,7 +6344,7 @@ static partial class SelfTest
             const System.Reflection.BindingFlags NPR = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
             bool none = !ctlR.HasScrollResume;
             // 那张图读不回来（临时目录被清）就当没有这次可继续：不留会话，也不把「继续」挂在托盘上
-            TR.GetField("_scrollResume", NPR)!.SetValue(ctlR,
+            TR.GetProperty("_scrollResume", NPR)!.SetValue(ctlR,
                 (@"C:\no-such-dir\fc-scroll-missing.png", new RectI(0, 0, 200, 120), "test"));
             bool claimed = ctlR.HasScrollResume;
             ctlR.ResumeScrollCapture();
@@ -6352,7 +6354,7 @@ static partial class SelfTest
             var accR = new byte[200 * 120 * 4];
             for (int i = 0; i < accR.Length; i += 4) { accR[i] = 0x33; accR[i + 1] = 0x66; accR[i + 2] = 0x99; accR[i + 3] = 0xFF; }
             FrameCapture.Services.BgraImage.SavePng(new CapturedFrame { Bgra = accR, W = 200, H = 120 }, pngR);
-            TR.GetField("_scrollResume", NPR)!.SetValue(ctlR, (pngR, new RectI(-18000, -18000, 200, 120), "test"));
+            TR.GetProperty("_scrollResume", NPR)!.SetValue(ctlR, (pngR, new RectI(-18000, -18000, 200, 120), "test"));
             ctlR.ResumeScrollCapture();
             PumpMs(250);
             bool running = TR.GetField("_scrollBar", NPR)!.GetValue(ctlR) != null

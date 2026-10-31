@@ -15,7 +15,7 @@ public sealed partial class RecordPanelWindow
 
     bool HandleReadyKey(uint vk, GC.ModifierKeys modifiers)
     {
-        if (!_armed || _finished || !ReferenceEquals(_current, this)) return false;
+        if (!_armed || _finished) return false;
         if (_cancelKey == (vk, modifiers)) { Dispatcher.BeginInvoke(new Action(() => { if (_armed) StopRequested(); })); return true; }
         if (_confirmKey != (vk, modifiers)) return false;
         Dispatcher.BeginInvoke(new Action(StartRequested)); return true;
@@ -35,6 +35,7 @@ public sealed partial class RecordPanelWindow
     void ReleaseReadyKeys()
     {
         if (Services.HotkeyManager.ArmedRecordKey == HandleReadyKey) Services.HotkeyManager.ArmedRecordKey = null;
+        RefreshReadyKeys();
     }
 
     void ResizePanel()
@@ -64,7 +65,7 @@ public sealed partial class RecordPanelWindow
     {
         double width = double.IsNaN(Width) ? 324 : Width;
         double height = double.IsNaN(Height) ? 140 : Height;
-        var bounds = PanelBounds(_regionDip, _workDip, new Size(width, height));
+        var bounds = SeparatePanel(PanelBounds(_regionDip, _workDip, new Size(width, height)));
         Left = bounds.X; Top = bounds.Y;
     }
 

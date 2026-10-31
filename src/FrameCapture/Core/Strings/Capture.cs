@@ -9,6 +9,7 @@ public static partial class K
     /// <summary>捕获过程与各种浮窗的文案。</summary>
     public static partial class Capture
     {
+        public static readonly Str RecordingSession = new("capture.recordingSession", "录制 {0}", "Recording {0}");
         public static readonly Str CopySelection = new("capture.copySelection", "复制所选", "Copy selection");
         public static readonly Str FitImage = new("capture.fitImage", "适合窗口", "Fit to window");
         public static readonly Str SelectTextOnImage = new("capture.selectTextOnImage", "在图片上拖选文字", "Drag over text to select");

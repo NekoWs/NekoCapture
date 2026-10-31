@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Reflection;
 using FrameCapture.Capture;
 using FrameCapture.Core;
@@ -48,7 +48,7 @@ static partial class SelfTest
             var settings = new SettingsService();
             var flags = BindingFlags.Instance | BindingFlags.NonPublic;
             LastStill Still(CaptureController controller) => (LastStill)typeof(CaptureController).GetField("_lastStill", flags)!.GetValue(controller)!;
-            CapturedSequence? Video(CaptureController controller) => (CapturedSequence?)typeof(CaptureController).GetField("_lastSequence", flags)!.GetValue(controller);
+            CapturedSequence? Video(CaptureController controller) => (CapturedSequence?)typeof(CaptureController).GetProperty("_lastSequence", flags)!.GetValue(controller);
             string path;
             using (var spool = new FrameSpool())
             {
@@ -61,7 +61,7 @@ static partial class SelfTest
                 Chk("resident-duration-no-pixel-allocation", GC.GetAllocatedBytesForCurrentThread() - allocated < 1024);
                 using var controller = new CaptureController(settings);
                 Still(controller).Set(source, region, "display", true);
-                typeof(CaptureController).GetField("_lastSequence", flags)!.SetValue(controller, sequence);
+                typeof(CaptureController).GetProperty("_lastSequence", flags)!.SetValue(controller, sequence);
                 controller.SaveResidentSessionAsync().GetAwaiter().GetResult();
                 Chk("resident-session-cache-written", File.Exists(Path.Combine(SettingsService.Dir, "resident-session.json")) && File.Exists(path));
                 string blocked = Path.Combine(SettingsService.Dir, "resident-session.json.tmp");

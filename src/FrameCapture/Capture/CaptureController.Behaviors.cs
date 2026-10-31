@@ -1,4 +1,4 @@
-using FrameCapture.Capture;
+﻿using FrameCapture.Capture;
 using FrameCapture.Core;
 using FrameCapture.Overlays;
 
@@ -25,6 +25,11 @@ public sealed partial class CaptureController
     public void BeginBehavior(BehaviorGraph graph, string entryId, string bindingId, string initialMode = "")
     {
         if (_disposed || _updateReserved || !graph.IsValid(entryId) || graph.Flow(entryId) == null) return;
+        BehaviorCaptureTarget(graph, entryId, bindingId).BeginBehaviorCore(graph, entryId, bindingId, initialMode);
+    }
+
+    private void BeginBehaviorCore(BehaviorGraph graph, string entryId, string bindingId, string initialMode)
+    {
         if (_chainTask is { IsCompleted: false })
         {
             bool stop = bindingId == _behaviorBinding || EntryStopsRecording(graph, entryId);
@@ -39,7 +44,7 @@ public sealed partial class CaptureController
             else if (stop && _recordCompletion != null && State == Phase.Idle)
             {
                 if (_chainContext != null) _chainContext.Cancelled = true;
-                RecordPanelWindow.Dismiss();
+                DismissRecordPanel();
             }
             return;
         }

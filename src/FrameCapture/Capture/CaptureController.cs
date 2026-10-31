@@ -1,4 +1,4 @@
-using FrameCapture.Capture;
+﻿using FrameCapture.Capture;
 using FrameCapture.Core;
 using FrameCapture.Overlays;
 
@@ -34,7 +34,7 @@ public sealed partial class CaptureController : IDisposable
     // 保留最近一次静态截图帧，供托盘「编辑上次截图」在托盘找回编辑器
     private readonly LastStill _lastStill = new();
     // 录制产物按需读取磁盘帧，进入编辑器由 edit.lastvideo 动作触发。
-    private CapturedSequence? _lastSequence;
+    private CapturedSequence? _lastSequence { get => _products.Video; set => _products.Video = value; }
     // 滚动截图——选区后自动检测滚动并拼接（目标窗保持焦点，用户只管滚）
     private Overlays.ScrollHintWindow? _scrollBar;
     private Overlays.ScrollStageWindow? _scrollStage;       // 取景层：范围外压暗 + 范围描边，鼠标穿透
@@ -51,7 +51,7 @@ public sealed partial class CaptureController : IDisposable
     /// <summary>点「完成」之后留在手里的半张长图：完成时落盘的那张 PNG，加上那块区域与所在显示器。
     /// 滚早了头、滚少了尾巴是这条路径最常见的失手，托盘「继续上次滚动」据此接着拼而不是重来。
     /// 像素不留在内存里——长图动辄上百 MB，而它本来就已经在磁盘上了。</summary>
-    private (string Png, RectI Region, string Device)? _scrollResume;
+    private (string Png, RectI Region, string Device)? _scrollResume { get => _products.Scroll; set => _products.Scroll = value; }
     // 自动滚动用 SendInput 注真实滚轮，节奏挂在同一个 ScrollTick 上：发一步 → 等这一步被拼上 → 再发下一步
     private bool _autoWaitSettle;   // 已注入一步、正等它停稳，期间采样拼接但不继续注轮
     private int _autoNoNew;         // 连续「停稳且画面没变」次数，数满判到底
@@ -362,6 +362,8 @@ public sealed partial class CaptureController : IDisposable
     {
         if (_disposed) return;
         _disposed = true;
+        _nextCapture?.CloseEditor();
+        _nextCapture?.Dispose(); _nextCapture = null;
         if (_chainContext != null) _chainContext.Cancelled = true;
         _selectionCompletion?.TrySetResult(false);
         _recordCompletion?.TrySetResult(false);
@@ -373,12 +375,15 @@ public sealed partial class CaptureController : IDisposable
         _recBadgeTimer?.Stop();
         _outline?.HideSilently(); _outline?.Close(); _outline = null;
         if (_picker != null) { _picker.Close(); _picker = null; }
-        if (_recordCompletion != null) RecordPanelWindow.Dismiss();
+        if (_recordCompletion != null) DismissRecordPanel();
         ReleaseRecording();
         RestoreAutoCursor();
-        _lastStill.Clear(); // 释放保留帧（最大可达数十 MB）
-        if (_lastSequence != null) ReleaseFrames(_lastSequence.Frames);
-        _lastSequence = null;
+        if (_ownsProducts)
+        {
+            _lastStill.Clear();
+            if (_lastSequence != null) ReleaseFrames(_lastSequence.Frames);
+            _lastSequence = null;
+        }
         _live.Dispose();
     }
 }

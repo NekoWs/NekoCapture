@@ -177,6 +177,7 @@ public sealed partial class EditorWindow : Window
             var hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
             Win32.SetRoundedCorners(hwnd);
             Win32.SetWindowTextW(hwnd, "FrameCapture Editor"); // WindowStyle=None 时原生标题为空，自动化需要
+            Fluent.ExcludeFromCapture(hwnd);
         };
     }
 
