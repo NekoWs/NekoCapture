@@ -108,7 +108,7 @@ internal sealed partial class ResidentHost : IDisposable, IChainInvoker
             if (message == 0x8001)
             {
                 if ((uint)l.ToInt64() == 0x0202) QueueWork(["--picker"]);
-                else if ((uint)l.ToInt64() is 0x0205 or 0x007B) QueueWork(["--tray-menu"]);
+                else if ((uint)l.ToInt64() is 0x0205 or 0x007B) QueueWork(["--tray-menu", Environment.TickCount64.ToString()]);
                 return 0;
             }
             if (message == 0x8002) { ApplyInputs(); return 0; }

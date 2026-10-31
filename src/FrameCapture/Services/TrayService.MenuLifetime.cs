@@ -18,7 +18,7 @@ public sealed partial class TrayService
         static int Buttons() => (Win32.IsKeyDown(1) ? 1 : 0) | (Win32.IsKeyDown(2) ? 2 : 0) | (Win32.IsKeyDown(4) ? 4 : 0);
         menu.Opened += (_, _) =>
         {
-            foreground = Win32.GetForegroundWindow(); previousButtons = Buttons();
+            foreground = Win32.GetForegroundWindow(); previousButtons = Buttons(); ownedForeground = false;
             menu.Focus(); timer.Start();
         };
         timer.Tick += (_, _) =>
@@ -37,7 +37,7 @@ public sealed partial class TrayService
             if (cursor.X < rect.Left || cursor.X >= rect.Right || cursor.Y < rect.Top || cursor.Y >= rect.Bottom)
                 menu.IsOpen = false;
         };
-        menu.Closed += (_, _) => timer.Stop();
+        menu.Closed += (_, _) => { if (!menu.IsOpen) timer.Stop(); };
         anchor.Closed += (_, _) => { timer.Stop(); menu.IsOpen = false; };
     }
 }

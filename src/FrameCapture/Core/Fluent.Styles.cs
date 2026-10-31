@@ -184,8 +184,8 @@ public static partial class Fluent
     /// <returns>可直接赋给 <c>ContextMenu.Resources</c> 的字典；每次调用重新解析，返回新实例。</returns>
     public static ResourceDictionary MenuResources()
     {
-        string enterDuration = TimeSpan.FromMilliseconds(Motion.EnterMs).ToString("c", System.Globalization.CultureInfo.InvariantCulture);
-        string quickDuration = TimeSpan.FromMilliseconds(Motion.QuickMs).ToString("c", System.Globalization.CultureInfo.InvariantCulture);
+        string enterDuration = TimeSpan.FromMilliseconds(Motion.QuickMs).ToString("c", System.Globalization.CultureInfo.InvariantCulture);
+        string quickDuration = TimeSpan.FromMilliseconds(Motion.PressMs).ToString("c", System.Globalization.CultureInfo.InvariantCulture);
         string hoverDuration = TimeSpan.FromMilliseconds(Motion.HoverMs).ToString("c", System.Globalization.CultureInfo.InvariantCulture);
         string exitDuration = TimeSpan.FromMilliseconds(Motion.ExitMs).ToString("c", System.Globalization.CultureInfo.InvariantCulture);
         string xaml = $"""
@@ -206,19 +206,19 @@ public static partial class Fluent
                       <Border Padding="0,0,24,24">
                         <Border x:Name="bd" CornerRadius="10" Background="{Hex(Theme.CardBg)}"
                                 BorderBrush="{Hex(Theme.Stroke)}" BorderThickness="1" Padding="4" MinWidth="176"
-                                RenderTransformOrigin="0,0" Opacity="0" HorizontalAlignment="Left" VerticalAlignment="Top">
-                          <Border.RenderTransform><ScaleTransform ScaleX="0.92" ScaleY="0.92"/></Border.RenderTransform>
+                                RenderTransformOrigin="0,0" Opacity="0.55" HorizontalAlignment="Left" VerticalAlignment="Top">
+                          <Border.RenderTransform><ScaleTransform ScaleX="0.98" ScaleY="0.98"/></Border.RenderTransform>
                           <Border.Effect><DropShadowEffect BlurRadius="16" ShadowDepth="4" Opacity="{(Theme.IsDark ? 0.4 : 0.15):0.00}"/></Border.Effect>
                           <ItemsPresenter/>
                           <Border.Triggers>
                             <EventTrigger RoutedEvent="FrameworkElement.Loaded">
                               <BeginStoryboard><Storyboard>
                                 <DoubleAnimation Storyboard.TargetName="bd" Storyboard.TargetProperty="Opacity"
-                                                 To="1" Duration="{quickDuration}"><DoubleAnimation.EasingFunction><CubicEase EasingMode="EaseOut"/></DoubleAnimation.EasingFunction></DoubleAnimation>
+                                                 From="0.55" To="1" Duration="{quickDuration}"><DoubleAnimation.EasingFunction><CubicEase EasingMode="EaseOut"/></DoubleAnimation.EasingFunction></DoubleAnimation>
                                 <DoubleAnimation Storyboard.TargetName="bd" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)"
-                                                 To="1" Duration="{enterDuration}"><DoubleAnimation.EasingFunction><BackEase Amplitude="0.45" EasingMode="EaseOut"/></DoubleAnimation.EasingFunction></DoubleAnimation>
+                                                 From="0.98" To="1" Duration="{enterDuration}"><DoubleAnimation.EasingFunction><BackEase Amplitude="0.45" EasingMode="EaseOut"/></DoubleAnimation.EasingFunction></DoubleAnimation>
                                 <DoubleAnimation Storyboard.TargetName="bd" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)"
-                                                 To="1" Duration="{enterDuration}"><DoubleAnimation.EasingFunction><BackEase Amplitude="0.45" EasingMode="EaseOut"/></DoubleAnimation.EasingFunction></DoubleAnimation>
+                                                 From="0.98" To="1" Duration="{enterDuration}"><DoubleAnimation.EasingFunction><BackEase Amplitude="0.45" EasingMode="EaseOut"/></DoubleAnimation.EasingFunction></DoubleAnimation>
                               </Storyboard></BeginStoryboard>
                             </EventTrigger>
                           </Border.Triggers>

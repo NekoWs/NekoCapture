@@ -21,7 +21,7 @@ internal static class ResidentBridge
     private static string ResidentPath => Environment.GetEnvironmentVariable("FC_TEST_NO_FG") == "1"
         && Environment.GetEnvironmentVariable("FC_RESIDENT_PATH") is { Length: > 0 } path ? path
             : Path.Combine(AppContext.BaseDirectory, "FrameCapture.Resident.exe");
-    private static readonly Queue<string[]> Deferred = new();
+    private static readonly Queue<Action> Deferred = new();
     private static DispatcherTimer? _idle;
     private static bool _saving, _retiring, _idlePrepared;
     private static long _nextMemoryCheck;
@@ -145,7 +145,7 @@ internal static class ResidentBridge
         finally { try { File.Delete(temporary); } catch { } }
     }
 
-    /// <summary>验证并受理常驻宿主命令；像素保存期间延后执行以保持快照一致。</summary>
+    /// <summary>受理常驻命令；菜单立即显示，操作产物的请求等待快照保存完成。</summary>
     /// <param name="sender">发送方窗口。</param>
     /// <param name="payload">WM_COPYDATA 参数。</param>
     /// <returns>合法命令已受理时为 true。</returns>
@@ -156,10 +156,19 @@ internal static class ResidentBridge
         _idlePrepared = false;
         Application.Current.Dispatcher.BeginInvoke(() =>
         {
-            if (_saving) Deferred.Enqueue(arguments);
+            if (arguments.FirstOrDefault() == "--tray-menu") Execute(arguments);
+            else if (_saving) Deferred.Enqueue(() => Execute(arguments));
             else Execute(arguments);
-        });
+        }, arguments.FirstOrDefault() == "--tray-menu" ? DispatcherPriority.Send : DispatcherPriority.Normal);
         return true;
+    }
+
+    /// <summary>托盘动作在 UI 线程执行；保存快照期间与其他请求共同按到达顺序等待。</summary>
+    /// <param name="action">菜单选择对应的实际动作。</param>
+    internal static void RunTrayAction(Action action)
+    {
+        _activity++; _quietSince = Environment.TickCount64; _idlePrepared = false;
+        if (_saving) Deferred.Enqueue(action); else action();
     }
 
     private static void Execute(string[] arguments)
@@ -190,7 +199,9 @@ internal static class ResidentBridge
                 WelcomeToast.Show(gestures.CaptureKeyText(), gestures.RecordKeyText());
                 break;
             case "--picker": host.Controller.BeginScopeSelection(); break;
-            case "--tray-menu": host.Tray.ShowMenu(); break;
+            case "--tray-menu":
+                host.Tray.ShowMenu(long.TryParse(arguments.ElementAtOrDefault(1), out long requestedAt) ? requestedAt : Environment.TickCount64);
+                break;
             case "--editor": if (arguments.ElementAtOrDefault(1) is { } png) host.Controller.OpenEditorWithPng(png); break;
             case "--pin": if (arguments.ElementAtOrDefault(1) is { } image) host.Controller.PinWithPng(image); break;
             case "--resident-sync": InputsChanged(); break;
@@ -248,7 +259,7 @@ internal static class ResidentBridge
             _quietSince = Environment.TickCount64 + 30000;
         }
         finally { _saving = false; }
-        while (Deferred.TryDequeue(out var request)) Execute(request);
+        while (Deferred.TryDequeue(out var request)) request();
     }
 
     private static bool Busy => !AppHost.Current.Controller.CanSuspend || BackgroundWork.Busy || VideoComponentInstall.AnyBusy;

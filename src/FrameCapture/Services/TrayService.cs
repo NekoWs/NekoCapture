@@ -16,6 +16,7 @@ public sealed partial class TrayService : IDisposable
     // 强调色改动会重画它们——图标是位图，画出来就定死了，不重画会停在构造时的强调色上。
     private Icon _iconOn, _iconPaused;
     private readonly Action _onPalette;
+    private readonly Action _onSettingsChanged;
     private System.Windows.ResourceDictionary? _menuResources;
 
     /// <summary>建托盘图标并订阅设置变更以刷新悬停提示。图标此刻 <c>Visible=false</c>，由 <see cref="Show"/> 点亮。</summary>
@@ -42,16 +43,19 @@ public sealed partial class TrayService : IDisposable
         };
         _icon.DoubleClick += (_, _) => Dispatch(() => _host.Controller.BeginScopeSelection());
         // 悬停提示动态反映当前热键/范围/fps：改键或换范围后无需打开菜单即可确认状态
-        _host.Settings.Changed += () => Dispatch(UpdateTip);
+        _onSettingsChanged = () => Dispatch(() => { if (!_disposed) { UpdateTip(); QueueMenuWarmup(); } });
+        _host.Settings.Changed += _onSettingsChanged;
         _onPalette = () => Dispatch(RebuildIcons);
         Theme.Changed += _onPalette;
-        UpdateTip();
+        UpdateTip(); QueueMenuWarmup();
     }
 
     /// <summary>按当前强调色重画两枚托盘图标，再把托盘切到新引用上。</summary>
     void RebuildIcons()
     {
+        if (_disposed) return;
         _menuResources = null;
+        ReleaseMenu();
         var prevOn = _iconOn;
         var prevPaused = _iconPaused;
         _iconOn = MakeIcon(paused: false);
@@ -60,6 +64,7 @@ public sealed partial class TrayService : IDisposable
         ResidentBridge.RefreshTray();
         prevOn.Dispose();
         prevPaused.Dispose();
+        QueueMenuWarmup();
     }
 
     void UpdateTip()
@@ -107,71 +112,6 @@ public sealed partial class TrayService : IDisposable
         return on;
     }
 
-    /// <summary>
-    /// 在鼠标处弹出捕获、设置与退出菜单。
-    /// 同一时刻只保留一份菜单与其锚窗：再次右键会先关掉上一份。
-    /// </summary>
-    public void ShowMenu()
-    {
-        Trace.Log("tray menu open");
-        if (_menu != null) _menu.IsOpen = false; // 再次右键：先关掉已开着的菜单，连带回收它的锚窗
-        var menu = Fluent.Ui(new ContextMenu { Resources = _menuResources ??= Fluent.MenuResources(), StaysOpen = false });
-        _menu = menu;
-
-        void Item(string text, string glyph, Action act)
-        {
-            var mi = new MenuItem { Header = text, Icon = Fluent.Glyph(glyph, 15, Theme.TextDimBrush) };
-            mi.Click += (_, _) => { menu.IsOpen = false; act(); };
-            menu.Items.Add(mi);
-        }
-        void Sep() => menu.Items.Add(new Separator());
-
-        Item(Loc.T(K.Tray.CaptureNow), "\uE7A8", () => _host.Controller.CaptureStoredStill());
-        Item(Loc.T(K.Common.ScrollingCapture), "\uE8CB", () => _host.Controller.BeginScrollCapture());
-        Item(Loc.T(K.Common.DelayedCapture), "\uE823", () => _host.Controller.BeginDelayedCapture());
-        Item(Loc.T(K.Tray.PinFromClipboard), "\uE718", async () =>
-        {
-            if (!await _host.Controller.PinFromClipboardAsync()) Notify(Loc.T(K.Tray.NoImageOnTheClipboard));
-        });
-        Sep();
-        Item(Loc.T(K.Common.Settings), "\uE713", OpenSettings);
-        Item(Loc.T(K.Tray.Exit), "\uE8BB", () =>
-        {
-            ResidentBridge.RetireHost(); Dispose(); System.Windows.Application.Current?.Shutdown();
-        });
-
-        // 透明锚点窗：保证菜单在鼠标处弹出、并能在关闭时回收。
-        // 必须激活：应用没有任何激活窗口时，ContextMenu 收不到"失焦"，点别处菜单也不消失。
-        _menuAnchor?.Close();
-        var anchor = new System.Windows.Window
-        {
-            Width = 1,
-            Height = 1,
-            WindowStyle = System.Windows.WindowStyle.None,
-            AllowsTransparency = true,
-            Background = System.Windows.Media.Brushes.Transparent,
-            ShowInTaskbar = false,
-            ShowActivated = true,
-            Topmost = true,
-            Left = WinForms.Cursor.Position.X,
-            Top = WinForms.Cursor.Position.Y,
-        };
-        _menuAnchor = anchor;
-        WatchMenu(menu, anchor);
-        anchor.Deactivated += (_, _) => { menu.IsOpen = false; };
-        anchor.Show();
-        anchor.Activate();
-        menu.Closed += (_, _) =>
-        {
-            if (ReferenceEquals(_menu, menu)) _menu = null;
-            if (ReferenceEquals(_menuAnchor, anchor)) _menuAnchor = null;
-            anchor.Close();
-        };
-        menu.PlacementTarget = anchor;
-        menu.Placement = System.Windows.Controls.Primitives.PlacementMode.MousePoint;
-        menu.IsOpen = true;
-    }
-
     static void Dispatch(Action a)
     {
         var app = System.Windows.Application.Current;
@@ -188,11 +128,12 @@ public sealed partial class TrayService : IDisposable
     /// <remarks>调用后实例不可再用：<see cref="WinForms.NotifyIcon"/> 已释放，再调 <see cref="Show"/> 会抛异常。</remarks>
     public void Dispose()
     {
-        if (_menu != null) _menu.IsOpen = false;
+        if (_disposed) return;
+        _disposed = true; ReleaseMenu();
+        _host.Settings.Changed -= _onSettingsChanged;
         Theme.Changed -= _onPalette;
         _icon.Visible = false;
         _icon.Dispose();
         _iconOn.Dispose(); _iconPaused.Dispose();
-        _menuAnchor?.Close();
     }
 }
