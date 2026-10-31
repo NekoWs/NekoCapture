@@ -50,7 +50,7 @@ internal sealed class ComponentWindow : Window
 {
     private readonly CancellationTokenSource _cancel = new();
     private readonly TextBlock _status = new() { TextWrapping = TextWrapping.Wrap, MinHeight = 48 };
-    private readonly ProgressBar _progress = new() { Height = 4, Minimum = 0, Maximum = 100 };
+    private readonly ProgressBar _progress = Fluent.Ui(new ProgressBar { Height = 4, Minimum = 0, Maximum = 100 });
     private readonly Button _install;
     private readonly Button _close;
     private bool _busy;

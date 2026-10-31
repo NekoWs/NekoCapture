@@ -13,10 +13,10 @@ public sealed partial class SettingsWindow
 {
     static Button BehaviorButton(string text, Action click, bool selected = false, Color? backing = null)
     {
-        var button = new Button { Content = text, FontSize = 12,
+        var button = Fluent.Ui(new Button { Content = text, FontSize = 12,
             BorderBrush = selected ? Theme.AccentBrush : Brushes.Transparent,
             BorderThickness = new Thickness(1), Padding = new Thickness(10, 5, 10, 5),
-            Margin = new Thickness(2, 1, 2, 1), Cursor = Cursors.Hand };
+            Margin = new Thickness(2, 1, 2, 1), Cursor = Cursors.Hand });
         button.Template = BehaviorButtonTemplate(backing ?? Theme.CardBg, selected, Theme.Text);
         button.Click += (_, _) => click();
         return button;
@@ -24,10 +24,10 @@ public sealed partial class SettingsWindow
 
     static Button BehaviorIcon(string glyph, Str tip, Action click)
     {
-        var button = new Button { Content = glyph, FontFamily = new FontFamily("Segoe Fluent Icons"),
+        var button = Fluent.Ui(new Button { Content = glyph, FontFamily = new FontFamily("Segoe Fluent Icons"),
             ToolTip = Loc.T(tip), Width = 30, Height = 30, Cursor = Cursors.Hand,
             BorderBrush = Brushes.Transparent, BorderThickness = new Thickness(1),
-            Padding = new Thickness(6), Margin = new Thickness(3, 0, 3, 0) };
+            Padding = new Thickness(6), Margin = new Thickness(3, 0, 3, 0) });
         button.Template = BehaviorButtonTemplate(Theme.CardBg, false, Theme.TextDim);
         button.Click += (_, _) => click();
         return button;

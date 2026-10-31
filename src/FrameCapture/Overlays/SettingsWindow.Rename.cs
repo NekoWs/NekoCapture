@@ -16,7 +16,7 @@ public sealed partial class SettingsWindow
         var stroke = new SolidColorBrush(Theme.StrokeField);
         var measure = new TextBlock { FontSize = 13, FontWeight = FontWeights.SemiBold };
         var host = new Grid { HorizontalAlignment = HorizontalAlignment.Left, MaxWidth = 320, ClipToBounds = true };
-        var box = new TextBox
+        var box = Fluent.Ui(new TextBox
         {
             Text = current, FontSize = 13, FontWeight = FontWeights.SemiBold,
             Background = Theme.CardBgBrush, BorderBrush = stroke, BorderThickness = new Thickness(1),
@@ -35,7 +35,7 @@ public sealed partial class SettingsWindow
                   </Border>
                 </ControlTemplate>
                 """),
-        };
+        });
         box.SetBinding(MaxWidthProperty, new System.Windows.Data.Binding(nameof(ActualWidth)) { Source = host });
         void Fit()
         {

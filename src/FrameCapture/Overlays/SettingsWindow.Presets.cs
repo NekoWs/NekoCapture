@@ -70,12 +70,12 @@ public sealed partial class SettingsWindow
             else contents.Children.Add(new TextBlock { Text = Loc.T(K.Hotkeys.PresetModeChoice), Foreground = Theme.TextBrush,
                 FontSize = 11, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 5, 0, 0) });
         }
-        var button = new Button { Content = contents, Tag = id, Padding = new Thickness(10), MinHeight = 143,
+        var button = Fluent.Ui(new Button { Content = contents, Tag = id, Padding = new Thickness(10), MinHeight = 143,
             Margin = new Thickness(0), HorizontalContentAlignment = HorizontalAlignment.Stretch,
             VerticalContentAlignment = VerticalAlignment.Top, Cursor = System.Windows.Input.Cursors.Hand,
             BorderThickness = new Thickness(1), BorderBrush = new SolidColorBrush(Theme.StrokeSoft),
             Background = new SolidColorBrush(Theme.CardBg), Foreground = Theme.TextBrush,
-            Template = PresetCardTemplate(), ToolTip = Loc.T(description) };
+            Template = PresetCardTemplate(), ToolTip = Loc.T(description) });
         AutomationProperties.SetName(button, Loc.T(BehaviorPresets.Label(id)));
         button.Resources["preset-hover"] = new SolidColorBrush(Theme.Hover);
         StyleSettingsCard(button, outerSpacing: false);

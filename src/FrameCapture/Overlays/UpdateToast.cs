@@ -25,8 +25,8 @@ internal sealed class UpdateToast : Window
         var content = new StackPanel();
         _title = new TextBlock { Text = Loc.F(K.Updates.Available, version), FontSize = 16, FontWeight = FontWeights.SemiBold, Foreground = Theme.TextBrush };
         _detail = new TextBlock { Text = Loc.F(K.Updates.Versions, current, version), FontSize = 12, Foreground = Theme.TextDimBrush, Margin = new Thickness(0, 8, 0, 12), TextWrapping = TextWrapping.Wrap };
-        _skip = new CheckBox { Content = Loc.T(K.Updates.Skip), Foreground = Theme.TextBrush, Margin = new Thickness(0, 0, 0, 12) };
-        _progress = new ProgressBar { Foreground = Theme.AccentBrush, Background = Theme.TrackBgBrush, BorderThickness = new Thickness(0), Minimum = 0, Maximum = 100, Height = 5, Visibility = Visibility.Collapsed, Margin = new Thickness(0, 0, 0, 14) };
+        _skip = Fluent.Ui(new CheckBox { Content = Loc.T(K.Updates.Skip), Foreground = Theme.TextBrush, Margin = new Thickness(0, 0, 0, 12) });
+        _progress = Fluent.Ui(new ProgressBar { Foreground = Theme.AccentBrush, Background = Theme.TrackBgBrush, BorderThickness = new Thickness(0), Minimum = 0, Maximum = 100, Height = 5, Visibility = Visibility.Collapsed, Margin = new Thickness(0, 0, 0, 14) });
         var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
         _cancel = Fluent.RoundButton(Loc.T(K.Common.Cancel), Theme.RowBg, Theme.Text, 16, true);
         _cancel.Margin = new Thickness(0, 0, 8, 0);

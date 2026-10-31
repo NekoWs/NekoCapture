@@ -275,8 +275,7 @@ public sealed partial class SettingsWindow
     FrameworkElement BehaviorEntryRow(string selected, Action<string> save)
     {
         var cfg = _settings.Current.Gestures;
-        var combo = new ComboBox { MaxWidth = 260, HorizontalAlignment = HorizontalAlignment.Left };
-        Fluent.StyleCombo(combo);
+        var combo = Fluent.Ui(new ComboBox { MaxWidth = 260, HorizontalAlignment = HorizontalAlignment.Left });
         combo.Items.Add(new ComboBoxItem { Content = Loc.T(K.Behaviors.Empty), Tag = "" });
         foreach (var flow in cfg.Graph.Flows)
             combo.Items.Add(new ComboBoxItem { Content = cfg.FlowName(flow), Tag = flow.Id });
@@ -294,8 +293,7 @@ public sealed partial class SettingsWindow
 
     static ComboBox ModeCombo(string selected, bool includeDefault, Action<string> save)
     {
-        var combo = new ComboBox { HorizontalAlignment = HorizontalAlignment.Left };
-        Fluent.StyleCombo(combo);
+        var combo = Fluent.Ui(new ComboBox { HorizontalAlignment = HorizontalAlignment.Left });
         if (includeDefault) combo.Items.Add(new ComboBoxItem { Content = Loc.T(K.Behaviors.NodeDefault), Tag = "" });
         combo.Items.Add(new ComboBoxItem { Content = Loc.T(K.Common.Capture), Tag = BehaviorPorts.Still });
         combo.Items.Add(new ComboBoxItem { Content = Loc.T(K.Common.Recording), Tag = BehaviorPorts.Record });

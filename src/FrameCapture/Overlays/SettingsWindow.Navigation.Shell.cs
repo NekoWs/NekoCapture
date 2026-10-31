@@ -105,9 +105,9 @@ public sealed partial class SettingsWindow
         template.VisualTree.SetValue(Border.BorderBrushProperty, new TemplateBindingExtension(BorderBrushProperty));
         template.VisualTree.SetValue(Border.BorderThicknessProperty, new TemplateBindingExtension(BorderThicknessProperty));
         template.VisualTree.FirstChild.SetValue(HorizontalAlignmentProperty, HorizontalAlignment.Stretch);
-        var button = new Button { Content = content, Background = Theme.CardBgBrush, Foreground = Theme.TextBrush,
+        var button = Fluent.Ui(new Button { Content = content, Background = Theme.CardBgBrush, Foreground = Theme.TextBrush,
             BorderBrush = Theme.StrokeSoftBrush, BorderThickness = new Thickness(1), Padding = new Thickness(15),
-            Cursor = Cursors.Hand, HorizontalContentAlignment = HorizontalAlignment.Stretch, Template = template };
+            Cursor = Cursors.Hand, HorizontalContentAlignment = HorizontalAlignment.Stretch, Template = template });
         Fluent.ChipHover(button);
         return button;
     }

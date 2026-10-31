@@ -554,7 +554,7 @@ public sealed class PinWindow : Window
     /// <returns>挂好条目与动作的 <see cref="ContextMenu"/>，尚未设落点。</returns>
     public ContextMenu BuildMenu()
     {
-        var menu = new ContextMenu { Resources = Core.Fluent.MenuResources() }; // 套用共享 Fluent 菜单样式：裸 ContextMenu 走系统默认样式，与全局观感不符
+        var menu = Core.Fluent.Ui(new ContextMenu { Resources = Core.Fluent.MenuResources() }); // 套用共享 Fluent 菜单样式：裸 ContextMenu 走系统默认样式，与全局观感不符
         var copy = new MenuItem { Header = Core.Loc.T(K.Pin.Copy), InputGestureText = "Ctrl+C" };
         copy.Click += (_, _) => Copy();
         var saveAs = new MenuItem { Header = Core.Loc.T(K.Pin.SaveAs), InputGestureText = "Ctrl+S" };

@@ -131,7 +131,7 @@ public sealed partial class TrayService : IDisposable
     {
         Trace.Log("tray menu open");
         if (_menu != null) _menu.IsOpen = false; // 再次右键：先关掉已开着的菜单，连带回收它的锚窗
-        var menu = new ContextMenu { Resources = _menuResources ??= Fluent.MenuResources(), StaysOpen = false };
+        var menu = Fluent.Ui(new ContextMenu { Resources = _menuResources ??= Fluent.MenuResources(), StaysOpen = false });
         _menu = menu;
 
         void Item(string text, string glyph, Action act)

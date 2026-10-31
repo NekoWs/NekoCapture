@@ -73,8 +73,7 @@ public sealed class OcrResultWindow : Window
         var all = Fluent.RoundButton(Loc.T(K.Capture.CopyAll), Theme.CardBg, Theme.Text, 12, true);
         commands.Children.Add(copy); commands.Children.Add(all);
         DockPanel.SetDock(commands, Dock.Right); footer.Children.Add(commands);
-        var zoom = new ComboBox { MinWidth = 88, Margin = new Thickness(0, 0, 12, 0), VerticalAlignment = VerticalAlignment.Center };
-        Fluent.StyleCombo(zoom);
+        var zoom = Fluent.Ui(new ComboBox { MinWidth = 88, Margin = new Thickness(0, 0, 12, 0), VerticalAlignment = VerticalAlignment.Center });
         zoom.Items.Add(new ComboBoxItem { Content = Loc.T(K.Capture.FitImage), Tag = 0.0 });
         foreach (double value in new[] { 1.0, 1.5, 2.0, 3.0 })
             zoom.Items.Add(new ComboBoxItem { Content = value.ToString("P0"), Tag = value });
@@ -110,7 +109,7 @@ public sealed class OcrResultWindow : Window
             if ((Keyboard.Modifiers & ModifierKeys.Control) == 0 || e.Key != Key.C) return;
             e.Handled = true; await Copy(view.SelectedText);
         };
-        var menu = new ContextMenu { Background = Theme.PanelBgSolidBrush, Foreground = Theme.TextBrush };
+        var menu = Fluent.Ui(new ContextMenu { Background = Theme.PanelBgSolidBrush, Foreground = Theme.TextBrush });
         var menuCopy = new MenuItem { Header = Loc.T(K.Capture.CopySelection) };
         menuCopy.Click += async (_, _) => await Copy(view.SelectedText);
         var menuAll = new MenuItem { Header = Loc.T(K.Capture.CopyAll) };

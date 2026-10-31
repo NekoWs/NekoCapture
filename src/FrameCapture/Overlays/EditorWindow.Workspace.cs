@@ -197,7 +197,7 @@ public sealed partial class EditorWindow
         var status = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 16, 0) };
         _exportLabel = WorkspaceLabel(Loc.T(K.Editor.BuildingFilmStrip));
         _exportLabel.Margin = new Thickness(0, 0, 0, 6);
-        _exportProgress = new ProgressBar { Height = 3, Minimum = 0, Maximum = 100, Foreground = new SolidColorBrush(Theme.Accent) };
+        _exportProgress = Fluent.Ui(new ProgressBar { Height = 3, Minimum = 0, Maximum = 100, Foreground = new SolidColorBrush(Theme.Accent) });
         status.Children.Add(_exportLabel);
         status.Children.Add(_exportProgress);
         grid.Children.Add(status);

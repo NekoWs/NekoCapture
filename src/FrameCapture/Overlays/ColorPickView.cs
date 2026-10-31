@@ -99,12 +99,12 @@ public sealed class ColorPickView : StackPanel
         #endregion
 
         #region 下排：颜色预览 + HEX 直填（RGBA 四个输入框撤掉：调色靠拖，精确值靠 HEX）
-        _hexBox = new TextBox
+        _hexBox = Core.Fluent.Ui(new TextBox
         {
             FontFamily = new FontFamily("Consolas"), FontSize = 12.5, Foreground = Theme.TextBrush,
             Background = Brushes.Transparent, BorderThickness = new Thickness(0), CaretBrush = Theme.TextBrush,
             VerticalContentAlignment = VerticalAlignment.Center,
-        };
+        });
         _hexBox.KeyDown += (_, ek) => { if (ek.Key == Key.Enter) { CommitHex(); ek.Handled = true; } };
         _hexBox.LostFocus += (_, _) => CommitHex();
 

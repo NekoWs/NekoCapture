@@ -49,7 +49,7 @@ public sealed partial class SettingsWindow : Window
         };
         Grid.SetColumn(hud, 2);
         head.Children.Add(hud);
-        var sl = new Slider
+        var sl = Fluent.Ui(new Slider
         {
             Minimum = min,
             Maximum = max,
@@ -61,8 +61,7 @@ public sealed partial class SettingsWindow : Window
             // 吸附开启时步长必须=档位：默认 SmallChange=1 会被吸回原档，方向键看似失灵
             SmallChange = tick,
             LargeChange = tick * 2,
-        };
-        Fluent.StyleSlider(sl);
+        });
         sl.ValueChanged += (_, e) =>
         {
             hud.Text = fmt(e.NewValue);
@@ -174,7 +173,7 @@ public sealed partial class SettingsWindow : Window
         g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); // 图标按钮列
         g.Children.Add(IconText("\uE838", Loc.T(K.Settings.SaveFolderAutoSavedCopies)));
 
-        var box = new TextBox
+        var box = Fluent.Ui(new TextBox
         {
             FontSize = 12,
             Foreground = Theme.TextBrush,
@@ -184,7 +183,7 @@ public sealed partial class SettingsWindow : Window
             VerticalContentAlignment = VerticalAlignment.Center,
             Padding = new Thickness(0),
             ToolTip = Loc.T(K.Settings.SaveFolderAutoSavedCopies),
-        };
+        });
         // 整窗关了输入法（避免拼音拦快捷键），但这是一个要打字的框：文件夹名可能是中文，
         // 只给这个框把输入法放回来——键位录入框不是文本控件，不受影响。
         InputMethod.SetIsInputMethodEnabled(box, true);

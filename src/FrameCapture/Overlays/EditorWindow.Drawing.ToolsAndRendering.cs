@@ -107,7 +107,7 @@ public sealed partial class EditorWindow
         var f = Cur();
         // 与上屏 TextBlock 完全同式的字号：clamp 下限一致，预览与上屏才不错位
         double disp = Core.AnnFont.BakePx(editing?.Thickness ?? CurWidth, f.W, f.H) * Math.Max(0.05, _imgRect.Width / Math.Max(1, f.W));
-        var box = new TextBox
+        var box = Core.Fluent.Ui(new TextBox
         {
             MinWidth = 120, MaxWidth = 640,
             FontSize = Math.Clamp(disp, 8, 400),
@@ -120,7 +120,7 @@ public sealed partial class EditorWindow
             BorderThickness = new Thickness(1.5),
             Padding = new Thickness(5, 2, 5, 2),
             AcceptsReturn = false,
-        };
+        });
         StyleAnnotationInput(box);
         if (editing != null && editing.Points.Count > 0)
         {

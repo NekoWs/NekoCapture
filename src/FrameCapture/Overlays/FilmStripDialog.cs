@@ -68,7 +68,7 @@ public sealed class FilmStripDialog : Window
         InputMethod.SetIsInputMethodEnabled(this, false);
 
         int hi = Math.Clamp(Math.Min(_total, 48), 2, 48);
-        var slider = new Slider
+        var slider = Fluent.Ui(new Slider
         {
             Minimum = 2,
             Maximum = hi,
@@ -80,8 +80,7 @@ public sealed class FilmStripDialog : Window
             // 吸附开启时步长必须=档位：默认 SmallChange=1 会被吸回原档，方向键看似失灵
             SmallChange = 1,
             LargeChange = 2,
-        };
-        Fluent.StyleSlider(slider);
+        });
 
         _debounce = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(120) };
         int take = (int)slider.Value;
@@ -233,7 +232,7 @@ public sealed class FilmStripDialog : Window
 
     Button ChipBtn(string text, bool accent)
     {
-        var b = new Button
+        var b = Fluent.Ui(new Button
         {
             Content = text,
             Margin = new Thickness(8, 0, 0, 0),
@@ -244,25 +243,10 @@ public sealed class FilmStripDialog : Window
             Foreground = new SolidColorBrush(accent ? Fluent.OnAccentColor(Theme.Accent) : Theme.Text),
             Background = new SolidColorBrush(accent ? Theme.Accent : Theme.CardBg),
             BorderBrush = new SolidColorBrush(accent ? Theme.Accent : Theme.Stroke),
-        };
+        });
         Fluent.Springy(b);
-        b.Template = ChromelessTemplate();
+        b.Template = Fluent.RoundedButtonTemplate(false);
         return b;
     }
 
-    static ControlTemplate ChromelessTemplate()
-    {
-        string xaml = """
-            <ControlTemplate TargetType="Button"
-                             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-                             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-              <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
-                      BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="6"
-                      Padding="{TemplateBinding Padding}">
-                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-              </Border>
-            </ControlTemplate>
-            """;
-        return (ControlTemplate)System.Windows.Markup.XamlReader.Parse(xaml);
-    }
 }

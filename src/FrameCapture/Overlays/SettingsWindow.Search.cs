@@ -28,9 +28,9 @@ public sealed partial class SettingsWindow
         var icon = Fluent.Glyph("\uE721", 14, Theme.TextDimBrush); icon.Margin = new Thickness(0, 0, 8, 0);
         icon.VerticalAlignment = VerticalAlignment.Center; grid.Children.Add(icon);
         var field = new Grid(); Grid.SetColumn(field, 1); grid.Children.Add(field);
-        _settingsSearchBox = new TextBox { Background = Brushes.Transparent, Foreground = Theme.TextBrush,
+        _settingsSearchBox = Fluent.Ui(new TextBox { Background = Brushes.Transparent, Foreground = Theme.TextBrush,
             CaretBrush = Theme.TextBrush, SelectionBrush = Theme.AccentBrush, SelectionOpacity = 0.3, SelectionTextBrush = Theme.TextBrush,
-            BorderThickness = new Thickness(0), FontSize = 12, Padding = new Thickness(0, 3, 0, 3), VerticalContentAlignment = VerticalAlignment.Center };
+            BorderThickness = new Thickness(0), FontSize = 12, Padding = new Thickness(0, 3, 0, 3), VerticalContentAlignment = VerticalAlignment.Center });
         InputMethod.SetIsInputMethodEnabled(_settingsSearchBox, true);
         System.Windows.Automation.AutomationProperties.SetName(_settingsSearchBox, Loc.T(K.SettingsNavigation.Search));
         var placeholder = new TextBlock { Text = Loc.T(K.SettingsNavigation.Search), Foreground = Theme.TextDimBrush,

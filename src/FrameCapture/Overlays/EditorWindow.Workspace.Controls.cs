@@ -18,14 +18,14 @@ public sealed partial class EditorWindow
 
     Button IconBtn(string glyph, string tip, double size = 32)
     {
-        var button = new Button
+        var button = Fluent.Ui(new Button
         {
             Content = glyph, ToolTip = tip, Width = size, Height = size, Margin = new Thickness(2),
             FontFamily = new FontFamily(Fluent.IconFontChain), FontSize = 14,
             Foreground = Theme.TextBrush, Background = Brushes.Transparent,
             BorderBrush = Brushes.Transparent, BorderThickness = new Thickness(0),
             Cursor = Cursors.Hand, Template = WorkspaceButtonTemplate(), FocusVisualStyle = null,
-        };
+        });
         WireButtonMotion(button);
         AutomationProperties.SetName(button, tip);
         _workspaceButtons.Add((button, null, Str.Empty, false));
@@ -44,7 +44,7 @@ public sealed partial class EditorWindow
 
     Button TextButton(Str label, Action execute, string? command = null, bool primary = false)
     {
-        var button = new Button
+        var button = Fluent.Ui(new Button
         {
             Content = Loc.T(label), Height = 32, MinWidth = 32, Padding = new Thickness(12, 0, 12, 0),
             Margin = new Thickness(2), FontFamily = new FontFamily("Segoe UI"), FontSize = 12.5,
@@ -52,7 +52,7 @@ public sealed partial class EditorWindow
             Foreground = Theme.TextBrush, Background = Brushes.Transparent,
             BorderBrush = Theme.StrokeSoftBrush, BorderThickness = new Thickness(1),
             Cursor = Cursors.Hand, Template = WorkspaceButtonTemplate(), FocusVisualStyle = null,
-        };
+        });
         WireButtonMotion(button);
         button.Click += (_, _) => execute();
         button.ToolTip = CommandTip(command, label);

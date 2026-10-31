@@ -103,13 +103,13 @@ public sealed partial class SettingsWindow : Window
                 System.Globalization.CultureInfo.InvariantCulture, out var v) ? v : null;
         }
 
-        var combo = new ComboBox
+        var combo = Fluent.Ui(new ComboBox
         {
             Tag = tag,
+            IsEditable = true,
             VerticalAlignment = VerticalAlignment.Center,
             ToolTip = tip,
-        };
-        Fluent.StyleComboEditable(combo);
+        });
         foreach (var p in presets)
             combo.Items.Add(new ComboBoxItem { Content = Num(p.Value), ToolTip = Loc.T(p.Tip), Tag = p.Value });
 
@@ -262,8 +262,7 @@ public sealed partial class SettingsWindow : Window
 
         // 开关+固定音 → 三选下拉「关闭 / 轻弹 / 自定义…」。选「自定义…」弹文件选择窗（ogg/wav）；
         // 取消则回退上一个选项，绝不出现「选了自定义却没文件」的悬空态。
-        var combo = new ComboBox { VerticalAlignment = VerticalAlignment.Center };
-        Fluent.StyleCombo(combo);
+        var combo = Fluent.Ui(new ComboBox { VerticalAlignment = VerticalAlignment.Center });
         combo.Items.Add(Loc.T(K.Settings.NoSound));
         combo.Items.Add(Loc.T(K.Settings.Chime));
         combo.Items.Add(Loc.T(K.Settings.Custom));

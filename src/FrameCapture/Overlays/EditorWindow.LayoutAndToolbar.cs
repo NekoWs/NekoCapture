@@ -182,8 +182,7 @@ public sealed partial class EditorWindow : Window
     {
         if (_widthPop == null)
         {
-            _widthSlider = new Slider { Minimum = 1, Maximum = 24, IsSnapToTickEnabled = true, TickFrequency = 1, Width = 150 };
-            Fluent.StyleSlider(_widthSlider);
+            _widthSlider = Fluent.Ui(new Slider { Minimum = 1, Maximum = 24, IsSnapToTickEnabled = true, TickFrequency = 1, Width = 150 });
             _widthVal = new TextBlock { FontFamily = new FontFamily("Segoe UI"), FontSize = 11, Foreground = Theme.TextBrush, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 0, 0) };
             _widthPreview = new System.Windows.Shapes.Ellipse { Fill = Theme.TextBrush, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0, 0, 0) };
             _widthSlider.ValueChanged += (_, e) =>

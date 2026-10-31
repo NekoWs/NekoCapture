@@ -40,21 +40,21 @@ public sealed partial class SettingsWindow
             Visibility = Visibility.Collapsed,
         };
         AutomationProperties.SetLiveSetting(result, AutomationLiveSetting.Polite);
-        var progress = new ProgressBar
+        var progress = Fluent.Ui(new ProgressBar
         {
             Minimum = 0, Maximum = 100, Height = 4, BorderThickness = new Thickness(0),
             Foreground = Theme.AccentBrush, Background = Theme.TrackBgBrush,
             Margin = new Thickness(0, 10, 0, 0), Visibility = Visibility.Collapsed,
-        };
+        });
         var amount = new TextBlock { Foreground = Theme.TextDimBrush, FontSize = 11.5, Margin = new Thickness(0, 6, 0, 0), Visibility = Visibility.Collapsed };
         var footer = new Grid { Margin = new Thickness(0, 14, 0, 0) };
         footer.ColumnDefinitions.Add(new ColumnDefinition());
         footer.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        var skip = new CheckBox
+        var skip = Fluent.Ui(new CheckBox
         {
             Content = new TextBlock { Text = Loc.T(K.Updates.Skip), TextWrapping = TextWrapping.Wrap },
             Foreground = Theme.TextBrush, FontSize = 12, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 12, 0),
-        };
+        });
         var actions = new StackPanel { Orientation = Orientation.Horizontal };
         Grid.SetColumn(actions, 1); footer.Children.Add(skip); footer.Children.Add(actions);
         var cancel = AboutButton(K.Common.Cancel);

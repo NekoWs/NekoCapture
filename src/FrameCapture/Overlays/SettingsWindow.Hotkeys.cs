@@ -54,7 +54,7 @@ public sealed partial class SettingsWindow : Window
     }
 
     /// <summary>按当前配置重铺快捷键列表：逐条一行，末尾一枚「添加快捷键」。
-    /// 增删与改触发方式走整表重建；行内改名字、改序列由各自的编辑器就地更新。</summary>
+    /// 增删绑定重建列表；名称、触发方式与时长在当前详情内更新。</summary>
     void RebuildHotkeys()
     {
         if (_hotList == null) return;
@@ -140,6 +140,7 @@ public sealed partial class SettingsWindow : Window
     /// <param name="b">这条绑定，就地改它再落盘。</param>
     /// <param name="detail">是否在独立详情页保持展开。</param>
     /// <returns>行容器，可直接放进列表。</returns>
+    [Obsolete("Use the shortcut overview and detail components.", true)]
     FrameworkElement HotkeyRow(GestureBindingDto b, bool detail = false)
     {
         bool open = detail || _hotOpen == b.Id;
@@ -325,19 +326,38 @@ public sealed partial class SettingsWindow : Window
             Child = rows,
         };
 
-        rows.Children.Add(TriggerRow(b));
-
-        if (b.Trigger is "Tap" or "Hold" or "HoldRelease" or "LongPress")
-            rows.Children.Add(GestureTimingRow(K.Behaviors.HoldMs, b.LongPressMs, 100, 5000, value =>
-            {
-                var chord = b.ToBinding()?.Chord;
-                foreach (var peer in _settings.Current.Gestures.Bindings.Where(x => x.ToBinding()?.Chord.Equals(chord) == true))
-                    peer.LongPressMs = value;
-                b.LongPressMs = value; CommitHotkeys();
-            }));
-        if (b.Trigger is "Click" or "DoubleClick" or "TripleClick")
-            rows.Children.Add(GestureTimingRow(K.Behaviors.ClickMs, b.DoubleClickMs, 50, 2000,
-                value => { b.DoubleClickMs = value; CommitHotkeys(); }));
+        var timing = new StackPanel();
+        string TimingKind() => b.Trigger switch
+        {
+            "Tap" or "Hold" or "HoldRelease" or "LongPress" => "hold",
+            "Click" or "DoubleClick" or "TripleClick" => "click",
+            _ => "",
+        };
+        string timingKind = TimingKind();
+        void RenderTiming()
+        {
+            timing.Children.Clear();
+            if (timingKind == "hold")
+                timing.Children.Add(GestureTimingRow(K.Behaviors.HoldMs, b.LongPressMs, 100, 5000, value =>
+                {
+                    var chord = b.ToBinding()?.Chord;
+                    foreach (var peer in _settings.Current.Gestures.Bindings.Where(x => x.ToBinding()?.Chord.Equals(chord) == true))
+                        peer.LongPressMs = value;
+                    b.LongPressMs = value; CommitHotkeys();
+                }));
+            if (timingKind == "click")
+                timing.Children.Add(GestureTimingRow(K.Behaviors.ClickMs, b.DoubleClickMs, 50, 2000,
+                    value => { b.DoubleClickMs = value; CommitHotkeys(); }));
+            foreach (var row in timing.Children.OfType<Grid>()) AlignBindingValue(row);
+        }
+        rows.Children.Add(TriggerRow(b, () =>
+        {
+            string next = TimingKind();
+            if (next == timingKind) return;
+            timingKind = next;
+            TransitionContent(timing, RenderTiming);
+        }));
+        rows.Children.Add(timing); RenderTiming();
         if (includeEntry) rows.Children.Add(BehaviorEntryRow(b.EntryId, id =>
         {
             b.EntryId = id;
@@ -349,10 +369,9 @@ public sealed partial class SettingsWindow : Window
 
     FrameworkElement GestureTimingRow(Str label, int current, int min, int max, Action<int> save)
     {
-        var combo = new ComboBox { IsEditable = true, Text = current.ToString(),
-            HorizontalAlignment = HorizontalAlignment.Left, ToolTip = Loc.T(K.Behaviors.TimingHint) };
+        var combo = Fluent.Ui(new ComboBox { IsEditable = true, Text = current.ToString(),
+            HorizontalAlignment = HorizontalAlignment.Left, ToolTip = Loc.T(K.Behaviors.TimingHint) });
         foreach (int value in new[] { 150, 300, 400, 500, 750, 1000 }) combo.Items.Add(value.ToString());
-        Fluent.StyleComboEditable(combo);
         BindNumericField(combo, () => current, value =>
         {
             current = (int)Math.Clamp(Math.Round(value), min, max); save(current);
@@ -396,11 +415,11 @@ public sealed partial class SettingsWindow : Window
 
     /// <summary>触发方式行：同一个组合键配多条不同触发，这一列就是那些变化所在。</summary>
     /// <param name="b">这条绑定。</param>
+    /// <param name="changed">更新触发方式对应的子配置，不替换下拉框。</param>
     /// <returns>一行容器。</returns>
-    FrameworkElement TriggerRow(GestureBindingDto b)
+    FrameworkElement TriggerRow(GestureBindingDto b, Action changed)
     {
-        var combo = new ComboBox { HorizontalAlignment = HorizontalAlignment.Left };
-        Fluent.StyleCombo(combo);
+        var combo = Fluent.Ui(new ComboBox { HorizontalAlignment = HorizontalAlignment.Left });
         string[] kinds =
         {
             "Chord", "KeyDown", "KeyUp", "Tap", "Hold", "HoldRelease", "LongPress", "Click", "DoubleClick", "TripleClick",
@@ -418,7 +437,7 @@ public sealed partial class SettingsWindow : Window
             {
                 b.Trigger = k;
                 CommitHotkeys();
-                RebuildHotkeys();   // 折叠行的触发后缀跟着改
+                changed();
             }
         };
         return LabeledRow(Loc.T(K.Hotkeys.Trigger), combo,

@@ -74,6 +74,8 @@ $lints = @(
     @{ n = "lint:motion-tokens"; f = "lint-motion-tokens.ps1"; mark = "LINT-MOTION" },
     @{ n = "lint:copy-parens";   f = "lint-copy-parens.ps1";   mark = "LINT-COPY" },
     @{ n = "lint:i18n-coverage"; f = "lint-i18n-coverage.ps1"; mark = "LINT-I18N" },
+    @{ n = "lint:ui-controls"; f = "lint-ui-controls.ps1"; mark = "LINT-CONTROLS" },
+    @{ n = "lint:ui-control-guard"; f = "test-ui-controls-guard.ps1"; mark = "UI-CONTROL-GUARD" },
     @{ n = "lint:setup-paths";   f = "lint-setup-paths.ps1";   mark = "LINT-SETUP-PATHS" }
 )
 $lintJobs = [ordered]@{}

@@ -167,11 +167,11 @@ public sealed partial class EditorWindow
     ContextMenu NewWorkspaceMenu(FrameworkElement anchor)
     {
         if (_workspaceMenu != null) _workspaceMenu.IsOpen = false;
-        return _workspaceMenu = new ContextMenu
+        return _workspaceMenu = Fluent.Ui(new ContextMenu
         {
             Resources = _workspaceMenuResources ??= Fluent.MenuResources(), PlacementTarget = anchor,
             Placement = PlacementMode.Bottom, StaysOpen = false,
-        };
+        });
     }
 
     void ShowZoomMenu()

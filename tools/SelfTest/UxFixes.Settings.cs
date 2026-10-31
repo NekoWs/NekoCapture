@@ -84,11 +84,49 @@ static partial class SelfTest
             }
             Chk("ux-dual-shortcuts-created-without-preset", a.EntryMode == BehaviorPorts.Still && b.EntryMode == BehaviorPorts.Record
                 && a.EntryId == b.EntryId && !select.RecordMode);
+            var bindingPage = bodies["binding:" + b.Id];
+            var trigger = Descendants(bindingPage).OfType<ComboBox>().Single(c => c.Items.OfType<ComboBoxItem>().Any(i => i.Tag as string == "Hold"));
+            trigger.SelectedItem = trigger.Items.OfType<ComboBoxItem>().Single(i => i.Tag as string == "Hold"); PumpMs(35);
+            var triggerRoll = (Canvas)trigger.Template.FindName("selectionRoll", trigger);
+            Chk("ux-trigger-choice-keeps-animated-combo", b.Trigger == "Hold" && Descendants(bindingPage).Contains(trigger)
+                && trigger.IsVisible && triggerRoll.Visibility == Visibility.Visible && triggerRoll.Children.Count > 1);
+            PumpMs(Fluent.Motion.EnterMs + 100);
+            Chk("ux-trigger-choice-shows-hold-timing", AllText(bindingPage).Any(t => t.Text == Loc.T(K.Behaviors.HoldMs) && t.IsVisible));
+            var holdTiming = AllText(bindingPage).Single(t => t.Text == Loc.T(K.Behaviors.HoldMs));
+            trigger.SelectedItem = trigger.Items.OfType<ComboBoxItem>().Single(i => i.Tag as string == "Tap"); PumpMs(35);
+            Chk("ux-trigger-keeps-unchanged-timing-row", Descendants(bindingPage).Contains(holdTiming) && holdTiming.IsVisible);
+            trigger.SelectedItem = trigger.Items.OfType<ComboBoxItem>().Single(i => i.Tag as string == "KeyUp");
+            PumpMs(Fluent.Motion.EnterMs + 100);
+            Chk("ux-trigger-choice-removes-timing-without-rebuild", b.Trigger == "KeyUp" && Descendants(bindingPage).Contains(trigger)
+                && !AllText(bindingPage).Any(t => t.Text == Loc.T(K.Behaviors.HoldMs) && t.IsVisible));
             UxSendMessage(new System.Windows.Interop.WindowInteropHelper(window).Handle, 0x00A3, new IntPtr(2), IntPtr.Zero);
             Chk("ux-title-double-click-keeps-window-size", window.WindowState == WindowState.Normal);
             UxEditorFixesChecks(settings);
+            UxCurrentControlChecks();
         }
         catch (Exception ex) { Chk("ux-fixes-exception", false, ex.ToString()); }
         finally { window.Close(); host.SetValue(AppHost.Current, prior); }
+    }
+
+    private static void UxCurrentControlChecks()
+    {
+        var progress = Fluent.Ui(new ProgressBar { Minimum = 0, Maximum = 100, Value = 40, Height = 4 });
+        var check = Fluent.Ui(new CheckBox { Content = "", IsChecked = true });
+        var window = new Window { Width = 240, Height = 100,
+            Content = new StackPanel { Children = { progress, check } } };
+        try
+        {
+            ShowOffscreen(window); PumpMs(40); window.UpdateLayout();
+            var track = (FrameworkElement)progress.Template.FindName("PART_Track", progress);
+            var fill = (FrameworkElement)progress.Template.FindName("PART_Indicator", progress);
+            Chk("ux-current-progress-template-reflects-value", Math.Abs(fill.ActualWidth / track.ActualWidth - 0.4) < 0.01);
+            progress.IsIndeterminate = true; PumpMs(40); window.UpdateLayout();
+            Chk("ux-current-progress-template-shows-busy-state", fill.ActualWidth > 0 && fill.HasAnimatedProperties);
+            var mark = (TextBlock)check.Template.FindName("mark", check);
+            Chk("ux-current-checkbox-template-reflects-value", mark.IsVisible && check.FocusVisualStyle == null);
+            check.IsChecked = false;
+            Chk("ux-current-checkbox-template-clears-check", mark.Visibility == Visibility.Collapsed);
+        }
+        finally { window.Close(); }
     }
 }

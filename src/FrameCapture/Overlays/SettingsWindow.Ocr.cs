@@ -13,8 +13,7 @@ public sealed partial class SettingsWindow
     void BuildOcrSettings(StackPanel panel)
     {
         var row = ChipRow("\uE8C1", Loc.T(K.Ocr.EngineDescription), Loc.T(K.Ocr.Engine));
-        var combo = new ComboBox { HorizontalAlignment = HorizontalAlignment.Right };
-        Fluent.StyleCombo(combo);
+        var combo = Fluent.Ui(new ComboBox { HorizontalAlignment = HorizontalAlignment.Right });
         combo.Items.Add(new ComboBoxItem { Content = Loc.T(K.Ocr.SystemEngine), Tag = OcrService.SystemEngine });
         foreach (var model in OcrModelComponent.All)
             combo.Items.Add(new ComboBoxItem { Content = Loc.T(model.Label), Tag = model.Engine });

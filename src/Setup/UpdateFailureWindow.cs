@@ -79,12 +79,12 @@ internal sealed class UpdateFailureWindow : Window
         void AddPath(Str label, string path)
         {
             paths.Children.Add(new TextBlock { Text = Loc.T(label), Foreground = Theme.TextDimBrush, FontSize = 12 });
-            paths.Children.Add(new TextBox
+            paths.Children.Add(Fluent.Ui(new TextBox
             {
                 Text = path, IsReadOnly = true, TextWrapping = TextWrapping.Wrap, BorderThickness = new Thickness(0),
                 Background = Brushes.Transparent, Foreground = Theme.TextBrush, FontSize = 12,
                 Padding = new Thickness(0), Margin = new Thickness(0, 4, 0, 10),
-            });
+            }));
         }
         void AddLink(Str text, Func<ProcessStartInfo> start)
         {

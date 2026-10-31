@@ -49,6 +49,8 @@
     <Compile Include="..\FrameCapture\Core\Fluent.cs" Link="Shared\Fluent.cs" />
     <Compile Include="..\FrameCapture\Core\Fluent.ThemeFade.cs" Link="Shared\Fluent.ThemeFade.cs" />
     <Compile Include="..\FrameCapture\Core\Fluent.Controls.cs" Link="Shared\Fluent.Controls.cs" />
+    <Compile Include="..\FrameCapture\Core\Fluent.Ui.cs" Link="Shared\Fluent.Ui.cs" />
+    <Compile Include="..\FrameCapture\Core\Fluent.Ui.Templates.cs" Link="Shared\Fluent.Ui.Templates.cs" />
     <Compile Include="..\FrameCapture\Core\Fluent.Color.cs" Link="Shared\Fluent.Color.cs" />
     <Compile Include="..\FrameCapture\Core\Fluent.Styles.cs" Link="Shared\Fluent.Styles.cs" />
   </ItemGroup>
