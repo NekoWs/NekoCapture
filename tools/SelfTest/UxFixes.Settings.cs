@@ -35,7 +35,13 @@ static partial class SelfTest
             var bodies = (Dictionary<string, StackPanel>)Field("_settingsBodies")!;
             var combo = Descendants(bodies["selection"]).OfType<ComboBox>().Single(c => c.Tag as string == "settings-duration-snap");
             combo.IsDropDownOpen = true;
-            combo.SelectedItem = combo.Items.Cast<ComboBoxItem>().Single(item => (double)item.Tag == 25);
+            PumpMs(30);
+            var chosen = combo.Items.Cast<ComboBoxItem>().Single(item => (double)item.Tag == 25);
+            var source = Descendants(chosen).OfType<TextBlock>().FirstOrDefault() as DependencyObject ?? chosen;
+            bool ownsPopupItem = (bool)type.GetMethod("SettingsInputContains", BindingFlags.Static | BindingFlags.NonPublic)!
+                .Invoke(null, new object[] { combo, source })!;
+            Chk("ux-combo-popup-item-remains-inside-input-boundary", ownsPopupItem);
+            combo.SelectedItem = chosen;
             combo.IsDropDownOpen = false; PumpMs(35);
             Chk("ux-numeric-choice-applies", settings.Current.SnapDwellMs == 25 && combo.Text == "25");
             var layer = (Canvas)combo.Template.FindName("numberRoll", combo);

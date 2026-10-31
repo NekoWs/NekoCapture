@@ -46,7 +46,11 @@ public sealed partial class SettingsWindow
             });
         };
         combo.DropDownClosed += (_, _) => { if (!chose) Typed(); };
-        combo.LostKeyboardFocus += (_, _) => Typed();
+        combo.LostKeyboardFocus += (_, e) =>
+        {
+            if (e.NewFocus is System.Windows.DependencyObject target && SettingsInputContains(combo, target)) return;
+            Typed();
+        };
         combo.PreviewTextInput += (_, _) => { generation++; pending = null; chose = false; };
         combo.PreviewKeyDown += (_, e) =>
         {

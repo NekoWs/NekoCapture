@@ -10,7 +10,10 @@ namespace FrameCapture.Overlays;
 public sealed partial class SettingsWindow
 {
     private static DependencyObject? SettingsInputParent(DependencyObject node)
-        => node is Visual ? VisualTreeHelper.GetParent(node) : LogicalTreeHelper.GetParent(node);
+    {
+        if (node is ComboBoxItem item && ItemsControl.ItemsControlFromItemContainer(item) is ComboBox combo) return combo;
+        return node is Visual ? VisualTreeHelper.GetParent(node) : LogicalTreeHelper.GetParent(node);
+    }
 
     private static bool SettingsInputContains(DependencyObject container, DependencyObject? node)
     {
