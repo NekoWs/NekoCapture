@@ -52,7 +52,7 @@ public static partial class Fluent
         string content = editable
             ? $@"<Grid Grid.Column=""0"" ClipToBounds=""True""><TextBox x:Name=""PART_EditableTextBox"" Background=""Transparent"" BorderThickness=""0""
         Foreground=""{hexText}"" CaretBrush=""{hexAccent}"" FontSize=""12.5"" Height=""28""
-        Padding=""7,0,0,0"" VerticalContentAlignment=""Center""/>
+        Padding=""7,0,0,0"" VerticalContentAlignment=""Center"" Typography.NumeralAlignment=""Tabular""/>
         <Canvas x:Name=""numberRoll"" IsHitTestVisible=""False"" Visibility=""Collapsed""/></Grid>"
             : $@"<Grid x:Name=""selectionViewport"" Grid.Column=""0"" Margin=""10,0,28,0"" ClipToBounds=""True"" IsHitTestVisible=""False"">
       <ContentPresenter x:Name=""selectionLabel"" VerticalAlignment=""Center""
@@ -178,6 +178,7 @@ public static partial class Fluent
             TextElement.SetFontSize(presenter, c.IsEditable ? 12.5 : c.FontSize);
             TextElement.SetFontWeight(presenter, c.FontWeight);
             TextElement.SetFontStyle(presenter, c.FontStyle);
+            if (c.IsEditable) Typography.SetNumeralAlignment(presenter, FontNumeralAlignment.Tabular);
             presenter.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
             longest = Math.Max(longest, presenter.DesiredSize.Width);
         }
@@ -187,7 +188,8 @@ public static partial class Fluent
             else Measure(item);
         }
         if (c.IsEditable) Measure(c.Text);
-        c.SetCurrentValue(FrameworkElement.WidthProperty, Math.Ceiling(longest + 40));
+        double targetWidth = Math.Ceiling(longest + 40);
+        if (!HoldComboNumberWidth(c, targetWidth)) c.SetCurrentValue(FrameworkElement.WidthProperty, targetWidth);
         if (c.HorizontalAlignment == HorizontalAlignment.Stretch) c.HorizontalAlignment = HorizontalAlignment.Left;
     }
 

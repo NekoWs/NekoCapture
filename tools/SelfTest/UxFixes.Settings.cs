@@ -45,10 +45,10 @@ static partial class SelfTest
             combo.IsDropDownOpen = false; PumpMs(35);
             Chk("ux-numeric-choice-applies", settings.Current.SnapDwellMs == 25 && combo.Text == "25");
             var layer = (Canvas)combo.Template.FindName("numberRoll", combo);
-            var digits = ((StackPanel)layer.Children[0]).Children.Cast<Grid>().ToArray();
-            Chk("ux-numeric-digits-roll-independently", layer.Visibility == Visibility.Visible && digits.Length == 2
-                && ((TranslateTransform)digits[0].Children[1].RenderTransform).Y < 0
-                && ((TranslateTransform)digits[1].Children[1].RenderTransform).Y > 0);
+            var digits = layer.Children.OfType<Grid>().Select(cell => cell.Children.OfType<Canvas>().Single()).ToArray();
+            Chk("ux-numeric-reels-show-continuous-digits", layer.Visibility == Visibility.Visible && digits.Length == 2
+                && digits.All(tape => tape.Children.Count > 3 && ((TranslateTransform)tape.RenderTransform).HasAnimatedProperties)
+                && Descendants(digits[1]).OfType<TextBlock>().Any(text => text.Text == "9"));
             combo.RaiseEvent(new TextCompositionEventArgs(Keyboard.PrimaryDevice, new TextComposition(InputManager.Current, combo, "37"))
                 { RoutedEvent = TextCompositionManager.PreviewTextInputEvent });
             combo.Text = "37";

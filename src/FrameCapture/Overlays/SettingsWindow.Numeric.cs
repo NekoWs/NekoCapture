@@ -35,6 +35,7 @@ public sealed partial class SettingsWindow
         {
             if (syncing || e.OriginalSource != combo || Choice(combo.SelectedItem) is not double value) return;
             pending = value; chose = true;
+            Fluent.PrepareComboNumber(combo);
             int request = ++generation;
             string previous = format(read());
             combo.Dispatcher.BeginInvoke(DispatcherPriority.Input, () =>

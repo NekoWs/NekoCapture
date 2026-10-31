@@ -1194,6 +1194,8 @@ static partial class SelfTest
             return 2;
         }
         InstallQuietWindows();
+        if (args.Length == 1 && args[0] == "number-reels")
+        { NumberReelChecks(); Console.WriteLine($"SelfTest pass={pass} fail={fail}"); return fail == 0 ? 0 : 1; }
         if (args.Length == 1 && args[0] == "ux-fixes")
         { UxFixesChecks(); Console.WriteLine($"SelfTest pass={pass} fail={fail}"); return fail == 0 ? 0 : 1; }
         if (args.Length == 1 && args[0] == "menu-layout")
