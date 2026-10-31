@@ -56,7 +56,8 @@ public sealed partial class TrayService : IDisposable
         var prevPaused = _iconPaused;
         _iconOn = MakeIcon(paused: false);
         _iconPaused = MakeIcon(paused: true);
-        UpdateTip();          // 先让 _icon.Icon 指向新画的那枚，被替换的句柄才谈得上释放
+        UpdateTip();          // 先切换引用，再释放替换下来的图标
+        ResidentBridge.RefreshTray();
         prevOn.Dispose();
         prevPaused.Dispose();
     }
@@ -83,23 +84,6 @@ public sealed partial class TrayService : IDisposable
     {
         string region = settings.RegionW >= 16 ? Loc.F(K.Tray.RegionFps, settings.RegionW, settings.RegionH, settings.Fps) : Loc.T(K.Tray.NoRegionDoubleClick);
         return Loc.F(K.Tray.FramecaptureGestures, settings.Gestures.Bindings.Count, region);
-    }
-
-    private static System.Windows.Media.Color? _residentAccent;
-
-    /// <summary>生成原生宿主复用的透明图标，强调色未变化时复用文件。</summary>
-    internal static void SaveResidentIcons()
-    {
-        if (_residentAccent == Theme.Accent && System.IO.File.Exists(System.IO.Path.Combine(SettingsService.Dir, "resident-tray.ico"))) return;
-        foreach (bool paused in new[] { false, true })
-        {
-            string path = System.IO.Path.Combine(SettingsService.Dir, paused ? "resident-tray-paused.ico" : "resident-tray.ico");
-            string temporary = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
-            using (var icon = MakeIcon(paused))
-            using (var file = System.IO.File.Create(temporary)) icon.Save(file);
-            System.IO.File.Move(temporary, path, overwrite: true);
-        }
-        _residentAccent = Theme.Accent;
     }
 
     /// <summary>让托盘图标可见。构造时故意不可见，宿主装配完再调本方法——避免图标先出现、菜单还点不动的窗口期。</summary>
@@ -197,49 +181,6 @@ public sealed partial class TrayService : IDisposable
 
     void OpenSettings() => Overlays.SettingsWindow.ShowOrFocus();
 
-
-    /// <summary>
-    /// 托盘图标：与 <c>scripts/make-icon.py</c> 同一枚取景框标记，比例常量取自那份源图
-    /// （边距 14.65% / 臂长 24.41% / 线宽 9.38% / 中心点直径 29.30%），透明底、无砖面。
-    /// </summary>
-    /// <remarks>64px 画布绘制后交给外壳缩到托盘尺寸；虚线角标在 16px 下会糊成一团，故用实角。</remarks>
-    /// <param name="paused">true 画暂停版：整枚转灰。暂停时热键让位给别的软件，托盘图标是唯一的余光信号。</param>
-    /// <returns>64px 透明底的托盘图标。</returns>
-    static Icon MakeIcon(bool paused)
-    {
-        const int C = 64;                                  // 画布边长
-        const float inset = 0.1465f * C, arm = 0.2441f * C, stroke = 0.0938f * C, dot = 0.2930f * C;
-        using var bmp = new Bitmap(C, C);
-        using var g = Graphics.FromImage(bmp);
-        g.Clear(Color.Transparent);
-        g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
-        var accent = paused ? Color.FromArgb(255, 0x9A, 0xA0, 0xA6)
-                            : Color.FromArgb(255, Theme.Accent.R, Theme.Accent.G, Theme.Accent.B);
-        using var pen = new Pen(accent, stroke)
-        {
-            StartCap = System.Drawing.Drawing2D.LineCap.Flat,
-            EndCap = System.Drawing.Drawing2D.LineCap.Flat,
-            LineJoin = System.Drawing.Drawing2D.LineJoin.Round,
-        };
-        float lo = inset, hi = C - inset, mid = C / 2f;
-        foreach (var (cx, cy, dx, dy) in new[] { (lo, lo, 1f, 1f), (hi, lo, -1f, 1f), (lo, hi, 1f, -1f), (hi, hi, -1f, -1f) })
-        {
-            using var path = new System.Drawing.Drawing2D.GraphicsPath();
-            path.AddLines(new[]
-            {
-                new PointF(cx + dx * arm, cy), new PointF(cx, cy), new PointF(cx, cy + dy * arm),
-            });
-            g.DrawPath(pen, path);
-        }
-        using var fill = new SolidBrush(accent);
-        g.FillEllipse(fill, mid - dot / 2, mid - dot / 2, dot, dot);
-        IntPtr hicon = bmp.GetHicon();
-        try { using var borrowed = Icon.FromHandle(hicon); return (Icon)borrowed.Clone(); }
-        finally { DestroyIcon(hicon); }
-    }
-
-    [System.Runtime.InteropServices.DllImport("user32.dll")]
-    private static extern bool DestroyIcon(IntPtr icon);
 
     /// <summary>
     /// 隐藏并释放托盘图标，同时关闭还开着的菜单锚窗。宿主 Shutdown 与托盘「退出」菜单项都走这里。

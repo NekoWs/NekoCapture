@@ -106,6 +106,9 @@ internal static class ResidentBridge
         catch (Exception error) { Trace.Log("resident inputs: " + error); }
     }
 
+    /// <summary>配色变化时同步常驻托盘图标与加载身份。</summary>
+    internal static void RefreshTray() => InputsChanged();
+
     private static void WriteManifest(SettingsService settings)
     {
         var value = settings.Current;
@@ -121,6 +124,7 @@ internal static class ResidentBridge
                 Priority = binding.Priority, DoubleClickMs = binding.DoubleClickMs, LongPressMs = binding.LongPressMs
             }).ToArray(),
             Tooltip = TrayService.ActiveTip(value),
+            IconRevision = TrayService.ResidentIconRevision,
             PausedTooltip = Loc.T(K.Tray.FramecapturePausedHotkeysReleased)
         };
         Directory.CreateDirectory(SettingsService.Dir);

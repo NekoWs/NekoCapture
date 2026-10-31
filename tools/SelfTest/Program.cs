@@ -1194,6 +1194,8 @@ static partial class SelfTest
             return 2;
         }
         InstallQuietWindows();
+        if (args.Length == 1 && args[0] == "tray-icons")
+        { TrayIconChecks(); Console.WriteLine($"SelfTest pass={pass} fail={fail}"); return fail == 0 ? 0 : 1; }
         if (args.Length == 1 && args[0] == "video-components")
         {
             _ = Application.Current ?? new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
