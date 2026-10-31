@@ -29,7 +29,7 @@ internal static partial class Program
         string extracted = Path.Combine(root, "codec-extract");
         ComponentInstaller.Extract(archive, extracted, CancellationToken.None);
         Report(ref fail, File.ReadAllText(Path.Combine(extracted, "LICENSE.txt")) == "license" &&
-            File.Exists(Path.Combine(extracted, "bin", "avcodec.dll")) &&
+            !File.Exists(Path.Combine(extracted, "bin", "avcodec.dll")) &&
             !File.Exists(Path.Combine(extracted, "bin", "ffprobe.exe")), "codec-runtime-and-license-only", "");
 
         Zip((prefix + "../outside.exe", "unsafe"));
@@ -69,6 +69,7 @@ internal static partial class Program
             && Directory.GetDirectories(root, "codec-installed.backup-*").Length == 0, "codec-commit-replaces-complete-directory", "");
 
         string? supplied = Environment.GetEnvironmentVariable("FC_CODEC_TEST_ARCHIVE");
+        string? webmArchive = Environment.GetEnvironmentVariable("FC_CODEC_TEST_WEBM_ARCHIVE");
         if (Environment.GetEnvironmentVariable("FC_CODEC_TEST_DOWNLOAD") == "1")
         {
             supplied = Path.Combine(root, "download.zip");
@@ -78,6 +79,13 @@ internal static partial class Program
             ComponentDownloader.DownloadAsync(supplied, new Progress<ComponentProgress>(), CancellationToken.None,
                 client: client).GetAwaiter().GetResult();
             Console.WriteLine($"CODEC-DOWNLOAD PASS seconds={clock.Elapsed.TotalSeconds:F1} bytes={new FileInfo(supplied).Length} UseProxy=false");
+            webmArchive = Path.Combine(root, "webm-download.zip");
+            clock.Restart();
+            var package = FfmpegComponentInfo.WebM;
+            ComponentDownloader.DownloadAsync(webmArchive, new Progress<ComponentProgress>(), CancellationToken.None,
+                client: client, sources: package.DownloadUrls, expectedBytes: package.DownloadBytes,
+                expectedHash: package.Sha256).GetAwaiter().GetResult();
+            Console.WriteLine($"CODEC-WEBM-DOWNLOAD PASS seconds={clock.Elapsed.TotalSeconds:F1} bytes={new FileInfo(webmArchive).Length} UseProxy=false");
         }
         if (string.IsNullOrWhiteSpace(supplied)) { Console.WriteLine("  SKIP codec-real-archive: FC_CODEC_TEST_ARCHIVE is unset"); return; }
         string realWork = Path.Combine(root, "real-work");
@@ -85,6 +93,16 @@ internal static partial class Program
         ComponentInstaller.InstallArchive(supplied!, target, realWork, CancellationToken.None);
         Report(ref fail, File.Exists(Path.Combine(target, "bin", "ffmpeg.exe")) &&
             File.ReadAllText(Path.Combine(target, "BUILD.txt")).Contains(FfmpegComponentInfo.Sha256),
-            "codec-real-lgpl-mp4-webm-install", "");
+            "codec-real-gpl3-format-install", "");
+        if (!string.IsNullOrWhiteSpace(webmArchive))
+        {
+            string webmWork = Path.Combine(root, "webm-work");
+            Directory.CreateDirectory(webmWork);
+            string webmTarget = Path.Combine(root, "webm-installed");
+            ComponentInstaller.InstallArchive(webmArchive!, webmTarget, webmWork, CancellationToken.None, FfmpegComponentInfo.WebM);
+            Report(ref fail, File.Exists(Path.Combine(webmTarget, "bin", "ffmpeg.exe")) &&
+                File.ReadAllText(Path.Combine(webmTarget, "BUILD.txt")).Contains(FfmpegComponentInfo.WebM.Sha256),
+                "codec-real-gpl3-webm-install", "");
+        }
     }
 }

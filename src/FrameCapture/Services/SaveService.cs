@@ -97,7 +97,7 @@ public static partial class SaveService
             }
 
             var fmt = SettingsService.Shared.Current.RecordFormat;
-            string? ff = fmt == RecordFormat.Gif ? null : await BackgroundWork.Run(FfmpegLocator.Find);
+            string? ff = fmt == RecordFormat.Gif ? null : await BackgroundWork.Run(() => FfmpegLocator.Find(fmt == RecordFormat.Mp4 ? VideoFormat.Mp4 : VideoFormat.WebM));
             if (ff == null)
             {
                 var gpath = await BackgroundWork.Run(() => Path.Combine(dir, UniqueName(dir, Stamp(), "gif")));

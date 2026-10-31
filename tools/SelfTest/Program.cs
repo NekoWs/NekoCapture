@@ -1151,7 +1151,7 @@ static partial class SelfTest
         if (args.Length >= 1 && args[0] == "video-component")
         {
             ComponentDownloadChecks();
-            VideoComponentChecks(args.Length > 1 ? args[1] : null);
+            VideoComponentChecks(args.Length > 1 ? args[1] : null, args.Length > 2 ? args[2] : null, args.Length > 3 ? args[3] : null);
             Console.WriteLine($"RESULT PASS={pass} FAIL={fail}");
             return fail == 0 ? 0 : 1;
         }
@@ -1194,6 +1194,17 @@ static partial class SelfTest
             return 2;
         }
         InstallQuietWindows();
+        if (args.Length == 1 && args[0] == "video-components")
+        {
+            _ = Application.Current ?? new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
+            var settingProperty = typeof(AppHost).GetProperty("Settings")!;
+            var priorSettings = settingProperty.GetValue(AppHost.Current);
+            settingProperty.SetValue(AppHost.Current, new SettingsService());
+            var window = new FrameCapture.Overlays.SettingsWindow();
+            try { VideoComponentSettingsChecks(window); ComponentDownloadChecks(); }
+            finally { window.Close(); settingProperty.SetValue(AppHost.Current, priorSettings); }
+            Console.WriteLine($"SelfTest pass={pass} fail={fail}"); return fail == 0 ? 0 : 1;
+        }
         if (args.Length == 1 && args[0] == "number-reels")
         { NumberReelChecks(); Console.WriteLine($"SelfTest pass={pass} fail={fail}"); return fail == 0 ? 0 : 1; }
         if (args.Length == 1 && args[0] == "ux-fixes")

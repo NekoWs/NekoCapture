@@ -4,7 +4,7 @@ using FrameCapture.Encoding;
 
 static partial class SelfTest
 {
-    static void VideoComponentChecks(string? ffmpeg = null)
+    static void VideoComponentChecks(string? ffmpeg = null, string? webmEncoder = null, string? decoder = null)
     {
         string args = VideoEncoder.BuildArgs(641, 401, 59.94, VideoFormat.Mp4, "out.mp4", mediaFoundation: true);
         Chk("video-lgpl-h264-mf-args", args.Contains("-c:v h264_mf -hw_encoding 0") && args.Contains("-pix_fmt nv12")
@@ -27,9 +27,9 @@ static partial class SelfTest
             foreach (var frame in frames)
                 for (int i = 3; i < 32 * 4; i += 4) frame.Bgra[i] = 0;
             string webm = Path.Combine(root, "alpha.webm");
-            VideoEncoder.Encode(frames, ffmpeg, webm, VideoFormat.WebM, 24);
+            VideoEncoder.Encode(frames, webmEncoder ?? ffmpeg, webm, VideoFormat.WebM, 24);
             string raw = Path.Combine(root, "decoded.bgra");
-            using var decode = Process.Start(new ProcessStartInfo(ffmpeg,
+            using var decode = Process.Start(new ProcessStartInfo(decoder ?? ffmpeg,
                 $"-v error -c:v libvpx-vp9 -i \"{webm}\" -frames:v 1 -f rawvideo -pix_fmt bgra \"{raw}\"")
             {
                 UseShellExecute = false, CreateNoWindow = true,

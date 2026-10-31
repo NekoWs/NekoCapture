@@ -1,0 +1,2 @@
+scripts/video-components/*.sh text eol=lf
+scripts/video-components/Dockerfile text eol=lf

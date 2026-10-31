@@ -79,13 +79,13 @@ internal sealed class ComponentWindow : Window
             Text = FfmpegComponentInfo.InstallDirectory, TextWrapping = TextWrapping.Wrap,
             FontSize = 12, Margin = new Thickness(0, 0, 0, 16),
         });
-        _status.Text = Loc.F(K.CodecSetup.Notice, Math.Round(FfmpegComponentInfo.DownloadBytes / 1048576d));
+        _status.Text = Loc.F(K.CodecSetup.Notice, (FfmpegComponentInfo.All.Sum(p => p.DownloadBytes) / 1048576d).ToString("0.0"));
         body.Children.Add(_status);
         body.Children.Add(_progress);
         var links = new WrapPanel { Margin = new Thickness(0, 14, 0, 12) };
         Link(links, Loc.T(K.CodecSetup.Source), FfmpegComponentInfo.SourceUrl);
         Link(links, Loc.T(K.CodecSetup.Build), FfmpegComponentInfo.BuildUrl);
-        Link(links, Loc.T(K.CodecSetup.License), "https://www.gnu.org/licenses/lgpl-3.0.html");
+        Link(links, Loc.T(K.CodecSetup.License), "https://www.gnu.org/licenses/gpl-3.0.html");
         body.Children.Add(links);
         var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
         _install = Fluent.RoundButton(Loc.T(K.Common.DownloadAndInstall), Theme.Accent, Fluent.InkOn(Theme.Accent, Theme.Text), 22, true);
@@ -128,13 +128,19 @@ internal sealed class ComponentWindow : Window
         _install.IsEnabled = false;
         try
         {
-            var progress = new Progress<ComponentProgress>(value =>
+            long finished = 0, total = FfmpegComponentInfo.All.Sum(p => p.DownloadBytes);
+            foreach (var package in FfmpegComponentInfo.All)
             {
-                _progress.Value = value.Percent;
-                _status.Text = value.Verifying ? Loc.T(K.Common.ComponentVerifying)
-                    : Loc.F(K.CodecSetup.Downloading, (int)value.Percent);
-            });
-            await ComponentInstaller.InstallAsync(progress, _cancel.Token);
+                long before = finished;
+                var progress = new Progress<ComponentProgress>(value =>
+                {
+                    _progress.Value = (before + value.Bytes) * 100d / total;
+                    _status.Text = value.Verifying ? Loc.T(K.Common.ComponentVerifying)
+                        : Loc.F(K.CodecSetup.Downloading, (int)_progress.Value);
+                });
+                await ComponentInstaller.InstallAsync(package, progress, _cancel.Token);
+                finished += package.DownloadBytes;
+            }
             _status.Text = Loc.T(K.CodecSetup.Ready);
             _install.Content = Loc.T(K.Common.Close);
             _close.Visibility = Visibility.Collapsed;

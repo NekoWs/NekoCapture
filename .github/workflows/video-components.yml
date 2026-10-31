@@ -1,0 +1,29 @@
+name: Video components
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Build minimal encoders and corresponding source
+        run: |
+          mkdir -p test-out/video-components
+          docker build -t framecapture-video-builder scripts/video-components
+          docker run --rm --cpus=4 --memory=3g \
+            --mount type=bind,source="$GITHUB_WORKSPACE/test-out/video-components",target=/work \
+            --mount type=bind,source="$GITHUB_WORKSPACE/scripts/video-components",target=/recipe,readonly \
+            framecapture-video-builder
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: video-components-win-x64
+          path: test-out/video-components/out/*
+          if-no-files-found: error

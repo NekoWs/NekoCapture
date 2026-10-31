@@ -69,7 +69,7 @@ public sealed partial class EditorWindow : Window
                     }
                     else
                     {
-                        string ffmpeg = FfmpegLocator.Find()
+                        string ffmpeg = FfmpegLocator.Find(videoFmt.Value)
                             ?? throw new InvalidOperationException("ffmpeg not found");
                         VideoEncoder.Encode(frames, ffmpeg, temporary!, videoFmt.Value,
                             VideoEncoder.FpsFromFrames(frames), progress, ct, matte);

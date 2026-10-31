@@ -306,12 +306,12 @@ public sealed partial class EditorWindow : Window
         string ext = Path.GetExtension(path).ToLowerInvariant();
         if (ext is ".mp4" or ".webm")
         {
-            if (FfmpegLocator.Find() == null)
+            var fmt = ext == ".mp4" ? VideoFormat.Mp4 : VideoFormat.WebM;
+            if (FfmpegLocator.Find(fmt) == null)
             {
                 ShowSnack(Loc.T(K.Editor.FfmpegNotFoundSoVideo));
                 return;
             }
-            var fmt = ext == ".mp4" ? VideoFormat.Mp4 : VideoFormat.WebM;
             path = EnsureExt(path, ext);
             StartEncode(fmt, path, (output, _) =>
             {

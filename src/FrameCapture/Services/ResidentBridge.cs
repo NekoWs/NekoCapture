@@ -247,7 +247,7 @@ internal static class ResidentBridge
         while (Deferred.TryDequeue(out var request)) Execute(request);
     }
 
-    private static bool Busy => !AppHost.Current.Controller.CanSuspend || BackgroundWork.Busy || VideoComponentInstall.Shared.Busy;
+    private static bool Busy => !AppHost.Current.Controller.CanSuspend || BackgroundWork.Busy || VideoComponentInstall.AnyBusy;
 
     /// <summary>同步运行时暂停状态；仅传递布尔状态，不传递按键。</summary>
     /// <param name="paused">是否暂停全局手势。</param>

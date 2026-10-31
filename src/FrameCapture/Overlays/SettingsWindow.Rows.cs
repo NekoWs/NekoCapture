@@ -281,6 +281,7 @@ public sealed partial class SettingsWindow : Window
         var chips = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
         Grid.SetColumn(chips, 2);
         var cur = _settings.Current.RecordFormat;
+        var component = VideoComponentPrompt(() => _settings.Current.RecordFormat, out var refreshComponent);
         var opts = new (RecordFormat id, string text, string tip)[]
         {
             (RecordFormat.Gif, "GIF", Loc.T(K.Settings.AnAnimatedImageThatPlays)),
@@ -302,6 +303,7 @@ public sealed partial class SettingsWindow : Window
             {
                 _settings.Mutate(s => s.RecordFormat = captured);
                 RefreshChips(chipList, captured);
+                refreshComponent();
                 bool want = captured == RecordFormat.Mp4;
                 if (want == matteOpen) return;   // 状态没变就别再演一遍
                 matteOpen = want;
@@ -315,6 +317,7 @@ public sealed partial class SettingsWindow : Window
         _repaint.Add(() => RefreshChips(chipList, _settings.Current.RecordFormat));   // 改配色后选中那颗芯片跟着换色
         var wrap = new StackPanel();
         wrap.Children.Add(g);
+        wrap.Children.Add(component);
         wrap.Children.Add(matte);
         return wrap;
     }

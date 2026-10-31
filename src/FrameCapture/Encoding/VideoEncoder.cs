@@ -17,8 +17,15 @@ public static class FfmpegLocator
 {
     /// <summary>找本机 ffmpeg.exe。</summary>
     /// <returns>可执行文件绝对路径；null = 本机没有 ffmpeg，调用方须回退 GIF 并提示安装。</returns>
-    public static string? Find()
+    public static string? Find() => Find(VideoFormat.Mp4);
+
+    /// <summary>按导出格式查找精简组件，回退到完整组件和系统 FFmpeg。</summary>
+    /// <param name="format">需要的编码格式。</param>
+    /// <returns>可执行文件路径，缺少所需组件时为空。</returns>
+    public static string? Find(VideoFormat format)
     {
+        var specific = (format == VideoFormat.Mp4 ? FfmpegComponentInfo.Mp4 : FfmpegComponentInfo.WebM).ExecutablePath;
+        if (specific != null && File.Exists(specific)) return specific;
         var component = FfmpegComponentInfo.ExecutablePath;
         if (component != null && File.Exists(component)) return component;
         // 1) PATH（用户自行装到 PATH 的情形）

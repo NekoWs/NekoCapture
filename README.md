@@ -61,7 +61,7 @@ FrameCapture 将截图、录制和后续处理放在同一套工作流程里。�
 
 安装器会识别已有安装并进行升级。启动后程序常驻托盘，可以从托盘菜单打开设置。
 
-**Codecs-Setup 是可选组件安装器。** 截图和 GIF 导出无需安装视频组件；需要 MP4 或 WebM 时，在「设置 → 录制」中下载安装即可，也可以使用 Release 中的独立组件安装器。
+截图和 GIF 导出无需视频组件。在「设置 → 录制 → 导出」选择 MP4 或 WebM 后，点击出现的下载按钮即可安装对应的精简编码组件，页面显示下载进度。两种格式独立下载，已安装的完整 FFmpeg 也可直接使用。Codecs-Setup 可一次安装两种格式。
 
 ## 快速开始
 
@@ -139,4 +139,4 @@ pwsh -NoProfile -File scripts/publish-release.ps1 -Flavor fd -NoRestart
 
 本项目采用 [GNU GPL v3.0](LICENSE)。
 
-FFmpeg 为独立下载的可选组件，适用其自身及依赖的许可证。
+FFmpeg 为按格式下载的可选组件，精简构建采用 GPLv3，包含对应的许可证和来源说明。[完整对应源码与构建配方](https://github.com/NekoWs/FrameCapture/releases/download/v0.9.33/FrameCapture-video-sources-1.tar.gz)与二进制一同提供；构建入口位于 `scripts/video-components/`。

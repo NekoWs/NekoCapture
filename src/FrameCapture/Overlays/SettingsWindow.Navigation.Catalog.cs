@@ -1,5 +1,7 @@
 ﻿using System.Windows.Controls;
 using FrameCapture.Core;
+using FrameCapture.Encoding;
+using FrameCapture.Services;
 
 namespace FrameCapture.Overlays;
 
@@ -92,10 +94,10 @@ public sealed partial class SettingsWindow
         Page("record-export", "record", "record", K.SettingsNavigation.Export, K.SettingsNavigation.ExportHint, "\uE74E", 3, p =>
         {
             p.Children.Add(RecordFormatRow()); Cardify(p);
-            p.Children.Add(SettingsPageEntry("codecs")); p.Children.Add(SettingsPageEntry("files"));
+            p.Children.Add(SettingsPageEntry("files"));
         });
         Page("codecs", "record-export", "record", K.Common.VideoComponent, K.Common.VideoComponentDescription, "\uE714", 3, p =>
-        { p.Children.Add(VideoComponentRow()); Cardify(p); });
+        { foreach (var format in new[] { VideoFormat.Mp4, VideoFormat.WebM }) p.Children.Add(VideoComponentRow(VideoComponentInstall.For(format))); Cardify(p); });
         Page("record-feedback", "record", "record", K.SettingsNavigation.RecordFeedback, K.SettingsNavigation.RecordFeedbackHint, "\uE714", 3, BuildRecordingFeedback);
         Page("theme", "appearance", "appearance", K.SettingsNavigation.Theme, K.SettingsNavigation.ThemeHint, "\uE793", 7, p =>
         { p.Children.Add(ThemeRow()); p.Children.Add(LanguageRow()); Cardify(p); });

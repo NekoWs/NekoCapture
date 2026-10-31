@@ -85,11 +85,6 @@ public static partial class K
             "Delete this hotkey");
         public static readonly Str DraggingAPinSnapsIt = new("settings.draggingAPinSnapsIt", "拖动时对齐屏幕、窗口和其他贴图的边缘或中线", "Snap to screen, window, and pin edges or centers while dragging.");
         public static readonly Str DuringARecordingTheReal = new("settings.duringARecordingTheReal", "标出实际录制区域，边框不进入产物", "Outline the recording region without including the outline in the output.");
-        public static readonly Str FfmpegDetectedMp4AndWebm = new(
-            "settings.ffmpegDetectedMp4AndWebm",
-            "已检测到 ffmpeg · 可导出 MP4 / WebM",
-            "ffmpeg detected · MP4 and WebM export available");
-        public static readonly Str ComponentNotInstalled = new("settings.componentNotInstalled", "未安装 · 下载约 {0} MiB", "Not installed · About {0} MiB to download");
         public static readonly Str ComponentConnecting = new("settings.componentConnecting", "正在连接下载源…", "Connecting to download sources…");
         public static readonly Str ComponentDownloading = new("settings.componentDownloading", "下载 {0}% · {1} / {2} MiB · {3}", "Downloading {0}% · {1} / {2} MiB · {3}");
         public static readonly Str ComponentInstallFailed = new("settings.componentInstallFailed", "安装失败，点击重试", "Installation failed. Click to retry.");

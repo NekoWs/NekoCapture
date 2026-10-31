@@ -9,7 +9,19 @@ internal sealed class VideoComponentInstall
     internal enum InstallState { Missing, Available, Downloading, Verifying, Failed, Cancelled }
 
     /// <summary>设置界面共用的实际安装会话。</summary>
-    internal static VideoComponentInstall Shared { get; } = new(FfmpegLocator.Find, ComponentInstaller.InstallAsync);
+    internal static VideoComponentInstall Shared => Mp4;
+    private static readonly VideoComponentInstall Mp4 = Create(VideoFormat.Mp4, FfmpegComponentInfo.Mp4);
+    private static readonly VideoComponentInstall WebM = Create(VideoFormat.WebM, FfmpegComponentInfo.WebM);
+    /// <summary>是否有任意视频格式的组件正在安装。</summary>
+    internal static bool AnyBusy => Mp4.Busy || WebM.Busy;
+    /// <summary>取得指定导出格式的共享安装会话。</summary>
+    /// <param name="format">视频导出格式。</param>
+    /// <returns>对应格式的独立安装会话。</returns>
+    internal static VideoComponentInstall For(VideoFormat format) => format == VideoFormat.Mp4 ? Mp4 : WebM;
+    private static VideoComponentInstall Create(VideoFormat format, FfmpegPackage package) => new(
+        () => FfmpegLocator.Find(format), (progress, ct) => ComponentInstaller.InstallAsync(package, progress, ct), package);
+    /// <summary>会话安装的组件描述。</summary>
+    internal FfmpegPackage Package { get; }
     private readonly Func<string?> _find;
     private readonly Func<IProgress<ComponentProgress>, CancellationToken, Task> _install;
     private CancellationTokenSource? _cancellation;
@@ -18,8 +30,9 @@ internal sealed class VideoComponentInstall
     /// <summary>创建可观察的组件安装会话。</summary>
     /// <param name="find">查找可用编码器。</param>
     /// <param name="install">下载并安装组件的异步入口。</param>
-    internal VideoComponentInstall(Func<string?> find, Func<IProgress<ComponentProgress>, CancellationToken, Task> install)
-    { _find = find; _install = install; Refresh(); }
+    /// <param name="package">对应格式的固定组件，缺省使用 MP4。</param>
+    internal VideoComponentInstall(Func<string?> find, Func<IProgress<ComponentProgress>, CancellationToken, Task> install, FfmpegPackage? package = null)
+    { _find = find; _install = install; Package = package ?? FfmpegComponentInfo.Mp4; Refresh(); }
 
     /// <summary>状态变化通知，在启动会话的同步上下文中触发。</summary>
     internal event Action? Changed;
@@ -47,7 +60,7 @@ internal sealed class VideoComponentInstall
         if (_find() != null) { State = InstallState.Available; Changed?.Invoke(); return Task.CompletedTask; }
         _cancellation = new CancellationTokenSource();
         State = InstallState.Downloading;
-        Progress = default;
+        Progress = new ComponentProgress(0, 0, totalBytes: Package.DownloadBytes);
         Changed?.Invoke();
         return _running = Run(_cancellation);
     }

@@ -28,6 +28,8 @@ static partial class SelfTest
         var fixture = new Window { Content = Wrap(row), Width = 500, Height = 160, Left = -20000, Top = -20000,
             ShowActivated = false, ShowInTaskbar = false };
         Button ButtonIn(StackPanel panel) => ((Grid)panel.Children[0]).Children.OfType<Button>().Single();
+        TextBlock Status(StackPanel panel) => Descendants(panel).OfType<TextBlock>().Single(e => e.Tag as string == "video-component-status");
+        FrameworkElement Track(StackPanel panel) => Descendants(panel).OfType<FrameworkElement>().Single(e => e.Tag as string == "video-component-progress");
         void Snapshot(string name)
         {
             var content = (FrameworkElement)fixture.Content;
@@ -46,8 +48,21 @@ static partial class SelfTest
         {
             fixture.Show(); PumpMs(30);
             Chk("video-component-settings-offers-install-when-missing", ButtonIn(row).IsVisible
-                && ((TextBlock)row.Children[1]).Text.Contains("77"));
+                && Status(row).Text.Contains((session.Package.DownloadBytes / 1048576d).ToString("0.0")));
             Snapshot("missing");
+            RecordFormat selected = RecordFormat.Gif;
+            var webm = new VideoComponentInstall(() => null, (_, _) => Task.CompletedTask, FfmpegComponentInfo.WebM);
+            var promptMethod = typeof(SettingsWindow).GetMethod("VideoComponentPrompt", BindingFlags.Instance | BindingFlags.NonPublic)!;
+            object?[] promptArgs = { (Func<RecordFormat>)(() => selected), null, session, webm };
+            var prompt = (StackPanel)promptMethod.Invoke(settings, promptArgs)!;
+            var refresh = (Action)promptArgs[1]!;
+            Chk("video-component-gif-needs-no-download", prompt.Children.Count == 0);
+            selected = RecordFormat.Mp4; refresh();
+            Chk("video-component-mp4-offers-only-selected-package", prompt.Children.OfType<FrameworkElement>().Single().Tag as string == "video-component-mp4");
+            selected = RecordFormat.WebM; refresh();
+            Chk("video-component-webm-offers-only-selected-package", prompt.Children.OfType<FrameworkElement>().Single().Tag as string == "video-component-webm");
+            selected = RecordFormat.Gif; refresh();
+            Chk("video-component-gif-hides-prompt", prompt.Children.Count == 0);
             bool dark = Theme.IsDark;
             bool english = Loc.IsEnglish;
             try
@@ -70,21 +85,21 @@ static partial class SelfTest
             _ = session.StartAsync();
             Chk("video-component-settings-prevents-duplicate-download", starts == 1 && session.Busy
                 && Equals(ButtonIn(row).Content, Loc.T(K.Common.Cancel)));
-            report!.Report(new ComponentProgress(FfmpegComponentInfo.DownloadBytes / 2, 2097152)); PumpMs(50);
-            Chk("video-component-settings-shows-size-speed-and-progress", ((TextBlock)row.Children[1]).Text.Contains("50%")
-                && ((TextBlock)row.Children[1]).Text.Contains("2.0 MiB/s") && row.Children[2].Visibility == Visibility.Visible);
+            report!.Report(new ComponentProgress((FfmpegComponentInfo.DownloadBytes + 1) / 2, 2097152)); PumpMs(50);
+            Chk("video-component-settings-shows-size-speed-and-progress", Status(row).Text.Contains("50%")
+                && Status(row).Text.Contains("2.0 MiB/s") && Track(row).Visibility == Visibility.Visible);
             Snapshot("progress");
             fixture.Content = null; PumpMs(20);
             row = (StackPanel)Row(); fixture.Content = Wrap(row); PumpMs(30);
             Chk("video-component-settings-reopen-preserves-download", session.Busy && starts == 1
-                && ((TextBlock)row.Children[1]).Text.Contains("50%"));
+                && Status(row).Text.Contains("50%"));
             report.Report(new ComponentProgress(FfmpegComponentInfo.DownloadBytes, 0, true)); PumpMs(30);
             Chk("video-component-settings-shows-verifying-before-ready",
                 session.State == VideoComponentInstall.InstallState.Verifying
-                && ((TextBlock)row.Children[1]).Text == Loc.T(K.Common.ComponentVerifying));
+                && Status(row).Text == Loc.T(K.Common.ComponentVerifying));
             available = true; completion.SetResult(); PumpMs(50);
             Chk("video-component-settings-refreshes-after-install", session.State == VideoComponentInstall.InstallState.Available
-                && !session.Busy && ButtonIn(row).Visibility == Visibility.Collapsed && row.Children[2].Visibility == Visibility.Collapsed);
+                && !session.Busy && ButtonIn(row).Visibility == Visibility.Collapsed && Track(row).Visibility == Visibility.Collapsed);
             Snapshot("available");
             available = false; session.Refresh();
             completion = new TaskCompletionSource();
@@ -98,7 +113,7 @@ static partial class SelfTest
             ButtonIn(row).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             completion.SetException(new IOException("Simulated failure")); PumpMs(50);
             Chk("video-component-settings-error-keeps-retry-entry", !session.Busy && starts == 3
-                && ((TextBlock)row.Children[1]).Text == Loc.T(K.Settings.ComponentInstallFailed));
+                && Status(row).Text == Loc.T(K.Settings.ComponentInstallFailed));
         }
         finally { fixture.Close(); SynchronizationContext.SetSynchronizationContext(previousContext); }
     }

@@ -17,7 +17,7 @@ public static partial class SaveService
         using var reader = sequence.Frames as BakedFrameList;
         var settings = SettingsService.Shared?.Current;
         var format = settings?.RecordFormat ?? RecordFormat.Gif;
-        string? ffmpeg = format == RecordFormat.Gif ? null : await BackgroundWork.Run(FfmpegLocator.Find);
+        string? ffmpeg = format == RecordFormat.Gif ? null : await BackgroundWork.Run(() => FfmpegLocator.Find(format == RecordFormat.Mp4 ? VideoFormat.Mp4 : VideoFormat.WebM));
         string extension = ffmpeg == null ? "gif" : format == RecordFormat.Mp4 ? "mp4" : "webm";
         string dir = await BackgroundWork.Run(ResolveFolder);
         string path = await BackgroundWork.Run(() => Path.Combine(dir, UniqueName(dir, Stamp(), extension)));

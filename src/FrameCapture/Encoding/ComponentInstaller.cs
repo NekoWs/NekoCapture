@@ -5,30 +5,37 @@ using System.Security.Cryptography;
 
 namespace FrameCapture.Encoding;
 
-/// <summary>校验独立下载的 LGPL 组件，在用户目录完成编码自检后提交安装。</summary>
+/// <summary>校验按格式独立下载的 GPLv3 精简组件，在用户目录完成编码自检后提交安装。</summary>
 internal static class ComponentInstaller
 {
     /// <summary>下载固定构建；取消或失败时保留已安装组件。</summary>
     /// <param name="progress">下载和校验进度。</param>
     /// <param name="ct">下载和安装的取消令牌。</param>
     /// <returns>组件成功提交后完成的任务。</returns>
-    internal static async Task InstallAsync(IProgress<ComponentProgress> progress, CancellationToken ct)
+    internal static Task InstallAsync(IProgress<ComponentProgress> progress, CancellationToken ct) => InstallAsync(FfmpegComponentInfo.Mp4, progress, ct);
+
+    /// <summary>只下载并安装指定格式的编码组件。</summary>
+    /// <param name="package">固定组件描述。</param>
+    /// <param name="progress">下载与校验进度。</param>
+    /// <param name="ct">取消令牌。</param>
+    /// <returns>组件提交后的完成任务。</returns>
+    internal static async Task InstallAsync(FfmpegPackage package, IProgress<ComponentProgress> progress, CancellationToken ct)
     {
-        string target = FfmpegComponentInfo.InstallDirectory
+        string target = package.InstallDirectory
             ?? throw new InvalidOperationException("LocalApplicationData is unavailable");
         CheckAncestors(target);
         string parent = Path.GetDirectoryName(target)!;
         Directory.CreateDirectory(parent);
-        using var installLock = new FileStream(Path.Combine(parent, ".ffmpeg-install.lock"),
+        using var installLock = new FileStream(Path.Combine(parent, ".ffmpeg-" + package.Id + "-install.lock"),
             FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
         string work = Path.Combine(parent, ".ffmpeg-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(work);
         try
         {
             string archive = Path.Combine(work, "download.zip");
-            await ComponentDownloader.DownloadAsync(archive, progress, ct).ConfigureAwait(false);
-            progress.Report(new ComponentProgress(FfmpegComponentInfo.DownloadBytes, 0, true));
-            await Task.Run(() => InstallArchive(archive, target, work, ct), ct).ConfigureAwait(false);
+            await ComponentDownloader.DownloadAsync(archive, progress, ct, sources: package.DownloadUrls, expectedBytes: package.DownloadBytes, expectedHash: package.Sha256).ConfigureAwait(false);
+            progress.Report(new ComponentProgress(package.DownloadBytes, 0, true, package.DownloadBytes));
+            await Task.Run(() => InstallArchive(archive, target, work, ct, package), ct).ConfigureAwait(false);
         }
         finally { TryRemove(work); }
     }
@@ -38,39 +45,46 @@ internal static class ComponentInstaller
     /// <param name="target">组件安装绝对路径。</param>
     /// <param name="work">同卷隔离工作目录。</param>
     /// <param name="ct">校验与提交前的取消令牌。</param>
-    internal static void InstallArchive(string archive, string target, string work, CancellationToken ct)
+    /// <param name="package">固定格式描述；缺省使用 MP4 组件。</param>
+    internal static void InstallArchive(string archive, string target, string work, CancellationToken ct, FfmpegPackage? package = null)
     {
+        package ??= FfmpegComponentInfo.Mp4;
         CheckAncestors(target);
         CheckAncestors(work);
         using (var sha = SHA256.Create())
         using (var stream = File.OpenRead(archive))
         {
             string digest = BitConverter.ToString(sha.ComputeHash(stream)).Replace("-", "");
-            if (stream.Length != FfmpegComponentInfo.DownloadBytes ||
-                !string.Equals(digest, FfmpegComponentInfo.Sha256, StringComparison.OrdinalIgnoreCase))
+            if (stream.Length != package.DownloadBytes ||
+                !string.Equals(digest, package.Sha256, StringComparison.OrdinalIgnoreCase))
                 throw new InvalidDataException("FFmpeg SHA256 mismatch");
         }
         ct.ThrowIfCancellationRequested();
         string content = Path.Combine(work, "content");
-        Extract(archive, content, ct);
+        Extract(archive, content, ct, package);
         string exe = Path.Combine(content, "bin", "ffmpeg.exe");
         string version = Run(exe, "-version", ct);
         string license = Run(exe, "-L", ct);
-        if (version.Contains("--enable-gpl") || version.Contains("--enable-nonfree") ||
-            !license.Contains("GNU Lesser General Public License"))
-            throw new InvalidDataException("FFmpeg must be an LGPL build");
+        if (version.Contains("--enable-nonfree") || !version.Contains("--enable-version3") ||
+            !license.Contains("GNU General Public License"))
+            throw new InvalidDataException("FFmpeg must be a redistributable GPLv3 build");
         string codecs = Run(exe, "-hide_banner -encoders", ct);
-        if (!codecs.Contains(" h264_mf ") || !codecs.Contains(" libvpx-vp9 "))
-            throw new InvalidDataException("FFmpeg lacks required encoders");
-        string input = "-hide_banner -loglevel error -y -f lavfi -i color=c=red@0.5:s=64x48:r=10,format=bgra -frames:v 2 ";
-        string mp4 = Path.Combine(work, "probe.mp4");
-        string webm = Path.Combine(work, "probe.webm");
-        Run(exe, input + "-c:v h264_mf -hw_encoding 0 -pix_fmt nv12 -b:v 4000000 -movflags +faststart \"" + mp4 + "\"", ct);
-        Run(exe, input + "-c:v libvpx-vp9 -pix_fmt yuva420p -auto-alt-ref 0 -b:v 0 -crf 40 \"" + webm + "\"", ct);
-        if (!File.Exists(mp4) || new FileInfo(mp4).Length == 0 || !File.Exists(webm) || new FileInfo(webm).Length == 0)
+        string encoder = package.Id == "mp4" ? "libx264" : "libvpx-vp9";
+        if (!codecs.Contains(" " + encoder + " ")) throw new InvalidDataException("FFmpeg lacks required encoder");
+        string raw = Path.Combine(work, "probe.bgra");
+        byte[] pixels = new byte[64 * 48 * 4 * 2];
+        for (int i = 0; i < pixels.Length; i += 4) { pixels[i + 2] = 255; pixels[i + 3] = 128; }
+        File.WriteAllBytes(raw, pixels);
+        string output = Path.Combine(work, "probe." + package.Id);
+        string input = "-hide_banner -loglevel error -y -f rawvideo -pix_fmt bgra -s 64x48 -framerate 10 -i \"" + raw + "\" -frames:v 2 ";
+        string options = package.Id == "mp4"
+            ? "-c:v libx264 -preset ultrafast -pix_fmt yuv420p -movflags +faststart"
+            : "-c:v libvpx-vp9 -pix_fmt yuva420p -auto-alt-ref 0 -b:v 0 -crf 40";
+        Run(exe, input + options + " -threads 2 \"" + output + "\"", ct);
+        if (!File.Exists(output) || new FileInfo(output).Length == 0)
             throw new InvalidDataException("FFmpeg encoder smoke test produced no output");
         File.WriteAllText(Path.Combine(content, "BUILD.txt"), version + "\n" + license + "\n" +
-            FfmpegComponentInfo.DownloadUrl + "\nSHA256 " + FfmpegComponentInfo.Sha256 + "\n" +
+            package.DownloadUrl + "\nSHA256 " + package.Sha256 + "\n" +
             FfmpegComponentInfo.SourceUrl + "\n" + FfmpegComponentInfo.BuildUrl, System.Text.Encoding.UTF8);
         ct.ThrowIfCancellationRequested();
         Commit(content, target);
@@ -80,11 +94,13 @@ internal static class ComponentInstaller
     /// <param name="archive">ZIP 归档路径。</param>
     /// <param name="destination">全新的隔离目录。</param>
     /// <param name="ct">每个文件之间的取消令牌。</param>
-    internal static void Extract(string archive, string destination, CancellationToken ct)
+    /// <param name="package">固定格式描述；缺省使用 MP4 组件。</param>
+    internal static void Extract(string archive, string destination, CancellationToken ct, FfmpegPackage? package = null)
     {
+        package ??= FfmpegComponentInfo.Mp4;
         Directory.CreateDirectory(destination);
         string root = Path.GetFullPath(destination).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
-        string prefix = Path.GetFileNameWithoutExtension(FfmpegComponentInfo.Archive) + "/";
+        string prefix = Path.GetFileNameWithoutExtension(package.Archive) + "/";
         using var zip = ZipFile.OpenRead(archive);
         long expanded = 0;
         if (zip.Entries.Count > 1000) throw new InvalidDataException("Too many FFmpeg archive entries");
@@ -100,11 +116,10 @@ internal static class ComponentInstaller
             if (relative.Length == 0) continue;
             if (!full.StartsWith(root, StringComparison.OrdinalIgnoreCase)) throw new InvalidDataException("FFmpeg archive escapes destination");
             expanded = checked(expanded + entry.Length);
-            if (expanded > 250L * 1024 * 1024) throw new InvalidDataException("FFmpeg archive exceeds extraction limit");
-            bool binary = relative.StartsWith("bin/", StringComparison.Ordinal) &&
-                !relative.Substring(4).Contains("/") &&
-                (relative.EndsWith(".dll", StringComparison.OrdinalIgnoreCase) || relative == "bin/ffmpeg.exe");
-            if (!binary && relative != "LICENSE.txt") continue;
+            if (expanded > 32L * 1024 * 1024) throw new InvalidDataException("FFmpeg archive exceeds extraction limit");
+            bool keep = relative == "bin/ffmpeg.exe" || relative == "LICENSE.txt" || relative == "SOURCE.txt"
+                || relative.StartsWith("licenses/", StringComparison.Ordinal);
+            if (!keep || relative.EndsWith("/", StringComparison.Ordinal)) continue;
             Directory.CreateDirectory(Path.GetDirectoryName(full)!);
             entry.ExtractToFile(full);
         }

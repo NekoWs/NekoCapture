@@ -45,17 +45,17 @@ internal static class ComponentDownloader
         bool created = false;
         try
         {
-            progress.Report(new ComponentProgress(0, 0));
+            progress.Report(new ComponentProgress(0, 0, totalBytes: size));
             string winner = await SelectSource(http, urls, size, ct).ConfigureAwait(false);
             var ordered = new[] { winner }.Concat(urls.Where(u => u != winner)).ToArray();
             await Transfer(http, ordered, path, size, progress, ct).ConfigureAwait(false);
             created = true;
-            if (reportVerification) progress.Report(new ComponentProgress(size, 0, verifying: true));
+            if (reportVerification) progress.Report(new ComponentProgress(size, 0, verifying: true, totalBytes: size));
             if (!MatchesHash(path, hash))
             {
                 File.Delete(path);
                 await Transfer(http, new[] { urls[urls.Length - 1] }, path, size, progress, ct).ConfigureAwait(false);
-                if (reportVerification) progress.Report(new ComponentProgress(size, 0, verifying: true));
+                if (reportVerification) progress.Report(new ComponentProgress(size, 0, verifying: true, totalBytes: size));
                 if (!MatchesHash(path, hash)) throw new InvalidDataException("Component SHA256 mismatch");
             }
             ct.ThrowIfCancellationRequested();
@@ -80,7 +80,7 @@ internal static class ComponentDownloader
             {
                 using var idle = CancellationTokenSource.CreateLinkedTokenSource(race.Token);
                 idle.CancelAfter(TimeSpan.FromSeconds(8));
-                int length = (int)Math.Min(2097152, size);
+                int length = (int)Math.Min(size < 8388608 ? 65536 : 2097152, size);
                 using var response = await Request(http, url, 0, length - 1, size, idle.Token).ConfigureAwait(false);
                 using var stream = await response.Content.ReadAsStreamAsync().ConfigureAwait(false);
                 using var abort = idle.Token.Register(() => stream.Dispose());
@@ -138,7 +138,7 @@ internal static class ComponentDownloader
                 long now = clock.ElapsedMilliseconds;
                 if (now - lastTime < 200 && total < size) return;
                 double speed = (total - previous) * 1000d / Math.Max(1, now - lastTime);
-                progress.Report(new ComponentProgress(total, speed));
+                progress.Report(new ComponentProgress(total, speed, totalBytes: size));
                 previous = total;
                 lastTime = now;
             }
