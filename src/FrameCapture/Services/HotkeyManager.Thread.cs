@@ -20,7 +20,8 @@ public sealed partial class HotkeyManager
     public HotkeyManager() => _activeManager = this;
 
     private bool HasSessions => ScrollActive || CountdownActive || ToastActive || PickerActive
-        || CaptureSink != null || ArmedRecordKey != null || _armedRecordKeyUps.Count > 0 || _captureKeyUps.Count > 0;
+        || CaptureSink != null || ArmedRecordKey != null || _armedRecordKeyUps.Count > 0 || _captureKeyUps.Count > 0
+        || _pickerNudgeKeyUps.Count > 0;
 
     private static void SessionsChanged()
     {

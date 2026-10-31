@@ -93,4 +93,20 @@ public sealed partial class SettingsWindow : Window
         KeyRow(Loc.T(K.Settings.CopyKey), Loc.T(K.Settings.TheToastAlsoAccepts),
             () => _settings.Current.ToastCopyChord,
             c => _settings.Mutate(s => s.ToastCopyChord = c), reinstall: true);
+
+    private void BuildPickerNudgeKeys(StackPanel panel)
+    {
+        var keys = new StackPanel();
+        keys.Children.Add(SectionHeader(Loc.T(K.Hotkeys.PickerNudge)));
+        string tip = Loc.T(K.Hotkeys.PickerNudgeTip);
+        keys.Children.Add(KeyRow(Loc.T(K.Hotkeys.NudgeLeft), tip, () => _settings.Current.PickerNudgeLeftChord,
+            chord => _settings.Mutate(s => s.PickerNudgeLeftChord = chord)));
+        keys.Children.Add(KeyRow(Loc.T(K.Hotkeys.NudgeRight), tip, () => _settings.Current.PickerNudgeRightChord,
+            chord => _settings.Mutate(s => s.PickerNudgeRightChord = chord)));
+        keys.Children.Add(KeyRow(Loc.T(K.Hotkeys.NudgeUp), tip, () => _settings.Current.PickerNudgeUpChord,
+            chord => _settings.Mutate(s => s.PickerNudgeUpChord = chord)));
+        keys.Children.Add(KeyRow(Loc.T(K.Hotkeys.NudgeDown), tip, () => _settings.Current.PickerNudgeDownChord,
+            chord => _settings.Mutate(s => s.PickerNudgeDownChord = chord)));
+        Cardify(keys); panel.Children.Add(keys);
+    }
 }

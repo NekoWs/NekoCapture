@@ -352,6 +352,7 @@ public sealed partial class RegionPickerWindow : Window
             StopPointerUpdates();
             // 控制器在关闭回调后读取预抓缓存，缓存随窗口实例释放。
             Services.HotkeyManager.PickerActive = false;
+            Services.HotkeyManager.PickerNudgeKey = null;
             Services.HotkeyManager.PickerKey = null; // 清零全局键拦截，绝不泄漏成失灵后无人重挂
             var sf = _snapFrame;
             ReclaimAfterClose((sf != null ? (long)sf.W * sf.H * 4 : 0) + System.Threading.Interlocked.Read(ref _pregrabBytes));
@@ -515,6 +516,7 @@ public sealed partial class RegionPickerWindow : Window
                 st.BeginAnimation(ScaleTransform.ScaleYProperty, MaskAnim(1, 190, 90));
             }
             // 这里不 Activate、不抢键盘焦点——选区窗是非激活窗，键由 HotkeyManager 全局钩子代收（见 OnPickerKey）。
+            AttachNudgeKeys();
             Services.HotkeyManager.PickerActive = true;
             Services.HotkeyManager.PickerKey = OnPickerKey;
         };

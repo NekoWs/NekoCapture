@@ -14,6 +14,7 @@ public sealed partial class SettingsWindow
         var ui = new StackPanel();
         ui.Children.Add(UiKeyPill(ConfirmKeyRow())); ui.Children.Add(UiKeyPill(CancelKeyRow()));
         ui.Children.Add(UiKeyPill(ToastCopyRow())); Cardify(ui); panel.Children.Add(ui);
+        BuildPickerNudgeKeys(panel);
         BuildEditorKeys(panel);
     }
 

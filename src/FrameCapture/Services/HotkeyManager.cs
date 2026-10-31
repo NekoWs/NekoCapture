@@ -131,6 +131,7 @@ public sealed partial class HotkeyManager : IDisposable
         StopInputThread();
         _armedRecordKeyUps.Clear();
         _captureKeyUps.Clear();
+        _pickerNudgeKeyUps.Clear();
     }
 
     private IntPtr HookProc(int nCode, IntPtr wParam, IntPtr lParam)
@@ -163,6 +164,7 @@ public sealed partial class HotkeyManager : IDisposable
         // 录入态最优先：此刻用户在设置里按一个键给我们，任何别的判定都不该先把这一击拿走。
         // 连 Paused 都不看——录入时宿主就是把全局热键暂停掉的，那恰恰是要录的那个键。
         bool readyRelease = !isDown && _armedRecordKeyUps.Count > 0 && _armedRecordKeyUps.Remove(vk);
+        bool nudgeRelease = !isDown && _pickerNudgeKeyUps.Remove(vk);
         if (_captureKeyUps.Contains(vk))
         {
             if (!isDown) { _captureKeyUps.Remove(vk); CaptureSink?.Invoke(vk, false, mods, info.time); SessionsChanged(); }
@@ -174,8 +176,9 @@ public sealed partial class HotkeyManager : IDisposable
             if (capture(vk, isDown, mods, info.time)) return true;
             if (isDown) { _captureKeyUps.Remove(vk); SessionsChanged(); }
         }
-        if (readyRelease) { SessionsChanged(); return true; }
+        if (readyRelease || nudgeRelease) { SessionsChanged(); return true; }
         if ((_armedRecordKeyUps.Count > 0 || ArmedRecordKey != null) && RouteArmedRecordKey(vk, isDown, mods)) return true;
+        if (RoutePickerNudge(vk, isDown, mods)) return true;
 
         // 手势引擎喂键（唯一的全局触发路径）。手势层关闭时 KeySink=null，零开销。
         // Paused 时不喂：用户暂停全局热键=要求不拦截任何键，手势层同样避让。

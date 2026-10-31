@@ -9,6 +9,12 @@ public static partial class K
     /// <summary>快捷键页与录键框的文案。</summary>
     public static partial class Hotkeys
     {
+        public static readonly Str PickerNudge = new("hotkeys.pickerNudge", "选区微调", "Selection fine adjustment");
+        public static readonly Str NudgeLeft = new("hotkeys.nudgeLeft", "向左微调", "Nudge left");
+        public static readonly Str NudgeRight = new("hotkeys.nudgeRight", "向右微调", "Nudge right");
+        public static readonly Str NudgeUp = new("hotkeys.nudgeUp", "向上微调", "Nudge up");
+        public static readonly Str NudgeDown = new("hotkeys.nudgeDown", "向下微调", "Nudge down");
+        public static readonly Str PickerNudgeTip = new("hotkeys.pickerNudgeTip", "点按移动鼠标 1 像素，长按连续移动", "Tap to move the pointer by 1 pixel; hold to keep moving.");
         public static readonly Str PresetBehaviors = new("hotkeys.presetBehaviors", "预设行为", "Behavior presets");
         public static readonly Str PresetDual = new("hotkeys.presetDual", "双快捷键", "Two shortcuts");
         public static readonly Str PresetSeparate = new("hotkeys.presetSeparate", "选区与捕获", "Select, then capture");

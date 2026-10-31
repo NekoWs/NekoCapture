@@ -72,6 +72,15 @@ public bool EditableSelection { get; set; } = false;
     /// <summary>取消选区的键位：Esc 始终有效，这里配的是替代或额外的键。</summary>
     public string PickerCancelChord { get; set; } = "Esc";
 
+    /// <summary>选区时向左逐像素移动鼠标的键位，空值表示不绑定。</summary>
+    public string PickerNudgeLeftChord { get; set; } = "Left";
+    /// <summary>选区时向右逐像素移动鼠标的键位，空值表示不绑定。</summary>
+    public string PickerNudgeRightChord { get; set; } = "Right";
+    /// <summary>选区时向上逐像素移动鼠标的键位，空值表示不绑定。</summary>
+    public string PickerNudgeUpChord { get; set; } = "Up";
+    /// <summary>选区时向下逐像素移动鼠标的键位，空值表示不绑定。</summary>
+    public string PickerNudgeDownChord { get; set; } = "Down";
+
     /// <summary>点击窗口时截取完整窗口（默认开）：选区窗里点一个吸附到的窗口，截的是该窗口本体而非屏幕矩形像素
     /// （WGC 按窗口捕获，Win11 圆角透明、浏览器/GPU 窗也干净），可选带真实投影、
     /// 背景透明。关掉则按屏幕矩形抓像素。目标窗口按 WGC 独立捕获，取帧失败时自动回退区域截图。</summary>

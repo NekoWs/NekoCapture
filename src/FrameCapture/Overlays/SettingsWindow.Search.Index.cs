@@ -13,6 +13,7 @@ public sealed partial class SettingsWindow
         Index("hotkeys", K.Settings.Hotkeys, K.SettingsNavigation.SearchKeys);
         Index("hotkeys", K.Hotkeys.EnableHotkeys, K.SettingsNavigation.SearchKeys);
         Index("ui-keys", K.Hotkeys.UiKeys, K.SettingsNavigation.SearchKeys);
+        Index("ui-keys", K.Hotkeys.PickerNudge, K.SettingsNavigation.SearchPointer);
         Index("files", K.Settings.Output, K.SettingsNavigation.SearchFiles);
         Index("behaviors", K.Behaviors.Title, K.SettingsNavigation.SearchBehavior);
         Index("hotkeys", K.Hotkeys.Trigger, K.SettingsNavigation.SearchKeys);

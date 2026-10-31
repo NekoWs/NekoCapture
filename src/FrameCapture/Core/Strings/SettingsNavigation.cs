@@ -24,6 +24,7 @@ public static partial class K
         public static readonly Str ExecuteHint = new("settingsnavigation.executeHint", "操作顺序与事件分支", "Action order and event branches");
         public static readonly Str Selection = new("settingsnavigation.selection", "选区与吸附", "Selection and snapping");
         public static readonly Str SelectionHint = new("settingsnavigation.selectionHint", "控件吸附、停留时间与选区辅助", "Control snapping, dwell time, and selection aids");
+        public static readonly Str SearchPointer = new("settingsnavigation.searchPointer", "方向键 鼠标 光标 微调 像素", "arrows mouse cursor pointer nudge fine pixel");
         public static readonly Str Feedback = new("settingsnavigation.feedback", "截图反馈", "Capture feedback");
         public static readonly Str FeedbackHint = new("settingsnavigation.feedbackHint", "边框、提示与提示音", "Outlines, notifications, and sounds");
         public static readonly Str Editing = new("settingsnavigation.editing", "编辑与标注", "Editing and annotation");
