@@ -54,7 +54,7 @@ public sealed partial class TrayService
             item.Click += (_, _) => { menu.IsOpen = false; ResidentBridge.RunTrayAction(action); };
             menu.Items.Add(item);
         }
-        Item(K.Tray.CaptureNow, "\uE7A8", () => _host.Controller.CaptureStoredStill());
+        Item(K.Tray.CaptureNow, "\uE7A8", () => _host.Controller.BeginImmediateCapture());
         Item(K.Common.ScrollingCapture, "\uE8CB", () => _host.Controller.BeginScrollCapture());
         Item(K.Common.DelayedCapture, "\uE823", () => _host.Controller.BeginDelayedCapture());
         Item(K.Tray.PinFromClipboard, "\uE718", async () =>

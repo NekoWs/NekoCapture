@@ -13,6 +13,10 @@ public sealed partial class CaptureController
     TaskCompletionSource<string>? _editorEvent;
     bool? _consumeStop;
 
+    /// <summary>通过固定隐藏行为选区捕获，显示模式切换，截图后提示，录制后编辑。</summary>
+    public void BeginImmediateCapture() =>
+        BeginBehavior(BuiltInBehaviors.CreateCapture(), BuiltInBehaviors.Capture, BuiltInBehaviors.Capture);
+
     /// <summary>执行行为入口；同一快捷键再次触发或停止入口结束当前录制。</summary>
     /// <param name="graph">独立的运行快照。</param>
     /// <param name="entryId">行为入口。</param>

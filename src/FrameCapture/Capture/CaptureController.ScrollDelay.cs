@@ -51,9 +51,9 @@ public sealed partial class CaptureController : IDisposable
         _autoWaitSettle = false; _autoNoNew = 0; _autoNotch = ScrollAutoPolicy.NotchStart; _autoStuckTicks = 0;
     }
 
-    /// <summary>三层浮层自下而上（取景层 → 预览卡 → 控制条）加 280ms 步进计时器。
+    /// <summary>三层浮层自下而上（取景层 → 预览图 → 控制条）加 280ms 步进计时器。
     /// 新起一次与接着上次都走这里：两条路径的浮层行为必须一模一样。</summary>
-    /// <param name="acc">预览卡第一眼要放的基准像素，与 <see cref="ResetScrollSession"/> 收下的同一份。</param>
+    /// <param name="acc">预览图第一眼要放的基准像素，与 <see cref="ResetScrollSession"/> 收下的同一份。</param>
     /// <param name="region">要滚的屏幕区域，浮层就铺在它上面。</param>
     /// <param name="device">该区域所在显示器的设备名。</param>
     void ShowScrollStage(byte[] acc, RectI region, string device)
@@ -201,7 +201,7 @@ public sealed partial class CaptureController : IDisposable
         }
     }
 
-    /// <summary>收起取景层与预览卡并清字段。完成与取消两条退出路径都走这里——漏一条就是关不掉的压暗遮罩。</summary>
+    /// <summary>收起取景层与预览图并清字段。完成与取消两条退出路径都走这里——漏一条就是关不掉的压暗遮罩。</summary>
     void CloseScrollStageAndPreview()
     {
         var stage = _scrollStage; _scrollStage = null;
@@ -263,7 +263,7 @@ public sealed partial class CaptureController : IDisposable
         finally { if (generation == _scrollGeneration) _scrollFinishing = false; }
     }
 
-    /// <summary>取消滚动拼接：停表、还原注轮借走的光标、收起取景层与预览卡、关控制条、丢弃已拼接的内容（不落盘、不进剪贴板）。
+    /// <summary>取消滚动拼接：停表、还原注轮借走的光标、收起取景层与预览图、关控制条、丢弃已拼接的内容（不落盘、不进剪贴板）。
     /// 退出必须清 <c>HotkeyManager.ScrollActive</c>，否则全局 Esc 会被一直吞掉（控制条 <c>Closed</c> 另有兜底）。</summary>
     public void ScrollCancel()
     {

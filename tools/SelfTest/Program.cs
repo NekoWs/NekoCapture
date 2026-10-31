@@ -1194,6 +1194,8 @@ static partial class SelfTest
             return 2;
         }
         InstallQuietWindows();
+        if (args.Length == 1 && args[0] == "capture-preview")
+        { CapturePreviewChecks(); Console.WriteLine($"SelfTest pass={pass} fail={fail}"); return fail == 0 ? 0 : 1; }
         if (args.Length == 1 && args[0] == "tray-menu")
         { TrayMenuChecks(); Console.WriteLine($"SelfTest pass={pass} fail={fail}"); return fail == 0 ? 0 : 1; }
         if (args.Length == 1 && args[0] == "tray-icons")
@@ -6697,7 +6699,8 @@ static partial class SelfTest
             var spw = new FrameCapture.Overlays.ScrollPreviewWindow(new FrameCapture.Capture.RectI(0, 0, 320, 240), "");
             spw.Show();
             PumpMs(220);
-            CheckEdge("scroll-preview", spw);
+            Chk("scroll-preview-image-without-card-edge", spw.Content is System.Windows.Controls.Grid grid
+                && grid.Children.Count == 1 && grid.Children[0] is System.Windows.Controls.Image && grid.Effect == null);
             spw.Close();
         }
         catch (Exception e) { Chk("T223-card-edge", false, e.Message); }

@@ -368,7 +368,7 @@ static partial class SelfTest
         w.Close();
     }
 
-    /// <summary>滚动截图的三层浮层：取景层、预览卡、控制条。</summary>
+    /// <summary>滚动截图的三层浮层：取景层、预览图、控制条。</summary>
     static void BuildScrollAudit(Application app, List<string> rows)
     {
         var reg = new RectI(600, 200, 900, 700);

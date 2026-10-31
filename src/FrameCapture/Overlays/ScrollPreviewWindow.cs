@@ -1,7 +1,7 @@
 ﻿using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
-using System.Windows.Media.Effects;
+using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
 using FrameCapture.Capture;
 using FrameCapture.Core;
@@ -10,152 +10,84 @@ using FrameCapture.Services;
 
 namespace FrameCapture.Overlays;
 
-/// <summary>
-/// 滚动截图的实时预览卡：贴在选区右侧（放不下翻到左侧），显示已拼接长图的缩略与实时尺寸。
-/// 长图按图区尺寸降采样后再上屏——累积图动辄上万行，整幅转 BitmapSource 会把内存吃穿。
-/// 图区用 <see cref="Stretch.Uniform"/>：长图再长也只缩进容器，永不溢出面板。
-/// </summary>
+/// <summary>选区旁的无边框长图预览，按宽度缩放并随内容增高，超出屏幕时显示最新尾部。</summary>
 public sealed class ScrollPreviewWindow : Window
 {
-    const double PanelW = 200;    // 面板宽（DIP）
-    const double Gap = 12;        // 面板与选区的间距（DIP）
-    const double PadX = 12, PadTop = 10, PadBottom = 12;
-    const double HeadH = 20, HeadGap = 8;
-
+    const double PreviewWidth = 280, Gap = 12, ScreenMargin = 4;
     readonly Image _img;
-    readonly TextBlock _size;
-    readonly int _maxW, _maxH;   // 缩略上限＝图区的物理像素尺寸
+    readonly int _maxW, _maxH;
+    readonly double _sx, _sy, _anchorTop, _screenTop, _screenBottom;
     bool _closing;
-    int _lastW, _lastH;          // 上次上屏的长图尺寸，同尺寸重复调用不重绘
+    int _lastW, _lastH, _imageGeneration;
 
-    /// <summary>
-    /// 构造预览卡：只建界面，调用方自行 <c>Show</c>。落点在构造期定好，缩略上限按图区尺寸与屏幕 DPI 算定。
-    /// 必须在 UI 线程构造。
-    /// </summary>
-    /// <param name="region">滚动选区，物理像素、虚拟桌面绝对坐标；面板贴着它的外侧放。</param>
-    /// <param name="monitorDevice">选区所在显示器 device name；按设备取不到时按区域坐标就近回退。</param>
-    /// <param name="entranceLeadMs">入场起跳前的等待（ms）。滚动流程的三层浮层同刻 Show，
-    /// 由调用方给出各自的错位量，让它们按取景层 → 预览卡 → 控制条的顺序依次落位。</param>
+    /// <summary>创建不激活、不接收鼠标输入且排除捕获的预览窗口，调用方负责显示。</summary>
+    /// <param name="region">选区的虚拟桌面物理像素坐标。</param>
+    /// <param name="monitorDevice">选区所在显示器，未找到时使用最近的显示器。</param>
+    /// <param name="entranceLeadMs">入场动画的延迟毫秒数。</param>
     public ScrollPreviewWindow(RectI region, string monitorDevice, int entranceLeadMs = 0)
     {
         Title = "FrameCapture Scroll Preview";
         Fluent.BorderlessOverlay(this);
+        AllowsTransparency = true;
+        SizeToContent = SizeToContent.Manual;
 
         var mon = Monitors.ByDevice(monitorDevice) ?? Monitors.Nearest(region.X, region.Y);
-        var (sx, sy) = Monitors.DpiScaleOf(mon);
-        double monH = mon.Bounds.H / sy;
-        double panelH = Math.Min(region.H / sy + 40, monH - 40);
-        if (panelH < 150) panelH = Math.Min(150, Math.Max(120, monH - 8));
-        double imgH = Math.Max(48, panelH - PadTop - PadBottom - HeadH - HeadGap);
-        _maxW = Math.Max(1, (int)((PanelW - 2 * PadX) * sx));
-        _maxH = Math.Max(1, (int)(imgH * sy));
-
-        // 落点：优先选区右侧；越过该屏右界则翻到左侧；两侧都放不下贴选区内右缘，最后再钳进屏内
-        int gapPx = (int)(Gap * sx), panelWpx = (int)(PanelW * sx), panelHpx = (int)(panelH * sy);
-        int left = region.Right + gapPx;
-        if (left + panelWpx > mon.Bounds.Right) left = region.X - gapPx - panelWpx;
-        if (left < mon.Bounds.X) left = region.Right - panelWpx - gapPx;
-        left = Math.Max(mon.Bounds.X + 4, Math.Min(left, mon.Bounds.Right - panelWpx - 4));
-        int top = region.Y;
-        if (top + panelHpx > mon.Bounds.Bottom) top = mon.Bounds.Bottom - panelHpx;
-        if (top < mon.Bounds.Y) top = mon.Bounds.Y;
-        Left = left / sx; Top = top / sy;
-
-        var card = new Border
-        {
-            Width = PanelW,
-            Background = Theme.CardBgBrush,
-            BorderBrush = Core.Fluent.CardEdge(),   // 上缘亮下缘暗：暗色里投影看不见，靠这条边说清卡片是浮着的
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(12),
-            Padding = new Thickness(PadX, PadTop, PadX, PadBottom),
-            Effect = new DropShadowEffect { BlurRadius = 22, ShadowDepth = 3, Opacity = 0.4, Color = Colors.Black },
-        };
-
-        var root = new Grid();
-        root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-
-        var head = new Grid { Height = HeadH };
-        head.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        head.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        head.Children.Add(new TextBlock
-        {
-            Text = Loc.T(K.Common.Preview),
-            FontSize = 13.5,
-            FontWeight = FontWeights.Bold,
-            Foreground = Theme.TextBrush,
-            FontFamily = new FontFamily("Segoe UI"),
-            VerticalAlignment = VerticalAlignment.Center,
-        });
-        _size = new TextBlock
-        {
-            Text = "—",
-            FontSize = 11.5,
-            FontWeight = FontWeights.SemiBold,
-            Foreground = new SolidColorBrush(Core.Fluent.AccentText()),
-            FontFamily = new FontFamily("Segoe UI"),
-            VerticalAlignment = VerticalAlignment.Center,
-        };
-        Grid.SetColumn(_size, 1);
-        head.Children.Add(_size);
-        root.Children.Add(head);
+        (_sx, _sy) = Monitors.DpiScaleOf(mon);
+        double gap = Gap * _sx, margin = ScreenMargin * _sx;
+        double rightRoom = mon.Bounds.Right - margin - region.Right - gap;
+        double leftRoom = region.X - gap - mon.Bounds.X - margin;
+        double preferred = Math.Min(PreviewWidth * _sx, mon.Bounds.W - 2 * margin);
+        bool onRight = rightRoom >= preferred || rightRoom >= leftRoom;
+        double room = onRight ? rightRoom : leftRoom;
+        double width = Math.Min(preferred, Math.Max(120 * _sx, room));
+        _maxW = Math.Max(1, (int)width);
+        _maxH = Math.Max(1, (int)(mon.Bounds.H - ScreenMargin * _sy * 2));
+        double initialWidth = Math.Min(Math.Max(1, region.W), _maxW);
+        double left = onRight ? region.Right + gap : region.X - gap - initialWidth;
+        Left = Math.Clamp(left, mon.Bounds.X + margin, mon.Bounds.Right - margin - initialWidth) / _sx;
+        _screenTop = mon.Bounds.Y / _sy + ScreenMargin;
+        _screenBottom = mon.Bounds.Bottom / _sy - ScreenMargin;
+        _anchorTop = Math.Clamp(region.Y / _sy, _screenTop, _screenBottom - 1);
+        Width = initialWidth / _sx;
+        Height = Math.Max(1, Math.Min(_maxH, Math.Ceiling(region.H * initialWidth / Math.Max(1, region.W)))) / _sy;
+        Top = Math.Max(_screenTop, Math.Min(_anchorTop, _screenBottom - Height));
 
         _img = new Image
         {
-            Stretch = Stretch.Uniform,
-            StretchDirection = StretchDirection.Both,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Center,
+            Stretch = Stretch.Fill,
+            HorizontalAlignment = HorizontalAlignment.Left,
+            VerticalAlignment = VerticalAlignment.Bottom,
         };
         RenderOptions.SetBitmapScalingMode(_img, BitmapScalingMode.HighQuality);
-        // 图区底色比卡片再深一档：白底文档贴在同色卡片上看不出边界
-        Color well = Theme.IsDark ? Color.FromRgb(0x1B, 0x1B, 0x1E) : Color.FromRgb(0xE6, 0xE6, 0xEA);
-        var holder = new Border
-        {
-            Height = imgH,
-            Margin = new Thickness(0, HeadGap, 0, 0),
-            Background = new SolidColorBrush(well),
-            CornerRadius = new CornerRadius(8),
-            ClipToBounds = true,
-            Child = _img,
-        };
-        Grid.SetRow(holder, 1);
-        root.Children.Add(holder);
-
-        card.Child = root;
-        Content = card;
-
+        var viewport = new Grid { ClipToBounds = true, IsHitTestVisible = false };
+        viewport.Children.Add(_img);
+        Content = viewport;
         SourceInitialized += (_, _) =>
         {
             var h = new System.Windows.Interop.WindowInteropHelper(this).Handle;
-            Win32.SetRoundedCorners(h);
-            // 不激活、不进 Alt-Tab：预览卡只是给人看的，滚动目标窗口必须一直握着焦点
             uint ex = Win32.GetWindowLongW(h, Win32.GWL_EXSTYLE);
-            Win32.SetWindowLongW(h, Win32.GWL_EXSTYLE, ex | Win32.WS_EX_NOACTIVATE | Win32.WS_EX_TOOLWINDOW);
-            Core.Fluent.ExcludeFromCapture(h);
+            Win32.SetWindowLongW(h, Win32.GWL_EXSTYLE,
+                ex | Win32.WS_EX_NOACTIVATE | Win32.WS_EX_TOOLWINDOW | Win32.WS_EX_TRANSPARENT);
+            Fluent.ExcludeFromCapture(h);
         };
-
-        Fluent.FadeIn(this, Fluent.Motion.EnterMs, 8, offscreenFirstFrame: true, leadMs: entranceLeadMs);
-        Trace.Log($"scroll preview shown well={_maxW}x{_maxH}");
+        Closed += (_, _) => { _closing = true; ++_imageGeneration; _img.Source = null; };
+        Fluent.FadeIn(this, Fluent.Motion.EnterMs, leadMs: entranceLeadMs);
     }
 
-    private int _imageGeneration;
-
-    /// <summary>后台生成一帧预览：长图先降采样到图区尺寸再上屏。与上次尺寸相同则直接返回，不重绘。</summary>
-    /// <param name="bgra">已拼接长图本体，行主序 BGRA，行距 <c>w*4</c>。</param>
-    /// <param name="w">长图宽，物理像素。</param>
-    /// <param name="h">长图高，物理像素。</param>
+    /// <summary>后台生成有界预览像素；长图增长不改变缩放比例，过期结果不显示。</summary>
+    /// <param name="bgra">已拼接长图，行主序 BGRA。</param>
+    /// <param name="w">长图的物理像素宽度。</param>
+    /// <param name="h">长图的物理像素高度。</param>
     public async void SetImage(byte[] bgra, int w, int h)
     {
         if (_closing || w <= 0 || h <= 0 || (w == _lastW && h == _lastH)) return;
-        int generation = ++_imageGeneration, maxWidth = _maxW, maxHeight = _maxH;
+        int generation = ++_imageGeneration;
         BitmapSource? src;
         try
         {
             src = await BackgroundWork.Run(() =>
             {
-                var (pixels, width, height) = Thumbnail(bgra, w, h, maxWidth, maxHeight);
+                var (pixels, width, height) = Viewport(bgra, w, h, _maxW, _maxH);
                 if (width <= 0 || height <= 0) return null;
                 var bitmap = BitmapSource.Create(width, height, 96, 96, PixelFormats.Bgra32, null, pixels, width * 4);
                 bitmap.Freeze(); return bitmap;
@@ -163,17 +95,64 @@ public sealed class ScrollPreviewWindow : Window
         }
         catch (Exception ex) { Trace.Log("scroll preview: " + ex); return; }
         if (_closing || generation != _imageGeneration || src == null) return;
-        _img.Source = src;
-        _size.Text = $"{w}×{h} px";
+        double widthDip = src.PixelWidth / _sx, heightDip = src.PixelHeight / _sy;
+        _img.Width = widthDip; _img.Height = heightDip; _img.Source = src;
+        Width = widthDip;
+        double top = Math.Max(_screenTop, Math.Min(_anchorTop, _screenBottom - heightDip));
+        if (IsVisible)
+        {
+            Animate(HeightProperty, heightDip);
+            Animate(TopProperty, top);
+        }
+        else { Height = heightDip; Top = top; }
         _lastW = w; _lastH = h;
     }
 
-    /// <summary>带淡出收起本预览卡；重复调用无副作用。</summary>
+    void Animate(DependencyProperty property, double target)
+    {
+        double current = (double)GetValue(property);
+        if (Math.Abs(current - target) < 0.1) return;
+        SetValue(property, target);
+        BeginAnimation(property, new DoubleAnimation(current, target, TimeSpan.FromMilliseconds(Fluent.Motion.QuickMs))
+        { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }, FillBehavior = FillBehavior.Stop });
+    }
+
+    /// <summary>淡出并关闭预览，重复调用无副作用。</summary>
     public void CloseSelf()
     {
         if (_closing) return;
         _closing = true;
         Fluent.CloseWithFade(this);
+    }
+
+    /// <summary>仅按宽度缩小长图，屏幕高度只限制可见尾部，不参与缩放；输出分配不随长图增长。</summary>
+    /// <param name="bgra">源图的连续 BGRA 像素。</param>
+    /// <param name="w">源图宽度。</param>
+    /// <param name="h">源图高度。</param>
+    /// <param name="maxW">预览宽度上限。</param>
+    /// <param name="maxH">可见高度上限。</param>
+    /// <returns>预览像素及尺寸；非法尺寸或缓冲不足时返回空图。</returns>
+    public static (byte[] Bgra, int W, int H) Viewport(byte[] bgra, int w, int h, int maxW, int maxH)
+    {
+        if (bgra == null || w <= 0 || h <= 0 || maxW <= 0 || maxH <= 0
+            || (long)w * h > bgra.Length / 4) return (Array.Empty<byte>(), 0, 0);
+        int ow = Math.Min(w, maxW);
+        double scale = (double)ow / w;
+        int oh = (int)Math.Min(maxH, Math.Ceiling(h * scale));
+        int sourceHeight = Math.Min(h, (int)Math.Ceiling(oh / scale));
+        int firstRow = h - sourceHeight;
+        var pixels = new byte[checked(ow * oh * 4)];
+        for (int y = 0; y < oh; y++)
+        {
+            int sy = y == oh - 1 ? h - 1 : firstRow + (int)((long)y * sourceHeight / oh);
+            if (ow == w) Buffer.BlockCopy(bgra, sy * w * 4, pixels, y * ow * 4, ow * 4);
+            else for (int x = 0; x < ow; x++)
+            {
+                int sx = x == ow - 1 ? w - 1 : (int)((long)x * w / ow);
+                Buffer.BlockCopy(bgra, (sy * w + sx) * 4, pixels, (y * ow + x) * 4, 4);
+            }
+        }
+        return (pixels, ow, oh);
     }
 
     /// <summary>

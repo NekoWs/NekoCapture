@@ -49,7 +49,7 @@ public sealed class ScrollHintWindow : Window
     /// <param name="region">要滚的选区，物理像素、虚拟桌面绝对坐标；控制条贴其上方居中，放不下则落回区域上沿内侧。</param>
     /// <param name="monitorDevice">选区所在显示器 device name；按设备取不到时按区域坐标就近回退。</param>
     /// <param name="entranceLeadMs">入场起跳前的等待（ms）。滚动流程的三层浮层同刻 Show，
-    /// 由调用方给出各自的错位量，让它们按取景层 → 预览卡 → 控制条的顺序依次落位。</param>
+    /// 由调用方给出各自的错位量，让它们按取景层 → 预览图 → 控制条的顺序依次落位。</param>
     public ScrollHintWindow(RectI region, string monitorDevice, int entranceLeadMs = 0)
     {
         Title = "FrameCapture Scroll";

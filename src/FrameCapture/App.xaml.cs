@@ -295,8 +295,8 @@ public partial class App : Application
         }
     }
 
-    /// <summary>摆出滚动截图三件套（取景层 / 实时预览卡 / 控制条）并喂一张合成长图，供截图审查；不启动真实滚动捕获。</summary>
-    /// <param name="outp">合成长图的落盘路径，用来与预览卡片逐行对照。</param>
+    /// <summary>摆出滚动截图三件套（取景层 / 实时预览 / 控制条）并喂一张合成长图，供截图审查；不启动真实滚动捕获。</summary>
+    /// <param name="outp">合成长图的落盘路径，用来与预览图逐行对照。</param>
     static void ShowScrollPreviewScene(string outp)
     {
         try
@@ -330,7 +330,7 @@ public partial class App : Application
                 }
             Services.BgraImage.SavePng(new Capture.CapturedFrame { Bgra = acc, W = rw, H = accH, TimeMs = 0 }, outp);
 
-            // 与真实会话同一顺序：取景层 → 预览卡 → 控制条（同为 Topmost，Show 顺序决定 Z 序）
+            // 与真实会话同一顺序：取景层 → 预览图 → 控制条（同为 Topmost，Show 顺序决定 Z 序）
             var stage = new Overlays.ScrollStageWindow(region, mon.DeviceName);
             stage.Show();
             var preview = new Overlays.ScrollPreviewWindow(region, mon.DeviceName);
