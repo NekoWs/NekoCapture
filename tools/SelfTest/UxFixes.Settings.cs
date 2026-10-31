@@ -41,10 +41,23 @@ static partial class SelfTest
             bool ownsPopupItem = (bool)type.GetMethod("SettingsInputContains", BindingFlags.Static | BindingFlags.NonPublic)!
                 .Invoke(null, new object[] { combo, source })!;
             Chk("ux-combo-popup-item-remains-inside-input-boundary", ownsPopupItem);
+            var layer = (Canvas)combo.Template.FindName("numberRoll", combo);
+            var nativeText = (TextBox)combo.Template.FindName("PART_EditableTextBox", combo);
+            var snapshot = typeof(Fluent).GetMethod("ComboRollSnapshot", BindingFlags.Static | BindingFlags.NonPublic)!;
+            var oldPicture = (System.Windows.Media.Imaging.BitmapSource)snapshot.Invoke(null, new object?[] { nativeText.Parent, null })!;
             combo.SelectedItem = chosen;
+            var heldPicture = layer.Children.OfType<Image>().SingleOrDefault()?.Source as System.Windows.Media.Imaging.BitmapSource;
+            bool SamePixels(System.Windows.Media.Imaging.BitmapSource first, System.Windows.Media.Imaging.BitmapSource second)
+            {
+                if (first.PixelWidth != second.PixelWidth || first.PixelHeight != second.PixelHeight) return false;
+                int stride = first.PixelWidth * 4;
+                var a = new byte[stride * first.PixelHeight]; var b = new byte[a.Length];
+                first.CopyPixels(a, stride, 0); second.CopyPixels(b, stride, 0); return a.AsSpan().SequenceEqual(b);
+            }
+            Chk("ux-numeric-choice-holds-old-picture-before-deferred-animation", nativeText.Opacity == 0
+                && layer.Visibility == Visibility.Visible && heldPicture is { IsFrozen: true } && SamePixels(oldPicture, heldPicture));
             combo.IsDropDownOpen = false; PumpMs(35);
             Chk("ux-numeric-choice-applies", settings.Current.SnapDwellMs == 25 && combo.Text == "25");
-            var layer = (Canvas)combo.Template.FindName("numberRoll", combo);
             var digits = layer.Children.OfType<Grid>().Select(cell => cell.Children.OfType<Canvas>().Single()).ToArray();
             Chk("ux-numeric-reels-show-continuous-digits", layer.Visibility == Visibility.Visible && digits.Length == 2
                 && digits.All(tape => tape.Children.Count > 3 && ((TranslateTransform)tape.RenderTransform).HasAnimatedProperties)

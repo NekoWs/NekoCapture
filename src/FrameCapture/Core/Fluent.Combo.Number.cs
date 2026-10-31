@@ -31,7 +31,7 @@ public static partial class Fluent
     private static readonly ConditionalWeakTable<ComboBox, NumberRoll> NumberRolls = new();
     private static readonly Brush NumberWheelMask = CreateNumberWheelMask();
 
-    /// <summary>在原生选择同步前保存宽度，避免右对齐输入框先跳到新位置。</summary>
+    /// <summary>在原生选择同步前保留可见画面与宽度，候选提交期间不显示新文本。</summary>
     /// <param name="combo">正在选择候选数值的输入框。</param>
     internal static void PrepareComboNumber(ComboBox combo)
     {
@@ -40,6 +40,19 @@ public static partial class Fluent
         state.StartWidth = combo.ActualWidth;
         state.TargetWidth = combo.ActualWidth;
         state.Prepared = true;
+        if (!combo.IsLoaded || !combo.IsVisible
+            || combo.Template.FindName("PART_EditableTextBox", combo) is not TextBox text
+            || combo.Template.FindName("numberRoll", combo) is not Canvas layer
+            || text.Parent is not FrameworkElement viewport
+            || ComboRollSnapshot(viewport) is not { } snapshot) return;
+        state.Generation++;
+        layer.BeginAnimation(UIElement.OpacityProperty, null);
+        layer.Children.Clear();
+        layer.Children.Add(new Image { Source = snapshot, Width = viewport.ActualWidth, Height = viewport.ActualHeight });
+        state.Text = text; state.Layer = layer; state.Active = false;
+        text.Opacity = 0; layer.Visibility = Visibility.Visible;
+        combo.BeginAnimation(FrameworkElement.WidthProperty, null);
+        combo.SetCurrentValue(FrameworkElement.WidthProperty, state.StartWidth);
     }
 
     private static bool HoldComboNumberWidth(ComboBox combo, double target)
@@ -49,11 +62,11 @@ public static partial class Fluent
         return true;
     }
 
-    private static void StopComboNumber(ComboBox combo)
+    private static void StopComboNumber(ComboBox combo, bool restoreText = true)
     {
         if (!NumberRolls.TryGetValue(combo, out var state)) return;
         state.Generation++;
-        if (state.Text != null) state.Text.Opacity = 1;
+        if (restoreText && state.Text != null) state.Text.Opacity = 1;
         if (state.Layer != null)
         {
             state.Layer.BeginAnimation(UIElement.OpacityProperty, null);
@@ -86,7 +99,7 @@ public static partial class Fluent
         FitComboWidth(combo);
         var state = NumberRolls.GetValue(combo, _ => new NumberRoll());
         double startWidth = state.StartWidth, targetWidth = state.TargetWidth;
-        StopComboNumber(combo);
+        StopComboNumber(combo, restoreText: false);
         text.ScrollToHorizontalOffset(0); combo.UpdateLayout(); text.UpdateLayout();
         var oldLayout = LayoutNumber(text, previous, native: false);
         var newLayout = LayoutNumber(text, current, native: true);
