@@ -83,6 +83,7 @@ public sealed partial class SettingsWindow
 
     private void ClosePalettePickers()
     {
+        _paletteOpenGeneration++;
         CommitSwatch();
         CommitPaletteAccent();
         if (_palPop != null) _palPop.IsOpen = false;
@@ -123,7 +124,7 @@ public sealed partial class SettingsWindow
         element.KeyDown += (_, e) =>
         {
             if (e.Key is not (Key.Enter or Key.Space)) return;
-            SelectPalettePart(part); OpenPalettePart(part); e.Handled = true;
+            SelectPalettePart(part); QueuePalettePart(part); e.Handled = true;
         };
     }
 
@@ -150,9 +151,11 @@ public sealed partial class SettingsWindow
     {
         _paletteSelected = part;
         var box = PalettePartBounds(part); box.Inflate(2, 2);
-        _paletteHighlight!.Margin = new Thickness(box.Left, box.Top, 0, 0);
-        _paletteHighlight.Width = box.Width; _paletteHighlight.Height = box.Height;
-        _paletteHighlight.Visibility = Visibility.Visible;
+        var highlight = _paletteHighlight!;
+        Canvas.SetLeft(highlight, box.Left);
+        Canvas.SetTop(highlight, box.Top);
+        highlight.Width = box.Width; highlight.Height = box.Height;
+        highlight.Visibility = Visibility.Visible;
         PaintPalettePreview();
     }
 

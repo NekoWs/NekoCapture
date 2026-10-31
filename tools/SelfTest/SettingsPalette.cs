@@ -34,6 +34,11 @@ static partial class SelfTest
             var parts = ((IEnumerable)Field("_paletteParts")!).Cast<object>().ToArray();
             Chk("palette-preview-exposes-every-color", Theme.Tokens.All(t => parts.Any(p => Key(p) == t.Key)) && parts.Any(p => Key(p) == "Accent"));
             var stage = (Grid)Field("_paletteStage")!;
+            double previewHeight = stage.ActualHeight;
+            var wholeWindow = parts.First(p => Key(p) == "WindowBg");
+            for (int i = 0; i < 8; i++) { Call("SelectPalettePart", wholeWindow); window.UpdateLayout(); }
+            Chk("palette-window-highlight-does-not-grow-layout", Math.Abs(stage.ActualHeight - previewHeight) < 0.5
+                && VisualTreeHelper.GetParent((Border)Field("_paletteHighlight")!) is Canvas);
             foreach (string key in new[] { "Stroke", "StrokeSoft", "StrokeField" })
             {
                 object part = parts.First(p => Key(p) == key);
@@ -53,6 +58,24 @@ static partial class SelfTest
             Chk("palette-hover-highlights-selected-surface", highlight.Visibility == Visibility.Visible && highlight.Width > 20);
             var originalDark = Theme.ValueOf("CardBg", true);
             var target = Element(cardPart);
+            Call("ClosePalettePickers");
+            Call("BeginPalettePointer", cardPart);
+            Chk("palette-press-does-not-open-picker", Field("_palPop") is not Popup { IsOpen: true });
+            Call("EndPalettePointer", cardPart); PumpMs(30);
+            var clickPopup = (Popup)Field("_palPop")!;
+            Chk("palette-completed-click-keeps-picker-open", clickPopup.IsOpen && !clickPopup.StaysOpen);
+            var root = (UIElement)PresentationSource.FromVisual(clickPopup.Child)!.RootVisual;
+            root.RaiseEvent(new MouseButtonEventArgs(Mouse.PrimaryDevice, 0, MouseButton.Left) { RoutedEvent = Mouse.PreviewMouseDownEvent });
+            PumpMs(Fluent.Motion.EnterMs + 100);
+            Chk("palette-outside-pointer-dismisses-picker", !clickPopup.IsOpen);
+            Call("ClosePalettePickers");
+            Call("BeginPalettePointer", cardPart); Call("EndPalettePointer", new object?[] { null }); PumpMs(30);
+            Chk("palette-drag-away-does-not-open-picker", Field("_palPop") is not Popup { IsOpen: true });
+            Call("OpenPaletteAccent", target);
+            var accentPopup = (Popup)Field("_accentPop")!;
+            Chk("palette-accent-picker-is-armed-for-outside-click", accentPopup.IsOpen && !accentPopup.StaysOpen);
+            typeof(Window).GetMethod("OnDeactivated", flags)!.Invoke(window, new object[] { EventArgs.Empty });
+            Chk("palette-owner-deactivation-dismisses-picker", !accentPopup.IsOpen);
             Call("OpenSwatchPop", target, "CardBg", false);
             var picker = (ColorPickView)Field("_palView")!;
             var custom = Color.FromRgb(0xED, 0xD5, 0xB8); picker.Color = custom; Call("PreviewSwatch", custom);

@@ -133,14 +133,14 @@ public sealed partial class SettingsWindow : Window
         {
             Child = Fluent.PopupCard(view), Placement = PlacementMode.Bottom,
             AllowsTransparency = true, PopupAnimation = PopupAnimation.Fade,
-            PlacementTarget = target,
+            PlacementTarget = target, StaysOpen = false,
         };
         _accentView = view; _accentPop = popup;
         _accentOriginal = Theme.Accent; _accentEditing = true;
         view.Color = _accentOriginal;
         view.Changed += c => Theme.PreviewAccent(Color.FromRgb(c.R, c.G, c.B));
         popup.Closed += (_, _) => { if (ReferenceEquals(_accentPop, popup)) CommitPaletteAccent(); };
-        Fluent.OpenPopSticky(popup, this);
+        popup.IsOpen = true;
     }
 
     private void CommitPaletteAccent()
