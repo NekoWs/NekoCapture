@@ -26,7 +26,7 @@ public sealed class AppSettings
     public bool UseWgc { get; set; } = true;
 
     /// <summary>长按捕获帧率。</summary>
-    public int Fps { get; set; } = 30;
+    public int Fps { get; set; } = 60;
 
     /// <summary>跟随显示器刷新率：开启后捕获帧率自动取当前录制显示器的刷新率（如 160Hz 录满 160fps），
     /// 关闭时用上面的手动 Fps。检测失败则回退手动值。</summary>
@@ -61,7 +61,7 @@ public sealed class AppSettings
     public bool SnapContentArea { get; set; } = false;
 
     /// <summary>控件吸附的停留时间，单位毫秒；0 表示不等待停留。</summary>
-    public int SnapDwellMs { get; set; } = 50;
+    public int SnapDwellMs { get; set; } = 25;
 
 /// <summary>可调整选区：松手后先给一个能拖边角改大小、可整块移动的框，确认才出图（默认关）。</summary>
 public bool EditableSelection { get; set; } = false;
@@ -75,11 +75,11 @@ public bool EditableSelection { get; set; } = false;
     /// <summary>点击窗口时截取完整窗口（默认开）：选区窗里点一个吸附到的窗口，截的是该窗口本体而非屏幕矩形像素
     /// （WGC 按窗口捕获，Win11 圆角透明、浏览器/GPU 窗也干净），可选带真实投影、
     /// 背景透明。关掉则按屏幕矩形抓像素。目标窗口按 WGC 独立捕获，取帧失败时自动回退区域截图。</summary>
-    public bool WindowCaptureEnabled { get; set; } = true;
+    public bool WindowCaptureEnabled { get; set; } = false;
 
     /// <summary>窗口截图包含投影（默认开）：在上面开关开启时，额外把窗口边缘的真实投影截进来、
     /// 外缘柔和渐隐到透明，看上去悬浮在桌面上。关掉则只截窗口本体（圆角透明、无投影）。</summary>
-    public bool WindowCaptureShadow { get; set; } = true;
+    public bool WindowCaptureShadow { get; set; } = false;
 
     /// <summary>边框填充色：MP4 这类没有透明通道的容器，把窗口截图与录制的透明边（圆角、投影）拍平到这个颜色。
     /// 默认白——投影是半透明黑，铺在白底上才读得出阴影，铺在黑底上整圈就消失了。
@@ -93,7 +93,10 @@ public bool EditableSelection { get; set; } = false;
     public bool RecordWindowClean { get; set; } = true;
 
     /// <summary>按下选区快捷键后是否显示上次选区的虚线框（关=干净屏，Enter 确认上次选区随之失效）。</summary>
-    public bool ShowLastRegion { get; set; } = true;
+    public bool ShowLastRegion { get; set; } = false;
+
+    /// <summary>显示上次选区时，允许悬停和点击吸附到该区域。</summary>
+    public bool SnapLastRegion { get; set; } = true;
 
     /// <summary>捕获完成后除写剪贴板外，再存一份文件副本到本地目录：截图存 PNG、录制按 RecordFormat 存 MP4/WebM（未装 ffmpeg 回退 GIF）。
     /// 默认关（不意外落盘）；开启后写盘失败只记日志，绝不影响剪贴板主流程。</summary>
@@ -117,9 +120,6 @@ public bool EditableSelection { get; set; } = false;
 
     /// <summary>编辑器窗口总在最前（图钉开关，默认关）。</summary>
     public bool EditorTopmost { get; set; } = false;
-
-    /// <summary>编辑器首次上手引导是否已看过：置真后引导永久静默。</summary>
-    public bool EditorGuideShown { get; set; } = false;
 
     /// <summary>编辑器命令的自定义键位：命令 Id → 这条命令的全部按法，用 <c>|</c> 分隔，顺序即分派顺序。
     /// 空串 = 这条命令一个键都不占；表里没有的 Id 取 <see cref="EditorCommands"/> 的默认按法。

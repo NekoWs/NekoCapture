@@ -187,8 +187,11 @@ public sealed partial class EditorWindow
 
     #region 马赛克：拖框实时块均值预览，与烘焙共用 MosaicInPlace
 
-    readonly Dictionary<(int, float, int, int, int, int), BitmapSource> _mosaicCache = new();
+    readonly Dictionary<(int, int, float, int, int, int, int), BitmapSource> _mosaicCache = new();
     readonly List<(Rectangle el, Annotation a)> _mosaicEls = new();
+    private long _mosaicCacheBytes;
+    private Capture.CapturedFrame? _mosaicComposite;
+    private (int Frame, int Prefix) _mosaicCompositeKey;
 
     /// <summary>标注矩形的帧像素矩形（钳进画布）。</summary>
     (bool Ok, int Rx, int Ry, int Rw, int Rh) MosaicPx(Annotation a)
@@ -197,22 +200,31 @@ public sealed partial class EditorWindow
         var f = Cur();
         int rx = (int)Math.Round(Math.Clamp(Math.Min(a.Points[0].X, a.Points[1].X), 0f, 1f) * f.W);
         int ry = (int)Math.Round(Math.Clamp(Math.Min(a.Points[0].Y, a.Points[1].Y), 0f, 1f) * f.H);
-        int rw = (int)Math.Round(Math.Clamp(Math.Abs(a.Points[1].X - a.Points[0].X), 0f, 1f) * f.W);
-        int rh = (int)Math.Round(Math.Clamp(Math.Abs(a.Points[1].Y - a.Points[0].Y), 0f, 1f) * f.H);
+        int rw = (int)Math.Round(Math.Clamp(Math.Max(a.Points[0].X, a.Points[1].X), 0f, 1f) * f.W) - rx;
+        int rh = (int)Math.Round(Math.Clamp(Math.Max(a.Points[0].Y, a.Points[1].Y), 0f, 1f) * f.H) - ry;
         rw = Math.Min(rw, f.W - rx); rh = Math.Min(rh, f.H - ry);
         return (rw > 0 && rh > 0, rx, ry, rw, rh);
     }
 
     /// <summary>
-    /// 帧的指定区域马赛克位图：只算区域不算整帧 → 翻帧/播放时逐帧重算也便宜，
-    /// 马赛克从「静止贴图」变成「区域滤镜」。块从区域原点起算，与 Bake 完全一致（WYSIWYG，锁）。
+    /// 指定区域的马赛克位图，包含前序标注；只缓存一张前缀合成帧。
     /// </summary>
-    BitmapSource GetMosaicRect(int frameIndex, float thickness, int rx, int ry, int rw, int rh, bool cache = true)
+    BitmapSource GetMosaicRect(int frameIndex, float thickness, int rx, int ry, int rw, int rh, bool cache = true, Annotation? before = null)
     {
-        var f = _seq.Frames[frameIndex];
+        int prefix = before == null ? _anns.Items.Count : _anns.Items.TakeWhile(a => !ReferenceEquals(a, before)).Count();
+        var f = frameIndex == _index ? Cur() : _seq.Frames[frameIndex];
+        if (prefix > 0)
+        {
+            if (_mosaicComposite == null || _mosaicCompositeKey != (frameIndex, prefix))
+            {
+                _mosaicComposite = Bake.ApplyFrame(f, _anns.Items.Take(prefix).ToArray());
+                _mosaicCompositeKey = (frameIndex, prefix);
+            }
+            f = _mosaicComposite;
+        }
         rx = Math.Clamp(rx, 0, Math.Max(0, f.W - 1)); ry = Math.Clamp(ry, 0, Math.Max(0, f.H - 1));
         rw = Math.Max(1, Math.Min(rw, f.W - rx)); rh = Math.Max(1, Math.Min(rh, f.H - ry));
-        var key = (frameIndex, thickness, rx, ry, rw, rh);
+        var key = (frameIndex, prefix, thickness, rx, ry, rw, rh);
         if (cache && _mosaicCache.TryGetValue(key, out var hit)) return hit;
         var buf = new byte[rw * rh * 4];
         for (int row = 0; row < rh; row++)
@@ -223,8 +235,13 @@ public sealed partial class EditorWindow
         src.Freeze();
         if (cache)
         {
-            if (_mosaicCache.Count > 24) _mosaicCache.Clear(); // 区域小，24 帧也才几十 MB 上限内
-            _mosaicCache[key] = src;
+            long bytes = (long)rw * rh * 4;
+            const long budget = 16 * 1024 * 1024;
+            if (bytes <= budget)
+            {
+                if (_mosaicCacheBytes + bytes > budget) { _mosaicCache.Clear(); _mosaicCacheBytes = 0; }
+                _mosaicCache[key] = src; _mosaicCacheBytes += bytes;
+            }
         }
         return src;
     }
@@ -237,7 +254,7 @@ public sealed partial class EditorWindow
         {
             var (ok, rx, ry, rw, rh) = MosaicPx(a);
             if (!ok) continue;
-            el.Fill = MosaicBrush(GetMosaicRect(_index, a.Thickness, rx, ry, rw, rh), new Rect(0, 0, 1, 1),
+            el.Fill = MosaicBrush(GetMosaicRect(_index, a.Thickness, rx, ry, rw, rh, before: a), new Rect(0, 0, 1, 1),
                 new Rect(0, 0, Math.Max(1, el.Width), Math.Max(1, el.Height)));
         }
     }
@@ -331,6 +348,7 @@ public sealed partial class EditorWindow
     void RedrawAnns()
     {
         _canvas.Children.Clear();
+        _mosaicCache.Clear(); _mosaicCacheBytes = 0; _mosaicComposite = null;
         _mosaicEls.Clear();
         _annEls.Clear();
         _selBox = null;
@@ -415,12 +433,12 @@ public sealed partial class EditorWindow
                 }
                 case AnnKind.Mosaic when pts.Count >= 2:
                 {
-                    var vp = new Rect(Math.Min(pts[0].X, pts[1].X), Math.Min(pts[0].Y, pts[1].Y),
-                        Math.Max(1, Math.Abs(pts[1].X - pts[0].X)), Math.Max(1, Math.Abs(pts[1].Y - pts[0].Y)));
                     var (ok, rx, ry, rw, rh) = MosaicPx(a);
                     if (!ok) break;
+                    var vp = new Rect(_imgRect.X + rx * _imgRect.Width / Cur().W, _imgRect.Y + ry * _imgRect.Height / Cur().H,
+                        rw * _imgRect.Width / Cur().W, rh * _imgRect.Height / Cur().H);
                     // 区域位图铺满元素：Viewbox 全幅，Viewport 是元素本地坐标 (0,0,w,h)，画布定位交给 Canvas.SetLeft/Top
-                    var el = new Rectangle { Fill = MosaicBrush(GetMosaicRect(_index, a.Thickness, rx, ry, rw, rh), new Rect(0, 0, 1, 1), new Rect(0, 0, vp.Width, vp.Height)), Width = vp.Width, Height = vp.Height };
+                    var el = new Rectangle { Fill = MosaicBrush(GetMosaicRect(_index, a.Thickness, rx, ry, rw, rh, before: a), new Rect(0, 0, 1, 1), new Rect(0, 0, vp.Width, vp.Height)), Width = vp.Width, Height = vp.Height };
                     Canvas.SetLeft(el, vp.X); Canvas.SetTop(el, vp.Y);
                     _canvas.Children.Add(el);
                     _mosaicEls.Add((el, a));

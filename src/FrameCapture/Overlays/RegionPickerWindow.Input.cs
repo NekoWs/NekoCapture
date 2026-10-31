@@ -29,7 +29,8 @@ public sealed partial class RegionPickerWindow
             }
             HideSelection();
         }
-        var p = WindowPosToPhys(e.GetPosition(this));
+        _dragRawStart = WindowPosToPhys(e.GetPosition(this));
+        var p = SnapPreviousPoint(_dragRawStart);
         _dragX1 = p.X; _dragY1 = p.Y;
         _dragging = true;
         _drillLock = false;   // 起手拖拽即解除 Tab 钻取锁定
@@ -55,12 +56,17 @@ public sealed partial class RegionPickerWindow
         var p = WindowPosToPhys(dip);
         if (_dragging)
         {
+            p = SnapPreviousPoint(p);
             var rect = RectI.FromCorners(_dragX1, _dragY1, p.X, p.Y);
             ShowSpot(rect);
             UpdateLoupe(dip, p, rect);
         }
         else
         {
+            if (PreviousRegionAt(p) is { } previous)
+            {
+                CancelProbe(); _curElem = null; ShowSpot(previous); UpdateLoupe(dip, p, previous); return;
+            }
             // Tab 上钻锁定：光标未明显移动就保持锁定的父容器，否则鼠标一抖就被 hover 吸附回子控件。
             if (_drillLock)
             {
@@ -99,12 +105,15 @@ public sealed partial class RegionPickerWindow
         ReleaseMouseCapture();
         var p = WindowPosToPhys(e.GetPosition(this));
         var rect = RectI.FromCorners(_dragX1, _dragY1, p.X, p.Y);
-        if (rect.W < 8 || rect.H < 8)
+        if (Math.Abs(p.X - _dragRawStart.X) < 8 || Math.Abs(p.Y - _dragRawStart.Y) < 8)
         {
-            if (_snapContent) SelectClickedElement(p);
+            if (PreviousRegionAt(p) != null) CompleteClick(p, null);
+            else if (_snapContent) SelectClickedElement(p);
             else CompleteClick(p, null);
             return;
         }
+        p = SnapPreviousPoint(p);
+        rect = RectI.FromCorners(_dragX1, _dragY1, p.X, p.Y);
         CancelProbe();
         _selHwnd = IntPtr.Zero;
         if (!Editable) { Finish(rect); return; }
@@ -113,6 +122,12 @@ public sealed partial class RegionPickerWindow
 
     private void CompleteClick((int X, int Y) p, ElementHit? element)
     {
+        if (PreviousRegionAt(p) is { } previous)
+        {
+            _selHwnd = IntPtr.Zero;
+            if (!Editable) Finish(previous); else ShowSelection(previous);
+            return;
+        }
         var window = _windowCapture ? WindowHitForCapture(p) : null;
         bool wholeWindow = element != null && window is { } target && IsWholeWindowElement(element.Rect, target.Hwnd, target.Bounds);
         Trace.Log($"picker click candidate={window?.Hwnd ?? IntPtr.Zero} element={element?.Rect} wholeWindow={wholeWindow}");

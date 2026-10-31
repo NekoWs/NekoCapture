@@ -61,6 +61,11 @@ public static partial class Fluent
         w.SourceInitialized += (_, _) =>
         {
             var hwnd = new System.Windows.Interop.WindowInteropHelper(w).Handle;
+            System.Windows.Interop.HwndSource.FromHwnd(hwnd)?.AddHook((IntPtr h, int msg, IntPtr wp, IntPtr lp, ref bool handled) =>
+            {
+                if (msg == 0x00A3 && wp.ToInt64() == 2) handled = true;
+                return IntPtr.Zero;
+            });
             int round = Native.Win32.DWMWCP_ROUND;
             Native.Win32.DwmSetWindowAttribute(hwnd, Native.Win32.DWMWA_WINDOW_CORNER_PREFERENCE, ref round, 4);
         };

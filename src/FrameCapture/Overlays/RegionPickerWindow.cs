@@ -27,6 +27,7 @@ public sealed partial class RegionPickerWindow : Window
     private bool _dragging;
     private bool _finished;
     private RectI? _existing;
+    private readonly bool _snapLastRegion;
     private readonly bool _snapContent;
     private readonly bool _windowCapture; // 点吸附窗口时走「真·窗口截图」
     private readonly bool _magnifier;
@@ -198,7 +199,8 @@ public sealed partial class RegionPickerWindow : Window
     /// <param name="rightClickCancel">右键是否取消选区。</param>
     /// <param name="showModeSwitch">是否显示截图与录制模式按钮。</param>
     /// <param name="snapDwellMs">控件吸附停留毫秒数；0 表示不等待。</param>
-    public RegionPickerWindow(MonitorInfo monitor, RectI? existing, bool snapContent = false, bool magnifier = false, Core.ColorCopyFormat colorFormat = Core.ColorCopyFormat.Hex, bool windowCapture = false, bool freeze = false, int pregrabMax = 0, bool windowShadow = false, CapturedFrame? frozenScreen = null, bool recordMode = false, bool rightClickCancel = true, bool showModeSwitch = true, int snapDwellMs = 50)
+    /// <param name="snapLastRegion">是否吸附到上次选区及其边缘。</param>
+    public RegionPickerWindow(MonitorInfo monitor, RectI? existing, bool snapContent = false, bool magnifier = false, Core.ColorCopyFormat colorFormat = Core.ColorCopyFormat.Hex, bool windowCapture = false, bool freeze = false, int pregrabMax = 0, bool windowShadow = false, CapturedFrame? frozenScreen = null, bool recordMode = false, bool rightClickCancel = true, bool showModeSwitch = true, int snapDwellMs = 25, bool snapLastRegion = true)
     {
         _showModeSwitch = showModeSwitch;
         // 覆盖层不需要文本输入：禁用输入法，避免拼音拦截快捷键
@@ -216,6 +218,7 @@ public sealed partial class RegionPickerWindow : Window
         _colorFormat = colorFormat;
         _monitorPhys = monitor.Bounds;
         _existing = existing;
+        _snapLastRegion = snapLastRegion;
         // 定格帧在建窗前就到手 → 本窗不必分层透明：整屏已被这一帧盖住，暗化交给遮罩层。
         // AllowsTransparency 强制软件合成，4K 全屏每一帧都在 CPU 上过一遍；不透明窗走硬件合成，
         // 且窗口出现即有完整画面，不必先见桌面再等定格帧盖上。整屏像素表面两种窗都要付，省不掉。

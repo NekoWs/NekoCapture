@@ -16,7 +16,7 @@ public sealed partial class SettingsWindow
         Index("files", K.Settings.Output, K.SettingsNavigation.SearchFiles);
         Index("behaviors", K.Behaviors.Title, K.SettingsNavigation.SearchBehavior);
         Index("hotkeys", K.Hotkeys.Trigger, K.SettingsNavigation.SearchKeys);
-        Index("behaviors", K.SettingsNavigation.Shared, K.SettingsNavigation.SearchBehavior);
+        Index("behaviors", K.SettingsNavigation.Execute, K.SettingsNavigation.SearchBehavior);
         Index("selection", K.Settings.SnapToControls, K.SettingsNavigation.SearchSnap);
         Index("selection", K.Settings.SnapDwell, K.SettingsNavigation.SearchSnap, K.SettingsNavigation.SearchDelay);
         Index("selection", K.Settings.FreezeTheScreenWhileSelecting);

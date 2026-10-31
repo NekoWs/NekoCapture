@@ -65,6 +65,11 @@ public sealed partial class SettingsWindow
         });
         if (entry is Grid entryRow) AlignBindingValue(entryRow);
         rows.Children.Add(entry);
+        var mode = LabeledRow(Loc.T(K.Behaviors.EntryMode), ModeCombo(binding.EntryMode, true, value =>
+        { binding.EntryMode = value; CommitHotkeys(); }), Loc.T(K.Behaviors.EntryModeHint));
+        mode.Tag = "settings-binding-entry-mode";
+        if (mode is Grid modeRow) AlignBindingValue(modeRow);
+        rows.Children.Add(mode);
         var open = SettingsEntry(Loc.T(K.Hotkeys.ChainTitle), Loc.T(K.SettingsNavigation.ExecuteHint), "\uE7A8", () =>
         {
             if (_settings.Current.Gestures.Graph.Flow(binding.EntryId) == null) NavigateSettings("behaviors", true);

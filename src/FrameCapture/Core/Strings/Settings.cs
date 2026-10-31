@@ -149,11 +149,11 @@ public static partial class K
             "充裕：够摆好几个界面元素",
             "Plenty: enough to line up several interface elements");
         public static readonly Str PresetContrast = new("settings.presetContrast", "高对比", "High contrast");
-        public static readonly Str PresetDefault = new("settings.presetDefault", "出厂", "Stock");
-        public static readonly Str PresetForest = new("settings.presetForest", "森林", "Forest");
-        public static readonly Str PresetGraphite = new("settings.presetGraphite", "石墨", "Graphite");
-        public static readonly Str PresetMidnight = new("settings.presetMidnight", "午夜蓝", "Midnight");
-        public static readonly Str PresetSand = new("settings.presetSand", "暖沙", "Warm sand");
+        public static readonly Str PresetDefault = new("settings.presetDefault", "默认", "Default");
+        public static readonly Str PresetForest = new("settings.presetForest", "绿", "Green");
+        public static readonly Str PresetGraphite = new("settings.presetGraphite", "灰", "Gray");
+        public static readonly Str PresetMidnight = new("settings.presetMidnight", "蓝", "Blue");
+        public static readonly Str PresetSand = new("settings.presetSand", "暖色", "Warm");
         public static readonly Str Preview = new("settings.preview", "试听", "Preview");
         public static readonly Str QuickEnoughToMove = new(
             "settings.quickEnoughToMove",
@@ -249,6 +249,8 @@ public static partial class K
         public static readonly Str TokenStrokeField = new("settings.tokenStrokeField", "控件描边", "Control stroke");
         public static readonly Str TokenStrokeSoft = new("settings.tokenStrokeSoft", "细描边", "Soft stroke");
         public static readonly Str TokenSuccess = new("settings.tokenSuccess", "成功", "Success");
+        public static readonly Str SnapLastRegion = new("settings.snapLastRegion", "吸附到上次选区", "Snap to last selection");
+        public static readonly Str SnapLastRegionHint = new("settings.snapLastRegionHint", "悬停或点击上次选区时复用该区域", "Hover over or click the previous selection to reuse it");
         public static readonly Str TokenText = new("settings.tokenText", "正文", "Body text");
         public static readonly Str TokenTextDim = new("settings.tokenTextDim", "次要文字", "Secondary text");
         public static readonly Str TokenTrack = new("settings.tokenTrack", "轨道", "Track");

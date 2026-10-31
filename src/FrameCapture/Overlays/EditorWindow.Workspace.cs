@@ -61,7 +61,7 @@ public sealed partial class EditorWindow
         BuildSnack();
         var viewHost = new Border
         {
-            Background = new SolidColorBrush(Color.FromRgb(0x16, 0x18, 0x1C)),
+            Background = Theme.WindowBgSolidBrush,
             Child = _viewGrid, ClipToBounds = true,
         };
         Grid.SetColumn(viewHost, 1);

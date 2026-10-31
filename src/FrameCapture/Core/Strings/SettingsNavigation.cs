@@ -19,8 +19,7 @@ public static partial class K
         public static readonly Str PresetsHint = new("settingsnavigation.presetsHint", "快捷键与行为的预设方案", "Ready-made shortcuts and behaviors");
         public static readonly Str UiKeys = new("settingsnavigation.uiKeys", "界面快捷键", "Interface shortcuts");
         public static readonly Str UiKeysHint = new("settingsnavigation.uiKeysHint", "确认、取消、复制与编辑器按键", "Confirm, cancel, copy, and editor keys");
-        public static readonly Str Shared = new("settingsnavigation.shared", "共享行为", "Shared behaviors");
-        public static readonly Str SharedHint = new("settingsnavigation.sharedHint", "共享行为与动作链", "Reusable behaviors and action chains");
+        public static readonly Str SharedHint = new("settingsnavigation.sharedHint", "行为入口与动作链", "Reusable behaviors and action chains");
         public static readonly Str Execute = new("settingsnavigation.execute", "执行行为", "Run behavior");
         public static readonly Str ExecuteHint = new("settingsnavigation.executeHint", "操作顺序与事件分支", "Action order and event branches");
         public static readonly Str Selection = new("settingsnavigation.selection", "选区与吸附", "Selection and snapping");

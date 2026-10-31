@@ -50,9 +50,10 @@ public static partial class Fluent
         // 可编辑的那种：文本框占满左列，箭头是一枚只负责开关弹层的按钮。
         // 文本框自己不带底色与描边，圆角与描边由外层这一圈画，聚焦时整圈转强调色。
         string content = editable
-            ? $@"<TextBox x:Name=""PART_EditableTextBox"" Grid.Column=""0"" Background=""Transparent"" BorderThickness=""0""
+            ? $@"<Grid Grid.Column=""0"" ClipToBounds=""True""><TextBox x:Name=""PART_EditableTextBox"" Background=""Transparent"" BorderThickness=""0""
         Foreground=""{hexText}"" CaretBrush=""{hexAccent}"" FontSize=""12.5"" Height=""28""
-        Padding=""7,0,0,0"" VerticalContentAlignment=""Center""/>"
+        Padding=""7,0,0,0"" VerticalContentAlignment=""Center""/>
+        <Canvas x:Name=""numberRoll"" IsHitTestVisible=""False"" Visibility=""Collapsed""/></Grid>"
             : $@"<Grid x:Name=""selectionViewport"" Grid.Column=""0"" Margin=""10,0,28,0"" ClipToBounds=""True"" IsHitTestVisible=""False"">
       <ContentPresenter x:Name=""selectionLabel"" VerticalAlignment=""Center""
         Content=""{{Binding SelectionBoxItem, RelativeSource={{RelativeSource AncestorType={{x:Type ComboBox}}}}}}""
@@ -100,6 +101,7 @@ public static partial class Fluent
         // 可编辑区保留文本输入，点击抬起时展开候选列表。
         c.ApplyTemplate();
         ResetComboSelection(c);
+        StopComboNumber(c);
         if (editable && c.Template?.FindName("PART_EditableTextBox", c) is TextBox tbBox)
         {
             tbBox.PreviewMouseLeftButtonUp += (_, _) => { if (!c.IsDropDownOpen) c.IsDropDownOpen = true; };
@@ -153,6 +155,10 @@ public static partial class Fluent
         c.DropDownOpened += (_, _) => PopDropDown(c);
         c.DropDownClosed += (_, _) => ResetItems(c, 1);
         WireComboSelection(c);
+        c.Unloaded += (_, _) => StopComboNumber(c);
+        c.PreviewTextInput += (_, _) => StopComboNumber(c);
+        c.PreviewKeyDown += (_, _) => StopComboNumber(c);
+        c.PreviewMouseLeftButtonDown += (_, _) => StopComboNumber(c);
     }
 
     static void FitComboWidth(ComboBox c)

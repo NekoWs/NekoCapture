@@ -74,6 +74,7 @@ public sealed partial class RegionPickerWindow
         if (TryCachedSnap()) return;
         long generation = _probeGeneration;
         var point = WindowPosToPhys(_pointerDip);
+        if (PreviousRegionAt(point) != null) return;
         var self = new System.Windows.Interop.WindowInteropHelper(this).Handle;
         try
         {
@@ -95,6 +96,7 @@ public sealed partial class RegionPickerWindow
 
     private bool TryCachedSnap()
     {
+        if (PreviousRegionAt(WindowPosToPhys(_pointerDip)) != null) return false;
         if (!_snapContent || _probeDue == 0 || Environment.TickCount64 < _probeDue
             || _finished || _dragging || _grab != GrabKind.None || _sel != null || _drillLock || _clickPending) return false;
         if (OverButton(_pointerDip, _modeCapture) || OverButton(_pointerDip, _modeRecord)) return false;

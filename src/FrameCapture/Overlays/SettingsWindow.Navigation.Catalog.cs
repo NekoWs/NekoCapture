@@ -46,7 +46,7 @@ public sealed partial class SettingsWindow
         Page("presets", "hotkeys", "hotkeys", K.SettingsNavigation.Presets, K.SettingsNavigation.PresetsHint, "\uE8A5", 0,
             p => p.Children.Add(BuildBehaviorPresets()));
         Page("ui-keys", "hotkeys", "hotkeys", K.SettingsNavigation.UiKeys, K.SettingsNavigation.UiKeysHint, "\uE765", 0, BuildInterfaceKeys);
-        Page("behaviors", "hotkeys", "hotkeys", K.SettingsNavigation.Shared, K.SettingsNavigation.SharedHint, "\uE7A8", 1, BuildSharedBehaviorList);
+        Page("behaviors", "hotkeys", "hotkeys", K.SettingsNavigation.Execute, K.SettingsNavigation.SharedHint, "\uE7A8", 1, BuildSharedBehaviorList);
         Page("flow", "behaviors", "hotkeys", K.SettingsNavigation.Execute, K.SettingsNavigation.ExecuteHint, "\uE7A8", 1, p =>
         {
             BuildBehaviors(p);

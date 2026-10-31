@@ -549,19 +549,6 @@ static partial class SelfTest
         // 淡入动画会把窗口留在半透明：排空 dispatcher 再把不透明度钉死，拍出来才是常态样子
         w.Dispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.Loaded);
         w.Opacity = 1;
-        var flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
-        var t = typeof(FrameCapture.Overlays.EditorWindow);
-        if (guide) t.GetMethod("ShowGuide", flags)?.Invoke(w, null);
-        else
-        {
-            // CloseGuide 走淡出动画，紧接着拍图会把还在场上的引导一起拍进来；直接从视觉树摘掉
-            if (t.GetField("_guide", flags)?.GetValue(w) is System.Windows.FrameworkElement g
-                && g.Parent is System.Windows.Controls.Panel host)
-            {
-                host.Children.Remove(g);
-                t.GetField("_guide", flags)!.SetValue(w, null);
-            }
-        }
         double W = w.ActualWidth, H = w.ActualHeight;
         var root = (UIElement)w.Content;
         root.Measure(new System.Windows.Size(W, H));
@@ -1207,6 +1194,8 @@ static partial class SelfTest
             return 2;
         }
         InstallQuietWindows();
+        if (args.Length == 1 && args[0] == "ux-fixes")
+        { UxFixesChecks(); Console.WriteLine($"SelfTest pass={pass} fail={fail}"); return fail == 0 ? 0 : 1; }
         if (args.Length == 1 && args[0] == "menu-layout")
         { MenuLayoutChecks(); Console.WriteLine($"SelfTest pass={pass} fail={fail}"); return fail == 0 ? 0 : 1; }
         if (args.Length == 1 && args[0] == "settings-hierarchy")

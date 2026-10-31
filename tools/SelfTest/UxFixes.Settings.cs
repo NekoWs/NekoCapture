@@ -1,0 +1,88 @@
+using System.Reflection;
+using System.Runtime.InteropServices;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Input;
+using System.Windows.Media;
+using FrameCapture.Core;
+using FrameCapture.Overlays;
+using FrameCapture.Services;
+
+static partial class SelfTest
+{
+    [DllImport("user32.dll", EntryPoint = "SendMessageW")]
+    private static extern IntPtr UxSendMessage(IntPtr hwnd, uint message, IntPtr wp, IntPtr lp);
+
+    private static void UxFixesChecks()
+    {
+        _ = Application.Current ?? new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
+        const BindingFlags flags = BindingFlags.NonPublic | BindingFlags.Instance;
+        var defaults = new AppSettings();
+        Chk("ux-defaults", defaults.Fps == 60 && defaults.SnapDwellMs == 25 && !defaults.ShowLastRegion
+            && !defaults.WindowCaptureEnabled && !defaults.WindowCaptureShadow);
+        var host = typeof(AppHost).GetProperty("Settings")!; var prior = host.GetValue(AppHost.Current);
+        var settings = new SettingsService(); host.SetValue(AppHost.Current, settings);
+        settings.Mutate(s => { s.SnapDwellMs = 50; s.ShowLastRegion = false; s.WindowCaptureEnabled = false; s.WindowCaptureShadow = false; });
+        var window = new SettingsWindow();
+        var type = typeof(SettingsWindow);
+        object? Field(string name) => type.GetField(name, flags)!.GetValue(window);
+        object? Call(string name, params object?[] args) => type.GetMethod(name, flags)!.Invoke(window, args);
+        void Go(string page) { Call("NavigateSettings", page, false, true); PumpMs(40); window.UpdateLayout(); }
+        try
+        {
+            Call("Build"); ShowOffscreen(window); PumpMs(100); Go("selection");
+            var bodies = (Dictionary<string, StackPanel>)Field("_settingsBodies")!;
+            var combo = Descendants(bodies["selection"]).OfType<ComboBox>().Single(c => c.Tag as string == "settings-duration-snap");
+            combo.IsDropDownOpen = true;
+            combo.SelectedItem = combo.Items.Cast<ComboBoxItem>().Single(item => (double)item.Tag == 25);
+            combo.IsDropDownOpen = false; PumpMs(35);
+            Chk("ux-numeric-choice-applies", settings.Current.SnapDwellMs == 25 && combo.Text == "25");
+            var layer = (Canvas)combo.Template.FindName("numberRoll", combo);
+            var digits = ((StackPanel)layer.Children[0]).Children.Cast<Grid>().ToArray();
+            Chk("ux-numeric-digits-roll-independently", layer.Visibility == Visibility.Visible && digits.Length == 2
+                && ((TranslateTransform)digits[0].Children[1].RenderTransform).Y < 0
+                && ((TranslateTransform)digits[1].Children[1].RenderTransform).Y > 0);
+            combo.RaiseEvent(new TextCompositionEventArgs(Keyboard.PrimaryDevice, new TextComposition(InputManager.Current, combo, "37"))
+                { RoutedEvent = TextCompositionManager.PreviewTextInputEvent });
+            combo.Text = "37";
+            combo.RaiseEvent(new KeyboardFocusChangedEventArgs(Keyboard.PrimaryDevice, 0, combo, null) { RoutedEvent = Keyboard.LostKeyboardFocusEvent });
+            Chk("ux-numeric-typed-input-has-no-animation", settings.Current.SnapDwellMs == 37 && layer.Visibility == Visibility.Collapsed);
+            var shadow = AllText(bodies["selection"]).Single(t => t.Text == Loc.T(K.Settings.IncludeTheShadowInWindow));
+            Chk("ux-shadow-hidden-until-window-capture-enabled", !shadow.IsVisible);
+            var bodyText = AllText(bodies["selection"]).Single(t => t.Text == Loc.T(K.Settings.ClickAWindowToCapture));
+            var row = (Grid)VisualTreeHelper.GetParent(bodyText);
+            void Toggle() => row.RaiseEvent(new MouseButtonEventArgs(Mouse.PrimaryDevice, 0, MouseButton.Left) { RoutedEvent = UIElement.MouseLeftButtonDownEvent });
+            Toggle(); PumpMs(Fluent.Motion.EnterMs + 100);
+            Chk("ux-window-capture-reveals-shadow", settings.Current.WindowCaptureEnabled && shadow.IsVisible);
+            Toggle(); PumpMs(Fluent.Motion.ExitMs + 100);
+            Chk("ux-window-capture-hides-shadow", !settings.Current.WindowCaptureEnabled && !shadow.IsVisible);
+            Go("behaviors");
+            var add = (Button)Field("_settingsAddBehavior")!;
+            Chk("ux-behavior-add-shares-title-row", add.IsVisible
+                && ReferenceEquals(VisualTreeHelper.GetParent(add), VisualTreeHelper.GetParent((TextBlock)Field("_settingsHeader")!)));
+            var graph = new BehaviorGraph(); var select = graph.Add(GestureActions.Select);
+            var still = graph.Add(GestureActions.GrabStill); var record = graph.Add(GestureActions.RecordStart);
+            select.Branches[BehaviorPorts.Still].Add(still.Id); select.Branches[BehaviorPorts.Record].Add(record.Id);
+            var flow = new BehaviorFlow { Steps = new() { select.Id } }; graph.Flows.Add(flow);
+            var a = new GestureBindingDto { Id = Guid.NewGuid().ToString("N"), Chord = "Ctrl+Alt+A", EntryId = flow.Id };
+            var b = new GestureBindingDto { Id = Guid.NewGuid().ToString("N"), Chord = "Ctrl+Alt+R", EntryId = flow.Id };
+            settings.Mutate(s => { s.Gestures.Graph = graph; s.Gestures.Bindings = new() { a, b }; });
+            foreach (var (binding, mode) in new[] { (a, BehaviorPorts.Still), (b, BehaviorPorts.Record) })
+            {
+                Call("OpenSettingsBinding", binding); PumpMs(Fluent.Motion.QuickMs + Fluent.Motion.EnterMs + 80);
+                var page = bodies["binding:" + binding.Id];
+                var modeRow = Descendants(page).OfType<FrameworkElement>().Single(e => e.Tag as string == "settings-binding-entry-mode");
+                var choice = Descendants(modeRow).OfType<ComboBox>().Single();
+                choice.SelectedItem = choice.Items.Cast<ComboBoxItem>().Single(i => i.Tag as string == mode);
+            }
+            Chk("ux-dual-shortcuts-created-without-preset", a.EntryMode == BehaviorPorts.Still && b.EntryMode == BehaviorPorts.Record
+                && a.EntryId == b.EntryId && !select.RecordMode);
+            UxSendMessage(new System.Windows.Interop.WindowInteropHelper(window).Handle, 0x00A3, new IntPtr(2), IntPtr.Zero);
+            Chk("ux-title-double-click-keeps-window-size", window.WindowState == WindowState.Normal);
+            UxEditorFixesChecks(settings);
+        }
+        catch (Exception ex) { Chk("ux-fixes-exception", false, ex.ToString()); }
+        finally { window.Close(); host.SetValue(AppHost.Current, prior); }
+    }
+}

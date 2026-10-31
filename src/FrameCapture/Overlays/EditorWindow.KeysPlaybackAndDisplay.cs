@@ -60,12 +60,7 @@ public sealed partial class EditorWindow : Window
     {
         Trace.Log($"editor key={mods}+{key}");
         // 首次引导打开时吞掉所有键（Enter/Esc 只关引导，绝不落到"确定/放弃捕获"上）
-        if (_guide != null)
-        {
-            if (key is Key.Escape or Key.Enter or Key.Space) CloseGuide();
-            if (e != null) e.Handled = true;
-            return;
-        }
+
         // 文字输入中：编辑快捷键全部让位（Enter 上屏 / Esc 取消由输入框自理，不落到确定/放弃上）
         if (_textInput != null) return;
         _keyMap ??= EditorCommands.BuildMap(_settings.Current);

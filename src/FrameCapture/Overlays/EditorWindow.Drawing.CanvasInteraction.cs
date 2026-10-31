@@ -189,16 +189,17 @@ public sealed partial class EditorWindow
                 break;
             case Tool.Mosaic when _preview is Rectangle mr && mr.Fill is ImageBrush mb:
             {
-                double w = Math.Abs(p.X - _pressPos.X), h = Math.Abs(p.Y - _pressPos.Y);
-                double x = Math.Min(_pressPos.X, p.X), y = Math.Min(_pressPos.Y, p.Y);
-                // 预览位图 = 当前拖框在帧像素上的区域马赛克（块对齐框原点，与烘焙一致）；拖框中不进缓存
-                var m0 = Norm(new Point(x, y)); var m1 = Norm(new Point(x + w, y + h));
-                var mf = Cur();
-                int rx = (int)Math.Round(m0.X * mf.W), ry = (int)Math.Round(m0.Y * mf.H);
-                int rw = Math.Max(1, (int)Math.Round((m1.X - m0.X) * mf.W)), rh = Math.Max(1, (int)Math.Round((m1.Y - m0.Y) * mf.H));
-                mr.Fill = MosaicBrush(GetMosaicRect(_index, CurWidth, rx, ry, rw, rh, cache: false), new Rect(0, 0, 1, 1), new Rect(0, 0, Math.Max(1, w), Math.Max(1, h))); // 元素本地坐标系
-                _preview.Width = w; _preview.Height = h;
-                Canvas.SetLeft(_preview, x); Canvas.SetTop(_preview, y);
+                var n0 = Norm(_pressPos); var n1 = Norm(p); var frame = Cur();
+                int rx = (int)Math.Round(Math.Clamp(Math.Min(n0.X, n1.X), 0, 1) * frame.W);
+                int ry = (int)Math.Round(Math.Clamp(Math.Min(n0.Y, n1.Y), 0, 1) * frame.H);
+                int rw = (int)Math.Round(Math.Clamp(Math.Max(n0.X, n1.X), 0, 1) * frame.W) - rx;
+                int rh = (int)Math.Round(Math.Clamp(Math.Max(n0.Y, n1.Y), 0, 1) * frame.H) - ry;
+                if (rw <= 0 || rh <= 0) { mr.Width = mr.Height = 0; break; }
+                double w = rw * _imgRect.Width / frame.W, h = rh * _imgRect.Height / frame.H;
+                mr.Fill = MosaicBrush(GetMosaicRect(_index, CurWidth, rx, ry, rw, rh, cache: false), new Rect(0, 0, 1, 1), new Rect(0, 0, w, h));
+                mr.Width = w; mr.Height = h;
+                Canvas.SetLeft(mr, _imgRect.X + rx * _imgRect.Width / frame.W);
+                Canvas.SetTop(mr, _imgRect.Y + ry * _imgRect.Height / frame.H);
                 break;
             }
         }
@@ -257,8 +258,8 @@ public sealed partial class EditorWindow
             {
                 var m = new Annotation { Kind = moved.Kind, Color = moved.Color, Thickness = moved.Thickness, Text = moved.Text };
                 foreach (var pt in moved.Points)
-                    m.Points.Add(((float)Math.Clamp(pt.X + dx / Math.Max(1, _imgRect.Width), 0f, 1f),
-                                  (float)Math.Clamp(pt.Y + dy / Math.Max(1, _imgRect.Height), 0f, 1f)));
+                    m.Points.Add(((float)(pt.X + dx / Math.Max(1, _imgRect.Width)),
+                                  (float)(pt.Y + dy / Math.Max(1, _imgRect.Height))));
                 if (_anns.Replace(moved, m)) { _order.AnnAdded(); RefreshUndo(); }
                 _sel = m;
                 Core.Trace.Log($"editor ann move kind={moved.Kind} d=({dx:F0},{dy:F0})");
@@ -407,7 +408,7 @@ public sealed partial class EditorWindow
         foreach (var p in _resizeOrigPts)
         {
             double fx = (p.X - ob.X) / ob.Width, fy = (p.Y - ob.Y) / ob.Height;
-            _resizeAnn.Points.Add(((float)Math.Clamp(nx0 + fx * nw, 0, 1), (float)Math.Clamp(ny0 + fy * nh, 0, 1)));
+            _resizeAnn.Points.Add(((float)(nx0 + fx * nw), (float)(ny0 + fy * nh)));
         }
         RedrawAnns();
     }

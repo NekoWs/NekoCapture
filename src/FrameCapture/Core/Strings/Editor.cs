@@ -48,14 +48,11 @@ public static partial class K
             "自定义线宽…",
             "Custom stroke width…");
 
-        public static readonly Str DoneCancel = new("editor.doneCancel", "完成与关闭", "Done and close");
         public static readonly Str DragToPickARange = new(
             "editor.dragToPickARange",
             "拖拽选片段 · [ / ] 设入出点",
             "Drag to pick a range · [ and ] set the in and out points");
 
-        public static readonly Str DragWithTheCropTool = new("editor.dragWithTheCropTool", "拖框裁剪，Ctrl+Z 撤销", "Drag to crop; Ctrl+Z to undo.");
-        public static readonly Str EnterCopiesToTheClipboard = new("editor.enterCopiesToTheClipboard", "完成后应用编辑，关闭可放弃", "Finish to apply edits; close to discard.");
         public static readonly Str EveryNFramesRowsCols = new(
             "editor.everyNFramesRowsCols",
             "每 {0} 帧取一次 · {1} 行 × {2} 格",
@@ -66,10 +63,6 @@ public static partial class K
         public static readonly Str Exporting = new("editor.exporting", "导出 {0}…", "Exporting {0}…");
 
         public static readonly Str ExportRecording = new("editor.exportRecording", "导出录制", "Export recording");
-        public static readonly Str F1OpensTheFullHelp = new(
-            "editor.f1OpensTheFullHelp",
-            "F1 完整帮助，任意按钮悬停有说明",
-            "F1 opens the full help; every button explains itself on hover");
 
         public static readonly Str FfmpegNotFoundSoVideo = new(
             "editor.ffmpegNotFoundSoVideo",
@@ -87,7 +80,6 @@ public static partial class K
             "  ⚠内存预算已丢 {0} 帧",
             "  ⚠{0} frames dropped by the memory budget");
         public static readonly Str FramesValue = new("editor.framesValue", "{0} 帧", "{0} frames");
-        public static readonly Str GotIt = new("editor.gotIt", "知道了", "Got it");
         public static readonly Str HelpAndShortcuts = new("editor.helpAndShortcuts", "帮助与快捷键", "Help and shortcuts");
         public static readonly Str HowManyFrames = new("editor.howManyFrames", "抽多少帧", "How many frames");
         public static readonly Str LargerText = new("editor.largerText", "字号增大", "Larger text");
@@ -98,7 +90,6 @@ public static partial class K
             "MP4 视频|*.mp4|WebM 视频|*.webm|GIF 动图|*.gif",
             "MP4 video|*.mp4|WebM video|*.webm|GIF animation|*.gif");
         public static readonly Str NextFrame = new("editor.nextFrame", "下一帧", "Next frame");
-        public static readonly Str PickATool = new("editor.pickATool", "选择工具绘制，再次点击退出；V 选择、移动或删除标注", "Choose a tool to draw; click again to exit. V selects, moves, or deletes annotations.");
         public static readonly Str PinToScreen = new("editor.pinToScreen", "钉到屏幕", "Pin to screen");
 
         public static readonly Str PreviousFrame = new("editor.previousFrame", "上一帧", "Previous frame");
@@ -117,15 +108,10 @@ public static partial class K
             "Save afterimage composite");
         public static readonly Str SaveCurrentFrame = new("editor.saveCurrentFrame", "保存当前帧", "Save current frame");
         public static readonly Str SmallerText = new("editor.smallerText", "字号减小", "Smaller text");
-        public static readonly Str StartHere = new("editor.startHere", "开始使用", "Start here");
         public static readonly Str Stroke = new("editor.stroke", "{0}笔画", "{0} stroke");
 
         public static readonly Str Thin = new("editor.thin", "细", "Thin");
         public static readonly Str Undo = new("editor.undo", "撤销", "Undo");
 
-        public static readonly Str WelcomeToTheFramecaptureEditor = new(
-            "editor.welcomeToTheFramecaptureEditor",
-            "欢迎用 FrameCapture 编辑器",
-            "Welcome to the FrameCapture editor");
     }
 }

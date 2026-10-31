@@ -353,11 +353,10 @@ public sealed partial class SettingsWindow : Window
             HorizontalAlignment = HorizontalAlignment.Left, ToolTip = Loc.T(K.Behaviors.TimingHint) };
         foreach (int value in new[] { 150, 300, 400, 500, 750, 1000 }) combo.Items.Add(value.ToString());
         Fluent.StyleComboEditable(combo);
-        combo.LostKeyboardFocus += (_, _) =>
+        BindNumericField(combo, () => current, value =>
         {
-            if (!int.TryParse(combo.Text, out int value)) value = current;
-            value = Math.Clamp(value, min, max); combo.Text = value.ToString(); save(value);
-        };
+            current = (int)Math.Clamp(Math.Round(value), min, max); save(current);
+        }, text => double.TryParse(text, out double value) ? value : null, value => value.ToString("0"));
         return LabeledRow(Loc.T(label), combo, Loc.T(K.Behaviors.TimingHint));
     }
 

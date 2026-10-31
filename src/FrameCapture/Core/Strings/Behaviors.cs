@@ -14,6 +14,8 @@ public static partial class K
         public static readonly Str Entry = new("behaviors.entry", "进入行为", "Enter behavior");
         public static readonly Str InitialMode = new("behaviors.initialMode", "初始模式", "Initial mode");
         public static readonly Str NodeDefault = new("behaviors.nodeDefault", "使用行为设置", "Use behavior setting");
+        public static readonly Str EntryMode = new("behaviors.entryMode", "选区初始模式", "Initial selection mode");
+        public static readonly Str EntryModeHint = new("behaviors.entryModeHint", "此快捷键进入选区时的模式，可在选区中切换", "Initial mode for this shortcut; the selection mode switch remains available");
         public static readonly Str SelectOnly = new("behaviors.selectOnly", "仅选区", "Select region only");
         public static readonly Str SelectOnlyDesc = new("behaviors.selectOnlyDesc", "保存并复用选区，隐藏模式按钮", "Store and reuse the region; hide the mode switch.");
         public static readonly Str ClearRegion = new("behaviors.clearRegion", "清除选区", "Clear stored region");

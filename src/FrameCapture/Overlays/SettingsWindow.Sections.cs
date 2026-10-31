@@ -23,12 +23,28 @@ public sealed partial class SettingsWindow
         panel.Children.Add(EditableSelectionRow());
         panel.Children.Add(ToggleRow("\uE7C4", Loc.T(K.Settings.RightClickCancelsPicker), Loc.T(K.Settings.RightClickCancelsPickerTip),
             _settings.Current.PickerRightClickCancel, v => _settings.Mutate(s => s.PickerRightClickCancel = v)));
-        panel.Children.Add(ToggleRow("\uE7C8", Loc.T(K.Settings.ClickAWindowToCapture), Loc.T(K.Settings.ClickingAWindowThePicker),
-            _settings.Current.WindowCaptureEnabled, v => _settings.Mutate(s => s.WindowCaptureEnabled = v)));
-        panel.Children.Add(ToggleRow("\uE7B3", Loc.T(K.Settings.IncludeTheShadowInWindow), Loc.T(K.Settings.WithTheSwitchAbove),
+        var shadow = Fluent.Revealable(ToggleRow("\uE7B3", Loc.T(K.Settings.IncludeTheShadowInWindow), Loc.T(K.Settings.WithTheSwitchAbove),
             _settings.Current.WindowCaptureShadow, v => _settings.Mutate(s => s.WindowCaptureShadow = v)));
+        shadow.Margin = new Thickness(24, 0, 0, 0);
+        if (_settings.Current.WindowCaptureEnabled) Fluent.RevealOpen(shadow);
+        panel.Children.Add(ToggleRow("\uE7C8", Loc.T(K.Settings.ClickAWindowToCapture), Loc.T(K.Settings.ClickingAWindowThePicker),
+            _settings.Current.WindowCaptureEnabled, v =>
+            {
+                _settings.Mutate(s => s.WindowCaptureEnabled = v);
+                if (v) Fluent.Reveal(shadow); else Fluent.Conceal(shadow);
+            }));
+        panel.Children.Add(shadow);
+        var snapLast = Fluent.Revealable(ToggleRow("\uE7C4", Loc.T(K.Settings.SnapLastRegion), Loc.T(K.Settings.SnapLastRegionHint),
+            _settings.Current.SnapLastRegion, v => _settings.Mutate(s => s.SnapLastRegion = v)));
+        snapLast.Margin = new Thickness(24, 0, 0, 0);
+        if (_settings.Current.ShowLastRegion) Fluent.RevealOpen(snapLast);
         panel.Children.Add(ToggleRow("\uE7C4", Loc.T(K.Settings.ShowTheLastSelection), Loc.T(K.Settings.AfterTheSelectionHotkey),
-            _settings.Current.ShowLastRegion, v => _settings.Mutate(s => s.ShowLastRegion = v)));
+            _settings.Current.ShowLastRegion, v =>
+            {
+                _settings.Mutate(s => s.ShowLastRegion = v);
+                if (v) Fluent.Reveal(snapLast); else Fluent.Conceal(snapLast);
+            }));
+        panel.Children.Add(snapLast);
         panel.Children.Add(ToggleRow("\uE721", Loc.T(K.Settings.SelectionMagnifier), Loc.T(K.Settings.WhileYouDragOrHover),
             _settings.Current.PickerMagnifier, v => _settings.Mutate(s => s.PickerMagnifier = v)));
         var pregrabRow = SliderRow("\uE7C8", Loc.T(K.Settings.WindowsPreCapturedOnFreeze), Loc.T(K.Settings.WhenBothFreezeTheScreen),

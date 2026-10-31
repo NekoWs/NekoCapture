@@ -51,6 +51,7 @@ public sealed partial class SettingsWindow
 
     private void RenderSettingsBreadcrumbs(bool animate = false)
     {
+        _settingsAddBehavior.Visibility = _currentSettingsPage == "behaviors" && !SettingsSearchActive ? Visibility.Visible : Visibility.Collapsed;
         double fromHeight = _settingsCrumbHost.Visibility == Visibility.Visible ? _settingsCrumbHost.ActualHeight : 0;
         _settingsCrumbs.Children.Clear();
         bool visible = _settingsTrail.Count > 1 && !SettingsSearchActive;
@@ -95,15 +96,13 @@ public sealed partial class SettingsWindow
 
     private void BuildSharedBehaviorList(StackPanel panel)
     {
-        var add = AboutButton(K.Behaviors.Add); add.HorizontalAlignment = HorizontalAlignment.Right;
-        add.Margin = new Thickness(0, 0, 0, 12);
-        add.Click += (_, _) =>
-        {
-            var flow = new BehaviorFlow(); _settings.Current.Gestures.Graph.Flows.Add(flow);
-            CommitBehaviorGraph(); OpenSettingsFlow(flow.Id);
-        };
-        panel.Children.Add(add);
         foreach (var flow in _settings.Current.Gestures.Graph.Flows)
             panel.Children.Add(BuildBehaviorOverviewEntry(flow));
+    }
+
+    private void AddSettingsBehavior()
+    {
+        var flow = new BehaviorFlow(); _settings.Current.Gestures.Graph.Flows.Add(flow);
+        CommitBehaviorGraph(); OpenSettingsFlow(flow.Id);
     }
 }

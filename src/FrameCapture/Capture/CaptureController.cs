@@ -168,7 +168,7 @@ public sealed partial class CaptureController : IDisposable
             pregrabMax: _settings.Current.WindowCaptureEnabled ? _settings.Current.FreezePregrabMaxWindows : 0,
             windowShadow: _settings.Current.WindowCaptureShadow, frozenScreen: frozen,
             rightClickCancel: _settings.Current.PickerRightClickCancel, recordMode: initialRecordMode,
-            showModeSwitch: showModeSwitch, snapDwellMs: _settings.Current.SnapDwellMs);
+            showModeSwitch: showModeSwitch, snapDwellMs: _settings.Current.SnapDwellMs, snapLastRegion: _settings.Current.SnapLastRegion);
         var selectionCompletion = _selectionCompletion;
         _picker.Result += async (region, hwnd) =>
         {

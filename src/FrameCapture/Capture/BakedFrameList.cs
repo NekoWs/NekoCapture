@@ -4,7 +4,7 @@ using FrameCapture.Drawing;
 
 namespace FrameCapture.Capture;
 
-/// <summary>按索引裁剪、烘焙一帧；独立租约共享只读快照，最后一个租约释放帧源。</summary>
+/// <summary>按索引烘焙并裁剪一帧；独立租约共享只读快照，最后一个租约释放帧源。</summary>
 internal sealed class BakedFrameList : IReadOnlyList<CapturedFrame>, IDisposable
 {
     readonly State _state;
@@ -46,12 +46,6 @@ internal sealed class BakedFrameList : IReadOnlyList<CapturedFrame>, IDisposable
         IReadOnlyList<Annotation> annotations, RectI? crop)
     {
         var snapshot = annotations.Select(a => a.WithStyle(null, null)).ToList();
-        if (crop is { } box)
-        {
-            var meta = FrameMetadata.At(source, start);
-            snapshot = CropRemap.Remap(snapshot, (double)box.X / meta.W, (double)box.Y / meta.H,
-                (double)box.W / meta.W, (double)box.H / meta.H);
-        }
         var frames = RetainRange(source, start, count);
         return new BakedFrameList(new State(frames, snapshot, crop), 0, count);
     }
@@ -88,7 +82,7 @@ internal sealed class BakedFrameList : IReadOnlyList<CapturedFrame>, IDisposable
     /// <value>包含裁剪与标注的只读帧。</value>
     public CapturedFrame this[int index] => ReadFrame(index, default);
 
-    /// <summary>逐帧读取并在裁剪、标注之间检查取消。</summary>
+    /// <summary>逐帧合成标注后裁剪，步骤之间检查取消。</summary>
     /// <param name="frames">只读源帧。</param>
     /// <param name="index">帧下标。</param>
     /// <param name="ct">取消令牌。</param>
@@ -107,8 +101,9 @@ internal sealed class BakedFrameList : IReadOnlyList<CapturedFrame>, IDisposable
         try
         {
             var frame = Read(_state.Source, _start + index, ct);
-            if (_state.Crop is { } crop) frame = Bake.CropFrame(frame, crop.X, crop.Y, crop.W, crop.H);
-            return Bake.ApplyFrame(frame, _state.Annotations, ct);
+            frame = Bake.ApplyFrame(frame, _state.Annotations, ct);
+            ct.ThrowIfCancellationRequested();
+            return _state.Crop is { } crop ? Bake.CropFrame(frame, crop.X, crop.Y, crop.W, crop.H) : frame;
         }
         finally { Release(); }
     }

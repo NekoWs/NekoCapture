@@ -5,13 +5,12 @@ using System.Drawing.Imaging;
 namespace FrameCapture.Drawing;
 
 /// <summary>
-/// 标注类型。除 Mosaic 外都由 GDI+ 矢量绘制；Mosaic 是字节级像素运算，
-/// 因此 <see cref="Bake.Apply"/> 先铺 Mosaic 再画其余类型，这个顺序不可换。
+/// 标注按编辑顺序叠加；Mosaic 对前序合成的像素作区域处理。
 /// </summary>
 public enum AnnKind { Dot, Line, Rect, Ellipse, Arrow, Freehand, Highlight, Text, Mosaic, Number }
 
 /// <summary>
-/// 一条标注。坐标为帧内归一化 (0..1)，渲染时按目标帧像素缩放，分辨率无关。
+/// 一条标注。坐标按帧宽高归一化，允许越界；渲染时裁掉目标帧外的内容。
 /// </summary>
 public sealed class Annotation
 {
@@ -169,7 +168,7 @@ public static class Bake
     /// 把一组标注烧进每一帧，返回全新帧列表。标注对所有帧一视同仁——帧间不做位移跟踪。
     /// </summary>
     /// <param name="frames">源帧序列，本身不被修改。</param>
-    /// <param name="anns">要烘焙的标注。Mosaic 先铺底，其余矢量标注叠在其上。</param>
+    /// <param name="anns">按编辑顺序排列的标注；Mosaic 处理前序已合成的内容。</param>
     /// <returns>与 frames 等长的新列表。有标注时每项都是新分配的帧缓冲，TimeMs 沿用源帧；
     /// <b>anns 为空时返回的是原帧实例组成的新列表</b>，此时调用方不得就地改像素。</returns>
     public static List<Capture.CapturedFrame> Apply(IReadOnlyList<Capture.CapturedFrame> frames, IReadOnlyList<Annotation> anns)
@@ -187,30 +186,33 @@ public static class Bake
         ct.ThrowIfCancellationRequested();
         if (anns.Count == 0) return f;
         byte[] copy = (byte[])f.Bgra.Clone();
-        // 马赛克是字节级运算（与编辑器预览同一 MosaicInPlace），先铺底；矢量标注叠在其上
-        foreach (var a in anns)
-        {
-            ct.ThrowIfCancellationRequested();
-            if (a.Kind == AnnKind.Mosaic && a.Points.Count >= 2)
-            {
-                int mx = (int)Math.Round(Math.Min(a.Points[0].X, a.Points[1].X) * f.W);
-                int my = (int)Math.Round(Math.Min(a.Points[0].Y, a.Points[1].Y) * f.H);
-                int mw = (int)Math.Round(Math.Abs(a.Points[1].X - a.Points[0].X) * f.W);
-                int mh = (int)Math.Round(Math.Abs(a.Points[1].Y - a.Points[0].Y) * f.H);
-                Services.BgraImage.MosaicInPlace(copy, f.W, f.H, mx, my, mw, mh,
-                    Core.MosaicBlock.Px(a.Thickness, f.W, f.H));
-            }
-        }
         var gch = System.Runtime.InteropServices.GCHandle.Alloc(copy, System.Runtime.InteropServices.GCHandleType.Pinned);
         try
         {
             using var bmp = new Bitmap(f.W, f.H, 4 * f.W, PixelFormat.Format32bppArgb, gch.AddrOfPinnedObject());
-            using var g = Graphics.FromImage(bmp);
-            foreach (var a in anns)
+            Graphics? graphics = null;
+            try
             {
-                ct.ThrowIfCancellationRequested();
-                if (a.Kind != AnnKind.Mosaic) a.Render(g, f.W, f.H);
+                foreach (var a in anns)
+                {
+                    ct.ThrowIfCancellationRequested();
+                    if (a.Kind != AnnKind.Mosaic)
+                    {
+                        graphics ??= Graphics.FromImage(bmp);
+                        a.Render(graphics, f.W, f.H);
+                        continue;
+                    }
+                    graphics?.Dispose(); graphics = null;
+                    if (a.Points.Count < 2) continue;
+                    int mx = (int)Math.Round(Math.Min(a.Points[0].X, a.Points[1].X) * f.W);
+                    int my = (int)Math.Round(Math.Min(a.Points[0].Y, a.Points[1].Y) * f.H);
+                    int mw = (int)Math.Round(Math.Max(a.Points[0].X, a.Points[1].X) * f.W) - mx;
+                    int mh = (int)Math.Round(Math.Max(a.Points[0].Y, a.Points[1].Y) * f.H) - my;
+                    Services.BgraImage.MosaicInPlace(copy, f.W, f.H, mx, my, mw, mh,
+                        Core.MosaicBlock.Px(a.Thickness, f.W, f.H));
+                }
             }
+            finally { graphics?.Dispose(); }
         }
         finally { gch.Free(); }
         return new Capture.CapturedFrame { Bgra = copy, W = f.W, H = f.H, TimeMs = f.TimeMs };

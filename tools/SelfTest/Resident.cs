@@ -146,7 +146,7 @@ static partial class SelfTest
         {
             value.Gestures = new GestureConfig { Enabled = true, Seeded = true, ChainRevision = GestureConfig.CurrentChainRevision,
                 Bindings = bindings, Graph = graph };
-            value.StartupToast = false; value.FirstRunHintShown = true; value.EditorGuideShown = true; value.RunAtStartup = false; value.RunAsAdmin = false;
+            value.StartupToast = false; value.FirstRunHintShown = true; value.RunAtStartup = false; value.RunAsAdmin = false;
             value.CaptureSound = false; value.AlwaysShowRegionOutline = false; value.ShowRecordingBorder = false;
             value.RegionMonitorId = monitor.DeviceName; value.RegionX = monitor.Bounds.X + 20; value.RegionY = monitor.Bounds.Y + 20;
             value.RegionW = 64; value.RegionH = 48; value.RecordNeedsStartClick = false;

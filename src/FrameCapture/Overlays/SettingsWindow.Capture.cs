@@ -122,51 +122,13 @@ public sealed partial class SettingsWindow : Window
             Tag = tag + "-unit",
         };
 
-        bool sync = false;   // 回显时挂起提交，免得程序写字把自己当成用户挑档
         void PaintUnit(double v) => unit.Text = Math.Abs(v - special) < 0.0001 ? specialWord : unitText ?? Loc.T(K.Settings.SecondsUnit);
-        void Show(double v)
-        {
-            sync = true;
-            // 先把选中项摆到对的档上，再写框里的字：可编辑下拉框一旦把选中项设为空，
-            // 会顺手把 Text 清成空串——顺序反过来，不在档位上的值当场从框里消失。
-            combo.SelectedItem = null;
-            foreach (ComboBoxItem it in combo.Items)
-                if (it.Tag is double d && Math.Abs(d - v) < 0.0001) { combo.SelectedItem = it; break; }
-            combo.Text = Num(v);
-            PaintUnit(v);
-            sync = false;
-        }
-        void Apply(double v)
-        {
-            v = Math.Max(0, Math.Min(max, v));
-            if (Math.Abs(v - get()) > 0.0001) onChange(v);
-            Show(get());
-        }
-        void ApplyTyped()
-        {
-            if (Parse(combo.Text) is not double v) { Show(get()); return; }
-            Apply(v);
-        }
-
-        Show(get());
-        combo.DropDownClosed += (_, _) => ApplyTyped();   // 关弹层即落定：挑完档不必再点一下别的
-        combo.SelectionChanged += (_, _) =>
-        {
-            if (sync) return;
-            if (combo.SelectedItem is ComboBoxItem { Tag: double d }) Apply(d);
-        };
-        combo.PreviewKeyDown += (_, e) =>
-        {
-            if (e.Key == Key.Enter) { ApplyTyped(); e.Handled = true; }
-            else if (e.Key == Key.Escape) { Show(get()); combo.IsDropDownOpen = false; e.Handled = true; }
-        };
-        combo.LostKeyboardFocus += (_, _) => ApplyTyped();
-        // 下拉箭头与圆角描边是拼进模板的字符串：改配色后重新套一遍才跟着换色
+        var show = BindNumericField(combo, get, value => onChange(Math.Clamp(value, 0, max)), Parse, Num, PaintUnit);
         _repaint.Add(() =>
         {
             Fluent.StyleComboEditable(combo);
             unit.Foreground = Theme.TextDimBrush;
-            Show(get());
+            show();
         });
         var wrap = new StackPanel
         {

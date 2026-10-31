@@ -243,23 +243,21 @@ public sealed partial class EditorWindow : Window
 
     /// <summary>按时间轴裁剪与标注烘焙给定帧，与导出同口径；只烘焙要上格的那几帧，长录制也秒级。</summary>
     /// <param name="fs">抽样出来的帧，UI 线程快照，后台只读。</param>
-    /// <param name="anns">当前标注；开了裁剪时按裁剪框折算坐标。</param>
+    /// <param name="anns">使用全帧坐标的有序标注。</param>
     /// <param name="crop">裁剪框（归一化），仅在 <paramref name="cropOn"/> 为真时生效。</param>
     /// <param name="cropOn">是否开了裁剪。</param>
     /// <returns>烘焙完成的帧，与 <paramref name="fs"/> 一一对应，可直接交给 <see cref="AgentStrip.Render"/>.</returns>
     static IReadOnlyList<CapturedFrame> BakeForStrip(
         IReadOnlyList<CapturedFrame> fs, List<Drawing.Annotation> anns, CropState.Norm crop, bool cropOn)
     {
-        IReadOnlyList<CapturedFrame> frames = fs;
-        var outAnns = anns;
+        IReadOnlyList<CapturedFrame> frames = Drawing.Bake.Apply(fs, anns);
         if (cropOn && frames.Count > 0)
         {
             int fw = frames[0].W, fh = frames[0].H;
             var (cx, cy, cw, ch) = CropState.ToPixelOf(crop, fw, fh);
             frames = Drawing.Bake.Crop(frames, cx, cy, cw, ch);
-            outAnns = CropRemap.Remap(anns, (double)cx / fw, (double)cy / fh, (double)cw / fw, (double)ch / fh);
         }
-        return Drawing.Bake.Apply(frames, outAnns);
+        return frames;
     }
 
     async void SaveFrame()
@@ -341,43 +339,15 @@ public sealed partial class EditorWindow : Window
     {
         var dlg = NewSaveDialog(Loc.T(K.Common.PngImagePng), "afterimage.png");
         if (dlg.ShowDialog(this) != true) return;
-        // 残影只稀疏采样 5 帧：用惰性裁剪投影，绝不全段物化（长录制全量转内存必 OOM）
-        IReadOnlyList<CapturedFrame> src = _seq.Frames;
-        if (_crop.IsCropped && _seq.Frames.Count > 0 && _frameW > 0)
+        RectI? crop = null;
+        if (_crop.IsCropped)
         {
             var (cx, cy, cw, ch) = _crop.ToPixel(_frameW, _frameH);
-            src = new LazyCropList(_seq.Frames, cx, cy, cw, ch);
+            crop = new RectI(cx, cy, cw, ch);
         }
-        var combined = BgraImage.Afterimage(src, 5);
-        // 合成图同样带标注：裁剪坐标已随裁剪折算，标注做同一重映射后烘焙
-        var anns = _anns.Items.ToList();
-        if (_crop.IsCropped && combined.W > 0 && _frameW > 0)
-        {
-            var (cx, cy, cw, ch) = _crop.ToPixel(_frameW, _frameH);
-            anns = CropRemap.Remap(anns, (double)cx / _frameW, (double)cy / _frameH, (double)cw / _frameW, (double)ch / _frameH);
-        }
-        var baked = Drawing.Bake.Apply(new[] { combined }, anns)[0];
+        using var frames = BakedFrameList.Create(_seq.Frames, 0, _seq.Frames.Count, _anns.Items, crop);
+        var baked = BgraImage.Afterimage(frames, 5);
         BgraImage.SavePng(baked, EnsureExt(dlg.FileName, ".png"));
-    }
-
-    /// <summary>惰性裁剪投影：按需裁剪单帧，不整段物化（残影稀疏采样用）。</summary>
-    sealed class LazyCropList : IReadOnlyList<CapturedFrame>
-    {
-        readonly IReadOnlyList<CapturedFrame> _src; readonly int _x, _y, _w, _h;
-        /// <summary>记录源列表与裁剪矩形：不复制帧、不改源列表。</summary>
-        /// <param name="s">源帧列表：只读引用，枚举期间须保持可读。</param>
-        /// <param name="x">裁剪矩形左边，源帧内物理像素列。</param>
-        /// <param name="y">裁剪矩形顶边，源帧内物理像素行。</param>
-        /// <param name="w">裁剪矩形宽，物理像素，须为正。</param>
-        /// <param name="h">裁剪矩形高，物理像素，须为正。</param>
-        public LazyCropList(IReadOnlyList<CapturedFrame> s, int x, int y, int w, int h) { _src = s; _x = x; _y = y; _w = w; _h = h; }
-        public int Count => _src.Count;
-        /// <summary>索引器：访问到哪帧才裁哪帧，不整段物化。</summary>
-        public CapturedFrame this[int i] => Drawing.Bake.CropFrame(_src[i], _x, _y, _w, _h);
-        /// <summary>按索引顺序枚举，逐帧现裁。</summary>
-        /// <returns>逐个产出裁剪帧的枚举器；裁剪结果不缓存。</returns>
-        public IEnumerator<CapturedFrame> GetEnumerator() { for (int i = 0; i < Count; i++) yield return this[i]; }
-        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
     }
 
     static string EnsureExt(string path, string ext)

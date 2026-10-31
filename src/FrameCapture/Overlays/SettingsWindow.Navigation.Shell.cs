@@ -17,6 +17,7 @@ public sealed partial class SettingsWindow
     private Grid _settingsHost = null!;
     private ScrollViewer _settingsScroller = null!;
     private TextBlock _settingsHeader = null!;
+    private Button _settingsAddBehavior = null!;
     private WrapPanel _settingsCrumbs = null!;
     private Border _settingsCrumbHost = null!;
     private TextBox _settingsSearchBox = null!;
@@ -61,7 +62,16 @@ public sealed partial class SettingsWindow
         DockPanel.SetDock(_settingsCrumbHost, Dock.Top); right.Children.Add(_settingsCrumbHost);
         _settingsHeader = new TextBlock { FontSize = 17, FontWeight = FontWeights.SemiBold, Foreground = Theme.TextBrush,
             Margin = new Thickness(22, 16, 22, 4), TextWrapping = TextWrapping.Wrap };
-        DockPanel.SetDock(_settingsHeader, Dock.Top); right.Children.Add(_settingsHeader);
+        var heading = new Grid { MinHeight = 44 };
+        heading.Children.Add(_settingsHeader);
+        _settingsAddBehavior = AboutButton(K.Behaviors.Add);
+        _settingsAddBehavior.HorizontalAlignment = HorizontalAlignment.Right;
+        _settingsAddBehavior.VerticalAlignment = VerticalAlignment.Center;
+        _settingsAddBehavior.Margin = new Thickness(12, 10, 22, 0);
+        _settingsAddBehavior.Visibility = Visibility.Collapsed;
+        _settingsAddBehavior.Click += (_, _) => AddSettingsBehavior();
+        heading.Children.Add(_settingsAddBehavior);
+        DockPanel.SetDock(heading, Dock.Top); right.Children.Add(heading);
         _settingsHost = new Grid();
         _settingsScroller = new ScrollViewer { Content = _settingsHost, Focusable = false,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,

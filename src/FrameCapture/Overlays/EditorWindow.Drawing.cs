@@ -69,11 +69,12 @@ public sealed partial class EditorWindow
 
     void InitDrawing()
     {
+        _viewGrid.Background = Brushes.Transparent;
         _canvas.Background = Brushes.Transparent;
         // 画布常显（标注是画在它上面的，收起画布＝所有编辑凭空消失）。浏览态改「不可命中」而非 Collapsed：
         // 标注照常显示，鼠标事件穿透到 _viewGrid 走平移/缩放（Canvas_Down 在 Browse 本就 return）。
         _canvas.IsHitTestVisible = false;
-        _canvas.MouseLeftButtonDown += Canvas_Down;
+        _viewGrid.MouseLeftButtonDown += Canvas_Down;
         _canvas.MouseMove += Canvas_Move;
         _canvas.MouseLeftButtonUp += Canvas_Up;
         // 视图几何唯一驱动：_viewGrid——视图容器的尺寸即视口，与画布命中态无关
@@ -165,11 +166,11 @@ public sealed partial class EditorWindow
         RenderOptions.SetBitmapScalingMode(_view, _zoom > 1.001 ? BitmapScalingMode.NearestNeighbor : BitmapScalingMode.HighQuality);
         // 裁剪=视图状态：帧数据完整，仅把裁剪子区之外的内容裁掉（Image 与标注层同容器同裁剪）
         var c = _crop.Current;
-        if (_crop.IsCropped)
-            _viewGrid.Clip = new RectangleGeometry(new Rect(
-                _imgRect.X + c.X * _imgRect.Width, _imgRect.Y + c.Y * _imgRect.Height,
-                c.W * _imgRect.Width, c.H * _imgRect.Height));
-        else _viewGrid.Clip = null;
+        _view.Clip = new RectangleGeometry(new Rect(c.X * _imgRect.Width, c.Y * _imgRect.Height,
+            c.W * _imgRect.Width, c.H * _imgRect.Height));
+        _canvas.Clip = new RectangleGeometry(new Rect(_imgRect.X + c.X * _imgRect.Width,
+            _imgRect.Y + c.Y * _imgRect.Height, c.W * _imgRect.Width, c.H * _imgRect.Height));
+        _viewGrid.Clip = null;
     }
 
     #region 缩放 / 平移
@@ -243,8 +244,8 @@ public sealed partial class EditorWindow
     Point Norm(Point p)
     {
         UpdateImgRect();
-        double nx = Math.Clamp((p.X - _imgRect.X) / Math.Max(1, _imgRect.Width), 0, 1);
-        double ny = Math.Clamp((p.Y - _imgRect.Y) / Math.Max(1, _imgRect.Height), 0, 1);
+        double nx = (p.X - _imgRect.X) / Math.Max(1, _imgRect.Width);
+        double ny = (p.Y - _imgRect.Y) / Math.Max(1, _imgRect.Height);
         return new Point(nx, ny);
     }
 
@@ -345,19 +346,14 @@ public sealed partial class EditorWindow
         Core.Trace.Log($"editor crop depth={_crop.Depth} px={cx},{cy} {cw}x{ch}");
     }
 
-    /// <summary>单帧导出（保存帧/复制帧）：所见即所得——裁剪→重映射→烘焙，与 GIF 确定同管线。</summary>
+    /// <summary>单帧导出（保存帧/复制帧）：标注按顺序合成后裁剪，与录制导出共用管线。</summary>
     Capture.CapturedFrame ExportFrame(int index)
     {
         var f = _seq.Frames[index];
-        var frames = new List<Capture.CapturedFrame> { f };
-        var anns = _anns.Items.ToList();
-        if (_crop.IsCropped)
-        {
-            var (cx, cy, cw, ch) = _crop.ToPixel(f.W, f.H);
-            frames = Bake.Crop(frames, cx, cy, cw, ch);
-            anns = Core.CropRemap.Remap(anns, (double)cx / f.W, (double)cy / f.H, (double)cw / f.W, (double)ch / f.H);
-        }
-        return Bake.Apply(frames, anns)[0];
+        var baked = Bake.ApplyFrame(f, _anns.Items);
+        if (!_crop.IsCropped) return baked;
+        var (cx, cy, cw, ch) = _crop.ToPixel(f.W, f.H);
+        return Bake.CropFrame(baked, cx, cy, cw, ch);
     }
     #endregion
 

@@ -150,7 +150,6 @@ public sealed partial class EditorWindow : Window
         BuildLayout();
         RestoreEditorPrefs(); // 恢复上次的工具/颜色/粗细（关=保持默认）
         RefreshToolOptions();
-        if (!_settings.Current.EditorGuideShown) ShowGuide(); // 首次打开：一次性上手引导
         Theme.Changed += Editor_OnTheme;
         Theme.Changing += OnPaletteChanging;
         Closed += (_, _) => { Theme.Changed -= Editor_OnTheme; Theme.Changing -= OnPaletteChanging; };
@@ -166,7 +165,7 @@ public sealed partial class EditorWindow : Window
             if (_workspaceMenu != null) _workspaceMenu.IsOpen = false;
             if (_colorPop != null) _colorPop.IsOpen = false;
             if (_widthPop != null) _widthPop.IsOpen = false;
-            _view.Source = null; _bmpCache.Clear(); _bmpFifo.Clear(); _mosaicCache.Clear();
+            _view.Source = null; _bmpCache.Clear(); _bmpFifo.Clear(); _mosaicCache.Clear(); _mosaicComposite = null; _mosaicCacheBytes = 0;
             _curFrame = null; _curFrameIndex = -1; _commitCts?.Cancel();
             if (_userClosed) return;
             _userClosed = true;
@@ -181,94 +180,7 @@ public sealed partial class EditorWindow : Window
         };
     }
 
-    #region 首次上手引导
-
     Grid? _root;
-    Border? _guide;
-
-    void ShowGuide()
-    {
-        if (_root == null) return;
-        var rows = new (string K, string V)[]
-        {
-            (Loc.T(K.Editor.Annotate), Loc.T(K.Editor.PickATool)),
-            (Loc.T(K.Editor.Crop2), Loc.T(K.Editor.DragWithTheCropTool)),
-            (Loc.T(K.Editor.DoneCancel), Loc.T(K.Editor.EnterCopiesToTheClipboard)),
-            (Loc.T(K.Editor.More), Loc.T(K.Editor.F1OpensTheFullHelp)),
-        };
-        var sp = new StackPanel();
-        sp.Children.Add(new TextBlock
-        {
-            Text = Loc.T(K.Editor.WelcomeToTheFramecaptureEditor),
-            FontSize = 16, FontWeight = FontWeights.SemiBold,
-            Foreground = Theme.TextBrush,
-            Margin = new Thickness(0, 0, 0, 10),
-        });
-        foreach (var (k, v) in rows)
-        {
-            var row = new Grid { Margin = new Thickness(0, 3, 0, 3) };
-            // 名字列按内容自适应：写死的宽度只量过中文，换成英文「Confirm / cancel」就会被切掉
-            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            var kt = new TextBlock { Text = k, FontSize = 12.5, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(Acc), Margin = new Thickness(0, 0, 10, 0) };
-            var vt = new TextBlock
-            {
-                Text = v, FontSize = 12.5, TextWrapping = TextWrapping.Wrap,
-                Foreground = new SolidColorBrush(Color.FromArgb(0xCC, Theme.Text.R, Theme.Text.G, Theme.Text.B)),
-            };
-            Grid.SetColumn(kt, 0); Grid.SetColumn(vt, 1);
-            row.Children.Add(kt); row.Children.Add(vt);
-            sp.Children.Add(row);
-        }
-        var ok = Fluent.IconButton(Loc.T(K.Editor.GotIt), Loc.T(K.Editor.StartHere), 84, 12.5);
-        ok.ClearValue(Control.FontFamilyProperty); // 文字按钮：回到继承的 UI 字体（IconButton 默认是图标字体）
-        ok.Height = 30;
-        Fluent.HighlightBtn(ok, true);
-        ok.HorizontalAlignment = HorizontalAlignment.Right;
-        ok.Margin = new Thickness(0, 14, 0, 0);
-        ok.Click += (_, _) => CloseGuide();
-        sp.Children.Add(ok);
-
-        var card = new Border
-        {
-            MaxWidth = 520,
-            CornerRadius = new CornerRadius(12),
-            Background = Theme.PanelBgBrush,
-            BorderBrush = new SolidColorBrush(Color.FromArgb(0x88, Theme.Stroke.R, Theme.Stroke.G, Theme.Stroke.B)),
-            BorderThickness = new Thickness(1),
-            Padding = new Thickness(22, 18, 22, 18),
-            Child = sp,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Center,
-        };
-        _guide = new Border
-        {
-            Background = new SolidColorBrush(Color.FromArgb(0x99, 0x10, 0x10, 0x10)),
-            Child = card,
-        };
-        _guide.MouseLeftButtonUp += (_, _) => CloseGuide(); // 点空白处也可关
-        Grid.SetRowSpan(_guide, _root.RowDefinitions.Count);
-        System.Windows.Controls.Panel.SetZIndex(_guide, 99);
-        _root.Children.Add(_guide);
-        _guide.BeginAnimation(OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(0, 1,
-            new Duration(TimeSpan.FromMilliseconds(Fluent.Motion.EditorEnterMs)))
-        { EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut } });
-        Trace.Log("editor guide shown");
-    }
-
-    void CloseGuide()
-    {
-        if (_guide == null) return;
-        var g = _guide;
-        _guide = null;
-        _settings.Mutate(s => s.EditorGuideShown = true);
-        Trace.Log("editor guide closed");
-        var fade = new System.Windows.Media.Animation.DoubleAnimation(1, 0,
-            new Duration(TimeSpan.FromMilliseconds(Fluent.Motion.StateMs)))
-        { EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseIn } };
-        fade.Completed += (_, _) => _root?.Children.Remove(g);
-        g.BeginAnimation(OpacityProperty, fade);
-    }
 
     /// <summary>控制器主动关闭：与用户关闭走同一收口——停播放表、触发 <see cref="ClosedByUser"/>、淡出。</summary>
     public void CloseByController()
@@ -280,6 +192,5 @@ public sealed partial class EditorWindow : Window
         ClosedByUser?.Invoke();
         Fluent.CloseWithFade(this);
     }
-    #endregion
 
 }

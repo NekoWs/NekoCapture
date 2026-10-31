@@ -145,14 +145,34 @@ public static class Theme
     static readonly Color[] Resolved = new Color[Registry.Length];
 
     static bool _accentFollowsSystem;
+    static string _themeSetting = "system", _accentSetting = "";
+    static int _systemRefreshQueued;
 
     static Theme()
     {
         Recompute();
-        System.Windows.SystemParameters.StaticPropertyChanged += (_, _) =>
+        System.Windows.SystemParameters.StaticPropertyChanged += (_, _) => QueueSystemRefresh();
+        Microsoft.Win32.SystemEvents.UserPreferenceChanged += (_, _) => QueueSystemRefresh();
+    }
+
+    static void QueueSystemRefresh()
+    {
+        var dispatcher = System.Windows.Application.Current?.Dispatcher;
+        if (dispatcher == null || dispatcher.HasShutdownStarted || (_themeSetting != "system" && !_accentFollowsSystem)) return;
+        if (System.Threading.Interlocked.Exchange(ref _systemRefreshQueued, 1) != 0) return;
+        dispatcher.BeginInvoke(new Action(() =>
         {
-            if (_accentFollowsSystem) PreviewAccent(SystemAccent());
-        };
+            System.Threading.Interlocked.Exchange(ref _systemRefreshQueued, 0);
+            RefreshSystemPreferences();
+        }));
+    }
+
+    static void RefreshSystemPreferences()
+    {
+        if (_themeSetting != "system" && !_accentFollowsSystem) return;
+        bool dark = IsDark; Color accent = Accent;
+        Apply(_themeSetting, _accentSetting);
+        if (IsDark != dark || Accent != accent) Fluent.ApplyGlobalStyles();
     }
 
     static Color SystemAccent()
@@ -231,6 +251,8 @@ public static class Theme
     /// <param name="accentHex">强调色 HEX 文本；system 跟随系统强调色，空白或解析失败保持当前值。</param>
     public static void Apply(string theme, string accentHex)
     {
+        _themeSetting = theme is "light" or "dark" ? theme : "system";
+        _accentSetting = accentHex ?? "";
         var old = (Color[])Resolved.Clone();
         var oldDark = EffectiveDark;
         var oldAcc = Accent;
@@ -365,6 +387,7 @@ public static class Theme
     /// <summary>把强调色放回出厂值，实际变了才广播。</summary>
     public static void ResetAccent()
     {
+        _accentSetting = "";
         _accentFollowsSystem = false;
         if (Accent == DefaultAccent) return;
         Accent = DefaultAccent;

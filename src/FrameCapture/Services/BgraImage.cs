@@ -127,8 +127,10 @@ public static partial class BgraImage
     public static void MosaicInPlace(byte[] bgra, int w, int h, int x, int y, int rw, int rh, int block)
     {
         if (block < 1) block = 1;
+        int right = (int)Math.Clamp((long)x + Math.Max(0, rw), 0, w);
+        int bottom = (int)Math.Clamp((long)y + Math.Max(0, rh), 0, h);
         x = Math.Clamp(x, 0, Math.Max(0, w)); y = Math.Clamp(y, 0, Math.Max(0, h));
-        rw = Math.Clamp(rw, 0, w - x); rh = Math.Clamp(rh, 0, h - y);
+        rw = Math.Max(0, right - x); rh = Math.Max(0, bottom - y);
         for (int by = y; by < y + rh; by += block)
         for (int bx = x; bx < x + rw; bx += block)
         {
