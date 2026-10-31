@@ -78,6 +78,7 @@ static partial class SelfTest
             Chk("settings-navigation-light-theme-builds", AllText((FrameworkElement)bodies["about"]!).Any(t => t.Text == Loc.T(K.About.Product)));
             SettingsPolishChecks(window, settings, Snapshot);
             SettingsOverviewChecks(window, settings);
+            SettingsPaletteChecks(window, settings, Snapshot);
         }
         catch (Exception ex) { Chk("settings-hierarchy-exception", false, ex.ToString()); }
         finally { window.Close(); hostSettings.SetValue(AppHost.Current, prior); }

@@ -132,7 +132,7 @@ public bool EditableSelection { get; set; } = false;
     /// <summary>主题: system | light | dark。</summary>
     public string Theme { get; set; } = "system";
 
-    /// <summary>强调色 hex (如 #4CC2FF)；空 = 跟随系统。</summary>
+    /// <summary>强调色 HEX；system 跟随系统强调色，空值使用出厂色。</summary>
     public string Accent { get; set; } = "";
 
     /// <summary>调色板覆盖表：<c>dark.CardBg</c> / <c>light.Text</c> 这类「主题.令牌」→ HEX。
@@ -248,6 +248,7 @@ public bool EditableSelection { get; set; } = false;
         // 本类的 Theme 属性是主题名字符串，把同名类型遮住了，这里必须写全名
         FrameCapture.Core.Theme.LoadCustoms(Colors);
         FrameCapture.Core.Theme.Apply(Theme, Accent);
+        if (string.IsNullOrWhiteSpace(Accent)) FrameCapture.Core.Theme.ResetAccent();
     }
 
     /// <summary>深拷贝：经 JSON 序列化往返得到一个与本机设置完全解耦的副本，改副本不影响 <c>settings.json</c>。</summary>
@@ -269,7 +270,7 @@ public bool EditableSelection { get; set; } = false;
         if (Theme is not ("system" or "light" or "dark")) Theme = "system";
         if (UiLanguage is not ("system" or "zh" or "en")) UiLanguage = "system";
         if (OcrEngine is not (OcrService.SystemEngine or OcrService.SmallEngine or OcrService.MediumEngine)) OcrEngine = OcrService.SystemEngine;
-        if (ColorPresets.All.All(p => p.Id != ColorPreset)) ColorPreset = "";
+        if (ColorPreset != "custom" && ColorPresets.All.All(p => p.Id != ColorPreset)) ColorPreset = "";
         Colors = CleanColors(Colors);
         Gestures ??= GestureConfig.CreateCurrentDefaults();
         Gestures.NormalizePreset();

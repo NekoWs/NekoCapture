@@ -8,20 +8,14 @@ using FrameCapture.Core;
 
 namespace FrameCapture.Overlays;
 
-// 本 partial 职责：配色分页——预设整套、强调色、逐枚令牌的明暗两色、恢复出厂配色，以及一块跟着改动实时变的预览。
-/// <summary>
-/// 设置窗的配色分页。每一枚 <see cref="ColorToken"/> 一行，行内明暗两枚色块各开各的取色弹层：
-/// 拖动即时生效——<see cref="Theme.SetCustom"/> 改的是全局调色板，界面颜色挂在 <see cref="Theme"/> 的共享画刷上，
-/// 本窗与其余窗口当场一起变；弹层收起只是把这份改动写进设置，不重建窗口。
-/// 强调色也摆在这一页：它不逐主题成对，所以是单独一张卡（装配在 <c>SettingsWindow.Accent.cs</c>），一行色块加十六进制。
-/// </summary>
+/// <summary>配色预设、实时取色与共享配色标签。</summary>
 public sealed partial class SettingsWindow : Window
 {
     /// <summary>本窗订阅 <see cref="Theme.Changed"/> 的处理器：调色板一动，<see cref="_repaint"/> 里的小段各自重画。
     /// 关窗时摘掉，静态事件不拖住已关的窗。</summary>
     Action? _repaintHandler;
 
-    /// <summary>配色弹层：一枚共享弹层在色块之间挪位，谁被点就挂到谁身上。</summary>
+    /// <summary>当前颜色编辑会话的取色弹层。</summary>
     Popup? _palPop;
     ColorPickView? _palView;
 
@@ -30,6 +24,8 @@ public sealed partial class SettingsWindow : Window
 
     /// <summary>弹层当前在改这一枚的哪一侧主题。</summary>
     bool _palDark;
+    private Color _palOriginal;
+    private bool _palHadCustom;
 
     /// <summary>本窗所有「按当前调色板重画自己」的小段：配色页的色块、十六进制、预览、预设色带，
     /// 以及外观页主题芯片的选中态。共享画刷管颜色，这里管「哪一项算选中」这类构造期算出来的判断。</summary>
@@ -56,28 +52,6 @@ public sealed partial class SettingsWindow : Window
         panel.Children.Add(accent);
 
         panel.Children.Add(SettingsPageEntry("colors"));
-        foreach (var paint in _repaint.ToArray()) paint();
-    }
-
-    private void BuildCustomColors(StackPanel panel)
-    {
-
-        foreach (var group in (ColorGroup[])Enum.GetValues(typeof(ColorGroup)))
-        {
-            var tokens = Theme.Tokens.Where(t => t.Group == group).ToList();
-            if (tokens.Count == 0) continue;
-            var sec = new StackPanel();
-            sec.Children.Add(SectionHeader(Loc.T(GroupLabel(group))));
-            sec.Children.Add(TokenHeaderRow());
-            foreach (var t in tokens) sec.Children.Add(TokenRow(t));
-            Cardify(sec);
-            panel.Children.Add(sec);
-        }
-
-        var restore = new StackPanel { Margin = new Thickness(0, 6, 0, 2) };
-        restore.Children.Add(RestoreRow());
-        panel.Children.Add(restore);
-
         foreach (var paint in _repaint.ToArray()) paint();
     }
 
@@ -181,8 +155,6 @@ public sealed partial class SettingsWindow : Window
             s.Accent = p.Accent;
         });
         _settings.Current.ApplyPalette();
-        // 强调色为空时 ApplyPalette 会保持当前值，出厂预设要的就是把强调色放回出厂
-        if (p.Accent.Length == 0) Theme.ResetAccent();
         Fluent.ApplyGlobalStyles();
     }
 
@@ -220,6 +192,7 @@ public sealed partial class SettingsWindow : Window
         btn.LostKeyboardFocus += (_, _) => btn.BorderBrush = Theme.StrokeBrush;
         void Restore()
         {
+            ClosePalettePickers();
             _settings.Mutate(s =>
             {
                 s.Colors.Clear();
@@ -344,205 +317,34 @@ public sealed partial class SettingsWindow : Window
 
     #endregion
 
-    #region 令牌行
+    #region 取色
 
-    /// <summary>令牌表头：两列色块各自说明是明还是暗，行里就不必再重复一遍。</summary>
-    /// <returns>与令牌行同列宽的一行小字。</returns>
-    FrameworkElement TokenHeaderRow()
-    {
-        var g = TokenGrid();
-        g.Children.Add(HeaderCell(Loc.T(K.Settings.Light), 1));
-        g.Children.Add(HeaderCell(Loc.T(K.Settings.Dark), 3));
-        g.Margin = new Thickness(0, 2, 0, 0);
-        return g;
-    }
-
-    /// <summary>表头的一格：与 <see cref="SwatchCell"/> 同构的「34 宽色块位 + 66 最小宽十六进制位」，
-    /// 两个 Grid 的 Auto 列宽才会一致，小字才正好落在自己那列色块上方。</summary>
-    /// <param name="text">已取好词的文字。</param>
-    /// <param name="col">落在第几列（1 = 浅色，3 = 深色）。</param>
-    /// <returns>跨两列的一格表头。</returns>
-    static FrameworkElement HeaderCell(string text, int col)
-    {
-        var box = new Border { Width = 34, Margin = new Thickness(0, 0, 6, 0) };
-        var lbl = new TextBlock
-        {
-            Text = text,
-            FontSize = 11,
-            Foreground = Theme.TextDimBrush,
-            MinWidth = 66,
-        };
-        var pair = new StackPanel { Orientation = Orientation.Horizontal };
-        pair.Children.Add(box); pair.Children.Add(lbl);
-        Grid.SetColumn(pair, col);
-        Grid.SetColumnSpan(pair, 2);
-        return pair;
-    }
-
-    /// <summary>一枚令牌的一行：名字 + 明色块与十六进制 + 暗色块与十六进制 + 恢复出厂。</summary>
-    /// <param name="token">要编辑的令牌。</param>
-    /// <returns>可直接加进分节的行。</returns>
-    FrameworkElement TokenRow(ColorToken token)
-    {
-        var g = TokenGrid();
-        var name = new TextBlock
-        {
-            Text = Loc.T(TokenLabel(token.Key)),
-            FontSize = 13,
-            Foreground = Theme.TextBrush,
-            VerticalAlignment = VerticalAlignment.Center,
-        };
-        g.Children.Add(name);
-
-        var reset = Fluent.IconButton("\uE72C", Loc.T(K.Settings.PaletteRestore), 26, 13, Theme.TextDimBrush);
-        Grid.SetColumn(reset, 5);
-        g.Children.Add(reset);
-
-        _repaint.Add(() =>
-        {
-            name.Foreground = Theme.TextBrush;
-            bool any = Theme.IsCustom(token.Key, true) || Theme.IsCustom(token.Key, false);
-            reset.Opacity = any ? 1 : 0.35;
-            reset.IsHitTestVisible = any;
-        });
-        reset.MouseLeftButtonUp += (_, e) =>
-        {
-            _settings.Mutate(s =>
-            {
-                s.Colors.Remove("dark." + token.Key);
-                s.Colors.Remove("light." + token.Key);
-            });
-            Theme.ClearCustom(token.Key, true);
-            Theme.ClearCustom(token.Key, false);
-            Fluent.ApplyGlobalStyles();
-            e.Handled = true;
-        };
-
-        g.Children.Add(SwatchCell(token, false));
-        g.Children.Add(SwatchCell(token, true));
-        return g;
-    }
-
-    /// <summary>一枚令牌在一侧主题下的色块与十六进制：点色块开取色弹层，拖动即时生效。</summary>
-    /// <param name="token">要编辑的令牌。</param>
-    /// <param name="dark">编辑深色还是浅色。</param>
-    /// <returns>已挂到第 1/2（浅色）或第 3/4（深色）列的一对元素。</returns>
-    FrameworkElement SwatchCell(ColorToken token, bool dark)
-    {
-        int col = dark ? 3 : 1;
-        var fill = new Border { CornerRadius = new CornerRadius(4) };
-        var cell = new Border
-        {
-            Width = 34,
-            Height = 24,
-            CornerRadius = new CornerRadius(5),
-            BorderThickness = new Thickness(1),
-            Padding = new Thickness(1),
-            Cursor = Cursors.Hand,
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 0, 6, 0),
-            ToolTip = Loc.T(TokenLabel(token.Key)),
-            // 半透明令牌（描边、悬停叠加）铺在棋盘上才看得出透明度，铺在卡片上永远像不透明
-            Child = new Grid { Children = { new Rectangle { Fill = ColorPickView.Checker(), RadiusX = 4, RadiusY = 4 }, fill } },
-        };
-        var hex = new TextBlock
-        {
-            FontFamily = new FontFamily("Cascadia Mono, Consolas, Microsoft YaHei UI"),
-            FontSize = 11,
-            Foreground = Theme.TextDimBrush,
-            VerticalAlignment = VerticalAlignment.Center,
-            MinWidth = 66,
-        };
-
-        _repaint.Add(() =>
-        {
-            var c = Theme.ValueOf(token.Key, dark);
-            fill.Background = new SolidColorBrush(c);
-            cell.BorderBrush = Theme.StrokeFieldBrush;
-            hex.Text = HexColor.Format(c);
-            // 正文两枚要压在窗口 / 面板 / 卡片 / 行四种底上：最差那一对低于 4.5:1 就把十六进制标成注意色。
-            // 改色是当场生效的，标出来的人才看得见这一改把字读没了。
-            double worst = WorstTextRatio(token.Key, c, dark);
-            bool low = worst > 0 && worst < 4.5;
-            hex.Foreground = new SolidColorBrush(low ? Theme.Warning : Theme.IsCustom(token.Key, dark) ? Theme.Text : Theme.TextDim);
-            cell.ToolTip = low ? Loc.T(K.Settings.LowContrastOnSurfaces) : Loc.T(TokenLabel(token.Key));
-        });
-
-        cell.MouseLeftButtonUp += (_, e) => { OpenSwatchPop(cell, token.Key, dark); e.Handled = true; };
-        cell.Focusable = true;
-        cell.KeyDown += (_, e) => { if (e.Key is Key.Space or Key.Enter) { OpenSwatchPop(cell, token.Key, dark); e.Handled = true; } };
-        Fluent.ChipHover(cell);
-
-        var pair = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-        pair.Children.Add(cell); pair.Children.Add(hex);
-        Grid.SetColumn(pair, col);
-        Grid.SetColumnSpan(pair, 2);
-        return pair;
-    }
-
-    /// <summary>正文与次要文字要压在窗口 / 面板 / 卡片 / 行四种底上，取最差那一对的对比度。
-    /// 其余令牌是底色与叠加层，没有「读不读得清」这一问，返回 0 表示不适用。</summary>
-    /// <param name="key">令牌键。</param>
-    /// <param name="ink">这一侧当前的字色。</param>
-    /// <param name="dark">算深色侧还是浅色侧。</param>
-    /// <returns>四种底上最差的一对对比度；不适用的令牌返回 0。</returns>
-    static double WorstTextRatio(string key, Color ink, bool dark)
-    {
-        if (key != "Text" && key != "TextDim") return 0;
-        double worst = double.MaxValue;
-        foreach (var bg in new[] { "WindowBg", "PanelBg", "CardBg", "RowBg" })
-            worst = Math.Min(worst, Fluent.ContrastRatio(ink, Theme.Opaque(Theme.ValueOf(bg, dark))));
-        return worst;
-    }
-
-    /// <summary>令牌行的列骨架：名字占满剩余宽度，两对「色块 + 十六进制」与恢复按钮各自贴右。</summary>
-    /// <returns>六列的 <c>Grid</c>；色块那两列由 <see cref="SwatchCell"/> 跨列填入。</returns>
-    static Grid TokenGrid()
-    {
-        var g = new Grid { Margin = new Thickness(0, 2, 0, 2), MinHeight = 32 };
-        g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        for (int i = 0; i < 4; i++) g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        return g;
-    }
-
-    /// <summary>打开（或挪动）那枚共享的取色弹层，挂到点下来的色块上。</summary>
+    /// <summary>保存前一编辑会话并在目标元素下方打开取色器。</summary>
     /// <param name="target">色块本身，弹层贴着它下沿展开。</param>
     /// <param name="key">要改的令牌键名。</param>
     /// <param name="dark">改深色还是浅色。</param>
     void OpenSwatchPop(FrameworkElement target, string key, bool dark)
     {
-        if (_palPop == null)
+        ClosePalettePickers();
+        var view = new ColorPickView();
+        var popup = new Popup
         {
-            _palView = new ColorPickView();
-            _palPop = new Popup
-            {
-                Child = new Border
-                {
-                    CornerRadius = new CornerRadius(10),
-                    BorderThickness = new Thickness(1),
-                    Background = Theme.PanelBgSolidBrush,
-                    BorderBrush = Theme.StrokeBrush,
-                    Padding = new Thickness(10),
-                    Child = _palView,
-                },
-                Placement = PlacementMode.Bottom,
-                StaysOpen = false,
-                AllowsTransparency = true,
-                PopupAnimation = PopupAnimation.Fade,
-            };
-            _palPop.Closed += (_, _) =>
-            {
-                if (_palView != null) _palView.Changed -= PreviewSwatch;
-                CommitSwatch();
-            };
-        }
-        _palKey = key;
-        _palDark = dark;
-        _palPop.PlacementTarget = target;
-        _palView!.Color = Theme.ValueOf(key, dark);
-        _palView.Changed += PreviewSwatch;
-        _palPop.IsOpen = true;
+            Child = Fluent.PopupCard(view), Placement = PlacementMode.Bottom,
+            StaysOpen = false, AllowsTransparency = true, PopupAnimation = PopupAnimation.Fade,
+            PlacementTarget = target,
+        };
+        _palPop = popup; _palView = view;
+        _palKey = key; _palDark = dark;
+        _palOriginal = Theme.ValueOf(key, dark);
+        _palHadCustom = Theme.IsCustom(key, dark);
+        view.Color = _palOriginal;
+        view.Changed += PreviewSwatch;
+        popup.Closed += (_, _) =>
+        {
+            view.Changed -= PreviewSwatch;
+            if (ReferenceEquals(_palPop, popup)) CommitSwatch();
+        };
+        popup.IsOpen = true;
     }
 
     /// <summary>拖动中的即时生效：只改全局调色板，不落盘、不重建窗口。</summary>
@@ -561,10 +363,16 @@ public sealed partial class SettingsWindow : Window
         var key = _palKey;
         if (key == null || _palView == null) return;
         _palKey = null;
+        if (_palView.Color == _palOriginal)
+        {
+            if (!_palHadCustom) Theme.ClearCustom(key, _palDark);
+            return;
+        }
         var mk = (_palDark ? "dark." : "light.") + key;
         var hex = HexColor.Format(_palView.Color);
         if (_settings.Current.Colors.TryGetValue(mk, out var old) && old == hex) return;
-        _settings.Mutate(s => s.Colors[mk] = hex);
+        _settings.Mutate(s => { s.Colors[mk] = hex; s.ColorPreset = "custom"; });
+        Theme.LoadCustoms(_settings.Current.Colors);
         Fluent.ApplyGlobalStyles();
     }
 
@@ -598,18 +406,6 @@ public sealed partial class SettingsWindow : Window
         "Success" => K.Settings.TokenSuccess,
         "Warning" => K.Settings.TokenWarning,
         _ => new Str("token." + key, key, key),
-    };
-
-    /// <summary>分节标题。</summary>
-    /// <param name="group">分节。</param>
-    /// <returns>对应的文案。</returns>
-    static Str GroupLabel(ColorGroup group) => group switch
-    {
-        ColorGroup.Surface => K.Settings.GroupSurface,
-        ColorGroup.Text => K.Settings.GroupText,
-        ColorGroup.Line => K.Settings.GroupLine,
-        ColorGroup.Interaction => K.Settings.GroupInteraction,
-        _ => K.Settings.GroupSemantic,
     };
 
     /// <summary>预设名。</summary>

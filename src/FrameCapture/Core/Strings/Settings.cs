@@ -100,11 +100,6 @@ public static partial class K
         public static readonly Str FollowSystem = new("settings.followSystem", "跟随系统", "Follow system");
         public static readonly Str FramesCapturedPerSecondWhile = new("settings.framesCapturedPerSecondWhile", "每秒捕获帧数；跟随刷新率时自动设置", "Frames per second; set automatically when matching the refresh rate.");
         public static readonly Str FreezeTheScreenWhileSelecting = new("settings.freezeTheScreenWhileSelecting", "选区时定格", "Freeze during selection");
-        public static readonly Str GroupInteraction = new("settings.groupInteraction", "交互", "Interaction");
-        public static readonly Str GroupLine = new("settings.groupLine", "描边", "Lines");
-        public static readonly Str GroupSemantic = new("settings.groupSemantic", "语义", "Semantic");
-        public static readonly Str GroupSurface = new("settings.groupSurface", "表面", "Surfaces");
-        public static readonly Str GroupText = new("settings.groupText", "文字色", "Text");
         public static readonly Str HighRefreshPanelsAtHz = new("settings.highRefreshPanelsAtHz", "MP4/WebM 支持高帧率，GIF 约限 50 fps", "MP4/WebM support high frame rates; GIF is limited to about 50 fps.");
         public static readonly Str Hotkeys = new("settings.hotkeys", "快捷键", "Hotkeys");
         public static readonly Str HoveringSnapsToASpecific = new("settings.hoveringSnapsToASpecific", "悬停吸附控件；应用需支持无障碍接口", "Hover to snap to a control; requires accessibility support.");
@@ -253,7 +248,7 @@ public static partial class K
         public static readonly Str TokenStroke = new("settings.tokenStroke", "标准描边", "Stroke");
         public static readonly Str TokenStrokeField = new("settings.tokenStrokeField", "控件描边", "Control stroke");
         public static readonly Str TokenStrokeSoft = new("settings.tokenStrokeSoft", "细描边", "Soft stroke");
-        public static readonly Str TokenSuccess = new("settings.tokenSuccess", "成色", "Success");
+        public static readonly Str TokenSuccess = new("settings.tokenSuccess", "成功", "Success");
         public static readonly Str TokenText = new("settings.tokenText", "正文", "Body text");
         public static readonly Str TokenTextDim = new("settings.tokenTextDim", "次要文字", "Secondary text");
         public static readonly Str TokenTrack = new("settings.tokenTrack", "轨道", "Track");

@@ -132,6 +132,7 @@ public sealed partial class SettingsWindow : Window
         InitializeSettingsCatalog();
         Content = BuildSettingsShell();
         _repaintHandler = () => { foreach (var paint in _repaint.ToArray()) paint(); };
+        Closed += (_, _) => ClosePalettePickers();
         Theme.Changed += _repaintHandler;
         Closed += (_, _) => { if (_repaintHandler != null) Theme.Changed -= _repaintHandler; };
         _gotoCat = (index, animate) => NavigateSettings(LegacySettingsPage(index), animate, canonical: true);

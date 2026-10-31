@@ -144,7 +144,28 @@ public static class Theme
     /// <summary>当前主题下每个令牌算好的实际颜色，属性体直接按下标取。</summary>
     static readonly Color[] Resolved = new Color[Registry.Length];
 
-    static Theme() => Recompute();
+    static bool _accentFollowsSystem;
+
+    static Theme()
+    {
+        Recompute();
+        System.Windows.SystemParameters.StaticPropertyChanged += (_, _) =>
+        {
+            if (_accentFollowsSystem) PreviewAccent(SystemAccent());
+        };
+    }
+
+    static Color SystemAccent()
+    {
+        try
+        {
+            using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\DWM");
+            if (key?.GetValue("AccentColor") is int value)
+                return Color.FromRgb((byte)value, (byte)(value >> 8), (byte)(value >> 16));
+        }
+        catch { }
+        return DefaultAccent;
+    }
 
     /// <summary>共享画刷：与 <see cref="Resolved"/> 同序，一枚令牌一支，全窗共用同一实例。
     /// 界面取色拿这支，而不是自己 new 一支——颜色在构造期被抄进画刷后就定死了，
@@ -207,7 +228,7 @@ public static class Theme
 
     /// <summary>把设置里的主题与强调色落到全局调色板，实际变了才广播 <see cref="Changed"/>。</summary>
     /// <param name="theme">"light" / "dark"；其余值（含空）跟随系统 AppsUseLightTheme。</param>
-    /// <param name="accentHex">强调色 HEX 文本；null、空白或解析失败都保持当前强调色。</param>
+    /// <param name="accentHex">强调色 HEX 文本；system 跟随系统强调色，空白或解析失败保持当前值。</param>
     public static void Apply(string theme, string accentHex)
     {
         var old = (Color[])Resolved.Clone();
@@ -219,7 +240,9 @@ public static class Theme
             "dark" => true,
             _ => SystemParams.UserPreferenceDark(),
         };
-        if (!string.IsNullOrWhiteSpace(accentHex))
+        _accentFollowsSystem = accentHex == "system";
+        if (_accentFollowsSystem) Accent = SystemAccent();
+        else if (!string.IsNullOrWhiteSpace(accentHex))
         {
             try { Accent = (Color)ColorConverter.ConvertFromString(accentHex); }
             catch { /* 保持当前强调色 */ }
@@ -330,8 +353,7 @@ public static class Theme
         return d;
     }
 
-    /// <summary>某个主题下这个令牌的实际颜色：自定义色优先，没自定义取该主题的出厂色。
-    /// 配色页同时摆着明暗两枚色块，问的是「那一侧」而不是「现在这一侧」。</summary>
+    /// <summary>指定主题的令牌颜色：自定义色优先，否则取该主题的出厂色。</summary>
     /// <param name="key">令牌键名。</param>
     /// <param name="dark">要问哪一侧主题。</param>
     /// <returns>那一侧的实际颜色；认不出键返回 <see cref="Colors.Transparent"/>。</returns>
@@ -343,6 +365,7 @@ public static class Theme
     /// <summary>把强调色放回出厂值，实际变了才广播。</summary>
     public static void ResetAccent()
     {
+        _accentFollowsSystem = false;
         if (Accent == DefaultAccent) return;
         Accent = DefaultAccent;
         SyncPaints();

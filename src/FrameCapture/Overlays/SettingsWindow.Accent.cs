@@ -8,25 +8,20 @@ using FrameCapture.Core;
 
 namespace FrameCapture.Overlays;
 
-// 本 partial 职责：配色分页里的强调色那一张卡——色块入口、十六进制、恢复出厂，以及那枚取色弹层的状态。
-/// <summary>
-/// 设置窗的强调色部分。强调色不逐主题成对，四组令牌都收不下它，所以在「配色」页上单独一张卡：
-/// 色块点开取色弹层，拖动即改全局调色板（界面颜色挂在 <see cref="Theme"/> 的共享画刷上，当场全窗跟着变），
-/// 收起弹层才把这一枚写进设置并重烤烤进 XAML 的那批颜色。
-/// </summary>
+/// <summary>强调色的即时取色、系统跟随与恢复默认。</summary>
 public sealed partial class SettingsWindow : Window
 {
-    /// <summary>强调色弹层：整页只有一枚，挂在强调色那行的色块上。</summary>
+    /// <summary>当前强调色编辑会话的弹层。</summary>
     Popup? _accentPop;
 
     /// <summary>弹层里的取色板。</summary>
     ColorPickView? _accentView;
+    private Color _accentOriginal;
+    private bool _accentEditing;
 
     #region 强调色
 
-    /// <summary>强调色卡：一行「色块 + 十六进制 + 恢复出厂」，色块点开取色弹层，拖动即时生效。
-    /// 强调色不在令牌表里——它不逐主题成对，四个令牌分节都收不下它，所以单独一张卡摆在这一页最上面一段。
-    /// 色块右边写着当前值、右下角写着怎么用，这一项才找得到也用得上。</summary>
+    /// <summary>强调色色块、颜色值与恢复按钮；右键色块跟随系统。</summary>
     /// <param name="card">强调色那一节的容器。</param>
     void AccentCard(StackPanel card)
     {
@@ -78,7 +73,7 @@ public sealed partial class SettingsWindow : Window
         };
         Grid.SetColumn(hex, 3);
         g.Children.Add(hex);
-        var reset = Fluent.IconButton("\uE72C", Loc.T(K.Settings.PaletteRestore), 26, 13, Theme.TextDimBrush);
+        var reset = Fluent.IconButton("\uE72C", Loc.T(K.Palette.RestoreAccent), 26, 13, Theme.TextDimBrush);
         Grid.SetColumn(reset, 4);
         g.Children.Add(reset);
 
@@ -93,46 +88,27 @@ public sealed partial class SettingsWindow : Window
         };
         card.Children.Add(hint);
 
-        void Open()
+        cell.MouseLeftButtonUp += (_, e) => { OpenPaletteAccent(cell); e.Handled = true; };
+        cell.MouseRightButtonUp += (_, e) =>
         {
-            if (_accentPop == null)
-            {
-                _accentView = new ColorPickView();
-                _accentView.Changed += c =>
-                {
-                    // 拖动中只改全局调色板：界面颜色挂在共享画刷上，当场就跟着走，不落盘也不重烤 XAML
-                    Theme.PreviewAccent(Color.FromRgb(c.R, c.G, c.B));
-                };
-                _accentPop = new Popup
-                {
-                    Child = Fluent.PopupCard(_accentView),
-                    Placement = PlacementMode.Bottom,
-                    AllowsTransparency = true,
-                    PopupAnimation = PopupAnimation.Fade,
-                };
-                _accentPop.Closed += (_, _) =>
-                {
-                    var c = _accentView!.Color;
-                    var value = HexColor.Format(Color.FromRgb(c.R, c.G, c.B));
-                    _settings.Mutate(s => s.Accent = value);
-                    Theme.Apply(_settings.Current.Theme, value);
-                    Fluent.ApplyGlobalStyles();   // ToolTip/滚动条/菜单的颜色烤在 XAML 里，收起弹层统一重烤一次
-                };
-            }
-            _accentView!.Color = Theme.Accent;
-            _accentPop.PlacementTarget = cell;
-            Fluent.OpenPopSticky(_accentPop, this);
-        }
-        cell.MouseLeftButtonUp += (_, e) => { Open(); e.Handled = true; };
-        cell.KeyDown += (_, e) => { if (e.Key is Key.Space or Key.Enter) { Open(); e.Handled = true; } };
+            ClosePalettePickers();
+            _settings.Mutate(s => { s.Accent = "system"; s.ColorPreset = "custom"; });
+            Theme.Apply(_settings.Current.Theme, "system");
+            Fluent.ApplyGlobalStyles();
+            _repaintHandler?.Invoke();
+            e.Handled = true;
+        };
+        cell.KeyDown += (_, e) => { if (e.Key is Key.Space or Key.Enter) { OpenPaletteAccent(cell); e.Handled = true; } };
         cell.GotKeyboardFocus += (_, _) => cell.BorderBrush = Theme.AccentBrush;
         cell.LostKeyboardFocus += (_, _) => cell.BorderBrush = Theme.StrokeFieldBrush;
-        reset.MouseLeftButtonUp += (_, e) =>
+        reset.Tag = "settings-accent-reset";
+        reset.Click += (_, _) =>
         {
-            _settings.Mutate(s => s.Accent = "");
+            ClosePalettePickers();
+            _settings.Mutate(s => { s.Accent = ""; s.ColorPreset = "custom"; });
             Theme.ResetAccent();
             Fluent.ApplyGlobalStyles();
-            e.Handled = true;
+            _repaintHandler?.Invoke();
         };
 
         _repaint.Add(() =>
@@ -140,11 +116,43 @@ public sealed partial class SettingsWindow : Window
             fill.Background = Theme.AccentBrush;
             cell.BorderBrush = Theme.StrokeFieldBrush;
             hex.Text = HexColor.Format(Theme.Accent);
+            hint.Text = Loc.T(_settings.Current.Accent == "system" ? K.Settings.FollowSystem : K.Settings.ClickToPickAnAccent);
             hex.Foreground = Theme.TextBrush;
             lbl.Foreground = Theme.TextBrush;
-            reset.Opacity = Theme.Accent == Theme.DefaultAccent ? 0.35 : 1;
-            reset.IsHitTestVisible = Theme.Accent != Theme.DefaultAccent;
+            bool changed = _settings.Current.Accent.Length > 0 || Theme.Accent != Theme.DefaultAccent;
+            reset.Opacity = changed ? 1 : 0.35;
+            reset.IsEnabled = changed;
         });
+    }
+
+    private void OpenPaletteAccent(FrameworkElement target)
+    {
+        ClosePalettePickers();
+        var view = new ColorPickView();
+        var popup = new Popup
+        {
+            Child = Fluent.PopupCard(view), Placement = PlacementMode.Bottom,
+            AllowsTransparency = true, PopupAnimation = PopupAnimation.Fade,
+            PlacementTarget = target,
+        };
+        _accentView = view; _accentPop = popup;
+        _accentOriginal = Theme.Accent; _accentEditing = true;
+        view.Color = _accentOriginal;
+        view.Changed += c => Theme.PreviewAccent(Color.FromRgb(c.R, c.G, c.B));
+        popup.Closed += (_, _) => { if (ReferenceEquals(_accentPop, popup)) CommitPaletteAccent(); };
+        Fluent.OpenPopSticky(popup, this);
+    }
+
+    private void CommitPaletteAccent()
+    {
+        if (!_accentEditing || _accentView == null) return;
+        _accentEditing = false;
+        var c = _accentView.Color;
+        if (c == _accentOriginal) return;
+        var value = HexColor.Format(Color.FromRgb(c.R, c.G, c.B));
+        _settings.Mutate(s => { s.Accent = value; s.ColorPreset = "custom"; });
+        Theme.Apply(_settings.Current.Theme, value);
+        Fluent.ApplyGlobalStyles();
     }
 
     #endregion
