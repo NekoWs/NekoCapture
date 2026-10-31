@@ -11,8 +11,6 @@ public static class FfmpegComponentInfo
     public static FfmpegPackage Mp4 { get; } = new("mp4", 1329264, "443c25e4999e306ce11496dbe6cb7606eb17e6790fd039f0948cd427caf2560e");
     /// <summary>WebM 的 VP9 与透明通道精简组件。</summary>
     public static FfmpegPackage WebM { get; } = new("webm", 1488073, "a4a0a65edbb36690815c7182a8c61993c90263c797409d021e7faa5d7fe3b8b7");
-    /// <summary>可按需安装的全部视频组件。</summary>
-    public static IReadOnlyList<FfmpegPackage> All { get; } = Array.AsReadOnly(new[] { Mp4, WebM });
     /// <summary>固定组件资产所在的发布标签。</summary>
     public const string Release = "v0.9.33";
     /// <summary>完整对应源码与构建配方；与二进制位于同一发布目录。</summary>

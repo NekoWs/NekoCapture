@@ -8,12 +8,6 @@ namespace FrameCapture.Encoding;
 /// <summary>校验按格式独立下载的 GPLv3 精简组件，在用户目录完成编码自检后提交安装。</summary>
 internal static class ComponentInstaller
 {
-    /// <summary>下载固定构建；取消或失败时保留已安装组件。</summary>
-    /// <param name="progress">下载和校验进度。</param>
-    /// <param name="ct">下载和安装的取消令牌。</param>
-    /// <returns>组件成功提交后完成的任务。</returns>
-    internal static Task InstallAsync(IProgress<ComponentProgress> progress, CancellationToken ct) => InstallAsync(FfmpegComponentInfo.Mp4, progress, ct);
-
     /// <summary>只下载并安装指定格式的编码组件。</summary>
     /// <param name="package">固定组件描述。</param>
     /// <param name="progress">下载与校验进度。</param>

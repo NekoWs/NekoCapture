@@ -253,17 +253,6 @@ if ($offlineRow.Count -eq 0) {
     }
 }
 
-Step '构建在线视频组件安装器'
-$codecBuild = dotnet build (Join-Path $root 'src/CodecSetup/CodecSetup.csproj') -c Release -p:Company=$Publisher -v q --nologo 2>&1 | Out-String
-if ($LASTEXITCODE -ne 0) { throw "视频组件安装器构建失败: $codecBuild" }
-$codecOut = Join-Path $OutDir "FrameCapture-Codecs-Setup-$Version-x64.exe"
-Copy-Item -LiteralPath (Join-Path $root 'src/CodecSetup/bin/Release/net48/FrameCapture-Codecs-Setup.exe') -Destination $codecOut -Force
-$results += [pscustomobject]@{
-    包 = Split-Path $codecOut -Leaf
-    体积MB = [math]::Round((Get-Item $codecOut).Length / 1MB, 2)
-    SHA256 = (Get-FileHash $codecOut -Algorithm SHA256).Hash.Substring(0, 16).ToLower()
-}
-
 Step '产物'
 $results | Format-Table -AutoSize | Out-String -Width 200 | ForEach-Object{ $_ -split "`n" } | Where-Object{ $_.Trim() } | ForEach-Object{ "  $_" }
 Write-Host "  完整哈希：Get-FileHash release\FrameCapture-*.exe, release\FrameCapture-*.zip -Algorithm SHA256"

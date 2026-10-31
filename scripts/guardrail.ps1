@@ -104,12 +104,10 @@ $buildJobs = [ordered]@{
     "build:app+selftest" = Start-Async "b-selftest" "dotnet" @("build", (Join-Path $root "tools/SelfTest"), "-c", "Debug", "-p:Platform=x64", "-v", "q", "--nologo")
     "build:Shot"         = Start-Async "b-shot"     "dotnet" @("build", (Join-Path $root "tools/Shot"), "-c", "Debug", "-p:Platform=x64", "-v", "q", "--nologo")
     "build:Setup"        = Start-Async "b-setup"    "dotnet" @("build", (Join-Path $root "src/Setup"), "-c", "Debug", "-v", "q", "--nologo")
-    "build:CodecSetup"   = Start-Async "b-codec"    "dotnet" @("build", (Join-Path $root "src/CodecSetup"), "-c", "Debug", "-v", "q", "--nologo")
     "build:resident"     = Start-Async "b-resident" "dotnet" @("publish", (Join-Path $root "src/Resident"), "-c", "Release", "-r", "win-x64", "-o", (Join-Path $outDir 'resident-native'), "-v", "q", "--nologo")
 }
 # 每个构建项要求存在的产物：SelfTest 那条同时产出主程序
-$buildExe = @{ "build:app+selftest" = @($exe, $stExe); "build:Shot" = @($shot); "build:Setup" = @(); "build:resident" = @((Join-Path $outDir 'resident-native/FrameCapture.Resident.exe'));
-    "build:CodecSetup" = @((Join-Path $root 'src/CodecSetup/bin/Debug/net48/FrameCapture-Codecs-Setup.exe')) }
+$buildExe = @{ "build:app+selftest" = @($exe, $stExe); "build:Shot" = @($shot); "build:Setup" = @(); "build:resident" = @((Join-Path $outDir 'resident-native/FrameCapture.Resident.exe')) }
 $okBuild = $true
 foreach ($k in $buildJobs.Keys) {
     $r = Wait-Async $buildJobs[$k]

@@ -12,7 +12,7 @@ $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 $fail = 0
 $stringsDir = Join-Path $root 'src\FrameCapture\Core\Strings'
-$dirs = @('src\FrameCapture', 'src\CodecSetup') | ForEach-Object { Join-Path $root $_ }
+$dirs = @((Join-Path $root 'src\FrameCapture'))
 
 function Write-Fail([string]$rel, [int]$line, [string]$msg) {
     if (-not $Quiet) { Write-Host "  FAIL $rel`:$line  $msg" }

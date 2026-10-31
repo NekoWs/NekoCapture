@@ -33,7 +33,8 @@ try {
     $signature = $rsa.SignData($bytes, [Security.Cryptography.HashAlgorithmName]::SHA256, [Security.Cryptography.RSASignaturePadding]::Pkcs1)
     $envelope = [ordered]@{ manifest = [Convert]::ToBase64String($bytes); signature = [Convert]::ToBase64String($signature) }
     [IO.File]::WriteAllText((Join-Path $OutDir 'update.json'), ($envelope | ConvertTo-Json -Compress), [Text.UTF8Encoding]::new($false))
-    $sums = @(Get-ChildItem -LiteralPath $OutDir -File | Where-Object { $_.Extension -in '.exe', '.zip' } | Sort-Object Name | ForEach-Object {
+    $artifacts = @($name, "FrameCapture-$version-x64-offline.zip")
+    $sums = @(Get-ChildItem -LiteralPath $OutDir -File | Where-Object { $_.Name -in $artifacts } | Sort-Object Name | ForEach-Object {
         "{0}  {1}" -f (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant(), $_.Name
     })
     [IO.File]::WriteAllLines((Join-Path $OutDir 'SHA256SUMS.txt'), $sums, [Text.UTF8Encoding]::new($false))
