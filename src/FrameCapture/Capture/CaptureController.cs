@@ -40,22 +40,22 @@ public sealed partial class CaptureController : IDisposable
     private Overlays.ScrollStageWindow? _scrollStage;       // 取景层：范围外压暗 + 范围描边，鼠标穿透
     private Overlays.ScrollPreviewWindow? _scrollPreview;   // 选区右侧的已拼接长图实时预览
     private bool _scrollAuto;   // 「自动滚动」开关：控制条按钮翻转它，注轮节奏由 ScrollTick 驱动
-    private byte[]? _scrollAcc;
-    private int _scrollW, _scrollH, _scrollSegs;
+    private ScrollImageBuffer? _scrollAcc;
+    private int _scrollW, _scrollH, _scrollSegs, _scrollPreviewH;
     private RectI _scrollRegion;
     private string _scrollDevice = "";
     private System.Windows.Threading.DispatcherTimer? _scrollTimer;
-    private byte[]? _scrollPrevB;   // 上一 tick 抓帧，用于「滚动已停稳」判定（避免拼接滚动中途的过渡帧）
+    private byte[]? _scrollPrevB;   // 上一帧像素，用于停稳判定
+    private long _scrollStableSince, _scrollPreviewAt, _autoObserveAt, _autoSettleDeadline;
+    private bool _autoAppended;    // 本次注轮已追加内容，停稳后才能注入下一步
     /// <summary>点「完成」之后留在手里的半张长图：完成时落盘的那张 PNG，加上那块区域与所在显示器。
     /// 滚早了头、滚少了尾巴是这条路径最常见的失手，托盘「继续上次滚动」据此接着拼而不是重来。
     /// 像素不留在内存里——长图动辄上百 MB，而它本来就已经在磁盘上了。</summary>
     private (string Png, RectI Region, string Device)? _scrollResume;
     // 自动滚动用 SendInput 注真实滚轮，节奏挂在同一个 ScrollTick 上：发一步 → 等这一步被拼上 → 再发下一步
-    private bool _autoWaitSettle;   // 已注入一步、正等它落定；落定前不做拼接判定
+    private bool _autoWaitSettle;   // 已注入一步、正等它停稳，期间采样拼接但不继续注轮
     private int _autoNoNew;         // 连续「停稳且画面没变」次数，数满判到底
     private int _autoNotch = ScrollAutoPolicy.NotchStart;   // 当前步长（滚轮格数）
-    private int _autoStuckTicks;    // 已注一步却迟迟等不到停稳的连续拍数，数满判定这页滚不动
-    private const int SettleMaxTicks = 12;   // 停稳等待上限，×280ms ≈ 3.4s：页面一直在动时不能无限沉默
     private bool _autoCursorSaved;  // 光标是否为注轮移进了选区，退出路径据此还原
     private Native.Win32.POINT _autoCursorHome;   // 注轮前的光标位置，物理像素
 

@@ -18,6 +18,8 @@ public sealed partial class CaptureController : IDisposable
     private int _scrollGeneration, _delayGeneration;
     private Task? _scrollStepTask;
     private bool _scrollStarting, _scrollFinishing, _delayFiring;
+    private const int ScrollFrameMs = 33, ScrollStableMs = 80, ScrollPreviewMs = 120;
+    private const int ScrollAutoStepMs = 280, ScrollSettleTimeoutMs = 3400;
 
     private async Task StartScrollLoopAsync(RectI region, string device)
     {
@@ -46,12 +48,14 @@ public sealed partial class CaptureController : IDisposable
     void ResetScrollSession(byte[] acc, int w, int h, RectI region, string device)
     {
         _scrollFinishing = false;
-        _scrollAcc = acc; _scrollW = w; _scrollH = h; _scrollRegion = region; _scrollDevice = device; _scrollSegs = 1;
+        _scrollAcc = new ScrollImageBuffer(acc, w, h, region.H);
+        _scrollW = w; _scrollH = h; _scrollRegion = region; _scrollDevice = device; _scrollSegs = 1;
         _scrollPrevB = null; _scrollAuto = false;
-        _autoWaitSettle = false; _autoNoNew = 0; _autoNotch = ScrollAutoPolicy.NotchStart; _autoStuckTicks = 0;
+        _autoWaitSettle = false; _autoNoNew = 0; _autoNotch = ScrollAutoPolicy.NotchStart; _autoAppended = false;
+        _scrollStableSince = Environment.TickCount64; _scrollPreviewAt = 0; _scrollPreviewH = h;
     }
 
-    /// <summary>三层浮层自下而上（取景层 → 预览图 → 控制条）加 280ms 步进计时器。
+    /// <summary>三层浮层自下而上（取景层 → 预览图 → 控制条），串行取帧以约 30 帧每秒采样。
     /// 新起一次与接着上次都走这里：两条路径的浮层行为必须一模一样。</summary>
     /// <param name="acc">预览图第一眼要放的基准像素，与 <see cref="ResetScrollSession"/> 收下的同一份。</param>
     /// <param name="region">要滚的屏幕区域，浮层就铺在它上面。</param>
@@ -74,7 +78,7 @@ public sealed partial class CaptureController : IDisposable
         Services.HotkeyManager.ScrollActive = true;
         _scrollBar.Closed += (_, _) => Services.HotkeyManager.ScrollActive = false;
         Overlays.ScrollHintWindow.Current = _scrollBar;
-        _scrollTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(280) };
+        _scrollTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(ScrollFrameMs) };
         _scrollTimer.Tick += (_, _) => ScrollTick();
         _scrollTimer.Start();
     }
@@ -104,11 +108,14 @@ public sealed partial class CaptureController : IDisposable
         Trace.Log($"scroll auto on notch={_autoNotch}");
     }
 
-    /// <summary>注入一步滚轮并进入「等这一步落定」：这一步落定后 ScrollTick 才继续判定，等待期间既不发轮也不拼接。</summary>
+    /// <summary>注入一步滚轮，持续采样中间画面，停稳且达到步进间隔后才注入下一步。</summary>
     void AutoStep()
     {
         _autoWaitSettle = true;
-        _autoStuckTicks = 0;
+        _autoAppended = false;
+        long now = Environment.TickCount64;
+        _autoObserveAt = now + ScrollAutoStepMs;
+        _autoSettleDeadline = now + ScrollSettleTimeoutMs;
         // 注入被拒（目标窗以更高完整性级别运行等）时画面永远不会动，再等下去只会报出"已到底"这种假结论，当场说明并退出
         if (!Native.Win32.Wheel(_autoNotch)) StopAuto(Loc.T(K.Capture.ThisWindowDoesnTAccept));
     }
@@ -128,6 +135,8 @@ public sealed partial class CaptureController : IDisposable
     void AutoObserve(ScrollAutoObservation obs)
     {
         if (_scrollFinishing || !_scrollAuto || _scrollBar == null) return;
+        if (Environment.TickCount64 < _autoObserveAt) return;
+        if (_autoAppended && obs != ScrollAutoObservation.NoOverlap) obs = ScrollAutoObservation.Appended;
         var d = ScrollAutoPolicy.Next(_autoWaitSettle, _autoNoNew, _autoNotch, obs);
         _autoNoNew = d.NoNew; _autoNotch = d.Notch; _autoWaitSettle = d.Waiting;
         if (d.Stop)
@@ -151,48 +160,79 @@ public sealed partial class CaptureController : IDisposable
     private void ScrollTick()
     {
         if (_scrollFinishing || _scrollStepTask is { IsCompleted: false }) return;
-        _scrollStepTask = ScrollTickAsync();
+        _scrollTimer?.Stop();
+        _scrollStepTask = ScrollStepAndScheduleAsync();
+    }
+
+    private async Task ScrollStepAndScheduleAsync()
+    {
+        var timer = _scrollTimer;
+        long started = Environment.TickCount64;
+        int generation = _scrollGeneration;
+        try { await ScrollTickAsync(); }
+        finally
+        {
+            if (!_disposed && !_scrollFinishing && generation == _scrollGeneration && timer != null && ReferenceEquals(timer, _scrollTimer))
+            {
+                timer.Interval = TimeSpan.FromMilliseconds(Math.Max(1, ScrollFrameMs - (Environment.TickCount64 - started)));
+                timer.Start();
+            }
+        }
     }
 
     private async Task ScrollTickAsync()
     {
         if (_scrollAcc is not { } acc || _scrollBar is not { } bar) return;
-        int generation = _scrollGeneration, width = _scrollW, height = _scrollH;
+        int generation = _scrollGeneration, width = _scrollW;
         var region = _scrollRegion; var previous = _scrollPrevB;
+        long unchangedSince = _scrollStableSince;
         try
         {
             var sample = await BackgroundWork.Run(() =>
             {
                 var frame = LiveCapture.Grab(region);
-                if (frame == null || frame.W != width) return (Frame: (CapturedFrame?)null, Stable: false, Overlap: 0, Appended: (byte[]?)null);
-                bool stable = previous != null && ScrollStitch.FindOverlap(previous, width, previous.Length / (width * 4), frame.Bgra, frame.H) >= frame.H;
-                int overlap = stable ? ScrollStitch.FindOverlap(acc, width, height, frame.Bgra, frame.H)
-                    : ScrollStitch.FindOverlapExact(acc, width, height, frame.Bgra, frame.H);
-                byte[]? appended = overlap > 0 && frame.H - overlap >= (stable ? 3 : 12)
-                    ? ScrollStitch.Append(acc, width, height, frame.Bgra, frame.H, overlap) : null;
-                return (Frame: (CapturedFrame?)frame, Stable: stable, Overlap: overlap, Appended: appended);
+                long at = Environment.TickCount64;
+                if (frame == null || frame.W != width || frame.H != region.H)
+                    return (Frame: (CapturedFrame?)null, Same: false, Stable: false, At: at, Overlap: 0, Appended: false);
+                bool same = previous != null && previous.AsSpan().SequenceEqual(frame.Bgra);
+                bool stable = same && at - unchangedSince >= ScrollStableMs;
+                var tail = acc.Tail;
+                int tailHeight = tail.Length / (width * 4);
+                int overlap = stable ? ScrollStitch.FindOverlap(tail, width, tailHeight, frame.Bgra, frame.H)
+                    : ScrollStitch.FindOverlapExact(tail, width, tailHeight, frame.Bgra, frame.H);
+                bool appended = overlap > 0 && frame.H - overlap >= (stable ? 3 : 12)
+                    && acc.Append(frame.Bgra, frame.H, overlap);
+                return (Frame: (CapturedFrame?)frame, Same: same, Stable: stable, At: at, Overlap: overlap, Appended: appended);
             });
             if (_disposed || generation != _scrollGeneration || !ReferenceEquals(bar, _scrollBar) || sample.Frame is not { } frame) return;
             _scrollPrevB = frame.Bgra;
+            if (!sample.Same) _scrollStableSince = sample.At;
             bool stable = sample.Stable; int overlap = sample.Overlap;
-            if (!stable && _scrollAuto && _autoWaitSettle && ++_autoStuckTicks >= SettleMaxTicks)
+            if (sample.Appended)
+            {
+                _scrollH = acc.Height; _scrollSegs++;
+                if (_scrollAuto) _autoAppended = true;
+            }
+            if (sample.At >= _scrollPreviewAt && _scrollH != _scrollPreviewH)
+            {
+                bar.SetProgress(_scrollSegs, _scrollH);
+                _scrollPreview?.SetImage(acc);
+                _scrollPreviewAt = sample.At + ScrollPreviewMs;
+                _scrollPreviewH = _scrollH;
+            }
+            if (!stable && _scrollAuto && _autoWaitSettle && sample.At >= _autoSettleDeadline)
             {
                 StopAuto(Loc.T(K.Capture.TheViewKeepsChangingSo)); return;
             }
-            if (stable) { _autoWaitSettle = false; _autoStuckTicks = 0; }
+            if (stable) _autoWaitSettle = false;
             if (overlap >= frame.H) { if (stable) AutoObserve(ScrollAutoObservation.NoNewContent); return; }
             if (overlap <= 0)
             {
                 if (stable) { bar.FlashHint(Loc.T(K.Capture.ScrolledTooFastToFind)); AutoObserve(ScrollAutoObservation.NoOverlap); }
                 return;
             }
-            if (sample.Appended == null) { if (stable) AutoObserve(ScrollAutoObservation.TinyStep); return; }
-            _scrollAcc = sample.Appended;
-            _scrollH = _scrollAcc.Length / (width * 4); _scrollSegs++;
-            bar.SetProgress(_scrollSegs, _scrollH);
-            _scrollPreview?.SetImage(_scrollAcc, width, _scrollH);
-            _autoStuckTicks = 0;
-            if (!_scrollFinishing) AutoObserve(ScrollAutoObservation.Appended);
+            if (!sample.Appended) { if (stable) AutoObserve(ScrollAutoObservation.TinyStep); return; }
+            if (stable) AutoObserve(ScrollAutoObservation.Appended);
         }
         catch (Exception ex)
         {
@@ -220,6 +260,7 @@ public sealed partial class CaptureController : IDisposable
         try
         {
             if (_scrollStepTask != null) await _scrollStepTask;
+            if (!_disposed && generation == _scrollGeneration && _scrollBar != null) await ScrollTickAsync();
             if (_disposed || generation != _scrollGeneration || _scrollBar == null) return;
             Services.HotkeyManager.ScrollActive = false;
             _scrollTimer = null;
@@ -229,9 +270,12 @@ public sealed partial class CaptureController : IDisposable
             _scrollAcc = null; _scrollBar = null; _scrollPrevB = null; _scrollAuto = false;
             bar?.CloseSelf();
             if (acc == null) { completion?.TrySetResult(false); return; }
-            var frame = new CapturedFrame { Bgra = acc, W = _scrollW, H = _scrollH, TimeMs = 0 };
             var region = _scrollRegion; var device = _scrollDevice;
             var context = _chainContext;
+            int width = _scrollW, height = _scrollH;
+            byte[] pixels = await BackgroundWork.Run(acc.ToArray);
+            if (_disposed || generation != _scrollGeneration || completion?.Task.IsCompleted == true) return;
+            var frame = new CapturedFrame { Bgra = pixels, W = width, H = height, TimeMs = 0 };
             _scrollSegs = 0;
             var previous = _scrollResume?.Png;
             string? saved = await BackgroundWork.Run(() =>

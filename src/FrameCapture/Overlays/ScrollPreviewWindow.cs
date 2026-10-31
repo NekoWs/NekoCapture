@@ -78,7 +78,18 @@ public sealed class ScrollPreviewWindow : Window
     /// <param name="bgra">已拼接长图，行主序 BGRA。</param>
     /// <param name="w">长图的物理像素宽度。</param>
     /// <param name="h">长图的物理像素高度。</param>
-    public async void SetImage(byte[] bgra, int w, int h)
+    public void SetImage(byte[] bgra, int w, int h) =>
+        SetImageCore(() => Viewport(bgra, w, h, _maxW, _maxH), w, h);
+
+    /// <summary>从长图分段直接生成预览，不合并完整长图。</summary>
+    /// <param name="image">只追加的长图缓存。</param>
+    internal void SetImage(ScrollImageBuffer image)
+    {
+        int height = image.Height;
+        SetImageCore(() => image.Preview(_maxW, _maxH, height), image.Width, height);
+    }
+
+    async void SetImageCore(Func<(byte[] Bgra, int W, int H)> render, int w, int h)
     {
         if (_closing || w <= 0 || h <= 0 || (w == _lastW && h == _lastH)) return;
         int generation = ++_imageGeneration;
@@ -87,7 +98,7 @@ public sealed class ScrollPreviewWindow : Window
         {
             src = await BackgroundWork.Run(() =>
             {
-                var (pixels, width, height) = Viewport(bgra, w, h, _maxW, _maxH);
+                var (pixels, width, height) = render();
                 if (width <= 0 || height <= 0) return null;
                 var bitmap = BitmapSource.Create(width, height, 96, 96, PixelFormats.Bgra32, null, pixels, width * 4);
                 bitmap.Freeze(); return bitmap;
