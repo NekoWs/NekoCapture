@@ -23,11 +23,10 @@ internal sealed partial class ResidentHost
         {
             string path = Path.Combine(FrameCapture.Runtime.ResidentProtocol.DirectoryPath, Path.GetFileName(name));
             if (!File.Exists(path)) return;
-            ExtractIconEx(path, 0, out var large, out var small, 1);
-            if (large != IntPtr.Zero) DestroyIcon(large);
-            if (small == IntPtr.Zero) return;
+            IntPtr icon = FrameCapture.Runtime.TrayIconSource.LoadFile(path);
+            if (icon == IntPtr.Zero) return;
             if (target != IntPtr.Zero) DestroyIcon(target);
-            target = small;
+            target = icon;
         }
         Load(_manifest.IconFile, ref _icon); Load(_manifest.PausedIconFile, ref _pausedIcon);
     }

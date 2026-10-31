@@ -2,9 +2,9 @@
 
 强调色 #4CC2FF 与 Theme.Accent 同值；深浅两种桌面都靠描边本身立形。
 多尺寸 .ico 一次生成，exe / 开始菜单 / 「应用和功能」共用同一份源图。
-小尺寸靠加粗描边与放大中心点保证可读，不做逐尺寸重绘。
+应用图标的各尺寸图层由同一份源图生成。
 同一份图同时写 assets/ 与 site/assets/，网页 favicon 与 exe 图标同源不分叉。
-托盘图标（Services/TrayService.cs）按本文件的比例常量绘制，两处改一处要同步另一处。
+托盘图标由 Services/TrayService.Icons.cs 按物理像素绘制，共用取景框和中心点造型。
 """
 from PIL import Image, ImageDraw
 

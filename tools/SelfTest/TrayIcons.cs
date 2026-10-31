@@ -8,8 +8,8 @@ using FrameCapture.Services;
 
 static partial class SelfTest
 {
-    [DllImport("shell32.dll", EntryPoint = "ExtractIconExW", CharSet = CharSet.Unicode)]
-    private static extern uint TrayExtractIcon(string path, int index, out IntPtr large, out IntPtr small, uint count);
+    [DllImport("user32.dll")]
+    private static extern IntPtr SetThreadDpiAwarenessContext(IntPtr context);
     [DllImport("user32.dll", EntryPoint = "DestroyIcon")]
     private static extern bool TrayDestroyIcon(IntPtr icon);
 
@@ -30,33 +30,40 @@ static partial class SelfTest
             using (var icon = Make(false)) using (var output = File.Create(path)) icon.Save(output);
             byte[] data = File.ReadAllBytes(path);
             int frames = BitConverter.ToUInt16(data, 4);
-            Chk("tray-icon-saves-multiple-32-bit-png-frames", frames == 7 && Enumerable.Range(0, frames).All(i =>
+            Chk("tray-icon-saves-multiple-32-bit-png-frames", frames >= 13 && Enumerable.Range(0, frames).All(i =>
             {
                 int entry = 6 + i * 16, offset = BitConverter.ToInt32(data, entry + 12);
                 return BitConverter.ToUInt16(data, entry + 6) == 32 && data[offset] == 137 && data[offset + 1] == 80;
             }));
-            foreach (int size in new[] { 16, 20, 24, 32, 40, 48, 64 })
+            foreach (int size in Enumerable.Range(4, 13).Select(i => i * 4))
             {
                 using var icon = new Icon(path, size, size);
                 using var bitmap = icon.ToBitmap();
                 Chk("tray-icon-roundtrip-preserves-color-" + size, bitmap.Width == size && Blue(bitmap.GetPixel(size / 2, size / 2)));
                 Chk("tray-icon-roundtrip-preserves-alpha-" + size, bitmap.GetPixel(0, 0).A == 0
                     && Enumerable.Range(0, size * size).Any(i => bitmap.GetPixel(i % size, i / size).A is > 0 and < 255));
+                int margin = Math.Max(1, (int)Math.Round(size * 0.1)), stroke = Math.Max(1, (int)Math.Round(size * 0.0938));
+                Chk("tray-icon-straight-edge-is-pixel-aligned-" + size, bitmap.GetPixel(margin + stroke, margin).A == 255
+                    && bitmap.GetPixel(margin + stroke, margin - 1).A == 0);
                 bitmap.Save(Path.Combine(directory, "working-" + size + ".png"));
             }
-            TrayExtractIcon(path, 0, out var large, out var small, 1);
+            var preferred = TrayIconSource.PreferredSize();
+            IntPtr context = SetThreadDpiAwarenessContext(new IntPtr(-1));
+            IntPtr small = TrayIconSource.LoadFile(path);
             try
             {
                 using var borrowed = Icon.FromHandle(small);
                 using var bitmap = borrowed.ToBitmap();
                 Chk("tray-icon-native-loader-preserves-color", Blue(bitmap.GetPixel(bitmap.Width / 2, bitmap.Height / 2)));
+                Chk("tray-icon-native-loader-uses-physical-taskbar-size", bitmap.Width == preferred.Width && bitmap.Height == preferred.Height,
+                    $"loaded={bitmap.Width}x{bitmap.Height} taskbar={preferred.Width}x{preferred.Height}");
                 bitmap.Save(Path.Combine(directory, "native-small.png"));
             }
-            finally { if (large != IntPtr.Zero) TrayDestroyIcon(large); if (small != IntPtr.Zero) TrayDestroyIcon(small); }
+            finally { if (small != IntPtr.Zero) TrayDestroyIcon(small); if (context != IntPtr.Zero) SetThreadDpiAwarenessContext(context); }
             using (var paused = Make(true))
             using (var bitmap = paused.ToBitmap())
             {
-                var pixel = bitmap.GetPixel(32, 32);
+                var pixel = bitmap.GetPixel(bitmap.Width / 2, bitmap.Height / 2);
                 Chk("tray-icon-paused-stays-gray", pixel.R == 154 && pixel.G == 160 && pixel.B == 166);
             }
             TrayService.SaveResidentIcons();

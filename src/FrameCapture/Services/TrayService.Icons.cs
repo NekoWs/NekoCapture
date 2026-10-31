@@ -3,6 +3,7 @@ using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.IO;
 using FrameCapture.Core;
+using FrameCapture.Runtime;
 
 namespace FrameCapture.Services;
 
@@ -11,8 +12,15 @@ public sealed partial class TrayService
 {
     private static string? _residentIconCacheKey;
 
-    /// <summary>图标编码格式与当前强调色组成的缓存身份。</summary>
-    internal static string ResidentIconRevision => "png32-v1:" + Theme.Accent;
+    /// <summary>图标编码、任务栏尺寸与当前强调色组成的缓存身份。</summary>
+    internal static string ResidentIconRevision
+    {
+        get
+        {
+            var size = TrayIconSource.PreferredSize();
+            return $"png32-pixel-v2:{size.Width}x{size.Height}:{Theme.Accent}";
+        }
+    }
 
     /// <summary>向当前配置目录写入正常与暂停图标，保留真彩色和透明边缘。</summary>
     internal static void SaveResidentIcons()
@@ -38,18 +46,12 @@ public sealed partial class TrayService
 
     private static Icon MakeIcon(bool paused)
     {
-        using var bitmap = DrawTrayIcon(paused);
+        var preferred = TrayIconSource.PreferredSize();
         var images = new List<(int Size, byte[] Png)>();
-        foreach (int size in new[] { 16, 20, 24, 32, 40, 48, 64 })
+        var sizes = Enumerable.Range(4, 13).Select(i => i * 4).Append(preferred.Width).Append(preferred.Height).Distinct().Order();
+        foreach (int size in sizes)
         {
-            using var frame = new Bitmap(size, size, PixelFormat.Format32bppArgb);
-            using (var graphics = Graphics.FromImage(frame))
-            {
-                graphics.CompositingMode = CompositingMode.SourceCopy;
-                graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
-                graphics.PixelOffsetMode = PixelOffsetMode.HighQuality;
-                graphics.DrawImage(bitmap, new Rectangle(0, 0, size, size));
-            }
+            using var frame = DrawTrayIcon(size, paused);
             using var png = new MemoryStream();
             frame.Save(png, ImageFormat.Png);
             images.Add((size, png.ToArray()));
@@ -72,29 +74,31 @@ public sealed partial class TrayService
             foreach (var image in images) writer.Write(image.Png);
         }
         stream.Position = 0;
-        return new Icon(stream, 64, 64);
+        return new Icon(stream, preferred.Width, preferred.Height);
     }
 
-    private static Bitmap DrawTrayIcon(bool paused)
+    private static Bitmap DrawTrayIcon(int size, bool paused)
     {
-        const int canvas = 64;
-        const float inset = 0.1465f * canvas, arm = 0.2441f * canvas, stroke = 0.0938f * canvas, dot = 0.2930f * canvas;
-        var bitmap = new Bitmap(canvas, canvas, PixelFormat.Format32bppArgb);
+        int stroke = Math.Max(1, (int)Math.Round(size * 0.0938)), margin = Math.Max(1, (int)Math.Round(size * 0.10));
+        int arm = Math.Max(stroke + 1, (int)Math.Round(size * 0.29));
+        var bitmap = new Bitmap(size, size, PixelFormat.Format32bppArgb);
         using var graphics = Graphics.FromImage(bitmap);
         graphics.Clear(Color.Transparent);
-        graphics.SmoothingMode = SmoothingMode.AntiAlias;
         var accent = paused ? Color.FromArgb(255, 0x9A, 0xA0, 0xA6)
             : Color.FromArgb(255, Theme.Accent.R, Theme.Accent.G, Theme.Accent.B);
-        using var pen = new Pen(accent, stroke) { StartCap = LineCap.Flat, EndCap = LineCap.Flat, LineJoin = LineJoin.Round };
-        float lo = inset, hi = canvas - inset, mid = canvas / 2f;
-        foreach (var (x, y, dx, dy) in new[] { (lo, lo, 1f, 1f), (hi, lo, -1f, 1f), (lo, hi, 1f, -1f), (hi, hi, -1f, -1f) })
-        {
-            using var path = new GraphicsPath();
-            path.AddLines([new PointF(x + dx * arm, y), new PointF(x, y), new PointF(x, y + dy * arm)]);
-            graphics.DrawPath(pen, path);
-        }
         using var fill = new SolidBrush(accent);
-        graphics.FillEllipse(fill, mid - dot / 2, mid - dot / 2, dot, dot);
+        graphics.SmoothingMode = SmoothingMode.None;
+        foreach (bool right in new[] { false, true })
+        foreach (bool bottom in new[] { false, true })
+        {
+            int x = right ? size - margin - arm : margin, y = bottom ? size - margin - arm : margin;
+            graphics.FillRectangle(fill, x, bottom ? size - margin - stroke : margin, arm, stroke);
+            graphics.FillRectangle(fill, right ? size - margin - stroke : margin, y, stroke, arm);
+        }
+        graphics.SmoothingMode = SmoothingMode.AntiAlias;
+        int dot = Math.Max(3, (int)Math.Round(size * 0.293));
+        float origin = (size - dot) / 2f;
+        graphics.FillEllipse(fill, origin, origin, dot, dot);
         return bitmap;
     }
 }

@@ -118,7 +118,7 @@ internal sealed partial class ResidentHost : IDisposable, IChainInvoker
                 UpdateTick(); return 0;
             }
             if (message == 0x0010) { _stopping = true; return 0; }
-            if (message == _taskbarCreated) QueueWork(["--update-icon"]);
+            if (message == _taskbarCreated || message is 0x001A or 0x007E or 0x02E0) QueueWork(["--reload-tray"]);
         }
         catch (Exception error) { QueueWork(["--resident-error", error.ToString()]); }
         return DefWindowProc(window, message, w, l);
@@ -145,6 +145,7 @@ internal sealed partial class ResidentHost : IDisposable, IChainInvoker
                     {
                         case "--reload-inputs": ReloadInputs(); break;
                         case "--update-icon": UpdateIcon(); break;
+                        case "--reload-tray": ReloadIcons(); UpdateIcon(); break;
                         case "--retry-ui": StartWorker(); FlushPending(); break;
                         case "--resident-error": Log(new InvalidOperationException(args.ElementAtOrDefault(1))); break;
                         case "--resident-retire": PostMessage(_window, 0x0010, IntPtr.Zero, IntPtr.Zero); break;

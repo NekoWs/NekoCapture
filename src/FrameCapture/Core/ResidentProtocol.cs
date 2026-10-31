@@ -47,7 +47,7 @@ internal sealed class ResidentManifest
     public string IconFile { get; set; } = "resident-tray.ico";
     /// <summary>配置目录中的暂停托盘图标。</summary>
     public string PausedIconFile { get; set; } = "resident-tray-paused.ico";
-    /// <summary>图标编码与配色的身份，变化时重新加载文件。</summary>
+    /// <summary>图标编码、尺寸与配色的身份，变化时重新加载文件。</summary>
     public string IconRevision { get; set; } = "";
 }
 

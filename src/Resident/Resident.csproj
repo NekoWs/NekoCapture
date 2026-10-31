@@ -18,6 +18,7 @@
   <ItemGroup>
     <ProjectReference Include="../GestureCore/GestureCore.csproj" />
     <Compile Include="../FrameCapture/Core/ResidentProtocol.cs" Link="ResidentProtocol.cs" />
+    <Compile Include="../FrameCapture/Core/TrayIconSource.cs" Link="TrayIconSource.cs" />
     <Compile Include="../FrameCapture/Core/GestureClock.cs" Link="GestureClock.cs" />
     <Compile Include="../FrameCapture/Core/GestureModifiers.cs" Link="GestureModifiers.cs" />
   </ItemGroup>
