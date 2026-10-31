@@ -11,6 +11,13 @@ static partial class SelfTest
         _ = Application.Current ?? new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
         Theme.Apply("dark", null); Fluent.ApplyGlobalStyles();
         var resources = Fluent.MenuResources();
+        var separatorStyle = (Style)resources[MenuItem.SeparatorStyleKey];
+        var separator = new Separator { Style = separatorStyle };
+        separator.ApplyTemplate();
+        var line = separator.Template.LoadContent() as Border;
+        Chk("menu-separator-overrides-system-style-with-soft-line", separator.OverridesDefaultStyle && line is
+            { Height: 1, Margin.Left: 10, SnapsToDevicePixels: true }
+            && line.Background is SolidColorBrush brush && brush.Color == Theme.StrokeSoft);
         var rows = new StackPanel { Width = 210, Background = Theme.CardBgBrush };
         MenuItem Item(Str label, string? glyph = null, bool checkable = false)
         {

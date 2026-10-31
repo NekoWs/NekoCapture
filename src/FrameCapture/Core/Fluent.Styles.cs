@@ -229,14 +229,17 @@ public static partial class Fluent
                 </Setter>
               </Style>
               <Style TargetType="Separator">
+                <Setter Property="OverridesDefaultStyle" Value="True"/>
                 <Setter Property="Template">
                   <Setter.Value>
                     <ControlTemplate TargetType="Separator">
-                      <Border Height="1" Background="{Hex(Theme.Stroke)}" Margin="8,3,8,3"/>
+                      <Border Height="1" Background="{Hex(Theme.StrokeSoft)}" Margin="10,5,10,5" SnapsToDevicePixels="True"/>
                     </ControlTemplate>
                   </Setter.Value>
                 </Setter>
               </Style>
+              <Style x:Key="&#123;x:Static MenuItem.SeparatorStyleKey&#125;" TargetType="Separator"
+                     BasedOn="&#123;StaticResource &#123;x:Type Separator&#125;&#125;"/>
               <Style TargetType="MenuItem">
                 <Setter Property="FontFamily" Value="Segoe UI, Microsoft YaHei UI"/>
                 <Setter Property="OverridesDefaultStyle" Value="True"/>
