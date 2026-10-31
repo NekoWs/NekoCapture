@@ -140,17 +140,6 @@ public sealed partial class SettingsWindow
 
     private void BuildSettingsGroup(StackPanel panel, string parent)
     {
-        if (parent == "system")
-        {
-            var capture = new StackPanel();
-            capture.Children.Add(ToggleRow("\uE8B9", Loc.T(K.Settings.CaptureTheAppItself), Loc.T(K.Settings.WhenOnTheEditorTheRecord),
-                _settings.Current.CaptureSelf, value =>
-                {
-                    _settings.Mutate(settings => settings.CaptureSelf = value);
-                    foreach (Window window in Application.Current.Windows) ApplyCaptureAffinity(window);
-                }));
-            Cardify(capture); panel.Children.Add(capture);
-        }
         foreach (var page in _settingsPages.Values.Where(page => page.Parent == parent))
             panel.Children.Add(SettingsPageEntry(page.Id));
     }

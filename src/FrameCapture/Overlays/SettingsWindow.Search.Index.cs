@@ -54,7 +54,7 @@ public sealed partial class SettingsWindow
         Index("startup", K.Common.RunAsAdministrator, K.SettingsNavigation.SearchAdmin);
         Index("welcome", K.Settings.StartupNotification);
         Index("welcome", K.Settings.ShowTheKeysInTheReady, K.SettingsNavigation.SearchKeys);
-        Index("system", K.Settings.CaptureTheAppItself, K.Settings.WhenOnTheEditorTheRecord);
+        Index("record-quality", K.Settings.CaptureTheAppItself, K.Settings.WhenOnTheEditorTheRecord);
         Index("updates", K.Updates.AutoCheck);
         Index("updates", K.Updates.Check);
     }

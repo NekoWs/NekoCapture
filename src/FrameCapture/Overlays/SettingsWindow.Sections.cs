@@ -111,6 +111,12 @@ public sealed partial class SettingsWindow
             }));
         panel.Children.Add(ToggleRow("\uE7C8", Loc.T(K.Settings.RecordWindowOnly), Loc.T(K.Settings.WhenYouClickAWindow),
             _settings.Current.RecordWindowClean, v => _settings.Mutate(s => s.RecordWindowClean = v)));
+        panel.Children.Add(ToggleRow("\uE8B9", Loc.T(K.Settings.CaptureTheAppItself), Loc.T(K.Settings.WhenOnTheEditorTheRecord),
+            _settings.Current.CaptureSelf, value =>
+            {
+                _settings.Mutate(settings => settings.CaptureSelf = value);
+                foreach (Window window in Application.Current.Windows) ApplyCaptureAffinity(window);
+            }));
         Cardify(panel);
     }
 
