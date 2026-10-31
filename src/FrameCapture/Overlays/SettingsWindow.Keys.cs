@@ -1,243 +1,121 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Input;
-using System.Windows.Media;
 using FrameCapture.Core;
 
 namespace FrameCapture.Overlays;
 
-// 本 partial 职责：快捷键页的编辑器键位一节——一条命令一行，按法可改、可减、可加。
-/// <summary>
-/// 设置窗的编辑器键位部分：整节由 <see cref="EditorCommands"/> 命令表驱动，一行一条命令。
-/// 键位框点一下进录入态、按下新键即改，按 Esc 把这一枚按法收掉；加号在行尾再加一枚正在等键的框。
-/// 改动经 <see cref="SettingsService.Mutate"/> 落盘，编辑器侧的分派表随即重建，无需重开窗口。
-/// </summary>
+/// <summary>按命令分组编辑键位，支持多绑定、冲突提示与恢复默认。</summary>
 public sealed partial class SettingsWindow : Window
 {
-    /// <summary>把编辑器键位一节装进快捷键页：按 <see cref="EditorCommands.Groups"/> 的顺序一个分组一张卡。</summary>
-    /// <param name="panel">快捷键页的内容容器。</param>
-    void BuildEditorKeys(StackPanel panel)
+    private void BuildEditorKeys(StackPanel panel)
     {
-        // 每行注册一个刷新动作：改一条键位可能让别的行冒出撞键提示，整表刷一遍最省事
-        var ekRefresh = new List<Action>();
-        string ConflictNote(EditorCommand c)
+        var refresh = new List<Action>();
+        void RefreshAll() { foreach (var update in refresh) update(); }
+        string ConflictNote(EditorCommand command)
         {
             var hits = new List<string>();
             foreach (var (chord, ids) in EditorCommands.Conflicts(_settings.Current))
-                if (ids.Contains(c.Id))
+                if (ids.Contains(command.Id))
                 {
-                    // 认不出的 Id 直接露出标识本身：撞键提示是给人排查的，比空一个名字有用
-                    var other = ids.Where(i => i != c.Id).Select(i => EditorCommands.Find(i) is { } f ? Loc.T(f.Name) : i);
-                    // 顿号与书名号是中文里的列举记法，英文换成逗号加弯引号，句子结构整个交给译名
+                    var names = ids.Where(id => id != command.Id).Select(id => EditorCommands.Find(id) is { } other ? Loc.T(other.Name) : id);
                     hits.Add(Loc.F(K.Settings.SharesAKeyWith,
-                        string.Join(Loc.T(K.Settings.ListSeparator), other.Select(n => Loc.F(K.Settings.QuotedName, n))), chord));
+                        string.Join(Loc.T(K.Settings.ListSeparator), names.Select(name => Loc.F(K.Settings.QuotedName, name))), chord));
                 }
             return string.Join(Loc.T(K.Settings.Semicolon), hits.Distinct());
         }
-        Border MiniButton(string text, Action onClick)
+        foreach (var group in EditorCommands.Groups)
         {
-            var b = new Border
-            {
-                CornerRadius = new CornerRadius(5),
-                BorderThickness = new Thickness(1),
-                BorderBrush = Theme.StrokeFieldBrush,
-                Background = Brushes.Transparent,
-                Padding = new Thickness(7, 2, 7, 2),
-                MinHeight = 26,   // 低于 24 的可用下限就点不着了；26 是这一行能压到的最小值
-                Cursor = Cursors.Hand,
-                Child = new TextBlock { Text = text, FontSize = 11.5, Foreground = Theme.TextDimBrush },
-            };
-            Fluent.ChipHover(b);
-            b.MouseLeftButtonUp += (_, _) => onClick();
-            return b;
-        }
-        void EditorKeyGroup(Str group)
-        {
-            var cmds = EditorCommands.All.Where(c => c.Group == group).ToList();
-            if (cmds.Count == 0) return;
+            var commands = EditorCommands.All.Where(command => command.Group == group).ToList();
+            if (commands.Count == 0) continue;
             var stack = new StackPanel();
             stack.Children.Add(SectionHeader(Loc.T(group)));
-            // 键位区按内容占宽：一枚键帽占一枚的宽度，放不下才换行
-            const double BoxGap = 6;
-            foreach (var c in cmds)
+            foreach (var command in commands)
             {
-                var row = new Grid();
-                row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-                row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-                row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-                row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-                var nameStack = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
-                nameStack.Children.Add(new TextBlock
+                var label = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+                var title = new Grid();
+                title.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                title.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                title.Children.Add(new TextBlock
                 {
-                    Text = Loc.T(c.Name),
-                    FontSize = 12.5,
-                    Foreground = Theme.TextBrush,
-                    TextWrapping = TextWrapping.Wrap,
+                    Text = Loc.T(command.Name), FontSize = 13, Foreground = Theme.TextBrush,
+                    TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center,
                 });
+                label.Children.Add(title);
                 var note = new TextBlock
                 {
-                    FontSize = 11,
-                    Foreground = Theme.DangerBrush,
-                    TextWrapping = TextWrapping.Wrap,
-                    Visibility = Visibility.Collapsed,
+                    FontSize = 11, Foreground = Theme.DangerBrush, TextWrapping = TextWrapping.Wrap, Visibility = Visibility.Collapsed,
                 };
-                nameStack.Children.Add(note);
-                // 靠右摆：加号那一列上下对齐，按法多的行往左长，名字列始终在左边
-                var boxes = new WrapPanel
+                label.Children.Add(note);
+                var boxes = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Right };
+                var actions = new StackPanel { Orientation = Orientation.Horizontal };
+                var reset = Fluent.UiKeyAction("\uE72C", Loc.T(K.Settings.Reset), () =>
                 {
-                    VerticalAlignment = VerticalAlignment.Center,
-                    HorizontalAlignment = HorizontalAlignment.Right,
-                };
-                var reset = MiniButton(Loc.T(K.Settings.Reset), () =>
-                {
-                    _settings.Mutate(s => s.EditorKeys.Remove(c.Id));
-                    foreach (var f in ekRefresh) f();
+                    _settings.Mutate(settings => settings.EditorKeys.Remove(command.Id)); RefreshAll();
                 });
-                reset.Margin = new Thickness(8, 0, 0, 0);
-                reset.VerticalAlignment = VerticalAlignment.Center;
-                Grid.SetColumn(nameStack, 0);
-                Grid.SetColumn(boxes, 1);
-                Grid.SetColumn(reset, 3);
-                row.Children.Add(nameStack);
-                row.Children.Add(boxes);
-                row.Children.Add(reset);
-                // 一行一枚胶囊：与快捷键行同一层描边。整排都是能拖的行，底色跟着指针亮起来
-                // 反而像在暗示只有亮的那一行能碰，所以静止与悬停同一张脸；名字离左边框留一段呼吸。
-                var pill = new Border
-                {
-                    CornerRadius = new CornerRadius(6),
-                    BorderBrush = Theme.StrokeSoftBrush,
-                    BorderThickness = new Thickness(1),
-                    Background = Theme.RowBgBrush,
-                    Padding = new Thickness(16, 4, 8, 4),
-                    Margin = new Thickness(0, 1, 0, 1),
-                    Child = row,
-                };
-                stack.Children.Add(pill);
+                var add = Fluent.UiKeyAction("\uE710", Loc.T(K.Hotkeys.AddBinding), () => RenderRow(true));
+                Grid.SetColumn(reset, 1); title.Children.Add(reset);
+                actions.Children.Add(add);
+                stack.Children.Add(Fluent.UiKeyRow(label, boxes, actions));
 
-                // 加号按钮：多一个按法不必挑默认那几个槽位，随时往上加
-                var add = new Border
+                void Write(int index, string chord)
                 {
-                    Width = 28,
-                    CornerRadius = new CornerRadius(6),
-                    BorderThickness = new Thickness(1),
-                    BorderBrush = Theme.StrokeFieldBrush,
-                    Background = Brushes.Transparent,
-                    Padding = new Thickness(0, 3, 0, 3),
-                    Margin = new Thickness(0, 0, 0, 0),
-                    Cursor = Cursors.Hand,
-                    VerticalAlignment = VerticalAlignment.Center,
-                    Child = new TextBlock
+                    _settings.Mutate(settings =>
                     {
-                        Text = "+",
-                        FontSize = 13,
-                        TextAlignment = TextAlignment.Center,
-                        Foreground = Theme.TextDimBrush,
-                    },
-                };
-                Fluent.ChipHover(add);
-                Grid.SetColumn(add, 2);
-                row.Children.Add(add);
-                // 点加号 = 当场多出一枚正在等键的框：按下键才落进列表，中途走开就当没加过
-                add.MouseLeftButtonUp += (_, _) => RenderRow(true);
-
-                // 一行里所有键位框由当前设置画出来：加一枚、解一枚、别的行撞了键，都靠重画跟上
+                        var bindings = EditorCommands.BindingsFor(settings, command);
+                        if (chord.Length == 0) { if (index < bindings.Count) bindings.RemoveAt(index); }
+                        else if (index < bindings.Count) bindings[index] = chord;
+                        else bindings.Add(chord);
+                        EditorCommands.WriteBindings(settings, command, bindings);
+                    });
+                    RefreshAll();
+                }
+                ChordCaptureBox Box(string chord = "")
+                {
+                    var box = Fluent.UiKeyBinding(chord);
+                    box.Margin = new Thickness(0, 2, 4, 2); return box;
+                }
                 void RenderRow(bool pending)
                 {
-                    var s = _settings.Current;
-                    var list = EditorCommands.BindingsFor(s, c);
+                    var settings = _settings.Current;
+                    var bindings = EditorCommands.BindingsFor(settings, command);
                     boxes.Children.Clear();
-                    for (int i = 0; i < list.Count; i++)
+                    for (int i = 0; i < bindings.Count; i++)
                     {
-                        int at = i;
-                        var box = new ChordCaptureBox
-                        {
-                            Chord = list[at],
-                            // 这一节一行一条命令，密到二十来行：框上下各收 2，整页少滚一屏
-                            Padding = new Thickness(8, 4, 8, 4),
-                            Margin = new Thickness(0, 0, BoxGap, 0),
-                        };
-                        box.Picked += v =>
-                        {
-                            _settings.Mutate(s2 =>
-                            {
-                                var l = EditorCommands.BindingsFor(s2, c);
-                                if (v.Length == 0) { if (at < l.Count) l.RemoveAt(at); }
-                                else if (at < l.Count) l[at] = v;
-                                else l.Add(v);
-                                EditorCommands.WriteBindings(s2, c, l);
-                            });
-                            foreach (var f in ekRefresh) f();
-                        };
+                        int index = i;
+                        var box = Box(bindings[i]);
+                        box.Picked += chord => Write(index, chord);
                         boxes.Children.Add(box);
                     }
                     if (pending)
                     {
-                        // 新键位框一出来就在等键：按下键才落进列表，中途走开就当没加过
-                        var fresh = new ChordCaptureBox
-                        {
-                            Padding = new Thickness(8, 4, 8, 4),
-                            Margin = new Thickness(0, 0, BoxGap, 0),
-                        };
-                        fresh.Picked += v =>
-                        {
-                            if (v.Length > 0)
-                                _settings.Mutate(s2 =>
-                                {
-                                    var l = EditorCommands.BindingsFor(s2, c);
-                                    l.Add(v);
-                                    EditorCommands.WriteBindings(s2, c, l);
-                                });
-                            foreach (var f in ekRefresh) f();
-                        };
-                        fresh.Cancelled += () => { foreach (var f in ekRefresh) f(); };
-                        boxes.Children.Add(fresh);
-                        fresh.BeginCapture();
+                        var fresh = Box();
+                        fresh.Picked += chord => { if (chord.Length > 0) Write(bindings.Count, chord); else RefreshAll(); };
+                        fresh.Cancelled += RefreshAll;
+                        boxes.Children.Add(fresh); fresh.BeginCapture();
                     }
-                    else if (list.Count == 0)
+                    else if (bindings.Count == 0)
                     {
-                        boxes.Children.Add(new TextBlock
-                        {
-                            Text = Loc.T(K.Common.NoKey),
-                            FontSize = 12.5,
-                            Foreground = Theme.TextDimBrush,
-                            VerticalAlignment = VerticalAlignment.Center,
-                            Margin = new Thickness(0, 0, BoxGap, 0),
-                        });
+                        var empty = Box();
+                        empty.EmptyHint = Loc.T(K.Common.NoKey);
+                        empty.Picked += chord => { if (chord.Length > 0) Write(0, chord); };
+                        boxes.Children.Add(empty);
                     }
-                    reset.Visibility = EditorCommands.IsCustomized(s, c) ? Visibility.Visible : Visibility.Collapsed;
-                    note.Text = ConflictNote(c);
+                    bool customized = EditorCommands.IsCustomized(settings, command);
+                    reset.Opacity = customized ? 1 : 0;
+                    reset.IsEnabled = reset.IsHitTestVisible = customized;
+                    note.Text = ConflictNote(command);
                     note.Visibility = note.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
                 }
-                ekRefresh.Add(() => RenderRow(false));
-                RenderRow(false);
+                refresh.Add(() => RenderRow(false)); RenderRow(false);
             }
-            var card = new Border
-            {
-                // 一张卡一组命令：分组由标题说出来，卡与卡之间就是同一档留白
-                Margin = SettingsCardMargin,
-                CornerRadius = new CornerRadius(8),   // 卡片 8、行 6：外圆包内圆
-                BorderThickness = new Thickness(1),
-                BorderBrush = Theme.StrokeBrush,
-                Background = Theme.CardBgBrush,
-                Padding = new Thickness(12, 6, 12, 6),
-                Child = stack,
-            };
-            StyleSettingsCard(card);
-            panel.Children.Add(card);
+            Cardify(stack); panel.Children.Add(stack);
         }
-        foreach (var g in EditorCommands.Groups) EditorKeyGroup(g);
-        var ekResetAll = MiniButton(Loc.T(K.Settings.RestoreAllDefaultKeys), () =>
+        var resetAll = Fluent.Ui(new Button
         {
-            _settings.Mutate(s => s.EditorKeys.Clear());
-            foreach (var f in ekRefresh) f();
+            Content = Loc.T(K.Settings.RestoreAllDefaultKeys), Padding = new Thickness(12, 6, 12, 6),
+            HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(2, 4, 0, 2),
         });
-        ekResetAll.HorizontalAlignment = HorizontalAlignment.Left;
-        ekResetAll.Margin = new Thickness(2, 4, 0, 2);
-        panel.Children.Add(ekResetAll);
-        foreach (var f in ekRefresh) f();
+        resetAll.Click += (_, _) => { _settings.Mutate(settings => settings.EditorKeys.Clear()); RefreshAll(); };
+        panel.Children.Add(resetAll);
     }
 }

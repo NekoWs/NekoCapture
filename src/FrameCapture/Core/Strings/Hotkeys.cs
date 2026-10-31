@@ -10,6 +10,7 @@ public static partial class K
     public static partial class Hotkeys
     {
         public static readonly Str PickerNudge = new("hotkeys.pickerNudge", "选区微调", "Selection fine adjustment");
+        public static readonly Str AddBinding = new("hotkeys.addBinding", "添加键位", "Add binding");
         public static readonly Str NudgeLeft = new("hotkeys.nudgeLeft", "向左微调", "Nudge left");
         public static readonly Str NudgeRight = new("hotkeys.nudgeRight", "向右微调", "Nudge right");
         public static readonly Str NudgeUp = new("hotkeys.nudgeUp", "向上微调", "Nudge up");

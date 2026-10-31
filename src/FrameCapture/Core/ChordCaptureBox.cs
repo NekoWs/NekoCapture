@@ -15,7 +15,7 @@ namespace FrameCapture.Core;
 /// 绑的是全局热键时，宿主订阅 <see cref="CaptureBegan"/> 在录入期间暂停全局钩子，
 /// 否则正要录的那个组合键会被自家钩子先吞掉。
 /// </summary>
-public sealed class ChordCaptureBox : Border
+public sealed partial class ChordCaptureBox : Border
 {
     readonly Grid _host = new();
     bool _capturing;
@@ -84,6 +84,8 @@ public sealed class ChordCaptureBox : Border
         LostFocus += (_, _) => CancelIfCapturing();
         Loaded += (_, _) => { Theme.Changed -= Render; Theme.Changed += Render; Render(); };
         Unloaded += (_, _) => { Theme.Changed -= Render; CancelIfCapturing(); };
+        MouseEnter += (_, _) => PaintChrome(true); MouseLeave += (_, _) => PaintChrome(true);
+        IsKeyboardFocusWithinChanged += (_, _) => PaintChrome(true);
         Render();
     }
 
@@ -226,7 +228,7 @@ public sealed class ChordCaptureBox : Border
             var toks = EditorChord.Parse(_chord) is { } ec ? ec.Tokens() : new[] { _chord };
             _host.Children.Add(Keycaps.Row(toks, Fluent.KeycapTheme()));
         }
-        BorderBrush = new SolidColorBrush(_capturing ? Theme.Accent : Theme.StrokeField);
+        PaintChrome();
         FitWidth();
     }
 
