@@ -1,4 +1,4 @@
-FrameCapture optional OCR component
+NekoCapture optional OCR component
 
 Sdcb.SimdPaddleOCR 2.0.0
 Copyright: the Sdcb.SimdPaddleOCR contributors

@@ -2,7 +2,7 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
-    <AssemblyName>FrameCapture.OcrWorker</AssemblyName>
+    <AssemblyName>NekoCapture.OcrWorker</AssemblyName>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <InvariantGlobalization>true</InvariantGlobalization>
@@ -14,6 +14,6 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Sdcb.SimdPaddleOCR" Version="2.0.0" />
-    <Compile Include="../FrameCapture/Core/OcrWorkerProtocol.cs" Link="OcrWorkerProtocol.cs" />
+    <Compile Include="../NekoCapture/Core/OcrWorkerProtocol.cs" Link="OcrWorkerProtocol.cs" />
   </ItemGroup>
 </Project>

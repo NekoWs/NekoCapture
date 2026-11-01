@@ -2,7 +2,7 @@ using System.Diagnostics;
 using System.IO;
 using Microsoft.Win32;
 
-namespace FrameCapture.Setup;
+namespace NekoCapture.Setup;
 
 /// <summary>识别安装目录、版本与各用户配置，调用独立迁移程序。</summary>
 internal static partial class InstallEngine
@@ -17,8 +17,8 @@ internal static partial class InstallEngine
         {
             try
             {
-                string exe = Path.Combine(InstallDir, AppName + ".exe");
-                if (!File.Exists(exe)) return null;
+                string? exe = ApplicationIn(InstallDir);
+                if (exe == null) return null;
                 return Version.TryParse(FileVersionInfo.GetVersionInfo(exe).FileVersion, out var version) ? version : null;
             }
             catch { return null; }
@@ -34,18 +34,19 @@ internal static partial class InstallEngine
     {
         foreach (var hive in new[] { RegistryHive.LocalMachine, RegistryHive.CurrentUser })
         foreach (var view in new[] { RegistryView.Registry64, RegistryView.Registry32 })
+        foreach (string registration in new[] { UninstallKey, LegacyUninstallKey })
         {
             try
             {
                 using var root = RegistryKey.OpenBaseKey(hive, view);
-                using var key = root.OpenSubKey(UninstallKey);
-                if (key?.GetValue("InstallLocation") is string dir && File.Exists(Path.Combine(dir, AppName + ".exe")))
+                using var key = root.OpenSubKey(registration);
+                if (key?.GetValue("InstallLocation") is string dir && ApplicationIn(dir) != null)
                     return Path.GetFullPath(dir);
             }
             catch { }
         }
-        foreach (string dir in new[] { DefaultInstallDir, Path.GetDirectoryName(typeof(InstallEngine).Assembly.Location)! })
-            if (File.Exists(Path.Combine(dir, AppName + ".exe"))) return dir;
+        foreach (string dir in new[] { DefaultInstallDir, Path.Combine(DotnetRuntime.ProgramFilesRoot, LegacyName), Path.GetDirectoryName(typeof(InstallEngine).Assembly.Location)! })
+            if (ApplicationIn(dir) != null) return dir;
         return DefaultInstallDir;
     }
 
@@ -54,14 +55,16 @@ internal static partial class InstallEngine
         var paths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         if (!string.IsNullOrWhiteSpace(SettingsFile)) paths.Add(Path.GetFullPath(SettingsFile!));
         string appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-        if (!string.IsNullOrWhiteSpace(appData)) paths.Add(Path.Combine(appData, AppFolder, "settings.json"));
+        if (!string.IsNullOrWhiteSpace(appData))
+            foreach (string name in new[] { AppFolder, LegacyName }) paths.Add(Path.Combine(appData, name, "settings.json"));
         using var profiles = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList");
         if (profiles != null)
         foreach (string sid in profiles.GetSubKeyNames())
         {
             using var profile = profiles.OpenSubKey(sid);
             if (profile?.GetValue("ProfileImagePath") is not string root) continue;
-            paths.Add(Path.Combine(Environment.ExpandEnvironmentVariables(root), "AppData", "Roaming", AppFolder, "settings.json"));
+            foreach (string name in new[] { AppFolder, LegacyName })
+                paths.Add(Path.Combine(Environment.ExpandEnvironmentVariables(root), "AppData", "Roaming", name, "settings.json"));
         }
         return paths.Where(File.Exists).ToArray();
     }
@@ -71,7 +74,7 @@ internal static partial class InstallEngine
         string[] paths = ConfigurationFiles().ToArray();
         if (paths.Length == 0) return;
         log.Report(Core.Loc.T(Core.K.Setup.Migrating));
-        string tool = Path.Combine(InstallDir, "FrameCapture.ConfigUpgrade.exe");
+        string tool = Path.Combine(InstallDir, "NekoCapture.ConfigUpgrade.exe");
         var start = new ProcessStartInfo(tool, string.Join(" ", paths.Select(QuoteArgument)))
         {
             UseShellExecute = false, CreateNoWindow = true,

@@ -7,10 +7,10 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Media;
-using FrameCapture.Capture;
-using FrameCapture.Core;
-using FrameCapture.Overlays;
-using FrameCapture.Services;
+using NekoCapture.Capture;
+using NekoCapture.Core;
+using NekoCapture.Overlays;
+using NekoCapture.Services;
 
 static partial class SelfTest
 {
@@ -72,7 +72,7 @@ static partial class SelfTest
             case "settings-narrow": BuildSettingsAudit(app, rows, "settings-narrow", 0, forceW: 680, forceH: 460); break;
             // 深层目录 + 最小宽度：路径行是最容易被长内容打穿的一处，默认那条短路径量不到
             case "settings-longpath": BuildSettingsAudit(app, rows, "settings-longpath", -1, forceW: 680, forceH: 460,
-                savePath: @"D:\Users\lin\Pictures\截图归档\2026\十月\产品走查与录屏\FrameCapture"); break;
+                savePath: @"D:\Users\lin\Pictures\截图归档\2026\十月\产品走查与录屏\NekoCapture"); break;
             // 用户自己起的长绑定名：折叠行里名字与键帽、开关、垃圾桶抢同一行宽度
             case "settings-longname": BuildSettingsAudit(app, rows, "settings-longname", 0, forceW: 680, forceH: 460,
                 bindingName: LongBindingName); break;
@@ -310,7 +310,7 @@ static partial class SelfTest
     {
         // 样例取「正在保存视频」那一条：启动气泡撤掉之后，这是这条气泡上最长的真实文案，
         // 副行是文件名，宽度一紧就会折行——折行本身不算缺陷，字被裁才算。
-        NoticeToast.Show(Loc.T(K.Capture.SavingVideo), "FrameCapture 2026-10-21 2318.gif");
+        NoticeToast.Show(Loc.T(K.Capture.SavingVideo), "NekoCapture 2026-10-21 2318.gif");
         var w = LastWindow(app);
         if (w == null) { rows.Add("UXA|notice|建窗失败|没拿到窗口"); return; }
         PumpMs(200);

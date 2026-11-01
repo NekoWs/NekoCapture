@@ -7,12 +7,12 @@
     <Nullable>enable</Nullable>
     <PlatformTarget>x64</PlatformTarget>
     <Platforms>x64</Platforms>
-    <AssemblyName>FrameCapture.ConfigUpgrade</AssemblyName>
+    <AssemblyName>NekoCapture.ConfigUpgrade</AssemblyName>
     <RollForward>Major</RollForward>
-    <_FcProj>$([System.IO.File]::ReadAllText('$(MSBuildThisFileDirectory)..\FrameCapture\FrameCapture.csproj'))</_FcProj>
-    <Version>$([System.Text.RegularExpressions.Regex]::Match($(_FcProj), '&lt;Version&gt;([^&lt;]+)&lt;/Version&gt;').Groups[1].Value)</Version>
+    <_NcProj>$([System.IO.File]::ReadAllText('$(MSBuildThisFileDirectory)..\NekoCapture\NekoCapture.csproj'))</_NcProj>
+    <Version>$([System.Text.RegularExpressions.Regex]::Match($(_NcProj), '&lt;Version&gt;([^&lt;]+)&lt;/Version&gt;').Groups[1].Value)</Version>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="..\FrameCapture\FrameCapture.csproj" />
+    <ProjectReference Include="..\NekoCapture\NekoCapture.csproj" />
   </ItemGroup>
 </Project>

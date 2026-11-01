@@ -5,7 +5,7 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
-$file = Join-Path $root "src\FrameCapture\Core\Strings\$Surface.cs"
+$file = Join-Path $root "src\NekoCapture\Core\Strings\$Surface.cs"
 $lines = [System.Collections.Generic.List[string]](Get-Content $file -Encoding UTF8)
 $reStart = [regex]'^\s*public static readonly Str (\w+) = new\('
 

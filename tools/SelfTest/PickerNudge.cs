@@ -1,9 +1,9 @@
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text.Json;
-using FrameCapture.Capture;
-using FrameCapture.Core;
-using FrameCapture.Services;
+using NekoCapture.Capture;
+using NekoCapture.Core;
+using NekoCapture.Services;
 using GE = GestureCore.ModifierKeys;
 
 static partial class SelfTest

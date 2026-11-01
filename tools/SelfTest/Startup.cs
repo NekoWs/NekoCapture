@@ -1,8 +1,8 @@
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Xml.Linq;
-using FrameCapture.Core;
-using FrameCapture.Services;
+using NekoCapture.Core;
+using NekoCapture.Services;
 
 static partial class SelfTest
 {
@@ -10,7 +10,7 @@ static partial class SelfTest
     {
         const string sid = "S-1-5-21-100-200-300-1001";
         const string otherSid = "S-1-5-21-100-200-300-1002";
-        const string exe = @"D:\Apps & Tools\FrameCapture\FrameCapture.exe";
+        const string exe = @"D:\Apps & Tools\NekoCapture\NekoCapture.exe";
         string name = StartupPlan.NameFor(sid);
         string xml = StartupPlan.BuildXml(exe, sid);
         XNamespace ns = "http://schemas.microsoft.com/windows/2004/02/mit/task";
@@ -33,7 +33,7 @@ static partial class SelfTest
         plan = new StartupPlan(storage, exe, sid, true, true);
         Chk("startup-valid-task-needs-no-new-authorization", !plan.NeedsElevation && plan.Apply() == StartupResult.Task
             && storage.Operations.Count == 0);
-        string moved = @"D:\Moved\FrameCapture.exe";
+        string moved = @"D:\Moved\NekoCapture.exe";
         plan = new StartupPlan(storage, moved, sid, true, true);
         Chk("startup-moved-executable-updates-task", plan.NeedsElevation && plan.Apply() == StartupResult.Task
             && StartupPlan.Matches(storage.Tasks[name], moved, sid));
@@ -43,13 +43,13 @@ static partial class SelfTest
         plan = new StartupPlan(storage, moved, sid, false, false);
         Chk("startup-disable-ordinary-needs-no-authorization", !plan.NeedsElevation && plan.Apply() == StartupResult.Off
             && storage.RunValue == null);
-        storage.Tasks["FrameCapture"] = xml;
+        storage.Tasks["NekoCapture"] = xml;
         plan = new StartupPlan(storage, exe, sid, true, true);
-        Chk("startup-migrates-owned-global-task", plan.Apply() == StartupResult.Task && !storage.Tasks.ContainsKey("FrameCapture"));
-        storage = new StartupMemory(); storage.Tasks["FrameCapture"] = StartupPlan.BuildXml(exe, otherSid);
+        Chk("startup-migrates-owned-global-task", plan.Apply() == StartupResult.Task && !storage.Tasks.ContainsKey("NekoCapture"));
+        storage = new StartupMemory(); storage.Tasks["NekoCapture"] = StartupPlan.BuildXml(exe, otherSid);
         plan = new StartupPlan(storage, exe, sid, true, false);
         Chk("startup-leaves-other-users-task-untouched", !plan.NeedsElevation && plan.Apply() == StartupResult.RunKey
-            && storage.Tasks.ContainsKey("FrameCapture") && name != StartupPlan.NameFor(otherSid));
+            && storage.Tasks.ContainsKey("NekoCapture") && name != StartupPlan.NameFor(otherSid));
         storage = new StartupMemory { RunValue = "previous-run", FailOperation = "write-task" };
         bool failed = false;
         try { new StartupPlan(storage, exe, sid, true, true).Apply(); } catch (IOException) { failed = true; }
@@ -70,7 +70,7 @@ static partial class SelfTest
         Chk("startup-elevated-and-scripted-launches-are-quiet", !StartupService.ShouldElevate(Array.Empty<string>(), true, false, true)
             && !StartupService.ShouldElevate(Array.Empty<string>(), false, true, true));
         var values = new[] { "", @"C:\目录 & tools\", "a\"b", "--settings", "--page", "system" };
-        IntPtr argv = ParseStartupArguments("FrameCapture.exe " + StartupService.QuoteArguments(values), out int count);
+        IntPtr argv = ParseStartupArguments("NekoCapture.exe " + StartupService.QuoteArguments(values), out int count);
         try
         {
             var decoded = Enumerable.Range(1, count - 1).Select(i => Marshal.PtrToStringUni(Marshal.ReadIntPtr(argv, i * IntPtr.Size))).ToArray();
@@ -80,24 +80,24 @@ static partial class SelfTest
         Chk("startup-handoff-invalid-parent-is-rejected", !StartupService.WaitForParent(new[] { "--wait-parent", "invalid", "1" })
             && !StartupService.WaitForParent(new[] { "--wait-parent", Environment.ProcessId.ToString(), "1" }));
         using (var native = new WindowsStartupRegistration())
-            Chk("startup-native-missing-task-is-unconfigured", native.ReadTask("FrameCapture-Diagnostic-" + Guid.NewGuid().ToString("N")) == null);
+            Chk("startup-native-missing-task-is-unconfigured", native.ReadTask("NekoCapture-Diagnostic-" + Guid.NewGuid().ToString("N")) == null);
         StartupSettingsChecks();
         StartupStandardChecks();
     }
 
     static void StartupSettingsChecks()
     {
-        string? previousDir = Environment.GetEnvironmentVariable("FC_SETTINGS_DIR");
+        string? previousDir = Environment.GetEnvironmentVariable("NC_SETTINGS_DIR");
         var shared = SettingsService.Shared;
         string root = Path.Combine(Path.GetTempPath(), "startup-settings-" + Guid.NewGuid().ToString("N"));
         try
         {
-            Environment.SetEnvironmentVariable("FC_SETTINGS_DIR", root);
+            Environment.SetEnvironmentVariable("NC_SETTINGS_DIR", root);
             var settings = new SettingsService();
             Chk("startup-preferences-write-both-flags-together", settings.TrySaveStartup(true, true)
                 && settings.Current.RunAtStartup && settings.Current.RunAsAdmin
                 && File.ReadAllText(SettingsService.FilePath).Contains("\"RunAsAdmin\": true"));
-            const string sid = "S-1-5-21-100-200-300-1001", exe = @"D:\Apps\FrameCapture.exe";
+            const string sid = "S-1-5-21-100-200-300-1001", exe = @"D:\Apps\NekoCapture.exe";
             string name = StartupPlan.NameFor(sid), xml = StartupPlan.BuildXml(exe, sid);
             var storage = new StartupMemory(); storage.Tasks[name] = xml;
             bool failed = false;
@@ -121,7 +121,7 @@ static partial class SelfTest
         }
         finally
         {
-            Environment.SetEnvironmentVariable("FC_SETTINGS_DIR", previousDir);
+            Environment.SetEnvironmentVariable("NC_SETTINGS_DIR", previousDir);
             typeof(SettingsService).GetProperty("Shared")!.SetValue(null, shared);
             if (Directory.Exists(root)) Directory.Delete(root, true);
         }

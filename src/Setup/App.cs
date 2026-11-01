@@ -3,9 +3,9 @@ using System.Diagnostics;
 using System.IO;
 using System.Security.Principal;
 using System.Windows;
-using FrameCapture.Core;
+using NekoCapture.Core;
 
-namespace FrameCapture.Setup;
+namespace NekoCapture.Setup;
 
 /// <summary>
 /// 引导器入口。命令行形态：
@@ -18,7 +18,7 @@ internal static class App
     /// <summary>安装开关，提权实例带着它跑完整安装。</summary>
     internal const string ArgInstall = "--install";
 
-    /// <summary>安装位置开关，形如 <c>--dir "D:\Apps\FrameCapture"</c>；缺省装到 Program Files。</summary>
+    /// <summary>安装位置开关，形如 <c>--dir "D:\Apps\NekoCapture"</c>；缺省装到 Program Files。</summary>
     internal const string ArgDir = "--dir";
 
     /// <summary>卸载开关，控制面板里的 UninstallString 指向它。</summary>
@@ -45,7 +45,7 @@ internal static class App
             else if (!InstallEngine.TryTarget(requestedDir, out var requested, out var why))
             {
                 Environment.ExitCode = 1;
-                if (Array.IndexOf(args, "--silent") < 0) MessageBox.Show(why, "FrameCapture");
+                if (Array.IndexOf(args, "--silent") < 0) MessageBox.Show(why, "NekoCapture");
                 return;
             }
             else InstallEngine.InstallDir = requested;
@@ -182,7 +182,7 @@ internal static class App
         {
             var exe = Process.GetCurrentProcess().MainModule?.FileName;
             if (string.IsNullOrEmpty(exe) || !File.Exists(exe)) return null;
-            var dest = Path.Combine(Path.GetTempPath(), "FrameCapture-uninstall-" + Guid.NewGuid().ToString("N") + ".exe");
+            var dest = Path.Combine(Path.GetTempPath(), "NekoCapture-uninstall-" + Guid.NewGuid().ToString("N") + ".exe");
             File.Copy(exe, dest, true);
             return dest;
         }

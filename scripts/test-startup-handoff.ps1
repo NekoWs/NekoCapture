@@ -3,10 +3,10 @@ $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent $PSScriptRoot
 $root = Join-Path $repo 'test-out/startup-handoff'
 $runtime = Join-Path $root 'runtime'
-$exe = Join-Path $repo 'src/FrameCapture/bin/x64/Debug/net8.0-windows10.0.19041.0/FrameCapture.exe'
-if (@(Get-Process FrameCapture -ErrorAction SilentlyContinue).Count) { throw 'A user instance is running; test refused' }
+$exe = Join-Path $repo 'src/NekoCapture/bin/x64/Debug/net8.0-windows10.0.19041.0/NekoCapture.exe'
+if (@(Get-Process NekoCapture -ErrorAction SilentlyContinue).Count) { throw 'A user instance is running; test refused' }
 $saved = @{}
-foreach ($name in @('FC_SETTINGS_DIR','FC_NO_ELEVATE','FC_TEST_NO_FG','TEMP','TMP')) {
+foreach ($name in @('NC_SETTINGS_DIR','NC_NO_ELEVATE','NC_TEST_NO_FG','TEMP','TMP')) {
     $saved[$name] = [Environment]::GetEnvironmentVariable($name)
 }
 $first = $null; $second = $null; $third = $null; $release = $null
@@ -14,7 +14,7 @@ try {
     New-Item -ItemType Directory -Path $runtime -Force | Out-Null
     @{ StartupToast=$false; FirstRunHintShown=$true; RunAtStartup=$true; RunAsAdmin=$true; Gestures=@{Enabled=$false} } |
         ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $root 'settings.json') -Encoding utf8
-    $env:FC_SETTINGS_DIR=$root; $env:FC_NO_ELEVATE='1'; $env:FC_TEST_NO_FG='1'; $env:TEMP=$runtime; $env:TMP=$runtime
+    $env:NC_SETTINGS_DIR=$root; $env:NC_NO_ELEVATE='1'; $env:NC_TEST_NO_FG='1'; $env:TEMP=$runtime; $env:TMP=$runtime
     if (-not ('StartupWindowProbe' -as [type])) {
         Add-Type @'
 using System;
@@ -25,7 +25,7 @@ public static class StartupWindowProbe {
  [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr h,out uint p);
  /// <summary>查询当前主实例。</summary>
  /// <returns>主实例进程 ID；没有实例时为零。</returns>
- public static uint Owner(){uint p=0;var h=FindWindowEx(new IntPtr(-3),IntPtr.Zero,null,"FrameCapture.MessageSink");if(h!=IntPtr.Zero)GetWindowThreadProcessId(h,out p);return p;}
+ public static uint Owner(){uint p=0;var h=FindWindowEx(new IntPtr(-3),IntPtr.Zero,null,"NekoCapture.MessageSink");if(h!=IntPtr.Zero)GetWindowThreadProcessId(h,out p);return p;}
 }
 '@
     }
@@ -43,7 +43,7 @@ public static class StartupWindowProbe {
     while ([StartupWindowProbe]::Owner() -ne $second.Id -and $limit.ElapsedMilliseconds -lt 6000) { Start-Sleep -Milliseconds 50 }
     if ($second.HasExited -or [StartupWindowProbe]::Owner() -ne $second.Id) { throw 'Handoff child did not acquire ownership' }
     $assembly = [Reflection.Assembly]::LoadFrom([IO.Path]::ChangeExtension($exe, '.dll'))
-    $startup = $assembly.GetType('FrameCapture.Services.StartupService')
+    $startup = $assembly.GetType('NekoCapture.Services.StartupService')
     $flags = [Reflection.BindingFlags]'Static,NonPublic'
     $release = $startup.GetMethod('ReleaseStandardHandoff', $flags)
     $callArguments = [object[]]@($exe.psobject.BaseObject, '--startup', 0)

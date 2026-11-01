@@ -40,7 +40,7 @@ function Inferred-Type($node, $variables) {
 }
 foreach ($file in $files) {
     $relative = [IO.Path]::GetRelativePath($root, $file.FullName).Replace('\', '/')
-    if ($relative -match '^src/FrameCapture/Core/Fluent(?:[.][^/]+)?[.]cs$') { continue }
+    if ($relative -match '^src/NekoCapture/Core/Fluent(?:[.][^/]+)?[.]cs$') { continue }
     $source = [IO.File]::ReadAllText($file.FullName)
     if ($file.Extension -eq '.xaml') {
         foreach ($type in $native) {

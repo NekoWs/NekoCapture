@@ -1,7 +1,7 @@
 using System;
 using System.Runtime.InteropServices;
 
-namespace FrameCapture.Native;
+namespace NekoCapture.Native;
 
 /// <summary>
 /// 引导器侧的系统版本号探针，类型名与命名空间与主程序那份一致，链入的视觉语言源文件才能原样编译。

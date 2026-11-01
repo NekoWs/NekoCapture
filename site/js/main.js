@@ -56,16 +56,16 @@
 
   var request = new AbortController();
   var timer = setTimeout(function () { request.abort(); }, 5000);
-  fetch("https://api.github.com/repos/NekoWs/FrameCapture/releases/latest", { signal: request.signal })
+  fetch("https://api.github.com/repos/NekoWs/NekoCapture/releases/latest", { signal: request.signal })
     .then(function (response) { if (!response.ok) throw new Error("Release unavailable"); return response.json(); })
     .then(function (release) {
       if (!/^v?\d+\.\d+\.\d+$/.test(release.tag_name) || release.draft || release.prerelease) return;
       var asset = (release.assets || []).find(function (item) {
-        return /^FrameCapture-Setup-\d+\.\d+\.\d+-x64\.exe$/.test(item.name);
+        return /^NekoCapture-Setup-\d+\.\d+\.\d+-x64\.exe$/.test(item.name);
       });
       if (!asset || !asset.browser_download_url) return;
       var url = new URL(asset.browser_download_url);
-      if (url.origin !== "https://github.com" || !url.pathname.startsWith("/NekoWs/FrameCapture/releases/download/")) return;
+      if (url.origin !== "https://github.com" || !url.pathname.startsWith("/NekoWs/NekoCapture/releases/download/")) return;
       document.querySelectorAll(".download-link").forEach(function (link) { link.href = url.href; });
       document.querySelectorAll(".release-status").forEach(function (label) {
         label.textContent = label.dataset.prefix + " " + release.tag_name + " · " + label.dataset.suffix;

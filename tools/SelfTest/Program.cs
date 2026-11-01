@@ -4,17 +4,17 @@ using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
-using FrameCapture.Capture;
-using FrameCapture.Core;
-using FrameCapture.Drawing;
-using FrameCapture.Encoding;
-using FrameCapture.Services;
+using NekoCapture.Capture;
+using NekoCapture.Core;
+using NekoCapture.Drawing;
+using NekoCapture.Encoding;
+using NekoCapture.Services;
 using System.Windows;
 using System.Windows.Input;
 
 using GE = GestureCore;
-using SAP = FrameCapture.Core.ScrollAutoPolicy;
-using SAO = FrameCapture.Core.ScrollAutoObservation;
+using SAP = NekoCapture.Core.ScrollAutoPolicy;
+using SAO = NekoCapture.Core.ScrollAutoObservation;
 
 static partial class SelfTest
 {
@@ -23,9 +23,9 @@ static partial class SelfTest
     [System.Runtime.InteropServices.DllImport("user32.dll", SetLastError = true)]
     static extern bool SetWindowDisplayAffinity(IntPtr hWnd, uint dwAffinity);
 
-    // 逐条耗时：FC_ST_PERF=1 时把「距上一条断言花了多久」打出来，用来找时间黑洞。
+    // 逐条耗时：NC_ST_PERF=1 时把「距上一条断言花了多久」打出来，用来找时间黑洞。
     // 慢的几乎都是定长 PumpMs 等待，不是断言本身吃时间。
-    static readonly bool PerfDump = Environment.GetEnvironmentVariable("FC_ST_PERF") == "1";
+    static readonly bool PerfDump = Environment.GetEnvironmentVariable("NC_ST_PERF") == "1";
     static readonly System.Diagnostics.Stopwatch PerfSw = System.Diagnostics.Stopwatch.StartNew();
     static long _perfLast;
 
@@ -98,7 +98,7 @@ static partial class SelfTest
     /// <returns>按行紧排的 BGRA 字节，长度 w*h*4。</returns>
     static byte[] MockScreen(int w, int h)
     {
-        bool en = FrameCapture.Core.Loc.IsEnglish;
+        bool en = NekoCapture.Core.Loc.IsEnglish;
         var dv = new System.Windows.Media.DrawingVisual();
         using (var dc = dv.RenderOpen())
         {
@@ -136,7 +136,7 @@ static partial class SelfTest
                 : new[] { "编辑器窗口内", "保存  Ctrl+S     导出  Ctrl+E",
                           "打开  Ctrl+O     识字  Ctrl+H", "逐帧  <-  ->     Shift 一次一秒" };
             double y = card.Y + 56;
-            dc.DrawText(Ft(en ? "FrameCapture notes" : "FrameCapture 随手记", 15, text, true),
+            dc.DrawText(Ft(en ? "NekoCapture notes" : "NekoCapture 随手记", 15, text, true),
                 new System.Windows.Point(card.X + 16, y));
             y += 34;
             foreach (string line in head) { dc.DrawText(Ft(line, 12.5, text, false), new System.Windows.Point(card.X + 16, y)); y += 21; }
@@ -169,18 +169,18 @@ static partial class SelfTest
     static int RenderPin(string outPath, double scale)
     {
         var app = new Application();
-        var svc = new FrameCapture.Core.SettingsService();
-        typeof(FrameCapture.Services.AppHost).GetProperty("Settings")!
-            .SetValue(FrameCapture.Services.AppHost.Current, svc);
-        FrameCapture.Core.Theme.Apply(svc.Current.Theme, svc.Current.Accent);
-        FrameCapture.Core.Fluent.ApplyGlobalStyles();
-        string lang = Environment.GetEnvironmentVariable("FC_LANG") ?? "";
-        FrameCapture.Core.Loc.Apply(lang == "" ? svc.Current.UiLanguage : lang);
+        var svc = new NekoCapture.Core.SettingsService();
+        typeof(NekoCapture.Services.AppHost).GetProperty("Settings")!
+            .SetValue(NekoCapture.Services.AppHost.Current, svc);
+        NekoCapture.Core.Theme.Apply(svc.Current.Theme, svc.Current.Accent);
+        NekoCapture.Core.Fluent.ApplyGlobalStyles();
+        string lang = Environment.GetEnvironmentVariable("NC_LANG") ?? "";
+        NekoCapture.Core.Loc.Apply(lang == "" ? svc.Current.UiLanguage : lang);
 
         const int pw = 640, ph = 400;
-        var frame = new FrameCapture.Capture.CapturedFrame
+        var frame = new NekoCapture.Capture.CapturedFrame
         { Bgra = MockScreen(pw, ph), W = pw, H = ph, TimeMs = 0 };
-        var w = new FrameCapture.Overlays.PinWindow(frame, new FrameCapture.Capture.RectI(240, 180, pw, ph), false);
+        var w = new NekoCapture.Overlays.PinWindow(frame, new NekoCapture.Capture.RectI(240, 180, pw, ph), false);
         w.WindowStartupLocation = WindowStartupLocation.Manual;
         w.Left = -20000; w.Top = -20000;
         w.Show();
@@ -224,7 +224,7 @@ static partial class SelfTest
         enc.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(rtb));
         Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(outPath))!);
         using (var fs = File.Create(outPath)) enc.Save(fs);
-        Console.WriteLine($"saved {outPath} {ww}x{hh} lang={(FrameCapture.Core.Loc.IsEnglish ? "en" : "zh")}");
+        Console.WriteLine($"saved {outPath} {ww}x{hh} lang={(NekoCapture.Core.Loc.IsEnglish ? "en" : "zh")}");
         return 0;
     }
     static int RenderHelp(string outPath) => RenderHelp(outPath, 0, 1);
@@ -232,20 +232,20 @@ static partial class SelfTest
         var app = new Application();
         // 帮助里的键位列取自 SettingsService.Shared：拍图路径不建它，那一列会整列空掉，
         // 拍出来的就不是用户看到的形态。主题与语言也走与设置窗拍图同一条规则。
-        var svc = new FrameCapture.Core.SettingsService();
-        FrameCapture.Core.Theme.Apply(svc.Current.Theme, svc.Current.Accent);
-        string ftheme = Environment.GetEnvironmentVariable("FC_THEME") ?? "";
+        var svc = new NekoCapture.Core.SettingsService();
+        NekoCapture.Core.Theme.Apply(svc.Current.Theme, svc.Current.Accent);
+        string ftheme = Environment.GetEnvironmentVariable("NC_THEME") ?? "";
         if (ftheme == "light" || ftheme == "dark")
-            FrameCapture.Core.Theme.Apply(ftheme, svc.Current.Accent);
-        FrameCapture.Core.Fluent.ApplyGlobalStyles();
-        // 界面语言与宿主同一套规则：FC_LANG 覆盖配置，拍双语界面不必先改用户配置
-        string lang = Environment.GetEnvironmentVariable("FC_LANG") ?? "";
-        FrameCapture.Core.Loc.Apply(lang == "" ? svc.Current.UiLanguage : lang);
+            NekoCapture.Core.Theme.Apply(ftheme, svc.Current.Accent);
+        NekoCapture.Core.Fluent.ApplyGlobalStyles();
+        // 界面语言与宿主同一套规则：NC_LANG 覆盖配置，拍双语界面不必先改用户配置
+        string lang = Environment.GetEnvironmentVariable("NC_LANG") ?? "";
+        NekoCapture.Core.Loc.Apply(lang == "" ? svc.Current.UiLanguage : lang);
         // 反射设静态 _lastStep，让窗口停在指定步（长页/短页分别取证）
-        typeof(FrameCapture.Overlays.HelpWindow)
+        typeof(NekoCapture.Overlays.HelpWindow)
             .GetField("_lastStep", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!
             .SetValue(null, step);
-        var w = FrameCapture.Overlays.HelpWindow.CreateForCapture();
+        var w = NekoCapture.Overlays.HelpWindow.CreateForCapture();
         // 按真实固定窗口尺寸 measure/arrange：短页垂直居中、底部翻页条固定——正是用户点名的布局验证点
         double W = w.Width, H = w.Height;
         var root = (UIElement)w.Content;
@@ -259,7 +259,7 @@ static partial class SelfTest
         enc.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(rtb));
         Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(outPath))!);
         using (var f = File.Create(outPath)) enc.Save(f);
-        Console.WriteLine($"saved {outPath} {ww}x{hh} lang={(FrameCapture.Core.Loc.IsEnglish ? "en" : "zh")}");
+        Console.WriteLine($"saved {outPath} {ww}x{hh} lang={(NekoCapture.Core.Loc.IsEnglish ? "en" : "zh")}");
         return 0;
     }
 
@@ -271,11 +271,11 @@ static partial class SelfTest
     static int RenderPicker(string outPath, bool withFrozen)
     {
         var app = new Application();
-        var svc = new FrameCapture.Core.SettingsService();
-        typeof(FrameCapture.Services.AppHost).GetProperty("Settings")!
-            .SetValue(FrameCapture.Services.AppHost.Current, svc);
-        FrameCapture.Core.Theme.Apply(svc.Current.Theme, svc.Current.Accent);
-        FrameCapture.Core.Fluent.ApplyGlobalStyles();
+        var svc = new NekoCapture.Core.SettingsService();
+        typeof(NekoCapture.Services.AppHost).GetProperty("Settings")!
+            .SetValue(NekoCapture.Services.AppHost.Current, svc);
+        NekoCapture.Core.Theme.Apply(svc.Current.Theme, svc.Current.Accent);
+        NekoCapture.Core.Fluent.ApplyGlobalStyles();
 
         // 合成一帧"屏幕"：渐变打底 + 一块纯白方块，一眼看出窗底是不是这张图、有没有铺满拉伸
         int w = 1500, h = 940;
@@ -297,7 +297,7 @@ static partial class SelfTest
             }
         var frame = new CapturedFrame { Bgra = bgra, W = w, H = h };
         var mon = new MonitorInfo(@"\\.\DISPLAY1", new RectI(0, 0, w, h), true);
-        var win = new FrameCapture.Overlays.RegionPickerWindow(mon, null, snapContent: false, magnifier: true,
+        var win = new NekoCapture.Overlays.RegionPickerWindow(mon, null, snapContent: false, magnifier: true,
             windowCapture: true, freeze: true, pregrabMax: 0, frozenScreen: withFrozen ? frame : null);
         var root = (UIElement)win.Content;
         root.Measure(new System.Windows.Size(w, h));
@@ -328,23 +328,23 @@ static partial class SelfTest
         var app = new Application();
         // 设置窗读 AppHost.Current.Settings；本模式只 new Application()，不走 AppHost.Startup，
         // 这里只挂一个只读的 SettingsService 并套上主题，不注册热键、不碰托盘。
-        var svc = new FrameCapture.Core.SettingsService();
-        typeof(FrameCapture.Services.AppHost).GetProperty("Settings")!
-            .SetValue(FrameCapture.Services.AppHost.Current, svc);
-        FrameCapture.Core.Theme.Apply(svc.Current.Theme, svc.Current.Accent);
-        // 设计审查专用：FC_THEME 覆盖主题，拍深浅两套界面不必先改用户配置（与 AppHost 同一套规则）
-        string ftheme = Environment.GetEnvironmentVariable("FC_THEME") ?? "";
+        var svc = new NekoCapture.Core.SettingsService();
+        typeof(NekoCapture.Services.AppHost).GetProperty("Settings")!
+            .SetValue(NekoCapture.Services.AppHost.Current, svc);
+        NekoCapture.Core.Theme.Apply(svc.Current.Theme, svc.Current.Accent);
+        // 设计审查专用：NC_THEME 覆盖主题，拍深浅两套界面不必先改用户配置（与 AppHost 同一套规则）
+        string ftheme = Environment.GetEnvironmentVariable("NC_THEME") ?? "";
         if (ftheme == "light" || ftheme == "dark")
-            FrameCapture.Core.Theme.Apply(ftheme, svc.Current.Accent);
-        FrameCapture.Core.Fluent.ApplyGlobalStyles();
-        // 界面语言与 AppHost 同一套规则：先按配置，FC_LANG 可覆盖——拍双语界面不必先改用户配置
-        string lang = Environment.GetEnvironmentVariable("FC_LANG") ?? "";
-        FrameCapture.Core.Loc.Apply(lang == "" ? svc.Current.UiLanguage : lang);
+            NekoCapture.Core.Theme.Apply(ftheme, svc.Current.Accent);
+        NekoCapture.Core.Fluent.ApplyGlobalStyles();
+        // 界面语言与 AppHost 同一套规则：先按配置，NC_LANG 可覆盖——拍双语界面不必先改用户配置
+        string lang = Environment.GetEnvironmentVariable("NC_LANG") ?? "";
+        NekoCapture.Core.Loc.Apply(lang == "" ? svc.Current.UiLanguage : lang);
         // 「clash」：再挂一条与第一条同键同触发的绑定，只为拍撞车那条的描边——只改内存里的配置，不落盘。
         if (clash && svc.Current.Gestures.Bindings.Count > 0)
         {
             var first = svc.Current.Gestures.Bindings[0];
-            svc.Current.Gestures.Bindings.Add(new FrameCapture.Core.GestureBindingDto
+            svc.Current.Gestures.Bindings.Add(new NekoCapture.Core.GestureBindingDto
             {
                 Id = "render.clash",
                 Chord = first.Chord,
@@ -352,13 +352,13 @@ static partial class SelfTest
                 Actions = new[] { "ocr.selection" },
             });
         }
-        var w = new FrameCapture.Overlays.SettingsWindow();
+        var w = new NekoCapture.Overlays.SettingsWindow();
         Str[] settingsCategories = { K.Settings.Hotkeys, K.Behaviors.Title, K.Common.Capture, K.Common.Recording,
             K.Settings.Output, K.Common.Editor, K.Common.Pin, K.Common.Appearance, K.Common.Palette, K.Settings.System, K.About.Title };
-        typeof(FrameCapture.Overlays.SettingsWindow).GetField("_restoreCat", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
+        typeof(NekoCapture.Overlays.SettingsWindow).GetField("_restoreCat", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
             .SetValue(w, Array.IndexOf(settingsCategories, catName));
         // Build 与构造分开（ShowOrFocus 先 Build 再 Show），离屏渲染同样要先建内容
-        typeof(FrameCapture.Overlays.SettingsWindow)
+        typeof(NekoCapture.Overlays.SettingsWindow)
             .GetMethod("Build", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
             .Invoke(w, null);
         double W = w.Width, H = w.Height;
@@ -367,8 +367,8 @@ static partial class SelfTest
         // Mica 在场时窗口底是透明的，拍出来会没底色，这里按窗口底色平涂。
         w.WindowStartupLocation = WindowStartupLocation.Manual;
         w.Left = -20000; w.Top = -20000;
-        w.Background = FrameCapture.Core.Theme.WindowBgSolidBrush;
-        if (root is System.Windows.Controls.Border renderRoot) renderRoot.Background = FrameCapture.Core.Theme.WindowBgSolidBrush;
+        w.Background = NekoCapture.Core.Theme.WindowBgSolidBrush;
+        if (root is System.Windows.Controls.Border renderRoot) renderRoot.Background = NekoCapture.Core.Theme.WindowBgSolidBrush;
         w.Show();
         PumpMs(400);
         var src = PresentationSource.FromVisual(w);
@@ -396,7 +396,7 @@ static partial class SelfTest
         if (openAt >= 0 && src != null)
         {
             var boxes = new List<System.Windows.DependencyObject>();
-            CollectTyped(root, typeof(FrameCapture.Core.ChordCaptureBox), boxes);
+            CollectTyped(root, typeof(NekoCapture.Core.ChordCaptureBox), boxes);
             // 键位框 → 行的列容器 → 挂着展开处理器的行首胶囊
             var head = openAt < boxes.Count
                 ? System.Windows.Media.VisualTreeHelper.GetParent(
@@ -450,11 +450,11 @@ static partial class SelfTest
     static int RenderDrag(string outPath, System.Windows.Point at)
     {
         var np = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
-        var ceType = typeof(FrameCapture.Overlays.SettingsWindow)
+        var ceType = typeof(NekoCapture.Overlays.SettingsWindow)
             .GetNestedType("ChainEditor", System.Reflection.BindingFlags.NonPublic)!;
         Func<string[]> get = () => new[] { "capture.region", "capture.stored", "pin.clipboard" };
-        Func<int, IEnumerable<FrameCapture.Core.GestureAction>> cand =
-            _ => Array.Empty<FrameCapture.Core.GestureAction>();
+        Func<int, IEnumerable<NekoCapture.Core.GestureAction>> cand =
+            _ => Array.Empty<NekoCapture.Core.GestureAction>();
         Action<string[]> set = _ => { };
         var ed = Activator.CreateInstance(ceType, get, cand, set)!;
         var root = (System.Windows.Controls.StackPanel)ceType.GetProperty("Root")!.GetValue(ed)!;
@@ -463,7 +463,7 @@ static partial class SelfTest
         var stage = new System.Windows.Controls.Border
         {
             Width = 460, Height = 150,
-            Background = new System.Windows.Media.SolidColorBrush(FrameCapture.Core.Theme.CardBg),
+            Background = new System.Windows.Media.SolidColorBrush(NekoCapture.Core.Theme.CardBg),
             Child = new System.Windows.Documents.AdornerDecorator { Child = root },
         };
         stage.Measure(new System.Windows.Size(460, 150));
@@ -522,29 +522,29 @@ static partial class SelfTest
     static int RenderEditor(string outPath, double scale, bool guide)
     {
         var app = new Application();
-        var svc = new FrameCapture.Core.SettingsService();
-        typeof(FrameCapture.Services.AppHost).GetProperty("Settings")!
-            .SetValue(FrameCapture.Services.AppHost.Current, svc);
-        FrameCapture.Core.Theme.Apply(svc.Current.Theme, svc.Current.Accent);
-        FrameCapture.Core.Fluent.ApplyGlobalStyles();
-        string lang = Environment.GetEnvironmentVariable("FC_LANG") ?? "";
-        FrameCapture.Core.Loc.Apply(lang == "" ? svc.Current.UiLanguage : lang);
+        var svc = new NekoCapture.Core.SettingsService();
+        typeof(NekoCapture.Services.AppHost).GetProperty("Settings")!
+            .SetValue(NekoCapture.Services.AppHost.Current, svc);
+        NekoCapture.Core.Theme.Apply(svc.Current.Theme, svc.Current.Accent);
+        NekoCapture.Core.Fluent.ApplyGlobalStyles();
+        string lang = Environment.GetEnvironmentVariable("NC_LANG") ?? "";
+        NekoCapture.Core.Loc.Apply(lang == "" ? svc.Current.UiLanguage : lang);
         const int fw = 900, fh = 520;
-        var frames = new List<FrameCapture.Capture.CapturedFrame>();
+        var frames = new List<NekoCapture.Capture.CapturedFrame>();
         for (int i = 0; i < 3; i++)
-            frames.Add(new FrameCapture.Capture.CapturedFrame { Bgra = MockScreen(fw, fh), W = fw, H = fh, TimeMs = i * 33.3 });
-        var seq = new FrameCapture.Capture.CapturedSequence
+            frames.Add(new NekoCapture.Capture.CapturedFrame { Bgra = MockScreen(fw, fh), W = fw, H = fh, TimeMs = i * 33.3 });
+        var seq = new NekoCapture.Capture.CapturedSequence
         {
             Frames = frames,
-            Region = new FrameCapture.Capture.RectI(0, 0, fw, fh),
-            MonitorBounds = new FrameCapture.Capture.RectI(0, 0, 1920, 1080),
+            Region = new NekoCapture.Capture.RectI(0, 0, fw, fh),
+            MonitorBounds = new NekoCapture.Capture.RectI(0, 0, 1920, 1080),
             Fps = 30,
         };
-        var w = new FrameCapture.Overlays.EditorWindow(svc, seq);
+        var w = new NekoCapture.Overlays.EditorWindow(svc, seq);
         w.WindowStartupLocation = WindowStartupLocation.Manual;
         w.Left = -20000; w.Top = -20000;
         // Mica 在场时窗口底是透明的，离屏拍图按窗口底色平涂才有底
-        w.Background = new System.Windows.Media.SolidColorBrush(FrameCapture.Core.Theme.WindowBg);
+        w.Background = new System.Windows.Media.SolidColorBrush(NekoCapture.Core.Theme.WindowBg);
         w.Show();
         // 淡入动画会把窗口留在半透明：排空 dispatcher 再把不透明度钉死，拍出来才是常态样子
         w.Dispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.Loaded);
@@ -561,7 +561,7 @@ static partial class SelfTest
         enc.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(rtb));
         Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(outPath))!);
         using (var f = File.Create(outPath)) enc.Save(f);
-        Console.WriteLine($"saved {outPath} {ww}x{hh} lang={(FrameCapture.Core.Loc.IsEnglish ? "en" : "zh")} guide={guide}");
+        Console.WriteLine($"saved {outPath} {ww}x{hh} lang={(NekoCapture.Core.Loc.IsEnglish ? "en" : "zh")} guide={guide}");
         return 0;
     }
 
@@ -637,9 +637,9 @@ static partial class SelfTest
         var stWave = new SettingsService();
         // 应用主题：本模式只 new Application()，不走 AppHost，不套主题就永远拍成暗色。
         Theme.Apply(stWave.Current.Theme, stWave.Current.Accent);
-        var win = new FrameCapture.Overlays.EditorWindow(stWave, seq);
+        var win = new NekoCapture.Overlays.EditorWindow(stWave, seq);
         var NP = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
-        var T = typeof(FrameCapture.Overlays.EditorWindow);
+        var T = typeof(NekoCapture.Overlays.EditorWindow);
         var strip = (System.Windows.FrameworkElement?)T.GetField("_toolPanel", NP)!.GetValue(win)
                     ?? (System.Windows.FrameworkElement?)T.GetField("_toolsBar", NP)!.GetValue(win);
         var barDbg = (System.Windows.Controls.Panel?)T.GetField("_toolsBar", NP)!.GetValue(win);
@@ -679,9 +679,9 @@ static partial class SelfTest
         // 应用主题：本模式只 new Application()，不走 AppHost，不套主题就永远拍成暗色。
         Theme.Apply(stWave.Current.Theme, stWave.Current.Accent);
         var reg = new RectI(240, 220, 460, 320);
-        var stg = new FrameCapture.Overlays.ScrollStageWindow(reg, "");
-        var prv = new FrameCapture.Overlays.ScrollPreviewWindow(reg, "", Fluent.Motion.StaggerMs);
-        var bar = new FrameCapture.Overlays.ScrollHintWindow(reg, "", Fluent.Motion.StaggerMs * 2);
+        var stg = new NekoCapture.Overlays.ScrollStageWindow(reg, "");
+        var prv = new NekoCapture.Overlays.ScrollPreviewWindow(reg, "", Fluent.Motion.StaggerMs);
+        var bar = new NekoCapture.Overlays.ScrollHintWindow(reg, "", Fluent.Motion.StaggerMs * 2);
         stg.Show(); prv.Show(); bar.Show();
         Console.WriteLine($"scrollwave {outPrefix} 已上屏");
         for (int i = 0; i < 120; i++)
@@ -699,7 +699,7 @@ static partial class SelfTest
     {
         var app = new Application();
         // 弹层同款外观（PanelBg/Stroke/圆角），内容=ColorPickView，半透明色展示棋盘底
-        var view = new FrameCapture.Overlays.ColorPickView { Color = System.Windows.Media.Color.FromArgb(0x80, 0xE8, 0x4C, 0x3D) };
+        var view = new NekoCapture.Overlays.ColorPickView { Color = System.Windows.Media.Color.FromArgb(0x80, 0xE8, 0x4C, 0x3D) };
         var root = new System.Windows.Controls.Border
         {
             Background = new System.Windows.Media.SolidColorBrush(Theme.PanelBg),
@@ -723,7 +723,7 @@ static partial class SelfTest
         enc.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(rtb));
         Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(outPath))!);
         using (var f = File.Create(outPath)) enc.Save(f);
-        Console.WriteLine($"saved {outPath} {ww}x{hh} lang={(FrameCapture.Core.Loc.IsEnglish ? "en" : "zh")}");
+        Console.WriteLine($"saved {outPath} {ww}x{hh} lang={(NekoCapture.Core.Loc.IsEnglish ? "en" : "zh")}");
         return 0;
     }
 
@@ -794,7 +794,7 @@ static partial class SelfTest
             return 2;
         }
         var app = new Application();
-        _ = new FrameCapture.Core.SettingsService();
+        _ = new NekoCapture.Core.SettingsService();
         var moves = 0;
         var win = new Window
         {
@@ -823,7 +823,7 @@ static partial class SelfTest
         Console.WriteLine($"  穿透样式已设，捕获={(captured ? "到手" : "没到手")}");
 
         // 一、UIA 能不能看穿
-        var hit = FrameCapture.Core.ElementSnap.At(x, y, IntPtr.Zero);
+        var hit = NekoCapture.Core.ElementSnap.At(x, y, IntPtr.Zero);
         Console.WriteLine(hit == null
             ? "  UIA 看穿：null（没拿到控件）"
             : $"  UIA 看穿：{(hit.Element == null ? "MSAA" : hit.Element.Current.ControlType.ProgrammaticName)} " +
@@ -852,7 +852,7 @@ static partial class SelfTest
             return 2;
         }
         var app = new Application();
-        _ = new FrameCapture.Core.SettingsService();
+        _ = new NekoCapture.Core.SettingsService();
         // overlay 模式：先铺一张和选区窗一样的最顶层遮罩，复现「遮罩压在最上面」的真实条件。
         // 不加这个模式，探针永远测不到那条路——而「吸到遮罩自己的提示文字」正是从那条路来的。
         IntPtr self = IntPtr.Zero;
@@ -903,12 +903,12 @@ static partial class SelfTest
             Console.WriteLine($"点 {x},{y}");
             Console.WriteLine($"  UIA 一步命中 {sw.ElapsedMilliseconds,4} ms  {raw.Current.ControlType.ProgrammaticName} " +
                 $"name=「{raw.Current.Name}」 {rc.X:N0},{rc.Y:N0} {rc.Width:N0}x{rc.Height:N0} " +
-                $"语义={FrameCapture.Core.ElementSnap.IsSemantic(raw)}");
+                $"语义={NekoCapture.Core.ElementSnap.IsSemantic(raw)}");
         }
         sw.Restart();
-        if (Environment.GetEnvironmentVariable("FC_ELEMSNAP_DEBUG") == "1")
-            FrameCapture.Core.ElementSnap.DebugLog = s => Console.WriteLine(s);
-        var hit = FrameCapture.Core.ElementSnap.At(x, y, self);
+        if (Environment.GetEnvironmentVariable("NC_ELEMSNAP_DEBUG") == "1")
+            NekoCapture.Core.ElementSnap.DebugLog = s => Console.WriteLine(s);
+        var hit = NekoCapture.Core.ElementSnap.At(x, y, self);
         Console.WriteLine(hit == null
             ? $"  过滤后      {sw.ElapsedMilliseconds,4} ms  null（没有说得出口的控件）"
             : hit.Element == null
@@ -919,9 +919,9 @@ static partial class SelfTest
         IntPtr targetHwnd = TopWindowAt(x, y);
         if (targetHwnd != IntPtr.Zero)
         {
-            if (Environment.GetEnvironmentVariable("FC_ELEMSNAP_DEBUG") == "1")
-                FrameCapture.Core.MsaaSnap.DebugLog = s => Console.WriteLine("    " + s);
-            var mh = FrameCapture.Core.MsaaSnap.At(targetHwnd, x, y);
+            if (Environment.GetEnvironmentVariable("NC_ELEMSNAP_DEBUG") == "1")
+                NekoCapture.Core.MsaaSnap.DebugLog = s => Console.WriteLine("    " + s);
+            var mh = NekoCapture.Core.MsaaSnap.At(targetHwnd, x, y);
             Console.WriteLine(mh == null
                 ? "  MSAA        --   没有可用控件"
                 : $"  MSAA        --   role={mh.Role} name=「{mh.Name}」 {mh.Rect.X},{mh.Rect.Y} {mh.Rect.W}x{mh.Rect.H} 子节点={mh.ChildCount}");
@@ -936,10 +936,10 @@ static partial class SelfTest
     {
         var app = new Application();
         // 浮窗上那条复制键来自设置：先建一份设置，芯片才按出厂默认 Ctrl+C 画出来
-        _ = new FrameCapture.Core.SettingsService();
-        FrameCapture.Overlays.CaptureToast.Show(Solid(320, 180, 0x2E, 0x5C, 0x8A),
-            new FrameCapture.Capture.RectI(0, 0, 320, 180), "", () => { }, () => { });
-        var w = System.Windows.Application.Current.Windows.OfType<FrameCapture.Overlays.CaptureToast>().FirstOrDefault();
+        _ = new NekoCapture.Core.SettingsService();
+        NekoCapture.Overlays.CaptureToast.Show(Solid(320, 180, 0x2E, 0x5C, 0x8A),
+            new NekoCapture.Capture.RectI(0, 0, 320, 180), "", () => { }, () => { });
+        var w = System.Windows.Application.Current.Windows.OfType<NekoCapture.Overlays.CaptureToast>().FirstOrDefault();
         if (w?.Content is not System.Windows.FrameworkElement root)
         {
             Console.WriteLine("toast 没建起来");
@@ -1100,20 +1100,20 @@ static partial class SelfTest
     static void SettingsScratch()
     {
         var repository = new DirectoryInfo(AppContext.BaseDirectory);
-        while (repository != null && !File.Exists(Path.Combine(repository.FullName, "FrameCapture.slnx"))) repository = repository.Parent;
+        while (repository != null && !File.Exists(Path.Combine(repository.FullName, "NekoCapture.slnx"))) repository = repository.Parent;
         if (repository == null) throw new InvalidOperationException("SelfTest requires a repository checkout");
         var runtime = Path.Combine(repository.FullName, "test-out", "selftest-runtime", Environment.ProcessId.ToString());
         Directory.CreateDirectory(runtime);
         Environment.SetEnvironmentVariable("TEMP", runtime);
         Environment.SetEnvironmentVariable("TMP", runtime);
-        if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("FC_SETTINGS_DIR"))) return;
+        if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("NC_SETTINGS_DIR"))) return;
         var user = Path.Combine(SettingsService.Dir, "settings.json");
         var scratch = Path.Combine(runtime, "settings");
         Directory.CreateDirectory(scratch);
         var mine = Path.Combine(scratch, "settings.json");
         if (File.Exists(mine)) File.Delete(mine);
         if (File.Exists(user)) File.Copy(user, mine);
-        Environment.SetEnvironmentVariable("FC_SETTINGS_DIR", scratch);
+        Environment.SetEnvironmentVariable("NC_SETTINGS_DIR", scratch);
     }
 
     /// <summary>
@@ -1121,7 +1121,7 @@ static partial class SelfTest
     /// 用户屏幕上不出现、也不挡鼠标。版面与坐标断言在屏幕外同样成立（WPF 的版面与
     /// PointToScreen 都按窗口自身位置换算），只有「窗口在屏幕上的绝对位置」类断言例外。
     /// </summary>
-    static readonly bool Quiet = Environment.GetEnvironmentVariable("FC_TEST_QUIET") != "0";
+    static readonly bool Quiet = Environment.GetEnvironmentVariable("NC_TEST_QUIET") != "0";
 
     /// <summary>把本进程每一个 Window 搬到屏幕外：挂在 Window.Loaded 的类处理器上，一处管全部。</summary>
     static void InstallQuietWindows()
@@ -1188,12 +1188,14 @@ static partial class SelfTest
             Console.WriteLine($"RESULT PASS={pass} FAIL={fail}");
             return fail == 0 ? 0 : 1;
         }
-        if (Environment.GetEnvironmentVariable("FC_TEST_NO_WINDOWS") == "1")
+        if (Environment.GetEnvironmentVariable("NC_TEST_NO_WINDOWS") == "1")
         {
             Console.Error.WriteLine("Window tests are disabled in this process");
             return 2;
         }
         InstallQuietWindows();
+        if (args.Length == 1 && args[0] == "rebrand")
+        { RebrandChecks(); Console.WriteLine($"SelfTest pass={pass} fail={fail}"); return fail == 0 ? 0 : 1; }
         if (args.Length == 1 && args[0] == "parallel-capture")
         { ParallelCaptureChecks(); Console.WriteLine($"SelfTest pass={pass} fail={fail}"); return fail == 0 ? 0 : 1; }
         if (args.Length == 1 && args[0] == "picker-nudge")
@@ -1212,7 +1214,7 @@ static partial class SelfTest
             var settingProperty = typeof(AppHost).GetProperty("Settings")!;
             var priorSettings = settingProperty.GetValue(AppHost.Current);
             settingProperty.SetValue(AppHost.Current, new SettingsService());
-            var window = new FrameCapture.Overlays.SettingsWindow();
+            var window = new NekoCapture.Overlays.SettingsWindow();
             try { VideoComponentSettingsChecks(window); ComponentDownloadChecks(); }
             finally { window.Close(); settingProperty.SetValue(AppHost.Current, priorSettings); }
             Console.WriteLine($"SelfTest pass={pass} fail={fail}"); return fail == 0 ? 0 : 1;
@@ -1353,7 +1355,7 @@ static partial class SelfTest
             Console.WriteLine($"RESULT PASS={pass} FAIL={fail}");
             return fail == 0 ? 0 : 1;
         }
-        string tmp = Path.Combine(Path.GetTempPath(), "FrameCapture", "selftest");
+        string tmp = Path.Combine(Path.GetTempPath(), "NekoCapture", "selftest");
         Directory.CreateDirectory(tmp);
 
         // GIF 编码往返 + 调色板 RGB 序：断言调色板条目恒按 R,G,B 写出；若退化为 BGR 则红蓝互换
@@ -1523,13 +1525,13 @@ static partial class SelfTest
 
             // 弹窗实时预览走小格子 + 抽稀：画布尺寸只由格子数决定，抽不抽稀都一样；
             // 帧比格子还小（step=1）时不能崩，也不能改画布。
-            var prev8 = AgentStrip.Render(sampled7, idxs7, FrameCapture.Overlays.FilmStripDialog.PreviewCell, decimate: true);
-            var prevSame = AgentStrip.Render(sampled7, idxs7, FrameCapture.Overlays.FilmStripDialog.PreviewCell);
+            var prev8 = AgentStrip.Render(sampled7, idxs7, NekoCapture.Overlays.FilmStripDialog.PreviewCell, decimate: true);
+            var prevSame = AgentStrip.Render(sampled7, idxs7, NekoCapture.Overlays.FilmStripDialog.PreviewCell);
             Chk("T7g-preview-cell-scales",
                 prev8.PixelWidth == prevSame.PixelWidth && prev8.PixelWidth < strip7.PixelWidth,
                 $"预览 {prev8.PixelWidth}px 与同格宽全质量一致，且小于成片 {strip7.PixelWidth}px");
             var tiny = new[] { Solid(7, 5, 10, 20, 30), Solid(7, 5, 40, 50, 60) };
-            var prevTiny = AgentStrip.Render(tiny, new[] { 0, 1 }, FrameCapture.Overlays.FilmStripDialog.PreviewCell, decimate: true);
+            var prevTiny = AgentStrip.Render(tiny, new[] { 0, 1 }, NekoCapture.Overlays.FilmStripDialog.PreviewCell, decimate: true);
             Chk("T7h-preview-tiny-frames",
                 prevTiny.PixelWidth > 0 && prevTiny.PixelHeight > 0,
                 $"帧比格子还小 → 抽稀退到逐像素，出图 {prevTiny.PixelWidth}x{prevTiny.PixelHeight}");
@@ -1643,7 +1645,7 @@ static partial class SelfTest
                     Background = new System.Windows.Media.SolidColorBrush(
                         System.Windows.Media.Color.FromRgb(0x33, 0x33, 0x33)),
                 };
-                FrameCapture.Core.Fluent.ChipHover(chipT);
+                NekoCapture.Core.Fluent.ChipHover(chipT);
                 var picked = System.Windows.Media.Color.FromRgb(0x00, 0x78, 0xD4);
                 int upFired = 0;
                 var dev = System.Windows.Input.Mouse.PrimaryDevice;
@@ -1679,17 +1681,17 @@ static partial class SelfTest
                     Left = -20000, Top = -20000, Width = 420, Height = 260,
                     Content = new System.Windows.Controls.StackPanel(),
                 };
-                var fold = FrameCapture.Core.Fluent.Revealable(
+                var fold = NekoCapture.Core.Fluent.Revealable(
                     new System.Windows.Controls.Border { Height = 40 });
                 ((System.Windows.Controls.StackPanel)foldWin.Content).Children.Add(fold);
                 foldWin.Show();
                 PumpMs(250);
                 bool startCollapsed = fold.Visibility == Visibility.Collapsed && fold.Opacity == 0;
-                FrameCapture.Core.Fluent.Reveal(fold);
+                NekoCapture.Core.Fluent.Reveal(fold);
                 PumpMs(700);
                 double openH = fold.ActualHeight;
                 double openOp = fold.Opacity;
-                FrameCapture.Core.Fluent.Conceal(fold);
+                NekoCapture.Core.Fluent.Conceal(fold);
                 PumpMs(700);
                 bool yielded = fold.Visibility == Visibility.Collapsed;
                 Chk("T205-reveal-opens-and-conceal-yields-space",
@@ -1708,12 +1710,12 @@ static partial class SelfTest
                     Left = -20000, Top = -20000, Width = 420, Height = 260,
                     Content = new System.Windows.Controls.StackPanel(),
                 };
-                var seq = FrameCapture.Core.Fluent.Revealable(
+                var seq = NekoCapture.Core.Fluent.Revealable(
                     new System.Windows.Controls.Border { Height = 40 });
                 ((System.Windows.Controls.StackPanel)seqWin.Content).Children.Add(seq);
                 seqWin.Show();
                 PumpMs(250);
-                FrameCapture.Core.Fluent.Reveal(seq);
+                NekoCapture.Core.Fluent.Reveal(seq);
                 // 逐帧盯入场：内容开始淡那一刻空地必须已经开了一部分、又还没开完。
                 // 瞬间撑开与"等空地开完才淡"都会量到满高，两种都不许。
                 bool grewOpen = false;
@@ -1726,7 +1728,7 @@ static partial class SelfTest
                     PumpMs(16);
                 }
                 PumpMs(700);
-                FrameCapture.Core.Fluent.Conceal(seq);
+                NekoCapture.Core.Fluent.Conceal(seq);
                 // 逐帧盯退场：空地开始收那一刻内容必须正在挪走——还没动是不该等这么久，挪完了是拖成两段。
                 double opWhenShrinkStarts = -1;
                 int f = 0;
@@ -2026,12 +2028,12 @@ static partial class SelfTest
                 Region = new RectI(0, 0, 160, 90),
                 MonitorBounds = new RectI(0, 0, 1920, 1080),
             };
-            var winW = new FrameCapture.Overlays.EditorWindow(stW, seqW);
+            var winW = new NekoCapture.Overlays.EditorWindow(stW, seqW);
             // 挪到屏幕外再显示：这扇窗开在屏幕正中时，用户的光标压上去，WPF 就真发了 MouseEnter，
             // 那个按钮会一直停在悬停倍率上——「全部复位」永远等不到，而它跟被测代码没关系。
             winW.WindowStartupLocation = WindowStartupLocation.Manual;
             winW.Left = -20000; winW.Top = -20000;
-            var barW = (System.Windows.Controls.StackPanel?)typeof(FrameCapture.Overlays.EditorWindow)
+            var barW = (System.Windows.Controls.StackPanel?)typeof(NekoCapture.Overlays.EditorWindow)
                 .GetField("_toolsBar", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
                 .GetValue(winW);
             var btnW = barW!.Children.OfType<System.Windows.Controls.Button>().ToList();
@@ -2075,15 +2077,15 @@ static partial class SelfTest
                 Region = new RectI(0, 0, 160, 90),
                 MonitorBounds = new RectI(0, 0, 1920, 1080),
             };
-            var winP = new FrameCapture.Overlays.EditorWindow(stP, seqP);
+            var winP = new NekoCapture.Overlays.EditorWindow(stP, seqP);
             var NPP = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
             // 播放条按列组接管：动画挂在 Grid 的直接子元素上，按钮自身 Opacity 始终为 1，
             // 探按钮会让断言在「播放条完全没动」时也成立。
-            var playPanelP = (System.Windows.Controls.Border?)typeof(FrameCapture.Overlays.EditorWindow)
+            var playPanelP = (System.Windows.Controls.Border?)typeof(NekoCapture.Overlays.EditorWindow)
                 .GetField("_playPanel", NPP)!.GetValue(winP);
             var playGrp = (playPanelP?.Child as System.Windows.Controls.Panel)?.Children
                 .OfType<System.Windows.UIElement>().FirstOrDefault();
-            var barP = (System.Windows.Controls.StackPanel?)typeof(FrameCapture.Overlays.EditorWindow)
+            var barP = (System.Windows.Controls.StackPanel?)typeof(NekoCapture.Overlays.EditorWindow)
                 .GetField("_toolsBar", NPP)!.GetValue(winP);
             var firstTool = barP!.Children.OfType<System.Windows.Controls.Button>().First();
             Chk("T179a-multiframe-parts", playGrp != null, $"播放首组={(playGrp == null ? "缺失" : "存在")}");
@@ -2135,9 +2137,9 @@ static partial class SelfTest
                 Region = new RectI(0, 0, 520, 300),
                 MonitorBounds = new RectI(0, 0, 1920, 1080),
             };
-            var winN = new FrameCapture.Overlays.EditorWindow(stN, seqN);
+            var winN = new NekoCapture.Overlays.EditorWindow(stN, seqN);
             var NPn = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
-            var Tn = typeof(FrameCapture.Overlays.EditorWindow);
+            var Tn = typeof(NekoCapture.Overlays.EditorWindow);
             var snackN = (System.Windows.Controls.Border?)Tn.GetField("_snack", NPn)!.GetValue(winN);
             var showN = Tn.GetMethod("ShowSnack", NPn)!;
             winN.Show();
@@ -2176,7 +2178,7 @@ static partial class SelfTest
                 Region = new RectI(0, 0, 520, 300),
                 MonitorBounds = new RectI(0, 0, 1920, 1080),
             };
-            var winT = new FrameCapture.Overlays.EditorWindow(stT, seqT);
+            var winT = new NekoCapture.Overlays.EditorWindow(stT, seqT);
             winT.Show();
             PumpMs(Fluent.Motion.EditorEnterMs + Fluent.Motion.StaggerMs + 260);
             var tips = new List<string>();
@@ -2199,9 +2201,9 @@ static partial class SelfTest
         try
         {
             var regS = new RectI(240, 220, 460, 320);
-            var stg = new FrameCapture.Overlays.ScrollStageWindow(regS, "");
-            var prv = new FrameCapture.Overlays.ScrollPreviewWindow(regS, "", Fluent.Motion.StaggerMs);
-            var bar = new FrameCapture.Overlays.ScrollHintWindow(regS, "", Fluent.Motion.StaggerMs * 2);
+            var stg = new NekoCapture.Overlays.ScrollStageWindow(regS, "");
+            var prv = new NekoCapture.Overlays.ScrollPreviewWindow(regS, "", Fluent.Motion.StaggerMs);
+            var bar = new NekoCapture.Overlays.ScrollHintWindow(regS, "", Fluent.Motion.StaggerMs * 2);
             stg.Show(); prv.Show(); bar.Show();
             int leadS = 0;
             while (stg.Opacity <= 0.02 && leadS < 3000) { PumpMs(10); leadS += 10; }
@@ -2227,7 +2229,7 @@ static partial class SelfTest
                 Region = new RectI(0, 0, 320, 180),
                 MonitorBounds = new RectI(0, 0, 1920, 1080),
             };
-            var winM = new FrameCapture.Overlays.EditorWindow(stM, seqM);
+            var winM = new NekoCapture.Overlays.EditorWindow(stM, seqM);
             winM.Show();
             PumpMs(260);
             bool mica = Fluent.MicaSupported;
@@ -2238,7 +2240,7 @@ static partial class SelfTest
                 (!mica || (hrM == 0 && gotM == 2u)) && seeThrough == mica,
                 $"材质回读 hr={hrM}/{gotM} 能力={mica} 窗底透明={seeThrough}");
             var NPm = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
-            var gridM = (System.Windows.Controls.Grid)typeof(FrameCapture.Overlays.EditorWindow)
+            var gridM = (System.Windows.Controls.Grid)typeof(NekoCapture.Overlays.EditorWindow)
                 .GetField("_viewGrid", NPm)!.GetValue(winM)!;
             var hostM = System.Windows.Media.VisualTreeHelper.GetParent(gridM) as System.Windows.Controls.Border;
             var hostBg = hostM?.Background as System.Windows.Media.SolidColorBrush;
@@ -2477,8 +2479,8 @@ static partial class SelfTest
         }
         catch (Exception e) { Chk("T17-snap", false, e.Message); }
 
-        // BENCH（仅 FC_BENCH=1 时运行，不计入 PASS/FAIL）：4K GIF 编码耗时
-        if (Environment.GetEnvironmentVariable("FC_BENCH") == "1")
+        // BENCH（仅 NC_BENCH=1 时运行，不计入 PASS/FAIL）：4K GIF 编码耗时
+        if (Environment.GetEnvironmentVariable("NC_BENCH") == "1")
         {
             int W = 3840, H = 2160, N = 30;
             var frames = new List<CapturedFrame>();
@@ -2745,7 +2747,7 @@ static partial class SelfTest
                             File.WriteAllBytes(Path.Combine(dir, "r99-windowrec.gif"), GifEncoder.Encode(shots, delays));
                             BgraImage.SavePng(shots[shots.Length - 1], Path.Combine(dir, "r99-windowrec.png"));
                         }
-                        catch (Exception ex) { FrameCapture.Core.Trace.Log("selftest window-rec artifact: " + ex.Message); }
+                        catch (Exception ex) { NekoCapture.Core.Trace.Log("selftest window-rec artifact: " + ex.Message); }
                 }
                 // 选取状态本身：点中窗口 = LockedToWindow；各功能的开关只决定认不认这个窗口
                 var selWin = new Selection(@"\\.\DISPLAY1", new RectI(4, 8, 10, 10), new IntPtr(0x1234));
@@ -3156,7 +3158,7 @@ static partial class SelfTest
                 dbmp.Dispose();
                 Chk("T85a-gradient-dithered", worst <= 2.5,
                     $"暗渐变逐行均值最大偏离 {worst:F2}（无抖动整段行同档，偏离可达 ±5）" +
-                    (Environment.GetEnvironmentVariable("FC_T85DBG") == "1"
+                    (Environment.GetEnvironmentVariable("NC_T85DBG") == "1"
                         ? " dec=[" + string.Join(" ", rowMeans.Select(m => m.ToString("F0"))) + "]"
                         + " src=[" + string.Join(" ", Enumerable.Range(0, H).Select(y => (10 + y * 30 / H).ToString())) + "]" : ""));
             }
@@ -3417,7 +3419,7 @@ static partial class SelfTest
             }
             {
                 // 磁盘暂存帧仓（，FrameSpool/FrameSpoolList）：落盘往返 / 惰性回读 / 切片 / 元数据 / 文件生命周期
-                var dir = Path.Combine(Path.GetTempPath(), "FrameCapture", "selftest");
+                var dir = Path.Combine(Path.GetTempPath(), "NekoCapture", "selftest");
                 Directory.CreateDirectory(dir);
                 var spoolPath = Path.Combine(dir, $"spool-test-{Guid.NewGuid():N}.fcf");
                 var f0 = new CapturedFrame { W = 4, H = 2, TimeMs = 0, Bgra = Enumerable.Range(0, 32).Select(i => (byte)i).ToArray() };
@@ -3461,29 +3463,29 @@ static partial class SelfTest
                 var svDir = Path.Combine(dir, "autosave-" + Guid.NewGuid().ToString("N"));
                 Directory.CreateDirectory(svDir);
                 Chk("T101a-unique-free",
-                    SaveService.UniqueName(svDir, "FrameCapture x", "png") == "FrameCapture x.png",
+                    SaveService.UniqueName(svDir, "NekoCapture x", "png") == "NekoCapture x.png",
                     "无冲突 → 原名");
-                File.WriteAllBytes(Path.Combine(svDir, "FrameCapture x.png"), new byte[] { 1 });
+                File.WriteAllBytes(Path.Combine(svDir, "NekoCapture x.png"), new byte[] { 1 });
                 Chk("T101b-unique-2",
-                    SaveService.UniqueName(svDir, "FrameCapture x", "png") == "FrameCapture x (2).png",
+                    SaveService.UniqueName(svDir, "NekoCapture x", "png") == "NekoCapture x (2).png",
                     "同名占用 → (2)");
-                File.WriteAllBytes(Path.Combine(svDir, "FrameCapture x.gif"), new byte[] { 1 });
-                File.WriteAllBytes(Path.Combine(svDir, "FrameCapture x (2).gif"), new byte[] { 1 });
+                File.WriteAllBytes(Path.Combine(svDir, "NekoCapture x.gif"), new byte[] { 1 });
+                File.WriteAllBytes(Path.Combine(svDir, "NekoCapture x (2).gif"), new byte[] { 1 });
                 Chk("T101c-unique-3",
-                    SaveService.UniqueName(svDir, "FrameCapture x", "gif") == "FrameCapture x (3).gif",
+                    SaveService.UniqueName(svDir, "NekoCapture x", "gif") == "NekoCapture x (3).gif",
                     "同名+（2）占用 → (3)");
                 // 先清掉自定义保存目录再把自动保存关掉，这两条判据才不依赖本机设置：
                 // 用户设过保存目录时，第一条量的是他的路径；开着自动保存时，第二条会真的往盘上写。
                 // 两样都在本段末尾还原。
-                var saveSvc = FrameCapture.Core.SettingsService.Shared;
+                var saveSvc = NekoCapture.Core.SettingsService.Shared;
                 string keepPath = saveSvc?.Current.AutoSavePath ?? "";
                 bool keepAuto = saveSvc?.Current.AutoSaveCopy ?? false;
                 saveSvc?.Mutate(s2 => { s2.AutoSavePath = ""; s2.AutoSaveCopy = false; });
                 var resolved = SaveService.ResolveFolder();
                 Chk("T101d-folder-fallback",
-                    resolved == Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), "FrameCapture")
+                    resolved == Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), "NekoCapture")
                     && Directory.Exists(resolved),
-                    "空路径 → 回退 图片\\FrameCapture 且已建");
+                    "空路径 → 回退 图片\\NekoCapture 且已建");
                 int before = Directory.GetFiles(resolved).Length;
                 var oneSeq = new CapturedSequence { Frames = new List<CapturedFrame> { f0 }, Region = default, MonitorBounds = default };
                 var twoSeq = new CapturedSequence { Frames = new List<CapturedFrame> { f0, f1 }, Region = default, MonitorBounds = default };
@@ -3712,8 +3714,8 @@ static partial class SelfTest
                 settings.Mutate(s => s.RememberEditorTools = false);
                 var f = MovingSquare(160, 90, 0, 1);
                 var seq = new CapturedSequence { Frames = new List<CapturedFrame> { f }, Region = new RectI(0, 0, 160, 90), MonitorBounds = new RectI(0, 0, 1920, 1080) };
-                var win = new FrameCapture.Overlays.EditorWindow(settings, seq);
-                var T = typeof(FrameCapture.Overlays.EditorWindow);
+                var win = new NekoCapture.Overlays.EditorWindow(settings, seq);
+                var T = typeof(NekoCapture.Overlays.EditorWindow);
                 var NP = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
                 var canvas = (System.Windows.Controls.Canvas)T.GetField("_canvas", NP)!.GetValue(win)!;
                 var anns = T.GetField("_anns", NP)!.GetValue(win)!;
@@ -4022,12 +4024,12 @@ static partial class SelfTest
             // SendInput 注入原语的 x64 结构体布局：尺寸算错时系统按 cbSize 读输入数组，畸形输入会让它读越界内存。
             // 这条断言锁住布局，改结构体的人第一时间在这里撞回来。
             {
-                int szIn = FrameCapture.Native.InputLayout.SizeOfInput;
-                int szMi = FrameCapture.Native.InputLayout.SizeOfMouseInput;
-                int offMi = FrameCapture.Native.InputLayout.MouseOffset;
+                int szIn = NekoCapture.Native.InputLayout.SizeOfInput;
+                int szMi = NekoCapture.Native.InputLayout.SizeOfMouseInput;
+                int offMi = NekoCapture.Native.InputLayout.MouseOffset;
                 Chk("T168a-INPUT x64 布局 40 字节 mi@8",
-                    szIn == 40 && offMi == 8 && szMi == 32 && FrameCapture.Native.InputLayout.Ok,
-                    $"sizeof(INPUT)={szIn} offsetof(INPUT.mi)={offMi} sizeof(MOUSEINPUT)={szMi} Ok={FrameCapture.Native.InputLayout.Ok}");
+                    szIn == 40 && offMi == 8 && szMi == 32 && NekoCapture.Native.InputLayout.Ok,
+                    $"sizeof(INPUT)={szIn} offsetof(INPUT.mi)={offMi} sizeof(MOUSEINPUT)={szMi} Ok={NekoCapture.Native.InputLayout.Ok}");
             }
             // 自动滚动步进策略（ScrollAutoPolicy 纯函数）：发一步 → 等这一步落定 → 再发下一步。
             // 连续两帧一致才算停稳，按固定节拍连续注轮会让画面永远在动、一段都拼不上，节奏全靠这套决定撑住。
@@ -4917,13 +4919,13 @@ static partial class SelfTest
         try
         {
             var appHot = System.Windows.Application.Current ?? new System.Windows.Application();
-            var svcHot = new FrameCapture.Core.SettingsService();
-            typeof(FrameCapture.Services.AppHost).GetProperty("Settings")!
-                .SetValue(FrameCapture.Services.AppHost.Current, svcHot);
-            FrameCapture.Core.Theme.Apply("dark", svcHot.Current.Accent);
-            FrameCapture.Core.Fluent.ApplyGlobalStyles();
-            FrameCapture.Core.Loc.Apply("zh");
-            var winHot = new FrameCapture.Overlays.SettingsWindow
+            var svcHot = new NekoCapture.Core.SettingsService();
+            typeof(NekoCapture.Services.AppHost).GetProperty("Settings")!
+                .SetValue(NekoCapture.Services.AppHost.Current, svcHot);
+            NekoCapture.Core.Theme.Apply("dark", svcHot.Current.Accent);
+            NekoCapture.Core.Fluent.ApplyGlobalStyles();
+            NekoCapture.Core.Loc.Apply("zh");
+            var winHot = new NekoCapture.Overlays.SettingsWindow
             {
                 WindowStartupLocation = WindowStartupLocation.Manual,
                 Left = -20000,
@@ -4931,14 +4933,14 @@ static partial class SelfTest
                 ShowActivated = false,
                 ShowInTaskbar = false,
             };
-            typeof(FrameCapture.Overlays.SettingsWindow)
+            typeof(NekoCapture.Overlays.SettingsWindow)
                 .GetMethod("Build", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
                 .Invoke(winHot, null);
             winHot.Show();
             PumpMs(400);
             var hotRoot = (UIElement)winHot.Content;
             var hotBoxes = new List<System.Windows.DependencyObject>();
-            CollectTyped(hotRoot, typeof(FrameCapture.Core.ChordCaptureBox), hotBoxes);
+            CollectTyped(hotRoot, typeof(NekoCapture.Core.ChordCaptureBox), hotBoxes);
             // 键位框 → 行首的列容器 → 挂着展开处理器的胶囊：这一击打在挂处理器的那一层
             var pill = (System.Windows.UIElement)System.Windows.Media.VisualTreeHelper
                 .GetParent(System.Windows.Media.VisualTreeHelper.GetParent(hotBoxes[0]))!;
@@ -5004,22 +5006,22 @@ static partial class SelfTest
         try
         {
             var app6 = System.Windows.Application.Current ?? new System.Windows.Application();
-            var svc6 = new FrameCapture.Core.SettingsService();
-            typeof(FrameCapture.Services.AppHost).GetProperty("Settings")!
-                .SetValue(FrameCapture.Services.AppHost.Current, svc6);
-            FrameCapture.Core.Theme.Apply("dark", svc6.Current.Accent);
-            FrameCapture.Core.Fluent.ApplyGlobalStyles();
-            var swType = typeof(FrameCapture.Overlays.SettingsWindow);
+            var svc6 = new NekoCapture.Core.SettingsService();
+            typeof(NekoCapture.Services.AppHost).GetProperty("Settings")!
+                .SetValue(NekoCapture.Services.AppHost.Current, svc6);
+            NekoCapture.Core.Theme.Apply("dark", svc6.Current.Accent);
+            NekoCapture.Core.Fluent.ApplyGlobalStyles();
+            var swType = typeof(NekoCapture.Overlays.SettingsWindow);
             const System.Reflection.BindingFlags NP = System.Reflection.BindingFlags.NonPublic
                 | System.Reflection.BindingFlags.Static;
             const System.Reflection.BindingFlags FI = System.Reflection.BindingFlags.NonPublic
                 | System.Reflection.BindingFlags.Instance;
             var nameMi = swType.GetMethod("HotkeyDisplayName", NP)!;
-            static FrameCapture.Core.GestureBindingDto Bind(string id, string? name = null)
+            static NekoCapture.Core.GestureBindingDto Bind(string id, string? name = null)
                 => new() { Id = id, Name = name ?? "", Chord = "Ctrl+Alt+A", Trigger = "Chord", Actions = new[] { "scope.select" } };
-            string Disp(FrameCapture.Core.GestureBindingDto b, string lang)
+            string Disp(NekoCapture.Core.GestureBindingDto b, string lang)
             {
-                FrameCapture.Core.Loc.Apply(lang);
+                NekoCapture.Core.Loc.Apply(lang);
                 return (string)nameMi.Invoke(null, new object[] { b })!;
             }
             Chk("T196a-default-names-follow-language",
@@ -5052,11 +5054,11 @@ static partial class SelfTest
             winRn.Close();
 
             // 键位框宽度跟着键帽走：一条单键、一条三键，摆在一起比
-            svc6.Current.Gestures.Bindings.Add(new FrameCapture.Core.GestureBindingDto
+            svc6.Current.Gestures.Bindings.Add(new NekoCapture.Core.GestureBindingDto
             { Id = "t196.one", Chord = "F6", Trigger = "Chord", Actions = new[] { "capture.frame" } });
-            svc6.Current.Gestures.Bindings.Add(new FrameCapture.Core.GestureBindingDto
+            svc6.Current.Gestures.Bindings.Add(new NekoCapture.Core.GestureBindingDto
             { Id = "t196.three", Chord = "Ctrl+Alt+G", Trigger = "Chord", Actions = new[] { "capture.frame" } });
-            var win6 = new FrameCapture.Overlays.SettingsWindow
+            var win6 = new NekoCapture.Overlays.SettingsWindow
             {
                 WindowStartupLocation = WindowStartupLocation.Manual,
                 Left = -20000, Top = -20000, ShowActivated = false, ShowInTaskbar = false,
@@ -5067,8 +5069,8 @@ static partial class SelfTest
             PumpMs(400);
             var root6 = (UIElement)win6.Content;
             var boxes6 = new List<System.Windows.DependencyObject>();
-            CollectTyped(root6, typeof(FrameCapture.Core.ChordCaptureBox), boxes6);
-            var cb6 = boxes6.Cast<FrameCapture.Core.ChordCaptureBox>().ToList();
+            CollectTyped(root6, typeof(NekoCapture.Core.ChordCaptureBox), boxes6);
+            var cb6 = boxes6.Cast<NekoCapture.Core.ChordCaptureBox>().ToList();
             var widest = cb6.OrderByDescending(b => b.ActualWidth).First();
             var slimmest = cb6.OrderBy(b => b.ActualWidth).First();
             Chk("T196d-chord-box-fits-its-keycaps",
@@ -5082,7 +5084,7 @@ static partial class SelfTest
             var svFloat = new System.Windows.Controls.ScrollViewer
             { Width = 200, Height = 80, VerticalScrollBarVisibility = System.Windows.Controls.ScrollBarVisibility.Auto };
             svFloat.Content = new System.Windows.Controls.Border { Width = 190, Height = 400 };
-            FrameCapture.Core.Fluent.OverlayScroll(svFloat);
+            NekoCapture.Core.Fluent.OverlayScroll(svFloat);
             var pair = new System.Windows.Controls.StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal };
             pair.Children.Add(svPlain);
             pair.Children.Add(svFloat);
@@ -5130,7 +5132,7 @@ static partial class SelfTest
             var written = new List<string>();
             var editor = Activator.CreateInstance(ceType,
                 new Func<string[]>(() => seq.ToArray()),
-                new Func<int, IEnumerable<FrameCapture.Core.GestureAction>>(_ => FrameCapture.Core.GestureActions.All),
+                new Func<int, IEnumerable<NekoCapture.Core.GestureAction>>(_ => NekoCapture.Core.GestureActions.All),
                 new Action<string[]>(a => { seq = a.ToList(); written.Add(string.Join(",", a)); }))!;
             var rootEd = (System.Windows.Controls.Panel)ceType.GetProperty("Root")!.GetValue(editor)!;
             var winEd = new Window
@@ -5153,19 +5155,19 @@ static partial class SelfTest
             var popTexts = new List<System.Windows.DependencyObject>();
             if (pop.Child != null) CollectTyped((System.Windows.DependencyObject)pop.Child, typeof(System.Windows.Controls.TextBlock), popTexts);
             var popLabels = popTexts.Cast<System.Windows.Controls.TextBlock>().Select(t => t.Text).ToList();
-            int covered = FrameCapture.Core.GestureActions.All.Count(a => popLabels.Contains(a.Label));
+            int covered = NekoCapture.Core.GestureActions.All.Count(a => popLabels.Contains(a.Label));
             Chk("T196h-plus-opens-card-at-the-right",
                 pop.IsOpen && pop.Placement == System.Windows.Controls.Primitives.PlacementMode.Right
-                && covered == FrameCapture.Core.GestureActions.All.Count(),
+                && covered == NekoCapture.Core.GestureActions.All.Count(),
                 $"加号在右侧点开候选卡，{covered} 条动作与目录同数，卡里没有「取消」那一条");
             var pickTb = popTexts.Cast<System.Windows.Controls.TextBlock>()
-                .First(t => t.Text == FrameCapture.Core.GestureActions.All[1].Label);
+                .First(t => t.Text == NekoCapture.Core.GestureActions.All[1].Label);
             Click((System.Windows.UIElement)System.Windows.Media.VisualTreeHelper.GetParent(
                 System.Windows.Media.VisualTreeHelper.GetParent(pickTb)!)!);
             PumpMs(80);
             Chk("T196i-picking-appends-at-the-end",
                 written.Count == 1 && written[0] == "scope.select,capture.stored,copy.clipboard,"
-                    + FrameCapture.Core.GestureActions.All[1].Name,
+                    + NekoCapture.Core.GestureActions.All[1].Name,
                 $"选中一条即追加到末尾：{written.FirstOrDefault() ?? "（没写回）"}");
 
             // 拖动改序：抬起来跟手、其余让位、松手落在预览那一格
@@ -5211,7 +5213,7 @@ static partial class SelfTest
             // 设置窗不关：它的 Closed 回调要重挂全局热键，而本进程从未走过启动流程，
             // AppHost 上的手势服务还没建起来。删掉的测试绑定在内存里清干净就够了。
             svc6.Current.Gestures.Bindings.RemoveAll(b => b.Id.StartsWith("t196.", StringComparison.Ordinal));
-            FrameCapture.Core.Loc.Apply("zh");
+            NekoCapture.Core.Loc.Apply("zh");
         }
         catch (Exception e) { Chk("T196-hotkey-page-round", false, e.Message); }
 
@@ -5221,12 +5223,12 @@ static partial class SelfTest
         try
         {
             var FI7 = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
-            var ce7 = typeof(FrameCapture.Overlays.SettingsWindow).GetNestedType("ChainEditor",
+            var ce7 = typeof(NekoCapture.Overlays.SettingsWindow).GetNestedType("ChainEditor",
                 System.Reflection.BindingFlags.NonPublic)!;
             var seq7 = new List<string> { "scope.select", "capture.stored", "copy.clipboard" };
             var ed7 = Activator.CreateInstance(ce7,
                 new Func<string[]>(() => seq7.ToArray()),
-                new Func<int, IEnumerable<FrameCapture.Core.GestureAction>>(_ => FrameCapture.Core.GestureActions.All),
+                new Func<int, IEnumerable<NekoCapture.Core.GestureAction>>(_ => NekoCapture.Core.GestureActions.All),
                 new Action<string[]>(a => seq7 = a.ToList()))!;
             var root7 = (System.Windows.Controls.Panel)ce7.GetProperty("Root")!.GetValue(ed7)!;
             var win7 = new Window
@@ -5364,7 +5366,7 @@ static partial class SelfTest
             // 系统让出前台时调的也是它。
             typeof(Window).GetMethod("OnDeactivated", System.Reflection.BindingFlags.NonPublic
                 | System.Reflection.BindingFlags.Instance)!.Invoke(win7, new object[] { System.EventArgs.Empty });
-            PumpMs(FrameCapture.Core.Fluent.Motion.ExitMs + 260);
+            PumpMs(NekoCapture.Core.Fluent.Motion.ExitMs + 260);
             Chk("T197e-picker-closes-when-window-goes-away", !pop7.IsOpen && Get7("_hostWin") == null,
                 "切到别的应用候选卡还挂着，或宿主窗那两个事件没摘干净");
             win7.Close();
@@ -5375,15 +5377,15 @@ static partial class SelfTest
         // 编辑器绑键那一段左边留出呼吸、悬停时保持底色。
         try
         {
-            var svc8 = new FrameCapture.Core.SettingsService();
-            typeof(FrameCapture.Services.AppHost).GetProperty("Settings")!
-                .SetValue(FrameCapture.Services.AppHost.Current, svc8);
-            FrameCapture.Core.Theme.Apply("dark", svc8.Current.Accent);
-            FrameCapture.Core.Fluent.ApplyGlobalStyles();
-            FrameCapture.Core.Loc.Apply("zh");
-            var sw8 = typeof(FrameCapture.Overlays.SettingsWindow);
+            var svc8 = new NekoCapture.Core.SettingsService();
+            typeof(NekoCapture.Services.AppHost).GetProperty("Settings")!
+                .SetValue(NekoCapture.Services.AppHost.Current, svc8);
+            NekoCapture.Core.Theme.Apply("dark", svc8.Current.Accent);
+            NekoCapture.Core.Fluent.ApplyGlobalStyles();
+            NekoCapture.Core.Loc.Apply("zh");
+            var sw8 = typeof(NekoCapture.Overlays.SettingsWindow);
             var NP8 = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
-            var win8 = new FrameCapture.Overlays.SettingsWindow
+            var win8 = new NekoCapture.Overlays.SettingsWindow
             {
                 WindowStartupLocation = WindowStartupLocation.Manual,
                 Left = -20000, Top = -20000, ShowActivated = false, ShowInTaskbar = false,
@@ -5395,13 +5397,13 @@ static partial class SelfTest
             var tbs8 = new List<System.Windows.DependencyObject>();
             CollectTyped(root8, typeof(System.Windows.Controls.TextBlock), tbs8);
             var shown = tbs8.Cast<System.Windows.Controls.TextBlock>().Select(t => t.Text).ToList();
-            string nothing = FrameCapture.Core.Loc.T(FrameCapture.Core.K.Hotkeys.DefaultNothing);
+            string nothing = NekoCapture.Core.Loc.T(NekoCapture.Core.K.Hotkeys.DefaultNothing);
             Chk("T198a-override-rows-drop-the-summary-line", !shown.Contains(nothing),
                 "覆盖行还摆着一行默认落点的文字：那件事该由芯片卡片自己说，不许多占一行");
 
             // 编辑器绑键那几行按命令名认领：预设键行挂的是手势名，两拨混不到一起
-            var keyNames = FrameCapture.Core.EditorCommands.All
-                .Select(c => FrameCapture.Core.Loc.T(c.Name)).ToHashSet();
+            var keyNames = NekoCapture.Core.EditorCommands.All
+                .Select(c => NekoCapture.Core.Loc.T(c.Name)).ToHashSet();
             var borders8 = new List<System.Windows.DependencyObject>();
             CollectTyped(root8, typeof(System.Windows.Controls.Border), borders8);
             var keyRows = borders8.Cast<System.Windows.Controls.Border>()
@@ -5480,11 +5482,11 @@ static partial class SelfTest
 
             // 用户主动打开的窗要在任务栏留个位置，被别的窗盖住才切得回来。
             // 只构造不显示：没走过 Show，任务栏不会真闪出一枚，也挂不上关窗回调。
-            var plainSet = new FrameCapture.Overlays.SettingsWindow();
-            var plainHelp = new FrameCapture.Overlays.HelpWindow();
+            var plainSet = new NekoCapture.Overlays.SettingsWindow();
+            var plainHelp = new NekoCapture.Overlays.HelpWindow();
             // 框选层相反：它是一层盖住屏幕的取境动作，不是一扇等着被切回来的窗
-            var plainPick = new FrameCapture.Overlays.RegionPickerWindow(
-                new FrameCapture.Capture.MonitorInfo("test", new FrameCapture.Capture.RectI(0, 0, 800, 600), true), null);
+            var plainPick = new NekoCapture.Overlays.RegionPickerWindow(
+                new NekoCapture.Capture.MonitorInfo("test", new NekoCapture.Capture.RectI(0, 0, 800, 600), true), null);
             Chk("T198c-user-opened-windows-in-taskbar",
                 plainSet.ShowInTaskbar && plainSet.Owner == null
                 && plainHelp.ShowInTaskbar && plainHelp.Owner == null
@@ -5498,31 +5500,31 @@ static partial class SelfTest
         try
         {
             var NS9 = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static;
-            var choose = typeof(FrameCapture.Services.CaptureController).GetMethods(NS9)
+            var choose = typeof(NekoCapture.Services.CaptureController).GetMethods(NS9)
                 .First(m => m.Name == "ChooseStillFrame");
-            var mon9 = new FrameCapture.Capture.RectI(0, 0, 800, 600);
-            var reg9 = new FrameCapture.Capture.RectI(100, 100, 64, 48);
-            FrameCapture.Capture.CapturedFrame Fill(byte v, int w, int h) => new()
+            var mon9 = new NekoCapture.Capture.RectI(0, 0, 800, 600);
+            var reg9 = new NekoCapture.Capture.RectI(100, 100, 64, 48);
+            NekoCapture.Capture.CapturedFrame Fill(byte v, int w, int h) => new()
             { Bgra = Enumerable.Repeat(v, w * h * 4).ToArray(), W = w, H = h, TimeMs = 0 };
             var frozen9 = Fill(0xFF, 800, 600);
-            Func<(FrameCapture.Capture.CapturedFrame f, FrameCapture.Capture.RectI r)?> miss = () => null;
-            Func<(FrameCapture.Capture.CapturedFrame f, FrameCapture.Capture.RectI r)?> hitWin =
+            Func<(NekoCapture.Capture.CapturedFrame f, NekoCapture.Capture.RectI r)?> miss = () => null;
+            Func<(NekoCapture.Capture.CapturedFrame f, NekoCapture.Capture.RectI r)?> hitWin =
                 () => (Fill(0x7F, 64, 48), reg9);
             bool liveWinCalled = false, liveRegCalled = false;
-            Func<(FrameCapture.Capture.CapturedFrame f, FrameCapture.Capture.RectI r)?> liveWin = () =>
+            Func<(NekoCapture.Capture.CapturedFrame f, NekoCapture.Capture.RectI r)?> liveWin = () =>
             { liveWinCalled = true; return (Fill(0, 64, 48), reg9); };
-            Func<FrameCapture.Capture.RectI, FrameCapture.Capture.CapturedFrame?> liveReg = r =>
+            Func<NekoCapture.Capture.RectI, NekoCapture.Capture.CapturedFrame?> liveReg = r =>
             { liveRegCalled = true; return Fill(0, r.W, r.H); };
-            (FrameCapture.Capture.CapturedFrame? fr, bool winCap) Run9(bool freeze, bool locked,
-                Func<(FrameCapture.Capture.CapturedFrame f, FrameCapture.Capture.RectI r)?> cached,
-                FrameCapture.Capture.CapturedFrame? frozen)
+            (NekoCapture.Capture.CapturedFrame? fr, bool winCap) Run9(bool freeze, bool locked,
+                Func<(NekoCapture.Capture.CapturedFrame f, NekoCapture.Capture.RectI r)?> cached,
+                NekoCapture.Capture.CapturedFrame? frozen)
             {
                 liveWinCalled = liveRegCalled = false;
                 // 定格帧「没到位」就是传 null 进去：这里必须原样传 null，兜底那条才真的被走到
                 var r = choose.Invoke(null, new object?[] { freeze, locked, cached, liveWin,
                     frozen, mon9, reg9, liveReg })!;
                 var t = r.GetType();
-                var fr = (FrameCapture.Capture.CapturedFrame?)t.GetField("Item1")!.GetValue(r);
+                var fr = (NekoCapture.Capture.CapturedFrame?)t.GetField("Item1")!.GetValue(r);
                 return (fr, (bool)t.GetField("Item3")!.GetValue(r)!);
             }
             var a9 = Run9(true, true, miss, frozen9);
@@ -5555,17 +5557,17 @@ static partial class SelfTest
         // 关闭时清缓存，定格 + 点窗口就永远命中不了预抓，退成按矩形裁的定格帧——画面不透明，日志也安静。
         try
         {
-            var pickWin = new FrameCapture.Overlays.RegionPickerWindow(
-                new FrameCapture.Capture.MonitorInfo("test", new FrameCapture.Capture.RectI(0, 0, 800, 600), true),
+            var pickWin = new NekoCapture.Overlays.RegionPickerWindow(
+                new NekoCapture.Capture.MonitorInfo("test", new NekoCapture.Capture.RectI(0, 0, 800, 600), true),
                 null, windowCapture: true, freeze: true);
             var cache3 = (System.Collections.Concurrent.ConcurrentDictionary<IntPtr,
-                (FrameCapture.Capture.CapturedFrame Frame, FrameCapture.Capture.RectI Region)>)
-                typeof(FrameCapture.Overlays.RegionPickerWindow)
+                (NekoCapture.Capture.CapturedFrame Frame, NekoCapture.Capture.RectI Region)>)
+                typeof(NekoCapture.Overlays.RegionPickerWindow)
                     .GetField("_winCache", System.Reflection.BindingFlags.NonPublic
                         | System.Reflection.BindingFlags.Instance)!.GetValue(pickWin)!;
             var fakeHwnd = new IntPtr(0x4D2);
-            cache3[fakeHwnd] = (new FrameCapture.Capture.CapturedFrame { Bgra = new byte[16], W = 2, H = 2 },
-                new FrameCapture.Capture.RectI(0, 0, 2, 2));
+            cache3[fakeHwnd] = (new NekoCapture.Capture.CapturedFrame { Bgra = new byte[16], W = 2, H = 2 },
+                new NekoCapture.Capture.RectI(0, 0, 2, 2));
             pickWin.Close();
             PumpMs(60);
             var kept3 = pickWin.TryGetCachedWindow(fakeHwnd, out var cf3, out _);
@@ -5775,8 +5777,8 @@ static partial class SelfTest
             // T167w1 不缩小＝逐字节原样：宽高都在上限内时不抽样，输出与源完全一致
             var small = new byte[7 * 5 * 4];
             for (int i = 0; i < small.Length; i++) small[i] = (byte)(i * 37 + 11);
-            var id1 = FrameCapture.Overlays.ScrollPreviewWindow.Thumbnail(small, 7, 5, 7, 5);
-            var id2 = FrameCapture.Overlays.ScrollPreviewWindow.Thumbnail(small, 7, 5, 99, 99);
+            var id1 = NekoCapture.Overlays.ScrollPreviewWindow.Thumbnail(small, 7, 5, 7, 5);
+            var id2 = NekoCapture.Overlays.ScrollPreviewWindow.Thumbnail(small, 7, 5, 99, 99);
             bool idOk = id1.W == 7 && id1.H == 5 && id1.Bgra.AsSpan().SequenceEqual(small)
                      && id2.W == 7 && id2.H == 5 && id2.Bgra.AsSpan().SequenceEqual(small);
             Chk("T167w1-thumb-same", idOk, $"id1={id1.W}x{id1.H} id2={id2.W}x{id2.H}");
@@ -5793,7 +5795,7 @@ static partial class SelfTest
                     longImg[o + 2] = (byte)(y >> 8);
                     longImg[o + 3] = 255;
                 }
-            var th = FrameCapture.Overlays.ScrollPreviewWindow.Thumbnail(longImg, w, h, 64, 50);
+            var th = NekoCapture.Overlays.ScrollPreviewWindow.Thumbnail(longImg, w, h, 64, 50);
             int RowOf(int r) => th.Bgra[r * th.W * 4 + 1] | (th.Bgra[r * th.W * 4 + 2] << 8);
             bool asc = true;
             for (int r = 1; r < th.H; r++) if (RowOf(r) <= RowOf(r - 1)) asc = false;
@@ -5811,7 +5813,7 @@ static partial class SelfTest
             var arLog = new System.Text.StringBuilder();
             foreach (var (sw, sh) in new[] { (300, 1200), (1200, 300) })
             {
-                var ar = FrameCapture.Overlays.ScrollPreviewWindow.Thumbnail(longImg, sw, sh, 64, 50);
+                var ar = NekoCapture.Overlays.ScrollPreviewWindow.Thumbnail(longImg, sw, sh, 64, 50);
                 double dev = Math.Abs((double)ar.W / ar.H / ((double)sw / sh) - 1);
                 arOk &= dev < 0.10 && ar.W <= 64 && ar.H <= 50;
                 arLog.Append($"{sw}x{sh}->{ar.W}x{ar.H} dev={dev:P1} ");
@@ -5822,7 +5824,7 @@ static partial class SelfTest
             bool deg = true;
             try
             {
-                var f = FrameCapture.Overlays.ScrollPreviewWindow.Thumbnail;
+                var f = NekoCapture.Overlays.ScrollPreviewWindow.Thumbnail;
                 var one = new byte[4];
                 deg &= f(null!, 10, 10, 5, 5).Bgra.Length == 0;
                 deg &= f(one, 0, 1, 5, 5).Bgra.Length == 0;
@@ -5986,7 +5988,7 @@ static partial class SelfTest
             // 表的健康度：英文列必须是英文、非空、与中文不同、不带括号标注；id 与中文列都不许有两句共用
             static List<(string Owner, string Name, Str S)> AllStrings()
             {
-                var k = typeof(Str).Assembly.GetType("FrameCapture.Core.K")!;
+                var k = typeof(Str).Assembly.GetType("NekoCapture.Core.K")!;
                 var list = new List<(string, string, Str)>();
                 foreach (var c in k.GetNestedTypes())
                     foreach (var f in c.GetFields(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static))
@@ -5999,7 +6001,7 @@ static partial class SelfTest
             var cjk = tbl.Where(s => s.En.Any(c => c >= 0x4E00 && c <= 0x9FFF)).Select(s => s.Id).ToList();
             var blank = tbl.Where(s => string.IsNullOrWhiteSpace(s.En)).Select(s => s.Id).ToList();
             // 括号只许留给记法或占位符：白名单与 scripts/lint-copy-parens.ps1 同源，rgb(r, g, b) 与 {0} 不算括注
-            var notation = new HashSet<string> { "x86", "*.ogg;*.wav", "*.*", "r, g, b", "h, s%, l%", "FC_TEST_ENCODE_FAIL=1" };
+            var notation = new HashSet<string> { "x86", "*.ogg;*.wav", "*.*", "r, g, b", "h, s%, l%", "NC_TEST_ENCODE_FAIL=1" };
             var parenRe = new System.Text.RegularExpressions.Regex("[（(]([^（()）]{1,60})[）)]");
             bool NotationOnly(string s) => parenRe.Matches(s).Cast<System.Text.RegularExpressions.Match>()
                 .All(m => notation.Contains(m.Groups[1].Value) || m.Groups[1].Value.StartsWith("{", StringComparison.Ordinal));
@@ -6063,24 +6065,24 @@ static partial class SelfTest
             static (List<string> Faults, int Seen) LayoutFaults(string lang)
             {
                 Loc.Apply(lang);
-                var svc = new FrameCapture.Core.SettingsService();
-                typeof(FrameCapture.Services.AppHost).GetProperty("Settings")!
-                    .SetValue(FrameCapture.Services.AppHost.Current, svc);
-                FrameCapture.Core.Theme.Apply("dark", svc.Current.Accent);
-                FrameCapture.Core.Fluent.ApplyGlobalStyles();
-                var win = new FrameCapture.Overlays.SettingsWindow
+                var svc = new NekoCapture.Core.SettingsService();
+                typeof(NekoCapture.Services.AppHost).GetProperty("Settings")!
+                    .SetValue(NekoCapture.Services.AppHost.Current, svc);
+                NekoCapture.Core.Theme.Apply("dark", svc.Current.Accent);
+                NekoCapture.Core.Fluent.ApplyGlobalStyles();
+                var win = new NekoCapture.Overlays.SettingsWindow
                 {
                     WindowStartupLocation = WindowStartupLocation.Manual,
                     Left = -20000, Top = -20000, ShowActivated = false, ShowInTaskbar = false,
                 };
-                typeof(FrameCapture.Overlays.SettingsWindow)
+                typeof(NekoCapture.Overlays.SettingsWindow)
                     .GetMethod("Build", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
                     .Invoke(win, null);
                 win.Show();
                 PumpMs(350);
                 var root = (UIElement)win.Content;
                 var boxes = new List<System.Windows.DependencyObject>();
-                CollectTyped(root, typeof(FrameCapture.Core.ChordCaptureBox), boxes);
+                CollectTyped(root, typeof(NekoCapture.Core.ChordCaptureBox), boxes);
                 if (boxes.Count > 0)
                 {
                     // 键位框 → 行首列容器 → 挂着展开处理器的行首：点开它，行里的控件才进视觉树
@@ -6201,7 +6203,7 @@ static partial class SelfTest
         // 倒计时窗的 Esc 代收开关跟着窗口生命周期走：漏关一次，全局 Esc 就永久失灵
         try
         {
-            var cd = new FrameCapture.Overlays.CountdownWindow("1560,260 940×560", @"\\.\DISPLAY1");
+            var cd = new NekoCapture.Overlays.CountdownWindow("1560,260 940×560", @"\\.\DISPLAY1");
             cd.Left = -20000; cd.Top = -20000;   // 构造期已定好落点，Show 前挪走，不在用户屏幕上闪
             cd.Show();
             PumpMs(150);
@@ -6224,12 +6226,12 @@ static partial class SelfTest
                 Region = new RectI(0, 0, 3000, 1800),
                 MonitorBounds = new RectI(0, 0, 1920, 1080),
             };
-            var winZ = new FrameCapture.Overlays.EditorWindow(stZ, seqZ);
+            var winZ = new NekoCapture.Overlays.EditorWindow(stZ, seqZ);
             winZ.WindowStartupLocation = WindowStartupLocation.Manual;
             winZ.Left = -20000; winZ.Top = -20000;
             winZ.Show();
             PumpMs(250);
-            var TZ = typeof(FrameCapture.Overlays.EditorWindow);
+            var TZ = typeof(NekoCapture.Overlays.EditorWindow);
             const System.Reflection.BindingFlags NPZ = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
             double Zoom() => (double)TZ.GetField("_zoom", NPZ)!.GetValue(winZ)!;
             var toggle = TZ.GetMethod("ZoomToggleActual", NPZ)!;
@@ -6249,7 +6251,7 @@ static partial class SelfTest
         // 暂停时托盘图标转灰：两枚都得画出来，暂停那枚不能还是那抹蓝
         try
         {
-            var tTray = typeof(FrameCapture.Services.AppHost).Assembly.GetType("FrameCapture.Services.TrayService")!;
+            var tTray = typeof(NekoCapture.Services.AppHost).Assembly.GetType("NekoCapture.Services.TrayService")!;
             var mk = tTray.GetMethod("MakeIcon", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Static)!;
             using var on = (System.Drawing.Icon)mk.Invoke(null, new object[] { false })!;
             using var off = (System.Drawing.Icon)mk.Invoke(null, new object[] { true })!;
@@ -6268,7 +6270,7 @@ static partial class SelfTest
         // 自动保存的轻提示：半秒内写完不打扰；慢的那次先说「正在保存视频…」，写完换成「已保存 文件名」
         try
         {
-            var tHint = typeof(FrameCapture.Services.SaveService).GetNestedType("SavingHint", System.Reflection.BindingFlags.NonPublic)!;
+            var tHint = typeof(NekoCapture.Services.SaveService).GetNestedType("SavingHint", System.Reflection.BindingFlags.NonPublic)!;
             var startH = tHint.GetMethod("Start", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static)!;
             var doneH = tHint.GetMethod("Done", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance)!;
             static string ToastText()
@@ -6277,7 +6279,7 @@ static partial class SelfTest
                 if (app == null) return "";
                 foreach (System.Windows.Window w in app.Windows)
                 {
-                    if (w is not FrameCapture.Overlays.NoticeToast) continue;
+                    if (w is not NekoCapture.Overlays.NoticeToast) continue;
                     var sb = new System.Text.StringBuilder();
                     var stack = new System.Collections.Generic.Stack<System.Windows.DependencyObject>();
                     stack.Push(w);
@@ -6292,7 +6294,7 @@ static partial class SelfTest
                 }
                 return "";
             }
-            FrameCapture.Overlays.NoticeToast.DismissCurrent();
+            NekoCapture.Overlays.NoticeToast.DismissCurrent();
             PumpMs(400);                       // 让上一条淡出干净再计时
             var h = startH.Invoke(null, new object[] { "clip.mp4" });
             PumpMs(200);
@@ -6307,7 +6309,7 @@ static partial class SelfTest
             Chk("T211-autosave-hint-waits-then-confirms",
                 early.Length == 0 && saving && saved,
                 $"200ms=[{early}] 900ms=[{mid}] 完成后=[{after}]");
-            FrameCapture.Overlays.NoticeToast.DismissCurrent();
+            NekoCapture.Overlays.NoticeToast.DismissCurrent();
         }
         catch (Exception e) { Chk("T211-autosave-hint", false, e.Message); }
 
@@ -6317,12 +6319,12 @@ static partial class SelfTest
         {
             var svcL = new SettingsService();
             svcL.Mutate(s => s.CustomColors = new List<string> { "#FFFFFF" });
-            typeof(FrameCapture.Services.AppHost).GetProperty("Settings")!
-                .SetValue(FrameCapture.Services.AppHost.Current, svcL);
-            var pickL = new FrameCapture.Overlays.RegionPickerWindow(
-                new FrameCapture.Capture.MonitorInfo("test", new FrameCapture.Capture.RectI(0, 0, 800, 600), true),
+            typeof(NekoCapture.Services.AppHost).GetProperty("Settings")!
+                .SetValue(NekoCapture.Services.AppHost.Current, svcL);
+            var pickL = new NekoCapture.Overlays.RegionPickerWindow(
+                new NekoCapture.Capture.MonitorInfo("test", new NekoCapture.Capture.RectI(0, 0, 800, 600), true),
                 null, magnifier: true);
-            var TP = typeof(FrameCapture.Overlays.RegionPickerWindow);
+            var TP = typeof(NekoCapture.Overlays.RegionPickerWindow);
             const System.Reflection.BindingFlags NP2 = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
             TP.GetField("_lastRgb", NP2)!.SetValue(pickL, ((int)0xE8, (int)0x11, (int)0x23));
             TP.GetField("_loupeHexText", NP2)!.SetValue(pickL, "rgb(232, 17, 35)");
@@ -6339,8 +6341,8 @@ static partial class SelfTest
         // 滚动截图「继续上次滚动」：完成时落盘的那张 PNG 就是基准帧，读回来直接进步进拼接循环
         try
         {
-            var ctlR = new FrameCapture.Services.CaptureController(new SettingsService());
-            var TR = typeof(FrameCapture.Services.CaptureController);
+            var ctlR = new NekoCapture.Services.CaptureController(new SettingsService());
+            var TR = typeof(NekoCapture.Services.CaptureController);
             const System.Reflection.BindingFlags NPR = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
             bool none = !ctlR.HasScrollResume;
             // 那张图读不回来（临时目录被清）就当没有这次可继续：不留会话，也不把「继续」挂在托盘上
@@ -6350,19 +6352,19 @@ static partial class SelfTest
             ctlR.ResumeScrollCapture();
             bool cleared = !ctlR.HasScrollResume && TR.GetField("_scrollBar", NPR)!.GetValue(ctlR) == null;
             // 真有一张：读回来当基准帧，控制条与步进计时器都该起来，Esc 吞键标志也该挂上
-            var pngR = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "FrameCapture", $"resume-test-{Guid.NewGuid():N}.png");
+            var pngR = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "NekoCapture", $"resume-test-{Guid.NewGuid():N}.png");
             var accR = new byte[200 * 120 * 4];
             for (int i = 0; i < accR.Length; i += 4) { accR[i] = 0x33; accR[i + 1] = 0x66; accR[i + 2] = 0x99; accR[i + 3] = 0xFF; }
-            FrameCapture.Services.BgraImage.SavePng(new CapturedFrame { Bgra = accR, W = 200, H = 120 }, pngR);
+            NekoCapture.Services.BgraImage.SavePng(new CapturedFrame { Bgra = accR, W = 200, H = 120 }, pngR);
             TR.GetProperty("_scrollResume", NPR)!.SetValue(ctlR, (pngR, new RectI(-18000, -18000, 200, 120), "test"));
             ctlR.ResumeScrollCapture();
             PumpMs(250);
             bool running = TR.GetField("_scrollBar", NPR)!.GetValue(ctlR) != null
                 && (int)TR.GetField("_scrollH", NPR)!.GetValue(ctlR)! == 120
-                && FrameCapture.Services.HotkeyManager.ScrollActive;
+                && NekoCapture.Services.HotkeyManager.ScrollActive;
             ctlR.ScrollCancel();
             PumpMs(150);
-            bool cleaned = !FrameCapture.Services.HotkeyManager.ScrollActive
+            bool cleaned = !NekoCapture.Services.HotkeyManager.ScrollActive
                 && TR.GetField("_scrollAcc", NPR)!.GetValue(ctlR) == null;
             try { System.IO.File.Delete(pngR); } catch { }
             ctlR.Dispose();
@@ -6378,21 +6380,21 @@ static partial class SelfTest
         {
             var mon = new RectI(0, 0, 2560, 1440);
             int cw = 450, ch = 276;
-            var (x0, y0) = FrameCapture.Overlays.CountdownWindow.PickPlace(mon, cw, ch, null);
+            var (x0, y0) = NekoCapture.Overlays.CountdownWindow.PickPlace(mon, cw, ch, null);
             bool topCenter = Math.Abs(x0 + cw / 2 - mon.W / 2) <= 2 && y0 == 48;
 
             var strip = new RectI(900, 0, 760, 300);   // 正压在顶部居中一带
-            var (x1, y1) = FrameCapture.Overlays.CountdownWindow.PickPlace(mon, cw, ch, strip);
+            var (x1, y1) = NekoCapture.Overlays.CountdownWindow.PickPlace(mon, cw, ch, strip);
             var card1 = new RectI(x1, y1, cw, ch);
             bool dodged = !(card1.X < strip.Right && strip.X < card1.Right
                          && card1.Y < strip.Bottom && strip.Y < card1.Bottom);
             bool inside = card1.X >= mon.X && card1.Y >= mon.Y && card1.Right <= mon.Right && card1.Bottom <= mon.Bottom;
 
-            var (x2, y2) = FrameCapture.Overlays.CountdownWindow.PickPlace(mon, cw, ch, mon);
+            var (x2, y2) = NekoCapture.Overlays.CountdownWindow.PickPlace(mon, cw, ch, mon);
             bool fallback = x2 == x0 && y2 == y0;   // 范围就是整屏：躲不掉，保持默认位而不是跑出屏外
 
             var mon2 = new RectI(-1920, 0, 1920, 1080);   // 主屏左边的副屏
-            var (x3, y3) = FrameCapture.Overlays.CountdownWindow.PickPlace(mon2, cw, ch, new RectI(-1000, 0, 800, 400));
+            var (x3, y3) = NekoCapture.Overlays.CountdownWindow.PickPlace(mon2, cw, ch, new RectI(-1000, 0, 800, 400));
             bool onMon2 = x3 >= -1920 && y3 >= 0 && x3 + cw <= 0 && y3 + ch <= 1080;
 
             Chk("T214-countdown-card-dodges-the-region",
@@ -6468,10 +6470,10 @@ static partial class SelfTest
         // 结尾省略会留下盘符、丢掉用来认目录的那一级，等于把问题留着。
         try
         {
-            var deep = @"D:\Users\lin\Pictures\截图归档\2026\十月\产品走查\FrameCapture";
+            var deep = @"D:\Users\lin\Pictures\截图归档\2026\十月\产品走查\NekoCapture";
             var t = Fluent.TrimPathMiddle(deep);
             Chk("T217-path-middle-keeps-root", t.StartsWith(@"D:\"), t);
-            Chk("T217-path-middle-keeps-tail", t.EndsWith("FrameCapture"), t);
+            Chk("T217-path-middle-keeps-tail", t.EndsWith("NekoCapture"), t);
             Chk("T217-path-middle-shorter", t.Contains('…') && t.Length < deep.Length, t);
             // 断点落在分隔符上：显示的尾巴必须是原路径的真实后缀，且要么自己以分隔符开头，
             // 要么在原路径里前面就是分隔符——两种情况都意味着没切断目录名。
@@ -6480,10 +6482,10 @@ static partial class SelfTest
                 deep.EndsWith(seg.TrimStart('\\')) && (seg.StartsWith('\\') || deep.Contains(@"\" + seg)), t);
             Chk("T217-path-short-untouched", Fluent.TrimPathMiddle(@"C:\a\b") == @"C:\a\b");
             Chk("T217-path-phrase-untouched",
-                Fluent.TrimPathMiddle("Pictures\\FrameCapture — default location") == "Pictures\\FrameCapture — default location");
+                Fluent.TrimPathMiddle("Pictures\\NekoCapture — default location") == "Pictures\\NekoCapture — default location");
             Chk("T217-path-unc-keeps-share",
-                Fluent.TrimPathMiddle(@"\\nas\team\2026\十月\很长的目录名称\FrameCapture").StartsWith(@"\\nas\team\"),
-                Fluent.TrimPathMiddle(@"\\nas\team\2026\十月\很长的目录名称\FrameCapture"));
+                Fluent.TrimPathMiddle(@"\\nas\team\2026\十月\很长的目录名称\NekoCapture").StartsWith(@"\\nas\team\"),
+                Fluent.TrimPathMiddle(@"\\nas\team\2026\十月\很长的目录名称\NekoCapture"));
         }
         catch (Exception e) { Chk("T217-path-middle-trim", false, e.Message); }
 
@@ -6514,7 +6516,7 @@ static partial class SelfTest
                 return (Math.Max(l1, l2) + 0.05) / (Math.Min(l1, l2) + 0.05);
             }
 
-            FrameCapture.Core.Theme.Apply("dark", themeSvc.Current.Accent);
+            NekoCapture.Core.Theme.Apply("dark", themeSvc.Current.Accent);
             Chk("T219-ramp-dark-row-lighter", Lum(Theme.RowBg) > Lum(Theme.CardBg),
                 $"行 {Lum(Theme.RowBg):F1} 卡片 {Lum(Theme.CardBg):F1}");
             Chk("T219-ramp-dark-hover-lighter", Lum(Theme.RowHover) > Lum(Theme.RowBg));
@@ -6524,7 +6526,7 @@ static partial class SelfTest
             Chk("T219-ramp-dark-dim-readable", Ratio(Theme.TextDim, Theme.RowBg) >= 4.5,
                 $"{Ratio(Theme.TextDim, Theme.RowBg):F2}:1");
 
-            FrameCapture.Core.Theme.Apply("light", themeSvc.Current.Accent);
+            NekoCapture.Core.Theme.Apply("light", themeSvc.Current.Accent);
             Chk("T219-ramp-light-row-darker", Lum(Theme.RowBg) < Lum(Theme.CardBg),
                 $"行 {Lum(Theme.RowBg):F1} 卡片 {Lum(Theme.CardBg):F1}");
             Chk("T219-ramp-light-hover-darker", Lum(Theme.RowHover) < Lum(Theme.RowBg));
@@ -6534,7 +6536,7 @@ static partial class SelfTest
             Chk("T219-ramp-light-dim-readable", Ratio(Theme.TextDim, Theme.RowBg) >= 4.5,
                 $"{Ratio(Theme.TextDim, Theme.RowBg):F2}:1");
 
-            FrameCapture.Core.Theme.Apply(keepTheme, themeSvc.Current.Accent);
+            NekoCapture.Core.Theme.Apply(keepTheme, themeSvc.Current.Accent);
         }
         catch (Exception e) { Chk("T219-elevation-ramp", false, e.Message); }
 
@@ -6549,10 +6551,10 @@ static partial class SelfTest
                 Region = new RectI(0, 0, 160, 90),
                 MonitorBounds = new RectI(0, 0, 1920, 1080),
             };
-            var winTool = new FrameCapture.Overlays.EditorWindow(stTool, seqTool);
+            var winTool = new NekoCapture.Overlays.EditorWindow(stTool, seqTool);
             var inst = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
             var stat = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static;
-            var ty = typeof(FrameCapture.Overlays.EditorWindow);
+            var ty = typeof(NekoCapture.Overlays.EditorWindow);
             var list = ((System.Collections.IEnumerable)ty.GetField("_toolBtns", inst)!.GetValue(winTool)!)
                 .Cast<System.Windows.Controls.Button>().ToList();
             var order = (Array)ty.GetField("ToolOrder", stat)!.GetValue(null)!;
@@ -6591,9 +6593,9 @@ static partial class SelfTest
         // 用户在首启卡学到的「键位长这样」到下一扇窗就不成立。
         try
         {
-            FrameCapture.Overlays.WelcomeToast.Show("F6", "Ctrl+Alt+R");
+            NekoCapture.Overlays.WelcomeToast.Show("F6", "Ctrl+Alt+R");
             var toast = System.Windows.Application.Current.Windows
-                .OfType<FrameCapture.Overlays.WelcomeToast>().FirstOrDefault();
+                .OfType<NekoCapture.Overlays.WelcomeToast>().FirstOrDefault();
             Chk("T222-welcome-toast-opened", toast != null, toast == null ? "没找到首启卡窗口" : "已开");
             var caps = new List<System.Windows.Controls.Border>();
             if (toast != null)
@@ -6673,36 +6675,36 @@ static partial class SelfTest
                     $" 下缘 {Lum(((System.Windows.Media.LinearGradientBrush)edges[0].BorderBrush).GradientStops[^1].Color):F4}");
             }
 
-            FrameCapture.Overlays.WelcomeToast.Show("F6", "Ctrl+Alt+R");
+            NekoCapture.Overlays.WelcomeToast.Show("F6", "Ctrl+Alt+R");
             var wc = System.Windows.Application.Current.Windows
-                .OfType<FrameCapture.Overlays.WelcomeToast>().FirstOrDefault();
+                .OfType<NekoCapture.Overlays.WelcomeToast>().FirstOrDefault();
             Chk("T223-welcome-card-found", wc != null, wc == null ? "没找到首启卡" : "已开");
             if (wc != null) CheckEdge("welcome", wc);
             wc?.Close();
 
-            FrameCapture.Overlays.NoticeToast.Show("自检通知", "浮起卡片的描边方向");
+            NekoCapture.Overlays.NoticeToast.Show("自检通知", "浮起卡片的描边方向");
             var nc = System.Windows.Application.Current.Windows
-                .OfType<FrameCapture.Overlays.NoticeToast>().FirstOrDefault();
+                .OfType<NekoCapture.Overlays.NoticeToast>().FirstOrDefault();
             Chk("T223-notice-card-found", nc != null, nc == null ? "没找到通知卡" : "已开");
             if (nc != null) CheckEdge("notice", nc);
             nc?.Close();
 
             // 「已复制」卡是全局曝光最高的一张卡：每次截图都出现，卡片边也必须同一副长相。
-            FrameCapture.Overlays.CaptureToast.Show(Solid(160, 96, 0x30, 0x60, 0x90),
-                new FrameCapture.Capture.RectI(0, 0, 160, 96), "", () => { }, () => { });
+            NekoCapture.Overlays.CaptureToast.Show(Solid(160, 96, 0x30, 0x60, 0x90),
+                new NekoCapture.Capture.RectI(0, 0, 160, 96), "", () => { }, () => { });
             var tc = System.Windows.Application.Current.Windows
-                .OfType<FrameCapture.Overlays.CaptureToast>().FirstOrDefault();
+                .OfType<NekoCapture.Overlays.CaptureToast>().FirstOrDefault();
             Chk("T223-toast-card-found", tc != null, tc == null ? "没找到「已复制」卡" : "已开");
             if (tc != null) CheckEdge("toast", tc);
             tc?.Close();
 
             // 滚动截图那两张卡也浮在任意桌面内容上，同一副长相就该受同一把尺子量。
-            var sh = new FrameCapture.Overlays.ScrollHintWindow(new FrameCapture.Capture.RectI(0, 0, 320, 240), "");
+            var sh = new NekoCapture.Overlays.ScrollHintWindow(new NekoCapture.Capture.RectI(0, 0, 320, 240), "");
             sh.Show();
             PumpMs(220);
             CheckEdge("scroll-hint", sh);
             sh.Close();
-            var spw = new FrameCapture.Overlays.ScrollPreviewWindow(new FrameCapture.Capture.RectI(0, 0, 320, 240), "");
+            var spw = new NekoCapture.Overlays.ScrollPreviewWindow(new NekoCapture.Capture.RectI(0, 0, 320, 240), "");
             spw.Show();
             PumpMs(220);
             Chk("scroll-preview-image-without-card-edge", spw.Content is System.Windows.Controls.Grid grid
@@ -6729,7 +6731,7 @@ static partial class SelfTest
                 W(root);
                 return list;
             }
-            var keyCell = typeof(FrameCapture.Overlays.HelpWindow).GetMethod("KeyCell",
+            var keyCell = typeof(NekoCapture.Overlays.HelpWindow).GetMethod("KeyCell",
                 System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!;
             // 多条按法由 DescribeKeysFor 用「本地化逗号」拼接：中文是全角「，」，英文才是 ", "。
             // 只按半角切，中文帮助里第一枚键帽就长成「F6，」。
@@ -6746,14 +6748,14 @@ static partial class SelfTest
             // 占位文案靠**身份**认，不靠「里面有没有中文」：英文的「No key」没有中文，
             // 按语言猜会切成一枚「No」键帽加一句 key（英文截图里真出现过）。这条与当前语言无关。
             var seps = new[] { ",", " / " };
-            var theme = FrameCapture.Core.Fluent.KeycapTheme(11.5);
-            var enPlaceholder = Chips((DependencyObject)FrameCapture.Core.Keycaps.ChordRow(
+            var theme = NekoCapture.Core.Fluent.KeycapTheme(11.5);
+            var enPlaceholder = Chips((DependencyObject)NekoCapture.Core.Keycaps.ChordRow(
                 "No key", theme, seps, "No key")!);
             Chk("T224-placeholder-never-becomes-a-keycap",
-                enPlaceholder.Count == 0 && !FrameCapture.Core.Keycaps.LooksLikeKeys("No key", seps, "No key"),
+                enPlaceholder.Count == 0 && !NekoCapture.Core.Keycaps.LooksLikeKeys("No key", seps, "No key"),
                 "占位文案被切成键帽：" + string.Join(" / ", enPlaceholder));
             // 真键位不受影响：占位文案在场时 Ctrl+Alt+R 照样是三枚键帽。
-            var stillKeys = Chips((DependencyObject)FrameCapture.Core.Keycaps.ChordRow(
+            var stillKeys = Chips((DependencyObject)NekoCapture.Core.Keycaps.ChordRow(
                 "Ctrl+Alt+R", theme, seps, "No key")!);
             Chk("T224-real-chord-still-renders", stillKeys.SequenceEqual(new[] { "Ctrl", "Alt", "R" }),
                 "键帽：" + string.Join(" / ", stillKeys));
@@ -6765,7 +6767,7 @@ static partial class SelfTest
         // 整串当一个组合键切，键帽会裂成「F2，按下」——所以这里造一份用户配置，量卡片照不照得见。
         try
         {
-            var st = FrameCapture.Core.SettingsService.Shared!;
+            var st = NekoCapture.Core.SettingsService.Shared!;
             var g = st.Current.Gestures;
             var saved = g.Bindings.ToList();
             var savedFlag = st.Current.WelcomeShowsHotkeys;
@@ -6786,21 +6788,21 @@ static partial class SelfTest
             }
             void ShowCard()
             {
-                foreach (var old in System.Windows.Application.Current.Windows.OfType<FrameCapture.Overlays.WelcomeToast>().ToList())
+                foreach (var old in System.Windows.Application.Current.Windows.OfType<NekoCapture.Overlays.WelcomeToast>().ToList())
                     old.Close();
                 PumpMs(120);
-                FrameCapture.Overlays.WelcomeToast.Show(g.CaptureKeyText(), g.RecordKeyText());
+                NekoCapture.Overlays.WelcomeToast.Show(g.CaptureKeyText(), g.RecordKeyText());
                 PumpMs(260);
             }
 
             // 截图绑两条（第二条带「按下」后缀），录制一条都不留。
             g.Bindings.Clear();
-            g.Bindings.Add(new FrameCapture.Core.GestureBindingDto
-            { Id = "t.cap1", Chord = "Ctrl+Shift+X", Actions = new[] { FrameCapture.Core.GestureActions.CaptureStored } });
-            g.Bindings.Add(new FrameCapture.Core.GestureBindingDto
-            { Id = "t.cap2", Chord = "F2", Trigger = "KeyDown", Actions = new[] { FrameCapture.Core.GestureActions.CaptureStored } });
+            g.Bindings.Add(new NekoCapture.Core.GestureBindingDto
+            { Id = "t.cap1", Chord = "Ctrl+Shift+X", Actions = new[] { NekoCapture.Core.GestureActions.CaptureStored } });
+            g.Bindings.Add(new NekoCapture.Core.GestureBindingDto
+            { Id = "t.cap2", Chord = "F2", Trigger = "KeyDown", Actions = new[] { NekoCapture.Core.GestureActions.CaptureStored } });
             ShowCard();
-            var card = System.Windows.Application.Current.Windows.OfType<FrameCapture.Overlays.WelcomeToast>().First();
+            var card = System.Windows.Application.Current.Windows.OfType<NekoCapture.Overlays.WelcomeToast>().First();
             var scanned = ScanCard(card);
             Chk("T225-card-shows-user-chords",
                 scanned.Chips.SequenceEqual(new[] { "Ctrl", "Shift", "X", "F2" }),
@@ -6823,15 +6825,15 @@ static partial class SelfTest
             // 开关关掉：卡片不列键位，也不该留下半排键帽。
             st.Current.WelcomeShowsHotkeys = false;
             ShowCard();
-            var off = System.Windows.Application.Current.Windows.OfType<FrameCapture.Overlays.WelcomeToast>().First();
+            var off = System.Windows.Application.Current.Windows.OfType<NekoCapture.Overlays.WelcomeToast>().First();
             Chk("T225-toggle-hides-keys", ScanCard(off).Chips.Count == 0,
                 "关掉开关后还剩 " + ScanCard(off).Chips.Count + " 枚键帽");
             st.Current.WelcomeShowsHotkeys = true;
             ShowCard();
-            var on = System.Windows.Application.Current.Windows.OfType<FrameCapture.Overlays.WelcomeToast>().First();
+            var on = System.Windows.Application.Current.Windows.OfType<NekoCapture.Overlays.WelcomeToast>().First();
             Chk("T225-toggle-restore-shows-keys", ScanCard(on).Chips.Count == 4,
                 "重新打开后应有 4 枚键帽，实际 " + ScanCard(on).Chips.Count + " 枚");
-            foreach (var old in System.Windows.Application.Current.Windows.OfType<FrameCapture.Overlays.WelcomeToast>().ToList())
+            foreach (var old in System.Windows.Application.Current.Windows.OfType<NekoCapture.Overlays.WelcomeToast>().ToList())
                 old.Close();
 
             // 这条测试改的是内存里的绑定表，跑完原样还回去。
@@ -6847,7 +6849,7 @@ static partial class SelfTest
         {
             static bool AutoDismissRunning(Window w)
             {
-                var f = typeof(FrameCapture.Overlays.WelcomeToast).GetField("_dismiss",
+                var f = typeof(NekoCapture.Overlays.WelcomeToast).GetField("_dismiss",
                     System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
                 return ((System.Windows.Threading.DispatcherTimer)f.GetValue(w)!).IsEnabled;
             }
@@ -6858,9 +6860,9 @@ static partial class SelfTest
                     if (c is DependencyObject d && FindClose(d) is { } found) return found;
                 return null;
             }
-            FrameCapture.Overlays.WelcomeToast.Show("F6", "Ctrl+Alt+R", sticky: true);
+            NekoCapture.Overlays.WelcomeToast.Show("F6", "Ctrl+Alt+R", sticky: true);
             var keep = System.Windows.Application.Current.Windows
-                .OfType<FrameCapture.Overlays.WelcomeToast>().First();
+                .OfType<NekoCapture.Overlays.WelcomeToast>().First();
             Chk("T226-first-run-card-does-not-self-close", !AutoDismissRunning(keep),
                 "首启卡的计时器在跑，12 秒后会自己走");
             // 唯一出口：卡片不抢焦点，Esc 归用户当下正在用的那个窗口（实测注入 Esc 关不掉），
@@ -6875,14 +6877,14 @@ static partial class SelfTest
                 PumpMs(200);
                 Chk("T226-close-button-dismisses-the-card",
                     !System.Windows.Application.Current.Windows
-                        .OfType<FrameCapture.Overlays.WelcomeToast>().Any(w => ReferenceEquals(w, keep)),
+                        .OfType<NekoCapture.Overlays.WelcomeToast>().Any(w => ReferenceEquals(w, keep)),
                     "点了 ✕ 卡片还在");
             }
             foreach (var w in System.Windows.Application.Current.Windows
-                         .OfType<FrameCapture.Overlays.WelcomeToast>().ToList()) w.Close();
-            FrameCapture.Overlays.WelcomeToast.Show("F6", "Ctrl+Alt+R");
+                         .OfType<NekoCapture.Overlays.WelcomeToast>().ToList()) w.Close();
+            NekoCapture.Overlays.WelcomeToast.Show("F6", "Ctrl+Alt+R");
             var timed = System.Windows.Application.Current.Windows
-                .OfType<FrameCapture.Overlays.WelcomeToast>().First();
+                .OfType<NekoCapture.Overlays.WelcomeToast>().First();
             Chk("T226-scripted-card-still-times-out", AutoDismissRunning(timed),
                 "脚本叫出来的卡应按时自己走，不然审查脚本会一直等");
             timed.Close();
@@ -6892,12 +6894,12 @@ static partial class SelfTest
         // 就绪卡只列已配置的快捷键，不放任何入口按钮：卡片上只该有 ✕ 这一枚图标按钮。
         try
         {
-            foreach (var old in System.Windows.Application.Current.Windows.OfType<FrameCapture.Overlays.WelcomeToast>().ToList())
+            foreach (var old in System.Windows.Application.Current.Windows.OfType<NekoCapture.Overlays.WelcomeToast>().ToList())
                 old.Close();
             PumpMs(120);
-            FrameCapture.Overlays.WelcomeToast.Show("F6", "Ctrl+Alt+R");
+            NekoCapture.Overlays.WelcomeToast.Show("F6", "Ctrl+Alt+R");
             PumpMs(220);
-            var card = System.Windows.Application.Current.Windows.OfType<FrameCapture.Overlays.WelcomeToast>().First();
+            var card = System.Windows.Application.Current.Windows.OfType<NekoCapture.Overlays.WelcomeToast>().First();
             // 图标按钮（✕）不算：它有字形内容，正文按钮没有
             int textButtons = 0;
             void WalkBtn(DependencyObject o)
@@ -6915,7 +6917,7 @@ static partial class SelfTest
                 Math.Abs((card.Left + card.ActualWidth) - (wa.Right - 16)) <= 2
                 && Math.Abs((card.Top + card.ActualHeight) - (wa.Bottom - 16)) <= 2,
                 $"右 {card.Left + card.ActualWidth:N0}/{wa.Right - 16:N0} 底 {card.Top + card.ActualHeight:N0}/{wa.Bottom - 16:N0}");
-            foreach (var old in System.Windows.Application.Current.Windows.OfType<FrameCapture.Overlays.WelcomeToast>().ToList())
+            foreach (var old in System.Windows.Application.Current.Windows.OfType<NekoCapture.Overlays.WelcomeToast>().ToList())
                 old.Close();
         }
         catch (Exception e) { Chk("T227-ready-card-buttons", false, e.Message); }
@@ -6937,13 +6939,13 @@ static partial class SelfTest
         static void ShowOffscreen(Window w) { w.Left = -3000; w.Top = -3000; w.ShowInTaskbar = false; w.Show(); PumpMs(140); }
         try
         {
-            var box = new FrameCapture.Core.ChordCaptureBox { Chord = "F6" };
+            var box = new NekoCapture.Core.ChordCaptureBox { Chord = "F6" };
             string picked = "";
             box.Picked += c => picked = c;
             var host = new Window { Width = 220, Height = 120, WindowStyle = WindowStyle.None, Content = box };
             ShowOffscreen(host);
             box.BeginCapture();
-            var mi = typeof(FrameCapture.Core.ChordCaptureBox).GetMethod("OnPreviewKeyDown",
+            var mi = typeof(NekoCapture.Core.ChordCaptureBox).GetMethod("OnPreviewKeyDown",
                 System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance
                 | System.Reflection.BindingFlags.DeclaredOnly)!;   // 基类也有同名重写：不加 DeclaredOnly 会「同形重载」报错
             var ke = new System.Windows.Input.KeyEventArgs(System.Windows.Input.Keyboard.PrimaryDevice,
@@ -6961,10 +6963,10 @@ static partial class SelfTest
         // 语言三档装在同一条轨道里：三段的上下沿由同一个数说话，不能谁比谁高半截。
         try
         {
-            var sw = new FrameCapture.Overlays.SettingsWindow();
+            var sw = new NekoCapture.Overlays.SettingsWindow();
             var np = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
-            typeof(FrameCapture.Overlays.SettingsWindow).GetField("_restoreCat", np)!.SetValue(sw, 7);   // 外观
-            typeof(FrameCapture.Overlays.SettingsWindow).GetMethod("Build", np)!.Invoke(sw, null);
+            typeof(NekoCapture.Overlays.SettingsWindow).GetField("_restoreCat", np)!.SetValue(sw, 7);   // 外观
+            typeof(NekoCapture.Overlays.SettingsWindow).GetMethod("Build", np)!.Invoke(sw, null);
             sw.Left = -3000; sw.Top = -3000; sw.ShowInTaskbar = false; sw.Show(); PumpMs(200);
             var segs = new List<System.Windows.Controls.Border>();
             void WalkSeg(DependencyObject o)
@@ -6987,12 +6989,12 @@ static partial class SelfTest
         {
             // 设置窗读的是 AppHost 那份 Settings 实例，和 SettingsService.Shared 未必是同一个——
             // 断言与还原都走同一份，否则改的是甲的设置、读的是乙，测试自己制造出「没生效」。
-            var svc = FrameCapture.Services.AppHost.Current.Settings;
+            var svc = NekoCapture.Services.AppHost.Current.Settings;
             string before = svc.Current.AutoSavePath;
-            var sw = new FrameCapture.Overlays.SettingsWindow();
+            var sw = new NekoCapture.Overlays.SettingsWindow();
             var np = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
-            typeof(FrameCapture.Overlays.SettingsWindow).GetField("_restoreCat", np)!.SetValue(sw, 4);   // 产物
-            typeof(FrameCapture.Overlays.SettingsWindow).GetMethod("Build", np)!.Invoke(sw, null);
+            typeof(NekoCapture.Overlays.SettingsWindow).GetField("_restoreCat", np)!.SetValue(sw, 4);   // 产物
+            typeof(NekoCapture.Overlays.SettingsWindow).GetMethod("Build", np)!.Invoke(sw, null);
             sw.Left = -3000; sw.Top = -3000; sw.ShowInTaskbar = false; sw.Show(); PumpMs(200);
             var boxes = new List<System.Windows.Controls.TextBox>();
             void FindBox(DependencyObject o)
@@ -7028,7 +7030,7 @@ static partial class SelfTest
         // 取色器：色域必须是**方形直角**、四角不许被裁；下面只剩预览与 HEX 一个输入框；两排右端齐平。
         try
         {
-            var view = new FrameCapture.Overlays.ColorPickView { Color = System.Windows.Media.Color.FromArgb(0x80, 0xE8, 0x4C, 0x3D) };
+            var view = new NekoCapture.Overlays.ColorPickView { Color = System.Windows.Media.Color.FromArgb(0x80, 0xE8, 0x4C, 0x3D) };
             // 宿主按内容定尺寸：弹层里的宽度就是内容自己撑出来的那段。
             // 写死一个更大宽度会把下排拉伸到比上排宽，量出来的「右端不齐」是量具自己造的。
             var host = new Window { WindowStyle = WindowStyle.None, SizeToContent = SizeToContent.WidthAndHeight, Content = view };
@@ -7068,54 +7070,54 @@ static partial class SelfTest
         // 临时目录的中间文件超过保留期必须被清掉；未到期的留着（「继续滚动」的基准帧就在里面）。
         try
         {
-            System.IO.Directory.CreateDirectory(FrameCapture.Core.TempFiles.Dir);
-            string stale = FrameCapture.Core.TempFiles.PathOf("capture-selftest-stale.png");
-            string fresh = FrameCapture.Core.TempFiles.PathOf("scroll-selftest-fresh.png");
+            System.IO.Directory.CreateDirectory(NekoCapture.Core.TempFiles.Dir);
+            string stale = NekoCapture.Core.TempFiles.PathOf("capture-selftest-stale.png");
+            string fresh = NekoCapture.Core.TempFiles.PathOf("scroll-selftest-fresh.png");
             System.IO.File.WriteAllBytes(stale, new byte[] { 1 });
             System.IO.File.WriteAllBytes(fresh, new byte[] { 1 });
             System.IO.File.SetLastWriteTimeUtc(stale,
-                DateTime.UtcNow - FrameCapture.Core.TempFiles.Keep - TimeSpan.FromHours(1));
-            int removed = FrameCapture.Core.TempFiles.SweepStale();
+                DateTime.UtcNow - NekoCapture.Core.TempFiles.Keep - TimeSpan.FromHours(1));
+            int removed = NekoCapture.Core.TempFiles.SweepStale();
             Chk("T232-temp-sweep-removes-stale", !System.IO.File.Exists(stale) && removed >= 1,
                 "超期文件还在，删了 " + removed + " 个");
             Chk("T232-temp-sweep-keeps-fresh", System.IO.File.Exists(fresh), "未到期的那张被清掉了");
-            FrameCapture.Core.TempFiles.Drop(fresh);
+            NekoCapture.Core.TempFiles.Drop(fresh);
         }
         catch (Exception e) { Chk("T232-temp-sweep", false, e.Message); }
 
         // MSAA 的语义判定：按钮/链接/文本算控件；整页文档与无名容器不算，有名字的容器算。
         try
         {
-            Chk("T237-msaa-role-button", FrameCapture.Core.MsaaSnap.IsSemantic(0x2B, ""), "按钮角色应当算控件");
-            Chk("T237-msaa-role-link", FrameCapture.Core.MsaaSnap.IsSemantic(0x1E, ""), "链接角色应当算控件");
-            Chk("T237-msaa-role-document", !FrameCapture.Core.MsaaSnap.IsSemantic(0x0F, "GitHub"), "整页文档不该算控件");
-            Chk("T237-msaa-role-unnamed-pane", !FrameCapture.Core.MsaaSnap.IsSemantic(0x10, ""), "无名容器不该算控件");
-            Chk("T237-msaa-role-named-group", FrameCapture.Core.MsaaSnap.IsSemantic(0x10, "Dashboard"), "有名字的容器该算控件");
+            Chk("T237-msaa-role-button", NekoCapture.Core.MsaaSnap.IsSemantic(0x2B, ""), "按钮角色应当算控件");
+            Chk("T237-msaa-role-link", NekoCapture.Core.MsaaSnap.IsSemantic(0x1E, ""), "链接角色应当算控件");
+            Chk("T237-msaa-role-document", !NekoCapture.Core.MsaaSnap.IsSemantic(0x0F, "GitHub"), "整页文档不该算控件");
+            Chk("T237-msaa-role-unnamed-pane", !NekoCapture.Core.MsaaSnap.IsSemantic(0x10, ""), "无名容器不该算控件");
+            Chk("T237-msaa-role-named-group", NekoCapture.Core.MsaaSnap.IsSemantic(0x10, "Dashboard"), "有名字的容器该算控件");
         }
         catch (Exception e) { Chk("T237-msaa-semantic", false, e.Message); }
 
         // 可调整选区的纯几何：抓边角、缩放、整块移动、吸附。左右写反是这里最常见的错，逐条钉住。
         try
         {
-            var sel = new FrameCapture.Capture.RectI(100, 100, 200, 150);   // 100..300 / 100..250
-            Chk("T240-grab-corner", FrameCapture.Core.AdjustGeometry.Hit(sel, 101, 101, 6) == FrameCapture.Core.GrabKind.TopLeft,
+            var sel = new NekoCapture.Capture.RectI(100, 100, 200, 150);   // 100..300 / 100..250
+            Chk("T240-grab-corner", NekoCapture.Core.AdjustGeometry.Hit(sel, 101, 101, 6) == NekoCapture.Core.GrabKind.TopLeft,
                 "左上角应判成 TopLeft");
-            Chk("T240-grab-edge", FrameCapture.Core.AdjustGeometry.Hit(sel, 200, 249, 6) == FrameCapture.Core.GrabKind.Bottom,
+            Chk("T240-grab-edge", NekoCapture.Core.AdjustGeometry.Hit(sel, 200, 249, 6) == NekoCapture.Core.GrabKind.Bottom,
                 "下边中点应判成 Bottom");
-            Chk("T240-grab-inside-moves", FrameCapture.Core.AdjustGeometry.Hit(sel, 200, 180, 6) == FrameCapture.Core.GrabKind.Move,
+            Chk("T240-grab-inside-moves", NekoCapture.Core.AdjustGeometry.Hit(sel, 200, 180, 6) == NekoCapture.Core.GrabKind.Move,
                 "框内应判成 Move");
-            Chk("T240-grab-outside-none", FrameCapture.Core.AdjustGeometry.Hit(sel, 600, 600, 6) == FrameCapture.Core.GrabKind.None,
+            Chk("T240-grab-outside-none", NekoCapture.Core.AdjustGeometry.Hit(sel, 600, 600, 6) == NekoCapture.Core.GrabKind.None,
                 "框外应判成 None");
 
-            var bounds = new FrameCapture.Capture.RectI(0, 0, 1000, 800);
-            var widened = FrameCapture.Core.AdjustGeometry.Resize(sel, FrameCapture.Core.GrabKind.Right, 50, 0, bounds);
+            var bounds = new NekoCapture.Capture.RectI(0, 0, 1000, 800);
+            var widened = NekoCapture.Core.AdjustGeometry.Resize(sel, NekoCapture.Core.GrabKind.Right, 50, 0, bounds);
             Chk("T240-resize-right-grows", widened.W == 250 && widened.X == 100 && widened.H == 150,
                 "拖右边只改宽：" + widened.W + "×" + widened.H);
-            var moved = FrameCapture.Core.AdjustGeometry.Resize(sel, FrameCapture.Core.GrabKind.Move, 30, -20, bounds);
+            var moved = NekoCapture.Core.AdjustGeometry.Resize(sel, NekoCapture.Core.GrabKind.Move, 30, -20, bounds);
             Chk("T240-move-keeps-size", moved.X == 130 && moved.Y == 80 && moved.W == 200 && moved.H == 150,
                 "整块移动尺寸不变：" + moved.X + "," + moved.Y + " " + moved.W + "×" + moved.H);
-            var clamped = FrameCapture.Core.AdjustGeometry.Resize(sel, FrameCapture.Core.GrabKind.Left, 500, 0, bounds);
-            Chk("T240-resize-clamps-min-side", clamped.W >= FrameCapture.Core.AdjustGeometry.MinSide,
+            var clamped = NekoCapture.Core.AdjustGeometry.Resize(sel, NekoCapture.Core.GrabKind.Left, 500, 0, bounds);
+            Chk("T240-resize-clamps-min-side", clamped.W >= NekoCapture.Core.AdjustGeometry.MinSide,
                 "缩到最小也不能小于下限：" + clamped.W);
 
 
@@ -7206,7 +7208,7 @@ static partial class SelfTest
             Theme.ClearAllCustoms();
 
             // 预览卡那行跟着对比当场改口：出厂配色报 0 处，把正文改成贴着窗口底就该报出来
-            var inkFn = typeof(FrameCapture.Overlays.SettingsWindow).GetMethod("InkShortfalls",
+            var inkFn = typeof(NekoCapture.Overlays.SettingsWindow).GetMethod("InkShortfalls",
                 System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
             Theme.Apply("light", null);
             Chk("T241-ink-note-clear", (int)inkFn!.Invoke(null, null)! == 0, "出厂配色的预览卡报 0 处对比不足");
@@ -7268,8 +7270,8 @@ static partial class SelfTest
         try
         {
             bool keepDark = Theme.IsDark;
-            var sw = new FrameCapture.Overlays.SettingsWindow();
-            typeof(FrameCapture.Overlays.SettingsWindow)
+            var sw = new NekoCapture.Overlays.SettingsWindow();
+            typeof(NekoCapture.Overlays.SettingsWindow)
                 .GetMethod("Build", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
                 .Invoke(sw, null);
             sw.WindowStartupLocation = WindowStartupLocation.Manual;
@@ -7309,7 +7311,7 @@ static partial class SelfTest
                 Region = new RectI(0, 0, 200, 120),
                 MonitorBounds = new RectI(0, 0, 1920, 1080),
             };
-            var winEd = new FrameCapture.Overlays.EditorWindow(stEd, seqEd);
+            var winEd = new NekoCapture.Overlays.EditorWindow(stEd, seqEd);
             winEd.WindowStartupLocation = WindowStartupLocation.Manual;
             winEd.Left = -20000; winEd.Top = -20000; winEd.ShowInTaskbar = false;
             winEd.Show();
@@ -7335,9 +7337,9 @@ static partial class SelfTest
         try
         {
             var npLang = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
-            var swLang = new FrameCapture.Overlays.SettingsWindow();
-            typeof(FrameCapture.Overlays.SettingsWindow).GetField("_restoreCat", npLang)!.SetValue(swLang, 7);   // 外观
-            typeof(FrameCapture.Overlays.SettingsWindow).GetMethod("Build", npLang)!.Invoke(swLang, null);
+            var swLang = new NekoCapture.Overlays.SettingsWindow();
+            typeof(NekoCapture.Overlays.SettingsWindow).GetField("_restoreCat", npLang)!.SetValue(swLang, 7);   // 外观
+            typeof(NekoCapture.Overlays.SettingsWindow).GetMethod("Build", npLang)!.Invoke(swLang, null);
             swLang.WindowStartupLocation = WindowStartupLocation.Manual;
             swLang.Left = -20000; swLang.Top = -20000; swLang.ShowInTaskbar = false;
             swLang.Show();
@@ -7374,22 +7376,22 @@ static partial class SelfTest
         try
         {
             var npDel = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
-            var tyDel = typeof(FrameCapture.Overlays.SettingsWindow);
-            var tyHost = typeof(FrameCapture.Services.AppHost);
+            var tyDel = typeof(NekoCapture.Overlays.SettingsWindow);
+            var tyHost = typeof(NekoCapture.Services.AppHost);
             // 这条用例会真删一条绑定并落盘：整块搬进临时目录，不碰用户机器上的配置
-            string? prevDir = Environment.GetEnvironmentVariable("FC_SETTINGS_DIR");
+            string? prevDir = Environment.GetEnvironmentVariable("NC_SETTINGS_DIR");
             string scratchDel = Path.Combine(Path.GetTempPath(), "fc-selftest-hotkeys");
             Directory.CreateDirectory(scratchDel);
             // 测试设置从完整绑定集开始
             string scratchFileDel = Path.Combine(scratchDel, "settings.json");
             if (File.Exists(scratchFileDel)) File.Delete(scratchFileDel);
-            Environment.SetEnvironmentVariable("FC_SETTINGS_DIR", scratchDel);
-            var prevSvc = tyHost.GetProperty("Settings")!.GetValue(FrameCapture.Services.AppHost.Current);
+            Environment.SetEnvironmentVariable("NC_SETTINGS_DIR", scratchDel);
+            var prevSvc = tyHost.GetProperty("Settings")!.GetValue(NekoCapture.Services.AppHost.Current);
             var svcDel = new SettingsService();
-            tyHost.GetProperty("Settings")!.SetValue(FrameCapture.Services.AppHost.Current, svcDel);
+            tyHost.GetProperty("Settings")!.SetValue(NekoCapture.Services.AppHost.Current, svcDel);
             try
             {
-                var swDel = new FrameCapture.Overlays.SettingsWindow();
+                var swDel = new NekoCapture.Overlays.SettingsWindow();
                 tyDel.GetField("_restoreCat", npDel)!.SetValue(swDel, 0);   // 快捷键
                 tyDel.GetMethod("Build", npDel)!.Invoke(swDel, null);
                 swDel.WindowStartupLocation = WindowStartupLocation.Manual;
@@ -7420,8 +7422,8 @@ static partial class SelfTest
             }
             finally
             {
-                tyHost.GetProperty("Settings")!.SetValue(FrameCapture.Services.AppHost.Current, prevSvc);
-                Environment.SetEnvironmentVariable("FC_SETTINGS_DIR", prevDir);
+                tyHost.GetProperty("Settings")!.SetValue(NekoCapture.Services.AppHost.Current, prevSvc);
+                Environment.SetEnvironmentVariable("NC_SETTINGS_DIR", prevDir);
             }
         }
         catch (Exception e) { Chk("T245-hotkey-delete", false, e.Message); }
@@ -7429,14 +7431,14 @@ static partial class SelfTest
         try
         {
             var npNav = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
-            var tyNav = typeof(FrameCapture.Overlays.SettingsWindow);
+            var tyNav = typeof(NekoCapture.Overlays.SettingsWindow);
             List<System.Windows.Controls.Border>? rows = null;
             System.Windows.Controls.Border? bar = null;
-            FrameCapture.Overlays.SettingsWindow? win = null;
+            NekoCapture.Overlays.SettingsWindow? win = null;
             // 开窗停在指定分页，滑条就走开窗那条路落位：第 1 页与第 4 页各量一次
             void Open(int cat)
             {
-                win = new FrameCapture.Overlays.SettingsWindow();
+                win = new NekoCapture.Overlays.SettingsWindow();
                 tyNav.GetField("_restoreCat", npNav)!.SetValue(win, cat);
                 tyNav.GetMethod("Build", npNav)!.Invoke(win, null);
                 win.WindowStartupLocation = WindowStartupLocation.Manual;
@@ -7470,17 +7472,17 @@ static partial class SelfTest
         try
         {
             var npPre = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
-            var tyPre = typeof(FrameCapture.Overlays.SettingsWindow);
-            var tyHostPre = typeof(FrameCapture.Services.AppHost);
-            string? prevDirPre = Environment.GetEnvironmentVariable("FC_SETTINGS_DIR");
+            var tyPre = typeof(NekoCapture.Overlays.SettingsWindow);
+            var tyHostPre = typeof(NekoCapture.Services.AppHost);
+            string? prevDirPre = Environment.GetEnvironmentVariable("NC_SETTINGS_DIR");
             string scratchPre = Path.Combine(Path.GetTempPath(), "fc-selftest-presets");
             Directory.CreateDirectory(scratchPre);
             string scratchFilePre = Path.Combine(scratchPre, "settings.json");
             if (File.Exists(scratchFilePre)) File.Delete(scratchFilePre);
-            Environment.SetEnvironmentVariable("FC_SETTINGS_DIR", scratchPre);
-            var prevSvcPre = tyHostPre.GetProperty("Settings")!.GetValue(FrameCapture.Services.AppHost.Current);
+            Environment.SetEnvironmentVariable("NC_SETTINGS_DIR", scratchPre);
+            var prevSvcPre = tyHostPre.GetProperty("Settings")!.GetValue(NekoCapture.Services.AppHost.Current);
             var svcPre = new SettingsService();
-            tyHostPre.GetProperty("Settings")!.SetValue(FrameCapture.Services.AppHost.Current, svcPre);
+            tyHostPre.GetProperty("Settings")!.SetValue(NekoCapture.Services.AppHost.Current, svcPre);
             bool keepDarkPre = Theme.IsDark;
             try
             {
@@ -7497,7 +7499,7 @@ static partial class SelfTest
                     double fill = Fluent.ContrastRatio(Fluent.OnAccentColor(a), a);
                     Chk($"T247-preset-fill-ink-{p.Id}", fill >= 4.5, $"{p.Id} 的强调色上压字对比 {fill:F2}");
                 }
-                var swPre = new FrameCapture.Overlays.SettingsWindow();
+                var swPre = new NekoCapture.Overlays.SettingsWindow();
                 tyPre.GetField("_restoreCat", npPre)!.SetValue(swPre, 8);   // 配色
                 tyPre.GetMethod("Build", npPre)!.Invoke(swPre, null);
                 swPre.WindowStartupLocation = WindowStartupLocation.Manual;
@@ -7520,8 +7522,8 @@ static partial class SelfTest
             }
             finally
             {
-                tyHostPre.GetProperty("Settings")!.SetValue(FrameCapture.Services.AppHost.Current, prevSvcPre);
-                Environment.SetEnvironmentVariable("FC_SETTINGS_DIR", prevDirPre);
+                tyHostPre.GetProperty("Settings")!.SetValue(NekoCapture.Services.AppHost.Current, prevSvcPre);
+                Environment.SetEnvironmentVariable("NC_SETTINGS_DIR", prevDirPre);
                 Theme.ClearAllCustoms();
                 Theme.ResetAccent();
                 Theme.Apply(keepDarkPre ? "dark" : "light", null);
@@ -7535,8 +7537,8 @@ static partial class SelfTest
         try
         {
             var npPg = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
-            var tyPg = typeof(FrameCapture.Overlays.SettingsWindow);
-            var winPg = new FrameCapture.Overlays.SettingsWindow();
+            var tyPg = typeof(NekoCapture.Overlays.SettingsWindow);
+            var winPg = new NekoCapture.Overlays.SettingsWindow();
             tyPg.GetField("_restoreCat", npPg)!.SetValue(winPg, 8);
             tyPg.GetMethod("Build", npPg)!.Invoke(winPg, null);
             winPg.WindowStartupLocation = WindowStartupLocation.Manual;
@@ -7618,7 +7620,7 @@ static partial class SelfTest
 
             // 键位录入全在「快捷键」页：两条绑定的键帽 + 确认 / 取消 + 复制键，都在带小标题的那张卡里。
             // 编辑器键位那几组也在这页上，所以不数总数，认的是这枚三行各自的标签。
-            var keysCap = Of(2, typeof(FrameCapture.Core.ChordCaptureBox));
+            var keysCap = Of(2, typeof(NekoCapture.Core.ChordCaptureBox));
             var hotTexts = Of(0, typeof(System.Windows.Controls.TextBlock)).OfType<System.Windows.Controls.TextBlock>()
                 .Select(t => t.Text).ToList();
             Chk("T251-ui-keys-on-hotkeys-page",
@@ -7662,9 +7664,9 @@ static partial class SelfTest
         // 选区窗上的模式开关与右键关层：开关改的是这一次的去向，右键等同于 Esc（可在设置里关）
         try
         {
-            var mon262 = new FrameCapture.Capture.MonitorInfo("test", new FrameCapture.Capture.RectI(0, 0, 800, 600), true);
-            FrameCapture.Core.Loc.Apply("zh");
-            var pickRec = new FrameCapture.Overlays.RegionPickerWindow(mon262, null, recordMode: true);
+            var mon262 = new NekoCapture.Capture.MonitorInfo("test", new NekoCapture.Capture.RectI(0, 0, 800, 600), true);
+            NekoCapture.Core.Loc.Apply("zh");
+            var pickRec = new NekoCapture.Overlays.RegionPickerWindow(mon262, null, recordMode: true);
             Chk("T262-picker-mode-initial", pickRec.RecordMode, "选区窗按传入的意图开在录制档");
             pickRec.SetRecordMode(false);
             Chk("T262-picker-mode-switchable", !pickRec.RecordMode, "开关切回截图档");
@@ -7674,7 +7676,7 @@ static partial class SelfTest
                 System.Windows.Input.Mouse.PrimaryDevice, 0, System.Windows.Input.MouseButton.Right)
             { RoutedEvent = System.Windows.Input.Mouse.MouseUpEvent, Source = pickRec });
             Chk("T262-rightclick-closes", done == 1 && finalRegion == false, $"右键关掉整层：回调 {done} 次，范围 {(finalRegion == false ? "空（取消）" : "有")}");
-            var pickNoRight = new FrameCapture.Overlays.RegionPickerWindow(mon262, null, rightClickCancel: false);
+            var pickNoRight = new NekoCapture.Overlays.RegionPickerWindow(mon262, null, rightClickCancel: false);
             int done2 = 0;
             pickNoRight.Result += (_, __) => done2++;
             pickNoRight.RaiseEvent(new System.Windows.Input.MouseButtonEventArgs(
@@ -7688,10 +7690,10 @@ static partial class SelfTest
         try
         {
             int started264 = 0, stopped264 = 0;
-            FrameCapture.Overlays.RecordPanelWindow.ShowArmed(new FrameCapture.Capture.RectI(100, 100, 400, 300), "",
-                () => { started264++; FrameCapture.Overlays.RecordPanelWindow.Current?.SwitchToRecording(); }, () => stopped264++);
+            NekoCapture.Overlays.RecordPanelWindow.ShowArmed(new NekoCapture.Capture.RectI(100, 100, 400, 300), "",
+                () => { started264++; NekoCapture.Overlays.RecordPanelWindow.Current?.SwitchToRecording(); }, () => stopped264++);
             PumpMs(220);
-            var panel264 = FrameCapture.Overlays.RecordPanelWindow.Current;
+            var panel264 = NekoCapture.Overlays.RecordPanelWindow.Current;
             Chk("T264-record-panel-shows", panel264 != null && panel264.IsVisible, "选区切到录制后面板出现在屏幕上方");
             var blocks264 = new List<System.Windows.DependencyObject>();
             if (panel264 != null) CollectTyped(panel264, typeof(System.Windows.Controls.Border), blocks264);
@@ -7715,39 +7717,39 @@ static partial class SelfTest
                 System.Windows.Input.Mouse.PrimaryDevice, 0, System.Windows.Input.MouseButton.Left)
             { RoutedEvent = System.Windows.UIElement.MouseLeftButtonUpEvent, Source = stopBtn264 });
             PumpMs(160);
-            Chk("T264-record-panel-stops", stopped264 == 1 && FrameCapture.Overlays.RecordPanelWindow.Current == null,
+            Chk("T264-record-panel-stops", stopped264 == 1 && NekoCapture.Overlays.RecordPanelWindow.Current == null,
                 $"点「停止录制」走停止回调并收走面板：回调 {stopped264} 次");
-            FrameCapture.Overlays.RecordPanelWindow.Dismiss();
+            NekoCapture.Overlays.RecordPanelWindow.Dismiss();
         }
         catch (Exception e) { Chk("T264-record-panel", false, e.Message); }
         // 单键绑定与 Win 组合键：PrtSc 这种只属于截图的裸键要能绑，Win+Shift+S 这类系统先接手的也要能绑
         try
         {
-            var prtsc = FrameCapture.Core.HotkeySpec.Parse("PrtSc");
+            var prtsc = NekoCapture.Core.HotkeySpec.Parse("PrtSc");
             Chk("T265-bare-prtsc-parses",
                 prtsc != null && prtsc.Key == System.Windows.Forms.Keys.PrintScreen && !prtsc.Ctrl && !prtsc.Alt && !prtsc.Shift && !prtsc.Win,
                 $"PrtSc 单键解析：{prtsc?.ToString() ?? "null"}");
             Chk("T265-bare-prtsc-roundtrip", prtsc != null && prtsc.ToString() == "PrtSc", "存进设置的串读回来还是 PrtSc");
-            var bare265 = FrameCapture.Core.HotkeySpec.Parse("A");
+            var bare265 = NekoCapture.Core.HotkeySpec.Parse("A");
             Chk("T265-bare-letter-accepted", bare265 != null && bare265.ToString() == "A", "裸字母能当热键");
-            var winShiftS = FrameCapture.Core.HotkeySpec.Parse("Win+Shift+S");
+            var winShiftS = NekoCapture.Core.HotkeySpec.Parse("Win+Shift+S");
             Chk("T265-win-chord-parses",
                 winShiftS != null && winShiftS.Win && winShiftS.Shift && !winShiftS.Ctrl && winShiftS.Key == System.Windows.Forms.Keys.S,
                 $"Win+Shift+S：{winShiftS?.ToString() ?? "null"}");
-            var ctrlPrtsc = FrameCapture.Core.HotkeySpec.Parse("Ctrl+PrtSc");
+            var ctrlPrtsc = NekoCapture.Core.HotkeySpec.Parse("Ctrl+PrtSc");
             Chk("T265-modified-prtsc-parses", ctrlPrtsc != null && ctrlPrtsc.Ctrl && ctrlPrtsc.Key == System.Windows.Forms.Keys.PrintScreen,
                 $"Ctrl+PrtSc：{ctrlPrtsc?.ToString() ?? "null"}");
             // 手势绑定层：以前裸 PrtSc 在这一步被丢掉，绑定表里看着有、实际不生效
-            var dto265 = new FrameCapture.Core.GestureBindingDto
+            var dto265 = new NekoCapture.Core.GestureBindingDto
             {
                 Id = "selftest.prtsc",
                 Chord = "PrtSc",
                 Trigger = "Chord",
-                Actions = new[] { FrameCapture.Core.GestureActions.ScopeSelect, FrameCapture.Core.GestureActions.CaptureStored },
+                Actions = new[] { NekoCapture.Core.GestureActions.ScopeSelect, NekoCapture.Core.GestureActions.CaptureStored },
             };
             Chk("T265-bare-prtsc-reaches-engine", dto265.ToBinding() != null, "裸 PrtSc 能变成引擎绑定（不再是空）");
             // 提权交接回来的页名解析：--page system 要落到「系统」那一页
-            var parsePage = typeof(FrameCapture.Overlays.SettingsWindow).GetMethod("ParsePage",
+            var parsePage = typeof(NekoCapture.Overlays.SettingsWindow).GetMethod("ParsePage",
                 System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!;
             Chk("T266-page-arg-system", (int)parsePage.Invoke(null, new object?[] { "system" })! == 9,
                 "页名 system 落到系统页");
@@ -7759,20 +7761,20 @@ static partial class SelfTest
         try
         {
             var npKey = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
-            var tyBox = typeof(FrameCapture.Core.ChordCaptureBox);
+            var tyBox = typeof(NekoCapture.Core.ChordCaptureBox);
             var onKey = tyBox.GetMethod("OnGlobalKey", npKey)!;
             var fCap = tyBox.GetField("_capturing", npKey)!;
             var fMods = tyBox.GetField("_heldMods", npKey)!;
-            (FrameCapture.Core.ChordCaptureBox box, List<string> picked) NewBox()
+            (NekoCapture.Core.ChordCaptureBox box, List<string> picked) NewBox()
             {
-                var b = new FrameCapture.Core.ChordCaptureBox();
+                var b = new NekoCapture.Core.ChordCaptureBox();
                 var got = new List<string>();
                 b.Picked += c => got.Add(c);
                 fCap.SetValue(b, true);
                 fMods.SetValue(b, (GestureCore.ModifierKeys)0);
                 return (b, got);
             }
-            bool Send(FrameCapture.Core.ChordCaptureBox b, uint vk, bool down, GestureCore.ModifierKeys mods)
+            bool Send(NekoCapture.Core.ChordCaptureBox b, uint vk, bool down, GestureCore.ModifierKeys mods)
                 => (bool)onKey.Invoke(b, new object[] { vk, down, mods, 0L })!;
 
             var (b1, p1) = NewBox();
@@ -7802,12 +7804,12 @@ static partial class SelfTest
             Chk("T267-capture-bare-letter", p4.Count == 1 && p4[0] == "A", $"裸字母照样录得下来：{string.Join("/", p4)}");
         }
         catch (Exception e) { Chk("T267-capture-via-hook", false, e.Message); }
-            var ed265 = FrameCapture.Core.EditorChord.Parse("PrtSc");
+            var ed265 = NekoCapture.Core.EditorChord.Parse("PrtSc");
             Chk("T265-editor-chord-prtsc",
                 ed265 != null && ed265.Value.Key == System.Windows.Input.Key.PrintScreen && ed265.Value.ToString() == "PrtSc"
                     && ed265.Value.Tokens().Count == 1,
                 $"编辑器键位里的 PrtSc：{ed265?.ToString() ?? "null"}，键帽 {ed265?.Tokens().Count ?? 0} 枚");
-            var edWin265 = FrameCapture.Core.EditorChord.Parse("Win+Shift+S");
+            var edWin265 = NekoCapture.Core.EditorChord.Parse("Win+Shift+S");
             Chk("T265-editor-chord-win", edWin265 != null && edWin265.Value.Tokens().Count == 3,
                 "Win+Shift+S 在编辑器键位里拆成三枚键帽");
         }
@@ -7817,8 +7819,8 @@ static partial class SelfTest
         try
         {
             var npBg = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
-            var winBg = new FrameCapture.Overlays.SettingsWindow();
-            typeof(FrameCapture.Overlays.SettingsWindow).GetMethod("Build", npBg)!.Invoke(winBg, null);
+            var winBg = new NekoCapture.Overlays.SettingsWindow();
+            typeof(NekoCapture.Overlays.SettingsWindow).GetMethod("Build", npBg)!.Invoke(winBg, null);
             winBg.WindowStartupLocation = WindowStartupLocation.Manual;
             winBg.Left = -20000; winBg.Top = -20000; winBg.ShowInTaskbar = false;
             winBg.Show();
@@ -7842,8 +7844,8 @@ static partial class SelfTest
         try
         {
             var npFd = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
-            var tyFd = typeof(FrameCapture.Overlays.SettingsWindow);
-            var winFd = new FrameCapture.Overlays.SettingsWindow();
+            var tyFd = typeof(NekoCapture.Overlays.SettingsWindow);
+            var winFd = new NekoCapture.Overlays.SettingsWindow();
             tyFd.GetField("_restoreCat", npFd)!.SetValue(winFd, 0);
             tyFd.GetMethod("Build", npFd)!.Invoke(winFd, null);
             winFd.WindowStartupLocation = WindowStartupLocation.Manual;
@@ -7909,20 +7911,20 @@ static partial class SelfTest
         try
         {
             var npDu = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
-            var tyDu = typeof(FrameCapture.Overlays.SettingsWindow);
-            var tyHostDu = typeof(FrameCapture.Services.AppHost);
-            string? prevDirDu = Environment.GetEnvironmentVariable("FC_SETTINGS_DIR");
+            var tyDu = typeof(NekoCapture.Overlays.SettingsWindow);
+            var tyHostDu = typeof(NekoCapture.Services.AppHost);
+            string? prevDirDu = Environment.GetEnvironmentVariable("NC_SETTINGS_DIR");
             string scratchDu = Path.Combine(Path.GetTempPath(), "fc-selftest-duration");
             Directory.CreateDirectory(scratchDu);
             string scratchFileDu = Path.Combine(scratchDu, "settings.json");
             if (File.Exists(scratchFileDu)) File.Delete(scratchFileDu);
-            Environment.SetEnvironmentVariable("FC_SETTINGS_DIR", scratchDu);
-            var prevSvcDu = tyHostDu.GetProperty("Settings")!.GetValue(FrameCapture.Services.AppHost.Current);
+            Environment.SetEnvironmentVariable("NC_SETTINGS_DIR", scratchDu);
+            var prevSvcDu = tyHostDu.GetProperty("Settings")!.GetValue(NekoCapture.Services.AppHost.Current);
             var svcDu = new SettingsService();
-            tyHostDu.GetProperty("Settings")!.SetValue(FrameCapture.Services.AppHost.Current, svcDu);
+            tyHostDu.GetProperty("Settings")!.SetValue(NekoCapture.Services.AppHost.Current, svcDu);
             try
             {
-                var winDu = new FrameCapture.Overlays.SettingsWindow();
+                var winDu = new NekoCapture.Overlays.SettingsWindow();
                 tyDu.GetField("_restoreCat", npDu)!.SetValue(winDu, 2);   // 截图
                 tyDu.GetMethod("Build", npDu)!.Invoke(winDu, null);
                 winDu.WindowStartupLocation = WindowStartupLocation.Manual;
@@ -7961,8 +7963,8 @@ static partial class SelfTest
             }
             finally
             {
-                tyHostDu.GetProperty("Settings")!.SetValue(FrameCapture.Services.AppHost.Current, prevSvcDu);
-                Environment.SetEnvironmentVariable("FC_SETTINGS_DIR", prevDirDu);
+                tyHostDu.GetProperty("Settings")!.SetValue(NekoCapture.Services.AppHost.Current, prevSvcDu);
+                Environment.SetEnvironmentVariable("NC_SETTINGS_DIR", prevDirDu);
             }
         }
         catch (Exception e) { Chk("T253-duration-commit", false, e.Message); }
@@ -7972,9 +7974,9 @@ static partial class SelfTest
         try
         {
             var npNv = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
-            var tyNv = typeof(FrameCapture.Overlays.SettingsWindow);
+            var tyNv = typeof(NekoCapture.Overlays.SettingsWindow);
             bool keepDarkNv = Theme.IsDark;
-            var winNv = new FrameCapture.Overlays.SettingsWindow();
+            var winNv = new NekoCapture.Overlays.SettingsWindow();
             tyNv.GetMethod("Build", npNv)!.Invoke(winNv, null);
             winNv.WindowStartupLocation = WindowStartupLocation.Manual;
             winNv.Left = -20000; winNv.Top = -20000; winNv.ShowInTaskbar = false;
@@ -8096,15 +8098,15 @@ static partial class SelfTest
         try
         {
             var npTk = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
-            var tyTk = typeof(FrameCapture.Overlays.SettingsWindow);
-            var winTk = new FrameCapture.Overlays.SettingsWindow();
+            var tyTk = typeof(NekoCapture.Overlays.SettingsWindow);
+            var winTk = new NekoCapture.Overlays.SettingsWindow();
             tyTk.GetField("_restoreCat", npTk)!.SetValue(winTk, 0);
             tyTk.GetMethod("Build", npTk)!.Invoke(winTk, null);
             winTk.WindowStartupLocation = WindowStartupLocation.Manual;
             winTk.Left = -20000; winTk.Top = -20000; winTk.ShowInTaskbar = false;
             winTk.Show();
             PumpMs(260);
-            var boxesTk = tyTk.GetField("_hotBoxes", npTk)!.GetValue(winTk) as Dictionary<string, FrameCapture.Core.ChordCaptureBox>;
+            var boxesTk = tyTk.GetField("_hotBoxes", npTk)!.GetValue(winTk) as Dictionary<string, NekoCapture.Core.ChordCaptureBox>;
             var capTk = boxesTk!.Values.First();
             Chk("T257-keycap-uses-token", ReferenceEquals(capTk.Background, Theme.KeycapBgBrush),
                 "键帽底走「键帽底色」令牌，改它当场换色");
@@ -8217,16 +8219,16 @@ static partial class SelfTest
         try
         {
             Chk("T236-semantic-button-passes",
-                FrameCapture.Core.ElementSnap.IsSemantic(System.Windows.Automation.ControlType.Button, ""),
+                NekoCapture.Core.ElementSnap.IsSemantic(System.Windows.Automation.ControlType.Button, ""),
                 "按钮应当算控件");
             Chk("T236-named-container-passes",
-                FrameCapture.Core.ElementSnap.IsSemantic(System.Windows.Automation.ControlType.Group, "Dashboard menu"),
+                NekoCapture.Core.ElementSnap.IsSemantic(System.Windows.Automation.ControlType.Group, "Dashboard menu"),
                 "有名字的分组应当算控件");
             Chk("T236-anonymous-pane-fails",
-                !FrameCapture.Core.ElementSnap.IsSemantic(System.Windows.Automation.ControlType.Pane, ""),
+                !NekoCapture.Core.ElementSnap.IsSemantic(System.Windows.Automation.ControlType.Pane, ""),
                 "匿名容器不该算控件");
             Chk("T236-whole-document-fails",
-                !FrameCapture.Core.ElementSnap.IsSemantic(System.Windows.Automation.ControlType.Document, "GitHub"),
+                !NekoCapture.Core.ElementSnap.IsSemantic(System.Windows.Automation.ControlType.Document, "GitHub"),
                 "整页文档不该算控件");
         }
         catch (Exception e) { Chk("T236-semantic", false, e.Message); }
@@ -8234,8 +8236,8 @@ static partial class SelfTest
         // 描边必须整个落在捕获范围之外：范围里的像素一个都不该被自己的边框吃掉。
         try
         {
-            var r = new FrameCapture.Capture.RectI(900, 600, 900, 600);
-            var o = FrameCapture.Overlays.RegionOutlineWindow.OuterRect(r);
+            var r = new NekoCapture.Capture.RectI(900, 600, 900, 600);
+            var o = NekoCapture.Overlays.RegionOutlineWindow.OuterRect(r);
             Chk("T235-outline-stroke-sits-outside-the-region",
                 o.X + 2 == r.X && o.Y + 2 == r.Y
                 && o.X + o.W - 2 == r.X + r.W && o.Y + o.H - 2 == r.Y + r.H,
@@ -8249,15 +8251,15 @@ static partial class SelfTest
         // 「允许截到自己」默认关（浮窗与轮廓不进产物），打开后放行。
         try
         {
-            var svcSelf = FrameCapture.Core.SettingsService.Shared;
+            var svcSelf = NekoCapture.Core.SettingsService.Shared;
             bool keepSelf = svcSelf?.Current.CaptureSelf ?? false;
             svcSelf?.Mutate(s => s.CaptureSelf = false);
-            Chk("T233-self-capture-off-by-default", !FrameCapture.Core.Fluent.CaptureSelfAllowed,
+            Chk("T233-self-capture-off-by-default", !NekoCapture.Core.Fluent.CaptureSelfAllowed,
                 "默认应当排除自己，实际放行了");
             if (svcSelf != null)
             {
                 svcSelf.Mutate(s => s.CaptureSelf = true);
-                Chk("T233-self-capture-can-be-enabled", FrameCapture.Core.Fluent.CaptureSelfAllowed,
+                Chk("T233-self-capture-can-be-enabled", NekoCapture.Core.Fluent.CaptureSelfAllowed,
                     "打开开关后仍然排除自己");
                 svcSelf.Mutate(s => s.CaptureSelf = keepSelf);
             }
@@ -8267,14 +8269,14 @@ static partial class SelfTest
         // 截图浮窗的三枚操作：标注 / 复制 / 关闭，键位写在名字后面；复制那枚跟着设置里的键位走。
         try
         {
-            var svc = FrameCapture.Services.AppHost.Current.Settings;
+            var svc = NekoCapture.Services.AppHost.Current.Settings;
             string keepChord = svc.Current.ToastCopyChord;
             svc.Mutate(s => s.ToastCopyChord = "Ctrl+C");
-            FrameCapture.Overlays.CaptureToast.Show(Solid(160, 96, 0x30, 0x60, 0x90),
-                new FrameCapture.Capture.RectI(0, 0, 160, 96), "", () => { }, () => { });
+            NekoCapture.Overlays.CaptureToast.Show(Solid(160, 96, 0x30, 0x60, 0x90),
+                new NekoCapture.Capture.RectI(0, 0, 160, 96), "", () => { }, () => { });
             PumpMs(260);
             var tc = System.Windows.Application.Current.Windows
-                .OfType<FrameCapture.Overlays.CaptureToast>().FirstOrDefault();
+                .OfType<NekoCapture.Overlays.CaptureToast>().FirstOrDefault();
             var caps = tc == null ? new List<string>() : ChipsIn(tc);
             Chk("T234-toast-offers-annotate-copy-close",
                 caps.Contains("Enter") && caps.Contains("Ctrl") && caps.Contains("C") && caps.Contains("Esc"),

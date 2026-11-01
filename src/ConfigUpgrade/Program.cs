@@ -1,8 +1,8 @@
 using System.IO;
 using System.Text.Json;
-using FrameCapture.Core;
+using NekoCapture.Core;
 
-namespace FrameCapture.ConfigUpgrade;
+namespace NekoCapture.ConfigUpgrade;
 
 /// <summary>安装器调用的独立配置迁移进程；全部文件准备成功后才提交。</summary>
 internal static class Program

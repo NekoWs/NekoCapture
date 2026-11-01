@@ -1,6 +1,6 @@
 # 托盘右键菜单双主题像素档案。
 # 依据：托盘菜单不是系统原生渲染——TrayService.ShowMenu 用 WPF ContextMenu + Fluent.MenuResources()
-#       自绘并随主题着色（见 src/FrameCapture/Services/TrayService.cs）。像素取证完全可行。
+#       自绘并随主题着色（见 src/NekoCapture/Services/TrayService.cs）。像素取证完全可行。
 # 机制（全部在自动化边界内）：对自家 NotifyIcon 隐藏窗 PostMessage 托盘回调消息
 #       （.NET(8+) WinForms NotifyIcon.WndProc：msg=WM_USER+1024=0x800，鼠标事件码在 lParam——
 #        见 dotnet/winforms NotifyIcon.cs WM_TRAYMOUSEMESSAGE；旧文档的 WM_USER+102 是 .NET Framework 时代的值）
@@ -11,14 +11,14 @@
 # 为什么要折算矩形：宿主进程对 DPI 无感知时 GetWindowRect 返回按缩放折算过的虚拟坐标，
 #       按它开位图就截掉右下——窄文案（中文）看着完整，宽文案（英文）每项都被切一刀。
 # 用法: pwsh -NoProfile -File scripts/cap-tray-menu.ps1 -Theme dark|light [-OutPng test-out/uiaudit/d8-tray-menu-dark.png]
-# 前置：本脚本会杀掉运行中的 FrameCapture 并以 FC_THEME=<Theme> 重启一个（测试态）；结束后实例仍在运行。
+# 前置：本脚本会杀掉运行中的 NekoCapture 并以 NC_THEME=<Theme> 重启一个（测试态）；结束后实例仍在运行。
 param(
     [Parameter(Mandatory)][ValidateSet('dark', 'light')][string]$Theme,
     [string]$OutPng
 )
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
-$exe = Join-Path $root "src/FrameCapture/bin/x64/Debug/net8.0-windows10.0.19041.0/FrameCapture.exe"
+$exe = Join-Path $root "src/NekoCapture/bin/x64/Debug/net8.0-windows10.0.19041.0/NekoCapture.exe"
 if (-not $OutPng) { $OutPng = Join-Path $root "test-out/uiaudit/d8-tray-menu-$Theme.png" }
 
 try { Add-Type -AssemblyName System.Drawing.Common } catch { Add-Type -AssemblyName System.Drawing }
@@ -150,11 +150,11 @@ $refs = @(
 ) | Sort-Object -Unique
 Add-Type -TypeDefinition $src -ReferencedAssemblies $refs
 
-Get-Process FrameCapture -ErrorAction SilentlyContinue | Stop-Process -Force
+Get-Process NekoCapture -ErrorAction SilentlyContinue | Stop-Process -Force
 Start-Sleep 0.6
-$env:FC_THEME = $Theme
+$env:NC_THEME = $Theme
 $p = Start-Process $exe -PassThru
-Remove-Item Env:\FC_THEME -ErrorAction SilentlyContinue
+Remove-Item Env:\NC_THEME -ErrorAction SilentlyContinue
 Start-Sleep 1.8   # 等托盘图标建好
 
 $hits = [FcTray.T]::FindNotifyIconCandidates([uint32]$p.Id)

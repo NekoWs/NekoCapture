@@ -5,10 +5,10 @@ using System.Runtime.InteropServices.WindowsRuntime;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
-using FrameCapture.Capture;
-using FrameCapture.Core;
-using FrameCapture.Overlays;
-using FrameCapture.Services;
+using NekoCapture.Capture;
+using NekoCapture.Core;
+using NekoCapture.Overlays;
+using NekoCapture.Services;
 using Windows.Graphics.Imaging;
 using Windows.Media.Ocr;
 
@@ -29,10 +29,10 @@ static partial class SelfTest
 
     static OcrOutcome OcrPreviewFixture()
     {
-        var frame = OcrSample("在图片上选择文字  FrameCapture 12345", 24, false);
-        var line = new OcrLineInfo("在图片上选择文字 FrameCapture 12345", new OcrWordInfo[] {
+        var frame = OcrSample("在图片上选择文字  NekoCapture 12345", 24, false);
+        var line = new OcrLineInfo("在图片上选择文字 NekoCapture 12345", new OcrWordInfo[] {
             new("在图片上选择文字", new Rect(18, 34, 192, 28), 0),
-            new("FrameCapture", new Rect(225, 34, 170, 28), 9),
+            new("NekoCapture", new Rect(225, 34, 170, 28), 9),
             new("12345", new Rect(403, 34, 72, 28), 22) }, 0, new Point());
         return new(OcrStatus.Success, line.Text) { Lines = new[] { line }, Image = BgraImage.ToSource(frame) };
     }
@@ -43,7 +43,7 @@ static partial class SelfTest
         {
             var samples = new[] {
                 ("small-zh", "截图与录制 识别文字 清晰准确", 10.0, false, false),
-                ("small-en", "FrameCapture screenshot 12345 clipboard", 9.0, false, false),
+                ("small-en", "NekoCapture screenshot 12345 clipboard", 9.0, false, false),
                 ("dark-zh", "截图与录制 识别文字 清晰准确", 11.0, true, false),
                 ("faint-zh", "截图与录制 识别文字 清晰准确", 12.0, false, true) };
             int beforeErrors = 0, afterErrors = 0;
@@ -99,16 +99,16 @@ static partial class SelfTest
         using (var context = drawing.RenderOpen())
         {
             context.DrawRectangle(Brushes.White, null, new Rect(0, 0, 3400, 160));
-            foreach (var item in new[] { (40, "SCREENSHOT"), (1230, "CLIPBOARD"), (2500, "FrameCapture") })
+            foreach (var item in new[] { (40, "SCREENSHOT"), (1230, "CLIPBOARD"), (2500, "NekoCapture") })
                 context.DrawText(new FormattedText(item.Item2, CultureInfo.InvariantCulture, FlowDirection.LeftToRight,
                     new Typeface("Segoe UI"), 24, Brushes.Black, 1), new Point(item.Item1, 40));
         }
         var image = new RenderTargetBitmap(3400, 160, 96, 96, PixelFormats.Pbgra32); image.Render(drawing);
         var result = OcrService.RecognizeAsync(BgraImage.FromSource(image)!).GetAwaiter().GetResult();
-        foreach (string word in new[] { "SCREENSHOT", "CLIPBOARD", "FrameCapture" })
+        foreach (string word in new[] { "SCREENSHOT", "CLIPBOARD", "NekoCapture" })
             Chk("ocr-wide-image-" + word, result.Text.Split(word).Length == 2, result.Text);
         Chk("ocr-wide-image-maps-last-word", result.Lines.SelectMany(line => line.Words)
-            .Any(word => word.Text.Contains("FrameCapture") && word.Bounds.X > 2450 && word.Bounds.X < 2550));
+            .Any(word => word.Text.Contains("NekoCapture") && word.Bounds.X > 2450 && word.Bounds.X < 2550));
     }
 
     static void OcrSelectionChecks()

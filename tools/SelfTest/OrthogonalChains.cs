@@ -3,10 +3,10 @@ using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Threading;
-using FrameCapture.Capture;
-using FrameCapture.Core;
-using FrameCapture.Overlays;
-using FrameCapture.Services;
+using NekoCapture.Capture;
+using NekoCapture.Core;
+using NekoCapture.Overlays;
+using NekoCapture.Services;
 using GestureCore;
 
 static partial class SelfTest
@@ -47,7 +47,7 @@ static partial class SelfTest
                 && GestureActions.All.Select(a => a.Name).Contains("save.png")
                 && GestureActions.All.All(a => a.Name == GestureActions.Canonical(a.Name)));
             var repository = new DirectoryInfo(AppContext.BaseDirectory);
-            while (repository != null && !File.Exists(Path.Combine(repository.FullName, "FrameCapture.slnx"))) repository = repository.Parent;
+            while (repository != null && !File.Exists(Path.Combine(repository.FullName, "NekoCapture.slnx"))) repository = repository.Parent;
             string document = File.ReadAllText(Path.Combine(repository!.FullName, "docs", "PLAN-ORTHOGONAL-CHAINS.md"));
             var documented = System.Text.RegularExpressions.Regex.Matches(document, @"(?m)^\| `([^`]+)` \|")
                 .Select(m => m.Groups[1].Value).ToArray();
@@ -126,12 +126,12 @@ static partial class SelfTest
 
     static void ChainSettingsBackup()
     {
-        string? saved = Environment.GetEnvironmentVariable("FC_SETTINGS_DIR");
+        string? saved = Environment.GetEnvironmentVariable("NC_SETTINGS_DIR");
         try
         {
             string scratch = Path.Combine(SettingsService.Dir, "chain-migration");
             Directory.CreateDirectory(scratch);
-            Environment.SetEnvironmentVariable("FC_SETTINGS_DIR", scratch);
+            Environment.SetEnvironmentVariable("NC_SETTINGS_DIR", scratch);
             const string json = "{\"Accent\":\"#7F75FF\",\"Gestures\":{\"Seeded\":true,\"Bindings\":[{\"Id\":\"mine\",\"Chord\":\"F6\",\"Actions\":[\"scope.select\",\"record.toggle\"],\"OnComplete\":[\"edit.lastvideo\"]}]}}";
             File.WriteAllText(SettingsService.FilePath, json);
             string backup = SettingsService.FilePath + ".bak.0";
@@ -147,7 +147,7 @@ static partial class SelfTest
                 && File.ReadAllText(backup) == json && service.Current.Gestures.Bindings.Single().Id == "mine",
                 $"file={File.ReadAllText(SettingsService.FilePath) == contents} backup={File.ReadAllText(backup) == json} binding={service.Current.Gestures.Bindings.Single().Id}");
         }
-        finally { Environment.SetEnvironmentVariable("FC_SETTINGS_DIR", saved); _ = new SettingsService(); }
+        finally { Environment.SetEnvironmentVariable("NC_SETTINGS_DIR", saved); _ = new SettingsService(); }
     }
 
     static void ChainControllerProducts()

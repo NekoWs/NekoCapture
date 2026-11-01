@@ -6,7 +6,7 @@ using System.Reflection;
 using System.Threading;
 using Microsoft.Win32;
 
-namespace FrameCapture.Setup;
+namespace NekoCapture.Setup;
 
 /// <summary>
 /// 将载荷写入目标目录并登记，在安装阶段迁移配置。
@@ -15,21 +15,21 @@ namespace FrameCapture.Setup;
 internal static partial class InstallEngine
 {
     /// <summary>程序目录名，位于 64 位 Program Files 下。</summary>
-    internal const string AppFolder = "FrameCapture";
+    internal const string AppFolder = "NekoCapture";
 
     /// <summary>主程序与卸载入口的进程名，不带扩展名。</summary>
-    internal const string AppName = "FrameCapture";
+    internal const string AppName = "NekoCapture";
 
     /// <summary>注册表卸载项的键名，同时是 NoRepair 场景下的产品标识。</summary>
-    internal const string UninstallKey = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\FrameCapture";
+    internal const string UninstallKey = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\NekoCapture";
 
     /// <summary>随包落地的卸载入口文件名，控制面板里的卸载命令指向它。</summary>
-    internal const string UninstallEntryName = "FrameCapture-Setup.exe";
+    internal const string UninstallEntryName = "NekoCapture-Setup.exe";
 
     /// <summary>主程序自启值的位置与名字，与 Services/StartupService.cs 一致。</summary>
     private const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
 
-    private const string RunValue = "FrameCapture";
+    private const string RunValue = "NekoCapture";
 
     /// <summary>默认安装目录：64 位 Program Files 下的程序目录。</summary>
     internal static string DefaultInstallDir => Path.Combine(DotnetRuntime.ProgramFilesRoot, AppFolder);
@@ -87,9 +87,9 @@ internal static partial class InstallEngine
         if (string.Equals(p, DotnetRuntime.ProgramFilesRoot, StringComparison.OrdinalIgnoreCase))
         { why = "要装到 Program Files 下面的一个子文件夹里"; return false; }
 
-        // 目录里已有东西时只认「这里就是 FrameCapture」：安装会把整个目录搬走再删掉备份，
+        // 目录里已有东西时只认「这里就是 NekoCapture」：安装会把整个目录搬走再删掉备份，
         // 指到用户的资料文件夹上就是一场灾难。
-        if (Directory.Exists(p) && !File.Exists(Path.Combine(p, AppName + ".exe")) && DirHasAnyEntry(p))
+        if (Directory.Exists(p) && ApplicationIn(p) == null && DirHasAnyEntry(p))
         { why = "这个文件夹里已有别的文件，请换一个空文件夹"; return false; }
 
         // 装到一半才发现盘满，用户看到的是一句「失败」加一串回滚日志；挑位置时先量一次。
@@ -191,7 +191,7 @@ internal static partial class InstallEngine
     /// <summary>仅结束安装目标目录中的宿主与界面，释放文件占用。</summary>
     internal static void KillApp()
     {
-        foreach (var name in new[] { AppName + ".Resident", AppName })
+        foreach (var name in new[] { AppName + ".Resident", AppName, LegacyName + ".Resident", LegacyName })
         foreach (var p in Process.GetProcessesByName(name))
         {
             try
@@ -222,6 +222,7 @@ internal static partial class InstallEngine
             if (InstalledVersion is { } installed && installed > PackageVersion) throw new InvalidOperationException(Core.Loc.T(Core.K.Setup.NewerInstalled));
             ReleaseWorkingDirectory();
             log.Report("正在结束运行中的主程序");
+            bool renamed = File.Exists(Path.Combine(InstallDir, LegacyName + ".exe"));
             KillApp();
 
             if (Directory.Exists(InstallDir))
@@ -260,6 +261,7 @@ internal static partial class InstallEngine
 
             if (backup != null) PreserveEmbeddedSettings(backup);
             UpgradeConfigurations(log);
+            if (renamed) MigrateProductIdentity(log);
             if (backup != null) { TryDeleteDir(backup); }
             log.Report("完成");
             return true;
@@ -286,7 +288,7 @@ internal static partial class InstallEngine
     /// <remarks>备份不采用复制后删除，避免目录占用时留下部分删除的安装。</remarks>
     private static string BackupAside(string installDir)
     {
-        var name = "FrameCapture.backup-" + Guid.NewGuid().ToString("N");
+        var name = "NekoCapture.backup-" + Guid.NewGuid().ToString("N");
         var parent = Path.GetDirectoryName(
             installDir.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
         if (string.IsNullOrEmpty(parent) || !Directory.Exists(parent)) throw new IOException("Installation parent not found");
@@ -357,8 +359,8 @@ internal static partial class InstallEngine
             KillApp();
 
             log.Report("正在清除开机自启");
-            using (var startup = new FrameCapture.Services.WindowsStartupRegistration())
-                startup.RemoveForExecutable(Path.Combine(InstallDir, "FrameCapture.exe"));
+            using (var startup = new NekoCapture.Services.WindowsStartupRegistration())
+                startup.RemoveForExecutable(Path.Combine(InstallDir, "NekoCapture.exe"));
 
             log.Report("正在删除程序目录 " + InstallDir);
             TryDeleteDir(InstallDir);
@@ -408,7 +410,7 @@ internal static partial class InstallEngine
     {
         var version = typeof(InstallEngine).Assembly.GetName().Version?.ToString(3) ?? "0.0.0";
         using var key = Registry.LocalMachine.CreateSubKey(UninstallKey);
-        key.SetValue("DisplayName", "FrameCapture");
+        key.SetValue("DisplayName", "NekoCapture");
         key.SetValue("DisplayVersion", version);
         key.SetValue("Publisher", PublisherName());
         key.SetValue("InstallLocation", InstallDir);
@@ -449,7 +451,7 @@ internal static partial class InstallEngine
     {
         var dir = StartMenuDir;
         if (dir.Length == 0) return false;
-        var lnk = Path.Combine(dir, "FrameCapture.lnk");
+        var lnk = Path.Combine(dir, "NekoCapture.lnk");
         try
         {
             Directory.CreateDirectory(dir);
@@ -462,7 +464,7 @@ internal static partial class InstallEngine
             sc.TargetPath = Path.Combine(InstallDir, AppName + ".exe");
             sc.WorkingDirectory = InstallDir;
             sc.IconLocation = Path.Combine(InstallDir, AppName + ".exe,0");
-            sc.Description = "FrameCapture";
+            sc.Description = "NekoCapture";
             sc.Save();
             return true;
         }

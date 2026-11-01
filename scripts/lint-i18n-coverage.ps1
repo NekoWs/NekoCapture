@@ -11,8 +11,8 @@ param([switch]$Quiet)
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 $fail = 0
-$stringsDir = Join-Path $root 'src\FrameCapture\Core\Strings'
-$dirs = @((Join-Path $root 'src\FrameCapture'))
+$stringsDir = Join-Path $root 'src\NekoCapture\Core\Strings'
+$dirs = @((Join-Path $root 'src\NekoCapture'))
 
 function Write-Fail([string]$rel, [int]$line, [string]$msg) {
     if (-not $Quiet) { Write-Host "  FAIL $rel`:$line  $msg" }
@@ -117,7 +117,7 @@ foreach ($sf in Get-ChildItem $stringsDir -Filter *.cs) {
 # ---------- 安装器共用文件 ----------
 $setupProj = Join-Path $root 'src\Setup\Setup.csproj'
 if (Test-Path $setupProj) {
-    $shared = Select-String -Path $setupProj -Pattern '<Compile Include="\.\.\\(FrameCapture\\[^"]+)"' |
+    $shared = Select-String -Path $setupProj -Pattern '<Compile Include="\.\.\\(NekoCapture\\[^"]+)"' |
         ForEach-Object { $_.Matches[0].Groups[1].Value }
     foreach ($rel in $shared) {
         $f = Join-Path $root (Join-Path 'src' $rel)

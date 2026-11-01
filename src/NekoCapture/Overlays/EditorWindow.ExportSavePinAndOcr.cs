@@ -1,0 +1,362 @@
+using System.IO;
+using System.Windows;
+using System.Windows.Controls;
+using NekoCapture.Capture;
+using NekoCapture.Core;
+using NekoCapture.Encoding;
+using NekoCapture.Services;
+
+namespace NekoCapture.Overlays;
+
+/// <summary>
+/// EditorWindow partial：结果输出——确定提交 + 导出/保存（GIF/MP4/WebM/PNG）+ 胶片条 + 钉图 + OCR + 轻提示/忙态。
+/// </summary>
+public sealed partial class EditorWindow : Window
+{
+
+    readonly List<Button> _okBtns = new();
+    bool _encoding;
+    CancellationTokenSource? _commitCts;
+
+    /// <summary>提交编辑快照；按输出需要编码 GIF，独立复制完成后才确认，行为管理模式交给后续动作。</summary>
+    void Commit()
+    {
+        if (_encoding) return;
+        CommitTextInput();
+        int idx = Math.Clamp(_index - TrimRange.a, 0, TrimRange.b - TrimRange.a);
+        // 胶片条只由工具栏「生成胶片条」按钮显式触发，确定路径不自动生成。
+        StartEncode(null, null, async (seq, gif) =>
+        {
+            Trace.Log($"editor output gifBytes={gif?.Length ?? 0} frames={seq.Frames.Count}");
+            if (!ManagedOutput)
+            {
+                SetExportProgress(Loc.T(K.Common.CopyingClipboard));
+                var cancellation = _commitCts?.Token ?? default;
+                if (!await ClipboardService.SetCaptureAsync(seq, gif!, idx, cancellation))
+                {
+                    cancellation.ThrowIfCancellationRequested();
+                    if (!_userClosed) ShowSnack(Loc.T(K.Common.ClipboardUnavailable));
+                    return;
+                }
+            }
+            if (_userClosed) return;
+            if (gif != null) SaveService.MaybeSaveArtifact(seq, gif);
+            PublishOutput(seq);
+            Fluent.CloseWithFade(this);
+        });
+    }
+
+    /// <summary>后台烘焙当前帧快照，在原捕获位置显示贴图。</summary>
+    async void PinCurrentFrame()
+    {
+        if (_encoding || _userClosed || _seq.Frames.Count == 0) return;
+        using var activity = BackgroundWork.Hold();
+        var region = _seq.Region;
+        if (_crop.IsCropped)
+        {
+            var (x, y, w, h) = _crop.ToPixel(_frameW, _frameH);
+            region = new RectI(region.X + x, region.Y + y, w, h);
+        }
+        try
+        {
+            var frame = await BakeFrameAsync(_index);
+            var bitmap = await BackgroundWork.Run(() => BgraImage.ToSource(frame));
+            if (_userClosed) return;
+            new PinWindow(frame, region, initialBitmap: bitmap).Show();
+        }
+        catch (Exception ex)
+        {
+            Trace.Log("pin frame: " + ex);
+            if (!_userClosed) ShowSnack(Loc.T(K.Editor.ExportFailed));
+        }
+    }
+
+    /// <summary>预览底部轻提示：从下方 6px 抬起淡入，约 1.8s 后淡出并收起。OCR/复制等即时反馈用。
+    /// 提示条已在显示中时只换文字并续期，不重播入场——重播会把刚看清的一行字压回全透明再抬一次。</summary>
+    void ShowSnack(string msg)
+    {
+        if (_snack == null || _snackText == null) return;
+        _snackText.Text = msg;
+        if (!(_snack.Visibility == Visibility.Visible && _snack.Opacity > 0.5))
+        {
+            var dur = new System.Windows.Duration(TimeSpan.FromMilliseconds(Fluent.Motion.HoverMs));
+            var ease = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut };
+            _snack.Visibility = Visibility.Visible;
+            _snackShift = new System.Windows.Media.TranslateTransform(0, 6);
+            _snack.RenderTransform = _snackShift;
+            _snack.BeginAnimation(OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(0, 1, dur) { EasingFunction = ease });
+            _snackShift.BeginAnimation(System.Windows.Media.TranslateTransform.YProperty,
+                new System.Windows.Media.Animation.DoubleAnimation(0, dur) { EasingFunction = ease });
+        }
+        int gen = ++_snackGen;   // 本次显示的世代，淡出回调只收自己那一代
+        if (_snackTimer == null)
+        {
+            _snackTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1800) };
+            _snackTimer.Tick += (_, _) =>
+            {
+                _snackTimer!.Stop();
+                int closing = _snackGen;
+                var fade = new System.Windows.Media.Animation.DoubleAnimation(
+                    0.0, TimeSpan.FromMilliseconds(Fluent.Motion.DissolveMs))
+                { EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseIn } };
+                // 淡出走完才收起：留着 Visible 的透明浮层会让下一次显示被当成「仍在显示中」而只换文字不动画
+                fade.Completed += (_, __) =>
+                {
+                    if (_snack == null || closing != _snackGen) return;   // 期间又提示过一次，交给那一次收尾
+                    _snack.RenderTransform = null;
+                    _snackShift = null;
+                    _snack.Visibility = Visibility.Collapsed;
+                };
+                _snack!.BeginAnimation(OpacityProperty, fade);
+            };
+        }
+        _snackTimer.Stop();
+        _snackTimer.Start();
+    }
+    /// <summary>识别当前帧，在原图上选字或按设置直接复制全文。
+    /// 后台任务持有只读帧直到识别完成；关窗后跳过界面反馈。</summary>
+    async void OcrCurrentFrame()
+    {
+        if (_ocrBusy || _seq.Frames.Count == 0) return;
+        using var activity = BackgroundWork.Hold();
+        _ocrBusy = true;
+        ShowSnack(Loc.T(K.Common.RecognizeText2));
+        try
+        {
+            var frame = Cur();
+            bool preview = _settings.Current.OcrShowResult;
+            var outcome = await OcrService.RecognizeAsync(frame, preview);
+            if (_userClosed) return; // 识别期间关窗：跳过提示
+            switch (outcome.Status)
+            {
+                case OcrStatus.Success:
+                    var text = OcrService.Normalize(outcome.Text);
+                    if (preview)
+                        OcrResultWindow.Show(outcome);
+                    else
+                    {
+                        if (!await ClipboardService.SetTextAsync(text)) { ShowSnack(Loc.T(K.Common.ClipboardUnavailable)); break; }
+                        ShowSnack(OcrService.Feedback(OcrStatus.Success, text.Length));
+                    }
+                    Trace.Log($"ocr ok {text.Length} chars");
+                    break;
+                case OcrStatus.NoEngine:
+                case OcrStatus.ComponentMissing:
+                case OcrStatus.Failed:
+                    ShowSnack(OcrService.Feedback(outcome.Status, 0));
+                    Trace.Log("ocr no-engine");
+                    break;
+                default:
+                    ShowSnack(OcrService.Feedback(OcrStatus.Empty, 0));
+                    Trace.Log("ocr empty");
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            Trace.Log($"ocr failed: {ex.Message}");
+            if (!_userClosed) ShowSnack(Loc.T(K.Common.RecognitionFailed));
+        }
+        finally { _ocrBusy = false; }
+    }
+
+    /// <summary>确定按钮忙态：编码期间淡到 0.55 半透明（带过渡动画），结束恢复 1.0。</summary>
+    void SetOkBusy(bool busy)
+    {
+        SetWorkspaceBusy(busy);
+        foreach (var b in _okBtns)
+        {
+            b.BeginAnimation(OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(busy ? 0.55 : 1.0,
+                new Duration(TimeSpan.FromMilliseconds(Fluent.Motion.HoverMs)))
+            { EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut } });
+        }
+    }
+
+    static List<int> ComputeDelays(IReadOnlyList<CapturedFrame> frames, int fps)
+    {
+        int defaultDelay = 1000 / fps;
+        var delays = new List<int>(frames.Count);
+        double total = frames.Count > 0 ? FrameMetadata.TimeAt(frames, frames.Count - 1) : 0;
+        for (int i = 0; i < frames.Count; i++)
+        {
+            double t0 = FrameMetadata.TimeAt(frames, i);
+            double t1 = i + 1 < frames.Count ? FrameMetadata.TimeAt(frames, i + 1) : total;
+            int d = (int)(t1 - t0);
+            // 环形缓冲丢帧会造成巨大时间洞；洞两侧用默认间隔，避免播放停顿
+            delays.Add(d > 0 && d < 250 ? Math.Clamp(d, 10, 200) : defaultDelay);
+        }
+        return delays;
+    }
+
+
+    /// <summary>生成胶片条——小窗问「抽多少帧 / 每 N 帧取一次」（参数记忆），
+    /// 确定后按时间轴裁剪范围取子集、折算裁剪与标注（与导出同口径），后台烘焙抽样帧，
+    /// 渲染成一张逐帧图直接复制剪贴板（不落盘）。生成中复用 _encoding 互斥锁防并发导出。</summary>
+    async void GenerateFilmStrip()
+    {
+        if (_encoding || _seq.Frames.Count == 0) return;
+        using var activity = BackgroundWork.Hold();
+        var (a, b) = TrimRange;
+        int count = b - a + 1;
+        // UI 线程快照（后台只读）：弹窗预览与成片读同一批帧，抽样口径一致
+        IReadOnlyList<CapturedFrame> subset = BakedFrameList.RetainRange(_seq.Frames, a, count);
+        var anns = new List<Drawing.Annotation>(_anns.Items);
+        var cropSnap = _crop.Current; bool cropOn = _crop.IsCropped;
+
+        using var reader = subset as IDisposable;
+        _encoding = true; SetOkBusy(true);
+        SetExportProgress(Loc.T(K.Editor.BuildingFilmStrip));
+        try
+        {
+            var dlg = new FilmStripDialog(this, count, _settings.Current.AgentStripFrames, (k, token) =>
+            {
+                var preview = AgentStrip.SampleIndices(count, k, 1);
+                return AgentStrip.RenderMapped(i => subset[preview[i]], preview,
+                    FilmStripDialog.PreviewCell, decimate: true, cancellation: token);
+            });
+            bool confirmed = dlg.ShowDialog() == true;
+            await dlg.PreviewFinished;
+            if (!confirmed || _userClosed) return;
+            int frames = dlg.Frames;
+            _settings.Mutate(s => s.AgentStripFrames = frames);
+            var picks = AgentStrip.SampleIndices(count, frames, 1);
+            using var cancellation = new CancellationTokenSource();
+            _commitCts = cancellation;
+            SetExportProgress(Loc.T(K.Editor.BuildingFilmStrip));
+            var img = await BackgroundWork.Run(() => AgentStrip.RenderMapped(
+                i => BakeForStrip(new[] { subset[picks[i]] }, anns, cropSnap, cropOn)[0], picks,
+                cancellation: cancellation.Token), cancellation.Token);
+            if (_userClosed) return;
+            bool copied = await ClipboardService.SetImageAsync(img, cancellation.Token);
+            cancellation.Token.ThrowIfCancellationRequested();
+            if (!_userClosed) ShowSnack(copied ? Loc.F(K.Editor.FilmStripCopiedFrames, picks.Count) : Loc.T(K.Common.ClipboardUnavailable));
+            Trace.Log($"filmstrip {picks.Count}/{count} frames");
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex)
+        {
+            Trace.Log("filmstrip: " + ex.Message);
+            if (!_userClosed) ShowSnack(Loc.T(K.Editor.FilmStripFailed));
+        }
+        finally { _commitCts = null; _encoding = false; if (!_userClosed) SetOkBusy(false); }
+    }
+
+    /// <summary>按时间轴裁剪与标注烘焙给定帧，与导出同口径；只烘焙要上格的那几帧，长录制也秒级。</summary>
+    /// <param name="fs">抽样出来的帧，UI 线程快照，后台只读。</param>
+    /// <param name="anns">使用全帧坐标的有序标注。</param>
+    /// <param name="crop">裁剪框（归一化），仅在 <paramref name="cropOn"/> 为真时生效。</param>
+    /// <param name="cropOn">是否开了裁剪。</param>
+    /// <returns>烘焙完成的帧，与 <paramref name="fs"/> 一一对应，可直接交给 <see cref="AgentStrip.Render"/>.</returns>
+    static IReadOnlyList<CapturedFrame> BakeForStrip(
+        IReadOnlyList<CapturedFrame> fs, List<Drawing.Annotation> anns, CropState.Norm crop, bool cropOn)
+    {
+        IReadOnlyList<CapturedFrame> frames = Drawing.Bake.Apply(fs, anns);
+        if (cropOn && frames.Count > 0)
+        {
+            int fw = frames[0].W, fh = frames[0].H;
+            var (cx, cy, cw, ch) = CropState.ToPixelOf(crop, fw, fh);
+            frames = Drawing.Bake.Crop(frames, cx, cy, cw, ch);
+        }
+        return frames;
+    }
+
+    async void SaveFrame()
+    {
+        if (_encoding) return;
+        CommitTextInput();
+        var dlg = NewSaveDialog(Loc.T(K.Common.PngImagePng), $"frame-{_times[_index] / 1000.0:0.0}.png");
+        if (dlg.ShowDialog(this) != true) return;
+        try
+        {
+            var frame = await BakeFrameAsync(_index);
+            await BackgroundWork.Run(() => { BgraImage.SavePng(frame, EnsureExt(dlg.FileName, ".png")); return true; });
+            if (_userClosed) return;
+            ShowSnack(Loc.F(K.Editor.Exported, System.IO.Path.GetFileName(dlg.FileName)));
+            PublishOutput(new CapturedSequence { Frames = new[] { frame }, Region = _seq.Region,
+                MonitorBounds = _seq.MonitorBounds, MonitorDevice = _seq.MonitorDevice });
+        }
+        catch (Exception error) { Trace.Log($"save frame: {error}"); if (!_userClosed) ShowSnack(Loc.T(K.Common.SaveFailed)); }
+    }
+
+    void SaveRecording()
+    {
+        if (_encoding) return;
+        CommitTextInput();
+        // 测试专用（与 NC_TEST_ENCODE_FAIL 同约定）：置 NC_TEST_EXPORT=<路径> 则跳过存盘对话框，
+        // 直接按扩展名导出，使「录制→编辑器→ffmpeg 落盘」全链路可确定性 e2e + ffprobe 核对。正常用户环境永不置位。
+        string? testExport = Environment.GetEnvironmentVariable("NC_TEST_EXPORT");
+        if (!string.IsNullOrEmpty(testExport)) { DispatchSave(testExport); return; }
+        var def = _settings.Current.RecordFormat;
+        string defName = def switch
+        {
+            RecordFormat.Mp4 => "capture.mp4",
+            RecordFormat.WebM => "capture.webm",
+            _ => "capture.gif",
+        };
+        var dlg = NewSaveDialog(Loc.T(K.Editor.Mp4VideoMp4WebmVideo), defName);
+        // 类型下拉默认选中当前「录制格式」，与默认文件名扩展一致（否则总停在首项 MP4，与 capture.gif 打架）
+        dlg.FilterIndex = def switch { RecordFormat.Mp4 => 1, RecordFormat.WebM => 2, _ => 3 };
+        if (dlg.ShowDialog(this) != true) return;
+        DispatchSave(dlg.FileName);
+    }
+
+    /// <summary>按扩展名分派导出：.mp4/.webm 走 ffmpeg，其余走 GIF。</summary>
+    void DispatchSave(string path)
+    {
+        string ext = Path.GetExtension(path).ToLowerInvariant();
+        if (ext is ".mp4" or ".webm")
+        {
+            var fmt = ext == ".mp4" ? VideoFormat.Mp4 : VideoFormat.WebM;
+            if (FfmpegLocator.Find(fmt) == null)
+            {
+                ShowSnack(Loc.T(K.Editor.FfmpegNotFoundSoVideo));
+                return;
+            }
+            path = EnsureExt(path, ext);
+            StartEncode(fmt, path, (output, _) =>
+            {
+                ShowSnack(Loc.F(K.Editor.Exported, System.IO.Path.GetFileName(path)));
+                Trace.Log($"video saved {path}");
+                PublishOutput(output);
+                return Task.CompletedTask;
+            });
+        }
+        else
+        {
+            path = EnsureExt(path, ".gif");
+            StartEncode(null, path, (output, _) =>
+            {
+                Trace.Log($"gif saved {path}");
+                ShowSnack(Loc.F(K.Editor.Exported, System.IO.Path.GetFileName(path)));
+                Show(_index);
+                PublishOutput(output);
+                return Task.CompletedTask;
+            });
+        }
+    }
+
+    void SaveAfterimage()
+    {
+        var dlg = NewSaveDialog(Loc.T(K.Common.PngImagePng), "afterimage.png");
+        if (dlg.ShowDialog(this) != true) return;
+        RectI? crop = null;
+        if (_crop.IsCropped)
+        {
+            var (cx, cy, cw, ch) = _crop.ToPixel(_frameW, _frameH);
+            crop = new RectI(cx, cy, cw, ch);
+        }
+        using var frames = BakedFrameList.Create(_seq.Frames, 0, _seq.Frames.Count, _anns.Items, crop);
+        var baked = BgraImage.Afterimage(frames, 5);
+        BgraImage.SavePng(baked, EnsureExt(dlg.FileName, ".png"));
+    }
+
+    static string EnsureExt(string path, string ext)
+        => path.EndsWith(ext, StringComparison.OrdinalIgnoreCase) ? path : path + ext;
+
+    static Microsoft.Win32.SaveFileDialog NewSaveDialog(string filter, string defaultName)
+    {
+        // 默认目录与「自动保存副本」保持一致：尊重用户自定义 AutoSavePath，非法/未设则回退 Pictures\NekoCapture
+        string dir = SaveService.ResolveFolder();
+        return new() { Filter = filter, FileName = defaultName, InitialDirectory = dir };
+    }
+}

@@ -14,18 +14,18 @@
          灌进来，与 WPF 的 Button / Color / Brush 撞名，改由 GlobalUsings.cs 精确声明。 -->
     <ImplicitUsings>disable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <AssemblyName>FrameCapture-Setup</AssemblyName>
-    <RootNamespace>FrameCapture.Setup</RootNamespace>
+    <AssemblyName>NekoCapture-Setup</AssemblyName>
+    <RootNamespace>NekoCapture.Setup</RootNamespace>
     <!-- 32 位进程写 Program Files 与注册表会被 WOW64 重定向，必须 x64 -->
     <PlatformTarget>x64</PlatformTarget>
-    <ApplicationIcon>..\..\assets\FrameCapture.ico</ApplicationIcon>
+    <ApplicationIcon>..\..\assets\NekoCapture.ico</ApplicationIcon>
     <!-- 不引 WinForms：主程序那份 Win32.cs 里有一处 WinForms 互操作，引导器改用本地 Win32Shim.cs，
          只声明圆角与分层窗口这几项，签名与主程序逐字一致 -->
     <UseWindowsForms>false</UseWindowsForms>
     <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
     <!-- 版本号从主程序工程文件读，不在此处再写一遍：发行时两处版本对不上是常见事故源 -->
-    <_FcProj>$([System.IO.File]::ReadAllText('$(MSBuildThisFileDirectory)..\FrameCapture\FrameCapture.csproj'))</_FcProj>
-    <Version>$([System.Text.RegularExpressions.Regex]::Match($(_FcProj), '&lt;Version&gt;([^&lt;]+)&lt;/Version&gt;').Groups[1].Value)</Version>
+    <_NcProj>$([System.IO.File]::ReadAllText('$(MSBuildThisFileDirectory)..\NekoCapture\NekoCapture.csproj'))</_NcProj>
+    <Version>$([System.Text.RegularExpressions.Regex]::Match($(_NcProj), '&lt;Version&gt;([^&lt;]+)&lt;/Version&gt;').Groups[1].Value)</Version>
   </PropertyGroup>
 
   <ItemGroup>
@@ -40,25 +40,26 @@
 
   <ItemGroup>
     <!-- 与主程序共用同一份视觉语言源文件，不是复刻：颜色、动效令牌、控件模板单一来源 -->
-    <Compile Include="..\FrameCapture\Core\Str.cs" Link="Shared\Str.cs" />
-    <Compile Include="..\FrameCapture\Core\Strings\Common.cs" Link="Shared\Strings\Common.cs" />
-    <Compile Include="..\FrameCapture\Core\Strings\Setup.cs" Link="Shared\Strings\Setup.cs" />
-    <Compile Include="..\FrameCapture\Core\Theme.cs" Link="Shared\Theme.cs" />
-    <Compile Include="..\FrameCapture\Services\StartupRegistration.cs" Link="Shared\StartupRegistration.cs" />
-    <Compile Include="..\FrameCapture\Services\StartupResult.cs" Link="Shared\StartupResult.cs" />
-    <Compile Include="..\FrameCapture\Core\Fluent.cs" Link="Shared\Fluent.cs" />
-    <Compile Include="..\FrameCapture\Core\Fluent.ThemeFade.cs" Link="Shared\Fluent.ThemeFade.cs" />
-    <Compile Include="..\FrameCapture\Core\Fluent.Controls.cs" Link="Shared\Fluent.Controls.cs" />
-    <Compile Include="..\FrameCapture\Core\Fluent.Ui.cs" Link="Shared\Fluent.Ui.cs" />
-    <Compile Include="..\FrameCapture\Core\Fluent.Ui.Templates.cs" Link="Shared\Fluent.Ui.Templates.cs" />
-    <Compile Include="..\FrameCapture\Core\Fluent.Color.cs" Link="Shared\Fluent.Color.cs" />
-    <Compile Include="..\FrameCapture\Core\Fluent.Styles.cs" Link="Shared\Fluent.Styles.cs" />
+    <Compile Include="..\NekoCapture\Core\Str.cs" Link="Shared\Str.cs" />
+    <Compile Include="..\NekoCapture\Core\ProductPaths.cs" Link="Shared\ProductPaths.cs" />
+    <Compile Include="..\NekoCapture\Core\Strings\Common.cs" Link="Shared\Strings\Common.cs" />
+    <Compile Include="..\NekoCapture\Core\Strings\Setup.cs" Link="Shared\Strings\Setup.cs" />
+    <Compile Include="..\NekoCapture\Core\Theme.cs" Link="Shared\Theme.cs" />
+    <Compile Include="..\NekoCapture\Services\StartupRegistration.cs" Link="Shared\StartupRegistration.cs" />
+    <Compile Include="..\NekoCapture\Services\StartupResult.cs" Link="Shared\StartupResult.cs" />
+    <Compile Include="..\NekoCapture\Core\Fluent.cs" Link="Shared\Fluent.cs" />
+    <Compile Include="..\NekoCapture\Core\Fluent.ThemeFade.cs" Link="Shared\Fluent.ThemeFade.cs" />
+    <Compile Include="..\NekoCapture\Core\Fluent.Controls.cs" Link="Shared\Fluent.Controls.cs" />
+    <Compile Include="..\NekoCapture\Core\Fluent.Ui.cs" Link="Shared\Fluent.Ui.cs" />
+    <Compile Include="..\NekoCapture\Core\Fluent.Ui.Templates.cs" Link="Shared\Fluent.Ui.Templates.cs" />
+    <Compile Include="..\NekoCapture\Core\Fluent.Color.cs" Link="Shared\Fluent.Color.cs" />
+    <Compile Include="..\NekoCapture\Core\Fluent.Styles.cs" Link="Shared\Fluent.Styles.cs" />
   </ItemGroup>
 
   <!-- 发行构建由 publish-release.ps1 传入载荷路径；本地直接 build 时缺省，
        运行时退回读 exe 同目录的 payload.zip，便于不发布也能试装 -->
   <ItemGroup Condition="'$(PayloadZip)' != ''">
-    <EmbeddedResource Include="$(PayloadZip)" LogicalName="FrameCapture.Setup.payload.zip" />
+    <EmbeddedResource Include="$(PayloadZip)" LogicalName="NekoCapture.Setup.payload.zip" />
   </ItemGroup>
 
 </Project>

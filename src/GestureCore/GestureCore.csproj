@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <!-- 可复用「自定义手势/键位」引擎：netstandard2.0、零 UI/OS 依赖，可被 FrameCapture 及用户其它软件直接引用。
+  <!-- 可复用「自定义手势/键位」引擎：netstandard2.0、零 UI/OS 依赖，可被 NekoCapture 及用户其它软件直接引用。
        刻意不引任何 NuGet（含 System.Text.Json）——序列化由宿主负责（宿主多有内建 JSON）。 -->
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>

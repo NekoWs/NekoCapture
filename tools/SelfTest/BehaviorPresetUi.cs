@@ -2,8 +2,8 @@ using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
-using FrameCapture.Core;
-using FrameCapture.Overlays;
+using NekoCapture.Core;
+using NekoCapture.Overlays;
 
 static partial class SelfTest
 {

@@ -2,7 +2,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Security.Principal;
 using System.Text.Json;
-using FrameCapture.Services;
+using NekoCapture.Services;
 
 static partial class SelfTest
 {
@@ -15,7 +15,7 @@ static partial class SelfTest
         File.WriteAllText(arguments[index + 1], JsonSerializer.Serialize(new
         {
             Elevated = StartupService.IsElevated, User = identity.User!.Value, Argument = arguments[index + 2],
-            Settings = Environment.GetEnvironmentVariable("FC_SETTINGS_DIR"), Temp = Path.GetTempPath()
+            Settings = Environment.GetEnvironmentVariable("NC_SETTINGS_DIR"), Temp = Path.GetTempPath()
         }));
         return 0;
     }
@@ -40,7 +40,7 @@ static partial class SelfTest
             Chk("startup-standard-desktop-launch-verifies-actual-user-and-token", finished && child.ExitCode == 0
                 && !root.GetProperty("Elevated").GetBoolean() && root.GetProperty("User").GetString() == identity.User!.Value);
             Chk("startup-standard-desktop-launch-preserves-isolation-and-arguments", root.GetProperty("Argument").GetString() == argument
-                && root.GetProperty("Settings").GetString() == Environment.GetEnvironmentVariable("FC_SETTINGS_DIR")
+                && root.GetProperty("Settings").GetString() == Environment.GetEnvironmentVariable("NC_SETTINGS_DIR")
                 && root.GetProperty("Temp").GetString() == Path.GetTempPath());
         }
         catch (Exception ex) { Chk("startup-standard-native-handoff", false, ex.ToString()); }

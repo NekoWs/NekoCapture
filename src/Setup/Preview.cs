@@ -2,7 +2,7 @@ using System.IO;
 using System.Windows;
 using System.Windows.Media.Imaging;
 
-namespace FrameCapture.Setup;
+namespace NekoCapture.Setup;
 
 /// <summary>
 /// 离屏渲染窗口内容成 PNG。发行包里留着这个开关是为了出图核对界面，
@@ -24,7 +24,7 @@ internal static class Preview
     internal static void RenderFailure(string path)
     {
         var error = new IOException("Installation directory is in use", unchecked((int)0x80070020));
-        var window = new UpdateFailureWindow(error, Path.Combine(Path.GetTempPath(), "FrameCapture", "setup.log"), () => error);
+        var window = new UpdateFailureWindow(error, Path.Combine(Path.GetTempPath(), "NekoCapture", "setup.log"), () => error);
         RenderWindow(path, window);
     }
 

@@ -4,16 +4,16 @@
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 . (Join-Path $PSScriptRoot "lib-hotkey.ps1")
-$exe   = Join-Path $root "src/FrameCapture/bin/x64/Debug/net8.0-windows10.0.19041.0/FrameCapture.exe"
+$exe   = Join-Path $root "src/NekoCapture/bin/x64/Debug/net8.0-windows10.0.19041.0/NekoCapture.exe"
 $shot  = Join-Path $root "tools/Shot/bin/x64/Debug/net8.0-windows/Shot.exe"
-$trace = Join-Path $root "src/fc-trace.log"
+$trace = Join-Path $root "src/nc-trace.log"
 $mark = (Get-Item $trace -EA SilentlyContinue).Length
 $capHk = 'Ctrl+Shift+G'
-Get-Process FrameCapture -EA SilentlyContinue | Stop-Process -Force
+Get-Process NekoCapture -EA SilentlyContinue | Stop-Process -Force
 Start-Sleep 0.5
 $bak = Set-FcTestGestureConfig   # 先杀后写
 try {
-    $env:FC_TEST_NO_FG = "1"
+    $env:NC_TEST_NO_FG = "1"
     $p = Start-Process $exe -PassThru
     Start-Sleep 1.5
     Invoke-FcSynthetic $exe $capHk 700
@@ -22,7 +22,7 @@ try {
     $ed = "not-found"
     $deadline = (Get-Date).AddSeconds(8)
     while ((Get-Date) -lt $deadline) {
-        $ed = & $shot rect "FrameCapture Editor" 2>$null
+        $ed = & $shot rect "NekoCapture Editor" 2>$null
         if ("$ed" -notmatch "not-found") { break }
         Start-Sleep -Milliseconds 250
     }
@@ -33,14 +33,14 @@ try {
     }
     Invoke-FcEditorKey $exe 76; Start-Sleep 0.4   # L → 直线工具（绘制态）
     Invoke-FcEditorKey $exe 27; Start-Sleep 0.6   # Esc → 应只退工具
-    $ed2 = & $shot rect "FrameCapture Editor" 2>$null
+    $ed2 = & $shot rect "NekoCapture Editor" 2>$null
     $stillOpen = "$ed2" -notmatch "not-found"
     # 第二记 Esc 关窗同样轮询：关得慢不算失败，压根没关才算
     Invoke-FcEditorKey $exe 27
     $ed3 = "found"
     $deadline = (Get-Date).AddSeconds(6)
     while ((Get-Date) -lt $deadline) {
-        $ed3 = & $shot rect "FrameCapture Editor" 2>$null
+        $ed3 = & $shot rect "NekoCapture Editor" 2>$null
         if ("$ed3" -match "not-found") { break }
         Start-Sleep -Milliseconds 250
     }
@@ -61,7 +61,7 @@ try {
     exit 1
 }
 finally {
-    Get-Process FrameCapture -EA SilentlyContinue | Stop-Process -Force
-    Remove-Item Env:\FC_TEST_NO_FG -EA SilentlyContinue
+    Get-Process NekoCapture -EA SilentlyContinue | Stop-Process -Force
+    Remove-Item Env:\NC_TEST_NO_FG -EA SilentlyContinue
     if ($bak) { Set-Content (Get-FcSettingsPath) -Value $bak -Encoding UTF8 }
 }

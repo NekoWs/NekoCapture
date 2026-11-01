@@ -16,7 +16,7 @@ public class WE3 {
       var sb = new StringBuilder(512);
       GetWindowTextW(h, sb, 512);
       string t = sb.ToString();
-      if (t.StartsWith("FrameCapture")) {
+      if (t.StartsWith("NekoCapture")) {
         R r; GetWindowRect(h, out r);
         outp.Add(t + " vis=" + IsWindowVisible(h) + " " + r.L + "," + r.T + " " + (r.Rr - r.L) + "x" + (r.B - r.T));
       }

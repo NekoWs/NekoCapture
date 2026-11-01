@@ -1,12 +1,12 @@
 # 手势点按/按住语义端到端：统一测试手势集（Ctrl+Shift+G 轻点→选区+截图 / 按住→录制→编辑器）。
 # 轻点(短按)→以「选区」开头的序列整体交给控制器→弹选区窗；按住(长按)→record.start→record.stop→edit.lastvideo→编辑器 frames>1。
-# 断言走 fc-trace「chain picker open」与「open editor frames=N」，结束一律还原用户设置。
+# 断言走 nc-trace「chain picker open」与「open editor frames=N」，结束一律还原用户设置。
 $ErrorActionPreference = "Stop"
 $root = Split-Path $PSScriptRoot
 . (Join-Path $PSScriptRoot "lib-hotkey.ps1")
-$exe = Join-Path $root "src\FrameCapture\bin\x64\Debug\net8.0-windows10.0.19041.0\FrameCapture.exe"
+$exe = Join-Path $root "src\NekoCapture\bin\x64\Debug\net8.0-windows10.0.19041.0\NekoCapture.exe"
 $shot = Join-Path $root "tools\Shot\bin\x64\Debug\net8.0-windows\Shot.exe"
-$trace = Join-Path $root "src\fc-trace.log"
+$trace = Join-Path $root "src\nc-trace.log"
 $err = (Get-FcLogPath 'error.log')
 $e0 = if (Test-Path $err) { (Get-Item $err).Length } else { 0 }
 
@@ -19,7 +19,7 @@ function Last-Frames([int]$before) {
     [int]($lines[-1] -replace ".*frames=", "")
 }
 function Restart-App {
-    Get-Process FrameCapture -ErrorAction SilentlyContinue | Stop-Process -Force; Start-Sleep 0.6
+    Get-Process NekoCapture -ErrorAction SilentlyContinue | Stop-Process -Force; Start-Sleep 0.6
     Start-FcTestApp $exe | Out-Null; Start-Sleep 2
 }
 
@@ -51,9 +51,9 @@ try {
     $pk0 = Count-Trace "chain picker open"
     Invoke-FcSynthetic $exe $capHk 80; Start-Sleep 1.8
     $pk1 = Count-Trace "chain picker open"
-    $pkWin = & $shot rect "FrameCapture Region" 2>$null
+    $pkWin = & $shot rect "NekoCapture Region" 2>$null
     "tap80: picker_trace_delta=$($pk1 - $pk0) win=[$pkWin]"
-    & $shot keyw "FrameCapture Region" 27 2>$null | Out-Null; Start-Sleep 0.6
+    & $shot keyw "NekoCapture Region" 27 2>$null | Out-Null; Start-Sleep 0.6
     $tapOk = ($pk1 - $pk0) -ge 1
 
     # 场景2：按住 600ms（> 250ms 阈值）→ 起录→停止→编辑器，frames>1
@@ -77,8 +77,8 @@ try {
     $longOk = ($f3 -gt 1) -and ($f3 -gt $f2)
 }
 finally {
-    Get-Process FrameCapture -ErrorAction SilentlyContinue | Stop-Process -Force
-    Remove-Item Env:\FC_TEST_NO_FG -EA SilentlyContinue
+    Get-Process NekoCapture -ErrorAction SilentlyContinue | Stop-Process -Force
+    Remove-Item Env:\NC_TEST_NO_FG -EA SilentlyContinue
     if ($bak) { Set-Content (Get-FcSettingsPath) -Value $bak -Encoding UTF8 }
 }
 

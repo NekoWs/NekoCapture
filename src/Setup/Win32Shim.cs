@@ -1,7 +1,7 @@
 using System;
 using System.Runtime.InteropServices;
 
-namespace FrameCapture.Native;
+namespace NekoCapture.Native;
 
 /// <summary>
 /// 引导器用到的 Win32 子集。主程序的 <c>Native/Win32.cs</c> 有 40 KB，会连锁拖进输入布局与日志器，

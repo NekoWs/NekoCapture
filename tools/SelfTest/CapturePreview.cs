@@ -1,8 +1,8 @@
 using System.Windows;
 using System.Windows.Controls;
-using FrameCapture.Capture;
-using FrameCapture.Core;
-using FrameCapture.Overlays;
+using NekoCapture.Capture;
+using NekoCapture.Core;
+using NekoCapture.Overlays;
 
 static partial class SelfTest
 {

@@ -3,9 +3,9 @@ using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
-using FrameCapture.Core;
+using NekoCapture.Core;
 
-namespace FrameCapture.Setup;
+namespace NekoCapture.Setup;
 
 /// <summary>静默升级失败后的恢复界面，保留安装包并提供重试与诊断入口。</summary>
 internal sealed class UpdateFailureWindow : Window

@@ -1,6 +1,6 @@
 using System.Diagnostics;
-using FrameCapture.Core;
-using FrameCapture.Overlays;
+using NekoCapture.Core;
+using NekoCapture.Overlays;
 
 static partial class SelfTest
 {

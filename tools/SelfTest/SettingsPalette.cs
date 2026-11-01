@@ -5,8 +5,8 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
-using FrameCapture.Core;
-using FrameCapture.Overlays;
+using NekoCapture.Core;
+using NekoCapture.Overlays;
 
 static partial class SelfTest
 {

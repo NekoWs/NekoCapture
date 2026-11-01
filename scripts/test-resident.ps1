@@ -5,16 +5,16 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
-if (-not $ResidentExe) { $ResidentExe = Join-Path $root 'test-out/resident-native/FrameCapture.Resident.exe' }
-if (-not $UiExe) { $UiExe = Join-Path $root 'src/FrameCapture/bin/x64/Debug/net8.0-windows10.0.19041.0/FrameCapture.exe' }
+if (-not $ResidentExe) { $ResidentExe = Join-Path $root 'test-out/resident-native/NekoCapture.Resident.exe' }
+if (-not $UiExe) { $UiExe = Join-Path $root 'src/NekoCapture/bin/x64/Debug/net8.0-windows10.0.19041.0/NekoCapture.exe' }
 $selfTest = Join-Path $root 'tools/SelfTest/bin/x64/Debug/net8.0-windows10.0.19041.0/SelfTest.exe'
 foreach ($file in @($ResidentExe, $UiExe, $selfTest)) { if (-not (Test-Path -LiteralPath $file)) { throw "缺少产物: $file" } }
 $fixture = Join-Path $root ('test-out/resident-e2e/' + [Guid]::NewGuid().ToString('N'))
 $runtime = Join-Path $fixture 'runtime'
 New-Item -ItemType Directory -Force -Path $runtime | Out-Null
 $saved = @{}
-foreach ($name in @('TEMP', 'TMP', 'FC_SETTINGS_DIR', 'FC_TEST_NO_FG', 'FC_TEST_NO_WINDOWS', 'FC_NO_ELEVATE',
-    'FC_RESIDENT_ENABLED', 'FC_RESIDENT_DISABLED', 'FC_RESIDENT_INSTANCE', 'FC_RESIDENT_PATH', 'FC_RESIDENT_UI_PATH', 'FC_TRACE_FILE')) {
+foreach ($name in @('TEMP', 'TMP', 'NC_SETTINGS_DIR', 'NC_TEST_NO_FG', 'NC_TEST_NO_WINDOWS', 'NC_NO_ELEVATE',
+    'NC_RESIDENT_ENABLED', 'NC_RESIDENT_DISABLED', 'NC_RESIDENT_INSTANCE', 'NC_RESIDENT_PATH', 'NC_RESIDENT_UI_PATH', 'NC_TRACE_FILE')) {
     $saved[$name] = [Environment]::GetEnvironmentVariable($name)
 }
 $native = $null
@@ -34,7 +34,7 @@ function Wait-For([scriptblock]$condition, [int]$timeout = 10000) {
 }
 function Workers {
     if (-not $script:native) { return @() }
-    $ids = @(Get-CimInstance Win32_Process -Filter "ParentProcessId=$($script:native.Id)" | Where-Object Name -eq 'FrameCapture.exe' | ForEach-Object ProcessId)
+    $ids = @(Get-CimInstance Win32_Process -Filter "ParentProcessId=$($script:native.Id)" | Where-Object Name -eq 'NekoCapture.exe' | ForEach-Object ProcessId)
     foreach ($workerId in $ids) { [void]$script:owned.Add([int]$workerId) }
     return @($ids | ForEach-Object { Get-Process -Id $_ -ErrorAction SilentlyContinue })
 }
@@ -57,8 +57,8 @@ function Idle {
 }
 function Products { @(Get-ChildItem -LiteralPath (Join-Path $fixture 'products') -Filter '*.png' -ErrorAction SilentlyContinue).Count }
 function Trace-Count([string]$text) {
-    if (-not (Test-Path -LiteralPath $env:FC_TRACE_FILE)) { return 0 }
-    return @(Select-String -LiteralPath $env:FC_TRACE_FILE -Pattern $text -SimpleMatch).Count
+    if (-not (Test-Path -LiteralPath $env:NC_TRACE_FILE)) { return 0 }
+    return @(Select-String -LiteralPath $env:NC_TRACE_FILE -Pattern $text -SimpleMatch).Count
 }
 function Session {
     $file = Join-Path $fixture 'resident-session.json'
@@ -71,18 +71,18 @@ function Read-Json([string]$path) {
     try { return $reader.ReadToEnd() | ConvertFrom-Json } finally { $reader.Dispose() }
 }
 function Find-Resident {
-    Get-Process FrameCapture.Resident -ErrorAction SilentlyContinue | Where-Object {
-        $_.Path -eq $env:FC_RESIDENT_PATH -and $_.StartTime -gt (Get-Item -LiteralPath $fixture).CreationTime
+    Get-Process NekoCapture.Resident -ErrorAction SilentlyContinue | Where-Object {
+        $_.Path -eq $env:NC_RESIDENT_PATH -and $_.StartTime -gt (Get-Item -LiteralPath $fixture).CreationTime
     } | Sort-Object StartTime -Descending | Select-Object -First 1
 }
 try {
-    $env:TEMP = $runtime; $env:TMP = $runtime; $env:FC_SETTINGS_DIR = $fixture
-    $env:FC_TEST_NO_FG = '1'; $env:FC_TEST_NO_WINDOWS = '1'; $env:FC_NO_ELEVATE = '1'
-    $env:FC_RESIDENT_ENABLED = '1'; $env:FC_RESIDENT_DISABLED = $null
-    $env:FC_RESIDENT_INSTANCE = [Guid]::NewGuid().ToString('N')
-    $env:FC_RESIDENT_PATH = [IO.Path]::GetFullPath($ResidentExe)
-    $env:FC_RESIDENT_UI_PATH = [IO.Path]::GetFullPath($UiExe)
-    $env:FC_TRACE_FILE = Join-Path $fixture 'trace.log'
+    $env:TEMP = $runtime; $env:TMP = $runtime; $env:NC_SETTINGS_DIR = $fixture
+    $env:NC_TEST_NO_FG = '1'; $env:NC_TEST_NO_WINDOWS = '1'; $env:NC_NO_ELEVATE = '1'
+    $env:NC_RESIDENT_ENABLED = '1'; $env:NC_RESIDENT_DISABLED = $null
+    $env:NC_RESIDENT_INSTANCE = [Guid]::NewGuid().ToString('N')
+    $env:NC_RESIDENT_PATH = [IO.Path]::GetFullPath($ResidentExe)
+    $env:NC_RESIDENT_UI_PATH = [IO.Path]::GetFullPath($UiExe)
+    $env:NC_TRACE_FILE = Join-Path $fixture 'trace.log'
     & $selfTest resident-fixture $fixture
     if ($LASTEXITCODE -ne 0) { throw '隔离配置生成失败' }
     Invoke-Ui @()

@@ -1,7 +1,7 @@
 using System;
 using System.IO;
 using System.Reflection;
-using FrameCapture.Setup;
+using NekoCapture.Setup;
 
 /// <summary>目录占用失败必须保留源文件；释放继承的工作目录后可完整备份。</summary>
 internal static partial class Program
@@ -23,12 +23,12 @@ internal static partial class Program
             {
                 refused = true;
             }
-            Report(ref fail, refused && File.ReadAllText(Path.Combine(app, "FrameCapture.exe")) == "exe"
+            Report(ref fail, refused && File.ReadAllText(Path.Combine(app, "NekoCapture.exe")) == "exe"
                 && File.ReadAllText(Path.Combine(app, "runtimes", "GestureCore.dll")) == "dll",
                 "Chk locked-backup-preserves-installation", "");
             InstallEngine.ReleaseWorkingDirectory();
             string backup = (string)Call("BackupAside", app);
-            Report(ref fail, !Directory.Exists(app) && File.ReadAllText(Path.Combine(backup, "FrameCapture.exe")) == "exe"
+            Report(ref fail, !Directory.Exists(app) && File.ReadAllText(Path.Combine(backup, "NekoCapture.exe")) == "exe"
                 && File.ReadAllText(Path.Combine(backup, "runtimes", "GestureCore.dll")) == "dll",
                 "Chk inherited-working-directory-released-before-backup", "");
             Call("RestoreBackup", backup, app);

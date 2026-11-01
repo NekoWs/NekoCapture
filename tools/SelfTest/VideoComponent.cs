@@ -1,6 +1,6 @@
 using System.Diagnostics;
 using System.IO;
-using FrameCapture.Encoding;
+using NekoCapture.Encoding;
 
 static partial class SelfTest
 {

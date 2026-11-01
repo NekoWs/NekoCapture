@@ -5,7 +5,7 @@ param([switch]$DryRun)
 $map = 'WindowBgSolid','PanelBgSolid','WindowBg','PanelBg','ChromeBg','CardBg','RowHover','RowBg','NavBg','TextDim','Text','StrokeSoft','Stroke','TrackBg','Danger','Success','Warning','Accent'
 $rx = [regex]('new SolidColorBrush\(Theme\.(' + ($map -join '|') + ')\)')
 $hits = @{}
-Get-ChildItem -Path src\FrameCapture -Recurse -Filter *.cs | Where-Object { $_.FullName -notmatch '\\obj\\|\\bin\\' -and $_.Name -ne 'Theme.cs' } | ForEach-Object {
+Get-ChildItem -Path src\NekoCapture -Recurse -Filter *.cs | Where-Object { $_.FullName -notmatch '\\obj\\|\\bin\\' -and $_.Name -ne 'Theme.cs' } | ForEach-Object {
     $p = $_.FullName
     $bytes = [System.IO.File]::ReadAllBytes($p)
     $bom = $bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF
@@ -24,4 +24,4 @@ Get-ChildItem -Path src\FrameCapture -Recurse -Filter *.cs | Where-Object { $_.F
 "--- 合计 {0} 处" -f (($hits.Values | Measure-Object -Sum).Sum)
 $hits.GetEnumerator() | Sort-Object Value -Descending | ForEach-Object { "  {0,3} {1}" -f $_.Value, $_.Key }
 "--- 仍把叠加层当底色（需手工改）:"
-Select-String -Path src\FrameCapture\**\*.cs -Pattern 'new SolidColorBrush\(Theme\.(Hover|Press)\)' | ForEach-Object { "  {0}:{1}" -f $_.Filename, $_.LineNumber }
+Select-String -Path src\NekoCapture\**\*.cs -Pattern 'new SolidColorBrush\(Theme\.(Hover|Press)\)' | ForEach-Object { "  {0}:{1}" -f $_.Filename, $_.LineNumber }

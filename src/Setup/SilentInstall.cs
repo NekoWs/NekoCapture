@@ -1,9 +1,9 @@
 using System.Diagnostics;
 using System.IO;
 using System.Windows;
-using FrameCapture.Core;
+using NekoCapture.Core;
 
-namespace FrameCapture.Setup;
+namespace NekoCapture.Setup;
 
 /// <summary>无确认页的升级入口，权限不足时只请求一次 UAC。</summary>
 internal static class SilentInstall
@@ -14,7 +14,7 @@ internal static class SilentInstall
     internal static int Run(string[] args)
     {
         if (!App.Elevated) return App.RelaunchElevated(string.Join(" ", args.Select(InstallEngine.QuoteArgument))) ? 0 : 1223;
-        string logPath = Path.Combine(Path.GetTempPath(), "FrameCapture", "setup.log");
+        string logPath = Path.Combine(Path.GetTempPath(), "NekoCapture", "setup.log");
         Directory.CreateDirectory(Path.GetDirectoryName(logPath)!);
         var log = new LogProgress(logPath);
         Exception? failure = Attempt(log);
@@ -42,7 +42,7 @@ internal static class SilentInstall
             InstallEngine.InstallDir = target;
             if (!DotnetRuntime.Satisfied(out _))
             {
-                string runtime = Path.Combine(Path.GetTempPath(), "FrameCapture", "runtime-" + Guid.NewGuid().ToString("N") + ".exe");
+                string runtime = Path.Combine(Path.GetTempPath(), "NekoCapture", "runtime-" + Guid.NewGuid().ToString("N") + ".exe");
                 try
                 {
                     if (!RuntimeSetup.DownloadAsync(runtime, new RuntimeProgress(), CancellationToken.None).GetAwaiter().GetResult())
@@ -70,7 +70,7 @@ internal static class SilentInstall
 
     private static void LaunchApp(bool elevated)
     {
-        string exe = Path.Combine(InstallEngine.InstallDir, "FrameCapture.exe");
+        string exe = Path.Combine(InstallEngine.InstallDir, "NekoCapture.exe");
         try
         {
             if (!File.Exists(exe)) return;
@@ -87,7 +87,7 @@ internal static class SilentInstall
         try
         {
             string self = typeof(SilentInstall).Assembly.Location;
-            string root = Path.GetFullPath(Path.Combine(Path.GetTempPath(), "FrameCapture", "updates")) + Path.DirectorySeparatorChar;
+            string root = Path.GetFullPath(Path.Combine(Path.GetTempPath(), "NekoCapture", "updates")) + Path.DirectorySeparatorChar;
             if (!Path.GetFullPath(self).StartsWith(root, StringComparison.OrdinalIgnoreCase)) return;
             string helper = Path.Combine(InstallEngine.InstallDir, InstallEngine.UninstallEntryName);
             if (!File.Exists(helper)) return;

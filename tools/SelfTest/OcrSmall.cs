@@ -6,9 +6,9 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
-using FrameCapture.Core;
-using FrameCapture.Overlays;
-using FrameCapture.Services;
+using NekoCapture.Core;
+using NekoCapture.Overlays;
+using NekoCapture.Services;
 
 static partial class SelfTest
 {
@@ -20,7 +20,7 @@ static partial class SelfTest
             var config = new AppSettings { OcrEngine = "unavailable-engine" }; config.Normalize();
             Chk("ocr-unknown-setting-uses-system", config.OcrEngine == OcrService.SystemEngine);
             const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic;
-            var component = typeof(OcrService).Assembly.GetType("FrameCapture.Services.OcrModelComponent")!;
+            var component = typeof(OcrService).Assembly.GetType("NekoCapture.Services.OcrModelComponent")!;
             var session = component.GetProperty("Small", BindingFlags.Static | BindingFlags.NonPublic)!.GetValue(null)!;
             ((Task)component.GetMethod("InstallAsync", flags)!.Invoke(session, null)!).GetAwaiter().GetResult();
             bool available = (bool)component.GetProperty("Available", flags)!.GetValue(session)!;
@@ -30,7 +30,7 @@ static partial class SelfTest
             OcrOutcome? preview = null;
             foreach (var (name, expected, size, dark, faint) in new[] {
                 ("small-zh", "截图与录制 识别文字 清晰准确", 10.0, false, false),
-                ("small-en", "FrameCapture screenshot 12345 clipboard", 9.0, false, false),
+                ("small-en", "NekoCapture screenshot 12345 clipboard", 9.0, false, false),
                 ("dark-zh", "截图与录制 识别文字 清晰准确", 11.0, true, false),
                 ("faint-zh", "截图与录制 识别文字 清晰准确", 12.0, false, true) })
             {
@@ -47,7 +47,7 @@ static partial class SelfTest
                         == StringInfo.ParseCombiningCharacters(word.Text).Length));
                 if (small.Status == OcrStatus.Success)
                 {
-                    var viewType = typeof(OcrResultWindow).Assembly.GetType("FrameCapture.Overlays.OcrImageView")!;
+                    var viewType = typeof(OcrResultWindow).Assembly.GetType("NekoCapture.Overlays.OcrImageView")!;
                     var view = viewType.GetConstructor(BindingFlags.Instance | BindingFlags.NonPublic, null, new[] { typeof(OcrOutcome) }, null)!
                         .Invoke(new object[] { small });
                     viewType.GetMethod("SelectAll", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(view, null);
@@ -56,7 +56,7 @@ static partial class SelfTest
                 }
             }
             Console.WriteLine($"SMALL SAMPLE ERRORS system={systemErrors}, small={smallErrors}");
-            Chk("ocr-small-worker-exits-after-request", Process.GetProcessesByName("FrameCapture.OcrWorker").Length == 0);
+            Chk("ocr-small-worker-exits-after-request", Process.GetProcessesByName("NekoCapture.OcrWorker").Length == 0);
             Chk("ocr-small-missing-component-has-specific-feedback", OcrService.Route(OcrStatus.ComponentMissing, true) == OcrRoute.NoEngineHint
                 && OcrService.Feedback(OcrStatus.ComponentMissing, 0) == Loc.T(K.Ocr.Missing));
             if (preview is { } result) OcrSmallUiChecks(result);

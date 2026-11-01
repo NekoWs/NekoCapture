@@ -2,7 +2,7 @@
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0-windows</TargetFramework>
-    <AssemblyName>FrameCapture.Resident</AssemblyName>
+    <AssemblyName>NekoCapture.Resident</AssemblyName>
     <PublishAot>true</PublishAot>
     <InvariantGlobalization>true</InvariantGlobalization>
     <StackTraceSupport>false</StackTraceSupport>
@@ -11,15 +11,16 @@
     <OptimizationPreference>Size</OptimizationPreference>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <ApplicationIcon>../../assets/FrameCapture.ico</ApplicationIcon>
-    <_FcProj>$([System.IO.File]::ReadAllText('$(MSBuildThisFileDirectory)..\FrameCapture\FrameCapture.csproj'))</_FcProj>
-    <Version>$([System.Text.RegularExpressions.Regex]::Match($(_FcProj), '&lt;Version&gt;([^&lt;]+)&lt;/Version&gt;').Groups[1].Value)</Version>
+    <ApplicationIcon>../../assets/NekoCapture.ico</ApplicationIcon>
+    <_NcProj>$([System.IO.File]::ReadAllText('$(MSBuildThisFileDirectory)..\NekoCapture\NekoCapture.csproj'))</_NcProj>
+    <Version>$([System.Text.RegularExpressions.Regex]::Match($(_NcProj), '&lt;Version&gt;([^&lt;]+)&lt;/Version&gt;').Groups[1].Value)</Version>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../GestureCore/GestureCore.csproj" />
-    <Compile Include="../FrameCapture/Core/ResidentProtocol.cs" Link="ResidentProtocol.cs" />
-    <Compile Include="../FrameCapture/Core/TrayIconSource.cs" Link="TrayIconSource.cs" />
-    <Compile Include="../FrameCapture/Core/GestureClock.cs" Link="GestureClock.cs" />
-    <Compile Include="../FrameCapture/Core/GestureModifiers.cs" Link="GestureModifiers.cs" />
+    <Compile Include="../NekoCapture/Core/ResidentProtocol.cs" Link="ResidentProtocol.cs" />
+    <Compile Include="../NekoCapture/Core/ProductPaths.cs" Link="ProductPaths.cs" />
+    <Compile Include="../NekoCapture/Core/TrayIconSource.cs" Link="TrayIconSource.cs" />
+    <Compile Include="../NekoCapture/Core/GestureClock.cs" Link="GestureClock.cs" />
+    <Compile Include="../NekoCapture/Core/GestureModifiers.cs" Link="GestureModifiers.cs" />
   </ItemGroup>
 </Project>

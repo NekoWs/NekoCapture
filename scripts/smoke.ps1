@@ -1,9 +1,9 @@
 # 冒烟：启动应用、发送 Ctrl+Shift+G（长按 500ms）、检测编辑器窗口、截屏
 param([switch]$KeepRunning)
 $ErrorActionPreference='Stop'
-$env:FC_DEBUG="1"
+$env:NC_DEBUG="1"
 Remove-Item (Get-FcLogPath 'trace.log') -ErrorAction SilentlyContinue
-$exe = "D:\Backup\Capture\src\FrameCapture\bin\x64\Debug\net8.0-windows10.0.19041.0\FrameCapture.exe"
+$exe = "D:\Backup\Capture\src\NekoCapture\bin\x64\Debug\net8.0-windows10.0.19041.0\NekoCapture.exe"
 Add-Type -Namespace W32 -Name U32 -MemberDefinition @'
 [DllImport("user32.dll")] public static extern void keybd_event(byte vk, byte scan, uint flags, System.UIntPtr extra);
 [DllImport("user32.dll",CharSet=CharSet.Unicode)] public static extern System.IntPtr FindWindowW(string cls, string title);
@@ -11,7 +11,7 @@ Add-Type -Namespace W32 -Name U32 -MemberDefinition @'
 [StructLayout(LayoutKind.Sequential)] public struct CURSORINFO { public int cb; public int flags; public System.IntPtr hCursor; public POINTL ptScreenPos; }
 [StructLayout(LayoutKind.Sequential)] public struct POINTL { public long x, y; }
 '@
-$env:FC_NO_ELEVATE = "1"   # 冒烟不提权：这里等的是进程自己起来，UAC 会把它挡在门外
+$env:NC_NO_ELEVATE = "1"   # 冒烟不提权：这里等的是进程自己起来，UAC 会把它挡在门外
 Start-Process -FilePath $exe
 Start-Sleep 2.5
 "hotkey: press"
@@ -23,7 +23,7 @@ Start-Sleep -Milliseconds 600
 [W32.U32]::keybd_event(0x10,0,2,[UIntPtr]::Zero)   # Shift up
 [W32.U32]::keybd_event(0x11,0,2,[UIntPtr]::Zero)   # Ctrl up
 Start-Sleep 1.5
-$hwnd=[W32.U32]::FindWindowW($null,"FrameCapture Editor")
+$hwnd=[W32.U32]::FindWindowW($null,"NekoCapture Editor")
 "editor hwnd = $hwnd"
 # 移动光标到屏幕中间并截屏
 Add-Type -AssemblyName System.Drawing,System.Windows.Forms
@@ -34,4 +34,4 @@ $g.CopyFromScreen($bounds.Location,[System.Drawing.Point]::Empty,$bounds.Size)
 $out="D:\Backup\Capture\scripts\smoke-shot.png"
 $bmp.Save($out)
 "shot: $out"
-if (-not $KeepRunning) { Stop-Process -Name FrameCapture -Force -ErrorAction SilentlyContinue }
+if (-not $KeepRunning) { Stop-Process -Name NekoCapture -Force -ErrorAction SilentlyContinue }

@@ -2,10 +2,10 @@ using System.Reflection;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
-using FrameCapture.Core;
-using FrameCapture.Encoding;
-using FrameCapture.Overlays;
-using FrameCapture.Services;
+using NekoCapture.Core;
+using NekoCapture.Encoding;
+using NekoCapture.Overlays;
+using NekoCapture.Services;
 
 static partial class SelfTest
 {

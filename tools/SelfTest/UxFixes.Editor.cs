@@ -3,11 +3,11 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
-using FrameCapture.Capture;
-using FrameCapture.Core;
-using FrameCapture.Drawing;
-using FrameCapture.Overlays;
-using FrameCapture.Services;
+using NekoCapture.Capture;
+using NekoCapture.Core;
+using NekoCapture.Drawing;
+using NekoCapture.Overlays;
+using NekoCapture.Services;
 
 static partial class SelfTest
 {
@@ -32,7 +32,7 @@ static partial class SelfTest
         var clipped = Bake.Apply(new[] { frame }, new[] { outside })[0];
         Chk("ux-outside-rectangle-is-clipped-without-moving-edge", clipped.Bgra.Take(4).SequenceEqual(frame.Bgra.Take(4))
             && !clipped.Bgra.SequenceEqual(frame.Bgra));
-        var bakedType = typeof(CapturedFrame).Assembly.GetType("FrameCapture.Capture.BakedFrameList")!;
+        var bakedType = typeof(CapturedFrame).Assembly.GetType("NekoCapture.Capture.BakedFrameList")!;
         var lease = bakedType.GetMethod("Create", BindingFlags.Static | BindingFlags.NonPublic)!.Invoke(null,
             new object[] { new[] { frame }, 0, 1, new[] { outside }, new RectI(16, 16, 32, 32) })!;
         try

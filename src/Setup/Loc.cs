@@ -1,6 +1,6 @@
 using System.Globalization;
 
-namespace FrameCapture.Core;
+namespace NekoCapture.Core;
 
 /// <summary>安装器按启动语言读取共享文案。</summary>
 internal static class Loc

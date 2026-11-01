@@ -2,7 +2,7 @@
 #
 # 语义：
 #   FAIL —— src/Setup 里出现没有同卷判断的 Directory.Move。
-#           安装目录由用户挑，临时目录在系统盘。把 D:\FrameCapture 移到 C:\ 下的临时目录，
+#           安装目录由用户挑，临时目录在系统盘。把 D:\NekoCapture 移到 C:\ 下的临时目录，
 #           Directory.Move 抛「源路径和目标路径必须具有相同的根」，整次安装带着回滚一起失败，
 #           而且这类失败只在「装到非系统盘」的那台机器上出现，本机测不出来。
 #   FAIL —— Path.Combine 的第一段内联 Environment.GetFolderPath。

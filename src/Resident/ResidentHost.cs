@@ -1,10 +1,10 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
-using FrameCapture.Runtime;
+using NekoCapture.Runtime;
 using GestureCore;
 
-namespace FrameCapture.Resident;
+namespace NekoCapture.Resident;
 
 /// <summary>原生消息线程只处理输入；独立协调线程负责文件、进程和界面命令。</summary>
 internal sealed partial class ResidentHost : IDisposable, IChainInvoker
@@ -42,17 +42,17 @@ internal sealed partial class ResidentHost : IDisposable, IChainInvoker
 
     private ResidentHost()
     {
-        _mutex = new Mutex(true, @"Local\FrameCapture.Resident" + ResidentProtocol.Suffix, out bool owner);
+        _mutex = new Mutex(true, @"Local\NekoCapture.Resident" + ResidentProtocol.Suffix, out bool owner);
         if (!owner) throw new InvalidOperationException("Resident already running");
-        _uiPath = Environment.GetEnvironmentVariable("FC_TEST_NO_FG") == "1"
-            && Environment.GetEnvironmentVariable("FC_RESIDENT_UI_PATH") is { Length: > 0 } path
-                ? Path.GetFullPath(path) : Path.Combine(AppContext.BaseDirectory, "FrameCapture.exe");
+        _uiPath = Environment.GetEnvironmentVariable("NC_TEST_NO_FG") == "1"
+            && Environment.GetEnvironmentVariable("NC_RESIDENT_UI_PATH") is { Length: > 0 } path
+                ? Path.GetFullPath(path) : Path.Combine(AppContext.BaseDirectory, "NekoCapture.exe");
         _engine = new GestureEngine(this);
         _syntheticEngine = new GestureEngine(this);
         _windowProcedure = WindowProc;
         _keyProcedure = KeyProc; _mouseProcedure = MouseProc;
         var windowClass = new WindowClass { Procedure = Marshal.GetFunctionPointerForDelegate(_windowProcedure),
-            Instance = GetModuleHandle(null), Name = "FrameCapture.Resident.Window" };
+            Instance = GetModuleHandle(null), Name = "NekoCapture.Resident.Window" };
         if (RegisterClass(ref windowClass) == 0) throw new System.ComponentModel.Win32Exception();
         _window = CreateWindowEx(0, windowClass.Name, ResidentProtocol.WindowName, 0, 0, 0, 0, 0, IntPtr.Zero,
             IntPtr.Zero, windowClass.Instance, IntPtr.Zero);
@@ -94,7 +94,7 @@ internal sealed partial class ResidentHost : IDisposable, IChainInvoker
                     if (paused != _paused) { _paused = paused; _engine.SetBindings(_runtimeBindings); _syntheticEngine.SetBindings(_runtimeBindings); UpdateTick(); }
                     QueueWork(["--update-icon"]);
                 }
-                else if (args.FirstOrDefault() == "--resident-test-key" && Environment.GetEnvironmentVariable("FC_TEST_NO_FG") == "1"
+                else if (args.FirstOrDefault() == "--resident-test-key" && Environment.GetEnvironmentVariable("NC_TEST_NO_FG") == "1"
                     && args.Length == 4 && int.TryParse(args[1], out int key) && int.TryParse(args[2], out int mods))
                 {
                     if (!_paused && args[3] == "down") _syntheticEngine.OnKeyDown(key, (ModifierKeys)mods, Environment.TickCount64);
@@ -199,7 +199,7 @@ internal sealed partial class ResidentHost : IDisposable, IChainInvoker
     {
         if (_worker is { HasExited: false }) return;
         var start = new ProcessStartInfo(_uiPath) { UseShellExecute = false, CreateNoWindow = true };
-        start.Environment["FC_RESIDENT_PATH"] = Environment.ProcessPath!;
+        start.Environment["NC_RESIDENT_PATH"] = Environment.ProcessPath!;
         start.ArgumentList.Add(ResidentProtocol.WorkerFlag);
         start.ArgumentList.Add("--elevated-attempt");
         start.ArgumentList.Add("--resident-paused"); start.ArgumentList.Add(_paused ? "1" : "0");
@@ -215,7 +215,7 @@ internal sealed partial class ResidentHost : IDisposable, IChainInvoker
     {
         if (!_workerReady || _worker == null || _worker.HasExited) return;
         IntPtr after = IntPtr.Zero, sink = IntPtr.Zero;
-        while ((after = FindWindowEx(new IntPtr(-3), after, null, "FrameCapture.MessageSink")) != IntPtr.Zero)
+        while ((after = FindWindowEx(new IntPtr(-3), after, null, "NekoCapture.MessageSink")) != IntPtr.Zero)
         {
             GetWindowThreadProcessId(after, out uint pid);
             if (pid == _worker.Id) { sink = after; break; }
@@ -271,8 +271,8 @@ internal sealed partial class ResidentHost : IDisposable, IChainInvoker
                 if (!_knownKeys.Contains((int)info.Key) && info.Key is not (>= 0x10 and <= 0x12) and not (>= 0xA0 and <= 0xA5) and not (0x5B or 0x5C))
                     return CallNextHookEx(IntPtr.Zero, code, w, l);
                 bool down = (info.Flags & 0x80) == 0;
-                var mods = FrameCapture.Core.GestureModifiers.AfterKeyboardEvent(ReadMods(), (int)info.Key, down, KeyIsDown);
-                long time = FrameCapture.Core.GestureClock.Expand(info.Time, Environment.TickCount64);
+                var mods = NekoCapture.Core.GestureModifiers.AfterKeyboardEvent(ReadMods(), (int)info.Key, down, KeyIsDown);
+                long time = NekoCapture.Core.GestureClock.Expand(info.Time, Environment.TickCount64);
                 bool swallow = down ? _engine.OnKeyDown((int)info.Key, mods, time) : _engine.OnKeyUp((int)info.Key, mods, time);
                 UpdateTick(); if (swallow) return 1;
             }
@@ -290,7 +290,7 @@ internal sealed partial class ResidentHost : IDisposable, IChainInvoker
                 int message = w.ToInt32();
                 if (message is not (0x0201 or 0x0204 or 0x0207 or 0x0202 or 0x0205 or 0x0208)) return CallNextHookEx(IntPtr.Zero, code, w, l);
                 var info = Marshal.PtrToStructure<MouseData>(l);
-                long time = FrameCapture.Core.GestureClock.Expand(info.Time, Environment.TickCount64);
+                long time = NekoCapture.Core.GestureClock.Expand(info.Time, Environment.TickCount64);
                 if (message is 0x0201 or 0x0204 or 0x0207) _engine.OnMouseDown(message, ReadMods(), time);
                 else if (message is 0x0202 or 0x0205 or 0x0208) _engine.OnMouseUp(message, ReadMods(), time);
                 UpdateTick();

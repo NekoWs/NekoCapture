@@ -1,9 +1,9 @@
-FrameCapture 使用说明
+NekoCapture 使用说明
 ====================
 
 启动
-  运行 FrameCapture.exe，程序常驻托盘。右键打开菜单，双击托盘进入选区。
-  官网：https://nekows.github.io/FrameCapture/
+  运行 NekoCapture.exe，程序常驻托盘。右键打开菜单，双击托盘进入选区。
+  官网：https://nekows.github.io/NekoCapture/
 
 快捷键与行为
   默认 Ctrl+Alt+A 以截图模式进入选区，Ctrl+Alt+R 以录制模式进入选区。
@@ -27,5 +27,5 @@ FrameCapture 使用说明
 设置与更新
   支持中英文、系统或明暗主题、自启动与可选管理员运行。
   在「设置 → 系统」开关自动检查更新，在「设置 → 关于」手动检查。
-  配置默认保存在 %APPDATA%\FrameCapture\settings.json。
-  项目与问题反馈：https://github.com/NekoWs/FrameCapture
+  配置默认保存在 %APPDATA%\NekoCapture\settings.json。
+  项目与问题反馈：https://github.com/NekoWs/NekoCapture

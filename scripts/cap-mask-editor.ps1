@@ -21,12 +21,12 @@ New-Item -ItemType Directory -Force -Path $scratch | Out-Null
 New-Item -ItemType Directory -Force -Path $out | Out-Null
 Remove-Item (Join-Path $out '*.png') -Force -ErrorAction SilentlyContinue
 
-$exe = Join-Path $root 'src\FrameCapture\bin\x64\Debug\net8.0-windows10.0.19041.0\FrameCapture.exe'
+$exe = Join-Path $root 'src\NekoCapture\bin\x64\Debug\net8.0-windows10.0.19041.0\NekoCapture.exe'
 if (-not (Test-Path $exe)) { throw "找不到 $exe" }
 $cap = Join-Path $root 'tools\UICap\bin\Release\net8.0-windows\UICap.exe'
 if (-not (Test-Path $cap)) { $cap = Join-Path $root 'tools\UICap\bin\Debug\net8.0-windows\UICap.exe' }
 
-$user = Join-Path $env:APPDATA 'FrameCapture\settings.json'
+$user = Join-Path $env:APPDATA 'NekoCapture\settings.json'
 $scratchFile = Join-Path $scratch 'settings.json'
 if (Test-Path $user) { Copy-Item $user $scratchFile -Force }
 $set = Get-Content $scratchFile -Raw | ConvertFrom-Json
@@ -102,23 +102,23 @@ function Get-Arrival($series, [double]$from, [double]$to) {
     return 999
 }
 
-Get-Process FrameCapture -ErrorAction SilentlyContinue | Stop-Process -Force
+Get-Process NekoCapture -ErrorAction SilentlyContinue | Stop-Process -Force
 Start-Sleep -Milliseconds 350
-$env:FC_SETTINGS_DIR = $scratch
-$env:FC_THEME = $From
+$env:NC_SETTINGS_DIR = $scratch
+$env:NC_THEME = $From
 $p = Start-Process $exe -ArgumentList @('--editor', $sample) -PassThru
 try {
     $found = $false
     for ($i = 0; $i -lt 60; $i++) {
         Start-Sleep -Milliseconds 250
-        & $cap win 'FrameCapture Editor' (Join-Path $out 'wait.png') 2>$null | Out-Null
+        & $cap win 'NekoCapture Editor' (Join-Path $out 'wait.png') 2>$null | Out-Null
         if ($LASTEXITCODE -eq 0) { $found = $true; break }
     }
     if (-not $found) { throw '没等到编辑器' }
     Start-Sleep -Milliseconds 1200
-    [void][RaiseWin]::Go('FrameCapture Editor')
+    [void][RaiseWin]::Go('NekoCapture Editor')
     Start-Sleep -Milliseconds 250
-    $rc = [RaiseWin]::Rect('FrameCapture Editor')
+    $rc = [RaiseWin]::Rect('NekoCapture Editor')
     if (-not $rc) { throw '量不到编辑器' }
 
     $base = Grab $rc[0] $rc[1] $rc[2] $rc[3]
@@ -161,4 +161,4 @@ finally {
     Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
     Start-Sleep -Milliseconds 300
 }
-Get-Process FrameCapture -ErrorAction SilentlyContinue | Stop-Process -Force
+Get-Process NekoCapture -ErrorAction SilentlyContinue | Stop-Process -Force

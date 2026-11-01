@@ -12,13 +12,13 @@ param([int]$Cycles = 5)
 $ErrorActionPreference = "Stop"
 $root = Split-Path $PSScriptRoot
 . (Join-Path $PSScriptRoot "lib-hotkey.ps1")
-$exe = Join-Path $root "src/FrameCapture/bin/x64/Debug/net8.0-windows10.0.19041.0/FrameCapture.exe"
+$exe = Join-Path $root "src/NekoCapture/bin/x64/Debug/net8.0-windows10.0.19041.0/NekoCapture.exe"
 $shot = Join-Path $root "tools/Shot/bin/x64/Debug/net8.0-windows/Shot.exe"
 $capHk = 'Ctrl+Shift+G'
 $scopeHk = 'Ctrl+Shift+R'
 
 function Get-Mem {
-    $p = Get-Process FrameCapture -ErrorAction SilentlyContinue
+    $p = Get-Process NekoCapture -ErrorAction SilentlyContinue
     if (-not $p) { return $null }
     $p.Refresh()
     [pscustomobject]@{ Mb = $p.PrivateMemorySize64 / 1MB; Handles = $p.HandleCount; Threads = $p.Threads.Count }
@@ -37,9 +37,9 @@ $MaxHandleGrowth = 120
 
 $bak = Set-FcTestGestureConfig
 try {
-    Get-Process FrameCapture -EA SilentlyContinue | Stop-Process -Force; Start-Sleep 0.8
-    $env:FC_TEST_NO_FG = "1"
-    Start-Process $exe | Out-Null   # 子进程继承 FC_TEST_NO_FG 与 FC_SETTINGS_DIR
+    Get-Process NekoCapture -EA SilentlyContinue | Stop-Process -Force; Start-Sleep 0.8
+    $env:NC_TEST_NO_FG = "1"
+    Start-Process $exe | Out-Null   # 子进程继承 NC_TEST_NO_FG 与 NC_SETTINGS_DIR
     Start-Sleep 2.2
     Snap "1-idle" | Out-Null
 
@@ -49,7 +49,7 @@ try {
     Invoke-FcSynthetic $exe $scopeHk 120; Start-Sleep -Milliseconds 1500
     $pick = Snap "2-picker-open"
     if (-not $pick) { Write-Host "MEM-PROBE FAIL 选区窗期间进程不见了"; exit 1 }
-    Get-Process FrameCapture -EA SilentlyContinue | Stop-Process -Force; Start-Sleep 0.8
+    Get-Process NekoCapture -EA SilentlyContinue | Stop-Process -Force; Start-Sleep 0.8
     Start-Process $exe | Out-Null; Start-Sleep 2.2
     Snap "2b-restarted" | Out-Null
 
@@ -61,13 +61,13 @@ try {
         $ed = "not-found"
         for ($w = 0; $w -lt 16; $w++) {
             Start-Sleep -Milliseconds 500
-            $ed = & $shot rect "FrameCapture Editor" 2>$null
+            $ed = & $shot rect "NekoCapture Editor" 2>$null
             if ($ed -notmatch "not-found") { break }
         }
         if ($ed -match "not-found") { Write-Host "MEM-PROBE FAIL 第 $i 轮编辑器没出现"; exit 1 }
         $closed = $false
         for ($w = 0; $w -lt 24; $w++) {
-            if ((& $shot rect "FrameCapture Editor" 2>$null) -match 'not-found') { $closed = $true; break }
+            if ((& $shot rect "NekoCapture Editor" 2>$null) -match 'not-found') { $closed = $true; break }
             if ($w % 6 -eq 0) { Invoke-FcEditorKey $exe 27 }
             Start-Sleep -Milliseconds 100
         }
@@ -89,7 +89,7 @@ try {
     Write-Host "MEM-PROBE FAIL（每轮还在涨，像泄漏不像缓存）"; exit 1
 }
 finally {
-    Get-Process FrameCapture -EA SilentlyContinue | Stop-Process -Force
-    Remove-Item Env:\FC_TEST_NO_FG -EA SilentlyContinue
+    Get-Process NekoCapture -EA SilentlyContinue | Stop-Process -Force
+    Remove-Item Env:\NC_TEST_NO_FG -EA SilentlyContinue
     if ($bak) { Set-Content (Get-FcSettingsPath) -Value $bak -Encoding UTF8 }
 }

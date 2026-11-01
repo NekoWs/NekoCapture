@@ -6,7 +6,7 @@ using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace FrameCapture.Setup;
+namespace NekoCapture.Setup;
 
 /// <summary>
 /// 缺运行时时的取包与安装。走微软官方短链，不在安装包里塞一份运行时：

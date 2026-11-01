@@ -1,5 +1,5 @@
 using System.IO.Compression;
-using FrameCapture.Encoding;
+using NekoCapture.Encoding;
 
 internal static partial class Program
 {
@@ -68,9 +68,9 @@ internal static partial class Program
         Report(ref fail, File.ReadAllText(sentinel) == "replacement" && !Directory.Exists(valid)
             && Directory.GetDirectories(root, "codec-installed.backup-*").Length == 0, "codec-commit-replaces-complete-directory", "");
 
-        string? supplied = Environment.GetEnvironmentVariable("FC_CODEC_TEST_ARCHIVE");
-        string? webmArchive = Environment.GetEnvironmentVariable("FC_CODEC_TEST_WEBM_ARCHIVE");
-        if (Environment.GetEnvironmentVariable("FC_CODEC_TEST_DOWNLOAD") == "1")
+        string? supplied = Environment.GetEnvironmentVariable("NC_CODEC_TEST_ARCHIVE");
+        string? webmArchive = Environment.GetEnvironmentVariable("NC_CODEC_TEST_WEBM_ARCHIVE");
+        if (Environment.GetEnvironmentVariable("NC_CODEC_TEST_DOWNLOAD") == "1")
         {
             supplied = Path.Combine(root, "download.zip");
             using var client = new System.Net.Http.HttpClient(new System.Net.Http.HttpClientHandler
@@ -87,7 +87,7 @@ internal static partial class Program
                 expectedHash: package.Sha256).GetAwaiter().GetResult();
             Console.WriteLine($"CODEC-WEBM-DOWNLOAD PASS seconds={clock.Elapsed.TotalSeconds:F1} bytes={new FileInfo(webmArchive).Length} UseProxy=false");
         }
-        if (string.IsNullOrWhiteSpace(supplied)) { Console.WriteLine("  SKIP codec-real-archive: FC_CODEC_TEST_ARCHIVE is unset"); return; }
+        if (string.IsNullOrWhiteSpace(supplied)) { Console.WriteLine("  SKIP codec-real-archive: NC_CODEC_TEST_ARCHIVE is unset"); return; }
         string realWork = Path.Combine(root, "real-work");
         Directory.CreateDirectory(realWork);
         ComponentInstaller.InstallArchive(supplied!, target, realWork, CancellationToken.None);

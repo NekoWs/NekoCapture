@@ -9,6 +9,6 @@
     <PlatformTarget>x64</PlatformTarget>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\src\FrameCapture\FrameCapture.csproj" />
+    <ProjectReference Include="..\..\src\NekoCapture\NekoCapture.csproj" />
   </ItemGroup>
 </Project>

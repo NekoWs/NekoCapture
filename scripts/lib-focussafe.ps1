@@ -3,8 +3,8 @@
 # 原语来自 tools/Shot：rect <标题> / fg / mouse x1 y1 x2 y2 [holdMs] / keyw <标题> <vk>。
 
 $script:FcTitles = @(
-    'FrameCapture Editor', 'FrameCapture Region', 'FrameCapture Settings',
-    'FrameCapture Help', 'FrameCapture Toast', 'FrameCapture Scope'
+    'NekoCapture Editor', 'NekoCapture Region', 'NekoCapture Settings',
+    'NekoCapture Help', 'NekoCapture Toast', 'NekoCapture Scope'
 )
 
 function Get-FcWinRect {

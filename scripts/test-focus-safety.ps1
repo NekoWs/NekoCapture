@@ -5,16 +5,16 @@
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 . (Join-Path $PSScriptRoot "lib-hotkey.ps1")
-$exe  = Join-Path $root "src/FrameCapture/bin/x64/Debug/net8.0-windows10.0.19041.0/FrameCapture.exe"
+$exe  = Join-Path $root "src/NekoCapture/bin/x64/Debug/net8.0-windows10.0.19041.0/NekoCapture.exe"
 $shot = Join-Path $root "tools/Shot/bin/x64/Debug/net8.0-windows/Shot.exe"
 if (!(Test-Path $exe)) { Write-Host "missing $exe"; exit 1 }
 $cfg = Get-FcSettingsPath
-Get-Process FrameCapture -EA SilentlyContinue | Stop-Process -Force   # 先杀，避免运行实例回写覆盖
+Get-Process NekoCapture -EA SilentlyContinue | Stop-Process -Force   # 先杀，避免运行实例回写覆盖
 Start-Sleep 0.5
 $bak = Set-FcTestGestureConfig   # 钉成统一测试手势集（Ctrl+Shift+G 已绑定），结束（含各 SKIP 出口）一律还原
 try {
     # 测试实例仅在本项启用逐键日志，以判定注入键是否到达钩子。
-    $env:FC_TRACE_KEYS = "1"
+    $env:NC_TRACE_KEYS = "1"
     $p = Start-Process $exe -PassThru
     Start-Sleep 1.5
     # 安静窗口闸：物理输入状态说了算。前台类名猜不出正在编辑器里打字的人。
@@ -25,11 +25,11 @@ try {
     }
     $out = & $shot swallow 2>&1 | Out-String
     Start-Sleep 0.8
-    $ed = & $shot rect "FrameCapture Editor" 2>$null
+    $ed = & $shot rect "NekoCapture Editor" 2>$null
     Invoke-FcEditorKey $exe 27
     Start-Sleep 0.8
     if (!$p.HasExited) { $p.Kill() }
-    $tr = Get-Content (Join-Path $root "src/fc-trace.log") -Tail 40 | Out-String
+    $tr = Get-Content (Join-Path $root "src/nc-trace.log") -Tail 40 | Out-String
     if (-not ($tr -match "hook key=71")) {
         Write-Host "SKIP: 注入的 G 没进 OS 级钩子（trace 里找不到 hook key=71）——游戏/反外挂拦截，或逐键日志没开；关闭游戏后重跑"
         exit 0
@@ -43,6 +43,6 @@ try {
     Write-Host "FOCUS-SAFETY FAIL"; exit 1
 }
 finally {
-    Get-Process FrameCapture -EA SilentlyContinue | Stop-Process -Force
+    Get-Process NekoCapture -EA SilentlyContinue | Stop-Process -Force
     if ($bak) { Set-Content $cfg -Value $bak -Encoding UTF8 }
 }

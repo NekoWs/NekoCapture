@@ -8,11 +8,11 @@
 #       边缘能量（相邻像素亮度差的均值）才反映内容结构，淡出应看到它平滑衰减到 0。
 #
 # 用法：
-#   入场  pwsh -File scripts/probe-window-fade.ps1 -Exe <FrameCapture.exe> -ArgList '--settings'
+#   入场  pwsh -File scripts/probe-window-fade.ps1 -Exe <NekoCapture.exe> -ArgList '--settings'
 #   退场  加 -CloseAfterMs 300 -Shot <Shot.exe>   （到点向窗口 PostMessage Esc，量淡出段）
-# 主题切换：改 %APPDATA%\FrameCapture\settings.json 的 Theme 后重启程序，浅色与暗色各测一遍。
+# 主题切换：改 %APPDATA%\NekoCapture\settings.json 的 Theme 后重启程序，浅色与暗色各测一遍。
 param(
-    [string]$Title = 'FrameCapture Settings',
+    [string]$Title = 'NekoCapture Settings',
     [string]$Exe = '',
     [string]$ArgList = '--settings',
     [double]$Seconds = 1.0,

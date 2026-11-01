@@ -6,13 +6,13 @@ $fixture = Join-Path $repo 'test-out/standard-handoff-validation'
 $runtime = Join-Path $fixture 'runtime'
 New-Item -ItemType Directory -Force -Path $runtime | Out-Null
 $saved = @{}
-foreach ($name in @('TEMP','TMP','FC_SETTINGS_DIR','FC_TEST_NO_FG','FC_NO_ELEVATE')) {
+foreach ($name in @('TEMP','TMP','NC_SETTINGS_DIR','NC_TEST_NO_FG','NC_NO_ELEVATE')) {
     $saved[$name] = [Environment]::GetEnvironmentVariable($name)
 }
 try {
     $env:TEMP = $runtime; $env:TMP = $runtime
-    $env:FC_SETTINGS_DIR = Join-Path $fixture 'settings'
-    $env:FC_TEST_NO_FG = '1'; $env:FC_NO_ELEVATE = '1'
+    $env:NC_SETTINGS_DIR = Join-Path $fixture 'settings'
+    $env:NC_TEST_NO_FG = '1'; $env:NC_NO_ELEVATE = '1'
     $log = Join-Path $fixture 'result.txt'
     if ($RequestElevation) {
         $shell = (Get-Command pwsh).Source

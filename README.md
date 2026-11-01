@@ -1,27 +1,27 @@
 <div align="center">
 
-<img src="assets/FrameCapture-256.png" width="88" height="88" alt="FrameCapture">
+<img src="assets/NekoCapture-256.png" width="88" height="88" alt="NekoCapture">
 
-# FrameCapture
+# NekoCapture
 
 **截得干净，用得顺手。**
 
 为 Windows 准备的截图、录制、OCR、标注与贴图工具。
 
-[![最新版本](https://img.shields.io/github/v/release/NekoWs/FrameCapture?label=Release&color=0079bd)](https://github.com/NekoWs/FrameCapture/releases/latest)
-[![Windows](https://img.shields.io/badge/Windows-10%20%2F%2011-0079bd)](https://github.com/NekoWs/FrameCapture/releases/latest)
+[![最新版本](https://img.shields.io/github/v/release/NekoWs/NekoCapture?label=Release&color=0079bd)](https://github.com/NekoWs/NekoCapture/releases/latest)
+[![Windows](https://img.shields.io/badge/Windows-10%20%2F%2011-0079bd)](https://github.com/NekoWs/NekoCapture/releases/latest)
 [![License](https://img.shields.io/badge/License-GPL--3.0-blue)](LICENSE)
 
-[**下载**](https://github.com/NekoWs/FrameCapture/releases/latest) ·
-[官网](https://nekows.github.io/FrameCapture/) ·
-[English website](https://nekows.github.io/FrameCapture/en/) ·
-[反馈问题](https://github.com/NekoWs/FrameCapture/issues)
+[**下载**](https://github.com/NekoWs/NekoCapture/releases/latest) ·
+[官网](https://nekows.github.io/NekoCapture/) ·
+[English website](https://nekows.github.io/NekoCapture/en/) ·
+[反馈问题](https://github.com/NekoWs/NekoCapture/issues)
 
 </div>
 
 ---
 
-FrameCapture 将截图、录制和后续处理放在同一套工作流程里。快捷键连接行为入口，选区上方的按钮决定进入截图还是录制分支，复制、保存、编辑等后续动作都可以自行配置。
+NekoCapture 将截图、录制和后续处理放在同一套工作流程里。快捷键连接行为入口，选区上方的按钮决定进入截图还是录制分支，复制、保存、编辑等后续动作都可以自行配置。
 
 ## 功能
 
@@ -37,21 +37,21 @@ FrameCapture 将截图、录制和后续处理放在同一套工作流程里。�
 ## 界面预览
 
 <div align="center">
-<img src="site/assets/shots/gesture.png" width="780" alt="FrameCapture 行为配置：选区动作及截图、录制、取消和失败分支">
+<img src="site/assets/shots/gesture.png" width="780" alt="NekoCapture 行为配置：选区动作及截图、录制、取消和失败分支">
 </div>
 
 <details>
 <summary>查看快捷键与预设配置</summary>
 
-<img src="site/assets/shots/settings.png" width="780" alt="FrameCapture 快捷键配置：三种预设、自定义方案和按键设置">
+<img src="site/assets/shots/settings.png" width="780" alt="NekoCapture 快捷键配置：三种预设、自定义方案和按键设置">
 
 </details>
 
-更多界面和交互演示见 [官网](https://nekows.github.io/FrameCapture/)。
+更多界面和交互演示见 [官网](https://nekows.github.io/NekoCapture/)。
 
 ## 下载与安装
 
-前往 [最新 Release](https://github.com/NekoWs/FrameCapture/releases/latest)，下载 **FrameCapture-Setup-版本号-x64.exe**。
+前往 [最新 Release](https://github.com/NekoWs/NekoCapture/releases/latest)，下载 **NekoCapture-Setup-版本号-x64.exe**。
 
 | 项目 | 要求 |
 | --- | --- |
@@ -60,6 +60,8 @@ FrameCapture 将截图、录制和后续处理放在同一套工作流程里。�
 | 运行环境 | .NET 8 Desktop Runtime，由安装器检测并按需下载 |
 
 安装器会识别已有安装并进行升级。启动后程序常驻托盘，可以从托盘菜单打开设置。
+
+FrameCapture 客户端可通过原有更新入口升级到 NekoCapture，保留设置与已下载组件。[兼容更新仓库](https://github.com/NekoWs/FrameCapture) 仅用于服务这些客户端。
 
 截图和 GIF 导出无需视频组件。在「设置 → 录制 → 导出」选择 MP4 或 WebM 后，点击出现的下载按钮即可安装对应的精简编码组件，页面显示下载进度。两种格式独立下载，已安装的完整 FFmpeg 也可直接使用。
 
@@ -105,15 +107,15 @@ FrameCapture 将截图、录制和后续处理放在同一套工作流程里。�
 - 发布 NativeAOT 常驻组件时，需要 MSVC x64 工具链及 Windows SDK，可通过 Visual Studio 的「使用 C++ 的桌面开发」安装。
 
 ```powershell
-git clone https://github.com/NekoWs/FrameCapture.git
-cd FrameCapture
-dotnet build FrameCapture.slnx -c Debug
+git clone https://github.com/NekoWs/NekoCapture.git
+cd NekoCapture
+dotnet build NekoCapture.slnx -c Debug
 ```
 
 构建主程序位于：
 
 ```text
-src/FrameCapture/bin/x64/Debug/net8.0-windows10.0.19041.0/FrameCapture.exe
+src/NekoCapture/bin/x64/Debug/net8.0-windows10.0.19041.0/NekoCapture.exe
 ```
 
 构建与静态检查：
@@ -132,11 +134,11 @@ pwsh -NoProfile -File scripts/publish-release.ps1 -Flavor fd -NoRestart
 
 ## 反馈与贡献
 
-欢迎通过 [Issues](https://github.com/NekoWs/FrameCapture/issues) 提交问题或建议，也欢迎 Pull Request。
+欢迎通过 [Issues](https://github.com/NekoWs/NekoCapture/issues) 提交问题或建议，也欢迎 Pull Request。
 报告问题时，请附上软件版本、Windows 版本、复现步骤，以及适用的截图或日志。
 
 ## 许可证
 
 本项目采用 [GNU GPL v3.0](LICENSE)。
 
-FFmpeg 为按格式下载的可选组件，精简构建采用 GPLv3，包含对应的许可证和来源说明。[完整对应源码与构建配方](https://github.com/NekoWs/FrameCapture/releases/download/v0.9.33/FrameCapture-video-sources-1.tar.gz)与二进制一同提供；构建入口位于 `scripts/video-components/`。
+FFmpeg 为按格式下载的可选组件，精简构建采用 GPLv3，包含对应的许可证和来源说明。[完整对应源码与构建配方](https://github.com/NekoWs/NekoCapture/releases/download/v0.9.33/NekoCapture-video-sources-1.tar.gz)与二进制一同提供；构建入口位于 `scripts/video-components/`。

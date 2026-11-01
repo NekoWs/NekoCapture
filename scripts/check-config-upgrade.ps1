@@ -3,12 +3,12 @@ $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 $isolated = Join-Path $root ('test-out/config-upgrade/' + [Guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Force -Path $isolated | Out-Null
-$savedTemp = $env:TEMP; $savedTmp = $env:TMP; $savedSettings = $env:FC_SETTINGS_DIR
+$savedTemp = $env:TEMP; $savedTmp = $env:TMP; $savedSettings = $env:NC_SETTINGS_DIR
 function Chk([string]$name, [bool]$condition) { if (-not $condition) { throw "配置契约失败: $name" }; Write-Host "PASS $name" }
 try {
-    $env:TEMP = $isolated; $env:TMP = $isolated; $env:FC_SETTINGS_DIR = $isolated
+    $env:TEMP = $isolated; $env:TMP = $isolated; $env:NC_SETTINGS_DIR = $isolated
     $exe = (Resolve-Path -LiteralPath $Upgrader).Path
-    $version = [int]([regex]::Match([IO.File]::ReadAllText((Join-Path $root 'src/FrameCapture/Core/AppSettings.cs')), 'CurrentConfigVersion = (\d+)').Groups[1].Value)
+    $version = [int]([regex]::Match([IO.File]::ReadAllText((Join-Path $root 'src/NekoCapture/Core/AppSettings.cs')), 'CurrentConfigVersion = (\d+)').Groups[1].Value)
     $legacy = Join-Path $isolated 'legacy.json'
     [IO.File]::WriteAllText($legacy, '{"Fps":47,"AutoCheckUpdates":false,"Colors":{"dark.CardBg":"#112233"}}')
     $before = [IO.File]::ReadAllText($legacy)
@@ -24,6 +24,6 @@ try {
     $futureBefore = [IO.File]::ReadAllText($future)
     & $exe $first $future *> (Join-Path $isolated 'rejected.log')
     Chk 'future-format-rejected-without-partial-migration' ($LASTEXITCODE -ne 0 -and [IO.File]::ReadAllText($first) -eq $before -and [IO.File]::ReadAllText($future) -eq $futureBefore)
-} finally { $env:TEMP = $savedTemp; $env:TMP = $savedTmp; $env:FC_SETTINGS_DIR = $savedSettings }
+} finally { $env:TEMP = $savedTemp; $env:TMP = $savedTmp; $env:NC_SETTINGS_DIR = $savedSettings }
 
 $global:LASTEXITCODE = 0

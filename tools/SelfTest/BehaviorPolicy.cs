@@ -1,5 +1,5 @@
 using System.Text.Json;
-using FrameCapture.Core;
+using NekoCapture.Core;
 
 static partial class SelfTest
 {

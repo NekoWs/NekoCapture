@@ -24,7 +24,7 @@ class Prog
         var br = tb.PointToScreen(new Point(tb.ActualWidth, tb.ActualHeight));
         int cx = (int)((tl.X + br.X) / 2), cy = (int)((tl.Y + br.Y) / 2);
         Console.WriteLine($"tb screen {tl.X},{tl.Y}..{br.X},{br.Y} point {cx},{cy}");
-        foreach (var t in FrameCapture.Native.WindowEnum.ListTopmostCandidates(IntPtr.Zero).Take(6))
+        foreach (var t in NekoCapture.Native.WindowEnum.ListTopmostCandidates(IntPtr.Zero).Take(6))
             Console.WriteLine($"cand {t.Hwnd} bounds={t.Bounds}");
 
         IntPtr hw = new System.Windows.Interop.WindowInteropHelper(win).Handle;
@@ -45,7 +45,7 @@ class Prog
             }
             child = w.GetNextSibling(child); n++;
         }
-        var hit = FrameCapture.Core.ElementSnap.At(cx, cy, IntPtr.Zero);
+        var hit = NekoCapture.Core.ElementSnap.At(cx, cy, IntPtr.Zero);
         Console.WriteLine($"ElementSnap.At -> {(hit == null ? "null" : hit.Rect.ToString())}");
         win.Close();
     }

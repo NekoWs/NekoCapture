@@ -5,10 +5,10 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Documents;
 using System.Windows.Media;
-using FrameCapture.Capture;
-using FrameCapture.Core;
-using FrameCapture.Overlays;
-using FrameCapture.Services;
+using NekoCapture.Capture;
+using NekoCapture.Core;
+using NekoCapture.Overlays;
+using NekoCapture.Services;
 using GM = GestureCore.ModifierKeys;
 
 static partial class SelfTest

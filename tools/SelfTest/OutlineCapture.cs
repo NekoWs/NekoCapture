@@ -5,9 +5,9 @@ using System.Windows.Controls;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
-using FrameCapture.Capture;
-using FrameCapture.Core;
-using FrameCapture.Overlays;
+using NekoCapture.Capture;
+using NekoCapture.Core;
+using NekoCapture.Overlays;
 
 static partial class SelfTest
 {
@@ -32,7 +32,7 @@ static partial class SelfTest
                         GetWindowDisplayAffinity(hwnd, out uint affinity) && affinity == (self ? 0u : 0x11u));
                     outline.SetRegion(new RectI(-4000, -4000, 64, 48));
                     Chk($"outline-placement-does-not-show-window-{self}",
-                        !outline.IsVisible && !FrameCapture.Native.Win32.IsWindowVisible(hwnd));
+                        !outline.IsVisible && !NekoCapture.Native.Win32.IsWindowVisible(hwnd));
                     outline.Flash();
                     var border = (Border)typeof(RegionOutlineWindow).GetField("_border", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(outline)!;
                     var dpi = VisualTreeHelper.GetDpi(outline);

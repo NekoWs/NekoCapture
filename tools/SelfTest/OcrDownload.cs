@@ -5,9 +5,9 @@ using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
-using FrameCapture.Core;
-using FrameCapture.Overlays;
-using FrameCapture.Services;
+using NekoCapture.Core;
+using NekoCapture.Overlays;
+using NekoCapture.Services;
 
 static partial class SelfTest
 {
@@ -16,7 +16,7 @@ static partial class SelfTest
         ComponentDownloadChecks();
         const BindingFlags statics = BindingFlags.Static | BindingFlags.NonPublic;
         const BindingFlags instance = BindingFlags.Instance | BindingFlags.NonPublic;
-        var type = typeof(OcrService).Assembly.GetType("FrameCapture.Services.OcrModelComponent")!;
+        var type = typeof(OcrService).Assembly.GetType("NekoCapture.Services.OcrModelComponent")!;
         var session = type.GetProperty("Small", statics)!.GetValue(null)!;
         var medium = type.GetProperty("Medium", statics)!.GetValue(null)!;
         T Field<T>(string name) => (T)type.GetProperty(name, instance)!.GetValue(session)!;

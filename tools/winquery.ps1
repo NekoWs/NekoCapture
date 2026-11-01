@@ -11,7 +11,7 @@ public class WQ{
   var sb2=new StringBuilder();
   EnumWindows((h,l)=>{
    var sb=new StringBuilder(512); GetWindowTextW(h,sb,512); var t=sb.ToString();
-   if(t.Contains("Region")||t.Contains("FrameCapture")){
+   if(t.Contains("Region")||t.Contains("NekoCapture")){
     var ex=(GetWindowLongW(h,-20) & 0x80000)!=0;
     sb2.AppendLine((IsWindowVisible(h)?"vis":"hid")+(ex?" top ":" non ")+"| "+t);
    }

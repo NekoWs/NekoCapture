@@ -1,0 +1,62 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <WindowsSdkPackageVersion>10.0.19041.57</WindowsSdkPackageVersion>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <Platforms>x64</Platforms>
+    <PlatformTarget>x64</PlatformTarget>
+    <AssemblyName>NekoCapture</AssemblyName>
+    <RootNamespace>NekoCapture</RootNamespace>
+    <Version>0.9.36</Version>
+    <!-- 装了 .NET 9/10 Desktop Runtime 的机器直接就能跑，不必再补一个 8.x。
+         默认 Minor 只在同大版本内向前滚动，会把「已有更新运行时」的机器判成缺运行时。 -->
+    <RollForward>Major</RollForward>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- exe 自身带图标：任务栏、资源管理器、任务管理器和「应用和功能」都取这里，
+         与安装包/快捷方式共用 assets 下同一份多尺寸 .ico（scripts/make-icon.py 生成） -->
+    <ApplicationIcon>..\..\assets\NekoCapture.ico</ApplicationIcon>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <!-- 进程 DPI 感知由 app.manifest 的 PerMonitorV2 决定，捕获坐标换算依赖它；托盘虽用 WinForms
+         但不经源生成器启动路径，WFAC010 建议的 ApplicationConfiguration 在这里没有对应物 -->
+    <NoWarn>$(NoWarn);WFAC010</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Resource Include="..\..\assets\NekoCapture-256.png" Link="Assets\NekoCapture.png" />
+    <!-- 使用说明随包发布，改 README.txt 即改交付物 -->
+    <EmbeddedResource Include="..\..\assets\update-public.pem" LogicalName="NekoCapture.update-public.pem" />
+    <None Include="..\..\LICENSE" Link="LICENSE.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\README.txt" Link="README.txt" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- WinRT（C#/WinRT）投影由 TargetFramework 的 Windows SDK 版本给出：SDK 会把投影程序集
+         登记进 deps.json，运行时才认得 Microsoft.Windows.SDK.NET。
+         用 <Reference>+HintPath 直接钉 NuGet 缓存里那份 dll 只会把文件拷到输出目录，
+         deps.json 里没有它——Assembly.Load 按名字取不到，WGC 整条路静默失效。 -->
+    <!-- 可复用「自定义手势/键位」引擎（netstandard2.0 零 UI 依赖，见 src/GestureCore） -->
+    <ProjectReference Include="..\GestureCore\GestureCore.csproj" />
+    <ProjectReference Include="..\OcrWorker\OcrWorker.csproj" ReferenceOutputAssembly="false" SkipGetTargetFrameworkProperties="true" AdditionalProperties="Platform=x64" />
+    <Content Include="..\..\assets\licenses\ocr\*.txt" Link="third-party\ocr\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <Target Name="CopyOcrWorker" AfterTargets="Build">
+    <ItemGroup>
+      <OcrWorkerFiles Include="..\OcrWorker\bin\$(Configuration)\net10.0\$(RuntimeIdentifier)\**\*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(OcrWorkerFiles)" DestinationFiles="@(OcrWorkerFiles->'$(OutDir)OcrWorker\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
+  </Target>
+
+  <ItemGroup>
+    <!-- WPF/WinForms 同名类型多：去掉全局隐式 using，各文件显式导入 -->
+    <Using Remove="System.Windows.Forms" />
+    <Using Remove="System.Drawing" />
+  </ItemGroup>
+
+</Project>

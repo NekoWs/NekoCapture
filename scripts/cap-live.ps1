@@ -16,12 +16,12 @@ New-Item -ItemType Directory -Force -Path $scratch | Out-Null
 New-Item -ItemType Directory -Force -Path $out | Out-Null
 Remove-Item (Join-Path $out '*.png') -Force -ErrorAction SilentlyContinue
 
-$exe = Join-Path $root 'src\FrameCapture\bin\x64\Debug\net8.0-windows10.0.19041.0\FrameCapture.exe'
+$exe = Join-Path $root 'src\NekoCapture\bin\x64\Debug\net8.0-windows10.0.19041.0\NekoCapture.exe'
 if (-not (Test-Path $exe)) { throw "找不到 $exe" }
 $cap = Join-Path $root 'tools\UICap\bin\Release\net8.0-windows\UICap.exe'
 if (-not (Test-Path $cap)) { $cap = Join-Path $root 'tools\UICap\bin\Debug\net8.0-windows\UICap.exe' }
 
-$user = Join-Path $env:APPDATA 'FrameCapture\settings.json'
+$user = Join-Path $env:APPDATA 'NekoCapture\settings.json'
 $scratchFile = Join-Path $scratch 'settings.json'
 if (Test-Path $user) { Copy-Item $user $scratchFile -Force }
 $s = Get-Content $scratchFile -Raw | ConvertFrom-Json
@@ -63,27 +63,27 @@ function Get-Luma([string]$Path, [int]$x0, [int]$y0, [int]$x1, [int]$y1) {
     } finally { $bmp.Dispose() }
 }
 
-Get-Process FrameCapture -ErrorAction SilentlyContinue | Stop-Process -Force
+Get-Process NekoCapture -ErrorAction SilentlyContinue | Stop-Process -Force
 Start-Sleep -Milliseconds 350
-$env:FC_SETTINGS_DIR = $scratch
-$env:FC_THEME = 'dark'
-$env:FC_SETTINGS_PAGE = 'palette'
+$env:NC_SETTINGS_DIR = $scratch
+$env:NC_THEME = 'dark'
+$env:NC_SETTINGS_PAGE = 'palette'
 $p = Start-Process $exe -ArgumentList '--settings' -PassThru
 try {
     $found = $false
     for ($i = 0; $i -lt 60; $i++) {
         Start-Sleep -Milliseconds 250
-        & $cap win 'FrameCapture Settings' (Join-Path $out 'wait.png') 2>$null | Out-Null
+        & $cap win 'NekoCapture Settings' (Join-Path $out 'wait.png') 2>$null | Out-Null
         if ($LASTEXITCODE -eq 0) { $found = $true; break }
     }
     if (-not $found) { throw '没等到设置窗' }
     Start-Sleep -Milliseconds 900
-    [void][LiveWin]::Raise('FrameCapture Settings')
+    [void][LiveWin]::Raise('NekoCapture Settings')
     Start-Sleep -Milliseconds 250
-    $h0 = [LiveWin]::H('FrameCapture Settings')
+    $h0 = [LiveWin]::H('NekoCapture Settings')
 
     $before = Join-Path $out 'before.png'
-    & $cap region 'FrameCapture Settings' $before | Out-Null
+    & $cap region 'NekoCapture Settings' $before | Out-Null
     $l0 = Get-Luma $before 400 620 1080 900      # 令牌那一节的行区
 
     # 外部写一枚自定义色：进程按 watcher 热重载（500ms 防抖），界面应当当场跟上
@@ -93,9 +93,9 @@ try {
     $s2 | ConvertTo-Json -Depth 40 | Set-Content $scratchFile -Encoding utf8
     Start-Sleep -Milliseconds 1500
 
-    $h1 = [LiveWin]::H('FrameCapture Settings')
+    $h1 = [LiveWin]::H('NekoCapture Settings')
     $after = Join-Path $out 'after.png'
-    & $cap region 'FrameCapture Settings' $after | Out-Null
+    & $cap region 'NekoCapture Settings' $after | Out-Null
     $l1 = Get-Luma $after 400 620 1080 900
 
     Write-Host ("句柄 {0} → {1}（同 = 没有重建窗口）" -f $h0, $h1)
@@ -106,4 +106,4 @@ finally {
     Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
     Start-Sleep -Milliseconds 300
 }
-Get-Process FrameCapture -ErrorAction SilentlyContinue | Stop-Process -Force
+Get-Process NekoCapture -ErrorAction SilentlyContinue | Stop-Process -Force

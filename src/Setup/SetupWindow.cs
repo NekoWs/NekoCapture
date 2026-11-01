@@ -8,9 +8,9 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
-using FrameCapture.Core;
+using NekoCapture.Core;
 
-namespace FrameCapture.Setup;
+namespace NekoCapture.Setup;
 
 /// <summary>
 /// 引导器唯一窗口。深浅色、圆角、动效全部来自主程序那套源文件，没有第二份样式定义。
@@ -95,7 +95,7 @@ internal sealed class SetupWindow : Window
         var bar = new Grid { Background = _mica ? Brushes.Transparent : new SolidColorBrush(Theme.ChromeBg) };
         bar.Children.Add(new TextBlock
         {
-            Text = "FrameCapture " + VersionText(),
+            Text = "NekoCapture " + VersionText(),
             FontSize = 12,
             Margin = new Thickness(16, 0, 0, 0),
             VerticalAlignment = VerticalAlignment.Center,

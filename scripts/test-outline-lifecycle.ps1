@@ -5,16 +5,16 @@
 #  2) 编辑器开着再按捕获热键（RefocusEditor 路径），轮廓不得被隐藏
 #     （旧版 BeginCapture 第一行无条件 HideOutline，守卫在其后）。
 # 取证 = 桌面截图在"矩形边框带"上的差分（scripts/lib-band-diff.py，忽略矩形内部）+ trace 增量断言。
-# 机制开关：FC_TEST_OUTLINE_IN_CAPTURE=1 让轮廓窗可被截到（用户环境永不置位）；
-#           FC_TEST_NO_FG=1 不抢前台。
+# 机制开关：NC_TEST_OUTLINE_IN_CAPTURE=1 让轮廓窗可被截到（用户环境永不置位）；
+#           NC_TEST_NO_FG=1 不抢前台。
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 . (Join-Path $PSScriptRoot "lib-hotkey.ps1")
-$exe   = Join-Path $root "src/FrameCapture/bin/x64/Debug/net8.0-windows10.0.19041.0/FrameCapture.exe"
+$exe   = Join-Path $root "src/NekoCapture/bin/x64/Debug/net8.0-windows10.0.19041.0/NekoCapture.exe"
 $shot  = Join-Path $root "tools/Shot/bin/x64/Debug/net8.0-windows/Shot.exe"
 $uicap = Join-Path $root "tools/UICap/bin/Release/net8.0-windows/UICap.exe"
 $bandPy = Join-Path $PSScriptRoot "lib-band-diff.py"
-$trace = Join-Path $root "src/fc-trace.log"
+$trace = Join-Path $root "src/nc-trace.log"
 $outDir = Join-Path $root "test-out/outline-lifecycle"
 New-Item -ItemType Directory -Force -Path $outDir | Out-Null
 
@@ -41,7 +41,7 @@ $cfgBackup = Join-Path $outDir "settings-backup.json"
 $capHk = Get-FcCaptureHotkey
 $fail = @()
 try {
-    Get-Process FrameCapture -EA SilentlyContinue | Stop-Process -Force
+    Get-Process NekoCapture -EA SilentlyContinue | Stop-Process -Force
     Start-Sleep 0.5
     & $uicap desk (Join-Path $outDir "static-a.png") | Out-Null
     Start-Sleep 0.5
@@ -64,7 +64,7 @@ try {
     $s = SetProp $s 'RegionW' $RW; $s = SetProp $s 'RegionH' $RH
     $s | ConvertTo-Json -Depth 12 | Set-Content $cfg -Encoding UTF8
 
-    $env:FC_TEST_NO_FG = "1"; $env:FC_TEST_OUTLINE_IN_CAPTURE = "1"
+    $env:NC_TEST_NO_FG = "1"; $env:NC_TEST_OUTLINE_IN_CAPTURE = "1"
     $p = Start-Process $exe -PassThru
     Start-Sleep 2.0
     $markRun = TraceLen
@@ -80,7 +80,7 @@ try {
     $shotJob.WaitForExit()
     Start-Sleep 2.2   # 编辑器开
 
-    $ed = & $shot rect "FrameCapture Editor" 2>$null
+    $ed = & $shot rect "NekoCapture Editor" 2>$null
     if ($ed -match "not-found") {
         Write-Host "SKIP: 编辑器未出现——游戏/反外挂可能屏蔽注入式按键，关闭游戏后重跑"; exit 0
     }
@@ -102,15 +102,15 @@ try {
     if ($inc -match "outline: hide") { $fail += "RefocusEditor 路径仍触发了 HideOutline（trace 增量含 'outline: hide'）" }
     if ($inc -notmatch "BeginCapture state=Editing") { $fail += "trace 增量未见 'BeginCapture state=Editing'（第二键未打到编辑器态）" }
     if ((TraceTail $markRun) -match 'hook slow') { $fail += 'slow hook callback (trace has hook slow)' }
-    $ed2 = & $shot rect "FrameCapture Editor" 2>$null
+    $ed2 = & $shot rect "NekoCapture Editor" 2>$null
     if ($ed2 -match "not-found") { $fail += "RefocusEditor 后编辑器不应消失" }
 
     # 收尾：Esc 关编辑器
     Invoke-FcEditorKey $exe 27
     Start-Sleep 0.6
 } finally {
-    Get-Process FrameCapture -EA SilentlyContinue | Stop-Process -Force
-    Remove-Item Env:\FC_TEST_NO_FG, Env:\FC_TEST_OUTLINE_IN_CAPTURE -EA SilentlyContinue
+    Get-Process NekoCapture -EA SilentlyContinue | Stop-Process -Force
+    Remove-Item Env:\NC_TEST_NO_FG, Env:\NC_TEST_OUTLINE_IN_CAPTURE -EA SilentlyContinue
     if (Test-Path $cfgBackup) { Copy-Item $cfgBackup $cfg -Force }
 }
 

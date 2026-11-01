@@ -17,13 +17,13 @@ New-Item -ItemType Directory -Force -Path $scratch | Out-Null
 New-Item -ItemType Directory -Force -Path $out | Out-Null
 
 $exeFlavor = if ($FromRelease) { 'x64\Release\net8.0-windows10.0.19041.0\win-x64' } else { 'x64\Debug\net8.0-windows10.0.19041.0' }
-$exe = Join-Path $root "src\FrameCapture\bin\$exeFlavor\FrameCapture.exe"
+$exe = Join-Path $root "src\NekoCapture\bin\$exeFlavor\NekoCapture.exe"
 if (-not (Test-Path $exe)) { throw "找不到 $exe" }
 $cap = Join-Path $root 'tools\UICap\bin\Release\net8.0-windows\UICap.exe'
 if (-not (Test-Path $cap)) { $cap = Join-Path $root 'tools\UICap\bin\Debug\net8.0-windows\UICap.exe' }
 
 # 起点用用户那份设置（键位/强调色真实），但整份搬进 scratch，绝不写回用户目录
-$user = Join-Path $env:APPDATA 'FrameCapture\settings.json'
+$user = Join-Path $env:APPDATA 'NekoCapture\settings.json'
 if (Test-Path $user) { Copy-Item $user (Join-Path $scratch 'settings.json') -Force }
 if ($Lang) {
     # 英文版面取证：只改 scratch 那份的语言，用户设置不动
@@ -52,25 +52,25 @@ public static class RaiseWin {
 }
 
 foreach ($th in $Themes) {
-    Get-Process FrameCapture -ErrorAction SilentlyContinue | Stop-Process -Force
+    Get-Process NekoCapture -ErrorAction SilentlyContinue | Stop-Process -Force
     Start-Sleep -Milliseconds 350
-    $env:FC_SETTINGS_DIR = $scratch
-    $env:FC_THEME = $th
-    $env:FC_SETTINGS_PAGE = $Page
+    $env:NC_SETTINGS_DIR = $scratch
+    $env:NC_THEME = $th
+    $env:NC_SETTINGS_PAGE = $Page
     $p = Start-Process $exe -ArgumentList '--settings' -PassThru
     try {
         $found = $false
         for ($i = 0; $i -lt 60; $i++) {
             Start-Sleep -Milliseconds 250
-            $w = & $cap win 'FrameCapture Settings' (Join-Path $out "probe-$th.png") 2>$null
+            $w = & $cap win 'NekoCapture Settings' (Join-Path $out "probe-$th.png") 2>$null
             if ($LASTEXITCODE -eq 0) { $found = $true; break }
         }
         if (-not $found) { throw "没等到设置窗（主题 $th）" }
         Start-Sleep -Milliseconds 900   # 等入场淡入与逐项错位落位
-        [void][RaiseWin]::Go('FrameCapture Settings')
+        [void][RaiseWin]::Go('NekoCapture Settings')
         Start-Sleep -Milliseconds 250
         $file = Join-Path $out "settings-$Page-$th.png"
-        & $cap region 'FrameCapture Settings' $file
+        & $cap region 'NekoCapture Settings' $file
         if ($LASTEXITCODE -ne 0) { throw "取证失败（主题 $th）" }
         Write-Host "OK $file"
     }
@@ -79,4 +79,4 @@ foreach ($th in $Themes) {
         Start-Sleep -Milliseconds 300
     }
 }
-Get-Process FrameCapture -ErrorAction SilentlyContinue | Stop-Process -Force
+Get-Process NekoCapture -ErrorAction SilentlyContinue | Stop-Process -Force

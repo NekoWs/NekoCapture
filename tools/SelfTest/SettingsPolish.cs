@@ -2,10 +2,10 @@ using System.Collections.Generic;
 using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
-using FrameCapture.Capture;
-using FrameCapture.Core;
-using FrameCapture.Overlays;
-using FrameCapture.Services;
+using NekoCapture.Capture;
+using NekoCapture.Core;
+using NekoCapture.Overlays;
+using NekoCapture.Services;
 
 static partial class SelfTest
 {
@@ -47,14 +47,14 @@ static partial class SelfTest
         var updateProperty = typeof(AppHost).GetProperty("Updates", flags)!;
         object? previousUpdate = updateProperty.GetValue(AppHost.Current);
         using var controller = new CaptureController(settings);
-        var updateType = typeof(SettingsWindow).Assembly.GetType("FrameCapture.Updates.UpdateService")!;
+        var updateType = typeof(SettingsWindow).Assembly.GetType("NekoCapture.Updates.UpdateService")!;
         var update = (IDisposable)Activator.CreateInstance(updateType, flags, null, new object[] { settings, controller }, null)!;
         updateProperty.SetValue(AppHost.Current, update);
         try
         {
             if (bodies.Remove("updates", out var old)) ((Grid)Field("_settingsHost")!).Children.Remove(old);
             Go("updates"); PumpMs(settle);
-            var stageType = typeof(SettingsWindow).Assembly.GetType("FrameCapture.Updates.UpdateStage")!;
+            var stageType = typeof(SettingsWindow).Assembly.GetType("NekoCapture.Updates.UpdateStage")!;
             void Publish(string stage) => updateType.GetMethod("Publish", flags)!.Invoke(update, new[] { Enum.Parse(stageType, stage) });
             Publish("Current"); PumpMs(settle);
             var panel = bodies["updates"];

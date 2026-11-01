@@ -15,7 +15,7 @@ param(
 )
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
-$exe = Join-Path $root "src/FrameCapture/bin/x64/Debug/net8.0-windows10.0.19041.0/FrameCapture.exe"
+$exe = Join-Path $root "src/NekoCapture/bin/x64/Debug/net8.0-windows10.0.19041.0/NekoCapture.exe"
 $uicap = Join-Path $root "tools/UICap/bin/Debug/net8.0-windows/UICap.exe"
 $shot = Join-Path $root "tools/Shot/bin/Debug/net8.0-windows/Shot.exe"
 foreach ($p in @($exe, $uicap, $shot)) { if (-not (Test-Path $p)) { throw "缺产物：$p（先构建）" } }
@@ -25,7 +25,7 @@ New-Item -ItemType Directory -Force -Path $out | Out-Null
 $scratch = Join-Path $root "test-out/picker-state-settings"
 if (Test-Path $scratch) { Remove-Item $scratch -Recurse -Force }
 New-Item -ItemType Directory -Force -Path $scratch | Out-Null
-$userCfg = Join-Path $env:APPDATA 'FrameCapture\settings.json'
+$userCfg = Join-Path $env:APPDATA 'NekoCapture\settings.json'
 if (Test-Path $userCfg) { Copy-Item $userCfg (Join-Path $scratch 'settings.json') -Force }
 # 取证期间一律不提权：RunAsAdmin 开着会让每次启动都弹 UAC
 $cfg = Join-Path $scratch 'settings.json'
@@ -34,19 +34,19 @@ if (Test-Path $cfg) {
     $s0 | Add-Member -NotePropertyName RunAsAdmin -NotePropertyValue $false -Force
     $s0 | ConvertTo-Json -Depth 40 | Set-Content $cfg -Encoding utf8
 }
-$env:FC_SETTINGS_DIR = $scratch
-$env:FC_LANG = $Lang
-$env:FC_THEME = $Theme
-$env:FC_TOAST_NOEXCLUDE = "1"
+$env:NC_SETTINGS_DIR = $scratch
+$env:NC_LANG = $Lang
+$env:NC_THEME = $Theme
+$env:NC_TOAST_NOEXCLUDE = "1"
 
-Get-Process FrameCapture -EA SilentlyContinue | Stop-Process -Force
+Get-Process NekoCapture -EA SilentlyContinue | Stop-Process -Force
 Start-Sleep -Milliseconds 700
 Start-Process $exe -WindowStyle Hidden
 Start-Sleep -Seconds 3
 Start-Process $exe -ArgumentList "--picker"
 Start-Sleep -Seconds 2
 
-$pick = "FrameCapture Region"
+$pick = "NekoCapture Region"
 $rect = & $shot rect $pick 2>&1 | Out-String
 if ($rect -match 'not-found') { throw "选区层没起来：$($rect.Trim())" }
 Write-Host "选区层矩形：$($rect.Trim())"
@@ -69,8 +69,8 @@ Start-Sleep -Milliseconds 400
 # 收场：选区窗是非激活窗，Esc/Enter/C/F/Tab 全部由 HotkeyManager 全局钩子代收，
 # PostMessage 的 Esc 到不了它（合成键也到不了），它也没有右键取消。拖框没投 up，
 # 所以不会真的截下这块区域；直接停进程最干净——别让全屏遮罩留在屏幕上。
-Get-Process FrameCapture -EA SilentlyContinue | Stop-Process -Force
+Get-Process NekoCapture -EA SilentlyContinue | Stop-Process -Force
 Start-Sleep -Milliseconds 600
 
-Remove-Item Env:\FC_LANG, Env:\FC_THEME, Env:\FC_TOAST_NOEXCLUDE, Env:\FC_SETTINGS_DIR -EA SilentlyContinue
+Remove-Item Env:\NC_LANG, Env:\NC_THEME, Env:\NC_TOAST_NOEXCLUDE, Env:\NC_SETTINGS_DIR -EA SilentlyContinue
 Write-Host "D5-CAP 完成（$Lang / $Theme）→ $out"

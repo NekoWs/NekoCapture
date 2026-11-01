@@ -2,7 +2,7 @@ using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Interop;
 
-namespace FrameCapture.Setup;
+namespace NekoCapture.Setup;
 
 /// <summary>
 /// 文件夹选择框。走 shell 的现代选择对话框（<c>IFileOpenDialog</c> + <c>FOS_PICKFOLDERS</c>），

@@ -2,7 +2,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
-using FrameCapture.Core;
+using NekoCapture.Core;
 
 static partial class SelfTest
 {

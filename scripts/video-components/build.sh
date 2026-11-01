@@ -57,21 +57,21 @@ for format in ${FORMATS:-mp4 webm}; do
     cp config_components.h "/work/package-$format/licenses/ffmpeg-components.h"
     if test "$format" = mp4; then cp /work/src/x264/COPYING "/work/package-$format/licenses/x264.txt";
     else cp /work/src/libvpx/LICENSE /work/src/libvpx/PATENTS "/work/package-$format/licenses/"; fi
-    printf 'FFmpeg 29e619e767cde9045a75c29bc9a8278ae7b3a98b\nGPL-3.0-or-later\nCorresponding source and build recipe: FrameCapture-video-sources-1.tar.gz alongside this archive.\nhttps://github.com/NekoWs/FrameCapture/releases/download/v0.9.33/FrameCapture-video-sources-1.tar.gz\n' > "/work/package-$format/SOURCE.txt"
+    printf 'FFmpeg 29e619e767cde9045a75c29bc9a8278ae7b3a98b\nGPL-3.0-or-later\nCorresponding source and build recipe: NekoCapture-video-sources-1.tar.gz alongside this archive.\nhttps://github.com/NekoWs/NekoCapture/releases/download/v0.9.33/NekoCapture-video-sources-1.tar.gz\n' > "/work/package-$format/SOURCE.txt"
 done
 cd /work
 for format in mp4 webm; do
     cp /usr/share/doc/mingw-w64-common/copyright "package-$format/licenses/MinGW-w64.txt"
     cp /usr/share/doc/gcc-mingw-w64-x86-64-posix-runtime/copyright "package-$format/licenses/GCC-runtime.txt"
 done
-tar --sort=name --mtime="@$SOURCE_DATE_EPOCH" --owner=0 --group=0 --numeric-owner -czf out/FrameCapture-video-sources-1.tar.gz \
+tar --sort=name --mtime="@$SOURCE_DATE_EPOCH" --owner=0 --group=0 --numeric-owner -czf out/NekoCapture-video-sources-1.tar.gz \
     -C /work sources -C /recipe build.sh Dockerfile
 python3 - <<'PY'
 import pathlib,zipfile,hashlib,json
 out=pathlib.Path('/work/out')
 for kind in ['mp4','webm']:
     root=pathlib.Path('/work/package-'+kind)
-    name='FrameCapture-video-'+kind+'-1-win-x64'
+    name='NekoCapture-video-'+kind+'-1-win-x64'
     archive=out/(name+'.zip')
     with zipfile.ZipFile(archive,'w',compression=zipfile.ZIP_DEFLATED,compresslevel=9) as z:
         for file in sorted(root.rglob('*')):

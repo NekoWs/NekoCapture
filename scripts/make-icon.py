@@ -1,4 +1,4 @@
-"""生成 FrameCapture 应用图标：取景框四角 + 中心快门点，强调色直接落在透明底上。
+"""生成 NekoCapture 应用图标：取景框四角 + 中心快门点，强调色直接落在透明底上。
 
 强调色 #4CC2FF 与 Theme.Accent 同值；深浅两种桌面都靠描边本身立形。
 多尺寸 .ico 一次生成，exe / 开始菜单 / 「应用和功能」共用同一份源图。
@@ -66,10 +66,10 @@ if __name__ == "__main__":
     os.makedirs("assets", exist_ok=True)
     os.makedirs("site/assets", exist_ok=True)
     icon = draw_icon()
-    icon.save("assets/FrameCapture.ico",
+    icon.save("assets/NekoCapture.ico",
               format="ICO", sizes=[(s, s) for s in SIZES], bitmap_sizes=[(s, s) for s in SIZES])
-    icon.save("assets/FrameCapture-256.png")
-    icon.save("site/assets/FrameCapture-256.png")
+    icon.save("assets/NekoCapture-256.png")
+    icon.save("site/assets/NekoCapture-256.png")
     preview(icon, "test-out/icon-preview.png")
-    print("written assets/FrameCapture.ico + 两份 PNG  sizes=" + ",".join(map(str, SIZES)))
+    print("written assets/NekoCapture.ico + 两份 PNG  sizes=" + ",".join(map(str, SIZES)))
     print("ratios " + " ".join(f"{k}={v:.4f}" for k, v in RATIOS.items()))

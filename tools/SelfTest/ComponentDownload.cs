@@ -3,7 +3,7 @@ using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Security.Cryptography;
-using FrameCapture.Encoding;
+using NekoCapture.Encoding;
 
 static partial class SelfTest
 {

@@ -2,9 +2,9 @@ using System.Drawing;
 using System.IO;
 using System.Reflection;
 using System.Runtime.InteropServices;
-using FrameCapture.Core;
-using FrameCapture.Runtime;
-using FrameCapture.Services;
+using NekoCapture.Core;
+using NekoCapture.Runtime;
+using NekoCapture.Services;
 
 static partial class SelfTest
 {
@@ -15,11 +15,11 @@ static partial class SelfTest
 
     private static void TrayIconChecks()
     {
-        string? priorDirectory = Environment.GetEnvironmentVariable("FC_SETTINGS_DIR");
+        string? priorDirectory = Environment.GetEnvironmentVariable("NC_SETTINGS_DIR");
         string priorAccent = Theme.Accent.ToString(); bool dark = Theme.IsDark;
         string directory = Path.Combine(SettingsService.Dir, "tray-icons");
         Directory.CreateDirectory(directory);
-        Environment.SetEnvironmentVariable("FC_SETTINGS_DIR", directory);
+        Environment.SetEnvironmentVariable("NC_SETTINGS_DIR", directory);
         var make = typeof(TrayService).GetMethod("MakeIcon", BindingFlags.Static | BindingFlags.NonPublic)!;
         Icon Make(bool paused) => (Icon)make.Invoke(null, new object[] { paused })!;
         bool Blue(Color pixel) => Math.Abs(pixel.R - 76) <= 3 && Math.Abs(pixel.G - 194) <= 3 && pixel.B >= 252;
@@ -78,12 +78,12 @@ static partial class SelfTest
             using (var stale = Make(true))
                 foreach (string name in new[] { "resident-tray.ico", "resident-tray-paused.ico" })
                     using (var output = File.Create(Path.Combine(other, name))) stale.Save(output);
-            Environment.SetEnvironmentVariable("FC_SETTINGS_DIR", other); TrayService.SaveResidentIcons();
+            Environment.SetEnvironmentVariable("NC_SETTINGS_DIR", other); TrayService.SaveResidentIcons();
             using (var icon = new Icon(Path.Combine(other, "resident-tray.ico")))
             using (var bitmap = icon.ToBitmap())
                 Chk("tray-icon-cache-is-scoped-to-settings-directory", Blue(bitmap.GetPixel(bitmap.Width / 2, bitmap.Height / 2)));
 
-            Environment.SetEnvironmentVariable("FC_SETTINGS_DIR", directory);
+            Environment.SetEnvironmentVariable("NC_SETTINGS_DIR", directory);
             var settings = new SettingsService();
             var write = typeof(ResidentBridge).GetMethod("WriteManifest", BindingFlags.Static | BindingFlags.NonPublic)!;
             write.Invoke(null, new object[] { settings }); var first = ResidentProtocol.ReadManifest()!;
@@ -95,7 +95,7 @@ static partial class SelfTest
         catch (Exception error) { Chk("tray-icon-exception", false, error.ToString()); }
         finally
         {
-            Environment.SetEnvironmentVariable("FC_SETTINGS_DIR", priorDirectory);
+            Environment.SetEnvironmentVariable("NC_SETTINGS_DIR", priorDirectory);
             Theme.Apply(dark ? "dark" : "light", priorAccent);
         }
     }

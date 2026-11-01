@@ -3,18 +3,18 @@
 #   · 前提事实：静态桌面上 WGC 实采约 11fps（trace 实证 5s≈50 帧），60 帧编码仅 ~0.4s——短按既打不爆
 #     帧预算（2.5GB）也来不及落在编码窗口里。故：脚本先把 settings.MaxDurationMs 临时抬到 26000
 #     （备份→改→跑→还原，外部改文件由 AppHost 的 FileSystemWatcher 热加载，且实例读取配置后启动，无竞态），
-#     并以测试专用开关 FC_TEST_RING_BUDGET_MB=2500 钉住帧预算（FrameRing，与 FC_TEST_NO_FG 同约定）；
+#     并以测试专用开关 NC_TEST_RING_BUDGET_MB=2500 钉住帧预算（FrameRing，与 NC_TEST_NO_FG 同约定）；
 #     长按 25s ≈ 270 帧 ×12.6MB ≈ 3.4GB > 预算 → 真丢帧；烘焙+编码 ≈ 3s → 进度/取消窗口稳定可拍。
 #   · 丢帧警告「⚠内存预算已丢 N 帧」：trace 出现 "ring dropped"。
 #   · 取消恢复：Enter 后 0.35s 投 Esc（编码中 Esc=取消编码而非关窗）→ trace "encode cancelled"，
 #     断言编辑器仍存活 + HUD 恢复（截图为证）。
 #   · 导出进度「导出 GIF… d/n」：取消后再按 Enter 重新起编码（同一素材），立刻 burstregion 连拍播放条，
 #     像素差分（逐帧 vs 首帧）挑出 HUD 变化最大的代表帧。
-#   · 导出失败：正常路径不可达（编码器对合法输入几乎不抛错）→ FC_TEST_ENCODE_FAIL=1 令编码任务必然抛错
-#     （EditorWindow.StartEncode，同 FC_* 约定），trace "encode failed:"。
+#   · 导出失败：正常路径不可达（编码器对合法输入几乎不抛错）→ NC_TEST_ENCODE_FAIL=1 令编码任务必然抛错
+#     （EditorWindow.StartEncode，同 NC_* 约定），trace "encode failed:"。
 # trace 断言一律按"本阶段起始字节偏移"读增量，避免同一次运行内跨实例串档。
 # 用法: pwsh -NoProfile -File scripts/cap-hud-states.ps1 -Theme dark|light
-# 前置：杀掉运行中的 FrameCapture，按 FC_THEME=<Theme> FC_TEST_NO_FG=1 重启测试实例；结束时实例回收、设置还原。
+# 前置：杀掉运行中的 NekoCapture，按 NC_THEME=<Theme> NC_TEST_NO_FG=1 重启测试实例；结束时实例回收、设置还原。
 param(
     [Parameter(Mandatory)][ValidateSet('dark', 'light')][string]$Theme,
     [string]$OutDir
@@ -22,10 +22,10 @@ param(
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 . (Join-Path $PSScriptRoot "lib-hotkey.ps1")
-$exe   = Join-Path $root "src/FrameCapture/bin/x64/Debug/net8.0-windows10.0.19041.0/FrameCapture.exe"
+$exe   = Join-Path $root "src/NekoCapture/bin/x64/Debug/net8.0-windows10.0.19041.0/NekoCapture.exe"
 $shot  = Join-Path $root "tools/Shot/bin/x64/Debug/net8.0-windows/Shot.exe"
 $uicap = Join-Path $root "tools/UICap/bin/Release/net8.0-windows/UICap.exe"
-$trace = Join-Path $root "src/fc-trace.log"
+$trace = Join-Path $root "src/nc-trace.log"
 if (-not $OutDir) { $OutDir = Join-Path $root "test-out/uiaudit" }
 New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
 $capHk = Get-FcCaptureHotkey
@@ -118,28 +118,28 @@ public class Pick
 
 function Start-Fc {
     param([bool]$EncodeFail = $false, [string]$RingBudgetMb = "3000")
-    Get-Process FrameCapture -EA SilentlyContinue | Stop-Process -Force
+    Get-Process NekoCapture -EA SilentlyContinue | Stop-Process -Force
     Start-Sleep 0.6
-    $env:FC_THEME = $Theme
-    $env:FC_TEST_NO_FG = "1"
-    if ($RingBudgetMb) { $env:FC_TEST_RING_BUDGET_MB = $RingBudgetMb } else { Remove-Item Env:\FC_TEST_RING_BUDGET_MB -EA SilentlyContinue }
-    if ($EncodeFail) { $env:FC_TEST_ENCODE_FAIL = "1" } else { Remove-Item Env:\FC_TEST_ENCODE_FAIL -EA SilentlyContinue }
+    $env:NC_THEME = $Theme
+    $env:NC_TEST_NO_FG = "1"
+    if ($RingBudgetMb) { $env:NC_TEST_RING_BUDGET_MB = $RingBudgetMb } else { Remove-Item Env:\NC_TEST_RING_BUDGET_MB -EA SilentlyContinue }
+    if ($EncodeFail) { $env:NC_TEST_ENCODE_FAIL = "1" } else { Remove-Item Env:\NC_TEST_ENCODE_FAIL -EA SilentlyContinue }
     $p = Start-Process $exe -PassThru
-    Remove-Item Env:\FC_THEME -EA SilentlyContinue
-    Remove-Item Env:\FC_TEST_NO_FG -EA SilentlyContinue
-    Remove-Item Env:\FC_TEST_RING_BUDGET_MB -EA SilentlyContinue
+    Remove-Item Env:\NC_THEME -EA SilentlyContinue
+    Remove-Item Env:\NC_TEST_NO_FG -EA SilentlyContinue
+    Remove-Item Env:\NC_TEST_RING_BUDGET_MB -EA SilentlyContinue
     Start-Sleep 1.6
     return $p
 }
 function Stop-Fc { param($p) if ($null -ne $p -and !$p.HasExited) { $p.Kill() }; Start-Sleep 0.4 }
 function Test-EditorAlive {
-    $ed = & $shot rect "FrameCapture Editor" 2>$null
+    $ed = & $shot rect "NekoCapture Editor" 2>$null
     return ($ed -notmatch "not-found")
 }
 function Capture-Bars {
     param([string]$OutPng)
     # 控制面板位于编辑器窗口内，截图包含面板
-    $r = & $uicap region "FrameCapture Editor" $OutPng 2>&1
+    $r = & $uicap region "NekoCapture Editor" $OutPng 2>&1
     if ($r -notmatch "saved") { Write-Host "  bars capture FAIL: $r"; return $false }
     Write-Host "  saved $(Split-Path $OutPng -Leaf) ($($r -replace '^saved\s+\S+\s+', ''))"
     return $true
@@ -183,9 +183,9 @@ try {
     }
 
     # 取消恢复：Enter 后立刻（背靠背）投 Esc——同队列消息保证 Esc 在 Enter 的同步副作用之后被处理
-    & $shot keyw "FrameCapture Editor" 13 2>$null | Out-Null
+    & $shot keyw "NekoCapture Editor" 13 2>$null | Out-Null
     $mC = Get-TraceLen
-    & $shot keyw "FrameCapture Editor" 27 2>$null | Out-Null
+    & $shot keyw "NekoCapture Editor" 27 2>$null | Out-Null
     Start-Sleep 1.2
     if ((Get-TraceSince $mC) -match "encode cancelled") {
         if (-not (Test-EditorAlive)) { Write-Host "  [cancel] 取消后编辑器应仍存活"; $fail++ }
@@ -201,8 +201,8 @@ try {
     New-Item -ItemType Directory -Force -Path $burstDir | Out-Null
     $mP = Get-TraceLen
     # Start-Process -ArgumentList 不自动为含空格标题加引号，必须自带
-    $bp = Start-Process $uicap -ArgumentList @('burstregion', '"FrameCapture Editor"', '8', '150', ('"' + (Join-Path $burstDir 'p') + '"')) -NoNewWindow -PassThru
-    & $shot keyw "FrameCapture Editor" 13 2>$null | Out-Null
+    $bp = Start-Process $uicap -ArgumentList @('burstregion', '"NekoCapture Editor"', '8', '150', ('"' + (Join-Path $burstDir 'p') + '"')) -NoNewWindow -PassThru
+    & $shot keyw "NekoCapture Editor" 13 2>$null | Out-Null
     $bp.WaitForExit()
     $frames = @(Get-ChildItem $burstDir -Filter 'p.*.png' | Sort-Object Name)
     if ($frames.Count -ge 2) {
@@ -223,13 +223,13 @@ try {
     if ((Get-TraceSince $mP) -notmatch "gif encoded bytes=") { Write-Host "  [progress] trace 无 'gif encoded bytes='——编码未正常收尾"; $fail++ }
     Stop-Fc $p
 
-    # ---------- 实例 B：强制失败态（FC_TEST_ENCODE_FAIL=1，短按即可） ----------
+    # ---------- 实例 B：强制失败态（NC_TEST_ENCODE_FAIL=1，短按即可） ----------
     $p = Start-Fc -EncodeFail $true -RingBudgetMb $null
     Invoke-FcHotkey $shot $capHk 700 | Out-Null
     Start-Sleep 1.4
     if (Test-EditorAlive) {
         $mB = Get-TraceLen
-        & $shot keyw "FrameCapture Editor" 13 2>$null | Out-Null   # Enter → 编码任务必然抛错
+        & $shot keyw "NekoCapture Editor" 13 2>$null | Out-Null   # Enter → 编码任务必然抛错
         Start-Sleep 1.0
         if ((Get-TraceSince $mB) -match "encode failed:") {
             if (-not (Capture-Bars (Join-Path $OutDir "d9-hud-fail-$Theme.png"))) { $fail++ }
@@ -237,7 +237,7 @@ try {
         } else {
             Write-Host "  [fail] trace 无 'encode failed:'——失败开关未生效"; $fail++
         }
-        & $shot keyw "FrameCapture Editor" 27 2>$null | Out-Null   # 非编码期 Esc = 关闭
+        & $shot keyw "NekoCapture Editor" 27 2>$null | Out-Null   # 非编码期 Esc = 关闭
         Start-Sleep 0.6
         if (Test-EditorAlive) { Write-Host "  [fail] Esc 后编辑器应已关闭"; $fail++ }
     } else { Write-Host "  [fail] 编辑器未出现"; $fail++ }

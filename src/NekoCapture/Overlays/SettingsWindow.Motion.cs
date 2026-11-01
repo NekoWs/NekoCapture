@@ -1,0 +1,274 @@
+using System;
+using System.Collections.Generic;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Media;
+using System.Windows.Media.Animation;
+using NekoCapture.Core;
+
+namespace NekoCapture.Overlays;
+
+// 本 partial 职责：设置窗里「展开 / 收起」这一类高度动画——容器长出高度，内容逐行滑入；
+// 以及成排条目那种「静止透明、悬停才浮底色」的填充。
+/// <summary>
+/// 设置窗的高度动画：容器从 0 长到实测高度，里面的行按固定间隔自上而下逐个滑入，收起时反向收回。
+/// 时长与错位间隔全部取 <see cref="Fluent.Motion"/> 令牌。
+/// 同一个容器可以被反复开关：每次开关领一个代数，只有最新那一代的动画回调能落地，
+/// 半路折返时从当前高度接着走，而不是先跳回起点再走一遍。
+/// </summary>
+public sealed partial class SettingsWindow : Window
+{
+    /// <summary>悬停时浮出底色的填充：<paramref name="rest"/> 是静止底色，<paramref name="hover"/> 是
+    /// 指针进来时的底色，指针离开回到静止底色。默认静止全透明——给没有底色的元素用；
+    /// 已经在层次台阶上的行传进 <c>() => Theme.RowBg</c> 与 <c>() => Theme.RowHover</c>，
+    /// 悬停就在台阶上再走一档，而不是把底色抹掉再混一层白。
+    /// 底色交的是取色函数而不是构造期抄下的那一份：配色随时在改，抄死的值在改色后就停在切换前的档位上。</summary>
+    /// <param name="bd">目标框；<c>Background</c> 被换成本方法持有的可动画画刷。</param>
+    /// <param name="rest">静止底色的取色函数，省略即全透明。</param>
+    /// <param name="hover">悬停底色的取色函数，省略即 <see cref="Theme.Hover"/>。</param>
+    static void HoverFill(Border bd, Func<Color>? rest = null, Func<Color>? hover = null)
+    {
+        Color Rest() => rest != null ? rest() : Colors.Transparent;
+        Color Hover() => hover != null ? hover() : Theme.Hover;
+        var bg = new SolidColorBrush(Rest());
+        bd.Background = bg;
+        bool inside = false;
+        void RefreshTheme()
+        {
+            bg.BeginAnimation(SolidColorBrush.ColorProperty, null);
+            bg.Color = inside ? Hover() : Rest();
+        }
+        bd.Loaded += (_, _) => { Theme.Changed -= RefreshTheme; Theme.Changed += RefreshTheme; RefreshTheme(); };
+        bd.Unloaded += (_, _) => Theme.Changed -= RefreshTheme;
+        void TintBg(Color to, int ms) => bg.BeginAnimation(SolidColorBrush.ColorProperty,
+            new ColorAnimation(to, new Duration(TimeSpan.FromMilliseconds(ms))));
+        bd.MouseEnter += (_, _) => { inside = true; TintBg(Hover(), Fluent.Motion.HoverMs); };
+        bd.MouseLeave += (_, _) => { inside = false; TintBg(Rest(), Fluent.Motion.ExitMs); };
+        bd.PreviewMouseLeftButtonDown += (_, _) =>
+        {
+            // 按压色 = 底上再压一层：暗色更亮一档、亮色更暗一档，方向跟着主题走。
+            // 静止全透明的幽灵按钮没有底色可压，就拿悬停色当底，否则按下去什么变化都没有。
+            var under = Rest();
+            TintBg(Fluent.Mix(under.A > 0 ? under : Hover(), Theme.Press), Fluent.Motion.PressMs);
+        };
+        // 抬起回到指针所在的这一档：还在框里就停悬停色，已经滑出去才回静止色。
+        bd.MouseLeftButtonUp += (_, _) => TintBg(inside ? Hover() : Rest(), Fluent.Motion.QuickMs);
+    }
+
+    /// <summary>逐行错位的间隔：取分层错位间隔的三分之一，四五行走完仍落在一次入场时长里。</summary>
+    /// <value>约 37 毫秒。</value>
+    static TimeSpan RowStep => TimeSpan.FromMilliseconds(Fluent.Motion.StaggerMs / 3);
+
+    /// <summary>一个折叠容器的高度记账：开关代数与自然高度。代数让过期的动画回调失效，
+    /// 自然高度让同一个容器重复展开时不必每次重新排版量一遍——量一次是整棵正文重新走一遍测量。</summary>
+    sealed class Fold
+    {
+        /// <summary>第几次开关；动画回调对不上代数就说明它属于更早的那一次。</summary>
+        public int Gen;
+
+        /// <summary>完全展开时的高度；0 = 还没量过，下次展开先量一遍。</summary>
+        public double Natural;
+    }
+
+    /// <summary>折叠容器的记账表，键是容器本身。</summary>
+    readonly Dictionary<FrameworkElement, Fold> _folds = new();
+
+    /// <summary>取（必要时新建）某个容器的记账。</summary>
+    /// <param name="el">折叠容器。</param>
+    /// <returns>这一份记账。</returns>
+    Fold FoldOf(FrameworkElement el)
+    {
+        if (!_folds.TryGetValue(el, out var f)) _folds[el] = f = new Fold();
+        return f;
+    }
+
+    /// <summary>容器此刻实际占着的高度，动画中途调用也拿到当前值。
+    /// 限高没设过是 NaN、展开到位是 +∞，两者都表示「没有约束」，此时读实测高度。</summary>
+    /// <param name="el">折叠容器。</param>
+    /// <returns>当前高度。</returns>
+    static double CurrentHeight(FrameworkElement el)
+    {
+        double mh = el.MaxHeight;
+        if (double.IsNaN(mh) || double.IsPositiveInfinity(mh)) return el.ActualHeight;
+        return Math.Min(el.ActualHeight, mh);
+    }
+
+    /// <summary>展开正文容器：容器先长到自然高度，长到一半时内容自上而下逐条淡入。
+    /// 两件事同时开跑会糊成一次整体位移——盒子先就位，内容才有落点。
+    /// 从半路折返时以当前高度为起点接着长，内容也从当前的透明度接上，不重演一遍入场。</summary>
+    /// <param name="host">正文容器；动画期间靠 MaxHeight 限高，走完后放开。</param>
+    /// <param name="rows">容器里的行面板，按可见顺序逐行错位。</param>
+    /// <param name="width">容器可用的排版宽度，用来量出目标高度。</param>
+    void PlayExpand(Border host, Panel rows, double width)
+    {
+        var fold = FoldOf(host);
+        int gen = ++fold.Gen;
+        ClearFade(host);
+        host.BeginAnimation(MaxHeightProperty, null);
+        bool opening = host.Visibility != Visibility.Visible || CurrentHeight(host) < 1;
+        double from = opening ? 0 : CurrentHeight(host);
+        if (fold.Natural <= 0)
+        {
+            host.MaxHeight = double.PositiveInfinity;
+            host.Visibility = Visibility.Visible;
+            host.Measure(new Size(Math.Max(240, width), double.PositiveInfinity));
+            fold.Natural = Math.Ceiling(host.DesiredSize.Height);
+        }
+        host.MaxHeight = from;
+        host.Visibility = Visibility.Visible;
+        var grow = new DoubleAnimation(from, fold.Natural, new Duration(TimeSpan.FromMilliseconds(Fluent.Motion.EnterMs)))
+        {
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut },
+        };
+        // 走完必须放开限高：正文里就地铺开候选动作时高度会长，留着 MaxHeight 会把新铺的芯片裁掉。
+        // 放开之后再记一次实测高度，正文里加过步骤也记准了。
+        grow.Completed += (_, _) =>
+        {
+            if (fold.Gen != gen) return;
+            host.BeginAnimation(MaxHeightProperty, null);
+            host.MaxHeight = double.PositiveInfinity;
+            fold.Natural = host.ActualHeight;
+        };
+        host.BeginAnimation(MaxHeightProperty, grow);
+        // 半拍后开始落位：等容器完全长够再逐条淡入，整段会拖成明显的两拍
+        int i = 0;
+        foreach (UIElement c in rows.Children)
+        {
+            if (c.Visibility != Visibility.Visible) continue;
+            SlideIn(c, TimeSpan.FromMilliseconds(Fluent.Motion.EnterMs * 0.5 + i * RowStep.TotalMilliseconds), opening);
+            i++;
+        }
+    }
+
+    /// <summary>收起一个容器或一行：内容先逐条淡出，容器再收口，走完后置为不可见。
+    /// 从半路折返时以当前高度为起点收，不会先弹回满高再收一次。</summary>
+    /// <param name="el">要收起的元素。</param>
+    /// <param name="delayMs">起跳前的等待毫秒数：同一批里后收的行等在这一行前面。</param>
+    void PlayCollapse(FrameworkElement el, double delayMs = 0)
+    {
+        var fold = FoldOf(el);
+        int gen = ++fold.Gen;
+        el.BeginAnimation(MaxHeightProperty, null);
+        if (el.Visibility != Visibility.Visible)
+        {
+            el.MaxHeight = 0;
+            return;
+        }
+        // 完全张开时的高度就是自然高度：正文在展开期间加过步骤（芯片多了一枚），记账在这里改准
+        double mh = el.MaxHeight;
+        if (double.IsNaN(mh) || double.IsPositiveInfinity(mh)) fold.Natural = Math.Max(fold.Natural, el.ActualHeight);
+        double from = CurrentHeight(el);
+        if (from <= 0.5) from = Math.Max(fold.Natural, 1);   // 刚展开还没排版：拿记账高度当起点，别从 0 收
+        // 收口与内容淡出同时开跑：内容先退完再收，中间多出一拍空等，看着像卡了一下
+        FadeOutRows(el);
+        var shrink = new DoubleAnimation(from, 0, new Duration(TimeSpan.FromMilliseconds(Fluent.Motion.ExitMs)))
+        {
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseInOut },
+            BeginTime = TimeSpan.FromMilliseconds(delayMs),
+        };
+        shrink.Completed += (_, _) =>
+        {
+            if (fold.Gen != gen) return;
+            el.BeginAnimation(MaxHeightProperty, null);
+            el.MaxHeight = 0;
+            el.Visibility = Visibility.Collapsed;
+        };
+        el.MaxHeight = from;
+        el.BeginAnimation(MaxHeightProperty, shrink);
+    }
+
+    /// <summary>把容器里的可见行逐条淡出，倒着退（最后一条先走），与展开的先后成镜像。</summary>
+    /// <param name="el">容器：正文框或一行。</param>
+    /// <returns>整段淡出占用的毫秒数，收口动画据此错开；容器里没有行面板时为 0。</returns>
+    static double FadeOutRows(FrameworkElement el)
+    {
+        Panel? rows = (el as Border)?.Child as Panel ?? el as Panel;
+        if (rows == null) return 0;
+        double step = RowStep.TotalMilliseconds / 2;
+        int i = 0;
+        foreach (UIElement c in rows.Children)
+            if (c.Visibility == Visibility.Visible) i++;
+        int at = i - 1;
+        var d = new Duration(TimeSpan.FromMilliseconds(Fluent.Motion.QuickMs));
+        var ease = new CubicEase { EasingMode = EasingMode.EaseIn };
+        foreach (UIElement c in rows.Children)
+        {
+            if (c.Visibility != Visibility.Visible) continue;
+            // 倒着退：最后一条先走，与展开的先后成镜像；退的同时往下滑一点，方向与入场相反
+            var begin = TimeSpan.FromMilliseconds(at * step);
+            c.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(1, 0, d) { BeginTime = begin, EasingFunction = ease });
+            var tt = c.RenderTransform as TranslateTransform ?? new TranslateTransform();
+            c.RenderTransform = tt;
+            tt.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(0, 6, d) { BeginTime = begin, EasingFunction = ease });
+            at--;
+        }
+        return i <= 1 ? 0 : (i - 1) * step;
+    }
+
+    /// <summary>清掉淡出留下的透明度动画。收起时逐条淡出的行，再次露出时若不清，
+    /// 那条动画的终值会把这一行一直按在透明上。</summary>
+    /// <param name="el">要清干净的容器。</param>
+    static void ClearFade(FrameworkElement el)
+    {
+        el.BeginAnimation(UIElement.OpacityProperty, null);
+        Panel? rows = (el as Border)?.Child as Panel ?? el as Panel;
+        if (rows == null) return;
+        foreach (UIElement c in rows.Children) c.BeginAnimation(UIElement.OpacityProperty, null);
+    }
+
+    /// <summary>把单独一行就地长出来：高度从 0 到实测高度，随后滑入。
+    /// 与正文容器一样领一个代数：高级开关快速来回时，先一次的回调不许把限高改回去。</summary>
+    /// <param name="row">要露出的行。</param>
+    /// <param name="width">排版宽度。</param>
+    /// <param name="delayMs">起跳前的等待毫秒数：同一批里后露出的行据此排到前一行之后。</param>
+    void RevealRow(FrameworkElement row, double width, double delayMs = 0)
+    {
+        var fold = FoldOf(row);
+        int gen = ++fold.Gen;
+        ClearFade(row);
+        row.BeginAnimation(MaxHeightProperty, null);
+        row.MaxHeight = double.PositiveInfinity;
+        row.Visibility = Visibility.Visible;
+        row.Measure(new Size(Math.Max(240, width), double.PositiveInfinity));
+        double h = Math.Ceiling(row.DesiredSize.Height);
+        fold.Natural = h;
+        var grow = new DoubleAnimation(0, h, new Duration(TimeSpan.FromMilliseconds(Fluent.Motion.EnterMs)))
+        { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }, BeginTime = TimeSpan.FromMilliseconds(delayMs) };
+        grow.Completed += (_, _) =>
+        {
+            if (fold.Gen != gen) return;
+            row.BeginAnimation(MaxHeightProperty, null);
+            row.MaxHeight = double.PositiveInfinity;
+            fold.Natural = row.ActualHeight;
+        };
+        row.MaxHeight = 0;
+        row.BeginAnimation(MaxHeightProperty, grow);
+        SlideIn(row, TimeSpan.FromMilliseconds(delayMs + Fluent.Motion.EnterMs * 0.5));
+    }
+
+    /// <summary>一行滑入：从上方 8 像素落到原位并淡入。
+    /// <paramref name="fromScratch"/> 为假时从当前透明度与位移接着走到归位，用于半路折返的展开。</summary>
+    /// <param name="el">要滑入的元素。</param>
+    /// <param name="begin">入场起点，逐行错开。</param>
+    /// <param name="fromScratch">true = 从透明 8 像素高处重新入场；false = 从现值接上。</param>
+    static void SlideIn(UIElement el, TimeSpan begin, bool fromScratch = true)
+    {
+        if (el.RenderTransform is not TranslateTransform tt)
+        {
+            tt = new TranslateTransform();
+            el.RenderTransform = tt;
+        }
+        // 现值先取到手：动画攥着的属性读到的是中途值，清掉动画之后才能把它当起点写回去
+        double o = el.Opacity, y = tt.Y;
+        el.BeginAnimation(UIElement.OpacityProperty, null);
+        tt.BeginAnimation(TranslateTransform.YProperty, null);
+        if (fromScratch) { o = 0; y = -8; }
+        el.Opacity = o;
+        tt.Y = y;
+        el.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(o, 1,
+            new Duration(TimeSpan.FromMilliseconds(Fluent.Motion.QuickMs))) { BeginTime = begin });
+        tt.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(y, 0,
+            new Duration(TimeSpan.FromMilliseconds(Fluent.Motion.EnterMs)))
+        { BeginTime = begin, EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
+    }
+}

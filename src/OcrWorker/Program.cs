@@ -1,8 +1,8 @@
 using System.Text.Json;
-using FrameCapture.Core;
+using NekoCapture.Core;
 using Sdcb.SimdPaddleOCR;
 
-namespace FrameCapture.OcrWorker;
+namespace NekoCapture.OcrWorker;
 
 /// <summary>单次 CPU OCR 请求，进程退出时释放模型和推理内存。</summary>
 internal static class Program

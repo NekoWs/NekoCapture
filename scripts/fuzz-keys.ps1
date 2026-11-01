@@ -6,24 +6,24 @@ param([int]$Keys = 300)
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 . (Join-Path $PSScriptRoot "lib-hotkey.ps1")
-$exe  = Join-Path $root "src/FrameCapture/bin/x64/Debug/net8.0-windows10.0.19041.0/FrameCapture.exe"
+$exe  = Join-Path $root "src/NekoCapture/bin/x64/Debug/net8.0-windows10.0.19041.0/NekoCapture.exe"
 $shot = Join-Path $root "tools/Shot/bin/x64/Debug/net8.0-windows/Shot.exe"
 $errlog = Get-FcLogPath 'error.log'
 $capHk = 'Ctrl+Shift+G'
 
 $errSize0 = if (Test-Path $errlog) { (Get-Item $errlog).Length } else { 0 }
-Get-Process FrameCapture -EA SilentlyContinue | Stop-Process -Force
+Get-Process NekoCapture -EA SilentlyContinue | Stop-Process -Force
 Start-Sleep 0.6
 $bak = Set-FcTestGestureConfig   # 先杀后写，避免运行实例回写覆盖
 try {
-    $env:FC_TEST_NO_FG = "1"
-    Start-Process $exe | Out-Null   # 子进程继承 FC_TEST_NO_FG 与 FC_SETTINGS_DIR
+    $env:NC_TEST_NO_FG = "1"
+    Start-Process $exe | Out-Null   # 子进程继承 NC_TEST_NO_FG 与 NC_SETTINGS_DIR
     Start-Sleep 1.8
     Invoke-FcSynthetic $exe $capHk 700
     Start-Sleep 2.2
-    $ed0 = & $shot rect "FrameCapture Editor" 2>$null
+    $ed0 = & $shot rect "NekoCapture Editor" 2>$null
     if ($ed0 -match "not-found") {
-        Write-Host "FAIL: 编辑器未出现——合成键未经消息通道抵达引擎（主实例需带 FC_TEST_NO_FG=1 启动）"
+        Write-Host "FAIL: 编辑器未出现——合成键未经消息通道抵达引擎（主实例需带 NC_TEST_NO_FG=1 启动）"
         exit 1
     }
     # 编辑器常用键（VK）：Space X D L O A P C Del ←↑→↓ Home End Tab，刻意排除 Enter/Esc
@@ -32,16 +32,16 @@ try {
     $alive = $true
     for ($i = 0; $i -lt $Keys; $i++) {
         $vk = $vks[$rnd.Next($vks.Length)]
-        & $shot keyw "FrameCapture Editor" $vk 2>$null | Out-Null
-        if (-not (Get-Process FrameCapture -EA SilentlyContinue)) { $alive = $false; break }
+        & $shot keyw "NekoCapture Editor" $vk 2>$null | Out-Null
+        if (-not (Get-Process NekoCapture -EA SilentlyContinue)) { $alive = $false; break }
         if (($i % 40) -eq 39) { Start-Sleep -Milliseconds 60 }
     }
     Start-Sleep 0.5
     # 乱按一通之后还得能走正常流程：下一帧，然后 Esc 收尾
-    & $shot keyw "FrameCapture Editor" 39 2>$null | Out-Null
+    & $shot keyw "NekoCapture Editor" 39 2>$null | Out-Null
     Start-Sleep -Milliseconds 250
-    $rect = & $shot rect "FrameCapture Editor"
-    & $shot keyw "FrameCapture Editor" 27 2>$null | Out-Null
+    $rect = & $shot rect "NekoCapture Editor"
+    & $shot keyw "NekoCapture Editor" 27 2>$null | Out-Null
     Start-Sleep 0.4
     $errSize1 = if (Test-Path $errlog) { (Get-Item $errlog).Length } else { 0 }
     $ok = $alive -and ($rect -match "rect") -and ($errSize1 -eq $errSize0)
@@ -50,7 +50,7 @@ try {
     Write-Host "FUZZ FAIL"; exit 1
 }
 finally {
-    Get-Process FrameCapture -EA SilentlyContinue | Stop-Process -Force
-    Remove-Item Env:\FC_TEST_NO_FG -EA SilentlyContinue
+    Get-Process NekoCapture -EA SilentlyContinue | Stop-Process -Force
+    Remove-Item Env:\NC_TEST_NO_FG -EA SilentlyContinue
     if ($bak) { Set-Content (Get-FcSettingsPath) -Value $bak -Encoding UTF8 }
 }

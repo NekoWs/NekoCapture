@@ -1,5 +1,5 @@
 # 回归脚本共用：把设置里的热键串（"Ctrl+Shift+G"/"F6"/"Alt+F4"…）映射成 tools/Shot 的 hkm 注入。
-# 语法与 src/FrameCapture/Core/HotkeySpec.cs 的 Parse 对齐；解析失败一律 throw（宁可炸，不注错键）。
+# 语法与 src/NekoCapture/Core/HotkeySpec.cs 的 Parse 对齐；解析失败一律 throw（宁可炸，不注错键）。
 # 不改变 Shot 的命令约定：只用 hkm <vk> <ctrl> <shift> <alt> <win> <holdMs>。
 
 function Get-FcKeyVk {
@@ -53,13 +53,13 @@ function Get-FcHotkeyParts {
     return @{ vk = $vk; ctrl = $ctrl; shift = $shift; alt = $alt; win = $win }
 }
 
-# 设置目录：优先 FC_SETTINGS_DIR（护栏给 e2e 起的临时目录），没设才回 %APPDATA% 那份。
+# 设置目录：优先 NC_SETTINGS_DIR（护栏给 e2e 起的临时目录），没设才回 %APPDATA% 那份。
 # 测试会改设置（主题、热键、手势都写在 settings.json），崩溃断言读的 error.log 也在这个目录里——
 # 两边都跟着它走，用户自己那份从头到尾不该被碰一下。
 # 手工单跑某个脚本时不设它，行为与过去一致：对着自己这台机器的设置来。
 function Get-FcDir {
-    if ($env:FC_SETTINGS_DIR) { return $env:FC_SETTINGS_DIR }
-    return Join-Path $env:APPDATA 'FrameCapture'
+    if ($env:NC_SETTINGS_DIR) { return $env:NC_SETTINGS_DIR }
+    return Join-Path $env:APPDATA 'NekoCapture'
 }
 function Get-FcSettingsPath { Join-Path (Get-FcDir) 'settings.json' }
 function Get-FcLogPath([string]$name) { Join-Path (Get-FcDir) $name }
@@ -200,21 +200,21 @@ function Wait-FcQuiet {
 # 合成一次组合键的按下与抬起：二次实例把参数转发给主实例的消息专用窗（HWND_MESSAGE），
 # 合成输入使用独立手势状态，复用配置与动作执行器，不产生 OS 级输入。
 # 用户正用电脑时也能跑完整链路，按键不会落到前台的其他软件上。
-# 前提：主实例以 FC_TEST_NO_FG=1 启动（发行进程不接受合成键）。
+# 前提：主实例以 NC_TEST_NO_FG=1 启动（发行进程不接受合成键）。
 function Invoke-FcSynthetic {
     param([string]$Exe, [string]$Spec, [int]$HoldMs)
     Start-Process $Exe -ArgumentList @('--synthetic', $Spec, "$HoldMs") -WindowStyle Hidden | Out-Null
 }
 
-# 以测试形态拉起主实例：FC_TEST_NO_FG=1 让它不抢前台，并允许受理 --synthetic 合成键。
+# 以测试形态拉起主实例：NC_TEST_NO_FG=1 让它不抢前台，并允许受理 --synthetic 合成键。
 function Start-FcTestApp {
     param([string]$Exe)
-    $env:FC_TEST_NO_FG = "1"
+    $env:NC_TEST_NO_FG = "1"
     return Start-Process $Exe -PassThru
 }
 # 把一次裸键直投编辑器分派表。编辑器窗未激活时 WPF 不会把 PostMessage 的键路由进来，
 # 而激活窗口本身就是一次抢前台——键盘焦点与前台在 Win32 里绑死。这条通道经主实例的
-# 消息专用窗进入，落进与真实按键同一个分派入口。前提同样是主实例带 FC_TEST_NO_FG=1。
+# 消息专用窗进入，落进与真实按键同一个分派入口。前提同样是主实例带 NC_TEST_NO_FG=1。
 function Invoke-FcEditorKey {
     param([string]$Exe, [int]$Vk)
     Start-Process $Exe -ArgumentList @('--editorkey', "$Vk") -WindowStyle Hidden | Out-Null

@@ -3,10 +3,10 @@ using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Threading;
-using FrameCapture.Capture;
-using FrameCapture.Core;
-using FrameCapture.Overlays;
-using FrameCapture.Services;
+using NekoCapture.Capture;
+using NekoCapture.Core;
+using NekoCapture.Overlays;
+using NekoCapture.Services;
 
 static partial class SelfTest
 {
@@ -122,17 +122,17 @@ static partial class SelfTest
                     && Directory.GetFiles(service.Current.AutoSavePath, "*.png").Length == count + 1);
                 edit.Branches["failed"].Add(graph.Add(GestureActions.ClearRegion).Id);
                 service.Mutate(s => { s.RegionMonitorId = mon.DeviceName;s.RegionX = bounds.X;s.RegionY = bounds.Y;s.RegionW = bounds.W;s.RegionH = bounds.H; });
-                string? forced = Environment.GetEnvironmentVariable("FC_TEST_ENCODE_FAIL");
+                string? forced = Environment.GetEnvironmentVariable("NC_TEST_ENCODE_FAIL");
                 try
                 {
-                    Environment.SetEnvironmentVariable("FC_TEST_ENCODE_FAIL", "1");
+                    Environment.SetEnvironmentVariable("NC_TEST_ENCODE_FAIL", "1");
                     c.BeginBehavior(graph.Snapshot(), editing.Id, "failed-edit");
                     window = (EditorWindow)controllerType.GetField("_editor", flags)!.GetValue(c)!;
                     typeof(EditorWindow).GetMethod("Commit", flags)!.Invoke(window, null);
                     Chk("T273-graph-editor-failure-branch", Wait(() => Running(c).IsCompleted) && !Running(c).Result
                         && c.StoredRegion() == null && c.State == CaptureController.Phase.Idle);
                 }
-                finally { Environment.SetEnvironmentVariable("FC_TEST_ENCODE_FAIL", forced); }
+                finally { Environment.SetEnvironmentVariable("NC_TEST_ENCODE_FAIL", forced); }
                 service.Mutate(s => { s.RegionMonitorId = mon.DeviceName;s.RegionX = bounds.X;s.RegionY = bounds.Y;s.RegionW = bounds.W;s.RegionH = bounds.H; });
                 var multiple = new BehaviorFlow { Steps = new() { graph.Add(GestureActions.GrabStill).Id,
                     graph.Add(GestureActions.RecordStart).Id, graph.Add(GestureActions.SavePng).Id } };
@@ -198,13 +198,13 @@ static partial class SelfTest
         var previousHotkeys = hotkeyProperty.GetValue(host);
         var previousController = controllerProperty.GetValue(host);
         var previousConfig = service.Current.Gestures;
-        string? previousTestFlag = Environment.GetEnvironmentVariable("FC_TEST_NO_FG");
+        string? previousTestFlag = Environment.GetEnvironmentVariable("NC_TEST_NO_FG");
         using var hotkeys = new HotkeyManager();
         using var controller = new CaptureController(service);
         using var gestures = new GestureService(host);
         try
         {
-            Environment.SetEnvironmentVariable("FC_TEST_NO_FG", "1");
+            Environment.SetEnvironmentVariable("NC_TEST_NO_FG", "1");
             hotkeyProperty.SetValue(host, hotkeys);controllerProperty.SetValue(host, controller);
             var graph = new BehaviorGraph();
             var tap = new BehaviorFlow { Steps = new() { graph.Add(GestureActions.ClearRegion).Id } };
@@ -230,7 +230,7 @@ static partial class SelfTest
         {
             service.Current.Gestures = previousConfig;
             hotkeyProperty.SetValue(host, previousHotkeys);controllerProperty.SetValue(host, previousController);
-            Environment.SetEnvironmentVariable("FC_TEST_NO_FG", previousTestFlag);
+            Environment.SetEnvironmentVariable("NC_TEST_NO_FG", previousTestFlag);
         }
     }
 }

@@ -43,7 +43,7 @@ jobs:
       - name: Validate release version
         id: version
         run: |
-          [xml]$project = Get-Content src/FrameCapture/FrameCapture.csproj -Raw
+          [xml]$project = Get-Content src/NekoCapture/NekoCapture.csproj -Raw
           $version = [string]$project.Project.PropertyGroup.Version | Where-Object { $_ }
           if ($version -notmatch '^[0-9]+[.][0-9]+[.][0-9]+$') { throw '产品版本必须是 major.minor.patch' }
           $tag = "v$version"
@@ -63,10 +63,10 @@ jobs:
           if ([string]::IsNullOrWhiteSpace($env:UPDATE_SIGNING_KEY)) { throw '请先配置 UPDATE_SIGNING_KEY secret' }
       - name: Build
         run: |
-          dotnet build FrameCapture.slnx -c Debug -v q --nologo
+          dotnet build NekoCapture.slnx -c Debug -v q --nologo
           if ($LASTEXITCODE -ne 0) { throw '构建失败' }
       - name: Check isolated configuration upgrade
-        run: ./scripts/check-config-upgrade.ps1 -Upgrader src/ConfigUpgrade/bin/x64/Debug/net8.0-windows10.0.19041.0/FrameCapture.ConfigUpgrade.exe
+        run: ./scripts/check-config-upgrade.ps1 -Upgrader src/ConfigUpgrade/bin/x64/Debug/net8.0-windows10.0.19041.0/NekoCapture.ConfigUpgrade.exe
       - name: Check isolated installer backup
         run: |
           & tools/SetupProbe/bin/Debug/net48/SetupProbe.exe
@@ -85,7 +85,7 @@ jobs:
           RELEASE_COMMIT: ${{ steps.version.outputs.commit }}
         run: |
           $version = $env:RELEASE_TAG.TrimStart('v')
-          $names = @("FrameCapture-Setup-$version-x64.exe", 'update.json', 'SHA256SUMS.txt')
+          $names = @("NekoCapture-Setup-$version-x64.exe", 'update.json', 'SHA256SUMS.txt')
           $files = @($names | ForEach-Object {
             $path = Join-Path 'release/github' $_
             if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { throw "缺少发布附件: $_" }

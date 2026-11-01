@@ -56,7 +56,7 @@ public enum FallbackPolicy
 }
 
 /// <summary>一个键组合：修饰键集合 + 可选主键。<see cref="Key"/> 是不透明整型键标识（宿主自定义，
-/// FrameCapture 用 Win32 虚拟键码；别的宿主可用任意编码）。Key==0 表示纯修饰键组合（如仅 Ctrl+Alt）。</summary>
+/// NekoCapture 用 Win32 虚拟键码；别的宿主可用任意编码）。Key==0 表示纯修饰键组合（如仅 Ctrl+Alt）。</summary>
 public sealed class KeyChord : IEquatable<KeyChord>
 {
     public ModifierKeys Mods { get; set; }

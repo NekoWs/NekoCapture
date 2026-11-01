@@ -12,21 +12,21 @@ while ((Get-Date) -lt $deadline) {
     $fg = & $shot fg 2>$null
     if ($fg -notmatch "UnityWndClass") {
         # 游戏不在前台：再验证注入是否可达（反外挂可能仍在驻留）
-        $exe = Join-Path $root "src/FrameCapture/bin/x64/Debug/net8.0-windows10.0.19041.0/FrameCapture.exe"
-        $userRunning = Get-Process FrameCapture -EA SilentlyContinue
+        $exe = Join-Path $root "src/NekoCapture/bin/x64/Debug/net8.0-windows10.0.19041.0/NekoCapture.exe"
+        $userRunning = Get-Process NekoCapture -EA SilentlyContinue
         $p = $null
         if (-not $userRunning) {
             $p = Start-Process $exe -PassThru; Start-Sleep 1.3
         } else {
             # 用户实例在运行：物理/注入事件都会进它的 trace；仅探测，绝不杀用户实例
             Invoke-FcHotkey $shot $capHk 200 | Out-Null; Start-Sleep 0.8
-            $tr = (Get-Content (Join-Path $root "src/fc-trace.log") -Tail 8) -join "`n"
+            $tr = (Get-Content (Join-Path $root "src/nc-trace.log") -Tail 8) -join "`n"
             if ($tr -match "hook key=$capVk") { break }
             Start-Sleep 30
             continue
         }
         Invoke-FcHotkey $shot $capHk 200 | Out-Null; Start-Sleep 0.8
-        $tr = (Get-Content (Join-Path $root "src/fc-trace.log") -Tail 8) -join "`n"
+        $tr = (Get-Content (Join-Path $root "src/nc-trace.log") -Tail 8) -join "`n"
         if ($p.HasExited -eq $false) { Start-Sleep 0 }
         if ($tr -match "hook key=$capVk") { if (!$p.HasExited) { $p.Kill() }; break }
         if (!$p.HasExited) { $p.Kill() }

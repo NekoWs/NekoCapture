@@ -5,15 +5,15 @@
 # （靠后来补的「叠字」才查得出来）——所以档案要留人眼能回看的图，两种语言各一套。
 #
 # 机制（全在自动化边界内，绝不用 OS 级鼠标自动化）：
-#   · FC_LANG=<语言> 起进程（语言在启动时定，改设置不会让已起的实例换语言）；
-#   · FC_SETTINGS_DIR 指向 test-out/en-archive-settings，用户 %APPDATA% 那份只读不写；
-#   · FC_TOAST_NOEXCLUDE=1 让浮窗不再从捕获里排除，否则截回来是空的桌面；
+#   · NC_LANG=<语言> 起进程（语言在启动时定，改设置不会让已起的实例换语言）；
+#   · NC_SETTINGS_DIR 指向 test-out/en-archive-settings，用户 %APPDATA% 那份只读不写；
+#   · NC_TOAST_NOEXCLUDE=1 让浮窗不再从捕获里排除，否则截回来是空的桌面；
 #   · 界面全靠自家 IPC 开关叫出来（--settings / --help / --welcome / --notice / --ocr / --delay），
 #     帮助翻页用 PostMessage 投左右键到自家窗口，不碰系统输入队列；
 #   · 编辑器要读一张样图，而 --editor 带参数、不走转发，所以它单独作为首个实例起。
 #
 # 用法: pwsh -NoProfile -File scripts/cap-en-archive.ps1 [-Lang en|zh] [-Theme dark|light] [-OutDir test-out/uiaudit]
-# 前置：会杀掉运行中的 FrameCapture，跑完留一个测试态实例（要恢复用户实例：直接重开程序）。
+# 前置：会杀掉运行中的 NekoCapture，跑完留一个测试态实例（要恢复用户实例：直接重开程序）。
 param(
     [ValidateSet('en', 'zh')][string]$Lang = 'en',
     [string]$OutDir = "test-out/uiaudit",
@@ -21,7 +21,7 @@ param(
 )
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
-$exe = Join-Path $root "src/FrameCapture/bin/x64/Debug/net8.0-windows10.0.19041.0/FrameCapture.exe"
+$exe = Join-Path $root "src/NekoCapture/bin/x64/Debug/net8.0-windows10.0.19041.0/NekoCapture.exe"
 $uicap = Join-Path $root "tools/UICap/bin/Debug/net8.0-windows/UICap.exe"
 $shot = Join-Path $root "tools/Shot/bin/Debug/net8.0-windows/Shot.exe"
 foreach ($p in @($exe, $uicap, $shot)) { if (-not (Test-Path $p)) { throw "缺产物：$p（先构建）" } }
@@ -31,14 +31,14 @@ $scratch = Join-Path $root "test-out/en-archive-settings"
 if (Test-Path $scratch) { Remove-Item $scratch -Recurse -Force }
 New-Item -ItemType Directory -Force -Path $scratch | Out-Null
 # 起点是用户那份的副本：档案要拍他真实的手势键位，不是出厂默认
-$userCfg = Join-Path $env:APPDATA 'FrameCapture\settings.json'
+$userCfg = Join-Path $env:APPDATA 'NekoCapture\settings.json'
 if (Test-Path $userCfg) { Copy-Item $userCfg (Join-Path $scratch 'settings.json') -Force }
-$env:FC_SETTINGS_DIR = $scratch
-$env:FC_LANG = $Lang
-$env:FC_THEME = $Theme
-$env:FC_TOAST_NOEXCLUDE = "1"
+$env:NC_SETTINGS_DIR = $scratch
+$env:NC_LANG = $Lang
+$env:NC_THEME = $Theme
+$env:NC_TOAST_NOEXCLUDE = "1"
 
-function Stop-App { Get-Process FrameCapture -EA SilentlyContinue | Stop-Process -Force; Start-Sleep -Milliseconds 700 }
+function Stop-App { Get-Process NekoCapture -EA SilentlyContinue | Stop-Process -Force; Start-Sleep -Milliseconds 700 }
 function Start-App([string[]]$args2 = @()) {
     if ($args2.Count) { Start-Process $exe -ArgumentList $args2 -WindowStyle Hidden }
     else { Start-Process $exe -WindowStyle Hidden }
@@ -66,7 +66,7 @@ $g.Clear([System.Drawing.Color]::FromArgb(255, 246, 247, 250))
 $dark = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(255, 32, 38, 52))
 $g.FillRectangle($dark, 60, 60, 520, 220)
 $f1 = New-Object System.Drawing.Font("Segoe UI", 28, [System.Drawing.FontStyle]::Bold)
-$g.DrawString("FrameCapture — English archive", $f1, [System.Drawing.Brushes]::White, 88, 130)
+$g.DrawString("NekoCapture — English archive", $f1, [System.Drawing.Brushes]::White, 88, 130)
 $pen = New-Object System.Drawing.Pen ([System.Drawing.Color]::FromArgb(255, 76, 194, 255)), 6
 $g.DrawEllipse($pen, 700, 110, 320, 170)
 $g.DrawLine($pen, 60, 370, 1180, 370)
@@ -74,17 +74,17 @@ $f2 = New-Object System.Drawing.Font("Segoe UI", 16)
 $g.DrawString("A quiet background with a few shapes to annotate.", $f2, $dark, 60, 410)
 $g.Dispose(); $bmp.Save($sample, [System.Drawing.Imaging.ImageFormat]::Png); $bmp.Dispose()
 Start-App @("--editor", $sample)
-if (Cap-Win "FrameCapture Editor" "$Lang-editor-$Theme.png") { $got++ }
+if (Cap-Win "NekoCapture Editor" "$Lang-editor-$Theme.png") { $got++ }
 Stop-App
 
 # 2) 其余界面走 IPC，一个实例叫全部
 Start-App
 foreach ($t in @(
-    @{ flag = "--settings"; title = "FrameCapture Settings"; name = "$Lang-settings" },
-    @{ flag = "--welcome";  title = "FrameCapture Welcome";  name = "$Lang-welcome" },
-    @{ flag = "--notice";   title = "FrameCapture Notice";   name = "$Lang-notice" },
-    @{ flag = "--ocr";      title = "FrameCapture OCR";      name = "$Lang-ocr" },
-    @{ flag = "--delay";    title = "FrameCapture Countdown"; name = "$Lang-countdown" }
+    @{ flag = "--settings"; title = "NekoCapture Settings"; name = "$Lang-settings" },
+    @{ flag = "--welcome";  title = "NekoCapture Welcome";  name = "$Lang-welcome" },
+    @{ flag = "--notice";   title = "NekoCapture Notice";   name = "$Lang-notice" },
+    @{ flag = "--ocr";      title = "NekoCapture OCR";      name = "$Lang-ocr" },
+    @{ flag = "--delay";    title = "NekoCapture Countdown"; name = "$Lang-countdown" }
 )) {
     Start-Process $exe -ArgumentList $t.flag
     Start-Sleep -Seconds 2
@@ -98,16 +98,16 @@ foreach ($t in @(
 Start-Process $exe -ArgumentList "--help"
 Start-Sleep -Seconds 2
 for ($p = 1; $p -le 9; $p++) {
-    if (Cap-Win "FrameCapture Help" "$Lang-help$p-$Theme.png") { $got++ }
-    & $shot keyw "FrameCapture Help" 39 2>$null | Out-Null   # VK_RIGHT = 下一页
+    if (Cap-Win "NekoCapture Help" "$Lang-help$p-$Theme.png") { $got++ }
+    & $shot keyw "NekoCapture Help" 39 2>$null | Out-Null   # VK_RIGHT = 下一页
     Start-Sleep -Milliseconds 500
 }
-& $shot keyw "FrameCapture Help" 27 2>$null | Out-Null
+& $shot keyw "NekoCapture Help" 27 2>$null | Out-Null
 
 # 4) 托盘菜单：复用 D8 的取证脚本（PrintWindow 才拿得到分层窗内容）
 & (Join-Path $PSScriptRoot "cap-tray-menu.ps1") -Theme $Theme -OutPng (Join-Path $OutDir "$Lang-tray-menu-$Theme.png") | Out-Null
 if (Test-Path (Join-Path $OutDir "$Lang-tray-menu-$Theme.png")) { $got++; Write-Host ("  {0,-26} 见 cap-tray-menu.ps1" -f "$Lang-tray-menu-$Theme.png") }
 
-Remove-Item Env:\FC_LANG, Env:\FC_THEME, Env:\FC_TOAST_NOEXCLUDE, Env:\FC_SETTINGS_DIR -EA SilentlyContinue
+Remove-Item Env:\NC_LANG, Env:\NC_THEME, Env:\NC_TOAST_NOEXCLUDE, Env:\NC_SETTINGS_DIR -EA SilentlyContinue
 Write-Host ""
 Write-Host "ARCHIVE 共 $got 张（$Lang / $Theme）→ $OutDir"

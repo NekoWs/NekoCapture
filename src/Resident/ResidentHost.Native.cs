@@ -1,6 +1,6 @@
 using System.Runtime.InteropServices;
 
-namespace FrameCapture.Resident;
+namespace NekoCapture.Resident;
 
 /// <summary>常驻窗口、托盘和输入的 Win32 边界。</summary>
 internal sealed partial class ResidentHost
@@ -21,9 +21,9 @@ internal sealed partial class ResidentHost
     {
         void Load(string name, ref IntPtr target)
         {
-            string path = Path.Combine(FrameCapture.Runtime.ResidentProtocol.DirectoryPath, Path.GetFileName(name));
+            string path = Path.Combine(NekoCapture.Runtime.ResidentProtocol.DirectoryPath, Path.GetFileName(name));
             if (!File.Exists(path)) return;
-            IntPtr icon = FrameCapture.Runtime.TrayIconSource.LoadFile(path);
+            IntPtr icon = NekoCapture.Runtime.TrayIconSource.LoadFile(path);
             if (icon == IntPtr.Zero) return;
             if (target != IntPtr.Zero) DestroyIcon(target);
             target = icon;

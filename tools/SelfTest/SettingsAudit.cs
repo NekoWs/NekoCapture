@@ -2,10 +2,10 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Windows;
-using FrameCapture.Capture;
-using FrameCapture.Core;
-using FrameCapture.Overlays;
-using FrameCapture.Services;
+using NekoCapture.Capture;
+using NekoCapture.Core;
+using NekoCapture.Overlays;
+using NekoCapture.Services;
 
 static partial class SelfTest
 {
@@ -69,7 +69,7 @@ static partial class SelfTest
                     new object[] { dc, new RectI(1000, -500, 64, 64), cursor, 1016, -484 })!);
                 Chk("settings-gdi-cursor-reuses-hotspot", (bool)paint.Invoke(null,
                     new object[] { dc, new RectI(1000, -500, 64, 64), cursor, 1016, -484 })!);
-                FrameCapture.Native.Win32.GdiFlush();
+                NekoCapture.Native.Win32.GdiFlush();
             }
             finally { graphics.ReleaseHdc(dc); }
             int changed = 0;

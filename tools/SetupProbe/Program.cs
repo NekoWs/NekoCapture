@@ -2,7 +2,7 @@ using System;
 using System.IO;
 using System.Reflection;
 using System.Linq;
-using FrameCapture.Setup;
+using NekoCapture.Setup;
 
 /// <summary>
 /// 安装器目录搬运探针：在仓库内验证卷判定、移动与复制恢复，文件内容与源保留均需完整。
@@ -40,18 +40,18 @@ internal static partial class Program
         int fail = 0;
         // 仓库内的暂存根：与系统盘不同卷时，这里就是「装到非系统盘」的那个现场
         var root = Path.Combine(RepoRoot(), "test-out", "setup-probe", Guid.NewGuid().ToString("N"));
-        var app = Path.Combine(root, "FrameCapture");
+        var app = Path.Combine(root, "NekoCapture");
         var temp = Path.Combine(root, "copy-backup");
         try
         {
             Directory.CreateDirectory(Path.Combine(app, "runtimes"));
-            File.WriteAllText(Path.Combine(app, "FrameCapture.exe"), "exe");
+            File.WriteAllText(Path.Combine(app, "NekoCapture.exe"), "exe");
             File.WriteAllText(Path.Combine(app, "runtimes", "GestureCore.dll"), "dll");
 
             // 1) 备份：整目录挪走，备份必须与程序目录同卷——跨卷没有「移动」这回事
             var backup = (string)Call("BackupAside", app);
             bool ok1 = !Directory.Exists(app) && Directory.Exists(backup)
-                && File.Exists(Path.Combine(backup, "FrameCapture.exe"))
+                && File.Exists(Path.Combine(backup, "NekoCapture.exe"))
                 && File.Exists(Path.Combine(backup, "runtimes", "GestureCore.dll"))
                 && string.Equals(Path.GetPathRoot(backup), Path.GetPathRoot(root),
                         StringComparison.OrdinalIgnoreCase);
@@ -61,7 +61,7 @@ internal static partial class Program
             Call("RestoreBackup", backup, app);
             Report(ref fail,
                 Directory.Exists(app) && !Directory.Exists(backup)
-                && File.Exists(Path.Combine(app, "FrameCapture.exe")),
+                && File.Exists(Path.Combine(app, "NekoCapture.exe")),
                 "回滚把目录放回原位", "");
 
             // 3) 同卷判定：盘符大小写不同也算同卷
@@ -72,7 +72,7 @@ internal static partial class Program
             // 复制分支保留源目录
             Call("CopyTree", app, temp);
             Report(ref fail,
-                Directory.Exists(app) && File.Exists(Path.Combine(temp, "FrameCapture.exe"))
+                Directory.Exists(app) && File.Exists(Path.Combine(temp, "NekoCapture.exe"))
                 && File.Exists(Path.Combine(temp, "runtimes", "GestureCore.dll")),
                 "目录复制保留源与完整内容", "");
 
@@ -80,9 +80,9 @@ internal static partial class Program
             try
             {
                 Call("RestoreBackup", temp, app, false);
-                Report(ref fail, File.ReadAllText(Path.Combine(app, "FrameCapture.exe")) == "exe"
+                Report(ref fail, File.ReadAllText(Path.Combine(app, "NekoCapture.exe")) == "exe"
                     && File.ReadAllText(Path.Combine(app, "runtimes", "GestureCore.dll")) == "dll"
-                    && File.Exists(Path.Combine(temp, "FrameCapture.exe")),
+                    && File.Exists(Path.Combine(temp, "NekoCapture.exe")),
                     "复制恢复完整内容并保留备份", "");
             }
             catch (Exception ex)
@@ -96,6 +96,7 @@ internal static partial class Program
             Report(ref fail, free > 0 && none == -1, "剩余空间可查，查不到的卷按不拦",
                 "本卷 " + (free >> 20) + " MB，坏路径 " + none);
             BackupLockChecks(app, ref fail);
+            BrandingChecks(root, ref fail);
             CodecChecks(root, ref fail);
         }
         finally

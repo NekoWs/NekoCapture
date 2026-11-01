@@ -5,7 +5,7 @@ obj/
 .vs/
 
 # runtime artifacts
-fc-trace.log
+nc-trace.log
 *.log
 shot.png
 

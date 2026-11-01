@@ -6,7 +6,7 @@ param([switch]$Full, [switch]$Quick, [switch]$SkipE2e, [switch]$AllowInjection, 
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 . (Join-Path $PSScriptRoot "lib-hotkey.ps1")
-$exe    = Join-Path $root "src/FrameCapture/bin/x64/Debug/net8.0-windows10.0.19041.0/FrameCapture.exe"
+$exe    = Join-Path $root "src/NekoCapture/bin/x64/Debug/net8.0-windows10.0.19041.0/NekoCapture.exe"
 $shot   = Join-Path $root "tools/Shot/bin/x64/Debug/net8.0-windows/Shot.exe"
 $stExe  = Join-Path $root "tools/SelfTest/bin/x64/Debug/net8.0-windows10.0.19041.0/SelfTest.exe"
 $outDir = Join-Path $root "test-out"
@@ -56,7 +56,7 @@ function Wait-Async($h) {
 }
 
 $savedEnvironment = @{}
-foreach ($name in @('TEMP', 'TMP', 'FC_SETTINGS_DIR', 'FC_TEST_NO_FG')) {
+foreach ($name in @('TEMP', 'TMP', 'NC_SETTINGS_DIR', 'NC_TEST_NO_FG')) {
     $savedEnvironment[$name] = [Environment]::GetEnvironmentVariable($name)
 }
 $runtimeTemp = Join-Path $outDir 'guardrail-runtime'
@@ -65,7 +65,7 @@ $lockingInstances = @()
 try {
     $env:TEMP = $runtimeTemp
     $env:TMP = $runtimeTemp
-    $env:FC_TEST_NO_FG = '1'
+    $env:NC_TEST_NO_FG = '1'
 # 0) 静态扫描：每个扫描器自己打一行 `LINT-XXX PASS|FAIL …`，这里按同一套规则收
 $lints = @(
     @{ n = "lint:comments";      f = "lint-comments.ps1";      mark = "LINT-COMMENTS" },
@@ -86,14 +86,14 @@ foreach ($t in $lints) {
 # 1) 只杀掉从构建输出目录跑起来的实例：它们锁住 bin 下的文件，MSB3027 会让构建静默失败。
 #    用户自己那份跑在 release\ 或安装目录里，与构建产物不是同一个文件，不必动它。
 $srcRoot = Join-Path $root 'src'
-$lockingResidents = @(Get-Process FrameCapture.Resident -EA SilentlyContinue | Where-Object {
+$lockingResidents = @(Get-Process NekoCapture.Resident -EA SilentlyContinue | Where-Object {
     try { $_.Path -and $_.Path.StartsWith($root + '\', [StringComparison]::OrdinalIgnoreCase) } catch { $false }
 })
 foreach ($p in $lockingResidents) { Stop-Process -Id $p.Id -Force -EA SilentlyContinue }
-$lockingInstances = @(Get-Process FrameCapture -EA SilentlyContinue | Where-Object {
+$lockingInstances = @(Get-Process NekoCapture -EA SilentlyContinue | Where-Object {
     try { $_.Path -and $_.Path.StartsWith($srcRoot, [StringComparison]::OrdinalIgnoreCase) } catch { $false }
 })
-$hadUserInstance = (@(Get-Process FrameCapture -EA SilentlyContinue).Count - $lockingInstances.Count) -gt 0
+$hadUserInstance = (@(Get-Process NekoCapture -EA SilentlyContinue).Count - $lockingInstances.Count) -gt 0
 foreach ($p in $lockingInstances) { Stop-Process -Id $p.Id -Force -EA SilentlyContinue }
 if ($lockingInstances.Count) { Start-Sleep 0.6 }
 
@@ -107,7 +107,7 @@ $buildJobs = [ordered]@{
     "build:resident"     = Start-Async "b-resident" "dotnet" @("publish", (Join-Path $root "src/Resident"), "-c", "Release", "-r", "win-x64", "-o", (Join-Path $outDir 'resident-native'), "-v", "q", "--nologo")
 }
 # 每个构建项要求存在的产物：SelfTest 那条同时产出主程序
-$buildExe = @{ "build:app+selftest" = @($exe, $stExe); "build:Shot" = @($shot); "build:Setup" = @(); "build:resident" = @((Join-Path $outDir 'resident-native/FrameCapture.Resident.exe')) }
+$buildExe = @{ "build:app+selftest" = @($exe, $stExe); "build:Shot" = @($shot); "build:Setup" = @(); "build:resident" = @((Join-Path $outDir 'resident-native/NekoCapture.Resident.exe')) }
 $okBuild = $true
 foreach ($k in $buildJobs.Keys) {
     $r = Wait-Async $buildJobs[$k]
@@ -191,15 +191,15 @@ if (-not $uxR) { Add-Result "lint:ux-bilingual" "SKIP" "-Quick" } elseif ($uxLin
 # 5) 产物起得来：-SkipE2e 时其余动态项全不跑，主程序能不能起来这件事不能没人管。
 #    托盘应用，不弹窗、不注入任何输入。
 #
-# 验证链一律在自己的设置目录里跑：FC_SETTINGS_DIR 把 settings.json 与崩溃用的 error.log 整套搬进
+# 验证链一律在自己的设置目录里跑：NC_SETTINGS_DIR 把 settings.json 与崩溃用的 error.log 整套搬进
 # test-out/guardrail-settings，起点是用户那份的副本。用户 %APPDATA% 里那份只读不写——
 # 中途崩了、被人掐了，都不会在他机器上留下测试态（主题、热键、强调色停在测试钉的那一套）。
 $fcDir = Join-Path $PSScriptRoot '..\test-out\guardrail-settings'
-$fcUser = Join-Path $env:APPDATA 'FrameCapture\settings.json'
+$fcUser = Join-Path $env:APPDATA 'NekoCapture\settings.json'
 Remove-TestDirectory $fcDir
 New-Item -ItemType Directory -Force -Path $fcDir | Out-Null
 if (Test-Path $fcUser) { Copy-Item $fcUser (Join-Path $fcDir 'settings.json') -Force }
-$env:FC_SETTINGS_DIR = $fcDir
+$env:NC_SETTINGS_DIR = $fcDir
 
 # 冒烟要弹欢迎浮窗。默认档要静默：先在测试设置里关掉它。-Full 时照原样弹，
 # 因为那一次本来就要看「首次运行会提示」这条路径。
@@ -229,21 +229,21 @@ if (-not $Full) {
     Add-Result "probe:controller-responds" "SKIP" "默认档不跑（会开全屏选区窗，发布前用 -Full）"
 } elseif ($okBuild) {
     $t0 = [Diagnostics.Stopwatch]::StartNew()
-    $env:FC_TEST_NO_FG = "1"
+    $env:NC_TEST_NO_FG = "1"
     Start-Process $exe -WindowStyle Hidden -ArgumentList '--picker' -PassThru | Out-Null
     # 窗口可能比两秒慢：轮询到 8 秒（判据不变：选区窗必须出现）
     $pkProbe = "not-found"
     $deadline = (Get-Date).AddSeconds(8)
     while ((Get-Date) -lt $deadline) {
         Start-Sleep -Milliseconds 400
-        $pkProbe = & $shot rect "FrameCapture Region" 2>$null
+        $pkProbe = & $shot rect "NekoCapture Region" 2>$null
         if ("$pkProbe" -notmatch "not-found") { break }
     }
     Add-Result "probe:controller-responds" $(if ($pkProbe -notmatch "not-found") { "PASS" } else { "FAIL" }) $pkProbe $t0.Elapsed.TotalSeconds
-    & $shot keyw "FrameCapture Region" 27 2>$null | Out-Null
+    & $shot keyw "NekoCapture Region" 27 2>$null | Out-Null
     Start-Sleep 0.4
-    Remove-Item Env:\FC_TEST_NO_FG -EA SilentlyContinue
-    Get-Process FrameCapture -EA SilentlyContinue | Stop-Process -Force
+    Remove-Item Env:\NC_TEST_NO_FG -EA SilentlyContinue
+    Get-Process NekoCapture -EA SilentlyContinue | Stop-Process -Force
 } else { Add-Result "probe:controller-responds" "SKIP" "构建失败" }
 
 # 7) e2e：每一项都要重启一次主程序（单实例是硬约束，串行跑不掉），合计约两分半。
@@ -272,11 +272,11 @@ if (-not $Full) {
     # 先清场：任何还在跑的实例都会让脚本新起的那个变成「第二实例」——新进程把参数转发给旧进程就退出，
     # 旧进程又没带测试开关，于是每一项都表现为「编辑器没出现」。杀不掉的实例（多半是提权起的）
     # 会让整段 e2e 全部报错，而错因不在被测代码上：那种情况如实记 SKIP 并写明原因。
-    Get-Process FrameCapture -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+    Get-Process NekoCapture -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
     Start-Sleep -Milliseconds 800
-    $leftover = @(Get-Process FrameCapture -ErrorAction SilentlyContinue)
+    $leftover = @(Get-Process NekoCapture -ErrorAction SilentlyContinue)
     if ($leftover.Count -gt 0) {
-        $why = "有 " + $leftover.Count + " 个 FrameCapture 实例杀不掉（多半是提权起的），先退出它再跑 -Full"
+        $why = "有 " + $leftover.Count + " 个 NekoCapture 实例杀不掉（多半是提权起的），先退出它再跑 -Full"
         foreach ($t in $e2e) { Add-Result $t.n "SKIP" $why }
         $e2e = @()
     }

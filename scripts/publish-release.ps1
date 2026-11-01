@@ -1,9 +1,9 @@
 <#
 .SYNOPSIS
-    一键产出 FrameCapture 发行安装包。
+    一键产出 NekoCapture 发行安装包。
 .DESCRIPTION
     读 csproj 版本号 → 验证当前代码 → 发布两种运行时形态 → 产出引导器 exe 与离线 zip → 报体积与 SHA256。
-    版本号唯一来源是 src/FrameCapture/FrameCapture.csproj 的 <Version>，脚本不另存一份。
+    版本号唯一来源是 src/NekoCapture/NekoCapture.csproj 的 <Version>，脚本不另存一份。
     引导器是 .NET Framework 4.8 工程，产物是免前置的单 exe；主程序需要 .NET 8 的原因是 WGC 捕获与 OCR。
 .EXAMPLE
     pwsh -NoProfile -File scripts/publish-release.ps1
@@ -12,7 +12,7 @@
     pwsh -NoProfile -File scripts/publish-release.ps1 -AllowInjection   # 人不在电脑旁时，连焦点安全一起跑
 #>
 param(
-    [string]$Publisher = 'FrameCapture',
+    [string]$Publisher = 'NekoCapture',
     [ValidateSet('both', 'self', 'fd')] [string]$Flavor = 'both',
     [string]$OutDir = 'release',
     [switch]$SkipVerify,
@@ -37,7 +37,7 @@ if (-not $resolvedOut.StartsWith($root.TrimEnd('\') + '\', [StringComparison]::O
 function Step($msg) { Write-Host "`n=== $msg ===" -ForegroundColor Cyan }
 
 # 版本号：程序集版本每段必须 <= 65535 且最多四段，不合规矩在这里就拦下
-$csproj = 'src\FrameCapture\FrameCapture.csproj'
+$csproj = 'src\NekoCapture\NekoCapture.csproj'
 $verLine = Select-String -Path $csproj -Pattern '<Version>([^<]+)</Version>' | Select-Object -First 1
 if (-not $verLine) { throw "$csproj 里没有 <Version>" }
 $Version = $verLine.Matches[0].Groups[1].Value
@@ -49,16 +49,16 @@ Write-Host "版本 $Version   发布者 $Publisher   形态 $Flavor"
 
 # 构建前必须停掉运行中的实例，否则 exe 被占用
 Step '停止运行中的实例'
-$wasRunning = @(Get-Process FrameCapture -ErrorAction SilentlyContinue).Count -gt 0
-Get-Process FrameCapture.Resident -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
-Get-Process FrameCapture -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
-if (@(Get-Process FrameCapture,FrameCapture.Resident -ErrorAction SilentlyContinue).Count) {
+$wasRunning = @(Get-Process NekoCapture -ErrorAction SilentlyContinue).Count -gt 0
+Get-Process NekoCapture.Resident -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+Get-Process NekoCapture -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+if (@(Get-Process NekoCapture,NekoCapture.Resident -ErrorAction SilentlyContinue).Count) {
     Write-Host '  当前权限无法关闭的实例保留，文件占用由构建和发布报告'
 } elseif ($wasRunning) { Start-Sleep -Milliseconds 800; Write-Host '  已停止' } else { Write-Host '  本来就没在跑' }
 
 if (-not $SkipVerify) {
     Step '验证：编译 + 断言 + 护栏'
-    $b = dotnet build FrameCapture.slnx -c Debug -v q --nologo 2>&1 | Out-String
+    $b = dotnet build NekoCapture.slnx -c Debug -v q --nologo 2>&1 | Out-String
     $buildCode = $LASTEXITCODE
     $err = @($b -split "`n" | ForEach-Object{ $_.Trim() } | Where-Object{ $_ -match ': error' })
     if ($buildCode -ne 0 -or $err.Count) { $err | ForEach-Object{ Write-Host "  $_" -ForegroundColor Red }; throw '编译有错误，不出包' }
@@ -104,7 +104,7 @@ Write-Host "  已清理 $cleaned 个 Release 目录"
 
 # 引导器是 .NET Framework 4.8 工程，不需要任何外部打包工具链：
 # 载荷以 zip 形式内嵌进 exe，运行时自己解到 Program Files。
-$icon = Join-Path $root 'assets\FrameCapture.ico'
+$icon = Join-Path $root 'assets\NekoCapture.ico'
 if (-not (Test-Path $icon)) { throw "缺少图标 $icon，先跑 python scripts/make-icon.py" }
 $setupProj = Join-Path $root 'src\Setup\Setup.csproj'
 if (-not (Test-Path $setupProj)) { throw "缺少引导器工程 $setupProj" }
@@ -121,14 +121,14 @@ $residentStage = Join-Path $OutDir 'staging/resident'
 Remove-ReleaseDirectory $residentStage
 $residentPublish = dotnet publish src/Resident/Resident.csproj -c Release -r win-x64 -o $residentStage -v q --nologo 2>&1 | Out-String
 if ($LASTEXITCODE -ne 0) { throw "原生常驻组件发布失败: $residentPublish" }
-$residentExe = Join-Path $residentStage 'FrameCapture.Resident.exe'
+$residentExe = Join-Path $residentStage 'NekoCapture.Resident.exe'
 if (-not (Test-Path -LiteralPath $residentExe)) { throw '缺少原生常驻组件' }
 Step '发布原生 OCR 工作进程'
 $ocrStage = Join-Path $OutDir 'staging/ocr-worker'
 Remove-ReleaseDirectory $ocrStage
 $ocrPublish = dotnet publish src/OcrWorker/OcrWorker.csproj -c Release -r win-x64 --self-contained true -p:Platform=x64 -o $ocrStage -v q --nologo 2>&1 | Out-String
 if ($LASTEXITCODE -ne 0) { throw "OCR 工作进程发布失败: $ocrPublish" }
-$ocrExe = Join-Path $ocrStage 'FrameCapture.OcrWorker.exe'
+$ocrExe = Join-Path $ocrStage 'NekoCapture.OcrWorker.exe'
 if (-not (Test-Path -LiteralPath $ocrExe)) { throw '缺少 OCR 工作进程' }
 $residentAssets = Get-Content -LiteralPath 'src/Resident/obj/project.assets.json' -Raw | ConvertFrom-Json -AsHashtable
 $runtimeDependency = @($residentAssets.project.frameworks.Values | ForEach-Object { $_.downloadDependencies } |
@@ -184,10 +184,10 @@ foreach ($v in $variants) {
         $setupCode = $LASTEXITCODE
         $serr = @($sb -split "`n" | ForEach-Object{ $_.Trim() } | Where-Object{ $_ -match ': error' })
         if ($setupCode -ne 0 -or $serr.Count) { $serr | ForEach-Object{ Write-Host "  $_" -ForegroundColor Red }; throw '引导器构建失败' }
-        $built = Join-Path $root 'src\Setup\bin\Release\net48\FrameCapture-Setup.exe'
+        $built = Join-Path $root 'src\Setup\bin\Release\net48\NekoCapture-Setup.exe'
         if (-not (Test-Path $built)) { throw "引导器未产出 $built" }
 
-        $setupOut = Join-Path $OutDir "FrameCapture-Setup-$Version-x64.exe"
+        $setupOut = Join-Path $OutDir "NekoCapture-Setup-$Version-x64.exe"
         if (Test-Path $setupOut) { Remove-Item $setupOut -Force }
         Copy-Item $built $setupOut
         Remove-Item $zip -Force
@@ -195,7 +195,7 @@ foreach ($v in $variants) {
     } else {
         # 离线包：给不能联网装运行时的机器，体积大但开箱即用
         Step '打包离线包'
-        $offline = Join-Path $OutDir "FrameCapture-$Version-x64-offline.zip"
+        $offline = Join-Path $OutDir "NekoCapture-$Version-x64-offline.zip"
         if (Test-Path $offline) { Remove-Item $offline -Force }
         Add-Type -AssemblyName System.IO.Compression.FileSystem
         [IO.Compression.ZipFile]::CreateFromDirectory($stage, $offline, 'Optimal', $false)
@@ -216,11 +216,11 @@ foreach ($v in $variants) {
 # 有实例时明确报「跳过」，避免把互斥当成包坏了。
 Step '抽验离线包'
 $offlineRow = @($results | Where-Object { $_.'包' -like '*offline.zip' } | Select-Object -First 1)
-$live = @(Get-Process FrameCapture -ErrorAction SilentlyContinue).Count
+$live = @(Get-Process NekoCapture -ErrorAction SilentlyContinue).Count
 if ($offlineRow.Count -eq 0) {
     Write-Host '  本轮没有离线包（只发了引导器），跳过'
 } elseif ($live -gt 0) {
-    Write-Host "  跳过：检测到 $live 个 FrameCapture 实例，单实例互斥会让抽验进程秒退" -ForegroundColor Yellow
+    Write-Host "  跳过：检测到 $live 个 NekoCapture 实例，单实例互斥会让抽验进程秒退" -ForegroundColor Yellow
 } else {
     $smoke = Join-Path $root 'test-out\release-smoke'
     $smokeCfg = Join-Path $root 'test-out\release-smoke-settings'
@@ -228,10 +228,10 @@ if ($offlineRow.Count -eq 0) {
     New-Item -ItemType Directory -Path $smoke | Out-Null
     Add-Type -AssemblyName System.IO.Compression.FileSystem
     [IO.Compression.ZipFile]::ExtractToDirectory((Join-Path $root (Join-Path $OutDir $offlineRow[0].'包')), $smoke)
-    $smokeExe = Join-Path $smoke 'FrameCapture.exe'
-    if (-not (Test-Path $smokeExe)) { throw "离线包根目录里没有 FrameCapture.exe" }
-    $env:FC_SETTINGS_DIR = $smokeCfg
-    $env:FC_TEST_NO_FG = '1'
+    $smokeExe = Join-Path $smoke 'NekoCapture.exe'
+    if (-not (Test-Path $smokeExe)) { throw "离线包根目录里没有 NekoCapture.exe" }
+    $env:NC_SETTINGS_DIR = $smokeCfg
+    $env:NC_TEST_NO_FG = '1'
     try {
         $proc = Start-Process $smokeExe -WindowStyle Hidden -PassThru
         Start-Sleep -Seconds 6
@@ -242,8 +242,8 @@ if ($offlineRow.Count -eq 0) {
         Write-Host ("  离线包抽验 PASS：{0} 个文件、进程存活、内存 {1:N0} MB、error.log 为空" -f `
             @(Get-ChildItem $smoke -Recurse -File).Count, ($up.WorkingSet64 / 1MB))
     } finally {
-        Remove-Item Env:FC_SETTINGS_DIR, Env:FC_TEST_NO_FG -ErrorAction SilentlyContinue
-        foreach ($instance in @(Get-Process FrameCapture -ErrorAction SilentlyContinue)) {
+        Remove-Item Env:NC_SETTINGS_DIR, Env:NC_TEST_NO_FG -ErrorAction SilentlyContinue
+        foreach ($instance in @(Get-Process NekoCapture -ErrorAction SilentlyContinue)) {
             try {
                 $instance.Kill()
                 if (-not $instance.WaitForExit(5000)) { throw '抽验进程未退出，保留目录供检查' }
@@ -255,8 +255,8 @@ if ($offlineRow.Count -eq 0) {
 
 Step '产物'
 $results | Format-Table -AutoSize | Out-String -Width 200 | ForEach-Object{ $_ -split "`n" } | Where-Object{ $_.Trim() } | ForEach-Object{ "  $_" }
-Write-Host "  完整哈希：Get-FileHash release\FrameCapture-*.exe, release\FrameCapture-*.zip -Algorithm SHA256"
+Write-Host "  完整哈希：Get-FileHash release\NekoCapture-*.exe, release\NekoCapture-*.zip -Algorithm SHA256"
 if ($wasRunning -and -not $NoRestart) {
-    $exe = 'src\FrameCapture\bin\x64\Debug\net8.0-windows10.0.19041.0\FrameCapture.exe'
+    $exe = 'src\NekoCapture\bin\x64\Debug\net8.0-windows10.0.19041.0\NekoCapture.exe'
     if (Test-Path $exe) { Start-Process (Join-Path $root $exe) -WindowStyle Hidden; Write-Host '  已把开发实例重新拉起' }
 }

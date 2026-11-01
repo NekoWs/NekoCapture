@@ -37,7 +37,7 @@ static class Program
             if (eng is null) { Console.WriteLine("RESULT: NO ENGINE — OCR 不可用"); return; }
 
             // 渲染已知文字到位图
-            string sample = "Hello OCR 12345 FrameCapture";
+            string sample = "Hello OCR 12345 NekoCapture";
             var ft = new FormattedText(sample,
                 System.Globalization.CultureInfo.InvariantCulture,
                 FlowDirection.LeftToRight,
@@ -54,7 +54,7 @@ static class Program
             // PNG → SoftwareBitmap → OCR
             var result = Recognize(ms.ToArray(), eng).GetAwaiter().GetResult();
             Console.WriteLine($"RESULT: recognized = \"{result}\"");
-            Console.WriteLine(result.Contains("12345") && result.Contains("FrameCapture") ? "RESULT: OCR WORKS" : "RESULT: OCR ran but text mismatch");
+            Console.WriteLine(result.Contains("12345") && result.Contains("NekoCapture") ? "RESULT: OCR WORKS" : "RESULT: OCR ran but text mismatch");
         }
         catch (Exception ex)
         {

@@ -1,8 +1,8 @@
 ﻿using System.IO;
 using System.Reflection;
-using FrameCapture.Capture;
-using FrameCapture.Core;
-using FrameCapture.Services;
+using NekoCapture.Capture;
+using NekoCapture.Core;
+using NekoCapture.Services;
 using GE = GestureCore;
 
 static partial class SelfTest
@@ -120,7 +120,7 @@ static partial class SelfTest
 
     static int ResidentFixture(string directory)
     {
-        Environment.SetEnvironmentVariable("FC_SETTINGS_DIR", Path.GetFullPath(directory));
+        Environment.SetEnvironmentVariable("NC_SETTINGS_DIR", Path.GetFullPath(directory));
         var settings = new SettingsService();
         var monitor = Monitors.All().First();
         var graph = new BehaviorGraph();

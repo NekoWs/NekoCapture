@@ -11,7 +11,7 @@
     <Nullable>enable</Nullable>
     <PlatformTarget>x64</PlatformTarget>
     <AssemblyName>SetupProbe</AssemblyName>
-    <RootNamespace>FrameCapture.SetupProbe</RootNamespace>
+    <RootNamespace>NekoCapture.SetupProbe</RootNamespace>
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
     <NoWarn>CS1591</NoWarn>
   </PropertyGroup>
@@ -28,20 +28,23 @@
   <ItemGroup>
     <Compile Include="Program.cs" />
     <Compile Include="BackupLockChecks.cs" />
+    <Compile Include="BrandingChecks.cs" />
     <Compile Include="CodecChecks.cs" />
-    <Compile Include="..\..\src\FrameCapture\Encoding\ComponentInstaller.cs" />
-    <Compile Include="..\..\src\FrameCapture\Encoding\ComponentDownloader.cs" />
-    <Compile Include="..\..\src\FrameCapture\Encoding\ComponentProgress.cs" />
-    <Compile Include="..\..\src\FrameCapture\Encoding\FfmpegComponentInfo.cs" />
+    <Compile Include="..\..\src\NekoCapture\Encoding\ComponentInstaller.cs" />
+    <Compile Include="..\..\src\NekoCapture\Encoding\ComponentDownloader.cs" />
+    <Compile Include="..\..\src\NekoCapture\Encoding\ComponentProgress.cs" />
+    <Compile Include="..\..\src\NekoCapture\Encoding\FfmpegComponentInfo.cs" />
     <Compile Include="..\..\src\Setup\InstallEngine.cs" />
     <Compile Include="..\..\src\Setup\InstallEngine.Upgrade.cs" />
+    <Compile Include="..\..\src\Setup\InstallEngine.Branding.cs" />
+    <Compile Include="..\..\src\NekoCapture\Core\ProductPaths.cs" />
     <Compile Include="..\..\src\Setup\Loc.cs" />
     <Compile Include="..\..\src\Setup\IsExternalInit.cs" />
-    <Compile Include="..\..\src\FrameCapture\Core\Str.cs" />
-    <Compile Include="..\..\src\FrameCapture\Core\Strings\Setup.cs" />
-    <Compile Include="..\..\src\FrameCapture\Core\Strings\Common.cs" />
-    <Compile Include="..\..\src\FrameCapture\Services\StartupRegistration.cs" />
-    <Compile Include="..\..\src\FrameCapture\Services\StartupResult.cs" />
+    <Compile Include="..\..\src\NekoCapture\Core\Str.cs" />
+    <Compile Include="..\..\src\NekoCapture\Core\Strings\Setup.cs" />
+    <Compile Include="..\..\src\NekoCapture\Core\Strings\Common.cs" />
+    <Compile Include="..\..\src\NekoCapture\Services\StartupRegistration.cs" />
+    <Compile Include="..\..\src\NekoCapture\Services\StartupResult.cs" />
     <Compile Include="..\..\src\Setup\DotnetRuntime.cs" />
     <Compile Include="..\..\src\Setup\GlobalUsings.cs" />
   </ItemGroup>
