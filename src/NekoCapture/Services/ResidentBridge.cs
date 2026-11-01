@@ -192,7 +192,7 @@ internal static class ResidentBridge
             case "--resident-welcome":
                 bool firstRun = !host.Settings.Current.FirstRunHintShown;
                 if (firstRun) host.Settings.Mutate(settings => settings.FirstRunHintShown = true);
-                WelcomeToast.Show(host.Settings.Current.Gestures.CaptureKeyText(), host.Settings.Current.Gestures.RecordKeyText(), sticky: firstRun);
+                WelcomeToast.Show(host.Settings.Current.Gestures.CaptureKeyText(), host.Settings.Current.Gestures.RecordKeyText());
                 break;
             case "--welcome":
                 var gestures = host.Settings.Current.Gestures;

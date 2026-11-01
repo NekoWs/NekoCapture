@@ -31,6 +31,7 @@ public sealed partial class SettingsWindow
         _settingsCrumbs.BeginAnimation(OpacityProperty, null);
         _settingsCrumbs.RenderTransform = null;
         _settingsCrumbs.Opacity = 1;
+        _settingsCrumbs.MinHeight = 0;
         _settingsCrumbHost.IsHitTestVisible = visible;
         if (!animate)
         {
@@ -42,6 +43,7 @@ public sealed partial class SettingsWindow
         double width = Math.Max(1, _settingsScroller.ActualWidth - 40);
         _settingsCrumbs.Measure(new Size(width, double.PositiveInfinity));
         double targetHeight = visible ? _settingsCrumbs.DesiredSize.Height : 0;
+        _settingsCrumbs.MinHeight = Math.Max(0, targetHeight - _settingsCrumbs.Margin.Top - _settingsCrumbs.Margin.Bottom);
         _settingsCrumbHost.Height = fromHeight;
         var duration = TimeSpan.FromMilliseconds(Fluent.Motion.EnterMs);
         var height = new DoubleAnimation(fromHeight, targetHeight, duration)
@@ -51,14 +53,15 @@ public sealed partial class SettingsWindow
             if (generation != _settingsCrumbGeneration) return;
             _settingsCrumbHost.BeginAnimation(HeightProperty, null);
             _settingsCrumbHost.Height = double.NaN;
+            _settingsCrumbs.MinHeight = 0;
             _settingsCrumbHost.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
         };
         _settingsCrumbHost.BeginAnimation(HeightProperty, height);
         if (!visible) { _settingsCrumbs.Opacity = 0; return; }
-        var shift = new TranslateTransform(0, 5); _settingsCrumbs.RenderTransform = shift;
+        var shift = new TranslateTransform(0, -4); _settingsCrumbs.RenderTransform = shift;
         _settingsCrumbs.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1,
             TimeSpan.FromMilliseconds(Fluent.Motion.StateMs)));
-        shift.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(5, 0, duration)
+        shift.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(-4, 0, duration)
             { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
     }
 }

@@ -56,9 +56,9 @@ public sealed partial class SettingsWindow
         side.Children.Add(navFrame); layout.Children.Add(side);
         var divider = new Border { Background = Theme.StrokeBrush }; Grid.SetColumn(divider, 1); layout.Children.Add(divider);
         var right = new DockPanel();
-        _settingsCrumbs = new WrapPanel { Margin = new Thickness(0, 11, 0, 0) };
+        _settingsCrumbs = new WrapPanel { Margin = new Thickness(0, 11, 0, 0), VerticalAlignment = VerticalAlignment.Top };
         _settingsCrumbHost = new Border { Child = _settingsCrumbs, Margin = new Thickness(20, 0, 20, 0),
-            Visibility = Visibility.Collapsed, ClipToBounds = true };
+            Visibility = Visibility.Collapsed, ClipToBounds = false };
         DockPanel.SetDock(_settingsCrumbHost, Dock.Top); right.Children.Add(_settingsCrumbHost);
         _settingsHeader = new TextBlock { FontSize = 17, FontWeight = FontWeights.SemiBold, Foreground = Theme.TextBrush,
             Margin = new Thickness(22, 16, 22, 4), TextWrapping = TextWrapping.Wrap };

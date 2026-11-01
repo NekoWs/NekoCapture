@@ -285,5 +285,7 @@ public static partial class K
             "定格时预抓窗口数",
             "Windows pre-captured on freeze");
         public static readonly Str WithTheSwitchAbove = new("settings.withTheSwitchAbove", "保留窗口边缘的投影与透明渐变", "Keep window shadows and transparent edges.");
+        public static readonly Str WelcomeDuration = new("settings.welcomeDuration", "显示时长", "Display duration");
+        public static readonly Str WelcomeDurationHint = new("settings.welcomeDurationHint", "启动提示显示 1–60 秒；悬停暂停", "Show the startup notice for 1–60 seconds; hover to pause.");
     }
 }

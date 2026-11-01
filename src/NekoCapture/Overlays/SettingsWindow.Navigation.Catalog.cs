@@ -114,6 +114,7 @@ public sealed partial class SettingsWindow
                 _settings.Current.StartupToast, v => _settings.Mutate(s => s.StartupToast = v)));
             p.Children.Add(ToggleRow("\uE765", Loc.T(K.Settings.ShowTheKeysInTheReady), Loc.T(K.Settings.TheReadyCardLists),
                 _settings.Current.WelcomeShowsHotkeys, v => _settings.Mutate(s => s.WelcomeShowsHotkeys = v)));
+            p.Children.Add(WelcomeDurationRow());
             Cardify(p);
         });
         Page("about", null, "about", K.About.Title, Str.Empty, "\uE946", 10, BuildAbout);

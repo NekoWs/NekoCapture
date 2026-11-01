@@ -25,7 +25,7 @@ internal sealed class UpdateToast : Window
         var content = new StackPanel();
         _title = new TextBlock { Text = Loc.F(K.Updates.Available, version), FontSize = 16, FontWeight = FontWeights.SemiBold, Foreground = Theme.TextBrush };
         _detail = new TextBlock { Text = Loc.F(K.Updates.Versions, current, version), FontSize = 12, Foreground = Theme.TextDimBrush, Margin = new Thickness(0, 8, 0, 12), TextWrapping = TextWrapping.Wrap };
-        _skip = Fluent.Ui(new CheckBox { Content = Loc.T(K.Updates.Skip), Foreground = Theme.TextBrush, Margin = new Thickness(0, 0, 0, 12) });
+        _skip = Fluent.Ui(new CheckBox { Content = Loc.T(K.Updates.Skip), Foreground = Theme.TextBrush, FontSize = 12.5, Margin = new Thickness(0, 0, 0, 12) });
         _progress = Fluent.Ui(new ProgressBar { Foreground = Theme.AccentBrush, Background = Theme.TrackBgBrush, BorderThickness = new Thickness(0), Minimum = 0, Maximum = 100, Height = 5, Visibility = Visibility.Collapsed, Margin = new Thickness(0, 0, 0, 14) });
         var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
         _cancel = Fluent.RoundButton(Loc.T(K.Common.Cancel), Theme.RowBg, Theme.Text, 16, true);
@@ -37,13 +37,7 @@ internal sealed class UpdateToast : Window
         content.Children.Add(_title); content.Children.Add(_detail); content.Children.Add(_progress); content.Children.Add(_skip); content.Children.Add(buttons);
         var card = new Border { Width = 350, Background = Theme.CardBgBrush, BorderBrush = Fluent.CardEdge(), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(12), Padding = new Thickness(18), Child = content };
         Content = card;
-        void Position()
-        {
-            var work = SystemParameters.WorkArea;
-            Left = Math.Max(work.Left, work.Right - (ActualWidth > 0 ? ActualWidth : 350) - 16);
-            Top = Math.Max(work.Top, work.Bottom - (ActualHeight > 0 ? ActualHeight : 190) - 16);
-        }
-        Position(); SizeChanged += (_, _) => Position();
+        ToastPlacement.Attach(this, card);
         SourceInitialized += (_, _) => Fluent.ExcludeFromCapture(new System.Windows.Interop.WindowInteropHelper(this).Handle);
         Closed += (_, _) => _closed = true;
         Fluent.FadeIn(this, Fluent.Motion.EnterMs, 8, offscreenFirstFrame: true);

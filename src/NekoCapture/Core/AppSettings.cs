@@ -169,14 +169,14 @@ public bool EditableSelection { get; set; } = false;
     /// 开启时授权并重启为管理员，关闭时重启为普通权限；同时启用自启时使用最高权限登录任务。</summary>
     public bool RunAsAdmin { get; set; }
 
-    /// <summary>启动气泡提示（默认开）：启动完成后在屏幕右下角弹一条「NekoCapture 已启动」，
-    /// 给一个「它真的在后台待命了」的确定感——本程序启动后没有主窗口，缺这一下容易被当成没启动成功。
-    /// 关掉后启动静默进托盘，只剩图标。</summary>
+    /// <summary>启动时显示就绪提示，关闭后静默进入托盘。</summary>
     public bool StartupToast { get; set; } = true;
 
-    /// <summary>就绪提示里是否列出当前生效的截图键与录制键。关掉后卡片只留标题与帮助入口——
-    /// 键位已经是肌肉记忆的人，每次开机都被提醒一遍是噪音。</summary>
+    /// <summary>就绪提示显示当前截图与录制快捷键。</summary>
     public bool WelcomeShowsHotkeys { get; set; } = true;
+
+    /// <summary>启动提示显示秒数，悬停暂停，移开后重新计时。</summary>
+    public double WelcomeToastSeconds { get; set; } = 5;
 
     /// <summary>选区放大镜（默认开）：拖框/悬停选区时，光标旁显示高倍像素放大镜 + 坐标/尺寸读数，
     /// 便于像素级精确选区。关闭则不抓快照、不显示放大镜。</summary>
@@ -284,6 +284,7 @@ public bool EditableSelection { get; set; } = false;
         Gestures ??= GestureConfig.CreateCurrentDefaults();
         Gestures.NormalizePreset();
         ToastSeconds = ToastSeconds <= 0 ? 0 : Math.Clamp(ToastSeconds, 0.5, 60);
+        WelcomeToastSeconds = double.IsFinite(WelcomeToastSeconds) ? Math.Clamp(WelcomeToastSeconds, 1, 60) : 5;
         DelayCaptureSeconds = Math.Clamp(DelayCaptureSeconds, 0, DelayCaptureSecondsMax);
         FreezePregrabMaxWindows = Math.Clamp(FreezePregrabMaxWindows, 0, 16);
         SnapDwellMs = Math.Clamp(SnapDwellMs, 0, 5000);

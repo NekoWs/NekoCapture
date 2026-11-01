@@ -45,7 +45,7 @@ foreach ($p in $Paths) {
             $kind = $null
             if ($ln -match $RxHelper) { $kind = "动效助手时长写成裸数字" }
             elseif ($ln -match $RxDuration) { $kind = "Duration 时长写成裸数字" }
-            elseif ($ln -match $RxRawSpan -and $ln -notmatch $RxTimer) { $kind = "动画 TimeSpan 时长写成裸数字" }
+            elseif (($ln -replace '\bWaitAsync\(\s*TimeSpan\.FromMilliseconds\(\s*\d+\s*\)\s*\)', 'WaitAsync(timeout)') -match $RxRawSpan -and $ln -notmatch $RxTimer) { $kind = "动画 TimeSpan 时长写成裸数字" }
             if ($kind) { $script:viol.Add([pscustomobject]@{ Kind = $kind; File = $rel; Line = $i + 1; Text = $ln.Trim() }) }
         }
     }

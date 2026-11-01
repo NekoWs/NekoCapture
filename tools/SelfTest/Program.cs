@@ -1194,6 +1194,8 @@ static partial class SelfTest
             return 2;
         }
         InstallQuietWindows();
+        if (args.Length == 1 && args[0] == "toast-ux")
+        { ToastUxChecks(); Console.WriteLine($"SelfTest pass={pass} fail={fail}"); return fail == 0 ? 0 : 1; }
         if (args.Length == 1 && args[0] == "rebrand")
         { RebrandChecks(); Console.WriteLine($"SelfTest pass={pass} fail={fail}"); return fail == 0 ? 0 : 1; }
         if (args.Length == 1 && args[0] == "parallel-capture")
@@ -6843,8 +6845,7 @@ static partial class SelfTest
         }
         catch (Exception e) { Chk("T225-ready-card-follows-config", false, e.Message); }
 
-        // 首启那张卡不自己走：没看见右下角这一下的人，不该被 12 秒倒计时没收唯一一次说明。
-        // 脚本叫出来审查的那张仍按时自己走，免得卡在屏幕上。
+        // 启动提示在首帧后计时，并保留手动关闭入口。
         try
         {
             static bool AutoDismissRunning(Window w)
@@ -6860,16 +6861,15 @@ static partial class SelfTest
                     if (c is DependencyObject d && FindClose(d) is { } found) return found;
                 return null;
             }
-            NekoCapture.Overlays.WelcomeToast.Show("F6", "Ctrl+Alt+R", sticky: true);
+            NekoCapture.Overlays.WelcomeToast.Show("F6", "Ctrl+Alt+R");
+            PumpMs(120);
             var keep = System.Windows.Application.Current.Windows
                 .OfType<NekoCapture.Overlays.WelcomeToast>().First();
-            Chk("T226-first-run-card-does-not-self-close", !AutoDismissRunning(keep),
-                "首启卡的计时器在跑，12 秒后会自己走");
-            // 唯一出口：卡片不抢焦点，Esc 归用户当下正在用的那个窗口（实测注入 Esc 关不掉），
-            // 而它不自己走——所以 ✕ 必须在，而且点了得真能关。
+            Chk("welcome-card-starts-auto-dismiss-after-render", AutoDismissRunning(keep),
+                "启动卡应在首帧显示后开始计时");
             var close = FindClose(keep);
             Chk("T226-first-run-card-has-a-way-out", close != null,
-                "首启卡既不自己走、又等不到 Esc，却没有 ✕ 可点——用户被它关不住");
+                "启动卡应提供关闭按钮");
             if (close != null)
             {
                 close.RaiseEvent(new System.Windows.RoutedEventArgs(
@@ -6883,6 +6883,7 @@ static partial class SelfTest
             foreach (var w in System.Windows.Application.Current.Windows
                          .OfType<NekoCapture.Overlays.WelcomeToast>().ToList()) w.Close();
             NekoCapture.Overlays.WelcomeToast.Show("F6", "Ctrl+Alt+R");
+            PumpMs(120);
             var timed = System.Windows.Application.Current.Windows
                 .OfType<NekoCapture.Overlays.WelcomeToast>().First();
             Chk("T226-scripted-card-still-times-out", AutoDismissRunning(timed),

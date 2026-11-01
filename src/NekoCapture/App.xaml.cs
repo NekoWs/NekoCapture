@@ -133,8 +133,7 @@ public partial class App : Application
                 var st = Services.AppHost.Current.Settings;
                 bool firstRun = !st.Current.FirstRunHintShown;
                 if (firstRun) st.Mutate(s => s.FirstRunHintShown = true);
-                Overlays.WelcomeToast.Show(st.Current.Gestures.CaptureKeyText(), st.Current.Gestures.RecordKeyText(),
-                    sticky: firstRun);   // 只有首启那张不自己走
+                Overlays.WelcomeToast.Show(st.Current.Gestures.CaptureKeyText(), st.Current.Gestures.RecordKeyText());
             }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
 
         // 调试/常驻入口：NekoCapture.exe --settings | --help | --edit-last

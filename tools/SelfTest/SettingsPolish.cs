@@ -26,10 +26,12 @@ static partial class SelfTest
         PumpMs(Fluent.Motion.QuickMs);
         var trail = (WrapPanel)Field("_settingsCrumbs")!;
         double enteringHeight = crumbs.ActualHeight, enteringOpacity = trail.Opacity;
+        double enteringTrailHeight = trail.ActualHeight;
         PumpMs(settle);
         Chk("settings-path-enters-with-height-and-opacity", crumbs.IsVisible && enteringHeight > 0
             && enteringHeight < crumbs.ActualHeight && enteringOpacity is > 0 and < 1,
             $"entering={enteringHeight:F2} settled={crumbs.ActualHeight:F2} opacity={enteringOpacity:F2}");
+        Chk("settings-path-text-retains-full-height", Math.Abs(enteringTrailHeight - trail.ActualHeight) < 0.5);
         Go("capture", true); PumpMs(Fluent.Motion.QuickMs / 3);
         Chk("settings-path-exits-before-releasing-space", crumbs.IsVisible && crumbs.ActualHeight > 0 && trail.Opacity is > 0 and < 1);
         PumpMs(settle);
