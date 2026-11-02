@@ -7,28 +7,33 @@ using NekoCapture.Core;
 
 namespace NekoCapture.Overlays;
 
-/// <summary>页内分页条：一条轨道，选中那块是一枚滑到位置上的强调色胶囊，与界面语言同一套分段控件。</summary>
+/// <summary>页内分页条：只有文字，选中那一枚用一条滑动的强调色下划线标出来，不铺底色。
+/// 与界面语言那条分段控件刻意不同：那条是「一条轨道加一枚实心胶囊」，这条是「裸文字加下划线」，
+/// 两者摆在同一页上也不会被当成同一种控件。</summary>
 public sealed partial class SettingsWindow
 {
-    /// <summary>分页条展开后的高度：30 的轨道加 4 的下边距。</summary>
+    /// <summary>分页条单行占的高度：一枚按钮加下边距。</summary>
     private const double TabStripHeight = 34;
+
+    /// <summary>相邻两行的纵向间距：按钮 26 高，上下各留 2 像素。</summary>
+    private const double TabRowPitch = 30;
 
     private readonly List<TabChip> _settingsTabChips = new();
     private List<string> _settingsTabIds = new();
     private string _paintedTabSelection = "";
     private double _tabStripApplied = TabStripHeight;
+    private bool _tabIndicatorSliding;
     private WrapPanel _settingsTabs = null!;
-    private Grid _settingsTabTrack = null!;
-    private Border _settingsTabTrackBorder = null!;
-    private Border _settingsTabPill = null!;
-    private TranslateTransform _settingsTabPillShift = null!;
+    private Grid _settingsTabCanvas = null!;
+    private Border _settingsTabIndicator = null!;
+    private TranslateTransform _settingsTabIndicatorShift = null!;
     private Border _settingsTabHost = null!;
 
-    /// <summary>一枚分段：只有文字与自己的墨色画刷，底色由滑动的胶囊负责。</summary>
+    /// <summary>一枚分段：裸文字加自己的墨色画刷，选中态由下划线表达。</summary>
     /// <param name="Id">这一枚对应的页标识。</param>
-    /// <param name="Tab">可点的分段本体。</param>
+    /// <param name="Tab">可点的按钮本体。</param>
     /// <param name="Label">页名。</param>
-    /// <param name="Ink">字色画刷，选中与未选中之间渐变。</param>
+    /// <param name="Ink">字色画刷，悬停与选中之间渐变。</param>
     private sealed record TabChip(string Id, Border Tab, TextBlock Label, SolidColorBrush Ink)
     {
         /// <summary>指针是否停在上面。</summary>
@@ -45,7 +50,7 @@ public sealed partial class SettingsWindow
         return ids;
     }
 
-    /// <summary>按当前页刷新分页条：分组换了才重建分段，同一分组内只让胶囊滑到新位置。</summary>
+    /// <summary>按当前页刷新分页条：分组换了才重建按钮，同一分组内只让下划线滑到新位置。</summary>
     /// <param name="animate">false = 直接就位，用于改配色重建与首帧。</param>
     private void UpdateSettingsTabs(bool animate)
     {
@@ -54,15 +59,14 @@ public sealed partial class SettingsWindow
         bool rebuilt = !ids.SequenceEqual(_settingsTabIds);
         if (rebuilt) BuildSettingsTabs(ids);
         bool strip = ids.Count > 1;
-        PaintSettingsTabs(animate);
+        // 重建那一帧按钮还没排版：字色直接就位，免得在淡入里再走一遍渐变
+        PaintSettingsTabs(rebuilt ? false : animate);
         AnimateSettingsTabStrip(strip, animate);
-        if (!rebuilt) { PlaceTabPill(animate); return; }
-        RevealSettingsTabs(strip, animate);
-        PlaceTabPill(false);
-        DeferTabPlacement();
+        if (rebuilt) RevealSettingsTabs(strip, animate);
+        PlaceTabIndicator(animate && !rebuilt);
     }
 
-    /// <summary>重建分段：每枚自己持有字色画刷，事件只改状态、不换画刷实例。</summary>
+    /// <summary>重建按钮：每枚自己持有字色画刷，事件只改状态、不换画刷实例。</summary>
     /// <param name="ids">这一组要显示的页标识。</param>
     private void BuildSettingsTabs(List<string> ids)
     {
@@ -80,8 +84,8 @@ public sealed partial class SettingsWindow
             };
             var tab = new Border
             {
-                Child = label, Height = 24, CornerRadius = new CornerRadius(5),
-                Padding = new Thickness(9, 0, 9, 0), Margin = new Thickness(0, 1, 2, 1),
+                Child = label, Height = 26, CornerRadius = new CornerRadius(5),
+                Padding = new Thickness(14, 0, 14, 0), Margin = new Thickness(0, 2, 2, 2),
                 Tag = "settings-tab", Focusable = true, Cursor = Cursors.Hand,
                 Background = Brushes.Transparent,
             };
@@ -97,28 +101,18 @@ public sealed partial class SettingsWindow
         }
     }
 
-    /// <summary>刷字色：选中那一枚落在强调色上写字，其余按指针位置取灰阶。
-    /// 换选中时字色等半拍再变——胶囊还在路上就先写白字，看着像闪了一下。</summary>
+    /// <summary>刷字色：选中的与指针停着的写正文色，其余写灰字。分页条没有底色，字色变化不区分时机。</summary>
     /// <param name="animate">false = 颜色直接就位。</param>
     private void PaintSettingsTabs(bool animate)
     {
-        bool selectionChanged = _paintedTabSelection != _currentSettingsPage;
         _paintedTabSelection = _currentSettingsPage;
-        int ms = animate ? Fluent.Motion.HoverMs : 0;
-        int delay = animate && selectionChanged ? Fluent.Motion.StateMs / 2 : 0;
+        int ms = animate ? Fluent.Motion.QuickMs : 0;
         foreach (var chip in _settingsTabChips)
         {
-            bool selected = chip.Id == _currentSettingsPage;
-            Color ink = selected ? Fluent.OnAccentColor(Theme.Accent) : chip.Hovered ? Theme.Text : Theme.TextDim;
-            TintColor(chip.Ink, ink, ms, delay);
+            bool lit = chip.Id == _currentSettingsPage || chip.Hovered;
+            TintColor(chip.Ink, lit ? Theme.Text : Theme.TextDim, ms);
         }
-        // 轨道与胶囊都取主题共享画刷：换色时指回新的那一份
-        if (_settingsTabTrackBorder != null)
-        {
-            _settingsTabTrackBorder.Background = Theme.TrackBgBrush;
-            _settingsTabTrackBorder.BorderBrush = Theme.StrokeBrush;
-        }
-        if (_settingsTabPill != null) _settingsTabPill.Background = Theme.AccentBrush;
+        if (_settingsTabIndicator != null) _settingsTabIndicator.Background = Theme.AccentBrush;
     }
 
     /// <summary>把一枚画刷渐变到目标色。动画攥着颜色属性时读到的是当前帧，
@@ -126,92 +120,80 @@ public sealed partial class SettingsWindow
     /// <param name="brush">目标画刷。</param>
     /// <param name="to">终点色。</param>
     /// <param name="ms">渐变时长；0 表示立刻就位。</param>
-    /// <param name="delayMs">起跳前的等待，换选中时让胶囊先动。</param>
-    private static void TintColor(SolidColorBrush brush, Color to, int ms, int delayMs = 0)
+    private static void TintColor(SolidColorBrush brush, Color to, int ms)
     {
         Color from = brush.Color;
         brush.BeginAnimation(SolidColorBrush.ColorProperty, null);
         if (ms <= 0) { brush.Color = to; return; }
         brush.Color = from;
-        brush.BeginAnimation(SolidColorBrush.ColorProperty, new ColorAnimation(to,
-            new Duration(TimeSpan.FromMilliseconds(ms))) { BeginTime = TimeSpan.FromMilliseconds(delayMs) });
+        brush.BeginAnimation(SolidColorBrush.ColorProperty,
+            new ColorAnimation(to, new Duration(TimeSpan.FromMilliseconds(ms))));
     }
 
-    /// <summary>把胶囊摆到选中那一枚下面：横向滑到新格，宽度同时收到这一枚的宽度；分段换行时纵向也跟着走。</summary>
-    /// <param name="animate">true = 从当前位置滑到新格；false = 直接就位。</param>
-    private void PlaceTabPill(bool animate)
+    /// <summary>把下划线摆到选中那一枚的文字下面：横纵位置与宽度一起走，换行时跟着换行。</summary>
+    /// <param name="animate">true = 从当前位置滑到新位置；false = 直接就位。</param>
+    private void PlaceTabIndicator(bool animate)
     {
-        if (_settingsTabPill == null || _settingsTabPillShift == null || _settingsTabTrack == null) return;
+        if (_settingsTabIndicator == null || _settingsTabCanvas == null) return;
         var chip = _settingsTabChips.FirstOrDefault(item => item.Id == _currentSettingsPage);
-        if (chip == null || chip.Tab.ActualWidth <= 0)
+        if (chip == null || chip.Label.ActualWidth <= 0) return;
+        var at = chip.Label.TranslatePoint(new Point(0, 0), _settingsTabCanvas);
+        var tab = chip.Tab.TranslatePoint(new Point(0, 0), _settingsTabCanvas);
+        double width = chip.Label.ActualWidth;
+        double top = tab.Y + chip.Tab.ActualHeight - 4;   // 文字下沿再落 4 像素，不压到字
+        _settingsTabIndicator.BeginAnimation(WidthProperty, null);
+        _settingsTabIndicatorShift.BeginAnimation(TranslateTransform.XProperty, null);
+        _settingsTabIndicatorShift.BeginAnimation(TranslateTransform.YProperty, null);
+        if (!animate || !_settingsTabIndicator.IsLoaded)
         {
-            _settingsTabPill.Width = 0;
+            _settingsTabIndicator.Width = width;
+            _settingsTabIndicatorShift.X = at.X;
+            _settingsTabIndicatorShift.Y = top;
             return;
         }
-        var at = chip.Tab.TranslatePoint(new Point(0, 0), _settingsTabTrack);
-        double width = chip.Tab.ActualWidth;
-        _settingsTabPill.BeginAnimation(WidthProperty, null);
-        _settingsTabPillShift.BeginAnimation(TranslateTransform.XProperty, null);
-        _settingsTabPillShift.BeginAnimation(TranslateTransform.YProperty, null);
-        if (!animate || !_settingsTabPill.IsLoaded)
-        {
-            _settingsTabPill.Width = width;
-            _settingsTabPillShift.X = at.X;
-            _settingsTabPillShift.Y = at.Y;
-            return;
-        }
-        double fromWidth = _settingsTabPill.Width, fromX = _settingsTabPillShift.X, fromY = _settingsTabPillShift.Y;
-        _settingsTabPill.Width = fromWidth;
-        _settingsTabPillShift.X = fromX;
-        _settingsTabPillShift.Y = fromY;
+        double fromWidth = _settingsTabIndicator.Width;
+        double fromX = _settingsTabIndicatorShift.X, fromY = _settingsTabIndicatorShift.Y;
+        _settingsTabIndicator.Width = fromWidth;
+        _settingsTabIndicatorShift.X = fromX;
+        _settingsTabIndicatorShift.Y = fromY;
         var duration = new Duration(TimeSpan.FromMilliseconds(Fluent.Motion.StateMs));
-        // 宽度只收放不过冲：过冲会把轨道撑宽一瞬，整条跟着抖
-        _settingsTabPill.BeginAnimation(WidthProperty, new DoubleAnimation(width, duration)
-        { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
-        _settingsTabPillShift.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(at.X, duration)
-        { EasingFunction = Fluent.Spring(0.5) });
-        _settingsTabPillShift.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(at.Y, duration)
-        { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
+        var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
+        // 下划线在滑的这段时间里，排版回调不许再摆一次，否则会被按回终点、看着像没动画
+        _tabIndicatorSliding = true;
+        var slide = new DoubleAnimation(at.X, duration) { EasingFunction = ease };
+        slide.Completed += (_, _) => _tabIndicatorSliding = false;
+        _settingsTabIndicatorShift.BeginAnimation(TranslateTransform.XProperty, slide);
+        _settingsTabIndicatorShift.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(top, duration) { EasingFunction = ease });
+        _settingsTabIndicator.BeginAnimation(WidthProperty, new DoubleAnimation(width, duration) { EasingFunction = ease });
     }
-
-    /// <summary>排版跑完再摆一次：重建那一刻分段还没量出宽度与行数，胶囊和整条高度只能等下一轮布局。</summary>
-    private void DeferTabPlacement()
-    {
-        Dispatcher.BeginInvoke(() =>
-        {
-            if (!IsLoaded) return;
-            SyncTabStripHeight();
-            PlaceTabPill(false);
-        }, System.Windows.Threading.DispatcherPriority.Loaded);
-    }
-
-    /// <summary>分段之间的行距：分段 24 高，上下各留 1 像素。</summary>
-    private const double TabsLinePitch = 26;
 
     /// <summary>分段排成几行：按它们的纵坐标有几档算，宽度不够时 <see cref="WrapPanel"/> 会换行。</summary>
     /// <returns>行数，至少一行。</returns>
     private int TabLines()
     {
-        if (_settingsTabTrack == null) return 1;
+        if (_settingsTabCanvas == null) return 1;
         var tops = new HashSet<double>();
         foreach (var chip in _settingsTabChips)
-            tops.Add(Math.Round(chip.Tab.TranslatePoint(new Point(0, 0), _settingsTabTrack).Y));
+            tops.Add(Math.Round(chip.Tab.TranslatePoint(new Point(0, 0), _settingsTabCanvas).Y));
         return Math.Max(1, tops.Count);
     }
 
     /// <summary>分页条该占的高度：单行定高，每多一行加一行行距。</summary>
     /// <returns>当前应占的像素高度。</returns>
-    private double TabStripTarget() => TabStripHeight + (TabLines() - 1) * TabsLinePitch;
+    private double TabStripTarget() => TabStripHeight + (TabLines() - 1) * TabRowPitch;
 
-    /// <summary>行数变了才跟着改高度：宽度压到换行时整条长高，退回一行再收回去。</summary>
+    /// <summary>行数变了才跟着改高度：宽度压到换行时整条长高，退回一行再收回去。
+    /// 换页进行中不动高度：那时按钮还是上一组的，按新一组的页数去算会把同高的两条分页条顶得一上一下。</summary>
     private void SyncTabStripHeight()
     {
+        if (!SettingsTabIds().SequenceEqual(_settingsTabIds)) return;
         double target = SettingsTabIds().Count > 1 ? TabStripTarget() : 0;
         if (Math.Abs(target - _tabStripApplied) < 0.5) return;
-        AnimateSettingsTabStrip(target > 0, true);
+        AnimateSettingsTabStrip(target > 0, false);
     }
 
-    /// <summary>整条的高度过渡：出现时从 0 长到定高，收起时缩回 0，下面内容的位移跟着这条曲线走。</summary>
+    /// <summary>整条的高度过渡：出现时从 0 长到定高，收起时缩回 0。内容跟着这条曲线上下让位，
+    /// 没有底色跟着一起缩，看着就是「一行按钮被收进表头里」。</summary>
     /// <param name="visible">当前分组是否有分页条。</param>
     /// <param name="animate">false = 直接就位。</param>
     private void AnimateSettingsTabStrip(bool visible, bool animate)
@@ -241,31 +223,20 @@ public sealed partial class SettingsWindow
         host.BeginAnimation(HeightProperty, grow);
     }
 
-    /// <summary>分组换了以后整条淡入：上一组已经退场，这一组从上方 6 像素落到位。</summary>
+    /// <summary>分组换了以后按钮轻轻淡入：整条宽度可能跟着变，位移会把新的一组甩得很突然。</summary>
     /// <param name="visible">当前分组是否有分页条。</param>
     /// <param name="animate">false = 直接就位。</param>
     private void RevealSettingsTabs(bool visible, bool animate)
     {
         var panel = _settingsTabs;
         panel.BeginAnimation(OpacityProperty, null);
-        if (panel.RenderTransform is not TranslateTransform shift)
-        {
-            shift = new TranslateTransform();
-            panel.RenderTransform = shift;
-        }
-        shift.BeginAnimation(TranslateTransform.YProperty, null);
         if (!visible || !animate || !panel.IsLoaded)
         {
-            panel.Opacity = visible ? 1 : 0;
-            shift.Y = 0;
+            panel.Opacity = 1;
             return;
         }
-        panel.Opacity = 0;
-        shift.Y = -6;
-        panel.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1,
-            new Duration(TimeSpan.FromMilliseconds(Fluent.Motion.StateMs))));
-        shift.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(-6, 0,
-            new Duration(TimeSpan.FromMilliseconds(Fluent.Motion.EnterMs)))
-        { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
+        panel.Opacity = 0.15;
+        panel.BeginAnimation(OpacityProperty, new DoubleAnimation(0.15, 1,
+            new Duration(TimeSpan.FromMilliseconds(Fluent.Motion.QuickMs))));
     }
 }

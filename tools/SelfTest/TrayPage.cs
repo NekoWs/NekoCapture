@@ -114,10 +114,12 @@ static partial class SelfTest
             type.GetMethod("NavigateSettings", flags)!.Invoke(window, new object?[] { "selection", true, true });
             var host = (FrameworkElement?)type.GetField("_settingsTabHost", flags)!.GetValue(window);
             bool grew = false;
+            var samples = new List<double>();
             for (int i = 0; i < 60 && !grew; i++)
             {
                 PumpMs(10);
                 double height = host?.Height ?? 0;
+                samples.Add(height);
                 grew = height > 0.5 && height < 33.5;
             }
             Chk("T274-tabs-height-animated", grew, $"分页条高度过渡中量到中间值：{(grew ? "有" : "没有")}");
@@ -128,32 +130,54 @@ static partial class SelfTest
                     && tabsPanel != null && tabsPanel.Children.Count > 1,
                 $"多页分组的分页条：{host?.Visibility} / {host?.Height}px / {tabsPanel?.Children.Count ?? -1} 枚");
             int chipCount = tabsPanel?.Children.Count ?? 0;
-            // 同一分组内换页：胶囊滑到选中那一枚下面，条目数不变
-            var pill = (Border?)type.GetField("_settingsTabPill", flags)!.GetValue(window);
-            var pillShift = (TranslateTransform?)type.GetField("_settingsTabPillShift", flags)!.GetValue(window);
-            var track = (Grid?)type.GetField("_settingsTabTrack", flags)!.GetValue(window);
+            // 同一分组内换页：下划线滑到选中那一枚的文字下面，条目数不变
+            var indicator = (Border?)type.GetField("_settingsTabIndicator", flags)!.GetValue(window);
+            var indicatorShift = (TranslateTransform?)type.GetField("_settingsTabIndicatorShift", flags)!.GetValue(window);
+            var canvas = (Grid?)type.GetField("_settingsTabCanvas", flags)!.GetValue(window);
             type.GetMethod("NavigateSettings", flags)!.Invoke(window, new object?[] { "files", true, true });
             PumpMs(240);
-            bool sliding = pill != null && pillShift != null && pill.HasAnimatedProperties && pillShift.HasAnimatedProperties;
-            Chk("T274-tabs-pill-animated", sliding, $"胶囊与位移{(sliding ? "都带" : "没有")}动画");
+            bool sliding = indicator != null && indicatorShift != null
+                && indicator.HasAnimatedProperties && indicatorShift.HasAnimatedProperties;
+            Chk("T274-tabs-indicator-animated", sliding, $"下划线与位移{(sliding ? "都带" : "没有")}动画");
             PumpMs(320);
             var sameGroup = (Panel?)type.GetField("_settingsTabs", flags)!.GetValue(window);
             var filesTab = sameGroup?.Children.OfType<Border>().FirstOrDefault(tab =>
                 (tab.Tag as string) == "settings-tab"
                 && tab.Child is TextBlock labelText && labelText.Text == Loc.T(K.SettingsNavigation.Files));
             double at = 0, want = 0;
-            if (filesTab != null && track != null)
+            if (filesTab?.Child is TextBlock filesLabel && canvas != null)
             {
                 window.UpdateLayout();
-                at = filesTab.TranslatePoint(new Point(0, 0), track).X;
-                want = filesTab.ActualWidth;
+                at = filesLabel.TranslatePoint(new Point(0, 0), canvas).X;
+                want = filesLabel.ActualWidth;
             }
-            Chk("T274-tabs-pill-follows",
-                filesTab != null && pill != null && pillShift != null
-                    && Math.Abs(pillShift.X - at) < 1 && Math.Abs(pill.Width - want) < 1,
-                $"胶囊 x={pillShift?.X:F1}/宽 {pill?.Width:F1}，目标 x={at:F1}/宽 {want:F1}");
+            Chk("T274-tabs-indicator-follows",
+                filesTab != null && indicator != null && indicatorShift != null && want > 0
+                    && Math.Abs(indicatorShift.X - at) < 1 && Math.Abs(indicator.Width - want) < 1,
+                $"下划线 x={indicatorShift?.X:F1}/宽 {indicator?.Width:F1}，目标 x={at:F1}/宽 {want:F1}");
             Chk("T274-tabs-same-group", sameGroup != null && sameGroup.Children.Count == chipCount,
                 $"同组换页后仍是 {sameGroup?.Children.Count ?? -1} 枚");
+
+            // 换回第一枚也要走动画：终点在 0 不该被当成「没动」
+            type.GetMethod("NavigateSettings", flags)!.Invoke(window, new object?[] { "selection", true, true });
+            PumpMs(240);
+            bool firstSlide = indicator != null && indicatorShift != null
+                && indicatorShift.HasAnimatedProperties && Math.Abs(indicatorShift.X) < at;
+            Chk("T274-tabs-first-tab-animated", firstSlide,
+                $"回到第一枚时下划线 x={indicatorShift?.X:F1}（起点 {at:F1}）");
+
+            // 两个都有分页条的分组之间切换：内容起点不能变，分页条也不能压到内容上
+            PumpMs(320);
+            var scroller2 = (System.Windows.Controls.ScrollViewer?)type.GetField("_settingsScroller", flags)!.GetValue(window);
+            var host2 = (FrameworkElement?)type.GetField("_settingsTabHost", flags)!.GetValue(window);
+            double topBefore = scroller2!.TransformToAncestor(window).Transform(new Point(0, 0)).Y;
+            type.GetMethod("NavigateSettings", flags)!.Invoke(window, new object?[] { "record-start", true, true });
+            PumpMs(700);
+            double topAfter = scroller2.TransformToAncestor(window).Transform(new Point(0, 0)).Y;
+            double stripBottom = host2!.TransformToAncestor(window).Transform(new Point(0, host2.ActualHeight)).Y;
+            Chk("T274-tabs-groups-aligned",
+                Math.Abs(topAfter - topBefore) < 1.5 && stripBottom <= topAfter + 0.5,
+                $"切分组前后内容起点 {topBefore:F1}→{topAfter:F1}，分页条底 {stripBottom:F1}");
 
             type.GetMethod("NavigateSettings", flags)!.Invoke(window, new object?[] { "tray", true, true });
             PumpMs(520);
