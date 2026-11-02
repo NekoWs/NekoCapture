@@ -18,7 +18,8 @@ public enum BehaviorParameterKind
 /// <param name="Label">界面名称。</param>
 /// <param name="Kind">编辑类型。</param>
 /// <param name="Hint">此设置的具体作用。</param>
-public sealed record BehaviorParameter(string Id, Str Label, BehaviorParameterKind Kind, Str Hint);
+/// <param name="ExposedByDefault">是否默认允许触发调整。</param>
+public sealed record BehaviorParameter(string Id, Str Label, BehaviorParameterKind Kind, Str Hint, bool ExposedByDefault = false);
 
 /// <summary>可覆盖的动作参数目录；覆盖只作用于运行快照，不改变共享行为。</summary>
 public static partial class BehaviorParameters
@@ -30,11 +31,11 @@ public static partial class BehaviorParameters
     {
         if (node.Action == GestureActions.Select)
         {
-            yield return new(nameof(BehaviorNode.RecordMode), K.Triggers.CaptureMode, BehaviorParameterKind.CaptureMode, K.Triggers.CaptureModeHint);
-            yield return new(nameof(BehaviorNode.ShowModeSwitch), K.Behaviors.ShowSwitch, BehaviorParameterKind.Toggle, K.Triggers.ModeSwitchHint);
+            yield return new(nameof(BehaviorNode.RecordMode), K.Triggers.CaptureMode, BehaviorParameterKind.CaptureMode, K.Triggers.CaptureModeHint, true);
+            yield return new(nameof(BehaviorNode.ShowModeSwitch), K.Behaviors.ShowSwitch, BehaviorParameterKind.Toggle, K.Triggers.ModeSwitchHint, true);
         }
         if (node.Action == GestureActions.CallBehavior)
-            yield return new(nameof(BehaviorNode.TargetId), K.SettingsNavigation.Execute, BehaviorParameterKind.Behavior, K.Triggers.TargetHint);
+            yield return new(nameof(BehaviorNode.TargetId), K.SettingsNavigation.Execute, BehaviorParameterKind.Behavior, K.Triggers.TargetHint, true);
         yield return new(nameof(BehaviorNode.ContinueOnFailure), K.Triggers.ContinueFailure, BehaviorParameterKind.Toggle, K.Triggers.FailureHint);
         if (GestureActions.PortsOf(node.Action).Contains(BehaviorPorts.Cancel))
             yield return new(nameof(BehaviorNode.ContinueOnCancel), K.Triggers.ContinueCancel, BehaviorParameterKind.Toggle, K.Triggers.CancelHint);
@@ -61,6 +62,7 @@ public static partial class BehaviorParameters
     {
         foreach (var parameter in For(node))
         {
+            if (node.ExposedParameters is { } exposed && !exposed.Contains(parameter.Id)) continue;
             if (!values.TryGetValue(parameter.Id, out var value)) continue;
             if (parameter.Kind == BehaviorParameterKind.Behavior)
             { if (value.ValueKind == JsonValueKind.String) node.TargetId = value.GetString() ?? ""; continue; }

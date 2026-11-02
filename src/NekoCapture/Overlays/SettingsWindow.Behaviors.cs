@@ -216,6 +216,7 @@ public sealed partial class SettingsWindow
         }
         if (node.Action == GestureActions.CallBehavior)
             _behaviorDetails.Children.Add(BehaviorEntryRow(node.TargetId, id => { node.TargetId = id; CommitBehaviorGraph(); }));
+        _behaviorDetails.Children.Add(BehaviorExposureSettings(node));
         var ports = GestureActions.PortsOf(node.Action);
         string selected = _behaviorPorts.TryGetValue(node.Id, out string? value) && ports.Contains(value) ? value : ports[0];
         var tabs = BehaviorTabs(ports.Select(port => (GestureActions.PortLabel(node.Action, port), (Action)(() =>

@@ -32,6 +32,9 @@ public sealed class BehaviorNode
     public bool ContinueOnCancel { get; set; }
     /// <summary>调用行为动作的目标入口。</summary>
     public string TargetId { get; set; } = "";
+    /// <summary>允许触发调整的参数；空值采用目录默认项及已配置的覆盖。</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public List<string>? ExposedParameters { get; set; }
 }
 
 /// <summary>共享节点、有序动作列表和入口组成的行为图。</summary>

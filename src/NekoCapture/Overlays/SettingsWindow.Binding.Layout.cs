@@ -53,7 +53,7 @@ public sealed partial class SettingsWindow
         controls.Children.Add(DeleteIconButton(binding)); controls.Children.Add(EnableSwitch(binding, () => input.Opacity = binding.Enabled ? 1 : 0.55));
         controls.Children.Add(source); rows.Children.Add(LabeledRow(Loc.T(K.Triggers.Source), controls, Loc.T(K.Triggers.Source)));
         rows.Children.Add(input); RenderInput(); input.Opacity = binding.Enabled ? 1 : 0.55;
-        var card = AboutCard(rows); card.Tag = "settings-binding-input";
+        var card = AboutCard(rows); card.Tag = "settings-binding-input"; card.Padding = new Thickness(20);
         var stroke = new SolidColorBrush(Theme.Stroke); card.BorderBrush = stroke;
         void PaintConflict()
         {
@@ -90,7 +90,7 @@ public sealed partial class SettingsWindow
         open.Effect = null;
         open.Padding = new Thickness(2, 10, 2, 2); open.Margin = new Thickness(0, 5, 0, 0);
         rows.Children.Add(open);
-        var card = AboutCard(rows); card.Tag = "settings-binding-behavior";
+        var card = AboutCard(rows); card.Tag = "settings-binding-behavior"; card.Padding = new Thickness(20);
         return card;
     }
 

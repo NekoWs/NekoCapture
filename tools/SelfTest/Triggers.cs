@@ -71,5 +71,24 @@ static partial class SelfTest
         var clipboard = config.Graph.Flow(TrayDefaults.Clipboard)!;
         Chk("tray-clipboard-chain-separates-input-and-pin", clipboard.Steps.Select(id => config.Graph.Node(id)!.Action)
             .SequenceEqual(new[] { GestureActions.ReadClipboardImage, GestureActions.PinSelection }));
+        var exposed = BehaviorParameters.Exposed(select, migrated.Bindings).Select(parameter => parameter.Id).ToArray();
+        Chk("trigger-selection-exposes-useful-defaults", exposed.SequenceEqual(new[] { nameof(BehaviorNode.RecordMode), nameof(BehaviorNode.ShowModeSwitch) }));
+        Chk("trigger-existing-override-remains-discoverable", BehaviorParameters.Exposed(save, migrated.Bindings)
+            .Any(parameter => parameter.Id == nameof(BehaviorNode.ContinueOnFailure)));
+        var sibling = new GestureBindingDto { EntryId = flow.Id };
+        sibling.Overrides[select.Id] = new() { [nameof(BehaviorNode.RecordMode)] = JsonSerializer.SerializeToElement(true) };
+        migrated.Bindings.Add(sibling);
+        BehaviorParameters.SetExposure(migrated, select, nameof(BehaviorNode.RecordMode), false);
+        Chk("trigger-unexposing-cleans-every-binding", !binding.Overrides.ContainsKey(select.Id) && !sibling.Overrides.ContainsKey(select.Id)
+            && BehaviorParameters.Exposed(select, migrated.Bindings).All(parameter => parameter.Id != nameof(BehaviorNode.RecordMode)));
+        binding.Overrides[select.Id] = new() { [nameof(BehaviorNode.RecordMode)] = JsonSerializer.SerializeToElement(true) };
+        Chk("trigger-hidden-parameters-cannot-override-runtime", !migrated.BindingGraph(binding).Node(select.Id)!.RecordMode);
+        BehaviorParameters.SetExposure(migrated, select, nameof(BehaviorNode.RecordMode), true);
+        Chk("trigger-exposed-parameters-apply-to-independent-snapshot", migrated.BindingGraph(binding).Node(select.Id)!.RecordMode && !select.RecordMode);
+        var persisted = JsonSerializer.Deserialize<GestureConfig>(JsonSerializer.Serialize(migrated))!;
+        Chk("trigger-exposure-roundtrip", persisted.Graph.Node(select.Id)!.ExposedParameters!.SequenceEqual(select.ExposedParameters!));
+        captureNode.ExposedParameters = new();
+        single.Overrides[captureNode.Id][nameof(BehaviorNode.RecordMode)] = JsonSerializer.SerializeToElement(true);
+        Chk("tray-equivalence-ignores-unexposed-overrides", TriggerExecution.TrayClicks(config).Equivalent);
     }
 }

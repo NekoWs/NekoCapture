@@ -33,6 +33,7 @@ internal static class TriggerExecution
             if (config.Graph.Node(id) is not { } node) continue;
             foreach (var parameter in BehaviorParameters.For(node))
             {
+                if (node.ExposedParameters is { } exposed && !exposed.Contains(parameter.Id)) continue;
                 System.Text.Json.JsonElement Read(GestureBindingDto binding)
                 {
                     if (binding.Overrides.TryGetValue(id, out var values) && values.TryGetValue(parameter.Id, out var value)
