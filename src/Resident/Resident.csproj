@@ -17,6 +17,7 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../GestureCore/GestureCore.csproj" />
+    <Compile Include="../NekoCapture/Core/TrayClickGate.cs" Link="TrayClickGate.cs" />
     <Compile Include="../NekoCapture/Core/ResidentProtocol.cs" Link="ResidentProtocol.cs" />
     <Compile Include="../NekoCapture/Core/ProductPaths.cs" Link="ProductPaths.cs" />
     <Compile Include="../NekoCapture/Core/TrayIconSource.cs" Link="TrayIconSource.cs" />

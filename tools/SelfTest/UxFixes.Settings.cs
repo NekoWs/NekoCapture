@@ -91,11 +91,15 @@ static partial class SelfTest
             {
                 Call("OpenSettingsBinding", binding); PumpMs(Fluent.Motion.QuickMs + Fluent.Motion.EnterMs + 80);
                 var page = bodies["binding:" + binding.Id];
-                var modeRow = Descendants(page).OfType<FrameworkElement>().Single(e => e.Tag as string == "settings-binding-entry-mode");
+                var overrideAdd = Descendants(page).OfType<Button>().Single(e => e.Tag as string == "settings-binding-add-override");
+                overrideAdd.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+                var nodeItem = overrideAdd.ContextMenu!.Items.OfType<MenuItem>().First().Items.OfType<MenuItem>().Single(i => i.Tag as string == nameof(BehaviorNode.RecordMode));
+                nodeItem.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent)); PumpMs(Fluent.Motion.EnterMs + 80);
+                var modeRow = Descendants(page).OfType<FrameworkElement>().Single(e => e.Tag as string == "settings-binding-parameter:" + select.Id + ":RecordMode");
                 var choice = Descendants(modeRow).OfType<ComboBox>().Single();
                 choice.SelectedItem = choice.Items.Cast<ComboBoxItem>().Single(i => i.Tag as string == mode);
             }
-            Chk("ux-dual-shortcuts-created-without-preset", a.EntryMode == BehaviorPorts.Still && b.EntryMode == BehaviorPorts.Record
+            Chk("ux-dual-shortcuts-created-without-preset", !settings.Current.Gestures.BindingGraph(a).Node(select.Id)!.RecordMode && settings.Current.Gestures.BindingGraph(b).Node(select.Id)!.RecordMode
                 && a.EntryId == b.EntryId && !select.RecordMode);
             var bindingPage = bodies["binding:" + b.Id];
             var trigger = Descendants(bindingPage).OfType<ComboBox>().Single(c => c.Items.OfType<ComboBoxItem>().Any(i => i.Tag as string == "Hold"));
@@ -137,8 +141,8 @@ static partial class SelfTest
             Chk("ux-current-progress-template-shows-busy-state", fill.ActualWidth > 0 && fill.HasAnimatedProperties);
             var mark = (TextBlock)check.Template.FindName("mark", check);
             Chk("ux-current-checkbox-template-reflects-value", mark.IsVisible && check.FocusVisualStyle == null);
-            check.IsChecked = false;
-            Chk("ux-current-checkbox-template-clears-check", mark.Visibility == Visibility.Collapsed);
+            check.IsChecked = false; PumpMs(Fluent.Motion.StateMs + 40);
+            Chk("ux-current-checkbox-template-clears-check", mark.Opacity < 0.01);
         }
         finally { window.Close(); }
     }

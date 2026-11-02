@@ -56,6 +56,21 @@ static partial class SelfTest
             Theme.Apply("light", "#4CC2FF"); tray.PrepareMenu();
             Chk("tray-menu-theme-change-refreshes-cached-style", !ReferenceEquals(resources, ((ContextMenu)Field("_menu")!).Resources));
 
+            var settings = AppHost.Current.Settings;
+            var custom = settings.Current.Gestures.Bindings.First(b => b.Source == TriggerSources.TrayMenu);
+            settings.Mutate(_ => custom.Name = "custom menu"); tray.PrepareMenu();
+            Chk("tray-menu-renaming-refreshes-visible-label", ((ContextMenu)Field("_menu")!).Items.OfType<MenuItem>()
+                .Any(item => Equals(item.Header, "custom menu")));
+            settings.Mutate(_ => custom.Enabled = false); tray.PrepareMenu();
+            Chk("tray-menu-disabled-trigger-remains-disabled", ((ContextMenu)Field("_menu")!).Items.OfType<MenuItem>()
+                .Single(item => Equals(item.Header, "custom menu")).IsEnabled == false);
+            settings.Mutate(s => s.Gestures.Bindings.Remove(custom)); tray.PrepareMenu();
+            Chk("tray-menu-deleted-trigger-is-removed", ((ContextMenu)Field("_menu")!).Items.OfType<MenuItem>().Count() == 5
+                && !((ContextMenu)Field("_menu")!).Items.OfType<MenuItem>().Any(item => Equals(item.Header, "custom menu")));
+            settings.Mutate(s => s.Gestures.Bindings.Add(new GestureBindingDto { Id = "test.menu", Name = "added menu",
+                Source = TriggerSources.TrayMenu, EntryId = TrayDefaults.Clipboard })); tray.PrepareMenu();
+            Chk("tray-menu-user-trigger-is-added", ((ContextMenu)Field("_menu")!).Items.OfType<MenuItem>().Any(item => Equals(item.Header, "added menu")));
+
             saving.SetValue(null, true); var order = new List<int>();
             ResidentBridge.RunTrayAction(() => order.Add(1)); ResidentBridge.RunTrayAction(() => order.Add(2));
             Chk("tray-menu-actions-wait-for-session-save", order.Count == 0 && deferred.Count == 2);

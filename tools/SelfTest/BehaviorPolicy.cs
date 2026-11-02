@@ -15,16 +15,16 @@ static partial class SelfTest
             var cfg = new GestureConfig { Bindings = GestureConfig.DefaultQqSet("F6", "F7"), Seeded = true };
             cfg.Migrate();
             var graph = cfg.Graph;
-            var root = graph.Node(graph.Flows.Single().Steps.Single())!;
+            var root = graph.Node(graph.Flow(cfg.Bindings[0].EntryId)!.Steps.Single())!;
             Chk("T272-graph-stock-shared-entry", graph.IsValid() && cfg.Bindings[0].EntryId == cfg.Bindings[1].EntryId
-                && cfg.Bindings[0].EntryMode == "still" && cfg.Bindings[1].EntryMode == "record");
+                && !cfg.BindingGraph(cfg.Bindings[0]).Node(root.Id)!.RecordMode && cfg.BindingGraph(cfg.Bindings[1]).Node(root.Id)!.RecordMode);
             Chk("T272-graph-engine-entry", cfg.ToBindings().Count == 2
                 && cfg.ToBindings().All(b => b.Actions.SequenceEqual(new[] { GestureActions.CallBehavior })));
             string once = JsonSerializer.Serialize(cfg);
             Chk("T272-graph-import-idempotent", !cfg.Migrate() && once == JsonSerializer.Serialize(cfg));
             var round = JsonSerializer.Deserialize<GestureConfig>(once)!;
-            Chk("T272-graph-shared-roundtrip", round.Graph.IsValid() && round.Graph.Flows.Count == 1
-                && round.Bindings.Select(b => b.EntryId).Distinct().Count() == 1);
+            Chk("T272-graph-shared-roundtrip", round.Graph.IsValid() && round.Graph.Flows.Count(f => !f.Id.StartsWith("tray.")) == 1
+                && round.Bindings.Where(b => b.Source == TriggerSources.Keyboard).Select(b => b.EntryId).Distinct().Count() == 1);
             var order = new List<string>();
             var run = BehaviorRunner.RunAsync(graph, graph.Flows[0].Id, node =>
             {

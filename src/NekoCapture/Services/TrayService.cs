@@ -34,16 +34,15 @@ public sealed partial class TrayService : IDisposable
             Visible = false,
             Text = "NekoCapture",
         };
+        InitializeTrayClicks();
         _icon.MouseUp += (_, e) =>
         {
-            // 左键单击=选区截图，右键=菜单。
-            // 双击会连发两次 MouseUp，但 BeginScopeSelection 有重入保护（已在选区只顶前不重开），不会截两次。
-            if (e.Button == WinForms.MouseButtons.Left) Dispatch(() => _host.Controller.BeginScopeSelection());
-            else if (e.Button == WinForms.MouseButtons.Right) Dispatch(ShowMenu);
+            if (e.Button == WinForms.MouseButtons.Left) Dispatch(TrayRelease);
+            else if (e.Button == WinForms.MouseButtons.Right) Dispatch(() => { _trayClickTimer.Stop(); _trayClicks.Flush(); ShowMenu(); });
         };
-        _icon.DoubleClick += (_, _) => Dispatch(() => _host.Controller.BeginScopeSelection());
+        _icon.MouseDoubleClick += (_, e) => { if (e.Button == WinForms.MouseButtons.Left) Dispatch(TrayDoubleClick); };
         // 悬停提示动态反映当前热键/范围/fps：改键或换范围后无需打开菜单即可确认状态
-        _onSettingsChanged = () => Dispatch(() => { if (!_disposed) { UpdateTip(); QueueMenuWarmup(); } });
+        _onSettingsChanged = () => Dispatch(() => { if (!_disposed) { UpdateTip(); RefreshTrayClicks(); _menuTriggersDirty = true; QueueMenuWarmup(); } });
         _host.Settings.Changed += _onSettingsChanged;
         _onPalette = () => Dispatch(RebuildIcons);
         Theme.Changed += _onPalette;
@@ -129,7 +128,7 @@ public sealed partial class TrayService : IDisposable
     public void Dispose()
     {
         if (_disposed) return;
-        _disposed = true; ReleaseMenu();
+        _disposed = true; _trayClickTimer.Stop(); ReleaseMenu();
         _host.Settings.Changed -= _onSettingsChanged;
         Theme.Changed -= _onPalette;
         _icon.Visible = false;

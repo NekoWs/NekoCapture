@@ -135,8 +135,26 @@ public sealed partial class CaptureController : IDisposable
         return true;
     }
 
-    /// <summary>截图后=贴图：把刚截的单帧钉在捕获区域原位（原地钉，可多张并存）。
-    /// activateOnShow=false：不抢焦点，用户可继续在原应用操作，点贴图才激活。须在 UI 线程调用。</summary>
+    /// <summary>后台读取剪贴板图片，登记本次产物与贴图位置。</summary>
+    /// <param name="context">动作链的独立运行上下文。</param>
+    /// <returns>读取并登记成功时为 true。</returns>
+    private async Task<bool> ReadClipboardResultAsync(RunContext context)
+    {
+        var frame = await Encoding.ClipboardService.ReadImageAsync();
+        if (_disposed || _updateReserved) return false;
+        if (frame == null) { context.FailureNotice = Loc.T(K.Tray.NoImageOnTheClipboard); return false; }
+        Native.Win32.GetCursorPos(out var point);
+        var monitor = Monitors.Nearest(point.X, point.Y);
+        var bounds = monitor.Bounds;
+        var region = new RectI(Math.Max(bounds.X, Math.Min(point.X - frame.W / 2, bounds.X + bounds.W - frame.W)),
+            Math.Max(bounds.Y, Math.Min(point.Y - frame.H / 2, bounds.Y + bounds.H - frame.H)), frame.W, frame.H);
+        context.Still = frame; context.StillRegion = region; context.StillDevice = monitor.DeviceName;
+        context.WindowCapture = true; context.Text = null; context.LatestProduct = RunValue.Still;
+        _lastStill.Set(frame, region, monitor.DeviceName, true);
+        return true;
+    }
+
+    /// <summary>后台准备位图，并在指定区域显示不抢焦点的贴图。</summary>
     async Task<bool> PinFrameAtAsync(CapturedFrame f, RectI reg)
     {
         var bitmap = await BackgroundWork.Run(() => BgraImage.ToSource(f));

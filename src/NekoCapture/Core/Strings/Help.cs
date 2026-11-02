@@ -63,8 +63,8 @@ public static partial class K
         public static readonly Str EscRightClick = new("help.escRightClick", "Esc / 右键", "Esc / right-click");
         public static readonly Str EveryKeyIsADefault = new(
             "help.everyKeyIsADefault",
-            "键位都是默认值，可在「设置 · 快捷键」里改成自己的习惯。",
-            "Every key is a default — change them under Settings · Hotkeys to fit your habits.");
+            "键位都是默认值，可在「设置 · 触发」里改成自己的习惯。",
+            "Every key is a default — change them under Settings · Triggers to fit your habits.");
         public static readonly Str FloatingCard = new("help.floatingCard", "悬浮窗", "Floating card");
         public static readonly Str Format = new("help.format", "格式", "Format");
         public static readonly Str FrameRate = new("help.frameRate", "帧率", "Frame rate");
@@ -74,8 +74,8 @@ public static partial class K
             "GIF works directly; install the video component in Settings · Recording for MP4 / WebM");
         public static readonly Str GlobalHotkeysAndTheEditor = new(
             "help.globalHotkeysAndTheEditor",
-            "全局快捷键与编辑器里的键都在「设置 · 快捷键」这一页改",
-            "Global hotkeys and the editor's keys are all rebound on the Settings · Hotkeys page");
+            "全局快捷键与编辑器里的键都在「设置 · 触发」这一页改",
+            "Global hotkeys and the editor's keys are all rebound on the Settings · Triggers page");
         public static readonly Str HiddenInSettings = new(
             "help.hiddenInSettings",
             "藏在设置和托盘里。",

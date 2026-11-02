@@ -114,10 +114,12 @@ internal static class ResidentBridge
         var value = settings.Current;
         Directory.CreateDirectory(SettingsService.Dir);
         TrayService.SaveResidentIcons();
+        var clicks = TriggerExecution.TrayClicks(value.Gestures);
         var manifest = new ResidentManifest
         {
             SourceTicks = File.Exists(SettingsService.FilePath) ? File.GetLastWriteTimeUtc(SettingsService.FilePath).Ticks : 0,
             Enabled = value.Gestures.Enabled,
+            TraySingle = clicks.Single, TrayDouble = clicks.Double, TrayEquivalent = clicks.Equivalent,
             Inputs = value.Gestures.ToBindings().Select(binding => new ResidentInput
             {
                 Id = binding.Id, Key = binding.Chord.Key, Mods = (int)binding.Chord.Mods, Trigger = (int)binding.Trigger,
@@ -198,6 +200,7 @@ internal static class ResidentBridge
                 var gestures = host.Settings.Current.Gestures;
                 WelcomeToast.Show(gestures.CaptureKeyText(), gestures.RecordKeyText());
                 break;
+            case "--run-trigger": TriggerExecution.Run(host, arguments.ElementAtOrDefault(1) ?? ""); break;
             case "--picker": host.Controller.BeginScopeSelection(); break;
             case "--tray-menu":
                 host.Tray.ShowMenu(long.TryParse(arguments.ElementAtOrDefault(1), out long requestedAt) ? requestedAt : Environment.TickCount64);

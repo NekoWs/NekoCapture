@@ -29,17 +29,30 @@ public sealed partial class SettingsWindow
         }
         ShowName();
         rows.Children.Add(LabeledRow(Loc.T(K.SettingsNavigation.BindingName), nameHost, Loc.T(K.Hotkeys.RenameThisHotkey)));
-        var box = NewChordBox(binding); _hotBoxes[binding.Id] = box;
-        box.Margin = new Thickness(6, 0, 0, 0);
-        void PaintEnabled() => box.Opacity = binding.Enabled ? 1 : 0.55;
-        PaintEnabled();
-        var keys = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
-        keys.Children.Add(DeleteIconButton(binding)); keys.Children.Add(EnableSwitch(binding, PaintEnabled)); keys.Children.Add(box);
-        rows.Children.Add(LabeledRow(Loc.T(K.Hotkeys.Shortcut), keys, Loc.T(K.Hotkeys.ClickThenPressAKey)));
-        var trigger = HotkeyBody(binding, includeEntry: false); trigger.Margin = new Thickness(0, 3, 0, 0);
-        if (trigger.Child is Panel triggerRows)
-            foreach (var row in triggerRows.Children.OfType<Grid>()) AlignBindingValue(row);
-        rows.Children.Add(trigger);
+        var input = new StackPanel();
+        void RenderInput()
+        {
+            input.Children.Clear(); _hotBoxes.Remove(binding.Id);
+            if (binding.Source != TriggerSources.Keyboard) return;
+            var box = NewChordBox(binding); _hotBoxes[binding.Id] = box;
+            input.Children.Add(LabeledRow(Loc.T(K.Hotkeys.Shortcut), box, Loc.T(K.Hotkeys.ClickThenPressAKey)));
+            var trigger = HotkeyBody(binding, includeEntry: false); trigger.Margin = new Thickness(0, 3, 0, 0);
+            if (trigger.Child is Panel triggerRows)
+                foreach (var row in triggerRows.Children.OfType<Grid>()) AlignBindingValue(row);
+            input.Children.Add(trigger);
+        }
+        var source = Fluent.Ui(new ComboBox { Tag = "settings-trigger-source", HorizontalAlignment = HorizontalAlignment.Right });
+        foreach (string id in TriggerSources.All) source.Items.Add(new ComboBoxItem { Content = Loc.T(TriggerSources.Label(id)), Tag = id });
+        source.SelectedItem = source.Items.Cast<ComboBoxItem>().FirstOrDefault(item => (string)item.Tag == binding.Source) ?? source.Items[0];
+        source.SelectionChanged += (_, _) =>
+        {
+            if (source.SelectedItem is not ComboBoxItem { Tag: string id } || id == binding.Source) return;
+            binding.Source = id; CommitHotkeys(); TransitionContent(input, RenderInput);
+        };
+        var controls = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
+        controls.Children.Add(DeleteIconButton(binding)); controls.Children.Add(EnableSwitch(binding, () => input.Opacity = binding.Enabled ? 1 : 0.55));
+        controls.Children.Add(source); rows.Children.Add(LabeledRow(Loc.T(K.Triggers.Source), controls, Loc.T(K.Triggers.Source)));
+        rows.Children.Add(input); RenderInput(); input.Opacity = binding.Enabled ? 1 : 0.55;
         var card = AboutCard(rows); card.Tag = "settings-binding-input";
         var stroke = new SolidColorBrush(Theme.Stroke); card.BorderBrush = stroke;
         void PaintConflict()
@@ -57,19 +70,17 @@ public sealed partial class SettingsWindow
     {
         var rows = new StackPanel();
         rows.Children.Add(SectionHeader(Loc.T(K.SettingsNavigation.Execute)));
+        var overrides = new StackPanel();
+        void RenderOverrides() { overrides.Children.Clear(); overrides.Children.Add(BindingParameterOverrides(binding)); }
         var entry = BehaviorEntryRow(binding.EntryId, id =>
         {
-            binding.EntryId = id;
+            binding.EntryId = id; binding.Overrides.Clear();
             if (id.Length == 0) { binding.Actions = binding.OnFail = Array.Empty<string>(); binding.OnComplete = null; }
-            CommitHotkeys();
+            CommitHotkeys(); TransitionContent(overrides, RenderOverrides);
         });
         if (entry is Grid entryRow) AlignBindingValue(entryRow);
         rows.Children.Add(entry);
-        var mode = LabeledRow(Loc.T(K.Behaviors.EntryMode), ModeCombo(binding.EntryMode, true, value =>
-        { binding.EntryMode = value; CommitHotkeys(); }), Loc.T(K.Behaviors.EntryModeHint));
-        mode.Tag = "settings-binding-entry-mode";
-        if (mode is Grid modeRow) AlignBindingValue(modeRow);
-        rows.Children.Add(mode);
+        RenderOverrides(); rows.Children.Add(overrides);
         var open = SettingsEntry(Loc.T(K.Hotkeys.ChainTitle), Loc.T(K.SettingsNavigation.ExecuteHint), "\uE7A8", () =>
         {
             if (_settings.Current.Gestures.Graph.Flow(binding.EntryId) == null) NavigateSettings("behaviors", true);

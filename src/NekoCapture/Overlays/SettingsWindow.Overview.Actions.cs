@@ -48,14 +48,14 @@ public sealed partial class SettingsWindow
         var flow = cfg.Graph.Flow(binding.EntryId);
         string summary = flow == null ? Loc.T(K.SettingsNavigation.ExecuteHint)
             : string.Join(" → ", flow.Steps.Select(id => cfg.Graph.Node(id)).Where(node => node != null).Select(node => GestureActions.LabelOf(node!.Action)));
-        var entry = SettingsEntry(HotkeyDisplayName(binding), summary, "\uE765", () => OpenSettingsBinding(binding));
+        var entry = SettingsEntry(HotkeyDisplayName(binding), summary, binding.Source == TriggerSources.Keyboard ? "\uE765" : "\uE7A8", () => OpenSettingsBinding(binding));
         entry.Tag = "settings-overview";
         var label = (StackPanel)((Grid)entry.Content).Children[1]; label.Children.RemoveAt(0);
         var name = SettingsOverviewName(() => HotkeyDisplayName(binding), value =>
         {
             binding.Name = value; CommitHotkeys();
             System.Windows.Automation.AutomationProperties.SetName(entry, HotkeyDisplayName(binding));
-        }, GestureConfig.TriggerLabel(binding.Trigger));
+        }, binding.Source == TriggerSources.Keyboard ? GestureConfig.TriggerLabel(binding.Trigger) : Str.Empty);
         label.Children.Insert(0, name);
         var actions = SettingsOverviewActions(entry);
         FrameworkElement caps = null!;
@@ -69,8 +69,8 @@ public sealed partial class SettingsWindow
         void RepaintCaps()
         {
             if (caps != null) actions.Children.Remove(caps);
-            caps = Keycaps.Row(binding.Chord, new KeycapTheme { Face = Theme.RowBg, Text = Theme.Text,
-                Stroke = Theme.StrokeSoft, Dim = Theme.TextDim, Size = 10 });
+            caps = binding.Source == TriggerSources.Keyboard ? Keycaps.Row(binding.Chord, new KeycapTheme { Face = Theme.RowBg, Text = Theme.Text,
+                Stroke = Theme.StrokeSoft, Dim = Theme.TextDim, Size = 10 }) : new TextBlock { Text = Loc.T(TriggerSources.Label(binding.Source)), Foreground = Theme.TextDimBrush, FontSize = 11 };
             caps.VerticalAlignment = VerticalAlignment.Center; actions.Children.Add(caps); PaintEnabled();
         }
         RepaintCaps();

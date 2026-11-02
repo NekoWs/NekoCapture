@@ -23,7 +23,7 @@ static partial class SelfTest
             void Pick(string id) => cards[id].RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
             Pick(BehaviorPresets.Dual); PumpMs(Fluent.Motion.EnterMs + 50);
             Chk("preset-ui-click-replaces-scheme", service.Current.Gestures.ActivePreset == BehaviorPresets.Dual
-                && service.Current.Gestures.Bindings.Count == 2 && service.Current.Gestures.Graph.Flows.Count == 1);
+                && service.Current.Gestures.Bindings.Count(b => b.Source == TriggerSources.Keyboard) == 2 && service.Current.Gestures.Graph.Flows.Count(f => !f.Id.StartsWith("tray.")) == 1);
             var body = (Border)typeof(SettingsWindow).GetMethod("HotkeyBody", flags)!.Invoke(window,
                 new object[] { service.Current.Gestures.Bindings[0] })!;
             var labels = new List<DependencyObject>(); CollectTyped(body, typeof(TextBlock), labels);
@@ -37,7 +37,7 @@ static partial class SelfTest
             Chk("preset-ui-graph-edit-selects-custom", service.Current.Gestures.ActivePreset == BehaviorPresets.Custom
                 && System.Windows.Automation.AutomationProperties.GetItemStatus(cards[BehaviorPresets.Custom]) == Loc.T(K.Hotkeys.PresetCustom));
             Pick(BehaviorPresets.Single); Pick(BehaviorPresets.Custom); PumpMs(Fluent.Motion.SpringMs + 100);
-            Chk("preset-ui-custom-restores-edited-scheme", service.Current.Gestures.Bindings.Count == 4
+            Chk("preset-ui-custom-restores-edited-scheme", service.Current.Gestures.Bindings.Count(b => b.Source == TriggerSources.Keyboard) == 4
                 && service.Current.Gestures.Graph.Nodes.First(node => node.Action == GestureActions.SelectOnly).ShowModeSwitch);
             PresetFlickerChecks(window, cards);
             PresetWrappedLayoutChecks();

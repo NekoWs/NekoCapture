@@ -50,17 +50,17 @@ static partial class SelfTest
             var entry = new BehaviorFlow { Steps = new() { selection.Id } };graph.Flows.Add(entry);
             using (var c = new CaptureController(service))
             {
-                c.BeginBehavior(graph.Snapshot(), entry.Id, "screenshot", "still");
+                c.BeginBehavior(BehaviorFixtureMode(graph, entry.Id, "still"), entry.Id, "screenshot");
                 Chk("T273-graph-picker-initial-still", !Picker(c).RecordMode);
                 Choose(c, true);
                 bool recording = Wait(() => c.State == CaptureController.Phase.Capturing);
-                c.BeginBehavior(graph.Snapshot(), entry.Id, "screenshot", "still");
+                c.BeginBehavior(BehaviorFixtureMode(graph, entry.Id, "still"), entry.Id, "screenshot");
                 Chk("T273-graph-switched-key-stops-owner", recording && Wait(() => Running(c).IsCompleted)
                     && Running(c).Result && c.HasLastVideo && !c.HasLastStill);
             }
             using (var c = new CaptureController(service))
             {
-                c.BeginBehavior(graph.Snapshot(), entry.Id, "record", "record");
+                c.BeginBehavior(BehaviorFixtureMode(graph, entry.Id, "record"), entry.Id, "record");
                 Chk("T273-graph-picker-initial-record", Picker(c).RecordMode);
                 Choose(c, false);
                 Chk("T273-graph-record-key-selects-screenshot-branch", Wait(() => Running(c).IsCompleted)
@@ -72,7 +72,7 @@ static partial class SelfTest
                 Chk("still-capture-outline-retires", outline is { IsVisible: false },
                     $"visible={outline?.IsVisible}, opacity={outline?.Opacity}, seconds={service.Current.OutlineFadeSeconds}");
                 service.Current.AlwaysShowRegionOutline = true;
-                c.BeginBehavior(graph.Snapshot(), entry.Id, "record", "still"); Choose(c, false);
+                c.BeginBehavior(BehaviorFixtureMode(graph, entry.Id, "still"), entry.Id, "record"); Choose(c, false);
                 bool ready = Wait(() => Running(c).IsCompleted);
                 PumpMs(Fluent.Motion.DissolveMs + 100);
                 Chk("still-capture-outline-respects-persistent-setting", ready && outline is { IsVisible: true },

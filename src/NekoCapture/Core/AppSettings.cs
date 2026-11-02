@@ -7,7 +7,7 @@ namespace NekoCapture.Core;
 public sealed class AppSettings
 {
     /// <summary>当前配置结构版本；跨结构升级由安装器执行。</summary>
-    public const int CurrentConfigVersion = 1;
+    public const int CurrentConfigVersion = 2;
     /// <summary>此配置文件的结构版本。</summary>
     public int ConfigVersion { get; set; } = CurrentConfigVersion;
     /// <summary>启动时是否检查稳定版更新。</summary>

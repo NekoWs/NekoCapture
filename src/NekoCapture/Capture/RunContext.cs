@@ -56,6 +56,8 @@ public sealed class RunContext
     public RunValue LatestProduct { get; set; }
     /// <summary>最近动作的事件出口，供结果提示使用。</summary>
     public string LastEvent { get; set; } = "";
+    /// <summary>当前失败出口可显示的本地化原因，由提示动作消费。</summary>
+    public string FailureNotice { get; set; } = "";
     /// <summary>录制是否进行中。</summary>
     public bool Recording { get; set; }
     /// <summary>产物是否由选区开关决定。</summary>

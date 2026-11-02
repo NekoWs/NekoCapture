@@ -11,12 +11,12 @@ public static partial class K
         public static readonly Str ClearSearch = new("settingsnavigation.clearSearch", "清空搜索", "Clear search");
         public static readonly Str NoResults = new("settingsnavigation.noResults", "没有找到相关设置", "No matching settings");
         public static readonly Str TryAnother = new("settingsnavigation.tryAnother", "试试功能名称或换一个说法", "Try a feature name or another term");
-        public static readonly Str MyHotkeys = new("settingsnavigation.myHotkeys", "我的快捷键", "My shortcuts");
+        public static readonly Str MyHotkeys = new("settingsnavigation.myHotkeys", "我的触发", "My triggers");
         public static readonly Str BindingName = new("settingsnavigation.bindingName", "名称", "Name");
-        public static readonly Str KeysAndTrigger = new("settingsnavigation.keysAndTrigger", "按键与触发", "Keys and trigger");
+        public static readonly Str KeysAndTrigger = new("settingsnavigation.keysAndTrigger", "触发设置", "Trigger settings");
         public static readonly Str More = new("settingsnavigation.more", "更多设置", "More settings");
         public static readonly Str Presets = new("settingsnavigation.presets", "预设方案", "Presets");
-        public static readonly Str PresetsHint = new("settingsnavigation.presetsHint", "快捷键与行为的预设方案", "Ready-made shortcuts and behaviors");
+        public static readonly Str PresetsHint = new("settingsnavigation.presetsHint", "触发入口与行为的预设方案", "Ready-made triggers and behaviors");
         public static readonly Str UiKeys = new("settingsnavigation.uiKeys", "界面快捷键", "Interface shortcuts");
         public static readonly Str UiKeysHint = new("settingsnavigation.uiKeysHint", "确认、取消、复制与编辑器按键", "Confirm, cancel, copy, and editor keys");
         public static readonly Str SharedHint = new("settingsnavigation.sharedHint", "行为入口与动作链", "Reusable behaviors and action chains");

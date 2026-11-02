@@ -107,13 +107,13 @@ internal sealed partial class ResidentHost : IDisposable, IChainInvoker
             }
             if (message == 0x8001)
             {
-                if ((uint)l.ToInt64() == 0x0202) QueueWork(["--picker"]);
-                else if ((uint)l.ToInt64() is 0x0205 or 0x007B) QueueWork(["--tray-menu", Environment.TickCount64.ToString()]);
+                TrayEvent((uint)l.ToInt64());
                 return 0;
             }
             if (message == 0x8002) { ApplyInputs(); return 0; }
             if (message == 0x0113)
             {
+                if (w.ToInt64() == 2) { FlushTrayClick(); return 0; }
                 if (!_paused) { long now = Environment.TickCount64; _engine.Tick(now); _syntheticEngine.Tick(now); }
                 UpdateTick(); return 0;
             }
@@ -236,6 +236,7 @@ internal sealed partial class ResidentHost : IDisposable, IChainInvoker
         ResidentManifest? latest = null;
         while (_manifests.TryDequeue(out var next)) latest = next;
         if (latest == null) return;
+        ConfigureTrayClicks(latest);
         if (_inputSnapshot != null && latest.Enabled == _inputSnapshot.Enabled && latest.Signature == _inputSnapshot.Signature
             && latest.Inputs.SequenceEqual(_inputSnapshot.Inputs)) return;
         _inputSnapshot = latest;

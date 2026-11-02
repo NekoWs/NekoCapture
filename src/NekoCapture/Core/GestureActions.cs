@@ -55,6 +55,8 @@ public static class GestureActions
     public const string EditResult = "edit.result";
     public const string EditLastVideo = "edit.lastvideo";
     public const string OcrSelection = "ocr.selection";
+    /// <summary>读取剪贴板图片作为本次产物。</summary>
+    public const string ReadClipboardImage = "clipboard.readImage";
     public const string PinSelection = "pin.selection";
     public const string NotifyToast = "notify.toast";
     public const string CopyLast = "copy.clipboard";
@@ -86,6 +88,7 @@ public static class GestureActions
         new(ScrollCapture, K.Common.ScrollingCapture, K.Actions.ScrollCaptureDesc),
         new(DelayedCapture, K.Common.DelayedCapture, K.Actions.DelayedCaptureDesc),
         new(OcrSelection, K.Common.RecognizeText, K.Actions.OcrSelectionDesc),
+        new(ReadClipboardImage, K.Triggers.ClipboardImage, K.Triggers.PinClipboardHint),
         new(PinSelection, K.Common.Pin, K.Actions.PinSelectionDesc),
         new(EditResult, K.Hotkeys.EditResult, K.Hotkeys.EditResultDesc),
         new(EditLastStill, K.Behaviors.EditStill, K.Actions.EditLastStillDesc),
@@ -118,7 +121,7 @@ public static class GestureActions
     {
         Select or SelectOnly or RequireStored => new(VerbClass.Input, RunValue.None, RunValue.Region),
         StoredScope => new(VerbClass.Input, RunValue.None, RunValue.Region),
-        GrabStill or CaptureFrame or DelayedCapture => new(VerbClass.Product, RunValue.None, RunValue.Still),
+        GrabStill or CaptureFrame or DelayedCapture or ReadClipboardImage => new(VerbClass.Product, RunValue.None, RunValue.Still),
         GrabWindow => new(VerbClass.Product, RunValue.Window, RunValue.Still),
         RecordStart => new(VerbClass.Product, RunValue.Region, RunValue.Video),
         RecordToggle => new(VerbClass.Product, RunValue.None, RunValue.Video),

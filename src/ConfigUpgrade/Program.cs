@@ -37,6 +37,7 @@ internal static class Program
                     switch (version)
                     {
                         case 0: UpgradeFromZero(settings); version = 1; break;
+                        case 1: settings.Gestures.Migrate(); version = 2; break;
                         default: throw new InvalidDataException("Missing configuration migration step: " + version);
                     }
                 }

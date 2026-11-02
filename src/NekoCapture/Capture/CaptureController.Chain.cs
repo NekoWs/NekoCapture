@@ -292,6 +292,8 @@ public sealed partial class CaptureController
             case GestureActions.EditLastVideo:
                 if (context.LatestProduct != RunValue.None && context.Video == null) return false;
                 return await EditLastVideoAsync();
+            case GestureActions.ReadClipboardImage:
+                return await ReadClipboardResultAsync(context);
             case GestureActions.PinSelection:
                 if (State != Phase.Idle) return false;
                 if (context.Still == null && !await GrabChainStillAsync(context, GestureActions.GrabStill, useStoredFallback: true)) return false;

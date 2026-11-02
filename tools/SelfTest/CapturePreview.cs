@@ -8,15 +8,15 @@ static partial class SelfTest
 {
     static void CapturePreviewChecks()
     {
-        var graph = BuiltInBehaviors.CreateCapture();
-        Chk("immediate-capture-valid-hidden-entry", graph.IsValid(BuiltInBehaviors.Capture)
-            && graph.Flows.Count == 1 && !BehaviorPresets.All.Contains(BuiltInBehaviors.Capture));
-        var select = graph.Node(graph.Flows.Single().Steps.Single())!;
+        var graph = GestureConfig.CreateCurrentDefaults().Graph;
+        Chk("immediate-capture-valid-editable-entry", graph.IsValid(TrayDefaults.Capture)
+            && graph.Flow(TrayDefaults.Capture) != null && !BehaviorPresets.All.Contains(TrayDefaults.Capture));
+        var select = graph.Node(graph.Flow(TrayDefaults.Capture)!.Steps.Single())!;
         Chk("immediate-capture-selects-with-mode-switch", select is
             { Action: GestureActions.Select, ShowModeSwitch: true, RecordMode: false });
         var calls = new List<string>();
         Task<bool> Run(string mode, string captureResult = BehaviorPorts.Done) =>
-            BehaviorRunner.RunAsync(graph, BuiltInBehaviors.Capture, node =>
+            BehaviorRunner.RunAsync(graph, TrayDefaults.Capture, node =>
             {
                 calls.Add(node.Action);
                 return Task.FromResult(node.Action switch
@@ -41,7 +41,7 @@ static partial class SelfTest
             && calls.SequenceEqual(new[] { GestureActions.Select, GestureActions.GrabStill }));
         calls.Clear();
         var stopped = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var pending = BehaviorRunner.RunAsync(graph, BuiltInBehaviors.Capture, node =>
+        var pending = BehaviorRunner.RunAsync(graph, TrayDefaults.Capture, node =>
         {
             calls.Add(node.Action);
             return node.Action == GestureActions.RecordStart ? stopped.Task
@@ -60,7 +60,7 @@ static partial class SelfTest
         Chk("immediate-capture-edits-after-recording", pending.IsCompletedSuccessfully && pending.Result
             && calls.Contains(GestureActions.EditLastVideo));
         select.ShowModeSwitch = false;
-        Chk("immediate-capture-runs-have-independent-graphs", BuiltInBehaviors.CreateCapture().Nodes[0].ShowModeSwitch);
+        Chk("immediate-capture-runs-have-independent-graphs", GestureConfig.CreateCurrentDefaults().Graph.Nodes[0].ShowModeSwitch);
 
         const int w = 600, h = 6000;
         var pixels = new byte[w * h * 4];

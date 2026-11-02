@@ -69,7 +69,7 @@ static partial class SelfTest
             Task<bool> Running(CaptureController c) => (Task<bool>)typeof(CaptureController).GetField("_chainTask", flags)!.GetValue(c)!;
             void Open(CaptureController c)
             {
-                c.BeginBehavior(graph.Snapshot(), flow.Id, "record-events", BehaviorPorts.Record);
+                c.BeginBehavior(BehaviorFixtureMode(graph, flow.Id, BehaviorPorts.Record), flow.Id, "record-events");
                 var picker = (RegionPickerWindow)typeof(CaptureController).GetField("_picker", flags)!.GetValue(c)!;
                 var mon = Monitors.All().First();
                 var emit = (Action<RectI?, IntPtr>)typeof(RegionPickerWindow).GetField("Result", flags)!.GetValue(picker)!;

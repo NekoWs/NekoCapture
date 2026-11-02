@@ -8,27 +8,28 @@ namespace NekoCapture.Services;
 public sealed partial class CaptureController
 {
     string _behaviorBinding = "";
-    string _behaviorInitialMode = "";
-    bool _behaviorModeConsumed;
     TaskCompletionSource<string>? _editorEvent;
     bool? _consumeStop;
 
-    /// <summary>通过固定隐藏行为选区捕获，显示模式切换，截图后提示，录制后编辑。</summary>
-    public void BeginImmediateCapture() =>
-        BeginBehavior(BuiltInBehaviors.CreateCapture(), BuiltInBehaviors.Capture, BuiltInBehaviors.Capture);
+    /// <summary>执行默认捕获菜单项当前配置的行为；菜单项已删除或禁用时不执行。</summary>
+    public void BeginImmediateCapture()
+    {
+        var config = _settings.Current.Gestures;
+        var binding = config.Bindings.FirstOrDefault(b => b.Id == "tray.menu." + TrayDefaults.Capture && b.Enabled);
+        if (config.Enabled && binding != null) BeginBehavior(config.BindingGraph(binding), binding.EntryId, binding.Id);
+    }
 
-    /// <summary>执行行为入口；同一快捷键再次触发或停止入口结束当前录制。</summary>
+    /// <summary>执行行为入口；同一触发再次执行或停止入口结束当前录制。</summary>
     /// <param name="graph">独立的运行快照。</param>
     /// <param name="entryId">行为入口。</param>
     /// <param name="bindingId">启动绑定的稳定标识。</param>
-    /// <param name="initialMode">首个选区的模式覆盖，空值使用节点设置。</param>
-    public void BeginBehavior(BehaviorGraph graph, string entryId, string bindingId, string initialMode = "")
+    public void BeginBehavior(BehaviorGraph graph, string entryId, string bindingId)
     {
         if (_disposed || _updateReserved || !graph.IsValid(entryId) || graph.Flow(entryId) == null) return;
-        BehaviorCaptureTarget(graph, entryId, bindingId).BeginBehaviorCore(graph, entryId, bindingId, initialMode);
+        BehaviorCaptureTarget(graph, entryId, bindingId).BeginBehaviorCore(graph, entryId, bindingId);
     }
 
-    private void BeginBehaviorCore(BehaviorGraph graph, string entryId, string bindingId, string initialMode)
+    private void BeginBehaviorCore(BehaviorGraph graph, string entryId, string bindingId)
     {
         if (_chainTask is { IsCompleted: false })
         {
@@ -39,7 +40,7 @@ public sealed partial class CaptureController
                 var context = _chainContext;
                 var stopping = StopRecordingAsync();
                 if (bindingId != _behaviorBinding && EntryStopsRecording(graph, entryId) && context != null)
-                    ResumeBehaviorAfterStop(active, stopping, graph, entryId, bindingId, initialMode, context);
+                    ResumeBehaviorAfterStop(active, stopping, graph, entryId, bindingId, context);
             }
             else if (stop && _recordCompletion != null && State == Phase.Idle)
             {
@@ -48,7 +49,7 @@ public sealed partial class CaptureController
             }
             return;
         }
-        _chainTask = RunBehaviorAsync(graph, entryId, bindingId, initialMode);
+        _chainTask = RunBehaviorAsync(graph, entryId, bindingId);
     }
 
     static bool EntryStopsRecording(BehaviorGraph graph, string entryId)
@@ -68,19 +69,19 @@ public sealed partial class CaptureController
     }
 
     async void ResumeBehaviorAfterStop(Task<bool> active, Task<bool> stopping, BehaviorGraph graph, string entryId, string bindingId,
-        string initialMode, RunContext context)
+        RunContext context)
     {
         using var videoLease = context.HoldVideo();
         try
         {
             bool stopped = await stopping;
             await active;
-            if (!_disposed) _chainTask = RunBehaviorAsync(graph, entryId, bindingId, initialMode, context, stopped);
+            if (!_disposed) _chainTask = RunBehaviorAsync(graph, entryId, bindingId, context, stopped);
         }
         catch (Exception ex) { Trace.Log($"stop behavior: {ex.Message}"); }
     }
 
-    async Task<bool> RunBehaviorAsync(BehaviorGraph graph, string entryId, string bindingId, string initialMode,
+    async Task<bool> RunBehaviorAsync(BehaviorGraph graph, string entryId, string bindingId,
         RunContext? initial = null, bool? consumeStop = null)
     {
         var stored = StoredRegion();
@@ -88,8 +89,6 @@ public sealed partial class CaptureController
         using var videoLease = context.HoldVideo();
         _chainContext = context;
         _behaviorBinding = bindingId;
-        _behaviorInitialMode = initialMode;
-        _behaviorModeConsumed = false;
         _consumeStop = consumeStop;
         try
         {
@@ -113,6 +112,7 @@ public sealed partial class CaptureController
     {
         if (_disposed) return BehaviorPorts.Cancel;
         string action = node.Action;
+        if (action != GestureActions.NotifyToast) context.FailureNotice = "";
         bool ok;
         if (_consumeStop is { } stopSucceeded && action is GestureActions.RecordStop or GestureActions.RecordToggle)
         {
@@ -122,8 +122,6 @@ public sealed partial class CaptureController
         if (action is GestureActions.Select or GestureActions.SelectOnly)
         {
             bool record = node.RecordMode;
-            if (!_behaviorModeConsumed && _behaviorInitialMode.Length > 0) record = _behaviorInitialMode == BehaviorPorts.Record;
-            _behaviorModeConsumed = true;
             ok = await RunChainStepAsync(GestureActions.Select, context, record,
                 action == GestureActions.Select && node.ShowModeSwitch);
             bool cancelled = context.Cancelled;
@@ -171,12 +169,13 @@ public sealed partial class CaptureController
         if (action == GestureActions.NotifyToast && (context.Still == null
             || context.LastEvent is BehaviorPorts.Failed or BehaviorPorts.Cancel))
         {
-            NoticeToast.Show(Loc.T(context.LastEvent switch
+            NoticeToast.Show(context.LastEvent == BehaviorPorts.Failed && context.FailureNotice.Length > 0 ? context.FailureNotice : Loc.T(context.LastEvent switch
             {
                 BehaviorPorts.Failed => K.Behaviors.ActionFailed,
                 BehaviorPorts.Cancel => K.Behaviors.ActionCancelled,
                 _ => context.LatestProduct == RunValue.Video ? K.Behaviors.RecordingReady : K.Behaviors.ActionDone,
             }));
+            context.FailureNotice = "";
             return BehaviorPorts.Done;
         }
         if (action is GestureActions.EditResult or GestureActions.EditLastStill or GestureActions.EditLastVideo)

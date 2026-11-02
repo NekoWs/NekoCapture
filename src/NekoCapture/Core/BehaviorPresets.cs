@@ -1,9 +1,9 @@
 namespace NekoCapture.Core;
 
-/// <summary>预设行为包含的快捷键与共享行为图。</summary>
+/// <summary>预设方案包含的触发与共享行为图。</summary>
 public sealed class BehaviorScheme
 {
-    /// <summary>方案的有序快捷键。</summary>
+    /// <summary>方案的有序触发。</summary>
     public List<GestureBindingDto> Bindings { get; set; } = new();
     /// <summary>方案的完整行为图。</summary>
     public BehaviorGraph Graph { get; set; } = new();
@@ -75,9 +75,13 @@ public static class BehaviorPresets
             var flow = new BehaviorFlow { Id = $"preset.{id}.{name}", Steps = steps.Select(node => node.Id).ToList() };
             graph.Flows.Add(flow); return flow;
         }
-        void Bind(string name, string chord, string trigger, BehaviorFlow flow, string mode = "") =>
-            scheme.Bindings.Add(new GestureBindingDto { Id = $"preset.{id}.{name}", Chord = chord,
-                Trigger = trigger, EntryId = flow.Id, EntryMode = mode });
+        void Bind(string name, string chord, string trigger, BehaviorFlow flow, string mode = "")
+        {
+            var binding = new GestureBindingDto { Id = $"preset.{id}.{name}", Chord = chord, Trigger = trigger, EntryId = flow.Id };
+            if (mode.Length > 0 && graph.Node(flow.Steps[0]) is { } first)
+                binding.Overrides[first.Id] = new() { [nameof(BehaviorNode.RecordMode)] = System.Text.Json.JsonSerializer.SerializeToElement(mode == BehaviorPorts.Record) };
+            scheme.Bindings.Add(binding);
+        }
         BehaviorNode EditVideo()
         {
             var edit = Node(GestureActions.EditLastVideo);
@@ -109,6 +113,7 @@ public static class BehaviorPresets
                 id == Dual ? BehaviorPorts.Still : "");
             if (id == Dual) Bind("record", GestureConfig.DefaultRecordKey, "Chord", flow, BehaviorPorts.Record);
         }
+        TrayDefaults.Seed(scheme.Bindings, scheme.Graph);
         return scheme;
     }
 }

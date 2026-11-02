@@ -37,7 +37,7 @@ public sealed partial class GestureConfig
             : BehaviorPresets.Create(id);
         Bindings = scheme.Bindings; Graph = scheme.Graph;
         ActivePreset = id; Seeded = true;
-        ChainRevision = CurrentChainRevision; GraphRevision = 1;
+        ChainRevision = CurrentChainRevision; GraphRevision = 1; TriggerRevision = 1;
         return true;
     }
 }

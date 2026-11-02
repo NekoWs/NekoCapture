@@ -13,8 +13,8 @@ public static partial class K
         public static readonly Str Exit = new("tray.exit", "退出", "Exit");
         public static readonly Str NekoCaptureGestures = new(
             "tray.framecaptureGestures",
-            "NekoCapture\n手势 {0} 条 · {1}",
-            "NekoCapture\n{0} gestures · {1}");
+            "NekoCapture\n触发 {0} 项 · {1}",
+            "NekoCapture\n{0} triggers · {1}");
         public static readonly Str NekoCapturePausedHotkeysReleased = new(
             "tray.framecapturePausedHotkeysReleased",
             "NekoCapture · 已暂停，热键让位其他软件",
@@ -26,8 +26,8 @@ public static partial class K
             "No image on the clipboard. Copy a screenshot, a picture, or a web image first.");
         public static readonly Str NoRegionDoubleClick = new(
             "tray.noRegionDoubleClick",
-            "未设范围 · 双击图标设置",
-            "No region · double-click the icon to set one");
+            "未保存选区",
+            "No saved region");
         public static readonly Str PausedCaptureHotkeysAreReleased = new(
             "tray.pausedCaptureHotkeysAreReleased",
             "已暂停：截图热键暂时让位给其他软件，回到这里可恢复",

@@ -106,6 +106,7 @@ public sealed partial class GestureConfig
     /// <param name="flow">行为入口。</param>
     /// <returns>用户名称或动作名称。</returns>
     public string FlowName(BehaviorFlow flow) => flow.Name.Length > 0 ? flow.Name
+        : TrayDefaults.FlowLabel(flow.Id) is { } tray && tray != Str.Empty ? Loc.T(tray)
         : BehaviorPresets.FlowLabel(flow.Id) is { } label && label != Str.Empty ? Loc.T(label)
         : flow.Steps.Count > 0 && Graph.Node(flow.Steps[0]) is { } first
             ? first.Action == GestureActions.Select ? Loc.T(K.Behaviors.CaptureFlow) : GestureActions.LabelOf(first.Action)
@@ -113,9 +114,9 @@ public sealed partial class GestureConfig
 
     /// <summary>入口及其事件分支包含的动作。</summary>
     /// <param name="entryId">入口标识。</param>
-    /// <param name="initialMode">首个选区的模式覆盖；空值遍历全部出口。</param>
+    /// <param name="overrides">按动作标识配置的参数覆盖；为空时遍历全部出口。</param>
     /// <returns>按图遍历、去重的动作名。</returns>
-    public IEnumerable<string> FlowActions(string entryId, string initialMode = "")
+    public IEnumerable<string> FlowActions(string entryId, Dictionary<string, Dictionary<string, System.Text.Json.JsonElement>>? overrides = null)
     {
         var seen = new HashSet<string>();
         var names = new List<string>();
@@ -125,9 +126,10 @@ public sealed partial class GestureConfig
             {
                 if (!seen.Add(id) || Graph.Node(id) is not { } node) continue;
                 names.Add(node.Action);
-                if (node.Action == GestureActions.Select && initialMode.Length > 0)
+                if (node.Action == GestureActions.Select && overrides != null && overrides.TryGetValue(node.Id, out var parameters)
+                    && parameters.TryGetValue(nameof(BehaviorNode.RecordMode), out var mode) && mode.ValueKind is System.Text.Json.JsonValueKind.True or System.Text.Json.JsonValueKind.False)
                 {
-                    if (node.Branches.TryGetValue(initialMode, out var selected)) Visit(selected);
+                    if (node.Branches.TryGetValue(mode.GetBoolean() ? BehaviorPorts.Record : BehaviorPorts.Still, out var selected)) Visit(selected);
                 }
                 else foreach (var branch in node.Branches.Values) Visit(branch);
                 if (node.Action == GestureActions.CallBehavior && Graph.Flow(node.TargetId) is { } flow) Visit(flow.Steps);

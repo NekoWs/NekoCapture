@@ -164,6 +164,8 @@ internal sealed partial class ResidentHost
     private static extern UIntPtr SetTimer(IntPtr window, uint id, uint interval, IntPtr procedure);
     [DllImport("user32.dll")]
     private static extern bool KillTimer(IntPtr window, uint id);
+    [DllImport("user32.dll")]
+    private static extern uint GetDoubleClickTime();
     [DllImport("kernel32.dll", EntryPoint = "FindFirstChangeNotificationW", CharSet = CharSet.Unicode)]
     private static extern IntPtr FindFirstChangeNotification(string path, bool subtree, uint changes);
     [DllImport("kernel32.dll")]

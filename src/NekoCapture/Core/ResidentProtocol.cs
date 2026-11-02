@@ -35,6 +35,12 @@ internal sealed class ResidentManifest
     public long SourceTicks { get; set; }
     /// <summary>快捷键是否启用。</summary>
     public bool Enabled { get; set; }
+    /// <summary>单击托盘的触发标识。</summary>
+    public string TraySingle { get; set; } = "";
+    /// <summary>双击托盘的触发标识。</summary>
+    public string TrayDouble { get; set; } = "";
+    /// <summary>单击与双击是否执行同一行为。</summary>
+    public bool TrayEquivalent { get; set; }
     /// <summary>手势和行为配置摘要，相同配置的界面冷启动不重置按住状态。</summary>
     public string Signature { get; set; } = "";
     /// <summary>可运行绑定的数值输入。</summary>

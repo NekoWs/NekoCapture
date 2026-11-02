@@ -50,7 +50,7 @@ static partial class SelfTest
                 Go(id);
             Chk("settings-hierarchy-all-feature-pages-build", bodies.Count >= 23);
             var search = (TextBox)Field("_settingsSearchBox")!;
-            foreach (var (query, page) in new[] { ("热键", "hotkeys"), ("静音", "feedback"), ("关闭声音", "feedback"),
+            foreach (var (query, page) in new[] { ("热键", "hotkeys"), ("托盘", "hotkeys"), ("双击托盘", "hotkeys"), ("右键菜单", "hotkeys"), ("静音", "feedback"), ("关闭声音", "feedback"),
                 ("提权", "startup"), ("磁吸", "selection"), ("保存目录", "files"), ("画质", "record-quality"), ("OCR", "ocr") })
             {
                 search.Text = query; PumpMs(20);
@@ -77,6 +77,7 @@ static partial class SelfTest
             Go("about"); Theme.Apply("light", settings.Current.Accent); PumpMs(Fluent.Motion.ThemeMs + 50); Snapshot("about-light");
             Chk("settings-navigation-light-theme-builds", AllText((FrameworkElement)bodies["about"]!).Any(t => t.Text == Loc.T(K.About.Product)));
             SettingsPolishChecks(window, settings, Snapshot);
+            TriggerUiChecks(window, settings, Snapshot);
             SettingsOverviewChecks(window, settings);
             SettingsPaletteChecks(window, settings, Snapshot);
         }

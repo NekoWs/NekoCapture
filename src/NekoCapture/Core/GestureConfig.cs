@@ -3,17 +3,12 @@ using K = NekoCapture.Core.K;
 
 namespace NekoCapture.Core;
 
-/// <summary>
-/// 一条手势绑定的可序列化形态。JSON 友好：组合键用 "Ctrl+Shift+G" 串（复用 <see cref="HotkeySpec"/> 解析，
-/// 含键名映射，不重造键表）、触发/失败策略用字符串枚举名。与 <see cref="GC.GestureBinding"/> 互转。
-/// 序列化由宿主负责（GestureCore 刻意不引 System.Text.Json 以保持中立、可跨宿主复用）。
-/// </summary>
+/// <summary>可序列化的触发绑定；按键可转为 GestureCore 绑定，托盘入口由来源目录解释。</summary>
 public sealed class GestureBindingDto
 {
     /// <summary>绑定的稳定标识。</summary>
     public string Id { get; set; } = "";
-    /// <summary>这条快捷键的名字，列表折叠时就是它。用户自己写，存的就是他写的原文——
-    /// 界面语言表不认识它，切语言也不会改它。空名在界面上按序列推导显示。</summary>
+    /// <summary>用户定义的触发名称；空值按行为与来源推导。</summary>
     public string Name { get; set; } = "";
     /// <summary>启用/禁用：禁用=保留配置但不进引擎、不触发，无需删除。默认启用。</summary>
     public bool Enabled { get; set; } = true;
@@ -21,10 +16,15 @@ public sealed class GestureBindingDto
     public string Chord { get; set; } = "";
     /// <summary>GestureCore.TriggerKind 名：KeyDown/KeyUp/Click/DoubleClick/TripleClick/LongPress/Chord。</summary>
     public string Trigger { get; set; } = "Chord";
-    /// <summary>快捷键进入的共享行为入口；空值用于导入动作链。</summary>
+    /// <summary>触发连接的共享行为入口；空值用于导入动作链。</summary>
     public string EntryId { get; set; } = "";
-    /// <summary>入口选区的初始模式：空值取节点设置，still 为截图，record 为录制。</summary>
-    public string EntryMode { get; set; } = "";
+    /// <summary>导入用的选区模式；规范保存时省略。</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? EntryMode { get; set; }
+    /// <summary>触发来源，默认使用组合键。</summary>
+    public string Source { get; set; } = TriggerSources.Keyboard;
+    /// <summary>本次调用按动作标识保存的参数覆盖，不改变共享行为。</summary>
+    public Dictionary<string, Dictionary<string, System.Text.Json.JsonElement>> Overrides { get; set; } = new();
     /// <summary>导入用的有序动作；入口标识非空时执行行为图。</summary>
     public string[] Actions { get; set; } = Array.Empty<string>();
     /// <summary>导入时接入主链末尾的完成序列；规范配置保存时省略。</summary>
@@ -47,6 +47,7 @@ public sealed class GestureBindingDto
     /// 连击/长按阈值出参已钳到 50–2000 / 100–5000，<see cref="Fallback"/> 名未知时按 Stop 处理。</returns>
     public GC.GestureBinding? ToBinding()
     {
+        if (Source != TriggerSources.Keyboard) return null;
         var spec = HotkeySpec.Parse(Chord);
         if (spec == null) return null;
         if (!Enum.TryParse<GC.TriggerKind>(Trigger, true, out var trig)) return null;
@@ -92,16 +93,16 @@ public sealed class GestureBindingDto
     }
 }
 
-/// <summary>快捷键的绑定、迁移与出厂配置。</summary>
+/// <summary>触发绑定、导入与出厂配置。</summary>
 public sealed partial class GestureConfig
 {
-    /// <summary>创建当前格式的出厂快捷键与行为图，不经过配置迁移。</summary>
-    /// <returns>独立的双快捷键方案。</returns>
+    /// <summary>创建当前格式的按键、托盘触发与共享行为图。</summary>
+    /// <returns>独立的双快捷键与托盘方案。</returns>
     public static GestureConfig CreateCurrentDefaults()
     {
         var scheme = BehaviorPresets.Create(BehaviorPresets.Dual);
         return new GestureConfig { Bindings = scheme.Bindings, Graph = scheme.Graph, GraphRevision = 1,
-            ChainRevision = CurrentChainRevision, Seeded = true, ActivePreset = BehaviorPresets.Dual };
+            ChainRevision = CurrentChainRevision, TriggerRevision = 1, Seeded = true, ActivePreset = BehaviorPresets.Dual };
     }
 
     /// <summary>当前动作链存储版本。</summary>
@@ -118,12 +119,12 @@ public sealed partial class GestureConfig
         bool changed = ChainRevision < CurrentChainRevision;
         foreach (var b in Bindings)
         {
-            b.EntryId ??= ""; b.EntryMode ??= "";
+            b.EntryId ??= "";
             if (Enum.TryParse<GC.TriggerKind>(b.Trigger, true, out var trigger) && b.Trigger != trigger.ToString())
             { b.Trigger = trigger.ToString(); changed = true; }
-            string mode = b.EntryMode.ToLowerInvariant();
+            string mode = (b.EntryMode ?? "").ToLowerInvariant();
             if (mode is not (BehaviorPorts.Still or BehaviorPorts.Record)) mode = "";
-            if (b.EntryMode != mode) { b.EntryMode = mode; changed = true; }
+            if (b.EntryMode != null && b.EntryMode != mode) { b.EntryMode = mode; changed = true; }
             b.OnFail = (b.OnFail ?? Array.Empty<string>()).Select(GestureActions.Canonical).ToArray();
             var actions = (b.Actions ?? Array.Empty<string>()).Concat(b.OnComplete ?? Array.Empty<string>())
                 .Select(GestureActions.Canonical).ToArray();
@@ -151,12 +152,11 @@ public sealed partial class GestureConfig
             b.OnComplete = null;
         }
         ChainRevision = Math.Max(ChainRevision, CurrentChainRevision);
-        return EnsureGraph() || changed;
+        changed |= EnsureGraph();
+        return EnsureTriggers() || changed;
     }
 
-    /// <summary>「启用快捷键」总开关，默认 true。关掉后不向引擎喂键、不装鼠标钩子——快捷键完全不参与，
-    /// 键照常放行给前台。开着时命中带具体键的组合键即吞键，前台收不到那一键；
-    /// 纯修饰键组合（无具体键，如 Ctrl+Alt 本身）永不吞，防止 Ctrl+C 等被劫持。</summary>
+    /// <summary>触发总开关；关闭时不注册组合键、不执行托盘点击与自定义菜单，配置保持不变。</summary>
     public bool Enabled { get; set; } = true;
 
     /// <summary>绑定列表，顺序即引擎匹配顺序。</summary>
@@ -173,7 +173,7 @@ public sealed partial class GestureConfig
         var list = new List<GC.GestureBinding>();
         foreach (var d in Bindings)
         {
-            if (!d.Enabled || !HasRunnableEntry(d)) continue;
+            if (d.Source != TriggerSources.Keyboard || !d.Enabled || !HasRunnableEntry(d)) continue;
             var b = d.ToBinding();
             if (b != null && b.Actions.Count > 0) list.Add(b);
         }
@@ -255,6 +255,11 @@ public sealed partial class GestureConfig
         foreach (var b in Bindings)
         {
             if (!b.Enabled || !HasRunnableEntry(b)) continue;
+            if (b.Source != TriggerSources.Keyboard)
+            {
+                if (b.Source is TriggerSources.TrayClick or TriggerSources.TrayDoubleClick && !seen.Add(b.Source)) clash.Add(b.Id);
+                continue;
+            }
             var spec = HotkeySpec.Parse(b.Chord);
             if (spec == null) continue;
             // 组合键按解析结果比，不按字符串比：Ctrl+Alt+A 与 ALT+CTRL+A 是同一个键。
@@ -302,7 +307,7 @@ public sealed partial class GestureConfig
         var chords = new List<string>();
         foreach (var b in Bindings)
         {
-            if (!b.Enabled || !HasRunnableEntry(b) || !(b.EntryId.Length > 0 ? FlowActions(b.EntryId, b.EntryMode) : b.Actions).Any(a => actionNames.Contains(a))) continue;
+            if (b.Source != TriggerSources.Keyboard || !b.Enabled || !HasRunnableEntry(b) || !(b.EntryId.Length > 0 ? FlowActions(b.EntryId, b.Overrides) : b.Actions).Any(a => actionNames.Contains(a))) continue;
             if (HotkeySpec.Parse(b.Chord) == null) continue;
             if (!chords.Contains(b.Chord)) chords.Add(b.Chord);
         }
@@ -319,7 +324,7 @@ public sealed partial class GestureConfig
         var byChord = new Dictionary<string, List<string>>();
         foreach (var b in Bindings)
         {
-            if (!b.Enabled || !HasRunnableEntry(b) || !(b.EntryId.Length > 0 ? FlowActions(b.EntryId, b.EntryMode) : b.Actions).Any(a => actionNames.Contains(a))) continue;
+            if (b.Source != TriggerSources.Keyboard || !b.Enabled || !HasRunnableEntry(b) || !(b.EntryId.Length > 0 ? FlowActions(b.EntryId, b.Overrides) : b.Actions).Any(a => actionNames.Contains(a))) continue;
             if (HotkeySpec.Parse(b.Chord) == null) continue;
             if (!byChord.TryGetValue(b.Chord, out var list)) byChord[b.Chord] = list = new List<string>();
             var suf = Loc.T(TriggerLabel(b.Trigger));

@@ -12,14 +12,14 @@ static partial class SelfTest
             {
                 var scheme = BehaviorPresets.Create(id);
                 Chk($"preset-{id}-valid-entries", scheme.Graph.IsValid() && scheme.Bindings.All(binding =>
-                    binding.ToBinding() != null && scheme.Graph.Flow(binding.EntryId) != null));
+                    (binding.Source != TriggerSources.Keyboard || binding.ToBinding() != null) && scheme.Graph.Flow(binding.EntryId) != null));
                 Chk($"preset-{id}-stable-definition", JsonSerializer.Serialize(scheme) == JsonSerializer.Serialize(BehaviorPresets.Create(id)));
             }
             var dual = BehaviorPresets.Create(BehaviorPresets.Dual);
-            var root = dual.Graph.Node(dual.Graph.Flows.Single().Steps.Single())!;
-            Chk("preset-dual-shares-selection-and-mode-exits", dual.Bindings.Count == 2
+            var root = dual.Graph.Node(dual.Graph.Flow(dual.Bindings[0].EntryId)!.Steps.Single())!;
+            Chk("preset-dual-shares-selection-and-mode-exits", dual.Bindings.Count(b => b.Source == TriggerSources.Keyboard) == 2
                 && dual.Bindings[0].EntryId == dual.Bindings[1].EntryId && root.ShowModeSwitch
-                && dual.Bindings[0].EntryMode == BehaviorPorts.Still && dual.Bindings[1].EntryMode == BehaviorPorts.Record);
+                && !dual.Bindings[0].Overrides[root.Id][nameof(BehaviorNode.RecordMode)].GetBoolean() && dual.Bindings[1].Overrides[root.Id][nameof(BehaviorNode.RecordMode)].GetBoolean());
             var separate = BehaviorPresets.Create(BehaviorPresets.Separate);
             Chk("preset-separate-stores-without-capture", separate.Graph.Node(separate.Graph.Flows[0].Steps.Single()) is
                 { Action: GestureActions.SelectOnly, ShowModeSwitch: false } select && select.Branches.Values.All(branch => branch.Count == 0));
@@ -27,7 +27,7 @@ static partial class SelfTest
                 .All(flow => separate.Graph.Node(flow.Steps[0])?.Action == GestureActions.RequireStored));
             var host = new ChainHostProbe();
             var engine = new GestureEngine(host);
-            engine.SetBindings(separate.Bindings.Select(binding => binding.ToBinding()!));
+            engine.SetBindings(separate.Bindings.Where(b => b.Source == TriggerSources.Keyboard).Select(binding => binding.ToBinding()!));
             var mods = ModifierKeys.Control | ModifierKeys.Alt;
             engine.OnKeyDown(0x52, mods, 0); engine.OnKeyUp(0x52, mods, 100);
             Chk("preset-separate-tap-enters-still", host.Binding?.Id == "preset.separate.tap");
@@ -36,8 +36,8 @@ static partial class SelfTest
             engine.OnKeyUp(0x52, mods, 1600);
             Chk("preset-separate-release-enters-stop", host.Binding?.Id == "preset.separate.release");
             var single = BehaviorPresets.Create(BehaviorPresets.Single);
-            Chk("preset-single-keeps-both-mode-branches", single.Bindings.Count == 1
-                && single.Graph.Node(single.Graph.Flows.Single().Steps.Single()) is { ShowModeSwitch: true } node
+            Chk("preset-single-keeps-both-mode-branches", single.Bindings.Count(b => b.Source == TriggerSources.Keyboard) == 1
+                && single.Graph.Node(single.Graph.Flow(single.Bindings[0].EntryId)!.Steps.Single()) is { ShowModeSwitch: true } node
                 && node.Branches[BehaviorPorts.Still].Count > 0 && node.Branches[BehaviorPorts.Record].Count > 0);
             var settings = new AppSettings(); settings.Normalize();
             var cfg = settings.Gestures;
@@ -56,7 +56,7 @@ static partial class SelfTest
             cfg.Bindings[0].Chord = "F8"; settings.Normalize();
             Chk("preset-rebinding-becomes-custom", cfg.ActivePreset == BehaviorPresets.Custom && cfg.CustomScheme!.Bindings[0].Chord == "F8");
             cfg.SelectPreset(BehaviorPresets.Dual); cfg.SelectPreset(BehaviorPresets.Custom);
-            Chk("preset-modified-custom-replaces-saved-scheme", cfg.Bindings[0].Chord == "F8" && cfg.Bindings.Count == 1);
+            Chk("preset-modified-custom-replaces-saved-scheme", cfg.Bindings[0].Chord == "F8" && cfg.Bindings.Count(b => b.Source == TriggerSources.Keyboard) == 1);
             cfg.SelectPreset(BehaviorPresets.Single); settings.Normalize();
             cfg.Graph.Nodes.First(node => node.Action == GestureActions.Select).ShowModeSwitch = false; settings.Normalize();
             Chk("preset-graph-edit-becomes-custom", cfg.ActivePreset == BehaviorPresets.Custom

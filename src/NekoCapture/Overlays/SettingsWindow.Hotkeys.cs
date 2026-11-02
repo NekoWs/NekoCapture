@@ -521,9 +521,15 @@ public sealed partial class SettingsWindow : Window
     /// 用户新建的取「新配置」。名字是用户数据，他改过之后就固定成他写下的那串，语言切换动不了它。</summary>
     /// <param name="b">这条绑定。</param>
     /// <returns>显示名。</returns>
-    static string HotkeyDisplayName(GestureBindingDto b)
+    string HotkeyDisplayName(GestureBindingDto b)
     {
         if (!string.IsNullOrWhiteSpace(b.Name)) return b.Name;
+        if (b.Source != TriggerSources.Keyboard)
+        {
+            if (_settings.Current.Gestures.Graph.Flow(b.EntryId) is { } flow)
+                return _settings.Current.Gestures.FlowName(flow);
+            return Loc.T(TriggerSources.Label(b.Source));
+        }
         return b.Id switch
         {
             "default.capture" => Loc.T(K.Common.Capture),

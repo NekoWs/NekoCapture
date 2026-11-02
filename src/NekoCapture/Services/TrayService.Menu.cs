@@ -14,6 +14,8 @@ public sealed partial class TrayService
     private bool _disposed, _menuEnglish;
     private DispatcherOperation? _menuWarmup;
     private long _menuRequestedAt;
+    private string _menuTriggerSignature = "";
+    private bool _menuTriggersDirty = true;
 
     private void QueueMenuWarmup()
     {
@@ -30,8 +32,20 @@ public sealed partial class TrayService
     /// <summary>在不显示窗口的情况下准备菜单、文本布局与锚点对象。</summary>
     internal void PrepareMenu()
     {
-        if (_disposed || (_menu != null && _menuAnchor != null && _menuResources != null && _menuEnglish == Loc.IsEnglish)) return;
-        BuildMenu();
+        if (_disposed) return;
+        bool ready = _menu != null && _menuAnchor != null && _menuResources != null && _menuEnglish == Loc.IsEnglish;
+        if (ready && !_menuTriggersDirty) return;
+        string signature = System.Text.Json.JsonSerializer.Serialize(new
+        {
+            _host.Settings.Current.Gestures.Enabled,
+            Items = _host.Settings.Current.Gestures.Bindings.Where(b => b.Source == TriggerSources.TrayMenu)
+                .Select(b => new { b.Id, b.Name, b.Enabled, b.EntryId,
+                    Flow = _host.Settings.Current.Gestures.Graph.Flow(b.EntryId)?.Name,
+                    Actions = _host.Settings.Current.Gestures.FlowActions(b.EntryId).ToArray() }).ToArray(),
+        });
+        _menuTriggersDirty = false;
+        if (ready && _menuTriggerSignature == signature) return;
+        _menuTriggerSignature = signature; BuildMenu();
     }
 
     private void BuildMenu()
@@ -48,22 +62,26 @@ public sealed partial class TrayService
         anchor.Resources[SystemParameters.MenuPopupAnimationKey] = PopupAnimation.None;
         _menu = menu; _menuAnchor = anchor; _menuEnglish = Loc.IsEnglish;
 
-        void Item(Str label, string glyph, Action action)
+        void Item(string label, string glyph, Action action, bool enabled = true)
         {
-            var item = new MenuItem { Header = Loc.T(label), Icon = Fluent.Glyph(glyph, 15, Theme.TextDimBrush) };
+            var item = new MenuItem { Header = label, IsEnabled = enabled, Icon = Fluent.Glyph(glyph, 15, Theme.TextDimBrush) };
             item.Click += (_, _) => { menu.IsOpen = false; ResidentBridge.RunTrayAction(action); };
             menu.Items.Add(item);
         }
-        Item(K.Tray.CaptureNow, "\uE7A8", () => _host.Controller.BeginImmediateCapture());
-        Item(K.Common.ScrollingCapture, "\uE8CB", () => _host.Controller.BeginScrollCapture());
-        Item(K.Common.DelayedCapture, "\uE823", () => _host.Controller.BeginDelayedCapture());
-        Item(K.Tray.PinFromClipboard, "\uE718", async () =>
+        var config = _host.Settings.Current.Gestures;
+        foreach (var binding in config.Bindings.Where(b => b.Source == TriggerSources.TrayMenu && config.Graph.Flow(b.EntryId) != null))
         {
-            if (!await _host.Controller.PinFromClipboardAsync()) Notify(Loc.T(K.Tray.NoImageOnTheClipboard));
-        });
-        menu.Items.Add(new Separator());
-        Item(K.Common.Settings, "\uE713", OpenSettings);
-        Item(K.Tray.Exit, "\uE8BB", () => { ResidentBridge.RetireHost(); Dispose(); Application.Current?.Shutdown(); });
+            var flow = config.Graph.Flow(binding.EntryId);
+            string label = binding.Name.Length > 0 ? binding.Name : flow == null ? Loc.T(K.Triggers.TrayMenu) : config.FlowName(flow);
+            var actions = config.FlowActions(binding.EntryId).ToArray();
+            string glyph = actions.Contains(GestureActions.ScrollCapture) ? "\uE8CB"
+                : actions.Contains(GestureActions.DelayedCapture) ? "\uE823"
+                : actions.Contains(GestureActions.ReadClipboardImage) ? "\uE718" : "\uE7A8";
+            Item(label, glyph, () => TriggerExecution.Run(_host, binding.Id), config.Enabled && binding.Enabled && flow != null);
+        }
+        if (menu.Items.Count > 0) menu.Items.Add(new Separator());
+        Item(Loc.T(K.Common.Settings), "\uE713", OpenSettings);
+        Item(Loc.T(K.Tray.Exit), "\uE8BB", () => { ResidentBridge.RetireHost(); Dispose(); Application.Current?.Shutdown(); });
 
         menu.PlacementTarget = anchor; menu.Placement = PlacementMode.MousePoint;
         WatchMenu(menu, anchor);

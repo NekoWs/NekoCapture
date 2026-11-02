@@ -24,9 +24,9 @@ sealed class GestureInvoker : GC.IChainInvoker
             && b.ToBinding()?.Chord.Equals(binding.Chord) == true);
         if (dto is { EntryId.Length: > 0 })
         {
-            var graph = _host.Settings.Current.Gestures.Graph;
-            string entry = dto.EntryId, mode = dto.EntryMode, identity = dto.Id;
-            Post(() => _host.Controller.BeginBehavior(graph.Snapshot(), entry, identity, mode));
+            var config = _host.Settings.Current.Gestures;
+            string entry = dto.EntryId, identity = dto.Id;
+            Post(() => _host.Controller.BeginBehavior(config.BindingGraph(dto), entry, identity));
             return true;
         }
         var chain = binding.Actions.Concat(binding.OnComplete).Select(GestureActions.Canonical).ToArray();

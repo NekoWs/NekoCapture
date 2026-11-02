@@ -48,13 +48,13 @@ static partial class SelfTest
         try
         {
             Chk("self-capture-default-is-disabled", !new AppSettings().CaptureSelf);
-            root.BeginBehavior(graph.Snapshot(), entry.Id, "outer", BehaviorPorts.Record);
+            root.BeginBehavior(BehaviorFixtureMode(graph, entry.Id, BehaviorPorts.Record), entry.Id, "outer");
             Wait(() => Field(root, "_picker") != null); Choose(root, true);
             Wait(() => Field(root, "_recordPanel") != null);
             var firstPanel = Panel(root);
             typeof(RecordPanelWindow).GetMethod("StartRequested", flags)!.Invoke(firstPanel, null);
             Chk("parallel-first-recording-starts", Wait(() => root.State == CaptureController.Phase.Capturing));
-            root.BeginBehavior(graph.Snapshot(), entry.Id, "inner", BehaviorPorts.Record);
+            root.BeginBehavior(BehaviorFixtureMode(graph, entry.Id, BehaviorPorts.Record), entry.Id, "inner");
             var second = (CaptureController)Field(root, "_nextCapture")!;
             Wait(() => Field(second, "_picker") != null); Choose(second, true);
             Wait(() => Field(second, "_recordPanel") != null);
@@ -65,7 +65,7 @@ static partial class SelfTest
             Chk("parallel-two-recordings-run-together", Wait(() => second.State == CaptureController.Phase.Capturing)
                 && root.State == CaptureController.Phase.Capturing && firstPanel.IsLoaded && secondPanel.IsLoaded);
             PumpMs(180);
-            root.BeginBehavior(graph.Snapshot(), entry.Id, "outer", BehaviorPorts.Record);
+            root.BeginBehavior(BehaviorFixtureMode(graph, entry.Id, BehaviorPorts.Record), entry.Id, "outer");
             Chk("parallel-binding-stops-only-its-recording", Wait(() => root.State == CaptureController.Phase.Editing)
                 && second.State == CaptureController.Phase.Capturing && secondPanel.IsLoaded);
             var firstEditor = (EditorWindow)Field(root, "_editor")!;
@@ -74,7 +74,7 @@ static partial class SelfTest
                 && firstEditor.IsLoaded && root.State == CaptureController.Phase.Editing);
             var firstContext = (RunContext)Field(root, "_chainContext")!;
             Chk("parallel-editor-keeps-independent-frame-lease", firstContext.Video!.Frames[0].W == region.W);
-            root.BeginBehavior(graph.Snapshot(), entry.Id, "editor-shot", BehaviorPorts.Still);
+            root.BeginBehavior(BehaviorFixtureMode(graph, entry.Id, BehaviorPorts.Still), entry.Id, "editor-shot");
             var third = (CaptureController)Field(second, "_nextCapture")!;
             Chk("editor-capture-opens-picker-with-editors-preserved", Wait(() => Field(third, "_picker") != null)
                 && firstEditor.IsLoaded && Field(second, "_editor") is EditorWindow { IsLoaded: true });
