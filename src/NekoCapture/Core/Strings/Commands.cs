@@ -14,7 +14,6 @@ public static partial class K
         public static readonly Str CommitName = new("commands.commitName", "确定并复制", "Confirm and copy");
         public static readonly Str DeleteObjectName = new("commands.deleteObjectName", "删除选中对象", "Delete selected object");
         public static readonly Str GroupDrawingtools = new("commands.groupDrawingtools", "绘制工具", "Drawing tools");
-        public static readonly Str GroupEditing = new("commands.groupEditing", "编辑", "Editing");
         public static readonly Str GroupExport = new("commands.groupExport", "导出", "Export");
         public static readonly Str GroupPlayback = new("commands.groupPlayback", "播放", "Playback");
         public static readonly Str GroupTimelinetrim = new("commands.groupTimelinetrim", "时间轴裁剪", "Timeline trim");

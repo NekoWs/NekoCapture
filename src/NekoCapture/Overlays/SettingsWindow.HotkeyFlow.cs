@@ -104,7 +104,7 @@ public sealed partial class SettingsWindow
         _hotRows.Remove(b.Id);
     }
 
-    /// <summary>把一条新行插进列表（排在「添加快捷键」前面）：新行原地淡入，其余行向下让开。</summary>
+    /// <summary>在列表新增入口前插入触发项，新行淡入，其余行向下让开。</summary>
     /// <param name="b">新绑定。</param>
     /// <returns>新行的容器。</returns>
     FrameworkElement InsertHotkeyAnimated(GestureBindingDto b)

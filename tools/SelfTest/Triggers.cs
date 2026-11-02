@@ -90,5 +90,25 @@ static partial class SelfTest
         captureNode.ExposedParameters = new();
         single.Overrides[captureNode.Id][nameof(BehaviorNode.RecordMode)] = JsonSerializer.SerializeToElement(true);
         Chk("tray-equivalence-ignores-unexposed-overrides", TriggerExecution.TrayClicks(config).Equivalent);
+        var userMenu = config.AddTrayMenu("custom menu");
+        var anotherMenu = config.AddTrayMenu("another menu");
+        Chk("tray-new-menu-has-independent-editable-flow", userMenu.Source == TriggerSources.TrayMenu && userMenu.Chord == ""
+            && userMenu.Name == "custom menu" && userMenu.Id != anotherMenu.Id && userMenu.EntryId != anotherMenu.EntryId
+            && config.Graph.Flow(userMenu.EntryId) is { Steps.Count: 0, Name: "custom menu" });
+        Chk("tray-icon-directory-has-stable-distinct-choices", TrayMenuIcons.All.Count >= 10
+            && TrayMenuIcons.All.Select(icon => icon.Id).Distinct().Count() == TrayMenuIcons.All.Count
+            && TrayMenuIcons.All.All(icon => icon.Glyph.Length == 1 && icon.Glyph[0] >= '\uE000' && icon.Glyph[0] <= '\uF8FF'));
+        config.Graph.Flow(userMenu.EntryId)!.Steps.Add(config.Graph.Add(GestureActions.ScrollCapture).Id);
+        Chk("tray-menu-automatic-icon-follows-actions", TrayMenuIcons.Glyph(config, userMenu) == "\uE8CB");
+        userMenu.MenuIcon = "record";
+        var savedMenu = JsonSerializer.Deserialize<GestureConfig>(JsonSerializer.Serialize(config))!;
+        var loadedMenu = savedMenu.Bindings.Single(binding => binding.Id == userMenu.Id);
+        Chk("tray-menu-name-and-icon-survive-roundtrip", loadedMenu.Name == "custom menu" && loadedMenu.MenuIcon == "record"
+            && TrayMenuIcons.Glyph(savedMenu, loadedMenu) == "\uE714");
+        userMenu.MenuIcon = "invalid-icon";
+        Chk("tray-menu-unknown-icon-uses-behavior-fallback", TrayMenuIcons.Glyph(config, userMenu) == "\uE8CB");
+        var recorder = config.AddTrayMenu("recording");
+        config.Graph.Flow(recorder.EntryId)!.Steps.Add(config.Graph.Add(GestureActions.RecordStart).Id);
+        Chk("tray-menu-automatic-icon-supports-custom-recording", TrayMenuIcons.Glyph(config, recorder) == "\uE714");
     }
 }

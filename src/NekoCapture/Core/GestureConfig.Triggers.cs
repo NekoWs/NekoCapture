@@ -5,6 +5,18 @@ namespace NekoCapture.Core;
 /// <summary>触发来源、参数覆盖与配置导入。</summary>
 public sealed partial class GestureConfig
 {
+    /// <summary>新建具有独立空动作链的托盘菜单项。</summary>
+    /// <param name="name">菜单名称。</param>
+    /// <returns>已加入配置的菜单触发；其行为可继续编辑。</returns>
+    public GestureBindingDto AddTrayMenu(string name)
+    {
+        var flow = new BehaviorFlow { Name = name };
+        Graph.Flows.Add(flow);
+        var binding = new GestureBindingDto { Id = "user." + Guid.NewGuid().ToString("N"), Name = name,
+            Source = TriggerSources.TrayMenu, EntryId = flow.Id };
+        Bindings.Add(binding); return binding;
+    }
+
     /// <summary>触发目录的数据版本，用于一次性加入托盘入口。</summary>
     public int TriggerRevision { get; set; }
 

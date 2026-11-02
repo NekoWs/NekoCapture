@@ -70,6 +70,19 @@ static partial class SelfTest
             settings.Mutate(s => s.Gestures.Bindings.Add(new GestureBindingDto { Id = "test.menu", Name = "added menu",
                 Source = TriggerSources.TrayMenu, EntryId = TrayDefaults.Clipboard })); tray.PrepareMenu();
             Chk("tray-menu-user-trigger-is-added", ((ContextMenu)Field("_menu")!).Items.OfType<MenuItem>().Any(item => Equals(item.Header, "added menu")));
+            var created = settings.Current.Gestures.AddTrayMenu("independent menu");
+            settings.Mutate(_ => { }); tray.PrepareMenu();
+            MenuItem CreatedItem() => ((ContextMenu)Field("_menu")!).Items.OfType<MenuItem>().Single(item => Equals(item.Header, created.Name));
+            Chk("tray-menu-empty-custom-flow-is-visible-and-disabled", !CreatedItem().IsEnabled);
+            settings.Mutate(s => s.Gestures.Graph.Flow(created.EntryId)!.Steps.Add(s.Gestures.Graph.Add(GestureActions.ReadClipboardImage).Id));
+            tray.PrepareMenu();
+            Chk("tray-menu-editing-own-flow-enables-item", CreatedItem().IsEnabled && ((TextBlock)CreatedItem().Icon).Text == "\uE718");
+            settings.Mutate(_ => created.MenuIcon = "record"); tray.PrepareMenu();
+            Chk("tray-menu-icon-change-invalidates-cache", ((TextBlock)CreatedItem().Icon).Text == "\uE714");
+            settings.Mutate(_ => created.MenuIcon = ""); tray.PrepareMenu();
+            Chk("tray-menu-auto-icon-can-be-restored", ((TextBlock)CreatedItem().Icon).Text == "\uE718");
+            settings.Mutate(s => s.Gestures.Graph.Flows.RemoveAll(flow => flow.Id == created.EntryId)); tray.PrepareMenu();
+            Chk("tray-menu-unlinked-item-stays-visible-and-disabled", !CreatedItem().IsEnabled);
 
             saving.SetValue(null, true); var order = new List<int>();
             ResidentBridge.RunTrayAction(() => order.Add(1)); ResidentBridge.RunTrayAction(() => order.Add(2));

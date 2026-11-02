@@ -23,6 +23,8 @@ public sealed class GestureBindingDto
     public string? EntryMode { get; set; }
     /// <summary>触发来源，默认使用组合键。</summary>
     public string Source { get; set; } = TriggerSources.Keyboard;
+    /// <summary>托盘菜单的图标标识；空值按行为中的动作选择。</summary>
+    public string MenuIcon { get; set; } = "";
     /// <summary>本次调用按动作标识保存的参数覆盖，不改变共享行为。</summary>
     public Dictionary<string, Dictionary<string, System.Text.Json.JsonElement>> Overrides { get; set; } = new();
     /// <summary>导入用的有序动作；入口标识非空时执行行为图。</summary>

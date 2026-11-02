@@ -37,7 +37,7 @@ public sealed record EditorCommand(string Id, Str Name, Str Group, string[] Chor
 public static class EditorCommands
 {
     /// <summary>分组标题，设置页按这个顺序分段。</summary>
-    public static readonly Str[] Groups = { K.Commands.GroupDrawingtools, K.Commands.GroupEditing, K.Commands.GroupExport, K.Commands.GroupView, K.Commands.GroupPlayback, K.Commands.GroupTimelinetrim, K.Commands.GroupWindow };
+    public static readonly Str[] Groups = { K.Commands.GroupDrawingtools, K.Common.Edit, K.Commands.GroupExport, K.Commands.GroupView, K.Commands.GroupPlayback, K.Commands.GroupTimelinetrim, K.Commands.GroupWindow };
 
     /// <summary>全部命令。绘制工具一节由 <see cref="ToolCatalog"/> 生成，工具与键位不会两处各写一遍。</summary>
     public static readonly EditorCommand[] All = Build();
@@ -51,11 +51,11 @@ public static class EditorCommands
         list.AddRange(ToolCatalog.Tools.Select(t => new EditorCommand("tool." + t.Key, t.Tip, K.Commands.GroupDrawingtools, t.Key)));
         list.AddRange(new[]
         {
-            new EditorCommand("delete-object", K.Commands.DeleteObjectName, K.Commands.GroupEditing, new[] { "Delete", "Backspace" }, NeedsSelection: true),
-            new EditorCommand("undo", K.Editor.Undo, K.Commands.GroupEditing, "Ctrl+Z", "Ctrl+U", "Delete"),
-            new EditorCommand("redo", K.Editor.Redo, K.Commands.GroupEditing, "Ctrl+Y", "Y"),
-            new EditorCommand("color-custom", K.Commands.ColorCustomName, K.Commands.GroupEditing, "K"),
-            new EditorCommand("width-popup", K.Commands.WidthPopupName, K.Commands.GroupEditing, "W"),
+            new EditorCommand("delete-object", K.Commands.DeleteObjectName, K.Common.Edit, new[] { "Delete", "Backspace" }, NeedsSelection: true),
+            new EditorCommand("undo", K.Editor.Undo, K.Common.Edit, "Ctrl+Z", "Ctrl+U", "Delete"),
+            new EditorCommand("redo", K.Editor.Redo, K.Common.Edit, "Ctrl+Y", "Y"),
+            new EditorCommand("color-custom", K.Commands.ColorCustomName, K.Common.Edit, "K"),
+            new EditorCommand("width-popup", K.Commands.WidthPopupName, K.Common.Edit, "W"),
 
             new EditorCommand("save-frame", K.Editor.SaveCurrentFrame, K.Commands.GroupExport, "Ctrl+S"),
             new EditorCommand("copy-frame", K.Editor.CopyCurrentFrame, K.Commands.GroupExport, "Ctrl+C"),

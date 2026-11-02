@@ -29,7 +29,7 @@ static partial class SelfTest
         var plain = Item(K.Common.Settings);
         var icon = Item(K.Tray.CaptureNow, "\uE7A8");
         var check = Item(K.Common.StartWithWindows, checkable: true);
-        var gesture = Item(K.Pin.Copy); gesture.InputGestureText = "Ctrl+C";
+        var gesture = Item(K.Common.Copy); gesture.InputGestureText = "Ctrl+C";
         var submenu = Item(K.Pin.Opacity); submenu.Items.Add(new MenuItem { Header = "100%" });
         var window = new Window { Content = rows, Width = 230, Height = 190, ShowInTaskbar = false };
         try

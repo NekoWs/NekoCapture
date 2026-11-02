@@ -141,7 +141,7 @@ public sealed class CaptureToast : Window
         }));
         string copyChord = SettingsService.Shared?.Current.ToastCopyChord ?? "";
         if (copyChord.Length > 0)
-            acts.Children.Add(ActionChip(Loc.T(K.Pin.Copy), copyChord, () =>
+            acts.Children.Add(ActionChip(Loc.T(K.Common.Copy), copyChord, () =>
             {
                 Trace.Log("toast→copy(chip)");
                 onCopy();

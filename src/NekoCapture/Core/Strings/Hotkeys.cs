@@ -55,7 +55,6 @@ public static partial class K
         public static readonly Str ValueRecording = new("hotkeys.valueRecording", "录制中", "Recording");
         public static readonly Str ValueNone = new("hotkeys.valueNone", "无", "None");
         public static readonly Str AddAHotkey = new("hotkeys.addAHotkey", "添加触发", "Add trigger");
-        public static readonly Str AddsOnePressAKey = new("hotkeys.addsOnePressAKey", "选择触发来源与行为入口", "Choose a trigger source and behavior entry.");
         public static readonly Str AnotherHotkeyAlreadyUsesThis = new("hotkeys.anotherHotkeyAlreadyUsesThis", "触发重复，仅首条生效", "Duplicate trigger; only the first binding runs.");
         public static readonly Str ClickThenPressAKey = new(
             "hotkeys.clickThenPressAKey",

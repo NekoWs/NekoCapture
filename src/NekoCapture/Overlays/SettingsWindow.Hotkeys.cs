@@ -11,8 +11,7 @@ using NekoCapture.Services;
 
 namespace NekoCapture.Overlays;
 
-// 本 partial 职责：设置 · 快捷键页——总开关 + 逐条快捷键的内联编辑。
-/// <summary>快捷键页：绑定、触发方式、行为入口与界面键位。编辑后立即保存并应用。</summary>
+/// <summary>触发页的总开关、按键与托盘配置列表及下级设置入口。</summary>
 public sealed partial class SettingsWindow : Window
 {
     /// <summary>展开着的那条快捷键的 Id，空串表示全部折叠。列表重建后据此把展开位放回去。</summary>
@@ -33,7 +32,7 @@ public sealed partial class SettingsWindow : Window
     /// <summary>开始录入组合键那一刻键盘钩子的状态，录入结束原样还回去。</summary>
     bool _hotHookWasPaused;
 
-    /// <summary>装配快捷键页：总开关在最上，其下是逐条快捷键。</summary>
+    /// <summary>装配触发总开关、有序配置列表和下级设置入口。</summary>
     /// <param name="panel">快捷键概要与下级入口的容器。</param>
     void BuildHotkeys(StackPanel panel)
     {
@@ -53,8 +52,7 @@ public sealed partial class SettingsWindow : Window
         panel.Children.Add(SettingsPageEntry("behaviors"));
     }
 
-    /// <summary>按当前配置重铺快捷键列表：逐条一行，末尾一枚「添加快捷键」。
-    /// 增删绑定重建列表；名称、触发方式与时长在当前详情内更新。</summary>
+    /// <summary>按配置顺序重建触发概要，末尾提供新增触发和菜单项入口。</summary>
     void RebuildHotkeys()
     {
         if (_hotList == null) return;
@@ -65,50 +63,11 @@ public sealed partial class SettingsWindow : Window
         _folds.Clear();   // 行的容器整个换了一批，上一批容器的记账跟着一起丢
         foreach (var b in _settings.Current.Gestures.Bindings)
             _hotList.Children.Add(HotkeyOverviewRow(b));
-        _hotList.Children.Add(AddHotkeyButton());
+        var additions = new WrapPanel { Margin = SettingsCardMargin };
+        additions.Children.Add(TriggerAddButton(K.Hotkeys.AddAHotkey, "settings-add-trigger", AddHotkey));
+        additions.Children.Add(TriggerAddButton(K.Triggers.AddMenuItem, "settings-add-menu-item", AddTrayMenu));
+        _hotList.Children.Add(additions);
         RefreshSettingsBindingDetail();
-    }
-
-    /// <summary>列表末尾的「添加快捷键」。</summary>
-    /// <returns>尚未接事件的按钮。</returns>
-    FrameworkElement AddHotkeyButton()
-    {
-        var add = new Border
-        {
-            CornerRadius = new CornerRadius(6),
-            Padding = new Thickness(10, 5, 10, 5),
-            Margin = SettingsCardMargin,
-            BorderBrush = Theme.StrokeSoftBrush,
-            BorderThickness = new Thickness(1),
-            Cursor = Cursors.Hand,
-            Child = new StackPanel
-            {
-                Orientation = Orientation.Horizontal,
-                Children =
-                {
-                    new TextBlock
-                    {
-                        Text = "\uE710",
-                        FontFamily = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets, Segoe UI Symbol"),
-                        FontSize = 12,
-                        Foreground = new SolidColorBrush(Fluent.AccentText()),
-                        VerticalAlignment = VerticalAlignment.Center,
-                        Margin = new Thickness(0, 0, 7, 0),
-                    },
-                    new TextBlock
-                    {
-                        Text = Loc.T(K.Hotkeys.AddAHotkey),
-                        FontSize = 12.5,
-                        Foreground = Theme.TextBrush,
-                        VerticalAlignment = VerticalAlignment.Center,
-                    },
-                },
-            },
-            ToolTip = Loc.T(K.Hotkeys.AddsOnePressAKey),
-        };
-        HoverFill(add);
-        add.MouseLeftButtonUp += (_, _) => AddHotkey();
-        return add;
     }
 
     /// <summary>追加一条快捷键，连接首个行为入口并立即进入录键态。</summary>

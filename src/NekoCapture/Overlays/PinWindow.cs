@@ -555,7 +555,7 @@ public sealed class PinWindow : Window
     public ContextMenu BuildMenu()
     {
         var menu = Core.Fluent.Ui(new ContextMenu { Resources = Core.Fluent.MenuResources() }); // 套用共享 Fluent 菜单样式：裸 ContextMenu 走系统默认样式，与全局观感不符
-        var copy = new MenuItem { Header = Core.Loc.T(K.Pin.Copy), InputGestureText = "Ctrl+C" };
+        var copy = new MenuItem { Header = Core.Loc.T(K.Common.Copy), InputGestureText = "Ctrl+C" };
         copy.Click += (_, _) => Copy();
         var saveAs = new MenuItem { Header = Core.Loc.T(K.Pin.SaveAs), InputGestureText = "Ctrl+S" };
         saveAs.Click += (_, _) => SaveAs();

@@ -10,7 +10,6 @@ public static partial class K
     public static partial class Pin
     {
         public static readonly Str CloseAllPins = new("pin.closeAllPins", "关闭全部贴图 ({0})", "Close All Pins ({0})");
-        public static readonly Str Copy = new("pin.copy", "复制", "Copy");
         public static readonly Str NothingToRefresh = new("pin.nothingToRefresh", "无法更新", "Nothing to refresh");
         public static readonly Str Opacity = new("pin.opacity", "不透明度", "Opacity");
         public static readonly Str RefreshContent = new("pin.refreshContent", "更新内容", "Refresh Content");

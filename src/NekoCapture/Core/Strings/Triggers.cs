@@ -9,6 +9,12 @@ public static partial class K
     /// <summary>触发方式的后缀：按下、松手、轻点…。</summary>
     public static partial class Triggers
     {
+        public static readonly Str AddMenuItem = new("triggers.addMenuItem", "新建菜单项", "New menu item");
+        public static readonly Str NewMenuItem = new("triggers.newMenuItem", "新菜单项", "New menu");
+        public static readonly Str MenuIcon = new("triggers.menuIcon", "图标", "Icon");
+        public static readonly Str AutoIcon = new("triggers.autoIcon", "跟随行为", "Follow behavior");
+        public static readonly Str FolderIcon = new("triggers.folderIcon", "文件夹", "Folder");
+        public static readonly Str StarIcon = new("triggers.starIcon", "收藏", "Favorite");
         public static readonly Str CaptureMode = new("triggers.captureMode", "默认捕获方式", "Default capture mode");
         public static readonly Str CaptureModeHint = new("triggers.captureModeHint", "选区打开时默认选择截图或录制，仍可使用模式按钮切换", "Choose capture or recording when selection opens; mode buttons remain available.");
         public static readonly Str ModeSwitchHint = new("triggers.modeSwitchHint", "在选区上方显示截图与录制的切换按钮", "Show capture and recording buttons above the selection.");

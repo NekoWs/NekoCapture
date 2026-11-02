@@ -78,6 +78,7 @@ static partial class SelfTest
             Chk("settings-navigation-light-theme-builds", AllText((FrameworkElement)bodies["about"]!).Any(t => t.Text == Loc.T(K.About.Product)));
             SettingsPolishChecks(window, settings, Snapshot);
             TriggerUiChecks(window, settings, Snapshot);
+            TriggerMenuUiChecks(window, settings, Snapshot);
             SettingsOverviewChecks(window, settings);
             SettingsPaletteChecks(window, settings, Snapshot);
         }

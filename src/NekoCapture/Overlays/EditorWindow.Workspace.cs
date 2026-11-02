@@ -107,7 +107,7 @@ public sealed partial class EditorWindow
         var pin = CommandIcon("\uE840", K.Editor.PinToScreen, "pin-frame", PinCurrentFrame);
         actions.Children.Add(ocr);
         actions.Children.Add(pin);
-        _saveButton = TextButton(K.Editor.SaveOutput, () => { if (!_encoding) { if (MultiFrame) SaveRecording(); else SaveFrame(); } },
+        _saveButton = TextButton(K.Common.Save, () => { if (!_encoding) { if (MultiFrame) SaveRecording(); else SaveFrame(); } },
             MultiFrame ? "save-recording" : "save-frame");
         actions.Children.Add(_saveButton);
         _finishButton = TextButton(K.Common.Done, Commit, "commit", primary: true);

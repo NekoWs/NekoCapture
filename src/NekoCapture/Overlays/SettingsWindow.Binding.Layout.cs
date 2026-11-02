@@ -6,7 +6,7 @@ using NekoCapture.Core;
 
 namespace NekoCapture.Overlays;
 
-/// <summary>快捷键详情分别呈现名称、键位、触发方式和共享行为。</summary>
+/// <summary>触发详情呈现名称、来源、键位或菜单图标及共享行为。</summary>
 public sealed partial class SettingsWindow
 {
     private Border BuildBindingInputCard(GestureBindingDto binding)
@@ -33,6 +33,7 @@ public sealed partial class SettingsWindow
         void RenderInput()
         {
             input.Children.Clear(); _hotBoxes.Remove(binding.Id);
+            if (binding.Source == TriggerSources.TrayMenu) { input.Children.Add(BindingMenuIcon(binding)); return; }
             if (binding.Source != TriggerSources.Keyboard) return;
             var box = NewChordBox(binding); _hotBoxes[binding.Id] = box;
             input.Children.Add(LabeledRow(Loc.T(K.Hotkeys.Shortcut), box, Loc.T(K.Hotkeys.ClickThenPressAKey)));

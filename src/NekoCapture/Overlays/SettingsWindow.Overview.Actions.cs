@@ -48,7 +48,9 @@ public sealed partial class SettingsWindow
         var flow = cfg.Graph.Flow(binding.EntryId);
         string summary = flow == null ? Loc.T(K.SettingsNavigation.ExecuteHint)
             : string.Join(" → ", flow.Steps.Select(id => cfg.Graph.Node(id)).Where(node => node != null).Select(node => GestureActions.LabelOf(node!.Action)));
-        var entry = SettingsEntry(HotkeyDisplayName(binding), summary, binding.Source == TriggerSources.Keyboard ? "\uE765" : "\uE7A8", () => OpenSettingsBinding(binding));
+        string glyph = binding.Source == TriggerSources.TrayMenu ? TrayMenuIcons.Glyph(cfg, binding)
+            : binding.Source == TriggerSources.Keyboard ? "\uE765" : "\uE7A8";
+        var entry = SettingsEntry(HotkeyDisplayName(binding), summary, glyph, () => OpenSettingsBinding(binding));
         entry.Tag = "settings-overview";
         var label = (StackPanel)((Grid)entry.Content).Children[1]; label.Children.RemoveAt(0);
         var name = SettingsOverviewName(() => HotkeyDisplayName(binding), value =>

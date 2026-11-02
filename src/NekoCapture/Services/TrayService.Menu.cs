@@ -39,8 +39,10 @@ public sealed partial class TrayService
         {
             _host.Settings.Current.Gestures.Enabled,
             Items = _host.Settings.Current.Gestures.Bindings.Where(b => b.Source == TriggerSources.TrayMenu)
-                .Select(b => new { b.Id, b.Name, b.Enabled, b.EntryId,
+                .Select(b => new { b.Id, b.Name, b.Enabled, b.EntryId, b.MenuIcon,
                     Flow = _host.Settings.Current.Gestures.Graph.Flow(b.EntryId)?.Name,
+                    Runnable = _host.Settings.Current.Gestures.Graph.Flow(b.EntryId) is { Steps.Count: > 0 }
+                        && _host.Settings.Current.Gestures.Graph.IsValid(b.EntryId),
                     Actions = _host.Settings.Current.Gestures.FlowActions(b.EntryId).ToArray() }).ToArray(),
         });
         _menuTriggersDirty = false;
@@ -69,15 +71,12 @@ public sealed partial class TrayService
             menu.Items.Add(item);
         }
         var config = _host.Settings.Current.Gestures;
-        foreach (var binding in config.Bindings.Where(b => b.Source == TriggerSources.TrayMenu && config.Graph.Flow(b.EntryId) != null))
+        foreach (var binding in config.Bindings.Where(b => b.Source == TriggerSources.TrayMenu))
         {
             var flow = config.Graph.Flow(binding.EntryId);
             string label = binding.Name.Length > 0 ? binding.Name : flow == null ? Loc.T(K.Triggers.TrayMenu) : config.FlowName(flow);
-            var actions = config.FlowActions(binding.EntryId).ToArray();
-            string glyph = actions.Contains(GestureActions.ScrollCapture) ? "\uE8CB"
-                : actions.Contains(GestureActions.DelayedCapture) ? "\uE823"
-                : actions.Contains(GestureActions.ReadClipboardImage) ? "\uE718" : "\uE7A8";
-            Item(label, glyph, () => TriggerExecution.Run(_host, binding.Id), config.Enabled && binding.Enabled && flow != null);
+            Item(label, TrayMenuIcons.Glyph(config, binding), () => TriggerExecution.Run(_host, binding.Id),
+                config.Enabled && binding.Enabled && flow is { Steps.Count: > 0 } && config.Graph.IsValid(binding.EntryId));
         }
         if (menu.Items.Count > 0) menu.Items.Add(new Separator());
         Item(Loc.T(K.Common.Settings), "\uE713", OpenSettings);

@@ -12,7 +12,6 @@ public static partial class K
         public static readonly Str StillWorkspace = new("editor.stillWorkspace", "截图编辑", "Image editor");
         public static readonly Str VideoWorkspace = new("editor.videoWorkspace", "录制编辑", "Recording editor");
         public static readonly Str Browse = new("editor.browse", "浏览", "Browse");
-        public static readonly Str SaveOutput = new("editor.saveOutput", "保存", "Save");
         public static readonly Str ContinueBehavior = new("editor.continueBehavior", "应用编辑并继续行为", "Apply edits and continue");
         public static readonly Str CopyAndComplete = new("editor.copyAndComplete", "复制并完成", "Copy and finish");
         public static readonly Str BrowseHint = new("editor.browseHint", "Ctrl + 滚轮缩放 · 中键拖动平移", "Ctrl + wheel to zoom · Middle-drag to pan");
