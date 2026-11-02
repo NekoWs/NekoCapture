@@ -67,17 +67,25 @@ static partial class SelfTest
                 popup is { IsOpen: true } && cells.Count == TrayMenuIcons.All.Count + 1,
                 $"小窗 {(popup?.IsOpen == true ? "开着" : "没开")}，格子 {cells.Count} 个");
             type.GetMethod("CloseTrayIconPopup", flags)!.Invoke(window, null);
-            // 分页条：有兄弟页的分组要出现，高度走动画、落定后回到自适应
+            // 分页条：常显且定高，切分组时下面的内容不位移
             type.GetMethod("NavigateSettings", flags)!.Invoke(window, new object?[] { "selection", true, true });
-            PumpMs(80);
+            PumpMs(120);
             var host = (FrameworkElement?)type.GetField("_settingsTabHost", flags)!.GetValue(window);
-            Chk("T274-tabs-animated",
-                host != null && host.Visibility == Visibility.Visible
-                    && (host.HasAnimatedProperties || double.IsPositiveInfinity(host.MaxHeight)),
-                $"分页条 {(host?.Visibility == Visibility.Visible ? "在位" : "没出来")}，动画={host?.HasAnimatedProperties}");
-            PumpMs(420);
-            Chk("T274-tabs-settled", host != null && double.IsPositiveInfinity(host.MaxHeight),
-                $"落定后回到自适应高度：{host?.MaxHeight}");
+            var scroller = (System.Windows.Controls.ScrollViewer?)type.GetField("_settingsScroller", flags)!.GetValue(window);
+            double contentTop = scroller!.TransformToAncestor(window).Transform(new Point(0, 0)).Y;
+            Chk("T274-tabs-fixed-height",
+                host != null && host.Visibility == Visibility.Visible && Math.Abs(host.Height - 34) < 0.01,
+                $"分页条常显且定高：{host?.Visibility} / {host?.Height}px");
+            type.GetMethod("NavigateSettings", flags)!.Invoke(window, new object?[] { "tray", true, true });
+            PumpMs(200);
+            double trayTop = scroller.TransformToAncestor(window).Transform(new Point(0, 0)).Y;
+            Chk("T274-tabs-no-content-shift",
+                host != null && host.Visibility == Visibility.Visible && Math.Abs(host.Height - 34) < 0.01
+                    && Math.Abs(trayTop - contentTop) <= 1.5,
+                $"切到单页分组后分页条 {host?.Height}px，内容起点差 {Math.Abs(trayTop - contentTop):F1}px");
+            var tabsPanel = (System.Windows.Controls.Panel?)type.GetField("_settingsTabs", flags)!.GetValue(window);
+            Chk("T274-tabs-single-group", tabsPanel != null && tabsPanel.Children.Count == 1,
+                $"单页分组上仍有一枚当前页胶囊：{tabsPanel?.Children.Count ?? -1} 枚");
         }
         catch (Exception e) { Chk("T274-tray-page", false, e.Message); }
         finally

@@ -57,7 +57,9 @@ public sealed partial class SettingsWindow
 
     private static bool IsTrayMenuItem(GestureBindingDto binding) => binding.Source == TriggerSources.TrayMenu;
 
-    private void RenderTrayMenu()
+    /// <summary>重建菜单行；只有进页面那一次播逐行入场，换图标与拖动收尾都走无动画重建。</summary>
+    /// <param name="animate">是否播放逐行入场。</param>
+    private void RenderTrayMenu(bool animate = true)
     {
         CloseTrayIconPopup();
         if (_trayMenuList == null) return;
@@ -70,6 +72,7 @@ public sealed partial class SettingsWindow
             var row = TrayMenuItemRow(binding);
             rows.Add(row); _trayMenuList.Children.Add(row);
         }
+        if (!animate) return;
         Fluent.CascadeIn(rows, risePx: 8, itemMs: Fluent.Motion.EnterMs,
             budgetMs: Fluent.Motion.EnterMs + Fluent.Motion.StaggerMs * 2);
     }
@@ -198,10 +201,18 @@ public sealed partial class SettingsWindow
         popup.IsOpen = true;
     }
 
+    /// <summary>选中一枚图标：只改这一行的字形，整页不重建，列表因此不会闪。</summary>
+    /// <param name="binding">这一条托盘菜单绑定。</param>
+    /// <param name="id">图标标识；空串选「跟随行为」。</param>
     private void PickTrayIcon(GestureBindingDto binding, string id)
     {
         CloseTrayIconPopup();
-        binding.MenuIcon = id; CommitHotkeys(); RenderTrayMenu();
+        binding.MenuIcon = id;
+        CommitHotkeys();
+        var row = _trayMenuList?.Children.OfType<Border>()
+            .FirstOrDefault(item => (item.Tag as string) == "settings-tray-item:" + binding.Id);
+        if (row?.Child is Grid grid && grid.Children.OfType<Border>().FirstOrDefault() is { Child: TextBlock glyph })
+            glyph.Text = TrayMenuIcons.Glyph(_settings.Current.Gestures, binding);
     }
 
     private void CloseTrayIconPopup()
@@ -247,7 +258,7 @@ public sealed partial class SettingsWindow
         var button = RenameIconButton(() =>
         {
             _settings.Mutate(settings => settings.Gestures.Bindings.RemoveAll(item => item.Id == binding.Id));
-            CommitHotkeys(); RenderTrayMenu();
+            CommitHotkeys(); RenderTrayMenu(false);
         });
         ((TextBlock)button.Child).Text = "\uE74D";
         button.ToolTip = Loc.T(K.Settings.DeleteThisHotkey);
@@ -366,6 +377,15 @@ public sealed partial class SettingsWindow
             tags.Insert(Math.Clamp(target, 0, tags.Count), moving);
         }
         var ids = tags.Select(tag => tag.Replace("settings-tray-item:", "")).ToList();
+        // 就地重排：把同一批行元素按新顺序放回去，整页不重建，列表因此不闪
+        var orderedRows = ids.Select(id => _trayMenuList.Children.OfType<Border>()
+                .FirstOrDefault(item => (item.Tag as string) == "settings-tray-item:" + id))
+            .Where(item => item != null).Select(item => item!).ToList();
+        if (orderedRows.Count == _trayMenuList.Children.Count)
+        {
+            _trayMenuList.Children.Clear();
+            foreach (var item in orderedRows) _trayMenuList.Children.Add(item);
+        }
         _settings.Mutate(settings =>
         {
             var all = settings.Gestures.Bindings;
@@ -374,13 +394,13 @@ public sealed partial class SettingsWindow
             var rest = all.Where(item => item.Source != TriggerSources.TrayMenu).ToList();
             all.Clear(); all.AddRange(ordered); all.AddRange(rest);
         });
-        CommitHotkeys(); RenderTrayMenu();
+        CommitHotkeys();
     }
 
     private void AddTrayMenuItem()
     {
         _settings.Mutate(settings => settings.Gestures.AddTrayMenu(Loc.T(K.Triggers.NewMenuItem)));
-        AppHost.Current.InstallHotkeys(); RenderTrayMenu();
+        AppHost.Current.InstallHotkeys(); RenderTrayMenu(false);
     }
 
     /// <summary>行为下拉：只列共享行为入口，空串表示不执行。</summary>
