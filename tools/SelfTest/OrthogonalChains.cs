@@ -1,4 +1,4 @@
-﻿using System.IO;
+using System.IO;
 using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
@@ -124,6 +124,8 @@ static partial class SelfTest
         finally { SynchronizationContext.SetSynchronizationContext(previousContext); }
     }
 
+    /// <summary>设置文件的版本契约：主体只读当前结构，结构升级与备份由安装器的独立升级进程完成。
+    /// 这里验两件事——旧版本文件被明确拒绝（不是静默重置），当前版本文件原样读得回来。</summary>
     static void ChainSettingsBackup()
     {
         string? saved = Environment.GetEnvironmentVariable("NC_SETTINGS_DIR");
@@ -132,20 +134,29 @@ static partial class SelfTest
             string scratch = Path.Combine(SettingsService.Dir, "chain-migration");
             Directory.CreateDirectory(scratch);
             Environment.SetEnvironmentVariable("NC_SETTINGS_DIR", scratch);
-            const string json = "{\"Accent\":\"#7F75FF\",\"Gestures\":{\"Seeded\":true,\"Bindings\":[{\"Id\":\"mine\",\"Chord\":\"F6\",\"Actions\":[\"scope.select\",\"record.toggle\"],\"OnComplete\":[\"edit.lastvideo\"]}]}}";
-            File.WriteAllText(SettingsService.FilePath, json);
-            string backup = SettingsService.FilePath + ".bak.0";
-            if (File.Exists(backup)) File.Delete(backup);
+            const string legacy = "{\"Accent\":\"#7F75FF\",\"Gestures\":{\"Seeded\":true,\"Bindings\":[{\"Id\":\"mine\",\"Chord\":\"F6\",\"Actions\":[\"scope.select\",\"record.toggle\"]}]}}";
+            File.WriteAllText(SettingsService.FilePath, legacy);
+            bool refused = false;
+            string? message = null;
+            try { _ = new SettingsService(); }
+            catch (InvalidDataException error) { refused = true; message = error.Message; }
+            Chk("T270-chain-settings-version-gate",
+                refused && message == Loc.T(K.Updates.ConfigUpgrade) && File.ReadAllText(SettingsService.FilePath) == legacy,
+                $"旧版本文件被拒绝={refused}，提示「{message}」，文件未被改写={File.ReadAllText(SettingsService.FilePath) == legacy}");
+
+            var current = new AppSettings { Accent = "#7F75FF" };
+            current.Gestures.Bindings.Add(new GestureBindingDto
+            {
+                Id = "mine", Chord = "F6", Actions = new[] { GestureActions.Select, GestureActions.RecordToggle },
+            });
+            File.WriteAllText(SettingsService.FilePath, System.Text.Json.JsonSerializer.Serialize(current));
             var service = new SettingsService();
-            Chk("T270-chain-settings-backup", File.ReadAllText(backup) == json
-                && service.Current.Accent == "#7F75FF" && service.Current.Gestures.ChainRevision == GestureConfig.CurrentChainRevision
-                && !File.ReadAllText(SettingsService.FilePath).Contains("OnComplete"),
-                $"backup={File.ReadAllText(backup) == json} accent={service.Current.Accent} revision={service.Current.Gestures.ChainRevision} completion={File.ReadAllText(SettingsService.FilePath).Contains("OnComplete")}");
             string contents = File.ReadAllText(SettingsService.FilePath);
             service.Reload();
-            Chk("T270-chain-settings-reload-idempotent", File.ReadAllText(SettingsService.FilePath) == contents
-                && File.ReadAllText(backup) == json && service.Current.Gestures.Bindings.Single().Id == "mine",
-                $"file={File.ReadAllText(SettingsService.FilePath) == contents} backup={File.ReadAllText(backup) == json} binding={service.Current.Gestures.Bindings.Single().Id}");
+            Chk("T270-chain-settings-reload-idempotent",
+                service.Current.Accent == "#7F75FF" && service.Current.Gestures.Bindings.Any(b => b.Id == "mine")
+                    && File.ReadAllText(SettingsService.FilePath) == contents,
+                $"accent={service.Current.Accent} 绑定={service.Current.Gestures.Bindings.Count} 重读后文件一致={File.ReadAllText(SettingsService.FilePath) == contents}");
         }
         finally { Environment.SetEnvironmentVariable("NC_SETTINGS_DIR", saved); _ = new SettingsService(); }
     }
@@ -173,10 +184,14 @@ static partial class SelfTest
             while (!done() && clock.ElapsedMilliseconds < 4000) PumpMs(20);
             return done();
         }
+        // 行为链起跑是异步的：选择层在链里被 await 之后才建，这里等它出现再操作
+        RegionPickerWindow? PickerOf(CaptureController c) => type.GetField("_picker", flags)!.GetValue(c) as RegionPickerWindow;
         void Select(CaptureController controller, bool record, bool expectedInitialRecord)
         {
-            var picker = (RegionPickerWindow)type.GetField("_picker", flags)!.GetValue(controller)!;
             int number = pickerNumber++;
+            bool opened = WaitUntil(() => PickerOf(controller) != null);
+            var picker = PickerOf(controller);
+            if (!opened || picker == null) { Chk("T270-chain-picker-opened-" + number, false, "选择层没起来"); return; }
             Chk("T270-chain-picker-initial-mode-" + number, picker.RecordMode == expectedInitialRecord);
             Chk("T270-chain-picker-switch-visible-" + number,
                 typeof(RegionPickerWindow).GetField("_modeSwitch", flags)!.GetValue(picker) != null);
@@ -344,10 +359,13 @@ static partial class SelfTest
         {
             var existing = Application.Current.Windows.OfType<PinWindow>().ToHashSet();
             c.BeginChain(new[] { "pin.selection" }, Array.Empty<string>());
-            var still = (LastStill)type.GetField("_lastStill", flags)!.GetValue(c)!;
-            Chk("T270-chain-pin-uses-current-region", TaskOf(c).IsCompletedSuccessfully && TaskOf(c).Result
-                && still.TryGet(out var frame, out var captured, out _) && frame.W == region.W && frame.H == region.H
-                && captured.Equals(region));
+            bool pinned = WaitUntil(() => TaskOf(c).IsCompleted);
+            var still = (LastStill?)type.GetField("_lastStill", flags)!.GetValue(c);
+            Chk("T270-chain-pin-uses-current-region",
+                pinned && TaskOf(c).Result && still != null
+                    && still.TryGet(out var frame, out var captured, out _) && frame.W == region.W && frame.H == region.H
+                    && captured.Equals(region),
+                $"完成={pinned} 静图={still != null} 区域={(still != null && still.TryGet(out var f, out var at, out _) ? $"{f.W}x{f.H}@{at}" : "?")}");
             foreach (var pin in Application.Current.Windows.OfType<PinWindow>().Where(p => !existing.Contains(p)).ToArray()) pin.Close();
         }
         using (var c = new CaptureController(service))

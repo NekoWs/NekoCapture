@@ -10,51 +10,29 @@ static partial class SelfTest
     static void SettingsEditingChecks(SettingsWindow settings, SettingsService service)
     {
         const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic;
-        var binding = new GestureBindingDto { Id = "settings-editing", Name = "自定义名称", Trigger = "Tap", Chord = "F8" };
-        var row = (Border)typeof(SettingsWindow).GetMethod("HotkeyRow", flags)!.Invoke(settings, new object[] { binding })!;
-        var header = (Grid)((Border)((StackPanel)row.Child).Children[0]).Child;
-        var nameCell = (Grid)header.Children[1];
-        var fixture = new Window { Content = row, Width = 440, Height = 130, Left = -20000, Top = -20000,
-            ShowActivated = false, ShowInTaskbar = false };
-        void Click(UIElement target) => target.RaiseEvent(new MouseButtonEventArgs(Mouse.PrimaryDevice, 0, MouseButton.Left)
-            { RoutedEvent = UIElement.MouseLeftButtonUpEvent });
+        // 行内展开编辑器已经换成「概览卡 + 触发详情页」（那部分覆盖在 SettingsOverview），
+        // 这里只留改名弹框自己的契约：模板、选中、没改就不落盘
+        int savedNames = 0, unchangedNames = 0;
+        var fixture = new Window
+        {
+            Width = 440, Height = 130, Left = -20000, Top = -20000, ShowActivated = false, ShowInTaskbar = false,
+        };
         try
         {
-            fixture.Show(); PumpMs(80);
-            var name = nameCell.Children.OfType<TextBlock>().First();
-            var hint = nameCell.Children.OfType<TextBlock>().Last();
-            var measure = new TextBlock { Text = name.Text, FontSize = name.FontSize, FontWeight = name.FontWeight };
-            measure.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-            double gap = hint.TranslatePoint(new Point(), row).X - name.TranslatePoint(new Point(), row).X - measure.DesiredSize.Width;
-            Chk("hotkey-trigger-hint-follows-name", gap is >= 0 and < 14 && hint.Text == Loc.T(GestureConfig.TriggerLabel("Tap")));
-            Click(nameCell.Children.OfType<Border>().Single()); PumpMs(80);
-            var host = nameCell.Children.OfType<Grid>().Single();
-            var editor = host.Children.OfType<TextBox>().Single(); editor.ApplyTemplate();
+            var rename = (Grid)typeof(SettingsWindow).GetMethod("RenameBox", BindingFlags.Static | BindingFlags.NonPublic)!
+                .Invoke(null, new object[] { "默认名称", (Action<string>)(_ => savedNames++), (Action)(() => unchangedNames++) })!;
+            fixture.Content = rename; fixture.Show(); PumpMs(80);
+            var editor = rename.Children.OfType<TextBox>().Single(); editor.ApplyTemplate();
             Chk("rename-field-has-rounded-content-and-readable-selection", editor.Template.LoadContent() is Border { CornerRadius.TopLeft: 10 }
                 && editor.Template.FindName("PART_ContentHost", editor) is ScrollViewer && editor.MinHeight >= 32
                 && editor.SelectionOpacity < 0.5 && InputMethod.GetIsInputMethodEnabled(editor)
                 && editor.SelectionLength == editor.Text.Length);
-            editor.Text = new string('W', 80); fixture.UpdateLayout();
-            Chk("rename-field-stays-inside-name-column", editor.ActualWidth <= nameCell.ActualWidth + 1
-                && editor.ActualWidth > 60 && header.Children.OfType<ChordCaptureBox>().Single().ActualWidth > 20);
-            Click(editor);
-            Chk("rename-field-click-does-not-expand-hotkey", ((StackPanel)row.Child).Children[1].Visibility == Visibility.Collapsed);
-            editor.RaiseEvent(new KeyEventArgs(Keyboard.PrimaryDevice, PresentationSource.FromVisual(editor), 0, Key.Escape)
+            editor.RaiseEvent(new KeyEventArgs(Keyboard.PrimaryDevice, PresentationSource.FromVisual(editor), 0, Key.Enter)
                 { RoutedEvent = Keyboard.PreviewKeyDownEvent });
-            fixture.UpdateLayout();
-            Chk("rename-escape-preserves-name-and-trigger", binding.Name == "自定义名称"
-                && nameCell.Children.OfType<TextBlock>().Last().Text == hint.Text);
-            int savedNames = 0, unchangedNames = 0;
-            var unchanged = (Grid)typeof(SettingsWindow).GetMethod("RenameBox", BindingFlags.Static | BindingFlags.NonPublic)!
-                .Invoke(null, new object[] { "默认名称", (Action<string>)(_ => savedNames++), (Action)(() => unchangedNames++) })!;
-            fixture.Content = unchanged; fixture.UpdateLayout();
-            var unchangedEditor = unchanged.Children.OfType<TextBox>().Single();
-            unchangedEditor.RaiseEvent(new KeyEventArgs(Keyboard.PrimaryDevice, PresentationSource.FromVisual(fixture), 0, Key.Enter)
-                { RoutedEvent = Keyboard.PreviewKeyDownEvent });
-            Chk("rename-unchanged-name-does-not-save-preset", savedNames == 0 && unchangedNames == 1);
+            Chk("rename-unchanged-name-does-not-save-preset", savedNames == 0 && unchangedNames == 1,
+                $"落盘 {savedNames} 次，取消回调 {unchangedNames} 次");
         }
-        finally { fixture.Close(); typeof(SettingsWindow).GetMethod("RebuildHotkeys", flags)!.Invoke(settings, null); }
-
+        finally { fixture.Close(); }
         var saved = service.Current.Clone();
         var cache = typeof(CaptureSound).GetField("_cached", BindingFlags.Static | BindingFlags.NonPublic)!;
         var previousCache = cache.GetValue(null);

@@ -14,25 +14,40 @@ static partial class SelfTest
         try
         {
             service.Mutate(settings => settings.Gestures = new GestureConfig());
+            // 预设已经拆成独立页签：先真的进那一页，卡片才会建出来
+            typeof(SettingsWindow).GetMethod("NavigateSettings", flags)!.Invoke(window, new object?[] { "presets", false, true });
+            PumpMs(150);
             var cards = (Dictionary<string, Button>)typeof(SettingsWindow).GetField("_presetCards", flags)!.GetValue(window)!;
             Chk("preset-ui-has-three-schemes-and-custom", cards.Keys.Order().SequenceEqual(BehaviorPresets.All.Order()));
+            // 预设已经是独立页签：卡片归「预设」页正文，不再挂在快捷键页总开关下面
             var presetBody = ((Grid)cards[BehaviorPresets.Dual].Parent).Parent as StackPanel;
-            var hotkeyPage = presetBody?.Parent as StackPanel;
-            Chk("preset-ui-below-master-toggle", hotkeyPage != null && hotkeyPage.Children.IndexOf(presetBody!) == 1);
-            service.Mutate(settings => settings.Gestures.Bindings[0].Chord = "F9");
+            var bodies = (Dictionary<string, StackPanel>)typeof(SettingsWindow).GetField("_settingsBodies", flags)!.GetValue(window)!;
+            Chk("preset-ui-on-own-page",
+                presetBody != null && bodies.TryGetValue("presets", out var presetPanel)
+                    && presetPanel.IsAncestorOf(presetBody),
+                $"预设卡片在「预设」页正文里={presetBody != null && bodies.TryGetValue("presets", out var panel) && panel.IsAncestorOf(presetBody)}");
+            if (service.Current.Gestures.Bindings.Count > 0)
+                service.Mutate(settings => settings.Gestures.Bindings[0].Chord = "F9");
+            // 快捷键页必须先建过：预设切换刷新的是那一页上已经存在的行与键位框
+            typeof(SettingsWindow).GetMethod("NavigateSettings", flags)!.Invoke(window, new object?[] { "hotkeys", false, true });
+            PumpMs(150);
             void Pick(string id) => cards[id].RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
             Pick(BehaviorPresets.Dual); PumpMs(Fluent.Motion.EnterMs + 50);
             Chk("preset-ui-click-replaces-scheme", service.Current.Gestures.ActivePreset == BehaviorPresets.Dual
                 && service.Current.Gestures.Bindings.Count(b => b.Source == TriggerSources.Keyboard) == 2 && service.Current.Gestures.Graph.Flows.Count(f => !f.Id.StartsWith("tray.")) == 1);
-            var body = (Border)typeof(SettingsWindow).GetMethod("HotkeyBody", flags)!.Invoke(window,
-                new object[] { service.Current.Gestures.Bindings[0] })!;
-            var labels = new List<DependencyObject>(); CollectTyped(body, typeof(TextBlock), labels);
-            Chk("hotkey-settings-only-link-behavior-entry", labels.OfType<TextBlock>().Any(t => t.Text == Loc.T(K.Behaviors.Entry))
-                && labels.OfType<TextBlock>().All(t => t.Text != Loc.T(K.Behaviors.InitialMode))
-                && ((StackPanel)body.Child).Children.Count == 2);
+            // 触发详情页只链接共享行为入口，不再在行内铺「初始模式」
+            var detail = (Border)typeof(SettingsWindow).GetMethod("BuildBindingBehaviorCard", flags)!
+                .Invoke(window, new object[] { service.Current.Gestures.Bindings[0] })!;
+            var labels = new List<DependencyObject>(); CollectTyped(detail, typeof(TextBlock), labels);
+            Chk("hotkey-settings-only-link-behavior-entry",
+                labels.OfType<TextBlock>().Any(t => t.Text == Loc.T(K.Behaviors.Entry))
+                && labels.OfType<TextBlock>().All(t => t.Text != Loc.T(K.Behaviors.InitialMode)),
+                $"详情页有共享行为入口={labels.OfType<TextBlock>().Any(t => t.Text == Loc.T(K.Behaviors.Entry))}");
             Pick(BehaviorPresets.Separate); PumpMs(Fluent.Motion.EnterMs + 50);
-            var boxes = (Dictionary<string, ChordCaptureBox>)typeof(SettingsWindow).GetField("_hotBoxes", flags)!.GetValue(window)!;
-            Chk("preset-ui-refreshes-binding-editors", boxes.Count == 4 && service.Current.Gestures.ToBindings().Count == 4);
+            // 键位录入搬到触发详情页之后，行上留下的是概览卡：切换预设刷新的是这批卡
+            var rowsAfter = (Dictionary<string, FrameworkElement>)typeof(SettingsWindow).GetField("_hotRows", flags)!.GetValue(window)!;
+            Chk("preset-ui-refreshes-binding-editors", rowsAfter.Count == 4 && service.Current.Gestures.ToBindings().Count == 4,
+                $"概览卡 {rowsAfter.Count} 张，引擎绑定 {service.Current.Gestures.ToBindings().Count} 条");
             service.Mutate(settings => settings.Gestures.Graph.Nodes.First(node => node.Action == GestureActions.SelectOnly).ShowModeSwitch = true);
             Chk("preset-ui-graph-edit-selects-custom", service.Current.Gestures.ActivePreset == BehaviorPresets.Custom
                 && System.Windows.Automation.AutomationProperties.GetItemStatus(cards[BehaviorPresets.Custom]) == Loc.T(K.Hotkeys.PresetCustom));

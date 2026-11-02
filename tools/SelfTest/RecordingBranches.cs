@@ -67,21 +67,26 @@ static partial class SelfTest
                 return test();
             }
             Task<bool> Running(CaptureController c) => (Task<bool>)typeof(CaptureController).GetField("_chainTask", flags)!.GetValue(c)!;
-            void Open(CaptureController c)
+            RegionPickerWindow? PickerOf(CaptureController c) => typeof(CaptureController).GetField("_picker", flags)!.GetValue(c) as RegionPickerWindow;
+            bool Open(CaptureController c)
             {
                 c.BeginBehavior(BehaviorFixtureMode(graph, flow.Id, BehaviorPorts.Record), flow.Id, "record-events");
-                var picker = (RegionPickerWindow)typeof(CaptureController).GetField("_picker", flags)!.GetValue(c)!;
+                // 选择层在链里被 await 之后才建：等它出现再选区域
+                if (!Wait(() => PickerOf(c) != null)) return false;
+                var picker = PickerOf(c)!;
                 var mon = Monitors.All().First();
                 var emit = (Action<RectI?, IntPtr>)typeof(RegionPickerWindow).GetField("Result", flags)!.GetValue(picker)!;
                 emit(new RectI(mon.Bounds.X + 16, mon.Bounds.Y + 16, 64, 48), IntPtr.Zero); picker.Close();
                 Wait(() => RecordPanelWindow.Current != null);
+                return true;
             }
             using (var c = new CaptureController(settings))
             {
                 int files = System.IO.Directory.GetFiles(settings.Current.AutoSavePath, "*.png").Length;
-                Open(c);
-                Chk("record-panel-waits-before-start-branch", RecordPanelWindow.Current != null && c.HasLastStill && !Running(c).IsCompleted
-                    && System.IO.Directory.GetFiles(settings.Current.AutoSavePath, "*.png").Length == files);
+                bool opened = Open(c);
+                Chk("record-panel-waits-before-start-branch", opened && RecordPanelWindow.Current != null && c.HasLastStill && !Running(c).IsCompleted
+                    && System.IO.Directory.GetFiles(settings.Current.AutoSavePath, "*.png").Length == files,
+                    $"选择层={opened} 面板={(RecordPanelWindow.Current != null)} 静图={c.HasLastStill} 链完成={Running(c).IsCompleted}");
                 typeof(RecordPanelWindow).GetMethod("StartRequested", flags)!.Invoke(RecordPanelWindow.Current, null);
                 Chk("record-panel-start-executes-configured-actions", Wait(() => System.IO.Directory.GetFiles(settings.Current.AutoSavePath, "*.png").Length == files + 1)
                     && c.State == CaptureController.Phase.Capturing && !Running(c).IsCompleted

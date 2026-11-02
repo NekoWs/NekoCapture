@@ -1,4 +1,4 @@
-﻿using System.IO;
+using System.IO;
 using System.Reflection;
 using NekoCapture.Capture;
 using NekoCapture.Core;
@@ -102,18 +102,28 @@ static partial class SelfTest
                 damaged.RestoreResidentSession();
                 Chk("resident-session-damaged-metadata-safe", damaged.CanSuspend && !damaged.HasLastStill && !damaged.HasLastVideo);
             }
+            // 存活凭据是进程级的：这一测只对本用例自己那份计数负责，前后取差值
+            int leaseBase = BackgroundWork.ActiveCount;
             using var started = new ManualResetEventSlim(); using var release = new ManualResetEventSlim();
             var task = BackgroundWork.Run(() => { started.Set(); release.Wait(); return 7; });
-            started.Wait(); Chk("resident-background-keeps-worker-alive", BackgroundWork.Busy);
-            release.Set(); Chk("resident-background-releases-on-success", task.GetAwaiter().GetResult() == 7 && !BackgroundWork.Busy);
+            started.Wait(); Chk("resident-background-keeps-worker-alive", BackgroundWork.ActiveCount == leaseBase + 1,
+                $"任务在跑时的计数 {BackgroundWork.ActiveCount}（基线 {leaseBase}）");
+            release.Set(); Chk("resident-background-releases-on-success",
+                task.GetAwaiter().GetResult() == 7 && BackgroundWork.ActiveCount == leaseBase,
+                $"任务结束后计数 {BackgroundWork.ActiveCount}（基线 {leaseBase}）");
             try { BackgroundWork.Run<int>(() => throw new IOException("test")).GetAwaiter().GetResult(); } catch (IOException) { }
-            Chk("resident-background-releases-on-failure", !BackgroundWork.Busy);
+            Chk("resident-background-releases-on-failure", BackgroundWork.ActiveCount == leaseBase,
+                $"失败后计数 {BackgroundWork.ActiveCount}（基线 {leaseBase}）");
             using var cancelled = new CancellationTokenSource(); cancelled.Cancel();
             try { BackgroundWork.Run(() => 1, cancelled.Token).GetAwaiter().GetResult(); } catch (OperationCanceledException) { }
-            Chk("resident-background-releases-before-start-cancellation", !BackgroundWork.Busy);
+            Chk("resident-background-releases-before-start-cancellation", BackgroundWork.ActiveCount == leaseBase,
+                $"取消后计数 {BackgroundWork.ActiveCount}（基线 {leaseBase}）");
             var first = BackgroundWork.Hold(); var second = BackgroundWork.Hold();
-            first.Dispose(); first.Dispose(); bool pending = BackgroundWork.Busy; second.Dispose();
-            Chk("resident-background-nested-leases-release-once", pending && !BackgroundWork.Busy);
+            first.Dispose(); first.Dispose();
+            bool pending = BackgroundWork.ActiveCount == leaseBase + 1;
+            second.Dispose();
+            Chk("resident-background-nested-leases-release-once", pending && BackgroundWork.ActiveCount == leaseBase,
+                $"重复释放后计数 {BackgroundWork.ActiveCount}（基线 {leaseBase}，pending={pending}）");
         }
         catch (Exception error) { Chk("resident-checks-exception", false, error.ToString()); }
     }

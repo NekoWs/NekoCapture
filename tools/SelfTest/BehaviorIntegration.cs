@@ -24,6 +24,8 @@ static partial class SelfTest
             service.Current.CaptureSound = false; service.Current.AutoSaveCopy = false;
             service.Current.RecordNeedsStartClick = false; service.Current.UseWgc = false;
             service.Current.ShowRecordingBorder = false; service.Current.FreezeOnSelect = true;
+            // 轮廓是否被排除出捕获取决于「允许截到自己」：本用例验的是排除，先把这一项钉成关
+            service.Current.CaptureSelf = false;
             service.Current.AlwaysShowRegionOutline = false; service.Current.OutlineFadeSeconds = 0.3;
             service.Current.FreezePregrabMaxWindows = 0;
             service.Current.AutoSavePath = Path.Combine(SettingsService.Dir, "behavior-products-" + Guid.NewGuid().ToString("N"));
@@ -36,9 +38,13 @@ static partial class SelfTest
                 return done();
             }
             Task<bool> Running(CaptureController c) => (Task<bool>)controllerType.GetField("_chainTask", flags)!.GetValue(c)!;
-            RegionPickerWindow Picker(CaptureController c) => (RegionPickerWindow)controllerType.GetField("_picker", flags)!.GetValue(c)!;
+            RegionPickerWindow? PickerOrNull(CaptureController c) => controllerType.GetField("_picker", flags)!.GetValue(c) as RegionPickerWindow;
+            EditorWindow? EditorOf(CaptureController c) => controllerType.GetField("_editor", flags)!.GetValue(c) as EditorWindow;
+            RegionPickerWindow Picker(CaptureController c) => PickerOrNull(c)!;
             void Choose(CaptureController c, bool recording)
             {
+                // 选择层在链里被 await 之后才建：等它出现再按模式与提交
+                if (!Wait(() => PickerOrNull(c) != null)) { Chk("T273-picker-opened", false, "选择层没起来"); return; }
                 var picker = Picker(c);picker.SetRecordMode(recording);
                 var emit = (Action<RectI?, IntPtr>)typeof(RegionPickerWindow).GetField("Result", flags)!.GetValue(picker)!;
                 emit(bounds, IntPtr.Zero);picker.Close();
@@ -51,7 +57,10 @@ static partial class SelfTest
             using (var c = new CaptureController(service))
             {
                 c.BeginBehavior(BehaviorFixtureMode(graph, entry.Id, "still"), entry.Id, "screenshot");
-                Chk("T273-graph-picker-initial-still", !Picker(c).RecordMode);
+                // 选择层在链里被 await 之后才建：等它出现再读初始模式
+                bool stillOpened = Wait(() => PickerOrNull(c) != null);
+                Chk("T273-graph-picker-initial-still", stillOpened && !Picker(c).RecordMode,
+                    stillOpened ? $"初始模式 recording={Picker(c).RecordMode}" : "选择层没起来");
                 Choose(c, true);
                 bool recording = Wait(() => c.State == CaptureController.Phase.Capturing);
                 c.BeginBehavior(BehaviorFixtureMode(graph, entry.Id, "still"), entry.Id, "screenshot");
@@ -61,15 +70,19 @@ static partial class SelfTest
             using (var c = new CaptureController(service))
             {
                 c.BeginBehavior(BehaviorFixtureMode(graph, entry.Id, "record"), entry.Id, "record");
-                Chk("T273-graph-picker-initial-record", Picker(c).RecordMode);
+                bool recordOpened = Wait(() => PickerOrNull(c) != null);
+                Chk("T273-graph-picker-initial-record", recordOpened && Picker(c).RecordMode,
+                    recordOpened ? $"初始模式 recording={Picker(c).RecordMode}" : "选择层没起来");
                 Choose(c, false);
                 Chk("T273-graph-record-key-selects-screenshot-branch", Wait(() => Running(c).IsCompleted)
                     && Running(c).Result && c.HasLastStill && !c.HasLastVideo
                     && Directory.GetFiles(service.Current.AutoSavePath, "*.png").Length == 1);
                 var outline = (RegionOutlineWindow?)controllerType.GetField("_outline", flags)!.GetValue(c);
-                Chk("still-capture-shows-excluded-outline", outline is { IsVisible: true } && outline.EnsureExcludedFromCapture());
-                PumpMs((int)(service.Current.OutlineFadeSeconds * 1000) + Fluent.Motion.DissolveMs + 100);
-                Chk("still-capture-outline-retires", outline is { IsVisible: false },
+                Chk("still-capture-shows-excluded-outline", outline is { IsVisible: true } && outline.EnsureExcludedFromCapture(),
+                    $"outline={(outline != null)} visible={outline?.IsVisible} opacity={outline?.Opacity:F2} hwnd={outline != null}");
+                // 等它自己退场：慢机器上固定睡眠量会赶在淡出没走完时取样
+                bool retired = Wait(() => outline is not { IsVisible: true });
+                Chk("still-capture-outline-retires", retired && outline is { IsVisible: false },
                     $"visible={outline?.IsVisible}, opacity={outline?.Opacity}, seconds={service.Current.OutlineFadeSeconds}");
                 service.Current.AlwaysShowRegionOutline = true;
                 c.BeginBehavior(BehaviorFixtureMode(graph, entry.Id, "still"), entry.Id, "record"); Choose(c, false);
@@ -84,22 +97,31 @@ static partial class SelfTest
             using (var c = new CaptureController(service))
             {
                 c.BeginBehavior(graph.Snapshot(), onlyEntry.Id, "region");
-                Chk("T273-graph-select-only-hides-switch", typeof(RegionPickerWindow).GetField("_modeSwitch", flags)!.GetValue(Picker(c)) == null);
+                bool onlyOpened = Wait(() => PickerOrNull(c) != null);
+                Chk("T273-graph-select-only-hides-switch",
+                    onlyOpened && typeof(RegionPickerWindow).GetField("_modeSwitch", flags)!.GetValue(Picker(c)) == null,
+                    onlyOpened ? "只有选区入口：模式按钮隐藏" : "选择层没起来");
                 Choose(c, false);
                 Chk("T273-graph-select-only-no-product", Wait(() => Running(c).IsCompleted) && Running(c).Result
                     && !c.HasLastStill && !c.HasLastVideo && c.StoredRegion()?.Bounds.Equals(bounds) == true);
                 var direct = new BehaviorFlow { Steps = new() { graph.Add(GestureActions.RequireStored).Id, graph.Add(GestureActions.GrabStill).Id } };
                 graph.Flows.Add(direct);
                 c.BeginBehavior(graph.Snapshot(), direct.Id, "tap");
-                Chk("T273-graph-tap-reuses-region", Running(c).IsCompletedSuccessfully && Running(c).Result && c.HasLastStill && c.StoredRegion()?.Bounds.Equals(bounds) == true);
+                bool tapDone = Wait(() => Running(c).IsCompleted);
+                Chk("T273-graph-tap-reuses-region",
+                    tapDone && Running(c).Result && c.HasLastStill && c.StoredRegion()?.Bounds.Equals(bounds) == true,
+                    $"完成={tapDone} 静图={c.HasLastStill} 区域={c.StoredRegion()?.Bounds}");
                 var hold = new BehaviorFlow { Steps = new() { graph.Add(GestureActions.RequireStored).Id, graph.Add(GestureActions.RecordStart).Id } };
                 var release = new BehaviorFlow { Steps = new() { graph.Add(GestureActions.RecordStop).Id, graph.Add(GestureActions.ClearRegion).Id } };
                 graph.Flows.Add(hold);graph.Flows.Add(release);
                 c.BeginBehavior(graph.Snapshot(), hold.Id, "hold");
                 bool recording = Wait(() => c.State == CaptureController.Phase.Capturing);
                 c.BeginBehavior(graph.Snapshot(), release.Id, "release");
-                Chk("T273-graph-hold-release-keeps-own-tail", recording && Wait(() => c.StoredRegion() == null)
-                    && c.HasLastVideo && Wait(() => Running(c).IsCompleted) && Running(c).Result);
+                bool cleared = Wait(() => c.StoredRegion() == null);
+                bool holdDone = Wait(() => Running(c).IsCompleted);
+                Chk("T273-graph-hold-release-keeps-own-tail",
+                    recording && cleared && holdDone && c.HasLastVideo && Running(c).Result,
+                    $"录制={recording} 区域已清={cleared} 完成={holdDone} 视频={c.HasLastVideo}");
             }
             var edit = graph.Add(GestureActions.EditLastStill);
             edit.Branches["saved"].Add(graph.Add(GestureActions.SavePng).Id);
@@ -111,15 +133,20 @@ static partial class SelfTest
                 service.Mutate(s => { s.RegionMonitorId = mon.DeviceName;s.RegionX = bounds.X;s.RegionY = bounds.Y;s.RegionW = bounds.W;s.RegionH = bounds.H; });
                 int count = Directory.GetFiles(service.Current.AutoSavePath, "*.png").Length;
                 c.BeginBehavior(graph.Snapshot(), editing.Id, "edit");
-                Chk("T273-graph-editor-waits", c.State == CaptureController.Phase.Editing && !Running(c).IsCompleted);
-                controllerType.GetMethod("CloseEditor", flags)!.Invoke(c, null);
-                Chk("T273-graph-editor-close-branch", Wait(() => Running(c).IsCompleted) && Running(c).Result
-                    && c.StoredRegion() == null && Directory.GetFiles(service.Current.AutoSavePath, "*.png").Length == count);
+                bool editorUp = Wait(() => c.State == CaptureController.Phase.Editing && EditorOf(c) != null);
+                Chk("T273-graph-editor-waits", editorUp && !Running(c).IsCompleted,
+                    $"编辑态={editorUp} 链完成={Running(c).IsCompleted}");
+                if (editorUp) controllerType.GetMethod("CloseEditor", flags)!.Invoke(c, null);
+                Chk("T273-graph-editor-close-branch", editorUp && Wait(() => Running(c).IsCompleted) && Running(c).Result
+                    && c.StoredRegion() == null && Directory.GetFiles(service.Current.AutoSavePath, "*.png").Length == count,
+                    $"编辑态={editorUp} 保存数={Directory.GetFiles(service.Current.AutoSavePath, "*.png").Length}/{count}");
                 c.BeginBehavior(graph.Snapshot(), editing.Id, "edit");
-                var window = (EditorWindow)controllerType.GetField("_editor", flags)!.GetValue(c)!;
-                typeof(EditorWindow).GetMethod("Commit", flags)!.Invoke(window, null);
-                Chk("T273-graph-editor-save-branch", Wait(() => Running(c).IsCompleted) && Running(c).Result
-                    && Directory.GetFiles(service.Current.AutoSavePath, "*.png").Length == count + 1);
+                bool editorAgain = Wait(() => EditorOf(c) != null);
+                var window = EditorOf(c);
+                if (window != null) typeof(EditorWindow).GetMethod("Commit", flags)!.Invoke(window, null);
+                Chk("T273-graph-editor-save-branch", editorAgain && Wait(() => Running(c).IsCompleted) && Running(c).Result
+                    && Directory.GetFiles(service.Current.AutoSavePath, "*.png").Length == count + 1,
+                    $"编辑态={editorAgain} 保存数={Directory.GetFiles(service.Current.AutoSavePath, "*.png").Length}/{count + 1}");
                 edit.Branches["failed"].Add(graph.Add(GestureActions.ClearRegion).Id);
                 service.Mutate(s => { s.RegionMonitorId = mon.DeviceName;s.RegionX = bounds.X;s.RegionY = bounds.Y;s.RegionW = bounds.W;s.RegionH = bounds.H; });
                 string? forced = Environment.GetEnvironmentVariable("NC_TEST_ENCODE_FAIL");
@@ -127,10 +154,12 @@ static partial class SelfTest
                 {
                     Environment.SetEnvironmentVariable("NC_TEST_ENCODE_FAIL", "1");
                     c.BeginBehavior(graph.Snapshot(), editing.Id, "failed-edit");
-                    window = (EditorWindow)controllerType.GetField("_editor", flags)!.GetValue(c)!;
-                    typeof(EditorWindow).GetMethod("Commit", flags)!.Invoke(window, null);
-                    Chk("T273-graph-editor-failure-branch", Wait(() => Running(c).IsCompleted) && !Running(c).Result
-                        && c.StoredRegion() == null && c.State == CaptureController.Phase.Idle);
+                    bool failEditor = Wait(() => EditorOf(c) != null);
+                    var failing = EditorOf(c);
+                    if (failing != null) typeof(EditorWindow).GetMethod("Commit", flags)!.Invoke(failing, null);
+                    Chk("T273-graph-editor-failure-branch", failEditor && Wait(() => Running(c).IsCompleted) && !Running(c).Result
+                        && c.StoredRegion() == null && c.State == CaptureController.Phase.Idle,
+                        $"编辑态={failEditor} 结果={(Running(c).IsCompleted ? Running(c).Result.ToString() : "?")} 区域={c.StoredRegion()?.Bounds} 阶段={c.State}");
                 }
                 finally { Environment.SetEnvironmentVariable("NC_TEST_ENCODE_FAIL", forced); }
                 service.Mutate(s => { s.RegionMonitorId = mon.DeviceName;s.RegionX = bounds.X;s.RegionY = bounds.Y;s.RegionW = bounds.W;s.RegionH = bounds.H; });

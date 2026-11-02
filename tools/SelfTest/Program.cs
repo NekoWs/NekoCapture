@@ -4925,7 +4925,7 @@ static partial class SelfTest
                 "未知触发名与 null 都返回空文案（配置里写了认不出的触发不会崩）");
         }
 
-        // 快捷键行的展开动效：正文从 0 长高、逐行淡入、走完放开限高；正文包含动作链与失败链
+        // 快捷键行不再就地展开：整行是一张概览卡，点开落在触发详情页
         try
         {
             var appHot = System.Windows.Application.Current ?? new System.Windows.Application();
@@ -4937,76 +4937,26 @@ static partial class SelfTest
             NekoCapture.Core.Loc.Apply("zh");
             var winHot = new NekoCapture.Overlays.SettingsWindow
             {
-                WindowStartupLocation = WindowStartupLocation.Manual,
-                Left = -20000,
-                Top = -20000,
-                ShowActivated = false,
-                ShowInTaskbar = false,
+                WindowStartupLocation = WindowStartupLocation.Manual, Left = -20000, Top = -20000,
+                ShowActivated = false, ShowInTaskbar = false,
             };
             typeof(NekoCapture.Overlays.SettingsWindow)
                 .GetMethod("Build", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
                 .Invoke(winHot, null);
-            winHot.Show();
-            PumpMs(400);
+            winHot.Show(); PumpMs(400);
+            // 行上不再就地展开：点开的是触发详情页，标题就是这条绑定的名字
             var hotRoot = (UIElement)winHot.Content;
-            var hotBoxes = new List<System.Windows.DependencyObject>();
-            CollectTyped(hotRoot, typeof(NekoCapture.Core.ChordCaptureBox), hotBoxes);
-            // 键位框 → 行首的列容器 → 挂着展开处理器的胶囊：这一击打在挂处理器的那一层
-            var pill = (System.Windows.UIElement)System.Windows.Media.VisualTreeHelper
-                .GetParent(System.Windows.Media.VisualTreeHelper.GetParent(hotBoxes[0]))!;
-            var stack = (System.Windows.Controls.Panel)System.Windows.Media.VisualTreeHelper.GetParent(pill)!;
-            var body = (System.Windows.Controls.Border)stack.Children[1];
-            var rows = (System.Windows.Controls.Panel)body.Child;
-            Chk("T191a-collapsed-body-clipped",
-                body.Visibility == Visibility.Collapsed && body.MaxHeight == 0,
-                "折叠时正文不可见且限高 0");
-            pill.RaiseEvent(new System.Windows.Input.MouseButtonEventArgs(
-                System.Windows.Input.Mouse.PrimaryDevice, 0, System.Windows.Input.MouseButton.Left)
-            { RoutedEvent = System.Windows.UIElement.MouseLeftButtonUpEvent, Source = pill });
-            bool fading = rows.Children.Cast<UIElement>().Any(c => c.Opacity < 0.5);
-            Chk("T191b-expand-grows-from-zero",
-                body.Visibility == Visibility.Visible && body.MaxHeight == 0 && fading,
-                $"展开当场：正文可见、限高从 0 起、有行还在淡入（淡入中的行数 {rows.Children.Cast<UIElement>().Count(c => c.Opacity < 0.5)}）");
-            PumpMs(500);
-            Chk("T191c-expand-releases-cap",
-                double.IsPositiveInfinity(body.MaxHeight) && body.ActualHeight > 60
-                && rows.Children.Cast<UIElement>().All(c => c.Opacity > 0.99),
-                $"动画走完：限高放开、正文有高度、行全部到位（实测高 {body.ActualHeight:F0}）");
-            var combos = new List<System.Windows.DependencyObject>();
-            CollectTyped(hotRoot, typeof(System.Windows.Controls.ComboBox), combos);
-            var trig = combos.Cast<System.Windows.Controls.ComboBox>().FirstOrDefault(c => c.Items.Count > 4);
-            var trigItems = trig == null
-                ? new List<string>()
-                : trig.Items.Cast<System.Windows.Controls.ComboBoxItem>().Select(i => (string)i.Content).ToList();
-            Chk("T193c-trigger-combo-covers-all-kinds",
-                trigItems.Count == Enum.GetValues<GE.TriggerKind>().Length && trigItems.Distinct().Count() == trigItems.Count,
-                $"触发方式下拉 {trigItems.Count} 项覆盖全部触发且两两不同名：{string.Join("/", trigItems)}");
-            trig?.ApplyTemplate();
-            Chk("T193d-trigger-combo-template-measures",
-                trig != null && trig.Template != null && trig.ActualHeight > 12,
-                $"下拉模板已套上并量出高度 {trig?.ActualHeight.ToString() ?? "?"}（深色下拉开来读得清）");
-            Chk("T191d-overrides-always-shown",
-                OverrideRows().All(r => r.Visibility == Visibility.Visible && r.ActualHeight > 20),
-                "完成后与失败时两行始终在：没有简单/高级之分");
-            // 收起整行再展开：限高放开之后再来一次，动画仍从 0 起
-            pill.RaiseEvent(new System.Windows.Input.MouseButtonEventArgs(
-                System.Windows.Input.Mouse.PrimaryDevice, 0, System.Windows.Input.MouseButton.Left)
-            { RoutedEvent = System.Windows.UIElement.MouseLeftButtonUpEvent, Source = pill });
-            PumpMs(400);
-            pill.RaiseEvent(new System.Windows.Input.MouseButtonEventArgs(
-                System.Windows.Input.Mouse.PrimaryDevice, 0, System.Windows.Input.MouseButton.Left)
-            { RoutedEvent = System.Windows.UIElement.MouseLeftButtonUpEvent, Source = pill });
-            Chk("T191f-collapse-then-expand",
-                body.Visibility == Visibility.Visible && body.MaxHeight == 0,
-                "收起再展开：正文重新从 0 长高");
-            PumpMs(500);
-
-            // 收起态在视觉树里仍留着子节点，判断「有没有露出来」只能看行自己的可见性
-            List<System.Windows.FrameworkElement> OverrideRows() => new()
-            {
-                (System.Windows.FrameworkElement)rows.Children[rows.Children.Count - 2],
-                (System.Windows.FrameworkElement)rows.Children[rows.Children.Count - 1],
-            };
+            var cardsHot = new List<System.Windows.DependencyObject>();
+            CollectTyped(hotRoot, typeof(System.Windows.Controls.Button), cardsHot);
+            var overview = cardsHot.Cast<System.Windows.Controls.Button>()
+                .First(button => (button.Tag as string) == "settings-overview");
+            overview.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+            PumpMs(Fluent.Motion.EnterMs + 120);
+            string currentPage = (string)typeof(NekoCapture.Overlays.SettingsWindow)
+                .GetField("_currentSettingsPage", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
+                .GetValue(winHot)!;
+            Chk("T191-hotkey-row-opens-detail-page", currentPage.StartsWith("binding:", StringComparison.Ordinal),
+                $"点概览卡后停在 {currentPage}");
         }
         catch (Exception e) { Chk("T191-hotkey-expand-animation", false, e.Message); }
 
@@ -5026,13 +4976,15 @@ static partial class SelfTest
                 | System.Reflection.BindingFlags.Static;
             const System.Reflection.BindingFlags FI = System.Reflection.BindingFlags.NonPublic
                 | System.Reflection.BindingFlags.Instance;
-            var nameMi = swType.GetMethod("HotkeyDisplayName", NP)!;
+            var nameMi = swType.GetMethod("HotkeyDisplayName",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
+            var nameProbe = new NekoCapture.Overlays.SettingsWindow();
             static NekoCapture.Core.GestureBindingDto Bind(string id, string? name = null)
                 => new() { Id = id, Name = name ?? "", Chord = "Ctrl+Alt+A", Trigger = "Chord", Actions = new[] { "scope.select" } };
             string Disp(NekoCapture.Core.GestureBindingDto b, string lang)
             {
                 NekoCapture.Core.Loc.Apply(lang);
-                return (string)nameMi.Invoke(null, new object[] { b })!;
+                return (string)nameMi.Invoke(nameProbe, new object[] { b })!;
             }
             Chk("T196a-default-names-follow-language",
                 Disp(Bind("default.capture"), "zh") == "截图" && Disp(Bind("default.record"), "zh") == "录制"
@@ -5063,11 +5015,17 @@ static partial class SelfTest
                 $"改名框随内容变宽：短名 {shortW:F0} → 长名 {renameBox.Width:F0}");
             winRn.Close();
 
-            // 键位框宽度跟着键帽走：一条单键、一条三键，摆在一起比
-            svc6.Current.Gestures.Bindings.Add(new NekoCapture.Core.GestureBindingDto
-            { Id = "t196.one", Chord = "F6", Trigger = "Chord", Actions = new[] { "capture.frame" } });
-            svc6.Current.Gestures.Bindings.Add(new NekoCapture.Core.GestureBindingDto
-            { Id = "t196.three", Chord = "Ctrl+Alt+G", Trigger = "Chord", Actions = new[] { "capture.frame" } });
+            // 键位框宽度跟着键帽走：一条单键、一条三键，摆在一起比。
+            // 键位录入搬到触发详情页之后，这里直接把两张详情输入卡并排摆出来量
+            var bindOne = new NekoCapture.Core.GestureBindingDto
+            { Id = "t196.one", Chord = "F6", Trigger = "Chord", Actions = new[] { "capture.frame" } };
+            var bindThree = new NekoCapture.Core.GestureBindingDto
+            { Id = "t196.three", Chord = "Ctrl+Alt+G", Trigger = "Chord", Actions = new[] { "capture.frame" } };
+            svc6.Current.Gestures.Bindings.Add(bindOne);
+            svc6.Current.Gestures.Bindings.Add(bindThree);
+            var cardHost = new System.Windows.Controls.StackPanel();
+            var cardMi = swType.GetMethod("BuildBindingInputCard",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
             var win6 = new NekoCapture.Overlays.SettingsWindow
             {
                 WindowStartupLocation = WindowStartupLocation.Manual,
@@ -5075,6 +5033,9 @@ static partial class SelfTest
             };
             swType.GetMethod("Build", System.Reflection.BindingFlags.NonPublic
                 | System.Reflection.BindingFlags.Instance)!.Invoke(win6, null);
+            cardHost.Children.Add((System.Windows.UIElement)cardMi.Invoke(win6, new object[] { bindOne })!);
+            cardHost.Children.Add((System.Windows.UIElement)cardMi.Invoke(win6, new object[] { bindThree })!);
+            win6.Content = cardHost;
             win6.Show();
             PumpMs(400);
             var root6 = (UIElement)win6.Content;
@@ -5225,7 +5186,7 @@ static partial class SelfTest
             svc6.Current.Gestures.Bindings.RemoveAll(b => b.Id.StartsWith("t196.", StringComparison.Ordinal));
             NekoCapture.Core.Loc.Apply("zh");
         }
-        catch (Exception e) { Chk("T196-hotkey-page-round", false, e.Message); }
+        catch (Exception e) { Chk("T196-hotkey-page-round", false, e.ToString()); }
 
         // 芯片编辑器：抬起的芯片不占位、预览排不到加号之后、候选卡跟着宿主窗走、
         // 候选条目悬停真的叠得出底色。编辑器单独实例化，get/set 是本用例自己的闭包——
@@ -5403,6 +5364,9 @@ static partial class SelfTest
             sw8.GetMethod("Build", NP8)!.Invoke(win8, null);
             win8.Show();
             PumpMs(400);
+            // 键位行在「界面键位」页：先真的进那一页，行才会建出来
+            sw8.GetMethod("NavigateSettings", NP8)!.Invoke(win8, new object?[] { "ui-keys", false, true });
+            PumpMs(150);
             var root8 = (UIElement)win8.Content;
             var tbs8 = new List<System.Windows.DependencyObject>();
             CollectTyped(root8, typeof(System.Windows.Controls.TextBlock), tbs8);
@@ -5417,7 +5381,7 @@ static partial class SelfTest
             var borders8 = new List<System.Windows.DependencyObject>();
             CollectTyped(root8, typeof(System.Windows.Controls.Border), borders8);
             var keyRows = borders8.Cast<System.Windows.Controls.Border>()
-                .Where(b => b.CornerRadius.TopLeft == 6 && b.BorderThickness.Left == 1
+                .Where(b => b.CornerRadius.TopLeft == 10
                             && b.Child is System.Windows.Controls.Grid)
                 .Where(b =>
                 {
@@ -5504,7 +5468,7 @@ static partial class SelfTest
                 "用户主动打开的窗没进任务栏（或有了 Owner——有 Owner 时这个开关被系统忽略），"
                 + $"或框选层混进了任务栏（ShowInTaskbar={plainPick.ShowInTaskbar}）");
         }
-        catch (Exception e) { Chk("T198-settings-surface-round", false, e.Message); }
+        catch (Exception e) { Chk("T198-settings-surface-round", false, e.ToString()); }
 
         // 窗口本体优先预抓缓存，其次按需捕获；区域回退优先使用定格帧。
         try
@@ -7920,7 +7884,7 @@ static partial class SelfTest
                 $"收起态：可见={bodyFd.Visibility} 限高={bodyFd.MaxHeight}");
             winFd.Close();
         }
-        catch (Exception e) { Chk("T250-fold-rapid", false, e.Message); }
+        catch (Exception e) { Chk("T250-fold-rapid", false, e.ToString()); }
         // 时长框落盘：选档、回车、移开焦点都认，键位文案（「常驻」「关」）与带单位的数字都读得出来。
         try
         {
@@ -7945,6 +7909,9 @@ static partial class SelfTest
                 winDu.Left = -20000; winDu.Top = -20000; winDu.ShowInTaskbar = false;
                 winDu.Show();
                 PumpMs(240);
+                // 提示时长与边框时长分在「截图反馈」页，先切到那一页再收集
+                tyDu.GetMethod("NavigateSettings", npDu)!.Invoke(winDu, new object?[] { "feedback", false, true });
+                PumpMs(150);
                 var allDu = new List<System.Windows.DependencyObject>();
                 CollectTyped(winDu, typeof(System.Windows.Controls.ComboBox), allDu);
                 var boxes = allDu.OfType<System.Windows.Controls.ComboBox>().ToList();
@@ -7981,7 +7948,7 @@ static partial class SelfTest
                 Environment.SetEnvironmentVariable("NC_SETTINGS_DIR", prevDirDu);
             }
         }
-        catch (Exception e) { Chk("T253-duration-commit", false, e.Message); }
+        catch (Exception e) { Chk("T253-duration-commit", false, e.ToString()); }
         // 侧栏三态在任何一套预设、任何一侧主题下都要读得清：底色与字色一起算。
         // 选中项的悬停是提强调色浓度，而不是叠一层通用悬停色——两层染色叠出来的色相取决于强调色有多亮，
         // 亮强调色上再压白就是一块刺眼的青，压在上面的字当场读不清。

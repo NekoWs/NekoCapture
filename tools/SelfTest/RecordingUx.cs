@@ -44,13 +44,20 @@ static partial class SelfTest
             Chk("preset-theme-refreshes-owned-backgrounds", cards.All(pair => ((SolidColorBrush)pair.Value.Background).Color
                 == (pair.Key == BehaviorPresets.Dual ? Fluent.AccentOn(Theme.CardBg, 0.14) : Theme.CardBg)));
             var rows = (Dictionary<string, FrameworkElement>)typeof(SettingsWindow).GetField("_hotRows", flags)!.GetValue(window)!;
-            Chk("theme-refreshes-existing-hotkey-row-backgrounds", rows.Count > 0 && rows.Values.Cast<Border>()
-                .All(row => ((SolidColorBrush)((Border)((StackPanel)row.Child).Children[0]).Background).Color == Theme.RowBg));
-            var keyBoxes = (Dictionary<string, ChordCaptureBox>)typeof(SettingsWindow).GetField("_hotBoxes", flags)!.GetValue(window)!;
-            var keyTexts = new List<DependencyObject>();
-            foreach (var box in keyBoxes.Values) CollectTyped(box, typeof(TextBlock), keyTexts);
-            Chk("theme-refreshes-existing-keycap-ink", keyTexts.Count > 0 && keyTexts.Cast<TextBlock>()
-                .All(text => ((SolidColorBrush)text.Foreground).Color == Theme.Text));
+            Chk("theme-refreshes-existing-hotkey-row-backgrounds", rows.Count > 0
+                && rows.Values.OfType<System.Windows.Controls.Control>()
+                    .All(row => row.Background is SolidColorBrush brush && brush.Color == Theme.CardBg),
+                $"快捷键行 {rows.Count} 条，底色跟主题={rows.Values.OfType<System.Windows.Controls.Control>().All(row => row.Background is SolidColorBrush brush && brush.Color == Theme.CardBg)}");
+            // 键帽在概览卡上（字号 10），换主题后它们必须重新取色而不是停在上档
+            var keyTexts = new List<TextBlock>();
+            foreach (var row in rows.Values)
+            {
+                var found = new List<DependencyObject>(); CollectTyped(row, typeof(TextBlock), found);
+                keyTexts.AddRange(found.OfType<TextBlock>().Where(text => Math.Abs(text.FontSize - 10) < 0.1));
+            }
+            Chk("theme-refreshes-existing-keycap-ink", keyTexts.Count > 0
+                && keyTexts.All(text => text.Foreground is SolidColorBrush brush && brush.Color == Theme.Text),
+                $"键帽文字 {keyTexts.Count} 段，色值 {string.Join(",", keyTexts.Take(4).Select(text => (text.Foreground as SolidColorBrush)?.Color.ToString()))}，Theme.Text={Theme.Text}");
             Chk("preset-focus-uses-rounded-themed-outline", Application.Current.Resources[SystemParameters.FocusVisualStyleKey] is Style style
                 && style.Setters.OfType<Setter>().First(s => s.Property == Control.TemplateProperty).Value is ControlTemplate template
                 && template.LoadContent() is Border { CornerRadius.TopLeft: 10, BorderThickness.Left: 2 } border
