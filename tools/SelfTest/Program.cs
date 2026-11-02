@@ -7921,10 +7921,13 @@ static partial class SelfTest
                 Chk("T260-duration-outline-row", outlineDu != null && outlineDu.IsEditable, "边框亮多久也是一枚可输入下拉框");
                 void Type(System.Windows.Controls.ComboBox c, string text, System.Windows.Input.Key key)
                 {
+                    // 键事件要打在框里那颗编辑框上：它才是真焦点，隧道从它往上走才会经过下拉框的处理器
+                    c.ApplyTemplate();
+                    System.Windows.UIElement editor = c.Template.FindName("PART_EditableTextBox", c) as System.Windows.Controls.TextBox ?? (System.Windows.UIElement)c;
                     c.Text = text;
-                    c.RaiseEvent(new System.Windows.Input.KeyEventArgs(
-                        System.Windows.Input.Keyboard.PrimaryDevice, System.Windows.PresentationSource.FromVisual(c)!, 0, key)
-                    { RoutedEvent = System.Windows.Input.Keyboard.PreviewKeyDownEvent, Source = c });
+                    editor.RaiseEvent(new System.Windows.Input.KeyEventArgs(
+                        System.Windows.Input.Keyboard.PrimaryDevice, System.Windows.PresentationSource.FromVisual(editor)!, 0, key)
+                    { RoutedEvent = System.Windows.Input.Keyboard.PreviewKeyDownEvent, Source = editor });
                     PumpMs(50);
                 }
                 Type(delayDu!, "7 秒", System.Windows.Input.Key.Enter);

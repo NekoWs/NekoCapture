@@ -55,7 +55,15 @@ public sealed partial class SettingsWindow
         combo.PreviewTextInput += (_, _) => { generation++; pending = null; chose = false; };
         combo.PreviewKeyDown += (_, e) =>
         {
-            if (e.Key == Key.Escape) { generation++; pending = null; Show(); combo.IsDropDownOpen = false; e.Handled = true; }
+            if (e.Key == Key.Escape)
+            {
+                generation++; pending = null; chose = false;
+                combo.IsDropDownOpen = false;
+                e.Handled = true;
+                // 回显放到这一记按键之后：可编辑下拉框自己也会在这一下重写文本，抢在它前面写会被盖回去
+                Show();
+                combo.Dispatcher.BeginInvoke(DispatcherPriority.Input, Show);
+            }
             else if (e.Key == Key.Enter) { Typed(); combo.IsDropDownOpen = false; e.Handled = true; }
         };
         Show(); return Show;
