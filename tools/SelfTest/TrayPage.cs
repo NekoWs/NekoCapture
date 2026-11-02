@@ -67,7 +67,6 @@ static partial class SelfTest
                 popup is { IsOpen: true } && cells.Count == TrayMenuIcons.All.Count + 1,
                 $"小窗 {(popup?.IsOpen == true ? "开着" : "没开")}，格子 {cells.Count} 个");
             type.GetMethod("CloseTrayIconPopup", flags)!.Invoke(window, null);
-
             // 分页条：有兄弟页的分组要出现，高度走动画、落定后回到自适应
             type.GetMethod("NavigateSettings", flags)!.Invoke(window, new object?[] { "selection", true, true });
             PumpMs(80);

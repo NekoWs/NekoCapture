@@ -201,8 +201,7 @@ public sealed partial class SettingsWindow
         if (_settingsTabs == null || _settingsTabHost == null) return;
         _settingsTabs.Children.Clear();
         string root = _settingsPages.TryGetValue(_currentSettingsPage, out var page) ? page.Root : "hotkeys";
-        if (!_settingsTabsOf.TryGetValue(root, out var ids) || ids.Count < 2)
-        { _settingsTabHost.Visibility = Visibility.Collapsed; return; }
+        if (!_settingsTabsOf.TryGetValue(root, out var ids) || ids.Count < 2) { HideSettingsTabs(); return; }
         foreach (string id in ids)
         {
             if (!_settingsPages.TryGetValue(id, out var item)) continue;
@@ -228,6 +227,66 @@ public sealed partial class SettingsWindow
             tab.MouseLeave += (_, _) => { hovered = false; Paint(); };
             _settingsTabs.Children.Add(tab);
         }
+        ShowSettingsTabs();
+    }
+
+    int _tabsMotionGeneration;
+
+    /// <summary>分页条的目标高度：按可用宽度排一遍再取，宽窄由窗口决定；量不出来时按一行算。</summary>
+    /// <returns>含下边距的高度。</returns>
+    double SettingsTabsHeight()
+    {
+        double available = _settingsTabs.ActualWidth > 0 ? _settingsTabs.ActualWidth
+            : Math.Max(240, ActualWidth - 260);
+        _settingsTabs.Measure(new Size(available, double.PositiveInfinity));
+        double height = _settingsTabs.DesiredSize.Height;
+        return height <= 0 ? 28 + _settingsTabHost.Margin.Bottom : height + _settingsTabHost.Margin.Bottom;
+    }
+
+    /// <summary>分页条出场：高度与透明度一起长出来，内容跟着平滑下移；落定后交回自适应高度。</summary>
+    private void ShowSettingsTabs()
+    {
+        int generation = ++_tabsMotionGeneration;
+        double target = SettingsTabsHeight();
+        bool wasHidden = _settingsTabHost.Visibility != Visibility.Visible;
         _settingsTabHost.Visibility = Visibility.Visible;
+        if (wasHidden) _settingsTabHost.Height = 0;
+        double from = double.IsNaN(_settingsTabHost.Height) ? _settingsTabHost.ActualHeight : _settingsTabHost.Height;
+        if (from <= 0) from = 0;
+        _settingsTabHost.BeginAnimation(HeightProperty, null);
+        var grow = new System.Windows.Media.Animation.DoubleAnimation(from, target,
+            new Duration(TimeSpan.FromMilliseconds(Fluent.Motion.StateMs)))
+        { EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut } };
+        grow.Completed += (_, _) =>
+        {
+            if (generation != _tabsMotionGeneration) return;
+            _settingsTabHost.BeginAnimation(HeightProperty, null);
+            _settingsTabHost.Height = double.NaN;
+        };
+        _settingsTabHost.BeginAnimation(HeightProperty, grow);
+        _settingsTabHost.BeginAnimation(OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(1,
+            new Duration(TimeSpan.FromMilliseconds(Fluent.Motion.QuickMs))));
+    }
+
+    /// <summary>分页条退场：高度收到 0 再收起，避免下面的内容瞬间跳一格。</summary>
+    private void HideSettingsTabs()
+    {
+        if (_settingsTabHost.Visibility != Visibility.Visible) return;
+        int generation = ++_tabsMotionGeneration;
+        double from = double.IsNaN(_settingsTabHost.Height) ? _settingsTabHost.ActualHeight : _settingsTabHost.Height;
+        _settingsTabHost.BeginAnimation(HeightProperty, null);
+        var shrink = new System.Windows.Media.Animation.DoubleAnimation(from, 0,
+            new Duration(TimeSpan.FromMilliseconds(Fluent.Motion.QuickMs)))
+        { EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseIn } };
+        shrink.Completed += (_, _) =>
+        {
+            if (generation != _tabsMotionGeneration) return;
+            _settingsTabHost.BeginAnimation(HeightProperty, null);
+            _settingsTabHost.Height = double.NaN;
+            _settingsTabHost.Visibility = Visibility.Collapsed;
+        };
+        _settingsTabHost.BeginAnimation(HeightProperty, shrink);
+        _settingsTabHost.BeginAnimation(OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(0,
+            new Duration(TimeSpan.FromMilliseconds(Fluent.Motion.QuickMs))));
     }
 }

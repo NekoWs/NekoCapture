@@ -8,7 +8,7 @@ using NekoCapture.Services;
 
 namespace NekoCapture.Overlays;
 
-/// <summary>托盘页：图标点击与右键菜单项在同一页内编辑，拖动行即可改菜单顺序。</summary>
+/// <summary>托盘页：图标点击与右键菜单项在同一页内编辑，按住行体拖动即可改菜单顺序。</summary>
 public sealed partial class SettingsWindow
 {
     private StackPanel? _trayMenuList;
@@ -16,7 +16,7 @@ public sealed partial class SettingsWindow
     private Border? _trayDragRow;
     private string _trayDragId = "";
     private Point _trayDragFrom;
-    private int _trayDragFromIndex;
+    private int _trayDragTarget = -1;
     private bool _trayDragging;
 
     private void BuildTrayPage(StackPanel panel)
@@ -110,6 +110,7 @@ public sealed partial class SettingsWindow
             Padding = new Thickness(8, 3, 6, 3),
             Cursor = Cursors.SizeAll,
             Margin = new Thickness(0, 2, 0, 2),
+            RenderTransformOrigin = new Point(0.5, 0.5),
         };
         System.Windows.Automation.AutomationProperties.SetName(card, HotkeyDisplayName(binding));
         card.MouseLeftButtonDown += (_, e) => BeginTrayDrag(card, binding, e);
@@ -160,7 +161,7 @@ public sealed partial class SettingsWindow
             BorderBrush = binding.MenuIcon.Length == 0 ? Theme.AccentBrush : Theme.StrokeSoftBrush,
             Tag = "settings-tray-icon:auto",
         });
-        auto.Click += (_, _) => { PickTrayIcon(binding, ""); };
+        auto.Click += (_, _) => PickTrayIcon(binding, "");
         body.Children.Add(auto);
         var grid = new UniformGrid { Columns = 6 };
         foreach (var icon in TrayMenuIcons.All)
@@ -171,11 +172,11 @@ public sealed partial class SettingsWindow
                 Width = 36, Height = 36, Margin = new Thickness(2), Padding = new Thickness(4),
                 BorderThickness = new Thickness(1), FontSize = 16,
                 FontFamily = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets, Segoe UI Symbol"),
-                BorderBrush = icon.Id == binding.MenuIcon ? Theme.AccentBrush : System.Windows.Media.Brushes.Transparent,
-                Background = icon.Id == binding.MenuIcon ? Theme.RowBgBrush : System.Windows.Media.Brushes.Transparent,
+                BorderBrush = icon.Id == binding.MenuIcon ? Theme.AccentBrush : Brushes.Transparent,
+                Background = icon.Id == binding.MenuIcon ? Theme.RowBgBrush : Brushes.Transparent,
             });
             System.Windows.Automation.AutomationProperties.SetName(cell, Loc.T(icon.Label));
-            cell.Click += (_, _) => { PickTrayIcon(binding, icon.Id); };
+            cell.Click += (_, _) => PickTrayIcon(binding, icon.Id);
             grid.Children.Add(cell);
         }
         body.Children.Add(grid);
@@ -195,9 +196,6 @@ public sealed partial class SettingsWindow
         popup.Closed += (_, _) => { if (ReferenceEquals(_trayIconPopup, popup)) _trayIconPopup = null; };
         _trayIconPopup = popup;
         popup.IsOpen = true;
-        card.Opacity = 0;
-        card.BeginAnimation(OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(1,
-            new Duration(TimeSpan.FromMilliseconds(Fluent.Motion.QuickMs))));
     }
 
     private void PickTrayIcon(GestureBindingDto binding, string id)
@@ -258,20 +256,29 @@ public sealed partial class SettingsWindow
         return button;
     }
 
-    /// <summary>按住一行：先只记起点，超过系统拖动阈值才算真的在拖。</summary>
+    /// <summary>按住一行：只记起点，不抢鼠标——图标、下拉与删除按钮都还要能点。</summary>
     /// <param name="row">按下的那一行。</param>
     /// <param name="binding">这一条托盘菜单绑定。</param>
     /// <param name="e">鼠标参数。</param>
     private void BeginTrayDrag(Border row, GestureBindingDto binding, MouseButtonEventArgs e)
     {
-        if (_trayMenuList == null) return;
-        _trayDragRow = row; _trayDragId = binding.Id; _trayDragging = false;
+        if (_trayMenuList == null || IsInteractiveSource(e.OriginalSource as DependencyObject, row)) return;
+        _trayDragRow = row; _trayDragId = binding.Id; _trayDragging = false; _trayDragTarget = -1;
         _trayDragFrom = e.GetPosition(_trayMenuList);
-        _trayDragFromIndex = _trayMenuList.Children.IndexOf(row);
-        row.CaptureMouse();
     }
 
-    /// <summary>拖动中：把被拖那一行按指针位置在兄弟行之间挪位，松手前不重排数据。</summary>
+    /// <summary>指针从按钮、下拉、输入框里出来的不算拖动：那些控件自己要吃这一下。</summary>
+    /// <param name="node">命中的元素。</param>
+    /// <param name="row">这一行的容器，走到它就停。</param>
+    /// <returns>落在交互控件里返回 true。</returns>
+    private static bool IsInteractiveSource(DependencyObject? node, DependencyObject row)
+    {
+        for (var at = node; at != null && !ReferenceEquals(at, row); at = VisualTreeHelper.GetParent(at))
+            if (at is ButtonBase or ComboBox or TextBox or PasswordBox or ScrollBar) return true;
+        return false;
+    }
+
+    /// <summary>拖动中：被拖的行跟着指针浮起来，其余行按目标槽位错开并滑过去。</summary>
     /// <param name="e">鼠标参数。</param>
     private void MoveTrayDrag(MouseEventArgs e)
     {
@@ -281,55 +288,91 @@ public sealed partial class SettingsWindow
         {
             if (Math.Abs(at.Y - _trayDragFrom.Y) < SystemParameters.MinimumVerticalDragDistance) return;
             _trayDragging = true;
-            _trayDragRow.Opacity = 0.7;
+            _trayDragRow.CaptureMouse();
+            _trayDragRow.Effect = new System.Windows.Media.Effects.DropShadowEffect
+            { BlurRadius = 22, ShadowDepth = 5, Opacity = 0.45, Color = Colors.Black };
+            _trayDragRow.Opacity = 0.96;
+            Panel.SetZIndex(_trayDragRow, 20);
+            _trayDragTarget = _trayMenuList.Children.IndexOf(_trayDragRow);
         }
-        int target = TrayDropIndex(at);
-        int current = _trayMenuList.Children.IndexOf(_trayDragRow);
-        if (target < 0 || target == current) return;
-        _trayMenuList.Children.Remove(_trayDragRow);
-        _trayMenuList.Children.Insert(Math.Min(target, _trayMenuList.Children.Count), _trayDragRow);
-    }
-
-    /// <summary>指针落在第几行上：只按行中线判定，空白处回落到末尾。</summary>
-    /// <param name="at">相对行容器的指针位置。</param>
-    /// <returns>目标下标；没有可判定的行返回 -1。</returns>
-    private int TrayDropIndex(Point at)
-    {
-        if (_trayMenuList == null) return -1;
-        int index = 0;
-        foreach (FrameworkElement row in _trayMenuList.Children)
+        double offset = at.Y - _trayDragFrom.Y;
+        _trayDragRow.RenderTransform = new TransformGroup
         {
-            double middle = row.TranslatePoint(new Point(0, row.ActualHeight / 2), _trayMenuList).Y;
-            if (at.Y < middle) return index;
-            index++;
+            Children = { new ScaleTransform(1.02, 1.02), new TranslateTransform(0, offset) },
+        };
+        int target = TrayDropIndex(at.Y);
+        if (target != _trayDragTarget)
+        {
+            _trayDragTarget = target;
+            ShiftTrayRows();
         }
-        return index;
     }
 
-    /// <summary>松手：真拖过就按当前视觉顺序落盘，否则这一下不算拖动。</summary>
+    /// <summary>目标槽位：按行高算，指针越过多少行就落到第几格。</summary>
+    /// <param name="y">相对行容器的指针纵坐标。</param>
+    /// <returns>目标下标。</returns>
+    private int TrayDropIndex(double y)
+    {
+        if (_trayMenuList == null || _trayMenuList.Children.Count == 0) return 0;
+        double step = Math.Max(1, _trayDragRow != null ? _trayDragRow.ActualHeight + 4 : 40);
+        int index = (int)Math.Round(y / step);
+        return Math.Clamp(index, 0, _trayMenuList.Children.Count - 1);
+    }
+
+    /// <summary>其余行按「被拖的那一行挪到目标位之后」的相对位移滑开，位移本身带动画。</summary>
+    private void ShiftTrayRows()
+    {
+        if (_trayMenuList == null || _trayDragRow == null) return;
+        int from = _trayMenuList.Children.IndexOf(_trayDragRow);
+        double step = Math.Max(1, _trayDragRow.ActualHeight + 4);
+        for (int i = 0; i < _trayMenuList.Children.Count; i++)
+        {
+            if (_trayMenuList.Children[i] is not FrameworkElement row || ReferenceEquals(row, _trayDragRow)) continue;
+            double shift = 0;
+            if (from < _trayDragTarget && i > from && i <= _trayDragTarget) shift = -step;
+            else if (from > _trayDragTarget && i >= _trayDragTarget && i < from) shift = step;
+            var transform = row.RenderTransform as TranslateTransform ?? new TranslateTransform();
+            row.RenderTransform = transform;
+            transform.BeginAnimation(TranslateTransform.YProperty, new System.Windows.Media.Animation.DoubleAnimation(
+                shift, new Duration(TimeSpan.FromMilliseconds(Fluent.Motion.StateMs)))
+            { EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut } });
+        }
+    }
+
+    /// <summary>松手：真拖过就按目标槽位落盘，其余情况原样收场。</summary>
     /// <param name="e">鼠标参数。</param>
     private void EndTrayDrag(MouseButtonEventArgs e)
     {
         var row = _trayDragRow;
-        _trayDragRow = null;
+        bool dragged = _trayDragging;
+        int target = _trayDragTarget;
+        _trayDragRow = null; _trayDragging = false; _trayDragTarget = -1;
         if (row == null) return;
-        row.ReleaseMouseCapture();
-        row.Opacity = 1;
-        if (!_trayDragging) return;
-        _trayDragging = false;
-        var order = _trayMenuList?.Children.OfType<Border>()
-            .Select(item => (item.Tag as string ?? "").Replace("settings-tray-item:", "")).ToList();
-        if (order == null || order.Count == 0) return;
+        if (row.IsMouseCaptured) row.ReleaseMouseCapture();
+        row.Opacity = 1; row.Effect = null; Panel.SetZIndex(row, 0);
+        if (!dragged || _trayMenuList == null) { row.RenderTransform = null; return; }
+        foreach (FrameworkElement other in _trayMenuList.Children)
+        {
+            if (ReferenceEquals(other, row)) continue;
+            other.BeginAnimation(UIElement.RenderTransformProperty, null);
+            other.RenderTransform = null;
+        }
+        row.RenderTransform = null;
+        var tags = _trayMenuList.Children.OfType<FrameworkElement>().Select(item => item.Tag as string ?? "").ToList();
+        string moving = row.Tag as string ?? "";
+        if (target >= 0)
+        {
+            tags.Remove(moving);
+            tags.Insert(Math.Clamp(target, 0, tags.Count), moving);
+        }
+        var ids = tags.Select(tag => tag.Replace("settings-tray-item:", "")).ToList();
         _settings.Mutate(settings =>
         {
             var all = settings.Gestures.Bindings;
-            int slot = all.FindIndex(item => item.Source == TriggerSources.TrayMenu);
-            if (slot < 0) return;
-            var ordered = order.Select(id => all.FirstOrDefault(item => item.Id == id)).Where(item => item != null).ToList();
+            var ordered = ids.Select(id => all.FirstOrDefault(item => item.Id == id))
+                .Where(item => item != null).Select(item => item!).ToList();
             var rest = all.Where(item => item.Source != TriggerSources.TrayMenu).ToList();
-            all.Clear();
-            all.AddRange(ordered!);
-            all.AddRange(rest);
+            all.Clear(); all.AddRange(ordered); all.AddRange(rest);
         });
         CommitHotkeys(); RenderTrayMenu();
     }
