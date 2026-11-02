@@ -165,7 +165,7 @@ static partial class SelfTest
             Chk("T274-tabs-same-group", sameGroup != null && sameGroup.Children.Count == chipCount,
                 $"同组换页后仍是 {sameGroup?.Children.Count ?? -1} 枚");
 
-            // 换回第一枚也要滑回来：终点在 0 不该被当成「没动」而瞬移
+            // 换回第一枚：点击那一刻就开滑（不等页面退场那 120ms），并且能量到中间位置
             double backFrom = indicatorShift!.X;
             type.GetMethod("NavigateSettings", flags)!.Invoke(window, new object?[] { "selection", true, true });
             bool back = false;
@@ -177,6 +177,9 @@ static partial class SelfTest
                 seatsBack.Add(x);
                 back = x < backFrom - 2 && x > 2;
             }
+            bool early = seatsBack.Take(6).Any(x => Math.Abs(x - backFrom) > 2);
+            Chk("T274-tabs-slide-starts-on-click", early,
+                $"点击后前 60ms 的下划线：{string.Join(",", seatsBack.Take(6).Select(v => v.ToString("F0")))}（起点 {backFrom:F0}）");
             Chk("T274-tabs-first-tab-animated", back,
                 $"回到第一枚：{backFrom:F0}→，采样 {string.Join(",", seatsBack.Take(18).Select(v => v.ToString("F0")))}");
 

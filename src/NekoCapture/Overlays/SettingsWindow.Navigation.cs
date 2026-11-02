@@ -42,6 +42,13 @@ public sealed partial class SettingsWindow
             if (page.Root != id) _settingsTrail.Add(id);
         }
         _currentSettingsPage = id; _cat = page.Category;
+        // 同一组里的页签切换：下划线当场就开始滑，不等这一页退完的那一拍，也不等正文装配——
+        // 分页条是用户刚点的那个东西，它晚半拍动，整次切换就跟着显得拖
+        if (_settingsTabIds.Count > 0 && SettingsTabIds().SequenceEqual(_settingsTabIds))
+        {
+            PaintSettingsTabs(animate);
+            PlaceTabIndicator(animate);
+        }
         bool cached = _settingsBodies.ContainsKey(id);
         var incoming = GetSettingsBody(id);
         if (id == "hotkeys") RebuildHotkeys();

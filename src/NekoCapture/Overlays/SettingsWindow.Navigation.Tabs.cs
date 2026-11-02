@@ -58,7 +58,6 @@ public sealed partial class SettingsWindow
     {
         if (_settingsTabs == null || _settingsTabHost == null) return;
         var ids = SettingsTabIds();
-        _tabPlacementPending = true;
         bool rebuilt = !ids.SequenceEqual(_settingsTabIds);
         if (rebuilt) BuildSettingsTabs(ids);
         bool strip = ids.Count > 1;
@@ -66,6 +65,9 @@ public sealed partial class SettingsWindow
         PaintSettingsTabs(rebuilt ? false : animate);
         AnimateSettingsTabStrip(strip, animate);
         if (rebuilt) RevealSettingsTabs(strip, animate);
+        // 已经在滑向这一页就不用再起一次：重起会把还在路上的位移当成起点，越点越慢
+        if (_tabIndicatorFor == _currentSettingsPage && !rebuilt) return;
+        _tabPlacementPending = true;
         PlaceTabIndicator(animate && !rebuilt);
     }
 
