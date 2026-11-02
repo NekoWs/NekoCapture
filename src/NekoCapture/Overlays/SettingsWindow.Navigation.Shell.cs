@@ -90,6 +90,7 @@ public sealed partial class SettingsWindow
         // 固定高度、常显：分页条出现与消失都不再推动内容，切页只剩页面自己的入场
         _settingsTabHost = new Border { Child = _settingsTabs, Margin = new Thickness(20, 0, 20, 4),
             Height = TabStripHeight, ClipToBounds = true };
+        DockPanel.SetDock(_settingsTabHost, Dock.Top); right.Children.Add(_settingsTabHost);
 
         _settingsHost = new Grid();
         _settingsScroller = new ScrollViewer { Content = _settingsHost, Focusable = false,

@@ -3,6 +3,7 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using NekoCapture.Core;
 using NekoCapture.Services;
 
@@ -18,6 +19,7 @@ public sealed partial class SettingsWindow
     private Point _trayDragFrom;
     private int _trayDragTarget = -1;
     private bool _trayDragging;
+    private double _trayDragOffset;
 
     private void BuildTrayPage(StackPanel panel)
     {
@@ -349,8 +351,7 @@ public sealed partial class SettingsWindow
             { EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut } });
         }
     }
-
-    /// <summary>松手：真拖过就按目标槽位落盘，其余情况原样收场。</summary>
+    /// <summary>松手：先按目标槽位落盘，再让被拖的行带一次回弹滑进槽里，其余行同步归位。</summary>
     /// <param name="e">鼠标参数。</param>
     private void EndTrayDrag(MouseButtonEventArgs e)
     {
@@ -358,34 +359,63 @@ public sealed partial class SettingsWindow
         bool dragged = _trayDragging;
         int target = _trayDragTarget;
         _trayDragRow = null; _trayDragging = false; _trayDragTarget = -1;
-        if (row == null) return;
+        if (row == null || _trayMenuList == null) return;
         if (row.IsMouseCaptured) row.ReleaseMouseCapture();
-        row.Opacity = 1; row.Effect = null; Panel.SetZIndex(row, 0);
-        if (!dragged || _trayMenuList == null) { row.RenderTransform = null; return; }
-        foreach (FrameworkElement other in _trayMenuList.Children)
+        row.Effect = null;
+        if (!dragged) { row.Opacity = 1; row.RenderTransform = null; return; }
+        int from = _trayMenuList.Children.IndexOf(row);
+        double step = Math.Max(1, row.ActualHeight + 4);
+        double finalOffset = (target - from) * step;
+        row.Opacity = 1;
+        var shift = new TranslateTransform(0, _trayDragOffset);
+        var scale = new ScaleTransform(1.02, 1.02);
+        row.RenderTransform = new TransformGroup { Children = { scale, shift } };
+        var settle = new DoubleAnimation(finalOffset,
+            new Duration(TimeSpan.FromMilliseconds(Fluent.Motion.SpringMs)))
+        { EasingFunction = new System.Windows.Media.Animation.BackEase
+          { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut, Amplitude = 0.35 } };
+        settle.Completed += (_, _) =>
         {
-            if (ReferenceEquals(other, row)) continue;
-            other.BeginAnimation(UIElement.RenderTransformProperty, null);
-            other.RenderTransform = null;
-        }
-        row.RenderTransform = null;
-        var tags = _trayMenuList.Children.OfType<FrameworkElement>().Select(item => item.Tag as string ?? "").ToList();
-        string moving = row.Tag as string ?? "";
-        if (target >= 0)
-        {
-            tags.Remove(moving);
-            tags.Insert(Math.Clamp(target, 0, tags.Count), moving);
-        }
+            if (_trayMenuList == null || !_trayMenuList.Children.Contains(row)) return;
+            row.RenderTransform = null;
+            foreach (FrameworkElement other in _trayMenuList.Children)
+            {
+                other.BeginAnimation(UIElement.RenderTransformProperty, null);
+                other.RenderTransform = null;
+            }
+            ReorderTrayRows(target, row);
+        };
+        var shrink = new DoubleAnimation(1, new Duration(TimeSpan.FromMilliseconds(Fluent.Motion.SpringMs)))
+        { EasingFunction = new System.Windows.Media.Animation.CubicEase
+          { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut } };
+        shift.BeginAnimation(TranslateTransform.YProperty, settle);
+        scale.BeginAnimation(ScaleTransform.ScaleXProperty, shrink);
+        scale.BeginAnimation(ScaleTransform.ScaleYProperty, shrink);
+        PersistTrayOrder(row, target);
+    }
+
+    /// <summary>按落点重排行元素：同一批控件换个次序，不重建。</summary>
+    /// <param name="target">目标下标。</param>
+    /// <param name="row">被拖的那一行。</param>
+    private void ReorderTrayRows(int target, FrameworkElement row)
+    {
+        if (_trayMenuList == null) return;
+        var ordered = _trayMenuList.Children.OfType<FrameworkElement>().Where(item => !ReferenceEquals(item, row)).ToList();
+        ordered.Insert(Math.Clamp(target, 0, ordered.Count), row);
+        _trayMenuList.Children.Clear();
+        foreach (var item in ordered) _trayMenuList.Children.Add(item);
+    }
+
+    /// <summary>把当前顺序写回设置：托盘项按视觉顺序排在前面，其余来源保持原位。</summary>
+    /// <param name="row">被拖的那一行。</param>
+    /// <param name="target">目标下标。</param>
+    private void PersistTrayOrder(FrameworkElement row, int target)
+    {
+        if (_trayMenuList == null) return;
+        var tags = _trayMenuList.Children.OfType<FrameworkElement>().Where(item => !ReferenceEquals(item, row))
+            .Select(item => item.Tag as string ?? "").ToList();
+        tags.Insert(Math.Clamp(target, 0, tags.Count), row.Tag as string ?? "");
         var ids = tags.Select(tag => tag.Replace("settings-tray-item:", "")).ToList();
-        // 就地重排：把同一批行元素按新顺序放回去，整页不重建，列表因此不闪
-        var orderedRows = ids.Select(id => _trayMenuList.Children.OfType<Border>()
-                .FirstOrDefault(item => (item.Tag as string) == "settings-tray-item:" + id))
-            .Where(item => item != null).Select(item => item!).ToList();
-        if (orderedRows.Count == _trayMenuList.Children.Count)
-        {
-            _trayMenuList.Children.Clear();
-            foreach (var item in orderedRows) _trayMenuList.Children.Add(item);
-        }
         _settings.Mutate(settings =>
         {
             var all = settings.Gestures.Bindings;

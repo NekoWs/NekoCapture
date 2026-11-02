@@ -40,10 +40,9 @@ static partial class SelfTest
                 .Where(b => b.Source == TriggerSources.TrayMenu).Select(b => b.Id).ToList();
             // 视觉顺序换过之后松手，落盘顺序要跟着换：把第一行挪到末尾再走一次收尾
             var first = list.Children.OfType<FrameworkElement>().First();
-            list.Children.Remove(first);
-            list.Children.Insert(list.Children.Count, first);
             type.GetField("_trayDragging", flags)!.SetValue(window, true);
             type.GetField("_trayDragRow", flags)!.SetValue(window, first);
+            type.GetField("_trayDragTarget", flags)!.SetValue(window, list.Children.Count - 1);
             type.GetMethod("EndTrayDrag", flags)!.Invoke(window, new object?[]
             {
                 new MouseButtonEventArgs(Mouse.PrimaryDevice, 0, MouseButton.Left),
