@@ -98,7 +98,7 @@ public sealed partial class SettingsWindow
         foreach (var paint in _palettePaint) paint();
         if (_paletteSelected == null || _paletteSelectedName == null) return;
         string key = _paletteSelected.Key;
-        _paletteSelectedName.Text = Loc.F(K.Palette.EditingColor,
+        _paletteSelectedName.Text = Loc.F(K.Common.LabelWithContext,
             Loc.T(key == "Accent" ? K.Settings.Accent : TokenLabel(key)), HexColor.Format(PaletteColor(key)));
         _paletteSelectedSwatch!.Background = PaletteBrush(key);
         bool lowContrast = key is "Text" or "TextDim" && new[] { "WindowBg", "PanelBg", "CardBg", "RowBg" }

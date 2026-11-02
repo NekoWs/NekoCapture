@@ -11,6 +11,5 @@ public static partial class K
         public static readonly Str SampleInput = new("palette.sampleInput", "输入内容", "Input text");
         public static readonly Str RestoreColor = new("palette.restoreColor", "恢复此颜色", "Reset this color");
         public static readonly Str RestoreAccent = new("palette.restoreAccent", "恢复默认强调色", "Reset accent color");
-        public static readonly Str EditingColor = new("palette.editingColor", "{0} · {1}", "{0} · {1}");
     }
 }

@@ -9,6 +9,7 @@ public static partial class K
     /// <summary>两个界面以上共用的文案的文案。</summary>
     public static partial class Common
     {
+        public static readonly Str LabelWithContext = new("palette.editingColor", "{0} · {1}", "{0} · {1}");
         public static readonly Str RecordStartLabel = new("actions.recordStartLabel", "开始录制", "Start Recording");
         public static readonly Str ClipboardUnavailable = new("common.clipboardUnavailable", "剪贴板不可用，请重试", "Clipboard unavailable. Try again.");
         public static readonly Str CopyingClipboard = new("common.copyingClipboard", "正在写入剪贴板…", "Writing to clipboard…");

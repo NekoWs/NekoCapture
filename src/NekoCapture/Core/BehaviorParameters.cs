@@ -17,10 +17,11 @@ public enum BehaviorParameterKind
 /// <param name="Id">节点属性的稳定标识。</param>
 /// <param name="Label">界面名称。</param>
 /// <param name="Kind">编辑类型。</param>
-public sealed record BehaviorParameter(string Id, Str Label, BehaviorParameterKind Kind);
+/// <param name="Hint">此设置的具体作用。</param>
+public sealed record BehaviorParameter(string Id, Str Label, BehaviorParameterKind Kind, Str Hint);
 
 /// <summary>可覆盖的动作参数目录；覆盖只作用于运行快照，不改变共享行为。</summary>
-public static class BehaviorParameters
+public static partial class BehaviorParameters
 {
     /// <summary>读取动作支持的参数。</summary>
     /// <param name="node">动作节点。</param>
@@ -29,14 +30,14 @@ public static class BehaviorParameters
     {
         if (node.Action == GestureActions.Select)
         {
-            yield return new(nameof(BehaviorNode.RecordMode), K.Behaviors.InitialMode, BehaviorParameterKind.CaptureMode);
-            yield return new(nameof(BehaviorNode.ShowModeSwitch), K.Behaviors.ShowSwitch, BehaviorParameterKind.Toggle);
+            yield return new(nameof(BehaviorNode.RecordMode), K.Triggers.CaptureMode, BehaviorParameterKind.CaptureMode, K.Triggers.CaptureModeHint);
+            yield return new(nameof(BehaviorNode.ShowModeSwitch), K.Behaviors.ShowSwitch, BehaviorParameterKind.Toggle, K.Triggers.ModeSwitchHint);
         }
         if (node.Action == GestureActions.CallBehavior)
-            yield return new(nameof(BehaviorNode.TargetId), K.SettingsNavigation.Execute, BehaviorParameterKind.Behavior);
-        yield return new(nameof(BehaviorNode.ContinueOnFailure), K.Triggers.ContinueFailure, BehaviorParameterKind.Toggle);
+            yield return new(nameof(BehaviorNode.TargetId), K.SettingsNavigation.Execute, BehaviorParameterKind.Behavior, K.Triggers.TargetHint);
+        yield return new(nameof(BehaviorNode.ContinueOnFailure), K.Triggers.ContinueFailure, BehaviorParameterKind.Toggle, K.Triggers.FailureHint);
         if (GestureActions.PortsOf(node.Action).Contains(BehaviorPorts.Cancel))
-            yield return new(nameof(BehaviorNode.ContinueOnCancel), K.Triggers.ContinueCancel, BehaviorParameterKind.Toggle);
+            yield return new(nameof(BehaviorNode.ContinueOnCancel), K.Triggers.ContinueCancel, BehaviorParameterKind.Toggle, K.Triggers.CancelHint);
     }
 
     /// <summary>读取参数的 JSON 值。</summary>
@@ -97,27 +98,4 @@ public static class BehaviorParameters
         return nodes;
     }
 
-    /// <summary>读取动作的分支路径，用于区分同名动作。</summary>
-    /// <param name="graph">运行图。</param>
-    /// <param name="entryId">入口标识。</param>
-    /// <returns>动作标识与可读路径。</returns>
-    public static IReadOnlyDictionary<string, string> Paths(BehaviorGraph graph, string entryId)
-    {
-        var paths = new Dictionary<string, string>();
-        void Visit(IEnumerable<string> ids, string prefix, int depth)
-        {
-            if (depth > 32) return;
-            foreach (string id in ids)
-            {
-                if (paths.ContainsKey(id) || graph.Node(id) is not { } node) continue;
-                string label = GestureActions.LabelOf(node.Action);
-                string path = prefix.Length == 0 ? label : prefix + " › " + label;
-                paths[id] = path;
-                if (node.Action == GestureActions.CallBehavior && graph.Flow(node.TargetId) is { } target) Visit(target.Steps, path, depth + 1);
-                foreach (var branch in node.Branches) Visit(branch.Value, path + " › " + GestureActions.PortLabel(node.Action, branch.Key), depth + 1);
-            }
-        }
-        if (graph.Flow(entryId) is { } flow) Visit(flow.Steps, "", 0);
-        return paths;
-    }
 }

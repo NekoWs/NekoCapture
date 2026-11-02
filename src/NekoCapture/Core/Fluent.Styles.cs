@@ -250,7 +250,7 @@ public static partial class Fluent
                     <ControlTemplate TargetType="MenuItem">
                       <Grid><Border x:Name="bd" CornerRadius="6">
                         <Border.Background><SolidColorBrush Color="Transparent"/></Border.Background>
-                        <Grid Height="30">
+                        <Grid MinHeight="30">
                           <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="*"/>
@@ -268,6 +268,8 @@ public static partial class Fluent
                         </Grid>
                       </Border>
                       <Popup x:Name="PART_Popup" AllowsTransparency="True" Focusable="False" Placement="Right"
+                             IsOpen="&#123;Binding IsSubmenuOpen, Mode=TwoWay, RelativeSource=&#123;RelativeSource TemplatedParent&#125;&#125;"
+                             PlacementTarget="&#123;Binding RelativeSource=&#123;RelativeSource TemplatedParent&#125;&#125;"
                              HorizontalOffset="-4" PopupAnimation="Fade">
                         <Border CornerRadius="10" Background="{Hex(Theme.CardBg)}" BorderBrush="{Hex(Theme.Stroke)}"
                                 BorderThickness="1" Padding="4" Margin="0,0,10,10">

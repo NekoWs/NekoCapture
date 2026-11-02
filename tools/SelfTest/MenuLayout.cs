@@ -46,6 +46,10 @@ static partial class SelfTest
             check.IsChecked = true; PumpMs(20);
             Chk("menu-checkmark-remains-visible", ((TextBlock)Part(check, "chk")).Text.Length == 1);
             Chk("menu-submenu-arrow-remains-visible", Part(submenu, "arrow").Visibility == Visibility.Visible);
+            var popup = (System.Windows.Controls.Primitives.Popup)submenu.Template.FindName("PART_Popup", submenu);
+            var openBinding = System.Windows.Data.BindingOperations.GetBindingExpression(popup, System.Windows.Controls.Primitives.Popup.IsOpenProperty);
+            Chk("menu-submenu-open-state-is-bound-to-item", openBinding?.ResolvedSource == submenu
+                && openBinding.ResolvedSourcePropertyName == nameof(MenuItem.IsSubmenuOpen) && popup.PlacementTarget == submenu);
             var bitmap = new RenderTargetBitmap(210, 150, 96, 96, PixelFormats.Pbgra32); bitmap.Render(rows);
             var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap));
             string path = System.IO.Path.Combine(SettingsService.Dir, "menu-layout.png");

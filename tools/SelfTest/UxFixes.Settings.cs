@@ -93,8 +93,15 @@ static partial class SelfTest
                 var page = bodies["binding:" + binding.Id];
                 var overrideAdd = Descendants(page).OfType<Button>().Single(e => e.Tag as string == "settings-binding-add-override");
                 overrideAdd.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
-                var nodeItem = overrideAdd.ContextMenu!.Items.OfType<MenuItem>().First().Items.OfType<MenuItem>().Single(i => i.Tag as string == nameof(BehaviorNode.RecordMode));
-                nodeItem.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent)); PumpMs(Fluent.Motion.EnterMs + 80);
+                PumpMs(Fluent.Motion.EnterMs + 80);
+                var parameterChoice = Descendants(page).OfType<ComboBox>().Single(combo => combo.Tag as string == "settings-binding-setting-picker");
+                parameterChoice.SelectedItem = parameterChoice.Items.OfType<ComboBoxItem>().Single(item => item.Tag as string == nameof(BehaviorNode.RecordMode));
+                var confirmOverride = Descendants(page).OfType<Button>().Single(button => button.Tag as string == "settings-binding-confirm-override");
+                var settingsScroller = (ScrollViewer)typeof(SettingsWindow).GetField("_settingsScroller", flags)!.GetValue(window)!;
+                var confirmPosition = confirmOverride.TranslatePoint(new Point(), settingsScroller);
+                Chk("trigger-picker-confirm-stays-in-view-" + mode, confirmPosition.Y >= -1
+                    && confirmPosition.Y + confirmOverride.ActualHeight <= settingsScroller.ActualHeight + 1);
+                confirmOverride.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent)); PumpMs(Fluent.Motion.EnterMs + 80);
                 var modeRow = Descendants(page).OfType<FrameworkElement>().Single(e => e.Tag as string == "settings-binding-parameter:" + select.Id + ":RecordMode");
                 var choice = Descendants(modeRow).OfType<ComboBox>().Single();
                 choice.SelectedItem = choice.Items.Cast<ComboBoxItem>().Single(i => i.Tag as string == mode);

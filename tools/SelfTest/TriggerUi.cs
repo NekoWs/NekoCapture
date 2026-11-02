@@ -28,12 +28,23 @@ static partial class SelfTest
         PumpMs(Fluent.Motion.EnterMs + 80);
         var add = Descendants(page).OfType<Button>().Single(button => button.Tag as string == "settings-binding-add-override");
         add.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
-        var option = add.ContextMenu!.Items.OfType<MenuItem>().First().Items.OfType<MenuItem>()
-            .Single(item => item.Tag as string == nameof(BehaviorNode.ContinueOnFailure));
-        option.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent)); PumpMs(Fluent.Motion.EnterMs + 80);
+        PumpMs(Fluent.Motion.EnterMs + 80);
+        var actions = Descendants(page).OfType<ComboBox>().Single(c => c.Tag as string == "settings-binding-action-picker");
+        var settingsPicker = Descendants(page).OfType<ComboBox>().Single(c => c.Tag as string == "settings-binding-setting-picker");
+        Chk("trigger-ui-picker-is-inline-and-readable", add.ContextMenu == null && actions.Items.Count > 0
+            && actions.Items.OfType<ComboBoxItem>().All(item => item.Content is string text && !text.Contains("›")));
+        Chk("trigger-ui-picker-does-not-change-settings-before-confirm", clipboard.Overrides.Count == 0);
+        var firstAction = actions.SelectedItem;
+        actions.SelectedIndex = actions.Items.Count - 1; PumpMs(30);
+        Chk("trigger-ui-picker-keeps-setting-control-on-action-change", Descendants(page).Contains(settingsPicker) && settingsPicker.Items.Count > 0);
+        actions.SelectedItem = firstAction;
+        settingsPicker.SelectedItem = settingsPicker.Items.OfType<ComboBoxItem>().Single(item => item.Tag as string == nameof(BehaviorNode.ContinueOnFailure));
+        snapshot("trigger-setting-picker");
+        var confirm = Descendants(page).OfType<Button>().Single(button => button.Tag as string == "settings-binding-confirm-override");
+        confirm.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent)); PumpMs(Fluent.Motion.EnterMs + 80);
         string node = settings.Current.Gestures.Graph.Flow(clipboard.EntryId)!.Steps[0];
         Chk("trigger-ui-overrides-non-selection-parameter", clipboard.Overrides[node].ContainsKey(nameof(BehaviorNode.ContinueOnFailure))
-            && !AllText(page).Any(text => text.Text == Loc.T(K.Behaviors.InitialMode)));
+            && !AllText(page).Any(text => text.Text == Loc.T(K.Triggers.CaptureMode)));
         snapshot("trigger-menu-details");
         var reset = Descendants(page).OfType<Button>().Single(button => Equals(button.ToolTip, Loc.T(K.Triggers.ResetOverride)));
         reset.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent)); PumpMs(Fluent.Motion.EnterMs + 80);

@@ -9,6 +9,21 @@ public static partial class K
     /// <summary>触发方式的后缀：按下、松手、轻点…。</summary>
     public static partial class Triggers
     {
+        public static readonly Str ChooseAction = new("triggers.chooseAction", "动作", "Action");
+        public static readonly Str ChooseSetting = new("triggers.chooseSetting", "设置项", "Setting");
+        public static readonly Str ConfirmOverride = new("triggers.confirmOverride", "添加", "Add");
+        public static readonly Str CaptureMode = new("triggers.captureMode", "默认捕获方式", "Default capture mode");
+        public static readonly Str CaptureModeHint = new("triggers.captureModeHint", "选区打开时默认选择截图或录制，仍可使用模式按钮切换", "Choose capture or recording when selection opens; mode buttons remain available.");
+        public static readonly Str ModeSwitchHint = new("triggers.modeSwitchHint", "在选区上方显示截图与录制的切换按钮", "Show capture and recording buttons above the selection.");
+        public static readonly Str TargetHint = new("triggers.targetHint", "这个动作要执行的共享行为", "The shared behavior this action runs.");
+        public static readonly Str FailureHint = new("triggers.failureHint", "这个动作失败后，仍执行后面的动作", "Continue with the next action if this action fails.");
+        public static readonly Str CancelHint = new("triggers.cancelHint", "取消这个动作后，仍执行后面的动作", "Continue with the next action after cancelling this action.");
+        public static readonly Str AtStart = new("triggers.atStart", "行为开始时", "At the start");
+        public static readonly Str AfterStillChoice = new("triggers.afterStillChoice", "确认截图后", "After choosing capture");
+        public static readonly Str AfterRecordChoice = new("triggers.afterRecordChoice", "确认录制后", "After choosing recording");
+        public static readonly Str AfterRecording = new("triggers.afterRecording", "录制停止后", "After recording stops");
+        public static readonly Str AfterAction = new("triggers.afterAction", "{0}完成后", "After {0} completes");
+        public static readonly Str InBehavior = new("triggers.inBehavior", "执行“{0}”时", "While running “{0}”");
         public static readonly Str ClipboardImage = new("triggers.clipboardImage", "读取剪贴板图片", "Read clipboard image");
         public static readonly Str SearchTray = new("triggers.searchTray", "托盘 通知区域 单击 双击 右键菜单 菜单项", "tray notification area click double-click context menu");
         public static readonly Str Source = new("triggers.source", "来源", "Source");
@@ -16,12 +31,12 @@ public static partial class K
         public static readonly Str TrayClick = new("triggers.trayClick", "单击托盘", "Tray click");
         public static readonly Str TrayDoubleClick = new("triggers.trayDoubleClick", "双击托盘", "Tray double-click");
         public static readonly Str TrayMenu = new("triggers.trayMenu", "托盘菜单项", "Tray menu item");
-        public static readonly Str Parameters = new("triggers.parameters", "动作参数", "Action parameters");
-        public static readonly Str ParametersHint = new("triggers.parametersHint", "只覆盖本次调用，不改变共享行为", "Override this invocation without changing the shared behavior");
-        public static readonly Str AddOverride = new("triggers.addOverride", "自定义动作参数", "Customize action parameters");
-        public static readonly Str ResetOverride = new("triggers.resetOverride", "恢复行为默认值", "Use behavior defaults");
-        public static readonly Str ContinueFailure = new("triggers.continueFailure", "失败后继续", "Continue after failure");
-        public static readonly Str ContinueCancel = new("triggers.continueCancel", "取消后继续", "Continue after cancellation");
+        public static readonly Str Parameters = new("triggers.parameters", "此触发的单独设置", "Settings for this trigger");
+        public static readonly Str ParametersHint = new("triggers.parametersHint", "仅对这个触发生效，其他触发不受影响", "Only this trigger changes; other triggers keep their settings.");
+        public static readonly Str AddOverride = new("triggers.addOverride", "添加单独设置", "Add a setting");
+        public static readonly Str ResetOverride = new("triggers.resetOverride", "撤销单独设置", "Remove custom settings");
+        public static readonly Str ContinueFailure = new("triggers.continueFailure", "失败时继续执行", "Continue on failure");
+        public static readonly Str ContinueCancel = new("triggers.continueCancel", "取消时继续执行", "Continue on cancellation");
         public static readonly Str PinClipboardHint = new("triggers.pinClipboardHint", "将剪贴板图片作为本次产物", "Use the clipboard image as this run’s result");
         public static readonly Str TriggerClick = new("triggers.triggerClick", "单击", "Click");
         public static readonly Str TriggerDoubleclick = new("triggers.triggerDoubleclick", "双击", "Double-click");
