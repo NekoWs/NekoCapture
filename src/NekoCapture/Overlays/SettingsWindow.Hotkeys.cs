@@ -47,6 +47,7 @@ public sealed partial class SettingsWindow : Window
         panel.Children.Add(SectionHeader(Loc.T(K.SettingsNavigation.MyHotkeys)));
         _hotList = new StackPanel(); panel.Children.Add(_hotList); RebuildHotkeys();
         panel.Children.Add(SectionHeader(Loc.T(K.SettingsNavigation.More)));
+        panel.Children.Add(SettingsPageEntry("tray"));
         panel.Children.Add(SettingsPageEntry("presets"));
         panel.Children.Add(SettingsPageEntry("ui-keys"));
         panel.Children.Add(SettingsPageEntry("behaviors"));
@@ -61,11 +62,11 @@ public sealed partial class SettingsWindow : Window
         _hotBoxes.Clear();
         _hotClashSync.Clear();
         _folds.Clear();   // 行的容器整个换了一批，上一批容器的记账跟着一起丢
-        foreach (var b in _settings.Current.Gestures.Bindings)
+        // 托盘来源（单击、双击、菜单项）在「托盘」页统一维护，这里只列按键触发
+        foreach (var b in _settings.Current.Gestures.Bindings.Where(item => item.Source == TriggerSources.Keyboard))
             _hotList.Children.Add(HotkeyOverviewRow(b));
         var additions = new WrapPanel { Margin = SettingsCardMargin };
         additions.Children.Add(TriggerAddButton(K.Hotkeys.AddAHotkey, "settings-add-trigger", AddHotkey));
-        additions.Children.Add(TriggerAddButton(K.Triggers.AddMenuItem, "settings-add-menu-item", AddTrayMenu));
         _hotList.Children.Add(additions);
         RefreshSettingsBindingDetail();
     }

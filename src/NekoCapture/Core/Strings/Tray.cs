@@ -19,6 +19,14 @@ public static partial class K
             "tray.framecapturePausedHotkeysReleased",
             "NekoCapture · 已暂停，热键让位其他软件",
             "NekoCapture · paused, hotkeys released to other apps");
+        public static readonly Str Title = new("tray.title", "托盘", "Tray");
+        public static readonly Str ClickSection = new("tray.clickSection", "点击托盘图标", "Tray icon clicks");
+        public static readonly Str ClickHint = new("tray.clickHint", "单击与双击图标各自执行的行为", "What a single and a double click run");
+        public static readonly Str MenuSection = new("tray.menuSection", "右键菜单", "Right-click menu");
+        public static readonly Str MenuHint = new("tray.menuHint", "这些条目就是右键菜单的内容，顺序与这里一致", "These entries are the right-click menu, in this order");
+        public static readonly Str MenuEmpty = new("tray.menuEmpty", "还没有菜单项，新建一条就会出现在右键菜单里", "No menu entries yet. Add one and it appears in the right-click menu.");
+        public static readonly Str MoveUp = new("tray.moveUp", "上移", "Move up");
+        public static readonly Str MoveDown = new("tray.moveDown", "下移", "Move down");
         public static readonly Str Help = new("tray.help", "帮助", "Help");
         public static readonly Str NoImageOnTheClipboard = new(
             "tray.noImageOnTheClipboard",

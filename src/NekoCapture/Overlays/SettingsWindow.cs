@@ -67,7 +67,10 @@ public sealed partial class SettingsWindow : Window
         var existing = Find();
         // 已经开着一扇窗：只把它激活，并按这次请求切到那一页（提权交接回来说的就是「系统」）
         if (existing != null) { existing.Activate(); existing.GotoPage(page); return; }
-        var w = new SettingsWindow { _restoreCat = ParsePage(page), _restoreSettingsPage = page };
+        var w = new SettingsWindow();
+        // 页名（system / tray / 别名）原样交给解析；纯数字下标仍按旧的分页序号走
+        if (!string.IsNullOrWhiteSpace(page) && !int.TryParse(page, out _)) w._restoreSettingsPage = page;
+        else w._restoreCat = ParsePage(page);
         w.Build();
         w.Show();
         w.Activate();
@@ -87,7 +90,7 @@ public sealed partial class SettingsWindow : Window
     {
         if (string.IsNullOrWhiteSpace(page)) return -1;
         var raw = page.Trim().ToLowerInvariant();
-        string[] names = { "hotkeys", "behaviors", "capture", "record", "output", "editor", "pin", "appearance", "palette", "system", "about" };
+        string[] names = { "hotkeys", "tray", "behaviors", "capture", "record", "output", "editor", "pin", "appearance", "palette", "system", "about" };
         int at = Array.IndexOf(names, raw);
         if (at >= 0) return at;
         return int.TryParse(raw, out var n) && n >= 0 && n < names.Length ? n : -1;
@@ -123,7 +126,7 @@ public sealed partial class SettingsWindow : Window
         var raw = Environment.GetEnvironmentVariable("NC_SETTINGS_PAGE");
         if (string.IsNullOrWhiteSpace(raw)) return -1;
         raw = raw.Trim().ToLowerInvariant();
-        string[] names = { "hotkeys", "behaviors", "capture", "record", "output", "editor", "pin", "appearance", "palette", "system", "about" };
+        string[] names = { "hotkeys", "tray", "behaviors", "capture", "record", "output", "editor", "pin", "appearance", "palette", "system", "about" };
         int at = Array.IndexOf(names, raw);
         return at >= 0 ? at : int.TryParse(raw, out var n) ? n : -1;
     }

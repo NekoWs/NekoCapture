@@ -10,9 +10,11 @@ public sealed partial class SettingsWindow
         void Index(string page, Str title, params Str[] aliases) => _settingsSearchIndex.Add(new(page, title, aliases));
         foreach (var page in _settingsPages.Values.Where(page => page.Parent != null && page.Id != "flow"))
             Index(page.Id, page.Title);
-        Index("hotkeys", K.Settings.Hotkeys, K.SettingsNavigation.SearchKeys, K.Triggers.Keyboard, K.Triggers.TrayClick, K.Triggers.TrayDoubleClick, K.Triggers.TrayMenu);
+        Index("hotkeys", K.Settings.Hotkeys, K.SettingsNavigation.SearchKeys, K.Triggers.Keyboard);
         Index("hotkeys", K.Hotkeys.EnableHotkeys, K.SettingsNavigation.SearchKeys);
-        Index("hotkeys", K.Triggers.TrayMenu, K.Triggers.SearchTray);
+        Index("tray", K.Triggers.TrayMenu, K.Triggers.SearchTray, K.Tray.Title);
+        Index("tray", K.Tray.ClickSection, K.Triggers.SearchTray);
+        Index("tray", K.Tray.MenuSection, K.Triggers.SearchTray);
         Index("ui-keys", K.Hotkeys.UiKeys, K.SettingsNavigation.SearchKeys);
         Index("ui-keys", K.Hotkeys.PickerNudge, K.SettingsNavigation.SearchPointer);
         Index("files", K.Settings.Output, K.SettingsNavigation.SearchFiles);
@@ -44,7 +46,7 @@ public sealed partial class SettingsWindow
         Index("record-quality", K.Settings.RecordAtFullMonitorRefresh, K.SettingsNavigation.SearchQuality);
         Index("record-quality", K.Settings.RecordWindowOnly);
         Index("record-export", K.Settings.RecordingFormat);
-        Index("codecs", K.Common.VideoComponent, K.SettingsNavigation.SearchCodec);
+        Index("record-export", K.Common.VideoComponent, K.SettingsNavigation.SearchCodec);
         Index("record-feedback", K.Settings.ShowTheRegionBorderWhile);
         Index("record-feedback", K.Settings.IncludeTheMousePointer);
         Index("theme", K.Settings.AppearanceTheme, K.SettingsNavigation.SearchTheme);

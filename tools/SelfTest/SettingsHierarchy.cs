@@ -37,20 +37,20 @@ static partial class SelfTest
             Invoke("Build"); ShowOffscreen(window); PumpMs(150);
             var bodies = (IDictionary)Field("_settingsBodies")!;
             var navigation = (IDictionary)Field("_settingsNav")!;
-            Chk("settings-hierarchy-six-root-entries", navigation.Count == 6
-                && navigation.Contains("hotkeys") && navigation.Contains("capture") && navigation.Contains("record")
-                && navigation.Contains("appearance") && navigation.Contains("system") && navigation.Contains("about"));
+            Chk("settings-hierarchy-seven-root-entries", navigation.Count == 7
+                && navigation.Contains("hotkeys") && navigation.Contains("tray") && navigation.Contains("capture")
+                && navigation.Contains("record") && navigation.Contains("appearance") && navigation.Contains("system") && navigation.Contains("about"));
             Chk("settings-hierarchy-loads-only-current-page", bodies.Count == 1 && bodies.Contains("hotkeys"));
-            Go("capture");
-            var capture = (FrameworkElement)Invoke("GetSettingsBody", "capture")!;
+            Go("selection");
+            var capture = (FrameworkElement)Invoke("GetSettingsBody", "selection")!;
             Chk("settings-hierarchy-category-summaries-have-no-values", !AllText(capture).Any(t => t.Text.Contains("50 ms") || t.Text.Contains("30 fps")));
-            Go("capture"); Snapshot("capture");
+            Go("selection"); Snapshot("capture");
             foreach (string id in new[] { "selection", "feedback", "editing", "ocr", "pin", "files", "record-start", "record-quality",
-                "record-export", "record-feedback", "codecs", "theme", "palette", "colors", "startup", "welcome", "about", "updates", "project", "ui-keys", "presets", "behaviors" })
+                "record-export", "record-feedback", "theme", "palette", "colors", "startup", "welcome", "about", "updates", "project", "ui-keys", "presets", "behaviors", "tray" })
                 Go(id);
-            Chk("settings-hierarchy-all-feature-pages-build", bodies.Count >= 23);
+            Chk("settings-hierarchy-all-feature-pages-build", bodies.Count >= 22);
             var search = (TextBox)Field("_settingsSearchBox")!;
-            foreach (var (query, page) in new[] { ("热键", "hotkeys"), ("托盘", "hotkeys"), ("双击托盘", "hotkeys"), ("右键菜单", "hotkeys"), ("静音", "feedback"), ("关闭声音", "feedback"),
+            foreach (var (query, page) in new[] { ("热键", "hotkeys"), ("托盘", "tray"), ("双击托盘", "tray"), ("右键菜单", "tray"), ("静音", "feedback"), ("关闭声音", "feedback"),
                 ("提权", "startup"), ("磁吸", "selection"), ("保存目录", "files"), ("画质", "record-quality"), ("OCR", "ocr") })
             {
                 search.Text = query; PumpMs(20);

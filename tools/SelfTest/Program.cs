@@ -1,4 +1,4 @@
-﻿// SelfTest：功能与界面测试；默认窗口位于屏幕外，不注入 OS 级鼠标输入
+// SelfTest：功能与界面测试；默认窗口位于屏幕外，不注入 OS 级鼠标输入
 // 覆盖：GIF 编码往返/调色板 RGB 序、标注烘焙、裁剪、视觉暂留、快捷键解析、抽帧、胶片条
 using System.Diagnostics;
 using System.Drawing;
@@ -7754,7 +7754,7 @@ static partial class SelfTest
             // 提权交接回来的页名解析：--page system 要落到「系统」那一页
             var parsePage = typeof(NekoCapture.Overlays.SettingsWindow).GetMethod("ParsePage",
                 System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!;
-            Chk("T266-page-arg-system", (int)parsePage.Invoke(null, new object?[] { "system" })! == 9,
+            Chk("T266-page-arg-system", (int)parsePage.Invoke(null, new object?[] { "system" })! == 10,
                 "页名 system 落到系统页");
             Chk("T266-page-arg-index", (int)parsePage.Invoke(null, new object?[] { "3" })! == 3, "下标 3 直接当页序");
             Chk("T266-page-arg-junk", (int)parsePage.Invoke(null, new object?[] { "nonsense" })! == -1

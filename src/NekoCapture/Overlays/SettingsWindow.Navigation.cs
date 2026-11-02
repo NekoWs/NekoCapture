@@ -32,18 +32,24 @@ public sealed partial class SettingsWindow
         if (_currentSettingsPage.Length > 0) _settingsScroll[_currentSettingsPage] = _settingsScroller.VerticalOffset;
         ClearSettingsSearchText();
         var page = _settingsPages[id];
-        int at = _settingsTrail.IndexOf(id);
-        if (canonical || page.Parent == null || _settingsTrail.Count == 0)
-        { _settingsTrail.Clear(); _settingsTrail.AddRange(CanonicalSettingsPath(id)); }
-        else if (at >= 0) _settingsTrail.RemoveRange(at + 1, _settingsTrail.Count - at - 1);
-        else _settingsTrail.Add(id);
+        // 普通页的层级就是「根 → 本页」；只有详情页（行为、某条触发）才需要完整路径与返回
+        bool detail = IsDetailPage(id);
+        _settingsTrail.Clear();
+        if (detail) _settingsTrail.AddRange(CanonicalSettingsPath(id));
+        else
+        {
+            _settingsTrail.Add(page.Root);
+            if (page.Root != id) _settingsTrail.Add(id);
+        }
         _currentSettingsPage = id; _cat = page.Category;
         bool cached = _settingsBodies.ContainsKey(id);
         var incoming = GetSettingsBody(id);
         if (id == "hotkeys") RebuildHotkeys();
         else if (cached && id.StartsWith("binding:", StringComparison.Ordinal)) RefreshSettingsBindingDetail();
         if (id == "behaviors") { incoming.Children.Clear(); BuildSharedBehaviorList(incoming); }
+        if (id == "tray") { incoming.Children.Clear(); BuildTrayPage(incoming); }
         PaintSettingsNavigation();
+        RenderSettingsTabs();
         var bodies = _settingsBodies.Values.ToArray();
         SwitchSettingsPage(bodies, Array.IndexOf(bodies, incoming), animate, _settingsScroller, _settingsHeader, page.Label,
             _settingsScroll.GetValueOrDefault(id), () => RenderSettingsBreadcrumbs(animate));
@@ -54,7 +60,8 @@ public sealed partial class SettingsWindow
         _settingsAddBehavior.Visibility = _currentSettingsPage == "behaviors" && !SettingsSearchActive ? Visibility.Visible : Visibility.Collapsed;
         double fromHeight = _settingsCrumbHost.Visibility == Visibility.Visible ? _settingsCrumbHost.ActualHeight : 0;
         _settingsCrumbs.Children.Clear();
-        bool visible = _settingsTrail.Count > 1 && !SettingsSearchActive;
+        // 页内分页条已经说明「我在哪一组」；只有详情页才需要一条返回路径
+        bool visible = _settingsTrail.Count > 1 && !SettingsSearchActive && IsDetailPage(_currentSettingsPage);
         if (!visible) { AnimateSettingsBreadcrumbs(false, fromHeight, animate); return; }
         void Link(string title, string id, bool back = false)
         {
@@ -79,6 +86,7 @@ public sealed partial class SettingsWindow
                 _settingsCrumbs.Children.Add(arrow);
             }
             string id = _settingsTrail[i];
+            if (!_settingsPages.ContainsKey(id)) continue;
             if (i < _settingsTrail.Count - 1) Link(_settingsPages[id].Label, id);
             else _settingsCrumbs.Children.Add(new TextBlock { Text = _settingsPages[id].Label, Foreground = Theme.TextBrush,
                 FontSize = 12, Margin = new Thickness(5, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center });
@@ -105,4 +113,10 @@ public sealed partial class SettingsWindow
         var flow = new BehaviorFlow(); _settings.Current.Gestures.Graph.Flows.Add(flow);
         CommitBehaviorGraph(); OpenSettingsFlow(flow.Id);
     }
+
+    /// <summary>详情页：从列表点进去的那几页，靠面包屑回去，不进页内分页条。</summary>
+    /// <param name="id">页标识。</param>
+    /// <returns>是详情页返回 true。</returns>
+    private static bool IsDetailPage(string id) =>
+        id == "flow" || id.StartsWith("binding:", StringComparison.Ordinal);
 }

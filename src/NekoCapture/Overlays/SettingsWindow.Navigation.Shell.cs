@@ -21,6 +21,20 @@ public sealed partial class SettingsWindow
     private WrapPanel _settingsCrumbs = null!;
     private Border _settingsCrumbHost = null!;
     private TextBox _settingsSearchBox = null!;
+    private WrapPanel _settingsTabs = null!;
+    private Border _settingsTabHost = null!;
+
+    /// <summary>左侧导航的七个根：名称与图标固定，点进去落到 <see cref="SettingsLanding"/> 那一页。</summary>
+    private static readonly (string Id, Str Title, string Glyph)[] SettingsNavRoots =
+    {
+        ("hotkeys", K.Settings.Hotkeys, "\uE765"),
+        ("tray", K.Tray.Title, "\uE7B8"),
+        ("capture", K.Common.Capture, "\uE7A8"),
+        ("record", K.Common.Recording, "\uE714"),
+        ("appearance", K.Common.Appearance, "\uE790"),
+        ("system", K.Settings.System, "\uE713"),
+        ("about", K.About.Title, "\uE946"),
+    };
 
     private FrameworkElement BuildSettingsShell()
     {
@@ -36,12 +50,11 @@ public sealed partial class SettingsWindow
         var side = new DockPanel { Margin = new Thickness(12, 10, 8, 12) };
         var search = BuildSettingsSearchBox(); DockPanel.SetDock(search, Dock.Bottom); side.Children.Add(search);
         var nav = new StackPanel();
-        foreach (string id in new[] { "hotkeys", "capture", "record", "appearance", "system", "about" })
+        foreach (var (id, title, glyph) in SettingsNavRoots)
         {
-            var page = _settingsPages[id];
-            var button = NavigationButton(page);
-            button.MouseLeftButtonDown += (_, e) => { NavigateSettings(id, true); e.Handled = true; };
-            button.KeyDown += (_, e) => { if (e.Key is Key.Enter or Key.Space) { NavigateSettings(id, true); e.Handled = true; } };
+            var button = NavigationButton(id, Loc.T(title), glyph);
+            button.MouseLeftButtonDown += (_, e) => { NavigateSettings(SettingsLanding[id], true); e.Handled = true; };
+            button.KeyDown += (_, e) => { if (e.Key is Key.Enter or Key.Space) { NavigateSettings(SettingsLanding[id], true); e.Handled = true; } };
             button.MouseEnter += (_, _) => { _settingsNavHover = id; PaintSettingsNavigation(); };
             button.MouseLeave += (_, _) => { _settingsNavHover = null; PaintSettingsNavigation(); };
             _navRows.Add(button);
@@ -72,6 +85,12 @@ public sealed partial class SettingsWindow
         _settingsAddBehavior.Click += (_, _) => AddSettingsBehavior();
         heading.Children.Add(_settingsAddBehavior);
         DockPanel.SetDock(heading, Dock.Top); right.Children.Add(heading);
+        // 页内分页条：同一根下的兄弟页在这里横向切换，导航不再往深里走一层
+        _settingsTabs = new WrapPanel { Margin = new Thickness(0, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
+        _settingsTabHost = new Border { Child = _settingsTabs, Margin = new Thickness(20, 0, 20, 6),
+            Visibility = Visibility.Collapsed };
+        DockPanel.SetDock(_settingsTabHost, Dock.Top); right.Children.Add(_settingsTabHost);
+
         _settingsHost = new Grid();
         _settingsScroller = new ScrollViewer { Content = _settingsHost, Focusable = false,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
@@ -83,16 +102,21 @@ public sealed partial class SettingsWindow
             CornerRadius = new CornerRadius(8), Child = dock };
     }
 
-    private Border NavigationButton(SettingsPage page)
+    /// <summary>左侧导航的一行：图标 + 页名，选中态由 <see cref="PaintSettingsNavigation"/> 统一刷。</summary>
+    /// <param name="id">根标识，也是页内分页条的分组键。</param>
+    /// <param name="title">当前语言的页名。</param>
+    /// <param name="glyph">行首图标字形。</param>
+    /// <returns>可点的导航行。</returns>
+    private Border NavigationButton(string id, string title, string glyph)
     {
         var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(15, 0, 10, 0) };
-        var icon = Fluent.Glyph(page.Glyph, 15, Theme.TextDimBrush); icon.Width = 22;
+        var icon = Fluent.Glyph(glyph, 15, Theme.TextDimBrush); icon.Width = 22;
         icon.VerticalAlignment = VerticalAlignment.Center; row.Children.Add(icon);
-        var label = new TextBlock { Text = page.Label, Tag = "settings-page", VerticalAlignment = VerticalAlignment.Center,
+        var label = new TextBlock { Text = title, Tag = "settings-page", VerticalAlignment = VerticalAlignment.Center,
             Margin = new Thickness(10, 0, 0, 0), FontSize = 13 };
         row.Children.Add(label);
         var button = new Border { Child = row, CornerRadius = new CornerRadius(6), Height = 38,
-            Margin = new Thickness(0, 1, 0, 1), Tag = page.Id, Focusable = true, Cursor = Cursors.Hand };
+            Margin = new Thickness(0, 1, 0, 1), Tag = id, Focusable = true, Cursor = Cursors.Hand };
         button.GotKeyboardFocus += (_, _) => { button.BorderThickness = new Thickness(1); button.BorderBrush = Theme.AccentBrush; };
         button.LostKeyboardFocus += (_, _) => button.BorderThickness = new Thickness(0);
         return button;
@@ -138,12 +162,6 @@ public sealed partial class SettingsWindow
         return SettingsEntry(page.Label, Loc.T(page.Summary), page.Glyph, () => NavigateSettings(id, true));
     }
 
-    private void BuildSettingsGroup(StackPanel panel, string parent)
-    {
-        foreach (var page in _settingsPages.Values.Where(page => page.Parent == parent))
-            panel.Children.Add(SettingsPageEntry(page.Id));
-    }
-
     private void PaintSettingsNavigation(bool animate = true)
     {
         void Paint(DependencyObject owner, DependencyProperty property, Color target)
@@ -154,7 +172,7 @@ public sealed partial class SettingsWindow
             if (animate && IsLoaded) brush.BeginAnimation(SolidColorBrush.ColorProperty,
                 new System.Windows.Media.Animation.ColorAnimation(target, TimeSpan.FromMilliseconds(Fluent.Motion.HoverMs)));
         }
-        string root = _settingsTrail.FirstOrDefault() ?? "hotkeys";
+        string root = _settingsPages.TryGetValue(_currentSettingsPage, out var current) ? current.Root : "hotkeys";
         foreach (var (id, button) in _settingsNav)
         {
             bool selected = id == root && string.IsNullOrWhiteSpace(_settingsSearchBox.Text);
@@ -175,5 +193,37 @@ public sealed partial class SettingsWindow
         if (_selBar.IsLoaded) _selBar.BeginAnimation(Canvas.TopProperty,
             new System.Windows.Media.Animation.DoubleAnimation(top, TimeSpan.FromMilliseconds(Fluent.Motion.StateMs)));
         else Canvas.SetTop(_selBar, top);
+    }
+
+    /// <summary>页内分页条：同一根下的兄弟页横向切换，当前的实心、其余只留文字。</summary>
+    private void RenderSettingsTabs()
+    {
+        if (_settingsTabs == null || _settingsTabHost == null) return;
+        _settingsTabs.Children.Clear();
+        string root = _settingsPages.TryGetValue(_currentSettingsPage, out var page) ? page.Root : "hotkeys";
+        if (!_settingsTabsOf.TryGetValue(root, out var ids) || ids.Count < 2)
+        { _settingsTabHost.Visibility = Visibility.Collapsed; return; }
+        foreach (string id in ids)
+        {
+            if (!_settingsPages.TryGetValue(id, out var item)) continue;
+            bool selected = id == _currentSettingsPage;
+            var label = new TextBlock { Text = item.Label, FontSize = 12.5, VerticalAlignment = VerticalAlignment.Center };
+            var tab = new Border
+            {
+                Child = label, CornerRadius = new CornerRadius(6), Padding = new Thickness(11, 5, 11, 5),
+                Margin = new Thickness(0, 0, 4, 0), Cursor = Cursors.Hand, Tag = "settings-tab", Focusable = true,
+            };
+            void Paint()
+            {
+                tab.Background = new SolidColorBrush(selected ? Theme.RowBg : Colors.Transparent);
+                label.Foreground = selected ? Theme.TextBrush : Theme.TextDimBrush;
+            }
+            Paint();
+            tab.MouseLeftButtonUp += (_, e) => { if (!selected) NavigateSettings(id, true); e.Handled = true; };
+            tab.MouseEnter += (_, _) => { if (!selected) label.Foreground = Theme.TextBrush; };
+            tab.MouseLeave += (_, _) => Paint();
+            _settingsTabs.Children.Add(tab);
+        }
+        _settingsTabHost.Visibility = Visibility.Visible;
     }
 }
