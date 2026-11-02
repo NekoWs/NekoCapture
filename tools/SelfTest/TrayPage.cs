@@ -130,27 +130,34 @@ static partial class SelfTest
                     && tabsPanel != null && tabsPanel.Children.Count > 1,
                 $"多页分组的分页条：{host?.Visibility} / {host?.Height}px / {tabsPanel?.Children.Count ?? -1} 枚");
             int chipCount = tabsPanel?.Children.Count ?? 0;
-            // 同一分组内换页：下划线滑到选中那一枚的文字下面，条目数不变
+            // 同一分组内换页：下划线从当前位置滑到新文字下面，中途要能量到中间位置——
+            // 只查「有没有动画对象」会漏掉「入场时先被摆到终点、动画从终点走到终点」
             var indicator = (Border?)type.GetField("_settingsTabIndicator", flags)!.GetValue(window);
             var indicatorShift = (TranslateTransform?)type.GetField("_settingsTabIndicatorShift", flags)!.GetValue(window);
             var canvas = (Grid?)type.GetField("_settingsTabCanvas", flags)!.GetValue(window);
-            type.GetMethod("NavigateSettings", flags)!.Invoke(window, new object?[] { "files", true, true });
-            PumpMs(240);
-            bool sliding = indicator != null && indicatorShift != null
-                && indicator.HasAnimatedProperties && indicatorShift.HasAnimatedProperties;
-            Chk("T274-tabs-indicator-animated", sliding, $"下划线与位移{(sliding ? "都带" : "没有")}动画");
-            PumpMs(320);
-            var sameGroup = (Panel?)type.GetField("_settingsTabs", flags)!.GetValue(window);
-            var filesTab = sameGroup?.Children.OfType<Border>().FirstOrDefault(tab =>
+            window.UpdateLayout();
+            var filesTab = tabsPanel?.Children.OfType<Border>().FirstOrDefault(tab =>
                 (tab.Tag as string) == "settings-tab"
                 && tab.Child is TextBlock labelText && labelText.Text == Loc.T(K.SettingsNavigation.Files));
-            double at = 0, want = 0;
-            if (filesTab?.Child is TextBlock filesLabel && canvas != null)
+            double fromX = indicatorShift?.X ?? 0;
+            double filesX = filesTab?.Child is TextBlock filesLabel0 && canvas != null
+                ? filesLabel0.TranslatePoint(new Point(0, 0), canvas).X
+                : 0;
+            type.GetMethod("NavigateSettings", flags)!.Invoke(window, new object?[] { "files", true, true });
+            bool slid = false;
+            var seats = new List<double>();
+            for (int i = 0; i < 70 && !slid; i++)
             {
-                window.UpdateLayout();
-                at = filesLabel.TranslatePoint(new Point(0, 0), canvas).X;
-                want = filesLabel.ActualWidth;
+                PumpMs(10);
+                double x = indicatorShift?.X ?? 0;
+                seats.Add(x);
+                slid = x > fromX + 2 && x < filesX - 2;
             }
+            Chk("T274-tabs-indicator-slides", filesX > fromX + 4 && slid,
+                $"下划线 {fromX:F0}→{filesX:F0}，中途采样 {string.Join(",", seats.Take(18).Select(v => v.ToString("F0")))}");
+            PumpMs(320);
+            var sameGroup = (Panel?)type.GetField("_settingsTabs", flags)!.GetValue(window);
+            double at = filesX, want = filesTab?.Child is TextBlock filesLabel ? filesLabel.ActualWidth : 0;
             Chk("T274-tabs-indicator-follows",
                 filesTab != null && indicator != null && indicatorShift != null && want > 0
                     && Math.Abs(indicatorShift.X - at) < 1 && Math.Abs(indicator.Width - want) < 1,
@@ -158,13 +165,20 @@ static partial class SelfTest
             Chk("T274-tabs-same-group", sameGroup != null && sameGroup.Children.Count == chipCount,
                 $"同组换页后仍是 {sameGroup?.Children.Count ?? -1} 枚");
 
-            // 换回第一枚也要走动画：终点在 0 不该被当成「没动」
+            // 换回第一枚也要滑回来：终点在 0 不该被当成「没动」而瞬移
+            double backFrom = indicatorShift!.X;
             type.GetMethod("NavigateSettings", flags)!.Invoke(window, new object?[] { "selection", true, true });
-            PumpMs(240);
-            bool firstSlide = indicator != null && indicatorShift != null
-                && indicatorShift.HasAnimatedProperties && Math.Abs(indicatorShift.X) < at;
-            Chk("T274-tabs-first-tab-animated", firstSlide,
-                $"回到第一枚时下划线 x={indicatorShift?.X:F1}（起点 {at:F1}）");
+            bool back = false;
+            var seatsBack = new List<double>();
+            for (int i = 0; i < 70 && !back; i++)
+            {
+                PumpMs(10);
+                double x = indicatorShift.X;
+                seatsBack.Add(x);
+                back = x < backFrom - 2 && x > 2;
+            }
+            Chk("T274-tabs-first-tab-animated", back,
+                $"回到第一枚：{backFrom:F0}→，采样 {string.Join(",", seatsBack.Take(18).Select(v => v.ToString("F0")))}");
 
             // 两个都有分页条的分组之间切换：内容起点不能变，分页条也不能压到内容上
             PumpMs(320);
@@ -178,6 +192,18 @@ static partial class SelfTest
             Chk("T274-tabs-groups-aligned",
                 Math.Abs(topAfter - topBefore) < 1.5 && stripBottom <= topAfter + 0.5,
                 $"切分组前后内容起点 {topBefore:F1}→{topAfter:F1}，分页条底 {stripBottom:F1}");
+            // 换了一组按钮之后下划线也要落在新组的选中项上：重建那一刻还没排版，只能靠布局回调补位
+            var rebuiltChips = ((Panel?)type.GetField("_settingsTabs", flags)!.GetValue(window))
+                ?.Children.OfType<Border>().Where(tab => (tab.Tag as string) == "settings-tab").ToList();
+            if (rebuiltChips is { Count: > 0 } && rebuiltChips[0].Child is TextBlock firstLabel && canvas != null)
+            {
+                window.UpdateLayout();
+                double firstX = firstLabel.TranslatePoint(new Point(0, 0), canvas).X;
+                Chk("T274-tabs-rebuilt-indicator",
+                    indicatorShift != null && indicator != null
+                        && Math.Abs(indicatorShift.X - firstX) < 1 && Math.Abs(indicator.Width - firstLabel.ActualWidth) < 1,
+                    $"重建后下划线 x={indicatorShift?.X:F1}/宽 {indicator?.Width:F1}，目标 x={firstX:F1}/宽 {firstLabel.ActualWidth:F1}");
+            }
 
             type.GetMethod("NavigateSettings", flags)!.Invoke(window, new object?[] { "tray", true, true });
             PumpMs(520);

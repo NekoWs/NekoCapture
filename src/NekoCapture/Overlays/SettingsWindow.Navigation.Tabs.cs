@@ -23,6 +23,8 @@ public sealed partial class SettingsWindow
     private string _paintedTabSelection = "";
     private double _tabStripApplied = TabStripHeight;
     private bool _tabIndicatorSliding;
+    private string _tabIndicatorFor = "";
+    private bool _tabPlacementPending;
     private WrapPanel _settingsTabs = null!;
     private Grid _settingsTabCanvas = null!;
     private Border _settingsTabIndicator = null!;
@@ -56,6 +58,7 @@ public sealed partial class SettingsWindow
     {
         if (_settingsTabs == null || _settingsTabHost == null) return;
         var ids = SettingsTabIds();
+        _tabPlacementPending = true;
         bool rebuilt = !ids.SequenceEqual(_settingsTabIds);
         if (rebuilt) BuildSettingsTabs(ids);
         bool strip = ids.Count > 1;
@@ -140,12 +143,15 @@ public sealed partial class SettingsWindow
         var at = chip.Label.TranslatePoint(new Point(0, 0), _settingsTabCanvas);
         var tab = chip.Tab.TranslatePoint(new Point(0, 0), _settingsTabCanvas);
         double width = chip.Label.ActualWidth;
+        _tabIndicatorFor = chip.Id;
+        _tabPlacementPending = false;
         double top = tab.Y + chip.Tab.ActualHeight - 4;   // 文字下沿再落 4 像素，不压到字
         _settingsTabIndicator.BeginAnimation(WidthProperty, null);
         _settingsTabIndicatorShift.BeginAnimation(TranslateTransform.XProperty, null);
         _settingsTabIndicatorShift.BeginAnimation(TranslateTransform.YProperty, null);
         if (!animate || !_settingsTabIndicator.IsLoaded)
         {
+            _tabIndicatorSliding = false;
             _settingsTabIndicator.Width = width;
             _settingsTabIndicatorShift.X = at.X;
             _settingsTabIndicatorShift.Y = top;

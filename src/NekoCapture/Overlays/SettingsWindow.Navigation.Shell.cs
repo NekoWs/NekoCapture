@@ -104,10 +104,13 @@ public sealed partial class SettingsWindow
         _settingsTabHost = new Border { Child = _settingsTabCanvas, Margin = new Thickness(20, 0, 20, 0),
             Height = 0, Visibility = Visibility.Collapsed, ClipToBounds = true };
         DockPanel.SetDock(_settingsTabHost, Dock.Top); right.Children.Add(_settingsTabHost);
-        // 排版一跑完就校正一次：重建那一刻按钮还没量出位置，下划线和整条高度只能等布局
+        // 排版一跑完就校正一次：重建那一刻按钮还没量出位置，下划线和整条高度只能等布局。
+        // 换页进行中不校正：那时选中项已经指向新页，而入场回调还没开始滑动，
+        // 先按新位置摆一次就等于把下划线直接瞬移到终点，动画也就没有了。
         _settingsTabs.LayoutUpdated += (_, _) =>
         {
             if (_tabIndicatorSliding) return;
+            if (!_tabPlacementPending && _currentSettingsPage != _tabIndicatorFor) return;
             PlaceTabIndicator(false);
             SyncTabStripHeight();
         };
