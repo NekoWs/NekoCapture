@@ -8305,6 +8305,7 @@ static partial class SelfTest
         BehaviorPolicy();
         ResidentChecks();
         BehaviorIntegration();
+        TrayPageChecks();
         Console.WriteLine($"\nRESULT PASS={pass} FAIL={fail}");
         return fail == 0 ? 0 : 1;
     }
