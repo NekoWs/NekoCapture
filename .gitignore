@@ -1,4 +1,4 @@
-﻿# build outputs
+# build outputs
 bin/
 obj/
 *.user
@@ -64,3 +64,6 @@ PLAN.md
 /TEST-CHECKLIST.md
 /docs/
 /site/README.md
+
+# local preview shortcut
+/打开新版 NekoCapture.lnk
