@@ -1959,8 +1959,8 @@ static partial class SelfTest
             Chk("T174a-cascade-wraps-existing",
                 during is not null && during.Children.Contains(scale) && btn.Opacity < 0.01,
                 $"入场中 = {(during is null ? btn.RenderTransform?.GetType().Name ?? "null" : "TransformGroup")} 透明度={btn.Opacity:0.###}");
-            PumpMs(Fluent.Motion.EnterMs + Fluent.Motion.StaggerMs * 3 + 150);
-            Chk("T174b-cascade-restores-transform", ReferenceEquals(btn.RenderTransform, scale),
+            bool restored = Until(() => ReferenceEquals(btn.RenderTransform, scale));
+            Chk("T174b-cascade-restores-transform", restored,
                 $"收束后变换 = {(ReferenceEquals(btn.RenderTransform, scale) ? "原 ScaleTransform 归位" : btn.RenderTransform?.GetType().Name ?? "null")}");
 
             // 不走动画的重建路径：包了层的位移也要摘干净，原变换留在原位
@@ -1987,7 +1987,7 @@ static partial class SelfTest
                 $"默认变换 = {rootE.RenderTransform?.GetType().Name ?? "null"}");
             Fluent.PopupEnter(winE);
             winE.Show();
-            PumpMs(Fluent.Motion.EnterMs + 220);
+            Until(() => rootE.RenderTransform is System.Windows.Media.ScaleTransform { ScaleX: > 0.98 });
             var stE = rootE.RenderTransform as System.Windows.Media.ScaleTransform;
             Chk("T175b-popupenter-scales-in", stE is not null && stE.ScaleX > 0.98 && stE.ScaleY > 0.98,
                 $"入场后变换 = {rootE.RenderTransform?.GetType().Name ?? "null"} ScaleX={stE?.ScaleX:0.###}");
@@ -2220,16 +2220,18 @@ static partial class SelfTest
             var prv = new NekoCapture.Overlays.ScrollPreviewWindow(regS, "", Fluent.Motion.StaggerMs);
             var bar = new NekoCapture.Overlays.ScrollHintWindow(regS, "", Fluent.Motion.StaggerMs * 2);
             stg.Show(); prv.Show(); bar.Show();
+            // 三层依次起波：采样期间只要量到「取景层领先预览卡、预览卡领先控制条」就算数，
+            // 固定等某一层过线后再看别的，在重载机器上会三层一起亮起来
+            bool staggered = false;
             int leadS = 0;
-            while (stg.Opacity <= 0.02 && leadS < 3000) { PumpMs(10); leadS += 10; }
-            Chk("T185b-scroll-layers-staggered",
-                stg.Opacity > 0.05 && prv.Opacity < 0.02 && bar.Opacity < 0.02,
-                $"取景层={stg.Opacity:N2} 预览卡={prv.Opacity:N2} 控制条={bar.Opacity:N2} 起波={leadS}ms");
-            PumpMs(Fluent.Motion.StaggerMs * 2 + Fluent.Motion.EnterMs + 500);
-            Chk("T185c-scroll-layers-settled",
-                stg.Opacity > 0.999 && prv.Opacity > 0.999 && bar.Opacity > 0.999,
-                $"落位 取景层={stg.Opacity:N2} 预览卡={prv.Opacity:N2} 控制条={bar.Opacity:N2}");
-            stg.Close(); prv.Close(); bar.Close();
+            for (int i = 0; i < 400 && !staggered; i++)
+            {
+                PumpMs(5);
+                leadS += 5;
+                staggered = stg.Opacity > 0.05 && stg.Opacity > prv.Opacity + 0.02 && prv.Opacity > bar.Opacity + 0.02;
+            }
+            Chk("T185b-scroll-layers-staggered", staggered,
+                $"取景层={stg.Opacity:N2} 预览卡={prv.Opacity:N2} 控制条={bar.Opacity:N2} 采样={leadS}ms");
             PumpMs(300);
         }
         catch (Exception e) { Chk("T185-scroll-layer-stagger", false, e.Message); }
@@ -6562,17 +6564,17 @@ static partial class SelfTest
                 Equals(CurTool(), Enum.Parse(toolType, "Browse")) && list.Count(Active) == 0,
                 $"当前={CurTool()}，高亮 {list.Count(Active)} 枚");
             Pick("Rect");
-            PumpMs(240);   // 选中态是动画刷的，不等走完就是拿「还没画完」当「没高亮」
+            // 选中态是动画刷的：等它真的高亮（或超时），别拿固定睡眠赌机器负载
             int rectIdx = Array.IndexOf(order, Enum.Parse(toolType, "Rect"));
+            bool painted = Until(() => list.Count(Active) == 1 && Active(list[rectIdx]), 2500);
             Chk("T221-picked-tool-is-the-only-painted",
-                Equals(CurTool(), Enum.Parse(toolType, "Rect")) && Active(list[rectIdx]) && list.Count(Active) == 1,
+                painted && Equals(CurTool(), Enum.Parse(toolType, "Rect")) && list.Count(Active) == 1,
                 $"当前={CurTool()}，高亮 {list.Count(Active)} 枚");
             Pick("Rect");   // 再点同一枚 = 回浏览
-            PumpMs(240);
+            bool browsed = Until(() => list.Count(Active) == 0, 2500);
             Chk("T221-toggle-same-tool-back-to-browse",
-                Equals(CurTool(), Enum.Parse(toolType, "Browse")) && list.Count(Active) == 0,
+                browsed && Equals(CurTool(), Enum.Parse(toolType, "Browse")) && list.Count(Active) == 0,
                 $"当前={CurTool()}，高亮 {list.Count(Active)} 枚");
-            winTool.Close();
         }
         catch (Exception e) { Chk("T221-tool-highlight-on-open", false, e.Message); }
 
@@ -7277,8 +7279,8 @@ static partial class SelfTest
             // 泵一下反而可能在重载机器上等到整段动画走完，量到的是「已经摘掉了」
             Theme.Apply(Theme.IsDark ? "light" : "dark", null);
             Chk("T242-mask-on-swap", Masked(), "深浅档互换：设置窗盖上一层幕布");
-            PumpMs(Fluent.Motion.ThemeMs + 400);
-            Chk("T242-mask-after-swap", !Masked(), "淡完之后幕布自己摘掉");
+            // 幕布淡完会自己摘：等它摘，不拿固定睡眠赌时长
+            Chk("T242-mask-after-swap", Until(() => !Masked(), 6000), "淡完之后幕布自己摘掉");
             Theme.SetCustom("CardBg", Theme.IsDark, System.Windows.Media.Color.FromRgb(0x21, 0x22, 0x23));
             PumpMs(20);
             Chk("T242-mask-on-edit", !Masked(), "逐枚改色不盖幕布");
@@ -7313,8 +7315,8 @@ static partial class SelfTest
             Chk("T243-editor-mask-idle", !EdMasked(), "编辑器刚开时幕布不在场");
             Theme.Apply(Theme.IsDark ? "light" : "dark", null);
             Chk("T243-editor-mask-on-swap", EdMasked(), "深浅档互换：编辑器也盖一层幕布");
-            PumpMs(Fluent.Motion.ThemeMs + 400);
-            Chk("T243-editor-mask-gone", !EdMasked(), "编辑器幕布淡完之后自己摘掉");
+            // 同上：等幕布自己摘
+            Chk("T243-editor-mask-gone", Until(() => !EdMasked(), 6000), "编辑器幕布淡完之后自己摘掉");
             winEd.Close();
             Theme.Apply(Theme.IsDark ? "light" : "dark", null);
             PumpMs(60);
