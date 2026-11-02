@@ -73,7 +73,7 @@ public sealed partial class SettingsWindow
             BuildBehaviors(p);
             if (_behaviorHeader != null) _behaviorHeader.Visibility = System.Windows.Visibility.Collapsed;
         });
-        Page("tray", null, "tray", K.Tray.Title, K.Tray.ClickHint, "\uE7B8", 11, BuildTrayPage);
+        Page("tray", null, "tray", K.Tray.Title, K.Triggers.SearchTray, "\uE7B8", 11, BuildTrayPage);
         Page("selection", null, "capture", K.SettingsNavigation.Selection, K.SettingsNavigation.SelectionHint, "\uE7A8", 2, BuildSelectionSettings);
         Page("feedback", "selection", "capture", K.SettingsNavigation.Feedback, K.SettingsNavigation.FeedbackHint, "\uE946", 2, BuildCaptureFeedback);
         Page("editing", "selection", "capture", K.SettingsNavigation.Editing, K.SettingsNavigation.EditingHint, "\uE70F", 5, p =>
@@ -107,8 +107,6 @@ public sealed partial class SettingsWindow
             p.Children.Add(ToggleRow("\uE768", Loc.T(K.Settings.StartRecordingAfterSelecting), Loc.T(K.Settings.StartRecordingAfterSelectingTip),
                 _settings.Current.RecordNeedsStartClick, v => _settings.Mutate(s => s.RecordNeedsStartClick = v)));
             Cardify(p);
-            p.Children.Add(SettingsEntry(Loc.T(K.SettingsNavigation.Execute), Loc.T(K.SettingsNavigation.ExecuteHint), "\uE7A8",
-                () => NavigateSettings("behaviors", true)));
         });
         Page("record-quality", "record-start", "record", K.SettingsNavigation.Quality, K.SettingsNavigation.QualityHint, "\uEC4A", 3, BuildRecordingQuality);
         Page("record-export", "record-start", "record", K.SettingsNavigation.Export, K.SettingsNavigation.ExportHint, "\uE74E", 3, p =>

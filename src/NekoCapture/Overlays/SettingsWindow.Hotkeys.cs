@@ -46,11 +46,7 @@ public sealed partial class SettingsWindow : Window
         Cardify(enabled); panel.Children.Add(enabled);
         panel.Children.Add(SectionHeader(Loc.T(K.SettingsNavigation.MyHotkeys)));
         _hotList = new StackPanel(); panel.Children.Add(_hotList); RebuildHotkeys();
-        panel.Children.Add(SectionHeader(Loc.T(K.SettingsNavigation.More)));
-        panel.Children.Add(SettingsPageEntry("tray"));
-        panel.Children.Add(SettingsPageEntry("presets"));
-        panel.Children.Add(SettingsPageEntry("ui-keys"));
-        panel.Children.Add(SettingsPageEntry("behaviors"));
+
     }
 
     /// <summary>按配置顺序重建触发概要，末尾提供新增触发和菜单项入口。</summary>

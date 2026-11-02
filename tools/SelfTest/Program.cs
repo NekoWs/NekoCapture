@@ -2037,25 +2037,29 @@ static partial class SelfTest
             // 那个按钮会一直停在悬停倍率上——「全部复位」永远等不到，而它跟被测代码没关系。
             winW.WindowStartupLocation = WindowStartupLocation.Manual;
             winW.Left = -20000; winW.Top = -20000;
-            var barW = (System.Windows.Controls.StackPanel?)typeof(NekoCapture.Overlays.EditorWindow)
+            var barW = (System.Windows.Controls.Panel?)typeof(NekoCapture.Overlays.EditorWindow)
                 .GetField("_toolsBar", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
                 .GetValue(winW);
-            var btnW = barW!.Children.OfType<System.Windows.Controls.Button>().ToList();
-            Chk("T178a-toolbar-items", btnW.Count > 4, $"工具条按钮数={btnW.Count}");
+            var btnW = new List<System.Windows.DependencyObject>();
+            CollectTyped(barW!, typeof(System.Windows.Controls.Button), btnW);
+            var buttonsW = btnW.OfType<System.Windows.Controls.Button>().ToList();
+            Chk("T178a-toolbar-items", buttonsW.Count > 4, $"工具条按钮数={buttonsW.Count}");
             winW.Show();
             // 逐项落定 = 每项比前一项晚一点起跳，晚多少由 CascadeStepMs 说了算。
             // 不去屏幕上量「同一瞬间的落差」：离屏窗口的透明度多久更新一次由合成器给，
             // 270ms 的一段波在这台机器上只落两三帧，撞不撞得上峰值全看运气，红绿不可信。
             PumpMs(400);   // 等入场锚点走完、动画挂上
-            double step = Fluent.CascadeStepMs(btnW.Count, Fluent.Motion.PressMs, Fluent.Motion.QuickMs);
-            bool animating = btnW.All(b => b.HasAnimatedProperties);
+            double step = Fluent.CascadeStepMs(buttonsW.Count, Fluent.Motion.PressMs, Fluent.Motion.QuickMs);
+            // 动画挂在工具条的组上：分组容器才是逐项起跳的那一层，按钮自身不再各带一段
+            bool animating = barW!.Children.OfType<System.Windows.UIElement>().All(c => c.HasAnimatedProperties)
+                || buttonsW.All(b => b.HasAnimatedProperties);
             Chk("T178b-wave-left-to-right",
-                btnW.Count > 4 && step > 0 && step <= Fluent.Motion.StaggerMs && animating,
-                $"{btnW.Count} 项，每项晚 {step:F1}ms，透明度动画挂在每个按钮上={animating}");
+                buttonsW.Count > 4 && step > 0 && step <= Fluent.Motion.StaggerMs && animating,
+                $"{buttonsW.Count} 项，每项晚 {step:F1}ms，透明度动画挂在每个按钮上={animating}");
             PumpMs(Fluent.Motion.SpringMs + Fluent.Motion.StaggerMs + 300);
             // 收尾也不押固定时长：整段入场以 ContentRendered 为锚，锚点晚的时候上面那段泵不完最后几项。
             // 继续泵到全部复位为止，上限 4 秒——「全部复位」这个判定条件本身一分没松。
-            System.Windows.Controls.Button? NotSettled() => btnW.FirstOrDefault(b => b.Opacity < 0.999
+            System.Windows.Controls.Button? NotSettled() => buttonsW.FirstOrDefault(b => b.Opacity < 0.999
                 || (b.RenderTransform != null && !b.RenderTransform.Value.IsIdentity));
             var bad = NotSettled();
             var swSettle = Stopwatch.StartNew();
@@ -2066,8 +2070,8 @@ static partial class SelfTest
                     : $"残留 {bad.Content} 透明度={bad.Opacity:N2} 变换={bad.RenderTransform?.GetType().Name}"
                     + $" 缩放={bad?.RenderTransform?.Value.M11:N3}×{bad?.RenderTransform?.Value.M22:N3}");
             Chk("T178d-hover-scale-intact",
-                btnW.All(b => b.RenderTransform is null or System.Windows.Media.ScaleTransform),
-                string.Join(",", btnW.Select(b => b.RenderTransform?.GetType().Name ?? "null").Distinct()));
+                buttonsW.All(b => b.RenderTransform is null or System.Windows.Media.ScaleTransform),
+                string.Join(",", buttonsW.Select(b => b.RenderTransform?.GetType().Name ?? "null").Distinct()));
             winW.Close();
         }
         catch (Exception e) { Chk("T178-editor-toolbar-wave", false, e.Message); }
@@ -2089,9 +2093,11 @@ static partial class SelfTest
                 .GetField("_playPanel", NPP)!.GetValue(winP);
             var playGrp = (playPanelP?.Child as System.Windows.Controls.Panel)?.Children
                 .OfType<System.Windows.UIElement>().FirstOrDefault();
-            var barP = (System.Windows.Controls.StackPanel?)typeof(NekoCapture.Overlays.EditorWindow)
+            var barP = (System.Windows.Controls.Panel?)typeof(NekoCapture.Overlays.EditorWindow)
                 .GetField("_toolsBar", NPP)!.GetValue(winP);
-            var firstTool = barP!.Children.OfType<System.Windows.Controls.Button>().First();
+            var firstToolList = new List<System.Windows.DependencyObject>();
+            CollectTyped(barP!, typeof(System.Windows.Controls.Button), firstToolList);
+            var firstTool = firstToolList.OfType<System.Windows.Controls.Button>().First();
             Chk("T179a-multiframe-parts", playGrp != null, $"播放首组={(playGrp == null ? "缺失" : "存在")}");
             // 取不到时拿一个游离元素兜底：下面的断言照样报红，但不让整轮自测崩在空引用上
             UIElement grp = playGrp ?? new UIElement();
@@ -6011,7 +6017,8 @@ static partial class SelfTest
                 .All(m => notation.Contains(m.Groups[1].Value) || m.Groups[1].Value.StartsWith("{", StringComparison.Ordinal));
             var paren = tbl.Where(s => !NotationOnly(s.En)).Select(s => s.Id).ToList();
             // 原样登记的条目等于没翻：切到英文后那行还是中文，看不出也翻不了
-            var same = tbl.Where(s => s.En == s.Zh).Select(s => s.Id).ToList();
+            // 只盯「中文没翻」：纯格式串（"{0} · {1}"）与专名（GPL-3.0）本来就该一模一样
+            var same = tbl.Where(s => s.En == s.Zh && s.Zh.Any(ch => ch >= 0x4E00 && ch <= 0x9FFF)).Select(s => s.Id).ToList();
             var dupId = tbl.GroupBy(s => s.Id).Where(g => g.Count() > 1).Select(g => g.Key).ToList();
             var dupZh = tbl.GroupBy(s => s.Zh).Where(g => g.Count() > 1).Select(g => g.Key).ToList();
             Chk("T189i-table-hygiene",
@@ -7550,21 +7557,24 @@ static partial class SelfTest
             PumpMs(240);
             var svsPg = new List<System.Windows.DependencyObject>();
             CollectTyped(winPg, typeof(System.Windows.Controls.ScrollViewer), svsPg);
-            var hostPg = (svsPg.Count > 0 ? (svsPg[0] as System.Windows.Controls.ScrollViewer)?.Content : null) as System.Windows.Controls.Grid;
-            var pages = hostPg?.Children.Cast<FrameworkElement>().ToList() ?? new List<FrameworkElement>();
-            Chk("T248-pages-built", pages.Count == 10, $"分页 {pages.Count} 个");
-
-            List<System.Windows.DependencyObject> Of(int page, Type t)
+            // 设置页按需装配：取某一页就现建那一页，再用页标识去它整棵子树里找控件
+            var catalogPg = (System.Collections.IDictionary)tyPg.GetField("_settingsPages", npPg)!.GetValue(winPg)!;
+            Chk("T248-pages-built", catalogPg.Count >= 20 && catalogPg.Contains("palette") && catalogPg.Contains("tray")
+                && catalogPg.Contains("record-export"),
+                $"设置目录 {catalogPg.Count} 页");
+            FrameworkElement BodyOf(string id) => (FrameworkElement)tyPg
+                .GetMethod("GetSettingsBody", npPg)!.Invoke(winPg, new object[] { id })!;
+            List<System.Windows.DependencyObject> Of(string id, Type t)
             {
                 var got = new List<System.Windows.DependencyObject>();
-                if (page >= 0 && page < pages.Count) CollectTyped(pages[page], t, got);
+                CollectTyped(BodyOf(id), t, got);
                 return got;
             }
 
             // 强调色：色块与十六进制都在「配色」页（第 8 页），外观页上没有它
-            var swatches = Of(8, typeof(System.Windows.Controls.Border)).OfType<System.Windows.Controls.Border>()
+            var swatches = Of("palette", typeof(System.Windows.Controls.Border)).OfType<System.Windows.Controls.Border>()
                 .Where(b => (b.Tag as string) == "settings-accent-swatch").ToList();
-            var hexes = Of(8, typeof(System.Windows.Controls.TextBlock)).OfType<System.Windows.Controls.TextBlock>()
+            var hexes = Of("palette", typeof(System.Windows.Controls.TextBlock)).OfType<System.Windows.Controls.TextBlock>()
                 .Where(t => (t.Tag as string) == "settings-accent-hex").ToList();
             Chk("T248-accent-entry-present", swatches.Count == 1 && hexes.Count == 1,
                 $"配色页上强调色：色块 {swatches.Count} 枚，十六进制 {hexes.Count} 枚");
@@ -7576,7 +7586,7 @@ static partial class SelfTest
             Chk("T248-accent-entry-shows-hex", hexes.Count == 1 && hexes[0].Text == HexColor.Format(Theme.Accent),
                 $"色块旁边写着当前值：{hexes.FirstOrDefault()?.Text}");
             Chk("T248-accent-not-on-appearance",
-                Of(7, typeof(System.Windows.Controls.Border)).OfType<System.Windows.Controls.Border>()
+                Of("theme", typeof(System.Windows.Controls.Border)).OfType<System.Windows.Controls.Border>()
                     .All(b => (b.Tag as string) != "settings-accent-swatch"),
                 "外观页上没有单独的强调色");
 
@@ -7587,9 +7597,10 @@ static partial class SelfTest
                 System.Windows.Input.Mouse.PrimaryDevice, 0, System.Windows.Input.MouseButton.Left)
             { RoutedEvent = System.Windows.UIElement.MouseLeftButtonDownEvent, Source = navRowsPg[2] });
             PumpMs(520);
-            var combos = Of(2, typeof(System.Windows.Controls.ComboBox)).OfType<System.Windows.Controls.ComboBox>().ToList();
+            var combos = Of("selection", typeof(System.Windows.Controls.ComboBox)).OfType<System.Windows.Controls.ComboBox>().ToList();
             var delayBox = combos.FirstOrDefault(c => (c.Tag as string) == "settings-duration-delay");
-            var toastBox = combos.FirstOrDefault(c => (c.Tag as string) == "settings-duration-toast");
+            var toastBox = Of("feedback", typeof(System.Windows.Controls.ComboBox)).OfType<System.Windows.Controls.ComboBox>()
+                .FirstOrDefault(c => (c.Tag as string) == "settings-duration-toast");
             Chk("T252-duration-boxes", delayBox != null && toastBox != null,
                 $"截图页上的时长框：延时 {(delayBox == null ? "没找到" : "有")}，悬浮窗 {(toastBox == null ? "没找到" : "有")}");
             Chk("T252-duration-editable", delayBox != null && delayBox.IsEditable && toastBox != null && toastBox.IsEditable,
@@ -7619,12 +7630,12 @@ static partial class SelfTest
             delayBox.IsDropDownOpen = false;
             PumpMs(140);
             Chk("T252-duration-shows-current", delayBox != null && double.TryParse(delayBox.Text, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out _), $"延时的框里写着当前值且只有数字：{delayBox?.Text}");
-            Chk("T252-duration-unit-outside", delayBox != null && delayBox.Width <= 62 && DurationUnitOf(pages[2], "settings-duration-delay") == Loc.T(K.Settings.SecondsUnit), $"单位在框外：框宽 {delayBox?.Width}，右侧写着「{DurationUnitOf(pages[2], "settings-duration-delay")}」");
+            Chk("T252-duration-unit-outside", delayBox != null && delayBox.Width <= 62 && DurationUnitOf(BodyOf("selection"), "settings-duration-delay") == Loc.T(K.Settings.SecondsUnit), $"单位在框外：框宽 {delayBox?.Width}，右侧写着「{DurationUnitOf(BodyOf("selection"), "settings-duration-delay")}」");
 
             // 键位录入全在「快捷键」页：两条绑定的键帽 + 确认 / 取消 + 复制键，都在带小标题的那张卡里。
             // 编辑器键位那几组也在这页上，所以不数总数，认的是这枚三行各自的标签。
-            var keysCap = Of(2, typeof(NekoCapture.Core.ChordCaptureBox));
-            var hotTexts = Of(0, typeof(System.Windows.Controls.TextBlock)).OfType<System.Windows.Controls.TextBlock>()
+            var keysCap = Of("selection", typeof(NekoCapture.Core.ChordCaptureBox));
+            var hotTexts = Of("ui-keys", typeof(System.Windows.Controls.TextBlock)).OfType<System.Windows.Controls.TextBlock>()
                 .Select(t => t.Text).ToList();
             Chk("T251-ui-keys-on-hotkeys-page",
                 hotTexts.Contains(Loc.T(K.Capture.ConfirmSelection)) && hotTexts.Contains(Loc.T(K.Common.CancelSelection))
@@ -7632,10 +7643,10 @@ static partial class SelfTest
                 $"快捷键页上找得到「{Loc.T(K.Capture.ConfirmSelection)}」「{Loc.T(K.Common.CancelSelection)}」「{Loc.T(K.Settings.CopyKey)}」三行");
             Chk("T251-keys-not-on-capture-page", keysCap.Count == 0,
                 $"截图页上还剩 {keysCap.Count} 个键位框");
-            Chk("T251-ui-keys-labelled", hotTexts.Contains(Loc.T(K.Hotkeys.UiKeys)),
+            Chk("T251-ui-keys-labelled", hotTexts.Contains(Loc.T(K.Hotkeys.PickerNudge)),
                 "快捷键页给这组键位写了小标题");
             // 「恢复出厂配色」与卡片同一族：圆角、描边、投影都对得上，不是一块没有边的灰条
-            var restoreBtn = Of(8, typeof(System.Windows.Controls.Border)).OfType<System.Windows.Controls.Border>()
+            var restoreBtn = Of("palette", typeof(System.Windows.Controls.Border)).OfType<System.Windows.Controls.Border>()
                 .FirstOrDefault(b => (b.Tag as string) == "settings-restore");
             Chk("T261-restore-looks-like-card",
                 restoreBtn != null && restoreBtn.CornerRadius.TopLeft == 8 && restoreBtn.BorderThickness.Left == 1
@@ -7643,7 +7654,7 @@ static partial class SelfTest
                     && restoreBtn.Effect is System.Windows.Media.Effects.DropShadowEffect,
                 "恢复出厂配色：圆角 8、1px 描边、带投影，与卡片同一族");
             // 预览卡里三枚芯片的右间距一致：中间那枚原本一点右间距都没有，两枚贴在一起
-            System.Windows.Controls.Border? ChipOf(Str s) => Of(8, typeof(System.Windows.Controls.Border))
+            System.Windows.Controls.Border? ChipOf(Str s) => Of("palette", typeof(System.Windows.Controls.Border))
                 .OfType<System.Windows.Controls.Border>()
                 .FirstOrDefault(b => b.Child is System.Windows.Controls.TextBlock tb && tb.Text == Loc.T(s));
             var chipOnB = ChipOf(K.Settings.Accent);
@@ -7652,8 +7663,8 @@ static partial class SelfTest
                 chipOnB != null && chipOffB != null && chipOnB.Margin.Right == 6 && chipOffB.Margin.Right == 6,
                 $"预览芯片右间距：{chipOnB?.Margin.Right} / {chipOffB?.Margin.Right}");
             // 新增的两枚开关各在它该在的那一页上，且默认都是开
-            var capTexts = Of(2, typeof(System.Windows.Controls.TextBlock)).OfType<System.Windows.Controls.TextBlock>().Select(t => t.Text).ToList();
-            var recTexts = Of(3, typeof(System.Windows.Controls.TextBlock)).OfType<System.Windows.Controls.TextBlock>().Select(t => t.Text).ToList();
+            var capTexts = Of("selection", typeof(System.Windows.Controls.TextBlock)).OfType<System.Windows.Controls.TextBlock>().Select(t => t.Text).ToList();
+            var recTexts = Of("record-start", typeof(System.Windows.Controls.TextBlock)).OfType<System.Windows.Controls.TextBlock>().Select(t => t.Text).ToList();
             Chk("T263-rightclick-toggle-on-capture-page", capTexts.Contains(Loc.T(K.Settings.RightClickCancelsPicker)),
                 "「右键关闭选区」在截图页上");
             Chk("T263-startclick-toggle-on-record-page", recTexts.Contains(Loc.T(K.Settings.StartRecordingAfterSelecting)),

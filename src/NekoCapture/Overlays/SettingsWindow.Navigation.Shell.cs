@@ -213,15 +213,19 @@ public sealed partial class SettingsWindow
                 Child = label, CornerRadius = new CornerRadius(6), Padding = new Thickness(11, 5, 11, 5),
                 Margin = new Thickness(0, 0, 4, 0), Cursor = Cursors.Hand, Tag = "settings-tab", Focusable = true,
             };
+            bool hovered = false;
             void Paint()
             {
-                tab.Background = new SolidColorBrush(selected ? Theme.RowBg : Colors.Transparent);
-                label.Foreground = selected ? Theme.TextBrush : Theme.TextDimBrush;
+                tab.Background = new SolidColorBrush(selected
+                    ? Fluent.AccentOn(Theme.CardBg, 0.18)
+                    : hovered ? Theme.Hover : Colors.Transparent);
+                label.Foreground = new SolidColorBrush(selected ? Theme.Accent : Theme.TextDim);
+                label.FontWeight = selected ? FontWeights.SemiBold : FontWeights.Normal;
             }
             Paint();
             tab.MouseLeftButtonUp += (_, e) => { if (!selected) NavigateSettings(id, true); e.Handled = true; };
-            tab.MouseEnter += (_, _) => { if (!selected) label.Foreground = Theme.TextBrush; };
-            tab.MouseLeave += (_, _) => Paint();
+            tab.MouseEnter += (_, _) => { hovered = true; Paint(); };
+            tab.MouseLeave += (_, _) => { hovered = false; Paint(); };
             _settingsTabs.Children.Add(tab);
         }
         _settingsTabHost.Visibility = Visibility.Visible;

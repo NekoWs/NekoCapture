@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using NekoCapture.Core;
@@ -7,20 +8,23 @@ using NekoCapture.Services;
 
 namespace NekoCapture.Overlays;
 
-/// <summary>托盘页：图标点击与右键菜单项在同一页内编辑，顺序即菜单顺序。</summary>
+/// <summary>托盘页：图标点击与右键菜单项在同一页内编辑，拖动行即可改菜单顺序。</summary>
 public sealed partial class SettingsWindow
 {
     private StackPanel? _trayMenuList;
+    private string _trayIconOpen = "";
+    private string _trayDragId = "";
+    private Point _trayDragFrom;
+    private bool _trayDragging;
 
     private void BuildTrayPage(StackPanel panel)
     {
-        panel.Children.Add(SectionHeader(Loc.T(K.Tray.ClickSection)));
         var clicks = new StackPanel();
         clicks.Children.Add(TrayBehaviorRow(TriggerSources.TrayClick, K.Triggers.TrayClick));
         clicks.Children.Add(TrayBehaviorRow(TriggerSources.TrayDoubleClick, K.Triggers.TrayDoubleClick));
         Cardify(clicks);
+        panel.Children.Add(SectionHeader(Loc.T(K.Tray.ClickSection)));
         panel.Children.Add(clicks);
-        panel.Children.Add(UiNote(Loc.T(K.Tray.ClickHint)));
 
         panel.Children.Add(SectionHeader(Loc.T(K.Tray.MenuSection)));
         var menu = new StackPanel();
@@ -31,8 +35,9 @@ public sealed partial class SettingsWindow
         menu.Children.Add(add);
         Cardify(menu);
         panel.Children.Add(menu);
-        panel.Children.Add(UiNote(Loc.T(K.Tray.MenuHint)));
         RenderTrayMenu();
+        PreviewMouseMove -= TrayDragMove; PreviewMouseMove += TrayDragMove;
+        PreviewMouseLeftButtonUp -= TrayDragEnd; PreviewMouseLeftButtonUp += TrayDragEnd;
     }
 
     /// <summary>单击或双击托盘图标要跑的行为：一个下拉即可，不必进触发详情。</summary>
@@ -57,32 +62,31 @@ public sealed partial class SettingsWindow
         if (_trayMenuList == null) return;
         _trayMenuList.Children.Clear();
         var items = _settings.Current.Gestures.Bindings.Where(IsTrayMenuItem).ToList();
-        if (items.Count == 0)
+        if (items.Count == 0) return;
+        var rows = new List<FrameworkElement>();
+        foreach (var binding in items)
         {
-            _trayMenuList.Children.Add(UiNote(Loc.T(K.Tray.MenuEmpty)));
-            return;
+            var row = TrayMenuItemRow(binding);
+            rows.Add(row); _trayMenuList.Children.Add(row);
         }
-        foreach (var binding in items) _trayMenuList.Children.Add(TrayMenuItemRow(binding, items.Count));
+        Fluent.CascadeIn(rows, risePx: 8, itemMs: Fluent.Motion.EnterMs,
+            budgetMs: Fluent.Motion.EnterMs + Fluent.Motion.StaggerMs * 2);
     }
 
-    /// <summary>一条菜单项：图标、名称、行为、顺序与删除都在这一行里完成。</summary>
+    /// <summary>一条菜单项：拖动手柄（图标）、名称、行为与删除都在这一行里完成。</summary>
     /// <param name="binding">这一条托盘菜单绑定。</param>
-    /// <param name="total">当前菜单项总数，用来禁用越界的移动按钮。</param>
     /// <returns>一行。</returns>
-    private FrameworkElement TrayMenuItemRow(GestureBindingDto binding, int total)
+    private FrameworkElement TrayMenuItemRow(GestureBindingDto binding)
     {
-        int index = _settings.Current.Gestures.Bindings.IndexOf(binding);
         var grid = new Grid { Margin = new Thickness(0, 2, 0, 2) };
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         grid.ColumnDefinitions.Add(new ColumnDefinition());
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
-        var icon = TrayIconButton(binding);
-        icon.Margin = new Thickness(0, 0, 8, 0);
-        icon.VerticalAlignment = VerticalAlignment.Center;
-        grid.Children.Add(icon);
+        var handle = TrayIconHandle(binding);
+        handle.Margin = new Thickness(0, 0, 8, 0);
+        grid.Children.Add(handle);
 
         var name = TrayMenuName(binding);
         Grid.SetColumn(name, 1); grid.Children.Add(name);
@@ -91,23 +95,91 @@ public sealed partial class SettingsWindow
         behavior.Margin = new Thickness(10, 0, 0, 0);
         Grid.SetColumn(behavior, 2); grid.Children.Add(behavior);
 
-        var order = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(8, 0, 0, 0) };
-        order.Children.Add(TrayOrderButton("\uE74A", K.Tray.MoveUp, index <= 0, () => MoveTrayMenuItem(binding, -1)));
-        order.Children.Add(TrayOrderButton("\uE74B", K.Tray.MoveDown, index < 0 || index >= total - 1, () => MoveTrayMenuItem(binding, 1)));
-        Grid.SetColumn(order, 3); grid.Children.Add(order);
-
         var remove = TrayDeleteButton(binding);
-        Grid.SetColumn(remove, 4); grid.Children.Add(remove);
+        Grid.SetColumn(remove, 3); grid.Children.Add(remove);
 
-        return new Border
+        var card = new Border
         {
             Child = grid,
             Tag = "settings-tray-item:" + binding.Id,
             Background = Theme.RowBgBrush,
+            BorderBrush = Theme.StrokeSoftBrush,
+            BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(8),
             Padding = new Thickness(8, 3, 6, 3),
-            Margin = new Thickness(0, 2, 0, 2),
+            Cursor = Cursors.SizeAll,
         };
+        System.Windows.Automation.AutomationProperties.SetName(card, HotkeyDisplayName(binding));
+        var host = new StackPanel { Margin = new Thickness(0, 2, 0, 2), Tag = "settings-tray-host:" + binding.Id };
+        host.Children.Add(card);
+        if (_trayIconOpen == binding.Id) host.Children.Add(TrayIconPalette(binding));
+        return host;
+    }
+
+    /// <summary>行首的图标按钮：点一下展开图标清单，再点选一枚；按住拖动则改菜单顺序。</summary>
+    /// <param name="binding">这一条托盘菜单绑定。</param>
+    /// <returns>可点可拖的图标方块。</returns>
+    private Border TrayIconHandle(GestureBindingDto binding)
+    {
+        var glyph = new TextBlock
+        {
+            Text = TrayMenuIcons.Glyph(_settings.Current.Gestures, binding), FontSize = 15, Foreground = Theme.TextBrush,
+            FontFamily = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets, Segoe UI Symbol"),
+            HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
+        };
+        var button = new Border
+        {
+            Width = 30, Height = 30, CornerRadius = new CornerRadius(6), Background = Theme.CardBgBrush,
+            BorderBrush = Theme.StrokeSoftBrush, BorderThickness = new Thickness(1),
+            Cursor = Cursors.Hand, Focusable = true, Child = glyph,
+            ToolTip = Loc.T(K.Triggers.MenuIcon),
+        };
+        Fluent.ChipHover(button);
+        button.MouseLeftButtonDown += (_, e) =>
+        {
+            _trayDragId = binding.Id; _trayDragFrom = e.GetPosition(this); _trayDragging = false;
+        };
+        button.MouseLeftButtonUp += (_, e) =>
+        {
+            e.Handled = true;
+            if (_trayDragging) { _trayDragId = ""; return; }
+            _trayIconOpen = _trayIconOpen == binding.Id ? "" : binding.Id;
+            RenderTrayMenu();
+        };
+        return button;
+    }
+
+    /// <summary>展开的图标清单：跟随行为与目录里每一枚图标，选完收起。</summary>
+    /// <param name="binding">这一条托盘菜单绑定。</param>
+    /// <returns>图标网格。</returns>
+    private FrameworkElement TrayIconPalette(GestureBindingDto binding)
+    {
+        var grid = new UniformGrid { Columns = 8, Margin = new Thickness(38, 4, 0, 6) };
+        void Pick(string id)
+        {
+            binding.MenuIcon = id; CommitHotkeys(); _trayIconOpen = ""; RenderTrayMenu();
+        }
+        Button Cell(string id, string text, Str tip)
+        {
+            var button = Fluent.Ui(new Button
+            {
+                Content = text, ToolTip = Loc.T(tip), Tag = "settings-tray-icon:" + id,
+                MinWidth = 34, MinHeight = 34, Margin = new Thickness(2), Padding = new Thickness(6),
+                BorderThickness = new Thickness(1),
+                BorderBrush = id == binding.MenuIcon ? Theme.AccentBrush : Theme.StrokeSoftBrush,
+                Background = id == binding.MenuIcon ? Theme.RowBgBrush : Brushes.Transparent,
+                FontFamily = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets, Segoe UI Symbol"),
+                FontSize = 15,
+            });
+            System.Windows.Automation.AutomationProperties.SetName(button, Loc.T(tip));
+            button.Click += (_, _) => Pick(id);
+            return button;
+        }
+        var auto = Cell("", Loc.T(K.Triggers.AutoIcon), K.Triggers.AutoIcon);
+        auto.FontSize = 11.5; auto.FontFamily = new FontFamily("Segoe UI");
+        grid.Children.Add(auto);
+        foreach (var icon in TrayMenuIcons.All) grid.Children.Add(Cell(icon.Id, icon.Glyph, icon.Label));
+        return grid;
     }
 
     /// <summary>菜单项名称：点铅笔就地改名，回车或失焦落盘。</summary>
@@ -115,7 +187,7 @@ public sealed partial class SettingsWindow
     /// <returns>名称那一格。</returns>
     private FrameworkElement TrayMenuName(GestureBindingDto binding)
     {
-        var host = new ContentControl { VerticalAlignment = VerticalAlignment.Center, MaxWidth = 210 };
+        var host = new ContentControl { VerticalAlignment = VerticalAlignment.Center, MaxWidth = 240 };
         void Show()
         {
             var row = new StackPanel { Orientation = Orientation.Horizontal };
@@ -123,7 +195,7 @@ public sealed partial class SettingsWindow
             {
                 Text = HotkeyDisplayName(binding), FontSize = 13, Foreground = Theme.TextBrush,
                 TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center,
-                MaxWidth = 170,
+                MaxWidth = 190,
             });
             row.Children.Add(RenameIconButton(() =>
             {
@@ -136,17 +208,6 @@ public sealed partial class SettingsWindow
         }
         Show();
         return host;
-    }
-
-    private Border TrayOrderButton(string glyph, Str tooltip, bool disabled, Action move)
-    {
-        var button = RenameIconButton(move);
-        ((TextBlock)button.Child).Text = glyph;
-        button.ToolTip = Loc.T(tooltip);
-        button.IsEnabled = !disabled;
-        button.Opacity = disabled ? 0.35 : 1;
-        button.Width = 24; button.Height = 22;
-        return button;
     }
 
     /// <summary>删除一枚菜单项并立刻重排，右键菜单下次打开就是新内容。</summary>
@@ -162,19 +223,51 @@ public sealed partial class SettingsWindow
         ((TextBlock)button.Child).Text = "\uE74D";
         button.ToolTip = Loc.T(K.Settings.DeleteThisHotkey);
         button.Width = 24; button.Height = 22;
+        button.Margin = new Thickness(8, 0, 0, 0);
         return button;
     }
 
-    private void MoveTrayMenuItem(GestureBindingDto binding, int delta)
+    /// <summary>拖动中：指针压到别的一行上就换位，松手前一直可拖。</summary>
+    /// <param name="sender">事件源。</param>
+    /// <param name="e">鼠标参数。</param>
+    private void TrayDragMove(object sender, MouseEventArgs e)
     {
-        _settings.Mutate(settings =>
+        if (_trayDragId.Length == 0 || _trayMenuList == null || e.LeftButton != MouseButtonState.Pressed) return;
+        var at = e.GetPosition(this);
+        if (!_trayDragging)
         {
-            var list = settings.Gestures.Bindings;
-            int from = list.FindIndex(item => item.Id == binding.Id), to = from + delta;
-            if (from < 0 || to < 0 || to >= list.Count || list[to].Source != TriggerSources.TrayMenu) return;
-            list.RemoveAt(from); list.Insert(to, binding);
-        });
-        CommitHotkeys(); RenderTrayMenu();
+            if (Math.Abs(at.Y - _trayDragFrom.Y) < SystemParameters.MinimumVerticalDragDistance * 2) return;
+            _trayDragging = true;
+        }
+        var rows = _trayMenuList.Children.OfType<FrameworkElement>().ToList();
+        int from = rows.FindIndex(row => (row.Tag as string) == "settings-tray-host:" + _trayDragId);
+        for (int i = 0; i < rows.Count; i++)
+        {
+            var bounds = rows[i].TransformToAncestor(this).TransformBounds(
+                new Rect(0, 0, rows[i].ActualWidth, rows[i].ActualHeight));
+            if (at.Y < bounds.Top || at.Y > bounds.Bottom) continue;
+            if (i == from || from < 0) return;
+            _settings.Mutate(settings =>
+            {
+                var all = settings.Gestures.Bindings;
+                int moveFrom = all.FindIndex(item => item.Id == _trayDragId);
+                var target = all.Where(IsTrayMenuItem).ToList();
+                if (moveFrom < 0 || i >= target.Count) return;
+                var moving = all[moveFrom];
+                all.RemoveAt(moveFrom);
+                all.Insert(all.IndexOf(target[i]), moving);
+            });
+            RenderTrayMenu();
+            return;
+        }
+    }
+
+    /// <summary>松手：结束这次拖动。</summary>
+    /// <param name="sender">事件源。</param>
+    /// <param name="e">鼠标参数。</param>
+    private void TrayDragEnd(object sender, MouseButtonEventArgs e)
+    {
+        _trayDragId = ""; _trayDragging = false;
     }
 
     private void AddTrayMenuItem()
@@ -200,44 +293,5 @@ public sealed partial class SettingsWindow
             if (combo.SelectedItem is ComboBoxItem { Tag: string id }) save(id);
         };
         return combo;
-    }
-
-    /// <summary>一枚菜单项图标：点一下在图标目录里换下一个，「自动」也算一项。
-    /// 比展开一整块图标面板省地方，一屏能看全整个菜单。</summary>
-    /// <param name="binding">这一条托盘菜单绑定。</param>
-    /// <returns>可点的图标方块。</returns>
-    private Border TrayIconButton(GestureBindingDto binding)
-    {
-        var glyph = new TextBlock
-        {
-            Text = TrayMenuIcons.Glyph(_settings.Current.Gestures, binding), FontSize = 15, Foreground = Theme.TextBrush,
-            FontFamily = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets, Segoe UI Symbol"),
-            HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
-        };
-        var button = new Border
-        {
-            Width = 30, Height = 30, CornerRadius = new CornerRadius(6), Background = Theme.RowBgBrush,
-            BorderBrush = Theme.StrokeSoftBrush, BorderThickness = new Thickness(1),
-            Cursor = Cursors.Hand, Focusable = true, Child = glyph,
-        };
-        Fluent.ChipHover(button);
-        void Paint()
-        {
-            glyph.Text = TrayMenuIcons.Glyph(_settings.Current.Gestures, binding);
-            var selected = TrayMenuIcons.All.FirstOrDefault(item => item.Id == binding.MenuIcon);
-            button.ToolTip = Loc.T(K.Triggers.MenuIcon) + " · " + Loc.T(selected?.Label ?? K.Triggers.AutoIcon);
-        }
-        button.MouseLeftButtonUp += (_, e) =>
-        {
-            e.Handled = true;
-            var ids = new List<string> { "" };
-            ids.AddRange(TrayMenuIcons.All.Select(item => item.Id));
-            int at = ids.IndexOf(binding.MenuIcon);
-            binding.MenuIcon = ids[(at + 1) % ids.Count];
-            CommitHotkeys(); Paint();
-        };
-        System.Windows.Automation.AutomationProperties.SetName(button, Loc.T(K.Triggers.MenuIcon));
-        Paint();
-        return button;
     }
 }

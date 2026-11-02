@@ -1,4 +1,4 @@
-﻿using System.IO;
+using System.IO;
 using System.Text.Json;
 
 namespace NekoCapture.Core;
@@ -102,7 +102,7 @@ public bool EditableSelection { get; set; } = false;
     public bool RecordWindowClean { get; set; } = true;
 
     /// <summary>按下选区快捷键后是否显示上次选区的虚线框（关=干净屏，Enter 确认上次选区随之失效）。</summary>
-    public bool ShowLastRegion { get; set; } = false;
+    public bool ShowLastRegion { get; set; } = true;
 
     /// <summary>显示上次选区时，允许悬停和点击吸附到该区域。</summary>
     public bool SnapLastRegion { get; set; } = true;

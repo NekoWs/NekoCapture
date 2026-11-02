@@ -1,4 +1,4 @@
-﻿namespace NekoCapture.Core;
+namespace NekoCapture.Core;
 
 /// <summary>界面文案目录。</summary>
 public static partial class K
@@ -14,7 +14,6 @@ public static partial class K
         public static readonly Str MyHotkeys = new("settingsnavigation.myHotkeys", "我的触发", "My triggers");
         public static readonly Str BindingName = new("settingsnavigation.bindingName", "名称", "Name");
         public static readonly Str KeysAndTrigger = new("settingsnavigation.keysAndTrigger", "触发设置", "Trigger settings");
-        public static readonly Str More = new("settingsnavigation.more", "更多设置", "More settings");
         public static readonly Str Presets = new("settingsnavigation.presets", "预设方案", "Presets");
         public static readonly Str PresetsHint = new("settingsnavigation.presetsHint", "触发入口与行为的预设方案", "Ready-made triggers and behaviors");
         public static readonly Str UiKeys = new("settingsnavigation.uiKeys", "界面快捷键", "Interface shortcuts");
