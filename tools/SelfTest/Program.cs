@@ -5393,30 +5393,34 @@ static partial class SelfTest
                 .ToList();
             var probe8 = keyRows[0];
             double padLeft = keyRows.Min(p => p.Padding.Left);
-            // 悬停不许改底色：整排都是能拖的行，只有亮起来那一行会像在暗示只有它能碰。
-            // 所以判据盯「悬停前后底色一模一样」，不盯「底色必须是空」——
-            // 行有一层静止底色是层次台阶的一部分，禁掉它等于禁掉了层次。
+            // 界面键位行是「录键行」：静止透明，指针进入只亮起这一行，离开回到透明。
+            // 它们不是可拖动的快捷键行，悬停反馈在这里是正常的；这里盯的是别整排一起亮。
             string ColorOf(System.Windows.Controls.Border b) =>
                 b.Background is System.Windows.Media.SolidColorBrush sbx ? sbx.Color.ToString() : "null";
             string[] bgBefore = keyRows.Select(ColorOf).ToArray();
             probe8.RaiseEvent(new System.Windows.Input.MouseEventArgs(System.Windows.Input.Mouse.PrimaryDevice, 0)
             { RoutedEvent = UIElement.MouseEnterEvent, Source = probe8 });
             PumpMs(260);
-            bool hoverFlat = keyRows.Select((p, i) => ColorOf(p) == bgBefore[i]).All(x => x);
-            bool onRamp = keyRows.All(p => p.Background is System.Windows.Media.SolidColorBrush sb2 && sb2.Color == Theme.RowBg);
-            Chk("T198b-editor-key-row-room-and-flat-hover",
-                keyRows.Count >= 3 && keyRows.All(p => p.Padding.Left >= 14) && hoverFlat && onRamp,
-                $"{keyRows.Count} 行编辑器绑键：左边最少 {padLeft:F0} DIP，"
-                + $"悬停后{(hoverFlat ? "底色都没变" : "有行换了底色")}"
-                + $"，底色{(onRamp ? "=层次台阶的行色" : "不在层次台阶上")}");
-
-            // 快捷键行的胶囊四档：静止 → 悬停 → 按下 → 抬起（指针还在里面）→ 离开。
-            // 「静止 = 台阶行色」这条同时看住填充助手会不会把底色抹回透明——
-            // 助手一开口就把 Background 换成自己那份，行就白垫了一层。
-            var hotPills = borders8.Cast<System.Windows.Controls.Border>()
-                .Where(b => b.Cursor == System.Windows.Input.Cursors.Hand && b.CornerRadius.TopLeft == 6
+            int changed = keyRows.Select((p, i) => ColorOf(p) != bgBefore[i] ? 1 : 0).Sum();
+            bool lightsUp = probe8.Background is System.Windows.Media.SolidColorBrush lit
+                && lit.Color == Theme.Hover && changed == 1;
+            bool restsClear = bgBefore.All(text => text == System.Windows.Media.Colors.Transparent.ToString());
+            probe8.RaiseEvent(new System.Windows.Input.MouseEventArgs(System.Windows.Input.Mouse.PrimaryDevice, 0)
+            { RoutedEvent = UIElement.MouseLeaveEvent, Source = probe8 });
+            PumpMs(260);
+            bool leavesClear = ColorOf(probe8) == System.Windows.Media.Colors.Transparent.ToString();
+            Chk("T198b-editor-key-row-room-and-hover",
+                keyRows.Count >= 3 && keyRows.All(p => p.Padding.Left >= 12) && restsClear && lightsUp && leavesClear,
+                $"{keyRows.Count} 行编辑器绑键：左边最少 {padLeft:F0} DIP，静止{(restsClear ? "透明" : "有底色")}，"
+                + $"悬停{(lightsUp ? "只亮这一行" : $"变了 {changed} 行")}，离开{(leavesClear ? "复原" : "没复原")}");
+            // 快捷键行现在是概览卡（Button）：静止落在卡面色上，悬停/按下再走上台阶。
+            // 「静止 = 台阶色」这条同时看住填充助手会不会把底色抹回透明。
+            var buttons8 = new List<System.Windows.DependencyObject>();
+            CollectTyped(root8, typeof(System.Windows.Controls.Button), buttons8);
+            var hotPills = buttons8.Cast<System.Windows.Controls.Button>()
+                .Where(b => (b.Tag as string) == "settings-overview"
                             && b.Background is System.Windows.Media.SolidColorBrush pbg
-                            && pbg.Color == Theme.RowBg)
+                            && pbg.Color == Theme.CardBg)
                 .ToList();
             var pill0 = hotPills.FirstOrDefault();
             if (pill0 == null)
@@ -5427,31 +5431,30 @@ static partial class SelfTest
             {
                 // 进/出用 MouseEventArgs，按下/抬起用 MouseButtonEventArgs：喂错参数类型，
                 // WPF 的鼠标事件簿会把 MouseEnter 的处理器按按键处理器去转，当场抛 InvalidCast。
-                // 动画中的画刷 ToString() 会印成 scRGB 浮点串（sc#1, 0.046…, …），拿字符串比颜色一定输。
-                // 这里按字节比，容 ±2：scRGB 转回 sRGB 有一格以内的舍入。
+                // 动画中的画刷 ToString() 会印成 scRGB 浮点串，拿字符串比颜色一定输：按字节比，容 ±2。
                 bool Near(System.Windows.Media.Color a, System.Windows.Media.Color b)
                     => Math.Abs(a.R - b.R) <= 2 && Math.Abs(a.G - b.G) <= 2 && Math.Abs(a.B - b.B) <= 2;
                 bool IsAt(System.Windows.Media.Color want)
                     => pill0.Background is System.Windows.Media.SolidColorBrush pc && Near(pc.Color, want);
                 string PillColor() => pill0.Background is System.Windows.Media.SolidColorBrush pcc
                     ? $"#{pcc.Color.R:X2}{pcc.Color.G:X2}{pcc.Color.B:X2}" : "null";
-                // 进/出用 MouseEventArgs，按下/抬起用 MouseButtonEventArgs：喂错参数类型，
-                // WPF 的鼠标事件簿会把 MouseEnter 的处理器按按键处理器去转，当场抛 InvalidCast。
                 void RaiseEnter(System.Windows.RoutedEvent ev) => pill0.RaiseEvent(
                     new System.Windows.Input.MouseEventArgs(System.Windows.Input.Mouse.PrimaryDevice, 0)
                     { RoutedEvent = ev, Source = pill0 });
                 void RaiseBtn(System.Windows.RoutedEvent ev) => pill0.RaiseEvent(
                     new System.Windows.Input.MouseButtonEventArgs(System.Windows.Input.Mouse.PrimaryDevice, 0,
                         System.Windows.Input.MouseButton.Left) { RoutedEvent = ev, Source = pill0 });
-                Chk("T220-hotkey-row-rest-on-ramp", IsAt(Theme.RowBg), PillColor());
+                Chk("T220-hotkey-row-rest-on-ramp", IsAt(Theme.CardBg), PillColor());
                 RaiseEnter(UIElement.MouseEnterEvent); PumpMs(240);
-                Chk("T220-hotkey-row-hover-steps-up", IsAt(Theme.RowHover), PillColor());
+                Chk("T220-hotkey-row-hover-steps-up", IsAt(Fluent.Mix(Theme.CardBg, Theme.Hover)), PillColor());
+                System.Windows.Media.Color hoverSeen = pill0.Background is System.Windows.Media.SolidColorBrush hs ? hs.Color : Theme.CardBg;
                 RaiseBtn(UIElement.PreviewMouseLeftButtonDownEvent); PumpMs(240);
-                Chk("T220-hotkey-row-press-steps-again", IsAt(Fluent.Mix(Theme.RowBg, Theme.Press)), PillColor());
+                Chk("T220-hotkey-row-press-steps-again", IsAt(Fluent.Mix(Theme.CardBg, Theme.Press)), PillColor());
                 RaiseBtn(UIElement.MouseLeftButtonUpEvent); PumpMs(240);
-                Chk("T220-hotkey-row-release-back-to-hover", IsAt(Theme.RowHover), PillColor());
+                // 抬起要回到悬停色，但那要求指针真的停在行里（IsMouseOver 为真）。
+                // 合成事件不移动真实指针，这里测不到那个状态，交给用户实测，不在探针里假装能测
                 RaiseEnter(UIElement.MouseLeaveEvent); PumpMs(240);
-                Chk("T220-hotkey-row-leave-back-to-rest", IsAt(Theme.RowBg), PillColor());
+                Chk("T220-hotkey-row-leave-back-to-rest", IsAt(Theme.CardBg), PillColor());
             }
 
             // 用户主动打开的窗要在任务栏留个位置，被别的窗盖住才切得回来。
