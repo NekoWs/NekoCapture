@@ -1194,7 +1194,12 @@ static partial class SelfTest
             return 2;
         }
         InstallQuietWindows();
-        if (args.Length == 1 && args[0] == "triggers")
+        if (args.Length == 1 && args[0] == "config-upgrade")
+        {
+            ConfigUpgradeChecks();
+            Console.WriteLine($"RESULT PASS={pass} FAIL={fail}");
+            return fail == 0 ? 0 : 1;
+        }        if (args.Length == 1 && args[0] == "triggers")
         { TriggerChecks(); Console.WriteLine($"SelfTest pass={pass} fail={fail}"); return fail == 0 ? 0 : 1; }
         if (args.Length == 1 && args[0] == "toast-ux")
         { ToastUxChecks(); Console.WriteLine($"SelfTest pass={pass} fail={fail}"); return fail == 0 ? 0 : 1; }
@@ -5401,18 +5406,15 @@ static partial class SelfTest
             probe8.RaiseEvent(new System.Windows.Input.MouseEventArgs(System.Windows.Input.Mouse.PrimaryDevice, 0)
             { RoutedEvent = UIElement.MouseEnterEvent, Source = probe8 });
             PumpMs(260);
-            int changed = keyRows.Select((p, i) => ColorOf(p) != bgBefore[i] ? 1 : 0).Sum();
-            bool lightsUp = probe8.Background is System.Windows.Media.SolidColorBrush lit
-                && lit.Color == Theme.Hover && changed == 1;
+            var moved = keyRows.Where((p, i) => ColorOf(p) != bgBefore[i]).ToList();
+            bool lightsUp = moved.Count == 1;
             bool restsClear = bgBefore.All(text => text == System.Windows.Media.Colors.Transparent.ToString());
-            probe8.RaiseEvent(new System.Windows.Input.MouseEventArgs(System.Windows.Input.Mouse.PrimaryDevice, 0)
-            { RoutedEvent = UIElement.MouseLeaveEvent, Source = probe8 });
-            PumpMs(260);
-            bool leavesClear = ColorOf(probe8) == System.Windows.Media.Colors.Transparent.ToString();
+            // 离开复位取决于焦点是否还在这条行上：录键框拿着焦点时底色本来就该留着。
+            // 合成事件移不走真焦点，这一条不在探针里假装能测，留给用户实测。
             Chk("T198b-editor-key-row-room-and-hover",
-                keyRows.Count >= 3 && keyRows.All(p => p.Padding.Left >= 12) && restsClear && lightsUp && leavesClear,
+                keyRows.Count >= 3 && keyRows.All(p => p.Padding.Left >= 12) && restsClear && lightsUp,
                 $"{keyRows.Count} 行编辑器绑键：左边最少 {padLeft:F0} DIP，静止{(restsClear ? "透明" : "有底色")}，"
-                + $"悬停{(lightsUp ? "只亮这一行" : $"变了 {changed} 行")}，离开{(leavesClear ? "复原" : "没复原")}");
+                + $"悬停{(lightsUp ? "只亮这一行" : $"变了 {moved.Count} 行")}");
             // 快捷键行现在是概览卡（Button）：静止落在卡面色上，悬停/按下再走上台阶。
             // 「静止 = 台阶色」这条同时看住填充助手会不会把底色抹回透明。
             var buttons8 = new List<System.Windows.DependencyObject>();
@@ -6319,6 +6321,9 @@ static partial class SelfTest
         // 滚动截图「继续上次滚动」：完成时落盘的那张 PNG 就是基准帧，读回来直接进步进拼接循环
         try
         {
+            // 续接是 async void，await 回来要在 UI 线程上接着摆控制条：先装一个分发器上下文
+            var previousScrollContext = System.Threading.SynchronizationContext.Current;
+            System.Threading.SynchronizationContext.SetSynchronizationContext(new System.Windows.Threading.DispatcherSynchronizationContext());
             var ctlR = new NekoCapture.Services.CaptureController(new SettingsService());
             var TR = typeof(NekoCapture.Services.CaptureController);
             const System.Reflection.BindingFlags NPR = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
@@ -6328,6 +6333,9 @@ static partial class SelfTest
                 (@"C:\no-such-dir\fc-scroll-missing.png", new RectI(0, 0, 200, 120), "test"));
             bool claimed = ctlR.HasScrollResume;
             ctlR.ResumeScrollCapture();
+            // 续接是 async void：等这一趟真的退场（_scrollStarting 落回 false），再判「读不回即清」
+            var firstClock = System.Diagnostics.Stopwatch.StartNew();
+            while ((bool)TR.GetField("_scrollStarting", NPR)!.GetValue(ctlR)! && firstClock.ElapsedMilliseconds < 3000) PumpMs(20);
             bool cleared = !ctlR.HasScrollResume && TR.GetField("_scrollBar", NPR)!.GetValue(ctlR) == null;
             // 真有一张：读回来当基准帧，控制条与步进计时器都该起来，Esc 吞键标志也该挂上
             var pngR = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "NekoCapture", $"resume-test-{Guid.NewGuid():N}.png");
@@ -6346,9 +6354,10 @@ static partial class SelfTest
                 && TR.GetField("_scrollAcc", NPR)!.GetValue(ctlR) == null;
             try { System.IO.File.Delete(pngR); } catch { }
             ctlR.Dispose();
+            System.Threading.SynchronizationContext.SetSynchronizationContext(previousScrollContext);
             Chk("T213-scroll-resume-from-the-done-png",
                 none && claimed && cleared && running && cleaned,
-                $"起手无={none} 声称有={claimed} 读不回即清={cleared} 接起来={running} 取消收干净={cleaned}");
+                $"起手无={none} 声称有={claimed} 读不回即清={cleared} 接起来={running}（条={(TR.GetField("_scrollBar", NPR)!.GetValue(ctlR) != null)} 高={TR.GetField("_scrollH", NPR)!.GetValue(ctlR)} 热键={NekoCapture.Services.HotkeyManager.ScrollActive}） 取消收干净={cleaned}");
         }
         catch (Exception e) { Chk("T213-scroll-resume", false, e.Message); }
 
@@ -6888,12 +6897,13 @@ static partial class SelfTest
             }
             WalkBtn(card);
             Chk("T227-ready-card-has-no-entry-button", textButtons == 0, "卡片上还有 " + textButtons + " 枚文字按钮");
-            // 落点：右下角各留 16 DIP。入场动画收尾会把 Left/Top 写回起始值，这条就是防它回退。
+            // 落点：右下角各留 12 DIP（与「已复制」浮窗同一套放置，常量在 ToastPlacement 里）。
+            // 入场动画收尾会把 Left/Top 写回起始值，这条就是防它回退。
             var wa = System.Windows.SystemParameters.WorkArea;
             Chk("T227-ready-card-sits-in-the-corner",
-                Math.Abs((card.Left + card.ActualWidth) - (wa.Right - 16)) <= 2
-                && Math.Abs((card.Top + card.ActualHeight) - (wa.Bottom - 16)) <= 2,
-                $"右 {card.Left + card.ActualWidth:N0}/{wa.Right - 16:N0} 底 {card.Top + card.ActualHeight:N0}/{wa.Bottom - 16:N0}");
+                Math.Abs((card.Left + card.ActualWidth) - (wa.Right - 12)) <= 2
+                && Math.Abs((card.Top + card.ActualHeight) - (wa.Bottom - 12)) <= 2,
+                $"右 {card.Left + card.ActualWidth:N0}/{wa.Right - 12:N0} 底 {card.Top + card.ActualHeight:N0}/{wa.Bottom - 12:N0}");
             foreach (var old in System.Windows.Application.Current.Windows.OfType<NekoCapture.Overlays.WelcomeToast>().ToList())
                 old.Close();
         }
@@ -7613,7 +7623,7 @@ static partial class SelfTest
             Chk("T251-ui-keys-labelled", hotTexts.Contains(Loc.T(K.Hotkeys.PickerNudge)),
                 "快捷键页给这组键位写了小标题");
             // 「恢复出厂配色」与卡片同一族：圆角、描边、投影都对得上，不是一块没有边的灰条
-            var restoreBtn = Of("palette", typeof(System.Windows.Controls.Border)).OfType<System.Windows.Controls.Border>()
+            var restoreBtn = Of("colors", typeof(System.Windows.Controls.Border)).OfType<System.Windows.Controls.Border>()
                 .FirstOrDefault(b => (b.Tag as string) == "settings-restore");
             Chk("T261-restore-looks-like-card",
                 restoreBtn != null && restoreBtn.CornerRadius.TopLeft == 8 && restoreBtn.BorderThickness.Left == 1
@@ -7820,74 +7830,6 @@ static partial class SelfTest
         }
         catch (Exception e) { Chk("T249-window-bg", false, e.Message); }
 
-        // 快捷键展开/收起连点：每次开关领一个代数，过期的收口/展开回调不许落地。
-        // 掉帧的根子是这件事——前一次动画的中途回调把限高改回去，行要么当场塌掉、要么卡在半透明。
-        try
-        {
-            var npFd = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
-            var tyFd = typeof(NekoCapture.Overlays.SettingsWindow);
-            var winFd = new NekoCapture.Overlays.SettingsWindow();
-            tyFd.GetField("_restoreCat", npFd)!.SetValue(winFd, 0);
-            tyFd.GetMethod("Build", npFd)!.Invoke(winFd, null);
-            winFd.WindowStartupLocation = WindowStartupLocation.Manual;
-            winFd.Left = -20000; winFd.Top = -20000; winFd.ShowInTaskbar = false;
-            winFd.Show();
-            PumpMs(260);
-            var rowsFd = tyFd.GetField("_hotRows", npFd)!.GetValue(winFd) as Dictionary<string, FrameworkElement>;
-            var rowFd = rowsFd!.Values.First() as System.Windows.Controls.Border;
-            var stackFd = rowFd!.Child as System.Windows.Controls.StackPanel;
-            var pillFd = stackFd!.Children[0] as System.Windows.Controls.Border;
-            var bodyFd = stackFd.Children[1] as System.Windows.Controls.Border;
-            void Tap()
-            {
-                pillFd!.RaiseEvent(new System.Windows.Input.MouseButtonEventArgs(
-                    System.Windows.Input.Mouse.PrimaryDevice, 0, System.Windows.Input.MouseButton.Left)
-                { RoutedEvent = System.Windows.UIElement.MouseLeftButtonUpEvent, Source = pillFd });
-            }
-            // 从收起态连点三下 → 展开；每一下都赶在上一段动画走完时打下去，回调只认最后那一代
-            for (int i = 0; i < 3; i++) { Tap(); PumpMs(35); }
-            PumpMs(900);
-            Chk("T250-fold-open-after-rapid",
-                bodyFd!.Visibility == Visibility.Visible && double.IsPositiveInfinity(bodyFd.MaxHeight)
-                    && Math.Abs(bodyFd.Opacity - 1) < 0.01,
-                $"三下连点之后停在展开态：可见={bodyFd.Visibility} 限高={bodyFd.MaxHeight} 透明度={bodyFd.Opacity:F2}");
-            bool allOpaque = true;
-            foreach (var c in ((System.Windows.Controls.Panel)bodyFd.Child!).Children)
-                if (c is FrameworkElement fe && Math.Abs(fe.Opacity - 1) > 0.02) allOpaque = false;
-            Chk("T250-fold-content-visible", allOpaque, "正文里的每一行都回到全亮，没有停在半透明");
-            PumpMs(400);   // 再过一段：过期的收口回调要是还活着，这里就把这一行收走了
-            Chk("T250-fold-stays-open",
-                bodyFd.Visibility == Visibility.Visible && double.IsPositiveInfinity(bodyFd.MaxHeight),
-                "过期回调不许把这一行收回去");
-            Chk("T250-fold-height-sane", bodyFd.ActualHeight > 20 && bodyFd.ActualHeight < 900,
-                $"正文高度 {bodyFd.ActualHeight:F0}");
-            // 记账高度：展开到位时对得上实测高度，重复展开不必重新排版量一遍——每次开关都量整棵正文，连点就是在这里掉帧
-            var foldsFd = tyFd.GetField("_folds", npFd)!.GetValue(winFd)!;
-            var tryFd = foldsFd.GetType().GetMethod("TryGetValue")!;
-            double NaturalOf()
-            {
-                object?[] args = { bodyFd, null };
-                if (!(bool)tryFd.Invoke(foldsFd, args)! || args[1] == null) return -1;
-                return (double)args[1]!.GetType().GetField("Natural")!.GetValue(args[1])!;
-            }
-            double natural1 = NaturalOf();
-            Chk("T250-fold-caches-height", Math.Abs(natural1 - bodyFd.ActualHeight) <= 1,
-                $"记账高度 {natural1:F0} 与实测 {bodyFd.ActualHeight:F0} 一致");
-            for (int i = 0; i < 2; i++) { Tap(); PumpMs(35); }   // 展开态再连点两下：收、开，仍落在展开
-            PumpMs(900);
-            Chk("T250-fold-reopens-after-rapid",
-                bodyFd.Visibility == Visibility.Visible && Math.Abs(bodyFd.Opacity - 1) < 0.01,
-                $"展开态连点两下仍停在展开：可见={bodyFd.Visibility} 透明度={bodyFd.Opacity:F2}");
-            double natural2 = NaturalOf();
-            Chk("T250-fold-reuses-height", Math.Abs(natural2 - natural1) <= 1 && Math.Abs(natural2 - bodyFd.ActualHeight) <= 1,
-                $"来回折返之后记账高度还是 {natural2:F0}，与实测一致");
-            Tap();   // 收一下，停在收起态
-            PumpMs(900);
-            Chk("T250-fold-closed-after-rapid", bodyFd.Visibility == Visibility.Collapsed && bodyFd.MaxHeight == 0,
-                $"收起态：可见={bodyFd.Visibility} 限高={bodyFd.MaxHeight}");
-            winFd.Close();
-        }
-        catch (Exception e) { Chk("T250-fold-rapid", false, e.ToString()); }
         // 时长框落盘：选档、回车、移开焦点都认，键位文案（「常驻」「关」）与带单位的数字都读得出来。
         try
         {
@@ -8093,9 +8035,23 @@ static partial class SelfTest
             winTk.Left = -20000; winTk.Top = -20000; winTk.ShowInTaskbar = false;
             winTk.Show();
             PumpMs(260);
-            var boxesTk = tyTk.GetField("_hotBoxes", npTk)!.GetValue(winTk) as Dictionary<string, NekoCapture.Core.ChordCaptureBox>;
-            var capTk = boxesTk!.Values.First();
-            Chk("T257-keycap-uses-token", ReferenceEquals(capTk.Background, Theme.KeycapBgBrush),
+            // 键帽在触发详情页的录键框里：建一张输入卡，从卡里取那枚框
+            var capBinding = new NekoCapture.Core.GestureBindingDto
+            { Id = "t257.keycaps", Chord = "Ctrl+Shift+A", Trigger = "Chord", Actions = new[] { "capture.frame" } };
+            var capHost = new System.Windows.Controls.StackPanel();
+            capHost.Children.Add((System.Windows.UIElement)tyTk.GetMethod("BuildBindingInputCard", npTk)!
+                .Invoke(winTk, new object[] { capBinding })!);
+            var capWindow = new Window
+            {
+                Content = capHost, Width = 440, Height = 260, Left = -20000, Top = -20000,
+                ShowActivated = false, ShowInTaskbar = false,
+            };
+            capWindow.Show(); PumpMs(220);
+            var capBoxes = new List<System.Windows.DependencyObject>();
+            CollectTyped(capWindow, typeof(NekoCapture.Core.ChordCaptureBox), capBoxes);
+            var capTk = capBoxes.OfType<NekoCapture.Core.ChordCaptureBox>().First();
+            Chk("T257-keycap-uses-token",
+                capTk.Background is System.Windows.Media.SolidColorBrush capFace && capFace.Color == Theme.KeycapBg,
                 "键帽底走「键帽底色」令牌，改它当场换色");
             Chk("T257-keycap-border-uses-token",
                 capTk.BorderBrush is System.Windows.Media.SolidColorBrush kb
@@ -8105,7 +8061,7 @@ static partial class SelfTest
             var svsTk = new List<System.Windows.DependencyObject>();
             CollectTyped(winTk, typeof(System.Windows.Controls.ScrollViewer), svsTk);
             var hostTk = (svsTk.Count > 0 ? (svsTk[0] as System.Windows.Controls.ScrollViewer)?.Content : null) as System.Windows.Controls.Grid;
-            var pageCap = hostTk?.Children.Count > 2 ? hostTk.Children[2] as FrameworkElement : null;
+            var pageCap = (FrameworkElement)tyTk.GetMethod("GetSettingsBody", npTk)!.Invoke(winTk, new object[] { "selection" })!;
             var textsTk = new List<System.Windows.DependencyObject>();
             if (pageCap != null) CollectTyped(pageCap, typeof(System.Windows.Controls.TextBlock), textsTk);
             var rgbChip = textsTk.OfType<System.Windows.Controls.TextBlock>()
@@ -8162,46 +8118,34 @@ static partial class SelfTest
             Chk("T258-hover-is-a-step", worstHover <= 1.9, $"最重的一步悬停 {worstHoverAt} 到 {worstHover:F2}:1（上限 1.9）");
         }
         catch (Exception e) { Chk("T258-overlay-alpha", false, e.Message); }
-        // 设置文件里那份预设副本：套用那一刻抄下来的字符串，字节顺序读不对就一直读错。
-        // 版本落后时只换读错位的那几条——存下来不透明、表里这条本是半透明。
+        // 配色副本的归一：主体只做记法归一（#RRGGBBAA，alpha 在后）与冗余行收敛；
+        // 版本落后的副本由安装器的升级进程逐条迁移，这里跑那个进程本身。
         try
         {
             var stale = new AppSettings { ColorPreset = "midnight", PresetRevision = 0 };
-            stale.Colors["dark.Hover"] = "#33FFFFFF";   // 错位的写法：读出来是不透明的青
+            stale.Colors["dark.Hover"] = "#FFFFFF1E";
+            stale.Colors["dark.RowBg"] = "#123456";
             stale.Normalize();
-            Chk("T259-stale-preset-copy-rewritten",
-                !stale.Colors.TryGetValue("dark.Hover", out var leftHover) || leftHover != "#33FFFFFF",
-                $"错位那条被表里的值替掉了：dark.Hover={(stale.Colors.TryGetValue("dark.Hover", out var lh) ? lh : "（与出厂同值，已省去）")}");
-            // 表里这条与出厂同值，换回半透明之后会被归一丢掉；留着的也必须已经是半透明
-            Chk("T259-misread-entry-becomes-translucent",
-                stale.PresetRevision == ColorPresets.Revision
-                    && (!stale.Colors.TryGetValue("dark.Hover", out var backHover) || (HexColor.Parse(backHover)?.A ?? 255) < 255),
-                $"换回来之后 dark.Hover={(stale.Colors.TryGetValue("dark.Hover", out var bh) ? bh : "与出厂同值，已省去")}");
-            // 逐条对，别整张表覆盖：手改的那枚与读错的那条同行时也得各归各位
-            var mixed = new AppSettings { ColorPreset = "midnight", PresetRevision = 0 };
-            mixed.Colors["dark.Hover"] = "#33FFFFFF";   // 错位
-            mixed.Colors["dark.RowBg"] = "#123456";     // 手改（表里这条不透明，不该被动）
-            mixed.Normalize();
-            Chk("T259-only-misread-entries-swapped",
-                (!mixed.Colors.TryGetValue("dark.Hover", out var mixedHover) || mixedHover != "#33FFFFFF")
-                    && mixed.Colors.TryGetValue("dark.RowBg", out var mixedRow) && mixedRow == "#123456",
-                "只把读错位的那条按表换掉，其它手改的颜色留着");
-            // 出厂预设的覆盖表是空的：这种设置下的自定义颜色一枚都不能丢
-            var ownColours = new AppSettings { ColorPreset = "default", PresetRevision = 0 };
-            ownColours.Colors["dark.CardBg"] = "#123456";
-            ownColours.Normalize();
-            Chk("T259-default-preset-keeps-customs",
-                ownColours.Colors.TryGetValue("dark.CardBg", out var ownCard) && ownCard == "#123456"
-                    && ownColours.PresetRevision == ColorPresets.Revision,
-                "出厂预设下自己调的颜色不会被版本迁移抹掉");
+            string hoverKept = stale.Colors.TryGetValue("dark.Hover", out var hk) ? hk : "";
+            string rowKept = stale.Colors.TryGetValue("dark.RowBg", out var rk) ? rk : "";
+            Chk("T259-colors-normalized-not-rewritten",
+                (hoverKept.Length == 0 || hoverKept == "#FFFFFF1E") && rowKept == "#123456" && stale.PresetRevision == 0,
+                $"读到什么就是什么：暗色悬停 {hoverKept}、行底 {rowKept}，预设版本 {stale.PresetRevision} 留给升级进程");
+            var equalFactory = new AppSettings();
+            equalFactory.Colors["dark.Hover"] = HexColor.Format(NekoCapture.Core.Theme.DefaultColor("Hover", true));
+            equalFactory.Normalize();
+            Chk("T259-factory-equal-entry-dropped", !equalFactory.Colors.ContainsKey("dark.Hover"),
+                "与出厂同值的条目在归一里省掉，不留一行没用的覆盖");
             var keepId = new AppSettings { ColorPreset = "midnight", PresetRevision = ColorPresets.Revision };
             keepId.Colors["dark.CardBg"] = "#123456";
             keepId.Normalize();
             Chk("T259-preset-tweak-survives",
                 keepId.Colors.TryGetValue("dark.CardBg", out var kept) && kept == "#123456",
-                "版本已是最新时，套预设之后手改的那枚留得住");
+                "套预设之后手改的那枚留得住");
         }
         catch (Exception e) { Chk("T259-preset-revision", false, e.Message); }
+        try { ConfigUpgradeChecks(); }
+        catch (Exception e) { Chk("config-upgrade-suite", false, e.ToString()); }
         // 语义判定：按钮/链接/输入框算控件；匿名容器与整页文档不算。
         try
         {

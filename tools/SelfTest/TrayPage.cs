@@ -209,8 +209,10 @@ static partial class SelfTest
             }
 
             type.GetMethod("NavigateSettings", flags)!.Invoke(window, new object?[] { "tray", true, true });
-            PumpMs(520);
             var trayHost = (FrameworkElement?)type.GetField("_settingsTabHost", flags)!.GetValue(window);
+            // 收起是走动画的：等它真的落到 0 再判，别用固定睡眠抢在尾巴上
+            for (int i = 0; i < 120 && (trayHost?.Visibility != Visibility.Collapsed || Math.Abs(trayHost?.Height ?? 0) > 0.5); i++)
+                PumpMs(20);
             var trayTabs = (Panel?)type.GetField("_settingsTabs", flags)!.GetValue(window);
             Chk("T274-tabs-single-group",
                 trayHost != null && trayHost.Visibility == Visibility.Collapsed && Math.Abs(trayHost.Height) < 0.01
