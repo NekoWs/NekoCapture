@@ -12,6 +12,9 @@ public sealed partial class SettingsWindow
     int _pageMotionGeneration;
     readonly List<(FrameworkElement Element, Transform? Prior)> _pageMotionModules = new();
 
+    /// <summary>自带入场节奏的容器标记：这类块不参与页级逐项入场，改由它内部的条目各自排时序。</summary>
+    const string SettingsEntranceManualTag = "settings-entrance-manual";
+
     void ResetPageModules()
     {
         foreach (var (element, prior) in _pageMotionModules)
@@ -38,6 +41,7 @@ public sealed partial class SettingsWindow
         void Add(FrameworkElement element)
         {
             if (element.Visibility != Visibility.Visible) return;
+            if (element.Tag as string == SettingsEntranceManualTag) return;
             if (element is StackPanel stack)
             {
                 foreach (var child in stack.Children.OfType<FrameworkElement>()) Add(child);

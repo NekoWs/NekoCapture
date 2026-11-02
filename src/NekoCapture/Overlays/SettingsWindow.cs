@@ -68,7 +68,7 @@ public sealed partial class SettingsWindow : Window
         // 已经开着一扇窗：只把它激活，并按这次请求切到那一页（提权交接回来说的就是「系统」）
         if (existing != null) { existing.Activate(); existing.GotoPage(page); return; }
         var w = new SettingsWindow();
-        // 页名（system / tray / 别名）原样交给解析；纯数字下标仍按旧的分页序号走
+        // 页名（system / tray / 别名）原样交给解析；纯数字下标按分页序号走
         if (!string.IsNullOrWhiteSpace(page) && !int.TryParse(page, out _)) w._restoreSettingsPage = page;
         else w._restoreCat = ParsePage(page);
         w.Build();
@@ -83,6 +83,11 @@ public sealed partial class SettingsWindow : Window
         if (!string.IsNullOrWhiteSpace(page) && IsLoaded) NavigateSettings(ResolveSettingsPage(page), true, canonical: true);
     }
 
+    /// <summary>外部脚本用的页名表：<c>NC_SETTINGS_PAGE</c> 与 <see cref="ShowOrFocus"/> 可以给页名，
+    /// 也可以给这张表里的下标。</summary>
+    static readonly string[] LegacyPageNames =
+        { "hotkeys", "tray", "behaviors", "capture", "record", "output", "editor", "pin", "appearance", "palette", "system", "about" };
+
     /// <summary>页名或下标 → 分页序号；认不出返回 -1。</summary>
     /// <param name="page">形如 <c>system</c> 或 <c>8</c> 的串。</param>
     /// <returns>分页序号，认不出为 -1。</returns>
@@ -90,10 +95,9 @@ public sealed partial class SettingsWindow : Window
     {
         if (string.IsNullOrWhiteSpace(page)) return -1;
         var raw = page.Trim().ToLowerInvariant();
-        string[] names = { "hotkeys", "tray", "behaviors", "capture", "record", "output", "editor", "pin", "appearance", "palette", "system", "about" };
-        int at = Array.IndexOf(names, raw);
+        int at = Array.IndexOf(LegacyPageNames, raw);
         if (at >= 0) return at;
-        return int.TryParse(raw, out var n) && n >= 0 && n < names.Length ? n : -1;
+        return int.TryParse(raw, out var n) && n >= 0 && n < LegacyPageNames.Length ? n : -1;
     }
 
     static SettingsWindow? Find()
@@ -118,19 +122,6 @@ public sealed partial class SettingsWindow : Window
         Core.Fluent.ExcludeFromCapture(h);
     }
 
-    /// <summary>审查脚本用 <c>NC_SETTINGS_PAGE</c> 把窗口直接开到某一页截图（页名或下标）。
-    /// 只认这一个环境变量：不给就回第一页，改主题/强调色重建时仍按 <c>_restoreCat</c> 停在原页。</summary>
-    /// <returns>分页下标；没设或认不出返回 -1，由调用方兜到第一页。</returns>
-    static int StartupPage()
-    {
-        var raw = Environment.GetEnvironmentVariable("NC_SETTINGS_PAGE");
-        if (string.IsNullOrWhiteSpace(raw)) return -1;
-        raw = raw.Trim().ToLowerInvariant();
-        string[] names = { "hotkeys", "tray", "behaviors", "capture", "record", "output", "editor", "pin", "appearance", "palette", "system", "about" };
-        int at = Array.IndexOf(names, raw);
-        return at >= 0 ? at : int.TryParse(raw, out var n) ? n : -1;
-    }
-
     void Build()
     {
         InitializeSettingsCatalog();
@@ -140,9 +131,9 @@ public sealed partial class SettingsWindow : Window
         Deactivated += (_, _) => ClosePalettePickers();
         Theme.Changed += _repaintHandler;
         Closed += (_, _) => { if (_repaintHandler != null) Theme.Changed -= _repaintHandler; };
-        _gotoCat = (index, animate) => NavigateSettings(LegacySettingsPage(index), animate, canonical: true);
+        _gotoCat = (index, animate) => NavigateSettings(LandingForCategory(index), animate, canonical: true);
         string initial = _restoreSettingsPage ?? Environment.GetEnvironmentVariable("NC_SETTINGS_PAGE")
-            ?? LegacySettingsPage(_restoreCat >= 0 ? _restoreCat : StartupPage());
+            ?? LandingForCategory(_restoreCat);
         NavigateSettings(initial, false);
         Theme.Changed += OnPaletteChanged;
         Theme.Changing += OnPaletteChanging;

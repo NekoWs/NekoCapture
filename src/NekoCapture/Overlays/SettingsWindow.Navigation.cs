@@ -49,10 +49,15 @@ public sealed partial class SettingsWindow
         if (id == "behaviors") { incoming.Children.Clear(); BuildSharedBehaviorList(incoming); }
         if (id == "tray") { incoming.Children.Clear(); BuildTrayPage(incoming); }
         PaintSettingsNavigation();
-        RenderSettingsTabs();
         var bodies = _settingsBodies.Values.ToArray();
         SwitchSettingsPage(bodies, Array.IndexOf(bodies, incoming), animate, _settingsScroller, _settingsHeader, page.Label,
-            _settingsScroll.GetValueOrDefault(id), () => RenderSettingsBreadcrumbs(animate));
+            _settingsScroll.GetValueOrDefault(id), () =>
+            {
+                RenderSettingsBreadcrumbs(animate);
+                UpdateSettingsTabs(animate);
+                // 托盘菜单行自己排入场：卡片随页淡入，行再一枚接一枚弹出
+                if (id == "tray") PlayTrayMenuEntrance(animate);
+            });
     }
 
     private void RenderSettingsBreadcrumbs(bool animate = false)

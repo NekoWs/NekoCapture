@@ -7,13 +7,14 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
+using System.Windows.Media;
 using NekoCapture.Core;
 using NekoCapture.Overlays;
 using NekoCapture.Services;
 
 static partial class SelfTest
 {
-    /// <summary>托盘页：行数、拖动改序、图标小窗与分页条的高度过渡。</summary>
+    /// <summary>托盘页：行数、拖动改序、图标小窗、逐行入场与分页条的出现/收起。</summary>
     private static void TrayPageChecks()
     {
         var flags = BindingFlags.NonPublic | BindingFlags.Instance;
@@ -36,10 +37,32 @@ static partial class SelfTest
             Chk("T274-tray-rows", list != null && list.Children.Count >= 3, $"菜单行 {list?.Children.Count ?? 0} 条");
             if (list == null) return;
 
+            var first = list.Children.OfType<FrameworkElement>().First();
+            double step = first.ActualHeight + 4;
+            int count = list.Children.Count;
+
+            // 落点几何：一格一步，越界夹在两端——落点算错就是「拖不动」的来源
+            var dropIndex = type.GetMethod("TrayDropIndex", flags)!;
+            int Slot(double y) => (int)dropIndex.Invoke(window, new object?[] { y, first })!;
+            bool slots = Slot(step * 0.4) == 0 && Slot(step * 1.6) == 1 && Slot(-40) == 0 && Slot(step * 99) == count - 1;
+            Chk("T274-tray-drop-slots", slots,
+                $"落点：0.4 格→{Slot(step * 0.4)}，1.6 格→{Slot(step * 1.6)}，越界→{Slot(-40)}/{Slot(step * 99)}");
+
+            // 让位：落点换格时其余行先按一格滑开，被拖的那一行留在原处
+            type.GetField("_trayDragRow", flags)!.SetValue(window, first);
+            type.GetField("_trayDragTarget", flags)!.SetValue(window, count - 1);
+            type.GetMethod("ShiftTrayRows", flags)!.Invoke(window, null);
+            PumpMs(240);
+            var shifted = RowsOf(list).Skip(1).Select(ShiftOf).ToList();
+            bool letWay = shifted.Count > 0 && shifted.All(y => Math.Abs(y + step) < 1.5) && Math.Abs(ShiftOf(first)) < 0.5;
+            Chk("T274-tray-let-way", letWay,
+                $"让位位移：{string.Join(",", shifted.Select(y => y.ToString("F1")))}（一格 {step:F1}，被拖行 {ShiftOf(first):F1}）");
+            type.GetField("_trayDragRow", flags)!.SetValue(window, null);
+            type.GetField("_trayDragTarget", flags)!.SetValue(window, -1);
+
             var before = service.Current.Gestures.Bindings
                 .Where(b => b.Source == TriggerSources.TrayMenu).Select(b => b.Id).ToList();
             // 视觉顺序换过之后松手，落盘顺序要跟着换：把第一行挪到末尾再走一次收尾
-            var first = list.Children.OfType<FrameworkElement>().First();
             type.GetField("_trayDragging", flags)!.SetValue(window, true);
             type.GetField("_trayDragRow", flags)!.SetValue(window, first);
             type.GetField("_trayDragTarget", flags)!.SetValue(window, list.Children.Count - 1);
@@ -54,6 +77,13 @@ static partial class SelfTest
                 before.Count == after.Count && after.Count > 1 && after[^1] == before[0] && after[0] == before[1],
                 $"拖动后的顺序：{string.Join(",", after)}");
 
+            // 落位动画走完后子元素才真正换序，换的是同一批控件，不重建
+            PumpMs(320);
+            var settled = list.Children.OfType<FrameworkElement>().Select(row => row.Tag as string).ToList();
+            Chk("T274-tray-drag-reorders", settled.Count == after.Count
+                && (settled[^1] ?? "").EndsWith(after[^1], StringComparison.Ordinal),
+                $"落位后的视觉顺序：{string.Join(",", settled)}");
+
             // 图标小窗：点开要在位，格数是目录条目加一个「跟随行为」
             var rows = list.Children.OfType<FrameworkElement>().ToList();
             var binding = service.Current.Gestures.Bindings.First(b => b.Source == TriggerSources.TrayMenu);
@@ -66,25 +96,58 @@ static partial class SelfTest
                 popup is { IsOpen: true } && cells.Count == TrayMenuIcons.All.Count + 1,
                 $"小窗 {(popup?.IsOpen == true ? "开着" : "没开")}，格子 {cells.Count} 个");
             type.GetMethod("CloseTrayIconPopup", flags)!.Invoke(window, null);
-            // 分页条：常显且定高，切分组时下面的内容不位移
+
+            // 逐项入场：行各自从 0.86 倍弹回原大，错开起跳；整列同时出现会是 1.0
+            type.GetMethod("PlayTrayMenuEntrance", flags)!.Invoke(window, new object?[] { true });
+            PumpMs(30);
+            var entering = RowsOf(list).Select(ScaleOf).ToList();
+            Chk("T274-tray-row-entrance",
+                entering.Count > 0 && entering.All(scale => scale < 0.99),
+                $"入场起跳时的缩放：{string.Join(",", entering.Select(scale => scale.ToString("F2")))}");
+            PumpMs(760);
+            var landed = RowsOf(list).Select(ScaleOf).ToList();
+            Chk("T274-tray-row-entrance-lands",
+                landed.Count > 0 && landed.All(scale => Math.Abs(scale - 1) < 0.02),
+                $"入场落定后的缩放：{string.Join(",", landed.Select(scale => scale.ToString("F2")))}");
+
+            // 分页条：多页分组展开到定高，单页分组整条收起；高度是走出来的，不是一步跳到位
             type.GetMethod("NavigateSettings", flags)!.Invoke(window, new object?[] { "selection", true, true });
-            PumpMs(120);
             var host = (FrameworkElement?)type.GetField("_settingsTabHost", flags)!.GetValue(window);
-            var scroller = (System.Windows.Controls.ScrollViewer?)type.GetField("_settingsScroller", flags)!.GetValue(window);
-            double contentTop = scroller!.TransformToAncestor(window).Transform(new Point(0, 0)).Y;
-            Chk("T274-tabs-fixed-height",
-                host != null && host.Visibility == Visibility.Visible && Math.Abs(host.Height - 34) < 0.01,
-                $"分页条常显且定高：{host?.Visibility} / {host?.Height}px");
-            type.GetMethod("NavigateSettings", flags)!.Invoke(window, new object?[] { "tray", true, true });
-            PumpMs(200);
-            double trayTop = scroller.TransformToAncestor(window).Transform(new Point(0, 0)).Y;
-            Chk("T274-tabs-no-content-shift",
+            bool grew = false;
+            for (int i = 0; i < 60 && !grew; i++)
+            {
+                PumpMs(10);
+                double at = host?.Height ?? 0;
+                grew = at > 0.5 && at < 33.5;
+            }
+            Chk("T274-tabs-height-animated", grew, $"分页条高度过渡中量到中间值：{(grew ? "有" : "没有")}");
+            PumpMs(360);
+            var tabsPanel = (Panel?)type.GetField("_settingsTabs", flags)!.GetValue(window);
+            Chk("T274-tabs-multi-group",
                 host != null && host.Visibility == Visibility.Visible && Math.Abs(host.Height - 34) < 0.01
-                    && Math.Abs(trayTop - contentTop) <= 1.5,
-                $"切到单页分组后分页条 {host?.Height}px，内容起点差 {Math.Abs(trayTop - contentTop):F1}px");
-            var tabsPanel = (System.Windows.Controls.Panel?)type.GetField("_settingsTabs", flags)!.GetValue(window);
-            Chk("T274-tabs-single-group", tabsPanel != null && tabsPanel.Children.Count == 1,
-                $"单页分组上仍有一枚当前页胶囊：{tabsPanel?.Children.Count ?? -1} 枚");
+                    && tabsPanel != null && tabsPanel.Children.Count > 1,
+                $"多页分组的分页条：{host?.Visibility} / {host?.Height}px / {tabsPanel?.Children.Count ?? -1} 枚");
+            var chips = tabsPanel?.Children.OfType<Border>()
+                .Where(tab => (tab.Tag as string) == "settings-tab").ToList() ?? new List<Border>();
+            var selected = chips.Where(tab => tab.Background is SolidColorBrush { Color.A: > 0 }).ToList();
+            bool tinted = selected.Count == 1 && selected[0].Background is SolidColorBrush { HasAnimatedProperties: true };
+            Chk("T274-tabs-selection-animated", tinted, $"选中胶囊 {selected.Count} 枚，底色{(tinted ? "带动画" : "没动画")}");
+
+            // 同一分组内换页：只渐变选中态，条目数不变
+            type.GetMethod("NavigateSettings", flags)!.Invoke(window, new object?[] { "files", true, true });
+            PumpMs(420);
+            var sameGroup = (Panel?)type.GetField("_settingsTabs", flags)!.GetValue(window);
+            Chk("T274-tabs-same-group", sameGroup != null && sameGroup.Children.Count == chips.Count,
+                $"同组换页后仍是 {sameGroup?.Children.Count ?? -1} 枚");
+
+            type.GetMethod("NavigateSettings", flags)!.Invoke(window, new object?[] { "tray", true, true });
+            PumpMs(520);
+            var trayHost = (FrameworkElement?)type.GetField("_settingsTabHost", flags)!.GetValue(window);
+            var trayTabs = (Panel?)type.GetField("_settingsTabs", flags)!.GetValue(window);
+            Chk("T274-tabs-single-group",
+                trayHost != null && trayHost.Visibility == Visibility.Collapsed && Math.Abs(trayHost.Height) < 0.01
+                    && trayTabs != null && trayTabs.Children.Count == 0,
+                $"单页分组整条收起：{trayHost?.Visibility} / {trayHost?.Height}px / {trayTabs?.Children.Count ?? -1} 枚");
         }
         catch (Exception e) { Chk("T274-tray-page", false, e.Message); }
         finally
@@ -93,4 +156,25 @@ static partial class SelfTest
             settingsProperty.SetValue(AppHost.Current, prior);
         }
     }
+
+    /// <summary>行容器里的子行。</summary>
+    /// <param name="list">承载行的面板。</param>
+    /// <returns>按视觉顺序排列的行。</returns>
+    private static List<FrameworkElement> RowsOf(Panel list) => list.Children.OfType<FrameworkElement>().ToList();
+
+    /// <summary>读一行当前的缩放倍率；没有缩放变换时按 1 算。</summary>
+    /// <param name="row">目标行。</param>
+    /// <returns>横向缩放倍率。</returns>
+    private static double ScaleOf(FrameworkElement row) => row.RenderTransform is TransformGroup group
+        && group.Children.OfType<ScaleTransform>().FirstOrDefault() is { } scale
+        ? scale.ScaleX
+        : 1;
+
+    /// <summary>读一行当前的纵向位移；没有位移变换时按 0 算。</summary>
+    /// <param name="row">目标行。</param>
+    /// <returns>相对排版位置的纵向位移。</returns>
+    private static double ShiftOf(FrameworkElement row) => row.RenderTransform is TransformGroup group
+        && group.Children.OfType<TranslateTransform>().FirstOrDefault() is { } shift
+        ? shift.Y
+        : 0;
 }

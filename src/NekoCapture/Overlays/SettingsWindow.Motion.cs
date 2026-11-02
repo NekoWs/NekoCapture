@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -9,7 +10,7 @@ using NekoCapture.Core;
 namespace NekoCapture.Overlays;
 
 // 本 partial 职责：设置窗里「展开 / 收起」这一类高度动画——容器长出高度，内容逐行滑入；
-// 以及成排条目那种「静止透明、悬停才浮底色」的填充。
+// 成排条目那种「静止透明、悬停才浮底色」的填充；以及列表小卡片的弹性入场。
 /// <summary>
 /// 设置窗的高度动画：容器从 0 长到实测高度，里面的行按固定间隔自上而下逐个滑入，收起时反向收回。
 /// 时长与错位间隔全部取 <see cref="Fluent.Motion"/> 令牌。
@@ -18,6 +19,71 @@ namespace NekoCapture.Overlays;
 /// </summary>
 public sealed partial class SettingsWindow : Window
 {
+    /// <summary>取元素自己的位移与缩放子变换，没有就现装一组。缩放必须排在位移前面：
+    /// 变换组按子项顺序逐个作用在点上，位移排在前面会被后面的缩放一起放大，
+    /// 元素离原点越远偏得越多，拖起来就追不上光标。</summary>
+    /// <param name="el">目标元素；没有成对的变换时按自身中心缩放。</param>
+    /// <returns>位移与缩放两个子变换。</returns>
+    static (TranslateTransform Shift, ScaleTransform Scale) RowTransforms(UIElement el)
+    {
+        if (el.RenderTransform is TransformGroup group
+            && group.Children.OfType<TranslateTransform>().FirstOrDefault() is { } shift
+            && group.Children.OfType<ScaleTransform>().FirstOrDefault() is { } scale)
+            return (shift, scale);
+        shift = new TranslateTransform();
+        scale = new ScaleTransform(1, 1);
+        el.RenderTransformOrigin = new Point(0.5, 0.5);
+        el.RenderTransform = new TransformGroup { Children = { scale, shift } };
+        return (shift, scale);
+    }
+
+    /// <summary>列表小卡片的入场：从 <paramref name="from"/> 倍弹到原大，同时淡入。
+    /// 动作芯片、托盘行与菜单项共用这一条曲线，改一处就是改全部。</summary>
+    /// <param name="el">要入场的元素。</param>
+    /// <param name="begin">起跳时间，同批元素据此逐项错开。</param>
+    /// <param name="from">起始缩放倍率。</param>
+    static void PopIn(FrameworkElement el, TimeSpan begin, double from = 0.86)
+    {
+        var (_, scale) = RowTransforms(el);
+        scale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+        scale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+        scale.ScaleX = from;
+        scale.ScaleY = from;
+        el.BeginAnimation(UIElement.OpacityProperty, null);
+        el.Opacity = 0;
+        var spring = new DoubleAnimation(from, 1, new Duration(TimeSpan.FromMilliseconds(Fluent.Motion.SpringMs)))
+        {
+            BeginTime = begin,
+            EasingFunction = Fluent.Spring(0.45),
+        };
+        scale.BeginAnimation(ScaleTransform.ScaleXProperty, spring);
+        scale.BeginAnimation(ScaleTransform.ScaleYProperty, spring);
+        el.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(0, 1,
+            new Duration(TimeSpan.FromMilliseconds(Fluent.Motion.QuickMs))) { BeginTime = begin });
+    }
+
+    /// <summary>缩放动画：抬起与放回共用一条节拍，过冲小一点，卡片不弹过头。</summary>
+    /// <param name="to">目标倍率。</param>
+    /// <returns>已配好时长的缩放动画。</returns>
+    static DoubleAnimation ScaleTo(double to) => new(to, new Duration(TimeSpan.FromMilliseconds(Fluent.Motion.QuickMs)))
+    { EasingFunction = new BackEase { Amplitude = 0.4, EasingMode = EasingMode.EaseOut } };
+
+    /// <summary>把入场留下的透明度与缩放清零：不走动画的重建路径用，否则元素会停在弹到一半的样子。</summary>
+    /// <param name="el">要复位的元素。</param>
+    static void PopReset(FrameworkElement el)
+    {
+        el.BeginAnimation(UIElement.OpacityProperty, null);
+        el.Opacity = 1;
+        if (el.RenderTransform is not TransformGroup group) return;
+        foreach (var scale in group.Children.OfType<ScaleTransform>())
+        {
+            scale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+            scale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+            scale.ScaleX = 1;
+            scale.ScaleY = 1;
+        }
+    }
+
     /// <summary>悬停时浮出底色的填充：<paramref name="rest"/> 是静止底色，<paramref name="hover"/> 是
     /// 指针进来时的底色，指针离开回到静止底色。默认静止全透明——给没有底色的元素用；
     /// 已经在层次台阶上的行传进 <c>() => Theme.RowBg</c> 与 <c>() => Theme.RowHover</c>，

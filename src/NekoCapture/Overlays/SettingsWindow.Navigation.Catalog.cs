@@ -22,10 +22,6 @@ public sealed partial class SettingsWindow
     private string _currentSettingsPage = "";
     private string? _restoreSettingsPage;
 
-    /// <summary>左侧导航的七个根：图标区只放这一层，子页走页内分页条。</summary>
-    private static readonly string[] SettingsRoots =
-        { "hotkeys", "tray", "capture", "record", "appearance", "system", "about" };
-
     /// <summary>根 → 点进来落在哪一页；子页不单独出现在导航里。</summary>
     private static readonly Dictionary<string, string> SettingsLanding = new()
     {
@@ -39,20 +35,25 @@ public sealed partial class SettingsWindow
     /// <summary>页标识的别名：搜索、外部跳转与脚本参数都还能落在对的地方。</summary>
     private static readonly Dictionary<string, string> SettingsAliases = new()
     {
-        ["system"] = "startup", ["codecs"] = "record-export",
+        ["system"] = "startup", ["codecs"] = "record-export", ["output"] = "files", ["editor"] = "editing",
     };
 
-    private static string LegacySettingsPage(int index) => index switch
-    {
-        1 => "behaviors", 2 => "capture", 3 => "record", 4 => "files", 5 => "editing",
-        6 => "pin", 7 => "appearance", 8 => "palette", 9 => "system", 10 => "about", _ => "hotkeys",
-    };
+    /// <summary>分类序号 → 这一类的落地页：改主题重建、外部下标与页名兜底都按它停页。
+    /// 表就是页目录本身，新增一类页不必再维护第二份映射。</summary>
+    /// <param name="category">分页的分类序号。</param>
+    /// <returns>页标识；这一类还没登记页时回第一页。</returns>
+    private string LandingForCategory(int category)
+        => _settingsPages.Values.FirstOrDefault(page => page.Category == category)?.Id ?? "hotkeys";
 
+    /// <summary>把外部给的页名或下标换成本窗当前的页标识：先认页名，再认别名与左侧根，最后按类别兜底。</summary>
+    /// <param name="page">页标识、别名、左侧根名、脚本沿用的页名或分页序号。</param>
+    /// <returns>现用的页标识。</returns>
     private string ResolveSettingsPage(string? page)
     {
         if (page != null && _settingsPages.ContainsKey(page)) return page;
         if (page != null && SettingsAliases.TryGetValue(page, out var alias)) return alias;
-        return LegacySettingsPage(ParsePage(page));
+        if (page != null && SettingsLanding.TryGetValue(page, out var landing)) return landing;
+        return LandingForCategory(ParsePage(page));
     }
 
     private void InitializeSettingsCatalog()

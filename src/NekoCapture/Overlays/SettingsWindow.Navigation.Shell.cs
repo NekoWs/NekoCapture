@@ -6,7 +6,7 @@ using NekoCapture.Core;
 
 namespace NekoCapture.Overlays;
 
-/// <summary>六个功能入口、底部搜索与页内路径。</summary>
+/// <summary>七个功能入口、底部搜索与页内路径。</summary>
 public sealed partial class SettingsWindow
 {
     private readonly Dictionary<string, Border> _settingsNav = new();
@@ -21,8 +21,6 @@ public sealed partial class SettingsWindow
     private WrapPanel _settingsCrumbs = null!;
     private Border _settingsCrumbHost = null!;
     private TextBox _settingsSearchBox = null!;
-    private WrapPanel _settingsTabs = null!;
-    private Border _settingsTabHost = null!;
 
     /// <summary>左侧导航的七个根：名称与图标固定，点进去落到 <see cref="SettingsLanding"/> 那一页。</summary>
     private static readonly (string Id, Str Title, string Glyph)[] SettingsNavRoots =
@@ -75,7 +73,10 @@ public sealed partial class SettingsWindow
         DockPanel.SetDock(_settingsCrumbHost, Dock.Top); right.Children.Add(_settingsCrumbHost);
         _settingsHeader = new TextBlock { FontSize = 17, FontWeight = FontWeights.SemiBold, Foreground = Theme.TextBrush,
             Margin = new Thickness(22, 16, 22, 4), TextWrapping = TextWrapping.Wrap };
+        // 标题与右侧「新建行为」各占一列：标题只在自己的列里换行，长标题不会伸到按钮底下
         var heading = new Grid { MinHeight = 44 };
+        heading.ColumnDefinitions.Add(new ColumnDefinition());
+        heading.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         heading.Children.Add(_settingsHeader);
         _settingsAddBehavior = AboutButton(K.Behaviors.Add);
         _settingsAddBehavior.HorizontalAlignment = HorizontalAlignment.Right;
@@ -83,13 +84,14 @@ public sealed partial class SettingsWindow
         _settingsAddBehavior.Margin = new Thickness(12, 10, 22, 0);
         _settingsAddBehavior.Visibility = Visibility.Collapsed;
         _settingsAddBehavior.Click += (_, _) => AddSettingsBehavior();
+        Grid.SetColumn(_settingsAddBehavior, 1);
         heading.Children.Add(_settingsAddBehavior);
         DockPanel.SetDock(heading, Dock.Top); right.Children.Add(heading);
-        // 页内分页条：同一根下的兄弟页在这里横向切换，导航不再往深里走一层
-        _settingsTabs = new WrapPanel { Margin = new Thickness(0, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
-        // 固定高度、常显：分页条出现与消失都不再推动内容，切页只剩页面自己的入场
+        // 页内分页条：同一根下的兄弟页在这里横向切换，导航只停在这一层
+        _settingsTabs = new WrapPanel { VerticalAlignment = VerticalAlignment.Center };
+        // 高度由 UpdateSettingsTabs 驱动：有兄弟页才长到定高，单页分组整条收起
         _settingsTabHost = new Border { Child = _settingsTabs, Margin = new Thickness(20, 0, 20, 4),
-            Height = TabStripHeight, ClipToBounds = true };
+            Height = 0, Visibility = Visibility.Collapsed, ClipToBounds = true };
         DockPanel.SetDock(_settingsTabHost, Dock.Top); right.Children.Add(_settingsTabHost);
 
         _settingsHost = new Grid();
@@ -99,6 +101,7 @@ public sealed partial class SettingsWindow
         Fluent.OverlayScroll(_settingsScroller); right.Children.Add(_settingsScroller);
         Grid.SetColumn(right, 2); layout.Children.Add(right); dock.Children.Add(layout);
         _repaint.Add(() => PaintSettingsNavigation(false));
+        _repaint.Add(() => UpdateSettingsTabs(false));
         return new Border { Background = Theme.WindowBgSolidBrush, BorderBrush = Theme.StrokeBrush, BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(8), Child = dock };
     }
@@ -194,46 +197,5 @@ public sealed partial class SettingsWindow
         if (_selBar.IsLoaded) _selBar.BeginAnimation(Canvas.TopProperty,
             new System.Windows.Media.Animation.DoubleAnimation(top, TimeSpan.FromMilliseconds(Fluent.Motion.StateMs)));
         else Canvas.SetTop(_selBar, top);
-    }
-    /// <summary>页内分页条的固定高度：单行胶囊加下边距。</summary>
-    private const double TabStripHeight = 34;
-
-    /// <summary>页内分页条：同一根下的兄弟页横向切换；单页分组只显示当前页那一枚，高度不变。</summary>
-    private void RenderSettingsTabs()
-    {
-        if (_settingsTabs == null || _settingsTabHost == null) return;
-        _settingsTabs.Children.Clear();
-        string root = _settingsPages.TryGetValue(_currentSettingsPage, out var page) ? page.Root : "hotkeys";
-        var ids = _settingsTabsOf.TryGetValue(root, out var list) ? list : new List<string> { _currentSettingsPage };
-        if (ids.Count == 0) ids = new List<string> { _currentSettingsPage };
-        foreach (string id in ids)
-        {
-            if (!_settingsPages.TryGetValue(id, out var item)) continue;
-            bool selected = id == _currentSettingsPage;
-            var label = new TextBlock { Text = item.Label, FontSize = 12.5, VerticalAlignment = VerticalAlignment.Center };
-            var tab = new Border
-            {
-                Child = label, CornerRadius = new CornerRadius(6), Padding = new Thickness(11, 5, 11, 5),
-                Margin = new Thickness(0, 0, 4, 0), Tag = "settings-tab", Focusable = ids.Count > 1,
-                Cursor = ids.Count > 1 ? Cursors.Hand : Cursors.Arrow,
-            };
-            bool hovered = false;
-            void Paint()
-            {
-                tab.Background = new SolidColorBrush(selected
-                    ? Fluent.AccentOn(Theme.CardBg, 0.18)
-                    : hovered ? Theme.Hover : Colors.Transparent);
-                label.Foreground = new SolidColorBrush(selected ? Theme.Accent : Theme.TextDim);
-                label.FontWeight = selected ? FontWeights.SemiBold : FontWeights.Normal;
-            }
-            Paint();
-            if (ids.Count > 1)
-            {
-                tab.MouseLeftButtonUp += (_, e) => { if (!selected) NavigateSettings(id, true); e.Handled = true; };
-                tab.MouseEnter += (_, _) => { hovered = true; Paint(); };
-                tab.MouseLeave += (_, _) => { hovered = false; Paint(); };
-            }
-            _settingsTabs.Children.Add(tab);
-        }
     }
 }

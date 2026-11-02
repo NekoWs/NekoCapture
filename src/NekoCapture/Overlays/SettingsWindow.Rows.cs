@@ -389,17 +389,11 @@ public sealed partial class SettingsWindow : Window
         return g;
     }
 
-    /// <summary>把一页里平铺的设置行整体归入一张浮起卡片（沿用快捷键页 keyCard 模式），
-    /// 让截图/录制/产物…各页与快捷键页用同一套卡片语言，而不是裸行铺在窗体背景上。
-    /// 快捷键页自带卡片结构，不调本方法；空页直接返回，不生成空卡片。</summary>
-    void Cardify(StackPanel p)
+    /// <summary>把一组行收进一张浮起卡片：卡片语言只在这里定义，各页共用同一套边距、圆角与描边。</summary>
+    /// <param name="content">卡片内容，通常是一列设置行。</param>
+    /// <returns>可直接加进分页的卡片。</returns>
+    static Border SettingsCard(UIElement content)
     {
-        if (p.Children.Count == 0) return;
-        var inner = new StackPanel();
-        var kids = new List<UIElement>();
-        foreach (UIElement k in p.Children) kids.Add(k);
-        p.Children.Clear();
-        foreach (var k in kids) inner.Children.Add(k);
         var card = new Border
         {
             Margin = SettingsCardMargin,
@@ -408,10 +402,24 @@ public sealed partial class SettingsWindow : Window
             BorderBrush = Theme.StrokeBrush,
             Background = Theme.CardBgBrush,
             Padding = new Thickness(12, 6, 12, 6),
-            Child = inner,
+            Child = content,
         };
         StyleSettingsCard(card);
-        p.Children.Add(card);
+        return card;
+    }
+
+    /// <summary>把一页里平铺的设置行整体归入一张浮起卡片（沿用快捷键页 keyCard 模式），
+    /// 让截图/录制/产物…各页与快捷键页用同一套卡片语言，而不是裸行铺在窗体背景上。
+    /// 快捷键页自带卡片结构，不调本方法；空页直接返回，不生成空卡片。</summary>
+    /// <param name="p">这一页的正文面板，行被搬进卡片后清空重填。</param>
+    void Cardify(StackPanel p)
+    {
+        if (p.Children.Count == 0) return;
+        var inner = new StackPanel();
+        var kids = p.Children.Cast<UIElement>().ToList();
+        p.Children.Clear();
+        foreach (var k in kids) inner.Children.Add(k);
+        p.Children.Add(SettingsCard(inner));
     }
 
     /// <summary>一行只读小字：说当前状态，不带控件。挂在卡片里与设置行同一列节奏。</summary>

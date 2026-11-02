@@ -59,7 +59,7 @@ public sealed partial class SettingsWindow
                 }
                 if (!changed) continue;
                 var position = chip.TranslatePoint(new Point(), Root);
-                var shift = TransformOf(chip).Item1;
+                var shift = RowTransforms(chip).Item1;
                 var duration = new Duration(TimeSpan.FromMilliseconds(Fluent.Motion.StateMs));
                 var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
                 shift.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(old.At.X - position.X, 0, duration) { EasingFunction = ease });
@@ -82,14 +82,8 @@ public sealed partial class SettingsWindow
             Root.BeginAnimation(HeightProperty, grow);
         }
 
-        static void EnterChip(Border chip)
-        {
-            var scale = TransformOf(chip).Item2;
-            var spring = new DoubleAnimation(0.82, 1, TimeSpan.FromMilliseconds(Fluent.Motion.SpringMs))
-                { EasingFunction = Fluent.Spring(0.45) };
-            scale.BeginAnimation(ScaleTransform.ScaleXProperty, spring);
-            scale.BeginAnimation(ScaleTransform.ScaleYProperty, spring);
-            chip.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(Fluent.Motion.QuickMs)));
-        }
+        /// <summary>新芯片入场：交给共用的卡片入场曲线，与托盘行、菜单项同一套弹性。</summary>
+        /// <param name="chip">要入场的芯片。</param>
+        static void EnterChip(Border chip) => PopIn(chip, TimeSpan.Zero, 0.82);
     }
 }

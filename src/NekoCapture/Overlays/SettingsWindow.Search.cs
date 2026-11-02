@@ -151,7 +151,11 @@ public sealed partial class SettingsWindow
         if (!entering) { _settingsScroller.ScrollToTop(); return; }
         var bodies = _settingsBodies.Values.ToArray();
         SwitchSettingsPage(bodies, Array.IndexOf(bodies, body), true, _settingsScroller, _settingsHeader,
-            Loc.T(K.SettingsNavigation.Search), prepareChrome: () => RenderSettingsBreadcrumbs(true));
+            Loc.T(K.SettingsNavigation.Search), prepareChrome: () =>
+            {
+                RenderSettingsBreadcrumbs(true);
+                UpdateSettingsTabs(true);
+            });
     }
 
     private void OpenSettingsSearchResult(SettingsSearchItem item)

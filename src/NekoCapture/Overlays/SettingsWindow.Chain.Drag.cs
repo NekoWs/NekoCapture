@@ -84,7 +84,7 @@ public sealed partial class SettingsWindow
         {
             var chip = _drag;
             if (chip == null) return;
-            var tt = TransformOf(chip);
+            var tt = RowTransforms(chip);
             var sz = chip.RenderSize;
             // 放大绕着按住的那一点，不绕中心：绕中心时按住点会被缩放推出去，手指不动、卡片在手里滑。
             if (sz.Width > 0 && sz.Height > 0)
@@ -139,7 +139,7 @@ public sealed partial class SettingsWindow
             {
                 if (ReferenceEquals(c, _drag)) continue;
                 var now = c.TranslatePoint(new Point(0, 0), Root);
-                var tt = TransformOf(c);
+                var tt = RowTransforms(c);
                 var old = _before.TryGetValue(c, out var p) ? p : now;
                 double dx = old.X + tt.Item1.X - now.X;
                 double dy = old.Y + tt.Item1.Y - now.Y;
@@ -278,7 +278,7 @@ public sealed partial class SettingsWindow
             if (to < _chips.Children.Count && _chips.Children[to] is FrameworkElement landed)
             {
                 var slot = landed.TranslatePoint(new Point(0, 0), Root);
-                var tt = TransformOf(landed);
+                var tt = RowTransforms(landed);
                 tt.Item1.X = at.X - _grab.X - slot.X;
                 tt.Item1.Y = at.Y - _grab.Y - slot.Y;
                 var d = new Duration(TimeSpan.FromMilliseconds(Fluent.Motion.SpringMs));
@@ -287,30 +287,6 @@ public sealed partial class SettingsWindow
                 tt.Item1.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(tt.Item1.Y, 0, d) { EasingFunction = ease });
             }
         }
-
-        /// <summary>取元素自己的位移+缩放变换组，没有就现装一个。</summary>
-        /// <param name="el">目标元素。</param>
-        /// <returns>位移与缩放两个变换。</returns>
-        static (TranslateTransform, ScaleTransform) TransformOf(UIElement el)
-        {
-            if (el.RenderTransform is TransformGroup tg
-                && tg.Children.OfType<TranslateTransform>().FirstOrDefault() is { } t
-                && tg.Children.OfType<ScaleTransform>().FirstOrDefault() is { } s)
-                return (t, s);
-            t = new TranslateTransform();
-            s = new ScaleTransform(1, 1);
-            el.RenderTransformOrigin = new Point(0.5, 0.5);
-            // 缩放必须排在位移前面：变换组按子项顺序逐个作用在点上，位移排在前面就会被后面的缩放
-            // 一起放大——抬起的芯片离行原点越远偏得越多，怎么拖都追不上光标。
-            el.RenderTransform = new TransformGroup { Children = { s, t } };
-            return (t, s);
-        }
-
-        /// <summary>缩放动画：抬起与放回共用一条节拍。</summary>
-        /// <param name="to">目标倍率。</param>
-        /// <returns>已配好时长的缩放动画。</returns>
-        static DoubleAnimation ScaleTo(double to) => new(to, new Duration(TimeSpan.FromMilliseconds(Fluent.Motion.QuickMs)))
-        { EasingFunction = new BackEase { Amplitude = 0.4, EasingMode = EasingMode.EaseOut } };
 
     }
 }

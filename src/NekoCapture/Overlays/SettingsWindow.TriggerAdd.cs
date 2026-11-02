@@ -20,12 +20,4 @@ public sealed partial class SettingsWindow
         System.Windows.Automation.AutomationProperties.SetName(button, Loc.T(label));
         button.Click += (_, _) => add(); return button;
     }
-
-    private void AddTrayMenu()
-    {
-        GestureBindingDto binding = null!;
-        _settings.Mutate(settings => binding = settings.Gestures.AddTrayMenu(Loc.T(K.Triggers.NewMenuItem)));
-        AppHost.Current.InstallHotkeys();
-        InsertHotkeyAnimated(binding); OpenSettingsBinding(binding);
-    }
 }
