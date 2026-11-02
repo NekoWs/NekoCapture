@@ -117,8 +117,8 @@ static partial class SelfTest
             for (int i = 0; i < 60 && !grew; i++)
             {
                 PumpMs(10);
-                double at = host?.Height ?? 0;
-                grew = at > 0.5 && at < 33.5;
+                double height = host?.Height ?? 0;
+                grew = height > 0.5 && height < 33.5;
             }
             Chk("T274-tabs-height-animated", grew, $"分页条高度过渡中量到中间值：{(grew ? "有" : "没有")}");
             PumpMs(360);
@@ -127,17 +127,32 @@ static partial class SelfTest
                 host != null && host.Visibility == Visibility.Visible && Math.Abs(host.Height - 34) < 0.01
                     && tabsPanel != null && tabsPanel.Children.Count > 1,
                 $"多页分组的分页条：{host?.Visibility} / {host?.Height}px / {tabsPanel?.Children.Count ?? -1} 枚");
-            var chips = tabsPanel?.Children.OfType<Border>()
-                .Where(tab => (tab.Tag as string) == "settings-tab").ToList() ?? new List<Border>();
-            var selected = chips.Where(tab => tab.Background is SolidColorBrush { Color.A: > 0 }).ToList();
-            bool tinted = selected.Count == 1 && selected[0].Background is SolidColorBrush { HasAnimatedProperties: true };
-            Chk("T274-tabs-selection-animated", tinted, $"选中胶囊 {selected.Count} 枚，底色{(tinted ? "带动画" : "没动画")}");
-
-            // 同一分组内换页：只渐变选中态，条目数不变
+            int chipCount = tabsPanel?.Children.Count ?? 0;
+            // 同一分组内换页：胶囊滑到选中那一枚下面，条目数不变
+            var pill = (Border?)type.GetField("_settingsTabPill", flags)!.GetValue(window);
+            var pillShift = (TranslateTransform?)type.GetField("_settingsTabPillShift", flags)!.GetValue(window);
+            var track = (Grid?)type.GetField("_settingsTabTrack", flags)!.GetValue(window);
             type.GetMethod("NavigateSettings", flags)!.Invoke(window, new object?[] { "files", true, true });
-            PumpMs(420);
+            PumpMs(240);
+            bool sliding = pill != null && pillShift != null && pill.HasAnimatedProperties && pillShift.HasAnimatedProperties;
+            Chk("T274-tabs-pill-animated", sliding, $"胶囊与位移{(sliding ? "都带" : "没有")}动画");
+            PumpMs(320);
             var sameGroup = (Panel?)type.GetField("_settingsTabs", flags)!.GetValue(window);
-            Chk("T274-tabs-same-group", sameGroup != null && sameGroup.Children.Count == chips.Count,
+            var filesTab = sameGroup?.Children.OfType<Border>().FirstOrDefault(tab =>
+                (tab.Tag as string) == "settings-tab"
+                && tab.Child is TextBlock labelText && labelText.Text == Loc.T(K.SettingsNavigation.Files));
+            double at = 0, want = 0;
+            if (filesTab != null && track != null)
+            {
+                window.UpdateLayout();
+                at = filesTab.TranslatePoint(new Point(0, 0), track).X;
+                want = filesTab.ActualWidth;
+            }
+            Chk("T274-tabs-pill-follows",
+                filesTab != null && pill != null && pillShift != null
+                    && Math.Abs(pillShift.X - at) < 1 && Math.Abs(pill.Width - want) < 1,
+                $"胶囊 x={pillShift?.X:F1}/宽 {pill?.Width:F1}，目标 x={at:F1}/宽 {want:F1}");
+            Chk("T274-tabs-same-group", sameGroup != null && sameGroup.Children.Count == chipCount,
                 $"同组换页后仍是 {sameGroup?.Children.Count ?? -1} 枚");
 
             type.GetMethod("NavigateSettings", flags)!.Invoke(window, new object?[] { "tray", true, true });

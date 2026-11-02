@@ -87,12 +87,35 @@ public sealed partial class SettingsWindow
         Grid.SetColumn(_settingsAddBehavior, 1);
         heading.Children.Add(_settingsAddBehavior);
         DockPanel.SetDock(heading, Dock.Top); right.Children.Add(heading);
-        // 页内分页条：同一根下的兄弟页在这里横向切换，导航只停在这一层
-        _settingsTabs = new WrapPanel { VerticalAlignment = VerticalAlignment.Center };
+        // 页内分页条：同一根下的兄弟页在这里横向切换，导航只停在这一层。
+        // 外观与界面语言那条分段控件同源：一条轨道，选中那块是一枚滑到位置上的强调色胶囊。
+        _settingsTabs = new WrapPanel { VerticalAlignment = VerticalAlignment.Top };
+        _settingsTabPillShift = new TranslateTransform();
+        _settingsTabPill = new Border
+        {
+            Height = 24, Width = 0, CornerRadius = new CornerRadius(5), Background = Theme.AccentBrush,
+            HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top,
+            IsHitTestVisible = false, RenderTransform = _settingsTabPillShift,
+        };
+        _settingsTabTrack = new Grid { HorizontalAlignment = HorizontalAlignment.Left };
+        _settingsTabTrack.Children.Add(_settingsTabPill);
+        _settingsTabTrack.Children.Add(_settingsTabs);
+        _settingsTabTrackBorder = new Border
+        {
+            Child = _settingsTabTrack, CornerRadius = new CornerRadius(7),
+            Background = Theme.TrackBgBrush, BorderBrush = Theme.StrokeBrush, BorderThickness = new Thickness(1),
+            Padding = new Thickness(2, 1, 2, 1), HorizontalAlignment = HorizontalAlignment.Left,
+            VerticalAlignment = VerticalAlignment.Center, ClipToBounds = true,
+        };
         // 高度由 UpdateSettingsTabs 驱动：有兄弟页才长到定高，单页分组整条收起
-        _settingsTabHost = new Border { Child = _settingsTabs, Margin = new Thickness(20, 0, 20, 4),
+        _settingsTabHost = new Border { Child = _settingsTabTrackBorder, Margin = new Thickness(20, 0, 20, 0),
             Height = 0, Visibility = Visibility.Collapsed, ClipToBounds = true };
         DockPanel.SetDock(_settingsTabHost, Dock.Top); right.Children.Add(_settingsTabHost);
+        _settingsTabs.SizeChanged += (_, _) =>
+        {
+            PlaceTabPill(false);
+            SyncTabStripHeight();
+        };
 
         _settingsHost = new Grid();
         _settingsScroller = new ScrollViewer { Content = _settingsHost, Focusable = false,

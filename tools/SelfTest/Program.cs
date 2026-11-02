@@ -6982,7 +6982,7 @@ static partial class SelfTest
             void WalkSeg(DependencyObject o)
             {
                 if (o is System.Windows.Controls.Border b && b.Child is System.Windows.Controls.TextBlock { FontSize: > 12 and < 13 }
-                    && Math.Abs(b.Height - 24) < 0.1) segs.Add(b);
+                    && Math.Abs(b.Height - 24) < 0.1 && (b.Tag as string) != "settings-tab") segs.Add(b);
                 int n = System.Windows.Media.VisualTreeHelper.GetChildrenCount(o);
                 for (int i = 0; i < n; i++) WalkSeg(System.Windows.Media.VisualTreeHelper.GetChild(o, i));
             }
