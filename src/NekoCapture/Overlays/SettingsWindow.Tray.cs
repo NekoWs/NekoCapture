@@ -278,7 +278,7 @@ public sealed partial class SettingsWindow
         return false;
     }
 
-    /// <summary>拖动中：被拖的行跟着指针浮起来，其余行按目标槽位错开并滑过去。</summary>
+    /// <summary>拖动中：被拖的行跟着指针浮起，其余行按目标槽位让位并滑过去。</summary>
     /// <param name="e">鼠标参数。</param>
     private void MoveTrayDrag(MouseEventArgs e)
     {
