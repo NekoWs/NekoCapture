@@ -143,6 +143,13 @@ static partial class SelfTest
             double filesX = filesTab?.Child is TextBlock filesLabel0 && canvas != null
                 ? filesLabel0.TranslatePoint(new Point(0, 0), canvas).X
                 : 0;
+            // 先各走一遍把两页正文建出来：首次装配会占住 UI 线程，下划线会在这段阻塞里走完，
+            // 那样量到的只有终点。预热之后再量「滑动本身」
+            type.GetMethod("NavigateSettings", flags)!.Invoke(window, new object?[] { "files", true, true });
+            PumpMs(320);
+            type.GetMethod("NavigateSettings", flags)!.Invoke(window, new object?[] { "selection", true, true });
+            PumpMs(320);
+            fromX = indicatorShift?.X ?? 0;
             type.GetMethod("NavigateSettings", flags)!.Invoke(window, new object?[] { "files", true, true });
             bool slid = false;
             var seats = new List<double>();

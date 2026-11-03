@@ -1260,7 +1260,8 @@ static partial class SelfTest
                 if (args.Length >= 2 && args[0] == "renderhelp") return RenderHelp(args[1], args.Length >= 3 && int.TryParse(args[2], out var hs) ? hs : 0, ScaleArg(args));
         if (args.Length == 2 && args[0] == "sbprobe") return SbProbe(args[1]);
         if (args.Length == 2 && args[0] == "renderpick") return RenderPick(args[1]);
-        if (args.Length == 2 && args[0] == "rendertoast") return RenderToast(args[1]);
+        if (args.Length >= 2 && args[0] == "rendereditor")
+            return RenderEditor(args[1], args.Length >= 3 && int.TryParse(args[2], out var ec) ? ec : 1);        if (args.Length == 2 && args[0] == "rendertoast") return RenderToast(args[1]);
         if (args.Length >= 3 && args[0] == "elemsnap") return ElemSnapProbe(args);
         if (args.Length >= 3 && args[0] == "overlayct") return OverlayClickThrough(args);
         if (args.Length == 2 && args[0] == "editorwave") return EditorWave(args[1]);

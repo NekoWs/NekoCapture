@@ -597,7 +597,15 @@ static partial class SelfTest
             if (tb.TextWrapping == TextWrapping.NoWrap)
             {
                 tb.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-                double need = tb.DesiredSize.Width;
+                // 量「这段字自然多宽」要用一个全新的 TextBlock：对已经排过的元素再 Measure(∞)，
+                // 带 TextTrimming 的标签会回报一个偏大的宽度（实测 60 → 82），把正常版面报成裁字
+                var probe = new TextBlock
+                {
+                    Text = tb.Text, FontSize = tb.FontSize, FontFamily = tb.FontFamily,
+                    FontWeight = tb.FontWeight, FontStretch = tb.FontStretch, FontStyle = tb.FontStyle,
+                };
+                probe.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+                double need = probe.DesiredSize.Width;
                 // 只有「真的会被切掉」或「被压成省略号」才算缺陷：WPF 默认不裁剪，
                 // 排得比想要的窄只是往右边空处溢出，看着一点问题没有（设置窗左侧导航就是这样误报的）。
                 bool ellipsized = tb.TextTrimming != TextTrimming.None;
