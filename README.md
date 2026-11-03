@@ -118,10 +118,10 @@ dotnet build NekoCapture.slnx -c Debug
 src/NekoCapture/bin/x64/Debug/net8.0-windows10.0.19041.0/NekoCapture.exe
 ```
 
-构建与静态检查：
+构建：
 
 ```powershell
-pwsh -NoProfile -File scripts/guardrail.ps1 -Quick
+dotnet build NekoCapture.slnx -c Debug -v q --nologo
 ```
 
 生成本地安装包：

@@ -71,8 +71,8 @@ public sealed partial class RegionPickerWindow : Window
                     // 取过的那一抹色并进编辑器「最近用色」：看中的红，截完图在调色板第一格就能点到，
                     // 不用回编辑器手输 HEX。存的永远是 #RRGGBB，与当前显示成 RGB/HSL 无关。
                     // 它记的是「用户取了这个色」，与剪贴板能不能写进去无关，剪贴板失败不该把这条一起丢掉。
-                    if (rgb is { } picked)
-                        Services.AppHost.Current.Settings.Mutate(s => s.CustomColors = Core.CustomPick.RememberColor(
+                    if (rgb is { } picked && Services.AppHost.Current?.Settings is { } pickedSettings)
+                        pickedSettings.Mutate(s => s.CustomColors = Core.CustomPick.RememberColor(
                             s.CustomColors, Core.ColorFormat.Format(picked.r, picked.g, picked.b, Core.ColorCopyFormat.Hex)));
                     Dispatcher.BeginInvoke(new Action(async () =>
                     {

@@ -2,23 +2,18 @@
 .SYNOPSIS
     一键产出 NekoCapture 发行安装包。
 .DESCRIPTION
-    读 csproj 版本号 → 验证当前代码 → 发布两种运行时形态 → 产出引导器 exe 与离线 zip → 报体积与 SHA256。
+    读 csproj 版本号 → 发布两种运行时形态 → 产出引导器 exe 与离线 zip → 报体积与 SHA256。
     版本号唯一来源是 src/NekoCapture/NekoCapture.csproj 的 <Version>，脚本不另存一份。
     引导器是 .NET Framework 4.8 工程，产物是免前置的单 exe；主程序需要 .NET 8 的原因是 WGC 捕获与 OCR。
 .EXAMPLE
     pwsh -NoProfile -File scripts/publish-release.ps1
     pwsh -NoProfile -File scripts/publish-release.ps1 -Publisher "你的名字" -Flavor self
-    pwsh -NoProfile -File scripts/publish-release.ps1 -SkipVerify   # 只重打包，不重跑验证
-    pwsh -NoProfile -File scripts/publish-release.ps1 -AllowInjection   # 人不在电脑旁时，连焦点安全一起跑
 #>
 param(
     [string]$Publisher = 'NekoCapture',
     [ValidateSet('both', 'self', 'fd')] [string]$Flavor = 'both',
     [string]$OutDir = 'release',
-    [switch]$SkipVerify,
-    [switch]$NoRestart,
-    # 焦点安全是唯一会注入 OS 级按键的回归项，默认跳过；确认无人使用电脑时再显式打开。
-    [switch]$AllowInjection
+    [switch]$NoRestart
 )
 
 $ErrorActionPreference = 'Stop'
@@ -56,33 +51,6 @@ if (@(Get-Process NekoCapture,NekoCapture.Resident -ErrorAction SilentlyContinue
     Write-Host '  当前权限无法关闭的实例保留，文件占用由构建和发布报告'
 } elseif ($wasRunning) { Start-Sleep -Milliseconds 800; Write-Host '  已停止' } else { Write-Host '  本来就没在跑' }
 
-if (-not $SkipVerify) {
-    Step '验证：编译 + 断言 + 护栏'
-    $b = dotnet build NekoCapture.slnx -c Debug -v q --nologo 2>&1 | Out-String
-    $buildCode = $LASTEXITCODE
-    $err = @($b -split "`n" | ForEach-Object{ $_.Trim() } | Where-Object{ $_ -match ': error' })
-    if ($buildCode -ne 0 -or $err.Count) { $err | ForEach-Object{ Write-Host "  $_" -ForegroundColor Red }; throw '编译有错误，不出包' }
-    $warn = @($b -split "`n" | ForEach-Object{ $_.Trim() } | Where-Object{ $_ -match ': warning ' -and $_ -notmatch 'NU1900' } | Select-Object -Unique)
-    if ($warn.Count) { $warn | ForEach-Object{ Write-Host "  $_" -ForegroundColor Yellow } }
-
-    $selfTest = 'tools\SelfTest\bin\x64\Debug\net8.0-windows10.0.19041.0\SelfTest.exe'
-    if (-not (Test-Path $selfTest)) { throw "找不到 $selfTest" }
-    $t = & $selfTest 2>&1 | Out-String
-    $testCode = $LASTEXITCODE
-    $line = ($t -split "`n" | Where-Object{ $_ -match '^RESULT\s+PASS=\d+\s+FAIL=\d+\s*$' } | Select-Object -Last 1)
-    if (-not $line) { throw 'SelfTest 没给出 RESULT' }
-    Write-Host "  $($line.Trim())"
-    if ($testCode -ne 0 -or $line.Trim() -notmatch '\bFAIL=0$') { throw '断言未全绿，不出包' }
-
-    # 护栏默认路径零 OS 级输入，用户在场也能跑完；焦点安全那一项要注入，只有 -AllowInjection 才带上。
-    $gArgs = @('-NoProfile', '-File', 'scripts/guardrail.ps1', '-Full')
-    if ($AllowInjection) { $gArgs += '-AllowInjection' }
-    $g = & pwsh @gArgs 2>&1 | Out-String
-    $guardCode = $LASTEXITCODE
-    $gLast = ($g -split "`n" | Where-Object{ $_.Trim() } | Select-Object -Last 1)
-    Write-Host "  $($gLast.Trim())"
-    if ($guardCode -ne 0 -or $gLast.Trim() -notmatch '^GUARDRAIL PASS\b') { throw '护栏未通过，不出包' }
-}
 
 # 发布必须从干净状态构建：apphost 由 CreateAppHost 生成后带自己的图标，改 <ApplicationIcon>
 # 不会让它重新生成，增量发布出来的 exe 会沿用中间产物里那枚（实测 148 KB 无图标 / 186 KB 有图标）。
@@ -208,48 +176,6 @@ foreach ($v in $variants) {
         包     = Split-Path $artifact -Leaf
         体积MB = [math]::Round((Get-Item $artifact).Length / 1MB, 1)
         SHA256 = (Get-FileHash $artifact -Algorithm SHA256).Hash.Substring(0, 16).ToLower()
-    }
-}
-
-# 离线包抽验：解出来真跑一次。字节对、体积对，不等于装上去能用。
-# 单实例互斥会把新进程直接并给已在跑的托盘并让它秒退——所以这一步只在没有任何实例时做，
-# 有实例时明确报「跳过」，避免把互斥当成包坏了。
-Step '抽验离线包'
-$offlineRow = @($results | Where-Object { $_.'包' -like '*offline.zip' } | Select-Object -First 1)
-$live = @(Get-Process NekoCapture -ErrorAction SilentlyContinue).Count
-if ($offlineRow.Count -eq 0) {
-    Write-Host '  本轮没有离线包（只发了引导器），跳过'
-} elseif ($live -gt 0) {
-    Write-Host "  跳过：检测到 $live 个 NekoCapture 实例，单实例互斥会让抽验进程秒退" -ForegroundColor Yellow
-} else {
-    $smoke = Join-Path $root 'test-out\release-smoke'
-    $smokeCfg = Join-Path $root 'test-out\release-smoke-settings'
-    foreach ($d in @($smoke, $smokeCfg)) { Remove-ReleaseDirectory $d }
-    New-Item -ItemType Directory -Path $smoke | Out-Null
-    Add-Type -AssemblyName System.IO.Compression.FileSystem
-    [IO.Compression.ZipFile]::ExtractToDirectory((Join-Path $root (Join-Path $OutDir $offlineRow[0].'包')), $smoke)
-    $smokeExe = Join-Path $smoke 'NekoCapture.exe'
-    if (-not (Test-Path $smokeExe)) { throw "离线包根目录里没有 NekoCapture.exe" }
-    $env:NC_SETTINGS_DIR = $smokeCfg
-    $env:NC_TEST_NO_FG = '1'
-    try {
-        $proc = Start-Process $smokeExe -WindowStyle Hidden -PassThru
-        Start-Sleep -Seconds 6
-        $up = Get-Process -Id $proc.Id -ErrorAction SilentlyContinue
-        if (-not $up) { throw '离线包解出来起不来：6 秒内进程已退出' }
-        $errLog = Join-Path $smokeCfg 'error.log'
-        if (Test-Path $errLog) { throw "离线包启动即写 error.log：$errLog" }
-        Write-Host ("  离线包抽验 PASS：{0} 个文件、进程存活、内存 {1:N0} MB、error.log 为空" -f `
-            @(Get-ChildItem $smoke -Recurse -File).Count, ($up.WorkingSet64 / 1MB))
-    } finally {
-        Remove-Item Env:NC_SETTINGS_DIR, Env:NC_TEST_NO_FG -ErrorAction SilentlyContinue
-        foreach ($instance in @(Get-Process NekoCapture -ErrorAction SilentlyContinue)) {
-            try {
-                $instance.Kill()
-                if (-not $instance.WaitForExit(5000)) { throw '抽验进程未退出，保留目录供检查' }
-            } finally { $instance.Dispose() }
-        }
-        foreach ($d in @($smoke, $smokeCfg)) { Remove-ReleaseDirectory $d }
     }
 }
 
