@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.IO;
 using System.Text.Json;
 
@@ -392,6 +393,9 @@ public sealed partial class SettingsService
         if (!File.Exists(FilePath)) Save(_current);
     }
 
+    /// <summary>本次启动把「来自更新版本的配置」备份到的文件；没有发生备份时为 null。</summary>
+    public static string? NewerConfigBackup { get; private set; }
+
     private static AppSettings Load()
     {
         if (!File.Exists(FilePath))
@@ -401,11 +405,37 @@ public sealed partial class SettingsService
         string json = File.ReadAllText(FilePath);
         using var document = JsonDocument.Parse(json);
         int version = document.RootElement.TryGetProperty(nameof(AppSettings.ConfigVersion), out var value) ? value.GetInt32() : 0;
+        // 配置比本程序新：每次启动都读不动，留着它只会让人以为软件坏了。
+        // 备份到同目录并用默认配置启动；把程序换回新版本时，用户还能把那份配置拿回去。
+        if (version > AppSettings.CurrentConfigVersion)
+        {
+            NewerConfigBackup = BackupNewer(version);
+            var fresh = new AppSettings(); fresh.Normalize(); return fresh;
+        }
         if (version != AppSettings.CurrentConfigVersion)
-            throw new InvalidDataException(Loc.T(version > AppSettings.CurrentConfigVersion ? K.Updates.ConfigNewer : K.Updates.ConfigUpgrade));
+            throw new InvalidDataException(Loc.T(K.Updates.ConfigUpgrade));
         var loaded = JsonSerializer.Deserialize<AppSettings>(json) ?? throw new InvalidDataException("Settings document is empty");
         loaded.Normalize();
         return loaded;
+    }
+
+    static string BackupNewer(int version)
+    {
+        string target = FilePath + ".from-v" + version + "-"
+            + DateTime.Now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture) + ".bak";
+        try { File.Move(FilePath, target); return target; }
+        catch (Exception moveError)
+        {
+            Trace.Log("config backup move: " + moveError);
+            // 移不走（被占用、权限不足）就复制一份再删原件：两步都失败时让异常冒到启动提示并退出，
+            // 绝不能出现「备份没成，默认配置把用户那份盖掉」。
+            try { File.Copy(FilePath, target, overwrite: true); File.Delete(FilePath); return target; }
+            catch (Exception copyError)
+            {
+                Trace.Log("config backup copy: " + copyError);
+                throw new InvalidDataException(Loc.T(K.Updates.ConfigNewer), copyError);
+            }
+        }
     }
 
     /// <summary>落盘：先 Normalize，再写同目录 <c>.tmp</c> 后 <c>File.Move</c> 覆盖——读者永远只会看到完整文件。

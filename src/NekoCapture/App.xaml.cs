@@ -95,11 +95,16 @@ public partial class App : Application
             or System.IO.IOException or UnauthorizedAccessException)
         {
             Core.Trace.Log("configuration startup: " + error);
-            MessageBox.Show(error.Message, "NekoCapture", MessageBoxButton.OK, MessageBoxImage.Information);
+            Overlays.ConfigNoticeWindow.Show(Core.Loc.T(Core.K.Updates.ConfigProblemTitle), error.Message,
+                Core.SettingsService.FilePath);
             if (Services.ResidentBridge.IsWorker)
                 Runtime.ResidentProtocol.Send(Runtime.ResidentProtocol.FindHost(), ["--resident-retire"]);
             Shutdown(1); return;
         }
+        // 配置来自更新版本时已经备份并换上默认配置：把备份落在哪告诉用户，别让设置「凭空变了」
+        if (Core.SettingsService.NewerConfigBackup is { } backedUp)
+            Overlays.ConfigNoticeWindow.Show(Core.Loc.T(Core.K.Updates.ConfigNewerTitle),
+                Core.Loc.F(Core.K.Updates.ConfigNewerBackedUp, System.IO.Path.GetFileName(backedUp)), backedUp);
         StartMessageSink();
         Services.ResidentBridge.InitializeWorker();
 

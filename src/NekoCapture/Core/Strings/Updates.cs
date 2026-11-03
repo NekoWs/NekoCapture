@@ -28,5 +28,8 @@ public static partial class K
         public static readonly Str Retry = new("updates.retry", "重试更新", "Retry update");
         public static readonly Str ConfigUpgrade = new("updates.configUpgrade", "请运行安装包升级配置", "Run the installer to upgrade your settings");
         public static readonly Str ConfigNewer = new("updates.configNewer", "配置来自更新版本，请升级软件", "These settings require a newer version");
+        public static readonly Str ConfigNewerTitle = new("updates.configNewerTitle", "配置来自更新版本", "Settings from a newer version");
+        public static readonly Str ConfigNewerBackedUp = new("updates.configNewerBackedUp", "已备份为 {0}，本次以默认配置启动。", "Saved as {0}. NekoCapture starts with default settings.");
+        public static readonly Str ConfigProblemTitle = new("updates.configProblemTitle", "配置无法读取", "Settings could not be read");
     }
 }
