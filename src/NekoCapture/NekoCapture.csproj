@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
@@ -13,7 +13,7 @@
     <PlatformTarget>x64</PlatformTarget>
     <AssemblyName>NekoCapture</AssemblyName>
     <RootNamespace>NekoCapture</RootNamespace>
-    <Version>0.9.36</Version>
+    <Version>0.9.37</Version>
     <!-- 装了 .NET 9/10 Desktop Runtime 的机器直接就能跑，不必再补一个 8.x。
          默认 Minor 只在同大版本内向前滚动，会把「已有更新运行时」的机器判成缺运行时。 -->
     <RollForward>Major</RollForward>
