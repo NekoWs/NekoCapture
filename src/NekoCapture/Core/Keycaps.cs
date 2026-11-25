@@ -117,14 +117,13 @@ public static class Keycaps
     public static FrameworkElement ChordRow(string? keys, KeycapTheme t, IReadOnlyList<string> separators, string? emptyHint = null)
     {
         var sp = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-        var parts = string.IsNullOrWhiteSpace(keys)
-            ? Array.Empty<string>()
-            : keys.Split(separators.ToArray(), StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        if (parts.Length == 0)
+        if (string.IsNullOrWhiteSpace(keys))
         {
             if (emptyHint != null) sp.Children.Add(Note(emptyHint, t));
             return sp;
         }
+        var parts = keys.Split(separators.ToArray(), StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (parts.Length == 0) return sp;
         // 占位文案不是键位：照键位去切，会给它画上一枚键帽，看起来就像一个名叫它自己的键。
         // 认它靠身份（就是 emptyHint 那句），语言无关。
         if (emptyHint != null && string.Equals(keys, emptyHint, StringComparison.Ordinal) ||
