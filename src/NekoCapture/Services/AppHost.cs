@@ -86,7 +86,20 @@ public sealed class AppHost
                 Capture.FrameSpool.CleanupStale(retained);
                 Trace.Log($"temp sweep done removed={removed}");
             }
-            catch (Exception error) { Trace.Log("temp sweep: " + error); }
+            catch (Exception error)
+            {
+                Trace.Log("temp sweep: " + error);
+                // 会话读不出来时无法判断哪个帧仓还在用：保守起见保留全部帧仓文件，
+                // 其余自家中间文件照常清理，别让临时目录在会话持续损坏时只增不减。
+                try
+                {
+                    string dir = Core.TempFiles.Dir;
+                    string[] keep = System.IO.Directory.Exists(dir) ? System.IO.Directory.GetFiles(dir, "spool-*.fcf") : [];
+                    int removed = Core.TempFiles.SweepStale(keep);
+                    Trace.Log($"temp sweep (session unreadable) removed={removed}");
+                }
+                catch (Exception fallback) { Trace.Log("temp sweep fallback: " + fallback); }
+            }
         })
         { IsBackground = true, Name = "Temp sweep", Priority = ThreadPriority.BelowNormal };
         thread.Start();

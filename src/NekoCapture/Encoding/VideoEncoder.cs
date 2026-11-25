@@ -285,8 +285,8 @@ public static class VideoEncoder
                         byte[] bgra = matte is { } mt
                             ? BgraImage.FlattenOver(frame, mt.R, mt.G, mt.B, assumeAlpha: true).Bgra
                             : frame.Bgra;
-                        if (bgra.Length < frameBytes)
-                            throw new InvalidOperationException($"frame {index} too small: {bgra.Length} < {frameBytes}");
+                        if (bgra.Length != frameBytes)
+                            throw new InvalidOperationException($"frame {index} size {bgra.Length} != {frameBytes}");
                         queue.Add((index, bgra, false), feedCts.Token);
                     }
                 }
@@ -353,8 +353,8 @@ public static class VideoEncoder
                     byte[] bgra = matte is { } mt
                         ? BgraImage.FlattenOver(frame, mt.R, mt.G, mt.B, assumeAlpha: true).Bgra
                         : frame.Bgra;
-                    if (bgra.Length < frameBytes)
-                        throw new InvalidOperationException($"frame {i} too small: {bgra.Length} < {frameBytes}");
+                    if (bgra.Length != frameBytes)
+                        throw new InvalidOperationException($"frame {i} size {bgra.Length} != {frameBytes}");
                     queue.Add((bgra, i), feedCts.Token);
                 }
             }

@@ -14,7 +14,8 @@ namespace NekoCapture.Capture;
 /// 帧以 Brotli 快速档压缩后落盘（屏幕内容通常 20–30 倍），压缩收益不足 3% 的帧原样存：
 /// 4K 一分钟从几十 GB 降到百 MB 级，回读时解压比省下的磁盘 I/O 更便宜。
 /// 压缩与写盘在独立后台线程串行执行，捕获线程只做一次拷贝并入有界队列——
-/// 编码器再慢也不会把帧堆在内存里。
+/// 编码器再慢也不会把帧堆在内存里。写线程跟不上捕获节奏且收益有限时暂停压缩、原样落盘，
+/// 收益够高则降到快速档继续压缩，避免原始帧把磁盘写满。
 /// 磁盘护栏：每 30 帧查一次剩余空间，低于 <see cref="MinFreeBytes"/> 触发一次
 /// <see cref="DiskLow"/>，控制器就地停录——已录内容照常进编辑器，绝不静默丢帧。
 /// 文件带格式魔数；记录格式自描述（w/h/time/长度 + 压缩标志），崩溃残留可识别；
@@ -34,12 +35,18 @@ public sealed class FrameSpool : IDisposable
     /// <summary>压缩收益门槛的分母：落盘字节数至少比原始少 1/32 才用压缩版本。</summary>
     private const int MinSavingDivisor = 32;
 
-    /// <summary>单帧压缩耗时预算下限（毫秒）。与帧间隔的滑动平均取大再乘 1.2 作为判定线，
-    /// 压缩耗时超过它就暂停压缩若干帧，避免 CPU 压缩成为录制帧率的硬上限。</summary>
+    /// <summary>帧间隔未知时的压缩耗时预算（毫秒）；已知时按帧间隔的八成计算，写线程要比捕获快才不产生背压。</summary>
     private const int CompressBudgetMs = 30;
 
     /// <summary>压缩超预算或收益不足后，原样落盘多少帧再试一次。</summary>
     private const int CompressionSkipFrames = 30;
+
+    /// <summary>退避上限（帧）：画面一直难压时，最多每 600 帧试一次，别把时间浪费在无望的压缩上。</summary>
+    private const int CompressionSkipCap = 600;
+
+    /// <summary>「慢但省得多」的收益门槛：压缩耗时超预算、但落盘收益至少这么多倍时，宁可降档继续压缩，
+    /// 也不退回原始落盘——4K 原始帧每秒可达 1–2 GB，把磁盘写满比帧率低一点更糟。</summary>
+    private const int SlowCompressionRatio = 4;
 
     /// <summary>写线程队列深度；满时捕获线程短暂阻塞（等价于原来的同步写盘背压）。</summary>
     private const int QueueDepth = 2;
@@ -174,8 +181,8 @@ public sealed class FrameSpool : IDisposable
         int skipCompression = 0;
         int backoff = CompressionSkipFrames;
         int written = 0;
-        double costEma = 0, intervalEma = 0, lastTimeMs = 0;
-        bool compressionPaused = false;
+        double intervalEma = 0, lastTimeMs = 0;
+        bool fastTier = false, compressionPaused = false;
         Span<byte> header = stackalloc byte[HeaderBytes];
         try
         {
@@ -190,7 +197,8 @@ public sealed class FrameSpool : IDisposable
                 if (job.TimeMs > lastTimeMs && lastTimeMs > 0)
                 {
                     double interval = job.TimeMs - lastTimeMs;
-                    intervalEma = intervalEma <= 0 ? interval : intervalEma * 0.7 + interval * 0.3;
+                    if (interval < 10000)
+                        intervalEma = intervalEma <= 0 ? interval : intervalEma * 0.7 + interval * 0.3;
                 }
                 lastTimeMs = job.TimeMs;
                 if (skipCompression > 0) skipCompression--;
@@ -198,38 +206,65 @@ public sealed class FrameSpool : IDisposable
                 {
                     var compressClock = System.Diagnostics.Stopwatch.StartNew();
                     bool saved = false;
+                    // 快速档期间每 300 帧用标准档试一次，画面变简单时自动回到收益更高的档位。
+                    int quality = fastTier && written % 300 != 0 ? 0 : 1;
                     try
                     {
                         int capacity = BrotliEncoder.GetMaxCompressedLength(job.Length);
                         if (scratch == null || scratch.Length < capacity)
                             scratch = GC.AllocateUninitializedArray<byte>(capacity);
-                        saved = BrotliEncoder.TryCompress(job.Buffer.AsSpan(0, job.Length), scratch, out int packed, 1, 22)
+                        saved = BrotliEncoder.TryCompress(job.Buffer.AsSpan(0, job.Length), scratch, out int packed,
+                                quality, 22)
                             && packed < job.Length - job.Length / MinSavingDivisor;
                         if (saved) { stored = packed; flags = 1; }
                     }
                     catch (Exception error) { Trace.Log("frame spool compress: " + error); stored = job.Length; flags = 0; }
                     compressClock.Stop();
-                    // 高熵画面（视频/游戏）压缩既慢又省不了多少：写线程跟不上捕获节奏或收益不足就退避一段，
-                    // 暂停期满再试，画面变简单时自动恢复压缩；退避逐次翻倍，避免周期性卡一下。
-                    // 头几帧的耗时含 Brotli 首次 JIT，不参与判定。
                     double cost = compressClock.Elapsed.TotalMilliseconds;
-                    if (written >= 3) costEma = costEma <= 0 ? cost : costEma * 0.7 + cost * 0.3;
-                    double budget = Math.Max(CompressBudgetMs, intervalEma) * 1.2;
-                    if (!saved || (written >= 3 && costEma > budget))
+                    // 写线程得比捕获快才不会背压：帧间隔未知时用固定预算，已知时留两成余量。
+                    double budget = intervalEma > 0 ? intervalEma * 0.8 : CompressBudgetMs;
+                    int ratio = saved ? (int)Math.Min(int.MaxValue, job.Length / (long)Math.Max(1, stored)) : 1;
+                    // 头几帧的耗时含 Brotli 首次 JIT，不参与判定。
+                    if (!saved)
                     {
                         skipCompression = backoff;
-                        backoff = Math.Min(backoff * 4, CompressionSkipFrames * 20);
-                        if (!compressionPaused)
-                        {
-                            compressionPaused = true;
-                            Trace.Log($"frame spool compression paused: saved={saved} cost={cost:0}ms ema={costEma:0}ms interval={intervalEma:0}ms");
-                        }
+                        backoff = Math.Min(backoff * 2, CompressionSkipCap);
+                        fastTier = false;
+                        Paused("compress-failed");
                     }
-                    else if (compressionPaused)
+                    else if (written < 3 || cost <= budget)
                     {
-                        compressionPaused = false;
                         backoff = CompressionSkipFrames;
-                        Trace.Log("frame spool compression resumed");
+                        if (quality == 1) fastTier = false;
+                        Resumed();
+                    }
+                    else if (ratio >= SlowCompressionRatio)
+                    {
+                        // 慢但省得多：降到快速档继续压，宁可帧率略低也不退回原始落盘把磁盘写满。
+                        if (!fastTier) fastTier = true;
+                        backoff = CompressionSkipFrames;
+                        Resumed();
+                    }
+                    else
+                    {
+                        skipCompression = backoff;
+                        backoff = Math.Min(backoff * 2, CompressionSkipCap);
+                        fastTier = false;
+                        Paused("slow-incompressible");
+                    }
+
+                    void Paused(string reason)
+                    {
+                        if (compressionPaused) return;
+                        compressionPaused = true;
+                        Trace.Log($"frame spool compression paused: reason={reason} saved={saved} cost={cost:0}ms ratio={ratio}x interval={intervalEma:0}ms");
+                    }
+
+                    void Resumed()
+                    {
+                        if (!compressionPaused) return;
+                        compressionPaused = false;
+                        Trace.Log($"frame spool compression resumed: cost={cost:0}ms ratio={ratio}x");
                     }
                 }
 
@@ -395,13 +430,13 @@ public sealed class FrameSpoolList : IReadOnlyList<CapturedFrame>, IDisposable
 
     /// <summary>把第 i 帧读进给定缓冲，不新分配像素：导出预取复用几块缓冲，长录制不再为每帧分配一次 4K 数组。</summary>
     /// <param name="i">帧序号，0 到 <see cref="Count"/>-1。</param>
-    /// <param name="destination">目标缓冲，长度须不小于 <paramref name="length"/>。</param>
-    /// <param name="length">期望的帧字节数；与索引记录不符时返回 false，由调用方走索引器报出原始异常。</param>
-    /// <returns>true = 已写入；false = 缓冲太小或帧长与期望不符。</returns>
+    /// <param name="destination">目标缓冲，长度须正好等于 <paramref name="length"/>（压缩帧按缓冲长度校验解压结果）。</param>
+    /// <param name="length">期望的帧字节数；与索引记录不符时返回 false，由调用方按原路径读取。</param>
+    /// <returns>true = 已写入；false = 缓冲长度不符或帧长与期望不符。</returns>
     internal bool TryReadInto(int i, byte[] destination, int length)
     {
         var entry = _idx[i];
-        if (entry.Len != length || destination.Length < length) return false;
+        if (entry.Len != length || destination.Length != length) return false;
         byte[]? packed;
         int stored;
         lock (_gate) packed = ReadRaw(entry, destination, out stored);
