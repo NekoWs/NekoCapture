@@ -329,7 +329,7 @@ public sealed class FrameSpoolList : IReadOnlyList<CapturedFrame>, IDisposable
     public Entry Meta(int i) => _idx[i];
 
     /// <summary>按需回读第 i 帧：Seek 到该帧头，按压缩标志解压或直读 BGRA，不缓存、不预读。
-    /// 磁盘读在锁内、解压在锁外：多个消费线程可以并行解压不同帧（导出预取靠它）。
+    /// 磁盘读在锁内、解压在锁外：多个消费线程可以并行解压不同帧（导出预取靠它）。</summary>
     /// <param name="i">帧序号，0 到 <see cref="Count"/>-1。</param>
     /// <value>每次取都新分配一份像素数组；后台导出与 UI 拖动可并发取不同帧。</value>
     public CapturedFrame this[int i]

@@ -111,8 +111,10 @@ foreach ($v in $variants) {
     $stage = Join-Path $OutDir "staging\$($v.Key)"
     Step "发布 $($v.Suffix)"
     Remove-ReleaseDirectory $stage
+    # 预编译（ReadyToRun）：冷启动少一次全量 JIT，实测设置窗从 0.81s 到 0.66s。
+    # 放在发布命令上而不是 csproj：不带 RID 的 publish 会因它报 NETSDK1094。
     $p = dotnet publish $csproj -c Release -r win-x64 --self-contained $v.SelfContained `
-         -p:Platform=x64 -o $stage -v q --nologo 2>&1 | Out-String
+         -p:Platform=x64 -p:PublishReadyToRun=true -o $stage -v q --nologo 2>&1 | Out-String
     $publishCode = $LASTEXITCODE
     $perr = @($p -split "`n" | ForEach-Object{ $_.Trim() } | Where-Object{ $_ -match ': error' })
     if ($publishCode -ne 0 -or $perr.Count) { $perr | ForEach-Object{ Write-Host "  $_" -ForegroundColor Red }; throw "发布 $($v.Suffix) 失败" }
