@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
@@ -82,29 +83,28 @@ public static class VideoEncoder
         return Math.Clamp((frames.Count - 1) / (dur / 1000.0), 1, 240);
     }
 
-    /// <summary>这组帧里有没有要保留的透明。抽首/中/末三帧看 alpha 通道：
-    /// 窗口录制的透明从第一帧起就在（圆角与投影全程都在），区域录制全程不透明。</summary>
+    /// <summary>把一组帧里有没有要保留的透明。抽首帧即可：透明是<b>捕获方式</b>的属性——窗口录制圆角与投影
+    /// 从第一帧起就在，区域录制全程不透明；帧间不会忽然长出 alpha。</summary>
     /// <param name="frames">待编码帧。</param>
-    /// <param name="ct">在抽样与扫描中检查的取消令牌。</param>
-    /// <returns>true = 至少一帧有 alpha 不满的像素。</returns>
+    /// <param name="ct">在扫描中检查的取消令牌。</param>
+    /// <returns>true = 首帧有 alpha 不满的像素。</returns>
     public static bool CarriesAlpha(IReadOnlyList<CapturedFrame> frames, CancellationToken ct = default)
     {
         if (frames.Count == 0) return false;
-        foreach (int i in new[] { 0, frames.Count / 2, frames.Count - 1 }.Distinct())
+        var bgra = BakedFrameList.Read(frames, 0, ct).Bgra;
+        for (int o = 3; o < bgra.Length; o += 4)
         {
-            var bgra = BakedFrameList.Read(frames, i, ct).Bgra;
-            for (int o = 3; o < bgra.Length; o += 4)
-            {
-                if ((o & 16383) == 3) ct.ThrowIfCancellationRequested();
-                if (bgra[o] < 250) return true;
-            }
+            if ((o & 16383) == 3) ct.ThrowIfCancellationRequested();
+            if (bgra[o] < 250) return true;
         }
         return false;
     }
 
-    /// <summary>拼 ffmpeg 命令行（纯函数，便于单测）。rawvideo BGRA 从 stdin 进，按 fmt 选编码器。
+    /// <summary>拼 ffmpeg 命令行（纯函数）。rawvideo BGRA 从 stdin 进，按 fmt 选编码器。
     /// yuv420p 要求宽高为偶数，而用户选区可能是奇数（如 641×401）→ 奇数时插一条向下取偶的 scale
-    /// 滤镜（641→640、401→400），否则 libx264/vp9 直接报 "width not divisible by 2" 编码失败。</summary>
+    /// 滤镜（641→640、401→400），否则 libx264/vp9 直接报 "width not divisible by 2" 编码失败。
+    /// VP9 默认用 libvpx 的 good 质量档（cpu-used 0），4K 下只有个位数 fps；这里用 realtime 档并开
+    /// row-mt，让 4K 导出从「等几分钟」回到秒级——CRF 不变，画质差异在屏幕录制上不可辨。</summary>
     /// <param name="w">输入帧宽（像素），奇数时触发补偶 scale 滤镜。</param>
     /// <param name="h">输入帧高（像素），奇数时同样触发。</param>
     /// <param name="fps">帧率，按 "0.###" 且不变文化格式化，避免区域小数点变成逗号。</param>
@@ -124,12 +124,14 @@ public static class VideoEncoder
                 ? $"-c:v h264_mf -hw_encoding 0 -pix_fmt nv12 -b:v {Math.Clamp((long)(w * (double)h * fps * 0.15), 4_000_000, 100_000_000)} -movflags +faststart"
                 : "-c:v libx264 -pix_fmt yuv420p -preset ultrafast -movflags +faststart"
             : alpha
-                ? "-c:v libvpx-vp9 -pix_fmt yuva420p -auto-alt-ref 0 -b:v 0 -crf 40"
-                : "-c:v libvpx-vp9 -pix_fmt yuv420p -b:v 0 -crf 40";
+                ? "-c:v libvpx-vp9 -pix_fmt yuva420p -auto-alt-ref 0 -b:v 0 -crf 40 -row-mt 1 -cpu-used 8 -deadline realtime -threads 8"
+                : "-c:v libvpx-vp9 -pix_fmt yuv420p -b:v 0 -crf 40 -row-mt 1 -cpu-used 8 -deadline realtime -threads 8";
         string vf = (w % 2 != 0 || h % 2 != 0)
             ? " -vf \"scale=trunc(iw/2)*2:trunc(ih/2)*2\""
             : "";
-        return $"-hide_banner -loglevel error -y -f rawvideo -pix_fmt bgra -s {w}x{h} -framerate {fpsS} -i pipe:0{vf} {codec} -threads 2 \"{outPath}\"";
+        // 2 线程对 ultrafast 的 4K 反而比不限线程快（帧内并行度低，多线程只多抢 CPU）
+        string threads = fmt == VideoFormat.Mp4 ? " -threads 2" : "";
+        return $"-hide_banner -loglevel error -y -f rawvideo -pix_fmt bgra -s {w}x{h} -framerate {fpsS} -i pipe:0{vf} {codec}{threads} \"{outPath}\"";
     }
 
     /// <summary>
@@ -187,22 +189,7 @@ public static class VideoEncoder
             // 先挂上 stderr 异步读取：ffmpeg 写日志时若 stderr 缓冲满会阻塞，与 stdin 写互锁 → 死锁。
             Task<string> errTask = p.StandardError.ReadToEndAsync();
 
-            var stdin = p.StandardInput.BaseStream;
-            int frameBytes = w * 4 * h;
-            for (int i = 0; i < frames.Count; i++)
-            {
-                ct.ThrowIfCancellationRequested();
-                var frame = BakedFrameList.Read(frames, i, ct);
-                byte[] bgra = flatten
-                    ? BgraImage.FlattenOver(frame, mt.R, mt.G, mt.B).Bgra
-                    : frame.Bgra;
-                if (bgra.Length < frameBytes)
-                    throw new InvalidOperationException($"frame {i} too small: {bgra.Length} < {frameBytes}");
-                stdin.Write(bgra, 0, frameBytes);
-                progress?.Report(i + 1);
-            }
-            stdin.Flush();
-            stdin.Close();
+            Feed(frames, p.StandardInput.BaseStream, flatten ? matte : null, w * 4 * h, progress, ct);
 
             if (!p.WaitForExit(120000))
                 throw new TimeoutException("ffmpeg 未在 120s 内退出");
@@ -221,6 +208,69 @@ public static class VideoEncoder
             throw;
         }
         finally { p?.Dispose(); }
+    }
+
+    /// <summary>把帧读成连续 rawvideo 写进 ffmpeg 的 stdin；预取线程与写入线程通过有界队列交接。
+    /// 队列深度固定，长录像不会整段物化像素；读帧/烘焙与管道写入重叠，导出接近「读与编码中较慢的一边」。</summary>
+    /// <param name="frames">待编码帧。</param>
+    /// <param name="stdin">ffmpeg 的标准输入流，返回前被刷新并关闭。</param>
+    /// <param name="matte">需要拍平透明时给出的填充色；null = 原样喂。</param>
+    /// <param name="frameBytes">每帧应写出的字节数。</param>
+    /// <param name="progress">报告已写入帧数。</param>
+    /// <param name="ct">取消令牌；取消时预取线程一起停下。</param>
+    private static void Feed(IReadOnlyList<CapturedFrame> frames, Stream stdin, Color? matte, int frameBytes,
+        IProgress<int>? progress, CancellationToken ct)
+    {
+        const int Depth = 4;
+        using var queue = new BlockingCollection<(byte[] Bgra, int Index)>(Depth);
+        using var feedCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        Exception? failure = null;
+        var producer = Task.Run(() =>
+        {
+            try
+            {
+                for (int i = 0; i < frames.Count; i++)
+                {
+                    feedCts.Token.ThrowIfCancellationRequested();
+                    var frame = BakedFrameList.Read(frames, i, feedCts.Token);
+                    byte[] bgra = matte is { } mt
+                        ? BgraImage.FlattenOver(frame, mt.R, mt.G, mt.B, assumeAlpha: true).Bgra
+                        : frame.Bgra;
+                    if (bgra.Length < frameBytes)
+                        throw new InvalidOperationException($"frame {i} too small: {bgra.Length} < {frameBytes}");
+                    queue.Add((bgra, i), feedCts.Token);
+                }
+            }
+            catch (Exception ex) { failure = ex; }
+            // 消费端放弃时队列可能已经释放，收尾本身不许再抛（否则变成无人观察的任务异常）。
+            finally { try { queue.CompleteAdding(); } catch (ObjectDisposedException) { } }
+        }, CancellationToken.None);
+        try
+        {
+            try
+            {
+                foreach (var (bgra, index) in queue.GetConsumingEnumerable(ct))
+                {
+                    stdin.Write(bgra, 0, frameBytes);
+                    progress?.Report(index + 1);
+                }
+            }
+            finally
+            {
+                feedCts.Cancel();
+                // 管道已断时 Flush/Close 会再抛一次：不能让它盖掉真正的失败原因。
+                try { stdin.Flush(); } catch { }
+                try { stdin.Close(); } catch { }
+                // 预取线程可能正卡在磁盘读或队列等待里：取消后等它自己收尾再释放队列。
+                try { producer.Wait(2000); } catch { }
+            }
+            if (failure != null) throw failure;
+        }
+        catch
+        {
+            feedCts.Cancel();
+            throw;
+        }
     }
 
     private static string Tail(string s)

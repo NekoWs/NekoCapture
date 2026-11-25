@@ -75,9 +75,26 @@ public static partial class BgraImage
     public static CapturedFrame FlattenOver(CapturedFrame f, byte r, byte g, byte b)
     {
         var src = f.Bgra;
-        bool anyAlpha = false;
-        for (int i = 3; i < src.Length; i += 4) if (src[i] != 255) { anyAlpha = true; break; }
-        if (!anyAlpha) return f;
+        for (int i = 3; i < src.Length; i += 4) if (src[i] != 255) return FlattenOver(f, r, g, b, assumeAlpha: true);
+        return f;
+    }
+
+    /// <summary>拍平到纯色底，调用方已确认存在不满 alpha 的像素时跳过整帧扫描。</summary>
+    /// <param name="f">源帧。</param>
+    /// <param name="r">底色红通道，0–255。</param>
+    /// <param name="g">底色绿通道，0–255。</param>
+    /// <param name="b">底色蓝通道，0–255。</param>
+    /// <param name="assumeAlpha">true = 不扫描 alpha，直接逐像素混合；视频导出已按首帧判定过 alpha。</param>
+    /// <returns>全不透明新帧。</returns>
+    internal static CapturedFrame FlattenOver(CapturedFrame f, byte r, byte g, byte b, bool assumeAlpha)
+    {
+        var src = f.Bgra;
+        if (!assumeAlpha)
+        {
+            bool anyAlpha = false;
+            for (int i = 3; i < src.Length; i += 4) if (src[i] != 255) { anyAlpha = true; break; }
+            if (!anyAlpha) return f;
+        }
         var dst = new byte[src.Length];
         for (int i = 0; i < src.Length; i += 4)
         {
