@@ -346,6 +346,21 @@ public sealed class FrameSpoolList : IReadOnlyList<CapturedFrame>, IDisposable
         }
     }
 
+    /// <summary>把第 i 帧读进给定缓冲，不新分配像素：导出预取复用几块缓冲，长录制不再为每帧分配一次 4K 数组。</summary>
+    /// <param name="i">帧序号，0 到 <see cref="Count"/>-1。</param>
+    /// <param name="destination">目标缓冲，长度须不小于该帧解压后的字节数。</param>
+    /// <returns>true = 已写入；false = 目标缓冲太小，调用方应改用索引器。</returns>
+    internal bool TryReadInto(int i, byte[] destination)
+    {
+        var entry = _idx[i];
+        if (destination.Length < entry.Len) return false;
+        byte[]? packed;
+        int stored;
+        lock (_gate) packed = ReadRaw(entry, destination, out stored);
+        if (packed != null) DecompressFrame(packed, stored, destination);
+        return true;
+    }
+
     /// <summary>读一帧的落盘数据：先读 28 字节头校验尺寸；压缩帧只取出压缩字节，解压交给锁外做。</summary>
     /// <param name="entry">索引项。</param>
     /// <param name="destination">未压缩帧的目标缓冲，长度至少为解压后字节数。</param>

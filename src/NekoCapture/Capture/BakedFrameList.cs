@@ -111,6 +111,36 @@ internal sealed class BakedFrameList : IReadOnlyList<CapturedFrame>, IDisposable
         finally { Release(); }
     }
 
+    /// <summary>纯直通帧（无标注、无裁剪）读进调用方缓冲，不新分配像素；导出预取用它复用缓冲。</summary>
+    /// <param name="index">范围内的帧下标。</param>
+    /// <param name="destination">目标缓冲，长度须不小于该帧字节数。</param>
+    /// <returns>true = 已写入；false = 本租约需要烘焙/裁剪，或帧源不支持直读，调用方应改用索引器。</returns>
+    internal bool TryReadPlainInto(int index, byte[] destination)
+    {
+        if (!IsPlain) return false;
+        Acquire(index);
+        try
+        {
+            return _state.Source switch
+            {
+                FrameSpoolList spool => spool.TryReadInto(_start + index, destination),
+                _ => CopyInto(_state.Source[_start + index], destination),
+            };
+        }
+        finally { Release(); }
+    }
+
+    /// <summary>把一帧像素拷进目标缓冲。</summary>
+    /// <param name="frame">源帧。</param>
+    /// <param name="destination">目标缓冲，长度须不小于源帧字节数。</param>
+    /// <returns>缓冲足够并已拷贝时为 true。</returns>
+    private static bool CopyInto(CapturedFrame frame, byte[] destination)
+    {
+        if (destination.Length < frame.Bgra.Length) return false;
+        Buffer.BlockCopy(frame.Bgra, 0, destination, 0, frame.Bgra.Length);
+        return true;
+    }
+
     /// <summary>取得裁剪后的尺寸与原始时间戳，不烘焙像素。</summary>
     /// <param name="index">范围内的帧下标。</param>
     /// <returns>输出帧的元数据。</returns>

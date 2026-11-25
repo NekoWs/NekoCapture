@@ -227,7 +227,8 @@ public static class VideoEncoder
         else FeedSerial(frames, stdin, matte, frameBytes, progress, ct);
     }
 
-    /// <summary>多线程预取：按帧号分派给几个读帧线程，写入端按帧号顺序落管道，乱序只在内存里保留少量帧。</summary>
+    /// <summary>多线程预取：按帧号分派给几个读帧线程，写入端按帧号顺序落管道，乱序只在内存里保留少量帧。
+    /// 纯直通帧直接解到复用缓冲里，长录制导出不再为每帧分配一次 4K 数组（40 帧 4K 少分配约 1.3 GB）。</summary>
     /// <param name="frames">纯直通帧源。</param>
     /// <param name="stdin">ffmpeg 的标准输入流。</param>
     /// <param name="matte">拍平透明用的填充色；null = 原样喂。</param>
@@ -238,8 +239,14 @@ public static class VideoEncoder
         IProgress<int>? progress, CancellationToken ct)
     {
         int workers = frameBytes >= (16 << 20) ? 2 : 3;
-        using var queue = new BlockingCollection<(int Index, byte[] Bgra)>(workers + 1);
+        using var queue = new BlockingCollection<(int Index, byte[] Bgra, bool Reused)>(workers + 1);
         using var feedCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        var buffers = new System.Collections.Concurrent.ConcurrentBag<byte[]>();
+        byte[] RentBuffer()
+        {
+            if (buffers.TryTake(out var ready) && ready.Length >= frameBytes) return ready;
+            return GC.AllocateUninitializedArray<byte>(frameBytes);
+        }
         Exception? failure = null;
         int take = -1;
         var readers = new Task[workers];
@@ -254,13 +261,24 @@ public static class VideoEncoder
                         int index = Interlocked.Increment(ref take);
                         if (index >= frames.Count) break;
                         feedCts.Token.ThrowIfCancellationRequested();
+                        var buffer = RentBuffer();
+                        bool direct = matte is null && (frames is FrameSpoolList spool
+                            ? spool.TryReadInto(index, buffer)
+                            : frames is BakedFrameList baked && baked.TryReadPlainInto(index, buffer));
+                        if (direct)
+                        {
+                            queue.Add((index, buffer, true), feedCts.Token);
+                            continue;
+                        }
+                        // 需要烘焙/裁剪/拍平：退回逐帧读，复用缓冲归还池子。
+                        buffers.Add(buffer);
                         var frame = BakedFrameList.Read(frames, index, feedCts.Token);
                         byte[] bgra = matte is { } mt
                             ? BgraImage.FlattenOver(frame, mt.R, mt.G, mt.B, assumeAlpha: true).Bgra
                             : frame.Bgra;
                         if (bgra.Length < frameBytes)
                             throw new InvalidOperationException($"frame {index} too small: {bgra.Length} < {frameBytes}");
-                        queue.Add((index, bgra), feedCts.Token);
+                        queue.Add((index, bgra, false), feedCts.Token);
                     }
                 }
                 catch (Exception ex) { failure ??= ex; feedCts.Cancel(); }
@@ -268,18 +286,19 @@ public static class VideoEncoder
         }
         _ = Task.WhenAll(readers).ContinueWith(_ => { try { queue.CompleteAdding(); } catch (ObjectDisposedException) { } },
             TaskScheduler.Default);
-        var pending = new Dictionary<int, byte[]>();
+        var pending = new Dictionary<int, (byte[] Bgra, bool Reused)>();
         int expected = 0;
         try
         {
             try
             {
-                foreach (var (index, bgra) in queue.GetConsumingEnumerable(ct))
+                foreach (var (index, bgra, reused) in queue.GetConsumingEnumerable(ct))
                 {
-                    pending[index] = bgra;
+                    pending[index] = (bgra, reused);
                     while (pending.Remove(expected, out var ready))
                     {
-                        stdin.Write(ready, 0, frameBytes);
+                        stdin.Write(ready.Bgra, 0, frameBytes);
+                        if (ready.Reused) buffers.Add(ready.Bgra);
                         progress?.Report(++expected);
                     }
                 }
