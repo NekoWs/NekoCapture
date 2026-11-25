@@ -31,13 +31,15 @@ public static class TempFiles
         try { if (File.Exists(path)) File.Delete(path); } catch { }
     }
 
-    /// <summary>清掉超过保留期的自家中间文件。只认自家的几种前缀，别人的东西一个都不碰。</summary>
+    /// <summary>清掉超过保留期的自家中间文件。只认自家的几种前缀，别人的东西一个都不碰。
+    /// 每删 64 个让出 20ms：整仓过期文件可能上千个，连续删除会把磁盘队列占满，和正在进行的捕获抢 I/O。</summary>
     /// <param name="retained">仍被最近产物引用的完整路径。</param>
     /// <returns>删掉的文件数。</returns>
     public static int SweepStale(IEnumerable<string>? retained = null)
     {
-        int removed = 0;
+        int removed = 0, burst = 0;
         var keep = new HashSet<string>(retained ?? Array.Empty<string>(), StringComparer.OrdinalIgnoreCase);
+        var clock = System.Diagnostics.Stopwatch.StartNew();
         try
         {
             if (!Directory.Exists(Dir)) return 0;
@@ -51,12 +53,13 @@ public static class TempFiles
                     if (File.GetLastWriteTimeUtc(f) >= limit) continue;
                     File.Delete(f);
                     removed++;
+                    if (++burst >= 64) { burst = 0; Thread.Sleep(20); }
                 }
                 catch { }
             }
         }
         catch { }
-        if (removed > 0) Trace.Log($"temp sweep removed {removed}");
+        if (removed > 0) Trace.Log($"temp sweep removed {removed} in {clock.ElapsedMilliseconds} ms");
         return removed;
     }
 

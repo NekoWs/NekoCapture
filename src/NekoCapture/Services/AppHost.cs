@@ -30,7 +30,6 @@ public sealed class AppHost
     public void Startup()
     {
         Trace.Log("Startup begin");
-        Capture.FrameSpool.CleanupStale(CaptureController.ResidentFiles());
         Settings = new SettingsService();
         Settings.Current.ApplyPalette();
         Loc.Apply(Settings.Current.UiLanguage);
@@ -68,6 +67,28 @@ public sealed class AppHost
             t.Start();
         }
         Trace.Log("Startup done");
+        SweepTempInBackground();
+    }
+
+    /// <summary>界面起来后在后台清理过期的自家中间文件：清理量正比于「上次启动距今多久」，
+    /// 久未启动的那一次会有整仓过期文件（实测三千个要 2.8 秒），不能压在启动关键路径上。
+    /// 用低于普通的独立线程并在批间让出磁盘，避免和首批捕获抢 I/O。</summary>
+    static void SweepTempInBackground()
+    {
+        var thread = new Thread(() =>
+        {
+            Thread.Sleep(1500); // 先让首帧窗口、托盘与钩子装完
+            try
+            {
+                var retained = CaptureController.ResidentFiles().ToArray();
+                int removed = Core.TempFiles.SweepStale(retained);
+                Capture.FrameSpool.CleanupStale(retained);
+                Trace.Log($"temp sweep done removed={removed}");
+            }
+            catch (Exception error) { Trace.Log("temp sweep: " + error); }
+        })
+        { IsBackground = true, Name = "Temp sweep", Priority = ThreadPriority.BelowNormal };
+        thread.Start();
     }
 
     /// <summary>按 键盘钩子 → 手势 → 托盘 → 控制器 的顺序释放。每步独立吞异常：一步失败不拖累其余释放。</summary>

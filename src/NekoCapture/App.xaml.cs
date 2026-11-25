@@ -61,7 +61,8 @@ public partial class App : Application
 
         // 自家中间文件超过保留期就清掉：截图与长图的中间件都在 %TEMP%\NekoCapture，
         // 不收拾会一直涨（实测一台机器上积到两千多个、2.6 GB）。
-        Core.TempFiles.SweepStale(Services.CaptureController.ResidentFiles());
+        // 清理量正比于「上次启动距今多久」——久未启动的那一次会有整仓过期文件，放在启动关键路径上
+        // 就是一次几秒的卡顿；因此交给 AppHost 在界面起来后后台做。
         Core.MsaaSnap.DebugLog = Core.Trace.Log;
         Core.ElementSnap.DebugLog = Core.Trace.Log;
 
