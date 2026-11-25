@@ -167,16 +167,25 @@ public sealed partial class CaptureController
                 var ffmpeg = Encoding.FfmpegLocator.Find(format) ?? throw new InvalidOperationException("ffmpeg not found");
                 var matte = Core.HexColor.Parse(_settings.Current.VideoMatteColor);
                 var clock = System.Diagnostics.Stopwatch.StartNew();
-                int fed = 0;
-                var counter = new Progress<int>(value => fed = value);
+                var counter = new SyncProgress();
                 Encoding.VideoEncoder.Encode(sequence.Frames, ffmpeg, outPath, format,
                     Encoding.VideoEncoder.FpsFromFrames(sequence.Frames), counter, default, matte);
                 clock.Stop();
-                Trace.Log($"record-test: type={sequence.Frames.GetType().Name} frames={sequence.Frames.Count} fed={fed} encode={clock.ElapsedMilliseconds}ms bytes={new System.IO.FileInfo(outPath).Length} path={outPath}");
+                Trace.Log($"record-test: type={sequence.Frames.GetType().Name} frames={sequence.Frames.Count} fed={counter.Value} encode={clock.ElapsedMilliseconds}ms bytes={new System.IO.FileInfo(outPath).Length} path={outPath}");
                 return true;
             });
         }
         catch (Exception error) { Trace.Log("record-test encode: " + error); }
+    }
+
+    /// <summary>同步记录最近一次进度值：<see cref="Progress{T}"/> 会异步投递，调试日志会读到旧值。</summary>
+    private sealed class SyncProgress : IProgress<int>
+    {
+        /// <summary>最近一次报告的帧数。</summary>
+        public int Value { get; private set; }
+        /// <summary>记录帧数。</summary>
+        /// <param name="value">已处理帧数。</param>
+        public void Report(int value) => Value = value;
     }
 
     private async void ReleaseRecording()

@@ -80,7 +80,8 @@ public sealed class AppHost
             Thread.Sleep(1500); // 先让首帧窗口、托盘与钩子装完
             try
             {
-                var retained = CaptureController.ResidentFiles().ToArray();
+                // 会话读不出来时不清理：保留集合会变成空的，最近一次录制可能被当成过期文件删掉。
+                string[] retained = CaptureController.ResidentFiles();
                 int removed = Core.TempFiles.SweepStale(retained);
                 Capture.FrameSpool.CleanupStale(retained);
                 Trace.Log($"temp sweep done removed={removed}");

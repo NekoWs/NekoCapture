@@ -25,13 +25,18 @@ public sealed partial class CaptureController
         RestoreResidentSession();
     }
 
-    /// <summary>最近产物仍引用的临时文件，过期清理必须保留。</summary>
+    /// <summary>最近产物仍引用的临时文件，过期清理必须保留。只认当前帧仓格式：旧格式的录制读不出来，
+    /// 不该再为它挡住清理。</summary>
     /// <returns>录制与滚动截图缓存路径。</returns>
-    internal static IEnumerable<string> ResidentFiles()
+    /// <exception cref="System.IO.IOException">常驻会话文件读不出来：调用方应跳过本轮清理，
+    /// 否则会按「没有保留文件」误删最近一次录制。</exception>
+    internal static string[] ResidentFiles()
     {
-        var session = ReadSession();
-        if (session.Video?.Path is { Length: > 0 } video) yield return video;
-        if (session.Scroll?.Path is { Length: > 0 } scroll) yield return scroll;
+        var session = TryReadSession() ?? throw new System.IO.IOException("resident session unreadable");
+        var files = new List<string>(2);
+        if (session.Video is { Path.Length: > 0 } video && video.Format == FrameSpool.FormatVersion) files.Add(video.Path);
+        if (session.Scroll is { Path.Length: > 0 } scroll) files.Add(scroll.Path);
+        return files.ToArray();
     }
 
     /// <summary>从本配置目录恢复上次产物；像素保持惰性读取，损坏的缓存被忽略。</summary>
@@ -125,6 +130,19 @@ public sealed partial class CaptureController
                 throw;
             }
         });
+    }
+
+    /// <summary>读常驻会话；文件不存在或内容坏掉时返回 null，让调用方区分「没有会话」和「读失败」。</summary>
+    /// <returns>解析出的会话，读取或反序列化失败为 null。</returns>
+    private static ResidentSession? TryReadSession()
+    {
+        try
+        {
+            string path = Path.Combine(SettingsService.Dir, SessionFile);
+            if (!File.Exists(path)) return new ResidentSession();
+            return JsonSerializer.Deserialize<ResidentSession>(File.ReadAllText(path), SessionJson);
+        }
+        catch (Exception error) { Trace.Log("resident session read: " + error); return null; }
     }
 
     private static ResidentSession ReadSession()

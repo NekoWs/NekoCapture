@@ -34,6 +34,13 @@ public sealed class FrameSpool : IDisposable
     /// <summary>压缩收益门槛的分母：落盘字节数至少比原始少 1/32 才用压缩版本。</summary>
     private const int MinSavingDivisor = 32;
 
+    /// <summary>单帧压缩耗时预算下限（毫秒）。与帧间隔的滑动平均取大再乘 1.2 作为判定线，
+    /// 压缩耗时超过它就暂停压缩若干帧，避免 CPU 压缩成为录制帧率的硬上限。</summary>
+    private const int CompressBudgetMs = 30;
+
+    /// <summary>压缩超预算或收益不足后，原样落盘多少帧再试一次。</summary>
+    private const int CompressionSkipFrames = 30;
+
     /// <summary>写线程队列深度；满时捕获线程短暂阻塞（等价于原来的同步写盘背压）。</summary>
     private const int QueueDepth = 2;
 
@@ -125,10 +132,12 @@ public sealed class FrameSpool : IDisposable
         try { _writer.Join(); } catch (Exception error) { Trace.Log("frame spool join: " + error); }
         lock (_gate)
         {
-            try { _fs?.Flush(); } catch { }
-            try { _fs?.Dispose(); } catch { }
+            // 磁盘写满时最后几帧可能没真正落盘：记一条 trace，别把失败吞得无迹可查。
+            try { _fs?.Flush(); } catch (Exception error) { Trace.Log("frame spool flush: " + error); }
+            try { _fs?.Dispose(); } catch (Exception error) { Trace.Log("frame spool close: " + error); }
             _fs = null;
         }
+        lock (_poolGate) _freeBuffers.Clear();
     }
 
     /// <summary>租一块不小于给定长度的精确缓冲：优先复用写线程归还的同类块，否则按需分配。
@@ -162,6 +171,11 @@ public sealed class FrameSpool : IDisposable
     private void WriteLoop()
     {
         byte[]? scratch = null;
+        int skipCompression = 0;
+        int backoff = CompressionSkipFrames;
+        int written = 0;
+        double costEma = 0, intervalEma = 0, lastTimeMs = 0;
+        bool compressionPaused = false;
         Span<byte> header = stackalloc byte[HeaderBytes];
         try
         {
@@ -173,19 +187,51 @@ public sealed class FrameSpool : IDisposable
                     continue;
                 }
                 int stored = job.Length, flags = 0;
-                try
+                if (job.TimeMs > lastTimeMs && lastTimeMs > 0)
                 {
-                    int capacity = BrotliEncoder.GetMaxCompressedLength(job.Length);
-                    if (scratch == null || scratch.Length < capacity)
-                        scratch = GC.AllocateUninitializedArray<byte>(capacity);
-                    if (BrotliEncoder.TryCompress(job.Buffer.AsSpan(0, job.Length), scratch, out int packed, 1, 22)
-                        && packed < job.Length - job.Length / MinSavingDivisor)
+                    double interval = job.TimeMs - lastTimeMs;
+                    intervalEma = intervalEma <= 0 ? interval : intervalEma * 0.7 + interval * 0.3;
+                }
+                lastTimeMs = job.TimeMs;
+                if (skipCompression > 0) skipCompression--;
+                else
+                {
+                    var compressClock = System.Diagnostics.Stopwatch.StartNew();
+                    bool saved = false;
+                    try
                     {
-                        stored = packed;
-                        flags = 1;
+                        int capacity = BrotliEncoder.GetMaxCompressedLength(job.Length);
+                        if (scratch == null || scratch.Length < capacity)
+                            scratch = GC.AllocateUninitializedArray<byte>(capacity);
+                        saved = BrotliEncoder.TryCompress(job.Buffer.AsSpan(0, job.Length), scratch, out int packed, 1, 22)
+                            && packed < job.Length - job.Length / MinSavingDivisor;
+                        if (saved) { stored = packed; flags = 1; }
+                    }
+                    catch (Exception error) { Trace.Log("frame spool compress: " + error); stored = job.Length; flags = 0; }
+                    compressClock.Stop();
+                    // 高熵画面（视频/游戏）压缩既慢又省不了多少：写线程跟不上捕获节奏或收益不足就退避一段，
+                    // 暂停期满再试，画面变简单时自动恢复压缩；退避逐次翻倍，避免周期性卡一下。
+                    // 头几帧的耗时含 Brotli 首次 JIT，不参与判定。
+                    double cost = compressClock.Elapsed.TotalMilliseconds;
+                    if (written >= 3) costEma = costEma <= 0 ? cost : costEma * 0.7 + cost * 0.3;
+                    double budget = Math.Max(CompressBudgetMs, intervalEma) * 1.2;
+                    if (!saved || (written >= 3 && costEma > budget))
+                    {
+                        skipCompression = backoff;
+                        backoff = Math.Min(backoff * 4, CompressionSkipFrames * 20);
+                        if (!compressionPaused)
+                        {
+                            compressionPaused = true;
+                            Trace.Log($"frame spool compression paused: saved={saved} cost={cost:0}ms ema={costEma:0}ms interval={intervalEma:0}ms");
+                        }
+                    }
+                    else if (compressionPaused)
+                    {
+                        compressionPaused = false;
+                        backoff = CompressionSkipFrames;
+                        Trace.Log("frame spool compression resumed");
                     }
                 }
-                catch (Exception error) { Trace.Log("frame spool compress: " + error); stored = job.Length; flags = 0; }
 
                 var fs = _fs ?? throw new ObjectDisposedException(nameof(FrameSpool));
                 BinaryPrimitives.WriteInt32LittleEndian(header[0..4], job.W);
@@ -205,6 +251,7 @@ public sealed class FrameSpool : IDisposable
                     _pos = dataOffset + stored;
                 }
                 ReturnBuffer(job.Buffer);
+                written++;
 
                 if (!_diskLowFired && --_spaceCheckIn <= 0)
                 {
@@ -348,12 +395,13 @@ public sealed class FrameSpoolList : IReadOnlyList<CapturedFrame>, IDisposable
 
     /// <summary>把第 i 帧读进给定缓冲，不新分配像素：导出预取复用几块缓冲，长录制不再为每帧分配一次 4K 数组。</summary>
     /// <param name="i">帧序号，0 到 <see cref="Count"/>-1。</param>
-    /// <param name="destination">目标缓冲，长度须不小于该帧解压后的字节数。</param>
-    /// <returns>true = 已写入；false = 目标缓冲太小，调用方应改用索引器。</returns>
-    internal bool TryReadInto(int i, byte[] destination)
+    /// <param name="destination">目标缓冲，长度须不小于 <paramref name="length"/>。</param>
+    /// <param name="length">期望的帧字节数；与索引记录不符时返回 false，由调用方走索引器报出原始异常。</param>
+    /// <returns>true = 已写入；false = 缓冲太小或帧长与期望不符。</returns>
+    internal bool TryReadInto(int i, byte[] destination, int length)
     {
         var entry = _idx[i];
-        if (destination.Length < entry.Len) return false;
+        if (entry.Len != length || destination.Length < length) return false;
         byte[]? packed;
         int stored;
         lock (_gate) packed = ReadRaw(entry, destination, out stored);

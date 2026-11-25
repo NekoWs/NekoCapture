@@ -211,8 +211,11 @@ public partial class App : Application
                 System.Windows.Threading.DispatcherPriority.ApplicationIdle);
         // 调试/e2e：真实起录指定时长，停录后把产物编码到给定文件（验证捕获→帧仓→导出整条链路）。
         // NekoCapture.exe --record-test <秒> <输出路径>
+        // 只在直接起进程时生效（脚本/隔离用）：单实例转发要带两个字符串参数，消息通道传不了。
         int rti = Array.FindIndex(e.Args, a => string.Equals(a, "--record-test", StringComparison.OrdinalIgnoreCase));
-        if (rti >= 0 && rti + 2 < e.Args.Length && double.TryParse(e.Args[rti + 1], out double recordSeconds))
+        if (rti >= 0 && rti + 2 < e.Args.Length
+            && double.TryParse(e.Args[rti + 1], System.Globalization.NumberStyles.Float,
+                System.Globalization.CultureInfo.InvariantCulture, out double recordSeconds))
         {
             string recordPath = e.Args[rti + 2];
             _ = Dispatcher.BeginInvoke(() => Services.AppHost.Current.Controller.RecordDebugAsync(recordSeconds, recordPath),

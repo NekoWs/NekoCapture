@@ -83,19 +83,28 @@ public static class VideoEncoder
         return Math.Clamp((frames.Count - 1) / (dur / 1000.0), 1, 240);
     }
 
-    /// <summary>把一组帧里有没有要保留的透明。抽首帧即可：透明是<b>捕获方式</b>的属性——窗口录制圆角与投影
-    /// 从第一帧起就在，区域录制全程不透明；帧间不会忽然长出 alpha。</summary>
+    /// <summary>这组帧里有没有要保留的透明。透明主要来自捕获方式（窗口录制圆角与投影），但窗口在录制中
+    /// 缩小/还原时后段才会露出透明边、首帧可能全不透明，所以抽首、末、中三帧，命中即返回。</summary>
     /// <param name="frames">待编码帧。</param>
     /// <param name="ct">在扫描中检查的取消令牌。</param>
-    /// <returns>true = 首帧有 alpha 不满的像素。</returns>
+    /// <returns>true = 任一抽样帧有 alpha 不满的像素。</returns>
     public static bool CarriesAlpha(IReadOnlyList<CapturedFrame> frames, CancellationToken ct = default)
     {
         if (frames.Count == 0) return false;
-        var bgra = BakedFrameList.Read(frames, 0, ct).Bgra;
-        for (int o = 3; o < bgra.Length; o += 4)
+        ReadOnlySpan<int> samples = frames.Count switch
         {
-            if ((o & 16383) == 3) ct.ThrowIfCancellationRequested();
-            if (bgra[o] < 250) return true;
+            1 => [0],
+            2 => [0, 1],
+            _ => [0, frames.Count - 1, frames.Count / 2],
+        };
+        foreach (int index in samples)
+        {
+            var bgra = BakedFrameList.Read(frames, index, ct).Bgra;
+            for (int o = 3; o < bgra.Length; o += 4)
+            {
+                if ((o & 16383) == 3) ct.ThrowIfCancellationRequested();
+                if (bgra[o] < 250) return true;
+            }
         }
         return false;
     }
@@ -263,8 +272,8 @@ public static class VideoEncoder
                         feedCts.Token.ThrowIfCancellationRequested();
                         var buffer = RentBuffer();
                         bool direct = matte is null && (frames is FrameSpoolList spool
-                            ? spool.TryReadInto(index, buffer)
-                            : frames is BakedFrameList baked && baked.TryReadPlainInto(index, buffer));
+                            ? spool.TryReadInto(index, buffer, frameBytes)
+                            : frames is BakedFrameList baked && baked.TryReadPlainInto(index, buffer, frameBytes));
                         if (direct)
                         {
                             queue.Add((index, buffer, true), feedCts.Token);
