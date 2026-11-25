@@ -123,7 +123,12 @@ public static class Keycaps
             return sp;
         }
         var parts = keys.Split(separators.ToArray(), StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        if (parts.Length == 0) return sp;
+        if (parts.Length == 0)
+        {
+            // 整个串就是分隔符本身（例如只绑了一个 "/"）：按「一条按法都没有」处理。
+            if (emptyHint != null) sp.Children.Add(Note(emptyHint, t));
+            return sp;
+        }
         // 占位文案不是键位：照键位去切，会给它画上一枚键帽，看起来就像一个名叫它自己的键。
         // 认它靠身份（就是 emptyHint 那句），语言无关。
         if (emptyHint != null && string.Equals(keys, emptyHint, StringComparison.Ordinal) ||
