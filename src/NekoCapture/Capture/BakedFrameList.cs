@@ -1,4 +1,4 @@
-﻿using System.Collections;
+using System.Collections;
 using NekoCapture.Core;
 using NekoCapture.Drawing;
 
@@ -73,6 +73,9 @@ internal sealed class BakedFrameList : IReadOnlyList<CapturedFrame>, IDisposable
             MonitorBounds = sequence.MonitorBounds, MonitorDevice = sequence.MonitorDevice,
             Fps = sequence.Fps, DroppedFrames = sequence.DroppedFrames, StartedAt = sequence.StartedAt,
         } : sequence;
+
+    /// <summary>本租约没有标注与裁剪：读帧就是源帧直通，多个线程可并发读取。</summary>
+    internal bool IsPlain => _state.Annotations.Count == 0 && _state.Crop is null;
 
     /// <summary>本租约的帧数。</summary>
     public int Count => _count;

@@ -210,8 +210,9 @@ public static class VideoEncoder
         finally { p?.Dispose(); }
     }
 
-    /// <summary>把帧读成连续 rawvideo 写进 ffmpeg 的 stdin；预取线程与写入线程通过有界队列交接。
-    /// 队列深度固定，长录像不会整段物化像素；读帧/烘焙与管道写入重叠，导出接近「读与编码中较慢的一边」。</summary>
+    /// <summary>把帧读成连续 rawvideo 写进 ffmpeg 的 stdin。纯直通源（磁盘帧仓或没有标注/裁剪的烘焙租约）
+    /// 走多线程预取：磁盘帧仓按帧压缩，解压是回读的主要成本，多线程解压能把导出重新压回编码器一侧；
+    /// 需要逐帧烘焙时走单线程预取，烘焙与管道写入重叠。</summary>
     /// <param name="frames">待编码帧。</param>
     /// <param name="stdin">ffmpeg 的标准输入流，返回前被刷新并关闭。</param>
     /// <param name="matte">需要拍平透明时给出的填充色；null = 原样喂。</param>
@@ -219,6 +220,94 @@ public static class VideoEncoder
     /// <param name="progress">报告已写入帧数。</param>
     /// <param name="ct">取消令牌；取消时预取线程一起停下。</param>
     private static void Feed(IReadOnlyList<CapturedFrame> frames, Stream stdin, Color? matte, int frameBytes,
+        IProgress<int>? progress, CancellationToken ct)
+    {
+        bool plain = frames is FrameSpoolList || frames is BakedFrameList { IsPlain: true };
+        if (plain) FeedParallel(frames, stdin, matte, frameBytes, progress, ct);
+        else FeedSerial(frames, stdin, matte, frameBytes, progress, ct);
+    }
+
+    /// <summary>多线程预取：按帧号分派给几个读帧线程，写入端按帧号顺序落管道，乱序只在内存里保留少量帧。</summary>
+    /// <param name="frames">纯直通帧源。</param>
+    /// <param name="stdin">ffmpeg 的标准输入流。</param>
+    /// <param name="matte">拍平透明用的填充色；null = 原样喂。</param>
+    /// <param name="frameBytes">每帧应写出的字节数。</param>
+    /// <param name="progress">报告已写入帧数。</param>
+    /// <param name="ct">取消令牌。</param>
+    private static void FeedParallel(IReadOnlyList<CapturedFrame> frames, Stream stdin, Color? matte, int frameBytes,
+        IProgress<int>? progress, CancellationToken ct)
+    {
+        int workers = frameBytes >= (16 << 20) ? 2 : 3;
+        using var queue = new BlockingCollection<(int Index, byte[] Bgra)>(workers + 1);
+        using var feedCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        Exception? failure = null;
+        int take = -1;
+        var readers = new Task[workers];
+        for (int w = 0; w < workers; w++)
+        {
+            readers[w] = Task.Run(() =>
+            {
+                try
+                {
+                    while (true)
+                    {
+                        int index = Interlocked.Increment(ref take);
+                        if (index >= frames.Count) break;
+                        feedCts.Token.ThrowIfCancellationRequested();
+                        var frame = BakedFrameList.Read(frames, index, feedCts.Token);
+                        byte[] bgra = matte is { } mt
+                            ? BgraImage.FlattenOver(frame, mt.R, mt.G, mt.B, assumeAlpha: true).Bgra
+                            : frame.Bgra;
+                        if (bgra.Length < frameBytes)
+                            throw new InvalidOperationException($"frame {index} too small: {bgra.Length} < {frameBytes}");
+                        queue.Add((index, bgra), feedCts.Token);
+                    }
+                }
+                catch (Exception ex) { failure ??= ex; feedCts.Cancel(); }
+            }, CancellationToken.None);
+        }
+        _ = Task.WhenAll(readers).ContinueWith(_ => { try { queue.CompleteAdding(); } catch (ObjectDisposedException) { } },
+            TaskScheduler.Default);
+        var pending = new Dictionary<int, byte[]>();
+        int expected = 0;
+        try
+        {
+            try
+            {
+                foreach (var (index, bgra) in queue.GetConsumingEnumerable(ct))
+                {
+                    pending[index] = bgra;
+                    while (pending.Remove(expected, out var ready))
+                    {
+                        stdin.Write(ready, 0, frameBytes);
+                        progress?.Report(++expected);
+                    }
+                }
+            }
+            finally
+            {
+                feedCts.Cancel();
+                try { stdin.Flush(); } catch { }
+                try { stdin.Close(); } catch { }
+                try { Task.WaitAll(readers, 2000); } catch { }
+            }
+            if (failure != null) throw failure;
+        }
+        catch
+        {
+            feedCts.Cancel();
+            throw;
+        }
+    }
+
+    /// <summary>单线程预取：读帧/烘焙在独立任务里做，与管道写入重叠；队列深度固定。</summary>
+    /// <param name="frames">待编码帧。</param>
+    /// <param name="stdin">ffmpeg 的标准输入流。</param>
+    /// <param name="matte">拍平透明用的填充色；null = 原样喂。</param>
+    /// <param name="frameBytes">每帧应写出的字节数。</param>
+    /// <param name="progress">报告已写入帧数。</param>
+    /// <param name="ct">取消令牌。</param>
+    private static void FeedSerial(IReadOnlyList<CapturedFrame> frames, Stream stdin, Color? matte, int frameBytes,
         IProgress<int>? progress, CancellationToken ct)
     {
         const int Depth = 4;

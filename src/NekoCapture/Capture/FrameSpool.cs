@@ -1,5 +1,8 @@
 using System.Buffers.Binary;
+using System.Collections.Concurrent;
 using System.IO;
+using System.IO.Compression;
+using NekoCapture.Core;
 
 namespace NekoCapture.Capture;
 
@@ -8,31 +11,57 @@ namespace NekoCapture.Capture;
 /// 编辑器经 <see cref="OpenReader"/> 拿到的惰性列表按需回读。
 /// 4K@60fps BGRA≈2GB/s——纯内存必 OOM；NVMe 顺写扛得住这个带宽，且 OS 文件缓存
 /// 让"刚录完立刻回读"接近内存速度（回放顺序读同样命中缓存）。
+/// 帧以 Brotli 快速档压缩后落盘（屏幕内容通常 20–30 倍），压缩收益不足 3% 的帧原样存：
+/// 4K 一分钟从几十 GB 降到百 MB 级，回读时解压比省下的磁盘 I/O 更便宜。
+/// 压缩与写盘在独立后台线程串行执行，捕获线程只做一次拷贝并入有界队列——
+/// 编码器再慢也不会把帧堆在内存里。
 /// 磁盘护栏：每 30 帧查一次剩余空间，低于 <see cref="MinFreeBytes"/> 触发一次
 /// <see cref="DiskLow"/>，控制器就地停录——已录内容照常进编辑器，绝不静默丢帧。
-/// 记录格式自描述（w/h/timeMs/len + BGRA），崩溃残留可识别；启动时清理过期 spool 文件。
+/// 文件带格式魔数；记录格式自描述（w/h/time/长度 + 压缩标志），崩溃残留可识别；
+/// 启动时清理过期 spool 文件。
 /// </summary>
 public sealed class FrameSpool : IDisposable
 {
+    /// <summary>帧仓文件魔数：本代布局（逐帧头 + 可选 Brotli 数据）的识别标记。</summary>
+    internal static ReadOnlySpan<byte> Magic => "FCF2"u8;
+
+    /// <summary>帧仓布局版本，写进常驻会话；读会话时版本不符就整条丢弃。</summary>
+    internal const int FormatVersion = 2;
+
+    /// <summary>每帧头字节数：w、h、时间戳、原始字节数、落盘字节数、压缩标志。</summary>
+    internal const int HeaderBytes = 28;
+
+    /// <summary>压缩收益门槛的分母：落盘字节数至少比原始少 1/32 才用压缩版本。</summary>
+    private const int MinSavingDivisor = 32;
+
+    /// <summary>写线程队列深度；满时捕获线程短暂阻塞（等价于原来的同步写盘背压）。</summary>
+    private const int QueueDepth = 2;
+
     private readonly object _gate = new();
-    private FileStream? _fs;
+    private readonly object _poolGate = new();
+    private readonly Stack<byte[]> _freeBuffers = new();
     private readonly List<FrameSpoolList.Entry> _index = new();
+    private readonly BlockingCollection<Job> _queue = new(QueueDepth);
+    private readonly Thread _writer;
+    private FileStream? _fs;
     private long _pos;
     private int _spaceCheckIn = 30;
     private bool _diskLowFired;
+    private bool _faulted;
+    private volatile bool _abandoned;
+    private int _finished;
 
     /// <summary>spool 文件路径，默认落在 %TEMP%\NekoCapture\spool-yyyyMMdd-HHmmss-fff.fcf。</summary>
     /// <value>构造后固定不变；文件的删除责任随 <see cref="OpenReader"/> 或 <see cref="Abandon"/> 转移。</value>
     public string Path { get; }
-    public const long MinFreeBytes = 1L << 30; // 剩余 <1GB 停录
 
     /// <summary>剩余空间跌破 <see cref="MinFreeBytes"/> 时触发，每条录制至多一次。
-    /// 在 <see cref="Add"/> 的调用线程（捕获线程）上同步触发，回调方须自己切回 UI 线程。</summary>
+    /// 写线程自己发现写盘失败时也用它通知调用方收尾（参数为 -1）。</summary>
     /// <value>回调参数 = 触发时查到的卷剩余字节数。</value>
     public event Action<long>? DiskLow;
 
-    /// <summary>创建 spool 文件并准备顺序写（已存在则覆盖）。写句柄以 FileShare.ReadWrite 打开，
-    /// 让同路径的惰性读列表可以立刻打开。</summary>
+    /// <summary>创建 spool 文件并启动后台写线程（已存在则覆盖）。文件头先写格式魔数；
+    /// 写句柄以 FileShare.ReadWrite 打开，让同路径的惰性读列表可以立刻打开。</summary>
     /// <param name="path">目标文件路径；null = 落到 %TEMP%\NekoCapture 下按当前时间命名的唯一文件。</param>
     public FrameSpool(string? path = null)
     {
@@ -40,76 +69,166 @@ public sealed class FrameSpool : IDisposable
             $"spool-{DateTime.Now:yyyyMMdd-HHmmss-fff}.fcf");
         Directory.CreateDirectory(System.IO.Path.GetDirectoryName(Path)!);
         _fs = new FileStream(Path, FileMode.Create, FileAccess.Write, FileShare.ReadWrite, 1 << 21);
+        _fs.Write(Magic);
+        _pos = Magic.Length;
+        _writer = new Thread(WriteLoop) { IsBackground = true, Name = "Frame spool", Priority = ThreadPriority.BelowNormal };
+        _writer.Start();
     }
 
-    /// <summary>已写入的帧数。</summary>
-    /// <value>持锁读，线程安全；定格（<see cref="OpenReader"/>）或丢弃之后计数固定。</value>
+    /// <summary>已写入文件的帧数。</summary>
+    /// <value>持锁读，线程安全；后台写线程可能比捕获慢几帧，定格之后计数固定。</value>
     public int Count { get { lock (_gate) return _index.Count; } }
-    /// <summary>已写入的文件字节数，含每帧 20 字节头。</summary>
+
+    /// <summary>已写入文件的字节数（压缩后，含每帧头与文件魔数）。</summary>
     /// <value>持锁读，线程安全。</value>
     public long BytesWritten { get { lock (_gate) return _pos; } }
 
-    /// <summary>顺序追加一帧：20 字节小端头（w/h/timeMs/len）+ BGRA 裸数据，并登记一条索引。
-    /// 由捕获线程高频调用，全部动作在 <c>_gate</c> 内完成；定格或丢弃之后调用静默无效。</summary>
-    /// <param name="f">帧。<c>Bgra</c> 同步整块写出、不被持有，调用方写回后可复用该数组。</param>
+    /// <summary>把一帧交给后台写线程：拷贝像素进池化缓冲后入有界队列，压缩与写盘都不占捕获线程。
+    /// 队列满时短暂阻塞，形成与磁盘写速匹配的背压；定格或丢弃之后调用静默无效。</summary>
+    /// <param name="f">帧。<c>Bgra</c> 在本方法返回后即可复用，后台线程持有的是拷贝。</param>
     public void Add(CapturedFrame f)
     {
-        lock (_gate)
-        {
-            if (_fs == null) return;
-            Span<byte> hdr = stackalloc byte[20];
-            BinaryPrimitives.WriteInt32LittleEndian(hdr[0..4], f.W);
-            BinaryPrimitives.WriteInt32LittleEndian(hdr[4..8], f.H);
-            BinaryPrimitives.WriteDoubleLittleEndian(hdr[8..16], f.TimeMs);
-            BinaryPrimitives.WriteInt32LittleEndian(hdr[16..20], f.Bgra.Length);
-            _fs.Write(hdr);
-            _fs.Write(f.Bgra, 0, f.Bgra.Length);
-            _index.Add(new FrameSpoolList.Entry(_pos + 20, f.TimeMs, f.W, f.H, f.Bgra.Length));
-            _pos += 20 + f.Bgra.Length;
-            if (!_diskLowFired && --_spaceCheckIn <= 0)
-            {
-                _spaceCheckIn = 30;
-                long free = FreeBytesFor(Path);
-                if (free >= 0 && free < MinFreeBytes)
-                {
-                    _diskLowFired = true;
-                    DiskLow?.Invoke(free);
-                }
-            }
-        }
+        if (_faulted || _abandoned || Volatile.Read(ref _finished) != 0) return;
+        int length = f.Bgra.Length;
+        if (length <= 0) return;
+        byte[] buffer = RentBuffer(length);
+        Buffer.BlockCopy(f.Bgra, 0, buffer, 0, length);
+        try { _queue.Add(new Job(buffer, length, f.W, f.H, f.TimeMs)); }
+        catch (InvalidOperationException) { ReturnBuffer(buffer); }
     }
 
-    /// <summary>定格：关写句柄，交还惰性读列表（文件所有权随之转移给列表，Dispose 时删除）。</summary>
+    /// <summary>定格：等后台写线程把队列写完并关写句柄，交还惰性读列表（文件所有权随之转移给列表，Dispose 时删除）。</summary>
     /// <returns>与此刻索引一致的只读帧列表；一帧未写时返回空列表而不是抛，调用方可安全枚举。</returns>
     public FrameSpoolList OpenReader()
     {
-        lock (_gate)
-        {
-            // Flush 而非 Flush(true)：spool 是临时文件，回读走同一 OS 文件缓存（新 FileStream 读同路径），
-            // 无需 FSync 强制落盘。Flush(true) 会把整段（可达 GB 级）脏页压到物理盘，实测卡 UI 线程 ~1.8s。
-            _fs?.Flush();
-            _fs?.Dispose();
-            _fs = null;
-            return new FrameSpoolList(Path, _index.ToArray());
-        }
+        FinishWriter();
+        lock (_gate) return new FrameSpoolList(Path, _index.ToArray());
     }
 
-    /// <summary>丢弃整条暂存：关句柄并删文件。用于起录后端启动失败——产物根本不会有人来读，文件必须当场消失。</summary>
+    /// <summary>丢弃整条暂存：停写线程、关句柄并删文件。用于起录后端启动失败——产物根本不会有人来读，文件必须当场消失。</summary>
     public void Abandon()
     {
-        lock (_gate)
-        {
-            _fs?.Dispose();
-            _fs = null;
-        }
+        _abandoned = true;
+        FinishWriter();
         try { File.Delete(Path); } catch { }
     }
 
     /// <summary>只关写句柄，不删文件：已定格的文件归 <see cref="FrameSpoolList"/> 删，
     /// 未定格的残留交给启动时的 <see cref="CleanupStale"/>。</summary>
-    public void Dispose()
+    public void Dispose() => FinishWriter();
+
+    /// <summary>停写线程并关句柄；可重复调用。</summary>
+    private void FinishWriter()
     {
-        lock (_gate) { _fs?.Dispose(); _fs = null; }
+        if (Interlocked.Exchange(ref _finished, 1) != 0) return;
+        try { _queue.CompleteAdding(); } catch (ObjectDisposedException) { }
+        try { _writer.Join(); } catch (Exception error) { Trace.Log("frame spool join: " + error); }
+        lock (_gate)
+        {
+            try { _fs?.Flush(); } catch { }
+            try { _fs?.Dispose(); } catch { }
+            _fs = null;
+        }
+    }
+
+    /// <summary>租一块不小于给定长度的精确缓冲：优先复用写线程归还的同类块，否则按需分配。
+    /// 不用共享 ArrayPool——它按 2 的幂分桶，33MB 的 4K 帧会被租成 64MB，录制时白占一倍内存。</summary>
+    /// <param name="length">需要的字节数。</param>
+    /// <returns>长度不小于 <paramref name="length"/> 的缓冲。</returns>
+    private byte[] RentBuffer(int length)
+    {
+        lock (_poolGate)
+        {
+            while (_freeBuffers.Count > 0)
+            {
+                var buffer = _freeBuffers.Pop();
+                if (buffer.Length >= length) return buffer;
+            }
+        }
+        return GC.AllocateUninitializedArray<byte>(length);
+    }
+
+    /// <summary>归还写线程用完的帧缓冲；只留少量同类块，避免换分辨率后旧尺寸长期占内存。</summary>
+    /// <param name="buffer">要归还的缓冲。</param>
+    private void ReturnBuffer(byte[] buffer)
+    {
+        lock (_poolGate)
+        {
+            if (_freeBuffers.Count < QueueDepth + 1) _freeBuffers.Push(buffer);
+        }
+    }
+
+    /// <summary>后台写线程：逐帧压缩、写头、写数据并登记索引；任何失败只触发一次 <see cref="DiskLow"/> 并停止。</summary>
+    private void WriteLoop()
+    {
+        byte[]? scratch = null;
+        Span<byte> header = stackalloc byte[HeaderBytes];
+        try
+        {
+            foreach (var job in _queue.GetConsumingEnumerable())
+            {
+                if (_abandoned)
+                {
+                    ReturnBuffer(job.Buffer);
+                    continue;
+                }
+                int stored = job.Length, flags = 0;
+                try
+                {
+                    int capacity = BrotliEncoder.GetMaxCompressedLength(job.Length);
+                    if (scratch == null || scratch.Length < capacity)
+                        scratch = GC.AllocateUninitializedArray<byte>(capacity);
+                    if (BrotliEncoder.TryCompress(job.Buffer.AsSpan(0, job.Length), scratch, out int packed, 1, 22)
+                        && packed < job.Length - job.Length / MinSavingDivisor)
+                    {
+                        stored = packed;
+                        flags = 1;
+                    }
+                }
+                catch (Exception error) { Trace.Log("frame spool compress: " + error); stored = job.Length; flags = 0; }
+
+                var fs = _fs ?? throw new ObjectDisposedException(nameof(FrameSpool));
+                BinaryPrimitives.WriteInt32LittleEndian(header[0..4], job.W);
+                BinaryPrimitives.WriteInt32LittleEndian(header[4..8], job.H);
+                BinaryPrimitives.WriteDoubleLittleEndian(header[8..16], job.TimeMs);
+                BinaryPrimitives.WriteInt32LittleEndian(header[16..20], job.Length);
+                BinaryPrimitives.WriteInt32LittleEndian(header[20..24], stored);
+                BinaryPrimitives.WriteInt32LittleEndian(header[24..28], flags);
+                long dataOffset;
+                lock (_gate)
+                {
+                    dataOffset = _pos + HeaderBytes;
+                    fs.Write(header);
+                    if (flags == 1) fs.Write(scratch!, 0, stored);
+                    else fs.Write(job.Buffer, 0, job.Length);
+                    _index.Add(new FrameSpoolList.Entry(dataOffset, job.TimeMs, job.W, job.H, job.Length));
+                    _pos = dataOffset + stored;
+                }
+                ReturnBuffer(job.Buffer);
+
+                if (!_diskLowFired && --_spaceCheckIn <= 0)
+                {
+                    _spaceCheckIn = 30;
+                    long free = FreeBytesFor(Path);
+                    if (free >= 0 && free < MinFreeBytes)
+                    {
+                        _diskLowFired = true;
+                        DiskLow?.Invoke(free);
+                    }
+                }
+            }
+        }
+        catch (Exception error)
+        {
+            _faulted = true;
+            Trace.Log("frame spool write: " + error);
+            if (!_diskLowFired)
+            {
+                _diskLowFired = true;
+                try { DiskLow?.Invoke(-1); } catch { }
+            }
+        }
+        finally { try { _queue.CompleteAdding(); } catch (ObjectDisposedException) { } }
     }
 
     /// <summary>卷剩余字节；查询失败返回 -1（视为不拦）。</summary>
@@ -141,18 +260,29 @@ public sealed class FrameSpool : IDisposable
         }
         catch { }
     }
+
+    /// <summary>写线程的一帧任务：池化缓冲、有效字节数与帧元数据。</summary>
+    /// <param name="Buffer">从 ArrayPool 租到的像素拷贝，写线程负责归还。</param>
+    /// <param name="Length">像素字节数（W*H*4）。</param>
+    /// <param name="W">帧宽，物理像素。</param>
+    /// <param name="H">帧高，物理像素。</param>
+    /// <param name="TimeMs">相对捕获开始的毫秒时间戳。</param>
+    private readonly record struct Job(byte[] Buffer, int Length, int W, int H, double TimeMs);
+
+    /// <summary>剩余 <1GB 停录。</summary>
+    public const long MinFreeBytes = 1L << 30;
 }
 
 /// <summary>惰性帧列表：Count/索引器按需从 spool 文件回读单帧（读句柄常驻 + 锁，
-/// 后台导出与 UI 拖动可并发）。Slice 共享文件并使用独立读取句柄，只复制索引段。</summary>
+/// 后台导出与 UI 拖动可并发）。每帧按头里的压缩标志解压，像素仍是新分配的只读副本。</summary>
 public sealed class FrameSpoolList : IReadOnlyList<CapturedFrame>, IDisposable
 {
     /// <summary>一帧在 spool 文件里的定位与元数据：写帧时同步登记，回读时按它 Seek。</summary>
-    /// <param name="Offset">帧 BGRA 数据在文件中的字节偏移（已跳过 20 字节头）。</param>
+    /// <param name="Offset">帧 BGRA 数据在文件中的字节偏移（已跳过 28 字节帧头）。</param>
     /// <param name="TimeMs">相对捕获开始的毫秒时间戳。</param>
     /// <param name="W">帧宽，物理像素。</param>
     /// <param name="H">帧高，物理像素。</param>
-    /// <param name="Len">BGRA 字节数，恒等于 W*H*4。</param>
+    /// <param name="Len">解压后的 BGRA 字节数，恒等于 W*H*4。</param>
     /// <returns>按给定值构造的不可变记录；登记进索引后取值固定。</returns>
     public readonly record struct Entry(long Offset, double TimeMs, int W, int H, int Len);
 
@@ -168,7 +298,8 @@ public sealed class FrameSpoolList : IReadOnlyList<CapturedFrame>, IDisposable
     /// <summary>由持久化会话接管文件删除责任，当前列表只关闭句柄。</summary>
     internal void RetainFile() { lock (_gate) _ownsFile = false; }
 
-    /// <summary>打开 spool 文件的只读视图；<paramref name="ownsFile"/> 决定谁负责删文件。</summary>
+    /// <summary>打开 spool 文件的只读视图；<paramref name="ownsFile"/> 决定谁负责删文件。
+    /// 先校验文件魔数：旧代布局或别的文件一律拒绝，绝不把偏移读成像素。</summary>
     /// <param name="path">spool 文件路径，必须已存在（定格后才打开）。</param>
     /// <param name="idx">按到达顺序排列的帧索引；切片传的是原索引的一个连续片段。</param>
     /// <param name="ownsFile">true = <see cref="Dispose"/> 时删除该文件。切片必须传 false，
@@ -177,6 +308,13 @@ public sealed class FrameSpoolList : IReadOnlyList<CapturedFrame>, IDisposable
     {
         Path = path; _idx = idx; _ownsFile = ownsFile;
         _fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 1 << 20);
+        try
+        {
+            Span<byte> magic = stackalloc byte[4];
+            _fs.ReadExactly(magic);
+            if (!magic.SequenceEqual(FrameSpool.Magic)) throw new InvalidDataException("not a frame spool file");
+        }
+        catch { _fs.Dispose(); throw; }
     }
 
     /// <summary>spool 文件路径；切片与母列表指向同一个文件。</summary>
@@ -189,25 +327,67 @@ public sealed class FrameSpoolList : IReadOnlyList<CapturedFrame>, IDisposable
     /// <param name="i">帧序号，0 到 <see cref="Count"/>-1；越界直接抛 <c>IndexOutOfRangeException</c>，不做钳制。</param>
     /// <returns>索引项（readonly struct 副本），含该帧在文件里的字节偏移。</returns>
     public Entry Meta(int i) => _idx[i];
-    /// <summary>按需回读第 i 帧：Seek 到该帧偏移后整块读出 BGRA，不缓存、不预读。</summary>
+
+    /// <summary>按需回读第 i 帧：Seek 到该帧头，按压缩标志解压或直读 BGRA，不缓存、不预读。
+    /// 磁盘读在锁内、解压在锁外：多个消费线程可以并行解压不同帧（导出预取靠它）。
     /// <param name="i">帧序号，0 到 <see cref="Count"/>-1。</param>
-    /// <value>每次取都新分配一份像素数组；读在锁内，后台导出与 UI 拖动可并发取不同帧。</value>
+    /// <value>每次取都新分配一份像素数组；后台导出与 UI 拖动可并发取不同帧。</value>
     public CapturedFrame this[int i]
     {
         get
         {
-            var e = _idx[i];
-            var buf = new byte[e.Len];
-            lock (_gate)
-            {
-                _fs.Seek(e.Offset, SeekOrigin.Begin);
-                _fs.ReadExactly(buf);
-            }
-            return new CapturedFrame { W = e.W, H = e.H, TimeMs = e.TimeMs, Bgra = buf };
+            var entry = _idx[i];
+            var pixels = GC.AllocateUninitializedArray<byte>(entry.Len);
+            byte[]? packed;
+            int stored;
+            lock (_gate) packed = ReadRaw(entry, pixels, out stored);
+            if (packed != null) DecompressFrame(packed, stored, pixels);
+            return new CapturedFrame { W = entry.W, H = entry.H, TimeMs = entry.TimeMs, Bgra = pixels };
         }
     }
 
-    /// <summary>顺序逐帧回读（每帧一次 Seek+Read），全程不物化整段视频。</summary>
+    /// <summary>读一帧的落盘数据：先读 28 字节头校验尺寸；压缩帧只取出压缩字节，解压交给锁外做。</summary>
+    /// <param name="entry">索引项。</param>
+    /// <param name="destination">未压缩帧的目标缓冲，长度至少为解压后字节数。</param>
+    /// <param name="storedLength">输出压缩字节数（未压缩帧等于原始字节数）。</param>
+    /// <returns>压缩帧返回租来的压缩字节（调用方解压后归还池）；未压缩帧已直接读进目标缓冲并返回 null。</returns>
+    private byte[]? ReadRaw(Entry entry, byte[] destination, out int storedLength)
+    {
+        long headerPos = entry.Offset - FrameSpool.HeaderBytes;
+        if (headerPos < 4) throw new InvalidDataException("frame header out of range");
+        _fs.Seek(headerPos, SeekOrigin.Begin);
+        Span<byte> header = stackalloc byte[FrameSpool.HeaderBytes];
+        _fs.ReadExactly(header);
+        int rawLength = BinaryPrimitives.ReadInt32LittleEndian(header[16..20]);
+        int stored = BinaryPrimitives.ReadInt32LittleEndian(header[20..24]);
+        int flags = BinaryPrimitives.ReadInt32LittleEndian(header[24..28]);
+        if (flags is not (0 or 1)) throw new InvalidDataException("unknown frame compression flag");
+        if (rawLength != entry.Len || stored <= 0 || stored > rawLength + (1 << 20))
+            throw new InvalidDataException("frame header mismatch");
+        storedLength = stored;
+        if (flags == 0)
+        {
+            if (stored != rawLength) throw new InvalidDataException("raw frame length mismatch");
+            _fs.ReadExactly(destination, 0, rawLength);
+            return null;
+        }
+        var packed = GC.AllocateUninitializedArray<byte>(stored);
+        _fs.ReadExactly(packed, 0, stored);
+        return packed;
+    }
+
+    /// <summary>把压缩帧解到目标缓冲，并在任何路径归还压缩字节的池租约。</summary>
+    /// <param name="packed">压缩字节。</param>
+    /// <param name="stored">压缩字节数。</param>
+    /// <param name="destination">解压目标，长度须等于原始字节数。</param>
+    private static void DecompressFrame(byte[] packed, int stored, byte[] destination)
+    {
+        if (!BrotliDecoder.TryDecompress(packed.AsSpan(0, stored), destination, out int written)
+            || written != destination.Length)
+            throw new InvalidDataException("frame decompression failed");
+    }
+
+    /// <summary>顺序逐帧回读（每帧一次 Seek+解压），全程不物化整段视频。</summary>
     /// <returns>惰性迭代器：每次 MoveNext 才读一帧；列表中途被 Dispose，后续读取会抛异常。</returns>
     public IEnumerator<CapturedFrame> GetEnumerator()
     {

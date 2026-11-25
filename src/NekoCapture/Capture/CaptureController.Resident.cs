@@ -1,4 +1,4 @@
-﻿using System.IO;
+using System.IO;
 using System.Text.Json;
 using NekoCapture.Capture;
 using NekoCapture.Core;
@@ -44,14 +44,25 @@ public sealed partial class CaptureController
                 _lastStill.Restore(() => LoadStill(still.Path), still.Region, still.Device, still.WindowCapture);
             if (session.Video is { } video && File.Exists(video.Path))
             {
-                long size = new FileInfo(video.Path).Length;
-                if (video.Index.Any(entry => entry.W <= 0 || entry.H <= 0 || (long)entry.W * entry.H * 4 != entry.Len
-                    || entry.Offset < 20 || entry.Offset > size - entry.Len)) throw new InvalidDataException("Invalid resident video index");
-                _lastSequence = new CapturedSequence
+                // 旧代帧仓（无逐帧压缩头）偏移对不上：丢掉这条录制，别把错误偏移读成像素。
+                if (video.Format != FrameSpool.FormatVersion) Trace.Log("resident session: drop legacy video spool");
+                else
                 {
-                    Frames = new FrameSpoolList(video.Path, video.Index, ownsFile: false), Region = video.Region,
-                    MonitorBounds = video.MonitorBounds, MonitorDevice = video.Device, Fps = video.Fps, DroppedFrames = video.Dropped
-                };
+                    try
+                    {
+                        long size = new FileInfo(video.Path).Length;
+                        // 帧数据是压缩存储的，文件长度不再等于各帧偏移加原始长度；只校验偏移落在文件内。
+                        if (video.Index.Any(entry => entry.W <= 0 || entry.H <= 0 || (long)entry.W * entry.H * 4 != entry.Len
+                            || entry.Offset < 4 + FrameSpool.HeaderBytes || entry.Offset >= size))
+                            throw new InvalidDataException("Invalid resident video index");
+                        _lastSequence = new CapturedSequence
+                        {
+                            Frames = new FrameSpoolList(video.Path, video.Index, ownsFile: false), Region = video.Region,
+                            MonitorBounds = video.MonitorBounds, MonitorDevice = video.Device, Fps = video.Fps, DroppedFrames = video.Dropped
+                        };
+                    }
+                    catch (Exception error) { Trace.Log("resident video restore: " + error); }
+                }
             }
             if (session.Scroll is { } scroll && File.Exists(scroll.Path)) _scrollResume = (scroll.Path, scroll.Region, scroll.Device);
         }
@@ -94,7 +105,8 @@ public sealed partial class CaptureController
                         foreach (var item in video.Frames) spool.Add(item);
                         retained = spool.OpenReader();
                     }
-                    session.Video = new VideoSession { Path = retained.Path, Index = retained.ExportIndex(), Region = video.Region,
+                    session.Video = new VideoSession { Path = retained.Path, Format = FrameSpool.FormatVersion,
+                        Index = retained.ExportIndex(), Region = video.Region,
                         MonitorBounds = video.MonitorBounds, Device = video.MonitorDevice, Fps = video.Fps, Dropped = video.DroppedFrames };
                 }
                 if (scroll is { } value) session.Scroll = new StillSession { Path = value.Png, Region = value.Region, Device = value.Device };
@@ -178,6 +190,8 @@ public sealed partial class CaptureController
         public VideoSession() { }
         /// <summary>磁盘帧文件。</summary>
         public string Path { get; set; } = "";
+        /// <summary>帧仓布局版本；旧代文件读不了时据此整条丢弃。</summary>
+        public int Format { get; set; }
         /// <summary>帧元数据。</summary>
         public FrameSpoolList.Entry[] Index { get; set; } = [];
         /// <summary>捕获范围。</summary>
