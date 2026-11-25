@@ -73,7 +73,7 @@ internal static class ResidentBridge
 
     private static string[] StartupRequest(string[] arguments)
     {
-        string[] flags = ["--settings", "--help", "--edit-last", "--scroll", "--delay", "--pin-clip", "--pause-toggle",
+        string[] flags = ["--settings", "--help", "--edit-last", "--edit-last-video", "--scroll", "--delay", "--pin-clip", "--pause-toggle",
             "--ocr", "--welcome", "--picker", "--tray-menu", "--editor", "--pin"];
         int index = Array.FindIndex(arguments, argument => flags.Contains(argument));
         if (Environment.GetEnvironmentVariable("NC_TEST_NO_FG") == "1")
@@ -186,6 +186,7 @@ internal static class ResidentBridge
             case "--settings": SettingsWindow.ShowOrFocus(Page(arguments)); break;
             case "--help": HelpWindow.ShowOrFocus(); break;
             case "--edit-last": host.Controller.EditLastStill(); break;
+            case "--edit-last-video": _ = host.Controller.EditLastVideoAsync(); break;
             case "--scroll": host.Controller.BeginScrollCapture(); break;
             case "--delay": host.Controller.BeginDelayedCapture(); break;
             case "--pin-clip": _ = host.Controller.PinFromClipboardAsync(); break;

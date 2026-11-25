@@ -20,6 +20,7 @@ public partial class App : Application
     const string MsgOpenSettings = "NekoCapture_OpenSettings";
     const string MsgOpenHelp = "NekoCapture_OpenHelp";
     const string MsgEditLast = "NekoCapture_EditLast";
+    const string MsgEditLastVideo = "NekoCapture_EditLastVideo";
     const string MsgScroll = "NekoCapture_Scroll";
     const string MsgDelay = "NekoCapture_Delay";
     const string MsgPinClip = "NekoCapture_PinClip";
@@ -153,6 +154,14 @@ public partial class App : Application
         if (e.Args.Any(a => string.Equals(a, "--edit-last", StringComparison.OrdinalIgnoreCase)))
             _ = Dispatcher.BeginInvoke(() => Services.AppHost.Current.Controller.EditLastStill(),
                 System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+        // 调试/e2e：恢复常驻会话里的录制并直接打开编辑器（与托盘「编辑上次录制」同一入口，也便于脚本调用）。
+        // 非常驻界面进程自己先恢复一次会话，省得为了验证导出而拉起原生宿主。
+        if (e.Args.Any(a => string.Equals(a, "--edit-last-video", StringComparison.OrdinalIgnoreCase)))
+            _ = Dispatcher.BeginInvoke(() =>
+            {
+                if (!Services.ResidentBridge.IsWorker) Services.AppHost.Current.Controller.RestoreResidentSession();
+                _ = Services.AppHost.Current.Controller.EditLastVideoAsync();
+            }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
         // 滚动截图入口（托盘「滚动截图」同一入口，也便于脚本/e2e 调用）
         if (e.Args.Any(a => string.Equals(a, "--scroll", StringComparison.OrdinalIgnoreCase)))
             _ = Dispatcher.BeginInvoke(() => Services.AppHost.Current.Controller.BeginScrollCapture(),
@@ -384,6 +393,7 @@ public partial class App : Application
     static readonly (string Flag, string Msg)[] Forwarded =
     {
         ("--settings", MsgOpenSettings), ("--help", MsgOpenHelp), ("--edit-last", MsgEditLast),
+        ("--edit-last-video", MsgEditLastVideo),
         ("--scroll", MsgScroll), ("--delay", MsgDelay), ("--pin-clip", MsgPinClip),
         ("--pause-toggle", MsgPauseToggle), ("--ocr", MsgOcr), ("--synthetic", MsgSynthetic),
         ("--editorkey", MsgEditorKey), ("--welcome", MsgWelcome),
@@ -407,6 +417,7 @@ public partial class App : Application
         (MsgOpenSettings, (_, _) => OnUi(() => Overlays.SettingsWindow.ShowOrFocus(PageArg(Environment.GetCommandLineArgs())))),
                 (MsgOpenHelp,     (_, _) => OnUi(() => Overlays.HelpWindow.ShowOrFocus())),
                 (MsgEditLast,     (_, _) => OnUi(() => Services.AppHost.Current.Controller.EditLastStill())),
+                (MsgEditLastVideo, (_, _) => OnUi(() => { _ = Services.AppHost.Current.Controller.EditLastVideoAsync(); })),
                 (MsgScroll,       (_, _) => OnUi(() => Services.AppHost.Current.Controller.BeginScrollCapture())),
                 (MsgDelay,        (_, _) => OnUi(() => Services.AppHost.Current.Controller.BeginDelayedCapture())),
                 (MsgPinClip,      (_, _) => OnUi(async () => await Services.AppHost.Current.Controller.PinFromClipboardAsync())),
