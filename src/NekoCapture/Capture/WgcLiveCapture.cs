@@ -59,7 +59,7 @@ public sealed class WgcLiveCapture : IDisposable
     private int _targetFps = 30;
     private bool _includeCursor = true;
     private bool _keepAll;
-    private long _lastKeptMs = -1;
+    private double _dueMs;
     private readonly object _frameGate = new();
     private long _frameLost;
     private long _delivered;   // 诊断：TryGetNextFrame 成功数（= WGC 投递率，与拷贝无关）
@@ -97,7 +97,7 @@ public sealed class WgcLiveCapture : IDisposable
         _targetFps = Math.Clamp(fps, AppSettings.FpsMin, AppSettings.FpsMax);
         _includeCursor = includeCursor;
         _intervalMs = FpsThrottle.IntervalMs(_targetFps);
-        _lastKeptMs = -1;
+        _dueMs = 0;
 
         Exception? initErr = null;
         using var done = new ManualResetEventSlim();
@@ -132,7 +132,7 @@ public sealed class WgcLiveCapture : IDisposable
         _targetFps = Math.Clamp(fps, AppSettings.FpsMin, AppSettings.FpsMax);
         _includeCursor = includeCursor;
         _intervalMs = FpsThrottle.IntervalMs(_targetFps);
-        _lastKeptMs = -1;
+        _dueMs = 0;
         _canvasW = _canvasH = 0; // 首帧定画布
         _shadowMargin = includeShadow ? WindowCapture.ShadowMargin(hwnd) : 0;
         _refreshDevice = monitor.DeviceName;
@@ -228,9 +228,8 @@ public sealed class WgcLiveCapture : IDisposable
             Interlocked.Increment(ref _delivered);
 
             long now = _clock.ElapsedMilliseconds;
-            if (!FpsThrottle.ShouldKeep(now, _lastKeptMs, _intervalMs, _keepAll))
+            if (!FpsThrottle.ShouldKeep(now, _intervalMs, _keepAll, ref _dueMs))
                 return; // 未到采样时刻：丢弃（frame 随 using 释放）
-            _lastKeptMs = now;
             Interlocked.Increment(ref _keptThrottle);
 
             SizeInt32? resized = null;
