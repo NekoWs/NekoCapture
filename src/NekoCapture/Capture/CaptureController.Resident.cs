@@ -132,8 +132,8 @@ public sealed partial class CaptureController
         });
     }
 
-    /// <summary>读常驻会话；文件不存在或内容坏掉时返回 null，让调用方区分「没有会话」和「读失败」。</summary>
-    /// <returns>解析出的会话，读取或反序列化失败为 null。</returns>
+    /// <summary>读常驻会话：文件不存在时返回空会话；读取或反序列化失败返回 null，让调用方区分「没有会话」和「读失败」。</summary>
+    /// <returns>解析出的会话；没有会话时为空会话，读取或反序列化失败为 null。</returns>
     private static ResidentSession? TryReadSession()
     {
         try
