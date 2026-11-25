@@ -209,6 +209,15 @@ public partial class App : Application
         if (e.Args.Any(a => string.Equals(a, "--picker", StringComparison.OrdinalIgnoreCase)))
             _ = Dispatcher.BeginInvoke(() => Services.AppHost.Current.Controller.BeginScopeSelection(),
                 System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+        // 调试/e2e：真实起录指定时长，停录后把产物编码到给定文件（验证捕获→帧仓→导出整条链路）。
+        // NekoCapture.exe --record-test <秒> <输出路径>
+        int rti = Array.FindIndex(e.Args, a => string.Equals(a, "--record-test", StringComparison.OrdinalIgnoreCase));
+        if (rti >= 0 && rti + 2 < e.Args.Length && double.TryParse(e.Args[rti + 1], out double recordSeconds))
+        {
+            string recordPath = e.Args[rti + 2];
+            _ = Dispatcher.BeginInvoke(() => Services.AppHost.Current.Controller.RecordDebugAsync(recordSeconds, recordPath),
+                System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+        }
         // 调试/e2e：以一张 PNG 当静图产物直接开编辑器，供 UICap 审查编辑器版面（不走真实捕获链路）。
         // NekoCapture.exe --editor <png 路径>
         int edi = Array.FindIndex(e.Args, a => string.Equals(a, "--editor", StringComparison.OrdinalIgnoreCase));

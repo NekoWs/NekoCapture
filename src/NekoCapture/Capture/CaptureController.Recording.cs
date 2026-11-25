@@ -1,4 +1,4 @@
-﻿using NekoCapture.Capture;
+using NekoCapture.Capture;
 using NekoCapture.Core;
 using NekoCapture.Overlays;
 
@@ -146,6 +146,37 @@ public sealed partial class CaptureController
             if (!_disposed) { State = Phase.Idle; RetireCaptureOutline(); }
             completion?.TrySetResult(success);
         }
+    }
+
+    /// <summary>调试/e2e：按当前范围直接起录，等指定时长后停录并把产物编码到指定文件。
+    /// 不弹选区、不开编辑器，用来验证「真实捕获 → 磁盘帧仓 → 导出」整条链路。</summary>
+    /// <param name="seconds">录制时长（秒），钳制在 0.5–30。</param>
+    /// <param name="outPath">输出文件路径；扩展名 <c>.webm</c> 走 WebM，其余走 MP4。</param>
+    public async void RecordDebugAsync(double seconds, string outPath)
+    {
+        seconds = Math.Clamp(seconds, 0.5, 30);
+        if (!await StartRecordingAsync()) { Trace.Log("record-test: start failed"); return; }
+        await Task.Delay(TimeSpan.FromSeconds(seconds));
+        if (!await StopRecordingAsync()) { Trace.Log("record-test: stop failed"); return; }
+        if (_lastSequence is not { Frames.Count: > 0 } sequence) { Trace.Log("record-test: no product"); return; }
+        var format = outPath.EndsWith(".webm", StringComparison.OrdinalIgnoreCase) ? Encoding.VideoFormat.WebM : Encoding.VideoFormat.Mp4;
+        try
+        {
+            await BackgroundWork.Run(() =>
+            {
+                var ffmpeg = Encoding.FfmpegLocator.Find(format) ?? throw new InvalidOperationException("ffmpeg not found");
+                var matte = Core.HexColor.Parse(_settings.Current.VideoMatteColor);
+                var clock = System.Diagnostics.Stopwatch.StartNew();
+                int fed = 0;
+                var counter = new Progress<int>(value => fed = value);
+                Encoding.VideoEncoder.Encode(sequence.Frames, ffmpeg, outPath, format,
+                    Encoding.VideoEncoder.FpsFromFrames(sequence.Frames), counter, default, matte);
+                clock.Stop();
+                Trace.Log($"record-test: type={sequence.Frames.GetType().Name} frames={sequence.Frames.Count} fed={fed} encode={clock.ElapsedMilliseconds}ms bytes={new System.IO.FileInfo(outPath).Length} path={outPath}");
+                return true;
+            });
+        }
+        catch (Exception error) { Trace.Log("record-test encode: " + error); }
     }
 
     private async void ReleaseRecording()
